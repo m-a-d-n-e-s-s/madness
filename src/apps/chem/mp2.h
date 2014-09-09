@@ -1,0 +1,661 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+
+  $Id$
+*/
+/*!
+  \file mp2.h
+  \brief Solves molecular MP2 equations
+  \defgroup Solves molecular MP2 equations
+  \ingroup examples
+
+  The source is
+  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/mp2.h>here</a>.
+
+
+*/
+
+
+#ifndef MP2_H_
+#define MP2_H_
+
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/mra/mra.h>
+#include <madness/mra/lbdeux.h>
+#include <chem/SCF.h>
+#include <examples/nonlinsol.h>
+#include <chem/projector.h>
+#include <chem/correlationfactor.h>
+#include <chem/nemo.h>
+
+#include <iostream>
+
+
+using namespace madness;
+
+namespace madness {
+
+
+    struct LBCost {
+        double leaf_value;
+        double parent_value;
+        LBCost(double leaf_value=1.0, double parent_value=1.0)
+            : leaf_value(leaf_value)
+            , parent_value(parent_value)
+        {}
+
+        double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
+	    return node.coeff().rank();
+//            if (node.is_leaf()) {
+//                return leaf_value;
+//            } else {
+//                return parent_value;
+//            }
+        }
+    };
+
+
+    class HartreeFock {
+        World& world;
+        std::shared_ptr<SCF> calc;
+        mutable double coords_sum;     // sum of square of coords at last solved geometry
+
+        // save the Coulomb potential
+        mutable real_function_3d coulomb;
+
+        /// reconstructed orbitals: R * phi, where R is the nuclear correlation factor
+        std::vector<real_function_3d> orbitals_;
+
+        /// R^2 * phi, where R is the nuclear correlation factor, corresponds
+        /// to the bra space of the transformed operators
+        std::vector<real_function_3d> R2orbitals_;
+
+    public:
+
+        Nemo nemo_calc;
+
+        HartreeFock(World& world, std::shared_ptr<SCF> calc1) :
+        	world(world), calc(calc1), coords_sum(-1.0), nemo_calc(world,calc1) {
+        }
+
+        bool provides_gradient() const {return true;}
+
+        double value() {
+            return value(calc->molecule.get_all_coords());
+        }
+
+        double value(const Tensor<double>& x) {
+
+        	// fast return if the reference is already solved at this geometry
+            double xsq = x.sumsq();
+            if (xsq == coords_sum) return calc->current_energy;
+
+            calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(),3));
+            coords_sum = xsq;
+
+            // some extra steps if we have a nuclear correlation factor
+            if (1) {
+//        	if (nemo_calc.nuclear_correlation->type()==NuclearCorrelationFactor::GaussSlater) {
+        		// converge the nemo equations
+        		nemo_calc.value(x);
+
+        	} else {
+				// Make the nuclear potential, initial orbitals, etc.
+				calc->make_nuclear_potential(world);
+				calc->potentialmanager->vnuclear().print_size("vnuc");
+				calc->project_ao_basis(world);
+
+				// read converged wave function from disk if there is one
+				if (calc->param.no_compute) {
+					calc->load_mos(world);
+					return calc->current_energy;
+				}
+
+				if (calc->param.restart) {
+					calc->load_mos(world);
+				} else {
+					calc->initial_guess(world);
+					calc->param.restart = true;
+				}
+
+				// If the basis for the inital guess was not sto-3g
+				// switch to sto-3g since this is needed for analysis
+				// of the MOs and orbital localization
+				if (calc->param.aobasis != "sto-3g") {
+					calc->param.aobasis = "sto-3g";
+					calc->project_ao_basis(world);
+				}
+
+
+				calc->solve(world);
+				calc->save_mos(world);
+
+				// successively tighten threshold
+				if (calc->param.econv<1.1e-6) {
+					calc->set_protocol<3>(world,1e-6);
+					calc->make_nuclear_potential(world);
+					calc->project_ao_basis(world);
+					calc->project(world);
+					calc->solve(world);
+					calc->save_mos(world);
+				}
+
+				calc->save_mos(world);
+			}
+
+            // compute the full, reconstructed orbitals from nemo
+            orbitals_=mul(world,nemo_calc.R,nemo_calc.get_calc()->amo);
+            real_function_3d R2=nemo_calc.nuclear_correlation->square();
+            R2orbitals_=mul(world,R2,nemo_calc.get_calc()->amo);
+
+            return calc->current_energy;
+        }
+
+        Tensor<double> gradient(const Tensor<double>& x) {
+
+            value(x); // Ensures DFT equations are solved at this geometry
+            return calc->derivatives(world);
+        }
+
+        double coord_chksum() const {return coords_sum;}
+
+        const SCF& get_calc() const {return *calc;}
+        SCF& get_calc() {return *calc;}
+
+        /// return full orbital i, multiplied with the nuclear correlation factor
+
+        /// note that nemo() and orbital() are the same if no nuclear
+        /// correlation factor is used
+        real_function_3d orbital(const int i) const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            return orbitals_[i];
+        }
+
+        /// return full orbitals, multiplied with the nuclear correlation factor
+
+        /// note that nemo() and orbital() are the same if no nuclear
+        /// correlation factor is used
+        std::vector<real_function_3d> orbitals() const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            return orbitals_;
+        }
+
+        /// return orbitals, multiplied with the square nuclear correlation factor
+
+        /// note that nemo() and orbital() are the same if no nuclear
+        /// correlation factor is used
+        std::vector<real_function_3d> R2orbitals() const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            return R2orbitals_;
+        }
+
+        /// return orbital i, multiplied with the square nuclear correlation factor
+
+        /// note that nemo() and orbital() are the same if no nuclear
+        /// correlation factor is used
+        real_function_3d R2orbital(const int i) const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            return R2orbitals_[i];
+        }
+
+        /// return nemo i, which is the regularized orbital
+
+        /// note that nemo() and orbital() are the same if no nuclear
+        /// correlation factor is used
+        real_function_3d nemo(const int i) const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            return calc->amo[i];
+        }
+
+        /// return nemo, which are the regularized orbitals
+
+        /// note that nemo() and orbital() are the same if no nuclear
+        /// correlation factor is used
+        std::vector<real_function_3d> nemos() const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            return calc->amo;
+        }
+
+        /// return orbital energy i
+        double orbital_energy(const int i) const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            return calc->aeps[i];
+        }
+
+        /// return the Coulomb potential
+        real_function_3d get_coulomb_potential() const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            if (coulomb.is_initialized()) return copy(coulomb);
+            functionT rho = calc->make_density(world, calc->aocc, orbitals()).scale(2.0);
+            coulomb=calc->make_coulomb_potential(rho);
+            return copy(coulomb);
+        }
+
+        /// return the nuclear potential
+        real_function_3d get_nuclear_potential() const {
+            return calc->potentialmanager->vnuclear();
+        }
+
+        /// return the number of occupied orbitals
+        int nocc() const {
+            MADNESS_ASSERT(calc->param.spin_restricted);
+            return calc->param.nalpha;
+        }
+    };
+
+
+    /// enhanced POD for the pair functions
+    class ElectronPair : public archive::ParallelSerializableObject {
+
+    public:
+    	/// default ctor; initialize energies with a large number
+    	ElectronPair()
+    		: i(-1), j(-1), e_singlet(uninitialized()), e_triplet(uninitialized()),
+    			ij_gQf_ij(uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(false) {
+    	}
+
+    	/// ctor; initialize energies with a large number
+    	ElectronPair(const int i, const int j)
+    		: i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()),
+    		  ij_gQf_ij(uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(false) {
+    	}
+
+    	/// print the pair's energy
+    	void print_energy() const {
+            if (function.world().rank()==0) {
+            	printf("final correlation energy %2d %2d %12.8f %12.8f\n",
+            			i,j,e_singlet,e_triplet);
+            }
+    	}
+
+    	static double uninitialized() {return 1.e10;}
+
+        int i, j;                       ///< orbitals i and j
+        real_function_6d function;      ///< pair function for a specific pair w/o correlation factor part
+        real_function_6d r12phi;      	///< orbital product multiplied with the correlation factor
+        real_function_6d constant_term;	///< the first order contribution to the MP1 wave function
+
+        real_function_6d Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
+        real_function_6d KffKphi0;      ///< the function [K,f12] |phi^0>
+        std::vector<real_function_3d> phi_k_UK_phi0;	///< < k(1) | U-K | phi^0(1,2)>
+        std::vector<real_function_3d> phi_l_UK_phi0;	///< < l(2) | U-K | phi^0(1,2)>
+
+        double e_singlet;				///< the energy of the singlet pair ij
+        double e_triplet;				///< the energy of the triplet pair ij
+
+        double ij_gQf_ij;         	  	///< <ij | g12 Q12 f12 | ij>
+        double ji_gQf_ij;          		///< <ji | g12 Q12 f12 | ij>
+
+        int iteration;					///< current iteration for restart
+        bool converged;					///< is the pair function converged
+
+        /// serialize this ElectronPair
+
+        /// store the function only if it has been initialized
+        /// load the function only if there is one
+        /// don't serialize recomputable intermediates r12phi, Uphi, KffKphi
+        template <typename Archive> void serialize (Archive& ar) {
+        	bool fexist=function.is_initialized();
+        	bool cexist=constant_term.is_initialized();
+			ar & ij_gQf_ij & ji_gQf_ij & e_singlet & e_triplet & converged
+				& iteration & fexist & cexist;
+			if (fexist) ar & function;
+			if (cexist) ar & constant_term;
+        }
+
+        bool load_pair(World& world) {
+        	std::string name="pair_"+stringify(i)+stringify(j);
+        	bool exists=archive::ParallelInputArchive::exists(world,name.c_str());
+            if (exists) {
+            	if (world.rank()==0) printf("loading matrix elements %s",name.c_str());
+                archive::ParallelInputArchive ar(world, name.c_str(), 1);
+                ar & *this;
+            	if (world.rank()==0) printf(" %s\n",(converged)?" converged":" not converged");
+            } else {
+		    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
+            }
+            return exists;
+        }
+
+        void store_pair(World& world) {
+        	std::string name="pair_"+stringify(i)+stringify(j);
+        	if (world.rank()==0) printf("storing matrix elements %s\n",name.c_str());
+            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+        	ar & *this;
+        }
+    };
+
+
+    /// a class for computing the first order wave function and MP2 pair energies
+    class MP2 : public OptimizationTargetInterface {
+
+    	/// POD for MP2 keywords
+        struct Parameters {
+        	double thresh_;			///< the accuracy threshold
+        	double dconv_;			///< threshold for the MP1 residual
+        	int i; 					///< electron 1, used only if a specific pair is requested
+        	int j; 					///< electron 2, used only if a specific pair is requested
+
+        	/// number of frozen orbitals; note the difference to the "pair" keyword where you
+        	/// request a specific orbital. Here you freeze lowest orbitals, i.e. if you find
+        	///  freeze 1
+        	/// in the input file the 0th orbital is kept frozen, and orbital 1 is the first to
+        	/// be correlated.
+        	int freeze;
+
+        	/// the restart flag initiates the loading of the pair functions
+
+        	/// if this flag is set the program expect for each pair a file named
+        	///  pair_ij.00000
+        	/// where ij is to be replaced by the values of i and j.
+        	/// These files contain the restart information for each pair.
+        	bool restart;
+
+        	/// maximum number of subspace vectors in KAIN
+        	int maxsub;
+
+        	/// ctor reading out the input file
+        	Parameters(const std::string& input) : thresh_(-1.0), dconv_(-1.0),
+        			i(-1), j(-1), freeze(0), restart(false), maxsub(2) {
+
+        		// get the parameters from the input file
+                std::ifstream f(input.c_str());
+                position_stream(f, "mp2");
+                std::string s;
+
+                while (f >> s) {
+                    if (s == "end") break;
+                    else if (s == "econv") f >> thresh_;
+                    else if (s == "dconv") f >> dconv_;
+                    else if (s == "pair") f >> i >> j;
+                    else if (s == "maxsub") f >> maxsub;
+                    else if (s == "freeze") f >> freeze;
+                    else if (s == "restart") restart=true;
+                    else continue;
+                }
+                // set default for dconv if not explicitly given
+                if (dconv_<0.0) dconv_=sqrt(thresh_)*0.1;
+        	}
+
+            /// check the user input
+        	void check_input(const std::shared_ptr<HartreeFock> hf) const {
+                if (freeze>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
+                if (i>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
+                if (j>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
+                if (thresh_<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
+        	}
+        };
+
+
+        World& world;                           ///< the world
+        Parameters param;						///< SCF parameters for MP2
+        std::shared_ptr<HartreeFock> hf;        ///< our reference
+        CorrelationFactor corrfac;              ///< correlation factor: Slater
+        std::shared_ptr<NuclearCorrelationFactor> nuclear_corrfac;
+
+        std::map<std::pair<int,int>,ElectronPair> pairs;       ///< pair functions and energies
+        double correlation_energy;				///< the correlation energy
+        double coords_sum;						///< check sum for the geometry
+
+        StrongOrthogonalityProjector<double,3> Q12;
+
+    private:
+        struct Intermediates {
+            std::string function;      ///< pair function for a specific pair w/o correlation factor part
+            std::string r12phi;        ///< orbital product multiplied with the correlation factor
+            std::string Kfphi0;        ///< the function K f12 |phi^0>
+            std::string Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
+            std::string KffKphi0;      ///< the function [K,f12] |phi^0>
+            std::string OUKphi0;		///< < k(1) | U-K | phi^0(1,2) >
+
+            Intermediates() : r12phi(), Kfphi0(), Uphi0(), KffKphi0() {};
+
+            Intermediates(World& world, const std::string& filename) : function(), r12phi(),
+                    Kfphi0(), Uphi0(), KffKphi0() {
+                std::ifstream f(filename.c_str());
+                position_stream(f, "mp2");
+                std::string s;
+
+                while (f >> s) {
+                    if (s == "end") break;
+                    else if (s == "function") f >> function;
+                    else if (s == "r12phi") f >> r12phi;
+                    else if (s == "Kfphi0") f >> Kfphi0;
+                    else if (s == "Uphi0") f >> Uphi0;
+                    else if (s == "KffKphi0") f >> KffKphi0;
+                    else {continue;
+                    }
+                    if (world.rank()==0) print("found intermediate in control file: ",s);
+                }
+            }
+
+            template <typename Archive> void serialize (Archive& ar) {
+                ar & function & r12phi & Kfphi0 & Uphi0 & KffKphi0;
+            }
+
+        };
+
+
+        Intermediates intermediates;
+        std::shared_ptr<real_convolution_3d> poisson;
+
+    public:
+
+        /// ctor
+        MP2(World& world, const std::string& input);
+
+        /// return a reference to the electron pair for electrons i and j
+
+        /// @param[in]	i	index for electron 1
+        /// @param[in]	j	index for electron 2
+        /// @return		reference to the electron pair ij
+        ElectronPair& pair(const int i, const int j);
+
+        /// return a checksum for the geometry
+        double coord_chksum() const {return coords_sum;}
+
+        /// return the molecular correlation energy energy (without the HF energy)
+        double value();
+
+        /// return the molecular correlation energy as a function of the coordinates
+        double value(const Tensor<double>& x);
+
+        /// print the SCF parameters
+        void print_info(World& world) const;
+
+        /// return the underlying HF reference
+        HartreeFock& get_hf() {return *hf;}
+
+        /// return the accuracy
+        double thresh() const {return param.thresh_;}
+
+        /// return the 0th order energy of pair ij (= sum of orbital energies)
+        double zeroth_order_energy(const int i, const int j) const {
+            return hf->orbital_energy(i)+hf->orbital_energy(j);
+        }
+
+        /// solve the residual equation for electron pair (i,j)
+        ElectronPair solve_residual_equations(const int i, const int j);
+
+        real_function_6d make_Rpsi(const ElectronPair& pair) const;
+
+		/// compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
+
+        /// for pre-optimization of the mp1 wave function
+    	/// no restart option here for now
+        /// param[inout]	pair	the electron pair
+        /// param[in]		green	the Green's function
+        void increment(ElectronPair& pair, real_convolution_6d& green);
+
+        /// swap particles 1 and 2
+
+        /// param[in]	f	a function of 2 particles f(1,2)
+        /// return	the input function with particles swapped g(1,2) = f(2,1)
+        real_function_6d swap_particles(const real_function_6d& f) const;
+
+        double asymmetry(const real_function_6d& f, const std::string s) const;
+
+        void test(const std::string filename);
+
+        /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
+
+        /// scales quartically. I think I can get this down to cubically by
+        /// setting Q12 = (1 - O1)(1 - O2) = 1- O1(1 - 0.5 O2) - O2 (1 - 0.5 O1)
+        /// as for the formulas cf the article mra_molecule
+        /// @return 	the energy <ij | g Q f | kl>
+        double compute_gQf(const int i, const int j, ElectronPair& pair) const;
+
+    private:
+
+        /// save a function
+        template<typename T, size_t NDIM>
+        void save_function(const Function<T,NDIM>& f, const std::string name) const;
+
+        /// load a function
+        template<typename T, size_t NDIM>
+        void load_function(Function<T,NDIM>& f, const std::string name) const;
+
+        /// return the function Uphi0; load from disk if available
+        real_function_6d make_Uphi0(ElectronPair& pair) const;
+
+        /// return the function [K,f] phi0; load from disk if available
+        real_function_6d make_KffKphi0(const ElectronPair& pair) const;
+
+        /// compute some matrix elements that don't change during the SCF
+        ElectronPair make_pair(const int i, const int j) const;
+
+        /// compute the first iteration of the residual equations and all intermediates
+        ElectronPair guess_mp1_3(const int i, const int j) const;
+
+                /// compute the singlet and triplet energy for a given electron pair
+
+        /// @return	the energy of 1 degenerate triplet and 1 singlet pair
+        double compute_energy(ElectronPair& pair) const;
+
+        /// apply the exchange operator on an orbital
+
+        /// @param[in]	phi the orbital
+        /// @param[in]	hc	hermitian conjugate -> swap bra and ket space
+        /// @return 	Kphi
+        real_function_3d K(const real_function_3d& phi, const bool hc=false) const;
+
+        /// apply the exchange operator on a pair function
+
+        /// @param[in]	phi the pair function
+        /// @param[in]	is_symmetric is the function symmetric wrt particle exchange
+        /// @return 	(K1 + K2) |phi >
+        real_function_6d K(const real_function_6d& phi, const bool is_symmetric=false) const;
+
+        /// apply the Coulomb operator a on orbital
+
+        /// @param[in]	phi the orbital
+        /// @return 	Jphi
+        real_function_3d J(const real_function_3d& phi) const;
+
+        /// apply the exchange operator on f
+
+        /// if the exchange operator is similarity transformed (R-1 K R) the
+        /// orbital spaces differ for the orbitals underneath the integral sign
+        /// R-1 K R = \phi-ket(1) * \int \phi-bra(1') * f(1',2)
+        /// @param[in]  f   the pair function
+        /// @param[in]  orbital_bra the orbital underneath the integral sign (typically R2orbitals)
+        /// @param[in]  orbital_ket the orbital to be pre-multiplied with (typically orbitals)
+        /// @return     the pair function, on which the exchange operator has been applied
+        real_function_6d apply_exchange(const real_function_6d& f,
+        		const real_function_3d& orbital_ket,
+        		const real_function_3d& orbital_bra, const int particle) const;
+
+        /// make the quantity chi_k
+
+        /// chi is the Poisson kernel applied on an orbital product of the
+        /// input function and the vector of orbitals
+        /// \f[ \chi_{k{*} i}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \f]
+        /// \f[ \chi_{ki{*}}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \f] if hc
+        /// @param[in]  phi		orbital phi_i
+        /// @param[in]	op		the operator in SeparatedConvolution form
+        /// @param[in]	hc		compute hermitian conjugate -> pass the correct phi!
+        /// @return a vector of length nocc
+        std::vector<real_function_3d> make_chi(const real_function_3d& phi,
+        		const real_convolution_3d& op,
+        		const bool hc=false) const;
+
+        /// make the quantity xi_k
+
+        /// xi is chi multiplied with an orbital j
+        /// \f[ \xi_{k{*}i,j}(1) = \chi_{ki}(1) j(1) \f]
+        /// \f[ \xi_{ki{*},j{*}}(1) = \chi_{k{*}i}(1) j(1) \f]  if hc
+        /// @param[in]  phi_i   orbital i
+        /// @param[in]  phi_j   orbital j
+        /// @param[in]	op		the operator in SeparatedConvolution form
+        /// @param[in]	hc		compute hermitian conjugate  -> pass the correct phi!
+        /// @return a vector of length k=0,..,nocc
+        std::vector<real_function_3d> make_xi(const real_function_3d& phi_i,
+        		const real_function_3d& phi_j, const real_convolution_3d& op,
+        		const bool hc=false) const;
+
+        /// compute the terms O1 (U - [K,f]) |phi0> and O2 UK |phi0>
+        void OUKphi0(ElectronPair& pair) const;
+
+         /// apply the operator K on the reference and multiply with f; fK |phi^0>
+
+        /// @param[in]  i   index of orbital i
+        /// @param[in]  j   index of orbital j
+        /// @return     the function f12 (K(1)+K(2))|phi^0>
+        real_function_6d make_fKphi0(const int i, const int j) const;
+
+        /// return the function (J(1)-K(1)) |phi0> as on-demand function
+
+        /// @param[in]	hc		compute hermitian conjugate -> swap bra and ket space
+        real_function_6d JK1phi0_on_demand(const int i, const int j,
+        		const bool hc=false) const;
+
+        /// return the function (J(2)-K(2)) |phi0> as on-demand function
+        real_function_6d JK2phi0_on_demand(const int i, const int j,
+        		const bool hc=false) const;
+
+        /// return the function |phi0> as on-demand function
+        real_function_6d phi0_on_demand(const int i, const int j) const;
+
+        /// return the function |F1F2> as on-demand function
+        real_function_6d nemo0_on_demand(const int i, const int j) const;
+
+
+        /// multiply the given function with the 0th order Hamiltonian, exluding the 0th order energy
+
+        /// @param[in]  f   the function we apply H^0 on
+        /// @return     the function g=H^0 f, which is NOT orthogonalized against f
+        real_function_6d multiply_with_0th_order_Hamiltonian(const real_function_6d& f,
+        		const int i, const int j) const;
+
+    };
+};
+
+#endif /* MP2_H_ */
+
