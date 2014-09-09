@@ -69,6 +69,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(5);
     FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_truncate_on_project(true);
     FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
 
     real_function_3d alpha1 = real_factory_3d(world).f(alpha_func);

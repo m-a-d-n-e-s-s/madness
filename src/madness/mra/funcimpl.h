@@ -4711,55 +4711,77 @@ namespace madness {
         } 
 
         /// Call inner_ext_node recursively until convergence.
-        /// @param[in] key Key of the function node to compute the inner product on. (the domain of integration)
-        /// @param[in] c Tensor of coefficients for the function at the function node given by key
+        /// @param[in] key Key of the function node on which to compute inner product (the domain of integration)
+        /// @param[in] c coeffs for the function at the node given by key
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
-        /// @param[in] old_inner T type value of the inner product on the parent function node
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @param[in] old_inner the inner product on the parent function node
         /// @return Returns the inner product over the domain of a single function, checks for convergence.
-        /// TODO: Add option to turn off recursion
-        T inner_ext_node_recursive(keyT key, tensorT c, T (*f)(const coordT&), T old_inner=0.0) const {
+        T inner_ext_recursive(keyT key, tensorT c, T (*f)(const coordT&), const bool leaf_refine, T old_inner=T(0)) const {
             int i = 0;
             tensorT c_child, inner_child;
             T new_inner, result = 0.0;
 
             c_child = tensorT(cdata.v2k); // tensor of child coeffs
-            inner_child = Tensor<double>(pow(2, NDIM));   // tensor of child inner products
+            inner_child = Tensor<double>(pow(2, NDIM)); // child inner products
 
-            // If old_inner is default value, assume this is the first call and compute inner product on this node.
-            if (old_inner == 0.0) {
+            // If old_inner is default value, assume this is the first call 
+            // and compute inner product on this node.
+            if (old_inner == T(0)) {
                 old_inner = inner_ext_node(key, c, f);
             }
 
-            // We need the scaling coefficients of the numerical function at each of the children nodes.
-            // We can't use project because there is no guarantee that the numerical function will have
-            // a functor.  Instead, since we know we are at or below the leaf nodes, the wavelet 
-            // coefficients are zero (to within the truncate tolerance). Thus, we can use unfilter() to
-            // get the scaling coefficients at the next level.
-            tensorT d = tensorT(cdata.v2k);
-            d = T(0);
-            d(cdata.s0) = copy(c);
-            c_child = unfilter(d);
+            if (coeffs.find(key).get()->second.has_children()) {
+                // Since the key has children and we know the func is redundant,
+                // Iterate over all children of this compute node, computing 
+                // the inner product on each child node. new_inner will store 
+                // the sum of these, yielding a more accurate inner product.
+                for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                    const keyT& child = it.key();
+                    tensorT cc = coeffs.find(child).get()->second.coeff().full_tensor_copy();
+                    inner_child(i) = inner_ext_node(child, cc, f);
+                }
+                new_inner = inner_child.sum();
+            } else if (leaf_refine) {
+                // We need the scaling coefficients of the numerical function 
+                // at each of the children nodes. We can't use project because 
+                // there is no guarantee that the numerical function will have
+                // a functor.  Instead, since we know we are at or below the 
+                // leaf nodes, the wavelet coefficients are zero (to within the
+                // truncate tolerance). Thus, we can use unfilter() to
+                // get the scaling coefficients at the next level.
+                tensorT d = tensorT(cdata.v2k);
+                d = T(0);
+                d(cdata.s0) = copy(c);
+                c_child = unfilter(d);
 
-            // Iterate over all children of this compute node, computing the inner product on each child node.
-            // new_inner will store the sum of these, yielding a more accurate inner product.
-            for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
-                const keyT& child = it.key();
-            	// convert tensorT to coeffT
-                tensorT cc = tensorT(c_child(child_patch(child)));
-                inner_child(i) = inner_ext_node(child, cc, f);
+                // Iterate over all children of this compute node, computing 
+                // the inner product on each child node. new_inner will store 
+                // the sum of these, yielding a more accurate inner product.
+                for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                    const keyT& child = it.key();
+                    tensorT cc = tensorT(c_child(child_patch(child)));
+                    inner_child(i) = inner_ext_node(child, cc, f);
+                }
+                new_inner = inner_child.sum();
+            } else {
+                // If we get to here, we are at the leaf nodes and the user has
+                // specified that they do not want refinement past leaf nodes.
+                new_inner = old_inner;
             }
-            new_inner = inner_child.sum();
             
-            // Check for convergence. If converged...yay, we're done. If not, call inner_ext_node_recursive on 
-            // each child node and accumulate the inner product in result.
-            if (std::abs(new_inner - old_inner) <= truncate_tol(thresh, key)) { 
+            // Check for convergence. If converged...yay, we're done. If not, 
+            // call inner_ext_node_recursive on each child node and accumulate 
+            // the inner product in result.
+            // if (std::abs(new_inner - old_inner) <= truncate_tol(thresh, key)) { 
+            if (std::abs(new_inner - old_inner) <= thresh) { 
                 result = new_inner;
             } else {
                 i = 0;
                 for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
                     const keyT& child = it.key();
                     tensorT cc = tensorT(c_child(child_patch(child)));
-                    result += inner_ext_node_recursive(child, cc, f, inner_child(i));
+                    result += inner_ext_recursive(child, cc, f, leaf_refine, inner_child(i));
                 }
             }
 
@@ -4767,55 +4789,77 @@ namespace madness {
         }
 
         /// Call inner_ext_node recursively until convergence.
-        /// @param[in] key Key of the function node to compute the inner product on. (the domain of integration)
-        /// @param[in] c Tensor of coefficients for the function at the function node given by key
+        /// @param[in] key Key of the function node on which to compute inner product (the domain of integration)
+        /// @param[in] c coeffs for the function at the node given by key
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
-        /// @param[in] old_inner T type value of the inner product on the parent function node
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @param[in] old_inner the inner product on the parent function node
         /// @return Returns the inner product over the domain of a single function, checks for convergence.
-        /// TODO: Add option to turn off recursion
-        T inner_ext_node_recursive(keyT key, tensorT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, T old_inner=0.0) const {
+        T inner_ext_recursive(keyT key, tensorT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine, T old_inner=T(0)) const {
             int i = 0;
             tensorT c_child, inner_child;
             T new_inner, result = 0.0;
 
             c_child = tensorT(cdata.v2k); // tensor of child coeffs
-            inner_child = Tensor<double>(pow(2, NDIM));   // tensor of child inner products
+            inner_child = Tensor<double>(pow(2, NDIM)); // child inner products
 
-            // If old_inner is default value, assume this is the first call and compute inner product on this node.
-            if (old_inner == 0.0) {
+            // If old_inner is default value, assume this is the first call 
+            // and compute inner product on this node.
+            if (old_inner == T(0)) {
                 old_inner = inner_ext_node(key, c, f);
             }
 
-            // We need the scaling coefficients of the numerical function at each of the children nodes.
-            // We can't use project because there is no guarantee that the numerical function will have
-            // a functor.  Instead, since we know we are at or below the leaf nodes, the wavelet 
-            // coefficients are zero (to within the truncate tolerance). Thus, we can use unfilter() to
-            // get the scaling coefficients at the next level.
-            tensorT d = tensorT(cdata.v2k);
-            d = T(0);
-            d(cdata.s0) = copy(c);
-            c_child = unfilter(d);
+            if (coeffs.find(key).get()->second.has_children()) {
+                // Since the key has children and we know the func is redundant,
+                // Iterate over all children of this compute node, computing 
+                // the inner product on each child node. new_inner will store 
+                // the sum of these, yielding a more accurate inner product.
+                for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                    const keyT& child = it.key();
+                    tensorT cc = coeffs.find(child).get()->second.coeff().full_tensor_copy();
+                    inner_child(i) = inner_ext_node(child, cc, f);
+                }
+                new_inner = inner_child.sum();
+            } else if (leaf_refine) {
+                // We need the scaling coefficients of the numerical function 
+                // at each of the children nodes. We can't use project because 
+                // there is no guarantee that the numerical function will have
+                // a functor.  Instead, since we know we are at or below the 
+                // leaf nodes, the wavelet coefficients are zero (to within the
+                // truncate tolerance). Thus, we can use unfilter() to
+                // get the scaling coefficients at the next level.
+                tensorT d = tensorT(cdata.v2k);
+                d = T(0);
+                d(cdata.s0) = copy(c);
+                c_child = unfilter(d);
 
-            // Iterate over all children of this compute node, computing the inner product on each child node.
-            // new_inner will store the sum of these, yielding a more accurate inner product.
-            for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
-                const keyT& child = it.key();
-            	// convert tensorT to coeffT
-                tensorT cc = tensorT(c_child(child_patch(child)));
-                inner_child(i) = inner_ext_node(child, cc, f);
+                // Iterate over all children of this compute node, computing 
+                // the inner product on each child node. new_inner will store 
+                // the sum of these, yielding a more accurate inner product.
+                for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                    const keyT& child = it.key();
+                    tensorT cc = tensorT(c_child(child_patch(child)));
+                    inner_child(i) = inner_ext_node(child, cc, f);
+                }
+                new_inner = inner_child.sum();
+            } else {
+                // If we get to here, we are at the leaf nodes and the user has
+                // specified that they do not want refinement past leaf nodes.
+                new_inner = old_inner;
             }
-            new_inner = inner_child.sum();
             
-            // Check for convergence. If converged...yay, we're done. If not, call inner_ext_node_recursive on 
-            // each child node and accumulate the inner product in result.
-            if (std::abs(new_inner - old_inner) <= truncate_tol(thresh, key)) { 
+            // Check for convergence. If converged...yay, we're done. If not, 
+            // call inner_ext_node_recursive on each child node and accumulate 
+            // the inner product in result.
+            // if (std::abs(new_inner - old_inner) <= truncate_tol(thresh, key)) {
+            if (std::abs(new_inner - old_inner) <= thresh) { 
                 result = new_inner;
             } else {
                 i = 0;
                 for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
                     const keyT& child = it.key();
                     tensorT cc = tensorT(c_child(child_patch(child)));
-                    result += inner_ext_node_recursive(child, cc, f, inner_child(i));
+                    result += inner_ext_recursive(child, cc, f, leaf_refine, inner_child(i));
                 }
             }
 
@@ -4825,13 +4869,15 @@ namespace madness {
         struct do_inner_ext_local {
             T (*fptr)(const coordT&);
             const implT * impl;
+            const bool leaf_refine;
 
-            do_inner_ext_local(T (*f)(const coordT&), const implT * impl) : fptr(f), impl(impl) {};
+            do_inner_ext_local(T (*f)(const coordT&), const implT * impl, const bool leaf_refine) : fptr(f), impl(impl), leaf_refine(leaf_refine) {};
 
             T operator()(typename dcT::const_iterator& it) const {
-                if (it->second.is_leaf()) {
+                /* if (it->second.is_leaf()) { */
+                if (it->first.level() == impl->initial_level) {
                     tensorT cc = it->second.coeff().full_tensor_copy();
-                    return impl->inner_ext_node_recursive(it->first, cc, fptr);
+                    return impl->inner_ext_recursive(it->first, cc, fptr, leaf_refine, T(0));
                 } else {
                     return 0.0;
                 }
@@ -4849,13 +4895,15 @@ namespace madness {
         struct do_inner_ext_local_ffi {
             const std::shared_ptr< FunctionFunctorInterface<T, NDIM> > fref;
             const implT * impl;
+            const bool leaf_refine;
 
-            do_inner_ext_local_ffi(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const implT * impl) : fref(f), impl(impl) {};
+            do_inner_ext_local_ffi(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const implT * impl, const bool leaf_refine) : fref(f), impl(impl), leaf_refine(leaf_refine) {};
 
             T operator()(typename dcT::const_iterator& it) const {
-                if (it->second.is_leaf()) {
+                /* if (it->second.is_leaf()) { */
+                if (it->first.level() == impl->initial_level) {
                     tensorT cc = it->second.coeff().full_tensor_copy();
-                    return impl->inner_ext_node_recursive(it->first, cc, fref);
+                    return impl->inner_ext_recursive(it->first, cc, fref, leaf_refine, T(0));
                 } else {
                     return 0.0;
                 }
@@ -4872,22 +4920,24 @@ namespace madness {
 
         /// Return the local part of inner product with external function ... no communication.
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
-        T inner_ext_local(T (*f)(const coordT&)) const {
+        T inner_ext_local(T (*f)(const coordT&), const bool leaf_refine) const {
             typedef Range<typename dcT::const_iterator> rangeT;
 
             return world.taskq.reduce<T, rangeT, do_inner_ext_local>(rangeT(coeffs.begin(),coeffs.end()), 
-                    do_inner_ext_local(f, this));
+                    do_inner_ext_local(f, this, leaf_refine));
         } 
         
         /// Return the local part of inner product with external function ... no communication.
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
-        T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
+        T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine) const {
             typedef Range<typename dcT::const_iterator> rangeT;
 
             return world.taskq.reduce<T, rangeT, do_inner_ext_local_ffi>(rangeT(coeffs.begin(),coeffs.end()), 
-                    do_inner_ext_local_ffi(f, this));
+                    do_inner_ext_local_ffi(f, this, leaf_refine));
         } 
         
         /// Return the gaxpy product with an external function on a specified
@@ -4944,7 +4994,8 @@ namespace madness {
                     this->coeffs.replace(key, nodeT(coeffT(), true));
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
-                        gaxpy_ext_recursive(child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf);
+                        woT::task(left->coeffs.owner(child), &implT:: template gaxpy_ext_recursive<L>, 
+                                  child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf);
                     }
                     return None;
                 }
