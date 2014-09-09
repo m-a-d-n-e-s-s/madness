@@ -483,7 +483,7 @@ namespace madness {
     distmatT SCF::localize_PM(World & world, const vecfuncT & mo,
                               const std::vector<int> & set, const double thresh,
                               const double thetamax, const bool randomize,
-                              const bool doprint) {
+                              const bool doprint) const {
         TAU_START("Pipek-Mezy localize");
         START_TIMER(world);
         distmatT dUT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf,
@@ -935,24 +935,9 @@ namespace madness {
             for (int i = 0; i < param.nalpha; ++i)
                 aocc[i] = 1.0;
             
-            aset = std::vector<int>(param.nmo_alpha, 0);
-            if (world.rank() == 0)
-                std::cout << "alpha set " << 0 << " " << 0 << "-";
-            
-            for (int i = 1; i < param.nmo_alpha; ++i) {
-                aset[i] = aset[i - 1];
-                //vamastd::cout << "aeps -" << i << "- " << aeps[i] << std::endl;
-                if (aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0) {
-                    ++(aset[i]);
-                    if (world.rank() == 0) {
-                        std::cout << i - 1 << std::endl;
-                        std::cout << "alpha set " << aset[i] << " " << i << "-";
-                    }
-                }
-            }
-            if (world.rank() == 0)
-                std::cout << param.nmo_alpha - 1 << std::endl;
-            
+            if (world.rank()==0) print("grouping alpha orbitals into sets");
+            aset=group_orbital_sets(world,aeps,aocc,param.nmo_alpha);
+
             if (param.nbeta && !param.spin_restricted) {
                 bmo = transform(world, ao,
                                 c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
@@ -962,27 +947,43 @@ namespace madness {
                 bocc = tensorT(param.nmo_beta);
                 for (int i = 0; i < param.nbeta; ++i)
                     bocc[i] = 1.0;
-                
-                bset = std::vector<int>(param.nmo_beta, 0);
-                if (world.rank() == 0)
-                    std::cout << " beta set " << 0 << " " << 0 << "-";
-                
-                for (int i = 1; i < param.nmo_beta; ++i) {
-                    bset[i] = bset[i - 1];
-                    if (beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0) {
-                        ++(bset[i]);
-                        if (world.rank() == 0) {
-                            std::cout << i - 1 << std::endl;
-                            std::cout << " beta set " << bset[i] << " " << i << "-";
-                        }
-                    }
-                }
-                if (world.rank() == 0)
-                    std::cout << param.nmo_beta - 1 << std::endl;
+
+                if (world.rank()==0) print("grouping beta orbitals into sets");
+                bset=group_orbital_sets(world,beps,bocc,param.nmo_beta);
+
             }
         }
     }
     
+    /// group orbitals into sets of similar orbital energies for localization
+
+    /// @param[in]	eps	orbital energies
+    /// @param[in]	occ	occupation numbers
+    /// @param[in]	nmo number of MOs for the given spin
+    /// @return		vector of length nmo with the set index for each MO
+    std::vector<int> SCF::group_orbital_sets(World& world, const tensorT& eps,
+    		const tensorT& occ, const int nmo) const {
+
+    	std::vector<int> set = std::vector<int>(nmo, 0);
+        for (int i = 1; i < nmo; ++i) {
+            set[i] = set[i - 1];
+            if (eps[i] - eps[i - 1] > 1.5 || occ[i] != 1.0) ++(set[i]);
+        }
+
+        // pretty print out
+        int lo=0;
+        int iset=0;
+    	for (size_t i=0; i<set.size(); ++i) {
+    		if (lo<set[i]) {
+    			if (world.rank()==0) print("set ",iset++,"  ",lo," - ", i-1);
+    			lo=set[i];
+    		}
+    	}
+		if (world.rank()==0) print("set ",iset,"  ",lo," - ", nmo-1);
+        return set;
+    }
+
+
     void SCF::initial_load_bal(World & world) {
         LoadBalanceDeux < 3 > lb(world);
         real_function_3d vnuc;
