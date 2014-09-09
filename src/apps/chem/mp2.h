@@ -381,9 +381,12 @@ namespace madness {
         	/// maximum number of subspace vectors in KAIN
         	int maxsub;
 
+        	/// maximum number of microiterations
+        	int maxiter;
+
         	/// ctor reading out the input file
         	Parameters(const std::string& input) : thresh_(-1.0), dconv_(-1.0),
-        			i(-1), j(-1), freeze(0), restart(false), maxsub(2) {
+        			i(-1), j(-1), freeze(0), restart(false), maxsub(2), maxiter(20) {
 
         		// get the parameters from the input file
                 std::ifstream f(input.c_str());
@@ -423,6 +426,7 @@ namespace madness {
         std::map<std::pair<int,int>,ElectronPair> pairs;       ///< pair functions and energies
         double correlation_energy;				///< the correlation energy
         double coords_sum;						///< check sum for the geometry
+        bool do_coupling;
 
         StrongOrthogonalityProjector<double,3> Q12;
 
@@ -471,12 +475,27 @@ namespace madness {
         /// ctor
         MP2(World& world, const std::string& input);
 
-        /// return a reference to the electron pair for electrons i and j
+    	/// return a reference to the electron pair for electrons i and j
 
-        /// @param[in]	i	index for electron 1
-        /// @param[in]	j	index for electron 2
-        /// @return		reference to the electron pair ij
-        ElectronPair& pair(const int i, const int j);
+    	/// @param[in]	i	index for electron 1
+    	/// @param[in]	j	index for electron 2
+    	/// @return		reference to the electron pair ij
+    	ElectronPair& pair(const int i, const int j) {
+    		// since we return a reference the keyval must already exist in the map
+    		MADNESS_ASSERT(pairs.find(std::make_pair(i, j)) != pairs.end());
+    		return pairs[std::make_pair(i, j)];
+    	}
+
+    	/// return a reference to the electron pair for electrons i and j
+
+    	/// @param[in]	i	index for electron 1
+    	/// @param[in]	j	index for electron 2
+    	/// @return		reference to the electron pair ij
+    	const ElectronPair& pair(const int i, const int j) const {
+    		// since we return a reference the keyval must already exist in the map
+    		MADNESS_ASSERT(pairs.find(std::make_pair(i, j)) != pairs.end());
+    		return pairs.find(std::make_pair(i, j))->second;
+    	}
 
         /// return a checksum for the geometry
         double coord_chksum() const {return coords_sum;}
@@ -502,7 +521,7 @@ namespace madness {
         }
 
         /// solve the residual equation for electron pair (i,j)
-        ElectronPair solve_residual_equations(const int i, const int j);
+        void solve_residual_equations(ElectronPair& pair) const;
 
         real_function_6d make_Rpsi(const ElectronPair& pair) const;
 
@@ -552,7 +571,7 @@ namespace madness {
         ElectronPair make_pair(const int i, const int j) const;
 
         /// compute the first iteration of the residual equations and all intermediates
-        ElectronPair guess_mp1_3(const int i, const int j) const;
+        void guess_mp1_3(ElectronPair& pair) const;
 
                 /// compute the singlet and triplet energy for a given electron pair
 
@@ -653,6 +672,12 @@ namespace madness {
         /// @return     the function g=H^0 f, which is NOT orthogonalized against f
         real_function_6d multiply_with_0th_order_Hamiltonian(const real_function_6d& f,
         		const int i, const int j) const;
+
+        /// add the coupling terms for local MP2
+
+        /// @param[in]	the current electron pair |u_ij>
+        /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
+        real_function_6d add_local_coupling(const int i, const int j) const;
 
     };
 };

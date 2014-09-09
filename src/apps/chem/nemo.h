@@ -168,6 +168,8 @@ public:
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
+	/// compute the Fock matrix from scratch
+	tensorT compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const;
 
 private:
 
@@ -229,6 +231,8 @@ private:
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;
 
+	/// localize the nemo orbitals
+	vecfuncT localize(const vecfuncT& nemo) const;
 
 	vecfuncT apply_exchange(const vecfuncT& nemo, const vecfuncT& psi) const;
 

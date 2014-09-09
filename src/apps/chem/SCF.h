@@ -706,11 +706,24 @@ public:
     //functionT mol_mask;
     //functionT Uabinit;
     functionT mask;
+
+    /// alpha and beta molecular orbitals
     vecfuncT amo, bmo;
+
+    /// sets of orbitals grouped by their orbital energies (for localization?)
+    /// only orbitals within the same set will be mixed to localize
     std::vector<int> aset, bset;
+
+    /// MRA projection of the minimal basis set
     vecfuncT ao;
+
+
     std::vector<int> at_to_bf, at_nbf;
+
+    /// occupation numbers for alpha and beta orbitals
     tensorT aocc, bocc;
+
+    /// orbital energies for alpha and beta orbitals
     tensorT aeps, beps;
     poperatorT coulop;
     std::vector< std::shared_ptr<real_derivative_3d> > gradop;
@@ -779,9 +792,26 @@ public:
 
     void project_ao_basis(World & world);
 
+    /// group orbitals into sets of similar orbital energies for localization
+
+    /// @param[in]	eps	orbital energies
+    /// @param[in]	occ	occupation numbers
+    /// @param[in]	nmo number of MOs for the given spin
+    /// @return		vector of length nmo with the set index for each MO
+    std::vector<int> group_orbital_sets(World& world, const tensorT& eps,
+    		const tensorT& occ, const int nmo) const;
+
+    /// compute the unitary localization matrix according to Pipek-Mezey
+
+    /// @param[in]	world	the world
+    /// @param[in]	mo		the MOs
+    /// @param[in]	set		only orbitals within the same set will be mixed
+    /// @param[in]	thresh	the localization threshold
+    /// @param[in]	thetamax	??
+    /// @param[in]	randomize	??
     distmatT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set,
     		const double thresh = 1e-9, const double thetamax = 0.5,
-    		const bool randomize = true, const bool doprint = false);
+    		const bool randomize = true, const bool doprint = false) const;
 
 
     void analyze_vectors(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(),
