@@ -48,7 +48,7 @@
 #include <iostream>
 
 #include <chem/SCF.h>
-#include <examples/nemo.h>
+#include <chem/nemo.h>
 #include <chem/correlationfactor.h>
 
 

@@ -53,7 +53,7 @@
 #include "nonlinsol.h"
 #include <chem/projector.h>
 #include <chem/correlationfactor.h>
-#include "nemo.h"
+#include <chem/nemo.h>
 
 #include <iostream>
 
