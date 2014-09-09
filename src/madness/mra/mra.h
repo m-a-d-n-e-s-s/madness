@@ -1173,44 +1173,70 @@ namespace madness {
         }
 
         /// Return the local part of inner product with external function ... no communication.
+        /// If you are going to be doing a bunch of inner_ext calls, set 
+        /// keep_redundant to true and then manually undo_redundant when you 
+        /// are finished.
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @param[in] keep_redundant boolean switch to turn on/off undo_redundant
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
-        T inner_ext_local(T (*f)(const coordT&)) const {
+        T inner_ext_local(T (*f)(const coordT&), const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (is_compressed()) reconstruct();
-            return impl->inner_ext_local(f);
+            if (not impl->is_redundant()) impl->make_redundant(true);
+            T local = impl->inner_ext_local(f, leaf_refine);
+            if (not keep_redundant) impl->undo_redundant(true);
+            return local;
         }
 
         /// Return the inner product with external function ... requires communication.
+        /// If you are going to be doing a bunch of inner_ext calls, set 
+        /// keep_redundant to true and then manually undo_redundant when you 
+        /// are finished.
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @param[in] keep_redundant boolean switch to turn on/off undo_redundant
         /// @return Returns the inner product
-        T inner_ext(T (*f)(const coordT&)) const {
+        T inner_ext(T (*f)(const coordT&), const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (is_compressed()) reconstruct();
-            T local = impl->inner_ext_local(f);
+            if (not impl->is_redundant()) impl->make_redundant(true);
+            T local = impl->inner_ext_local(f, leaf_refine);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
+            if (not keep_redundant) impl->undo_redundant(true);
             return local;
         }
 
         /// Return the local part of inner product with external function ... no communication.
+        /// If you are going to be doing a bunch of inner_ext calls, set 
+        /// keep_redundant to true and then manually undo_redundant when you 
+        /// are finished.
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @param[in] keep_redundant boolean switch to turn on/off undo_redundant
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
-        T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
+        T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (is_compressed()) reconstruct();
-            return impl->inner_ext_local(f);
+            if (not impl->is_redundant()) impl->make_redundant(true);
+            T local = impl->inner_ext_local(f, leaf_refine);
+            if (not keep_redundant) impl->undo_redundant(true);
+            return local;
         }
 
         /// Return the inner product with external function ... requires communication.
+        /// If you are going to be doing a bunch of inner_ext calls, set 
+        /// keep_redundant to true and then manually undo_redundant when you 
+        /// are finished.
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @param[in] keep_redundant boolean switch to turn on/off undo_redundant
         /// @return Returns the inner product
-        T inner_ext(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
+        T inner_ext(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (is_compressed()) reconstruct();
-            T local = impl->inner_ext_local(f);
+            if (not impl->is_redundant()) impl->make_redundant(true);
+            T local = impl->inner_ext_local(f, leaf_refine);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
+            if (not keep_redundant) impl->undo_redundant(true);
             return local;
         }
 
