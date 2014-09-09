@@ -96,7 +96,16 @@ double Nemo::value(const Tensor<double>& x) {
 	}
 
 	double energy = solve();
+
 	calc->current_energy=energy;
+
+	// localize the orbitals
+	if (calc->param.localize) {
+		calc->amo=localize(calc->amo);
+		tensorT fock=compute_fock_matrix(calc->amo,calc->aocc);
+		if (world.rank()==0) print("localized Fock matrix \n",fock);
+	}
+
 	if (calc->param.save) calc->save_mos(world);
 
 	// save the converged orbitals and nemos
@@ -127,6 +136,44 @@ void Nemo::print_nuclear_corrfac() const {
 	}
 }
 
+/// localize the nemo orbitals according to Pipek-Mezey
+vecfuncT Nemo::localize(const vecfuncT& nemo) const {
+	DistributedMatrix<double> dUT;
+	const double tolloc = 1e-3;
+	double trantol = calc->vtol / std::min(30.0, double(nemo.size()));
+
+	std::vector<int> aset=calc->group_orbital_sets(world,calc->aeps,
+			calc->aocc, nemo.size());
+	// localize using the reconstructed orbitals
+	vecfuncT psi = mul(world, R, nemo);
+	dUT = calc->localize_PM(world, psi, aset, tolloc, 0.25, true, true);
+	dUT.data().screen(trantol);
+
+	tensorT UT(calc->amo.size(),calc->amo.size());
+	dUT.copy_to_replicated(UT); // for debugging
+	tensorT U = transpose(UT);
+
+	vecfuncT localnemo = transform(world, nemo, U, true);
+	truncate(world, localnemo);
+	normalize(localnemo);
+	return localnemo;
+}
+
+/// compute the Fock matrix from scratch
+tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const {
+	// apply all potentials (J, K, Vnuc) on the nemos
+	vecfuncT psi, Jnemo, Knemo, Vnemo, JKVpsi, Unemo;
+
+	// compute potentials the Fock matrix: J - K + Vnuc
+	compute_nemo_potentials(nemo, psi, Jnemo, Knemo, Vnemo, Unemo);
+
+	// compute the fock matrix
+	double ekinetic = 0.0;
+	JKVpsi = mul(world, R, add(world, sub(world, Jnemo, Knemo), Vnemo));
+	tensorT fock = calc->make_fock_matrix(world, psi, JKVpsi, occ,
+			ekinetic);
+	return fock;
+}
 
 /// solve the HF equations
 double Nemo::solve() {

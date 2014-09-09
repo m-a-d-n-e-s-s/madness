@@ -42,7 +42,7 @@
 
  */
 
-#include <chem/MP2.h>
+#include <chem/mp2.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include <chem/SCF.h>
