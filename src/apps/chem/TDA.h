@@ -554,9 +554,13 @@ public:
 			only_GS_ = false;
 		}
 
-		/// make the truncate thresh
+		// make the truncate thresh
 		truncate_thresh_ = FunctionDefaults<3>::get_thresh() * safety_;
 		std::cout << "Truncate threshold is set to " << truncate_thresh_ << std::endl;
+
+		// Truncate the current mos
+		truncate(world,mos_,truncate_thresh_);
+		std::cout << "truncate molecular orbitals to " << truncate_thresh_ << std::endl;
 
 		std::cout << "setup of TDA class ended\n" << std::endl;
 	}

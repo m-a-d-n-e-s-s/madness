@@ -153,7 +153,6 @@ int main(int argc, char** argv) {
 	for(size_t i=0;i<calc.amo.size();i++){
 		real_function_3d tmp = copy(calc.amo[i]);
 		tmp.set_thresh(low_thresh);
-		tmp.truncate();
 		mos.push_back(tmp);
 	}
 
