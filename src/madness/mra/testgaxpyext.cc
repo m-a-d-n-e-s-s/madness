@@ -1,6 +1,4 @@
 
-
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 
 using namespace madness;
@@ -71,6 +69,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(5);
     FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_truncate_on_project(true);
     FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
 
     real_function_3d alpha1 = real_factory_3d(world).f(alpha_func);
@@ -107,12 +106,12 @@ int main(int argc, char** argv) {
     real_function_3d alpha2 = real_factory_3d(world).f(alpha_func);
     real_function_3d apb2 = real_factory_3d(world);
     apb2 = alpha2 + beta;
-    END_TIMER("1. alpha + beta");
+    END_TIMER("3. beta + alpha");
 
     START_TIMER;
     real_function_3d apb_ext2 = real_factory_3d(world);
     apb_ext2.gaxpy_ext<double>(beta, alpha_func, 1.0, 1.0, 1e-06, true);
-    END_TIMER("3. alpha_func + beta");
+    END_TIMER("4. beta + alpha_func");
 
     double norm_apb1 = apb1.norm2();
     double norm_apb2 = apb2.norm2();
