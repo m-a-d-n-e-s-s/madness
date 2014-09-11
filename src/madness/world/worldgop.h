@@ -502,7 +502,7 @@ namespace madness {
                     else {
                         // The value is not ready so spawn a task to send the
                         // data when it is ready.
-                        void (WorldGopInterface::*bcast_taskT)(const key_type&,
+                        typedef void (WorldGopInterface::*bcast_taskT)(const key_type&,
                                 const valueT&, const ProcessID root) const;
                         world_.taskq.add(*this, bcast_taskT(& WorldGopInterface::template bcast_task<key_type, valueT>),
                                 tagged_key, value, root, TaskAttributes::hipri());
