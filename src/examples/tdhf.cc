@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
 
 
     // construct the CIS solver, it requires a converged HF reference
-    TDA cis(world,calc,mos,input,true);
+    TDA cis(world,calc,mos,input);
 bool asd =false;
     // print grid information to file to get a better guess from external
     if (asd){//cis.print_grid_TDA()) {
@@ -201,7 +201,7 @@ bool asd =false;
 	// sort after energy
 	std::sort(high_xfunctions.begin(),high_xfunctions.end());
 
-	TDA high_cis(world,calc,high_mos,input,false);
+	TDA high_cis(world,calc,high_mos,input);
 	high_cis.solve_sequential(high_xfunctions);
 
 

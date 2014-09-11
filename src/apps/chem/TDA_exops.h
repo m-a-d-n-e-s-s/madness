@@ -47,12 +47,14 @@ public:
 			xoperators.push_back(fyz);
 			real_function_3d fzz = real_factory_3d(world).f(zz_function);
 			xoperators.push_back(fzz);
-			real_function_3d fxx_yy = real_factory_3d(world).f(xx_yy_function);
-			xoperators.push_back(fxx_yy);
+			real_function_3d fyy = real_factory_3d(world).f(yy_function);
+			xoperators.push_back(fyy);
+			real_function_3d fxx = real_factory_3d(world).f(xx_function);
+			xoperators.push_back(fxx);
 			real_function_3d fxz = real_factory_3d(world).f(xz_function);
 			xoperators.push_back(fxz);
 		}
-		else if(exop == "quadrupole+"){
+		else if(exop == "quadrupole"){
 			real_function_3d fr = real_factory_3d(world).f(r_function);
 			xoperators.push_back(fr);
 			real_function_3d fx = real_factory_3d(world).f(x_function);
@@ -65,10 +67,6 @@ public:
 			xoperators.push_back(fxy);
 			real_function_3d fyz = real_factory_3d(world).f(yz_function);
 			xoperators.push_back(fyz);
-			real_function_3d fzz = real_factory_3d(world).f(zz_function);
-			xoperators.push_back(fzz);
-			real_function_3d fxx_yy = real_factory_3d(world).f(xx_yy_function);
-			xoperators.push_back(fxx_yy);
 			real_function_3d fxz = real_factory_3d(world).f(xz_function);
 			xoperators.push_back(fxz);
 		}

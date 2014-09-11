@@ -389,23 +389,23 @@ public:
 	/// @param[in] mos		the occupied molecular orbitals from the scf calculation
 	/// @param[in] input	name of the input file
 	/// @param[in] lowt		will be used later to ditinguish between low and high threshold computations (not yet implemented)
-	TDA(World &world,const SCF &calc,const vecfuncT &mos,const std::string input,const bool lowt):
+	TDA(World &world,const SCF &calc,const vecfuncT &mos,const std::string input):
 		world(world),
 		dft_(false),
 		calc_(calc),
 		mos_(mos),
-		low_calculation_(lowt),
 		print_grid_(false),
 		guess_("physical"),
-		hard_dconv_(1.e-3),
 		guess_iter_(15),
 		guess_mode_("physical"),
 		guess_exop_("quadrupole"),
+		guess_excitations_(6),
 		excitations_(4),
 		bsh_eps_(1.e-5),
 		iter_max_(100),
 		econv_(1.e-4),
 		dconv_(1.e-3),
+		hard_dconv_(1.e-3),
 		nfreeze_(0),
 		plot_(false),
 		debug_(false),
@@ -454,6 +454,7 @@ public:
 			else if (tag == "guess_omega") ss >> guess_omega_;
 			else if (tag == "guess_mode") ss >> guess_mode_;
 			else if (tag == "guess_exop") ss >> guess_exop_;
+			else if (tag == "guess_excitations") ss >> guess_excitations_;
 			else if (tag == "bsh_eps") ss >> bsh_eps_;
 			else if (tag == "iter_max") ss >> iter_max_;
 			else if (tag == "econv") ss >> econv_;
@@ -499,6 +500,7 @@ public:
 			std::cout<< std::setw(40) << "energy convergence : " << econv_ << std::endl;
 			std::cout<< std::setw(40) << "max residual (dconv) : " << dconv_ << std::endl;
 			std::cout<< std::setw(40) << "number of excitations : " << excitations_ << std::endl;
+			std::cout<< std::setw(40) << "number of guess excitations : " << guess_excitations_ << std::endl;
 			std::cout<< std::setw(40) << "guessed lowest extitation energy : " << guess_omega_ << std::endl;
 			std::cout<< std::setw(40) << "guessed excitation operators : " << guess_exop_ << std::endl;
 			std::cout<< std::setw(40) << "highest possible excitation : " << highest_excitation_default << std::endl;
@@ -612,31 +614,36 @@ private:
 	World & world;
 
 	/// DFT or HF Calculation
+	/// for TDA calculations currently only LDA works
 	bool dft_;
-	std::string xfunctional_;
-	std::string cfunctional_;
 
 	/// The SCF calculation of MolDFT
 	const SCF &calc_;
 
 	/// The molecular orbitals of moldft
-	// extra memeber variable that the thresh can be changed without changing calc_
+	/// extra member variable that the thresh can be changed without changing calc_
 	vecfuncT mos_;
-
-	/// Is it the low thresh caluclation
-	bool low_calculation_;
 
 	/// Print grid option
 	bool print_grid_;
 
 	/// Options for the guess calculation
+
+	/// guess == physical is the only implementation left
+	/// new guess functions can be implemented and called in the intialize function
 	std::string guess_;
+	/// guess iterations are the first iterations where the energy is kept fixed at the guess_omega energy
 	size_t guess_iter_;
 	double guess_omega_;
+
+	/// mode is either mo or all_orbitals (decides on which of the two functions the excitation operators act)
+	/// mo is the default, all_orbitals mode can increase the freedom (if there are convergence problems) of the guess functions
 	std::string guess_mode_;
 
 	/// Excitation operator for the guess functions (bsp "dipole" or "quadrupole" which will be dipole + quadrupole operators)
 	std::string guess_exop_;
+	/// how many excitations should pre_converge (recommended: 1-2 more than demanded in the end)
+	size_t guess_excitations_;
 	std::vector<std::string> custom_exops_;
 
 	/// Number of excitations to be caluclated
@@ -644,13 +651,15 @@ private:
 
 	/// Thresholds and convergence cirteria
 	double bsh_eps_;
+
+	/// maximal iterations per guess_function
 	size_t iter_max_;
+	/// energy convergence level for the guess functions in the solve routine
 	double econv_;
+	/// maximal residual for the guess_functions in the solve routine
 	double dconv_;
 	// Convergence criteria (residual norm) for the high thresh sequential iterations in the end
 	double hard_dconv_;
-	/// Exchange (Slater, hf ...)
-	std::string exchange_;
 
 	/// Frozen Orbitals
 	size_t nfreeze_;
@@ -661,8 +670,9 @@ private:
 	/// More output
 	bool debug_;
 
-	/// use only the fock orthonormalization procedure
+	/// use only the fock orthonormalization procedure (default)
 	bool only_fock_;
+	/// use only Gram-Schmidt orthonormalization (not recommended)
 	bool only_GS_;
 
 	/// The highest possible excitation to calculate (higher values will result in positive eigenvalues for the BSH operator)

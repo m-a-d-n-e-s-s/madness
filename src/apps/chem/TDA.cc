@@ -105,8 +105,17 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 	print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
 	print("-------------------------------------------------------\n\n\n\n");
 
+	size_t max = excitations_;
+
+	// failsafe
+	if(excitations_ > xfunctions.size()){
+		print("\nDemanded ", excitations_, " excitations, but only ",
+				xfunctions.size(), " pre-converged\n");
+		max = xfunctions.size();
+	}
+
 	// The given xfunctions should be sorted by energy in ascending order:
-	for (size_t iroot = 0; iroot < xfunctions.size(); iroot++) {
+	for (size_t iroot = 0; iroot < max; iroot++) {
 		print("\n\n-----xfunction ", iroot, " ------\n\n");
 		// create the kain solver for the current xfunction
 		solverT solver(allocator(world, xfunctions[iroot].x.size()));
@@ -485,7 +494,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			std::cout<<"converged : "<<converged<<std::endl;
 			if (converged == true)
 				break;
-			if (converged_xfunctions_.size() >= excitations_)
+			if (converged_xfunctions_.size() >= guess_excitations_)
 				break;
 
 		} else
@@ -637,7 +646,7 @@ void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions) {
 			}
 		}
 	}
-	project.info(low_calculation_);
+	project.info();
 }
 
 void TDA::orthonormalize_GS(xfunctionsT &xfunctions) {
