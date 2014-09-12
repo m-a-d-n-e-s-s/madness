@@ -61,6 +61,34 @@ namespace madness {
 		typedef GenTensor<T> coeffT;
 		typedef Key<NDIM> keyT;
 
+                /// Does the interface support a vectorized operator()?
+                virtual bool supports_vectorized() const {return false;}
+
+                virtual void operator()(const double* x1, T* fvals, int npts) const {
+                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+                }
+
+                virtual void operator()(const double* x1, const double* x2, T* fvals, int npts) const {
+                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+                }
+
+                virtual void operator()(const double* x1, const double* x2, const double* x3, T* fvals, int npts) const {
+                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+                }
+
+                virtual void operator()(const double* x1, const double* x2, const double* x3, const double* x4, T* fvals, int npts) const {
+                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+                }
+
+                virtual void operator()(const double* x1, const double* x2, const double* x3, const double* x4, const double* x5, T* fvals, int npts) const {
+                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+                }
+
+                virtual void operator()(const double* x1, const double* x2, const double* x3, const double* x4, const double* x5, 
+                    const double* x6, T* fvals, int npts) const {
+                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+                }
+
 		/// You should implement this to return \c f(x)
 		virtual T operator()(const Vector<double, NDIM>& x) const = 0;
 

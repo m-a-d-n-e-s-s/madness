@@ -2082,90 +2082,250 @@ namespace madness {
         
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
-        
-        if (NDIM == 1) {
-            for (int i=0; i<npt; ++i) {
-                c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                fval(i) = f(c);
+       
+        Tensor<double> vqx;
+        bool vectorized = f.supports_vectorized(); 
+        if (vectorized) {
+            T* fvptr = fval.ptr();
+            if (NDIM == 1) {
+                double* x1 = new double[npt];
+                int idx = 0;
+                for (int i=0; i<npt; ++i, ++idx) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    x1[idx] = c[0];
+                }
+                f(x1, fvptr, npt);
+                delete [] x1;
+            }
+            else if (NDIM == 2) {
+                double* x1 = new double[npt*npt];
+                double* x2 = new double[npt*npt];
+                int idx = 0;
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j, ++idx) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        x1[idx] = c[0];
+                        x2[idx] = c[1];
+                    }
+                }
+                f(x1, x2, fvptr, npt*npt);
+                delete [] x1;
+                delete [] x2;
+            }
+            else if (NDIM == 3) {
+                double* x1 = new double[npt*npt*npt];
+                double* x2 = new double[npt*npt*npt];
+                double* x3 = new double[npt*npt*npt];
+                int idx = 0;
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; ++k, ++idx) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            x1[idx] = c[0];
+                            x2[idx] = c[1];
+                            x3[idx] = c[2];
+                        }
+                    }
+                }
+                f(x1, x2, x3, fvptr, npt*npt*npt);
+                delete [] x1;
+                delete [] x2;
+                delete [] x3;
+            }
+            else if (NDIM == 4) {
+                double* x1 = new double[npt*npt*npt*npt];
+                double* x2 = new double[npt*npt*npt*npt];
+                double* x3 = new double[npt*npt*npt*npt];
+                double* x4 = new double[npt*npt*npt*npt];
+                int idx = 0;
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; ++k) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; ++m, ++idx) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                x1[idx] = c[0];
+                                x2[idx] = c[1];
+                                x3[idx] = c[2];
+                                x4[idx] = c[3];
+                            }
+                        }
+                    }
+                }
+                f(x1, x2, x3, x4, fvptr, npt*npt*npt*npt);
+                delete [] x1;
+                delete [] x2;
+                delete [] x3;
+                delete [] x4;
+            }
+            else if (NDIM == 5) {
+                double* x1 = new double[npt*npt*npt*npt*npt];
+                double* x2 = new double[npt*npt*npt*npt*npt];
+                double* x3 = new double[npt*npt*npt*npt*npt];
+                double* x4 = new double[npt*npt*npt*npt*npt];
+                double* x5 = new double[npt*npt*npt*npt*npt];
+                int idx = 0;
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; ++k) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; ++m) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                for (int n=0; n<npt; ++n, ++idx) {
+                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
+                                    x1[idx] = c[0];
+                                    x2[idx] = c[1];
+                                    x3[idx] = c[2];
+                                    x4[idx] = c[3];
+                                    x5[idx] = c[4];
+                                }
+                            }
+                        }
+                    }
+                }
+                f(x1, x2, x3, x4, x5, fvptr, npt*npt*npt*npt*npt);
+                delete [] x1;
+                delete [] x2;
+                delete [] x3;
+                delete [] x4;
+                delete [] x5;
+            }
+            else if (NDIM == 6) {
+                double* x1 = new double[npt*npt*npt*npt*npt*npt];
+                double* x2 = new double[npt*npt*npt*npt*npt*npt];
+                double* x3 = new double[npt*npt*npt*npt*npt*npt];
+                double* x4 = new double[npt*npt*npt*npt*npt*npt];
+                double* x5 = new double[npt*npt*npt*npt*npt*npt];
+                double* x6 = new double[npt*npt*npt*npt*npt*npt];
+                int idx = 0;
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; ++k) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; ++m) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                for (int n=0; n<npt; ++n) {
+                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
+                                    for (int p=0; p<npt; ++p, ++idx) {
+                                        c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // zz
+                                        x1[idx] = c[0];
+                                        x2[idx] = c[1];
+                                        x3[idx] = c[2];
+                                        x4[idx] = c[3];
+                                        x5[idx] = c[4];
+                                        x6[idx] = c[5];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                f(x1, x2, x3, x4, x5, x6, fvptr, npt*npt*npt*npt*npt*npt);
+                delete [] x1;
+                delete [] x2;
+                delete [] x3;
+                delete [] x4;
+                delete [] x5;
+                delete [] x6;
+            }
+            else {
+                MADNESS_EXCEPTION("FunctionImpl: fcube: confused about NDIM?",NDIM);
             }
         }
-        else if (NDIM == 2) {
-            for (int i=0; i<npt; ++i) {
-                c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; ++j) {
-                    c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    fval(i,j) = f(c);
+        else {
+            if (NDIM == 1) {
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    fval(i) = f(c);
                 }
             }
-        }
-        else if (NDIM == 3) {
-            for (int i=0; i<npt; ++i) {
-                c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; ++j) {
-                    c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    for (int k=0; k<npt; ++k) {
-                        c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
-                        fval(i,j,k) = f(c);
+            else if (NDIM == 2) {
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        fval(i,j) = f(c);
                     }
                 }
             }
-        }
-        else if (NDIM == 4) {
-            for (int i=0; i<npt; ++i) {
-                c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; ++j) {
-                    c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    for (int k=0; k<npt; ++k) {
-                        c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
-                        for (int m=0; m<npt; ++m) {
-                            c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
-                            fval(i,j,k,m) = f(c);
+            else if (NDIM == 3) {
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; ++k) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            fval(i,j,k) = f(c);
                         }
                     }
                 }
             }
-        }
-        else if (NDIM == 5) {
-            for (int i=0; i<npt; ++i) {
-                c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; ++j) {
-                    c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    for (int k=0; k<npt; ++k) {
-                        c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
-                        for (int m=0; m<npt; ++m) {
-                            c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
-                            for (int n=0; n<npt; ++n) {
-                                c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
-                                fval(i,j,k,m,n) = f(c);
+            else if (NDIM == 4) {
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; ++k) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; ++m) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                fval(i,j,k,m) = f(c);
                             }
                         }
                     }
                 }
             }
-        }
-        else if (NDIM == 6) {
-            for (int i=0; i<npt; ++i) {
-                c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; ++j) {
-                    c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    for (int k=0; k<npt; ++k) {
-                        c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
-                        for (int m=0; m<npt; ++m) {
-                            c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
-                            for (int n=0; n<npt; ++n) {
-                                c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
-                                for (int p=0; p<npt; ++p) {
-                                    c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // zz
-                                    fval(i,j,k,m,n,p) = f(c);
+            else if (NDIM == 5) {
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; ++k) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; ++m) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                for (int n=0; n<npt; ++n) {
+                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
+                                    fval(i,j,k,m,n) = f(c);
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-        else {
-            MADNESS_EXCEPTION("FunctionImpl: fcube: confused about NDIM?",NDIM);
+            else if (NDIM == 6) {
+                for (int i=0; i<npt; ++i) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; ++j) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; ++k) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; ++m) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                for (int n=0; n<npt; ++n) {
+                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
+                                    for (int p=0; p<npt; ++p) {
+                                        c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // zz
+                                        fval(i,j,k,m,n,p) = f(c);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else {
+                MADNESS_EXCEPTION("FunctionImpl: fcube: confused about NDIM?",NDIM);
+            }
         }
     }
     
