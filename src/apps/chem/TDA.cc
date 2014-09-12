@@ -24,77 +24,46 @@ void TDA::solve(xfunctionsT &xfunctions) {
 		plot_vecfunction(active_mo_, "active_mo_");
 
 	// check for saved xfunctions
-	if (read_) {
-		std::cout << std::setw(40) << "Found read keyword..." << " : checking for saved xfunctions" << std::endl;
-		xfunctionsT read_xfunctions;
-		for (size_t i = 0; i < excitations_; i++) {
-			xfunction tmp(world);
-			vecfuncT x(active_mo_.size());
-			tmp.x = x;
-			tmp.delta.push_back(10.0);
-			tmp.error.push_back(10.0);
-			std::cout << std::setw(40) << "Reading xfunction " << i;
-			if (load_vecfunction(world, tmp.x, stringify(i))){
-			std::cout << " : found" << std::endl;
-			tmp.omega = guess_omega_;
-			converged_xfunctions_.push_back(tmp);
-			}
-			else std::cout << " : not found" << std::endl;
-		}
-		// Iterate one time to check level of convergence
-		print("\n----ITERATE READ XFUNCTIONS------\n\n");
-		normalize(converged_xfunctions_);
-		orthonormalize_fock(converged_xfunctions_,false);
-		normalize(converged_xfunctions_);
-		for(size_t i=0;i<converged_xfunctions_.size();i++){
-			converged_xfunctions_[i].omega = converged_xfunctions_[i].expectation_value.back();
-			iterate_one(converged_xfunctions_[i],false,false);
-			if(converged_xfunctions_[i].error.back() > dconv_){
-				print("Warning: Read xfunctions may not converged");
-			}
-			print_xfunction(converged_xfunctions_[i]);
-		}
-		print("\n----END ITERATE READ XFUNCTIONS-----\n\n");
+	read_xfunctions(xfunctions);
 
+
+	// Create the excitation_function vector and initialize
+	std::cout << "\n\n---Start Initialize Guess Functions---" << "\n\n " << std::endl;
+	TDA_TIMER init(world,"\nfinished to initialize guess excitations ...");
+	// if xfunctions were read in before then xfunctions.empty() will be false
+	if(xfunctions.empty())initialize(xfunctions);
+	if(xfunctions.empty())iterate_guess(xfunctions);
+	std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
+	init.info();
+
+	// make shure everything is fine
+	if(kain_) {
+		kain_solvers.increase_subspace(world,xfunctions);
+		kain_solvers.sanity_check(xfunctions);
 	}
 
+	// Iterate till convergence is reached
+	iterate(xfunctions);
 
-		// Create the excitation_function vector and initialize
-		std::cout << "---Start Initialize Guess Functions---" << "\n\n " << std::endl;
-		TDA_TIMER init(world,"\nfinished to initialize guess excitations ...");
-		if(xfunctions.empty())initialize(xfunctions);
-		iterate_guess(xfunctions);
-		std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
-		init.info();
+	bool converged = check_convergence(xfunctions);
+	if(converged==true) {
+		if(world.rank()==0)std::cout << std::setw(100) << stringify(excitations_)+" excitations CONVERGED!" << std::endl;
+	}
+	if(converged==false) {
+		if(world.rank()==0)std::cout <<std::setw(100) << stringify(excitations_)+"excitations NOT CONVERGED!" << std::endl;
+	}
 
-		// make shure everything is fine
-		if(kain_) {
-			kain_solvers.increase_subspace(world,xfunctions);
-			kain_solvers.sanity_check(xfunctions);
-		}
+	// Save to disk and plot
+	for(size_t i=0;i<converged_xfunctions_.size();i++) {
+		save_vecfunction(world,converged_xfunctions_[i].x,stringify(i));
+		plot_vecfunction(converged_xfunctions_[i].x,"final_guess_excitation_"+stringify(i),true);
+	}
+	// print final result
+	print_status(xfunctions);
+	print_performance(xfunctions,"pre-");
 
-		// Iterate till convergence is reached
-		iterate(xfunctions);
-
-		bool converged = check_convergence(xfunctions);
-		if(converged==true) {
-			if(world.rank()==0)std::cout << std::setw(100) << stringify(excitations_)+" excitations CONVERGED!" << std::endl;
-		}
-		if(converged==false) {
-			if(world.rank()==0)std::cout <<std::setw(100) << stringify(excitations_)+"excitations NOT CONVERGED!" << std::endl;
-		}
-
-		// Save to disk and plot
-		for(size_t i=0;i<converged_xfunctions_.size();i++) {
-			save_vecfunction(world,converged_xfunctions_[i].x,stringify(i));
-			plot_vecfunction(converged_xfunctions_[i].x,"final_guess_excitation_"+stringify(i),true);
-		}
-		// print final result
-		print_status(xfunctions);
-		print_performance(xfunctions,"pre-");
-
-		// Analyze
-		//analyze(xfunctions);
+	// Analyze
+	//analyze(xfunctions);
 
 
 }
@@ -198,7 +167,7 @@ void TDA::print_status(const xfunctionsT & xfunctions) const {
 void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-	<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+			<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
@@ -269,10 +238,6 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 		xfunctions[i].omega = guess_omega_ * factor;
 		//factor += 0.05;
 	}
-
-	for (size_t i = 0; i < xfunctions.size(); i++)
-		plot_vecfunction(xfunctions[i].x,
-				"guess_excitation_after_fock" + stringify(i) + "_");
 
 }
 
@@ -383,6 +348,9 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 	for (size_t current_iteration = 0; current_iteration < max;
 			current_iteration++) {
 
+		// save current process to restart later
+		save_xfunctions(xfunctions);
+
 		// get information about the used memory
 		double xfunction_size = memwatch(xfunctions,debug_);
 		double conv_xfunction_size = memwatch(converged_xfunctions_,debug_);
@@ -397,7 +365,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 		if (guess == false)
 			iter += guess_iter_;
 		std::cout<< std::setw(40)<<"Starting iteration"+stringify(iter)+" at time   "
-		<<" : "<<wall_time() << std::endl;
+				<<" : "<<wall_time() << std::endl;
 		// Check memory management
 		for (size_t i = 0; i < xfunctions.size(); i++) {
 			if (on_the_fly_ and not xfunctions[i].Vx.empty())
@@ -492,10 +460,17 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			project_out_converged_xfunctions(xfunctions);
 			//if(kain_) kain_solvers.reduce_subspace(xfunctions);
 			std::cout<<"converged : "<<converged<<std::endl;
-			if (converged == true)
+
+			// convergence criterium
+			if (converged_xfunctions_.size() >= guess_excitations_){
+				// push all currently iterating xfunctions also to the converged vector
+				// they will be sorted after their excitation energy
+				// this is to avoid holes
+				for(size_t ol=0;ol<xfunctions.size();ol++){
+					if(xfunctions[ol].iterations > guess_iter_) converged_xfunctions_.push_back(xfunctions[ol]);
+				}
 				break;
-			if (converged_xfunctions_.size() >= guess_excitations_)
-				break;
+			}
 
 		} else
 			project_out_converged_xfunctions(xfunctions);
@@ -1021,7 +996,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-			+ get_coulomb_potential();
+					+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
@@ -1188,7 +1163,7 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	results << "\\midrule" << " \\\\ \n";
 	for (size_t i = 0; i < xfunctions.size(); i++) {
 		results << "\\num{" << std::setprecision(10) << xfunctions[i].omega
-		<< "} & " << std::scientific << std::setprecision(1) << xfunctions[i].error.back() << " \\\\" << "\n";
+				<< "} & " << std::scientific << std::setprecision(1) << xfunctions[i].error.back() << " \\\\" << "\n";
 	}
 	results << "\\bottomrule" << " \\\\ \n";
 	results << "\\end{tabular} \n";
@@ -1292,3 +1267,83 @@ void TDA::analyze(const xfunctionsT& roots) const {
 	}
 }
 
+void TDA::save_xfunctions(const xfunctionsT &xfunctions)const{
+	const std::string name_x = "xfunctions_current";
+	const std::string name_xconv = "xfunctions_converged";
+	// save current xfunctions
+	for(size_t i=0;i<xfunctions.size();i++){
+		std::string filename = name_x+stringify(i);
+		archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
+		ar & xfunctions[i].omega;
+		ar & xfunctions[i].expectation_value;
+		ar & xfunctions[i].delta;
+		ar & xfunctions[i].number;
+		ar & xfunctions[i].error;
+		ar & xfunctions[i].converged;
+		ar & xfunctions[i].iterations;
+		for(size_t j=0;j<xfunctions[i].x.size();j++){ar & xfunctions[i].x[j];}
+	}
+	// save converged xfunctions
+	if(not converged_xfunctions_.empty()){
+		for(size_t i=0;i<converged_xfunctions_.size();i++){
+			std::string filename = name_xconv+stringify(i);
+			archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
+			ar & converged_xfunctions_[i].omega;
+			ar & converged_xfunctions_[i].expectation_value;
+			ar & converged_xfunctions_[i].delta;
+			ar & converged_xfunctions_[i].number;
+			ar & converged_xfunctions_[i].error;
+			ar & converged_xfunctions_[i].converged;
+			ar & converged_xfunctions_[i].iterations;
+			for(size_t j=0;j<converged_xfunctions_[i].x.size();j++){ar & converged_xfunctions_[i].x[j];}
+		}
+	}
+}
+
+bool TDA::read_xfunctions(xfunctionsT &xfunctions){
+	size_t noct = active_mo_.size();
+	const std::string name_x = "xfunctions_current";
+	const std::string name_xconv = "xfunctions_converged";
+	// check for converged_xfunctions
+	std::cout << "check for saved converged functions " << std::endl;
+	for(size_t i=0;i<guess_excitations_;i++){
+		std::string filename = name_xconv+stringify(i);
+		std::cout << "converged xfunction " << i;
+		if(archive::ParallelInputArchive::exists(world,filename.c_str())){
+			xfunction dummy(world,active_mo_);
+			archive::ParallelInputArchive ar(world, filename.c_str(), 1);
+			std::cout << "...found"<<std::endl;
+			ar & dummy.omega;
+			ar & dummy.expectation_value;
+			ar & dummy.delta;
+			ar & dummy.number;
+			ar & dummy.error;
+			ar & dummy.converged;
+			ar & dummy.iterations;
+			for(size_t j=0;j<noct;j++){ar & dummy.x[j];}
+			converged_xfunctions_.push_back(dummy);
+		}else std::cout << "...not found" << std::endl;
+	}
+
+	// check for unconverged xfunctions
+	for(size_t i=0;i<guess_excitations_;i++){
+		std::string filename = name_x+stringify(i);
+		std::cout << "xfunction " << i;
+		if(archive::ParallelInputArchive::exists(world,filename.c_str())){
+			xfunction dummy(world,active_mo_);
+			archive::ParallelInputArchive ar(world, filename.c_str(), 1);
+			std::cout << "...found"<<std::endl;
+			ar & dummy.omega;
+			ar & dummy.expectation_value;
+			ar & dummy.delta;
+			ar & dummy.number;
+			ar & dummy.error;
+			ar & dummy.converged;
+			ar & dummy.iterations;
+			for(size_t j=0;j<noct;j++){ar & dummy.x[j];}
+			xfunctions.push_back(dummy);
+		}else std::cout << "...not found" << std::endl;
+	}
+ if(not xfunctions.empty()) return true;
+ else return false;
+}

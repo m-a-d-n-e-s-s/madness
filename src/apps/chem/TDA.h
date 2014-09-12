@@ -185,7 +185,7 @@ struct kain_solver_helper_struct{
 	kain_solver_helper_struct(){}
 private:
 	/// number of occupied orbitals (non frozen)
-	int noct;
+	size_t noct;
 	/// is kain used ?, this bool is needed because the struct has to be initialized if kain is used or not
 	bool is_used;
 	/// a vector of kain solvers (for each xfunction one solver) -> used when all_at_once is false
@@ -927,6 +927,8 @@ private:
 	/// analyze the root: oscillator strength and contributions from occ
 	void analyze(const xfunctionsT& roots) const;
 
+	void save_xfunctions(const xfunctionsT &xfunctions)const;
+	bool read_xfunctions(xfunctionsT &xfunctions);
 };
 
 } /* namespace madness */
