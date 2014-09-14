@@ -286,6 +286,7 @@ struct CalculationParameters {
     bool localize_pm;           ///< If true use PM for localization
     bool restart;               ///< If true restart from orbitals on disk
     bool no_compute;            ///< If true use orbitals on disk, set value to computed
+    bool no_orient;				///< If true the molecule coordinates will not be reoriented
     bool save;                  ///< If true save orbitals to disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     double orbitalshift;		///< scf orbital shift: shift the occ orbitals to lower energies
@@ -326,7 +327,7 @@ struct CalculationParameters {
         ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta
            & nopen & maxiter & nio & spin_restricted;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm
-           & restart & save & no_compute & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
+           & restart & save & no_compute &no_orient & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -356,6 +357,7 @@ struct CalculationParameters {
         , localize_pm(true)
         , restart(false)
     	, no_compute(false)
+    	, no_orient(false)
         , save(true)
         , maxsub(8)
     	, orbitalshift(0.0)

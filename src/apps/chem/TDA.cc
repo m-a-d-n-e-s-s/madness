@@ -32,7 +32,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 	TDA_TIMER init(world,"\nfinished to initialize guess excitations ...");
 	// if xfunctions were read in before then xfunctions.empty() will be false
 	if(xfunctions.empty())initialize(xfunctions);
-	if(xfunctions.empty())iterate_guess(xfunctions);
+	iterate_guess(xfunctions);
 	std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
 	init.info();
 
