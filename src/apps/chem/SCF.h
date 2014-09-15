@@ -521,6 +521,9 @@ struct CalculationParameters {
             else if (s == "no_compute") {
                 no_compute = true;
             }
+            else if (s == "no_orient") {
+            	no_orient = true;
+            }
             else if (s == "maxsub") {
                 f >> maxsub;
                 if (maxsub <= 0) maxsub = 1;

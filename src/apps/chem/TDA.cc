@@ -187,8 +187,9 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 void TDA::guess_physical(xfunctionsT & xfunctions) {
 
 	// when dft is used add diffuse functions to the mos to increase delocalisation
+	// dont do this in the first iterations (for the case that actual bound states are there) -> not empty criterium
 	vecfuncT diffuse_mos;
-	if (dft_) {
+	if (dft_ and not xfunctions.empty()) {
 		for (size_t i = 0; i < active_mo_.size(); i++) {
 			real_function_3d tmp = copy(active_mo_[i]);
 			diffuse_mos.push_back(tmp);
@@ -216,7 +217,10 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 			} else
 				tmp = active_mo_[i] * xoperators[j];
 
-			//if(dft_)tmp += diffuse_mos[i]*xoperators[j];
+			if(dft_ and not diffuse_mos.empty()){
+				std::cout << "\n\n ---- adding diffuse funtions to the guess ----\n\n" << std::endl;
+				tmp += diffuse_mos[i]*xoperators[j];
+			}
 			double norm = tmp.norm2();
 			tmp.scale(1.0 / norm);
 			x.push_back(copy(tmp));
@@ -242,6 +246,13 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 }
 
 void TDA::add_diffuse_functions(vecfuncT &mos) {
+
+	if(mos.empty()){
+		for (size_t i = 0; i < active_mo_.size(); i++) {
+			real_function_3d tmp = copy(active_mo_[i]);
+			mos.push_back(tmp);
+		}
+	}
 
 	// mos must be reconstructed for the eval function
 	reconstruct(world, mos);
@@ -946,12 +957,12 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 	//	TDA_TIMER applyit(world,"apply vxc...");
 	//
 	// Get the perturbed xc potential from the dft class
-	real_function_3d vxc = xclib_interface_.convolution_with_kernel(
-			perturbed_density);
-
-	for (size_t i = 0; i < gamma.size(); i++) {
-		gamma[i] += vxc * active_mo_[i];
-	}
+//	real_function_3d vxc = xclib_interface_.convolution_with_kernel(
+//			perturbed_density);
+//
+//	for (size_t i = 0; i < gamma.size(); i++) {
+//		gamma[i] += vxc * active_mo_[i];
+//	}
 
 	// Alternative way (more expensive, but avoid the unprecise kernel)
 	// for small test molecules this seems to bring no improvement
@@ -960,8 +971,8 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 	// 2.return add(world,gamma,gamma2)
 	// 3. dont forget to project out occupied space also from gamma2 (below here)
 	// THIS DOES NOT WORK FOR GGA
-	//	vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
-	//	for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
+		vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
+		for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
 
 	// project out occupied space
 	for (size_t p = 0; p < active_mo_.size(); ++p)
@@ -969,9 +980,9 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 
 	//applyit.info(debug_);
 	plot_vecfunction(gamma, "gamma", plot_);
-	//return add(world,gamma,gamma2);
-	truncate(world, gamma,truncate_thresh_);
-	return gamma;
+	return add(world,gamma,gamma2);
+	//truncate(world, gamma,truncate_thresh_);
+	//return gamma;
 }
 
 vecfuncT TDA::apply_hartree_potential(const vecfuncT &x) const {

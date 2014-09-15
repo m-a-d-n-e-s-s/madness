@@ -204,6 +204,8 @@ private:
 	static double c3v_E11(const coord_3d &r){return x_function(r)+xx_function(r)-yy_function(r)+xz_function(r)+xzz_function(r)+xyz_function(r)+xxx_function(r)+xyy_function(r);}
 	static double c3v_E12(const coord_3d &r){return y_function(r)+xy_function(r)+yz_function(r)+xxz_function(r)-yyz_function(r)+xxy_function(r)+yyy_function(r);}
 
+	///
+
 };
 }
 
