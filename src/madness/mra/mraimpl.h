@@ -2082,7 +2082,18 @@ namespace madness {
         
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
-       
+  
+        // Do pre-screening of the FunctionFunctorInterface, f, before calculating f(r) at quadrature points
+        coordT c1, c2;
+        for (int i = 0; i < NDIM; i++) {
+          c1[i] = cell(i,0) + h*cell_width[i]*(l[i] + qx((long)0));
+          c2[i] = cell(i,0) + h*cell_width[i]*(l[i] + qx(npt-1));
+        }
+        if (f.screened(c1, c2)) {
+            fval(___) = 0.0;
+            return;
+        }
+
         Tensor<double> vqx;
         bool vectorized = f.supports_vectorized(); 
         if (vectorized) {
@@ -2094,7 +2105,8 @@ namespace madness {
                     c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
                     x1[idx] = c[0];
                 }
-                f(x1, fvptr, npt);
+                Vector<double*,1> xvals = vec(x1);
+                f(xvals, fvptr, npt);
                 delete [] x1;
             }
             else if (NDIM == 2) {
@@ -2109,7 +2121,8 @@ namespace madness {
                         x2[idx] = c[1];
                     }
                 }
-                f(x1, x2, fvptr, npt*npt);
+                Vector<double*,2> xvals = vec(x1, x2);
+                f(xvals, fvptr, npt*npt);
                 delete [] x1;
                 delete [] x2;
             }
@@ -2130,7 +2143,8 @@ namespace madness {
                         }
                     }
                 }
-                f(x1, x2, x3, fvptr, npt*npt*npt);
+                Vector<double*,3> xvals = vec(x1, x2, x3);
+                f(xvals, fvptr, npt*npt*npt);
                 delete [] x1;
                 delete [] x2;
                 delete [] x3;
@@ -2157,7 +2171,8 @@ namespace madness {
                         }
                     }
                 }
-                f(x1, x2, x3, x4, fvptr, npt*npt*npt*npt);
+                Vector<double*,4> xvals = vec(x1, x2, x3, x4);
+                f(xvals, fvptr, npt*npt*npt*npt);
                 delete [] x1;
                 delete [] x2;
                 delete [] x3;
@@ -2190,7 +2205,8 @@ namespace madness {
                         }
                     }
                 }
-                f(x1, x2, x3, x4, x5, fvptr, npt*npt*npt*npt*npt);
+                Vector<double*,5> xvals = vec(x1, x2, x3, x4, x5);
+                f(xvals, fvptr, npt*npt*npt*npt*npt);
                 delete [] x1;
                 delete [] x2;
                 delete [] x3;
@@ -2229,7 +2245,8 @@ namespace madness {
                         }
                     }
                 }
-                f(x1, x2, x3, x4, x5, x6, fvptr, npt*npt*npt*npt*npt*npt);
+                Vector<double*,6> xvals = vec(x1, x2, x3, x4, x5, x6);
+                f(xvals, fvptr, npt*npt*npt*npt*npt*npt);
                 delete [] x1;
                 delete [] x2;
                 delete [] x3;

@@ -61,31 +61,35 @@ namespace madness {
 		typedef GenTensor<T> coeffT;
 		typedef Key<NDIM> keyT;
 
+                /// Can we screen this function based on the bounding box information?
+                virtual bool screened(const Vector<double,NDIM>& c1, const Vector<double,NDIM>& c2) const {
+                  return false;
+                }
+             
                 /// Does the interface support a vectorized operator()?
                 virtual bool supports_vectorized() const {return false;}
 
-                virtual void operator()(const double* x1, T* fvals, int npts) const {
+                virtual void operator()(const Vector<double*,1>& xvals, T* fvals, int npts) const {
                     MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
                 }
 
-                virtual void operator()(const double* x1, const double* x2, T* fvals, int npts) const {
+                virtual void operator()(const Vector<double*,2>& xvals, T* fvals, int npts) const {
                     MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
                 }
 
-                virtual void operator()(const double* x1, const double* x2, const double* x3, T* fvals, int npts) const {
+                virtual void operator()(const Vector<double*,3>& xvals, T* fvals, int npts) const {
                     MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
                 }
 
-                virtual void operator()(const double* x1, const double* x2, const double* x3, const double* x4, T* fvals, int npts) const {
+                virtual void operator()(const Vector<double*,4>& xvals, T* fvals, int npts) const {
                     MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
                 }
 
-                virtual void operator()(const double* x1, const double* x2, const double* x3, const double* x4, const double* x5, T* fvals, int npts) const {
+                virtual void operator()(const Vector<double*,5>& xvals, T* fvals, int npts) const {
                     MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
                 }
 
-                virtual void operator()(const double* x1, const double* x2, const double* x3, const double* x4, const double* x5, 
-                    const double* x6, T* fvals, int npts) const {
+                virtual void operator()(const Vector<double*,6>& xvals, T* fvals, int npts) const {
                     MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
                 }
 
