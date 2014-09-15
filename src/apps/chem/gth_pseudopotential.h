@@ -166,21 +166,63 @@ public:
         rval *= std::exp(-0.5*(rsq/alpha/alpha));
         return rval;
     }
-    
-    virtual void operator()(const double* restrict x1, const double* restrict x2, const double* restrict x3, double* restrict fvals, int npts) const {
+   
+    virtual bool screened(const coord_3d& c1, const coord_3d& c2) const {
+        double ftol = 1e-12;
+
+        double x1 = c1[0]; double y1 = c1[1]; double z1 = c1[2];
+        double x2 = c2[0]; double y2 = c1[1]; double z2 = c1[2];
+
+        // if center is inside box, then return false
+        // otherwise, look for the closests point and check
+        bool inside = (center[0] >= x1) && (center[0] <= x2) &&
+                      (center[1] >= y1) && (center[1] <= y2) &&
+                      (center[2] >= z1) && (center[2] <= z2);
+        if (inside) {
+          return false;
+        }
+        else {
+            //printf("GTH_pseudopotential: (point not inside)\n");
+            //print("  c1: ", c1, "     c2: ", c2);
+            double minr = 1e10;
+            int ii = -1; int jj = -1; int kk = -1;
+            for (int i = 0; i <= 1; i++) {
+                for (int j = 0; j <= 1; j++) {
+                    for (int k = 0; k <= 1; k++) {
+                        double x = (i == 0) ? c1[0] : c2[0];
+                        double y = (j == 0) ? c1[1] : c2[1];
+                        double z = (k == 0) ? c1[2] : c2[2];
+                        coord_3d rr = vec(x, y, z) - center;
+                        double rsq = rr[0]*rr[0]+rr[1]*rr[1]+rr[2]*rr[2];
+             //           print("current minr:  ", minr, "     point: ", vec(x,y,z), "     center: ", center, "     p: ", vec(x,y,z), "     rsq: ", rsq);
+                        if (minr > rsq) {
+                            minr = rsq;
+                            ii = i; jj = j; kk = k;
+                        }
+                    }
+                }
+            }
+            //print("ii: ", ii, "jj: ", jj, "kk: ", kk);
+            //printf("\n");
+            if ((ii < 0) || (jj < 0) || (kk < 0)) MADNESS_EXCEPTION("GTH_Pseudopotential: failed to find suitable minimum point\n", 0);
+            double x = (ii == 0) ? c1[0] : c2[0]; 
+            double y = (jj == 0) ? c1[1] : c2[1]; 
+            double z = (kk == 0) ? c1[2] : c2[2]; 
+            double fval = this->operator()(vec(x, y, z));
+            if (fval < ftol) return true;
+            else return false;
+        }
+    }
+ 
+    virtual void operator()(const Vector<double*,3>& xvals, double* restrict fvals, int npts) const {
         
-        //for (int i = 0; i < npts; i++) {
-        //    fvals[i] = this->operator()(vec(x1[i],x2[i],x3[i]));
-        //}
-
-        //return;
-
         double* x = new double[npts];
         double* y = new double[npts];
         double* z = new double[npts];
         double* rsq = new double[npts];
         double* rr = new double[npts];
 
+        double* x1 = xvals[0]; double* x2 = xvals[1]; double* x3 = xvals[2];
         for (int i = 0; i < npts; i++) {
             x[i] = x1[i]-center[0];
             y[i] = x2[i]-center[1];
