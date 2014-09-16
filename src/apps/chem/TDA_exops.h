@@ -202,10 +202,10 @@ private:
 	/// D2
 
 	/// D3
-	static double d3_A1(const coord_3d &r){return z_function(r)+rr_function(r)+xy_function(r)+zzz_function(r)+xyz_function(r)+yyz_function(r)+xxz_function(r);}
-	static double d3_A2(const coord_3d &r){return x_function(r)+y_function(r)+yz_function(r)+xz_function(r)+xzz_function(r)+yzz_function(r)+xxy_function(r)+xyy_function(r)+xxx_function(r)+yyy_function(r);}
-	static double d3_E1(const coord_3d &r){return x_function(r) + xx_function(r) - yy_function(r) + xz_function(r) + xzz_function(r) + xyz_function(r)+ xxx_function(r)+ xyy_function(r);}
-	static double d3_E2(const coord_3d &r){return y_function(r) + xy_function(r) + yz_function(r) + yzz_function(r) + xxz_function(r) - yyz_function(r) + xyy_function(r) + yyy_function(r);}
+	static double d3_A1(const coord_3d &r){return rr_function(r)+xxx_function(r)-3.0*xyy_function(r);}
+	static double d3_A2(const coord_3d &r){return z_function(r)+zzz_function(r)+3.0*xxy_function(r)-yyy_function(r)+xxz_function(r)+yyz_function(r);}
+	static double d3_E1(const coord_3d &r){return x_function(r)+xx_function(r)-yy_function(r)+xz_function(r)+xzz_function(r)+xyz_function(r)+xxx_function(r)+xyy_function(r);}
+	static double d3_E2(const coord_3d &r){return y_function(r)+xy_function(r)+yz_function(r)+yzz_function(r)+xxz_function(r)-yyz_function(r)+xxy_function(r)+yyy_function(r);}
 
 	/// C3v
 	static double c3v_A1 (const coord_3d &r){return z_function(r)+rr_function(r)+zzz_function(r)+xxx_function(r)-3.0*xyy_function(r)+xxz_function(r)+yyz_function(r) ;}
