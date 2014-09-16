@@ -110,6 +110,15 @@ public:
 			real_function_3d tmp2  = real_factory_3d(world).f(c3v_E11);xoperators.push_back(tmp2);
 			real_function_3d tmp3  = real_factory_3d(world).f(c3v_E12);xoperators.push_back(tmp3);
 		}
+		else if(exop=="benzene"){
+			real_function_3d tmp0  = real_factory_3d(world).f(benzene_0);xoperators.push_back(tmp0);
+			real_function_3d tmp1  = real_factory_3d(world).f(benzene_1);xoperators.push_back(tmp1);
+			real_function_3d tmp2  = real_factory_3d(world).f(benzene_2);xoperators.push_back(tmp2);
+			real_function_3d tmp3  = real_factory_3d(world).f(benzene_3);xoperators.push_back(tmp3);
+			real_function_3d tmp4  = real_factory_3d(world).f(benzene_4);xoperators.push_back(tmp4);
+			real_function_3d tmp5  = real_factory_3d(world).f(benzene_5);xoperators.push_back(tmp5);
+			real_function_3d tmp6  = real_factory_3d(world).f(benzene_6);xoperators.push_back(tmp6);
+		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
 			MADNESS_EXCEPTION("Unknown keyword in exop struct",1);
@@ -204,7 +213,14 @@ private:
 	static double c3v_E11(const coord_3d &r){return x_function(r)+xx_function(r)-yy_function(r)+xz_function(r)+xzz_function(r)+xyz_function(r)+xxx_function(r)+xyy_function(r);}
 	static double c3v_E12(const coord_3d &r){return y_function(r)+xy_function(r)+yz_function(r)+xxz_function(r)-yyz_function(r)+xxy_function(r)+yyy_function(r);}
 
-	///
+	/// Benzene
+	 static double benzene_0(const coord_3d &r){return xxx_function(r) -3.0*xyy_function(r) ;}
+	 static double benzene_1(const coord_3d &r){return 3.0*xxy_function(r) -yyy_function(r);}
+	 static double benzene_2(const coord_3d &r){return xz_function(r);}
+	 static double benzene_3(const coord_3d &r){return yz_function(r);}
+	 static double benzene_4(const coord_3d &r){return z_function(r);}
+	 static double benzene_5(const coord_3d &r){return xyz_function(r);}
+	 static double benzene_6(const coord_3d &r){return xxz_function(r) - yyz_function(r);}
 
 };
 }
