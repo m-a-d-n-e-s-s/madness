@@ -151,6 +151,7 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 
 		}
 	}else{
+		for(size_t i=0;i<xfunctions.size();i++) converged_xfunctions_.push_back(xfunctions[i]);
 		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::cout;
 	}
 
