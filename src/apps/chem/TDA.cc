@@ -147,6 +147,21 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 	// save converged xfunctions to disc
 	save_xfunctions(xfunctions);
 
+	// calculate densities and plot
+	real_function_3d rho = real_factory_3d(world);
+	for(size_t i=0;i<active_mo_.size();i++){
+		rho += active_mo_[i]*active_mo_[i];
+	}
+	plot_plane(world,rho,"rho");
+
+	for(size_t p=0;p<converged_xfunctions_.size();p++){
+		real_function_3d rhoprime = real_factory_3d(world);
+		for(size_t i=0;i<active_mo_.size();i++){
+			rhoprime += active_mo_[i]*converged_xfunctions_[p].x[i];
+		}
+		plot_plane(world,rhoprime,"rhoprime_"+stringify(p));
+	}
+
 	print("Final result :");
 	print_status(xfunctions);
 	analyze(converged_xfunctions_);
