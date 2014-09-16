@@ -160,7 +160,7 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 		plot_vecfunction(converged_xfunctions_[i].x,"final_excitation_"+stringify(i),true);
 	}
 	// save converged xfunctions to disc
-	save_xfunctions(xfunctions);
+	if(not read_) save_xfunctions(xfunctions);
 
 	// calculate densities and plot
 	real_function_3d rho = real_factory_3d(world);
