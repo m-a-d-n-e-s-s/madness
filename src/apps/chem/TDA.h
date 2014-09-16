@@ -702,7 +702,7 @@ private:
 	/// The potential is calculated when needed and then deleted (saves memory but the potential has to be calculated more often)
 	bool on_the_fly_;
 
-	/// Read xfunctions from disk
+	/// only read and analyze functions
 	bool read_;
 
 	/// Iterate the read xfunctions sequentially

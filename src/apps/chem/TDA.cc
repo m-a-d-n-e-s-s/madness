@@ -20,12 +20,20 @@ struct xyz {
 
 void TDA::solve(xfunctionsT &xfunctions) {
 
+
+
 	if (plot_ == true)
+
 		plot_vecfunction(active_mo_, "active_mo_");
 
 	// check for saved xfunctions
 	read_xfunctions(xfunctions);
 
+	// read keyword : only read xfunctions and analyze them (this happens in solve_sequential function)
+	if (read_){
+		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::cout;
+		return;
+	}
 
 	// Create the excitation_function vector and initialize
 	std::cout << "\n\n---Start Initialize Guess Functions---" << "\n\n " << std::endl;
@@ -69,77 +77,83 @@ void TDA::solve(xfunctionsT &xfunctions) {
 
 void TDA::solve_sequential(xfunctionsT xfunctions) {
 
-	print("\n\n\n\n-------------------------------------------------------");
-	print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
-	print("-------------------------------------------------------\n\n\n\n");
+	if(not read_){
 
-	size_t max = excitations_;
+		print("\n\n\n\n-------------------------------------------------------");
+		print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
+		print("-------------------------------------------------------\n\n\n\n");
 
-	// failsafe
-	if(excitations_ > xfunctions.size()){
-		print("\nDemanded ", excitations_, " excitations, but only ",
-				xfunctions.size(), " pre-converged\n");
-		max = xfunctions.size();
-	}
+		size_t max = excitations_;
 
-	// The given xfunctions should be sorted by energy in ascending order:
-	for (size_t iroot = 0; iroot < max; iroot++) {
-		print("\n\n-----xfunction ", iroot, " ------\n\n");
-		// create the kain solver for the current xfunction
-		solverT solver(allocator(world, xfunctions[iroot].x.size()));
-		solver.set_maxsub(3);
-		kain_ = true;
+		// failsafe
+		if(excitations_ > xfunctions.size()){
+			print("\nDemanded ", excitations_, " excitations, but only ",
+					xfunctions.size(), " pre-converged\n");
+			max = xfunctions.size();
+		}
 
-		// begin the final iterations
-		for (int iter = 0; iter < 100; iter++) {
-			TDA_TIMER iteration_timer(world, "");
-			normalize(xfunctions[iroot]);
-			// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
-			if (not on_the_fly_)
-				on_the_fly_ = true;
-			// first false: expectation value is calculated and saved, second false: no guess calculation
-			iterate_one(xfunctions[iroot], false, false);
-			normalize(xfunctions[iroot]);
+		// The given xfunctions should be sorted by energy in ascending order:
+		for (size_t iroot = 0; iroot < max; iroot++) {
+			print("\n\n-----xfunction ", iroot, " ------\n\n");
+			// create the kain solver for the current xfunction
+			solverT solver(allocator(world, xfunctions[iroot].x.size()));
+			solver.set_maxsub(3);
+			kain_ = true;
 
-			// update with kain
-			xfunction tmp = solver.update(xfunction(world, xfunctions[iroot].x),
-					xfunction(world, xfunctions[iroot].current_residuals));
-			xfunctions[iroot].x = tmp.x;
-			// need to pack another vector to proejct out the converged functions (function only takes vectors)
-			xfunctionsT courier;
-			courier.push_back(xfunctions[iroot]);
-			project_out_converged_xfunctions(courier);
-			if (fabs(xfunctions[iroot].delta.back())
-					< xfunctions[iroot].error.back() * 1.e-2
-					or fabs(xfunctions[iroot].delta.back()) < 8.e-4) {
-				xfunctions[iroot].omega += xfunctions[iroot].delta.back();
-			} else
-				xfunctions[iroot].omega =
-						xfunctions[iroot].expectation_value.back();
+			// begin the final iterations
+			for (int iter = 0; iter < 100; iter++) {
+				TDA_TIMER iteration_timer(world, "");
+				normalize(xfunctions[iroot]);
+				// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
+				if (not on_the_fly_)
+					on_the_fly_ = true;
+				// first false: expectation value is calculated and saved, second false: no guess calculation
+				iterate_one(xfunctions[iroot], false, false);
+				normalize(xfunctions[iroot]);
 
-			// print update
+				// update with kain
+				xfunction tmp = solver.update(xfunction(world, xfunctions[iroot].x),
+						xfunction(world, xfunctions[iroot].current_residuals));
+				xfunctions[iroot].x = tmp.x;
+				// need to pack another vector to proejct out the converged functions (function only takes vectors)
+				xfunctionsT courier;
+				courier.push_back(xfunctions[iroot]);
+				project_out_converged_xfunctions(courier);
+				if (fabs(xfunctions[iroot].delta.back())
+						< xfunctions[iroot].error.back() * 1.e-2
+						or fabs(xfunctions[iroot].delta.back()) < 8.e-4) {
+					xfunctions[iroot].omega += xfunctions[iroot].delta.back();
+				} else
+					xfunctions[iroot].omega =
+							xfunctions[iroot].expectation_value.back();
 
-			//print("Iteration ", iter ," on xfunction " ,iroot, " starts at ",wall_time());
-			print_xfunction(xfunctions[iroot]);
-			std::cout << "time: "; iteration_timer.info(); std::cout << std::endl;
+				// print update
 
-			// check convergence
-			if (xfunctions[iroot].error.back() < hard_dconv_) {
-				std::cout << "\n ------xfunction " << iroot << " converged!!! -----\n" << std::endl;
-				xfunctions[iroot].converged =true;
-				converged_xfunctions_.push_back(xfunctions[iroot]);
-				break;
-			}
-			if (iter > iter_max_) {
-				std::cout << "\n ------xfunction " << iroot << " did not converge ------\n" << std::endl;
-				xfunctions[iroot].converged =false;
-				converged_xfunctions_.push_back(xfunctions[iroot]);
-				break;
+				//print("Iteration ", iter ," on xfunction " ,iroot, " starts at ",wall_time());
+				print_xfunction(xfunctions[iroot]);
+				std::cout << "time: "; iteration_timer.info(); std::cout << std::endl;
+
+				// check convergence
+				if (xfunctions[iroot].error.back() < hard_dconv_) {
+					std::cout << "\n ------xfunction " << iroot << " converged!!! -----\n" << std::endl;
+					xfunctions[iroot].converged =true;
+					converged_xfunctions_.push_back(xfunctions[iroot]);
+					break;
+				}
+				if (iter > iter_max_) {
+					std::cout << "\n ------xfunction " << iroot << " did not converge ------\n" << std::endl;
+					xfunctions[iroot].converged =false;
+					converged_xfunctions_.push_back(xfunctions[iroot]);
+					break;
+				}
+
 			}
 
 		}
-
+	}else{
+		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::cout;
 	}
+
 	// plot
 	for(size_t i=0;i<converged_xfunctions_.size();i++) {
 		plot_vecfunction(converged_xfunctions_[i].x,"final_excitation_"+stringify(i),true);
@@ -182,7 +196,7 @@ void TDA::print_status(const xfunctionsT & xfunctions) const {
 void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-			<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+					<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
@@ -972,12 +986,12 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 	//	TDA_TIMER applyit(world,"apply vxc...");
 	//
 	// Get the perturbed xc potential from the dft class
-//	real_function_3d vxc = xclib_interface_.convolution_with_kernel(
-//			perturbed_density);
-//
-//	for (size_t i = 0; i < gamma.size(); i++) {
-//		gamma[i] += vxc * active_mo_[i];
-//	}
+	//	real_function_3d vxc = xclib_interface_.convolution_with_kernel(
+	//			perturbed_density);
+	//
+	//	for (size_t i = 0; i < gamma.size(); i++) {
+	//		gamma[i] += vxc * active_mo_[i];
+	//	}
 
 	// Alternative way (more expensive, but avoid the unprecise kernel)
 	// for small test molecules this seems to bring no improvement
@@ -986,8 +1000,8 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 	// 2.return add(world,gamma,gamma2)
 	// 3. dont forget to project out occupied space also from gamma2 (below here)
 	// THIS DOES NOT WORK FOR GGA
-		vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
-		for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
+	vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
+	for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
 
 	// project out occupied space
 	for (size_t p = 0; p < active_mo_.size(); ++p)
@@ -1022,7 +1036,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-					+ get_coulomb_potential();
+							+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
@@ -1368,6 +1382,6 @@ bool TDA::read_xfunctions(xfunctionsT &xfunctions){
 			xfunctions.push_back(dummy);
 		}else std::cout << "...not found" << std::endl;
 	}
- if(not xfunctions.empty()) return true;
- else return false;
+	if(not xfunctions.empty()) return true;
+	else return false;
 }
