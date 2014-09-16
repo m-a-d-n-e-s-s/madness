@@ -188,7 +188,7 @@ public:
 
     double nuclear_repulsion_derivative(int i, int j) const;
 
-    double nuclear_dipole(int axis) const;
+    double nuclear_dipole(int axis, bool psp_calc) const;
 
     double nuclear_charge_density(double x, double y, double z) const;
 

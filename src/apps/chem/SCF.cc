@@ -1348,7 +1348,7 @@ namespace madness {
                 rho.scale(2.0);
             }
             mu[axis] = -dipolefunc.inner(rho);
-            mu[axis] += molecule.nuclear_dipole(axis);
+            mu[axis] += molecule.nuclear_dipole(axis, param.psp_calc);
         }
         
         if (world.rank() == 0) {

@@ -275,10 +275,14 @@ double Molecule::nuclear_repulsion_energy_pseudo() const {
     return sum;
 }
 
-double Molecule::nuclear_dipole(int axis) const {
+double Molecule::nuclear_dipole(int axis, bool psp_calc) const {
     double sum = 0.0;
     for (unsigned int atom = 0; atom < atoms.size(); ++atom) {
-        unsigned int z = atoms[atom].atomic_number;
+        unsigned int z;
+        if (psp_calc){
+            z = atoms[atom].q;}
+        else{
+            z = atoms[atom].atomic_number;}
         if (core_pot.is_defined(z)) z -= core_pot.n_core_orb(z) * 2;
         double r;
         switch (axis) {
@@ -289,9 +293,9 @@ double Molecule::nuclear_dipole(int axis) const {
         }
         sum += r*z;
     }
-
     return sum;
 }
+
 
 double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     double sum = 0.0;

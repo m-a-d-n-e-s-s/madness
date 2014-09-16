@@ -294,7 +294,7 @@ struct CalculationParameters {
     std::string aobasis;        ///< AO basis used for initial guess (6-31g or sto-3g)
     std::string core_type;      ///< core potential type ("" or "mcp")
     bool derivatives;           ///< If true calculate derivatives
-    bool dipole;                ///< If true calculatio dipole moment
+    bool dipole;                ///< If true calculate dipole moment
     bool conv_only_dens;        ///< If true remove bsh_residual from convergence criteria   how ugly name is...
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
@@ -317,9 +317,9 @@ struct CalculationParameters {
     //bool absolvent;             ///< If true calculate solvation effects
     //double epsilon_2;           ///< dielectric constant of solvent
     //double Gamma;               ///< surface tension of solvent
-    //double beta;                ///switching parameter controles boundary conditions of solvent cavity
+    //double beta;                ///switching parameter controls boundary conditions of solvent cavity
     //double rho_0;               /// threshold density--determines size of molecular cavity
-    //double sigma;               ///switching parameter controles boundary conditions of solvent cavity-(SVPE)
+    //double sigma;               ///switching parameter controls boundary conditions of solvent cavity-(SVPE)
 
     template <typename Archive>
     void serialize(Archive& ar) {
