@@ -155,6 +155,7 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::cout;
 	}
 
+	plot_vecfunction(active_mo_, "active_mo_");
 	// plot
 	for(size_t i=0;i<converged_xfunctions_.size();i++) {
 		plot_vecfunction(converged_xfunctions_[i].x,"final_excitation_"+stringify(i),true);
