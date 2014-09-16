@@ -53,9 +53,8 @@ void TDA::solve(xfunctionsT &xfunctions) {
 		if(world.rank()==0)std::cout <<std::setw(100) << stringify(excitations_)+"excitations NOT CONVERGED!" << std::endl;
 	}
 
-	// Save to disk and plot
+	// plot
 	for(size_t i=0;i<converged_xfunctions_.size();i++) {
-		save_vecfunction(world,converged_xfunctions_[i].x,stringify(i));
 		plot_vecfunction(converged_xfunctions_[i].x,"final_guess_excitation_"+stringify(i),true);
 	}
 	// print final result
@@ -141,16 +140,17 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 		}
 
 	}
-	// Save to disk and plot
+	// plot
 	for(size_t i=0;i<converged_xfunctions_.size();i++) {
-		save_vecfunction(world,converged_xfunctions_[i].x,stringify(i));
 		plot_vecfunction(converged_xfunctions_[i].x,"final_excitation_"+stringify(i),true);
 	}
+	// save converged xfunctions to disc
+	save_xfunctions(xfunctions);
 
 	print("Final result :");
 	print_status(xfunctions);
-	print_performance(converged_xfunctions_,"final-");
 	analyze(converged_xfunctions_);
+	print_performance(converged_xfunctions_,"final-");
 
 }
 
@@ -1170,15 +1170,34 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	results << "% bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "\n";
 	results << "\\begin{tabular}{lll}"<< "\n";
 	results << "\\toprule" << " \\\\ \n";
-	results << "\\multicolumn{1}{c}{omega}" << "&" << "\\multicolumn{1}{c}{error}"<< " \\\\ " << " \n";
+	results << "\\multicolumn{1}{c}{omega}" << "&" << "\\multicolumn{1}{c}{error}"<<"\\multicolumn{1}{c}{iter}"" \\\\ " << " \n";
 	results << "\\midrule" << " \\\\ \n";
 	for (size_t i = 0; i < xfunctions.size(); i++) {
 		results << "\\num{" << std::setprecision(10) << xfunctions[i].omega
-				<< "} & " << std::scientific << std::setprecision(1) << xfunctions[i].error.back() << " \\\\" << "\n";
+				<< "} & " << std::scientific << std::setprecision(1) << xfunctions[i].error.back() << "(" <<xfunctions[i].iterations << ")" << " \\\\" << "\n";
 	}
 	results << "\\bottomrule" << " \\\\ \n";
 	results << "\\end{tabular} \n";
 	results.close();
+
+	// Print results with oscillator strength in Tex format
+	std::fstream results2;
+	results2.open(prename+"results_full.tex", std::ios::out);
+	results2 << "% bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "\n";
+	results2 << "\\begin{tabular}{ll}"<< "\n";
+	results2 << "\\toprule" << " \\\\ \n";
+	for (size_t i = 0; i < xfunctions.size(); i++) {
+		results2 << "Excitation " << i+1 << " & " << "\\multicolumn{1}{c}{MRA}" << " \\\\ \n ";
+		results2 << "\\midrule" << " \\\\ \n";
+		results2 << "Excitation energy "<< " & " << "\\num{" << std::setprecision(10) << xfunctions[i].omega << "}" << " \\\\ \n ";
+		results2 << "f\textsubscript{osc}(length) "<< " & " << "\\num{" << std::setprecision(10) << xfunctions[i].f_length << "}" << " \\\\ \n ";
+		results2 << "f\textsubscript{osc}(velocity) "<< " & " << "\\num{" << std::setprecision(10) << xfunctions[i].f_velocity << "}" << " \\\\ \n ";
+		results2 << "\\midrule" << " \\\\ \n";
+	}
+	results2 << "\\bottomrule" << " \\\\ \n";
+	results2 << "\\end{tabular} \n";
+	results2 << "\\multicolumn{2}{l}{ bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "} \\\\ \n" ;
+	results2.close();
 }
 
 void TDA::truncate_xfunctions(xfunctionsT &xfunctions) {
@@ -1192,30 +1211,6 @@ void TDA::truncate_xfunctions(xfunctionsT &xfunctions) {
 				xfunctions[k].current_residuals[i].truncate(truncate_thresh_);
 		}
 	}
-}
-
-bool TDA::load_vecfunction(World& world, vecfuncT &v,
-		const std::string filename_end) const {
-	std::string filename = "vecfunc_" + filename_end;
-	bool exists = archive::ParallelInputArchive::exists(world,
-			filename.c_str());
-	if (not exists)
-		return false;
-
-	archive::ParallelInputArchive ar(world, filename.c_str(), 1);
-	for (std::size_t i = 0; i < v.size(); ++i) {
-		ar & v[i];
-		v[i].set_thresh(FunctionDefaults<3>::get_thresh());
-	}
-	return true;
-}
-
-void TDA::save_vecfunction(World& world, const vecfuncT &v,
-		const std::string filename_end) const {
-	std::string filename = "vecfunc_" + filename_end;
-	archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
-	for (std::size_t i = 0; i < v.size(); ++i)
-		ar & v[i];
 }
 
 double TDA::oscillator_strength_length(const xfunction& xfunction) const {
@@ -1243,11 +1238,11 @@ double TDA::oscillator_strength_velocity(const xfunction& root) const {
 	return f;
 }
 
-void TDA::analyze(const xfunctionsT& roots) const {
+void TDA::analyze(xfunctionsT& roots) const {
 
 	const size_t noct=active_mo_.size();
 
-	std::vector<xfunction>::const_iterator it;
+	std::vector<xfunction>::iterator it;
 	int iroot=0;
 	for (it=roots.begin(); it!=roots.end(); ++it, ++iroot) {
 		std::vector<double> norms=norm2s(world,it->x);
@@ -1255,6 +1250,9 @@ void TDA::analyze(const xfunctionsT& roots) const {
 		// compute the oscillator strengths
 		double osl=this->oscillator_strength_length(*it);
 		double osv=this->oscillator_strength_velocity(*it);
+
+		it->f_length = osl;
+		it->f_velocity = osv;
 
 		std::cout << std::scientific << std::setprecision(10) << std::setw(20);
 		if (world.rank()==0) {

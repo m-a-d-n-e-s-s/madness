@@ -65,14 +65,14 @@ public:
 struct xfunction{
 	/// default constructor
 	/// @param[in] world	the world is needed as a reference
-	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false) {}
+	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {}
 	/// constructs a xfunctions object and initializes the x-vecfunction (response orbitals)
 	/// @param[in] world	the world is needed
 	/// @param[in] x1	vectorfunction of response orbitals
-	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true){}
+	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),f_length(999),f_velocity(999) {}
 	/// the copy contructor
 	xfunction(const xfunction &other) : world(other.world),x(other.x),Vx(other.Vx),omega(other.omega),expectation_value(other.expectation_value),error(other.error),
-			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain){}
+			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain),f_length(other.f_length),f_velocity(other.f_velocity){}
 
 	World & world;
 	/// the response orbitals
@@ -98,6 +98,11 @@ struct xfunction{
 	/// the residuals of the last bsh step, is needed if the kain solver should be used
 	vecfuncT current_residuals;
 
+	/// Oscillator strenght in length and velocity gauge
+	/// will be calcualted after convergece, default is 999
+	double f_length;
+	double f_velocity;
+
 	/// assignment operator (needed by kain)
 	xfunction& operator=(const xfunction &other){
 		x=other.x;
@@ -110,6 +115,8 @@ struct xfunction{
 		number=other.number;
 		iterations=other.iterations;
 		kain=other.kain;
+		f_length = other.f_length;
+		f_velocity = other.f_velocity;
 
 		return *this;
 	}
@@ -887,23 +894,6 @@ private:
 
 	/// load a converged root from disk
 
-	/// @param[in]	world 	the world
-	/// @param[in]	xfunction empty initialization of xfunction to load in
-	/// @param[inout]	x	the x-vector for the xfunction structure
-	/// @param[out]	omega	the excitation energy
-	/// @return	successfully loaded a root or not
-	/// @param[in] filename_end end of filename (for guess roots)
-	bool load_vecfunction(World& world, vecfuncT &v,const std::string filename_end = "")  const;
-
-	/// save a converged root to disk
-
-	/// @param[in]	world 	the world
-	/// @param[in]	xfunction	the vectorfunction to save
-	/// @param[inout]	x	the x-vector for the i-th root
-	/// @param[in]	omega	the excitation energy
-	/// @param[in] filename for guess roots to be saved
-	void save_vecfunction(World& world, const vecfuncT &v, const std::string filename_end = "") const;
-
 	/// compute the oscillator strength in the length representation
 
 	/// the oscillator strength is given by
@@ -925,7 +915,7 @@ private:
 	double oscillator_strength_velocity(const xfunction& root) const;
 
 	/// analyze the root: oscillator strength and contributions from occ
-	void analyze(const xfunctionsT& roots) const;
+	void analyze(xfunctionsT& roots) const;
 
 	void save_xfunctions(const xfunctionsT &xfunctions)const;
 	bool read_xfunctions(xfunctionsT &xfunctions);
