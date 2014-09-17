@@ -370,7 +370,7 @@ void TDA::iterate_guess(xfunctionsT &xfunctions) {
 	std::cout << "---Start Guess Iterations---" << "\n\n " << std::endl;
 	iterate_all(xfunctions,true);
 	// set back iteration counter
-	for(size_t i=0;i<xfunctions.size();i++)xfunctions[i].iterations = 0;
+	//for(size_t i=0;i<xfunctions.size();i++)xfunctions[i].iterations = 0;
 	std::cout <<std::setw(100)<< "---End Guess Iterations---" << "\n\n " << std::endl;
 }
 
