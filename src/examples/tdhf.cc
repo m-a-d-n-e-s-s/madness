@@ -193,7 +193,7 @@ bool asd =false;
 		tmp.delta = cis.get_converged_xfunctions()[i].delta;
 		tmp.expectation_value = cis.get_converged_xfunctions()[i].expectation_value;
 		tmp.error = cis.get_converged_xfunctions()[i].error;
-		tmp.number = i;
+		tmp.number = cis.get_converged_xfunctions()[i].number;
 		high_xfunctions.push_back(tmp);
 	}
 	for(size_t i=0;i<xfunctions.size();i++)set_thresh(world,xfunctions[i].x,high_thresh);
