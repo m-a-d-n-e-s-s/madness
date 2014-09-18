@@ -120,7 +120,7 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 				courier.push_back(xfunctions[iroot]);
 				project_out_converged_xfunctions(courier);
 				if (fabs(xfunctions[iroot].delta.back())
-						< xfunctions[iroot].error.back() * 1.e-2 or fabs(xfunctions[iroot].delta.back()) < hard_dconv_ *0.1;
+						< xfunctions[iroot].error.back() * 1.e-2
 						or fabs(xfunctions[iroot].delta.back()) < 8.e-4) {
 					xfunctions[iroot].omega += xfunctions[iroot].delta.back();
 				} else
@@ -1200,9 +1200,9 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	results.open(prename+"results.tex", std::ios::out);
 	results << "% bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << " \t \t \n";
 	results << "\\begin{tabular}{llll}"<< "\n";
-	results << "\\toprule" << " \\\\ \n";
-	results << "\\multicolumn{1}{c}{$\\omega$}" << "&" << "\\multicolumn{1}{c}{error}" << "$\\multicolumn{1}{c}{\\Delta$}" <<"\\multicolumn{1}{c}{iter}"" \\\\ " << " \n";
-	results << "\\midrule" << " \\\\ \n";
+	results << "\\toprule" << "  \n";
+	results << "\\multicolumn{1}{c}{$\\omega$}" << "&" << "\\multicolumn{1}{c}{error}" << "& \\multicolumn{1}{c}{$\\Delta$}" <<"\\multicolumn{1}{c}{iter}"" \\\\ " << " \n";
+	results << "\\midrule" << " \n";
 	for (size_t i = 0; i < xfunctions.size(); i++) {
 		results << "\\num{" << std::setprecision(10) << xfunctions[i].omega
 				<< "} & " << std::scientific << std::setprecision(1)
@@ -1210,7 +1210,7 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 				<< " & "  <<xfunctions[i].delta.back()
 				<< " & (" <<xfunctions[i].iterations << ")" << " \\\\" << "\n";
 	}
-	results << "\\bottomrule" << " \\\\ \n";
+	results << "\\bottomrule" << "  \n";
 	results << "\\end{tabular} \n";
 	results.close();
 
@@ -1219,16 +1219,16 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	results2.open(prename+"results_full.tex", std::ios::out);
 	results2 << "% bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "\n";
 	results2 << "\\begin{tabular}{ll}"<< "\n";
-	results2 << "\\toprule" << " \\\\ \n";
+	results2 << "\\toprule" << " \n";
 	for (size_t i = 0; i < xfunctions.size(); i++) {
 		results2 << "Excitation " << i+1 << " & " << "\\multicolumn{1}{c}{MRA}" << " \\\\ \n ";
-		results2 << "\\midrule" << " \\\\ \n";
+		results2 << "\\midrule" << "  \n";
 		results2 << "Excitation energy "<< " & " << "\\num{" << std::setprecision(10) << xfunctions[i].omega << "}" << " \\\\ \n ";
 		results2 << "f\\textsubscript{osc}(length) "<< " & " << "\\num{" << std::setprecision(10) << xfunctions[i].f_length << "}" << " \\\\ \n ";
 		results2 << "f\\textsubscript{osc}(velocity) "<< " & " << "\\num{" << std::setprecision(10) << xfunctions[i].f_velocity << "}" << " \\\\ \n ";
 		results2 << "\\midrule" << " \\\\ \n";
 	}
-	results2 << "\\bottomrule" << " \\\\ \n";
+	results2 << "\\bottomrule" << " \n";
 	results2 << "\\end{tabular} \n";
 	results2 << "\\multicolumn{2}{l}{ bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "} \\\\ \n" ;
 	results2.close();
