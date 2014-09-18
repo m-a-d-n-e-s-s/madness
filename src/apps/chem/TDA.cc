@@ -30,7 +30,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 	read_xfunctions(xfunctions);
 
 	// read keyword : only read xfunctions and analyze them (this happens in solve_sequential function)
-	if (read_){
+	if (read_ or only_sequential_){
 		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::cout;
 		return;
 	}

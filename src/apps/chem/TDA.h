@@ -420,6 +420,7 @@ public:
 		only_GS_(false),
 		on_the_fly_(true),
 		read_(false),
+		only_sequential_(false),
 		xclib_interface_(world,calc),
 		ipot_(0.0),
 		kain_(false),
@@ -476,6 +477,7 @@ public:
 			else if (tag == "highest_excitation") ss >> highest_excitation_;
 			else if (tag == "no_otf") on_the_fly_=false;
 			else if (tag == "read") read_ = true;
+			else if (tag == "only_sequential") only_sequential_=true;
 			else if (tag == "ipot") ss >> ipot_;
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
@@ -706,6 +708,9 @@ private:
 
 	/// only read and analyze functions
 	bool read_;
+
+	/// only read and do sequential iterations (improve convergence on pre converged functions)
+	bool only_sequential_;
 
 	/// Iterate the read xfunctions sequentially
 	bool sequential_;
