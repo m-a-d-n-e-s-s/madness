@@ -120,7 +120,7 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 				courier.push_back(xfunctions[iroot]);
 				project_out_converged_xfunctions(courier);
 				if (fabs(xfunctions[iroot].delta.back())
-						< xfunctions[iroot].error.back() * 1.e-2
+						< xfunctions[iroot].error.back() * 1.e-2 or fabs(xfunctions[iroot].delta.back()) < hard_dconv_ *0.1;
 						or fabs(xfunctions[iroot].delta.back()) < 8.e-4) {
 					xfunctions[iroot].omega += xfunctions[iroot].delta.back();
 				} else
