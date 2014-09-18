@@ -1199,13 +1199,16 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	std::fstream results;
 	results.open(prename+"results.tex", std::ios::out);
 	results << "% bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << " \t \t \n";
-	results << "\\begin{tabular}{lll}"<< "\n";
+	results << "\\begin{tabular}{llll}"<< "\n";
 	results << "\\toprule" << " \\\\ \n";
-	results << "\\multicolumn{1}{c}{omega}" << "&" << "\\multicolumn{1}{c}{error}"<<"\\multicolumn{1}{c}{iter}"" \\\\ " << " \n";
+	results << "\\multicolumn{1}{c}{$\\omega$}" << "&" << "\\multicolumn{1}{c}{error}" << "$\\multicolumn{1}{c}{\\Delta$}" <<"\\multicolumn{1}{c}{iter}"" \\\\ " << " \n";
 	results << "\\midrule" << " \\\\ \n";
 	for (size_t i = 0; i < xfunctions.size(); i++) {
 		results << "\\num{" << std::setprecision(10) << xfunctions[i].omega
-				<< "} & " << std::scientific << std::setprecision(1) << xfunctions[i].error.back() << " & (" <<xfunctions[i].iterations << ")" << " \\\\" << "\n";
+				<< "} & " << std::scientific << std::setprecision(1)
+				<< xfunctions[i].error.back()
+				<< " & "  <<xfunctions[i].delta.back()
+				<< " & (" <<xfunctions[i].iterations << ")" << " \\\\" << "\n";
 	}
 	results << "\\bottomrule" << " \\\\ \n";
 	results << "\\end{tabular} \n";
