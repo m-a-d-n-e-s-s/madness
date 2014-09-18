@@ -423,6 +423,7 @@ public:
 		xclib_interface_(world,calc),
 		ipot_(0.0),
 		kain_(false),
+		kain_subspace_(3),
 		shift_(0.0),
 		safety_(1.0)
 {
@@ -477,6 +478,7 @@ public:
 			else if (tag == "read") read_ = true;
 			else if (tag == "ipot") ss >> ipot_;
 			else if (tag == "kain") kain_=true;
+			else if (tag == "kain_subspace") ss>> kain_subspace_;
 			else if (tag == "exop1") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
 			else if (tag == "exop2") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
 			else if (tag == "exop3") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
@@ -717,6 +719,9 @@ private:
 	/// Use the Kain solver to update the functions
 	bool kain_;
 	kain_solver_helper_struct kain_solvers;
+
+	/// Kain subspace size for the sequential iterations
+	size_t kain_subspace_;
 
 	/// The potential shift for the unperturbed DFT potential when using TDDFT (shift = -ipot_ -homo)
 	double shift_;
