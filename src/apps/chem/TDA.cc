@@ -1205,7 +1205,7 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	results << "\\midrule" << " \n";
 	for (size_t i = 0; i < xfunctions.size(); i++) {
 		results << "\\num{" << std::setprecision(10) << xfunctions[i].omega
-				<< "} & " << std::scientific << std::setprecision(1)
+				<< "} & " << std::scientific << std::setprecision(0)
 				<< xfunctions[i].error.back()
 				<< " & "  <<xfunctions[i].delta.back()
 				<< " & (" <<xfunctions[i].iterations << ")" << " \\\\" << "\n";
