@@ -413,6 +413,7 @@ public:
 		econv_(1.e-4),
 		dconv_(1.e-3),
 		hard_dconv_(1.e-3),
+		hard_econv_(5.e-5),
 		nfreeze_(0),
 		plot_(false),
 		debug_(false),
@@ -459,6 +460,7 @@ public:
 			else if (tag == "excitations") ss >> excitations_;
 			else if (tag == "guess") ss >> guess_;
 			else if (tag == "hard_dconv") ss >> hard_dconv_;
+			else if (tag == "hard_econv") ss >> hard_econv_;
 			else if (tag == "guess_iter") ss >> guess_iter_;
 			else if (tag == "guess_omega") ss >> guess_omega_;
 			else if (tag == "guess_mode") ss >> guess_mode_;
@@ -671,7 +673,7 @@ private:
 	double dconv_;
 	// Convergence criteria (residual norm) for the high thresh sequential iterations in the end
 	double hard_dconv_;
-
+	double hard_econv_;
 	/// Frozen Orbitals
 	size_t nfreeze_;
 

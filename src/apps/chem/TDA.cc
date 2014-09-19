@@ -134,7 +134,7 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 				std::cout << "time: "; iteration_timer.info(); std::cout << std::endl;
 
 				// check convergence
-				if (xfunctions[iroot].error.back() < hard_dconv_ and fabs(xfunctions[iroot].delta.back()) < 0.01*hard_dconv_) {
+				if (xfunctions[iroot].error.back() < hard_dconv_ and fabs(xfunctions[iroot].delta.back()) < hard_econv_) {
 					std::cout << "\n ------xfunction " << iroot << " converged!!! -----\n" << std::endl;
 					xfunctions[iroot].converged =true;
 					converged_xfunctions_.push_back(xfunctions[iroot]);
