@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
 
 
 	// default threshs
-	const double high_thresh = FunctionDefaults<3>::get_thresh();
+	double high_thresh = FunctionDefaults<3>::get_thresh();
 	double low_thresh = sqrt(high_thresh);// sqrt(high_thresh);
 
 	// fetch low thresh from the input section
@@ -132,6 +132,9 @@ int main(int argc, char** argv) {
 		else if(tag=="low_thresh") ss>>low_thresh;
 		else if(tag=="lo") ss>>low_thresh;
 		else if(tag=="lo_thresh") ss>>low_thresh;
+		else if(tag=="high_thresh") ss>>high_thresh;
+		else if(tag=="hi") ss>>high_thresh;
+		else if(tag=="li_thresh") ss>>high_thresh;
 		else continue;
 	}
 

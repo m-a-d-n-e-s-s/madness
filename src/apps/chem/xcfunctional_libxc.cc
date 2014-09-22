@@ -226,7 +226,7 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 }
 
 //XCfunctional::XCfunctional() {}
-XCfunctional::XCfunctional() : hf_coeff(0.0) {}
+XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
 
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized)

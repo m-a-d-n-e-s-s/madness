@@ -53,10 +53,64 @@ protected:
 #endif
 
 
-    double munge(double rho) const {
-        if (rho <= rhotol) rho=rhomin;
-        return rho;
+    /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
+
+    /// \f[
+    /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
+    ///   \begin{array}{ll}
+    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}
+    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}}
+    ///     x                                      & x_{\mathrm{max}} < x
+    ///   \end{array}
+    /// \right.
+    /// \f]
+    /// where \f$p(x)\f$ is the unique quintic polynomial that
+    /// satisfies \f$p(x_{min})=x_{min}\f$, \f$p(x_{max})=x_{max}\f$,
+    /// \f$dp(x_{max})/dx=1\f$, and
+    /// \f$dp(x_{min})/dx=d^2p(x_{min})/dx^2=d^2p(x_{max})/dx^2=0\f$.
+    static void polyn(const double x, double& p, double& dpdx) {
+        // All of the static const stuff is evaluated at compile time
+
+        static const double xmin = 1e-10; // <<<< MINIMUM VALUE OF DENSITY
+        static const double xmax = 1e-8;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
+
+        static const double xmax2 = xmax*xmax;
+        static const double xmax3 = xmax2*xmax;
+        static const double xmin2 = xmin*xmin;
+        static const double xmin3 = xmin2*xmin;
+        static const double r = 1.0/((xmax-xmin)*(-xmin3+(3.0*xmin2+(-3.0*xmin+xmax)*xmax)*xmax));
+        static const double a0 = xmax3*xmin*(xmax-4.0*xmin)*r;
+        static const double a = xmin2*(xmin2+(-4.0*xmin+18.0*xmax)*xmax)*r;
+        static const double b = -6.0*xmin*xmax*(3.0*xmax+2.0*xmin)*r;
+        static const double c = (4.0*xmin2+(20.0*xmin+6.0*xmax)*xmax)*r;
+        static const double d = -(8.0*xmax+7.0*xmin)*r;
+        static const double e = 3.0*r;
+
+        if (x > xmax) {
+            p = x;
+            dpdx = 1.0;
+        }
+        else if (x < xmin) {
+            p = xmin;
+            dpdx = 0.0;
+        }
+        else {
+            p = a0+(a+(b+(c+(d+e*x)*x)*x)*x)*x;
+            dpdx = a+(2.0*b+(3.0*c+(4.0*d+5.0*e*x)*x)*x)*x;
+        }
     }
+
+    static double munge(double rho) {
+        double p, dpdx;
+        polyn(rho, p, dpdx);
+        return p;
+    }
+
+
+//    double munge(double rho) const {
+//        if (rho <= rhotol) rho=rhomin;
+//        return rho;
+//    }
 
     void munge2(double& rho, double& sigma) const {
         if (rho < rhotol) rho=rhomin;

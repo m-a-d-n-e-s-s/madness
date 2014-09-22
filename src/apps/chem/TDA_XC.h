@@ -45,6 +45,22 @@ struct unperturbed_vxc{
     }
 };
 
+struct make_fxc{
+	make_fxc(const XCfunctional& xc, int ispin,int what)
+    : xc(&xc), what(what), ispin(ispin){}
+
+    const XCfunctional* xc;
+    const int what;
+    const int ispin;
+
+    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
+    {
+        MADNESS_ASSERT(xc);
+        madness::Tensor<double> r = xc->fxc(t, ispin, what);
+        return r;
+    }
+};
+
 struct get_derivatives{
 	get_derivatives(const XCfunctional& xc, int ispin, int what)
 	: xc(&xc), what(what), ispin(ispin){}
@@ -179,6 +195,7 @@ struct apply_kernel_functor{
 	}
 };
 
+
 class TDA_DFT {
 
 public:
@@ -214,6 +231,9 @@ public:
 
 		vxc_=make_unperturbed_vxc(rho_);
 
+		// make the lda kernel
+		fxc_ = make_lda_kernel(rho_);
+
 		//DEBUG
 		plot_plane(world,vxc_,"debug_pvxc");
 		double exc = 0.5*inner(vxc_,rho_);
@@ -235,7 +255,8 @@ public:
 	real_function_3d get_unperturbed_vxc()const{return vxc_;}
 	XCfunctional get_xcfunctional()const{return xcfunctional_;}
 	real_function_3d calculate_unperturbed_vxc(const real_function_3d &rho)const{return make_unperturbed_vxc(rho);}
-
+	real_function_3d get_lda_kernel()const{return fxc_;}
+	vecfuncT get_lda_intermediate(vecfuncT & mos)const{return multiply_with_kernel(mos);}
 	// Test which type of functional is used
 	bool is_gga()const{
 		return xcfunctional_.is_gga();
@@ -254,10 +275,16 @@ private:
 	real_function_3d sigma_;
 	/// unperturbed exchange correlation potential
 	real_function_3d vxc_;
+	/// The LDA kernel
+	real_function_3d fxc_;
 	/// Type of exchange and correlation
 	real_function_3d vx_dirac(const real_function_3d &perturbed_density);
 	real_function_3d V(const real_function_3d &perturbed_density);
 	real_function_3d make_unperturbed_vxc(const real_function_3d &rho)const;
+	real_function_3d make_lda_kernel(const real_function_3d &rho)const;
+	vecfuncT multiply_with_kernel(vecfuncT &active_mo)const;
+
+
 
 };
 

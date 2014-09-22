@@ -133,6 +133,27 @@ real_function_3d TDA_DFT::convolution_with_kernel(real_function_3d &perturbed_de
 	MADNESS_EXCEPTION("Reached end of convolution with kernel function",1);
 }
 
+// evaluates fxc*active_mo instead of fxc*perturbed density
+vecfuncT TDA_DFT::multiply_with_kernel(vecfuncT &active_mo)const{
+
+	if(xcfunctional_.is_lda()){
+		vecfuncT result;
+		for(size_t i=0;i<active_mo.size();i++){
+			vecfuncT carrier;
+			carrier.push_back(rho_);
+			carrier.push_back(active_mo[i]);
+			reconstruct(world,carrier);
+			active_mo[i].refine_to_common_level(carrier);
+			real_function_3d tmp = multiop_values<double,perturbed_vxc,3>(perturbed_vxc(xcfunctional_,0,0),carrier);
+			result.push_back(tmp);
+		}
+		return result;
+	}
+
+
+	MADNESS_EXCEPTION("Reached end of convolution with kernel 2 function",1);
+}
+
 vecfuncT TDA_DFT::apply_kernel(const vecfuncT & x) const{
 
 	if(xcfunctional_.is_gga()) MADNESS_EXCEPTION("apply kernel function not useful with GGA, was for testing purposes only",1);
@@ -173,6 +194,16 @@ real_function_3d TDA_DFT::make_unperturbed_vxc(const real_function_3d &rho)const
 
 	return vxc;
 
+}
+
+real_function_3d TDA_DFT::make_lda_kernel(const real_function_3d &rho)const{
+	std::vector<real_function_3d> density;
+	density.push_back(rho);
+	reconstruct(world,density);
+	density[0].refine_to_common_level(density);
+	real_function_3d fxc = multiop_values<double,make_fxc,3>(make_fxc(xcfunctional_,0,0),density);
+
+	return fxc;
 }
 
 

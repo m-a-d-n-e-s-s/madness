@@ -345,8 +345,8 @@ public:
 	double operator()(const coord_3d &r)const{
 		std::vector<double> diffuse_1s_functions;
 		double exponent =1.0;
-		if(mode==0) exponent = 20.0;
-		if(mode==1) exponent = 15.0;
+		if(mode==0) exponent = 15.0;
+		if(mode==1) exponent = 20.0;
 		for(size_t i=0;i<natoms;i++){
 			if (signs[i]!=0){
 				// make diffuse 1s functions localized at the atoms
@@ -424,6 +424,7 @@ public:
 		only_sequential_(false),
 		xclib_interface_(world,calc),
 		ipot_(0.0),
+		rydberg_(false),
 		kain_(false),
 		kain_subspace_(3),
 		shift_(0.0),
@@ -481,6 +482,7 @@ public:
 			else if (tag == "read") read_ = true;
 			else if (tag == "only_sequential") only_sequential_=true;
 			else if (tag == "ipot") ss >> ipot_;
+			else if (tag == "rydberg") rydberg_=true;
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
 			else if (tag == "exop1") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
@@ -553,6 +555,8 @@ public:
 		if(not dft_) {
 			exchange_intermediate_ = make_exchange_intermediate();
 			std::cout << std::setw(40) << "CIS is used" << " : LIBXC Interface is not initialized" << std::endl;
+		}if(dft_){
+			lda_intermediate_ = make_lda_intermediate();
 		}
 
 		// Initialize the KAIN solvers
@@ -723,6 +727,9 @@ private:
 	/// Ionization potential for the potential shift used in TDDFT calculations to get bound states for the first excitations (default is -2.0*homo)
 	double ipot_;
 
+	/// Make a rydberg guess
+	bool rydberg_;
+
 	/// Use the Kain solver to update the functions
 	bool kain_;
 	kain_solver_helper_struct kain_solvers;
@@ -741,6 +748,9 @@ private:
 
 	/// The unperturbed dft potential;
 	real_function_3d unperturbed_vxc_;
+
+	/// The LDA intermediate (fxc*active_mo)
+	vecfuncT lda_intermediate_;
 
 	/// the intermediate is the same for all roots:
 	/// \[
@@ -871,6 +881,8 @@ private:
 	/// Create the exchange intermediate
 	// This has to be done just one time because only the unperturbed orbitals are needed
 	std::vector<vecfuncT> make_exchange_intermediate()const;
+
+	vecfuncT make_lda_intermediate()const;
 
 	/// Return the unperturbed fock potential as vector potential : V0*x_p
 	vecfuncT get_V0(const vecfuncT &x)const;
