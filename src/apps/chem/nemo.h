@@ -168,6 +168,8 @@ public:
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
+	/// compute the Fock matrix from scratch
+	tensorT compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const;
 
 private:
 
@@ -231,9 +233,6 @@ private:
 
 	/// localize the nemo orbitals
 	vecfuncT localize(const vecfuncT& nemo) const;
-
-	/// compute the Fock matrix from scratch
-	tensorT compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const;
 
 	vecfuncT apply_exchange(const vecfuncT& nemo, const vecfuncT& psi) const;
 

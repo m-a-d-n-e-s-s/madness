@@ -332,9 +332,9 @@ namespace madness {
 
             // Construct the task that notifies children to run the operation
             key_type my_key(key, world_.rank());
-            typedef void (WorldGopInterface::*memfnT)(const ProcessID, const ProcessID,
+            typedef void (WorldGopInterface::*lazy_sync_childrenT)(const ProcessID, const ProcessID,
                 const key_type&, opT&, const ProcessID) const;
-            world_.taskq.add(*this, memfnT(& WorldGopInterface::template lazy_sync_children<key_type, opT>),
+            world_.taskq.add(*this, lazy_sync_childrenT(& WorldGopInterface::template lazy_sync_children<key_type, opT>),
                     child0_signal, child1_signal, my_key, op, parent_signal,
                     TaskAttributes::hipri());
 
@@ -342,10 +342,13 @@ namespace madness {
             if(parent != -1) {
                 if(child0_signal.probe() && child1_signal.probe())
                     send_internal(parent, my_key, world_.rank());
-                else
-                    world_.taskq.add(*this, & WorldGopInterface::template lazy_sync_parent<key_type>,
+                else {
+                    typedef void (WorldGopInterface::*lazy_sync_parentT)(const ProcessID, const key_type&,
+                        const ProcessID, const ProcessID) const;
+                    world_.taskq.add(*this, lazy_sync_parentT(& WorldGopInterface::template lazy_sync_parent<key_type>),
                             parent, my_key, child0_signal, child1_signal,
                             TaskAttributes::hipri());
+                }
             }
         }
 
@@ -496,11 +499,14 @@ namespace madness {
                     if(value.probe())
                         // The value is ready so send it now
                         bcast_task(tagged_key, value.get(), root);
-                    else
+                    else {
                         // The value is not ready so spawn a task to send the
                         // data when it is ready.
-                        world_.taskq.add(*this, & WorldGopInterface::template bcast_task<key_type, valueT>,
+                        typedef void (WorldGopInterface::*bcast_taskT)(const key_type&,
+                                const valueT&, const ProcessID root) const;
+                        world_.taskq.add(*this, bcast_taskT(& WorldGopInterface::template bcast_task<key_type, valueT>),
                                 tagged_key, value, root, TaskAttributes::hipri());
+                    }
                 } else {
                     MADNESS_ASSERT(! value.probe());
 
@@ -538,10 +544,13 @@ namespace madness {
                 // This process owns the data to be broadcast.
                 if(value.probe())
                     group_bcast_task(tagged_key, value.get(), group_root, group);
-                else
-                    world_.taskq.add(this, & WorldGopInterface::template group_bcast_task<key_type, valueT>,
+                else {
+                    typedef void (WorldGopInterface::*group_bcast_taskT)(const key_type&, const valueT&,
+                        const ProcessID, const Group&) const;
+                    world_.taskq.add(this, group_bcast_taskT(& WorldGopInterface::template group_bcast_task<key_type, valueT>),
                             tagged_key, value, group_root, group,
                             TaskAttributes::hipri());
+                }
             } else {
                 MADNESS_ASSERT(! value.probe());
 
@@ -943,10 +952,10 @@ namespace madness {
 
                 lazy_sync_internal<LazySyncTag>(parent, child0, child1, key, op);
             } else {
-                typedef void (WorldGopInterface::*memfnT)(const ProcessID, const ProcessID,
+                typedef void (WorldGopInterface::*lazy_sync_childrenT)(const ProcessID, const ProcessID,
                     const keyT&, opT&, const ProcessID) const;
                 // There is only one process, so run the sync operation now.
-                world_.taskq.add(*this, memfnT(& WorldGopInterface::template lazy_sync_children<keyT, opT>),
+                world_.taskq.add(*this, lazy_sync_childrenT(& WorldGopInterface::template lazy_sync_children<keyT, opT>),
                         -1, -1, key, op, -1, TaskAttributes::hipri());
             }
         }
@@ -993,9 +1002,9 @@ namespace madness {
 
                 lazy_sync_internal<GroupLazySyncTag>(parent, child0, child1, key, op);
             } else {
-                typedef void (WorldGopInterface::*memfnT)(const ProcessID, const ProcessID,
+                typedef void (WorldGopInterface::*lazy_sync_children)(const ProcessID, const ProcessID,
                         const keyT&, opT&, const ProcessID) const;
-                world_.taskq.add(*this, memfnT(& WorldGopInterface::template lazy_sync_children<keyT, opT>),
+                world_.taskq.add(*this, lazy_sync_children(& WorldGopInterface::template lazy_sync_children<keyT, opT>),
                         -1, -1, key, op, -1, TaskAttributes::hipri());
             }
         }

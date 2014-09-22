@@ -516,7 +516,19 @@ struct CalculationParameters {
                 restart = true;
             }
             else if (s == "save") {
-                f >> save;
+                //can't redirect true/false as with other variables so create temporary variable
+                std::string tmp_save;
+                f >> tmp_save;
+                if (tmp_save=="true"){
+                    save=true;
+                }
+                else if (tmp_save=="false"){
+                    save=false;
+                }
+                else{
+                    std::cout << "moldft: unrecognized value for save (true or false only): " << tmp_save << std::endl;
+                    MADNESS_EXCEPTION("input_error", 0);
+                }
             }
             else if (s == "no_compute") {
                 no_compute = true;
@@ -639,9 +651,9 @@ struct CalculationParameters {
         madness::print("     spin restricted ", spin_restricted);
         madness::print("       xc functional ", xc_data);
 #ifdef MADNESS_HAS_LIBXC
-        madness::print("         xc libraray ", "libxc");
+        madness::print("         xc library  ", "libxc");
 #else
-        madness::print("         xc libraray ", "default (lda only)");
+        madness::print("         xc library  ", "default (lda only)");
 #endif
         if (core_type != "")
             madness::print("           core type ", core_type);
@@ -652,6 +664,7 @@ struct CalculationParameters {
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
         madness::print("    polynomial order ", k);
+        madness::print("  maximum iterations ", maxiter);
         if (conv_only_dens)
             madness::print(" Convergence criterion is only density delta.");
         else

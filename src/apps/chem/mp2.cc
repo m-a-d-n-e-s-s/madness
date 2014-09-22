@@ -77,7 +77,7 @@ namespace madness {
 	/// ctor
 	MP2::MP2(World& world, const std::string& input) :
 			world(world), param(input.c_str()), corrfac(world), correlation_energy(
-					0.0), coords_sum(-1.0), Q12(world), intermediates() {
+					0.0), coords_sum(-1.0), do_coupling(false), Q12(world), intermediates() {
 
 		{
 			std::shared_ptr<SCF> calc = std::shared_ptr<SCF>(
@@ -147,17 +147,6 @@ namespace madness {
 
 	}
 
-	/// return a reference to the electron pair for electrons i and j
-
-	/// @param[in]	i	index for electron 1
-	/// @param[in]	j	index for electron 2
-	/// @return		reference to the electron pair ij
-	ElectronPair& MP2::pair(const int i, const int j) {
-		// since we return a reference the keyval must already exist in the map
-		MADNESS_ASSERT(pairs.find(std::make_pair(i, j)) != pairs.end());
-		return pairs.find(std::make_pair(i, j))->second;
-	}
-
 	/// return the molecular correlation energy energy (without the HF energy)
 	double MP2::value() {
 		hf->value();		// make sure the reference is converged
@@ -183,7 +172,6 @@ namespace madness {
 		// projection operator must be set accordingly.
 		if (nuclear_corrfac->type() == NuclearCorrelationFactor::None) {
 			Q12.set_spaces(hf->get_calc().amo);
-			//        	} else if (nuclear_corrfac->type()==NuclearCorrelationFactor::GaussSlater) {
 		} else {
 			// only valid for closed shell
 			MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
@@ -194,31 +182,46 @@ namespace madness {
 				print("set orbital spaces for the SO projector");
 				print("Q12,R = (1-|nemo><nemo|R2) (1-|nemo><nemo|R2)");
 			}
-			//        	} else {
-			//        		MADNESS_EXCEPTION("unknown nuclear correlation factor",1);
 		}
 
 		correlation_energy = 0.0;
+		if (world.rank()==0) print("localize ",hf->get_calc().param.localize);
 
 		// compute only one single pair
 		if ((param.i > -1) and (param.j > -1)) {
-			pair(param.i, param.j) = solve_residual_equations(param.i, param.j);
+			solve_residual_equations(pair(param.i, param.j));
 			correlation_energy += pair(param.i, param.j).e_singlet
 					+ pair(param.i, param.j).e_triplet;
 
-			// solve the residual equations for all pairs ij
 		} else {
+			// solve the residual equations for all pairs ij
 			for (int i = param.freeze; i < hf->nocc(); ++i) {
 				for (int j = i; j < hf->nocc(); ++j) {
-					if (pair(i, j).converged) {
-						pair(i, j).print_energy();
-						correlation_energy += pair(i, j).e_singlet
+					solve_residual_equations(pair(i,j));
+					correlation_energy += pair(i, j).e_singlet
 								+ pair(i, j).e_triplet;
-						make_Rpsi(pair(i, j));
-					} else {
-						pair(i, j) = solve_residual_equations(i, j);
-						correlation_energy += pair(i, j).e_singlet
-								+ pair(i, j).e_triplet;
+				}
+			}
+
+			// if orbitals are not canonical do the macro iterations
+			// coupling all the pair functions
+			if (hf->get_calc().param.localize) {
+				do_coupling=true;
+				param.maxiter=1;	// number of microiterations
+				for (int macro_iter=0; macro_iter<4; macro_iter++) {
+					correlation_energy=0.0;
+					for (int i = param.freeze; i < hf->nocc(); ++i) {
+						for (int j = i; j < hf->nocc(); ++j) {
+							pair(i,j).iteration=0;
+							pair(i,j).converged=false;
+							solve_residual_equations(pair(i,j));
+							correlation_energy += pair(i, j).e_singlet
+									+ pair(i, j).e_triplet;
+						}
+					}
+					if (world.rank()==0) {
+						printf("current coupled mp2 energy %12.8f\n",
+								correlation_energy);
 					}
 				}
 			}
@@ -263,11 +266,18 @@ namespace madness {
 	}
 
 	/// solve the residual equation for electron pair (i,j)
-	ElectronPair MP2::solve_residual_equations(const int i, const int j) {
+	void MP2::solve_residual_equations(ElectronPair& result) const {
 
-		if (world.rank() == 0)
-			printf("\n\nsolving electron pair (%d, %d)\n\n", i, j);
-		ElectronPair result = guess_mp1_3(i, j);
+		if (result.converged) {
+			result.print_energy();
+			return;
+		}
+
+		const int i=result.i;
+		const int j=result.j;
+
+		if (world.rank() == 0) printf("\n\nsolving electron pair (%d, %d)\n\n", i, j);
+		guess_mp1_3(result);
 		result.store_pair(world);
 
 		double energy = compute_energy(result);
@@ -281,26 +291,22 @@ namespace madness {
 		const double eps = zeroth_order_energy(i, j);
 		real_convolution_6d green = BSHOperator<6>(world, sqrt(-2 * eps), lo,
 				bsh_eps);
-		green.destructive() = true;
-		//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001,
-		//            		FunctionDefaults<6>::get_thresh()*0.1);
-
-		// do some preiterations using increments
-		//            increment(result,green);
-
-		if (world.rank() == 0)
-			print("computing iteratively");
-		//			real_function_6d constant_term;
-		//			load_function(constant_term,"GVpair");
 
 		NonlinearSolverND<6> solver(param.maxsub);
 		solver.do_print = (world.rank() == 0);
 		// increment iteration counter upon entry
-		for (++result.iteration; result.iteration < 20; ++result.iteration) {
+		for (++result.iteration; result.iteration <= param.maxiter; ++result.iteration) {
 
 			// apply the convolution
 			real_function_6d vphi = multiply_with_0th_order_Hamiltonian(
 					result.function, i, j);
+
+			// add the coupling of the other mp1 functions if non-canonical
+			// orbitals are used
+			if (do_coupling and hf->get_calc().param.localize) {
+				vphi-=add_local_coupling(i,j);
+			}
+
 			vphi.scale(-2.0).truncate();
 			load_balance(vphi, false);
 
@@ -310,7 +316,6 @@ namespace madness {
 			// we have to solve this equation:
 			// psi1 = psi0 + GVpsi1 <=> psi0 + GVpsi1 - psi1 = r =0
 			tmp = (Q12(result.constant_term + tmp)).truncate();
-			//				const double old_fnorm=result.function.norm2();
 
 			real_function_6d residual = result.function - tmp;
 			result.function = Q12(solver.update(tmp, residual));
@@ -325,11 +330,9 @@ namespace madness {
 			result.converged = ((std::abs(old_energy - energy)
 					< result.function.thresh() * 0.01) and (rnorm < param.dconv_));
 			result.store_pair(world);
-			//				save_function(result.function,"pair_iter"+stringify(result.iteration));
 
 			if (world.rank() == 0)
-				printf(
-						"finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
+				printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
 						result.iteration, wall_time(), energy);
 
 			if (result.converged)
@@ -338,13 +341,11 @@ namespace madness {
 		}
 
 		// save the converged first order pair function separately for easier access
-		std::string name = "pair_" + stringify(i) + stringify(j)
-				+ "_psi1_converged";
+		std::string name = "pair_" + stringify(i) + stringify(j) + "_psi1_converged";
 		save_function(result.function, name);
 
 		// print the final pair energies
 		result.print_energy();
-		return result;
 	}
 
 	real_function_6d MP2::make_Rpsi(const ElectronPair& pair) const {
@@ -826,7 +827,13 @@ namespace madness {
 	}
 
 	/// compute the first iteration of the residual equations and all intermediates
-	ElectronPair MP2::guess_mp1_3(const int i, const int j) const {
+	void MP2::guess_mp1_3(ElectronPair& pair) const {
+
+		// fast return if possible
+		if (pair.function.is_initialized()) return;
+
+		const int i=pair.i;
+		const int j=pair.j;
 
 		// the Green's function
 		const double eps = zeroth_order_energy(i, j);
@@ -835,11 +842,6 @@ namespace madness {
 		//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
 		//            		FunctionDefaults<6>::get_thresh()*0.1);
 
-		ElectronPair pair = make_pair(i, j);
-
-		// fast return if possible
-		if (pair.function.is_initialized())
-			return pair;
 
 		pair.Uphi0 = make_Uphi0(pair);
 		pair.KffKphi0 = make_KffKphi0(pair);
@@ -966,8 +968,6 @@ namespace madness {
 		pair.function = GVpair;
 		pair.constant_term = copy(GVpair);
 		save_function(GVpair, "GVpair");
-
-		return pair;
 	}
 
 	/// compute the singlet and triplet energy for a given electron pair
@@ -1362,5 +1362,54 @@ namespace madness {
 
 		return vphi;
 	}
+
+    /// add the coupling terms for local MP2
+
+    /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
+    real_function_6d MP2::add_local_coupling(const int i, const int j) const {
+
+    	if (world.rank()==0) print("adding local coupling");
+
+        const int nmo = hf->nocc();
+
+        // compute the fock matrix
+        const vector_real_function_3d& nemo=hf->nemos();
+        const tensorT occ=hf->get_calc().aocc;
+        tensorT fock=hf->nemo_calc.compute_fock_matrix(nemo,occ);
+
+        // skip diagonal elements
+        for (int k = 0; k < nmo; ++k) {
+        	if (fock(k,k)>0.0) MADNESS_EXCEPTION("positive orbital energies",1);
+            fock(k, k) =0.0;
+        }
+
+        real_function_6d result=real_factory_6d(world);
+
+    	real_function_6d f;
+		for (int k = param.freeze; k < hf->nocc(); ++k) {
+        	if (k==i) continue;
+        	if (k<j) {
+        		f=swap_particles(pair(k,j).function);
+        		f.scale(-1.0);
+        	}
+        	else f=pair(j,k).function;
+        	result-=fock(i,k) * f;
+        }
+
+		for (int l = param.freeze; l < hf->nocc(); ++l) {
+        	if (l==j) continue;
+        	if (i<l) {
+        		f=swap_particles(pair(i,l).function);
+        		f.scale(-1.0);
+        	}
+        	else f=pair(l,i).function;
+        	result-=fock(l,j) * f;
+        }
+        result.truncate();
+        return result;
+
+    }
+
+
 }
 
