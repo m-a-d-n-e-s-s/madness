@@ -61,7 +61,7 @@ public:
     std::vector<coord_3d> special_points() const {return specialpts;}
 
     Level special_level() {
-      return 15;
+      return 6;
     }
 };
 
@@ -80,6 +80,8 @@ private:
     
 public:
 
+    virtual bool supports_vectorized() const {return false;}
+
     static const double gamma_data[17];
     
     ProjRLMFunctor(double alpha, int l, int m, int i, const coord_3d& center) 
@@ -94,6 +96,9 @@ public:
     double operator()(const coord_3d& r) const {
         double x = r[0]-center[0]; double y = r[1]-center[1]; double z = r[2]-center[2];
         double rsq = x*x + y*y + z*z;
+
+        if (rsq > 40.0) return 0.0;
+
         double rr = std::sqrt(rsq);
         double rval = t1;
         const double PI = constants::pi;
@@ -161,11 +166,184 @@ public:
         rval *= std::exp(-0.5*(rsq/alpha/alpha));
         return rval;
     }
-    
+   
+    virtual bool screened(const coord_3d& c1, const coord_3d& c2) const {
+        double ftol = 1e-12;
+
+        double x1 = c1[0]; double y1 = c1[1]; double z1 = c1[2];
+        double x2 = c2[0]; double y2 = c1[1]; double z2 = c1[2];
+
+        // if center is inside box, then return false
+        // otherwise, look for the closests point and check
+        bool inside = (center[0] >= x1) && (center[0] <= x2) &&
+                      (center[1] >= y1) && (center[1] <= y2) &&
+                      (center[2] >= z1) && (center[2] <= z2);
+        if (inside) {
+          return false;
+        }
+        else {
+            //printf("GTH_pseudopotential: (point not inside)\n");
+            //print("  c1: ", c1, "     c2: ", c2);
+            double minr = 1e10;
+            int ii = -1; int jj = -1; int kk = -1;
+            for (int i = 0; i <= 1; i++) {
+                for (int j = 0; j <= 1; j++) {
+                    for (int k = 0; k <= 1; k++) {
+                        double x = (i == 0) ? c1[0] : c2[0];
+                        double y = (j == 0) ? c1[1] : c2[1];
+                        double z = (k == 0) ? c1[2] : c2[2];
+                        coord_3d rr = vec(x, y, z) - center;
+                        double rsq = rr[0]*rr[0]+rr[1]*rr[1]+rr[2]*rr[2];
+             //           print("current minr:  ", minr, "     point: ", vec(x,y,z), "     center: ", center, "     p: ", vec(x,y,z), "     rsq: ", rsq);
+                        if (minr > rsq) {
+                            minr = rsq;
+                            ii = i; jj = j; kk = k;
+                        }
+                    }
+                }
+            }
+            //print("ii: ", ii, "jj: ", jj, "kk: ", kk);
+            //printf("\n");
+            if ((ii < 0) || (jj < 0) || (kk < 0)) MADNESS_EXCEPTION("GTH_Pseudopotential: failed to find suitable minimum point\n", 0);
+            double x = (ii == 0) ? c1[0] : c2[0]; 
+            double y = (jj == 0) ? c1[1] : c2[1]; 
+            double z = (kk == 0) ? c1[2] : c2[2]; 
+            double fval = this->operator()(vec(x, y, z));
+            if (fval < ftol) return true;
+            else return false;
+        }
+    }
+ 
+    virtual void operator()(const Vector<double*,3>& xvals, double* restrict fvals, int npts) const {
+        
+        double* x = new double[npts];
+        double* y = new double[npts];
+        double* z = new double[npts];
+        double* rsq = new double[npts];
+        double* rr = new double[npts];
+
+        double* x1 = xvals[0]; double* x2 = xvals[1]; double* x3 = xvals[2];
+        for (int i = 0; i < npts; i++) {
+            x[i] = x1[i]-center[0];
+            y[i] = x2[i]-center[1];
+            z[i] = x3[i]-center[2];
+            rsq[i] = x[i]*x[i] + y[i]*y[i] + z[i]*z[i];
+            rr[i] = std::sqrt(rsq[i]);
+            fvals[i] = t1;
+        }
+
+        const double PI = constants::pi;
+
+        // Radial part
+        if (itmp2 == 0) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= std::sqrt(2);
+            }
+        }
+        else if (itmp2 == 1) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= rr[i]*std::sqrt(2);
+            }
+        }
+        else if (itmp2 == 2) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= rsq[i]*std::sqrt(2);
+            }
+        }
+        else if (itmp2 == 3) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= rr[i]*rsq[i]*std::sqrt(2);
+            }
+        }
+        else if (itmp2 == 4) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= rsq[i]*rsq[i]*std::sqrt(2);
+            }
+        }
+        else if (itmp2 == 5) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= rr[i]*rsq[i]*rsq[i]*std::sqrt(2);
+            }
+        }
+        else if (itmp2 == 6) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= rsq[i]*rsq[i]*rsq[i]*std::sqrt(2);
+            }
+        }
+        else if (itmp2 == 7) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= rr[i]*rsq[i]*rsq[i]*rsq[i];
+            }
+        }
+        // Angular part
+        if (l == 0) {
+            for (int i = 0; i < npts; i++) {
+                fvals[i] *= (1./2.)*std::sqrt(1./PI)*std::exp(-0.5*(rsq[i]/alpha/alpha));
+            }
+        } else if (l == 1) {
+            if (m == 0) {
+                for (int i = 0; i < npts; i++) {
+                    fvals[i] *= std::sqrt(3./4./PI)*x[i]*std::exp(-0.5*(rsq[i]/alpha/alpha));
+                }
+            }
+            else if (m == 1) {
+                for (int i = 0; i < npts; i++) {
+                    fvals[i] *= std::sqrt(3./4./PI)*y[i]*std::exp(-0.5*(rsq[i]/alpha/alpha));
+                }
+            }
+            else if (m == 2) {
+                for (int i = 0; i < npts; i++) {
+                    fvals[i] *= std::sqrt(3./4./PI)*z[i]*std::exp(-0.5*(rsq[i]/alpha/alpha));
+                }
+            }
+            else {
+                MADNESS_EXCEPTION("m out of range for l = 1", 0);
+            }
+        } else if (l == 2) {
+            if (m == 0) {
+                for (int i = 0; i < npts; i++) {
+                    fvals[i] *= (1./4.)*std::sqrt(5./PI)*(-x[i]*x[i] - y[i]*y[i] + 2*z[i]*z[i])*std::exp(-0.5*(rsq[i]/alpha/alpha));
+                }
+            }
+            else if (m == 1) {
+                for (int i = 0; i < npts; i++) {
+                    fvals[i] *= (1./2.)*std::sqrt(15./PI)*(y[i]*z[i])*std::exp(-0.5*(rsq[i]/alpha/alpha));
+                }
+            }
+            else if (m == 2) {
+                for (int i = 0; i < npts; i++) {
+                    fvals[i] *= (1./2.)*std::sqrt(15./PI)*(x[i]*z[i])*std::exp(-0.5*(rsq[i]/alpha/alpha));
+                }
+            }
+            else if (m == 3) {
+                for (int i = 0; i < npts; i++) {
+                    fvals[i] *= (1./2.)*std::sqrt(15./PI)*(x[i]*y[i])*std::exp(-0.5*(rsq[i]/alpha/alpha));
+                }
+            }
+            else if (m == 4) {
+                for (int i = 0; i < npts; i++) {
+                    fvals[i] *= (1./4.)*std::sqrt(15./PI)*(x[i]*x[i] - y[i]*y[i])*std::exp(-0.5*(rsq[i]/alpha/alpha));
+                }
+            }
+            else {
+                MADNESS_EXCEPTION("m out of range for l = 2", 0);
+            }
+        }
+        //for (int i = 0; i < npts; i++) {
+        //    fvals[i] *= std::exp(-0.5*(rsq[i]/alpha/alpha));
+        //}
+
+        delete [] x;
+        delete [] y;
+        delete [] z;
+        delete [] rsq;
+        delete [] rr;
+    }
+
     std::vector<coord_3d> special_points() const {return specialpts;}
 
     Level special_level() {
-      return 15;
+      return 6;
     }
 };
 
@@ -181,8 +359,8 @@ public:
   
     real_function_3d nlmproj(World& world, int l, int m, int i) {
         real_function_3d f1 = (m < 2*l+1) ?
-           real_factory_3d(world).functor(real_functor_3d(new ProjRLMFunctor(radii(l), l, m, i, center))).truncate_mode(0)
-             : real_factory_3d(world);
+           real_factory_3d(world).functor(real_functor_3d(new ProjRLMFunctor(radii(l), l, m, i, center))).
+               truncate_on_project().nofence().truncate_mode(0) : real_factory_3d(world);
         return f1;
     }
 
@@ -382,7 +560,15 @@ public:
                     }
                 }
             }
+            // Somehow this scares me ... thread-safety of the container localproj (???)
+            world.gop.fence();
         }
+        truncate(world, localproj, FunctionDefaults<3>::get_thresh());
+        compress(world, localproj);
+        //truncate(world, psi, FunctionDefaults<3>::get_thresh());
+        compress(world, psi);
+        //truncate(world, vpsi, FunctionDefaults<3>::get_thresh());
+        compress(world, vpsi);
 
         Tensor<Q> Pilm = matrix_inner(world, localproj, psi);
         Pilm = Pilm.reshape(natoms, 3, maxLL+1, 2*maxLL+1, norbs);

@@ -1181,13 +1181,13 @@ namespace madness {
                 // get Vsigma_aa (if it is the case and Vsigma_bb)
                 functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
                 functionT vsigab;
-                if (xc.is_spin_polarized())// V_ab
+		if (xc.is_spin_polarized() && param.nbeta != 0)// V_ab
                     vsigab = make_dft_potential(world, vf, ispin, 2); //.truncate();
                 
                 for (int axis=0; axis<3; axis++) {
                     functionT gradn = delrho[axis + 3*ispin];
                     functionT ddel = vsigaa*gradn;
-                    if (xc.is_spin_polarized()) {
+	            if (xc.is_spin_polarized() && param.nbeta != 0) {
                         functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
                         ddel = ddel + vsab;
                     }
@@ -2239,7 +2239,7 @@ namespace madness {
                     
                     for (int axis = 0; axis < 3; ++axis)
                         delrho.push_back((*gradop[axis])(arho, false)); // delrho
-                    if (xc.is_spin_polarized())
+			if (xc.is_spin_polarized() && param.nbeta != 0)
                         for (int axis = 0; axis < 3; ++axis)
                             delrho.push_back((*gradop[axis])(brho, false));
                     
@@ -2249,11 +2249,11 @@ namespace madness {
                                  delrho[0] * delrho[0] + delrho[1] * delrho[1]
                                  + delrho[2] * delrho[2]);     // sigma_aa
                     
-                    if (xc.is_spin_polarized())
+		    if (xc.is_spin_polarized() && param.nbeta != 0)
                         vf.push_back(
                                      delrho[0] * delrho[3] + delrho[1] * delrho[4]
                                      + delrho[2] * delrho[5]); // sigma_ab
-                    if (xc.is_spin_polarized())
+	            if (xc.is_spin_polarized() && param.nbeta != 0)
                         vf.push_back(
                                      delrho[3] * delrho[3] + delrho[4] * delrho[4]
                                      + delrho[5] * delrho[5]); // sigma_bb
@@ -2264,8 +2264,13 @@ namespace madness {
                     reconstruct(world, vf);
                     arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
                 }
-            }
             
+                // this is a nasty hack, just adding something so that make_libxc_args receives 5 arguments
+                // has to be here or refine_to_common_level(vf) above hangs, but we really need a better solution for when nbeta=0
+		if (xc.is_spin_polarized() && param.nbeta == 0 && xc.is_gga()){
+		        vf.push_back(brho);
+			vf.push_back(brho);}
+		}
             double enla = 0.0, enlb = 0.0;
             vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal,
                                              exca, enla, 0);
@@ -2277,7 +2282,6 @@ namespace madness {
             else if (param.nbeta != 0) {
                 enlb = enla;
             }
-            
             
             double ekina = 0.0, ekinb = 0.0;
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
