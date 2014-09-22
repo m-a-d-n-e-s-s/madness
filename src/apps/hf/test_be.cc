@@ -223,10 +223,6 @@ int main(int argc, char** argv)
     print("          configured at ...", MADNESS_CONFIGURATION_DATE);
     print("                    CXX ...", MADNESS_CONFIGURATION_CXX);
     print("               CXXFLAGS ...", MADNESS_CONFIGURATION_CXXFLAGS);
-#ifdef WORLD_WATCHDOG
-    print("               watchdog ...", WATCHDOG_BARK_INTERVAL,
-        WATCHDOG_TIMEOUT);
-#endif
 #ifdef OPTERON_TUNE
     print("             tuning for ...", "opteron");
 #elif defined(CORE_DUO_TUNE)
