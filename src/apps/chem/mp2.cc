@@ -346,7 +346,6 @@ namespace madness {
 
 		// print the final pair energies
 		result.print_energy();
-//		return result;
 	}
 
 	real_function_6d MP2::make_Rpsi(const ElectronPair& pair) const {
@@ -843,8 +842,6 @@ namespace madness {
 		//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
 		//            		FunctionDefaults<6>::get_thresh()*0.1);
 
-//		ElectronPair pair = make_pair(i, j);
-
 
 		pair.Uphi0 = make_Uphi0(pair);
 		pair.KffKphi0 = make_KffKphi0(pair);
@@ -971,8 +968,6 @@ namespace madness {
 		pair.function = GVpair;
 		pair.constant_term = copy(GVpair);
 		save_function(GVpair, "GVpair");
-
-//		return pair;
 	}
 
 	/// compute the singlet and triplet energy for a given electron pair

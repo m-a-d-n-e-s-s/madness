@@ -233,7 +233,7 @@ namespace madness {
                 n_core = molecule.n_core_orb_all();
             }
             
-            molecule.orient();
+            if(not param.no_orient)molecule.orient();
             aobasis.read_file(param.aobasis);
             param.set_molecular_info(molecule, aobasis, n_core);
         }
