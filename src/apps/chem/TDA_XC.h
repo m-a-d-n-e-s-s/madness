@@ -12,7 +12,9 @@
 //#include <examples/mp2.h>
 
 // LIBXC
-#include<xc.h>
+//#ifdef MADNESS_HAS_LIBXC
+//#include <xc.h>
+//#endif
 
 #include<examples/nonlinsol.h>
 #include<chem/SCF.h>
