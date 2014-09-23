@@ -351,6 +351,9 @@ namespace madness {
 
 #if HAVE_INTEL_TBB
 
+        if(nthreads < 1)
+            nthreads = 1;
+
         if (SafeMPI::COMM_WORLD.Get_size() > 1) {
             // There are nthreads+2 because the main and communicator thread
             // are now a part of tbb.
