@@ -165,8 +165,8 @@ namespace madness {
         template <class Archive>
         struct ArchiveLoadImpl<Archive,linked_list> {
             static void load(const Archive& ar, linked_list& c) {
-                int value;
-                bool flag;
+                int value = 0;
+                bool flag = false;
                 ar & value & flag;
                 c.set_value(value);
                 if (flag) {
@@ -296,7 +296,7 @@ void test_in(const InputArchive& iar) {
     const char* teststr = "hello \n dude !";
     string str(teststr);
     linked_list list;
-    double pi, e;
+    double pi = 0.0, e = 0.0;
 
     // Destroy in-core data
     a.a = b.b = c.c = i = 0;

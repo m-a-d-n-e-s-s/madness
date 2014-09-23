@@ -673,7 +673,6 @@ namespace madness {
         template <typename Probe>
         static void inline await(const Probe& probe, bool dowork = true) {
             PROFILE_MEMBER_FUNC(World);
-            // NEED TO RESTORE THE WATCHDOG STUFF
             if (!probe()) {
                 if(dowork) {
                     tbb::empty_task* local_wait_task = new (tbb::task::allocate_root()) tbb::empty_task;
@@ -695,7 +694,6 @@ namespace madness {
         template <typename Probe>
         static void inline await(const Probe& probe, bool dowork = true) {
             PROFILE_MEMBER_FUNC(World);
-            // NEED TO RESTORE THE WATCHDOG STUFF
             MutexWaiter waiter;
             while (!probe()) {
                 bool working = false;
