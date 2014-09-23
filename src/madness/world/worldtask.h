@@ -399,12 +399,6 @@ namespace madness {
 
         void notify() { nregistered--; }
 
-        // Used in for_each kernel to check completion
-        static bool completion_status(bool left, bool right) {
-            return (left && right);
-        }
-
-
         // Used in reduce kernel
         template <typename resultT, typename opT>
         static resultT sum(const resultT& left, const resultT& right, const opT& op) {
