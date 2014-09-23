@@ -83,9 +83,15 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 		print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
 		print("-------------------------------------------------------\n\n\n\n");
 
+
+		xfunctions.erase(xfunctions.begin()+excitations_,xfunctions.end());
+		if(xfunctions.size()!=excitations_) {
+			print("Wrong size in xfunctions!!!!");
+			//MADNESS_EXCEPTION("Wrong size in xfunction vector",1);
+		}
 		orthonormalize_fock(xfunctions,false);
 
-		size_t max = excitations_;
+		size_t max = xfunctions.size();
 
 		// failsafe
 		if(excitations_ > xfunctions.size()){

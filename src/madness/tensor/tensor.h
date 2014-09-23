@@ -358,9 +358,8 @@ namespace madness {
 
         // Free memory and restore default constructor state
         void deallocate() {
-            // next two lines swapped
-        	_shptr.reset();
             _p = 0;
+            _shptr.reset();
             _size = 0;
             _ndim = -1;
         }

@@ -100,17 +100,17 @@ protected:
         }
     }
 
-    static double munge(double rho) {
+    static double munge_old(double rho) {
         double p, dpdx;
         polyn(rho, p, dpdx);
         return p;
     }
 
 
-//    double munge(double rho) const {
-//        if (rho <= rhotol) rho=rhomin;
-//        return rho;
-//    }
+    double munge(double rho) const {
+        if (rho <= rhotol) rho=rhomin;
+        return rho;
+    }
 
     void munge2(double& rho, double& sigma) const {
         if (rho < rhotol) rho=rhomin;

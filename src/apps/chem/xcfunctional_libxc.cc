@@ -330,8 +330,8 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             rho  = madness::Tensor<double>(np*2L);
             double * restrict dens = rho.ptr();
             for (long i=0; i<np; i++) {
-                dens[2*i  ] = munge(rhoa[i]);
-                dens[2*i+1] = munge(rhob[i]);
+                dens[2*i  ] = munge_old(rhoa[i]);
+                dens[2*i+1] = munge_old(rhob[i]);
             }
         }
         else if (is_gga()) {
@@ -373,7 +373,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const double * restrict rhoa = t[0].ptr();
             double * restrict dens = rho.ptr();
             for (long i=0; i<np; i++) {
-                dens[i] = munge(2.0*rhoa[i]);
+                dens[i] = munge_old(2.0*rhoa[i]);
             }
         }
         else if (is_gga()) {
