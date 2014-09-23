@@ -464,13 +464,7 @@ namespace madness {
         WorldTaskQueue(World& world);
 
         /// Returns the number of pending tasks
-        size_t size() const {
-#if HAVE_INTEL_TBB
-            return ThreadPool::tbb_parent_task->ref_count()-1;
-#else
-            return nregistered;
-#endif
-        }
+        size_t size() const { return nregistered; }
 
 
         /// Add a new local task taking ownership of the pointer
@@ -1082,57 +1076,21 @@ namespace madness {
                 const TaskAttributes attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,a9,attr); }
 
+    private:
+
         struct ProbeAllDone {
-#if HAVE_INTEL_TBB
-            tbb::empty_task* tq;
-            double start;
-            ProbeAllDone(tbb::empty_task* tq) : tq(tq), start(cpu_time()) {}
-            bool operator()() const {
-                if (cpu_time()-start > 120000) {
-                    for (int loop = 0; loop<3; ++loop) {
-                        std::cout << "HUNG Q? " << tq->ref_count()-1 << std::endl;
-                        std::cout.flush();
-                        myusleep(1000000);
-                    }
-                    MADNESS_ASSERT(cpu_time()-start < 120000);
-                }
-                return (tq->ref_count() == 1);
-            }
-#else
             WorldTaskQueue* tq;
-            double start;
-            ProbeAllDone(WorldTaskQueue* tq) : tq(tq),start(cpu_time()) {}
-            bool operator()() const {
-                if (cpu_time()-start > 120000) {
-                    for (int loop = 0; loop<3; ++loop) {
-                        std::cout << "HUNG Q? " << tq->size() << " " << ThreadPool::queue_size() << std::endl;
-                        std::cout.flush();
-                        myusleep(1000000);
-                    }
-                    MADNESS_ASSERT(cpu_time()-start < 120000);
-                }
-                return (tq->size() == 0);
-            }
-#endif
+            ProbeAllDone(WorldTaskQueue* tq) : tq(tq) {}
+            bool operator()() const { return (tq->nregistered == 0); }
         };
+
+    public:
 
         /// Returns after all local tasks have completed
 
         /// While waiting the calling thread will run tasks.
         void fence()  {
-#if HAVE_INTEL_TBB
-            ProbeAllDone tester(ThreadPool::tbb_parent_task);
-            do {
-                world.await(tester);
-            }
-            while (ThreadPool::tbb_parent_task->ref_count()-1);
-#else
-            ProbeAllDone tester(this);
-            do {
-                world.await(tester);
-            }
-            while (nregistered);
-#endif
+            ThreadPool::await(ProbeAllDone(this), true);
         }
     };
 
