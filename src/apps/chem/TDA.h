@@ -341,7 +341,7 @@ public:
 		L(L), coord(coord), signs(signs),natoms(natoms),mode(mode)
 {if(mode>1) MADNESS_EXCEPTION("mode in diffuse_function struct is not 0,1 or 2",1);}
 
-	/// Make a rydberg guess function where the near range area is 0.0 and the long range is a diffuse 2s or 2p function
+	/// Make a rydberg guess function where the neRäar range area is 0.0 and the long range is a diffuse 2s or 2p function
 	double operator()(const coord_3d &r)const{
 		std::vector<double> diffuse_1s_functions;
 		double exponent =1.0;

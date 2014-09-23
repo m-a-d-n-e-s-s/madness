@@ -83,6 +83,8 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 		print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
 		print("-------------------------------------------------------\n\n\n\n");
 
+		orthonormalize_fock(xfunctions,false);
+
 		size_t max = excitations_;
 
 		// failsafe
