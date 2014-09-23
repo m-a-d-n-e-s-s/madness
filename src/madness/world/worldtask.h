@@ -472,24 +472,6 @@ namespace madness {
 #endif
         }
 
-        class Stealer {
-            WorldTaskQueue& q;
-            std::vector<TaskInterface*>& v;
-            const int nsteal;
-
-        public:
-            Stealer(WorldTaskQueue& q, std::vector<TaskInterface*>& v, int nsteal)
-                : q(q)
-                , v(v)
-                , nsteal(nsteal)
-            {}
-
-            bool operator()(PoolTaskInterface** pt);
-        };
-
-
-        /// Invoke locally or remotely to send tasks to process P
-        std::vector<TaskInterface*> steal(int nsteal);
 
         /// Add a new local task taking ownership of the pointer
 
