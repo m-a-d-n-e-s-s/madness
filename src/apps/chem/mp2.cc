@@ -189,7 +189,8 @@ namespace madness {
 
 		// compute only one single pair
 		if ((param.i > -1) and (param.j > -1)) {
-			solve_residual_equations(pair(param.i, param.j));
+			pair(param.i,param.j)=make_pair(param.i,param.j);	// initialize
+			solve_residual_equations(pair(param.i, param.j));	// solve
 			correlation_energy += pair(param.i, param.j).e_singlet
 					+ pair(param.i, param.j).e_triplet;
 
@@ -197,7 +198,8 @@ namespace madness {
 			// solve the residual equations for all pairs ij
 			for (int i = param.freeze; i < hf->nocc(); ++i) {
 				for (int j = i; j < hf->nocc(); ++j) {
-					solve_residual_equations(pair(i,j));
+					pair(i,j)=make_pair(i,j);				// initialize
+					solve_residual_equations(pair(i,j));	// solve
 					correlation_energy += pair(i, j).e_singlet
 								+ pair(i, j).e_triplet;
 				}
@@ -289,6 +291,7 @@ namespace madness {
 		// of the orbital energies of orbitals i and j
 		//  -2.0 G = (T - e_i - e_j) ^ -1
 		const double eps = zeroth_order_energy(i, j);
+		if (world.rank()==0) print("eps in green:  ", eps);
 		real_convolution_6d green = BSHOperator<6>(world, sqrt(-2 * eps), lo,
 				bsh_eps);
 
@@ -1382,6 +1385,10 @@ namespace madness {
         	if (fock(k,k)>0.0) MADNESS_EXCEPTION("positive orbital energies",1);
             fock(k, k) =0.0;
         }
+        if (world.rank()==0) {
+        	print("fock matrix ");
+        	print(fock);
+        }
 
         real_function_6d result=real_factory_6d(world);
 
@@ -1390,20 +1397,18 @@ namespace madness {
         	if (k==i) continue;
         	if (k<j) {
         		f=swap_particles(pair(k,j).function);
-        		f.scale(-1.0);
         	}
         	else f=pair(j,k).function;
-        	result-=fock(i,k) * f;
+        	result+=fock(i,k) * f;
         }
 
 		for (int l = param.freeze; l < hf->nocc(); ++l) {
         	if (l==j) continue;
         	if (i<l) {
         		f=swap_particles(pair(i,l).function);
-        		f.scale(-1.0);
         	}
         	else f=pair(l,i).function;
-        	result-=fock(l,j) * f;
+        	result+=fock(l,j) * f;
         }
         result.truncate();
         return result;
