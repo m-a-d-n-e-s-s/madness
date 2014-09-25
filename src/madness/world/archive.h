@@ -1026,7 +1026,7 @@ namespace madness {
         struct ArchiveLoadImpl< Archive, std::map<T,Q> > {
             static void load(const Archive& ar, std::map<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL map" << std::endl);
-                std::size_t n;
+                std::size_t n = 0;
                 ar & n;
                 while (n--) {
                     std::pair<T,Q> p;

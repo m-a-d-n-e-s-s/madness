@@ -658,7 +658,8 @@ namespace madness {
     /// @param[in] m The row (second) dimension
     /// @param[in] coltile Tile size for columns forced to be even (default is to use all processes)
     /// @return An object encoding the dimension and distribution information
-    static inline DistributedMatrixDistribution column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile) { // default coltile=0 above
+    static inline DistributedMatrixDistribution
+    column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile) { // default coltile=0 above
         if (world.size()*coltile < n) coltile = (n-1)/world.size() + 1;
         coltile = std::min(coltile,n);
         if ((coltile&0x1)) ++coltile; // ??? Was before the previous statement
@@ -688,7 +689,8 @@ namespace madness {
     /// @param[in] m The row (second) dimension
     /// @param[in] rowtile Tile size for row (default is to use all processes)
     /// @return An object encoding the dimension and distribution information
-    static DistributedMatrixDistribution row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile) { // default rowtile=0 above
+    static inline DistributedMatrixDistribution
+    row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile) { // default rowtile=0 above
         if (world.size()*rowtile < m) rowtile = (m-1)/world.size() + 1;
         rowtile = std::min(rowtile,m);
 

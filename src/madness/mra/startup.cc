@@ -111,7 +111,7 @@ namespace madness {
 
         // This to init static data while single threaded
         initialize_legendre_stuff();
-	
+
         //if (world.rank() == 0) print("testing coeffs, etc.");
         MADNESS_ASSERT(gauss_legendre_test());
         MADNESS_ASSERT(test_two_scale_coefficients());
@@ -131,9 +131,6 @@ namespace madness {
             print("          configured at ...", MADNESS_CONFIGURATION_DATE);
             print("                    CXX ...", MADNESS_CONFIGURATION_CXX);
             print("               CXXFLAGS ...", MADNESS_CONFIGURATION_CXXFLAGS);
-#ifdef WORLD_WATCHDOG
-            print("               watchdog ...", WATCHDOG_BARK_INTERVAL, WATCHDOG_TIMEOUT);
-#endif
 #ifdef OPTERON_TUNE
             print("             tuning for ...", "opteron");
 #elif defined(CORE_DUO_TUNE)

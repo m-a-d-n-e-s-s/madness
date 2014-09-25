@@ -325,9 +325,6 @@ AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_CXXFLAGS], ["$CXXFLAGS"],[Configured C
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_HOST], ["$HOSTNAME"],[Configured on this machine])
 
 # Not yet enabled the user to configure this stuff but probably should
-AC_DEFINE([WORLD_WATCHDOG],[1],[Enables timeout for dead lock detection])
-AC_DEFINE([WATCHDOG_BARK_INTERVAL],[300],[Interval for warning about possible deadlock])
-AC_DEFINE([WATCHDOG_TIMEOUT],[1200],[Abort if idle for this long])
 AC_ARG_ENABLE([bsend-ack],
             [AC_HELP_STRING([--disable-bsend-ack], [Use MPI Send instead of MPI Bsend for huge message acknowledgements.])],
             [
