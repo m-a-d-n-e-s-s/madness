@@ -235,8 +235,8 @@ private:
 	 static double d2d_A2(const coord_3d &r){return xxz_function(r) - yyz_function(r)   ;}
 	 static double d2d_B1(const coord_3d &r){return xx_function(r) -yy_function(r)   ;}
 	 static double d2d_B2(const coord_3d &r){return z_function(r) +xy_function(r) +zzz_function(r) + xxz_function(r) +yyz_function(r)   ;}
-	 static double d2d_E1(const coord_3d &r){x_function(r)+xz_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r);}
-	 static double d2d_E2(const coord_3d &r){y_function(r)+yz_function(r)+yzz_function(r)+xxy_function(r)+yyy_function(r);}
+	 static double d2d_E1(const coord_3d &r){return x_function(r)+xz_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r);}
+	 static double d2d_E2(const coord_3d &r){return y_function(r)+yz_function(r)+yzz_function(r)+xxy_function(r)+yyy_function(r);}
 
 };
 }
