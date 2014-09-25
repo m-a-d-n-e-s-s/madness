@@ -459,7 +459,7 @@ namespace madness {
                 await_timeout = 900.0;
             }
             if(await_timeout >= 1.0) {
-                std::cout << "MADNESS wait timeout set to " << await_timeout << "seconds.\n";
+                std::cout << "MADNESS wait timeout set to " << await_timeout << " seconds.\n";
             } else {
                 std::cout << "MADNESS wait timeout disabled.\n";
             }

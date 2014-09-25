@@ -1084,7 +1084,12 @@ namespace madness {
 
         /// While waiting the calling thread will run tasks.
         void fence()  {
-            ThreadPool::await(ProbeAllDone(this), true);
+            try {
+                ThreadPool::await(ProbeAllDone(this), true);
+            } catch(...) {
+                printf("!!MADNESS ERROR: Exception thrown in WorldTaskQueue::fence() with %i pending task(s)\n", int(nregistered));
+                throw;
+            }
         }
     };
 
