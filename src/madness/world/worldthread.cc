@@ -73,6 +73,7 @@ namespace madness {
     pthread_key_t ThreadBase::thread_key;
 
     ThreadPool* ThreadPool::instance_ptr = 0;
+    double ThreadPool::await_timeout = 900.0;
 #if HAVE_INTEL_TBB
     tbb::task_scheduler_init* ThreadPool::tbb_scheduler = 0;
     tbb::empty_task* ThreadPool::tbb_parent_task = 0;
@@ -350,6 +351,9 @@ namespace madness {
 
 #if HAVE_INTEL_TBB
 
+        if(nthreads < 1)
+            nthreads = 1;
+
         if (SafeMPI::COMM_WORLD.Get_size() > 1) {
             // There are nthreads+2 because the main and communicator thread
             // are now a part of tbb.
@@ -444,6 +448,22 @@ namespace madness {
 
         // Construct the thread pool singleton
         instance_ptr = new ThreadPool(nthread);
+
+        const char* mad_wait_timeout = getenv("MAD_WAIT_TIMEOUT");
+        if(mad_wait_timeout) {
+            std::stringstream ss(mad_wait_timeout);
+            ss >> await_timeout;
+            if(await_timeout < 0.0) {
+                std::cout << "!!MADNESS WARNING: Invalid wait timeout.\n"
+                          << "!!MADNESS WARNING: MAD_WAIT_TIMEOUT = " << mad_wait_timeout << "\n";
+                await_timeout = 900.0;
+            }
+            if(await_timeout >= 1.0) {
+                std::cout << "MADNESS wait timeout set to " << await_timeout << "seconds.\n";
+            } else {
+                std::cout << "MADNESS wait timeout disabled.\n";
+            }
+        }
 
 #ifdef MADNESS_TASK_PROFILING
         // Initialize the output file name for the task profiler.

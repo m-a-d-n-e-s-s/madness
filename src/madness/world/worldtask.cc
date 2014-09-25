@@ -58,31 +58,4 @@ namespace madness {
         nregistered = 0;
     }
 
-    bool WorldTaskQueue::Stealer::operator()(PoolTaskInterface** pt) {
-        TAU_START("WorldTaskQueue::Stealer::operator()");
-        madness::print("IN STEAL");
-        PoolTaskInterface* t = *pt;
-        if (t->is_stealable()) {
-            TaskInterface* task = dynamic_cast<TaskInterface*>(t);
-            if (task) {
-                if (task->get_world()->id() == q.world.id()) {
-                    madness::print("Stealing", (void *) task);
-                    v.push_back(task);
-                    *pt = 0; // Indicates task has been stolen
-                }
-            }
-        }
-        TAU_STOP("WorldTaskQueue::Stealer::operator()");
-        return true;
-    }
-
-    std::vector<TaskInterface*> WorldTaskQueue::steal(int nsteal) {
-      TAU_START("WorldTaskQueue::steal()");
-        std::vector<TaskInterface*> v;
-        Stealer xxx(*this, v, nsteal);
-        ThreadPool::instance()->scan(xxx);
-      TAU_STOP("WorldTaskQueue::steal()");
-        return v;
-    }
-
 }  // namespace madness
