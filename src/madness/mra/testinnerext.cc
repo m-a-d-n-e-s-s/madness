@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
         print("***************************************************************************");
         print("alpha is a highly oscillatory function (x^2 sin(x^2)).");
         print("beta is a pretty boring Gaussian.");
-        print("For the first three timers, the cost of computing alpha in");
+        print("For the first two timers, the cost of computing alpha in");
         print("the numerical basis is not included. We see that since beta");
         print("is a simple Gaussian, it is cheaper to use the inner() method.\n");
     }
@@ -89,17 +89,13 @@ int main(int argc, char** argv) {
     END_TIMER("1. < a | b >)");
 
     START_TIMER;
-    double ab_f = alpha1.inner_ext(beta_func);
-    END_TIMER("2. < a | b_func >");
-
-    START_TIMER;
     real_functor_3d beta_ffi = real_functor_3d(new beta_functor());
     double ab_ffi = alpha1.inner_ext(beta_ffi);
     END_TIMER("3. < a | b_ffi >");
 
     if (world.rank() == 0) {
         print("\n***************************************************************************");
-        print("For the next three timers, the cost of computing beta in");
+        print("For the next two timers, the cost of computing beta in");
         print("the numerical basis is not included. We see that since alpha");
         print("is complicated, it is cheaper to use the inner_ext() method.\n");
     }
@@ -110,19 +106,12 @@ int main(int argc, char** argv) {
     END_TIMER("4. < b | a >");
 
     START_TIMER;
-    double ba_f = beta.inner_ext(alpha_func);
-    END_TIMER("5. < b | a_func >");
-
-    START_TIMER;
     real_functor_3d alpha_ffi = real_functor_3d(new alpha_functor());
     double ba_ffi = beta.inner_ext(alpha_ffi);
     END_TIMER("6. < b | a_ffi >");
 
     double aa = alpha.inner(alpha);
     double bb = beta.inner(beta);
-
-    double aa_f = alpha.inner_ext(alpha_func);
-    double bb_f = beta.inner_ext(beta_func);
 
     double aa_ffi = alpha.inner_ext(alpha_ffi);
     double bb_ffi = beta.inner_ext(beta_ffi);
@@ -131,17 +120,13 @@ int main(int argc, char** argv) {
         print("\nTest for correctness");
         print("***************************************************************************");
         printf("<a|a> (using inner() with Function) =                      %7.10f\n", aa);
-        printf("<a|a> (using inner_ext() with external function) =         %7.10f\n", aa_f);
         printf("<a|a> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", aa_ffi);
         print("***************************************************************************");
         printf("<b|b> (using inner() with Function) =                      %7.10f\n", bb);
-        printf("<b|b> (using inner_ext() with external function) =         %7.10f\n", bb_f);
         printf("<b|b> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", bb_ffi);
         print("***************************************************************************");
         printf("<a|b> (using inner() with Function) =                      %7.10f\n", ab);
-        printf("<a|b> (using inner_ext() with external function) =         %7.10f\n", ab_f);
         printf("<a|b> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", ab_ffi);
-        printf("<b|a> (using inner_ext() with external function) =         %7.10f\n", ba_f);
         printf("<b|a> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", ba_ffi);
         print("***************************************************************************");
     }
@@ -149,25 +134,19 @@ int main(int argc, char** argv) {
     real_function_3d alphabeta = real_factory_3d(world);
     alphabeta = alpha + beta;
     double aba = alphabeta.inner(alpha);
-    double aba_f = alphabeta.inner_ext(alpha_func);
     double aba_ffi = alphabeta.inner_ext(alpha_ffi);
 
     if (world.rank() == 0) {
         print("\nCheck that inner_ext works for Function that lacks a functor");
         print("***************************************************************************");
         printf("<a+b|a> (using inner() with Function) =                      %7.10f\n", aba);
-        printf("<a+b|a> (using inner_ext() with external function) =         %7.10f\n", aba_f);
         printf("<a+b|a> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", aba_ffi);
         print("***************************************************************************");
     }
 
-    if (not is_like(aa, aa_f, thresh)) ++success;
     if (not is_like(aa, aa_ffi, thresh)) ++success;
-    if (not is_like(bb, bb_f, thresh)) ++success;
     if (not is_like(bb, bb_ffi, thresh)) ++success;
-    if (not is_like(ab, ab_f, thresh)) ++success;
     if (not is_like(ab, ab_ffi, thresh)) ++success;
-    if (not is_like(ab, ba_f, thresh)) ++success;
     if (not is_like(ab, ba_ffi, thresh)) ++success;
 
     world.gop.fence();
