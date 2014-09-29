@@ -566,10 +566,10 @@ namespace madness {
                 prodT *= ops[d]->Tnormf;
 
             }
-            if (n) prodR = sqrt(std::max(prodR*prodR - prodT*prodT,0.0));
+//            if (n) prodR = sqrt(std::max(prodR*prodR - prodT*prodT,0.0));
 
             // this kicks in if the line above has no numerically significant digits.
-            if (prodR < 1e-8*prodT) {
+//            if (prodR < 1e-8*prodT) {
                 double prod=1.0, sum=0.0;
                 for (std::size_t d=0; d<NDIM; ++d) {
                     double a = ops[d]->NSnormf;
@@ -581,7 +581,7 @@ namespace madness {
                 }
                 if (n) prod *= sum;
                 prodR = prod;
-            }
+//            }
 
             return prodR;
         }
