@@ -31,7 +31,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 
 	// read keyword : only read xfunctions and analyze them (this happens in solve_sequential function)
 	if (read_ or only_sequential_){
-		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::cout;
+		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::endl;
 		return;
 	}
 
@@ -160,7 +160,7 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 		}
 	}else{
 		for(size_t i=0;i<xfunctions.size();i++) converged_xfunctions_.push_back(xfunctions[i]);
-		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::cout;
+		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::endl;
 	}
 
 	plot_vecfunction(active_mo_, "active_mo_");

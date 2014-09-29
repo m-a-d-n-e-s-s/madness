@@ -676,7 +676,7 @@ namespace madness {
         /// Broadcasts bytes from process root while still processing AM & tasks
 
         /// Optimizations can be added for long messages
-        void broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork = true);
+        void broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork = true, Tag bcast_tag = -1);
 
 
         /// Broadcasts typed contiguous data from process root while still processing AM & tasks
