@@ -887,30 +887,72 @@ namespace madness {
 		real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(),
 				lo, bsh_eps / fourpi);
 
-		for (int k = 0; k < hf->nocc(); ++k) {
+		if (hf->get_calc().param.localize) {	// local orbitals -- add coupling
 
-			// for the matrix element <ij|kl> = (ik|jl)
-			const real_function_3d ik = hf->orbital(i) * hf->orbital(k);
-			const real_function_3d gik = (*poisson)(ik).truncate();
-			const real_function_3d fik = slaterf12(ik).truncate();
+			// compute some intermediates
+	        const tensorT occ=hf->get_calc().aocc;
+	        tensorT fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
+			vecfuncT amotilde=transform(world,hf->orbitals(),fock);
+			vecfuncT fik, fjl, gik, jl, ik, tjl, jtl, itk, tik;
 
-			// the function Of(2) = <k(1) | f12 | phi0 >
-			//	            const real_function_3d Of=pair.r12phi.project_out(hf->orbital(k),0);
-
+			for (int k = 0; k < hf->nocc(); ++k) {
+				const real_function_3d ik1 = hf->orbital(i) * hf->orbital(k);
+				gik.push_back((*poisson)(ik1).truncate());	// (ik | g12 |
+				fik.push_back(slaterf12(ik1).truncate());	// (ik | f12 |
+				ik.push_back(ik1);
+				itk.push_back(hf->orbital(i) * amotilde[k]);	// | i k~ )
+				tik.push_back(amotilde[i] * hf->orbital(k));	// | i~ k )
+			}
 			for (int l = 0; l < hf->nocc(); ++l) {
+				const real_function_3d jl1 = hf->orbital(j) * hf->orbital(l);
+				fjl.push_back(slaterf12(jl1).truncate());	// (jl | f12 |
+				jl.push_back(jl1);							//      | jl)
+				tjl.push_back(amotilde[j] * hf->orbital(l));	// | j~ l )
+				jtl.push_back(hf->orbital(j) * amotilde[l]);	// | j l~ )
+			}
 
-				const real_function_3d jl = hf->orbital(j) * hf->orbital(l);
-				const double g_ijkl = inner(jl, gik);
-				const double f_ijkl = inner(jl, fik);
+			for (int k = 0; k < hf->nocc(); ++k) {
+				for (int l = 0; l < hf->nocc(); ++l) {
 
-				// the matrix element <kl | f12 | ij>
-				//		            const double f_ijkl=inner(hf->orbital(l),Of);
-				const double e_kl = zeroth_order_energy(k, l);
-				const double e_ij = zeroth_order_energy(i, j);
+					const double g_ijkl = inner(jl[l], gik[k]);		// <ij | g | kl>
+					const double f_itjkl = inner(fik[k],tjl[l]);	// <i j~| f | k l>
+					const double f_ijktl = inner(fik[k],jtl[l]);	// <i j| f | k l~>
+					const double f_tijkl = inner(fjl[l],tik[k]);	// <i~ j| f |k l>
+					const double f_ijtkl = inner(fjl[l],itk[k]);	// <i j| f |k~ l>
 
-				h(k, l) = f_ijkl * (e_kl - e_ij) + g_ijkl;
+					h(k, l) = g_ijkl + f_itjkl + f_ijktl - f_tijkl - f_ijtkl;
+				}
+			}
+
+
+		} else { // canonical orbitals -- simplified code
+
+			for (int k = 0; k < hf->nocc(); ++k) {
+
+				// for the matrix element <ij|kl> = (ik|jl)
+				const real_function_3d ik = hf->orbital(i) * hf->orbital(k);
+				const real_function_3d gik = (*poisson)(ik).truncate();
+				const real_function_3d fik = slaterf12(ik).truncate();
+
+				// the function Of(2) = <k(1) | f12 | phi0 >
+				//	            const real_function_3d Of=pair.r12phi.project_out(hf->orbital(k),0);
+
+				for (int l = 0; l < hf->nocc(); ++l) {
+
+					const real_function_3d jl = hf->orbital(j) * hf->orbital(l);
+					const double g_ijkl = inner(jl, gik);
+					const double f_ijkl = inner(jl, fik);
+
+					// the matrix element <kl | f12 | ij>
+					//		            const double f_ijkl=inner(hf->orbital(l),Of);
+					const double e_kl = zeroth_order_energy(k, l);
+					const double e_ij = zeroth_order_energy(i, j);
+
+					h(k, l) = f_ijkl * (e_kl - e_ij) + g_ijkl;
+				}
 			}
 		}
+
 		//			if (world.rank()==0) print("h\n",h);
 		//			for (int k=0; k<hf->nocc(); ++k) {
 		//				for (int l=0; l<hf->nocc(); ++l) {
