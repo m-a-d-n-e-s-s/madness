@@ -1,6 +1,11 @@
 #ifndef MADNESS_SHARED_PTR_BITS_H
 #define MADNESS_SHARED_PTR_BITS_H
 
+// These definition is hear because weak_ptr is not fully implemented, which is a
+// dependency of enable_shared_from_this.
+#define MADNESS_DISABLE_WEAK_PTR
+#define MADNESS_DISABLE_SHARED_FROM_THIS
+
 #include <madness/world/atomicint.h>
 #include <madness/world/worldexc.h>
 #include <madness/world/type_traits.h>
