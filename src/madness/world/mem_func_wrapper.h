@@ -300,6 +300,13 @@ namespace madness {
                     typename memfunc_traits<memfnT>::result_type>(obj, memfn);
         }
 
+        template <typename objT, typename memfnT>
+        MemFuncWrapper<std::shared_ptr<objT>, memfnT, typename result_of<memfnT>::type>
+        wrap_mem_fn(std::shared_ptr<objT>& obj, memfnT memfn) {
+            return MemFuncWrapper<std::shared_ptr<objT>, memfnT,
+                    typename memfunc_traits<memfnT>::result_type>(obj, memfn);
+        }
+
         template <typename ptrT, typename memfnT, typename resT>
         memfnT get_mem_func_ptr(const MemFuncWrapper<ptrT, memfnT, resT>& wrapper) {
             return wrapper.memfn_;
