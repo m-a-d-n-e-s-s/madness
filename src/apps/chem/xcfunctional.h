@@ -71,8 +71,8 @@ protected:
     static void polyn(const double x, double& p, double& dpdx) {
         // All of the static const stuff is evaluated at compile time
 
-        static const double xmin = 1.e-8; // <<<< MINIMUM VALUE OF DENSITY
-        static const double xmax = 1.e-6;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
+        static const double xmin = 1.e-6; // <<<< MINIMUM VALUE OF DENSITY
+        static const double xmax = 5.e-5;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
 
         static const double xmax2 = xmax*xmax;
         static const double xmax3 = xmax2*xmax;
