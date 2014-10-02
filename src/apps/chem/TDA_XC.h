@@ -198,9 +198,15 @@ struct apply_kernel_functor{
 };
 
 
+
 class TDA_DFT {
 
 public:
+	static double munge_density(double rho){
+		XCfunctional::munge_old(rho);
+		return rho;
+	}
+
 	TDA_DFT(World &world,const SCF &calc): world(world),calc(calc), xcfunctional_(calc.xc){
 
 		// Potential check
@@ -215,7 +221,11 @@ public:
 		for(size_t i=0;i<calc.amo.size();i++){
 			rho +=calc.amo[i]*calc.amo[i];
 		}
+		// Use the munge function to smooth the density
+		plot_plane(world,rho,"rho_unmunged");
+		rho.unaryop(munge_density);
 		rho_=rho;
+		plot_plane(world,rho,"rho_munged");
 
 		// Make the contracted gradient of the unperturbed density sum_i (d/dxi rho)^2
 		if(xcfunctional_.is_gga()){

@@ -796,6 +796,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions, bool guess) {
 double TDA::measure_offdiagonality(const madness::Tensor<double> &U,
 		const size_t size) const {
 	if(size ==0) return 0.0;
+	if(size ==1) return 0.0;
 	std::vector<double> offdiag_elements;
 	for (size_t i = 0; i < size; i++) {
 		for (size_t j = 0; j < size; j++) {
@@ -1116,6 +1117,7 @@ vecfuncT TDA::make_lda_intermediate()const{
 	vecfuncT mo;
 	for(size_t i=0;i<active_mo_.size();i++) mo.push_back(copy(active_mo_[i]));
 	vecfuncT result = xclib_interface_.get_lda_intermediate(mo);
+	plot_vecfunction(result,"lda_intermediate_");
 	mo.clear();
 	return result;
 }
