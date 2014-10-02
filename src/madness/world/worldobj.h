@@ -62,7 +62,7 @@ namespace madness {
             void invokehandler() {
                 handler(*arg);
                 free_am_arg(arg);
-            };
+            }
         };
 
         // It is annoying that we must replicate the task forwarding stuff here but we must
@@ -164,7 +164,11 @@ namespace madness {
     ///
     /// Note that world is exposed for convenience as a public data member.
     template <class Derived>
-    class WorldObject {
+    class WorldObject
+#ifndef MADNESS_DISABLE_SHARED_FROM_THIS
+        : public std::enable_shared_from_this<Derived>
+#endif // MADNESS_SHARED_PTR_BITS_H
+    {
         typedef WorldObject<Derived> objT;
         typedef std::list<detail::PendingMsg> pendingT;
     public:
@@ -181,6 +185,24 @@ namespace madness {
 
         typedef detail::voidT voidT;
 
+
+#ifndef MADNESS_DISABLE_SHARED_FROM_THIS
+        using std::enable_shared_from_this<Derived>::shared_from_this;
+        typedef std::shared_ptr<Derived> derived_ptrT;
+        typedef std::shared_ptr<const Derived> const_derived_ptrT;
+
+        friend class World;
+
+
+        template <typename memfnT>
+        typename enable_if_c<detail::memfunc_traits<memfnT>::constness, const_derived_ptrT>::type
+        get_derived() const { return shared_from_this(); }
+
+
+        template <typename memfnT>
+        typename disable_if_c<detail::memfunc_traits<memfnT>::constness, derived_ptrT>::type
+        get_derived() const { return std::const_pointer_cast<Derived>(shared_from_this()); }
+
         // This slightly convoluted logic is to ensure ordering when
         // processing pending messages.  If a new message arrives
         // while processing incoming messages it must be queued.
@@ -190,30 +212,78 @@ namespace madness {
         // If the object exists and is not ready then
         //    if we are doing a queued/pending message --> ready
         //    else this is a new message --> not ready
-        static bool is_ready(const uniqueidT& id, Derived*& obj, const AmArg& arg, am_handlerT ptr) {
-            obj = arg.get_world()-> template ptr_from_id<Derived>(id);
+        static bool is_ready(const uniqueidT& id, derived_ptrT& obj, const AmArg& arg, am_handlerT ptr) {
+            obj = arg.get_world()->template shared_ptr_from_id<Derived>(id);
 
-            if (obj) {
-                WorldObject* p = static_cast<WorldObject*>(obj);
+            if(obj) {
+                objT* p = static_cast<WorldObject*>(obj.get());
                 if (p->ready || arg.is_pending()) return true;
             }
 
-            pending_mutex.lock(); // BEGIN CRITICAL SECTION
-            if (!obj) obj = arg.get_world()-> template ptr_from_id<Derived>(id);
+            ScopedMutex<Spinlock> lock(pending_mutex); // BEGIN CRITICAL SECTION
+            if (!obj) obj = arg.get_world()-> template shared_ptr_from_id<Derived>(id);
 
             if (obj) {
-                WorldObject* p = static_cast<WorldObject*>(obj);
-                if (p->ready || arg.is_pending()) {
-                    pending_mutex.unlock();  // ... LEAVE CRITICAL SECTION
-                    return true;
-                }
+                objT* p = static_cast<WorldObject*>(obj.get());
+                if (p->ready || arg.is_pending())
+                    return true; // END CRITICAL SECTION
             }
             const_cast<AmArg&>(arg).set_pending();
             const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
-            pending_mutex.unlock(); // END CRITICAL SECTION
 
-            return false;
+            return false; // END CRITICAL SECTION
         }
+
+#else
+
+        // TODO: This section of code can probably be removed if we ever require
+        // TR1 or C++11.
+
+        typedef Derived* derived_ptrT;
+        typedef const Derived* const_derived_ptrT;
+
+
+        template <typename memfnT>
+        typename enable_if_c<detail::memfunc_traits<memfnT>::constness, const_derived_ptrT>::type
+        get_derived() const { return static_cast<const_derived_ptrT>(this); }
+
+
+        template <typename memfnT>
+        typename disable_if_c<detail::memfunc_traits<memfnT>::constness, derived_ptrT>::type
+        get_derived() const { return const_cast<derived_ptrT>(static_cast<const_derived_ptrT>(this)); }
+
+        // This slightly convoluted logic is to ensure ordering when
+        // processing pending messages.  If a new message arrives
+        // while processing incoming messages it must be queued.
+        //
+        // If the object does not exist ---> not ready
+        // If the object exists and is ready ---> ready
+        // If the object exists and is not ready then
+        //    if we are doing a queued/pending message --> ready
+        //    else this is a new message --> not ready
+        static bool is_ready(const uniqueidT& id, derived_ptrT& obj, const AmArg& arg, am_handlerT ptr) {
+            obj = arg.get_world()-> template ptr_from_id<Derived>(id);
+
+            if (obj) {
+                objT* p = static_cast<WorldObject*>(obj);
+                if (p->ready || arg.is_pending()) return true;
+            }
+
+            ScopedMutex<Spinlock> lock(pending_mutex); // BEGIN CRITICAL SECTION
+            if (!obj) obj = arg.get_world()-> template ptr_from_id<Derived>(id);
+
+            if (obj) {
+                objT* p = static_cast<WorldObject*>(obj);
+                if (p->ready || arg.is_pending())
+                    return true; // END CRITICAL SECTION
+            }
+            const_cast<AmArg&>(arg).set_pending();
+            const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
+
+            return false; // END CRITICAL SECTION
+        }
+#endif // MADNESS_SHARED_PTR_BITS_H
+
 
         // Handler for incoming AM
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
@@ -221,7 +291,7 @@ namespace madness {
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T>;
-            Derived* obj;
+            derived_ptrT obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 typename detail::task_arg<arg1T>::type arg1;
@@ -247,7 +317,7 @@ namespace madness {
 
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = & objT::template spawn_remote_task_handler<taskT>;
-            Derived* obj;
+            derived_ptrT obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<typename taskT::functionT::memfn_type> info;
 
@@ -255,7 +325,8 @@ namespace madness {
 
                 // Construct task
                 taskT* task = new taskT(typename taskT::futureT(info.ref),
-                        detail::wrap_mem_fn(obj,info.memfun), info.attr, input_arch);
+                        detail::wrap_mem_fn(obj->template get_derived<typename taskT::functionT::memfn_type>(),
+                        info.memfun), info.attr, input_arch);
 
                 // Add task to queue
                 arg.get_world()->taskq.add(task);
@@ -307,15 +378,6 @@ namespace madness {
 
             return result;
         }
-
-        template <typename memfnT>
-        typename enable_if_c<detail::memfunc_traits<memfnT>::constness, const Derived*>::type
-        get_derived() const { return static_cast<const Derived*>(this); }
-
-
-        template <typename memfnT>
-        typename disable_if_c<detail::memfunc_traits<memfnT>::constness, Derived*>::type
-        get_derived() const { return const_cast<Derived*>(static_cast<const Derived*>(this)); }
 
     protected:
 
@@ -491,7 +553,9 @@ namespace madness {
         template <typename memfnT>
         typename detail::task_result_type<memfnT>::futureT
         task(ProcessID dest, memfnT memfn, const TaskAttributes& attr = TaskAttributes()) const {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT, typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, attr);
@@ -507,7 +571,10 @@ namespace madness {
         task(ProcessID dest, memfnT memfn, const a1T& a1,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, attr);
@@ -523,7 +590,10 @@ namespace madness {
         task(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type> taskT;
             if (dest == me)
@@ -540,7 +610,10 @@ namespace madness {
         task(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
                 const a3T& a3, const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type> taskT;
@@ -559,7 +632,10 @@ namespace madness {
         task(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
                 const a3T& a3, const a4T& a4, const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
@@ -580,7 +656,10 @@ namespace madness {
                 const a3T& a3, const a4T& a4, const a5T& a5,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
@@ -602,7 +681,10 @@ namespace madness {
                 const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
@@ -626,7 +708,10 @@ namespace madness {
                 const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
                 const a7T& a7, const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
@@ -651,7 +736,10 @@ namespace madness {
                 const a7T& a7, const a8T& a8,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
@@ -679,7 +767,10 @@ namespace madness {
                 const a7T& a7, const a8T& a8, const a9T& a9,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
+            typedef typename if_c<detail::memfunc_traits<memfnT>::constness,
+                    const_derived_ptrT, derived_ptrT>::type ptrT;
+            typedef detail::MemFuncWrapper<ptrT, memfnT,
+                    typename detail::result_of<memfnT>::type> fnT;
             typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
