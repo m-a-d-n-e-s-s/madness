@@ -56,6 +56,7 @@ namespace madness {
         ProcessID parent, child0, child1;
         world_.mpi.binary_tree_info(0, parent, child0, child1);
         Tag gfence_tag = world_.mpi.unique_tag();
+        Tag bcast_tag = world_.mpi.unique_tag();
         int npass = 0;
 
         //double start = wall_time();
@@ -107,7 +108,7 @@ namespace madness {
 
             //bool dowork = (npass==0) || (ThreadPool::size()==0);
             bool dowork = true;
-            broadcast(&sum, sizeof(sum), 0, dowork);
+            broadcast(&sum, sizeof(sum), 0, dowork, bcast_tag);
             ++npass;
 
 //            madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
@@ -142,11 +143,12 @@ namespace madness {
     /// Broadcasts bytes from process root while still processing AM & tasks
 
     /// Optimizations can be added for long messages
-    void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork) {
+    void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork, Tag bcast_tag) {
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
         world_.mpi.binary_tree_info(root, parent, child0, child1);
-        Tag bcast_tag = world_.mpi.unique_tag();
+        if(bcast_tag < 0)
+            bcast_tag = world_.mpi.unique_tag();
 
         //print("BCAST TAG", bcast_tag);
 

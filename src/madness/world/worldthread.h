@@ -1081,7 +1081,8 @@ namespace madness {
                         std::cout.flush();
 
                         if(counter++ > 3)
-                            MADNESS_EXCEPTION("ThreadPool::await() timeout", 1);
+                            throw madness::MadnessException("ThreadPool::await() timeout",
+                                    0, 1, __LINE__, __FUNCTION__, __FILE__);
                     }
 
                     waiter.wait();
