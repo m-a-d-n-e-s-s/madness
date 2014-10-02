@@ -133,6 +133,15 @@ public:
 			real_function_3d tmp4 = real_factory_3d(world).f(d2d_E1); xoperators.push_back(tmp4);
 			real_function_3d tmp5 = real_factory_3d(world).f(d2d_E2); xoperators.push_back(tmp5);
 		}
+		else if(exop=="sequential_full"){
+			real_function_3d tmp = real_factory_3d(world).f(seq_full); xoperators.push_back(tmp);
+		}
+		else if(exop=="sequential_dipole"){
+			real_function_3d tmp = real_factory_3d(world).f(seq_dipole); xoperators.push_back(tmp);
+		}
+		else if(exop=="sequential_dipole+"){
+			real_function_3d tmp = real_factory_3d(world).f(seq_dipolep); xoperators.push_back(tmp);
+		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
 			MADNESS_EXCEPTION("Unknown keyword in exop struct",1);
@@ -244,6 +253,15 @@ private:
 	 static double d2d_E1(const coord_3d &r){return x_function(r)+xz_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r);}
 	 static double d2d_E2(const coord_3d &r){return y_function(r)+yz_function(r)+yzz_function(r)+xxy_function(r)+yyy_function(r);}
 
+	 /// Sequential guesses:
+	 /// full
+	 static double seq_full(const coord_3d&r){return x_function(r)+y_function(r)+z_function(r)+rr_function(r)+xy_function(r)+xz_function(r)+yz_function(r)
+	 + xxx_function(r)+yyy_function(r)+zzz_function(r)+xxz_function(r)+xxy_function(r)+xyy_function(r)+xyz_function(r)+xzz_function(r)+yyz_function(r)
+	 + yzz_function(r);}
+	 // dipole
+	 static double seq_dipole(const coord_3d&r){return x_function(r)+y_function(r)+z_function(r);}
+	 // dipole+
+	 static double seq_dipolep(const coord_3d&r){return seq_dipole(r)+rr_function(r);}
 };
 }
 
