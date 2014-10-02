@@ -622,6 +622,7 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess) {
 
 }
 
+
 void TDA::update_energies(xfunctionsT &xfunctions) {
 	std::cout << std::setw(40) << "update energies..." << " : ";
 	for(size_t k=0;k<xfunctions.size();k++) {
@@ -637,10 +638,19 @@ void TDA::update_energies(xfunctionsT &xfunctions) {
 					std::cout << k << "(exp), ";
 				}
 			} else {
+				// get the highest converged energy, of no xfunction converged already use the guess_omega_ energy
+				double setback_energy = guess_omega_;
+				if(not converged_xfunctions_.empty()){
+					std::vector<double> energies;
+					for(size_t i=0;i<converged_xfunctions_.size();i++) energies.push_back(converged_xfunctions_[i].omega);
+					std::sort(energies.begin(),energies.end());
+					setback_energy = energies.back();
+				}
+
 				// set the last converged value of the same type of guess as the default
-				double new_omega = highest_excitation_*0.9;// default
-				xfunctions[k].omega = new_omega;
-				std::cout << k << "(setback), ";
+				//double new_omega = highest_excitation_*0.8;// default
+				xfunctions[k].omega = setback_energy;
+				std::cout << k << "(setback to " << setback_energy << ") , ";
 			}
 
 		}

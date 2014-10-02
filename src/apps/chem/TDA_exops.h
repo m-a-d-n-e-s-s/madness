@@ -70,6 +70,12 @@ public:
 			real_function_3d fxz = real_factory_3d(world).f(xz_function);
 			xoperators.push_back(fxz);
 		}
+		else if(exop == "hybrids"){
+			real_function_3d tmp_sp30=real_factory_3d(world).f(sp30);xoperators.push_back(tmp_sp30);
+			real_function_3d tmp_sp31=real_factory_3d(world).f(sp31);xoperators.push_back(tmp_sp31);
+			real_function_3d tmp_sp32=real_factory_3d(world).f(sp32);xoperators.push_back(tmp_sp32);
+			real_function_3d tmp_sp33=real_factory_3d(world).f(sp33);xoperators.push_back(tmp_sp33);
+		}
 		else if(exop == "C2v"){
 			real_function_3d A1=real_factory_3d(world).f(c2v_A1);xoperators.push_back(A1);
 			real_function_3d A2=real_factory_3d(world).f(c2v_A2);xoperators.push_back(A2);
