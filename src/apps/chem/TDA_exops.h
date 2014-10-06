@@ -70,6 +70,12 @@ public:
 			real_function_3d fxz = real_factory_3d(world).f(xz_function);
 			xoperators.push_back(fxz);
 		}
+		else if(exop == "hybrids"){
+			real_function_3d tmp_sp30=real_factory_3d(world).f(sp30);xoperators.push_back(tmp_sp30);
+			real_function_3d tmp_sp31=real_factory_3d(world).f(sp31);xoperators.push_back(tmp_sp31);
+			real_function_3d tmp_sp32=real_factory_3d(world).f(sp32);xoperators.push_back(tmp_sp32);
+			real_function_3d tmp_sp33=real_factory_3d(world).f(sp33);xoperators.push_back(tmp_sp33);
+		}
 		else if(exop == "C2v"){
 			real_function_3d A1=real_factory_3d(world).f(c2v_A1);xoperators.push_back(A1);
 			real_function_3d A2=real_factory_3d(world).f(c2v_A2);xoperators.push_back(A2);
@@ -97,6 +103,10 @@ public:
 		else if(exop == "C2"){
 			real_function_3d tmp0 = real_factory_3d(world).f(c2_A );xoperators.push_back(tmp0);
 			real_function_3d tmp1 = real_factory_3d(world).f(c2_B) ;xoperators.push_back(tmp1);
+		}
+		else if (exop == "Cs"){
+			 real_function_3d tmp0 = real_factory_3d(world).f(cs_A);xoperators.push_back(tmp0);
+			 real_function_3d tmp1 = real_factory_3d(world).f(cs_B);xoperators.push_back(tmp1);
 		}
 		else if(exop == "D3"){
 			real_function_3d tmp0  = real_factory_3d(world).f(d3_A1);xoperators.push_back(tmp0);
@@ -126,6 +136,15 @@ public:
 			real_function_3d tmp3 = real_factory_3d(world).f(d2d_B2); xoperators.push_back(tmp3);
 			real_function_3d tmp4 = real_factory_3d(world).f(d2d_E1); xoperators.push_back(tmp4);
 			real_function_3d tmp5 = real_factory_3d(world).f(d2d_E2); xoperators.push_back(tmp5);
+		}
+		else if(exop=="sequential_full"){
+			real_function_3d tmp = real_factory_3d(world).f(seq_full); xoperators.push_back(tmp);
+		}
+		else if(exop=="sequential_dipole"){
+			real_function_3d tmp = real_factory_3d(world).f(seq_dipole); xoperators.push_back(tmp);
+		}
+		else if(exop=="sequential_dipole+"){
+			real_function_3d tmp = real_factory_3d(world).f(seq_dipolep); xoperators.push_back(tmp);
 		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
@@ -195,11 +214,14 @@ private:
 	static double d2h_B3u  (const coord_3d &r){return z_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r) ;}
 	/// C1
 
-	/// Cs
-
 	/// C2
 	static double c2_A(const coord_3d &r){return z_function(r)+rr_function(r)+xy_function(r)+zzz_function(r)+xyz_function(r)+yyz_function(r)+xxz_function(r);}
 	static double c2_B(const coord_3d &r){return x_function(r)+y_function(r)+yz_function(r)+xz_function(r)+xzz_function(r)+yzz_function(r)+xxy_function(r)+xyy_function(r)+xxx_function(r)+yyy_function(r);}
+
+	/// C2
+	static double cs_A(const coord_3d &r){return x_function(r)+y_function(r)+xx_function(r)+yy_function(r)+zz_function(r)+xy_function(r)
+			+xzz_function(r)+yzz_function(r)+xxy_function(r)+xyy_function(r)+xxx_function(r)+yyy_function(r);}
+	static double cs_B(const coord_3d &r){return z_function(r)+yz_function(r)+xz_function(r)+zzz_function(r)+xyz_function(r)+yyz_function(r)+xxz_function(r)  ;}
 
 	/// C2v
 	static double c2v_A1(const coord_3d &r){return z_function(r)+xx_function(r)+yy_function(r)+zz_function(r)+xxz_function(r)+yyz_function(r)+zzz_function(r) ;}
@@ -238,6 +260,15 @@ private:
 	 static double d2d_E1(const coord_3d &r){return x_function(r)+xz_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r);}
 	 static double d2d_E2(const coord_3d &r){return y_function(r)+yz_function(r)+yzz_function(r)+xxy_function(r)+yyy_function(r);}
 
+	 /// Sequential guesses:
+	 /// full
+	 static double seq_full(const coord_3d&r){return x_function(r)+y_function(r)+z_function(r)+rr_function(r)+xy_function(r)+xz_function(r)+yz_function(r)
+	 + xxx_function(r)+yyy_function(r)+zzz_function(r)+xxz_function(r)+xxy_function(r)+xyy_function(r)+xyz_function(r)+xzz_function(r)+yyz_function(r)
+	 + yzz_function(r);}
+	 // dipole
+	 static double seq_dipole(const coord_3d&r){return x_function(r)+y_function(r)+z_function(r);}
+	 // dipole+
+	 static double seq_dipolep(const coord_3d&r){return seq_dipole(r)+rr_function(r);}
 };
 }
 

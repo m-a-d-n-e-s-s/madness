@@ -251,6 +251,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
             funcs.push_back(std::make_pair(lookup_func("LDA_C_VWN",polarized),factor));
         }
         else if (name == "RHOMIN") {
+        	std::cout << "hello" << std::endl;
             line >> rhomin;
         }
         else if (name == "RHOTOL") {
@@ -278,6 +279,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
         if (funcs[i].first->info->family == XC_FAMILY_MGGA)nderiv = std::max(nderiv,2);
  //       if (funcs[i].first->info->family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
     }
+    std::cout << "rhotol " << rhotol << " rhomin " << rhomin << " input line was " << input_line << std::endl;
 }
 
 XCfunctional::~XCfunctional() {
@@ -330,8 +332,8 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             rho  = madness::Tensor<double>(np*2L);
             double * restrict dens = rho.ptr();
             for (long i=0; i<np; i++) {
-                dens[2*i  ] = munge_old(rhoa[i]);
-                dens[2*i+1] = munge_old(rhob[i]);
+                dens[2*i  ] = munge(rhoa[i]);
+                dens[2*i+1] = munge(rhob[i]);
             }
         }
         else if (is_gga()) {
@@ -373,7 +375,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const double * restrict rhoa = t[0].ptr();
             double * restrict dens = rho.ptr();
             for (long i=0; i<np; i++) {
-                dens[i] = munge_old(2.0*rhoa[i]);
+                dens[i] = munge(2.0*rhoa[i]);
             }
         }
         else if (is_gga()) {

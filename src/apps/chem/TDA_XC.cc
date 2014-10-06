@@ -147,6 +147,7 @@ vecfuncT TDA_DFT::multiply_with_kernel(vecfuncT &active_mo)const{
 			real_function_3d tmp = multiop_values<double,perturbed_vxc,3>(perturbed_vxc(xcfunctional_,0,0),carrier);
 			result.push_back(tmp);
 		}
+		plot_plane(world,result.back(),"fxcxlastorbital");
 		return result;
 	}
 

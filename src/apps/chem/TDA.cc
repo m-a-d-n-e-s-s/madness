@@ -77,6 +77,10 @@ void TDA::solve(xfunctionsT &xfunctions) {
 
 void TDA::solve_sequential(xfunctionsT xfunctions) {
 
+	// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
+	if (not on_the_fly_)
+		on_the_fly_ = true;
+
 	if(not read_){
 
 		print("\n\n\n\n-------------------------------------------------------");
@@ -112,9 +116,6 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 			for (int iter = 0; iter < 100; iter++) {
 				TDA_TIMER iteration_timer(world, "");
 				normalize(xfunctions[iroot]);
-				// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
-				if (not on_the_fly_)
-					on_the_fly_ = true;
 				// first false: expectation value is calculated and saved, second false: no guess calculation
 				iterate_one(xfunctions[iroot], false, false);
 				normalize(xfunctions[iroot]);
@@ -622,6 +623,7 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess) {
 
 }
 
+
 void TDA::update_energies(xfunctionsT &xfunctions) {
 	std::cout << std::setw(40) << "update energies..." << " : ";
 	for(size_t k=0;k<xfunctions.size();k++) {
@@ -637,10 +639,19 @@ void TDA::update_energies(xfunctionsT &xfunctions) {
 					std::cout << k << "(exp), ";
 				}
 			} else {
+				// get the highest converged energy, of no xfunction converged already use the guess_omega_ energy
+				double setback_energy = guess_omega_;
+				if(not converged_xfunctions_.empty()){
+					std::vector<double> energies;
+					for(size_t i=0;i<converged_xfunctions_.size();i++) energies.push_back(converged_xfunctions_[i].omega);
+					std::sort(energies.begin(),energies.end());
+					setback_energy = energies.back();
+				}
+
 				// set the last converged value of the same type of guess as the default
-				double new_omega = highest_excitation_*0.9;// default
-				xfunctions[k].omega = new_omega;
-				std::cout << k << "(setback), ";
+				//double new_omega = highest_excitation_*0.8;// default
+				xfunctions[k].omega = setback_energy;
+				std::cout << k << "(setback to " << setback_energy << ") , ";
 			}
 
 		}
@@ -786,6 +797,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions, bool guess) {
 double TDA::measure_offdiagonality(const madness::Tensor<double> &U,
 		const size_t size) const {
 	if(size ==0) return 0.0;
+	if(size ==1) return 0.0;
 	std::vector<double> offdiag_elements;
 	for (size_t i = 0; i < size; i++) {
 		for (size_t j = 0; j < size; j++) {
@@ -1106,6 +1118,7 @@ vecfuncT TDA::make_lda_intermediate()const{
 	vecfuncT mo;
 	for(size_t i=0;i<active_mo_.size();i++) mo.push_back(copy(active_mo_[i]));
 	vecfuncT result = xclib_interface_.get_lda_intermediate(mo);
+	plot_vecfunction(result,"lda_intermediate_");
 	mo.clear();
 	return result;
 }
