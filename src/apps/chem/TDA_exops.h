@@ -104,6 +104,10 @@ public:
 			real_function_3d tmp0 = real_factory_3d(world).f(c2_A );xoperators.push_back(tmp0);
 			real_function_3d tmp1 = real_factory_3d(world).f(c2_B) ;xoperators.push_back(tmp1);
 		}
+		else if (exop == "Cs"){
+			 real_function_3d tmp0 = real_factory_3d(world).f(cs_A);xoperators.push_back(tmp0);
+			 real_function_3d tmp1 = real_factory_3d(world).f(cs_B);xoperators.push_back(tmp1);
+		}
 		else if(exop == "D3"){
 			real_function_3d tmp0  = real_factory_3d(world).f(d3_A1);xoperators.push_back(tmp0);
 			real_function_3d tmp1  = real_factory_3d(world).f(d3_A2);xoperators.push_back(tmp1);
@@ -210,11 +214,14 @@ private:
 	static double d2h_B3u  (const coord_3d &r){return z_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r) ;}
 	/// C1
 
-	/// Cs
-
 	/// C2
 	static double c2_A(const coord_3d &r){return z_function(r)+rr_function(r)+xy_function(r)+zzz_function(r)+xyz_function(r)+yyz_function(r)+xxz_function(r);}
 	static double c2_B(const coord_3d &r){return x_function(r)+y_function(r)+yz_function(r)+xz_function(r)+xzz_function(r)+yzz_function(r)+xxy_function(r)+xyy_function(r)+xxx_function(r)+yyy_function(r);}
+
+	/// C2
+	static double cs_A(const coord_3d &r){return x_function(r)+y_function(r)+xx_function(r)+yy_function(r)+zz_function(r)+xy_function(r)
+			+xzz_function(r)+yzz_function(r)+xxy_function(r)+xyy_function(r)+xxx_function(r)+yyy_function(r);}
+	static double cs_B(const coord_3d &r){return z_function(r)+yz_function(r)+xz_function(r)+zzz_function(r)+xyz_function(r)+yyz_function(r)+xxz_function(r)  ;}
 
 	/// C2v
 	static double c2v_A1(const coord_3d &r){return z_function(r)+xx_function(r)+yy_function(r)+zz_function(r)+xxz_function(r)+yyz_function(r)+zzz_function(r) ;}

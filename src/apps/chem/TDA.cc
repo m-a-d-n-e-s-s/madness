@@ -77,6 +77,10 @@ void TDA::solve(xfunctionsT &xfunctions) {
 
 void TDA::solve_sequential(xfunctionsT xfunctions) {
 
+	// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
+	if (not on_the_fly_)
+		on_the_fly_ = true;
+
 	if(not read_){
 
 		print("\n\n\n\n-------------------------------------------------------");
@@ -112,9 +116,6 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 			for (int iter = 0; iter < 100; iter++) {
 				TDA_TIMER iteration_timer(world, "");
 				normalize(xfunctions[iroot]);
-				// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
-				if (not on_the_fly_)
-					on_the_fly_ = true;
 				// first false: expectation value is calculated and saved, second false: no guess calculation
 				iterate_one(xfunctions[iroot], false, false);
 				normalize(xfunctions[iroot]);
