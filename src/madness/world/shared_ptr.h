@@ -38,4 +38,8 @@ namespace std {
 
 #endif
 
+#ifndef MADNESS_DISABLE_SHARED_FROM_THIS
+#define MADNESS_DISABLE_SHARED_FROM_THIS
+#endif
+
 #endif // MADNESS_SHARED_PTR_H_
