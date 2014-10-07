@@ -1021,7 +1021,7 @@ namespace madness {
         virtual ~SeparatedConvolution() { }
 
         void print_timer() const {
-        	if (this->world.rank()==0) {
+        	if (this->get_world().rank()==0) {
                 timer_full.print("op full tensor       ");
                 timer_low_transf.print("op low rank transform");
                 timer_low_accumulate.print("op low rank addition ");
@@ -1029,7 +1029,7 @@ namespace madness {
         }
 
         void reset_timer() const {
-        	if (this->world.rank()==0) {
+        	if (this->get_world().rank()==0) {
                 timer_full.reset();
                 timer_low_transf.reset();
                 timer_low_accumulate.reset();
