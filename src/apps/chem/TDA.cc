@@ -356,9 +356,6 @@ vecfuncT TDA::make_excitation_operators() const {
 		if (key == "C1") {
 			key = "quadrupole+";
 			std::cout<< "and not yet implemented ...";}
-		if (key == "Cs") {
-			key = "quadrupole+";
-			std::cout<< "and not yet implemented ...";}
 		if (key == "Ci") {
 			key = "quadrupole+";
 			std::cout<< "and not yet implemented ...";}
