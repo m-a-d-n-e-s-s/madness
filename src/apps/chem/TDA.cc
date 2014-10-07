@@ -1026,7 +1026,12 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 //	vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
 //	for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
 
-	vecfuncT gamma2 = mul(world,perturbed_density,lda_intermediate_);
+//	vecfuncT gamma2 = mul(world,perturbed_density,lda_intermediate_);
+
+	for(size_t p=0;p<gamma.size();p++){
+		gamma[p] += xclib_interface_.get_fxc()*perturbed_density*active_mo_[p];
+	}
+	plot_vecfunction(gamma,"complete_gamma_");
 
 	// project out occupied space
 	for (size_t p = 0; p < active_mo_.size(); ++p)
@@ -1034,9 +1039,9 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 
 	//applyit.info(debug_);
 	//plot_vecfunction(gamma, "gamma", plot_);
-	return add(world,gamma,gamma2);
-	//truncate(world, gamma,truncate_thresh_);
-	//return gamma;
+	//return add(world,gamma,gamma2);
+	truncate(world, gamma,truncate_thresh_);
+	return gamma;
 }
 
 vecfuncT TDA::apply_hartree_potential(const vecfuncT &x) const {

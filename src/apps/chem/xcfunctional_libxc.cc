@@ -234,7 +234,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
     double factor;
     spin_polarized = polarized;
 
-    rhotol=1e-12; rhomin=1e-22; sigtol=1e-7; sigmin=1e-7; // default values
+    rhotol=1e-5; rhomin=1e-5; sigtol=1e-7; sigmin=1e-7; // default values
 
     std::stringstream line(input_line);
     std::string name;

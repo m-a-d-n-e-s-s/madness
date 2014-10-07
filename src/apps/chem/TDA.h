@@ -192,6 +192,8 @@ typedef XNonlinearSolver<xfunction,double,allocator> solverT;
 struct kain_solver_helper_struct{
 	kain_solver_helper_struct(){}
 private:
+	/// size of the iterative subspace
+	size_t subspace_size;
 	/// number of occupied orbitals (non frozen)
 	size_t noct;
 	/// is kain used ?, this bool is needed because the struct has to be initialized if kain is used or not
@@ -219,13 +221,14 @@ public:
 	/// @param[in] kain		true if kain should be used, false if not (when false it is just the default initialization)
 	/// @param[in] allatonce	should all xfunctions be solved ad once or not (currently: not)
 	/// @param[in] guess_iter_	number of guess iterations (not needed anymore)
-	void initialize(World &world,const size_t excitations,const size_t nnoct,const bool kain){
+	void initialize(World &world,const size_t excitations,const size_t nnoct,const bool kain, const size_t kain_subspace){
 		noct=nnoct;
 		is_used = kain;
+		subspace_size = kain_subspace;
 		if(kain){
 			for(size_t i=0;i<excitations; i++){
 				solverT onesolver(allocator(world,noct));
-				onesolver.set_maxsub(3);
+				onesolver.set_maxsub(kain_subspace);
 				solver.push_back(onesolver);
 			}
 		}
@@ -295,7 +298,7 @@ public:
 		solver.clear();
 		// add new solvers
 		solverT onesolver(allocator(world,noct));
-		onesolver.set_maxsub(3);
+		onesolver.set_maxsub(subspace_size);
 		for(size_t j=0;j<xfunctions.size();j++){
 			solver.push_back(onesolver);
 		}
@@ -346,8 +349,8 @@ public:
 	double operator()(const coord_3d &r)const{
 		std::vector<double> diffuse_1s_functions;
 		double exponent =1.0;
-		if(mode==0) exponent = 15.0;
-		if(mode==1) exponent = 20.0;
+		if(mode==0) exponent = 8.0;
+		if(mode==1) exponent = 8.0;
 		for(size_t i=0;i<natoms;i++){
 			if (signs[i]!=0){
 				// make diffuse 1s functions localized at the atoms
@@ -561,7 +564,7 @@ public:
 		}
 
 		// Initialize the KAIN solvers
-		kain_solvers.initialize(world,excitations_,noct,kain_);
+		kain_solvers.initialize(world,excitations_,noct,kain_,kain_subspace_);
 
 
 		// Prevent misstakes:
