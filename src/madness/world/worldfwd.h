@@ -597,7 +597,7 @@ namespace madness {
         T* ptr_from_id(uniqueidT id) const {
             map_id_to_ptrT::const_iterator it = map_id_to_ptr.find(id);
             if (it == map_id_to_ptr.end())
-                return 0;
+                return NULL;
             else
                 return (T*)(it->second);
         }
@@ -616,6 +616,27 @@ namespace madness {
                 return it->second;
         }
 
+#ifndef MADNESS_DISABLE_SHARED_FROM_THIS
+
+        /// Look up local pointer from world-wide unique id.
+
+        /// \return A default constructed std::shared_ptr if the id was not found.
+        template <typename T>
+        std::shared_ptr<T> shared_ptr_from_id(uniqueidT id) const {
+            T* ptr = ptr_from_id<T>(id);
+            return (ptr ? ptr->shared_from_this() : std::shared_ptr<T>());
+        }
+
+        /// Look up id from local pointer
+
+        /// \return invalid id if the ptr was not found
+        template <typename T>
+        const uniqueidT& id_from_ptr(std::shared_ptr<T>& ptr) const {
+            return id_from_ptr(ptr.get());
+        }
+
+#endif // MADNESS_DISABLE_SHARED_FROM_THIS
+
 
         /// Convert world id to world pointer
 
@@ -630,7 +651,7 @@ namespace madness {
             for (std::list<World *>::iterator it=worlds.begin(); it != worlds.end(); ++it) {
                 if ((*it) && (*it)->_id == id) return *it;
             }
-            return 0;
+            return NULL;
         }
 
     private:

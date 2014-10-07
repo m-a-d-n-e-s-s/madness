@@ -46,7 +46,6 @@
 #include <madness/world/worldhashmap.h>
 #include <madness/world/mpiar.h>
 #include <madness/world/worldobj.h>
-#include <madness/world/deferred_deleter.h>
 #include <set>
 
 namespace madness {
@@ -676,7 +675,7 @@ namespace madness {
             : p(new implT(world,
                           std::shared_ptr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
                           do_pending,
-                          hf), DeferredDeleter<implT>(world))
+                          hf))
         {}
 
         /// Makes an initialized, empty container (no communication)
@@ -690,7 +689,7 @@ namespace madness {
                        const std::shared_ptr< WorldDCPmapInterface<keyT> >& pmap,
                        bool do_pending=true,
                        const hashfunT& hf = hashfunT())
-            : p(new implT(world, pmap, do_pending, hf), DeferredDeleter<implT>(world))
+            : p(new implT(world, pmap, do_pending, hf))
         {}
 
 
@@ -1435,7 +1434,9 @@ namespace madness {
         }
 
         /// Destructor passes ownership of implementation to world for deferred cleanup
-        virtual ~WorldContainer() { }
+        virtual ~WorldContainer() {
+            detail::deferred_cleanup(p->get_world(), p);
+        }
 
         friend void swap<>(WorldContainer&, WorldContainer&);
     };

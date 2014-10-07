@@ -104,6 +104,10 @@ double Nemo::value(const Tensor<double>& x) {
 		calc->amo=localize(calc->amo);
 		tensorT fock=compute_fock_matrix(calc->amo,calc->aocc);
 		if (world.rank()==0) print("localized Fock matrix \n",fock);
+		for (std::size_t i=0; i<calc->amo.size(); ++i) {
+			calc->aeps(i)=fock(i,i);
+			if (world.rank()==0) print("orbital energy ",i,calc->aeps(i));
+		}
 	}
 
 	if (calc->param.save) calc->save_mos(world);

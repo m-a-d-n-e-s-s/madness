@@ -49,6 +49,7 @@
 #include <madness/world/worldrange.h>
 #include <madness/world/worldtime.h>
 #include <madness/world/taskfn.h>
+#include <madness/world/mem_func_wrapper.h>
 
 namespace madness {
 
@@ -139,252 +140,6 @@ namespace madness {
                 std::is_member_function_pointer<memfnT>,
                 task_result_type<memfnT> >
         { };
-
-        template <typename T>
-        struct DefaultInitPtr {
-            static T init() { return NULL; }
-        };
-
-        template <typename T>
-        struct DefaultInitPtr<std::shared_ptr<T> > {
-            static std::shared_ptr<T> init() { return std::shared_ptr<T>(); }
-        };
-
-        template <typename ptrT, typename memfnT, typename resT>
-        class MemFuncWrapper {
-        private:
-            ptrT ptr_;
-            memfnT memfn_;
-
-            friend memfnT get_mem_func_ptr<ptrT, memfnT, resT>(const MemFuncWrapper<ptrT, memfnT, resT>&);
-
-        public:
-            typedef MemFuncWrapper<ptrT, memfnT, void> MemFuncWrapper_;
-            typedef resT result_type;
-            typedef memfnT memfn_type;
-
-            MemFuncWrapper() : ptr_(DefaultInitPtr<ptrT>::init()), memfn_() { }
-
-            MemFuncWrapper(const MemFuncWrapper_& other) :
-                ptr_(other.ptr_), memfn_(other.memfn_)
-            { }
-
-            MemFuncWrapper(ptrT ptr, memfnT memfn) :
-                ptr_(ptr), memfn_(memfn)
-            { }
-
-            MemFuncWrapper_& operator=(const MemFuncWrapper_& other) {
-                ptr_ = other.ptr_;
-                memfn_ = other.memfn_;
-                return *this;
-            }
-
-            resT operator()() const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)();
-            }
-
-            template <typename a1T>
-            resT operator()(a1T& a1) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1);
-            }
-
-            template <typename a1T, typename a2T>
-            resT operator()(a1T& a1, a2T& a2) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1, a2);
-            }
-
-            template <typename a1T, typename a2T, typename a3T>
-            resT operator()(a1T& a1, a2T& a2, a3T& a3) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1, a2, a3);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T>
-            resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1, a2, a3, a4);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T>
-            resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T>
-            resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T>
-            resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T, typename a8T>
-            resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-            resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, a9T& a9) const {
-                MADNESS_ASSERT(ptr_);
-                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8, a9);
-            }
-
-            template <typename Archive>
-            void serialize(const Archive& ar) {
-                ar & ptr_ & memfn_;
-            }
-
-            friend memfnT get_mem_func_ptr(const MemFuncWrapper_& wrapper) {
-                return wrapper.memfn_;
-            }
-        }; // class MemFuncWrapper
-
-        template <typename ptrT, typename memfnT>
-        class MemFuncWrapper<ptrT, memfnT, void> {
-        private:
-            ptrT ptr_;
-            memfnT memfn_;
-
-            friend memfnT get_mem_func_ptr<ptrT, memfnT, void>(const MemFuncWrapper<ptrT, memfnT, void>&);
-
-        public:
-            typedef MemFuncWrapper<ptrT, memfnT, void> MemFuncWrapper_;
-            typedef void result_type;
-            typedef memfnT memfn_type;
-
-            MemFuncWrapper() : ptr_(DefaultInitPtr<ptrT>::init()), memfn_() { }
-
-            MemFuncWrapper(const MemFuncWrapper_& other) :
-                ptr_(other.ptr_), memfn_(other.memfn_)
-            { }
-
-            MemFuncWrapper(ptrT ptr, memfnT memfn) :
-                ptr_(ptr), memfn_(memfn)
-            { }
-
-            MemFuncWrapper_& operator=(const MemFuncWrapper_& other) {
-                ptr_ = other.ptr_;
-                memfn_ = other.memfn_;
-                return *this;
-            }
-
-            void operator()() const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)();
-            }
-
-            template <typename a1T>
-            void operator()(a1T& a1) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1);
-            }
-
-            template <typename a1T, typename a2T>
-            void operator()(a1T& a1, a2T& a2) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1, a2);
-            }
-
-            template <typename a1T, typename a2T, typename a3T>
-            void operator()(a1T& a1, a2T& a2, a3T& a3) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1, a2, a3);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T>
-            void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1, a2, a3, a4);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T>
-            void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T>
-            void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T>
-            void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T, typename a8T>
-            void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8);
-            }
-
-            template <typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-            void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, a9T& a9) const {
-                MADNESS_ASSERT(ptr_);
-                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8, a9);
-            }
-
-            template <typename Archive>
-            void serialize(const Archive& ar) {
-                ar & ptr_ & memfn_;
-            }
-
-        }; // class MemFuncWrapper<ptrT, memfnT, void>
-
-        template <typename objT, typename memfnT>
-        MemFuncWrapper<objT*, memfnT, typename result_of<memfnT>::type>
-        wrap_mem_fn(objT& obj, memfnT memfn) {
-            return MemFuncWrapper<objT*, memfnT,
-                    typename memfunc_traits<memfnT>::result_type>(& obj, memfn);
-        }
-
-        template <typename objT, typename memfnT>
-        MemFuncWrapper<objT*, memfnT, typename result_of<memfnT>::type>
-        wrap_mem_fn(objT* obj, memfnT memfn) {
-            return MemFuncWrapper<objT*, memfnT,
-                    typename memfunc_traits<memfnT>::result_type>(obj, memfn);
-        }
-
-        template <typename objT, typename memfnT>
-        MemFuncWrapper<std::shared_ptr<objT>, memfnT, typename result_of<memfnT>::type>
-        wrap_mem_fn(const std::shared_ptr<objT>& obj, memfnT memfn) {
-            return MemFuncWrapper<std::shared_ptr<objT>, memfnT,
-                    typename memfunc_traits<memfnT>::result_type>(obj, memfn);
-        }
-
-        template <typename objT, typename memfnT>
-        MemFuncWrapper<std::shared_ptr<objT>, memfnT, typename result_of<memfnT>::type>
-        wrap_mem_fn(std::shared_ptr<objT>& obj, memfnT memfn) {
-            return MemFuncWrapper<std::shared_ptr<objT>, memfnT,
-                    typename memfunc_traits<memfnT>::result_type>(obj, memfn);
-        }
-
-        template <typename ptrT, typename memfnT, typename resT>
-        memfnT get_mem_func_ptr(const MemFuncWrapper<ptrT, memfnT, resT>& wrapper) {
-            return wrapper.memfn_;
-        }
 
     }  // namespace detail
 
@@ -985,6 +740,89 @@ namespace madness {
                 const a8T& a8, const a9T& a9, const TaskAttributes attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,a9,attr); }
 
+
+        /// Invoke "resultT (obj.*memfun)()" as a local task
+        template <typename objT, typename memfnT>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T)" as a local task
+        template <typename objT, typename memfnT, typename a1T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7,a8)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
+            typename a8T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const a8T& a8, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7,a8,a9)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
+            typename a8T, typename a9T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const a8T& a8, const a9T& a9, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,a9,attr); }
+
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename objT, typename memfnT>
         typename detail::memfunc_enabler<memfnT>::type
@@ -1065,6 +903,92 @@ namespace madness {
             typename a8T, typename a9T>
         typename detail::memfunc_enabler<memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
+                const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
+                const a7T& a7, const a8T& a8, const a9T& a9,
+                const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,a9,attr); }
+
+
+        /// Invoke "resultT (obj.*memfun)()" as a local task
+        template <typename objT, typename memfnT>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T)" as a local task
+        template <typename objT, typename memfnT, typename a1T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,attr); }
+
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,attr); }
+
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7,a8)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
+            typename a8T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const a8T& a8, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7,a8,a9)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
+            typename a8T, typename a9T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
                 const a7T& a7, const a8T& a8, const a9T& a9,
                 const TaskAttributes attr=TaskAttributes())

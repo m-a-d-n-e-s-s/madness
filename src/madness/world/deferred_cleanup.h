@@ -48,6 +48,9 @@ namespace madness {
 
     namespace detail {
 
+        template <typename objT>
+        inline void deferred_cleanup(World& world, const std::shared_ptr<objT>& p);
+
         /// Deferred cleanup of shared_ptr's
 
         /// Holds dynamically allocated pointers until it is ready for cleanup.
@@ -71,8 +74,8 @@ namespace madness {
             DeferredCleanup(const DeferredCleanup&);
             DeferredCleanup& operator=(const DeferredCleanup&);
 
-            template <typename, typename>
-            friend class ::madness::DeferredDeleter;
+            template <typename objT>
+            friend void deferred_cleanup(World& world, const std::shared_ptr<objT>& p);
 
             /// Access deferred cleanup object of world
 
@@ -106,6 +109,21 @@ namespace madness {
             /// Deletes/frees any pointers that are in the list
             void do_cleanup();
         }; // class DeferredCleanup
+
+
+        /// Defer the cleanup of a shared pointer to the end of the next fence
+
+        /// Call this function before destroying a shared pointer. If the shared
+        /// pointer is the last reference to the object, it is placed in the
+        /// deferred deletion list. Otherwise, nothing is done with the pointer.
+        template <typename objT>
+        inline void deferred_cleanup(World& world, const std::shared_ptr<objT>& p) {
+            if(p.unique()) {
+                // This is the last local pointer so we will place it in the
+                // deferred deleter list for later cleanup.
+                DeferredCleanup::get_deferred_cleanup(world)->add(p);
+            }
+        }
 
     }  // namespace detail
 }  // namespace madness
