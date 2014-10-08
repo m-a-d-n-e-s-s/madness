@@ -329,6 +329,7 @@ void TDA::add_diffuse_functions(vecfuncT &mos) {
 		std::cout << "exponent is " << rydberg_exponent_ << std::endl;
 		std::cout << "signs\n" << signs << std::endl;
 		if (signs.back() == 0) signs.back()=1;
+		std::cout << "signs\n" << signs << std::endl;
 
 		// make the diffuse functions with the right signs
 		real_function_3d diffuse_tmp;
