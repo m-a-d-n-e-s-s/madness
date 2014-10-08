@@ -45,24 +45,22 @@ public:
 			xoperators.push_back(fxy);
 			real_function_3d fyz = real_factory_3d(world).f(yz_function);
 			xoperators.push_back(fyz);
-			real_function_3d fzz = real_factory_3d(world).f(zz_function);
-			xoperators.push_back(fzz);
-			real_function_3d fyy = real_factory_3d(world).f(yy_function);
-			xoperators.push_back(fyy);
-			real_function_3d fxx = real_factory_3d(world).f(xx_function);
-			xoperators.push_back(fxx);
 			real_function_3d fxz = real_factory_3d(world).f(xz_function);
 			xoperators.push_back(fxz);
 		}
-		else if(exop == "quadrupole"){
-			real_function_3d fr = real_factory_3d(world).f(r_function);
-			xoperators.push_back(fr);
+		else if(exop == "quadrupole+"){
 			real_function_3d fx = real_factory_3d(world).f(x_function);
 			xoperators.push_back(fx);
 			real_function_3d fy = real_factory_3d(world).f(y_function);
 			xoperators.push_back(fy);
 			real_function_3d fz = real_factory_3d(world).f(z_function);
 			xoperators.push_back(fz);
+			real_function_3d fxx = real_factory_3d(world).f(xx_function);
+			xoperators.push_back(fxx);
+			real_function_3d fyy = real_factory_3d(world).f(yy_function);
+			xoperators.push_back(fyy);
+			real_function_3d fzz = real_factory_3d(world).f(zz_function);
+			xoperators.push_back(fzz);
 			real_function_3d fxy = real_factory_3d(world).f(xy_function);
 			xoperators.push_back(fxy);
 			real_function_3d fyz = real_factory_3d(world).f(yz_function);
@@ -225,7 +223,7 @@ private:
 	static double c2_A(const coord_3d &r){return z_function(r)+rr_function(r)+xy_function(r)+zzz_function(r)+xyz_function(r)+yyz_function(r)+xxz_function(r);}
 	static double c2_B(const coord_3d &r){return x_function(r)+y_function(r)+yz_function(r)+xz_function(r)+xzz_function(r)+yzz_function(r)+xxy_function(r)+xyy_function(r)+xxx_function(r)+yyy_function(r);}
 
-	/// C2
+	/// Cs
 	static double cs_A(const coord_3d &r){return x_function(r)+y_function(r)+xx_function(r)+yy_function(r)+zz_function(r)+xy_function(r)
 			+xzz_function(r)+yzz_function(r)+xxy_function(r)+xyy_function(r)+xxx_function(r)+yyy_function(r);}
 	static double cs_B(const coord_3d &r){return z_function(r)+yz_function(r)+xz_function(r)+zzz_function(r)+xyz_function(r)+yyz_function(r)+xxz_function(r)  ;}
@@ -283,6 +281,8 @@ private:
 	 static double ura_3(const coord_3d &r){return 0.004*z_function(r)+0.12*xz_function(r)+0.09*yz_function(r);}
 	 static double ura_4(const coord_3d &r){return 0.14*z_function(r)+xz_function(r)+yz_function(r);}
 	 static double ura_5(const coord_3d &r){return -0.003*z_function(r)+0.1*xz_function(r)-0.01*yz_function(r);}
+
+
 
 };
 }
