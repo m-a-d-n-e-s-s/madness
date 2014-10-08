@@ -341,16 +341,14 @@ public:
 	/// @param[in] signs the signs the diffuse functions should have on the corresponding coordinates
 	/// @param[in] natoms the number of atoms (if the coordinates are of nuclei) or just the size of the coord vector
 	/// @param[in] mode the level of diffuseness (0 and 1 possible)
-	diffuse_functions(const double L,const std::vector<coord_3d> coord,const std::vector<int> signs, const size_t natoms, const size_t mode):
-		L(L), coord(coord), signs(signs),natoms(natoms),mode(mode)
+	diffuse_functions(const double exponent,const std::vector<coord_3d> coord,const std::vector<int> signs, const size_t natoms, const size_t mode):
+		exponent(exponent), coord(coord), signs(signs),natoms(natoms),mode(mode)
 {if(mode>1) MADNESS_EXCEPTION("mode in diffuse_function struct is not 0,1 or 2",1);}
 
 	/// Make a rydberg guess function where the neRäar range area is 0.0 and the long range is a diffuse 2s or 2p function
 	double operator()(const coord_3d &r)const{
 		std::vector<double> diffuse_1s_functions;
-		double exponent =1.0;
-		if(mode==0) exponent = 8.0;
-		if(mode==1) exponent = 8.0;
+
 		for(size_t i=0;i<natoms;i++){
 			if (signs[i]!=0){
 				// make diffuse 1s functions localized at the atoms
@@ -358,7 +356,7 @@ public:
 				double y = r[1]-coord[i][0];
 				double z = r[2]-coord[i][0];
 				double rad = sqrt(x*x+y*y+z*z);
-				double diffuse_tmp = signs[i]*exp(-exponent/L*rad);
+				double diffuse_tmp = signs[i]*exp(-exponent*rad);
 				diffuse_1s_functions.push_back(diffuse_tmp);
 			}else diffuse_1s_functions.push_back(0.0);
 		}
@@ -368,8 +366,8 @@ public:
 	}
 
 private:
-	/// Box size
-	const double L;
+	/// exponent for the diffuse s function
+	const double exponent;
 	/// The coordinates of the atoms
 	const std::vector<coord_3d> coord;
 	/// The signs of the respoinse function at the atom coordinates (0 is node)
@@ -378,12 +376,7 @@ private:
 	const size_t natoms;
 	/// the mode of diffuseness (from 0 to 2)
 	const size_t mode;
-	/// The diffuse 2s and 2p functions
-	double diffuse_2s (const coord_3d &r)const{return r_function(r)*exp(-10.0/L*r_function(r));}
-	double diffuse_2px(const coord_3d &r)const{return          r[0]*exp(-10.0/L*r_function(r));}
-	double diffuse_2py(const coord_3d &r)const{return          r[1]*exp(-10.0/L*r_function(r));}
-	double diffuse_2pz(const coord_3d &r)const{return          r[2]*exp(-10.0/L*r_function(r));}
-	double diffuse_1s (const coord_3d &r)const{return               exp(-10.0/L*r_function(r));}
+
 	/// Helper function to evaluate the radius
 	double r_function(const coord_3d &r)const{return sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);}
 
@@ -429,6 +422,7 @@ public:
 		xclib_interface_(world,calc),
 		ipot_(0.0),
 		rydberg_(false),
+		rydberg_exponent_(0.1),
 		kain_(false),
 		kain_subspace_(3),
 		shift_(0.0),
@@ -486,7 +480,7 @@ public:
 			else if (tag == "read") read_ = true;
 			else if (tag == "only_sequential") only_sequential_=true;
 			else if (tag == "ipot") ss >> ipot_;
-			else if (tag == "rydberg") rydberg_=true;
+			else if (tag == "rydberg") {rydberg_=true; ss>>rydberg_exponent_;}
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
 			else if (tag == "exop1") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
@@ -733,6 +727,7 @@ private:
 
 	/// Make a rydberg guess
 	bool rydberg_;
+	double rydberg_exponent_;
 
 	/// Use the Kain solver to update the functions
 	bool kain_;

@@ -298,9 +298,6 @@ void TDA::add_diffuse_functions(vecfuncT &mos) {
 	// mos must be reconstructed for the eval function
 	reconstruct(world, mos);
 
-	// get the box size L and the molecule bounding cube bc
-	double L = calc_.param.L;
-
 	// Get all coordinates and pack them into the right format
 	Tensor<double> Coord = calc_.molecule.get_all_coords();
 	std::vector<coord_3d> coord;
@@ -326,17 +323,18 @@ void TDA::add_diffuse_functions(vecfuncT &mos) {
 			else if (value > 0.0)
 				signs.push_back(1.0);
 		}
+		std::cout << "exponent is " << rydberg_exponent_ << std::endl;
 		std::cout << "signs\n" << signs << std::endl;
 
 		// make the diffuse functions with the right signs
 		real_function_3d diffuse_tmp;
 		if (dft_) {
 			std::shared_ptr<FunctionFunctorInterface<double, 3> > rydberg_functor(
-					new diffuse_functions(L, coord, signs, mos.size(), 1));
+					new diffuse_functions(rydberg_exponent_, coord, signs, mos.size(), 1));
 			diffuse_tmp = real_factory_3d(world).functor(rydberg_functor);
 		} else {
 			std::shared_ptr<FunctionFunctorInterface<double, 3> > rydberg_functor(
-					new diffuse_functions(L, coord, signs, mos.size(), 0));
+					new diffuse_functions(rydberg_exponent_, coord, signs, mos.size(), 0));
 			diffuse_tmp = real_factory_3d(world).functor(rydberg_functor);
 		}
 
