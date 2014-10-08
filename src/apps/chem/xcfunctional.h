@@ -106,12 +106,6 @@ public:
         return p;
     }
 
-    //Testing with threshold 1.e-4
-    static double munge_man(double rho) {
-        if (rho <= 1.e-5) rho=1.e-8;
-        return rho;
-    }
-
 private:
 
 

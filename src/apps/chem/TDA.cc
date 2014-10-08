@@ -307,6 +307,9 @@ void TDA::add_diffuse_functions(vecfuncT &mos) {
 			tmp[j] = Coord(i, j);
 		coord.push_back(tmp);
 	}
+	// add the 0,0,0 point (for the case that it is a nodal mo)
+	coord_3d zero; zero[0]=0.0;zero[1]=0.0;zero[2]=0.0;
+	coord.push_back(zero);
 
 	// Add diffuse 1s functions with the right sign to each mo
 	for (size_t k = 0; k < mos.size(); k++) {

@@ -606,7 +606,7 @@ namespace madness {
         			coord[cc2]=lo+origin[cc2]+i1*stepsize;
 
         			// other electron
-        			fprintf(f,"%12.6f %12.6f %12.6f\n",coord[cc1],coord[cc2],
+        			fprintf(f,"%12.6f %12.6f %12.20f\n",coord[cc1],coord[cc2],
         					function(coord));
 
         		}
