@@ -131,10 +131,10 @@ public:
 		}
 		else if(exop=="uracil"){
 			 real_function_3d tmp1 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp1);
-			 real_function_3d tmp2 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp2);
-			 real_function_3d tmp3 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp3);
-			 real_function_3d tmp4 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp4);
-			 real_function_3d tmp5 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp5);
+			 real_function_3d tmp2 = real_factory_3d(world).f(ura_2);xoperators.push_back(tmp2);
+			 real_function_3d tmp3 = real_factory_3d(world).f(ura_3);xoperators.push_back(tmp3);
+			 real_function_3d tmp4 = real_factory_3d(world).f(ura_4);xoperators.push_back(tmp4);
+			 real_function_3d tmp5 = real_factory_3d(world).f(ura_5);xoperators.push_back(tmp5);
 		}
 		else if(exop=="D2d"){
 			real_function_3d tmp0 = real_factory_3d(world).f(d2d_A1); xoperators.push_back(tmp0);
