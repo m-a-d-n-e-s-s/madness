@@ -129,6 +129,13 @@ public:
 			real_function_3d tmp5  = real_factory_3d(world).f(benzene_5);xoperators.push_back(tmp5);
 			real_function_3d tmp6  = real_factory_3d(world).f(benzene_6);xoperators.push_back(tmp6);
 		}
+		else if(exop=="uracil"){
+			 real_function_3d tmp1 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp1);
+			 real_function_3d tmp2 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp2);
+			 real_function_3d tmp3 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp3);
+			 real_function_3d tmp4 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp4);
+			 real_function_3d tmp5 = real_factory_3d(world).f(ura_1);xoperators.push_back(tmp5);
+		}
 		else if(exop=="D2d"){
 			real_function_3d tmp0 = real_factory_3d(world).f(d2d_A1); xoperators.push_back(tmp0);
 			real_function_3d tmp1 = real_factory_3d(world).f(d2d_A2); xoperators.push_back(tmp1);
@@ -269,6 +276,14 @@ private:
 	 static double seq_dipole(const coord_3d&r){return x_function(r)+y_function(r)+z_function(r);}
 	 // dipole+
 	 static double seq_dipolep(const coord_3d&r){return seq_dipole(r)+rr_function(r);}
+
+	 /// Uracil custom guess for testing purposes
+	 static double ura_1(const coord_3d &r){return 0.5*x_function(r)-1.5*y_function(r)+2*xx_function(r)-2.5*yy_function(r)-0.05*zz_function(r)+xy_function(r) ;}
+	 static double ura_2(const coord_3d &r){return -2.3*x_function(r) -2*y_function(r)-0.44*xx_function(r)+yy_function(r)-1.3*zz_function(r)-xy_function(r);}
+	 static double ura_3(const coord_3d &r){return 0.004*z_function(r)+0.12*xz_function(r)+0.09*yz_function(r);}
+	 static double ura_4(const coord_3d &r){return 0.14*z_function(r)+xz_function(r)+yz_function(r);}
+	 static double ura_5(const coord_3d &r){return -0.003*z_function(r)+0.1*xz_function(r)-0.01*yz_function(r);}
+
 };
 }
 
