@@ -188,7 +188,7 @@ namespace madness {
             typedef MemFuncWrapper<shared_ptrT, memfnT, typename result_of<memfnT>::type> wrapperT;
 
             static wrapperT make_task_fn(const objT* obj, memfnT memfn) {
-                return make_task_fn(const_cast<ptrT>(obj)->shared_from_this(), memfn);
+                return wrapperT(const_cast<ptrT>(obj)->shared_from_this(), memfn);
             }
 
             static wrapperT make_task_fn(objT* obj, memfnT memfn) {
