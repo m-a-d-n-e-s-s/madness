@@ -179,7 +179,7 @@ namespace madness {
 
         template <typename objT, typename memfnT>
         struct WorldObjectTaskHelper<objT, memfnT,
-                typename std::is_base_of<std::enable_shared_from_this<objT>, objT>::type>
+                typename enable_if< std::is_base_of<std::enable_shared_from_this<objT>, objT> >::type>
         {
             typedef typename if_c<memfunc_traits<memfnT>::constness,
                     const objT*, objT*>::type ptrT;
@@ -202,7 +202,7 @@ namespace madness {
             static wrapperT make_task_fn(WorldObject<objT>* obj, memfnT memfn) {
                 return make_task_fn(static_cast<objT*>(obj), memfn);
             }
-        }; // struct WorldObjectTaskHelpe
+        }; // struct WorldObjectTaskHelper
 
 #endif // MADNESS_DISABLE_SHARED_FROM_THIS
 
