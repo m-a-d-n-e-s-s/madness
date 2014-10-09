@@ -351,7 +351,13 @@ void TDA::add_diffuse_functions(vecfuncT &mos) {
 }
 
 vecfuncT TDA::make_excitation_operators() const {
+if(guess_exop_ == "custom"){
 
+	exoperators exops;
+	vecfuncT xoperators = exops.get_custom_exops(world,custom_exops_);
+	return xoperators;
+
+}else{
 	std::string key;
 	if (guess_exop_ == "symmetry") {
 		key = calc_.molecule.pointgroup_;
@@ -373,6 +379,7 @@ vecfuncT TDA::make_excitation_operators() const {
 	vecfuncT xoperators = exops.get_exops(world, key);
 
 	return xoperators;
+}
 }
 
 void TDA::iterate_guess(xfunctionsT &xfunctions) {

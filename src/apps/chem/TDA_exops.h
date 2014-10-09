@@ -14,6 +14,67 @@ struct exoperators{
 public:
 	exoperators(){}
 
+	vecfuncT get_custom_exops(World &world,const std::vector< std::string > input_lines){
+
+		if(world.rank()==0)std::cout << "Creating custom guess operators ... " << input_lines.size() << " demanded" << std::endl;
+		if(input_lines.size()==0) MADNESS_EXCEPTION("Custom guess demanded but no input was given",1);
+		//std::cout << input_lines << std::endl;
+
+		// get the coefficients from the strings
+		std::vector<std::vector<double> > coefficients;
+		for(size_t i=0;i<input_lines.size();i++){
+		std::stringstream line(input_lines[i]);
+		std::string name;
+		std::vector<double> icoeff(9,0);
+
+		while(line>>name){
+			std::transform(name.begin(), name.end(), name.begin(), ::toupper);
+			if(name == "X") line >> icoeff[0];
+			if(name == "Y") line >> icoeff[1];
+			if(name == "Z") line >> icoeff[2];
+			if(name == "XX") line >> icoeff[3];
+			if(name == "YY") line >> icoeff[4];
+			if(name == "ZZ") line >> icoeff[5];
+			if(name == "XY") line >> icoeff[6];
+			if(name == "XZ") line >> icoeff[7];
+			if(name == "YZ") line >> icoeff[8];
+		}
+		coefficients.push_back(icoeff);
+		}
+
+		// controll output
+		if(world.rank()==0){
+			std::cout << "\n\n---------CUSTOM OPERATORS ARE----------\n\n" << std::endl;
+			for(size_t i=0;i<coefficients.size();i++){
+				std::cout << "\n exop" << i << " (x,y,z,xx,yy,zz,xy,xz,yz)" << std::endl;
+					std::cout << std::fixed <<std::setprecision(2) << coefficients[i] << std::endl;
+			}
+			std::cout << "\n\n---------------------------------------\n\n" << std::endl;
+		}
+
+
+		vecfuncT exops;
+		vecfuncT qudadbas;
+		 real_function_3d x   = real_factory_3d(world).f(x_function);  qudadbas.push_back(x);
+		 real_function_3d y   = real_factory_3d(world).f(y_function);  qudadbas.push_back(y);
+		 real_function_3d z   = real_factory_3d(world).f(z_function);  qudadbas.push_back(z);
+		 real_function_3d xx  = real_factory_3d(world).f(xx_function); qudadbas.push_back(xx);
+		 real_function_3d yy  = real_factory_3d(world).f(yy_function); qudadbas.push_back(yy);
+		 real_function_3d zz  = real_factory_3d(world).f(zz_function); qudadbas.push_back(zz);
+		 real_function_3d xy  = real_factory_3d(world).f(xy_function); qudadbas.push_back(xy);
+		 real_function_3d xz  = real_factory_3d(world).f(xz_function); qudadbas.push_back(xz);
+		 real_function_3d yz  = real_factory_3d(world).f(yz_function); qudadbas.push_back(yz);
+
+		 for(size_t i=0;i<coefficients.size();i++){
+			 real_function_3d tmp = real_factory_3d(world);
+			 for(size_t j=0;j<coefficients[i].size();j++){
+				  tmp += coefficients[i][j]*qudadbas[j];
+			 }
+			 exops.push_back(tmp);
+		 }
+		 return exops;
+	}
+
 	vecfuncT get_exops(World &world,const std::string exop){
 		vecfuncT xoperators;
 		if(exop == "dipole"){

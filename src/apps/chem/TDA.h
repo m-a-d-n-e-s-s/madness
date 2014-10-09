@@ -433,7 +433,6 @@ public:
 	/// reads the input file and calculates needed functions
 	void setup(const vecfuncT &mos,const std::string input){
 
-
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
 
@@ -483,19 +482,23 @@ public:
 			else if (tag == "rydberg") {rydberg_=true; ss>>rydberg_exponent_;}
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
-			else if (tag == "exop1") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop2") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop3") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop4") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop5") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop6") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop7") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop8") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop9") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop10") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
+			else if (tag == "exop1") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop2") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop3") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop4") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop5") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop6") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop7") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop8") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop9") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop10") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "truncate_safety") ss>>safety_;
 			else continue;
 		}
+
+
+
+
 
 		// make potential shift = -ipot - homo
 		if(dft_) shift_= -ipot_ - get_calc().aeps[noct-1];
@@ -660,6 +663,7 @@ private:
 	/// how many excitations should pre_converge (recommended: 1-2 more than demanded in the end)
 	size_t guess_excitations_;
 	std::vector<std::string> custom_exops_;
+	std::vector<std::vector<double> > exop_coefficients_;
 
 	/// Number of excitations to be caluclated
 	size_t excitations_;
