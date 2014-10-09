@@ -153,8 +153,8 @@ struct xfunction{
 	// finally an operator that the result can be sorted after the energy
 	// sorting of xfunctions should not happen during the iterations
 	// therefore a warning is installed
-	bool operator<=(const xfunction &b)const{return omega<=b.omega;std::cout << "WARNING XFUNCTIONS ARE SORTED" << std::endl;}
-	bool operator< (const xfunction &b)const{return omega<b.omega; std::cout << "WARNING XFUNCTIONS ARE SORTED" << std::endl;}
+	bool operator<=(const xfunction &b)const{return expectation_value.back()<=b.expectation_value.back() ;std::cout << "WARNING XFUNCTIONS ARE SORTED" << std::endl;}
+	bool operator< (const xfunction &b)const{return expectation_value.back()<b.expectation_value.back(); std::cout << "WARNING XFUNCTIONS ARE SORTED" << std::endl;}
 
 
 
@@ -495,10 +495,6 @@ public:
 			else if (tag == "truncate_safety") ss>>safety_;
 			else continue;
 		}
-
-
-
-
 
 		// make potential shift = -ipot - homo
 		if(dft_) shift_= -ipot_ - get_calc().aeps[noct-1];

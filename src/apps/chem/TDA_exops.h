@@ -14,6 +14,31 @@ struct exoperators{
 public:
 	exoperators(){}
 
+	std::vector<double> get_overlaps_with_guess(World &world,const vecfuncT &excitation,const vecfuncT &mo){
+		if(excitation.size()!=mo.size()) MADNESS_EXCEPTION("Error in calculating overlap with the guess operators, excitation vector and mo vector have different sizes",1);
+		vecfuncT quadbas;
+		 real_function_3d x   = real_factory_3d(world).f(x_function);  quadbas.push_back(x);
+		 real_function_3d y   = real_factory_3d(world).f(y_function);  quadbas.push_back(y);
+		 real_function_3d z   = real_factory_3d(world).f(z_function);  quadbas.push_back(z);
+		 real_function_3d xx  = real_factory_3d(world).f(xx_function); quadbas.push_back(xx);
+		 real_function_3d yy  = real_factory_3d(world).f(yy_function); quadbas.push_back(yy);
+		 real_function_3d zz  = real_factory_3d(world).f(zz_function); quadbas.push_back(zz);
+		 real_function_3d xy  = real_factory_3d(world).f(xy_function); quadbas.push_back(xy);
+		 real_function_3d xz  = real_factory_3d(world).f(xz_function); quadbas.push_back(xz);
+		 real_function_3d yz  = real_factory_3d(world).f(yz_function); quadbas.push_back(yz);
+
+		 std::vector<double> overlaps;
+		 for(size_t i=0;i< quadbas.size();i++){
+			 vecfuncT guess_ex = mul(world,quadbas[i],mo);
+			 double norm2= inner(world,guess_ex,guess_ex).sum();
+			 scale(world,guess_ex,1.0/sqrt(norm2));
+			 double overlap_tmp = inner(world, guess_ex,excitation).sum();
+			 if(overlap_tmp < 1.e-5) overlap_tmp=0.0;
+			 overlaps.push_back(overlap_tmp);
+		 }
+		 return overlaps;
+	}
+
 	vecfuncT get_custom_exops(World &world,const std::vector< std::string > input_lines){
 
 		if(world.rank()==0)std::cout << "Creating custom guess operators ... " << input_lines.size() << " demanded" << std::endl;
