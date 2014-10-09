@@ -224,6 +224,12 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 
 }
 
+void TDA::guess_valence(xfunctionsT &xfunctions){
+
+
+
+}
+
 void TDA::guess_physical(xfunctionsT & xfunctions) {
 
 	// when dft is used add diffuse functions to the mos to increase delocalisation

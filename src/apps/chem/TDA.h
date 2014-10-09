@@ -780,6 +780,8 @@ private:
 	/// Creates physical guess functions (x,y,z excitations - depending on the input file, see make_excitation_operators function)
 	void guess_physical(xfunctionsT & xfunctions);
 
+	void guess_valence(xfunctionsT & xfunctions);
+
 	/// Add diffuse 1s functions to the molecular orbitals (for LDA calculations)
 	void add_diffuse_functions(vecfuncT &mos);
 

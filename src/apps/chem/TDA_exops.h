@@ -14,30 +14,52 @@ struct exoperators{
 public:
 	exoperators(){}
 
+	vecfuncT get_polynom_basis(World &world){
+		vecfuncT basis;
+		 //dipole
+		 real_function_3d x   = real_factory_3d(world).f(x_function);  basis.push_back(x);
+		 real_function_3d y   = real_factory_3d(world).f(y_function);  basis.push_back(y);
+		 real_function_3d z   = real_factory_3d(world).f(z_function);  basis.push_back(z);
+		 //quadrupole
+		 real_function_3d xx  = real_factory_3d(world).f(xx_function); basis.push_back(xx);
+		 real_function_3d yy  = real_factory_3d(world).f(yy_function); basis.push_back(yy);
+		 real_function_3d zz  = real_factory_3d(world).f(zz_function); basis.push_back(zz);
+		 real_function_3d xy  = real_factory_3d(world).f(xy_function); basis.push_back(xy);
+		 real_function_3d xz  = real_factory_3d(world).f(xz_function); basis.push_back(xz);
+		 real_function_3d yz  = real_factory_3d(world).f(yz_function); basis.push_back(yz);
+
+		 real_function_3d xxx  = real_factory_3d(world).f(xxx_function); basis.push_back(xxx);
+		 real_function_3d yyy  = real_factory_3d(world).f(yyy_function); basis.push_back(yyy);
+		 real_function_3d zzz  = real_factory_3d(world).f(zzz_function); basis.push_back(zzz);
+		 real_function_3d xxy  = real_factory_3d(world).f(xxy_function); basis.push_back(xxy);
+		 real_function_3d xxz  = real_factory_3d(world).f(xxz_function); basis.push_back(xxz);
+		 real_function_3d xyy  = real_factory_3d(world).f(xyy_function); basis.push_back(xyy);
+		 real_function_3d xyz  = real_factory_3d(world).f(xyz_function); basis.push_back(xyz);
+		 real_function_3d xzz  = real_factory_3d(world).f(xzz_function); basis.push_back(xzz);
+		 real_function_3d yyz  = real_factory_3d(world).f(yyz_function); basis.push_back(yyz);
+		 real_function_3d yzz  = real_factory_3d(world).f(yzz_function); basis.push_back(yzz);
+
+		 real_function_3d xxxx  = real_factory_3d(world).f(xxxx_function); basis.push_back(xxxx);
+		 real_function_3d xxxy  = real_factory_3d(world).f(xxxy_function); basis.push_back(xxxy);
+		 real_function_3d xxxz  = real_factory_3d(world).f(xxxz_function); basis.push_back(xxxz);
+		 real_function_3d xxyy  = real_factory_3d(world).f(xxyy_function); basis.push_back(xxyy);
+		 real_function_3d xxyz  = real_factory_3d(world).f(xxyz_function); basis.push_back(xxyz);
+		 real_function_3d xxzz  = real_factory_3d(world).f(xxzz_function); basis.push_back(xxzz);
+		 real_function_3d xyyy  = real_factory_3d(world).f(xyyy_function); basis.push_back(xyyy);
+		 real_function_3d xyyz  = real_factory_3d(world).f(xyyz_function); basis.push_back(xyyz);
+		 real_function_3d xyzz  = real_factory_3d(world).f(xyzz_function); basis.push_back(xyzz);
+		 real_function_3d xzzz  = real_factory_3d(world).f(xzzz_function); basis.push_back(xzzz);
+		 real_function_3d yyyy  = real_factory_3d(world).f(yyyy_function); basis.push_back(yyyy);
+		 real_function_3d yyyz  = real_factory_3d(world).f(yyyz_function); basis.push_back(yyyz);
+		 real_function_3d yyzz  = real_factory_3d(world).f(yyzz_function); basis.push_back(yyzz);
+		 real_function_3d yzzz  = real_factory_3d(world).f(yzzz_function); basis.push_back(yzzz);
+		 real_function_3d zzzz  = real_factory_3d(world).f(zzzz_function); basis.push_back(zzzz);
+		 return basis;
+	}
+
 	std::vector<double> get_overlaps_with_guess(World &world,const vecfuncT &excitation,const vecfuncT &mo){
 		if(excitation.size()!=mo.size()) MADNESS_EXCEPTION("Error in calculating overlap with the guess operators, excitation vector and mo vector have different sizes",1);
-		vecfuncT quadbas;
-		 real_function_3d x   = real_factory_3d(world).f(x_function);  quadbas.push_back(x);
-		 real_function_3d y   = real_factory_3d(world).f(y_function);  quadbas.push_back(y);
-		 real_function_3d z   = real_factory_3d(world).f(z_function);  quadbas.push_back(z);
-
-		 real_function_3d xx  = real_factory_3d(world).f(xx_function); quadbas.push_back(xx);
-		 real_function_3d yy  = real_factory_3d(world).f(yy_function); quadbas.push_back(yy);
-		 real_function_3d zz  = real_factory_3d(world).f(zz_function); quadbas.push_back(zz);
-		 real_function_3d xy  = real_factory_3d(world).f(xy_function); quadbas.push_back(xy);
-		 real_function_3d xz  = real_factory_3d(world).f(xz_function); quadbas.push_back(xz);
-		 real_function_3d yz  = real_factory_3d(world).f(yz_function); quadbas.push_back(yz);
-
-		 real_function_3d xxx  = real_factory_3d(world).f(xxx_function); quadbas.push_back(xxx);
-		 real_function_3d yyy  = real_factory_3d(world).f(yyy_function); quadbas.push_back(yyy);
-		 real_function_3d zzz  = real_factory_3d(world).f(zzz_function); quadbas.push_back(zzz);
-		 real_function_3d xxy  = real_factory_3d(world).f(xxy_function); quadbas.push_back(xxy);
-		 real_function_3d xxz  = real_factory_3d(world).f(xxz_function); quadbas.push_back(xxz);
-		 real_function_3d xyy  = real_factory_3d(world).f(xyy_function); quadbas.push_back(xyy);
-		 real_function_3d xyz  = real_factory_3d(world).f(xyz_function); quadbas.push_back(xyz);
-		 real_function_3d xzz  = real_factory_3d(world).f(xzz_function); quadbas.push_back(xzz);
-		 real_function_3d yyz  = real_factory_3d(world).f(yyz_function); quadbas.push_back(yyz);
-		 real_function_3d yzz  = real_factory_3d(world).f(yzz_function); quadbas.push_back(yzz);
+		vecfuncT quadbas = get_polynom_basis(world);
 		 std::vector<double> overlaps;
 		 for(size_t i=0;i< quadbas.size();i++){
 			 vecfuncT guess_ex = mul(world,quadbas[i],mo);
@@ -101,27 +123,7 @@ public:
 
 
 		vecfuncT exops;
-		vecfuncT quadbas;
-		 real_function_3d x   = real_factory_3d(world).f(x_function);  quadbas.push_back(x);
-		 real_function_3d y   = real_factory_3d(world).f(y_function);  quadbas.push_back(y);
-		 real_function_3d z   = real_factory_3d(world).f(z_function);  quadbas.push_back(z);
-		 real_function_3d xx  = real_factory_3d(world).f(xx_function); quadbas.push_back(xx);
-		 real_function_3d yy  = real_factory_3d(world).f(yy_function); quadbas.push_back(yy);
-		 real_function_3d zz  = real_factory_3d(world).f(zz_function); quadbas.push_back(zz);
-		 real_function_3d xy  = real_factory_3d(world).f(xy_function); quadbas.push_back(xy);
-		 real_function_3d xz  = real_factory_3d(world).f(xz_function); quadbas.push_back(xz);
-		 real_function_3d yz  = real_factory_3d(world).f(yz_function); quadbas.push_back(yz);
-
-		 real_function_3d xxx  = real_factory_3d(world).f(xxx_function); quadbas.push_back(xxx);
-		 real_function_3d yyy  = real_factory_3d(world).f(yyy_function); quadbas.push_back(yyy);
-		 real_function_3d zzz  = real_factory_3d(world).f(zzz_function); quadbas.push_back(zzz);
-		 real_function_3d xxy  = real_factory_3d(world).f(xxy_function); quadbas.push_back(xxy);
-		 real_function_3d xxz  = real_factory_3d(world).f(xxz_function); quadbas.push_back(xxz);
-		 real_function_3d xyy  = real_factory_3d(world).f(xyy_function); quadbas.push_back(xyy);
-		 real_function_3d xyz  = real_factory_3d(world).f(xyz_function); quadbas.push_back(xyz);
-		 real_function_3d xzz  = real_factory_3d(world).f(xzz_function); quadbas.push_back(xzz);
-		 real_function_3d yyz  = real_factory_3d(world).f(yyz_function); quadbas.push_back(yyz);
-		 real_function_3d yzz  = real_factory_3d(world).f(yzz_function); quadbas.push_back(yzz);
+		vecfuncT quadbas=get_polynom_basis(world);
 
 		 for(size_t i=0;i<coefficients.size();i++){
 			 real_function_3d tmp = real_factory_3d(world);
@@ -315,7 +317,22 @@ private:
 	static double yzz_function(const coord_3d &r){ return r[1]*r[2]*r[2];   }
 	static double yyz_function(const coord_3d &r){ return r[1]*r[1]*r[2];   }
 	static double xyz_function(const coord_3d &r){ return r[0]*r[1]*r[2];   }
-
+// quartic excitations
+	static double xxxx_function(const coord_3d &r){ r[0]*r[0]*r[0]*r[0];}
+	static double xxxy_function(const coord_3d &r){ r[0]*r[0]*r[0]*r[1];}
+	static double xxxz_function(const coord_3d &r){ r[0]*r[0]*r[0]*r[2];}
+	static double xxyy_function(const coord_3d &r){ r[0]*r[0]*r[1]*r[1];}
+	static double xxyz_function(const coord_3d &r){ r[0]*r[0]*r[1]*r[2];}
+	static double xxzz_function(const coord_3d &r){ r[0]*r[0]*r[2]*r[2];}
+	static double xyyy_function(const coord_3d &r){ r[0]*r[1]*r[1]*r[1];}
+	static double xyyz_function(const coord_3d &r){ r[0]*r[1]*r[1]*r[2];}
+	static double xyzz_function(const coord_3d &r){ r[0]*r[1]*r[2]*r[2];}
+	static double xzzz_function(const coord_3d &r){ r[0]*r[2]*r[2]*r[2];}
+	static double yyyy_function(const coord_3d &r){ r[1]*r[1]*r[1]*r[1];}
+	static double yyyz_function(const coord_3d &r){ r[1]*r[1]*r[1]*r[2];}
+	static double yyzz_function(const coord_3d &r){ r[1]*r[1]*r[2]*r[2];}
+	static double yzzz_function(const coord_3d &r){ r[1]*r[2]*r[2]*r[2];}
+	static double zzzz_function(const coord_3d &r){ r[2]*r[2]*r[2]*r[2];}
 
 
 	/// Ci
