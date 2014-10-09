@@ -61,7 +61,7 @@ public:
 		for(size_t i=0;i<input_lines.size();i++){
 		std::stringstream line(input_lines[i]);
 		std::string name;
-		std::vector<double> icoeff(9,0);
+		std::vector<double> icoeff(19,0);
 
 		while(line>>name){
 			std::transform(name.begin(), name.end(), name.begin(), ::toupper);
@@ -74,6 +74,17 @@ public:
 			if(name == "XY") line >> icoeff[6];
 			if(name == "XZ") line >> icoeff[7];
 			if(name == "YZ") line >> icoeff[8];
+			if(name == "XXX") line >> icoeff[9];
+			if(name == "YYY") line >> icoeff[10];
+			if(name == "ZZZ") line >> icoeff[11];
+			if(name == "XXY") line >> icoeff[12];
+			if(name == "XXZ") line >> icoeff[13];
+			if(name == "XYY") line >> icoeff[14];
+			if(name == "XYZ") line >> icoeff[15];
+			if(name == "XZZ") line >> icoeff[16];
+			if(name == "YYZ") line >> icoeff[17];
+			if(name == "YZZ") line >> icoeff[18];
+
 		}
 		coefficients.push_back(icoeff);
 		}
@@ -90,21 +101,32 @@ public:
 
 
 		vecfuncT exops;
-		vecfuncT qudadbas;
-		 real_function_3d x   = real_factory_3d(world).f(x_function);  qudadbas.push_back(x);
-		 real_function_3d y   = real_factory_3d(world).f(y_function);  qudadbas.push_back(y);
-		 real_function_3d z   = real_factory_3d(world).f(z_function);  qudadbas.push_back(z);
-		 real_function_3d xx  = real_factory_3d(world).f(xx_function); qudadbas.push_back(xx);
-		 real_function_3d yy  = real_factory_3d(world).f(yy_function); qudadbas.push_back(yy);
-		 real_function_3d zz  = real_factory_3d(world).f(zz_function); qudadbas.push_back(zz);
-		 real_function_3d xy  = real_factory_3d(world).f(xy_function); qudadbas.push_back(xy);
-		 real_function_3d xz  = real_factory_3d(world).f(xz_function); qudadbas.push_back(xz);
-		 real_function_3d yz  = real_factory_3d(world).f(yz_function); qudadbas.push_back(yz);
+		vecfuncT quadbas;
+		 real_function_3d x   = real_factory_3d(world).f(x_function);  quadbas.push_back(x);
+		 real_function_3d y   = real_factory_3d(world).f(y_function);  quadbas.push_back(y);
+		 real_function_3d z   = real_factory_3d(world).f(z_function);  quadbas.push_back(z);
+		 real_function_3d xx  = real_factory_3d(world).f(xx_function); quadbas.push_back(xx);
+		 real_function_3d yy  = real_factory_3d(world).f(yy_function); quadbas.push_back(yy);
+		 real_function_3d zz  = real_factory_3d(world).f(zz_function); quadbas.push_back(zz);
+		 real_function_3d xy  = real_factory_3d(world).f(xy_function); quadbas.push_back(xy);
+		 real_function_3d xz  = real_factory_3d(world).f(xz_function); quadbas.push_back(xz);
+		 real_function_3d yz  = real_factory_3d(world).f(yz_function); quadbas.push_back(yz);
+
+		 real_function_3d xxx  = real_factory_3d(world).f(xxx_function); quadbas.push_back(xxx);
+		 real_function_3d yyy  = real_factory_3d(world).f(yyy_function); quadbas.push_back(yyy);
+		 real_function_3d zzz  = real_factory_3d(world).f(zzz_function); quadbas.push_back(zzz);
+		 real_function_3d xxy  = real_factory_3d(world).f(xxy_function); quadbas.push_back(xxy);
+		 real_function_3d xxz  = real_factory_3d(world).f(xxz_function); quadbas.push_back(xxz);
+		 real_function_3d xyy  = real_factory_3d(world).f(xyy_function); quadbas.push_back(xyy);
+		 real_function_3d xyz  = real_factory_3d(world).f(xyz_function); quadbas.push_back(xyz);
+		 real_function_3d xzz  = real_factory_3d(world).f(xzz_function); quadbas.push_back(xzz);
+		 real_function_3d yyz  = real_factory_3d(world).f(yyz_function); quadbas.push_back(yyz);
+		 real_function_3d yzz  = real_factory_3d(world).f(yzz_function); quadbas.push_back(yzz);
 
 		 for(size_t i=0;i<coefficients.size();i++){
 			 real_function_3d tmp = real_factory_3d(world);
 			 for(size_t j=0;j<coefficients[i].size();j++){
-				  tmp += coefficients[i][j]*qudadbas[j];
+				  tmp += coefficients[i][j]*quadbas[j];
 			 }
 			 exops.push_back(tmp);
 		 }
