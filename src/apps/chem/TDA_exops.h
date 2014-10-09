@@ -20,6 +20,7 @@ public:
 		 real_function_3d x   = real_factory_3d(world).f(x_function);  quadbas.push_back(x);
 		 real_function_3d y   = real_factory_3d(world).f(y_function);  quadbas.push_back(y);
 		 real_function_3d z   = real_factory_3d(world).f(z_function);  quadbas.push_back(z);
+
 		 real_function_3d xx  = real_factory_3d(world).f(xx_function); quadbas.push_back(xx);
 		 real_function_3d yy  = real_factory_3d(world).f(yy_function); quadbas.push_back(yy);
 		 real_function_3d zz  = real_factory_3d(world).f(zz_function); quadbas.push_back(zz);
@@ -27,6 +28,16 @@ public:
 		 real_function_3d xz  = real_factory_3d(world).f(xz_function); quadbas.push_back(xz);
 		 real_function_3d yz  = real_factory_3d(world).f(yz_function); quadbas.push_back(yz);
 
+		 real_function_3d xxx  = real_factory_3d(world).f(xxx_function); quadbas.push_back(xxx);
+		 real_function_3d yyy  = real_factory_3d(world).f(yyy_function); quadbas.push_back(yyy);
+		 real_function_3d zzz  = real_factory_3d(world).f(zzz_function); quadbas.push_back(zzz);
+		 real_function_3d xxy  = real_factory_3d(world).f(xxy_function); quadbas.push_back(xxy);
+		 real_function_3d xxz  = real_factory_3d(world).f(xxz_function); quadbas.push_back(xxz);
+		 real_function_3d xyy  = real_factory_3d(world).f(xyy_function); quadbas.push_back(xyy);
+		 real_function_3d xyz  = real_factory_3d(world).f(xyz_function); quadbas.push_back(xyz);
+		 real_function_3d xzz  = real_factory_3d(world).f(xzz_function); quadbas.push_back(xzz);
+		 real_function_3d yyz  = real_factory_3d(world).f(yyz_function); quadbas.push_back(yyz);
+		 real_function_3d yzz  = real_factory_3d(world).f(yzz_function); quadbas.push_back(yzz);
 		 std::vector<double> overlaps;
 		 for(size_t i=0;i< quadbas.size();i++){
 			 vecfuncT guess_ex = mul(world,quadbas[i],mo);

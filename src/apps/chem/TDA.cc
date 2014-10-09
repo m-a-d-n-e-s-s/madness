@@ -1357,7 +1357,7 @@ void TDA::analyze(xfunctionsT& roots) const {
 	for(size_t i=0;i<roots.size();i++){
 		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_);
 		if(world.rank()==0){
-			std::cout << "\nOverlaps with (x,y,z,xx,yy,zz,xy,xz,yz) of excitation " << i << std::endl;
+			std::cout << "\nOverlaps with (x,y,z,xx,yy,zz,xy,xz,yz,xxx,yyy,zzz,xxy,xyy,xyz,xzz,yyz,yzz) of excitation " << i << std::endl;
 			std::cout << overlap_tmp << std::endl;
 		}
 	}
