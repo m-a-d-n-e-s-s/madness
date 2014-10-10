@@ -492,6 +492,13 @@ public:
 			else if (tag == "exop8") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "exop9") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "exop10") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "guess_omega_1") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_2") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_3") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_4") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_5") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_6") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+
 			else if (tag == "truncate_safety") ss>>safety_;
 			else continue;
 		}
@@ -659,6 +666,7 @@ private:
 	/// how many excitations should pre_converge (recommended: 1-2 more than demanded in the end)
 	size_t guess_excitations_;
 	std::vector<std::string> custom_exops_;
+	std::vector<double> guess_omegas_;
 	std::vector<std::vector<double> > exop_coefficients_;
 
 	/// Number of excitations to be caluclated

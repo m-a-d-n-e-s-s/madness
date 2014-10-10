@@ -214,6 +214,11 @@ void TDA::print_xfunction(const xfunction &x) const {
 void TDA::initialize(xfunctionsT & xfunctions) {
 	if (guess_ == "physical") {
 		guess_physical(xfunctions);
+		if (not guess_omegas_.empty() and guess_omegas_.size()<=xfunctions.size()){
+			for(size_t i=0;i<guess_omegas_.size();i++){
+				xfunctions[i].omega = guess_omegas_[i];
+			}
+		}
 	} else if (guess_ == "valence"){
 		guess_valence(xfunctions);
 	}
