@@ -324,14 +324,14 @@ public:
 			xoperators = polynom_basis_;
 			if(world.rank()==0){
 				std::cout << "Guess exop is big_3 excitation operators are:" << std::endl;
-				for(size_t i=0;i<2+6+10;i++) std::cout << " " <<key_[i] << " ";
+				for(size_t i=0;i<2+6+10+1;i++) std::cout << " " <<key_[i] << " ";
 				std::cout << std::endl;
 			}
-			xoperators.erase(xoperators.begin()+3+6+10,xoperators.end());
+			xoperators.erase(xoperators.begin()+3+6+10+1,xoperators.end());
 		}
 		else if (exop=="big_4"){
 			xoperators = polynom_basis_;
-			xoperators.erase(xoperators.begin()+3+6+10+15,xoperators.end());
+			xoperators.erase(xoperators.begin()+3+6+10+15+1,xoperators.end());
 		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
