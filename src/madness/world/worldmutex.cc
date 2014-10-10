@@ -82,7 +82,9 @@ namespace madness {
     }
 
 
-
+    namespace detail {
+        Mutex printmutex;
+    }
 
 } // namespace madness
 
