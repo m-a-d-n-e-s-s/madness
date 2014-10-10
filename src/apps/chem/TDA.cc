@@ -1422,26 +1422,6 @@ void TDA::analyze(xfunctionsT& roots) const {
 	for(size_t i=0;i<roots.size();i++){
 		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_);
 		std::vector<std::string> key = exops.key_;
-//		key.push_back(" x ");key.push_back(" y ");key.push_back(" z ");
-//		key.push_back(" xx ");key.push_back(" yy ");key.push_back(" zz ");key.push_back(" xy ");key.push_back(" xz ");key.push_back(" yz ");
-//		key.push_back(" xxx ");key.push_back(" yyy ");key.push_back(" zzz ");key.push_back(" xxy ");
-//		key.push_back(" xxz ");key.push_back(" xyy ");
-//		key.push_back(" xyz ");key.push_back(" xzz ");key.push_back(" yyz ");key.push_back(" yzz ");
-//		key.push_back(" xxxx ");
-//		key.push_back(" xxxy ");
-//		key.push_back(" xxxz ");
-//		key.push_back(" xxyy ");
-//		key.push_back(" xxyz ");
-//		key.push_back(" xxzz ");
-//		key.push_back(" xyyy ");
-//		key.push_back(" xyyz ");
-//		key.push_back(" xyzz ");
-//		key.push_back(" xzzz ");
-//		key.push_back(" yyyy ");
-//		key.push_back(" yyyz ");
-//		key.push_back(" yyzz ");
-//		key.push_back(" yzzz ");
-//		key.push_back(" zzzz ");
 		if(world.rank()==0){
 			std::cout << "key\n" << key << std::endl;
 			//std::cout << "\nOverlaps with (x,y,z,xx,yy,zz,xy,xz,yz,xxx,yyy,zzz,xxy,xyy,xyz,xzz,yyz,yzz) of excitation " << i << std::endl;
@@ -1452,11 +1432,10 @@ void TDA::analyze(xfunctionsT& roots) const {
 			for(size_t i=3;i<9;i++) std::cout << std::fixed << std::setprecision(2) << key[i]<<" "<< overlap_tmp[i]<<" ";
 			std::cout <<"\n cubic contributions"<< std::endl;
 			for(size_t i=9;i<19;i++) std::cout << std::fixed << std::setprecision(2) << key[i]<<" "<< overlap_tmp[i] << " ";
-			std::cout <<"\n quartic contributions"<< std::endl;
-			for(size_t i=19;i<overlap_tmp.size();i++) std::cout << std::fixed << std::setprecision(2) << key[i]<< overlap_tmp[i];
+
 			std::cout <<"\n\n all significant " << std::endl;
 			for(size_t i=0;i<overlap_tmp.size();i++){
-				if(fabs(overlap_tmp[i]) > 1.e-4) std::cout << std::fixed << std::setprecision(2) << key[i]<<" "<< overlap_tmp[i]<<" ";
+				if(fabs(overlap_tmp[i]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[i]<<" "<< overlap_tmp[i]<<" ";
 			}
 			std::cout << std::endl;
 		}
