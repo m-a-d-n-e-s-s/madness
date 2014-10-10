@@ -761,6 +761,9 @@ private:
 	/// the coulomb potential
 	mutable real_function_3d coulomb_;
 
+	/// The guess functions
+	std::vector<xfunction> guess_xfunctions_;
+
 	/// The converged xfunctions
 	std::vector<xfunction> converged_xfunctions_;
 

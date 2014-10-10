@@ -207,15 +207,16 @@ void TDA::print_status(const xfunctionsT & xfunctions) const {
 void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-					<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+							<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
 void TDA::initialize(xfunctionsT & xfunctions) {
 	if (guess_ == "physical") {
 		guess_physical(xfunctions);
-	} else if (guess_ == "...")
-		print("dummy");
+	} else if (guess_ == "valence"){
+		guess_valence(xfunctions);
+	}
 	else {
 		if (world.rank() == 0)
 			print("unknown keyword for guess: ", guess_);
@@ -225,7 +226,68 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 }
 
 void TDA::guess_valence(xfunctionsT &xfunctions){
+	std::cout << "\n\n\n ------- VALENCE GUESS --------\n\n\n";
+	// for now
+	size_t guess_freeze_ = active_mo_.size()-1; // homo and lumo excitations, if this works make a keyword
+	exoperators exopstruct(world);
+	// set nfreeze back to homo lumo excitations only as guess functions
+	size_t old_freeze = nfreeze_;
+	vecfuncT old_active = active_mo_;
+	// make new active mos
+	nfreeze_ = guess_freeze_;
+	guess_ = "physical";
+	vecfuncT reduced_active_mos;
+	for(size_t i=guess_freeze_;i<mos_.size();i++){reduced_active_mos.push_back(mos_[i]);}
+	active_mo_ = reduced_active_mos;
+	std::cout << "size of frozen guess active mos " << active_mo_.size();
 
+	// now just run the normal calculation with the reduced active mos
+	guess_physical(xfunctions);
+	iterate_guess(xfunctions);
+	iterate(xfunctions);
+
+	// get the coefficients for the xoperators
+	std::vector<std::vector<double> > coefficients;
+	for(size_t i=0;i<converged_xfunctions_.size();i++){
+		std::vector<double> overlap_tmp = exopstruct.get_overlaps_with_guess(world,converged_xfunctions_[i].x,active_mo_);
+		coefficients.push_back(overlap_tmp);
+	}
+
+	// end the guess calculation
+	if(world.rank()==0){
+		std::cout << "\n\n\n ------- VALENCE GUESS CALCULATION ENDED --------\n\n\n";
+
+		for(size_t j=0;j<coefficients.size();j++){
+			std::cout << "guess excitation " << j << std::endl;
+			std::cout << "\n dipole contributions \n";
+			for(size_t i=0;i<2;i++) std::cout<<coefficients[j][i]<<" ";
+			std::cout << "\n quadrupole contributions \n";
+			for(size_t i=2;i<8;i++) std::cout<<coefficients[j][i]<<" ";
+			std::cout << "\n cubic contributions \n";
+			for(size_t i=8;i<18;i++) std::cout<<coefficients[j][i]<<" ";
+			std::cout << "\n quartic contributions \n";
+			for(size_t i=18;i<coefficients.size();i++) std::cout<<coefficients[i]<<" ";
+		}
+	}
+	nfreeze_ = old_freeze;
+	active_mo_ = old_active;
+	xfunctions.clear();
+
+	// make the new unfrozen guess and replace the excitation vectors in the converged xfunctions
+	vecfuncT exops = exopstruct.make_custom_exops(world,coefficients);
+	for(size_t i=0;i<exops.size();i++){
+		vecfuncT xtmp;
+		for(size_t j=0;j<active_mo_.size();j++){
+			real_function_3d tmp = active_mo_[j]*exops[i];
+			xtmp.push_back(tmp);
+		}
+		converged_xfunctions_[i].x=xtmp;
+		converged_xfunctions_[i].Vx.clear();
+		converged_xfunctions_[i].iterations = 0;
+	}
+
+	xfunctions = converged_xfunctions_;
+	converged_xfunctions_.clear();
 
 
 }
@@ -288,6 +350,11 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 	for (size_t i = 0; i < xfunctions.size(); i++) {
 		xfunctions[i].omega = guess_omega_ * factor;
 		//factor += 0.05;
+	}
+	// save guess function for reuse
+	guess_xfunctions_ = xfunctions;
+	for(size_t i=0;i<xfunctions.size();i++){
+		guess_xfunctions_[i].x = copy(world,xfunctions[i].x);
 	}
 
 }
@@ -357,35 +424,35 @@ void TDA::add_diffuse_functions(vecfuncT &mos) {
 }
 
 vecfuncT TDA::make_excitation_operators() const {
-if(guess_exop_ == "custom"){
+	if(guess_exop_ == "custom"){
 
-	exoperators exops;
-	vecfuncT xoperators = exops.get_custom_exops(world,custom_exops_);
-	return xoperators;
+		exoperators exops(world);
+		vecfuncT xoperators = exops.get_custom_exops(world,custom_exops_);
+		return xoperators;
 
-}else{
-	std::string key;
-	if (guess_exop_ == "symmetry") {
-		key = calc_.molecule.pointgroup_;
-		std::cout << std::setw(40) << "symmetry_guess" << " : point group is " << key;
-		if (key == "C1") {
-			key = "quadrupole+";
-			std::cout<< "and not yet implemented ...";}
-		if (key == "Ci") {
-			key = "quadrupole+";
-			std::cout<< "and not yet implemented ...";}
-		if (key == "D2") {
-			key = "quadrupole+";
-			std::cout<< "and not yet implemented ...";}
-		std::cout << std::endl;
+	}else{
+		std::string key;
+		if (guess_exop_ == "symmetry") {
+			key = calc_.molecule.pointgroup_;
+			std::cout << std::setw(40) << "symmetry_guess" << " : point group is " << key;
+			if (key == "C1") {
+				key = "quadrupole+";
+				std::cout<< "and not yet implemented ...";}
+			if (key == "Ci") {
+				key = "quadrupole+";
+				std::cout<< "and not yet implemented ...";}
+			if (key == "D2") {
+				key = "quadrupole+";
+				std::cout<< "and not yet implemented ...";}
+			std::cout << std::endl;
+		}
+		else key = guess_exop_;
+
+		exoperators exops(world);
+		vecfuncT xoperators = exops.get_exops(world, key);
+
+		return xoperators;
 	}
-	else key = guess_exop_;
-
-	exoperators exops;
-	vecfuncT xoperators = exops.get_exops(world, key);
-
-	return xoperators;
-}
 }
 
 void TDA::iterate_guess(xfunctionsT &xfunctions) {
@@ -1022,12 +1089,12 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 	//	TDA_TIMER applyit(world,"apply vxc...");
 	//
 	// Get the perturbed xc potential from the dft class
-//		real_function_3d vxc = xclib_interface_.convolution_with_kernel(
-//				perturbed_density);
+	//		real_function_3d vxc = xclib_interface_.convolution_with_kernel(
+	//				perturbed_density);
 
-//		for (size_t i = 0; i < gamma.size(); i++) {
-//			gamma[i] += vxc * active_mo_[i];
-//		}
+	//		for (size_t i = 0; i < gamma.size(); i++) {
+	//			gamma[i] += vxc * active_mo_[i];
+	//		}
 
 	// Alternative way (more expensive, but avoid the unprecise kernel)
 	// for small test molecules this seems to bring no improvement
@@ -1036,10 +1103,10 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 	// 2.return add(world,gamma,gamma2)
 	// 3. dont forget to project out occupied space also from gamma2 (below here)
 	// THIS DOES NOT WORK FOR GGA
-//	vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
-//	for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
+	//	vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
+	//	for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
 
-//	vecfuncT gamma2 = mul(world,perturbed_density,lda_intermediate_);
+	//	vecfuncT gamma2 = mul(world,perturbed_density,lda_intermediate_);
 
 	for(size_t p=0;p<gamma.size();p++){
 		gamma[p] += xclib_interface_.get_fxc()*perturbed_density*active_mo_[p];
@@ -1079,7 +1146,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-							+ get_coulomb_potential();
+									+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
@@ -1182,16 +1249,12 @@ bool TDA::check_convergence(xfunctionsT &xfunctions) {
 
 			// replace the converged xfunctions with the guess function it once was
 			//(there should be no sorting on the way, e.g in the fock orthonormalization)
-			xfunctionsT new_xfunctions;
-			initialize(new_xfunctions);
-			xfunctions[i]=new_xfunctions[i];
-			// be shure
-			xfunctions[i].x = copy(world,new_xfunctions[i].x);
+			xfunctions[i]=guess_xfunctions_[i];
+			xfunctions[i].x = copy(world,guess_xfunctions_[i].x);
 			xfunctions[i].omega = guess_omega_;
 			xfunctions[i].error.push_back(100);
 			xfunctions[i].delta.push_back(100);
 			xfunctions[i].expectation_value.push_back(guess_omega_);
-			new_xfunctions.clear();
 			if(kain_) {
 				// all subspaces have to be erased because of the fock transformation
 				for(size_t j=0;j<xfunctions.size();j++) kain_solvers.erase_subspace(j);
@@ -1200,16 +1263,12 @@ bool TDA::check_convergence(xfunctionsT &xfunctions) {
 			// sort out xfunctions that iterated to long and showed no progress
 			if(replace) {
 				if(xfunctions[i].error.back() > 5.e-2) {
-					xfunctionsT new_xfunctions;
-					initialize(new_xfunctions);
-					xfunctions[i]=new_xfunctions[i];
-					// be shure
-					xfunctions[i].x = copy(world,new_xfunctions[i].x);
+					xfunctions[i]=guess_xfunctions_[i];
+					xfunctions[i].x = copy(world,guess_xfunctions_[i].x);
 					xfunctions[i].omega = guess_omega_;
 					xfunctions[i].error.push_back(100);
 					xfunctions[i].delta.push_back(100);
 					xfunctions[i].expectation_value.push_back(guess_omega_);
-					new_xfunctions.clear();
 					if(kain_) {
 						// all subspaces have to be erased because of the fock transformation
 						for(size_t j=0;j<xfunctions.size();j++) kain_solvers.erase_subspace(j);
@@ -1256,9 +1315,9 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	for (size_t i = 0; i < xfunctions.size(); i++) {
 		results << "\\num{" << std::setprecision(10) << xfunctions[i].omega
 				<< "} & " << std::scientific << std::setprecision(0)
-				<< xfunctions[i].error.back()
-				<< " & "  <<xfunctions[i].delta.back()
-				<< " & (" <<xfunctions[i].iterations << ")" << " \\\\" << "\n";
+		<< xfunctions[i].error.back()
+		<< " & "  <<xfunctions[i].delta.back()
+		<< " & (" <<xfunctions[i].iterations << ")" << " \\\\" << "\n";
 	}
 	results << "\\bottomrule" << "  \n";
 	results << "\\end{tabular} \n";
@@ -1359,12 +1418,47 @@ void TDA::analyze(xfunctionsT& roots) const {
 		}
 	}
 	// get the overlaps with exops
-	exoperators exops;
+	exoperators exops(world);
 	for(size_t i=0;i<roots.size();i++){
 		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_);
+		std::vector<std::string> key = exops.key_;
+//		key.push_back(" x ");key.push_back(" y ");key.push_back(" z ");
+//		key.push_back(" xx ");key.push_back(" yy ");key.push_back(" zz ");key.push_back(" xy ");key.push_back(" xz ");key.push_back(" yz ");
+//		key.push_back(" xxx ");key.push_back(" yyy ");key.push_back(" zzz ");key.push_back(" xxy ");
+//		key.push_back(" xxz ");key.push_back(" xyy ");
+//		key.push_back(" xyz ");key.push_back(" xzz ");key.push_back(" yyz ");key.push_back(" yzz ");
+//		key.push_back(" xxxx ");
+//		key.push_back(" xxxy ");
+//		key.push_back(" xxxz ");
+//		key.push_back(" xxyy ");
+//		key.push_back(" xxyz ");
+//		key.push_back(" xxzz ");
+//		key.push_back(" xyyy ");
+//		key.push_back(" xyyz ");
+//		key.push_back(" xyzz ");
+//		key.push_back(" xzzz ");
+//		key.push_back(" yyyy ");
+//		key.push_back(" yyyz ");
+//		key.push_back(" yyzz ");
+//		key.push_back(" yzzz ");
+//		key.push_back(" zzzz ");
 		if(world.rank()==0){
-			std::cout << "\nOverlaps with (x,y,z,xx,yy,zz,xy,xz,yz,xxx,yyy,zzz,xxy,xyy,xyz,xzz,yyz,yzz) of excitation " << i << std::endl;
-			std::cout << std::fixed << std::setprecision(2) << overlap_tmp << std::endl;
+			std::cout << "key\n" << key << std::endl;
+			//std::cout << "\nOverlaps with (x,y,z,xx,yy,zz,xy,xz,yz,xxx,yyy,zzz,xxy,xyy,xyz,xzz,yyz,yzz) of excitation " << i << std::endl;
+			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
+			std::cout <<"\n dipole contributions"<< std::endl;
+			for(size_t i=0;i<3;i++) std::cout << std::fixed << std::setprecision(2) << key[i]<<" " <<overlap_tmp[i]<<" ";
+			std::cout <<"\n quadrupole contributions"<< std::endl;
+			for(size_t i=3;i<9;i++) std::cout << std::fixed << std::setprecision(2) << key[i]<<" "<< overlap_tmp[i]<<" ";
+			std::cout <<"\n cubic contributions"<< std::endl;
+			for(size_t i=9;i<19;i++) std::cout << std::fixed << std::setprecision(2) << key[i]<<" "<< overlap_tmp[i] << " ";
+			std::cout <<"\n quartic contributions"<< std::endl;
+			for(size_t i=19;i<overlap_tmp.size();i++) std::cout << std::fixed << std::setprecision(2) << key[i]<< overlap_tmp[i];
+			std::cout <<"\n\n all significant " << std::endl;
+			for(size_t i=0;i<overlap_tmp.size();i++){
+				if(fabs(overlap_tmp[i]) > 1.e-4) std::cout << std::fixed << std::setprecision(2) << key[i]<<" "<< overlap_tmp[i]<<" ";
+			}
+			std::cout << std::endl;
 		}
 	}
 }
