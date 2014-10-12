@@ -340,6 +340,26 @@ public:
 			}
 			xoperators.erase(xoperators.begin()+3+6+10+15+1,xoperators.end());
 		}
+		else if (exop=="random_4"){
+			for(size_t i=0;i<4;i++){
+				std::cout << "Random guess exops " << i << std::endl;
+				real_function_3d tmp = real_factory_3d(world);
+				for(size_t k=0;k<polynom_basis_.size();k++){
+					double range = 0.1;
+					if(k>3) range =0.1;
+					if(k>10) range = 0.1;
+					if(k>20) range =0.05;
+					if(k>34) range =0.01;
+					double c = random_number()*range;
+					tmp += c*polynom_basis_[k];
+					std::cout <<std::fixed << std::setprecision(2) << " "<< c << " " <<  key_[k];
+				}
+				xoperators.push_back(tmp);
+				std::cout << std::endl;
+			}
+			//std::cout << "testing random numbers" << std::endl;
+			//for(size_t i=0;i<100;i++) std::cout<< std::fixed << std::setprecision(1) << random_number()<< std::endl;
+		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
 			MADNESS_EXCEPTION("Unknown keyword in exop struct",1);
@@ -351,6 +371,18 @@ public:
 
 
 private:
+
+	// Random Number generator
+	double random_number(){
+		int signa = rand()% 10 + 1;
+		int signb = rand()% 10 +1;
+		double tmp = (double) signa - (double) signb;
+		double  sign = 1.0;
+		if(tmp<0.0) sign = -1.0;
+		int a = rand() % 10 + 1;
+		double aa = (double) a * sign;
+		return aa;
+	}
 
 	// Dipole operators
 	static double x_function(const coord_3d &r){return r[0];}

@@ -330,7 +330,19 @@ public:
 
 	}
 };
+/// Functor that smoothes guess functions with the error functions (no fluctuations at the box borders)
+struct guess_smoothing : public FunctionFunctorInterface<double,3> {
+private:
+	/// Size of the box that will not be smoothed
+	const double box_size_;
+public:
+	guess_smoothing(const double box) : box_size_(box) {}
+	// Smoothing function
+	double operator()(const coord_3d &r)const{
+		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+	}
 
+};
 /// Functor that adds diffuse 1s functions on given coordinates with given signs (phases)
 struct diffuse_functions : public FunctionFunctorInterface<double,3> {
 public:
@@ -436,6 +448,9 @@ public:
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
 
+		// guess box default
+		guess_box_ = calc_.molecule.bounding_cube()+15.0;
+
 		size_t noct = calc_.aeps.size();
 		// The highest possible excitation (-homo_energy)
 		double highest_excitation_default = -calc_.aeps(noct-1);
@@ -498,6 +513,7 @@ public:
 			else if (tag == "guess_omega_4") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_5") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_6") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_box") ss >> guess_box_;
 
 			else if (tag == "truncate_safety") ss>>safety_;
 			else continue;
@@ -532,6 +548,7 @@ public:
 			if(only_fock_) std::cout << "only perturbed fock matrix"<< std::endl;
 			else if(only_GS_) std::cout << "only Gram-Schmidt"<< std::endl;
 			else std::cout << "use both"<< std::endl;
+			std::cout<< std::setw(40) << "Guess box size : " << guess_box_ << std::endl;
 			std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 		}
@@ -612,10 +629,7 @@ public:
 		return allx+allVx+allr;
 	}
 
-	// Smoothing function
-	static double guess_smoothing(const coord_3d &r){
-		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-35.0))+1.0);
-	}
+
 	//virtual ~TDA();
 
 	/// Solves the CIS or TDA equations
@@ -660,6 +674,7 @@ private:
 	/// guess iterations are the first iterations where the energy is kept fixed at the guess_omega energy
 	size_t guess_iter_;
 	double guess_omega_;
+	double guess_box_;
 
 	/// mode is either mo or all_orbitals (decides on which of the two functions the excitation operators act)
 	/// mo is the default, all_orbitals mode can increase the freedom (if there are convergence problems) of the guess functions

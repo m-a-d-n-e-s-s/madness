@@ -298,8 +298,10 @@ void TDA::guess_valence(xfunctionsT &xfunctions){
 }
 
 void TDA::guess_physical(xfunctionsT & xfunctions) {
+	std::shared_ptr<FunctionFunctorInterface<double, 3> > smooth_functor(
+						new guess_smoothing(guess_box_));
 
-	real_function_3d smoothing_function = real_factory_3d(world).f(guess_smoothing);
+	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
 	plot_plane(world,smoothing_function,"smoothing_function");
 
 	// when dft is used add diffuse functions to the mos to increase delocalisation
