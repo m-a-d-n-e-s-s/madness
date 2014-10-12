@@ -299,6 +299,9 @@ void TDA::guess_valence(xfunctionsT &xfunctions){
 
 void TDA::guess_physical(xfunctionsT & xfunctions) {
 
+	real_function_3d smoothing_function = real_factory_3d(world).f(guess_smoothing);
+	plot_plane(world,smoothing_function,"smoothing_function");
+
 	// when dft is used add diffuse functions to the mos to increase delocalisation
 	// dont do this in the first iterations (for the case that actual bound states are there) -> not empty criterium
 	vecfuncT diffuse_mos;
@@ -327,9 +330,9 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 		for (size_t i = 0; i < active_mo_.size(); i++) {
 			real_function_3d tmp;
 			if (guess_mode_ == "all_orbitals") {
-				tmp = all_orbitals * xoperators[j];
+				tmp = all_orbitals * xoperators[j]*smoothing_function;
 			} else
-				tmp = active_mo_[i] * xoperators[j];
+				tmp = active_mo_[i] * xoperators[j]*smoothing_function;
 
 			if(dft_ and not diffuse_mos.empty()){
 				std::cout << "\n\n ---- adding diffuse funtions to the guess ----\n\n" << std::endl;

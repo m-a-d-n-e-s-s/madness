@@ -612,6 +612,10 @@ public:
 		return allx+allVx+allr;
 	}
 
+	// Smoothing function
+	static double guess_smoothing(const coord_3d &r){
+		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-35.0))+1.0);
+	}
 	//virtual ~TDA();
 
 	/// Solves the CIS or TDA equations

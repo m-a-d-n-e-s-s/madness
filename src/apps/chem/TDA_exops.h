@@ -12,7 +12,9 @@ namespace madness{
 struct exoperators{
 
 public:
-	exoperators(World &world){get_polynom_basis(world);}
+	exoperators(World &world){
+		get_polynom_basis(world);
+	}
 	std::vector<std::string> key_;
 	vecfuncT polynom_basis_;
 	void get_polynom_basis(World &world){
@@ -324,13 +326,18 @@ public:
 			xoperators = polynom_basis_;
 			if(world.rank()==0){
 				std::cout << "Guess exop is big_3 excitation operators are:" << std::endl;
-				for(size_t i=0;i<2+6+10+1;i++) std::cout << " " <<key_[i] << " ";
+				for(size_t i=0;i<3+6+10;i++) std::cout << " " <<key_[i] << " ";
 				std::cout << std::endl;
 			}
 			xoperators.erase(xoperators.begin()+3+6+10+1,xoperators.end());
 		}
 		else if (exop=="big_4"){
 			xoperators = polynom_basis_;
+			if(world.rank()==0){
+				std::cout << "Guess exop is big_4 excitation operators are:" << std::endl;
+				for(size_t i=0;i<3+6+10+15;i++) std::cout << " " <<key_[i] << " ";
+				std::cout << std::endl;
+			}
 			xoperators.erase(xoperators.begin()+3+6+10+15+1,xoperators.end());
 		}
 		else {
@@ -344,6 +351,7 @@ public:
 
 
 private:
+
 	// Dipole operators
 	static double x_function(const coord_3d &r){return r[0];}
 	static double y_function(const coord_3d &r){return r[1];}
