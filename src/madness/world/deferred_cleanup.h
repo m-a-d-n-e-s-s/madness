@@ -106,6 +106,19 @@ namespace madness {
             /// \param obj Object that is ready for destruction
             void add(const void_ptr& obj);
 
+            /// Adds \c item to cleanup list
+
+            /// If destroy mode is true then the pointer is destroyed immediately.
+            /// Otherwise it is stored until \c do_cleanup() is called.
+            /// \tparam objT The object pointer type
+            /// \param obj Object that is ready for destruction
+            template <typename objT>
+            void add(const std::shared_ptr<objT>& obj) {
+                add(std::static_pointer_cast<void>(obj));
+            }
+
+
+
             /// Deletes/frees any pointers that are in the list
             void do_cleanup();
         }; // class DeferredCleanup
