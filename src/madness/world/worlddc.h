@@ -285,9 +285,11 @@ namespace madness {
     /// \ingroup worlddc
     template <typename keyT, typename valueT, typename hashfunT >
     class WorldContainerImpl
-        : public std::enable_shared_from_this<WorldContainerImpl<keyT, valueT, hashfunT> >
-        , public WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >
+        : public WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >
         , public WorldDCRedistributeInterface<keyT>
+#ifndef MADNESS_DISABLE_SHARED_FROM_THIS
+        , public std::enable_shared_from_this<WorldContainerImpl<keyT, valueT, hashfunT> >
+#endif // MADNESS_DISABLE_SHARED_FROM_THIS
         , private NO_DEFAULTS
     {
     public:
