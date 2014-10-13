@@ -215,6 +215,7 @@ namespace madness {
         TAU_START("Calculation (World &, const char *");
         if (world.rank() == 0) {
             molecule.read_file(filename);
+            if (molecule.natom() < 3) param.localize = false; // symmetry confuses orbital localization
             param.read_file(filename);
             
             //modify atomic charge for PSP calc
@@ -974,9 +975,9 @@ namespace madness {
         int lo=0;
         int iset=0;
     	for (size_t i=0; i<set.size(); ++i) {
-    		if (lo<set[i]) {
+    		if (iset!=set[i]) {
     			if (world.rank()==0) print("set ",iset++,"  ",lo," - ", i-1);
-    			lo=set[i];
+    			lo=i;
     		}
     	}
 		if (world.rank()==0) print("set ",iset,"  ",lo," - ", nmo-1);
@@ -1571,6 +1572,11 @@ namespace madness {
                 }
             }
         }
+
+        // Fix phases.
+        for (long i = 0; i < nmo; ++i)
+            if (U(i, i) < 0.0)
+                U(_, i).scale(-1.0);
         
         // Rotations between effectively degenerate states confound
         // the non-linear equation solver ... undo these rotations
@@ -1612,11 +1618,6 @@ namespace madness {
             }
             ilo = ihi + 1;
         }
-        
-        // Fix phases.
-        for (long i = 0; i < nmo; ++i)
-            if (U(i, i) < 0.0)
-                U(_, i).scale(-1.0);
         
         world.gop.broadcast(U.ptr(), U.size(), 0);
         world.gop.broadcast(evals.ptr(), evals.size(), 0);

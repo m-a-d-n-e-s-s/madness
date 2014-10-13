@@ -439,7 +439,7 @@ public:
 
     Future<int> test(int state) {
         if (state < 99) {
-            return send(world.random_proc(), &TestFutureForwarding::test, state+1);
+            return send(get_world().random_proc(), &TestFutureForwarding::test, state+1);
         }
         else {
             return Future<int>(state+1);

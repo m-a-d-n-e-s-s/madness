@@ -56,16 +56,16 @@ public:
 
     /// Read element i
     Future<double> read(size_t i) const {
-        if (owner(i) == world.rank())
-            return Future<double>(v[i-world.rank()*v.size()]);
+        if (owner(i) == get_world().rank())
+            return Future<double>(v[i-get_world().rank()*v.size()]);
         else
             return send(owner(i), &Array::read, i);
     }
 
     /// Write element i
     Void write(size_t i, double value) {
-        if (owner(i) == world.rank())
-            v[i-world.rank()*v.size()] = value;
+        if (owner(i) == get_world().rank())
+            v[i-get_world().rank()*v.size()] = value;
         else
             send(owner(i), &Array::write, i, value);
         return None;

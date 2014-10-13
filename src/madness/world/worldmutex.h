@@ -675,6 +675,10 @@ namespace madness {
             }
         }
     }; // class Barrier
+
+    namespace detail {
+        extern Mutex printmutex;
+    }
 }
 
 #endif // MADNESS_WORLD_WORLDMUTEX_H__INCLUDED

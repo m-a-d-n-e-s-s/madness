@@ -287,7 +287,11 @@ namespace madness {
     class WorldContainerImpl
         : public WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >
         , public WorldDCRedistributeInterface<keyT>
-        , private NO_DEFAULTS {
+#ifndef MADNESS_DISABLE_SHARED_FROM_THIS
+        , public std::enable_shared_from_this<WorldContainerImpl<keyT, valueT, hashfunT> >
+#endif // MADNESS_DISABLE_SHARED_FROM_THIS
+        , private NO_DEFAULTS
+    {
     public:
         typedef typename std::pair<const keyT,valueT> pairT;
         typedef const pairT const_pairT;
@@ -495,7 +499,7 @@ namespace madness {
                 return Future<iterator>(iterator(local.find(key)));
             } else {
                 Future<iterator> result;
-                this->send(dest, &implT::find_handler, me, key, result.remote_ref(this->world));
+                this->send(dest, &implT::find_handler, me, key, result.remote_ref(this->get_world()));
                 return result;
             }
         }
@@ -718,7 +722,7 @@ namespace madness {
         /// Returns the world associated with this container
         World& get_world() const {
             check_initialized();
-            return p->world;
+            return p->get_world();
         }
 
 
