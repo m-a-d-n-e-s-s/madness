@@ -44,9 +44,10 @@
 
 */
 
-#include "chem/tdhf_CIS.h"
-//#include "TD.h"
-
+// for moldft consistency check
+//#include<examples/dft_solver.h>
+//
+#include <chem/TDA.h>
 #include<iomanip>
 #include<iostream>
 
@@ -63,6 +64,8 @@ int main(int argc, char** argv) {
     }
     startup(world,argc,argv);
     std::cout.precision(6);
+    FunctionDefaults<3>::set_truncate_mode(1);
+    print("Truncate mode set to ",FunctionDefaults<3>::get_truncate_mode());
 
 #ifdef GITREVISION
     const  char* gitrev =  GITREVISION;
@@ -74,9 +77,9 @@ int main(int argc, char** argv) {
 
     typedef std::vector<functionT> vecfuncT;
 
-
     // take the HF orbitals to start
     const std::string input="input";
+    const std::string high_input="high_input";
 	SCF calc(world,input.c_str());
     calc.molecule.print();
     print("\n");
@@ -85,6 +88,10 @@ int main(int argc, char** argv) {
     // solve the ground state energy; calc is a reference
     MolecularEnergy me(world,calc);
     double hf_energy=me.value(calc.molecule.get_all_coords());
+
+    // Check convergence and functional use of MolDFT
+//    dft_solver dft(world,calc);
+//    dft.solve();
 
     if (world.rank()==0) print("MRA hf energy", hf_energy);
     if (world.rank()==0) {
@@ -99,33 +106,108 @@ int main(int argc, char** argv) {
 
 
 
+	// Print the coordinates
+	if (world.rank()==0){
+		print("Coordinates after MolDFT:");
+		Tensor<double> Coord = calc.molecule.get_all_coords();
+		for(int i=0;i<calc.molecule.natom();i++){
+			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
+		}
+	}
+
+
+	// default threshs
+	double high_thresh = FunctionDefaults<3>::get_thresh();
+	double low_thresh = sqrt(high_thresh);// sqrt(high_thresh);
+
+	// fetch low thresh from the input section
+	// high thresh is always the same as in moldft
+	std::ifstream f(input.c_str());
+	position_stream(f, "excite");
+	std::string s, tag;
+	while (std::getline(f,s)) {
+		std::stringstream ss(s);
+		ss >> tag;
+		if (tag == "end") break;
+		else if(tag=="low_thresh") ss>>low_thresh;
+		else if(tag=="lo") ss>>low_thresh;
+		else if(tag=="lo_thresh") ss>>low_thresh;
+		else if(tag=="high_thresh") ss>>high_thresh;
+		else if(tag=="hi") ss>>high_thresh;
+		else if(tag=="li_thresh") ss>>high_thresh;
+		else continue;
+	}
+
+	// create the vector of xfunctions (now empty, will be filled by cis class if it is empty)
+	xfunctionsT xfunctions;
+
+	// solving with low Threshold
+
+	// make a deep copy of the occupied orbitals and change the thresh
+
+	print("\n\n-----------------------------");
+	std::cout << "high thresh is:" << high_thresh << std::endl;
+	std::cout << "low thresh is:" << low_thresh << std::endl;
+	print("-----------------------------\n\n");
+	std::vector<real_function_3d> mos;
+
+	calc.amo[0].print_size("hi, ");
+	FunctionDefaults<3>::set_thresh(low_thresh);
+	for(size_t i=0;i<calc.amo.size();i++){
+		real_function_3d tmp = copy(calc.amo[i]);
+		tmp.set_thresh(low_thresh);
+		mos.push_back(tmp);
+	}
+
 
     // construct the CIS solver, it requires a converged HF reference
-    CIS cis(world,calc,input);
-
+    TDA cis(world,calc,mos,input);
+bool asd =false;
     // print grid information to file to get a better guess from external
-    if (cis.print_grid()) {
+    if (asd){//cis.print_grid_TDA()) {
     	if (world.rank()==0) print("printing grid for koala\n");
     	real_function_3d density=cis.get_calc().make_density(world,calc.aocc,
     		calc.amo);
     	density.get_impl()->print_grid("grid");
     } else {
 
-
-    	// Print the coordinates
-    	if (world.rank()==0){
-    		print("Coordinates after MolDFT:");
-    		Tensor<double> Coord = calc.molecule.get_all_coords();
-    		for(int i=0;i<calc.molecule.natom();i++){
-    			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
-    		}
-    	}
-
-
-
     	// solve the response equation
-    	cis.solve();
+    	cis.solve(xfunctions);
     }
+
+    // Now solve with high thresh
+    vecfuncT high_mos;
+	FunctionDefaults<3>::set_thresh(high_thresh);
+	for(size_t i=0;i<calc.amo.size();i++){
+		real_function_3d tmp = copy(calc.amo[i]);
+		tmp.set_thresh(high_thresh);
+		high_mos.push_back(tmp);
+	}
+
+	// set the thresh of the xfunctions up
+	xfunctions.clear();
+	xfunctionsT high_xfunctions;
+	for(size_t i=0; i<cis.get_converged_xfunctions().size();i++){
+		xfunction tmp(world);
+		tmp.x = copy(world,cis.get_converged_xfunctions()[i].x);
+		tmp.omega = cis.get_converged_xfunctions()[i].omega;
+		tmp.converged = false;
+		tmp.iterations = cis.get_converged_xfunctions()[i].iterations;
+		tmp.delta = cis.get_converged_xfunctions()[i].delta;
+		tmp.expectation_value = cis.get_converged_xfunctions()[i].expectation_value;
+		tmp.error = cis.get_converged_xfunctions()[i].error;
+		tmp.number = cis.get_converged_xfunctions()[i].number;
+		high_xfunctions.push_back(tmp);
+	}
+	for(size_t i=0;i<xfunctions.size();i++)set_thresh(world,xfunctions[i].x,high_thresh);
+
+	// sort after energy
+	std::sort(high_xfunctions.begin(),high_xfunctions.end());
+
+	TDA high_cis(world,calc,high_mos,input);
+	high_cis.solve_sequential(high_xfunctions);
+
+
 
     if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
     finalize();

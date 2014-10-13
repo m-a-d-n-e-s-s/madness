@@ -286,6 +286,7 @@ struct CalculationParameters {
     bool localize_pm;           ///< If true use PM for localization
     bool restart;               ///< If true restart from orbitals on disk
     bool no_compute;            ///< If true use orbitals on disk, set value to computed
+    bool no_orient;				///< If true the molecule coordinates will not be reoriented
     bool save;                  ///< If true save orbitals to disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     double orbitalshift;		///< scf orbital shift: shift the occ orbitals to lower energies
@@ -326,7 +327,7 @@ struct CalculationParameters {
         ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta
            & nopen & maxiter & nio & spin_restricted;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm
-           & restart & save & no_compute & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
+           & restart & save & no_compute &no_orient & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -356,8 +357,9 @@ struct CalculationParameters {
         , localize_pm(true)
         , restart(false)
     	, no_compute(false)
+    	, no_orient(false)
         , save(true)
-        , maxsub(8)
+        , maxsub(5)
     	, orbitalshift(0.0)
         , npt_plot(101)
         , aobasis("6-31g")
@@ -530,6 +532,9 @@ struct CalculationParameters {
             }
             else if (s == "no_compute") {
                 no_compute = true;
+            }
+            else if (s == "no_orient") {
+            	no_orient = true;
             }
             else if (s == "maxsub") {
                 f >> maxsub;
@@ -719,11 +724,24 @@ public:
     //functionT mol_mask;
     //functionT Uabinit;
     functionT mask;
+
+    /// alpha and beta molecular orbitals
     vecfuncT amo, bmo;
+
+    /// sets of orbitals grouped by their orbital energies (for localization?)
+    /// only orbitals within the same set will be mixed to localize
     std::vector<int> aset, bset;
+
+    /// MRA projection of the minimal basis set
     vecfuncT ao;
+
+
     std::vector<int> at_to_bf, at_nbf;
+
+    /// occupation numbers for alpha and beta orbitals
     tensorT aocc, bocc;
+
+    /// orbital energies for alpha and beta orbitals
     tensorT aeps, beps;
     poperatorT coulop;
     std::vector< std::shared_ptr<real_derivative_3d> > gradop;
@@ -792,9 +810,26 @@ public:
 
     void project_ao_basis(World & world);
 
+    /// group orbitals into sets of similar orbital energies for localization
+
+    /// @param[in]	eps	orbital energies
+    /// @param[in]	occ	occupation numbers
+    /// @param[in]	nmo number of MOs for the given spin
+    /// @return		vector of length nmo with the set index for each MO
+    std::vector<int> group_orbital_sets(World& world, const tensorT& eps,
+    		const tensorT& occ, const int nmo) const;
+
+    /// compute the unitary localization matrix according to Pipek-Mezey
+
+    /// @param[in]	world	the world
+    /// @param[in]	mo		the MOs
+    /// @param[in]	set		only orbitals within the same set will be mixed
+    /// @param[in]	thresh	the localization threshold
+    /// @param[in]	thetamax	??
+    /// @param[in]	randomize	??
     distmatT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set,
     		const double thresh = 1e-9, const double thetamax = 0.5,
-    		const bool randomize = true, const bool doprint = false);
+    		const bool randomize = true, const bool doprint = false) const;
 
 
     void analyze_vectors(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(),

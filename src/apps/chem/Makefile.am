@@ -13,8 +13,8 @@ data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 #TESTS = testxc
 
 thisincludedir = $(includedir)/chem
-thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
-                       corepotential.h atomutil.h SCF.h xcfunctional.h
+
+thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h corepotential.h atomutil.h SCF.h xcfunctional.h
 
 
 testxc_SOURCES = testxc.cc xcfunctional.h xcfunctional_ldaonly.cc lda.cc
@@ -23,7 +23,7 @@ testxc_LDADD = libMADchem.a $(LIBMRA) $(LIBWORLD)
 
 libMADchem_a_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
                        corepotential.cc atomutil.cc lda.cc \
-                       distpm.cc SCF.cc gth_pseudopotential.cc \
+                       distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc\
                        $(thisinclude_HEADERS)
                        
 if MADNESS_HAS_LIBXC

@@ -874,6 +874,7 @@ namespace madness {
 #warning WE NEED TO TUNE THE nmax PARAMETER
 #endif
         static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
+        static double await_timeout; ///< Waiter timeout
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
 	static unsigned int main_hpmctx; // HPM context for main thread
@@ -1047,6 +1048,47 @@ namespace madness {
 
         /// Returns queue statistics
         static const DQStats& get_stats();
+
+        /// Gracefully wait for a condition to become true ... executes tasks if any in queue
+
+        /// Probe should be an object that when called returns the status.
+        template <typename Probe>
+        static void await(const Probe& probe, bool dowork = true) {
+            double start = cpu_time();
+            const double timeout = await_timeout;
+            int counter = 0;
+
+            MutexWaiter waiter;
+            while (!probe()) {
+
+#if HAVE_INTEL_TBB
+                // TODO: Enable busy waiting with TBB.
+                const bool working = false;
+#else
+                const bool working = (dowork ? ThreadPool::run_task() : false);
+#endif // HAVE_INTEL_TBB
+                const double current_time = cpu_time();
+
+                if (working) {
+                    // Reset timeout logic
+                    waiter.reset();
+                    start = current_time;
+                    counter = 0;
+                } else {
+                    // Check for timeout
+                    if(((current_time - start) > timeout) && (timeout > 1.0)) {
+                        std::cout << "!!MADNESS: Hung queue?\n";
+                        std::cout.flush();
+
+                        if(counter++ > 3)
+                            throw madness::MadnessException("ThreadPool::await() timeout",
+                                    0, 1, __LINE__, __FUNCTION__, __FILE__);
+                    }
+
+                    waiter.wait();
+                }
+            }
+        }
 
         ~ThreadPool() {
 #if HAVE_INTEL_TBB

@@ -486,6 +486,8 @@ void Molecule::identify_point_group() {
     }
 
     madness::print("\n The point group is", pointgroup);
+    // assign to member variable
+    pointgroup_ = pointgroup;
 }
 
 

@@ -63,8 +63,6 @@ int main(int argc, char** argv) {
     Future<string> fff;
     Future<string> ggg = world.taskq.add(fred, &Fred::a, fff, attr);
 
-//    world.taskq.steal(100);
-
     fff.set("done");
 
     print(s.get(), ggg.get());

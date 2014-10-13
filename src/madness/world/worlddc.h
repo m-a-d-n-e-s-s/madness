@@ -46,7 +46,6 @@
 #include <madness/world/worldhashmap.h>
 #include <madness/world/mpiar.h>
 #include <madness/world/worldobj.h>
-#include <madness/world/deferred_deleter.h>
 #include <set>
 
 namespace madness {
@@ -288,7 +287,11 @@ namespace madness {
     class WorldContainerImpl
         : public WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >
         , public WorldDCRedistributeInterface<keyT>
-        , private NO_DEFAULTS {
+#ifndef MADNESS_DISABLE_SHARED_FROM_THIS
+        , public std::enable_shared_from_this<WorldContainerImpl<keyT, valueT, hashfunT> >
+#endif // MADNESS_DISABLE_SHARED_FROM_THIS
+        , private NO_DEFAULTS
+    {
     public:
         typedef typename std::pair<const keyT,valueT> pairT;
         typedef const pairT const_pairT;
@@ -496,7 +499,7 @@ namespace madness {
                 return Future<iterator>(iterator(local.find(key)));
             } else {
                 Future<iterator> result;
-                this->send(dest, &implT::find_handler, me, key, result.remote_ref(this->world));
+                this->send(dest, &implT::find_handler, me, key, result.remote_ref(this->get_world()));
                 return result;
             }
         }
@@ -676,7 +679,7 @@ namespace madness {
             : p(new implT(world,
                           std::shared_ptr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
                           do_pending,
-                          hf), DeferredDeleter<implT>(world))
+                          hf))
         {}
 
         /// Makes an initialized, empty container (no communication)
@@ -690,7 +693,7 @@ namespace madness {
                        const std::shared_ptr< WorldDCPmapInterface<keyT> >& pmap,
                        bool do_pending=true,
                        const hashfunT& hf = hashfunT())
-            : p(new implT(world, pmap, do_pending, hf), DeferredDeleter<implT>(world))
+            : p(new implT(world, pmap, do_pending, hf))
         {}
 
 
@@ -719,7 +722,7 @@ namespace madness {
         /// Returns the world associated with this container
         World& get_world() const {
             check_initialized();
-            return p->world;
+            return p->get_world();
         }
 
 
@@ -1425,7 +1428,12 @@ namespace madness {
             WorldObject<implT>* ptr = NULL;
             ar & ptr;
             MADNESS_ASSERT(ptr);
+
+#ifdef MADNESS_DISABLE_SHARED_FROM_THIS
             p.reset(static_cast<implT*>(ptr), & madness::detail::no_delete<implT>);
+#else
+            p = static_cast<implT*>(ptr)->shared_from_this();
+#endif // MADNESS_DISABLE_SHARED_FROM_THIS
         }
 
         /// Returns the associated unique id ... must be initialized
@@ -1435,7 +1443,9 @@ namespace madness {
         }
 
         /// Destructor passes ownership of implementation to world for deferred cleanup
-        virtual ~WorldContainer() { }
+        virtual ~WorldContainer() {
+            detail::deferred_cleanup(p->get_world(), p);
+        }
 
         friend void swap<>(WorldContainer&, WorldContainer&);
     };

@@ -226,7 +226,7 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 }
 
 //XCfunctional::XCfunctional() {}
-XCfunctional::XCfunctional() : hf_coeff(0.0) {}
+XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
 
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized)
@@ -234,7 +234,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
     double factor;
     spin_polarized = polarized;
 
-    rhotol=1e-12; rhomin=1e-22; sigtol=1e-7; sigmin=1e-7; // default values
+    rhotol=1e-6; rhomin=1e-6; sigtol=1e-7; sigmin=1e-7; // default values
 
     std::stringstream line(input_line);
     std::string name;
@@ -245,12 +245,14 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
 
     while (line >> name) {
         std::transform(name.begin(), name.end(), name.begin(), ::toupper);
+        std::cout <<"!NAME! "<< name << "pol " << polarized << std::endl;
         if (name == "LDA") {
-            if (! (line >> factor)) factor = 1.0;
-            funcs.push_back(std::make_pair(lookup_func("LDA_X",polarized),factor));
-            funcs.push_back(std::make_pair(lookup_func("LDA_C_VWN",polarized),factor));
+            //if (! (line >> factor)) factor = 1.0;
+            funcs.push_back(std::make_pair(lookup_func("LDA_X",polarized),1.0));
+            funcs.push_back(std::make_pair(lookup_func("LDA_C_VWN",polarized),1.0));
         }
         else if (name == "RHOMIN") {
+        	std::cout << "hello" << std::endl;
             line >> rhomin;
         }
         else if (name == "RHOTOL") {
@@ -277,7 +279,9 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
         if (funcs[i].first->info->family == XC_FAMILY_HYB_GGA) nderiv = std::max(nderiv,1);
         if (funcs[i].first->info->family == XC_FAMILY_MGGA)nderiv = std::max(nderiv,2);
  //       if (funcs[i].first->info->family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
+        std::cout << "factor " << i << "  " << funcs[i].second << std::endl;
     }
+    std::cout << "rhotol " << rhotol << " rhomin " << rhomin << " factor " <<factor << "hfcorf" <<hf_coeff <<  " input line was " << input_line << std::endl;
 }
 
 XCfunctional::~XCfunctional() {

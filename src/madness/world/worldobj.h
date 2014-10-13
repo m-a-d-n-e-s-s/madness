@@ -44,6 +44,8 @@
 
 namespace madness {
 
+    template <typename> class WorldObject;
+
     namespace detail {
 
         // Common base class for pending messages to ensure in-order processing
@@ -62,7 +64,7 @@ namespace madness {
             void invokehandler() {
                 handler(*arg);
                 free_am_arg(arg);
-            };
+            }
         };
 
         // It is annoying that we must replicate the task forwarding stuff here but we must
@@ -143,7 +145,68 @@ namespace madness {
         static inline const uniqueidT& peek(const AmArg& arg) {
             return *((uniqueidT*)(arg.buf()));
         }
-    }
+
+
+
+        template <typename objT, typename memfnT, typename Enabler = void>
+        struct WorldObjectTaskHelper {
+            typedef typename if_c<memfunc_traits<memfnT>::constness,
+                    const objT*, objT*>::type ptrT;
+            typedef MemFuncWrapper<ptrT, memfnT, typename result_of<memfnT>::type> wrapperT;
+
+
+            static wrapperT make_task_fn(const objT* obj, memfnT memfn) {
+                return wrapperT(const_cast<ptrT>(obj), memfn);
+            }
+
+            static wrapperT make_task_fn(objT* obj, memfnT memfn) {
+                return wrapperT(const_cast<ptrT>(obj), memfn);
+            }
+
+            static wrapperT make_task_fn(const WorldObject<objT>* obj, memfnT memfn) {
+                return make_task_fn(static_cast<const objT*>(obj), memfn);
+            }
+
+            static wrapperT make_task_fn(WorldObject<objT>* obj, memfnT memfn) {
+                return make_task_fn(static_cast<objT*>(obj), memfn);
+            }
+        }; // struct WorldObjectTaskHelpe
+
+
+#ifndef MADNESS_DISABLE_SHARED_FROM_THIS
+        // Disable the use of std::enable_shared_from_this if we are using MADNESS's
+        // implementation since weak_ptr is not fully implemented.
+
+        template <typename objT, typename memfnT>
+        struct WorldObjectTaskHelper<objT, memfnT,
+                typename enable_if< std::is_base_of<std::enable_shared_from_this<objT>, objT> >::type>
+        {
+            typedef typename if_c<memfunc_traits<memfnT>::constness,
+                    const objT*, objT*>::type ptrT;
+            typedef typename if_c<memfunc_traits<memfnT>::constness,
+                    std::shared_ptr<const objT>, std::shared_ptr<objT> >::type shared_ptrT;
+            typedef MemFuncWrapper<shared_ptrT, memfnT, typename result_of<memfnT>::type> wrapperT;
+
+            static wrapperT make_task_fn(const objT* obj, memfnT memfn) {
+                return wrapperT(const_cast<ptrT>(obj)->shared_from_this(), memfn);
+            }
+
+            static wrapperT make_task_fn(objT* obj, memfnT memfn) {
+                return wrapperT(const_cast<ptrT>(obj)->shared_from_this(), memfn);
+            }
+
+            static wrapperT make_task_fn(const WorldObject<objT>* obj, memfnT memfn) {
+                return make_task_fn(static_cast<const objT*>(obj), memfn);
+            }
+
+            static wrapperT make_task_fn(WorldObject<objT>* obj, memfnT memfn) {
+                return make_task_fn(static_cast<objT*>(obj), memfn);
+            }
+        }; // struct WorldObjectTaskHelper
+
+#endif // MADNESS_DISABLE_SHARED_FROM_THIS
+
+    } // namespace detail
 
 
     /// Implements most parts of a globally addressable object (via unique ID)
@@ -165,21 +228,23 @@ namespace madness {
     /// Note that world is exposed for convenience as a public data member.
     template <class Derived>
     class WorldObject {
-        typedef WorldObject<Derived> objT;
-        typedef std::list<detail::PendingMsg> pendingT;
     public:
-        World& world;                              ///< Think globally act locally
+        // Typedefs
+        typedef WorldObject<Derived> objT;
+
     private:
+        typedef std::list<detail::PendingMsg> pendingT;
+        typedef detail::voidT voidT;
+
+        World& world;                              ///< Think globally act locally
         // The order here matters in a multi-threaded world
         volatile bool ready;                       ///< True if ready to rock 'n roll
         ProcessID me;                              ///< Rank of self
-        static Spinlock pending_mutex;
-
-        static volatile pendingT pending;          ///< Buffers pending messages
-
         uniqueidT objid;                           ///< Sense of self
 
-        typedef detail::voidT voidT;
+
+        static Spinlock pending_mutex;
+        static volatile pendingT pending;          ///< Buffers pending messages
 
         // This slightly convoluted logic is to ensure ordering when
         // processing pending messages.  If a new message arrives
@@ -190,40 +255,38 @@ namespace madness {
         // If the object exists and is not ready then
         //    if we are doing a queued/pending message --> ready
         //    else this is a new message --> not ready
-        static bool is_ready(const uniqueidT& id, Derived*& obj, const AmArg& arg, am_handlerT ptr) {
-            obj = arg.get_world()-> template ptr_from_id<Derived>(id);
+        static bool is_ready(const uniqueidT& id, objT*& obj, const AmArg& arg, am_handlerT ptr) {
+            obj = static_cast<objT*>(arg.get_world()->template ptr_from_id<Derived>(id));
 
             if (obj) {
-                WorldObject* p = static_cast<WorldObject*>(obj);
-                if (p->ready || arg.is_pending()) return true;
+                if (obj->ready || arg.is_pending()) return true;
             }
 
-            pending_mutex.lock(); // BEGIN CRITICAL SECTION
-            if (!obj) obj = arg.get_world()-> template ptr_from_id<Derived>(id);
+            ScopedMutex<Spinlock> lock(pending_mutex); // BEGIN CRITICAL SECTION
+            if (!obj) obj = static_cast<objT*>(arg.get_world()->template ptr_from_id<Derived>(id));
 
             if (obj) {
-                WorldObject* p = static_cast<WorldObject*>(obj);
-                if (p->ready || arg.is_pending()) {
-                    pending_mutex.unlock();  // ... LEAVE CRITICAL SECTION
-                    return true;
-                }
+                if (obj->ready || arg.is_pending())
+                    return true; // END CRITICAL SECTION
             }
             const_cast<AmArg&>(arg).set_pending();
             const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
-            pending_mutex.unlock(); // END CRITICAL SECTION
 
-            return false;
+            return false; // END CRITICAL SECTION
         }
 
+
         // Handler for incoming AM
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        template <typename memfnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
         typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
         static void handler(const AmArg& arg) {
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+
             const uniqueidT& id = detail::peek(arg);
-            am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T>;
-            Derived* obj;
+            am_handlerT ptr = handler<memfnT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T>;
+            objT* obj;
             if (is_ready(id,obj,arg,ptr)) {
-                detail::info<memfunT> info;
+                detail::info<memfnT> info;
                 typename detail::task_arg<arg1T>::type arg1;
                 typename detail::task_arg<arg2T>::type arg2;
                 typename detail::task_arg<arg3T>::type arg3;
@@ -234,8 +297,8 @@ namespace madness {
                 typename detail::task_arg<arg8T>::type arg8;
                 typename detail::task_arg<arg9T>::type arg9;
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
-                typename detail::info<memfunT>::futureT result(info.ref);
-                detail::run_function(result, detail::wrap_mem_fn(obj,info.memfun),
+                typename detail::info<memfnT>::futureT result(info.ref);
+                detail::run_function(result, task_helper::make_task_fn(obj, info.memfun),
                         arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
             }
         }
@@ -243,11 +306,14 @@ namespace madness {
         // Handler for remote arguments
         template <typename taskT>
         static void spawn_remote_task_handler(const AmArg& arg) {
+            typedef detail::WorldObjectTaskHelper<Derived,
+                    typename taskT::functionT::memfn_type> task_helper;
+
             MADNESS_ASSERT(taskT::arity <= 9u);
 
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = & objT::template spawn_remote_task_handler<taskT>;
-            Derived* obj;
+            objT* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<typename taskT::functionT::memfn_type> info;
 
@@ -255,7 +321,7 @@ namespace madness {
 
                 // Construct task
                 taskT* task = new taskT(typename taskT::futureT(info.ref),
-                        detail::wrap_mem_fn(obj,info.memfun), info.attr, input_arch);
+                        task_helper::make_task_fn(obj, info.memfun), info.attr, input_arch);
 
                 // Add task to queue
                 arg.get_world()->taskq.add(task);
@@ -278,9 +344,10 @@ namespace madness {
                 const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
                 const a7T& a7, const a8T& a8, const a9T& a9) const
         {
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
             typename detail::task_result_type<memfnT>::futureT result;
             if (dest == me)
-                detail::run_function(result, detail::wrap_mem_fn(get_derived<memfnT>(), memfn),
+                detail::run_function(result, task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, a8, a9);
             else {
                 detail::info<memfnT> info(objid, me, memfn, result.remote_ref(world));
@@ -307,15 +374,6 @@ namespace madness {
 
             return result;
         }
-
-        template <typename memfnT>
-        typename enable_if_c<detail::memfunc_traits<memfnT>::constness, const Derived*>::type
-        get_derived() const { return static_cast<const Derived*>(this); }
-
-
-        template <typename memfnT>
-        typename disable_if_c<detail::memfunc_traits<memfnT>::constness, Derived*>::type
-        get_derived() const { return const_cast<Derived*>(static_cast<const Derived*>(this)); }
 
     protected:
 
@@ -491,10 +549,10 @@ namespace madness {
         template <typename memfnT>
         typename detail::task_result_type<memfnT>::futureT
         task(ProcessID dest, memfnT memfn, const TaskAttributes& attr = TaskAttributes()) const {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT> taskT;
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn), attr);
             else
                 return send_task<taskT>(dest, memfn, voidT::value, voidT::value,
                         voidT::value, voidT::value, voidT::value, voidT::value,
@@ -507,10 +565,12 @@ namespace madness {
         task(ProcessID dest, memfnT memfn, const a1T& a1,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type> taskT;
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), voidT::value,
                         voidT::value, voidT::value, voidT::value, voidT::value,
@@ -523,11 +583,13 @@ namespace madness {
         task(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, a2, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
                         voidT::value, voidT::value, voidT::value, voidT::value,
@@ -540,12 +602,14 @@ namespace madness {
         task(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
                 const a3T& a3, const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, a2, a3, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
                         am_arg(a3), voidT::value, voidT::value, voidT::value,
@@ -559,13 +623,15 @@ namespace madness {
         task(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
                 const a3T& a3, const a4T& a4, const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
                     typename detail::task_arg<a4T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, a2, a3, a4, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
                         am_arg(a3), am_arg(a4), voidT::value, voidT::value,
@@ -580,14 +646,16 @@ namespace madness {
                 const a3T& a3, const a4T& a4, const a5T& a5,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
                     typename detail::task_arg<a4T>::type,
                     typename detail::task_arg<a5T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, a2, a3, a4, a5, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
                         am_arg(a3), am_arg(a4), am_arg(a5), voidT::value,
@@ -602,15 +670,17 @@ namespace madness {
                 const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
                     typename detail::task_arg<a4T>::type,
                     typename detail::task_arg<a5T>::type,
                     typename detail::task_arg<a6T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, a6, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, a2, a3, a4, a5, a6, attr);
             else {
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
                         am_arg(a3), am_arg(a4), am_arg(a5), am_arg(a6),
@@ -626,8 +696,9 @@ namespace madness {
                 const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
                 const a7T& a7, const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
                     typename detail::task_arg<a4T>::type,
@@ -635,7 +706,8 @@ namespace madness {
                     typename detail::task_arg<a6T>::type,
                     typename detail::task_arg<a7T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, a6, a7, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, a2, a3, a4, a5, a6, a7, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
                         am_arg(a3), am_arg(a4), am_arg(a5), am_arg(a6),
@@ -651,8 +723,9 @@ namespace madness {
                 const a7T& a7, const a8T& a8,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
                     typename detail::task_arg<a4T>::type,
@@ -661,7 +734,8 @@ namespace madness {
                     typename detail::task_arg<a7T>::type,
                     typename detail::task_arg<a8T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, a6, a7, a8, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, a2, a3, a4, a5, a6, a7, a8, attr);
             else {
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
                         am_arg(a3), am_arg(a4), am_arg(a5), am_arg(a6),
@@ -679,8 +753,9 @@ namespace madness {
                 const a7T& a7, const a8T& a8, const a9T& a9,
                 const TaskAttributes& attr = TaskAttributes()) const
         {
-            typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+            typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
+            typedef TaskFn<typename task_helper::wrapperT,
+                    typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type,
                     typename detail::task_arg<a4T>::type,
@@ -690,7 +765,8 @@ namespace madness {
                     typename detail::task_arg<a8T>::type,
                     typename detail::task_arg<a9T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, a6, a7, a8, a9, attr);
+                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                        a1, a2, a3, a4, a5, a6, a7, a8, a9, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
                         am_arg(a3), am_arg(a4), am_arg(a5), am_arg(a6),

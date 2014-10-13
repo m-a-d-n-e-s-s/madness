@@ -147,5 +147,10 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     return result;
 }
 
+madness::Tensor<double> XCfunctional::fxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const
+{
+	MADNESS_EXCEPTION("fxc not implemented in xcfunctional_ldaonly.cc... use libxc",1);
+}
+
 }
 #endif

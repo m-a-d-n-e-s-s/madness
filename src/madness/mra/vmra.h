@@ -769,5 +769,23 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+    // gives back the size in GB
+    template <typename T, std::size_t NDIM>
+    double get_size(World& world, const std::vector< Function<T,NDIM> >& v){
+
+    	if (v.empty()) return 0.0;
+
+    	const double d=sizeof(T);
+        const double fac=1024*1024*1024;
+
+        double size=0.0;
+        for(unsigned int i=0;i<v.size();i++){
+        	size+=v[i].size();
+        }
+
+        return size/fac*d;
+
+    }
+
 }
 #endif // MADNESS_MRA_VMRA_H__INCLUDED

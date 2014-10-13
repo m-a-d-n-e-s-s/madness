@@ -566,10 +566,10 @@ namespace madness {
                 prodT *= ops[d]->Tnormf;
 
             }
-            if (n) prodR = sqrt(std::max(prodR*prodR - prodT*prodT,0.0));
+//            if (n) prodR = sqrt(std::max(prodR*prodR - prodT*prodT,0.0));
 
             // this kicks in if the line above has no numerically significant digits.
-            if (prodR < 1e-8*prodT) {
+//            if (prodR < 1e-8*prodT) {
                 double prod=1.0, sum=0.0;
                 for (std::size_t d=0; d<NDIM; ++d) {
                     double a = ops[d]->NSnormf;
@@ -581,7 +581,7 @@ namespace madness {
                 }
                 if (n) prod *= sum;
                 prodR = prod;
-            }
+//            }
 
             return prodR;
         }
@@ -1021,7 +1021,7 @@ namespace madness {
         virtual ~SeparatedConvolution() { }
 
         void print_timer() const {
-        	if (this->world.rank()==0) {
+        	if (this->get_world().rank()==0) {
                 timer_full.print("op full tensor       ");
                 timer_low_transf.print("op low rank transform");
                 timer_low_accumulate.print("op low rank addition ");
@@ -1029,7 +1029,7 @@ namespace madness {
         }
 
         void reset_timer() const {
-        	if (this->world.rank()==0) {
+        	if (this->get_world().rank()==0) {
                 timer_full.reset();
                 timer_low_transf.reset();
                 timer_low_accumulate.reset();
