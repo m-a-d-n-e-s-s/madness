@@ -105,6 +105,7 @@ public:
         polyn(rho, p, dpdx);
         return p;
     }
+
 private:
 
 

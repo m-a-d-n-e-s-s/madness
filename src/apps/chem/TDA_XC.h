@@ -203,8 +203,8 @@ class TDA_DFT {
 
 public:
 	static double munge_density(double rho){
-		XCfunctional::munge_old(rho);
-		return rho;
+        if (fabs(rho) <= 1.e-8) rho=1.e-8;
+        return rho;
 	}
 
 	TDA_DFT(World &world,const SCF &calc): world(world),calc(calc), xcfunctional_(calc.xc){
@@ -221,11 +221,21 @@ public:
 		for(size_t i=0;i<calc.amo.size();i++){
 			rho +=calc.amo[i]*calc.amo[i];
 		}
-		// Use the munge function to smooth the density
-		plot_plane(world,rho,"rho_unmunged");
-		rho.unaryop(munge_density);
+
+		plot_plane(world,rho,"rho");
+		Vector<double,3> plot_coord_1; plot_coord_1[0]=-50.0;plot_coord_1[1]=0.0;plot_coord_1[2]=0.0;
+		Vector<double,3> plot_coord_2; plot_coord_2[0]= 50.0;plot_coord_2[1]=0.0;plot_coord_2[2]=0.0;
+		plot_line("rho_line_",1000,plot_coord_1,plot_coord_2,rho);
 		rho_=rho;
-		plot_plane(world,rho,"rho_munged");
+		rho.unaryop(munge_density);
+		plot_line("rho_line_munged",1000,plot_coord_1,plot_coord_2,rho);
+
+
+		// make and plot lda kernel
+		real_function_3d fxc = make_lda_kernel(rho);
+		fxc.truncate();
+		fxc_ = fxc;
+		plot_plane(world,fxc,"fxc");
 
 		// Make the contracted gradient of the unperturbed density sum_i (d/dxi rho)^2
 		if(xcfunctional_.is_gga()){
@@ -265,6 +275,7 @@ public:
 	XCfunctional get_xcfunctional()const{return xcfunctional_;}
 	real_function_3d calculate_unperturbed_vxc(const real_function_3d &rho)const{return make_unperturbed_vxc(rho);}
 	vecfuncT get_lda_intermediate(vecfuncT & mos)const{return multiply_with_kernel(mos);}
+	real_function_3d get_fxc()const{return fxc_;}
 	// Test which type of functional is used
 	bool is_gga()const{
 		return xcfunctional_.is_gga();

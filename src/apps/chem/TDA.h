@@ -153,8 +153,8 @@ struct xfunction{
 	// finally an operator that the result can be sorted after the energy
 	// sorting of xfunctions should not happen during the iterations
 	// therefore a warning is installed
-	bool operator<=(const xfunction &b)const{return omega<=b.omega;std::cout << "WARNING XFUNCTIONS ARE SORTED" << std::endl;}
-	bool operator< (const xfunction &b)const{return omega<b.omega; std::cout << "WARNING XFUNCTIONS ARE SORTED" << std::endl;}
+	bool operator<=(const xfunction &b)const{return expectation_value.back()<=b.expectation_value.back() ;std::cout << "WARNING XFUNCTIONS ARE SORTED" << std::endl;}
+	bool operator< (const xfunction &b)const{return expectation_value.back()<b.expectation_value.back(); std::cout << "WARNING XFUNCTIONS ARE SORTED" << std::endl;}
 
 
 
@@ -192,6 +192,8 @@ typedef XNonlinearSolver<xfunction,double,allocator> solverT;
 struct kain_solver_helper_struct{
 	kain_solver_helper_struct(){}
 private:
+	/// size of the iterative subspace
+	size_t subspace_size;
 	/// number of occupied orbitals (non frozen)
 	size_t noct;
 	/// is kain used ?, this bool is needed because the struct has to be initialized if kain is used or not
@@ -219,13 +221,14 @@ public:
 	/// @param[in] kain		true if kain should be used, false if not (when false it is just the default initialization)
 	/// @param[in] allatonce	should all xfunctions be solved ad once or not (currently: not)
 	/// @param[in] guess_iter_	number of guess iterations (not needed anymore)
-	void initialize(World &world,const size_t excitations,const size_t nnoct,const bool kain){
+	void initialize(World &world,const size_t excitations,const size_t nnoct,const bool kain, const size_t kain_subspace){
 		noct=nnoct;
 		is_used = kain;
+		subspace_size = kain_subspace;
 		if(kain){
 			for(size_t i=0;i<excitations; i++){
 				solverT onesolver(allocator(world,noct));
-				onesolver.set_maxsub(3);
+				onesolver.set_maxsub(kain_subspace);
 				solver.push_back(onesolver);
 			}
 		}
@@ -295,7 +298,7 @@ public:
 		solver.clear();
 		// add new solvers
 		solverT onesolver(allocator(world,noct));
-		onesolver.set_maxsub(3);
+		onesolver.set_maxsub(subspace_size);
 		for(size_t j=0;j<xfunctions.size();j++){
 			solver.push_back(onesolver);
 		}
@@ -327,7 +330,19 @@ public:
 
 	}
 };
+/// Functor that smoothes guess functions with the error functions (no fluctuations at the box borders)
+struct guess_smoothing : public FunctionFunctorInterface<double,3> {
+private:
+	/// Size of the box that will not be smoothed
+	const double box_size_;
+public:
+	guess_smoothing(const double box) : box_size_(box) {}
+	// Smoothing function
+	double operator()(const coord_3d &r)const{
+		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+	}
 
+};
 /// Functor that adds diffuse 1s functions on given coordinates with given signs (phases)
 struct diffuse_functions : public FunctionFunctorInterface<double,3> {
 public:
@@ -338,16 +353,14 @@ public:
 	/// @param[in] signs the signs the diffuse functions should have on the corresponding coordinates
 	/// @param[in] natoms the number of atoms (if the coordinates are of nuclei) or just the size of the coord vector
 	/// @param[in] mode the level of diffuseness (0 and 1 possible)
-	diffuse_functions(const double L,const std::vector<coord_3d> coord,const std::vector<int> signs, const size_t natoms, const size_t mode):
-		L(L), coord(coord), signs(signs),natoms(natoms),mode(mode)
+	diffuse_functions(const double exponent,const std::vector<coord_3d> coord,const std::vector<int> signs, const size_t natoms, const size_t mode):
+		exponent(exponent), coord(coord), signs(signs),natoms(natoms),mode(mode)
 {if(mode>1) MADNESS_EXCEPTION("mode in diffuse_function struct is not 0,1 or 2",1);}
 
 	/// Make a rydberg guess function where the neRäar range area is 0.0 and the long range is a diffuse 2s or 2p function
 	double operator()(const coord_3d &r)const{
 		std::vector<double> diffuse_1s_functions;
-		double exponent =1.0;
-		if(mode==0) exponent = 15.0;
-		if(mode==1) exponent = 20.0;
+
 		for(size_t i=0;i<natoms;i++){
 			if (signs[i]!=0){
 				// make diffuse 1s functions localized at the atoms
@@ -355,7 +368,7 @@ public:
 				double y = r[1]-coord[i][0];
 				double z = r[2]-coord[i][0];
 				double rad = sqrt(x*x+y*y+z*z);
-				double diffuse_tmp = signs[i]*exp(-exponent/L*rad);
+				double diffuse_tmp = signs[i]*exp(-exponent*rad);
 				diffuse_1s_functions.push_back(diffuse_tmp);
 			}else diffuse_1s_functions.push_back(0.0);
 		}
@@ -365,8 +378,8 @@ public:
 	}
 
 private:
-	/// Box size
-	const double L;
+	/// exponent for the diffuse s function
+	const double exponent;
 	/// The coordinates of the atoms
 	const std::vector<coord_3d> coord;
 	/// The signs of the respoinse function at the atom coordinates (0 is node)
@@ -375,12 +388,7 @@ private:
 	const size_t natoms;
 	/// the mode of diffuseness (from 0 to 2)
 	const size_t mode;
-	/// The diffuse 2s and 2p functions
-	double diffuse_2s (const coord_3d &r)const{return r_function(r)*exp(-10.0/L*r_function(r));}
-	double diffuse_2px(const coord_3d &r)const{return          r[0]*exp(-10.0/L*r_function(r));}
-	double diffuse_2py(const coord_3d &r)const{return          r[1]*exp(-10.0/L*r_function(r));}
-	double diffuse_2pz(const coord_3d &r)const{return          r[2]*exp(-10.0/L*r_function(r));}
-	double diffuse_1s (const coord_3d &r)const{return               exp(-10.0/L*r_function(r));}
+
 	/// Helper function to evaluate the radius
 	double r_function(const coord_3d &r)const{return sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);}
 
@@ -426,6 +434,7 @@ public:
 		xclib_interface_(world,calc),
 		ipot_(0.0),
 		rydberg_(false),
+		rydberg_exponent_(0.1),
 		kain_(false),
 		kain_subspace_(3),
 		shift_(0.0),
@@ -436,9 +445,11 @@ public:
 	/// reads the input file and calculates needed functions
 	void setup(const vecfuncT &mos,const std::string input){
 
-
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
+
+		// guess box default
+		guess_box_ = calc_.molecule.bounding_cube()+15.0;
 
 		size_t noct = calc_.aeps.size();
 		// The highest possible excitation (-homo_energy)
@@ -483,19 +494,27 @@ public:
 			else if (tag == "read") read_ = true;
 			else if (tag == "only_sequential") only_sequential_=true;
 			else if (tag == "ipot") ss >> ipot_;
-			else if (tag == "rydberg") rydberg_=true;
+			else if (tag == "rydberg") {rydberg_=true; ss>>rydberg_exponent_;}
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
-			else if (tag == "exop1") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop2") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop3") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop4") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop5") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop6") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop7") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop8") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop9") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
-			else if (tag == "exop10") {std::string tmp; ss >> tmp; custom_exops_.push_back(tmp);}
+			else if (tag == "exop1") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop2") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop3") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop4") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop5") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop6") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop7") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop8") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop9") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "exop10") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "guess_omega_1") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_2") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_3") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_4") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_5") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_omega_6") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "guess_box") ss >> guess_box_;
+
 			else if (tag == "truncate_safety") ss>>safety_;
 			else continue;
 		}
@@ -529,6 +548,7 @@ public:
 			if(only_fock_) std::cout << "only perturbed fock matrix"<< std::endl;
 			else if(only_GS_) std::cout << "only Gram-Schmidt"<< std::endl;
 			else std::cout << "use both"<< std::endl;
+			std::cout<< std::setw(40) << "Guess box size : " << guess_box_ << std::endl;
 			std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 		}
@@ -561,7 +581,7 @@ public:
 		}
 
 		// Initialize the KAIN solvers
-		kain_solvers.initialize(world,excitations_,noct,kain_);
+		kain_solvers.initialize(world,excitations_,noct,kain_,kain_subspace_);
 
 
 		// Prevent misstakes:
@@ -609,6 +629,7 @@ public:
 		return allx+allVx+allr;
 	}
 
+
 	//virtual ~TDA();
 
 	/// Solves the CIS or TDA equations
@@ -653,6 +674,7 @@ private:
 	/// guess iterations are the first iterations where the energy is kept fixed at the guess_omega energy
 	size_t guess_iter_;
 	double guess_omega_;
+	double guess_box_;
 
 	/// mode is either mo or all_orbitals (decides on which of the two functions the excitation operators act)
 	/// mo is the default, all_orbitals mode can increase the freedom (if there are convergence problems) of the guess functions
@@ -663,6 +685,8 @@ private:
 	/// how many excitations should pre_converge (recommended: 1-2 more than demanded in the end)
 	size_t guess_excitations_;
 	std::vector<std::string> custom_exops_;
+	std::vector<double> guess_omegas_;
+	std::vector<std::vector<double> > exop_coefficients_;
 
 	/// Number of excitations to be caluclated
 	size_t excitations_;
@@ -730,6 +754,7 @@ private:
 
 	/// Make a rydberg guess
 	bool rydberg_;
+	double rydberg_exponent_;
 
 	/// Use the Kain solver to update the functions
 	bool kain_;
@@ -763,6 +788,9 @@ private:
 	/// the coulomb potential
 	mutable real_function_3d coulomb_;
 
+	/// The guess functions
+	std::vector<xfunction> guess_xfunctions_;
+
 	/// The converged xfunctions
 	std::vector<xfunction> converged_xfunctions_;
 
@@ -781,6 +809,8 @@ private:
 
 	/// Creates physical guess functions (x,y,z excitations - depending on the input file, see make_excitation_operators function)
 	void guess_physical(xfunctionsT & xfunctions);
+
+	void guess_valence(xfunctionsT & xfunctions);
 
 	/// Add diffuse 1s functions to the molecular orbitals (for LDA calculations)
 	void add_diffuse_functions(vecfuncT &mos);
