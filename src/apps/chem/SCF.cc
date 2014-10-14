@@ -1159,7 +1159,6 @@ namespace madness {
             
             if (ispin == 0)
                 exc = make_dft_energy(world, vf, ispin);
-            //if (world.rank() == 0) std::cout << "EXC " << exc << std::endl;
             TAU_START("DFT potential");
             START_TIMER(world);
             
@@ -2173,9 +2172,6 @@ namespace madness {
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
-            //            rho_elec = rho;// to be used in the solvent solver
-            //print("Rho Elec Solvent , Gas Phase Density ", rho_elec.trace(), vacuo_rho.trace()); // DEBUG
-            // double Xrhoetrace = rho_elec.trace(); //DEBUG
             rho.truncate();
             real_function_3d vnuc;
             if (param.psp_calc){
@@ -2183,13 +2179,7 @@ namespace madness {
             else{
                 vnuc = potentialmanager->vnuclear();}
             double enuclear = inner(rho, vnuc);
-            
-            // DEBUG
-            //double rhotrace = rho.trace();
-            //double vnuctrace = vnuc.trace();
-            // if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhoetrace, rhotrace, vnuctrace);
-            // END DEBUG
-            
+
             TAU_START("Coulomb");
             START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);
@@ -2321,16 +2311,13 @@ namespace madness {
             //esol = etot;
             
             if (world.rank() == 0) {
-                printf("\n");
-                printf("              kinetic   %16.8f\n", ekinetic);
-                printf("         nonlocal psp   %16.8f\n", enonlocal);
-                printf("   nuclear attraction   %16.8f\n", enuclear);
-                printf("              coulomb   %16.8f\n", ecoulomb);
-                printf(" exchange-correlation a %16.8f\n", exca);
-                printf(" exchange-correlation b %16.8f\n", excb);
-                printf(" exchange-correlation   %16.8f\n", exc);
-                printf("    nuclear-repulsion   %16.8f\n", enrep);
-                printf("                total   %16.8f\n\n", etot);
+                printf("\n              kinetic %16.8f\n", ekinetic);
+                printf("         nonlocal psp %16.8f\n", enonlocal);
+                printf("   nuclear attraction %16.8f\n", enuclear);
+                printf("              coulomb %16.8f\n", ecoulomb);
+                printf(" exchange-correlation %16.8f\n", exc);
+                printf("    nuclear-repulsion %16.8f\n", enrep);
+                printf("                total %16.8f\n\n", etot);
             }
             
             if (iter > 0) {
