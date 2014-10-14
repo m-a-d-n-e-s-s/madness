@@ -219,8 +219,6 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 				xfunctions[i].omega = guess_omegas_[i];
 			}
 		}
-	} else if (guess_ == "valence"){
-		guess_valence(xfunctions);
 	}
 	else {
 		if (world.rank() == 0)
@@ -230,72 +228,7 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 
 }
 
-void TDA::guess_valence(xfunctionsT &xfunctions){
-	std::cout << "\n\n\n ------- VALENCE GUESS --------\n\n\n";
-	// for now
-	size_t guess_freeze_ = active_mo_.size()-1; // homo and lumo excitations, if this works make a keyword
-	exoperators exopstruct(world);
-	// set nfreeze back to homo lumo excitations only as guess functions
-	size_t old_freeze = nfreeze_;
-	vecfuncT old_active = active_mo_;
-	// make new active mos
-	nfreeze_ = guess_freeze_;
-	guess_ = "physical";
-	vecfuncT reduced_active_mos;
-	for(size_t i=guess_freeze_;i<mos_.size();i++){reduced_active_mos.push_back(mos_[i]);}
-	active_mo_ = reduced_active_mos;
-	std::cout << "size of frozen guess active mos " << active_mo_.size();
 
-	// now just run the normal calculation with the reduced active mos
-	guess_physical(xfunctions);
-	iterate_guess(xfunctions);
-	iterate(xfunctions);
-
-	// get the coefficients for the xoperators
-	std::vector<std::vector<double> > coefficients;
-	for(size_t i=0;i<converged_xfunctions_.size();i++){
-		std::vector<double> overlap_tmp = exopstruct.get_overlaps_with_guess(world,converged_xfunctions_[i].x,active_mo_);
-		coefficients.push_back(overlap_tmp);
-	}
-
-	// end the guess calculation
-	if(world.rank()==0){
-		std::cout << "\n\n\n ------- VALENCE GUESS CALCULATION ENDED --------\n\n\n";
-
-		for(size_t j=0;j<coefficients.size();j++){
-			std::cout << "guess excitation " << j << std::endl;
-			std::cout << "\n dipole contributions \n";
-			for(size_t i=0;i<2;i++) std::cout<<coefficients[j][i]<<" ";
-			std::cout << "\n quadrupole contributions \n";
-			for(size_t i=2;i<8;i++) std::cout<<coefficients[j][i]<<" ";
-			std::cout << "\n cubic contributions \n";
-			for(size_t i=8;i<18;i++) std::cout<<coefficients[j][i]<<" ";
-			std::cout << "\n quartic contributions \n";
-			for(size_t i=18;i<coefficients.size();i++) std::cout<<coefficients[i]<<" ";
-		}
-	}
-	nfreeze_ = old_freeze;
-	active_mo_ = old_active;
-	xfunctions.clear();
-
-	// make the new unfrozen guess and replace the excitation vectors in the converged xfunctions
-	vecfuncT exops = exopstruct.make_custom_exops(world,coefficients);
-	for(size_t i=0;i<exops.size();i++){
-		vecfuncT xtmp;
-		for(size_t j=0;j<active_mo_.size();j++){
-			real_function_3d tmp = active_mo_[j]*exops[i];
-			xtmp.push_back(tmp);
-		}
-		converged_xfunctions_[i].x=xtmp;
-		converged_xfunctions_[i].Vx.clear();
-		converged_xfunctions_[i].iterations = 0;
-	}
-
-	xfunctions = converged_xfunctions_;
-	converged_xfunctions_.clear();
-
-
-}
 
 void TDA::guess_physical(xfunctionsT & xfunctions) {
 	std::shared_ptr<FunctionFunctorInterface<double, 3> > smooth_functor(
@@ -349,6 +282,7 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 		xtmp.omega = guess_omega_;
 		xtmp.kain = false;
 		normalize(xtmp);
+		project_out_occupied_space(xtmp.x);
 		plot_vecfunction(xtmp.x,
 				"guess_excitation_" + stringify(xtmp.number) + "_");
 		xfunctions.push_back(xtmp);
@@ -1430,10 +1364,13 @@ void TDA::analyze(xfunctionsT& roots) const {
 	// get the overlaps with exops
 	exoperators exops(world);
 	for(size_t i=0;i<roots.size();i++){
-		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_);
+		functorT smooth_functor(
+				new guess_smoothing(guess_box_));
+		real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
+		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
 		std::vector<std::string> key = exops.key_;
 		if(world.rank()==0){
-			std::cout << "key\n" << key << std::endl;
+			//std::cout << "key\n" << key << std::endl;
 			//std::cout << "\nOverlaps with (x,y,z,xx,yy,zz,xy,xz,yz,xxx,yyy,zzz,xxy,xyy,xyz,xzz,yyz,yzz) of excitation " << i << std::endl;
 			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
 			std::cout <<"\n dipole contributions"<< std::endl;

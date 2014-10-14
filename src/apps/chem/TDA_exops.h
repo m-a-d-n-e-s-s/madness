@@ -112,16 +112,44 @@ public:
 							basis.push_back(tmp);
 							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u];
 							key.push_back(stmp);}}}}}}}
+		for(size_t i=0;i<creators.size();i++){
+			for(size_t j=0;j<=i;j++){
+				for(size_t k=0;k<=j;k++){
+					for(size_t l=0;l<=k;l++){
+						for(size_t m=0;m<=l;m++){
+							for(size_t n=0;n<=m;n++){
+								for(size_t u=0;u<=n;u++){
+									for(size_t q=0;q<=u;q++){
+							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u]*creators[q];
+							basis.push_back(tmp);
+							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q];
+							key.push_back(stmp);}}}}}}}}
+		for(size_t i=0;i<creators.size();i++){
+			for(size_t j=0;j<=i;j++){
+				for(size_t k=0;k<=j;k++){
+					for(size_t l=0;l<=k;l++){
+						for(size_t m=0;m<=l;m++){
+							for(size_t n=0;n<=m;n++){
+								for(size_t u=0;u<=n;u++){
+									for(size_t q=0;q<=u;q++){
+										for(size_t w=0;w<=q;w++){
+							real_function_3d tmp = creators[j]*creators[i]*creators[k]
+							        *creators[l]*creators[m]*creators[n]*creators[u]*creators[q]*creators[w];
+							basis.push_back(tmp);
+							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]
+							               +key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q]+key_creator[w];
+							key.push_back(stmp);}}}}}}}}}
 	polynom_basis_ = basis;
 	key_=key;
 	}
 
-	std::vector<double> get_overlaps_with_guess(World &world,const vecfuncT &excitation,const vecfuncT &mo){
+	std::vector<double> get_overlaps_with_guess(World &world,const vecfuncT &excitation,const vecfuncT &mo,const real_function_3d smoothing){
 		if(excitation.size()!=mo.size()) MADNESS_EXCEPTION("Error in calculating overlap with the guess operators, excitation vector and mo vector have different sizes",1);
 		vecfuncT quadbas = polynom_basis_;
 		 std::vector<double> overlaps;
 		 for(size_t i=0;i< quadbas.size();i++){
 			 vecfuncT guess_ex = mul(world,quadbas[i],mo);
+			 guess_ex = mul(world,smoothing,guess_ex);
 			 double norm2= inner(world,guess_ex,guess_ex).sum();
 			 scale(world,guess_ex,1.0/sqrt(norm2));
 			 double overlap_tmp = inner(world, guess_ex,excitation).sum();
