@@ -46,6 +46,7 @@
 #include <vector>
 #include <madness/world/typestuff.h>
 #include <madness/world/enable_if.h>
+#include <madness/world/worldmutex.h>
 
 #ifdef BRAINDEAD
 // Cray XT nonsense
@@ -120,84 +121,98 @@ namespace madness {
     /// Print a single item to std::cout terminating with new line
     template <class A>
     void print(const A& a) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << ENDL;
     }
 
     /// Print two items separated by spaces to std::cout terminating with new line
     template <class A, class B>
     void print(const A& a, const B& b) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << ENDL;
     }
 
     /// Print three items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C>
     void print(const A& a, const B& b, const C& c) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << ENDL;
     }
 
     /// Print four items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D>
     void print(const A& a, const B& b, const C& c, const D& d) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << ENDL;
     }
 
     /// Print five items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << ENDL;
     }
 
     /// Print six items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << ENDL;
     }
 
     /// Print seven items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F, class G>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << ENDL;
     }
 
     /// Print eight items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F, class G, class H>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << ENDL;
     }
 
     /// Print nine items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F, class G, class H, class I>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << ENDL;
     }
 
     /// Print ten items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << ENDL;
     }
 
     /// Print eleven items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << ENDL;
     }
 
     /// Print twelve items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << ENDL;
     }
 
     /// Print thirteen items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L, class M>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l, const M& m) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << " " << m << ENDL;
     }
 
     /// Print fourteen items separated by spaces to std::cout terminating with new line
     template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L, class M, class N>
     void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l, const M& m, const N& n) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << " " << m << " " << n << ENDL;
     }
 

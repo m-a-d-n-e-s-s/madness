@@ -359,7 +359,7 @@ struct CalculationParameters {
     	, no_compute(false)
     	, no_orient(false)
         , save(true)
-        , maxsub(8)
+        , maxsub(5)
     	, orbitalshift(0.0)
         , npt_plot(101)
         , aobasis("6-31g")
