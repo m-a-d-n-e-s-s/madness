@@ -295,6 +295,8 @@ double Nemo::solve() {
 				(fabs(energy-oldenergy)<calc->param.econv))
 			converged = true;
 
+		if (calc->param.save) calc->save_mos(world);
+
 		if (world.rank() == 0) {
 			printf(
 				"finished iteration %2d at time %8.1fs with energy %12.8f\n",
