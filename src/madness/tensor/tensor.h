@@ -2096,16 +2096,18 @@ namespace madness {
             for (long i=0; i<iter.ndim; ++i) {
                 s.width(index_width);
                 s << iter.ind[i];
-                if (i != iter.ndim) s << ",";
+                //if (i != iter.ndim) 
+                s << ",";
             }
             s << "*]";
 //flo            s.setf(std::ios::scientific);
             s.setf(std::ios::fixed);
             for (long j=0; j<dimj; ++j, p+=inc) {
 //flo                s.precision(4);
+                s << " ";
                 s.precision(8);
                 s.width(12);
-                s << *p;
+                s << *p; 
             }
             s.unsetf(std::ios::scientific);
             s << std::endl;
