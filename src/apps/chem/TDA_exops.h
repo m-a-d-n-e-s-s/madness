@@ -143,7 +143,7 @@ public:
 	key_=key;
 	}
 
-	std::vector<double> get_overlaps_with_guess(World &world,const vecfuncT &excitation,const vecfuncT &mo,const real_function_3d smoothing){
+	std::vector<double> get_overlaps_with_guess(World &world,vecfuncT &excitation,const vecfuncT &mo,const real_function_3d smoothing){
 		if(excitation.size()!=mo.size()) MADNESS_EXCEPTION("Error in calculating overlap with the guess operators, excitation vector and mo vector have different sizes",1);
 		vecfuncT quadbas = polynom_basis_;
 		 std::vector<double> overlaps;
@@ -152,6 +152,8 @@ public:
 			 guess_ex = mul(world,smoothing,guess_ex);
 			 double norm2= inner(world,guess_ex,guess_ex).sum();
 			 scale(world,guess_ex,1.0/sqrt(norm2));
+			 double norm2_2 = inner(world,excitation,excitation).sum();
+			 scale(world,excitation,1.0/sqrt(norm2_2));
 			 double overlap_tmp = inner(world, guess_ex,excitation).sum();
 			 if(overlap_tmp < 1.e-5) overlap_tmp=0.0;
 			 overlaps.push_back(overlap_tmp);
