@@ -188,9 +188,8 @@ namespace madness {
         has_coeff() const {
             return _coeffs.has_data();
         }
-        
-        bool exists() const {return this->has_data();}
-        
+
+
         /// Returns true if this node has children
         bool
         has_children() const {

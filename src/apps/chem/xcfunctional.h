@@ -71,8 +71,8 @@ protected:
     static void polyn(const double x, double& p, double& dpdx) {
         // All of the static const stuff is evaluated at compile time
 
-        static const double xmin = 1e-10; // <<<< MINIMUM VALUE OF DENSITY
-        static const double xmax = 1e-8;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
+        static const double xmin = 1.e-6; // <<<< MINIMUM VALUE OF DENSITY
+        static const double xmax = 5.e-5;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
 
         static const double xmax2 = xmax*xmax;
         static const double xmax3 = xmax2*xmax;
@@ -99,12 +99,14 @@ protected:
             dpdx = a+(2.0*b+(3.0*c+(4.0*d+5.0*e*x)*x)*x)*x;
         }
     }
-
+public:
     static double munge_old(double rho) {
         double p, dpdx;
         polyn(rho, p, dpdx);
         return p;
     }
+
+private:
 
 
     double munge(double rho) const {

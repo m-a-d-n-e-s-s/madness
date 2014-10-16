@@ -1428,7 +1428,12 @@ namespace madness {
             WorldObject<implT>* ptr = NULL;
             ar & ptr;
             MADNESS_ASSERT(ptr);
+
+#ifdef MADNESS_DISABLE_SHARED_FROM_THIS
             p.reset(static_cast<implT*>(ptr), & madness::detail::no_delete<implT>);
+#else
+            p = static_cast<implT*>(ptr)->shared_from_this();
+#endif // MADNESS_DISABLE_SHARED_FROM_THIS
         }
 
         /// Returns the associated unique id ... must be initialized
