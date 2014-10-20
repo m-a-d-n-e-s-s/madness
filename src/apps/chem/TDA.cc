@@ -569,14 +569,16 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess) {
 	vecfuncT Vpsi;
 	if (on_the_fly_)
 		Vpsi = apply_perturbed_potential(xfunction);
-	else if (not on_the_fly_)
-		Vpsi = xfunction.Vx;
+	else if (not on_the_fly_){
+		if(xfunction.Vx.empty()) Vpsi = apply_perturbed_potential(xfunction);
+		else Vpsi = xfunction.Vx;
+	}
 
 	double omega = xfunction.omega;
 
 	// If orthonormalize_fock was not used previously the expectation value must be calculated:
 	if (not ptfock){
-		xfunction.expectation_value.push_back(
+				xfunction.expectation_value.push_back(
 				expectation_value(xfunction, Vpsi));
 	}
 	scale(world, Vpsi, -2.0);
@@ -1193,6 +1195,12 @@ bool TDA::check_convergence(xfunctionsT &xfunctions) {
 
 			// replace the converged xfunctions with the guess function it once was
 			//(there should be no sorting on the way, e.g in the fock orthonormalization)
+			// if random guess is demanded or if guess_xfunctions are empty -> re initialize
+			if(guess_xfunctions_.empty() or guess_exop_ == "random_4"){
+				guess_xfunctions_.clear();
+				initialize(guess_xfunctions_);
+				std::cout << "\n Re-Initialize guess functions ..." << std::endl;
+			}
 			xfunctions[i]=guess_xfunctions_[i];
 			xfunctions[i].x = copy(world,guess_xfunctions_[i].x);
 			xfunctions[i].omega = guess_omega_;
@@ -1370,21 +1378,31 @@ void TDA::analyze(xfunctionsT& roots) const {
 		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
 		std::vector<std::string> key = exops.key_;
 		if(world.rank()==0){
-			//std::cout << "key\n" << key << std::endl;
-			//std::cout << "\nOverlaps with (x,y,z,xx,yy,zz,xy,xz,yz,xxx,yyy,zzz,xxy,xyy,xyz,xzz,yyz,yzz) of excitation " << i << std::endl;
-			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
-			std::cout <<"\n dipole contributions"<< std::endl;
-			for(size_t i=0;i<3;i++) std::cout << std::fixed << std::setprecision(2) << key[i]<<" " <<overlap_tmp[i]<<" ";
-			std::cout <<"\n quadrupole contributions"<< std::endl;
-			for(size_t i=3;i<9;i++) std::cout << std::fixed << std::setprecision(2) << key[i]<<" "<< overlap_tmp[i]<<" ";
-			std::cout <<"\n cubic contributions"<< std::endl;
-			for(size_t i=9;i<19;i++) std::cout << std::fixed << std::setprecision(2) << key[i]<<" "<< overlap_tmp[i] << " ";
+//			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
+//			std::cout <<"\n dipole contributions"<< std::endl;
+//			for(size_t k=0;k<3;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" " <<overlap_tmp[k]<<" ";
+//			std::cout <<"\n quadrupole contributions"<< std::endl;
+//			for(size_t k=3;k<9;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k]<<" ";
+//			std::cout <<"\n cubic contributions"<< std::endl;
+//			for(size_t k=9;k<19;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k] << " ";
 
-			std::cout <<"\n\n all significant " << std::endl;
-			for(size_t i=0;i<overlap_tmp.size();i++){
-				if(fabs(overlap_tmp[i]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[i]<<" "<< overlap_tmp[i]<<" ";
+			std::cout <<"\n\n all significant contributions " << std::endl;
+			for(size_t k=0;k<overlap_tmp.size();k++){
+				if(fabs(overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< overlap_tmp[k]<<" ";
 			}
 			std::cout << std::endl;
+		}
+	// Get overlap with for each mo
+		for(size_t j=0;j<roots[i].x.size();j++){
+			double xtmp_norm = roots[i].x[j].norm2();
+			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
+			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
+			vecfuncT motmp; motmp.push_back(active_mo_[j]);
+
+			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
+			for(size_t k=0;k<mo_overlap_tmp.size();k++){
+				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
+			}
 		}
 	}
 }
