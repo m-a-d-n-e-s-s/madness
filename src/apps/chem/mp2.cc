@@ -846,9 +846,6 @@ namespace madness {
 		const double eps = zeroth_order_energy(i, j);
 		real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0 * eps), lo,
 				bsh_eps);
-		//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
-		//            		FunctionDefaults<6>::get_thresh()*0.1);
-
 
 		pair.Uphi0 = make_Uphi0(pair);
 		pair.KffKphi0 = make_KffKphi0(pair);
@@ -893,11 +890,10 @@ namespace madness {
 		real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(),
 				lo, bsh_eps / fourpi);
 
+		// compute some intermediates
+		const tensorT occ=hf->get_calc().aocc;
+		tensorT fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
 		if (hf->get_calc().param.localize) {	// local orbitals -- add coupling
-
-			// compute some intermediates
-	        const tensorT occ=hf->get_calc().aocc;
-	        tensorT fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
 			vecfuncT amotilde=transform(world,hf->orbitals(),fock);
 			vecfuncT fik, fjl, gik, jl, ik, tjl, jtl, itk, tik;
 
@@ -920,16 +916,15 @@ namespace madness {
 			for (int k = 0; k < hf->nocc(); ++k) {
 				for (int l = 0; l < hf->nocc(); ++l) {
 
-					const double g_ijkl = inner(jl[l], gik[k]);		// <ij | g | kl>
+					const double g_ijkl = inner(jl[l], gik[k]);		// <i j | g | k l>
 					const double f_itjkl = inner(fik[k],tjl[l]);	// <i j~| f | k l>
 					const double f_ijktl = inner(fik[k],jtl[l]);	// <i j| f | k l~>
-					const double f_tijkl = inner(fjl[l],tik[k]);	// <i~ j| f |k l>
-					const double f_ijtkl = inner(fjl[l],itk[k]);	// <i j| f |k~ l>
+					const double f_tijkl = inner(fjl[l],tik[k]);	// <i~ j| f | k l>
+					const double f_ijtkl = inner(fjl[l],itk[k]);	// <i j| f | k~ l>
 
-					h(k, l) = g_ijkl + f_itjkl + f_ijktl - f_tijkl - f_ijtkl;
+					h(k, l) = g_ijkl - f_itjkl + f_ijktl - f_tijkl + f_ijtkl;
 				}
 			}
-
 
 		} else { // canonical orbitals -- simplified code
 
@@ -958,17 +953,6 @@ namespace madness {
 				}
 			}
 		}
-
-		//			if (world.rank()==0) print("h\n",h);
-		//			for (int k=0; k<hf->nocc(); ++k) {
-		//				for (int l=0; l<hf->nocc(); ++l) {
-		//		            real_function_6d bra=CompositeFactory<double,6,3>(world)
-		//								.particle1(copy(hf->R2orbital(k)))
-		//								.particle2(copy(hf->R2orbital(l)));
-		//		            h(k,l)=inner(Vpair1,bra);
-		//				}
-		//			}
-		//			if (world.rank()==0) print("h = <nemo |R2 (U_R -K_R) |nemo> \n",h);
 
 		// the result function; adding many functions requires tighter threshold
 		const double thresh = FunctionDefaults<6>::get_thresh();
