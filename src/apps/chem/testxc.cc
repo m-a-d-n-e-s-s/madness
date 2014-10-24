@@ -129,7 +129,7 @@ std::vector<xcfunc_data_point> read_test_data(const std::string& dfname,
 
 }
 
-void test_xcfunctional()
+void test_xcfunctional(World& world)
 {
     bool spin_polarized ;
     spin_polarized = true;
@@ -171,7 +171,7 @@ void test_xcfunctional()
     std::cout << "Testing exchange-correlation functional:  "<< xcfuncstr << std::endl;
 
     xcfuncstr += " 1.0";
-    xcfunc.initialize(xcfuncstr,spin_polarized);
+    xcfunc.initialize(xcfuncstr,spin_polarized,world);
 
     std::string fpath("df_repo/");
     fpath += df_repo_functionals[istr];
@@ -321,7 +321,7 @@ int main(int argc, char** argv) {
     madness::World world(SafeMPI::COMM_WORLD);
     world.gop.fence();
 
-    test_xcfunctional();
+    test_xcfunctional(world);
 
     madness::finalize();
     return 0;

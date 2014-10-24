@@ -243,7 +243,7 @@ namespace madness {
         world.gop.broadcast_serializable(aobasis, 0);
         
         TAU_START("xc.initialize");
-        xc.initialize(param.xc_data, !param.spin_restricted);
+        xc.initialize(param.xc_data, !param.spin_restricted, world);
         TAU_STOP("xc.initialize");
         //xc.plot();
         
@@ -1159,7 +1159,7 @@ namespace madness {
             
             if (ispin == 0)
                 exc = make_dft_energy(world, vf, ispin);
-            std::cout << "EXC " << exc << std::endl;
+            if (world.rank() == 0) std::cout << "EXC " << exc << std::endl;
             TAU_START("DFT potential");
             START_TIMER(world);
             

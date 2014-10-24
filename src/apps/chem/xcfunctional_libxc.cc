@@ -6,6 +6,7 @@
 #include <sstream>
 #include <utility>
 #include <madness/world/worldexc.h>
+#include <madness/world/world.h>
 #include <xc.h>
 #include <xc_funcs.h>
 
@@ -226,10 +227,11 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 }
 
 //XCfunctional::XCfunctional() {}
-XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
+//XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
+XCfunctional::XCfunctional() : hf_coeff(0.0) {}
 
 
-void XCfunctional::initialize(const std::string& input_line, bool polarized)
+void XCfunctional::initialize(const std::string& input_line, bool polarized, World& world)
 {
     double factor;
     spin_polarized = polarized;
@@ -243,9 +245,10 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
     hf_coeff = 0.0;
     funcs.clear();
 
+    if (world.rank() == 0) std::printf("Construct XC Functional from LIBXC Library");
     while (line >> name) {
         std::transform(name.begin(), name.end(), name.begin(), ::toupper);
-        std::cout <<"!NAME! "<< name << "pol " << polarized << std::endl;
+        if (world.rank() == 0) std::cout <<"!NAME! "<< name << "pol " << polarized << std::endl;
         if (name == "LDA") {
             //if (! (line >> factor)) factor = 1.0;
             funcs.push_back(std::make_pair(lookup_func("LDA_X",polarized),1.0));
@@ -279,9 +282,9 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
         if (funcs[i].first->info->family == XC_FAMILY_HYB_GGA) nderiv = std::max(nderiv,1);
         if (funcs[i].first->info->family == XC_FAMILY_MGGA)nderiv = std::max(nderiv,2);
  //       if (funcs[i].first->info->family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
-        std::cout << "factor " << i << "  " << funcs[i].second << std::endl;
+        if (world.rank() == 0) std::cout << "factor " << i << "  " << funcs[i].second << std::endl;
     }
-    std::cout << "rhotol " << rhotol << " rhomin " << rhomin << " factor " <<factor << "hfcorf" <<hf_coeff <<  " input line was " << input_line << std::endl;
+    if (world.rank() == 0) std::cout << "rhotol " << rhotol << " rhomin " << rhomin << " factor " <<factor << "hfcorf" <<hf_coeff <<  " input line was " << input_line << std::endl;
 }
 
 XCfunctional::~XCfunctional() {

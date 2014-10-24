@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <utility>
 #include <madness/mra/key.h>
+#include <madness/world/world.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
@@ -137,7 +138,7 @@ public:
 
     /// @param[in] input_line User input line (without beginning XC keyword)
     /// @param[in] polarized Boolean flag indicating if the calculation is spin-polarized
-    void initialize(const std::string& input_line, bool polarized);
+    void initialize(const std::string& input_line, bool polarized, World& world);
 
     /// Destructor
     ~XCfunctional();

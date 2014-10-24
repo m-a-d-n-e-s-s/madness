@@ -5,6 +5,7 @@
 #include <chem/xcfunctional.h>
 #include <madness/tensor/tensor.h>
 #include <sstream>
+#include <madness/world/world.h>
 
 namespace madness {
 
@@ -16,7 +17,7 @@ int c_uks_vwn5__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb
 
 XCfunctional::XCfunctional() : hf_coeff(0.0) {}
 
-void XCfunctional::initialize(const std::string& input_line, bool polarized) 
+void XCfunctional::initialize(const std::string& input_line, bool polarized, World& world) 
 {
     rhotol=1e-12; rhomin=1e-22; sigtol=1e-7; sigmin=1e-7; // default values 
 

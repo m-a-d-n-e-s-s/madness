@@ -959,7 +959,7 @@ struct Calculation {
         world.gop.broadcast_serializable(aobasis, 0);
 
 	TAU_START("xc.initialize");
-        xc.initialize(param.xc_data, !param.spin_restricted);
+        xc.initialize(param.xc_data, !param.spin_restricted, world);
 	TAU_STOP("xc.initialize");
         //xc.plot();
 
@@ -4076,13 +4076,13 @@ int main(int argc, char** argv) {
               if (calc.param.dohf){
                  std::vector<double> protocol_data_orig=calc.param.protocol_data;
                  calc.param.protocol_data=madness::vector_factory(1e-4);
-                 calc.xc.initialize("hf", !calc.param.spin_restricted);
+                 calc.xc.initialize("hf", !calc.param.spin_restricted, world);
 
                  MolecularEnergy E(world, calc);
                  E.value(calc.molecule.get_all_coords().flat()); // ugh!
 
                  calc.param.protocol_data=protocol_data_orig;
-                 calc.xc.initialize(calc.param.xc_data, !calc.param.spin_restricted);
+                 calc.xc.initialize(calc.param.xc_data, !calc.param.spin_restricted, world);
                  calc.param.restart=true;
               }
 

@@ -20,11 +20,12 @@ using namespace madness;
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;
 
-static const double L = 5.0; // Unit cell size in au for neon
+//static const double L = 5.0; // Unit cell size in au for neon
 //static const double L = 8.37; // Unit cell size in au for neon
 //static const double L = 7.65; // Unit cell size in au for LiF
-//static const double L = 3.8; // Unit cell size in au for LiF
+static const double L = 3.8; // Unit cell size in au for LiF
 //static const double L = 8.0;
+//static const double L = 10.26085381075144364474; // Unit cell size in au for Si
 
 static const int R = 1; // periodic sums from -R to +R inclusive
 static const double thresh = 1e-4;
@@ -249,12 +250,12 @@ vector_complex_function_3d update(World& world,
     if (iter < 10) damp = 0.95;
     else if (iter < 20) damp = 0.85;
     else damp = 0.75;
-    print("  shift", shift, "damp", damp, "\n");
+    if (world.rank() == 0) print("  shift", shift, "damp", damp, "\n");
 
-    printf("      eigenvalue    residual\n");
+    if (world.rank() == 0) printf("      eigenvalue    residual\n");
     for (int i=0; i<nmo; i++) {
         double rnorm = (psi[i]-new_psi[i]).norm2();
-        printf("%4d  %10.6f  %10.1e\n", i, e[i], rnorm);
+        if (world.rank() == 0) printf("%4d  %10.6f  %10.1e\n", i, e[i], rnorm);
         new_psi[i] = damp*psi[i] + (1.0-damp)*new_psi[i];
     }
     truncate(world,new_psi);
@@ -302,6 +303,18 @@ int main(int argc, char** argv) {
     // molecule.add_atom(  0,  0,L/2, 3.0, 3);
     molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
 
+    // Cubic cell for Si
+    /*molecule.add_atom(  0,     0,     0,     14.0, 14);
+    molecule.add_atom(  L/2,   L/2,   0,     14.0, 14);
+    molecule.add_atom(  L/2,   0,     L/2,   14.0, 14);
+    molecule.add_atom(  0,     L/2,   L/2,   14.0, 14);
+    molecule.add_atom(  L/4,   L/4,   L/4,   14.0, 14);
+    molecule.add_atom(  3*L/4, 3*L/4, L/4,   14.0, 14);
+    molecule.add_atom(  3*L/4, L/4,   3*L/4, 14.0, 14);
+    molecule.add_atom(  L/4,   3*L/4, 3*L/4, 14.0, 14);*/
+
+   
+
     molecule.set_eprec(1e-3);
 
     // Load basis
@@ -309,7 +322,8 @@ int main(int argc, char** argv) {
 
     // Nuclear potential
     real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(new NuclearDensityFunctor(molecule))).truncate_mode(0).truncate_on_project();
-    print("total nuclear charge", vnuc.trace());
+    double nuclear_charge=vnuc.trace();
+    if (world.rank() == 0) print("total nuclear charge", nuclear_charge);
     vnuc = -1.0*make_coulomb_potential(world, vnuc);
     vnuc.truncate();
 
@@ -317,7 +331,7 @@ int main(int argc, char** argv) {
     real_function_3d rho = real_factory_3d(world).functor(real_functor_3d(new MolecularGuessDensityFunctor(molecule,aobasis))).truncate_on_project();
     rho.truncate();
     double rhot = rho.trace();
-    print("total guess charge", rhot);
+    if (world.rank() == 0) print("total guess charge", rhot);
     rho.scale(molecule.total_nuclear_charge()/rhot);
 
     int nmo = int(molecule.total_nuclear_charge() + 0.1)/2;
@@ -325,10 +339,10 @@ int main(int argc, char** argv) {
     // Make AO basis functions
     vector_complex_function_3d psi = makeao(world);
     vector_real norms = norm2s(world, psi);
-    print(norms);
+    if (world.rank() == 0) print(norms);
 
     for (int iter=0; iter<100; iter++) {
-        print("\n\n  Iteration",iter,"\n");
+        if (world.rank() == 0) print("\n\n  Iteration",iter,"\n");
         real_function_3d v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
         vector_complex_function_3d vpsi = apply_potential(v, psi);
 

@@ -323,7 +323,7 @@ public:
 	//xc_data="GGA_X_PBE 1.";
 	//xc_data="GGA_C_PBE 1.";
 	//xc_data="GGA_X_B88 1.";
-	xc.initialize(xc_data, false);
+	xc.initialize(xc_data, false, world);
     }
 
     // Make the atomic basis functions
