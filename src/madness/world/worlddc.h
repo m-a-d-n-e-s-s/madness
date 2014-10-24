@@ -368,14 +368,12 @@ namespace madness {
 
         WorldContainerImpl(World& world,
                            const std::shared_ptr< WorldDCPmapInterface<keyT> >& pm,
-                           bool do_pending,
                            const hashfunT& hf)
                 : WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >(world)
                 , pmap(pm)
                 , me(world.mpi.rank())
                 , local(5011, hf) {
             pmap->register_callback(this);
-            if (do_pending) this->process_pending();
         }
 
         virtual ~WorldContainerImpl() {
@@ -678,9 +676,11 @@ namespace madness {
         WorldContainer(World& world, bool do_pending=true, const hashfunT& hf = hashfunT())
             : p(new implT(world,
                           std::shared_ptr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
-                          do_pending,
                           hf))
-        {}
+        {
+            if(do_pending)
+                p->process_pending();
+        }
 
         /// Makes an initialized, empty container (no communication)
 
@@ -693,8 +693,11 @@ namespace madness {
                        const std::shared_ptr< WorldDCPmapInterface<keyT> >& pmap,
                        bool do_pending=true,
                        const hashfunT& hf = hashfunT())
-            : p(new implT(world, pmap, do_pending, hf))
-        {}
+            : p(new implT(world, pmap, hf))
+        {
+            if(do_pending)
+                p->process_pending();
+        }
 
 
         /// Copy constructor is shallow (no communication)
