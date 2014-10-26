@@ -684,7 +684,6 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
-            impl->world.gop.fence();
             const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, false, fence);
             return *this;
         }
