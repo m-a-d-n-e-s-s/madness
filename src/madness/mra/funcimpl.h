@@ -257,7 +257,10 @@ namespace madness {
                 // created for this operation and must be connected to
                 // its parent.
                 Key<NDIM> parent = key.parent();
-                const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent, TaskAttributes::hipri());
+                // Task on next line used to be TaskAttributes::hipri()) ... but deferring execution of this
+                // makes sense since it is not urgent and lazy connection will likely mean that less forwarding
+                // will happen since the upper level task will have already made the connection.
+                const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent); 
                 //madness::print("   set_chi_recu: forwarding",key,parent);
             }
             _has_children = true;
@@ -3954,18 +3957,15 @@ namespace madness {
             // and also to ensure we don't needlessly widen the tree when
             // applying the operator
             if (result.normf()> 0.3*args.tol/args.fac) {
-                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
-                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate2, result, coeffs, args.dest, TaskAttributes::hipri());
-                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
-                //                //
-                //                // UGLY BUT ADDED THE OPTIMIZATION BACK IN HERE EXPLICITLY/
-                //                if (args.dest == world.rank()) {
-                //                    coeffs.send(args.dest, &nodeT::accumulate, result, coeffs, args.dest);
-                //                }
-                //                else {
-                //                    coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
-                //                }
+                //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
+                // UGLY BUT ADDED THE OPTIMIZATION BACK IN HERE EXPLICITLY/
+                if (args.dest == world.rank()) {
+                    coeffs.send(args.dest, &nodeT::accumulate, result, coeffs, args.dest);
+                }
+                else {
+                    coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+                }
             }
             
             return None;
@@ -3997,11 +3997,12 @@ namespace madness {
                 coeffT result=coeffT(result_full,apply_targs);
                 MADNESS_ASSERT(result.tensor_type()==TT_FULL or result.tensor_type()==TT_2D);
                 double cpu1=cpu_time();
-                timer_lr_result.accumulate(cpu1-cpu0);
+                //timer_lr_result.accumulate(cpu1-cpu0);
                 
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
-                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
+
+                //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
             }
             return norm;
         }
@@ -4035,7 +4036,7 @@ namespace madness {
                 // accumulate also expects result in SVD form
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
-                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
+                //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
                 
             }
             return result_norm;
@@ -4088,18 +4089,18 @@ namespace madness {
                     
                     if (cnorm*opnorm> tol/fac) {
                         
-                        // Most expensive part is the kernel ... do it in a separate task
-                        if (d.distsq()==0) {
-                            // This introduces finer grain parallelism
-                            ProcessID where = world.rank();
-                            do_op_args<opdim> args(source, *it, dest, tol, fac, cnorm);
-                            woT::task(where, &implT:: template do_apply_kernel<opT,R,opdim>, op, c, args);
-                        } else {
-                            tensorT result = op->apply(source,*it, c, tol/fac/cnorm);
+                        // // Most expensive part is the kernel ... do it in a separate task
+                        // if (d.distsq()==0) {
+                        //     // This introduces finer grain parallelism
+                        //     ProcessID where = world.rank();
+                        //     do_op_args<opdim> args(source, *it, dest, tol, fac, cnorm);
+                        //     woT::task(where, &implT:: template do_apply_kernel<opT,R,opdim>, op, c, args);
+                        // } else {
+                            tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
                             if (result.normf()> 0.3*tol/fac) {
                                 coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
                             }
-                        }
+                        // }
                     } else if (d.distsq() >= 1)
                         break; // Assumes monotonic decay beyond nearest neighbor
                 }
@@ -4121,7 +4122,7 @@ namespace madness {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().full_tensor_copy());
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
                     }
                 }
             }
@@ -4276,6 +4277,7 @@ namespace madness {
         void recursive_apply(opT& apply_op, const FunctionImpl<T,LDIM>* fimpl,
                              const FunctionImpl<T,LDIM>* gimpl, const bool fence) {
 
+            //print("IN RECUR2");
             const keyT& key0=cdata.key0;
 
             if (world.rank() == coeffs.owner(key0)) {
@@ -4406,6 +4408,8 @@ namespace madness {
         /// @param[in]	rimpl	a dummy function for recursive_op to insert data
         template<typename opT>
         void recursive_apply(opT& apply_op, const implT* fimpl, implT* rimpl, const bool fence) {
+
+            print("IN RECUR1");
             
             const keyT& key0=cdata.key0;
             
@@ -4677,6 +4681,143 @@ namespace madness {
             bool leaves_only=(this->is_redundant());
             return world.taskq.reduce<resultT,rangeT,do_inner_local<R> >
                 (rangeT(coeffs.begin(),coeffs.end()),do_inner_local<R>(&g, leaves_only));
+        }
+
+        /// Type of the entry in the map returned by make_key_vec_map
+        typedef std::vector< std::pair<int,const tensorT*> > mapvecT;
+
+        /// Type of the map returned by make_key_vec_map
+        typedef ConcurrentHashMap< keyT, mapvecT > mapT;
+
+        /// Adds keys to union of local keys with specified index
+        void add_keys_to_map(mapT* map, int index) const {
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+                typename mapT::accessor acc;
+                const keyT& key = it->first;
+                const FunctionNode<T,NDIM>& node = it->second;
+                if (node.has_coeff()) {
+                    map->insert(acc,key);
+                    acc->second.push_back(std::make_pair(index,&(node.coeff())));
+                }
+            }
+        }
+
+        /// Returns map of union of local keys to vector of indexes of functions containing that key
+
+        /// Local concurrency and synchronization only; no communication
+        static 
+        mapT
+        make_key_vec_map(const std::vector<const FunctionImpl<T,NDIM>*>& v) {
+            mapT map(100000);
+            // This loop must be parallelized
+            for (unsigned int i=0; i<v.size(); i++) {
+                //v[i]->add_keys_to_map(&map,i);
+                v[i]->world.taskq.add(*(v[i]), &FunctionImpl<T,NDIM>::add_keys_to_map, &map, int(i));
+            }
+            if (v.size()) v[0]->world.taskq.fence();
+            return map;
+        }
+
+
+        template <typename R>
+        static void do_inner_localX(const typename mapT::iterator lstart, 
+                                    const typename mapT::iterator lend, 
+                                    typename FunctionImpl<R,NDIM>::mapT* rmap_ptr, 
+                                    const bool sym,
+                                    Tensor< TENSOR_RESULT_TYPE(T,R) >& result, 
+                                    Mutex* mutex) {
+            Tensor< TENSOR_RESULT_TYPE(T,R) > r(result.dim(0),result.dim(1));
+            for (typename mapT::iterator lit=lstart; lit!=lend; ++lit) {
+                const keyT& key = lit->first;
+                typename FunctionImpl<R,NDIM>::mapT::iterator rit=rmap_ptr->find(key);
+                if (rit != rmap_ptr->end()) {
+                    const mapvecT& leftv = lit->second;
+                    const typename FunctionImpl<R,NDIM>::mapvecT& rightv =rit->second;
+                    const int nleft = leftv.size();
+                    const int nright= rightv.size();
+
+                    for (int iv=0; iv<nleft; iv++) {
+                        const int i = leftv[iv].first;
+                        const Tensor<T>* iptr = leftv[iv].second;
+
+                        for (int jv=0; jv<nright; jv++) {
+                            const int j = rightv[jv].first;
+                            const Tensor<R>* jptr = rightv[jv].second;
+
+                            if (!sym || (sym && i<=j)) 
+                                r(i,j) += iptr->trace_conj(*jptr);
+                        }
+                    }
+                }
+            }
+            mutex->lock();
+            result += r;
+            mutex->unlock();
+        }
+
+        static double conj(double x) {
+            return x;
+        }
+
+        static double conj(float x) {
+            return x;
+        }
+
+        static std::complex<double> conj(const std::complex<double> x) {
+            return std::conj(x);
+        }
+
+        template <typename R>
+        static Tensor< TENSOR_RESULT_TYPE(T,R) > 
+        inner_local(const std::vector<const FunctionImpl<T,NDIM>*>& left,
+                    const std::vector<const FunctionImpl<R,NDIM>*>& right,
+                    bool sym) {
+
+            // This is basically a sparse matrix^T * matrix product
+            // Rij = sum(k) Aki * Bkj
+            // where i and j index functions and k index the wavelet coeffs
+            // eventually the goal is this structure (don't have jtile yet)
+            //
+            // do in parallel tiles of k (tensors of coeffs)
+            //    do tiles of j 
+            //       do i
+            //          do j in jtile
+            //             do k in ktile
+            //                Rij += Aki*Bkj
+
+            mapT lmap = make_key_vec_map(left);
+            typename FunctionImpl<R,NDIM>::mapT rmap;
+            typename FunctionImpl<R,NDIM>::mapT* rmap_ptr = (typename FunctionImpl<R,NDIM>::mapT*)(&lmap);
+            if ((std::vector<const FunctionImpl<R,NDIM>*>*)(&left) != &right) {
+                rmap = FunctionImpl<R,NDIM>::make_key_vec_map(right);
+                rmap_ptr = &rmap;
+            }
+
+            size_t chunk = (lmap.size()-1)/(3*4*5)+1;
+
+            Tensor< TENSOR_RESULT_TYPE(T,R) > r(left.size(), right.size());
+            Mutex mutex;
+
+            typename mapT::iterator lstart=lmap.begin();            
+            while (lstart != lmap.end()) {
+                typename mapT::iterator lend = lstart;
+                advance(lend,chunk);
+                left[0]->world.taskq.add(&FunctionImpl<T,NDIM>::do_inner_localX<R>, lstart, lend, rmap_ptr, sym, r, &mutex);
+                lstart = lend;
+            }
+            left[0]->world.taskq.fence();
+
+            if (sym) {
+                for (long i=0; i<r.dim(0); i++) {
+                    for (long j=0; j<i; j++) {
+                        TENSOR_RESULT_TYPE(T,R) sum = r(i,j)+conj(r(j,i));
+                        r(i,j) = sum;
+                        r(j,i) = conj(sum);
+                    }
+                }
+            }
+            return r;
         }
 
         /// Return the inner product with an external function on a specified function node.
