@@ -4122,7 +4122,8 @@ namespace madness {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
+//                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor()); 
                     }
                 }
             }
@@ -4684,7 +4685,7 @@ namespace madness {
         }
 
         /// Type of the entry in the map returned by make_key_vec_map
-        typedef std::vector< std::pair<int,const tensorT*> > mapvecT;
+        typedef std::vector< std::pair<int,const coeffT*> > mapvecT;
 
         /// Type of the map returned by make_key_vec_map
         typedef ConcurrentHashMap< keyT, mapvecT > mapT;
@@ -4739,11 +4740,11 @@ namespace madness {
 
                     for (int iv=0; iv<nleft; iv++) {
                         const int i = leftv[iv].first;
-                        const Tensor<T>* iptr = leftv[iv].second;
+                        const GenTensor<T>* iptr = leftv[iv].second;
 
                         for (int jv=0; jv<nright; jv++) {
                             const int j = rightv[jv].first;
-                            const Tensor<R>* jptr = rightv[jv].second;
+                            const GenTensor<R>* jptr = rightv[jv].second;
 
                             if (!sym || (sym && i<=j)) 
                                 r(i,j) += iptr->trace_conj(*jptr);
