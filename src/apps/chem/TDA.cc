@@ -465,9 +465,9 @@ vecfuncT TDA::make_excitation_operators() const {
 }
 
 void TDA::make_noise(xfunctionsT &xfunctions) const{
-	double noise_factor = 0.1;
+	double noise_factor = 0.01;
 	functorT smooth_functor(
-			new guess_smoothing(guess_box_));
+			new guess_smoothing(35.0));
 	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
 	exoperators exops(world);
 	std::string random_key = "random";
@@ -525,14 +525,6 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 		std::cout << std::setw(40) << " memory information..." << " : ";
 		std::cout << "xfunctions " << xfunction_size << " (GB), ";
 		std::cout <<" converged xfunctions "<< conv_xfunction_size <<" (GB)" << std::endl;
-
-		// Add noise if demanded
-		if(noise_iter_counter == noise_iter_){
-			TDA_TIMER noise(world, "Make noise...");
-			make_noise(xfunctions);
-			noise_iter_counter = 0;
-			noise.info();
-		}else noise_iter_counter++;
 
 		int iter = current_iteration;
 		if (guess == false)
@@ -606,6 +598,14 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 		}
 		// if there is no fock update demanded: just update the energy
 		else if (guess == false) update_energies(xfunctions);
+
+		// Add noise if demanded
+		if(noise_iter_counter == noise_iter_){
+			TDA_TIMER noise(world, "Make noise...");
+			make_noise(xfunctions);
+			noise_iter_counter = 0;
+			noise.info();
+		}else noise_iter_counter++;
 
 		TDA_TIMER apply_bsh(world, "apply BSH operators...");
 		// apply BSH operator
