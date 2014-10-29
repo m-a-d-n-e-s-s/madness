@@ -31,3 +31,5 @@ test-driver
 log.00*
 org.eclipse.cdt.core.prefs
 org.eclipse.cdt.ui.prefs
+.autotools
+.externalToolBuilders/org.eclipse.cdt.autotools.core.genmakebuilderV2.launch

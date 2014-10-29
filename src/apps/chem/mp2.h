@@ -573,7 +573,7 @@ namespace madness {
         /// compute the first iteration of the residual equations and all intermediates
         void guess_mp1_3(ElectronPair& pair) const;
 
-                /// compute the singlet and triplet energy for a given electron pair
+        /// compute the singlet and triplet energy for a given electron pair
 
         /// @return	the energy of 1 degenerate triplet and 1 singlet pair
         double compute_energy(ElectronPair& pair) const;
