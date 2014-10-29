@@ -5,7 +5,29 @@
  *      Author: kottmanj
  */
 
-#include <chem/TDA.h>
+#include "TDA.h"
+
+#include "/usr/include/math.h"
+#include "../../madness/mra/derivative.h"
+#include "../../madness/mra/funcdefaults.h"
+#include "../../madness/mra/funcplot.h"
+#include "../../madness/mra/function_interface.h"
+#include "../../madness/mra/functypedefs.h"
+#include "../../madness/mra/vmra1.h"
+#include "../../madness/tensor/distributed_matrix.h"
+#include "../../madness/tensor/srconf.h"
+#include "../../madness/tensor/tensor.h"
+#include "../../madness/world/archive.h"
+#include "../../madness/world/parar.h"
+#include "../../madness/world/print.h"
+#include "../../madness/world/shared_ptr_bits.h"
+#include "../../madness/world/worldexc.h"
+#include "../../madness/world/worldfwd.h"
+#include "../../madness/world/worldgop.h"
+#include "../../madness/world/worldtime.h"
+#include "molecule.h"
+#include "nemo.h"
+#include "potentialmanager.h"
 
 using namespace madness;
 
@@ -19,9 +41,6 @@ struct xyz {
 };
 
 void TDA::solve(xfunctionsT &xfunctions) {
-
-
-
 	if (plot_ == true)
 
 		plot_vecfunction(active_mo_, "active_mo_");
@@ -108,7 +127,7 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 		for (size_t iroot = 0; iroot < max; iroot++) {
 			print("\n\n-----xfunction ", iroot, " ------\n\n");
 			// create the kain solver for the current xfunction
-			solverT solver(allocator(world, xfunctions[iroot].x.size()));
+			solverT solver(TDA_allocator(world, xfunctions[iroot].x.size()));
 			solver.set_maxsub(kain_subspace_);
 			kain_ = true;
 
@@ -220,6 +239,9 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 			}
 		}
 	}
+	else if(guess_ == "custom") {
+		guess_custom(xfunctions);
+	}
 	else {
 		if (world.rank() == 0)
 			print("unknown keyword for guess: ", guess_);
@@ -228,7 +250,50 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 
 }
 
+void TDA::guess_custom(xfunctionsT & xfunctions) {
+	if(guess_omegas_.empty() or guess_omegas_.size()<custom_exops_.size()){
+		if(world.rank()==0) std::cout << "Warning: no or not enough guess excitation energies for custom guess provided .... taking: " << guess_omega_ << " for all" <<std::endl;
+		size_t diff = (custom_exops_.size()-guess_omegas_.size());
+		for(size_t i=0;i<diff;i++) guess_omegas_.push_back(guess_omega_);
+	}
+	std::shared_ptr<FunctionFunctorInterface<double, 3> > smooth_functor(
+						new guess_smoothing(guess_box_));
 
+	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
+	plot_plane(world,smoothing_function,"smoothing_function");
+	std::shared_ptr<FunctionFunctorInterface<double, 3> > anti_smooth_functor(
+						new guess_anti_smoothing(guess_box_));
+
+	real_function_3d anti_smoothing_function = real_factory_3d(world).functor(anti_smooth_functor);
+	plot_plane(world,anti_smoothing_function,"anti_smoothing_function");
+	exoperators exops(world);
+
+	// project the active_mos on ao functions
+	vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
+	for(size_t i=0;i<active_mo_.size();i++){
+		projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
+	}
+	plot_vecfunction(projected_mos,"projected_mos_");
+
+	std::vector<vecfuncT> xguess_inner = exops.make_custom_guess(world,custom_exops_,active_mo_, smoothing_function);
+	std::vector<vecfuncT> xguess_outer = exops.make_custom_guess(world,custom_exops_,projected_mos, anti_smoothing_function);
+	for(size_t i=0;i<xguess_inner.size();i++){
+		xfunction tmp(world);
+		tmp.omega = guess_omegas_[i];
+		tmp.x = add(world,xguess_inner[i],xguess_outer[i]);
+		plot_vecfunction(tmp.x,"custom_guessfunction_"+stringify(i));
+		plot_vecfunction(xguess_inner[i],"custom_guessfunction_inner"+stringify(i));
+		plot_vecfunction(xguess_outer[i],"custom_guessfunction_outer"+stringify(i));
+		xfunctions.push_back(tmp);
+	}
+	//TESTING DEBUG
+	double c=inner(xfunctions[0].x[0],projected_mos[0]);
+	xfunctions[0].x[0] -= c*projected_mos[0];
+	plot_vecfunction(xfunctions[0].x,"custom_guessfunction_woocc");
+
+
+
+}
 
 void TDA::guess_physical(xfunctionsT & xfunctions) {
 	std::shared_ptr<FunctionFunctorInterface<double, 3> > smooth_functor(
@@ -399,6 +464,30 @@ vecfuncT TDA::make_excitation_operators() const {
 	}
 }
 
+void TDA::make_noise(xfunctionsT &xfunctions) const{
+	double noise_factor = 0.1;
+	functorT smooth_functor(
+			new guess_smoothing(guess_box_));
+	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
+	exoperators exops(world);
+	std::string random_key = "random";
+	for(size_t i=0;i<xfunctions.size();++i){
+		vecfuncT random_exop = exops.get_exops(world,random_key);
+		vecfuncT noise;
+		for(size_t j=0;j<xfunctions[i].x.size();j++){
+			real_function_3d noise_tmp = random_exop[0]*active_mo_[j]*smoothing_function;
+			noise_tmp.truncate();
+			noise.push_back(noise_tmp);
+		}
+		double noise_vectornorm = inner(world,noise,noise).sum();
+		noise_vectornorm = sqrt(noise_vectornorm);
+		scale (world,noise,noise_factor/noise_vectornorm);
+		plot_vecfunction(noise,"noise_"+stringify(i));
+		xfunctions[i].x = add(world,xfunctions[i].x,noise);
+	}
+
+}
+
 void TDA::iterate_guess(xfunctionsT &xfunctions) {
 	std::cout << "\n" << std::endl;
 	std::cout << "---Start Guess Iterations---" << "\n\n " << std::endl;
@@ -421,6 +510,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 	if (guess == false) {max = 1000;}	//iter_max_; // using iter_max now for single roots to kick out}
 
 	// start iteration cycle
+	size_t noise_iter_counter = 0;
 	for (size_t current_iteration = 0; current_iteration < max;
 			current_iteration++) {
 
@@ -436,6 +526,13 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 		std::cout << "xfunctions " << xfunction_size << " (GB), ";
 		std::cout <<" converged xfunctions "<< conv_xfunction_size <<" (GB)" << std::endl;
 
+		// Add noise if demanded
+		if(noise_iter_counter == noise_iter_){
+			TDA_TIMER noise(world, "Make noise...");
+			make_noise(xfunctions);
+			noise_iter_counter = 0;
+			noise.info();
+		}else noise_iter_counter++;
 
 		int iter = current_iteration;
 		if (guess == false)
@@ -1375,7 +1472,15 @@ void TDA::analyze(xfunctionsT& roots) const {
 		functorT smooth_functor(
 				new guess_smoothing(guess_box_));
 		real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
-		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
+
+		// TESTING DEBUG
+		// project the active_mos on ao functions
+		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
+		for(size_t i=0;i<active_mo_.size();i++){
+			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
+		}
+
+		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,projected_mos,smoothing_function);
 		std::vector<std::string> key = exops.key_;
 		if(world.rank()==0){
 //			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;

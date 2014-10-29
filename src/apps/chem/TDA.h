@@ -161,19 +161,19 @@ struct xfunction{
 
 };
 
-struct allocator{
+struct TDA_allocator{
 	World& world;
 	const int noct;
 
 	/// @param[in]	world	the world
 	/// @param[in]	nn		the number of functions in a given vector
-	allocator(World& world, const int nnoct) : world(world), noct(nnoct) {}
+	TDA_allocator(World& world, const int nnoct) : world(world), noct(nnoct) {}
 
 	xfunction operator()(){
 		return xfunction(world,zero_functions<double,3>(world,noct));
 	}
-	allocator operator=(const allocator &other){
-		allocator tmp(world,other.noct);
+	TDA_allocator operator=(const TDA_allocator &other){
+		TDA_allocator tmp(world,other.noct);
 		return tmp;
 	}
 };
@@ -187,7 +187,7 @@ static double inner(const xfunction &a, const xfunction &b) {
 
 // TYPEDEFS
 typedef std::vector<xfunction> xfunctionsT;
-typedef XNonlinearSolver<xfunction,double,allocator> solverT;
+typedef XNonlinearSolver<xfunction,double,TDA_allocator> solverT;
 
 /// The structure needed if the kain solver shall be used
 struct kain_solver_helper_struct{
@@ -228,7 +228,7 @@ public:
 		subspace_size = kain_subspace;
 		if(kain){
 			for(size_t i=0;i<excitations; i++){
-				solverT onesolver(allocator(world,noct));
+				solverT onesolver(TDA_allocator(world,noct));
 				onesolver.set_maxsub(kain_subspace);
 				solver.push_back(onesolver);
 			}
@@ -298,7 +298,7 @@ public:
 		// clean up: erase all old solvers
 		solver.clear();
 		// add new solvers
-		solverT onesolver(allocator(world,noct));
+		solverT onesolver(TDA_allocator(world,noct));
 		onesolver.set_maxsub(subspace_size);
 		for(size_t j=0;j<xfunctions.size();j++){
 			solver.push_back(onesolver);
@@ -341,6 +341,21 @@ public:
 	// Smoothing function
 	double operator()(const coord_3d &r)const{
 		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+	}
+
+};
+struct guess_anti_smoothing : public FunctionFunctorInterface<double,3> {
+private:
+	/// Size of the box that will not be smoothed
+	const double box_size_;
+public:
+	guess_anti_smoothing(const double box) : box_size_(box) {}
+	// Smoothing function
+	double operator()(const coord_3d &r)const{
+		double smooth = 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+		smooth -= 1.0;
+		smooth *= -1.0;
+		return smooth;
 	}
 
 };
@@ -420,6 +435,7 @@ public:
 		excitations_(4),
 		bsh_eps_(1.e-5),
 		iter_max_(100),
+		noise_iter_(1.e8),
 		econv_(1.e-4),
 		dconv_(1.e-3),
 		hard_dconv_(1.e-3),
@@ -482,6 +498,7 @@ public:
 			else if (tag == "guess_excitations") ss >> guess_excitations_;
 			else if (tag == "bsh_eps") ss >> bsh_eps_;
 			else if (tag == "iter_max") ss >> iter_max_;
+			else if (tag == "noise_iter") ss >> noise_iter_;
 			else if (tag == "econv") ss >> econv_;
 			else if (tag == "dconv") ss >> dconv_;
 			else if (tag == "freeze") ss >> nfreeze_;
@@ -552,6 +569,7 @@ public:
 			std::cout<< std::setw(40) << "Guess box size : " << guess_box_ << std::endl;
 			std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
+			std::cout<< std::setw(40) << "make noise every " << noise_iter_ << " iteration" << std::endl;
 		}
 
 
@@ -697,6 +715,10 @@ private:
 
 	/// maximal iterations per guess_function
 	size_t iter_max_;
+
+	/// iterations between every addition of noise to the current xfunctions
+	size_t noise_iter_;
+
 	/// energy convergence level for the guess functions in the solve routine
 	double econv_;
 	/// maximal residual for the guess_functions in the solve routine
@@ -811,7 +833,7 @@ private:
 	/// Creates physical guess functions (x,y,z excitations - depending on the input file, see make_excitation_operators function)
 	void guess_physical(xfunctionsT & xfunctions);
 
-	void guess_valence(xfunctionsT & xfunctions);
+	void guess_custom(xfunctionsT & xfunctions);
 
 	/// Add diffuse 1s functions to the molecular orbitals (for LDA calculations)
 	void add_diffuse_functions(vecfuncT &mos);
@@ -820,6 +842,9 @@ private:
 	/// @param[out] gives back a vectorfunction of excitation operators (specified in the input file)
 	/// e.g the keyword: "dipole+" in the TDA section of the input file will give back a vecfunction containing (x,y,z,r)
 	vecfuncT make_excitation_operators()const;
+
+	/// Create random guess functions and add them
+	void make_noise(xfunctionsT &xfunctions) const;
 
 	/// iterates the guess_functions
 	// Calls iterate_all with the right settings
