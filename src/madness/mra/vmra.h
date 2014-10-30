@@ -374,7 +374,6 @@ namespace madness {
 //        }
 //    }; // struct MatrixInnerTask
 
-
     /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
 
     /// For complex types symmetric is interpreted as Hermitian.
@@ -382,6 +381,34 @@ namespace madness {
     /// The current parallel loop is non-optimal but functional.
     template <typename T, typename R, std::size_t NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
+                                                   const std::vector< Function<T,NDIM> >& f,
+                                                   const std::vector< Function<R,NDIM> >& g,
+                                                   bool sym=false) 
+    {
+        world.gop.fence();
+        compress(world, f);
+        if ((void*)(&f) != (void*)(&g)) compress(world, g);
+
+        std::vector<const FunctionImpl<T,NDIM>*> left(f.size());
+        std::vector<const FunctionImpl<R,NDIM>*> right(g.size());
+        for (unsigned int i=0; i<f.size(); i++) left[i] = f[i].get_impl().get();
+        for (unsigned int i=0; i<g.size(); i++) right[i]= g[i].get_impl().get();
+
+        Tensor< TENSOR_RESULT_TYPE(T,R) > r= FunctionImpl<T,NDIM>::inner_local(left, right, sym);
+
+        world.gop.fence();
+        world.gop.sum(r.ptr(),f.size()*g.size());
+
+        return r;
+    }
+
+    /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
+
+    /// For complex types symmetric is interpreted as Hermitian.
+    ///
+    /// The current parallel loop is non-optimal but functional.
+    template <typename T, typename R, std::size_t NDIM>
+    Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner_old(World& world,
             const std::vector< Function<T,NDIM> >& f,
             const std::vector< Function<R,NDIM> >& g,
             bool sym=false) {
@@ -392,17 +419,17 @@ namespace madness {
 
         world.gop.fence();
         compress(world, f);
-        if (&f != &g) compress(world, g);
+        if ((void*)(&f) != (void*)(&g)) compress(world, g);
 
-         for (long i=0; i<n; ++i) {
-             long jtop = m;
-             if (sym) jtop = i+1;
-             for (long j=0; j<jtop; ++j) {
-                 r(i,j) = f[i].inner_local(g[j]);
-                 if (sym) r(j,i) = conj(r(i,j));
-             }
+        for (long i=0; i<n; ++i) {
+            long jtop = m;
+            if (sym) jtop = i+1;
+            for (long j=0; j<jtop; ++j) {
+                r(i,j) = f[i].inner_local(g[j]);
+                if (sym) r(j,i) = conj(r(i,j));
+            }
          }
-
+        
 //        for (long i=n-1; i>=0; --i) {
 //            long jtop = m;
 //            if (sym) jtop = i+1;

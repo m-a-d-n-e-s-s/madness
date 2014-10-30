@@ -10,7 +10,7 @@ AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 TESTS = testbsh.mpi testproj.mpi testpdiff.mpi testper.mpi \
         testdiff1Db.mpi testdiff1D.mpi testdiff2D.mpi testdiff3D.mpi \
 		testgconv.mpi testopdir.mpi testsuite.mpi testinnerext.mpi \
-		testgaxpyext.mpi
+		testgaxpyext.mpi testvmra.mpi
 
 
 TEST_EXTENSIONS = .mpi .seq
@@ -53,6 +53,7 @@ testsuite_mpi_SOURCES = testsuite.cc test_sepop.cc
 testperiodic_mpi_SOURCES = testperiodic.cc
 testper_mpi_SOURCES = testper.cc test_sepop.cc
 testbsh_mpi_SOURCES = testbsh.cc
+testvmra_mpi_SOURCES = testvmra.cc
 test6_SOURCES = test6.cc
 
 testbc_mpi_SOURCES = testbc.cc

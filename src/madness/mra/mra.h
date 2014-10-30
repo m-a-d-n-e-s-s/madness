@@ -684,7 +684,6 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
-            impl->world.gop.fence();
             const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, false, fence);
             return *this;
         }
@@ -1906,29 +1905,36 @@ namespace madness {
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
     apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
-        PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
-        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
         result.set_impl(f, true);
-        r1.set_impl(f, true);
-
-        result.get_impl()->reset_timer();
-        op.reset_timer();
-
-//        result.get_impl()->apply_source_driven(op, *f.get_impl(), true);
-        result.get_impl()->recursive_apply(op, f.get_impl().get(),
-        		r1.get_impl().get(),true);			// will fence here
-
-
-		double time=result.get_impl()->finalize_apply(fence);	// need fence before reconstruction
-        if (opT::opdim==6) {
-            result.get_impl()->print_timer();
-            op.print_timer();
-    		if (result.world().rank()==0) print("time in finlize_apply", time);
-        }
-
+        result.get_impl()->apply(op, *f.get_impl(), fence);
         return result;
+
+
+        // PROFILE_FUNC;
+        // Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
+        // Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
+
+        // result.set_impl(f, true);
+        // r1.set_impl(f, true);
+
+        // result.get_impl()->reset_timer();
+        // op.reset_timer();
+
+        // result.get_impl()->apply_source_driven(op, *f.get_impl(), fence);
+        // //        result.get_impl()->recursive_apply(op, f.get_impl().get(),
+        // //        		r1.get_impl().get(),true);			// will fence here
+
+
+	// 	double time=result.get_impl()->finalize_apply(fence);	// need fence before reconstruction
+        // if (opT::opdim==6) {
+        //     result.get_impl()->print_timer();
+        //     op.print_timer();
+    	// 	if (result.world().rank()==0) print("time in finlize_apply", time);
+        // }
+
+        // return result;
     }
 
     /// Apply operator in non-standard form

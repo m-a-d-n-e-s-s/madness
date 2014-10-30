@@ -1,3 +1,4 @@
+#include <madness/config.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/world/world.h>
@@ -7,6 +8,12 @@
 
 #include <utility>
 #include <vector>
+
+#ifdef HAVE_INTEL_TBB
+#define NTHREAD 1
+#else
+#define NTHREAD ThreadPool::size()+1
+#endif
 
 namespace madness {
 
@@ -86,7 +93,7 @@ class SystolicFixOrbitalOrders : public SystolicMatrixAlgorithm<double> {
 
 public:
     SystolicFixOrbitalOrders(DistributedMatrix<double>& U, int tag=5556) 
-        : SystolicMatrixAlgorithm<double>(U, tag)
+        : SystolicMatrixAlgorithm<double>(U, tag, NTHREAD)
     {}
 
     void start_iteration_hook(const TaskThreadEnv& env) {
@@ -210,7 +217,7 @@ public:
                               int nao,
                               int nmo,
                               int tag=5555) 
-        : SystolicMatrixAlgorithm<double>(A, tag),
+    : SystolicMatrixAlgorithm<double>(A, tag, NTHREAD),
           set(set),
           at_to_bf(at_to_bf),
           at_nbf(at_nbf),

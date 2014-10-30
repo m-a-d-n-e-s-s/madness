@@ -603,15 +603,21 @@ namespace madness {
     
     /// Returns the truncation threshold according to truncate_method
     
-    /// here is our handwaving argument:
-    /// this threshold will give each FunctionNode an error of less than tol. The
-    /// total error can then be as high as sqrt(#nodes) * tol. Therefore in order
-    /// to account for higher dimensions: divide tol by about the root of number
-    /// of siblings (2^NDIM) that have a large error when we refine along a deep
-    /// branch of the tree.
+    /// here is our handwaving argument: this threshold will give each
+    /// FunctionNode an error of less than tol. The total error can
+    /// then be as high as sqrt(#nodes) * tol. Therefore in order to
+    /// account for higher dimensions: divide tol by about the root of
+    /// number of siblings (2^NDIM) that have a large error when we
+    /// refine along a deep branch of the tree.
+    ///
+    /// Nope ... it can easily be as high as #nodes * tol.  The real
+    /// fix for this is an end-to-end error analysis of the larger
+    /// application and if desired to include this factor into the
+    /// threshold selected by the application.  Reverting this to the
+    /// original threshold.
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::truncate_tol(double tol, const keyT& key) const {
-        const static double fac=1.0/std::pow(2,NDIM*0.5);
+        const static double fac=1.0; // was /std::pow(2,NDIM*0.5);
         tol*=fac;
         
         // RJH ... introduced max level here to avoid runaway
