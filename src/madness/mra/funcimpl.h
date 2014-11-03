@@ -2940,8 +2940,8 @@ namespace madness {
             Future<this_type> activate() const {
             	Future<ctT> f1=f.activate();
             	Future<ctL> g1=g.activate();
-                return h->world.taskq.add(*const_cast<this_type *> (this),
-                                          &this_type::forward_ctor,h,f1,g1,particle);
+                return h->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+                                          &this_type::forward_ctor),h,f1,g1,particle);
             }
             
             this_type forward_ctor(implT* h1, const ctT& f1, const ctL& g1, const int particle) {
@@ -2993,8 +2993,8 @@ namespace madness {
             Future<this_type> activate() const {
             	Future<ctT> f1=f.activate();
             	Future<ctT> g1=g.activate();
-                return f.get_impl()->world.taskq.add(*const_cast<this_type *> (this),
-                                                     &this_type::forward_ctor,f1,g1,alpha,beta);
+                return f.get_impl()->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+                                                     &this_type::forward_ctor),f1,g1,alpha,beta);
             }
             
             /// taskq-compatible ctor
@@ -3096,8 +3096,8 @@ namespace madness {
             Future<this_type> activate() const {
             	Future<ctL> p11=p1.activate();
             	Future<ctL> p22=p2.activate();
-                return result->world.taskq.add(*const_cast<this_type *> (this),
-                                               &this_type::forward_ctor,result,p11,p22,leaf_op);
+                return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+                                               &this_type::forward_ctor),result,p11,p22,leaf_op);
             }
             
             this_type forward_ctor(implT* result1, const ctL& p11, const ctL& p22, const leaf_opT& leaf_op) {
@@ -3572,8 +3572,8 @@ namespace madness {
             	Future<ctL> iap21=iap2.activate();
             	Future<ctL> iav11=iav1.activate();
             	Future<ctL> iav21=iav2.activate();
-                return result->world.taskq.add(*const_cast<this_type *> (this),
-                                               &this_type::forward_ctor,result,leaf_op,
+                return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+                                               &this_type::forward_ctor),result,leaf_op,
                                                iaket1,iap11,iap21,iav11,iav21,eri);
             }
             
@@ -4387,8 +4387,8 @@ namespace madness {
             Future<this_type> activate() const {
             	Future<CoeffTracker<T,LDIM> > f1=iaf.activate();
             	Future<CoeffTracker<T,LDIM> > g1=iag.activate();
-                return result->world.taskq.add(*const_cast<this_type *> (this),
-                                               &this_type::forward_ctor,result,f1,g1,apply_op);
+                return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+                                               &this_type::forward_ctor),result,f1,g1,apply_op);
             }
             
             this_type forward_ctor(implT* r, const CoeffTracker<T,LDIM>& f1, const CoeffTracker<T,LDIM>& g1,
@@ -5201,8 +5201,8 @@ namespace madness {
             /// retrieve the coefficients (parent coeffs might be remote)
             Future<this_type> activate() const {
             	Future<ctL> g1=iag.activate();
-                return result->world.taskq.add(*const_cast<this_type *> (this),
-                                               &this_type::forward_ctor,fimpl,result,g1,dim);
+                return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+                                               &this_type::forward_ctor),fimpl,result,g1,dim);
             }
             
             /// taskq-compatible ctor
