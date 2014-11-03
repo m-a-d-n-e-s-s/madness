@@ -3993,10 +3993,10 @@ namespace madness {
             if (norm > 0.3*args.tol/args.fac) {
                 
                 small++;
-                double cpu0=cpu_time();
+                //double cpu0=cpu_time();
                 coeffT result=coeffT(result_full,apply_targs);
                 MADNESS_ASSERT(result.tensor_type()==TT_FULL or result.tensor_type()==TT_2D);
-                double cpu1=cpu_time();
+                //double cpu1=cpu_time();
                 //timer_lr_result.accumulate(cpu1-cpu0);
                 
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
