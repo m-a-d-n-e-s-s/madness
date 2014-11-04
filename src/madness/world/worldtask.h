@@ -130,7 +130,7 @@ namespace madness {
         template <typename fnT>
         struct function_enabler : public
             lazy_enable_if_c<
-                function_traits<fnT>::value || has_result_type<fnT>::value,
+                function_traits<fnT>::value || is_functor<fnT>::value,
                 task_result_type<fnT> >
         { };
 

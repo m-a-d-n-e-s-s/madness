@@ -257,7 +257,7 @@ int test_periodic_bsh(World& world)
   Function<double_complex,3> f = FunctionFactory<double_complex,3>(world).f(pw_rhs);
   f.truncate();
 
-  Vector<double,3> args = vec(0.0,0.0,0.0);
+//  Vector<double,3> args = vec(0.0,0.0,0.0);
   SeparatedConvolution<double,3> op = BSHOperator3D(world, mu, 1e-6, thresh);
   std::cout.precision(10);
 
@@ -269,7 +269,7 @@ int test_periodic_bsh(World& world)
       coordT r = coordT(i*L/100.0);
       double_complex value = opf(r);
       double_complex exact = pw_lhs(r);
-      double_complex exerr = value-exact;
+//      double_complex exerr = value-exact;
       double relerr = std::abs((value-exact)/exact);
 //      print(i,value,exact,exerr);
       print(i,value,exact,relerr,status[relerr<3e-7]);
