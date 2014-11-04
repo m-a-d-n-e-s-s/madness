@@ -171,10 +171,10 @@ public:
         double ftol = 1e-12;
 
         double x1 = c1[0]; double y1 = c1[1]; double z1 = c1[2];
-        double x2 = c2[0]; double y2 = c1[1]; double z2 = c1[2];
+        double x2 = c2[0]; double y2 = c2[1]; double z2 = c2[2];
 
         // if center is inside box, then return false
-        // otherwise, look for the closests point and check
+        // otherwise, look for the closest point and check
         bool inside = (center[0] >= x1) && (center[0] <= x2) &&
                       (center[1] >= y1) && (center[1] <= y2) &&
                       (center[2] >= z1) && (center[2] <= z2);
@@ -209,7 +209,7 @@ public:
             double y = (jj == 0) ? c1[1] : c2[1]; 
             double z = (kk == 0) ? c1[2] : c2[2]; 
             double fval = this->operator()(vec(x, y, z));
-            if (fval < ftol) return true;
+            if (fabs(fval) < ftol) return true;
             else return false;
         }
     }
