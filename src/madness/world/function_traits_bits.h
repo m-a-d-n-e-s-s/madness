@@ -463,7 +463,7 @@ namespace madness {
             // fallback
             template <typename> static no deduce(...);
 
-            static bool constexpr value = sizeof(deduce<fnT>(0)) == sizeof(yes);
+            static const bool value = sizeof(deduce<fnT>(0)) == sizeof(yes);
         };
 
         template <typename fnT>
