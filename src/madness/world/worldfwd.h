@@ -425,6 +425,12 @@ namespace madness {
         static World* default_world;        ///< Default world
         static std::list<World*> worlds;    ///< Maintains list of active worlds
 
+        struct hashuniqueT {
+            inline std::size_t operator()(const uniqueidT& id) const {
+                return id.objid;    // The object id's are guaranteed to be unique
+            }
+        };
+
         struct hashvoidp {
             inline std::size_t operator()(const void* p) const {
                 return std::size_t(p);    // The ptr's are guaranteed to be unique
@@ -432,7 +438,7 @@ namespace madness {
         };
 
 //        Mutex globalmutex;  ///< Worldwide mutex
-        typedef madness::ConcurrentHashMap<uniqueidT, void *, uniqueidT> map_id_to_ptrT;
+        typedef madness::ConcurrentHashMap<uniqueidT, void *, hashuniqueT> map_id_to_ptrT;
         typedef madness::ConcurrentHashMap<void *, uniqueidT, hashvoidp> map_ptr_to_idT;
         map_id_to_ptrT map_id_to_ptr;
         map_ptr_to_idT map_ptr_to_id;
