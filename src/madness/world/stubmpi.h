@@ -96,7 +96,7 @@ typedef int MPI_Op;
 #define MPI_REPLACE ((MPI_Op)0x5800000d)
 
 /* FIXME This function should agree with http://www.mpich.org/static/docs/v3.1/www3/MPI_Group_translate_ranks.html */
-//#warning This is not equivalent to the interface defined by the MPI standard!
+#warning This is not equivalent to the interface defined by the MPI standard!
 inline int MPI_Group_translate_ranks(const MPI_Group&, int n, const int*, const MPI_Group&, int* ranks2) {
     *ranks2 = 0;
     return MPI_SUCCESS;
