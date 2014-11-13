@@ -30,7 +30,7 @@ int compare(World& world, functionT test, functionT exact, const char *str)
    /* There should be a reduction over success here... */
    if (world.rank() == 0) {
        std::cerr << "Error in " << str << ": " << error ;
-       std::cerr << (success==0) ? " PASSED " : " FAILED " << std::endl ;
+       std::cerr << ((success==0) ? " PASSED " : " FAILED ") << std::endl ;
    }
    return success;
 }
