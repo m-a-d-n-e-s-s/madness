@@ -12,7 +12,6 @@ typedef Function<double,2> functionT;
 typedef FunctionFactory<double,2> factoryT;
 typedef Tensor<double> tensorT;
 
-static const double PI = 3.1415926535897932384;
 static const int k = 9 ; // Wavelet order (usually precision + 2)
 static const double thresh = 1.e-7 ; // Precision
 static const int init_lev = 2;

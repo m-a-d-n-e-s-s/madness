@@ -221,10 +221,10 @@ struct recpot {
 
 	/// ctor with the nuclear charge to subtract for better interpolation
 
-	/// @param[in]	file_grid 	name of the file with grid points
-	/// @param[in]	file_pot1 	name of the file with the potential on the grid points
-	/// @param[in]	file_pot2 	name of the other file with the potential on the grid points
-	/// @param[in]	Z			nuclear charge (unused at the moment)
+	/// @param[in]	file_grid   name of the file with grid points
+	/// @param[in]	file_pot1   name of the file with the potential on the grid points
+	/// @param[in]	file_pot2   name of the other file with the potential on the grid points
+	/// @param[in]	ZZ          nuclear charge (unused at the moment)
 	recpot(const std::string file_grid, const std::string file_pot1, const std::string file_pot2,
 					const long ZZ) : ZZ(double(ZZ)) {
 
@@ -438,10 +438,10 @@ void orthogonalize(std::vector<real_function_3d>& orbitals, const int ii) {
 
 /// solve the residual equations
 
-/// @param[in]		potential	the effective potential
-/// @param[in]		thresh		the threshold for the error in the orbitals
-/// @param[inout]	eps			guesses for the orbital energies
-/// @param[inout]	orbitals	the first n roots of the equation
+/// @param[in]		potential  the effective potential
+/// @param[in]		thresh     the threshold for the error in the orbitals
+/// @param[in,out]	eps      guesses for the orbital energies
+/// @param[in,out]	orbitals the first n roots of the equation
 void solve(World& world, const real_function_3d& potential, const double thresh, tensorT& eps,
 		std::vector<real_function_3d>& orbitals) {
 
@@ -477,7 +477,7 @@ void solve(World& world, const real_function_3d& potential, const double thresh,
 /// given the density and the trial potential, update the potential to yield the density
 
 /// @param[in]		world	the world
-/// @param[in/out]	potential	the potential to be updated
+/// @param[in,out]	potential	the potential to be updated
 /// @param[in]		density		the density
 /// @param[in]		refdens		the reference density, or target densiy
 void update_potential(World& world, real_function_3d& potential, const real_function_3d& density,

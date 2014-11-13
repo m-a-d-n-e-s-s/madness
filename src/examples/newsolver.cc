@@ -115,8 +115,8 @@ struct allocator {
 /// @param[in]	psi		the orbital
 /// @param[in]	eps		orbital energy for psi
 /// @param[in]	ri		the external perturbation (here: z)
-/// @param[inout]	x	the x part of the response vector
-/// @param[inout]	y	the y part of the response vector
+/// @param[in,out]	x	the x part of the response vector
+/// @param[in,out]	y	the y part of the response vector
 /// @param[in]	omega	the frequency of the external perturbation
 /// @return		the current error in the residual of the response equations
 template <class solverT>

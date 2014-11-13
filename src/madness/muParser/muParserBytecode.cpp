@@ -164,7 +164,7 @@ namespace mu
         <li>the value stored in #mc_iSizeVal number of bytecode entries.</li>
       </ul>
 
-      \param a_pVal Value to be added.
+      \param a_fVal Value to be added.
       \throw nothrow
   */
   void ParserByteCode::AddVal(value_type a_fVal)

@@ -102,7 +102,7 @@ public:
 	/// ctor
 
 	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
+	/// @param[in]	mol molecule with the sites of the nuclei
 	NuclearCorrelationFactor(World& world, const Molecule& mol)
 		: world(world), vtol(FunctionDefaults<3>::get_thresh()*0.1)
 		, molecule(mol) {}
@@ -339,7 +339,7 @@ public:
 	/// ctor
 
 	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
+	/// @param[in]	mol molecule with the sites of the nuclei
 	GaussSlater(World& world, const Molecule& mol)
 		: NuclearCorrelationFactor(world,mol) {
 
@@ -407,7 +407,7 @@ public:
 	/// ctor
 
 	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
+	/// @param[in]	mol molecule with the sites of the nuclei
 	LinearSlater(World& world, const Molecule& mol, const double a)
 		: NuclearCorrelationFactor(world,mol), a_(1.0) {
 
@@ -480,7 +480,7 @@ public:
 	/// ctor
 
 	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
+	/// @param[in]	mol molecule with the sites of the nuclei
 	Slater(World& world, const Molecule& mol, const double a)
 		: NuclearCorrelationFactor(world,mol), a_(1.5) {
 
@@ -540,14 +540,14 @@ private:
 /// A nuclear correlation factor class
 
 /// should reduce to quartic for N=4
-/// @tparam[in]	N	the exponent of the polynomial
+/// @tparam	N	the exponent of the polynomial
 template<std::size_t N>
 class Polynomial : public NuclearCorrelationFactor {
 public:
 	/// ctor
 
 	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
+	/// @param[in]	mol molecule with the sites of the nuclei
 	Polynomial(World& world, const Molecule& mol, const double a)
 		: NuclearCorrelationFactor(world,mol) {
 
@@ -648,7 +648,7 @@ public:
 	/// ctor
 
 	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
+	/// @param[in]	mol molecule with the sites of the nuclei
 	PseudoNuclearCorrelationFactor(World& world, const Molecule& mol,
 			const std::shared_ptr<PotentialManager> pot, const double fac)
 		: NuclearCorrelationFactor(world,mol), potentialmanager(pot), fac(fac) {

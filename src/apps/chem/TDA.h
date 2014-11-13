@@ -164,8 +164,8 @@ struct allocator{
 	World& world;
 	const int noct;
 
-	/// @param[in]	world	the world
-	/// @param[in]	nn		the number of functions in a given vector
+	/// @param[in]	world the world
+	/// @param[in]	nnoct the number of functions in a given vector
 	allocator(World& world, const int nnoct) : world(world), noct(nnoct) {}
 
 	xfunction operator()(){
@@ -203,7 +203,7 @@ private:
 public:
 
 	/// Check if everything is fine within the kain solver (use this when adding or deleting xfunctions)
-	/// @param[in] xfunctions, the xfunctions of the current iteration
+	/// @param[in] xfunctions the xfunctions of the current iteration
 	void sanity_check(const xfunctionsT &xfunctions)const{
 		if(xfunctions.size()!=solver.size()){
 			std::cout << "KAIN SOLVER SANITY CHECK FAILED: Unequal sizes " << xfunctions.size() << " xfunctions and " << solver.size() << " solvers" << std::endl;
@@ -219,9 +219,7 @@ public:
 	/// @param[in] excitations	the number of excitations planned to calculate
 	/// @param[in] nnoct 	the number of occupied (non frozen) orbitals = the number of response orbitals
 	/// @param[in] kain		true if kain should be used, false if not (when false it is just the default initialization)
-	/// @param[in] allatonce	should all xfunctions be solved ad once or not (currently: not)
-	/// @param[in] guess_iter_	number of guess iterations (not needed anymore)
-	void initialize(World &world,const size_t excitations,const size_t nnoct,const bool kain, const size_t kain_subspace){
+	void initialize(World &world, const size_t excitations, const size_t nnoct, const bool kain, const size_t kain_subspace){
 		noct=nnoct;
 		is_used = kain;
 		subspace_size = kain_subspace;
@@ -308,8 +306,8 @@ public:
 	/// @param[in] world the world
 	/// @param[in] xfunctions a vector of vectorfunctions
 	/// @param[in] U the transformation matrix
-	/// @param[out] U*xfunctions : the transformed vector of vectorfunctions
-	std::vector<vecfuncT> transform_vecfunctions(World &world,const std::vector<vecfuncT> &xfunctions,const madness::Tensor<double> U)const{
+	/// @return U*xfunctions : the transformed vector of vectorfunctions
+	std::vector<vecfuncT> transform_vecfunctions(World &world, const std::vector<vecfuncT> &xfunctions, const madness::Tensor<double> U) const {
 
 		std::vector<vecfuncT> new_xfunctions(xfunctions.size());
 		for (std::size_t i = 0; i < xfunctions.size(); i++) {
@@ -347,8 +345,6 @@ public:
 struct diffuse_functions : public FunctionFunctorInterface<double,3> {
 public:
 	/// constructor
-	/// @param[in] L the box size
-	/// @param[in] bc the molecular bounding cube
 	/// @param[in] coord the coordinates (in most cases of nuclei) where the diffuse functions shall be centered
 	/// @param[in] signs the signs the diffuse functions should have on the corresponding coordinates
 	/// @param[in] natoms the number of atoms (if the coordinates are of nuclei) or just the size of the coord vector
@@ -404,7 +400,7 @@ public:
 	/// @param[in] calc 	the SCF calcualtion
 	/// @param[in] mos		the occupied molecular orbitals from the scf calculation
 	/// @param[in] input	name of the input file
-	/// @param[in] lowt		will be used later to ditinguish between low and high threshold computations (not yet implemented)
+	/// @todo add parameter lowt:		will be used later to ditinguish between low and high threshold computations (not yet implemented)
 	TDA(World &world,const SCF &calc,const vecfuncT &mos,const std::string input):
 		world(world),
 		dft_(false),
@@ -782,7 +778,7 @@ private:
 	/// \[
 	///   int[p,i] = \int 1/r12 \phi_i(1) * \phi_p(1)
 	/// \]
-	/// with p \in noct, i \in nocc
+	/// with \f$ p \in noct, i \in nocc \f$
 	std::vector<vecfuncT> exchange_intermediate_;
 
 	/// the coulomb potential
@@ -795,16 +791,16 @@ private:
 	std::vector<xfunction> converged_xfunctions_;
 
 	/// Print the current xfunctions in a formated way
-	/// @param[in] xfunctions, a vector of xfunction structures
+	/// @param[in] xfunctions a vector of xfunction structures
 	void print_status(const xfunctionsT & xfunctions)const;
 
 	/// just a helper function for print_status and others
-	/// @param[in] xfunction, a single xfunction structure
+	/// @param[in] xfunction a single xfunction structure
 	/// the function will print out the information of the xfunction structure (energy, iterations, convergence ...) in a formated way
 	void print_xfunction(const xfunction &x)const;
 
 	/// Takes an empty vector of excitation functions and passes it to one of the guess functions
-	/// @param[in] xfunctions, empty vector of xfunctions (no necessarily empty)
+	/// @param[in] xfunctions empty vector of xfunctions (no necessarily empty)
 	void initialize(xfunctionsT & xfunctions);
 
 	/// Creates physical guess functions (x,y,z excitations - depending on the input file, see make_excitation_operators function)
@@ -816,7 +812,7 @@ private:
 	void add_diffuse_functions(vecfuncT &mos);
 
 	/// Create excitation operators (e.g x,y,z for dipole excitations bzw symmetry operators)
-	/// @param[out] gives back a vectorfunction of excitation operators (specified in the input file)
+	/// @return gives back a vectorfunction of excitation operators (specified in the input file)
 	/// e.g the keyword: "dipole+" in the TDA section of the input file will give back a vecfunction containing (x,y,z,r)
 	vecfuncT make_excitation_operators()const;
 
@@ -830,14 +826,14 @@ private:
 
 	/// iterates the xfunctions
 	// guess: guess inititialisation or final iterations
-	/// @param[in] xfunctions, all excitation structures
-	/// @param[in] guess, for the first iterations (no energy update, no kain update)
+	/// @param[in] xfunctions all excitation structures
+	/// @param[in] guess for the first iterations (no energy update, no kain update)
 	void iterate_all(xfunctionsT &xfunctions,bool guess);
 
 	/// Update process for one xfunction
-	/// @param[in] xfunction, a single xfunction structure (contains the response orbitals as vecfunc x)
-	/// @param[in] ptfock, this should be true if orthonormalize_fock was used before (if false, the function will calculate the expectation value of the xfunction)
-	/// @param[in] guess, true if this is one of the very first iterations (no energy update, no kain update)
+	/// @param[in] xfunction a single xfunction structure (contains the response orbitals as vecfunc x)
+	/// @param[in] ptfock this should be true if orthonormalize_fock was used before (if false, the function will calculate the expectation value of the xfunction)
+	/// @param[in] guess true if this is one of the very first iterations (no energy update, no kain update)
 	void iterate_one(xfunction & xfunction,bool ptfock,bool guess);
 
 	/// basicaly the same than iterate_one
@@ -864,9 +860,9 @@ private:
 	// 1. Call make_perturbed_fock_matrix(xfunctions)
 	// 2. Diagonalize
 	// 3. Update Energy and xfunctions
-	/// @param[in] the xfunctions
-	/// @param[in] guess : is it a guess iterations (the first iterations where the energy is fixed or not
-	/// @param[out] true if the fock update was carried out, false if not
+	/// @param[in] xfunctions the xfunctions
+	/// @param[in] guess is it a guess iterations (the first iterations where the energy is fixed or not
+	/// @return true if the fock update was carried out, false if not
 	bool orthonormalize_fock(xfunctionsT &xfunctions,const bool guess);
 
 	/// a little helper routine to measure the degree of offdiagonality in a 2d tensor
@@ -898,14 +894,14 @@ private:
 	vecfuncT apply_perturbed_potential(const xfunction & xfunction)const;
 
 	/// Calculate the perturbed vector potential for CIS or TDA calculations
-	/// @param[in] xfunction, a single xfunction structure which contains the response orbital vector x
-	/// @param[out] the applied perturbed potential (applied on the unperturbed MOs) given back as vector function
+	/// @param[in] xfunction a single xfunction structure which contains the response orbital vector x
+	/// @return the applied perturbed potential (applied on the unperturbed MOs) given back as vector function
 	vecfuncT apply_gamma(const xfunction &xfunction)const;
 	vecfuncT apply_gamma_dft(const xfunction &xfunction)const;
 
 	/// The perturbed Hartree potential is the same for TDA and CIS
 	/// @param[in] x vectorfunction of response orbitals
-	/// @param[out] the applied perturbed hartree potential
+	/// @return the applied perturbed hartree potential
 	/// the function will evaluate the perturbed density and then calculate the hartree potential
 	vecfuncT apply_hartree_potential(const vecfuncT &x)const;
 
@@ -927,7 +923,7 @@ private:
 	/// Plot vectorfunction (for convenience)
 	/// @param[in] x the vectorfunction to plot
 	/// @param[in] msg the name for the vecfunction plot
-	/// @param[in] plot, if false nothing is done
+	/// @param[in] plot if false nothing is done
 	void plot_vecfunction(const vecfuncT &x,std::string msg, bool plot = true)const;
 
 	/// Check convergence
@@ -939,7 +935,7 @@ private:
 
 	/// Print performance: Values of expectation values and errors of each iteration into a file
 	/// @param[in] xfunctions a vector of xfunction structures
-	/// @param[in] string the saved file will be prename+results.tex
+	/// @param[in] prename the saved file will be prename+results.tex
 	void print_performance(const xfunctionsT &xfunctions,const std::string prename)const;
 
 	/// Truncate the xfunctions structure:
@@ -956,7 +952,7 @@ private:
 	/// f = 2/3 * \omega |<x | \vec \mu | i >| ^2 * 2
 	/// \f]
 	/// where \f$ x \f$ is the excited state, and \f$ i \f$ is the ground state
-	/// @param[in]	root	a converged root
+	/// @param[in]	xfunction	a converged root
 	double oscillator_strength_length(const xfunction& xfunction) const;
 
 	/// compute the oscillator strength in the velocity representation

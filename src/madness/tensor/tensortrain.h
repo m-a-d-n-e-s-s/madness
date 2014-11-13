@@ -363,9 +363,9 @@ namespace madness {
 
 		/// construct a two-mode representation (aka unnormalized SVD)
 
-		/// @param[out] U({i},rank) the left singular vectors
-		/// @param[out] VT(rank,{i}) the right singular vectors
-		/// @param[out]	s(rank) vector holding 1's
+		/// @param[out] U The left singular vectors, ({i},rank)
+		/// @param[out] VT The right singular vectors, (rank,{i})
+		/// @param[out]	s Vector holding 1's, (rank)
 		void two_mode_representation(Tensor<T>& U, Tensor<T>& VT,
 				Tensor< typename Tensor<T>::scalar_type >& s) {
 
@@ -398,8 +398,8 @@ namespace madness {
 
 		/// recompress and truncate this TT representation
 
+      /// this in recompressed TT form with optimal rank
 		/// @param[in]	eps	the truncation threshold
-		/// @return		this in recompressed TT form with optimal rank
 		void truncate(double eps) {
 			eps=eps/sqrt(this->ndim());
 

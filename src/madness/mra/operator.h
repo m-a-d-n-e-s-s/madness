@@ -681,7 +681,6 @@ namespace madness {
         /// get the transformation matrices for 1 term and all dimensions and one displacement
 
         /// use ConvolutionND, which uses ConvolutionData1D to collect the transformation matrices
-        /// @param[in]  key displacement and the modulus of the source translation
         const SeparatedConvolutionInternal<Q,NDIM>
         getmuop_modified(int mu, Level n, const Key<NDIM>& disp, const Key<NDIM>& source) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
@@ -1188,7 +1187,7 @@ namespace madness {
         /// note the unfortunate mess with NDIM: here NDIM is the operator dimension, and FDIM is the
         /// function's dimension, whereas in the function we have OPDIM for the operator and NDIM for
         /// the function
-        /// @tparam FDIM        the dimension of the function this operator is applied on
+        /// @tparam T   the dimension of the function this operator is applied on. \todo MGR: Make sure info on T is correct. Was previously labeled FDIM.
         /// @param[in]  coeff   source coeffs in SVD (=optimal!) form, in high dimensionality (FDIM)
         /// @param[in]  source  the source key in low dimensionality (NDIM)
         /// @param[in]  shift   the displacement in low dimensionality (NDIM)

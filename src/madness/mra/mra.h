@@ -1084,8 +1084,6 @@ namespace madness {
         }
 
         /// With this being an on-demand function, fill the MRA tree according to different criteria
-
-        /// @param[in]  op  the convolution operator for screening
         Function<T,NDIM>& fill_tree(bool fence=true) {
             MADNESS_ASSERT(is_on_demand());
 
@@ -2036,7 +2034,7 @@ namespace madness {
 
     /// symmetrize a function
 
-    /// @param[in]  symmetry; possible are:
+    /// @param[in]  symmetry possibilities are:
     ///                 (anti-) symmetric particle permutation ("sy_particle", "antisy_particle")
     ///                 symmetric mirror plane ("xy", "xz", "yz")
     /// @return     a new function symmetrized according to the input parameter

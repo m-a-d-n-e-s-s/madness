@@ -57,10 +57,10 @@ namespace madness {
 
 	/// if the subspace is linearly dependent the coefficients in c
 	/// will be highly oscillating.
-	/// @param[in]		Q	the input matrix for KAIN
-	/// @param[inout]	c	the coefficients for constructing the new solution
-        /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
-        /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
+	/// @param[in]     Q	the input matrix for KAIN
+	/// @param[in,out] c	the coefficients for constructing the new solution
+   /// @param[in]     rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+   /// @param[in]     cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
 	template<typename C>
 	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c, const double rcondtol, const double cabsmax) {
 		double rcond = 1e-12;
@@ -89,7 +89,7 @@ namespace madness {
     /// \ingroup nonlinearsolve
 	template<size_t NDIM>
 	class NonlinearSolverND {
-		const unsigned int maxsub; //< Maximum size of subspace dimension
+		const unsigned int maxsub; ///< Maximum size of subspace dimension
 		std::vector<Function<double,NDIM> > ulist, rlist;
 		real_tensor Q;
 
@@ -172,7 +172,7 @@ namespace madness {
     /// that the KAIN routine will need extending for anything else.
     template <class T, class C = double, class Alloc = default_allocator<T> >
     class XNonlinearSolver {
-        unsigned int maxsub; //< Maximum size of subspace dimension
+        unsigned int maxsub; ///< Maximum size of subspace dimension
         Alloc alloc;
         std::vector<T> ulist, rlist; ///< Subspace information
         Tensor<C> Q;

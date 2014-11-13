@@ -56,12 +56,12 @@
 template <typename T>
 class CubicInterpolationTable {
 protected:
-    double lo;            //< Interpolation is in range [lo,hi]
-    double hi;            //< Interpolation is in range [lo,hi]
-    double h;             //< Grid spacing
-    double rh;            //< 1/h
-    int npt;              //< No. of grid points
-    std::vector<T> a;           //< (1+4)*npt vector of x and polynomial coefficients
+    double lo;            ///< Interpolation is in range [lo,hi]
+    double hi;            ///< Interpolation is in range [lo,hi]
+    double h;             ///< Grid spacing
+    double rh;            ///< 1/h
+    int npt;              ///< No. of grid points
+    std::vector<T> a;     ///< (1+4)*npt vector of x and polynomial coefficients
 
     // Cubic interp thru 4 points ... not good for noisy data
     static void cubic_fit(const double* x, const T* f, T* a) {

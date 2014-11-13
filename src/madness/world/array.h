@@ -442,7 +442,7 @@ namespace madness {
     /// \tparam T The \c Vector element type
     /// \tparam N The \c Vector size
     /// \param v The \c Vector
-    /// \return \f$ ||v||_2 = \sqrt{\sum_{k=1}^N v_i^2} \f$
+    /// \return The vector norm, \f$ ||v||_2 = \sqrt{\sum_{k=1}^N v_i^2} \f$
     template <typename T, std::size_t N>
     T norm(Vector<T,N> v) {
       T norm2 = 0.0;

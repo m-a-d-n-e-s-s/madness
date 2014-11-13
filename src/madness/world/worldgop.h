@@ -185,13 +185,10 @@ namespace madness {
         public:
 
             /// Constructor
-
-            /// \param ds The distributed container that owns element i
-            /// \param i The element to be moved
             DelayedSend(World& world, const ProcessID dest,
                     const keyT& key, const Future<valueT>& value) :
                         world_(world), dest_(dest), key_(key), value_(value)
-        { }
+            { }
 
             virtual ~DelayedSend() { }
 
@@ -209,7 +206,7 @@ namespace madness {
         /// Receive data from remote node
 
         /// \tparam valueT The data type stored in cache
-        /// \param did The distributed ID
+        /// \param key The distributed ID
         /// \return A future to the data
         template <typename valueT, typename keyT>
         static Future<valueT> recv_internal(const keyT& key) {
@@ -1207,7 +1204,6 @@ namespace madness {
         /// \param key The key associated with this reduction
         /// \param value The local value to be reduced
         /// \param op The reduction operation to be applied to local and remote data
-        /// \param root The process that will receive the result of the reduction
         /// \return A future to the reduce value on the root process, otherwise an
         /// uninitialized future that may be ignored.
         /// \note It is the user's responsibility to ensure that \c key does not
@@ -1265,7 +1261,6 @@ namespace madness {
         /// \param key The key associated with this reduction
         /// \param value The local value to be reduced
         /// \param op The reduction operation to be applied to local and remote data
-        /// \param group_root The group process that will receive the result of the reduction
         /// \param group The group that will preform the reduction
         /// \return A future to the reduce value on the root process, otherwise an
         /// uninitialized future that may be ignored

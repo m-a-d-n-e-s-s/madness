@@ -120,7 +120,7 @@ namespace madness {
     	/// accuracy threshold is still met.
     	/// @param[in]	thresh	the threshold eps: || A - A(truncated) || < eps
     	/// @param[in] 	rank	the number of singular values in w
-    	/// @paran[in]	w		the weights/singular values of A
+    	/// @param[in]	w		the weights/singular values of A
     	/// @return		i		the index of s_max to contribute: w(Slice(0,i)); i.e. inclusive!
     	static int max_sigma(const double& thresh, const int& rank, const Tensor<double>& w) {
 
@@ -1069,9 +1069,9 @@ namespace madness {
 	///  - SVD of the modified overlap (incorporates the roots of eigenvalues)
 	/// operation count is O(kr^2 + r^3)
 	///
-	/// @param[in/out]	x normalized left subspace
-	/// @param[in/out]	y normalize right subspace
-	/// @param[in/out]	weights weights
+	/// @param[in,out]	x normalized left subspace
+	/// @param[in,out]	y normalize right subspace
+	/// @param[in,out]	weights weights
 	/// @param[in]		thresh	truncation threshold
 	template<typename T>
 	void ortho3(Tensor<T>& x, Tensor<T>& y, Tensor<double>& weights, const double& thresh) {
@@ -1244,8 +1244,8 @@ namespace madness {
 	/// does the same as ortho3, but takes two bi-orthonormal configs as input
 	/// and saves on the inner product. Result will be written onto the first config
 	///
-	/// @param[in/out]	x1	left subspace, will hold the result on exit
-	/// @param[in/out]	y1	right subspace, will hold the result on exit
+	/// @param[in,out]	x1	left subspace, will hold the result on exit
+	/// @param[in,out]	y1	right subspace, will hold the result on exit
 	/// @param[in]		x2	left subspace, will be accumulated onto x1
 	/// @param[in]		y2	right subspace, will be accumulated onto y1
 	template<typename T>

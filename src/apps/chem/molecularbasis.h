@@ -390,7 +390,7 @@ public:
 /// Contracted Gaussian basis
 class AtomicBasisSet {
     std::string name;
-    std::vector<AtomicBasis> ag;  //< Basis associated by atomic number = 1, 2, ...; 0=Bq.
+    std::vector<AtomicBasis> ag;  ///< Basis associated by atomic number = 1, 2, ...; 0=Bq.
 
     template <typename T>
     std::vector<T> load_tixml_vector(TiXmlElement* node, int n, const char* name) {
