@@ -21,17 +21,16 @@ int compare(World& world, functionT test, functionT exact, const char *str)
    double error = (exact - test).norm2() ;
    int success;
 
+   if (error < thresh) {
+       success=0;
+   }
+   else {
+       success=1;
+   }
+   /* There should be a reduction over success here... */
    if (world.rank() == 0) {
        std::cerr << "Error in " << str << ": " << error ;
-
-       if (error < thresh) {
-           std::cerr << " PASSED " << std::endl ;
-           success=0;
-       }
-       else {
-           std::cerr << " FAILED " << std::endl ;
-           success=1;
-       }
+       std::cerr << (success==0) ? " PASSED " : " FAILED " << std::endl ;
    }
    return success;
 }
