@@ -9,11 +9,6 @@ MADNESS provides a high-level environment for the solution of integral and diffe
 
 Please look in the wiki for more information and project activity.
 
-Here's a [video](http://www.youtube.com/watch?v=dBwWjmf5Tic) about MADNESS.
-
-# Underneath the hood
-If you would like a glimpse at what's going on under the hood have a look at this call graph generated using the Google perftools. It nicely shows how work is funneled through the task-queue and how about 50% of the time is spent in the optimized matrix routines. The calculation computed the energy and gradient for di-nitrogen using the local density approximation on a two-core Thinkpad x61t.
-
 # Funding
 The developers gratefully acknowledge the support of the Department of Energy, Office of Science, Office of Basic Energy Sciences and Office of Advanced Scientific Computing Research, under contract DE-AC05-00OR22725 with Oak Ridge National Laboratory.
 
