@@ -1,0 +1,9 @@
+language: cpp
+compiler:
+ - gcc
+ - clang
+before_install:
+ - sudo apt-get update -qq
+ - sudo add-apt-repository ppa:hogliux/misstep
+ - sudo apt-get install -y libopenblas-dev liblapack-dev libeigen3-dev mpich2
+script: ./configure && make && make check
