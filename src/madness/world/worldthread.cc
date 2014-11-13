@@ -342,7 +342,7 @@ namespace madness {
         nfinished = 0;
         instance_ptr = this;
         if (nthreads < 0) nthreads = default_nthread();
-
+        MADNESS_ASSERT(nthreads >= 0);
 
         const int rc = pthread_setspecific(ThreadBase::thread_key,
                 static_cast<void*>(&main_thread));
