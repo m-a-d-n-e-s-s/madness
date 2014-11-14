@@ -1,0 +1,3 @@
+[submodule "src/elemental"]
+	path = src/elemental
+	url = https://github.com/elemental/Elemental.git
