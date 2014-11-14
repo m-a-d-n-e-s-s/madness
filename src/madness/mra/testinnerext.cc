@@ -127,6 +127,7 @@ int main(int argc, char** argv) {
         print("***************************************************************************");
         printf("<a|b> (using inner() with Function) =                      %7.10f\n", ab);
         printf("<a|b> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", ab_ffi);
+        printf("<b|a> (using inner() with Function) =                      %7.10f\n", ba);
         printf("<b|a> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", ba_ffi);
         print("***************************************************************************");
     }
