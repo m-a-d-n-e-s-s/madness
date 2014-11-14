@@ -4,6 +4,9 @@
 set -e
 
 # Environment variables
+if [ "$CXX" = "g++" ]; then
+   sudo apt-get install -qq gcc-4.7 g++-4.7
+fi
 export MPICH_CC=$CC
 export MPICH_CXX=$CXX
 export MPICC=/usr/bin/mpicc.mpich2
@@ -14,6 +17,7 @@ export MPICXX=/usr/bin/mpicxx.mpich2
 ./configure \
     --enable-debugging --disable-optimization --enable-warning --disable-optimal \
     --enable-never-spin \
+    CXXFLAGS="-std=c++11"
     LIBS="-L/usr/lib -L/usr/lib/lapack -L/usr/lib/openblas-base -llapack -lopenblas -ltcmalloc_minimal -ltbb -lpthread"
     
 make
