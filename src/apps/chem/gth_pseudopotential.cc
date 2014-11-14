@@ -37,7 +37,8 @@ namespace madness {
         if (!success){
             MADNESS_EXCEPTION("Failed to find element in GTH pseudopotential file", 0);
         }
-
+        
+        return 0.;
     }
 
     const double ProjRLMFunctor::gamma_data[17] = {1.0, 0.0, 1.0/2.0, 0.0, 3.0/4.0, 0.0, 15.0/8.0, 0.0, 105.0/16.0, 0.0, 
