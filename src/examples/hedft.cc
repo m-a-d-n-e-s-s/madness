@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
  			   file.open ("iter"+iter_str.str()+".txt");
 	                   file.precision(12);
 			   coord_3d r(0.0);
-                           double av, avrho, avpot;
+                           /*double av, avrho, avpot;*/
                            //double dx=0.1;
                            //int imax=Length/dx;
                            int imax=1024;
