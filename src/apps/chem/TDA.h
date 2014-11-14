@@ -795,7 +795,7 @@ private:
 	void print_status(const xfunctionsT & xfunctions)const;
 
 	/// just a helper function for print_status and others
-	/// @param[in] xfunction a single xfunction structure
+	/// @param[in] x a single xfunction structure
 	/// the function will print out the information of the xfunction structure (energy, iterations, convergence ...) in a formated way
 	void print_xfunction(const xfunction &x)const;
 
