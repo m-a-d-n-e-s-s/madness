@@ -40,7 +40,7 @@
 
   The source is
   <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/oep.cc>here</a>.
-
+  \todo fix the URL.
 */
 
 #include <chem/mp2.h>
@@ -52,8 +52,8 @@
 
 using namespace madness;
 
-static const double   rcut = 0.01; // Smoothing distance in 1e potential
-static const double d12cut = 0.01; // Smoothing distance in wave function
+//static const double   rcut = 0.01; // Smoothing distance in 1e potential
+//static const double d12cut = 0.01; // Smoothing distance in wave function
 static long ngrid=400;
 
 typedef Tensor<double> tensorT;
@@ -149,7 +149,7 @@ static Tensor<double> read_radial_grid(int k, std::string filename) {
 
 
 /// xyz coord file starts with two lines of meta-data: # atoms and a comment
-static std::vector<std::pair<coord_3d,double> > read_xyz_coord(std::string filename) {
+/*static std::vector<std::pair<coord_3d,double> > read_xyz_coord(std::string filename) {
 
 	typedef std::pair<coord_3d, double> Atom;
 
@@ -184,7 +184,7 @@ static std::vector<std::pair<coord_3d,double> > read_xyz_coord(std::string filen
     MADNESS_ASSERT(i==k);
     file.close();
     return atoms;
-}
+}*/
 
 
 struct molecular_potential {
