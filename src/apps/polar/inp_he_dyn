@@ -1,0 +1,16 @@
+dft
+  protocol 1e-6
+  xc HF
+  polar dynamic
+  response_freq 0.0
+  rconv 1e-4
+  nonrotate
+  maxiter 2000
+  maxsub 1
+end
+
+geometry
+ units angstrom
+ eprec 1e-6
+ He     0.926517     0.000000    -0.239614
+end

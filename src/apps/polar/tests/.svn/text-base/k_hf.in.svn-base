@@ -1,0 +1,14 @@
+# reference values from thakkar -599.1647847 (about 4 dp)
+# Madness should agree to 4 dp and be lower
+
+dft
+  xc hf
+  nopen 1
+  canon
+end
+
+geometry
+  eprec 1e-6
+  k 0 0 0
+end
+

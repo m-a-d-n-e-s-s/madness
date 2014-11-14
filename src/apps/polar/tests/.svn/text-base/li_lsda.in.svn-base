@@ -1,0 +1,15 @@
+# reference value from http://physics.nist.gov/PhysRefData/DFTdata/Tables/ptable.html
+
+# Correct energy to 6d.p. -7.343957
+# Should agree to at least 5 dp
+
+dft
+  xc lda
+  nopen 1
+end
+
+geometry
+  eprec 1e-7
+  li 0 0 0
+end
+

@@ -1,0 +1,841 @@
+MADNESS runtime initialized with 1 threads in the pool and affinity -1 -1 -1
+input_h2o
+
+Angstrom being used to read input coordinates (1 Bohr = 1.88972613 Angstrom)
+
+
+Solving with thresh 1.000000e-04     k 6    dconv 1.000000e-04 
+
+
+
+
+ MADNESS Hartree-Fock and Density Functional Theory Program
+ ----------------------------------------------------------
+
+
+
+ geometry
+   eprec 1.0e-06
+   units atomic
+   H            -1.40069071           0.00000000           0.18139708
+   H            -1.40069071           0.00000000           1.98986499
+   O             0.35017268           0.00000000          -0.27140776
+ end
+
+
+             restart  false
+ number of processes  8
+   no. of io servers  1
+     simulation cube  -5.198986e+01 5.198986e+01
+        total charge  0.000000e+00
+            smearing  0.000000e+00
+ number of electrons  5 5
+  number of orbitals  5 5
+     spin restricted  true
+       xc functional   HF
+         xc libraray  default (lda only)
+ initial guess basis  6-31g
+ max krylov subspace  8
+    compute protocol  [1.000000e-06]
+ density convergence  1.000000e-04
+ response convergence  1.000000e-04
+    maximum rotation  2.500000e-01
+ Convergence criteria are density delta & BSH residual.
+        plot density  false
+        plot coulomb  false
+        plot orbital  0 -1
+        plot npoints  101
+        plot  volume  default
+  localized orbitals  pm
+
+Solving with thresh 1.000000e-04     k 6    dconv 1.000000e-04 
+
+timer:     Project vnuclear     0.58s     0.58s
+
+Solving with thresh 1.000000e-06     k 8    dconv 1.000000e-04 
+
+
+Solving with thresh 1.000000e-06     k 8    dconv 1.000000e-04 
+
+timer:     Project vnuclear     1.09s     1.09s
+timer:     project ao basis     1.04s     1.04s
+timer:        guess density     1.15s     1.15s
+guess dens trace 1.000006e+01
+timer:        guess loadbal     0.43s     0.43s
+timer:   guess Coulomb potn     3.11s     3.11s
+timer:     guess Kinet potn     1.11s     1.11s
+timer:      guess eigen sol     0.00s     0.00s
+alpha set 0 0-0
+alpha set 1 1-4
+timer:     project ao basis     1.13s     1.13s
+
+Iteration 0 at time 12.6s
+
+timer: Pipek-Mezy distribut     0.04s     0.04s
+timer:       Make densities     0.08s     0.08s
+timer:       Load balancing     0.44s     0.44s
+timer:              Coulomb     1.47s     1.47s
+timer:                V*psi     0.29s     0.29s
+timer:          HF exchange     9.66s     9.66s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.58s     0.58s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      77.41872287
+   nuclear attraction    -199.82506677
+              coulomb      48.07549355
+ exchange-correlation      -9.08358273
+    nuclear-repulsion       7.77391551
+                total     -75.64051758
+
+entering apply
+timer:            Apply BSH     9.11s     9.11s
+timer:     Truncate new psi     0.35s     0.35s
+residuals [6.106430e-03, 1.019620e-01, 1.015799e-01, 2.136359e-01, 2.118991e-01]
+BSH residual: rms 1.491935e-01    max 2.136359e-01
+Subspace solution [*]  1.0000e+00
+
+timer:   Subspace transform     0.01s     0.01s
+Norm of vector changes alpha: rms 1.491935e-01    max 2.136359e-01
+timer:       Orthonormalize     0.05s     0.05s
+
+Iteration 1 at time 35.0s
+
+timer: Pipek-Mezy distribut     0.03s     0.03s
+timer:       Make densities     0.10s     0.10s
+timer:       Load balancing     0.48s     0.48s
+delta rho 1.475760e-01 1.475760e-01 residuals 2.136359e-01 2.136359e-01
+timer:              Coulomb     2.04s     2.04s
+timer:                V*psi     0.29s     0.29s
+timer:          HF exchange    10.52s    10.52s
+timer:        Truncate Vpsi     0.09s     0.09s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.73s     0.73s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      74.56042469
+   nuclear attraction    -193.76982725
+              coulomb      44.20913527
+ exchange-correlation      -8.60135540
+    nuclear-repulsion       7.77391551
+                total     -75.82770719
+
+entering apply
+timer:            Apply BSH     8.43s     8.43s
+timer:     Truncate new psi     0.37s     0.37s
+residuals [1.685353e-03, 2.790164e-02, 4.964274e-02, 6.471543e-02, 6.928874e-02]
+BSH residual: rms 4.946668e-02    max 6.928874e-02
+Subspace solution [*]  1.9236e-01  8.0764e-01
+
+timer:   Subspace transform     0.03s     0.03s
+Norm of vector changes alpha: rms 3.773461e-02    max 5.046113e-02
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 2 at time 58.5s
+
+timer: Pipek-Mezy distribut     0.04s     0.04s
+timer:       Make densities     0.10s     0.10s
+delta rho 4.167526e-02 4.167526e-02 residuals 6.928874e-02 5.046113e-02
+timer:              Coulomb     1.42s     1.42s
+timer:                V*psi     0.30s     0.30s
+timer:          HF exchange    10.11s    10.11s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.72s     0.72s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.53603049
+   nuclear attraction    -195.68387496
+              coulomb      45.26605457
+ exchange-correlation      -8.75097874
+    nuclear-repulsion       7.77391551
+                total     -75.85885313
+
+entering apply
+timer:            Apply BSH     8.09s     8.09s
+timer:     Truncate new psi     0.36s     0.36s
+residuals [3.348411e-04, 1.769583e-02, 9.017336e-03, 1.890686e-02, 1.433112e-02]
+BSH residual: rms 1.383775e-02    max 1.890686e-02
+Subspace solution [*] -2.0922e-01  1.2092e+00
+
+timer:   Subspace transform     0.03s     0.03s
+Norm of vector changes alpha: rms 1.533091e-02    max 2.225878e-02
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 3 at time 80.2s
+
+timer: Pipek-Mezy distribut     0.05s     0.05s
+timer:       Make densities     0.11s     0.11s
+delta rho 1.134745e-02 1.134745e-02 residuals 1.890686e-02 2.225878e-02
+timer:              Coulomb     1.53s     1.53s
+timer:                V*psi     0.29s     0.29s
+timer:          HF exchange    10.30s    10.30s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.81s     0.81s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.64706364
+   nuclear attraction    -195.79711486
+              coulomb      45.27251610
+ exchange-correlation      -8.76229725
+    nuclear-repulsion       7.77391551
+                total     -75.86591686
+
+entering apply
+timer:            Apply BSH     8.08s     8.08s
+timer:     Truncate new psi     0.35s     0.35s
+residuals [3.415336e-04, 1.224874e-02, 5.505085e-03, 1.248800e-02, 8.099966e-03]
+BSH residual: rms 8.966760e-03    max 1.248800e-02
+Subspace solution [*]  4.7986e-02 -1.5017e+00  2.4537e+00
+
+timer:   Subspace transform     0.04s     0.04s
+Norm of vector changes alpha: rms 2.868880e-02    max 4.401602e-02
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 4 at time 102.3s
+
+timer: Pipek-Mezy distribut     0.03s     0.03s
+timer:       Make densities     0.11s     0.11s
+delta rho 1.801141e-02 1.801141e-02 residuals 1.248800e-02 4.401602e-02
+timer:              Coulomb     1.79s     1.79s
+timer:                V*psi     0.30s     0.30s
+timer:          HF exchange    11.14s    11.14s
+timer:        Truncate Vpsi     0.09s     0.09s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.84s     0.84s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.74977907
+   nuclear attraction    -195.85270956
+              coulomb      45.23189366
+ exchange-correlation      -8.77459458
+    nuclear-repulsion       7.77391551
+                total     -75.87171590
+
+entering apply
+timer:            Apply BSH     8.73s     8.73s
+timer:     Truncate new psi     0.39s     0.39s
+residuals [7.053968e-04, 5.206336e-03, 3.709589e-03, 7.724909e-03, 5.043484e-03]
+BSH residual: rms 5.029424e-03    max 7.724909e-03
+Subspace solution [*]  2.4279e-02  1.2243e+00 -2.7663e+00  2.5177e+00
+
+timer:   Subspace transform     0.05s     0.05s
+Norm of vector changes alpha: rms 3.158613e-02    max 4.607107e-02
+timer:       Orthonormalize     0.07s     0.07s
+
+Iteration 5 at time 126.3s
+
+timer: Pipek-Mezy distribut     0.07s     0.07s
+timer:       Make densities     0.11s     0.11s
+delta rho 1.427103e-02 1.427103e-02 residuals 7.724909e-03 4.607107e-02
+timer:              Coulomb     1.91s     1.91s
+timer:                V*psi     0.30s     0.30s
+timer:          HF exchange    11.47s    11.47s
+timer:        Truncate Vpsi     0.09s     0.09s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.81s     0.81s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.76468953
+   nuclear attraction    -195.80761478
+              coulomb      45.17489044
+ exchange-correlation      -8.77992664
+    nuclear-repulsion       7.77391551
+                total     -75.87404595
+
+entering apply
+timer:            Apply BSH     8.65s     8.65s
+timer:     Truncate new psi     0.37s     0.37s
+residuals [7.185700e-04, 1.615091e-03, 1.890073e-03, 3.805285e-03, 5.496882e-04]
+BSH residual: rms 2.072659e-03    max 3.805285e-03
+Subspace solution [*]  3.1143e-03 -5.7916e-02  1.5109e-01 -3.8473e-01  1.2884e+00
+
+timer:   Subspace transform     0.06s     0.06s
+Norm of vector changes alpha: rms 7.737820e-03    max 1.160751e-02
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 6 at time 150.7s
+
+timer: Pipek-Mezy distribut     0.10s     0.10s
+timer:       Make densities     0.10s     0.10s
+delta rho 3.525342e-03 3.525342e-03 residuals 3.805285e-03 1.160751e-02
+timer:              Coulomb     1.22s     1.22s
+timer:                V*psi     0.30s     0.30s
+timer:          HF exchange     9.84s     9.84s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.70s     0.70s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.76452492
+   nuclear attraction    -195.79244590
+              coulomb      45.15960619
+ exchange-correlation      -8.78046579
+    nuclear-repulsion       7.77391551
+                total     -75.87486507
+
+entering apply
+timer:            Apply BSH     7.95s     7.95s
+timer:     Truncate new psi     0.34s     0.34s
+residuals [5.219741e-05, 6.497643e-04, 1.091713e-03, 2.378465e-03, 5.355808e-04]
+BSH residual: rms 1.229691e-03    max 2.378465e-03
+Subspace solution [*]  2.1845e-03 -2.2091e-01  4.3473e-01 -1.8856e-01 -9.9618e-01  1.9687e+00
+
+timer:   Subspace transform     0.07s     0.07s
+Norm of vector changes alpha: rms 4.653033e-03    max 7.624842e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 7 at time 172.0s
+
+timer: Pipek-Mezy distribut     0.03s     0.03s
+timer:       Make densities     0.10s     0.10s
+delta rho 2.332395e-03 2.332395e-03 residuals 2.378465e-03 7.624842e-03
+timer:              Coulomb     1.68s     1.68s
+timer:                V*psi     0.31s     0.31s
+timer:          HF exchange    11.29s    11.29s
+timer:        Truncate Vpsi     0.09s     0.09s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.82s     0.82s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.76690557
+   nuclear attraction    -195.78983181
+              coulomb      45.15457326
+ exchange-correlation      -8.78054807
+    nuclear-repulsion       7.77391551
+                total     -75.87498554
+
+entering apply
+timer:            Apply BSH     8.51s     8.51s
+timer:     Truncate new psi     0.35s     0.35s
+residuals [1.392537e-04, 2.369633e-04, 4.233222e-04, 1.296012e-03, 2.919794e-04]
+BSH residual: rms 6.355541e-04    max 1.296012e-03
+Subspace solution [*]  9.4363e-05  9.2314e-02 -2.0866e-01  1.5311e-01  1.8427e-01 -8.6619e-01  1.6451e+00
+
+timer:   Subspace transform     0.08s     0.08s
+Norm of vector changes alpha: rms 2.782132e-03    max 4.697957e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 8 at time 195.8s
+
+timer: Pipek-Mezy distribut     0.03s     0.03s
+timer:       Make densities     0.10s     0.10s
+delta rho 1.392014e-03 1.392014e-03 residuals 1.296012e-03 4.697957e-03
+timer:              Coulomb     1.65s     1.65s
+timer:                V*psi     0.31s     0.31s
+timer:          HF exchange    10.65s    10.65s
+timer:        Truncate Vpsi     0.09s     0.09s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.79s     0.79s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.77041534
+   nuclear attraction    -195.79186991
+              coulomb      45.15343228
+ exchange-correlation      -8.78093096
+    nuclear-repulsion       7.77391551
+                total     -75.87503773
+
+entering apply
+timer:            Apply BSH     8.42s     8.42s
+timer:     Truncate new psi     0.41s     0.41s
+residuals [5.029698e-05, 1.455557e-04, 1.565946e-04, 7.887615e-04, 1.529661e-04]
+BSH residual: rms 3.725000e-04    max 7.887615e-04
+Subspace solution [*]  3.7986e-03 -5.4742e-02  9.2836e-02 -6.6306e-02 -5.1950e-02  3.5225e-01 -1.2592e+00  1.9834e+00
+
+timer:   Subspace transform     0.09s     0.09s
+Norm of vector changes alpha: rms 2.106745e-03    max 3.745611e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 9 at time 219.0s
+
+timer: Pipek-Mezy distribut     0.10s     0.10s
+timer:       Make densities     0.10s     0.10s
+delta rho 1.163666e-03 1.163666e-03 residuals 7.887615e-04 3.745611e-03
+timer:              Coulomb     1.43s     1.43s
+timer:                V*psi     0.29s     0.29s
+timer:          HF exchange    10.30s    10.30s
+timer:        Truncate Vpsi     0.09s     0.09s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.78s     0.78s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.77248940
+   nuclear attraction    -195.79044257
+              coulomb      45.15010675
+ exchange-correlation      -8.78114061
+    nuclear-repulsion       7.77391551
+                total     -75.87507152
+
+entering apply
+timer:            Apply BSH     8.38s     8.38s
+timer:     Truncate new psi     0.35s     0.35s
+residuals [5.945501e-05, 1.043973e-02, 2.752269e-03, 7.008374e-03, 5.746945e-03]
+BSH residual: rms 6.304144e-03    max 1.043973e-02
+Subspace solution [*] -9.9245e-02  2.7667e-01 -1.2625e-01 -1.3962e-01  4.7832e-01 -1.5531e+00  2.3449e+00 -1.8164e-01
+
+timer:   Subspace transform     0.10s     0.10s
+Norm of vector changes alpha: rms 7.951260e-03    max 1.239582e-02
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 10 at time 241.6s
+
+timer: Pipek-Mezy distribut     0.06s     0.06s
+timer:       Make densities     0.11s     0.11s
+timer:       Load balancing     0.76s     0.76s
+delta rho 3.075313e-03 3.075313e-03 residuals 1.043973e-02 1.239582e-02
+timer:              Coulomb     1.69s     1.69s
+timer:                V*psi     0.29s     0.29s
+timer:          HF exchange    11.13s    11.13s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.82s     0.82s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.76532041
+   nuclear attraction    -195.80078878
+              coulomb      45.16690884
+ exchange-correlation      -8.78032628
+    nuclear-repulsion       7.77391551
+                total     -75.87497030
+
+entering apply
+timer:            Apply BSH     8.06s     8.06s
+timer:     Truncate new psi     0.33s     0.33s
+residuals [6.889815e-05, 1.455200e-03, 3.374470e-04, 1.397072e-03, 7.445147e-04]
+BSH residual: rms 9.738931e-04    max 1.455200e-03
+Subspace solution [*] -3.8242e-02 -3.7231e-02 -6.7519e-02  5.4374e-01 -8.1851e-01 -1.9574e-01 -1.8705e-01  1.8006e+00
+
+timer:   Subspace transform     0.09s     0.09s
+Norm of vector changes alpha: rms 1.512843e-03    max 2.519304e-03
+timer:       Orthonormalize     0.05s     0.05s
+
+Iteration 11 at time 265.6s
+
+timer: Pipek-Mezy distribut     0.07s     0.07s
+timer:       Make densities     0.11s     0.11s
+delta rho 6.786620e-04 6.786620e-04 residuals 1.455200e-03 2.519304e-03
+timer:              Coulomb     1.50s     1.50s
+timer:                V*psi     0.29s     0.29s
+timer:          HF exchange    11.49s    11.49s
+timer:        Truncate Vpsi     0.07s     0.07s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.73s     0.73s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.76583184
+   nuclear attraction    -195.80306599
+              coulomb      45.16902815
+ exchange-correlation      -8.78067176
+    nuclear-repulsion       7.77391551
+                total     -75.87496225
+
+entering apply
+timer:            Apply BSH     7.59s     7.59s
+timer:     Truncate new psi     0.32s     0.32s
+residuals [2.102334e-05, 1.994621e-03, 4.993995e-04, 1.563822e-03, 1.010882e-03]
+BSH residual: rms 1.240627e-03    max 1.994621e-03
+Subspace solution [*]  4.8619e-02 -8.5201e-02 -1.1439e-01  5.1309e-01 -1.6013e-01 -2.6811e-01 -1.2298e+00  2.2959e+00
+
+timer:   Subspace transform     0.11s     0.11s
+Norm of vector changes alpha: rms 2.313949e-03    max 2.838819e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 12 at time 288.5s
+
+timer: Pipek-Mezy distribut     0.05s     0.05s
+timer:       Make densities     0.10s     0.10s
+delta rho 1.085653e-03 1.085653e-03 residuals 1.994621e-03 2.838819e-03
+timer:              Coulomb     1.64s     1.64s
+timer:                V*psi     0.31s     0.31s
+timer:          HF exchange    11.44s    11.44s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.81s     0.81s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.76222760
+   nuclear attraction    -195.80330884
+              coulomb      45.17263081
+ exchange-correlation      -8.78035052
+    nuclear-repulsion       7.77391551
+                total     -75.87488545
+
+entering apply
+timer:            Apply BSH     7.78s     7.78s
+timer:     Truncate new psi     0.32s     0.32s
+residuals [1.665181e-05, 2.824539e-03, 7.453480e-04, 1.991926e-03, 1.434039e-03]
+BSH residual: rms 1.706346e-03    max 2.824539e-03
+Subspace solution [*]  2.4968e-02 -2.4400e-02 -1.5493e-01  4.2905e-01 -3.3358e-01 -2.9160e-01 -2.0246e-01  1.5530e+00
+
+timer:   Subspace transform     0.09s     0.09s
+Norm of vector changes alpha: rms 2.155207e-03    max 2.876013e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 13 at time 311.8s
+
+timer: Pipek-Mezy distribut     0.04s     0.04s
+timer:       Make densities     0.10s     0.10s
+delta rho 9.816667e-04 9.816667e-04 residuals 2.824539e-03 2.876013e-03
+timer:              Coulomb     1.43s     1.43s
+timer:                V*psi     0.30s     0.30s
+timer:          HF exchange    11.09s    11.09s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.80s     0.80s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.76076949
+   nuclear attraction    -195.80706274
+              coulomb      45.17788725
+ exchange-correlation      -8.78031044
+    nuclear-repulsion       7.77391551
+                total     -75.87480093
+
+entering apply
+timer:            Apply BSH     7.58s     7.58s
+timer:     Truncate new psi     0.32s     0.32s
+residuals [1.862011e-05, 3.530718e-03, 9.487514e-04, 2.374814e-03, 1.791563e-03]
+BSH residual: rms 2.107885e-03    max 3.530718e-03
+Increasing subspace singular value threshold  1.900437e+01 1.000000e-12
+Increasing subspace singular value threshold  1.900437e+01 1.000000e-10
+Increasing subspace singular value threshold  1.900437e+01 1.000000e-08
+Increasing subspace singular value threshold  1.900437e+01 1.000000e-06
+Subspace solution [*]  1.1774e-01 -7.7786e-01  1.3355e+00 -3.4263e-01  8.8207e-02 -6.4585e-01 -6.9058e-01  1.9154e+00
+
+timer:   Subspace transform     0.09s     0.09s
+Norm of vector changes alpha: rms 1.200663e-03    max 1.827746e-03
+timer:       Orthonormalize     0.07s     0.07s
+
+Iteration 14 at time 334.2s
+
+timer: Pipek-Mezy distribut     0.04s     0.04s
+timer:       Make densities     0.11s     0.11s
+delta rho 5.440975e-04 5.440975e-04 residuals 3.530718e-03 1.827746e-03
+timer:              Coulomb     1.64s     1.64s
+timer:                V*psi     0.30s     0.30s
+timer:          HF exchange    11.67s    11.67s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.81s     0.81s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.76021569
+   nuclear attraction    -195.80627267
+              coulomb      45.17756480
+ exchange-correlation      -8.78021081
+    nuclear-repulsion       7.77391551
+                total     -75.87478748
+
+entering apply
+timer:            Apply BSH     7.96s     7.96s
+timer:     Truncate new psi     0.33s     0.33s
+residuals [2.070075e-05, 3.618233e-03, 9.809493e-04, 2.413581e-03, 1.854912e-03]
+BSH residual: rms 2.159647e-03    max 3.618233e-03
+Increasing subspace singular value threshold  6.757863e+00 1.000000e-12
+Increasing subspace singular value threshold  6.757863e+00 1.000000e-10
+Increasing subspace singular value threshold  6.757863e+00 1.000000e-08
+Increasing subspace singular value threshold  6.757863e+00 1.000000e-06
+Increasing subspace singular value threshold  3.425553e+00 1.000000e-04
+Subspace solution [*] -8.0853e-02  9.4833e-02 -4.8587e-01  1.5146e-02  7.4335e-02  3.8759e-02  6.8714e-03  1.3368e+00
+
+timer:   Subspace transform     0.10s     0.10s
+Norm of vector changes alpha: rms 5.225778e-03    max 7.290020e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 15 at time 357.9s
+
+timer: Pipek-Mezy distribut     0.09s     0.09s
+timer:       Make densities     0.09s     0.09s
+delta rho 2.197869e-03 2.197869e-03 residuals 3.618233e-03 7.290020e-03
+timer:              Coulomb     1.48s     1.48s
+timer:                V*psi     0.32s     0.32s
+timer:          HF exchange    10.62s    10.62s
+timer:        Truncate Vpsi     0.09s     0.09s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.75s     0.75s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.75595087
+   nuclear attraction    -195.81443503
+              coulomb      45.19001345
+ exchange-correlation      -8.77996204
+    nuclear-repulsion       7.77391551
+                total     -75.87451725
+
+entering apply
+timer:            Apply BSH     7.51s     7.51s
+timer:     Truncate new psi     0.32s     0.32s
+residuals [2.710631e-05, 5.144124e-03, 1.360091e-03, 3.304069e-03, 2.625528e-03]
+BSH residual: rms 3.037198e-03    max 5.144124e-03
+Increasing subspace singular value threshold  -3.026075e+00 1.000000e-12
+Increasing subspace singular value threshold  -3.026075e+00 1.000000e-10
+Increasing subspace singular value threshold  -3.026075e+00 1.000000e-08
+Increasing subspace singular value threshold  -3.026075e+00 1.000000e-06
+Subspace solution [*]  3.7693e-01 -5.6872e-01 -9.5509e-01  2.9296e+00 -2.3355e+00 -2.1543e+00  2.1929e+00  1.5143e+00
+
+timer:   Subspace transform     0.10s     0.10s
+Norm of vector changes alpha: rms 6.622355e-03    max 9.522209e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 16 at time 379.9s
+
+timer: Pipek-Mezy distribut     0.06s     0.06s
+timer:       Make densities     0.12s     0.12s
+delta rho 1.951255e-03 1.951255e-03 residuals 5.144124e-03 9.522209e-03
+timer:              Coulomb     1.91s     1.91s
+timer:                V*psi     0.31s     0.31s
+timer:          HF exchange    12.07s    12.07s
+timer:        Truncate Vpsi     0.09s     0.09s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.89s     0.89s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.75315896
+   nuclear attraction    -195.81654341
+              coulomb      45.19491065
+ exchange-correlation      -8.77975226
+    nuclear-repulsion       7.77391551
+                total     -75.87431056
+
+entering apply
+timer:            Apply BSH     8.03s     8.03s
+timer:     Truncate new psi     0.34s     0.34s
+residuals [3.566007e-05, 5.966166e-03, 1.585339e-03, 3.768721e-03, 3.127456e-03]
+BSH residual: rms 3.524030e-03    max 5.966166e-03
+Increasing subspace singular value threshold  4.143460e+00 1.000000e-12
+Increasing subspace singular value threshold  4.143460e+00 1.000000e-10
+Increasing subspace singular value threshold  4.143460e+00 1.000000e-08
+Increasing subspace singular value threshold  4.143460e+00 1.000000e-06
+Subspace solution [*] -6.1835e-01 -8.5746e-02  5.4809e-01  5.3118e-01 -1.9567e-01  8.5652e-01 -2.2097e+00  2.1737e+00
+
+timer:   Subspace transform     0.10s     0.10s
+Norm of vector changes alpha: rms 3.939817e-03    max 5.120645e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 17 at time 404.4s
+
+timer: Pipek-Mezy distribut     0.04s     0.04s
+timer:       Make densities     0.11s     0.11s
+delta rho 1.403201e-03 1.403201e-03 residuals 5.966166e-03 5.120645e-03
+timer:              Coulomb     1.58s     1.58s
+timer:                V*psi     0.28s     0.28s
+timer:          HF exchange    11.26s    11.26s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.75s     0.75s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.75216339
+   nuclear attraction    -195.82048606
+              coulomb      45.20000223
+ exchange-correlation      -8.77975200
+    nuclear-repulsion       7.77391551
+                total     -75.87415693
+
+entering apply
+timer:            Apply BSH     7.79s     7.79s
+timer:     Truncate new psi     0.33s     0.33s
+residuals [3.603983e-05, 6.512396e-03, 1.726817e-03, 4.083991e-03, 3.471452e-03]
+BSH residual: rms 3.850311e-03    max 6.512396e-03
+Subspace solution [*] -6.8705e-01  3.0150e+00 -3.3326e+00 -6.6255e-01  4.2257e+00 -1.2870e+00  2.5373e-01 -5.2512e-01
+
+timer:   Subspace transform     0.10s     0.10s
+Norm of vector changes alpha: rms 2.757446e-02    max 3.704908e-02
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 18 at time 427.4s
+
+timer: Pipek-Mezy distribut     0.05s     0.05s
+timer:       Make densities     0.11s     0.11s
+delta rho 1.045379e-02 1.045379e-02 residuals 6.512396e-03 3.704908e-02
+timer:              Coulomb     1.98s     1.98s
+timer:                V*psi     0.32s     0.32s
+timer:          HF exchange    12.83s    12.83s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.83s     0.83s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.77236200
+   nuclear attraction    -195.78886288
+              coulomb      45.14864297
+ exchange-correlation      -8.78110704
+    nuclear-repulsion       7.77391551
+                total     -75.87504944
+
+entering apply
+timer:            Apply BSH     8.08s     8.08s
+timer:     Truncate new psi     0.31s     0.31s
+residuals [1.623645e-05, 1.326129e-04, 1.913999e-04, 3.698945e-04, 7.687011e-05]
+BSH residual: rms 1.986024e-04    max 3.698945e-04
+Increasing subspace singular value threshold  4.835475e+00 1.000000e-12
+Increasing subspace singular value threshold  4.835475e+00 1.000000e-10
+Increasing subspace singular value threshold  4.835475e+00 1.000000e-08
+Increasing subspace singular value threshold  4.835475e+00 1.000000e-06
+Subspace solution [*] -5.6565e-01 -1.2959e-01  9.2874e-02  2.7125e-01  1.5878e-01  7.7376e-02 -1.6888e-01  1.2638e+00
+
+timer:   Subspace transform     0.09s     0.09s
+Norm of vector changes alpha: rms 1.580988e-03    max 2.634780e-03
+timer:       Orthonormalize     0.06s     0.06s
+
+Iteration 19 at time 452.7s
+
+timer: Pipek-Mezy distribut     0.03s     0.03s
+timer:       Make densities     0.10s     0.10s
+delta rho 5.496483e-04 5.496483e-04 residuals 3.698945e-04 2.634780e-03
+timer:              Coulomb     1.31s     1.31s
+timer:                V*psi     0.28s     0.28s
+timer:          HF exchange    10.92s    10.92s
+timer:        Truncate Vpsi     0.08s     0.08s
+timer:            PE matrix     0.01s     0.01s
+timer:            KE matrix     0.75s     0.75s
+timer: Make fock matrix res     0.00s     0.00s
+
+              kinetic      75.77261740
+   nuclear attraction    -195.78711433
+              coulomb      45.14662664
+ exchange-correlation      -8.78111326
+    nuclear-repulsion       7.77391551
+                total     -75.87506805
+
+entering apply
+timer:            Apply BSH     7.39s     7.39s
+timer:     Truncate new psi     0.31s     0.31s
+residuals [3.112425e-06, 1.608024e-04, 1.606913e-04, 2.067770e-04, 9.934132e-05]
+BSH residual: rms 1.444398e-04    max 2.067770e-04
+Subspace solution [*] -7.0289e+00  1.1575e+01 -1.0961e+01  3.3430e+00  2.6286e+00 -2.1338e+00  1.7292e+00  1.8477e+00
+
+timer:   Subspace transform     0.09s     0.09s
+Norm of vector changes alpha: rms 1.207408e-02    max 1.646225e-02
+timer:       Orthonormalize     0.06s     0.06s
+Orbitals are localized - energies are diagonal Fock matrix elements
+
+Analysis of alpha MO vectors
+timer:  compute eigen gesv      0.00s     0.00s
+  MO   0 : occ=1.00 : energy= -18.77650232 : center=(0.35,0.00,-0.27) : radius=0.23
+            O(2)   s( 4) 0.995  
+  MO   1 : occ=1.00 : energy=  -0.98377522 : center=(-0.88,0.01,0.57) : radius=1.49
+            H(0)   s( 0) 0.338     O(2)  px( 6)-0.290     H(1)   s( 2) 0.227     O(2)   s( 5) 0.195     H(1)   s( 3) 0.170     O(2)  pz( 8) 0.161     O(2)  px(10)-0.146  
+  MO   2 : occ=1.00 : energy=  -0.51938681 : center=(0.78,-0.01,-0.23) : radius=1.34
+            O(2)   s( 9) 0.595     O(2)   s( 5) 0.473     O(2)  px( 6) 0.275     O(2)   s( 4)-0.211  
+  MO   3 : occ=1.00 : energy=  -0.38001351 : center=(-0.07,-0.00,-0.12) : radius=1.79
+            O(2)  pz( 8) 0.448     O(2)  pz(12) 0.355     O(2)  px( 6) 0.352     H(1)   s( 3) 0.283     O(2)  px(10) 0.215     H(1)   s( 2) 0.169  
+  MO   4 : occ=1.00 : energy=  -0.35908222 : center=(0.28,0.01,-0.24) : radius=1.52
+            O(2)  py( 7) 0.638     O(2)  py(11) 0.509  
+
+
+
+
+ ------------------------------------------------------------------------------
+ |                MADNESS RESPONSE FUNCTION SOLVATION MODULE                  |
+ ------------------------------------------------------------------------------
+ 
+
+
+ eps_alpha =  [*] -1.8777e+01 -9.8378e-01 -5.1939e-01 -3.8001e-01 -3.5908e-01
+
+ frequency =  0.000000e+00
+ number of alpha orbital =  5
+ number of beta orbital =  5
+ kx(alpha) [ 0 ] : sqrt(-2 * (eps + omega)) =  6.128051e+00
+ kx(alpha) [ 1 ] : sqrt(-2 * (eps + omega)) =  1.402694e+00
+ kx(alpha) [ 2 ] : sqrt(-2 * (eps + omega)) =  1.019202e+00
+ kx(alpha) [ 3 ] : sqrt(-2 * (eps + omega)) =  8.717953e-01
+ kx(alpha) [ 4 ] : sqrt(-2 * (eps + omega)) =  8.474458e-01
+timer:  Make frequency term     0.00s     0.00s
+timer:       Make densities     0.11s     0.11s
+timer:          Make delrho     0.00s     0.00s
+timer:              Coulomb     2.07s     2.07s
+
+
+
+
+
+
+timer:           Make BSHOp     0.00s     0.00s
+
+
+
+
+ AXIS of frequency = x
+ Frequency for response function =  0.000000e+00
+
+
+
+
+
+
+timer:    Make perturbation     0.07s     0.07s
+
+Iteration 0 at time 478.5s
+
+
+make initial guess for response function
+timer:                V*dmo     0.28s     0.28s
+timer:          HF exchange    14.14s    14.14s
+timer:        Truncate Vdmo     0.08s     0.08s
+timer:    Calc derivative V    83.99s    83.99s
+timer:   Make response func     9.54s     9.54s
+
+Iteration 1 at time 586.9s
+
+timer:                V*dmo     0.35s     0.35s
+timer:          HF exchange    30.76s    30.76s
+timer:        Truncate Vdmo     0.09s     0.09s
+timer:    Calc derivative V   130.57s   130.57s
+timer:     Sum rhs response     0.23s     0.23s
+timer:   Make response func    12.17s    12.17s
+timer:         Residual X,Y     0.20s     0.20s
+
+residuals_response (first) =  1.255266e+00
+CURRENT_X_norm2() =  4.466503e+00
+Response Subspace solution [*]  1.0000e+00
+
+timer:   Subspace transform     0.12s     0.12s
+  restricting step for alpha orbitals: 1 2 3 4
+  restricting step for alpha orbitals: 1 2 3 4
+  restricting step for  beta orbitals: 0 1 2 3 4
+  restricting step for  beta orbitals: 0 1 2 3 4
+new X (alpha) norm2() =  4.290661e+00
+new Y (alpha) norm2() =  4.290661e+00
+timer:         Residual X,Y     0.11s     0.11s
+
+residuals_response (final) =  1.505266e+00
+rconv *(param.nalpha + param.nbeta)*2 2.000000e-03
+timer: Update response func 15299392.75s   762.01s
+
+Iteration 2 at time 762.1s
+
+timer:                V*dmo     0.36s     0.36s
+timer:          HF exchange    26.52s    26.52s
+timer:        Truncate Vdmo     0.09s     0.09s
+timer:    Calc derivative V   112.28s   112.28s
+timer:     Sum rhs response     0.19s     0.19s
+timer:   Make response func     9.48s     9.48s
+timer:         Residual X,Y     0.23s     0.23s
+
+residuals_response (first) =  6.662015e-01
+CURRENT_X_norm2() =  3.577945e+00
+Response Subspace solution [*] -1.4006e+00  2.4006e+00
+
+timer:   Subspace transform     0.24s     0.24s
+  restricting step for alpha orbitals: 0 1 2 3 4
+  restricting step for alpha orbitals: 0 1 2 3 4
+  restricting step for  beta orbitals: 0 1 2 3 4
+  restricting step for  beta orbitals: 0 1 2 3 4
+new X (alpha) norm2() =  3.245914e+00
+new Y (alpha) norm2() =  3.245914e+00
+timer:         Residual X,Y     0.09s     0.09s
+
+residuals_response (final) =  9.093002e-01
+rconv *(param.nalpha + param.nbeta)*2 2.000000e-03
+timer: Update response func 15299542.96s   912.23s
+
+Iteration 3 at time 912.3s
+
+timer:                V*dmo     0.34s     0.34s
+timer:          HF exchange    23.49s    23.49s
+timer:        Truncate Vdmo     0.09s     0.09s
