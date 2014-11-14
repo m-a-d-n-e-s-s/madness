@@ -1,9 +1,15 @@
 language: cpp
+os:
+  - linux
 compiler:
  - gcc
  - clang
-before_install:
- - sudo apt-get update -qq
- - sudo add-apt-repository ppa:hogliux/misstep
- - sudo apt-get install -y libopenblas-dev liblapack-dev libeigen3-dev mpich2
-script: ./configure && make && make check
+notifications:
+  email:
+    recipients:
+      - madness-developers@googlegroups.com
+    on_success: change
+    on_failure: always
+before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
+script: ./ci/build-$TRAVIS_OS_NAME.sh
+after_failure: cat ./config.log
