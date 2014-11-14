@@ -74,16 +74,16 @@ namespace madness {
         typedef WorldObject< DerivativeBase<T, NDIM> > woT;
     protected:
         World& world;
-        const std::size_t axis      ;  // Axis along which the operation is performed
-        const int k         ;  // Number of wavelets of the function
+        const std::size_t axis      ;  ///< Axis along which the operation is performed
+        const int k         ;  ///< Number of wavelets of the function
         const BoundaryConditions<NDIM> bc;
         const std::vector<long> vk; ///< (k,...) used to initialize Tensors
 
     public:
         friend class FunctionImpl<T, NDIM>;
 
-        typedef Tensor<T>               tensorT  ;	//< regular tensors, like rm, etc
-        typedef GenTensor<T>            coeffT   ;	//< holding the node's coeffs (possibly low rank)
+        typedef Tensor<T>               tensorT  ;	///< regular tensors, like rm, etc
+        typedef GenTensor<T>            coeffT   ;	///< holding the node's coeffs (possibly low rank)
         typedef Key<NDIM>               keyT     ;
         typedef std::pair<keyT,coeffT>  argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;
@@ -275,7 +275,7 @@ namespace madness {
 
     public:
         typedef Tensor<T>               tensorT  ;
-        typedef GenTensor<T>            coeffT   ;	//< holding the node's coeffs (possibly low rank)
+        typedef GenTensor<T>            coeffT   ;	///< holding the node's coeffs (possibly low rank)
         typedef Key<NDIM>               keyT     ;
         typedef std::pair<keyT,coeffT>  argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;

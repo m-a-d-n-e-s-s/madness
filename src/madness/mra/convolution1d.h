@@ -165,7 +165,6 @@ namespace madness {
         /// make the operator matrices r^n and \uparrow r^(n-1)
         /// @param[in]  R   operator matrix of the requested level;     NS: unfilter(r^(n+1)); modified NS: r^n
         /// @param[in]  T   upsampled operator matrix from level n-1;   NS: r^n; modified NS: filter( r^(n-1) )
-        /// @param[in]  modified    use (un) modified NS form
         ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {
             Rnormf = R.normf();
             // Making the approximations is expensive ... only do it for
@@ -593,7 +592,7 @@ namespace madness {
     class GenericConvolution1D : public Convolution1D<Q> {
     private:
         opT op;
-        long maxl;    //< At natural level is l beyond which operator is zero
+        long maxl;    ///< At natural level is l beyond which operator is zero
     public:
 
         GenericConvolution1D() {}

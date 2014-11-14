@@ -164,7 +164,6 @@ namespace madness {
 
         /// \tparam ptrT Pointer type
         /// \tparam memfnT Member function pointer type
-        /// \tparam resT result type of the member function
         template <typename ptrT, typename memfnT>
         class MemFuncWrapper<ptrT, memfnT, void> {
         private:

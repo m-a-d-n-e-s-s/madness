@@ -1,0 +1,15 @@
+language: cpp
+os:
+  - linux
+compiler:
+ - gcc
+ - clang
+notifications:
+  email:
+    recipients:
+      - madness-developers@googlegroups.com
+    on_success: change
+    on_failure: always
+before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
+script: ./ci/build-$TRAVIS_OS_NAME.sh
+after_failure: cat ./config.log

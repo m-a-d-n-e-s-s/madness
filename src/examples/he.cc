@@ -115,10 +115,11 @@ static double f6d(const coord_6d& r) {
 
 }
 
+/*
 static double Vpsi(const coord_6d& r) {
     return f6d(r) * V(r);
-
 }
+*/
 
 class YetAnotherWrapperClass {
     const real_function_6d& f;

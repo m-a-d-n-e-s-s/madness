@@ -74,19 +74,19 @@ namespace madness {
 
     protected:
         World* pworld;
-        int64_t P;                //< No. of processors
-        ProcessID rank;           //< My processor rank
-        int64_t n;                //< Column dimension of A(n,m)
-        int64_t m;                //< Row dimension of A(n,m)
-        int64_t tilen;            //< Tile size for column
-        int64_t tilem;            //< Tile size for row
-        int64_t Pcoldim;          //< Column dimension of processor grid
-        int64_t Prowdim;          //< Row dimension of processor grid
-        int64_t Pcol;             //< Column of processor grid for this processor
-        int64_t Prow;             //< Row of processor grid for this processor
-        int64_t ilo,ihi;          //< Range of column indices on this processor
-        int64_t jlo,jhi;          //< Range of row indices on this processor
-        int64_t idim,jdim;        //< Dimension of data on this processor
+        int64_t P;                ///< No. of processors
+        ProcessID rank;           ///< My processor rank
+        int64_t n;                ///< Column dimension of A(n,m)
+        int64_t m;                ///< Row dimension of A(n,m)
+        int64_t tilen;            ///< Tile size for column
+        int64_t tilem;            ///< Tile size for row
+        int64_t Pcoldim;          ///< Column dimension of processor grid
+        int64_t Prowdim;          ///< Row dimension of processor grid
+        int64_t Pcol;             ///< Column of processor grid for this processor
+        int64_t Prow;             ///< Row of processor grid for this processor
+        int64_t ilo,ihi;          ///< Range of column indices on this processor
+        int64_t jlo,jhi;          ///< Range of row indices on this processor
+        int64_t idim,jdim;        ///< Dimension of data on this processor
 
 
         /// Constructs distribution and size info for a matrix (for use by factory functions only)
@@ -97,7 +97,7 @@ namespace madness {
         /// not for general use.
         ///
         /// The matrix is tiled over a grid of processes as specified by the tile sizes.
-        /// @param[in] World The world
+        /// @param[in] world The world
         /// @param[in] n The matrix column dimension 
         /// @param[in] m The matrix row dimension
         /// @param[in] coltile Tile size for the columns
@@ -391,7 +391,7 @@ namespace madness {
         friend DistributedMatrix<T> interleave_rows<T>(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b);
         friend DistributedMatrix<T> concatenate_rows<T>(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b);
 
-        Tensor<T> t;            //< The data
+        Tensor<T> t;            ///< The data
 
         static T idij(const int64_t i, const int64_t j) {return (i==j) ?  T(1) : T(0);}
 
@@ -402,7 +402,7 @@ namespace madness {
         /// [deprecated ... use factory functions instead]
         /// 
         /// The matrix is tiled over a grid of processes as specified by the tile sizes.
-        /// @param[in] World The world
+        /// @param[in] world The world
         /// @param[in] n The matrix column dimension 
         /// @param[in] m The matrix row dimension
         /// @param[in] coltile Tile size for the columns
@@ -515,7 +515,7 @@ namespace madness {
 
         /// Copy from the replicated \c (m,n) matrix into the distributed matrix
 
-        /// @param[in] The input tensor
+        /// @param[in] s The input tensor
         void copy_from_replicated(const Tensor<T>& s) {
             if (local_size() > 0) t(___) = s(Slice(ilo,ihi),Slice(jlo,jhi));
         }
@@ -525,7 +525,7 @@ namespace madness {
         /// The entire output tensor is zeroed, the local data copied
         /// into it, and then a global sum performed to replicate the
         /// data.
-        /// @param[out] The output tensor (assumed already allocated
+        /// @param[out] s The output tensor (assumed already allocated
         /// to be at least large enough in both dimensions)
         void copy_to_replicated(Tensor<T>& s) const {
             MADNESS_ASSERT(s.iscontiguous());
@@ -539,7 +539,7 @@ namespace madness {
         /// @param[in] ilow First \c i index in patch
         /// @param[in] ihigh Last \c i index in patch
         /// @param[in] jlow First \c j index in patch
-        /// @param[in] jhjgh Last \c j index in patch
+        /// @param[in] jhigh Last \c j index in patch
         void copy_from_replicated_patch(int64_t ilow, int64_t ihigh, int64_t jlow, int64_t jhigh, const Tensor<T>& s) {
             int64_t i0 = std::max(ilo,ilow);
             int64_t j0 = std::max(jlo,jlow);
@@ -558,7 +558,7 @@ namespace madness {
         /// @param[in] ilow First \c i index in patch
         /// @param[in] ihigh Last \c i index in patch
         /// @param[in] jlow First \c j index in patch
-        /// @param[in] jhjgh Last \c j index in patch
+        /// @param[in] jhigh Last \c j index in patch
         void copy_to_replicated_patch(int64_t ilow, int64_t ihigh, int64_t jlow, int64_t jhigh, Tensor<T>& s) const {
             MADNESS_ASSERT(s.iscontiguous());
             s = 0;
@@ -653,7 +653,7 @@ namespace madness {
     /// Generates distribution for an (n,m) matrix distributed by columns (row dimension is not distributed)
 
     /// Quietly forces an even column tile size for ease of use in the systolic matrix algorithms
-    /// @param[in] World The world
+    /// @param[in] world The world
     /// @param[in] n The column (first) dimension
     /// @param[in] m The row (second) dimension
     /// @param[in] coltile Tile size for columns forced to be even (default is to use all processes)
@@ -671,7 +671,7 @@ namespace madness {
     /// Generates an (n,m) matrix distributed by columns (row dimension is not distributed)
 
     /// Quietly forces an even column tile size for ease of use in the systolic matrix algorithms
-    /// @param[in] World The world
+    /// @param[in] world The world
     /// @param[in] n The column (first) dimension
     /// @param[in] m The row (second) dimension
     /// @param[in] coltile Tile size for columns forced to be even (default is to use all processes)
@@ -684,7 +684,7 @@ namespace madness {
 
     /// Generates an (n,m) matrix distribution distributed by rows (column dimension is not distributed)
 
-    /// @param[in] World The world
+    /// @param[in] world The world
     /// @param[in] n The column (first) dimension
     /// @param[in] m The row (second) dimension
     /// @param[in] rowtile Tile size for row (default is to use all processes)
@@ -699,7 +699,7 @@ namespace madness {
 
     /// Generates an (n,m) matrix distributed by rows (column dimension is not distributed)
 
-    /// @param[in] World The world
+    /// @param[in] world The world
     /// @param[in] n The column (first) dimension
     /// @param[in] m The row (second) dimension
     /// @param[in] rowtile Tile size for row (default is to use all processes)

@@ -170,7 +170,6 @@ namespace madness {
         /// Constructor
 
         /// \param key The base key
-        /// \param proc The process that generated the key
         TaggedKey(const Key& key) : key_(key) { }
 
         /// Copy constructor

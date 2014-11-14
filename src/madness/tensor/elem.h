@@ -92,8 +92,8 @@ namespace madness {
     /// Backport of more recent Elemental DistMatrix API
     template <typename T>
     ProcessID Owner(const elem::DistMatrix<T>& d, int i, int j) {
-        int RowOwner = (i+d.ColAlignment()) % d.ColStride(); // is Col/Row Align in later versions ... no ment
-        int ColOwner = (j+d.RowAlignment()) % d.RowStride(); 
+        int RowOwner = (i+d.ColAlign()) % d.ColStride(); // is Col/Row Align in later versions ... no ment
+        int ColOwner = (j+d.RowAlign()) % d.RowStride(); 
         return RowOwner+ColOwner*d.ColStride();        
     }
 
@@ -188,11 +188,11 @@ namespace madness {
         elem::DistMatrix<T,elem::VR,elem::STAR> wd( n, n, GG);
         
         // 0.83+ ???
-        // elem::HermitianGenDefiniteEig(eigType, uplo, EA, EB, wd, Xd, elem::SortType::ASCENDING);
+        elem::HermitianGenDefiniteEig(eigType, uplo, EA, EB, wd, Xd, elem::SortType::ASCENDING);
         
         // 0.79-0.82 ?
-        elem::HermitianGenDefiniteEig(eigType, uplo, EA, EB, wd, Xd);
-        elem::hermitian_eig::Sort(wd, Xd);
+        //elem::HermitianGenDefiniteEig(eigType, uplo, EA, EB, wd, Xd);
+        //elem::hermitian_eig::Sort(wd, Xd);
         
         A.get_world().mpi.Barrier();
         
@@ -310,11 +310,11 @@ namespace madness {
 
 
             // 0.83+ ???
-            // elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd,elem::SortType::ASCENDING);
+            elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd,elem::SortType::ASCENDING);
 
             // 0.79-0.82 ?
-            elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd);
-            elem::hermitian_eig::Sort( wd, Xd );
+            //elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd);
+            //elem::hermitian_eig::Sort( wd, Xd );
 
             world.mpi.Barrier();
             //Xd.Print("Xs");

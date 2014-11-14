@@ -48,11 +48,11 @@ class PointGroup;
 std::ostream& operator<<(std::ostream& s, const PointGroup& g);
 
 class PointGroup {
-    std::string name;           //< group name
-    int order;                  //< group order
-    std::string irs[8];         //< Names of the irreps
-    std::string ops[8];         //< Names of the operators
-    int c[8][8];                //< Character table
+    std::string name;           ///< group name
+    int order;                  ///< group order
+    std::string irs[8];         ///< Names of the irreps
+    std::string ops[8];         ///< Names of the operators
+    int c[8][8];                ///< Character table
 
 public:
     typedef madness::Vector<double,3> coordT;

@@ -514,7 +514,6 @@ public:
 
 
     std::vector<Function<Q,3> > apply_potential(World& world, const real_function_3d& potential, const std::vector<Function<Q,3> >& psi, const tensorT & occ, Q & enl) {
-        bool debug = (world.rank() == 0) && false;
         double thresh = FunctionDefaults<3>::get_thresh();
         double vtol = 1e-2*thresh;
         std::vector<Function<Q,3> > vpsi = mul_sparse(world,(potential), psi, vtol);
@@ -547,7 +546,7 @@ public:
             coord_3d center = atom.get_coords();
             unsigned int atype = atom.atomic_number;
             real_tensor& atom_radii = radii[atype-1];
-            real_tensor& atom_hlij = hlij[atype-1];
+            //real_tensor& atom_hlij = hlij[atype-1];
 
             // Create function stores for projectors
             ProjRLMStore prlmstore(atom_radii, center);
@@ -626,12 +625,11 @@ public:
     }
 
     std::vector<Function<Q,3> > apply_potential_simple(World& world, const real_function_3d& potential, const std::vector<Function<Q,3> >& psi, const tensorT & occ, Q & enl) {
-        bool debug = (world.rank() == 0) && false;
         double thresh = FunctionDefaults<3>::get_thresh();
         double vtol = 1e-2*thresh;
         std::vector<Function<Q,3> > vpsi = mul_sparse(world,(potential), psi, vtol);
 
-        unsigned int norbs = psi.size();
+        //unsigned int norbs = psi.size();
         unsigned int natoms = atoms_with_projectors.size();
 
         for (unsigned int iatom = 0; iatom < natoms; iatom++) {

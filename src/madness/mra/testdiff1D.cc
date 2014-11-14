@@ -10,7 +10,6 @@ typedef Function<double,1> functionT;
 typedef FunctionFactory<double,1> factoryT;
 typedef Tensor<double> tensorT;
 
-static const double PI = 3.1415926535897932384;
 static const int k = 9 ; // Wavelet order (usually precision + 2)
 static const double thresh = 1.e-7 ; // Precision
 static const int init_lev = 2;
@@ -22,17 +21,16 @@ int compare(World& world, functionT test, functionT exact, const char *str)
    double error = (exact - test).norm2() ;
    int success;
 
+   if (error < thresh) {
+       success=0;
+   }
+   else {
+       success=1;
+   }
+   /* There should be a reduction over success here... */
    if (world.rank() == 0) {
        std::cerr << "Error in " << str << ": " << error ;
-
-       if (error < thresh) {
-           std::cerr << " PASSED " << std::endl ;
-           success=0;
-       }
-       else {
-           std::cerr << " FAILED " << std::endl ;
-           success=1;
-       }
+       std::cerr << ((success==0) ? " PASSED " : " FAILED ") << std::endl ;
    }
    return success;
 }

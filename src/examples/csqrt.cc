@@ -48,7 +48,6 @@ static const double R = 1.4;    // bond length
 static const double L = 32.0*R; // box size
 static const long k = 5;        // wavelet order
 static const double thresh = 1e-3; // precision
-static const double thresh1 = thresh*0.1;
 
 static std::complex<double> f(const coordT& r)
 {

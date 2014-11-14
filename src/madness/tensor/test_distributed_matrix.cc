@@ -19,7 +19,7 @@ void check(DistributedMatrix<double>& A) {
     for (int64_t i=ilo; i<=ihi; i++) {
         for (int64_t j=jlo; j<=jhi; j++) {
             MADNESS_ASSERT(A.get(i,j) == ij(i,j));
-            MADNESS_ASSERT(A.data()(i-ilo,j-jlo) == ij(i,j));
+            MADNESS_ASSERT(t(i-ilo,j-jlo) == ij(i,j));
        }
     }
 

@@ -46,14 +46,14 @@ namespace madness {
     class SystolicMatrixAlgorithm : public TaskInterface {
     private:
         DistributedMatrix<T>& A;
-        const int64_t nproc;            //< No. of processes with rows of the matrix (not size of world)
-        const int64_t coldim;           //< A(coldim,rowdim)
-        const int64_t rowdim;           //< A(coldim,rowdim)
-        const int64_t nlocal;           //< No. of local pairs
-        const ProcessID rank;           //< Rank of current process
-        const int tag;                  //< MPI tag to be used for messages
-        std::vector<T*> iptr, jptr;     //< Indirection for implementing cyclic buffer !! SHOULD BE VOLATILE ?????
-        std::vector<int64_t> map;       //< Used to keep track of actual row indices
+        const int64_t nproc;            ///< No. of processes with rows of the matrix (not size of world)
+        const int64_t coldim;           ///< A(coldim,rowdim)
+        const int64_t rowdim;           ///< A(coldim,rowdim)
+        const int64_t nlocal;           ///< No. of local pairs
+        const ProcessID rank;           ///< Rank of current process
+        const int tag;                  ///< MPI tag to be used for messages
+        std::vector<T*> iptr, jptr;     ///< Indirection for implementing cyclic buffer !! SHOULD BE VOLATILE ?????
+        std::vector<int64_t> map;       ///< Used to keep track of actual row indices
 
         void iteration(const TaskThreadEnv& env) {
 
@@ -262,7 +262,7 @@ namespace madness {
         /// A must be a column distributed matrix with an even column tile >= 2
 
         /// It is assumed that it is the main thread invoking this.
-        /// @param[inout] A The matrix on which the algorithm is performed and modified in-place
+        /// @param[in,out] A The matrix on which the algorithm is performed and modified in-place
         /// @param[in] tag The MPI tag used for communication (obtain from \c world.mpi.comm().unique_tag() )
         /// @param[in] nthread The number of local threads to use (default is main thread all threads in the pool)
         SystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag, int nthread=ThreadPool::size()+1)

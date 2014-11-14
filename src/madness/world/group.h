@@ -86,13 +86,13 @@ namespace madness {
             /// \param a A c-style array
             /// \return The size of array \c a
             template <typename T, std::size_t N>
-            static std::size_t size(T (&)[N]) { return N; }
+            static std::size_t size(T (&a)[N]) { return N; }
 
             /// Array const begin iterator accessor
 
-            /// \tparam T The array type
-            /// \param a An array object
-            /// \return The begin const_iterator of \c a
+            /// \tparam vectorT The array type
+            /// \param v An array object
+            /// \return The begin const_iterator of \c v
             template <typename vectorT>
             static typename vectorT::const_iterator begin(const vectorT &v) {
                 return v.begin();
@@ -100,9 +100,9 @@ namespace madness {
 
             /// Array const end iterator accessor
 
-            /// \tparam T The array type
-            /// \param a An array object
-            /// \return The end cosnt_iterator of \c a
+            /// \tparam vectorT The array type
+            /// \param v An array object
+            /// \return The end cosnt_iterator of \c v
             template <typename vectorT>
             static typename vectorT::const_iterator end(const vectorT &v) {
                 return v.end();
@@ -110,9 +110,9 @@ namespace madness {
 
             /// Array size accessor
 
-            /// \tparam T The array type
-            /// \param a An array object
-            /// \return The size of array \c a
+            /// \tparam vectorT The array type
+            /// \param v An array object
+            /// \return The size of array \c v
             template <typename vectorT>
             static typename disable_if<std::is_array<vectorT>, std::size_t>::type
             size(const vectorT &v) { return v.size(); }
@@ -196,10 +196,10 @@ namespace madness {
 
             /// Compute the binary tree parent and children
 
-            /// \param[out] parent The parent node of the binary tree
-            /// \param[out] child1 The left child node of the binary tree
-            /// \param[out] child2 The right child node of the binary tree
             /// \param[in] group_root The head node of the binary tree
+            /// \param[out] parent The parent node of the binary tree
+            /// \param[out] child0 The left child node of the binary tree
+            /// \param[out] child1 The right child node of the binary tree
             void make_tree(const ProcessID group_root, ProcessID& parent,
                     ProcessID& child0, ProcessID& child1) const
             {
@@ -269,7 +269,6 @@ namespace madness {
 
         /// Register a group so that it can be used in active messages and tasks
         /// spawned on remote nodes.
-        /// \param group The group to be registered
         /// \throw TiledArray::Exception When the group is empty
         /// \throw TiledArray::Exception When the group is already in the registry
         void register_group() const;
@@ -444,7 +443,7 @@ namespace madness {
 
         /// Compute the binary tree parents and children
 
-        /// \param[in] root The head node of the binary tree in the group
+        /// \param[in] group_root The head node of the binary tree in the group
         /// \param[out] parent The parent node of the binary tree
         /// \param[out] child1 The left child node of the binary tree
         /// \param[out] child2 The right child node of the binary tree

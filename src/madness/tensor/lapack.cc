@@ -297,12 +297,12 @@ namespace madness {
     /// same as svd, but it optimizes away the tensor construction: a = U * diag(s) * VT
 
     /// note that S and VT are swapped in the calling list for c/fortran consistency!
-    /// @param[inout]	a	a (m,n) matrix to be svd'ed; upon return will hold VT
+    /// @param[in,out]	a	a (m,n) matrix to be svd'ed; upon return will hold VT
     /// 					the first min(m,n) rows of VT, stored rowwise
-    /// @param[inout]	U	left singular vectors, stored columnwise
-    /// @param[inout]	s	the singular values
-    /// @param[inout]	VT	not referenced
-    /// @param[inout]	work work array; optimial length lwork:
+    /// @param[in,out]	U	left singular vectors, stored columnwise
+    /// @param[in,out]	s	the singular values
+    /// @param[in,out]	VT	not referenced
+    /// @param[in,out]	work work array; optimial length lwork:
     ///						lwork = max<integer>(3*min(m,n)+max(m,n),5*min(m,n)-4)*32;
     template <typename T>
     void svd_result(Tensor<T>& a, Tensor<T>& U,
@@ -601,7 +601,7 @@ namespace madness {
 
     /// compute the QR decomposition of the matrix A
 
-    /// @param[inout]	A	on entry the (n,m) matrix to be decomposed
+    /// @param[in,out]	A	on entry the (n,m) matrix to be decomposed
     ///						on exit the Q matrix
     /// @param[out]		R	the (n,n) matrix R (square form)
     template<typename T>
@@ -623,9 +623,9 @@ namespace madness {
 
     /// compute the LQ decomposition of the matrix A = L Q
 
-    /// @param[inout]	A	on entry the (n,m) matrix to be decomposed
+    /// @param[in,out]	A	on entry the (n,m) matrix to be decomposed
     ///						on exit the Q matrix
-    /// @param[out]		L	the (n,n) matrix L (square form)
+    /// @param[out]		R	the (n,n) matrix L (square form) \todo MGR: Check this.
     template<typename T>
     void lq(Tensor<T>& A, Tensor<T>& R) {
     	TENSOR_ASSERT(A.ndim() == 2, "lq requires a matrix",A.ndim(),&A);
@@ -641,9 +641,9 @@ namespace madness {
 
     /// compute the LQ decomposition of the matrix A = L Q
 
-    /// @param[inout]	A	on entry the (n,m) matrix to be decomposed
+    /// @param[in,out]	A	on entry the (n,m) matrix to be decomposed
     ///						on exit the Q matrix
-    /// @param[out]		L	the (n,n) matrix L (square form)
+    /// @param[out]		R	the (n,n) matrix L (square form) \todo MGR: Check this.
     template<typename T>
     void lq_result(Tensor<T>& A, Tensor<T>& R, Tensor<T>& tau, Tensor<T>& work,
     		bool do_qr) {
@@ -693,7 +693,7 @@ namespace madness {
 
     /// reconstruct the orthogonal matrix Q (e.g. from QR factorization)
 
-    /// @param[inout]	A
+    /// @param[in,out]	A
     ///    On entry, the i-th column must contain the vector which
     ///    defines the elementary reflector H(i), for i = 1,2,...,k, as
     ///    returned by DGEQRF in the first k columns of its array

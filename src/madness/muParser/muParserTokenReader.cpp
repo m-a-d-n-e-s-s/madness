@@ -308,7 +308,7 @@ namespace mu
   /** \brief Extract all characters that belong to a certain charset.
 
     \param a_szCharSet [in] Const char array of the characters allowed in the token.
-    \param a_strTok [out]  The string that consists entirely of characters listed in a_szCharSet.
+    \param a_sTok [out]  The string that consists entirely of characters listed in a_szCharSet.
     \param a_iPos [in] Position in the string from where to start reading.
     \return The Position of the first character not listed in a_szCharSet.
     \throw nothrow
@@ -820,7 +820,7 @@ namespace mu
 
     \param a_iErrc [in] The error code of type #EErrorCodes.
     \param a_iPos [in] The position where the error was detected.
-    \param a_strTok [in] The token string representation associated with the error.
+    \param a_sTok [in] The token string representation associated with the error.
     \throw ParserException always throws thats the only purpose of this function.
   */
   void  ParserTokenReader::Error( EErrorCodes a_iErrc,

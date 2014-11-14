@@ -1076,10 +1076,11 @@ namespace madness {
 
         /// first step in an inplace gaxpy operation for reconstructed functions; assuming the same
         /// distribution for this and other
+
+        /// on output, *this = alpha* *this + beta * other
         /// @param[in]	alpha	prefactor for this
         /// @param[in]	beta	prefactor for other
         /// @param[in]	other	the other function, reconstructed
-        /// @return *this = alpha* *this + beta * other
         template<typename Q, typename R>
         void merge_trees(const T alpha, const FunctionImpl<Q,NDIM>& other, const R beta, const bool fence=true) {
             MADNESS_ASSERT(get_pmap() == other.get_pmap());
@@ -1093,11 +1094,12 @@ namespace madness {
         /// f and g are reconstructed, so we can save on the compress operation,
         /// walk down the joint tree, and add leaf coefficients; effectively refines
         /// to common finest level.
+        
+        /// nothing returned, but leaves this's tree reconstructed and as sum of f and g
         /// @param[in]  alpha   prefactor for f
         /// @param[in]  f       first addend
         /// @param[in]  beta    prefactor for g
         /// @param[in]  g       second addend
-        /// @return     nothing, but leaves this's tree reconstructed and as sum of f and g
         void gaxpy_oop_reconstructed(const double alpha, const implT& f,
                                      const double beta, const implT& g, const bool fence);
 
@@ -1283,7 +1285,8 @@ namespace madness {
 
         /// @param[in]	xaxis	the x-axis in the plot (can be any axis of the MRA box)
         /// @param[in]	yaxis	the y-axis in the plot (can be any axis of the MRA box)
-        /// @param[in]	el2
+        /// @param[in]	el2     needs a description
+        /// \todo Provide a description for el2
         Tensor<double> print_plane_local(const int xaxis, const int yaxis, const coordT& el2);
 
         /// print the MRA structure
@@ -2298,9 +2301,9 @@ namespace madness {
 
         /// Refine multiple functions down to the same finest level
 
-        /// @param[v] is the vector of functions we are refining.
-        /// @param[key] is the current node.
-        /// @param[c] is the vector of coefficients passed from above.
+        /// @param v is the vector of functions we are refining.
+        /// @param key is the current node.
+        /// @param c is the vector of coefficients passed from above.
         Void refine_to_common_level(const std::vector<FunctionImpl<T,NDIM>*>& v,
                                     const std::vector<tensorT>& c,
                                     const keyT key);
@@ -3315,7 +3318,7 @@ namespace madness {
         /// i.e. coefficients for the ket and coefficients for the two particles are
         /// mutually exclusive. All potential terms are optional, just pass in empty coeffs.
         /// @param[in]	key			the key of the FunctionNode to which these coeffs belong
-        /// @param[in]	cket		coefficients of the ket
+        /// @param[in]	coeff_ket	coefficients of the ket
         /// @param[in]	vpotential1	function values of the potential for particle 1
         /// @param[in]	vpotential2	function values of the potential for particle 2
         /// @param[in]	veri		function values for the 2-particle potential
@@ -3740,7 +3743,6 @@ namespace madness {
         /// specialization of the filter method, will yield only the sum coefficients
         /// @param[in]  key key of level n
         /// @param[in]  v   vector of sum coefficients of level n+1
-        /// @param[in]  args    TensorArguments for possible low rank approximations
         /// @return     sum coefficients on level n in full tensor format
         tensorT downsample(const keyT& key, const std::vector< Future<coeffT > >& v) const;
 
@@ -3749,7 +3751,6 @@ namespace madness {
         /// specialization of the unfilter method, will transform only the sum coefficients
         /// @param[in]  key     key of level n+1
         /// @param[in]  coeff   sum coefficients of level n (does NOT belong to key!!)
-        /// @param[in]  args    TensorArguments for possible low rank approximations
         /// @return     sum     coefficients on level n+1
         coeffT upsample(const keyT& key, const coeffT& coeff) const;
 
@@ -4012,7 +4013,7 @@ namespace madness {
         /// same as do_apply_kernel2, but use low rank tensors as input and low rank tensors as output
 
         /// @param[in]  op      the operator working on our function
-        /// @param[in]  c       full rank tensor holding the NS coefficients
+        /// @param[in]  coeff   full rank tensor holding the NS coefficients
         /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
         /// @param[in]  apply_targs TensorArgs with tightened threshold for accumulation
         /// @return     nothing, but accumulate the result tensor into the destination node
@@ -4047,7 +4048,6 @@ namespace madness {
 
         /// the result is accumulated inplace to this's tree at various FunctionNodes
         /// @param[in] op	the operator to act on the source function
-        /// @param[in] f	the source function (not used???)
         /// @param[in] key	key of the source FunctionNode of f which is processed
         /// @param[in] c	coeffs of the FunctionNode of f which is processed
         template <typename opT, typename R>
@@ -4271,9 +4271,9 @@ namespace madness {
         /// here we use the fact that the hi-dim NS coefficients on all scales are exactly
         /// the outer product of the underlying low-dim functions (also in NS form),
         /// so we don't need to construct the full hi-dim tree and then turn it into NS form.
-        /// @param[in]	op		the operator acting on the NS tree
-        /// @param[in]	fimpl	the funcimpl of the function of particle 1
-        /// @param[in]	gimpl	the funcimpl of the function of particle 2
+        /// @param[in]	apply_op the operator acting on the NS tree
+        /// @param[in]	fimpl    the funcimpl of the function of particle 1
+        /// @param[in]	gimpl    the funcimpl of the function of particle 2
         template<typename opT, std::size_t LDIM>
         void recursive_apply(opT& apply_op, const FunctionImpl<T,LDIM>* fimpl,
                              const FunctionImpl<T,LDIM>* gimpl, const bool fence) {
@@ -4404,9 +4404,9 @@ namespace madness {
         /// traverse an existing tree and apply an operator
 
         /// invoked by result
-        /// @param[in]	op		the operator acting on the NS tree
-        /// @param[in]	fimpl	the funcimpl of the source function
-        /// @param[in]	rimpl	a dummy function for recursive_op to insert data
+        /// @param[in]	apply_op the operator acting on the NS tree
+        /// @param[in]	fimpl    the funcimpl of the source function
+        /// @param[in]	rimpl    a dummy function for recursive_op to insert data
         template<typename opT>
         void recursive_apply(opT& apply_op, const implT* fimpl, implT* rimpl, const bool fence) {
 
@@ -4978,7 +4978,7 @@ namespace madness {
         /// Return out of place gaxpy using recursive descent.
         /// @param[in] key Key of the function node on which to compute gaxpy
         /// @param[in] left FunctionImpl, left argument of gaxpy
-        /// @param[in] lc coefficients of left at this node
+        /// @param[in] lcin coefficients of left at this node
         /// @param[in] c coefficients of gaxpy product at this node
         /// @param[in] f pointer to function of type T that takes coordT
         ///            arguments. This is the externally provided function and
@@ -5087,10 +5087,11 @@ namespace madness {
         /// project the low-dim function g on the hi-dim function f: result(x) = <this(x,y) | g(y)>
 
         /// invoked by the hi-dim function, a function of NDIM+LDIM
-        /// @param[in]  result  lo-dim function of NDIM-LDIM
-        /// @param[in]  g   	lo-dim function of LDIM
+
+        /// Upon return, result matches this, with contributions on all scales
+        /// @param[in]  result  lo-dim function of NDIM-LDIM \todo Should this be param[out]?
+        /// @param[in]  gimpl  	lo-dim function of LDIM
         /// @param[in]  dim over which dimensions to be integrated: 0..LDIM or LDIM..LDIM+NDIM-1
-        /// @return this, with contributions on all scales
         template<size_t LDIM>
         void project_out(FunctionImpl<T,NDIM-LDIM>* result, const FunctionImpl<T,LDIM>* gimpl,
                          const int dim, const bool fence) {
@@ -5126,10 +5127,10 @@ namespace madness {
             typedef FunctionImpl<T,NDIM-LDIM> implL1;
             typedef std::pair<bool,coeffT> argT;
 
-            const implT* fimpl;			//< the hi dim function f
-            mutable implL1* result;	//< the low dim result function
-            ctL iag;				//< the low dim function g
-            int dim;				//< 0: project 0..LDIM-1, 1: project LDIM..NDIM-1
+            const implT* fimpl;		///< the hi dim function f
+            mutable implL1* result;	///< the low dim result function
+            ctL iag;				///< the low dim function g
+            int dim;				///< 0: project 0..LDIM-1, 1: project LDIM..NDIM-1
 
             // ctor
             project_out_op() {}
@@ -5220,10 +5221,10 @@ namespace madness {
         /// project the low-dim function g on the hi-dim function f: this(x) = <f(x,y) | g(y)>
 
         /// invoked by result, a function of NDIM
+
         /// @param[in]  f   hi-dim function of LDIM+NDIM
         /// @param[in]  g   lo-dim function of LDIM
         /// @param[in]  dim over which dimensions to be integrated: 0..LDIM or LDIM..LDIM+NDIM-1
-        /// @return this, with contributions on all scales
         template<size_t LDIM>
         void project_out2(const FunctionImpl<T,LDIM+NDIM>* f, const FunctionImpl<T,LDIM>* g, const int dim) {
 

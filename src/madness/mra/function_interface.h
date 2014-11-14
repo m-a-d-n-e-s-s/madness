@@ -271,10 +271,9 @@ namespace madness {
 
 		/// constructor: cf the Coulomb kernel
 
-		/// @param[in]	world	the world
 		/// @param[in]	lo		the smallest length scale to be resolved
 		/// @param[in]	eps		the accuracy threshold
-		TwoElectronInterface(double lo,double eps,
+		TwoElectronInterface(double lo, double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
 				:rank(), k(kk), lo(lo), hi(1.0) {
@@ -396,10 +395,8 @@ namespace madness {
 
 		/// constructor: cf the Coulomb kernel
 
-		/// @param[in]	world	the world
 		/// @param[in]	lo		the smallest length scale to be resolved
 		/// @param[in]	eps		the accuracy threshold
-		/// @param[in]	mu		the exponent of the BSH/inverse Laplacian
 		ElectronRepulsionInterface(double lo,double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
@@ -421,11 +418,10 @@ namespace madness {
 
 		/// constructor: cf the Coulomb kernel
 
-		/// @param[in]	world	the world
+      /// @param[in]	mu		the exponent of the BSH/inverse Laplacian
 		/// @param[in]	lo		the smallest length scale to be resolved
 		/// @param[in]	eps		the accuracy threshold
-		/// @param[in]	mu		the exponent of the BSH/inverse Laplacian
-		BSHFunctionInterface(double mu, double lo,double eps,
+		BSHFunctionInterface(double mu, double lo, double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
 		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
@@ -448,11 +444,10 @@ namespace madness {
 
 		/// constructor: cf the Coulomb kernel
 
-		/// @param[in]	world	the world
+		/// @param[in]	mu		the exponent of the Slater function
 		/// @param[in]	lo		the smallest length scale to be resolved
 		/// @param[in]	eps		the accuracy threshold
-		/// @param[in]	mu		the exponent of the Slater function
-		SlaterFunctionInterface(double mu, double lo,double eps,
+		SlaterFunctionInterface(double mu, double lo, double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
 		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
@@ -475,11 +470,10 @@ namespace madness {
 
 		/// constructor: cf the Coulomb kernel
 
-		/// @param[in]	world	the world
+		/// @param[in]	mu		the exponent of the Slater function
 		/// @param[in]	lo		the smallest length scale to be resolved
 		/// @param[in]	eps		the accuracy threshold
-		/// @param[in]	mu		the exponent of the Slater function
-		SlaterF12Interface(double mu, double lo,double eps,
+		SlaterF12Interface(double mu, double lo, double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
 		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
@@ -518,11 +512,10 @@ namespace madness {
 
 		/// constructor: cf the Coulomb kernel
 
-		/// @param[in]	world	the world
+		/// @param[in]	mu		the exponent of the Slater function
 		/// @param[in]	lo		the smallest length scale to be resolved
 		/// @param[in]	eps		the accuracy threshold
-		/// @param[in]	mu		the exponent of the Slater function
-		FGInterface(double mu, double lo,double eps,
+		FGInterface(double mu, double lo, double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
 		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {

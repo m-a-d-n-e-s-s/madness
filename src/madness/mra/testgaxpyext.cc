@@ -26,12 +26,12 @@ static double beta_func(const coord_3d& r) {
     return (a * exp(- (x-x0)*(x-x0) - (y-y0)*(y-y0) - (z-z0)*(z-z0)));
 };
 
-static double gamma_func(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    const double x0=2.0, y0=2.0, z0=2.0;
-    const double a=0.5, sig2=0.0625;
-    return (a * exp(- sig2*(x-x0)*(x-x0) - sig2*(y-y0)*(y-y0) - sig2*(z-z0)*(z-z0)));
-};
+/* static double gamma_func(const coord_3d& r) { */
+/*    const double x=r[0], y=r[1], z=r[2]; */
+/*    const double x0=2.0, y0=2.0, z0=2.0; */
+/*    const double a=0.5, sig2=0.0625; */
+/*    return (a * exp(- sig2*(x-x0)*(x-x0) - sig2*(y-y0)*(y-y0) - sig2*(z-z0)*(z-z0))); */
+/* }; */
 
 /* static double alpha_p_beta_func(const coord_3d& r) { */
 /*     const double x=r[0], y=r[1], z=r[2]; */

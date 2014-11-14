@@ -94,7 +94,7 @@ private:
           <li>One entry for Stack index</li>
           <li>One entry for Token identifier</li>
           <li>mc_iSizeVal entries for the value</li>
-        <ul>
+        </ul>
 
         \sa AddVal(TBaseData a_fVal)
     */

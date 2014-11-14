@@ -922,7 +922,7 @@ public:
 
     /// @param[in]	world	the world
     /// @param[in]	overlap	the overlap matrix of the orbitals
-    /// @param[inout]	fock	the fock matrix; diagonal upon exit
+    /// @param[in,out]	fock	the fock matrix; diagonal upon exit
     /// @param[out]	evals	the orbital energies
     /// @param[in]	occ	the occupation numbers
     /// @param[in]	thresh_degenerate	threshold for orbitals being degenerate
@@ -936,9 +936,9 @@ public:
 
     /// Vpsi is passed in to make sure orbitals and Vpsi are in phase
     /// @param[in]	world	the world
-    /// @param[inout]	fock	the fock matrix (diagonal upon exit)
-    /// @param[inout]	psi		the orbitals
-    /// @param[inout]	Vpsi	the orbital times the potential
+    /// @param[in,out]	fock	the fock matrix (diagonal upon exit)
+    /// @param[in,out]	psi		the orbitals
+    /// @param[in,out]	Vpsi	the orbital times the potential
     /// @param[out]	evals	the orbital energies
     /// @param[in]	occ		occupation numbers
     /// @param[in]	thresh	threshold for rotation and truncation
@@ -970,7 +970,7 @@ public:
     /// maxrotn parameter
     /// @param[in]		world	the world
     /// @param[in]		mo		vector of orbitals from previous iteration
-    /// @param[inout]	new_mo	vector of orbitals from the KAIN solver
+    /// @param[in,out]	mo_new	vector of orbitals from the KAIN solver
     /// @param[in]		spin	"alpha" or "beta" for user information
     /// @return			max residual
     double do_step_restriction(World& world, const vecfuncT& mo,
@@ -980,7 +980,7 @@ public:
     /// orthonormalize the vectors
 
     /// @param[in]		world	the world
-    /// @param[inout]	amo_new	the vectors to be orthonormalized
+    /// @param[in,out]	amo_new	the vectors to be orthonormalized
     void orthonormalize(World& world, vecfuncT& amo_new) const;
 
 

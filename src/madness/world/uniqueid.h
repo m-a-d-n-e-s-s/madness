@@ -60,10 +60,6 @@ namespace madness {
             return  objid==other.objid && worldid==other.worldid;
         }
 
-        std::size_t operator()(const uniqueidT& id) const { // for GNU hash
-            return id.objid;
-        }
-
         operator bool() const {
             return objid!=0;
         }

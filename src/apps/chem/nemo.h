@@ -142,7 +142,7 @@ public:
 
 	/// ctor
 
-	/// @param[in]	world	the world
+	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
 			world(world1), calc(calc), coords_sum(-1.0) {
@@ -225,7 +225,7 @@ private:
 
     /// orthonormalize the vectors
 
-    /// @param[inout]	amo_new	the vectors to be orthonormalized
+    /// @param[in,out]	nemo	the vectors to be orthonormalized
     void orthonormalize(vecfuncT& nemo) const;
 
 	/// return the Coulomb potential

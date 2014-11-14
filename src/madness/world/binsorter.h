@@ -30,7 +30,7 @@ namespace madness {
 
         /// @param[in] world The world object that must persist during the existence of this object
         /// @param[in] inserter User provides this routine to process an item of data on remote end
-        /// @param[in] bufize Size of bin (in units of T) ... default value is as large as possible
+        /// @param[in] bufsize Size of bin (in units of T) ... default value is as large as possible
         BinSorter(World& world, inserterT inserter, int bufsize=0)
             : WorldObject<BinSorter>(world)
             , pworld(&world)

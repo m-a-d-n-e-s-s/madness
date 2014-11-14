@@ -40,7 +40,7 @@
 
   The source is
   <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/oep.cc>here</a>.
-
+  \todo fix the URL.
 */
 
 #include <chem/mp2.h>
@@ -52,8 +52,8 @@
 
 using namespace madness;
 
-static const double   rcut = 0.01; // Smoothing distance in 1e potential
-static const double d12cut = 0.01; // Smoothing distance in wave function
+//static const double   rcut = 0.01; // Smoothing distance in 1e potential
+//static const double d12cut = 0.01; // Smoothing distance in wave function
 static long ngrid=400;
 
 typedef Tensor<double> tensorT;
@@ -149,7 +149,7 @@ static Tensor<double> read_radial_grid(int k, std::string filename) {
 
 
 /// xyz coord file starts with two lines of meta-data: # atoms and a comment
-static std::vector<std::pair<coord_3d,double> > read_xyz_coord(std::string filename) {
+/*static std::vector<std::pair<coord_3d,double> > read_xyz_coord(std::string filename) {
 
 	typedef std::pair<coord_3d, double> Atom;
 
@@ -184,7 +184,7 @@ static std::vector<std::pair<coord_3d,double> > read_xyz_coord(std::string filen
     MADNESS_ASSERT(i==k);
     file.close();
     return atoms;
-}
+}*/
 
 
 struct molecular_potential {
@@ -221,10 +221,10 @@ struct recpot {
 
 	/// ctor with the nuclear charge to subtract for better interpolation
 
-	/// @param[in]	file_grid 	name of the file with grid points
-	/// @param[in]	file_pot1 	name of the file with the potential on the grid points
-	/// @param[in]	file_pot2 	name of the other file with the potential on the grid points
-	/// @param[in]	Z			nuclear charge (unused at the moment)
+	/// @param[in]	file_grid   name of the file with grid points
+	/// @param[in]	file_pot1   name of the file with the potential on the grid points
+	/// @param[in]	file_pot2   name of the other file with the potential on the grid points
+	/// @param[in]	ZZ          nuclear charge (unused at the moment)
 	recpot(const std::string file_grid, const std::string file_pot1, const std::string file_pot2,
 					const long ZZ) : ZZ(double(ZZ)) {
 
@@ -438,10 +438,10 @@ void orthogonalize(std::vector<real_function_3d>& orbitals, const int ii) {
 
 /// solve the residual equations
 
-/// @param[in]		potential	the effective potential
-/// @param[in]		thresh		the threshold for the error in the orbitals
-/// @param[inout]	eps			guesses for the orbital energies
-/// @param[inout]	orbitals	the first n roots of the equation
+/// @param[in]		potential  the effective potential
+/// @param[in]		thresh     the threshold for the error in the orbitals
+/// @param[in,out]	eps      guesses for the orbital energies
+/// @param[in,out]	orbitals the first n roots of the equation
 void solve(World& world, const real_function_3d& potential, const double thresh, tensorT& eps,
 		std::vector<real_function_3d>& orbitals) {
 
@@ -477,7 +477,7 @@ void solve(World& world, const real_function_3d& potential, const double thresh,
 /// given the density and the trial potential, update the potential to yield the density
 
 /// @param[in]		world	the world
-/// @param[in/out]	potential	the potential to be updated
+/// @param[in,out]	potential	the potential to be updated
 /// @param[in]		density		the density
 /// @param[in]		refdens		the reference density, or target densiy
 void update_potential(World& world, real_function_3d& potential, const real_function_3d& density,
