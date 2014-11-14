@@ -14,7 +14,7 @@ export MPICXX=/usr/bin/mpicxx.mpich2
 ./configure \
     --enable-debugging --disable-optimization --enable-warning --disable-optimal \
     --enable-never-spin \
-    LIBS="-L/usr/lib/lapack -llapack -L/usr/lib/openblas-base -lopenblas -ltcmalloc_minimal -ltbb -lpthread"
+    LIBS="-L/usr/lib/lapack -llapack -L/usr/lib/openblas-base -lopenblas -ltcmalloc -ltbb -lpthread"
     
 make
 
