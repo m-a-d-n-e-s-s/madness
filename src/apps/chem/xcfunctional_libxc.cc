@@ -228,15 +228,17 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 
 //XCfunctional::XCfunctional() {}
 //XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
-XCfunctional::XCfunctional() : hf_coeff(0.0) {}
-
+XCfunctional::XCfunctional() : hf_coeff(0.0) {
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
+}
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized, World& world)
 {
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
+
     double factor;
     spin_polarized = polarized;
 
-    rhotol=1e-6; rhomin=1e-6; sigtol=1e-7; sigmin=1e-7; // default values
 
     std::stringstream line(input_line);
     std::string name;

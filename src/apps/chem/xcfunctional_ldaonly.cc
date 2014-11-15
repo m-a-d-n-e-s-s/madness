@@ -15,11 +15,13 @@ int c_rks_vwn5__(const double *r__, double *f, double * dfdra);
 int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 int c_uks_vwn5__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 
-XCfunctional::XCfunctional() : hf_coeff(0.0) {}
+XCfunctional::XCfunctional() : hf_coeff(0.0) {
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
+}
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized, World& world) 
 {
-    rhotol=1e-12; rhomin=1e-22; sigtol=1e-7; sigmin=1e-7; // default values 
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
 
     spin_polarized = polarized;
     
