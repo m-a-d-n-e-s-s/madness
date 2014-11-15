@@ -394,8 +394,6 @@ AC_CONFIG_FILES([
         src/apps/moldft/Makefile
         src/apps/polar/Makefile
         src/apps/nick/Makefile
-#       src/apps/tkato/Makefile
-#       src/apps/jacob/Makefile
         src/apps/interior_bc/Makefile
         src/apps/interior_bc/nanophoto/Makefile
       src/examples/Makefile
