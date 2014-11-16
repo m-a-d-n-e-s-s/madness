@@ -34,5 +34,9 @@ AC_DEFUN([ACX_WITH_LIBXC], [
     AC_LANG_RESTORE
   fi
 
+  if test $acx_with_libxc != "no"; then
+    AC_DEFINE([MADNESS_HAS_LIBXC], [1], [Define if using libxc])                         
+  fi
+
   AM_CONDITIONAL([MADNESS_HAS_LIBXC], [test $acx_with_libxc != "no"])
 ])
