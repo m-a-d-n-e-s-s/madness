@@ -117,7 +117,7 @@ ACX_WITH_BOOST
 ACX_CHECK_TR1
 
 # Get optional external libraries inplace so that building will partially check them
-ACX_WITH_LIBUNWIND
+#ACX_WITH_LIBUNWIND ... no longer needed for google perf?
 ACX_WITH_GOOGLE_PERF
 ACX_WITH_GOOGLE_TEST
 ACX_WITH_LIBXC

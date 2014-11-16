@@ -17,14 +17,20 @@ AC_DEFUN([ACX_WITH_LIBXC], [
         acx_with_libxc="$withval"
       esac
     ],
-    [acx_with_libxc="no"]
+    [acx_with_libxc="yes"]
   )
+
   if test $acx_with_libxc != "no"; then
     AC_LANG_SAVE
     AC_LANG([C++])
-    AC_CHECK_HEADERS([xc.h xc_funcs.h], [], [AC_MSG_ERROR(["Unable to include with xc.h or xc_func.h])])
-    AC_CHECK_LIB([xc], [xc_func_end], [], [AC_MSG_ERROR(["Unable to link with libxc])])
-    AC_DEFINE([MADNESS_HAS_LIBXC], [1], [Define if using libxc])
+    AC_CHECK_HEADERS([xc.h xc_funcs.h], [], 
+                     [acx_with_libxc=no
+                      AC_MSG_NOTICE([Unable to include with xc.h or xc_func.h])])
+    AC_CHECK_LIB([xc], [xc_func_end], [], 
+                 [acx_with_libxc=no
+                  AC_MSG_NOTICE([Unable to link with libxc])])
+
+
     AC_LANG_RESTORE
   fi
 
