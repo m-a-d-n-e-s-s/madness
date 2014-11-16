@@ -100,6 +100,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
             
             f[i] = xf + cf;
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     else {
@@ -110,6 +111,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             x_rks_s__(&r, &q1, &dq);
             c_rks_vwn5__(&r, &q2, &dq);
             f[i] = q1 + q2; 
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     return result;
@@ -134,6 +136,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
             
             f[i] = xdfdr[what] + cdfdr[what];
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     else {
@@ -145,6 +148,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             x_rks_s__(&r, &q, &dq1);
             c_rks_vwn5__(&r, &q, &dq2); 
             f[i] = dq1 + dq2;
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     return result;
