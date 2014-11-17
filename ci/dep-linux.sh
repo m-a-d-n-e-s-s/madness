@@ -14,22 +14,24 @@ sudo apt-get update -qq
 
 # Install packages
 
-if [ "$CXX" = "g++" ]; then
-    sudo apt-get install -qq -y gcc-4.7 g++-4.7 gfortran-4.7
-    export CC=gcc-4.7
-    export CXX=g++-4.7
-    export FC=gfortran-4.7
-else
-    sudo apt-get install -qq -y gfortran
-    export FC=gfortran
-fi
 
+sudo apt-get install -qq -y gcc-$GCC_VERSION g++-$GCC_VERSION gfortran-$GCC_VERSION
+if [ "$CXX" = "g++" ]; then
+    export CC=/usr/bin/gcc-$GCC_VERSION
+    export CXX=/usr/bin/g++-$GCC_VERSION
+else
+    export CFLAGS="--gcc-toolchain=/usr/bin/gcc-$GCC_VERSION"
+    export CXXFLAGS="--gcc-toolchain=/usr/bin/g++-$GCC_VERSION"
+fi
+export FC=/usr/bin/gfortran-$GCC_VERSION
+
+# Install libxc
 wget -O libxc-2.2.1.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=libxc/libxc-2.2.1.tar.gz"
 tar -xzf libxc-2.2.1.tar.gz
 cd libxc-2.2.1
 autoreconf -i
 ./configure --prefix=/usr/local
-make
+make -j2
 sudo make install
 
 sudo apt-get install -qq -y cmake libopenblas-dev liblapack-dev libgoogle-perftools-dev mpich2 libtbb-dev

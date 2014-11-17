@@ -4,26 +4,31 @@
 set -ev
 
 # Environment variables
+export CXXFLAGS="-std=c++11"
 if [ "$CXX" = "g++" ]; then
-    export CC=gcc-4.7
-    export CXX=g++-4.7
-    export F77=gfortran-4.7
+    export CC=/usr/bin/gcc-$GCC_VERSION
+    export CXX=/usr/bin/g++-$GCC_VERSION
+else
+    export CFLAGS="--gcc-toolchain=/usr/bin/gcc-$GCC_VERSION"
+    export CXXFLAGS="--gcc-toolchain=/usr/bin/g++-$GCC_VERSION"
 fi
+export F77=/usr/bin/gfortran-$GCC_VERSION
 export MPICH_CC=$CC
 export MPICH_CXX=$CXX
 export MPICC=/usr/bin/mpicc.mpich2
 export MPICXX=/usr/bin/mpicxx.mpich2
 export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
 
-# Configure MADNESS
+# Configure and build MADNESS
 ./autogen.sh 
 ./configure \
     --enable-debugging --disable-optimization --enable-warning --disable-optimal \
+    --with-google-test \
     --enable-never-spin \
-    CXXFLAGS="-std=c++11" \
     LIBS="-L/usr/lib/lapack -L/usr/lib/openblas-base -llapack -lopenblas -lpthread"
     
-make
+make -j2
 
 # Run unit tests
+export MAD_NUM_THREADS=2
 make check

@@ -1,9 +1,18 @@
 language: cpp
-os:
-  - linux
+os: linux
 compiler:
- - gcc
- - clang
+  - gcc
+  - clang
+env:
+  - GCC_VERSION=4.7
+  - GCC_VERSION=4.8
+  - GCC_VERSION=4.9
+matrix:
+  exclude:
+    - compiler: clang
+      env: GCC_VERSION=4.7
+    - compiler: clang
+      env: GCC_VERSION=4.9
 notifications:
   email:
     recipients:
