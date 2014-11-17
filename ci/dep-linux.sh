@@ -19,4 +19,4 @@ if [ "$CXX" = "g++" ]; then
    sudo apt-get install -qq gcc-4.7 g++-4.7
 fi
 
-sudo apt-get install -qq -y cmake libopenblas-dev liblapack-dev  libgoogle-perftools0 mpich2 libtbb-dev
+sudo apt-get install -qq -y cmake libopenblas-dev liblapack-dev libgoogle-perftools-dev mpich2 libtbb-dev
