@@ -864,6 +864,8 @@ namespace madness {
 				lo, bsh_eps / fourpi);
 
 		// compute some intermediates
+		const tensorT occ=hf->get_calc().aocc;
+		tensorT fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
 		if (hf->get_calc().param.localize) {	// local orbitals -- add coupling
 			vecfuncT amotilde=transform(world,hf->orbitals(),fock);
 			vecfuncT fik, fjl, gik, jl, ik, tjl, jtl, itk, tik;
