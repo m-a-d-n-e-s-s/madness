@@ -34,9 +34,29 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
        if test $fsym = no; then
            AC_CHECK_FUNC([DGEMM_],[fsym="ucu"])
        fi
-   
 
-#   if test "$acx_with_eigen3" != yes; then
+# Well there is nothing in the existing path that gives us what we are
+# looking for so try looking for some standard examples so that common
+# Linux, Apple and configurations work automatically.  We save the
+# BLAS library name instead of adding it directly to LIBS since it
+# will need to be appened after any LAPACK library that is yet to
+# be found.
+
+# Linux
+       BLASLIB=""
+       if test $fsym = no; then
+           AC_LANG_SAVE
+           AC_LANG([C++])
+           for blaslib in openblas blas; do
+               AC_CHECK_LIB([$blaslib], 
+                            [dgemm_], 
+                            [fsym="lcu"; BLASLIB=$blaslib; AC_MSG_NOTICE([Found dgemm_ in $blaslib]); break], 
+                            [AC_MSG_NOTICE([Unable to find dgemm_ in $blaslib])],
+                            [-lpthread])
+           done
+           AC_LANG_RESTORE
+       fi
+# Mac and others ... insert here or extend above for loop if correct symbol is dgemm_
 
        if test $fsym = no; then
            AC_MSG_ERROR([Could not find dgemm with any known linking conventions])
@@ -64,7 +84,8 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
            AC_DEFINE([FORTRAN_LINKAGE_UCU],[1],[Fortran-C linking convention upper case with single underscore])
            AC_CHECK_FUNC([DSYEV_],[],AC_MSG_ERROR([Could not find dsyev with selected linking convention]))
        fi
-#   fi
+
+       LIBS="$LIBS $BLASLIB"
 ])
 
 
