@@ -1,7 +1,7 @@
 #! /bin/sh
 
 # Exit on error
-set -e
+set -ev
 
 # Add repository for libxc
 #sudo add-apt-repository ppa:hogliux/misstep -y

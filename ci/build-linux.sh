@@ -1,7 +1,7 @@
 #! /bin/sh
 
 # Exit on error
-set -e
+set -ev
 
 # Environment variables
 if [ "$CXX" = "g++" ]; then
@@ -18,7 +18,7 @@ export MPICXX=/usr/bin/mpicxx.mpich2
 ./configure \
     --enable-debugging --disable-optimization --enable-warning --disable-optimal \
     --enable-never-spin \
-    CXXFLAGS="-std=c++11"
+    CXXFLAGS="-std=c++11" \
     LIBS="-L/usr/lib/lapack -L/usr/lib/openblas-base -llapack -lopenblas -ltcmalloc_minimal -ltbb -lpthread"
     
 make
