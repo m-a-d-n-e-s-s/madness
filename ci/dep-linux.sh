@@ -15,7 +15,7 @@ sudo apt-get update -qq
 # Install packages
 
 if [ "$CXX" = "g++" ]; then
-    sudo apt-get install -qq -y gcc-4.7.2 g++-4.7.2 gfortran-4.7.2
+    sudo apt-get install -qq -y gcc-4.7 g++-4.7 gfortran-4.7
     export CC=gcc-4.7
     export CXX=g++-4.7
     export FC=gfortran-4.7
