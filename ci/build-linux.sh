@@ -27,7 +27,7 @@ export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
     --enable-never-spin \
     LIBS="-L/usr/lib/lapack -L/usr/lib/openblas-base -llapack -lopenblas -lpthread"
     
-make -j2
+make -j2 libraries
 
 # Run unit tests
 export MAD_NUM_THREADS=2
