@@ -27,5 +27,5 @@ export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
 make -j2 libraries
 
 # Run unit tests
-#export MAD_NUM_THREADS=2
-#make -j2 checkcd
+export MAD_NUM_THREADS=2
+make -j2 checkcd
