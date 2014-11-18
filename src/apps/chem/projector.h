@@ -52,7 +52,8 @@ namespace madness {
 
             compress(world, p_,false);	// don't fence
         	sum.compress(false);
-            f.compress();				// fence
+            f.compress(false);				// fence
+            world.gop.fence();
 
         	// the overlap of all orbitals with the rhs
         	Tensor<double> ovlp=inner(world,f,p_);
