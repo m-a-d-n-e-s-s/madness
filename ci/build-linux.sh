@@ -8,9 +8,6 @@ export CXXFLAGS="-std=c++11"
 if [ "$CXX" = "g++" ]; then
     export CC=/usr/bin/gcc-$GCC_VERSION
     export CXX=/usr/bin/g++-$GCC_VERSION
-else
-    export CFLAGS="--gcc-toolchain=/usr/bin/gcc-$GCC_VERSION"
-    export CXXFLAGS="--gcc-toolchain=/usr/bin/g++-$GCC_VERSION"
 fi
 export F77=/usr/bin/gfortran-$GCC_VERSION
 export MPICH_CC=$CC
@@ -30,5 +27,5 @@ export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
 make -j2 libraries
 
 # Run unit tests
-export MAD_NUM_THREADS=2
-make -j2 check
+#export MAD_NUM_THREADS=2
+#make -j2 checkcd

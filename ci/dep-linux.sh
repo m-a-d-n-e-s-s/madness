@@ -14,16 +14,17 @@ sudo apt-get update -qq
 
 # Install packages
 
-
 sudo apt-get install -qq -y gcc-$GCC_VERSION g++-$GCC_VERSION gfortran-$GCC_VERSION
 if [ "$CXX" = "g++" ]; then
     export CC=/usr/bin/gcc-$GCC_VERSION
     export CXX=/usr/bin/g++-$GCC_VERSION
-else
-    export CFLAGS="--gcc-toolchain=/usr/bin/gcc-$GCC_VERSION"
-    export CXXFLAGS="--gcc-toolchain=/usr/bin/g++-$GCC_VERSION"
 fi
 export FC=/usr/bin/gfortran-$GCC_VERSION
+
+# Print compiler information
+$CC --version
+$CXX --version
+$FC --version
 
 # Install libxc
 wget -O libxc-2.2.1.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=libxc/libxc-2.2.1.tar.gz"
