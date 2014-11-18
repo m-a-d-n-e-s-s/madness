@@ -28,4 +28,4 @@ make -j2 libraries
 
 # Run unit tests
 export MAD_NUM_THREADS=2
-make -j2 checkcd
+make -j2 check
