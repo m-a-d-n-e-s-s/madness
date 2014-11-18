@@ -85,7 +85,7 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
            AC_CHECK_FUNC([DSYEV_],[],AC_MSG_ERROR([Could not find dsyev with selected linking convention]))
        fi
 
-       LIBS="$LIBS $BLASLIB"
+       LIBS="$LIBS -l$BLASLIB"
 ])
 
 
