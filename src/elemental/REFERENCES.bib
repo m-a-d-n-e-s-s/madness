@@ -1,0 +1,562 @@
+NOTE: This list is still missing a large number of important papers
+
+Pseudospectra
+=============
+
+Single-input single-pass algorithm for shifted Hessenberg system solves.
+Cited as the impetus for BischofDattaPurkayastha-1994
+@article{Datta-1989,
+  author={Biswa N. Datta},
+  title={Parallel and large-scale matrix computations in control: some ideas},
+  journal={Linear Algebra and its Applications},
+  volume=121,
+  pages={243--264},
+  year=1989
+}
+
+Introduced single-pass shifted Hessenberg solves for A X - X H = C and a
+blocked extension. This computational kernel is the basis for Elemental's 
+proposed interleaved Lancozs pseudospectra algorithm.
+@article{BischofDattaPurkayastha-1994,
+  author={Christian H. Bischof and Biswa N. Datta and Avijit Purkayastha},
+  title={A parallel algorithm for the Sylvester-Observer Equation},
+  journal={SIAM Journal on Scientific Computing}, 
+  volume=17,
+  number=3,
+  pages={686--698},
+  year=1994
+}
+
+Numerically-robust extensions of BischofDattaPurkayastha-1994's 
+multiplication-based shifted Hessenberg solver (discussed in the 
+upper-Hessenberg setting)
+@techreport{Henry-1994,
+  author={Greg Henry},
+  title={The shifted Hessenberg system solve computation},
+  type={{T}echnical {R}eport},
+  institution={Cornell University}, 
+  year=1994
+}
+
+Introduced the triangularization + inverse iteration approach
+@article{Lui-1997,
+  author={Shiu-Hong Lui},
+  title={Computation of pseudospectra by continuation},
+  journal={SIAM Journal on Scientific Computing},
+  volume=18,
+  number=2,
+  pages={567--573},
+  year=1997
+}
+
+A comprehensive review paper on computing pseudospectra.
+@article{Trefethen-1999,
+  author={Lloyd N. Trefethen},
+  title={Computation of pseudospectra},
+  journal={Acta Numerica}, 
+  volume=8,
+  pages={247--295},
+  year=1999
+}
+
+Spectral Divide and Conquer
+===========================
+
+Elemental contains preliminary implementations of spectral divide and conquer
+algorithms derived from the following paper:
+@article{BaiEtAl-1997,
+  author={Zhaojun Bai and James Demmel and Jack Dongarra and Antoine Petitet 
+          and Howard Robinson and Ken Stanley},
+  title={The spectral decomposition of nonsymmetric matrices on distributed
+         memory parallel computers},
+  journal={SIAM Journal on Scientific Computing},
+  volume=18,
+  number=5,
+  pages={1446--1461}, 
+  year=1997
+}
+
+The randomized approach from the following paper is used in order to avoid a
+pivoted QR decomposition:
+@article{DemmelDumitriuHoltz-2007,
+  author={James Demmel and Ioana Dumitriu and Olga Holtz},
+  title={Fast linear algebra is stable},
+  journal={Numerische Mathematik},
+  volume=108,
+  number=1,
+  pages={59--91},
+  year=2007
+}
+
+Subsequent developments and refinement of the randomized approach from 
+"Fast linear algebra is stable"
+@techreport{BallardDemmelDumitiu-2011,
+  author={Grey Ballard and James Demmel and Ioana Dumitiu},
+  title={Minimizing communication for eigenproblems and the {S}ingular {V}alue
+         {D}ecomposition},
+  type={{T}echnical {R}eport},
+  institution={University of California at Berkeley}, 
+  number={UCB/EECS-2011-14},
+  year=2011
+}
+
+SDC algorithms based upon QWDH
+@article{NakatsukasaHigham-2013,
+  author={Yuji Nakatsukasa and Nicholas J. Higham},
+  title={Stable and efficient {S}pectral {D}ivide and {C}onquer algorithms for
+         the symmetric eigenvalue decomposition and the {SVD}},
+  journal={SIAM Journal on Scientific Computing},
+  volume=35,
+  number=3,
+  pages={A1325--A1349},
+  year=2013
+}
+
+Hessenberg QR algorithm
+=======================
+
+Cited by HenryWatkinsDongarra-2002 as the inspiration for Watkins-1994
+@techreport{Dubrulle-1992,
+  author={A. Dubrulle},
+  title={The multishift QR algorithm -- Is it worth the trouble?},
+  type={{T}echnical {R}eport},
+  institution={IBM Scientific Center, Palo Alto, CA},
+  year=1992
+}
+
+@article{Watkins-1994,
+  author={David S. Watkins},
+  title={Shifting strategies for the parallel QR algorithm},
+  journal={SIAM Journal on Scientific Computing},
+  volume=15,
+  pages={953--958},
+  year=1994
+}
+
+@article{HenryVanDeGeijn-1997,
+  author={Greg Henry and Robert van de Geijn},
+  title={Parallelizing the QR algorithm for the unsymmetric algebraic 
+         eigenvalue problem: Myths and reality},
+  journal={SIAM Journal on Scientific Computing},
+  volume=17,
+  pages={870--883},
+  year=1997
+}
+
+@article{HenryWatkinsDongarra-2002,
+  author={Greg Henry and David S. Watkins and Jack J. Dongarra},
+  title={A parallel implementation of the nonsymmetric QR algorithm for 
+         distributed memory architectures},
+  journal={SIAM Journal on Scientific Computing},
+  volume=24,
+  number=1,
+  pages={284--311},
+  year=2002
+}
+
+The resulting TOMS publication from LAWN 153 on extending ScaLAPACK's
+pdlahqr to complex arithmetic (pzlahqr)
+@article{Fahey-2003,
+  author={Mark R. Fahey},
+  title={A parallel eigenvalue routine for complex Hessenberg matrices},
+  journal={ACM Transactions on Mathematical Software},
+  volume=29,
+  number=3,
+  pages={326--336},
+  year=2003
+}
+
+Introduced a parallel and high-performance "computational window" scheme for 
+reordering eigenvalues in Schur form
+@article{GranatKagstromKressner-2009,
+  author={Robert Granat and Bo Kagstrom and Daniel Kressner},
+  title={Parallel eigenvalue reordering in real Schur forms},
+  journal={Concurrency and Computation: Practice and Experience},
+  volume=21,
+  number=9,
+  pages={1225--1250},
+  year=2009
+}
+
+The first major publication for the parallel QR algorithm with 
+Aggressive Early Deflation and computational windows
+@article{GranatKagstromKressner-2010,
+  author={Robert Granat and Bo Kagstrom and Daniel Kressner},
+  title={A novel parallel QR algorithm for hybrid distributed memory HPC 
+         systems},
+  journal={SIAM Journal on Scientific Computing},
+  volume=32,
+  number=4,
+  pages={2345--2378},
+  year=2010
+}
+
+Pivoted QR
+==========
+
+Introduced the Businger-Golub algorithm for column-pivoted QR decompositions.
+@article{BusingerGolub-1965,
+  author={Peter A. Businger and Gene H. Golub},
+  title={Linear least squares solutions by {H}ouseholder transformations},
+  journal={Numerische Mathematik},
+  volume=7,
+  number=3,
+  pages={269--276},
+  year=1965
+}
+
+Introduced GKS matrix, which the greedy RRQR fails on.
+@techreport{GolubKlemaStewart-1976,
+  author={Gene H. Golub and Virginia Klema and G.W. Stewart},
+  title={Rank degeneracy and least squares problems},
+  institution={Stanford University}, 
+  number={STAN-CS-76-559},
+  year=1976
+}
+
+Standard reference for (strong) RRQR factorizations, which will hopefully be 
+added to Elemental in the near future.
+@article{GuEisenstat-1996,
+  author={Ming Gu and Stanley Eisenstat},
+  title={Efficient algorithms for computing a strong rank-revealing {QR}
+         factorization},
+  journal={SIAM Journal on Scientific Computing},
+  volume=17,
+  number=4,
+  pages={848--869},
+  year=1996
+}
+
+Elemental uses the same norm updating strategy as this paper and the 
+corresponding LAPACK implementation of dgeqpf.f
+@article{DrmacBujanovic-2008,
+  author={Zlatko Drmac and Zvonimir Bujanovic},
+  title={On the failure of {R}ank-{R}evealing {QR} factorization software --
+         a case study},
+  journal={ACM Transactions on Mathematical Software},
+  volume=35,
+  number=2,
+  pages={12:1--12:28},
+  year=2008
+}
+
+Up-/downdating LU factorizations
+================================
+
+Elemental's LUMod closely follows the discussion of Algorithm I from the 
+following paper, which is attributed to the textbook 
+"Numerische lineare Algebra" by A. Kielbasinski and H. Schwetlick.
+@article{StangeGriewankBollhofer-2007,
+  author={Peter Stange and Andreas Griewank and Matthias Bollhofer},
+  title={On the efficient update of rectangular {LU}-factorizations subject
+         to low rank modifications},
+  journal={Electronic Transactions on Numerical Analysis},
+  volume=26,
+  pages={161--177},
+  year=2007
+}
+
+Up-/downdating Cholesky factorizations
+======================================
+
+It is demonstrated that downdated Cholesky factorizations can be an
+ill-conditioned function of the original Cholesky factor and the update vector.
+@article{Stewart-1979,
+  author={G.W. Stewart},
+  title={The effects of rounding error on an algorithm for downdating a 
+         Cholesky factorization},
+  journal={IMA Journal of Applied Mathematics},
+  volume=23,
+  number=2,
+  pages={203--213},
+  year=1979
+}
+
+A general analysis of the stability of triangularizing matrices via 
+hyperbolic Householder transformations.
+@article{StewartStewart-1998,
+  author={Michael Stewart and G.W. Stewart},
+  title={On hyperbolic triangularization: stability and pivoting},
+  journal={SIAM Journal on Matrix Analysis and Applications},
+  volume=19,
+  number=4,
+  pages={847--860},
+  year=1998
+}
+
+A review of generalized/hyperbolic Householder transforms which also introduces
+blocked algorithms for up-/downdating via accumulated generalized Householder
+transforms.
+@article{VanDeGeijnVanZee-2011,
+  author={Robert A. van de Geijn and Field G. van Zee},
+  title={High-performance up-and-downdating via Householder-like 
+    transformations},
+  journal={ACM Transactions on Mathematical Software},
+  volume=38,
+  number=1,
+  pages={4:1--4:17},
+  year=2011
+}
+
+Singular Value Decomposition
+============================
+
+This paper introduced the standard algorithm for computing the SVD.
+@article{GolubReinsch-1970,
+  author={Gene H. Golub and Christian Reinsch},
+  title={Singular value decomposition and least squares solutions},
+  journal={Numerische Mathematik},
+  volume=14,
+  number=5,
+  pages={403--420},
+  year=1970
+}
+
+This paper introduced the idea of using a QR decomposition as a first
+step in the SVD of a non-square matrix in order to accelerate the 
+computation (well, an earlier Golub paper mentioned it as well).
+@article{Chan-1982,
+  author={Tony F. Chan},
+  title={An improved algorithm for computing the {S}ingular {V}alue
+         {D}ecomposition},
+  journal={ACM Transactions on Mathematical Software},
+  volume=8,
+  number=1,
+  pages={72--83},
+  year=1982
+}
+
+This could serve as a foundation for achieving high absolute accuracy
+in a cross-product based algorithm for computing the SVD. Such an
+approach should be more scalable than the current 
+bidiagonalization-based approach.
+@article{Jia-2006,
+  author={Zhongxiao Jia},
+  title={Using cross-product matrices to compute the {SVD}},
+  journal={Numerical Algorithms},
+  volume=42,
+  number=1,
+  pages={31--61},
+  year=2006
+}
+
+Symmetric positive-definite inversion
+=====================================
+
+The variant 2 single-sweep algorithm from Fig. 9 was parallelized for
+Elemental's HPD inversion.
+@article{BientinesiGunterVanDeGeijn-2008,
+  author={Paolo Bientinesi and Brian Gunter and Robert A. van de Geijn},
+  title={Families of algorithms related to the inversion of a {S}ymmetric
+         {P}ositive {D}efinite matrix},
+  journal={ACM Transactions on Mathematical Software},
+  volume=35,
+  number=1,
+  pages={3:1--3:22},
+  year=2008
+}
+
+Interpolative and skeleton decompositions
+=========================================
+
+Standard reference for (pseudo-)skeleton approximations, which are also referred
+to as CUR decompositions, especially when the center matrix is non-square.
+@article{GoreinovTyrtyshnikovZamarashkin-1997,
+  author={S.A. Goreinov and E.E. Tyrtyshnikov and N.L. Zamarashkin},
+  title={A theory of pseudoskeleton approximations},
+  journal={Linear Algebra and Appl},
+  volume=261,
+  number=1--3,
+  pages={1--21}, 
+  year=1997
+}
+
+Introduced effective randomized approximations of interpolative decompositions
+@article{LibertyEtAl-2007,
+  author={Edo Liberty and Franco Woolfe and Per-Gunnar Martinsson and 
+          Vladimir Rokhlin and Mark Tygert},
+  title={Randomized algorithms for the low-rank approximation of matrices},
+  journal={Proceedings of the National Academy of Sciences, USA},
+  volume=104,
+  pages={20167--20172},
+  year=2007
+}
+
+Contains a thorough analysis of many randomized algorithms for (pseudoskeleton)
+decompositions using RRQR factorizations.
+@article{ChiuDemanet-2013,
+  author={Jiawei Chiu and Laurent Demanet},
+  title={Sublinear randomized algorithms for skeleton decompositions},
+  journal={SIAM Journal on Matrix Analysis and Applications},
+  volume=34, 
+  number=3,
+  pages={1361--1383},
+  year=2013
+}
+
+Householder tridiagonalization
+==============================
+
+Contains the algorithm used for Elemental's square-grid tridiagonalization.
+@techreport{Stanley-1997,
+  author={Ken Stanley},
+  title={Execution time of symmetric eigensolvers},
+  type={{Ph.D.} {D}issertation},
+  institution={University of California at Berkeley},
+  number={CSD-99-1039},
+  pages=183,
+  year=1997
+}
+
+One of the origins for the square-grid tridiagonalization algorithm used in
+Elemental (which was later refined by Stanley et al.).
+@article{HendricksonJessupSmith-1999,
+  author={Bruce Hendrickson and Elizabeth Jessup and Christopher Smith},
+  title={Towards an efficient parallel eigensolver for dense symmetric 
+         matrices},
+  journal={SIAM Journal on Scientific Computing},
+  volume=20,
+  number=3,
+  pages={1132--1154},
+  year=1999
+}
+
+Two-sided triangular transformations
+====================================
+
+Contains the main algorithm used for Elemental's two-sided triangular solves.
+@inproceedings{SearsStanleyHenry-1998,
+  author={Mark P. Sears and Ken Stanley and Greg Henry},
+  title={Application of a high performance parallel eigensolver to electronic
+         structure calculation},
+  booktitle={Proceedings of the ACM/IEEE Conference on Supercomputing},
+  publisher={IEEE Computer Society},
+  year=1998
+}
+
+Matrix functions
+================
+
+Heavily used for Elemental's Sign implementation
+TODO: Cite paper(s) instead
+@book{Higham-2008,
+  author={Nicholas J. Higham},
+  title={Functions of {M}atrices: {T}heory and {C}omputation}, 
+  publisher={SIAM},
+  year=2008
+}
+
+Algorithm for the polar decomposition which typically converges in less than
+seven iterations
+@article{NakatsukasaBaiGygi-2010,
+  author={Yuji Nakatsukasa and Zhaojun Bai and Francois Gygi},
+  title={Optimizing {H}alley's iteration for computing the matrix polar 
+         decomposition},
+  journal={SIAM Journal on Matrix Analysis and Applications},
+  volume=31,
+  number=5,
+  pages={2700--2720},
+  year=2010
+}
+
+Fast Haar generation
+====================
+
+Useful for randomized rank-revealing factorizations of rank-deficient matrices
+@article{Stewart-1980,
+  author={G.W. Stewart},
+  title={The efficient generation of random orthogonal matrices with an 
+         application to condition estimators},
+  journal={SIAM Journal on Numerical Analysis},
+  volume=17,
+  number=3,
+  pages={403--409},
+  year=1980
+}
+
+Convex optimization
+===================
+
+The line search reference for the L-BFGS algorithm of ByrdEtAl-1995
+@article{MoreThuente-1994,
+  author={Jorge J. Mor\'e and David J. Thuente},
+  title={Line search algorithms with guaranteed sufficient decrease},
+  journal={ACM Transactions on Mathematical Software},
+  volume=20,
+  number=3,
+  pages={286--307},
+  year=1994
+} 
+
+Introduced the lasso
+@article{Tibshirani-1995,
+  author={Robert Tibshirani},
+  title={Regression shrinkage and selection via the lasso},
+  journal={Journal of the Royal Statistical Society, Series B (Methodological)},
+  volume=58,
+  number=1,
+  pages={267--288},
+  year=1996
+} 
+
+The basis for Elemental's (upcoming) L-BFGS implementation
+@article{ByrdEtAl-1995,
+  author={Richard H. Byrd and Peihuang Lu and Jorge Nocedal and Ciyou Zhu},
+  title={A limited memory algorithm for bound constrained optimization},
+  journal={SIAM Journal on Scientific Computing},
+  volume=16,
+  number=5,
+  pages={1190--1208},
+  year=1995
+}
+
+Section 4 contains the sparse covariance selection experiment used in 
+examples/convex/SparseInvCov.cpp
+@article{dAspremontBanerjeeElGhaoui-2008,
+  author={Alexandre d'Aspremont and Onureena Banerjee and Laurent El Ghaoui},
+  title={First-order methods for sparse covariance selection},
+  journal={SIAM Journal on Matrix Analysis and Applications},
+  volume=30,
+  number=1,
+  pages={56--66},
+  year=2008
+}
+
+Introduces techniques for L+S decompositions and proves that exact recovery
+is often possible
+@article{CandesEtAl-2011,
+  author={Emmanuel J. Cand\`es and Xiaodong Li and Yi Ma and John Wright},
+  title={Robust principal component analysis?},
+  journal={Journal of the ACM},
+  volume=58,
+  number=3,
+  pages={11:1--11:37},
+  year=2011
+}
+
+Contains a wide variety of ADMM solvers which can be mapped to parallel
+architectures via parallel factorizations/SVD/etc.
+@article{BoydEtAl-2011,
+  author={Stephen Boyd and Neal Parikh and Eric Chu and Borja Peleato and
+          Jonathan Eckstein},
+  title={Distributed optimization and statistical learning via the 
+         Alternating Direction Method of Multipliers},
+  journal={Foundations and Trends in Machine Learning},
+  volume=3,
+  number=1,
+  pages={1--122},
+  year=2011
+}
+
+Miscellaneous
+=============
+
+Added for definition of Kahan matrix (pg. 260)
+@book{GolubVanLoan-1996,
+  author={Gene H. Golub and Charles F. van Loan},
+  title={Matrix {C}omputations},
+  edition={3rd}, 
+  publisher={Johns Hopkins University Press},
+  address={Baltimore},
+  year=1996
+}
