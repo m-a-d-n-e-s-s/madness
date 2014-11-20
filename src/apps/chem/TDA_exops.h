@@ -37,6 +37,7 @@ public:
 			basis.push_back(creators[i]);
 			key.push_back(key_creator[i]);
 		}
+		std::cout << "Dipole Basis size " << key.size();
 		//quadrupole
 		for(size_t i=0;i<creators.size();i++){
 			for(size_t j=0;j<=i;j++){
@@ -46,6 +47,7 @@ public:
 				key.push_back(stmp);
 			}
 		}
+		std::cout << "Quadrupole Basis size " << key.size();
 		// cubics
 		//quadrupole
 		for(size_t i=0;i<creators.size();i++){
@@ -58,6 +60,7 @@ public:
 				}
 			}
 		}
+		std::cout << "cubics Basis size " << key.size();
 		// quartics
 		//quadrupole
 		for(size_t i=0;i<creators.size();i++){
@@ -72,6 +75,7 @@ public:
 				}
 			}
 		}
+		std::cout << "quartics Basis size " << key.size();
 		//quints
 		// quartics
 		//quadrupole
@@ -89,6 +93,7 @@ public:
 			}
 		}
 	}
+	std::cout << "quints Basis size " << key.size();
 		for(size_t i=0;i<creators.size();i++){
 			for(size_t j=0;j<=i;j++){
 				for(size_t k=0;k<=j;k++){
@@ -104,44 +109,46 @@ public:
 			}
 		}
 	}}
-		for(size_t i=0;i<creators.size();i++){
-			for(size_t j=0;j<=i;j++){
-				for(size_t k=0;k<=j;k++){
-					for(size_t l=0;l<=k;l++){
-						for(size_t m=0;m<=l;m++){
-							for(size_t n=0;n<=m;n++){
-								for(size_t u=0;u<=n;u++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u];
-							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u];
-							key.push_back(stmp);}}}}}}}
-		for(size_t i=0;i<creators.size();i++){
-			for(size_t j=0;j<=i;j++){
-				for(size_t k=0;k<=j;k++){
-					for(size_t l=0;l<=k;l++){
-						for(size_t m=0;m<=l;m++){
-							for(size_t n=0;n<=m;n++){
-								for(size_t u=0;u<=n;u++){
-									for(size_t q=0;q<=u;q++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u]*creators[q];
-							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q];
-							key.push_back(stmp);}}}}}}}}
-		for(size_t i=0;i<creators.size();i++){
-			for(size_t j=0;j<=i;j++){
-				for(size_t k=0;k<=j;k++){
-					for(size_t l=0;l<=k;l++){
-						for(size_t m=0;m<=l;m++){
-							for(size_t n=0;n<=m;n++){
-								for(size_t u=0;u<=n;u++){
-									for(size_t q=0;q<=u;q++){
-										for(size_t w=0;w<=q;w++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]
-							        *creators[l]*creators[m]*creators[n]*creators[u]*creators[q]*creators[w];
-							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]
-							               +key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q]+key_creator[w];
-							key.push_back(stmp);}}}}}}}}}
+//	std::cout << "6th order Basis size " << key.size();
+//		for(size_t i=0;i<creators.size();i++){
+//			for(size_t j=0;j<=i;j++){
+//				for(size_t k=0;k<=j;k++){
+//					for(size_t l=0;l<=k;l++){
+//						for(size_t m=0;m<=l;m++){
+//							for(size_t n=0;n<=m;n++){
+//								for(size_t u=0;u<=n;u++){
+//							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u];
+//							basis.push_back(tmp);
+//							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u];
+//							key.push_back(stmp);}}}}}}}
+//		for(size_t i=0;i<creators.size();i++){
+//			for(size_t j=0;j<=i;j++){
+//				for(size_t k=0;k<=j;k++){
+//					for(size_t l=0;l<=k;l++){
+//						for(size_t m=0;m<=l;m++){
+//							for(size_t n=0;n<=m;n++){
+//								for(size_t u=0;u<=n;u++){
+//									for(size_t q=0;q<=u;q++){
+//							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u]*creators[q];
+//							basis.push_back(tmp);
+//							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q];
+//							key.push_back(stmp);}}}}}}}}
+//		std::cout << "7th order Basis size " << key.size();
+//		for(size_t i=0;i<creators.size();i++){
+//			for(size_t j=0;j<=i;j++){
+//				for(size_t k=0;k<=j;k++){
+//					for(size_t l=0;l<=k;l++){
+//						for(size_t m=0;m<=l;m++){
+//							for(size_t n=0;n<=m;n++){
+//								for(size_t u=0;u<=n;u++){
+//									for(size_t q=0;q<=u;q++){
+//										for(size_t w=0;w<=q;w++){
+//							real_function_3d tmp = creators[j]*creators[i]*creators[k]
+//							        *creators[l]*creators[m]*creators[n]*creators[u]*creators[q]*creators[w];
+//							basis.push_back(tmp);
+//							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]
+//							               +key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q]+key_creator[w];
+//							key.push_back(stmp);}}}}}}}}}
 	polynom_basis_ = basis;
 	key_=key;
 	}
@@ -398,6 +405,43 @@ public:
 			real_function_3d tmp4 = real_factory_3d(world).f(d2d_E1); xoperators.push_back(tmp4);
 			real_function_3d tmp5 = real_factory_3d(world).f(d2d_E2); xoperators.push_back(tmp5);
 		}
+		else if(exop=="reduced-D6h"){
+			real_function_3d tmp0 = real_factory_3d(world).f(d6h_A1g  );xoperators.push_back(tmp0);
+			real_function_3d tmp1 = real_factory_3d(world).f(d6h_E1g1 );xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(d6h_E1g2 );xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(d6h_E2g1 );xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(d6h_E2g2 );xoperators.push_back(tmp4);
+			real_function_3d tmp5 = real_factory_3d(world).f(d6h_A2u  );xoperators.push_back(tmp5);
+			real_function_3d tmp6 = real_factory_3d(world).f(d6h_B1u  );xoperators.push_back(tmp6);
+			real_function_3d tmp7 = real_factory_3d(world).f(d6h_B2u  );xoperators.push_back(tmp7);
+			real_function_3d tmp8 = real_factory_3d(world).f(d6h_E1u1 );xoperators.push_back(tmp8);
+			real_function_3d tmp9 = real_factory_3d(world).f(d6h_E1u2 );xoperators.push_back(tmp9);
+		}
+		else if(exop=="D6h"){
+			real_function_3d tmp0 = real_factory_3d(world).f(d6h_A1g  );xoperators.push_back(tmp0);
+			real_function_3d tmp1 = real_factory_3d(world).f(d6h_E1g1 );xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(d6h_E1g2 );xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(d6h_E2g1 );xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(d6h_E2g2 );xoperators.push_back(tmp4);
+			real_function_3d tmp5 = real_factory_3d(world).f(d6h_A2u  );xoperators.push_back(tmp5);
+			real_function_3d tmp6 = real_factory_3d(world).f(d6h_B1u  );xoperators.push_back(tmp6);
+			real_function_3d tmp7 = real_factory_3d(world).f(d6h_B2u  );xoperators.push_back(tmp7);
+			real_function_3d tmp8 = real_factory_3d(world).f(d6h_E1u1 );xoperators.push_back(tmp8);
+			real_function_3d tmp9 = real_factory_3d(world).f(d6h_E1u2 );xoperators.push_back(tmp9);
+			std::cout << "Random guess exops for irreps A2g,B1g,B2g,A2u " << std::endl;
+			real_function_3d tmp = real_factory_3d(world);
+			for(size_t k=0;k<polynom_basis_.size();k++){
+				// dont take linear, quadratic and cubic functions
+				double range = 0.0;
+				if(k>19) range = 0.1;
+				double c = random_number()*range;
+				tmp += c*polynom_basis_[k];
+				std::cout <<std::fixed << std::setprecision(2) << " "<< c << " " <<  key_[k];
+			}
+			xoperators.push_back(tmp);
+			std::cout << std::endl;
+
+		}
 		else if(exop=="sequential_full"){
 			real_function_3d tmp = real_factory_3d(world).f(seq_full); xoperators.push_back(tmp);
 		}
@@ -587,6 +631,20 @@ private:
 	 static double benzene_4(const coord_3d &r){return z_function(r);}
 	 static double benzene_5(const coord_3d &r){return xyz_function(r);}
 	 static double benzene_6(const coord_3d &r){return xxz_function(r) - yyz_function(r);}
+
+	 /// D6h without irreps A2g, B1g, B2g, A2u because no linear, quadratic or cubic polynomial transforms like them
+	 // Suggestion to include them: Make random guess functions with polynomials of order 4 and higher and orthonormalize
+	 static double d6h_A1g (const coord_3d &r){return xx_function(r)+yy_function(r)+zz_function(r) ;}
+	 static double d6h_E1g1(const coord_3d &r){return xz_function(r);}
+	 static double d6h_E1g2(const coord_3d &r){return yz_function(r);}
+	 static double d6h_E2g1(const coord_3d &r){return xx_function(r)-yy_function(r);}
+	 static double d6h_E2g2(const coord_3d &r){return xy_function(r);}
+	 static double d6h_A2u (const coord_3d &r){return z_function(r) + zzz_function(r) + xxz_function(r) + yyz_function(r);}
+	 static double d6h_B1u (const coord_3d &r){return xxx_function(r)-3.0*xyy_function(r);}
+	 static double d6h_B2u (const coord_3d &r){return 3.0*xxy_function(r)-yyy_function(r);}
+	 static double d6h_E1u1(const coord_3d &r){return x_function(r) + xzz_function(r) + xxx_function(r) +xyy_function(r);}
+	 static double d6h_E1u2(const coord_3d &r){return y_function(r) + yzz_function(r) + xxy_function(r) +yyy_function(r);}
+	 //static double rest(const coord_3d &r){return ;}
 
 	 /// D2d
 	 static double d2d_A1(const coord_3d &r){return rr_function(r) +xyz_function(r)   ;}

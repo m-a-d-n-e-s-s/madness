@@ -231,33 +231,20 @@ public:
 		plot_line("rho_line_munged",1000,plot_coord_1,plot_coord_2,rho);
 
 
-		// make and plot lda kernel
-		real_function_3d fxc = make_lda_kernel(rho);
-		fxc.truncate();
-		fxc_ = fxc;
-		plot_plane(world,fxc,"fxc");
+//		// Make the contracted gradient of the unperturbed density sum_i (d/dxi rho)^2
+//		if(xcfunctional_.is_gga()){
+//			vecfuncT delrho;
+//			std::vector< std::shared_ptr<real_derivative_3d> > gradop;
+//			gradop =gradient_operator<double,3>(world);
+//			rho.reconstruct();
+//			for (int axis = 0; axis < 3; ++axis){
+//				delrho.push_back((*gradop[axis])(rho, false)); // delrho
+//			}
+//			world.gop.fence(); // NECESSARY
+//
+//			sigma_=	delrho[0] * delrho[0] + delrho[1] * delrho[1]+ delrho[2] * delrho[2];     // sigma_aa
+//		}
 
-		// Make the contracted gradient of the unperturbed density sum_i (d/dxi rho)^2
-		if(xcfunctional_.is_gga()){
-			vecfuncT delrho;
-			std::vector< std::shared_ptr<real_derivative_3d> > gradop;
-			gradop =gradient_operator<double,3>(world);
-			rho.reconstruct();
-			for (int axis = 0; axis < 3; ++axis){
-				delrho.push_back((*gradop[axis])(rho, false)); // delrho
-			}
-			world.gop.fence(); // NECESSARY
-
-			sigma_=	delrho[0] * delrho[0] + delrho[1] * delrho[1]+ delrho[2] * delrho[2];     // sigma_aa
-		}
-
-		vxc_=make_unperturbed_vxc(rho_);
-
-		//DEBUG
-		plot_plane(world,vxc_,"debug_pvxc");
-		double exc = 0.5*inner(vxc_,rho_);
-		std::cout << "unperturbed exchange correlation energy : " << exc  << " density norm: " << rho_.norm2() << " vxc norm : " << vxc_.norm2()<< std::endl;
-		//DEBUG END
 	}
 	///Disable copy constructor
 	TDA_DFT(const TDA_DFT &other);
@@ -271,11 +258,28 @@ public:
 	real_function_3d get_perturbed_potential(const real_function_3d &perturbed_density){return V(perturbed_density);}
 	real_function_3d convolution_with_kernel(real_function_3d &perturbed_density)const;
 	vecfuncT apply_kernel(const vecfuncT &x)const;
-	real_function_3d get_unperturbed_vxc()const{return vxc_;}
+	real_function_3d get_unperturbed_vxc()const{
+		if(vxc_.is_initialized())
+		return vxc_;
+		else{
+			real_function_3d vxc=make_unperturbed_vxc(rho_);
+			vxc_ = vxc;
+			return vxc_;
+		}
+	}
 	XCfunctional get_xcfunctional()const{return xcfunctional_;}
 	real_function_3d calculate_unperturbed_vxc(const real_function_3d &rho)const{return make_unperturbed_vxc(rho);}
 	vecfuncT get_lda_intermediate(vecfuncT & mos)const{return multiply_with_kernel(mos);}
-	real_function_3d get_fxc()const{return fxc_;}
+	real_function_3d get_fxc()const{
+		if(fxc_.is_initialized())
+		return fxc_;
+		else{
+				real_function_3d fxc = make_lda_kernel(rho_);
+				fxc.truncate();
+				fxc_=fxc;
+				return fxc_;
+			}
+		}
 	// Test which type of functional is used
 	bool is_gga()const{
 		return xcfunctional_.is_gga();
@@ -293,9 +297,9 @@ private:
 	/// The contracted gradient of the unperturbed density
 	real_function_3d sigma_;
 	/// unperturbed exchange correlation potential
-	real_function_3d vxc_;
+	mutable real_function_3d vxc_;
 	/// The LDA kernel
-	real_function_3d fxc_;
+	mutable real_function_3d fxc_;
 	/// Type of exchange and correlation
 	real_function_3d vx_dirac(const real_function_3d &perturbed_density);
 	real_function_3d V(const real_function_3d &perturbed_density);
