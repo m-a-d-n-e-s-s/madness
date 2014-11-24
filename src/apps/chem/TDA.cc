@@ -530,7 +530,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 		if (guess == false)
 			iter += guess_iter_;
 		std::cout<< std::setw(40)<<"Starting iteration"+stringify(iter)+" at time   "
-				<<" : "<<wall_time() << std::endl;
+				<<" : "<<std::setprecision(6)<<wall_time() << std::endl;
 		// Check memory management
 		for (size_t i = 0; i < xfunctions.size(); i++) {
 			if (on_the_fly_ and not xfunctions[i].Vx.empty())
@@ -1096,18 +1096,25 @@ vecfuncT TDA::apply_gamma(const xfunction &xfunction) const {
 
 	TDA_TIMER hartree(world, "apply perturbed hartree potential...");
 	vecfuncT gamma = apply_hartree_potential(xfunction.x);
+	compress(world, gamma);
 	hartree.info(debug_);
 
 	TDA_TIMER exchange(world, "apply hf-exchange potential kernel...");\
 	for (std::size_t p = 0; p < xfunction.x.size(); p++) {
 
-		vecfuncT x_Ppi = mul(world, xfunction.x, exchange_intermediate_[p]);
-		for (std::size_t i = 0; i < xfunction.x.size(); i++)
+print("flodbg 1, p=",p);
+		const vecfuncT x_Ppi = mul(world, xfunction.x, exchange_intermediate_[p]);
+		compress(world, x_Ppi);
+world.gop.fence();
+		for (std::size_t i = 0; i < xfunction.x.size(); i++) {
 			gamma[p] -= x_Ppi[i];
+print("flodbg 2, i=",i, wall_time());
+world.gop.fence();
+std::cout.flush();
+}
 
-		// Project out occupied space (can not use the function here, because of const ... and dont want to give it up)
-		for (size_t p = 0; p < active_mo_.size(); ++p)
-			gamma[p] -= rho0(gamma[p]);
+		// Project out occupied space
+		gamma[p] -= rho0(gamma[p]);
 	}
 	exchange.info(debug_);
 
