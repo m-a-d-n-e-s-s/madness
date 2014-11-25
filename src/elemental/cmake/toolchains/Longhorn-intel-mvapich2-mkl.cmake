@@ -1,0 +1,40 @@
+# The serial Intel compilers
+set(COMPILER_DIR /opt/apps/intel/11.1/bin/intel64)
+set(CMAKE_C_COMPILER       ${COMPILER_DIR}/icc)
+set(CMAKE_CXX_COMPILER     ${COMPILER_DIR}/icpc)
+set(CMAKE_Fortran_COMPILER ${COMPILER_DIR}/ifort)
+
+# The MPI wrappers for the C and C++ compilers
+set(MPI_COMPILER_DIR /opt/apps/intel11_1/mvapich2/1.4/bin)
+set(MPI_C_COMPILER       ${MPI_COMPILER_DIR}/mpicc)
+set(MPI_CXX_COMPILER     ${MPI_COMPILER_DIR}/mpicxx)
+set(MPI_Fortran_COMPILER ${MPI_COMPILER_DIR}/mpif90)
+set(MPI_C_COMPILE_FLAGS "")
+set(MPI_CXX_COMPILE_FLAGS "")
+set(MPI_Fortran_COMPILE_FLAGS "")
+set(MPI_C_INCLUDE_PATH   /opt/apps/intel11_1/mvapich2/1.4/include)
+set(MPI_CXX_INCLUDE_PATH ${MPI_C_INCLUDE_PATH})
+set(MPI_Fortran_INCLUDE_PATH ${MPI_C_INCLUDE_PATH})
+set(MPI_C_LINK_FLAGS "-Wl,-rpath,/opt/apps/intel/11.1/lib/intel64 -Wl,-rpath,/opt/apps/intel/11.1/lib/intel64 -Wl,-rpath -L/opt/apps/intel11_1/mvapich2/1.4/lib -L/opt/ofed/lib64/")
+set(MPI_CXX_LINK_FLAGS ${MPI_C_LINK_FLAGS})
+set(MPI_Fortran_LINK_FLAGS ${MPI_C_LINK_FLAGS})
+set(MPI_BASE_LIBS "-lmpich -lpthread -lrdmacm -libverbs -libumad -ldl -lrt")
+set(MPI_C_LIBRARIES "-limf ${MPI_BASE_LIBS}")
+set(MPI_CXX_LIBRARIES "-limf -lmpichcxx ${MPI_BASE_LIBS}")
+set(MPI_Fortran_LIBRARIES "-limf -lmpichf90 ${MPI_BASE_LIBS}")
+
+if(CMAKE_BUILD_TYPE MATCHES PureDebug OR
+   CMAKE_BUILD_TYPE MATCHES HybridDebug)
+  set(CXX_FLAGS "-g")
+else()
+  set(CXX_FLAGS "-O3")
+endif()
+
+set(OpenMP_CXX_FLAGS "-openmp")
+
+if(CMAKE_BUILD_TYPE MATCHES PureDebug OR
+   CMAKE_BUILD_TYPE MATCHES PureRelease)
+  set(MATH_LIBS "-L/opt/apps/intel/mkl/10.2.2.025/lib/em64t -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lm")
+else()
+  set(MATH_LIBS "-L/opt/apps/intel/11.1/mkl/lib/em64t -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lguide -lpthread -lm")
+endif()
