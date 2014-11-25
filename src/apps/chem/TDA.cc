@@ -1102,16 +1102,11 @@ vecfuncT TDA::apply_gamma(const xfunction &xfunction) const {
 	TDA_TIMER exchange(world, "apply hf-exchange potential kernel...");\
 	for (std::size_t p = 0; p < xfunction.x.size(); p++) {
 
-print("flodbg 1, p=",p);
 		const vecfuncT x_Ppi = mul(world, xfunction.x, exchange_intermediate_[p]);
 		compress(world, x_Ppi);
-world.gop.fence();
 		for (std::size_t i = 0; i < xfunction.x.size(); i++) {
 			gamma[p] -= x_Ppi[i];
-print("flodbg 2, i=",i, wall_time());
-world.gop.fence();
-std::cout.flush();
-}
+		}
 
 		// Project out occupied space
 		gamma[p] -= rho0(gamma[p]);
