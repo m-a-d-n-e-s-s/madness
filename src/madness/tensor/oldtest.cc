@@ -567,7 +567,7 @@ template <class T> void Test7() {
     x.fillrandom();
     c.fillrandom();
     double start = std::clock();
-    for (long i=0; i<10000; ++i) {
+    for (long i=0; i<200; ++i) {
         fast_transform(x,c,r,y);
     }
     double used = (std::clock()-start)/CLOCKS_PER_SEC;
