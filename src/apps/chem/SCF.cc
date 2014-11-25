@@ -691,7 +691,7 @@ namespace madness {
     //     return r.scale(0.5);
     // }
     
-    distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
+    /*distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
         reconstruct(world, v);
         int n = v.size();
         distmatT r = column_distributed_matrix<double>(world, n, n);
@@ -704,7 +704,29 @@ namespace madness {
         //tensorT p(v.size(),v.size());
         //r.copy_to_replicated(p);
         return r;
-    }
+    }*/
+
+  // this version is faster than the previous version on BG/Q
+     distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
+         int n = v.size();
+         distmatT r = column_distributed_matrix<double>(world, n, n);
+         reconstruct(world, v);
+         vecfuncT dvx = apply(world, *(gradop[0]), v, false);
+         vecfuncT dvy = apply(world, *(gradop[1]), v, false);
+         vecfuncT dvz = apply(world, *(gradop[2]), v, false);
+         world.gop.fence();
+         compress(world,dvx,false);
+         compress(world,dvy,false);
+         compress(world,dvz,false);
+         world.gop.fence();
+         r += matrix_inner(r.distribution(), dvx, dvx, true);
+         r += matrix_inner(r.distribution(), dvy, dvy, true);
+         r += matrix_inner(r.distribution(), dvz, dvz, true);
+         r *= 0.5;
+         //tensorT p(v.size(),v.size());
+         //r.copy_to_replicated(p);
+         return r;
+     }
     
     vecfuncT SCF::core_projection(World & world, const vecfuncT & psi,
                                   const bool include_Bc) {
@@ -1440,14 +1462,25 @@ namespace madness {
         END_TIMER(world, "PE matrix");
         TAU_STOP("PE matrix");
         TAU_START("KE matrix");
+        /*START_TIMER(world);
+        LoadBalanceDeux < 3 > lb(world);
+        for (unsigned int i = 0; i < amo.size(); ++i) {
+            lb.add_tree(amo[i], lbcost<double, 3>(1.0, 8.0), false);
+        }
+        world.gop.fence();
+        std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmap = FunctionDefaults<3>::get_pmap();
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(2.0)); // 6.0 needs retuning after vnucextra 
+        END_TIMER(world, "KE redist");*/
         START_TIMER(world);
         tensorT ke(psi.size(),psi.size());
         {
             distmatT k = kinetic_energy_matrix(world, psi);
             k.copy_to_replicated(ke);
         }
-
         END_TIMER(world, "KE matrix");
+        /*START_TIMER(world);
+        FunctionDefaults < 3 > ::redistribute(world, pmap);
+        END_TIMER(world, "KE redist");*/
         TAU_STOP("KE matrix");
         TAU_START("Make fock matrix rest");
         START_TIMER(world);
