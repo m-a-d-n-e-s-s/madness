@@ -567,11 +567,12 @@ template <class T> void Test7() {
     x.fillrandom();
     c.fillrandom();
     double start = std::clock();
-    for (long i=0; i<200; ++i) {
+    const int niter = 200;
+    for (long i=0; i<niter; ++i) {
         fast_transform(x,c,r,y);
     }
     double used = (std::clock()-start)/CLOCKS_PER_SEC;
-    double mops = 10000.0*2*3*1e-6*double(NNN)*double(NNN)*double(NNN)*NNN/used;
+    double mops = niter*2*3*1e-6*double(NNN)*double(NNN)*double(NNN)*NNN/used;
     std::cout << "TRANSFORM MOPS=" << mops << "   " << used << std::endl;
 
     std::cout << "Test7<" << tensor_type_names[TensorTypeData<T>::id] << "> OK\n";
