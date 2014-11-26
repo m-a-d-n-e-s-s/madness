@@ -98,7 +98,7 @@ libMADlinalg_a_SOURCES = lapack.cc cblas.h \
 if USE_X86_64_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(AM_CPPFLAGS) -I. -DX86_64 -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ASFLAGS) $(AM_CPPFLAGS) -I. -DX86_64 -c -o $@ $<
 
 mtxm_gen.h:	genmtxm.py 
 	python $(srcdir)/genmtxm.py > $@
@@ -107,7 +107,7 @@ endif
 if USE_X86_32_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(AM_CPPFLAGS) -I. -DX86_32 -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ASFLAGS) $(AM_CPPFLAGS) -I. -DX86_32 -c -o $@ $<
 
 mtxm_gen.h:	genmtxm.py 
 	python $(srcdir)/genmtxm.py > $@
