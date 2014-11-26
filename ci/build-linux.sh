@@ -15,7 +15,6 @@ export MPICH_CXX=$CXX
 export MPICC=/usr/bin/mpicc.mpich2
 export MPICXX=/usr/bin/mpicxx.mpich2
 export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
-export ASFLAGS=-DDISABLE_SSE3
 
 # Configure and build MADNESS
 ./autogen.sh 
