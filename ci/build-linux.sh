@@ -5,6 +5,7 @@ set -ev
 
 # Environment variables
 export CXXFLAGS="-std=c++11 -mno-avx"
+export CPPFLAGS=-DDISABLE_SSE3
 if [ "$CXX" = "g++" ]; then
     export CC=/usr/bin/gcc-$GCC_VERSION
     export CXX=/usr/bin/g++-$GCC_VERSION

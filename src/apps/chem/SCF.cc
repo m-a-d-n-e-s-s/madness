@@ -59,6 +59,7 @@ namespace madness {
                                       const std::vector< Function<T,NDIM> >& g,
                                       bool sym=false) 
     {
+        PROFILE_FUNC;
         DistributedMatrix<T> A(d);
         const int64_t n = A.coldim();
         const int64_t m = A.rowdim();
@@ -87,10 +88,10 @@ namespace madness {
               const std::vector< Function<T,NDIM> >& v,
               const DistributedMatrix<R>& c,
               bool fence=true) {
+        PROFILE_FUNC;
         
         world.gop.fence();
         
-        PROFILE_BLOCK(Vtransformsp);
         typedef TENSOR_RESULT_TYPE(T,R) resultT;
         long n = v.size();    // n is the old dimension
         long m = c.rowdim();  // m is the new dimension
@@ -212,6 +213,7 @@ namespace madness {
     }
     
     SCF::SCF(World & world, const char *filename) {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("Calculation (World &, const char *");
         if (world.rank() == 0) {
             molecule.read_file(filename);
@@ -259,6 +261,7 @@ namespace madness {
     
     
     void SCF::save_mos(World& world) {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("archive::ParallelOutputArchive ar(world)");
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
         TAU_STOP("archive::ParallelOutputArchive ar(world)");
@@ -276,6 +279,7 @@ namespace madness {
     }
     
     void SCF::load_mos(World& world) {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("load_mos");
         //        const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults < 3 > ::get_thresh();
@@ -379,6 +383,7 @@ namespace madness {
     }
     
     void SCF::do_plots(World& world) {
+        PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         TAU_START("do_plots");
         
@@ -426,6 +431,7 @@ namespace madness {
     }
     
     void SCF::project(World & world) {
+        PROFILE_MEMBER_FUNC(SCF);
         reconstruct(world, amo);
         for (unsigned int i = 0; i < amo.size(); ++i) {
             amo[i] = madness::project(amo[i], FunctionDefaults < 3 > ::get_k(),
@@ -447,6 +453,7 @@ namespace madness {
     }
     
     void SCF::make_nuclear_potential(World & world) {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("Project vnuclear");
         START_TIMER(world);
         if (param.psp_calc){
@@ -458,6 +465,7 @@ namespace madness {
     }
     
     void SCF::project_ao_basis(World & world) {
+        PROFILE_MEMBER_FUNC(SCF);
         // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
         aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
         
@@ -485,6 +493,7 @@ namespace madness {
                               const std::vector<int> & set, const double thresh,
                               const double thetamax, const bool randomize,
                               const bool doprint) const {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("Pipek-Mezy localize");
         START_TIMER(world);
         distmatT dUT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf,
@@ -498,6 +507,7 @@ namespace madness {
     void SCF::analyze_vectors(World& world, const vecfuncT & mo, const tensorT& occ,
                               const tensorT& energy, const std::vector<int>& set) {
         START_TIMER(world);
+        PROFILE_MEMBER_FUNC(SCF);
         tensorT Saomo = matrix_inner(world, ao, mo);
         tensorT Saoao = matrix_inner(world, ao, ao, true);
         int nmo = mo.size();
@@ -710,6 +720,7 @@ namespace madness {
 
   // this version is faster than the previous version on BG/Q
      distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
+        PROFILE_MEMBER_FUNC(SCF);
          int n = v.size();
          distmatT r = column_distributed_matrix<double>(world, n, n);
          reconstruct(world, v);
@@ -732,6 +743,7 @@ namespace madness {
     
     vecfuncT SCF::core_projection(World & world, const vecfuncT & psi,
                                   const bool include_Bc) {
+        PROFILE_MEMBER_FUNC(SCF);
         int npsi = psi.size();
         if (npsi == 0)
             return psi;
@@ -770,6 +782,7 @@ namespace madness {
     
     double SCF::core_projector_derivative(World & world, const vecfuncT & mo,
                                           const tensorT & occ, int atom, int axis) {
+        PROFILE_MEMBER_FUNC(SCF);
         vecfuncT cores, dcores;
         std::vector<double> bc;
         unsigned int atn = molecule.get_atom(atom).atomic_number;
@@ -811,6 +824,7 @@ namespace madness {
     }
     
     void SCF::initial_guess(World & world) {
+        PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         if (param.restart) {
             load_mos(world);
@@ -998,6 +1012,7 @@ namespace madness {
     /// @return		vector of length nmo with the set index for each MO
     std::vector<int> SCF::group_orbital_sets(World& world, const tensorT& eps,
     		const tensorT& occ, const int nmo) const {
+        PROFILE_MEMBER_FUNC(SCF);
 
     	std::vector<int> set = std::vector<int>(nmo, 0);
         for (int i = 1; i < nmo; ++i) {
@@ -1020,6 +1035,7 @@ namespace madness {
 
 
     void SCF::initial_load_bal(World & world) {
+        PROFILE_MEMBER_FUNC(SCF);
         LoadBalanceDeux < 3 > lb(world);
         real_function_3d vnuc;
         if (param.psp_calc){
@@ -1033,6 +1049,7 @@ namespace madness {
     
     functionT SCF::make_density(World & world, const tensorT & occ,
                                 const vecfuncT & v) const {
+        PROFILE_MEMBER_FUNC(SCF);
         vecfuncT vsq = square(world, v);
         compress(world, vsq);
         functionT rho = factoryT(world);
@@ -1049,6 +1066,7 @@ namespace madness {
     
     functionT SCF::make_density(World & world, const tensorT & occ,
                                 const cvecfuncT & v) {
+        PROFILE_MEMBER_FUNC(SCF);
         reconstruct(world, v); // For max parallelism
         std::vector < functionT > vsq(v.size());
         for (unsigned int i = 0; i < v.size(); i++) {
@@ -1073,6 +1091,7 @@ namespace madness {
     }
     
     std::vector<poperatorT> SCF::make_bsh_operators(World& world, const tensorT& evals) {
+        PROFILE_MEMBER_FUNC(SCF);
         int nmo = evals.dim(0);
         std::vector < poperatorT > ops(nmo);
         double tol = FunctionDefaults < 3 > ::get_thresh();
@@ -1101,6 +1120,7 @@ namespace madness {
     /// @return     a vector of orbitals  K| i>
     vecfuncT SCF::apply_hf_exchange(World & world, const tensorT & occ,
                                     const vecfuncT & psi, const vecfuncT & f) const {
+        PROFILE_MEMBER_FUNC(SCF);
         const bool same = (&psi == &f);
         int nocc = psi.size();
         int nf = f.size();
@@ -1175,6 +1195,7 @@ namespace madness {
     
     // Used only for initial guess that is always spin-restricted LDA
     functionT SCF::make_lda_potential(World & world, const functionT & arho) {
+        PROFILE_MEMBER_FUNC(SCF);
         functionT vlda = copy(arho);
         vlda.reconstruct();
         vlda.unaryop(xc_lda_potential());
@@ -1184,6 +1205,7 @@ namespace madness {
     vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
                                   const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
                                   const functionT & vlocal, double & exc, double & enl, int ispin) {
+        PROFILE_MEMBER_FUNC(SCF);
         functionT vloc = vlocal;
         exc = 0.0;
         enl = 0.0;
@@ -1287,6 +1309,7 @@ namespace madness {
     }
     
     tensorT SCF::derivatives(World & world) {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("derivatives");
         START_TIMER(world);
         
@@ -1367,6 +1390,7 @@ namespace madness {
     }
     
     tensorT SCF::dipole(World & world) {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("dipole");
         START_TIMER(world);
         tensorT mu(3);
@@ -1401,6 +1425,7 @@ namespace madness {
     
     void SCF::vector_stats(const std::vector<double> & v, double & rms,
                            double & maxabsval) const {
+        PROFILE_MEMBER_FUNC(SCF);
         rms = 0.0;
         maxabsval = v[0];
         for (unsigned int i = 0; i < v.size(); ++i) {
@@ -1414,6 +1439,7 @@ namespace madness {
                                    const vecfuncT & psi, vecfuncT & Vpsi, double & err) {
 
         START_TIMER(world);
+        PROFILE_MEMBER_FUNC(SCF);
         double trantol = vtol / std::min(30.0, double(psi.size()));
         int nmo = psi.size();
         
@@ -1473,6 +1499,7 @@ namespace madness {
     
     tensorT SCF::make_fock_matrix(World & world, const vecfuncT & psi,
                                   const vecfuncT & Vpsi, const tensorT & occ, double & ekinetic) const {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("PE matrix");
         START_TIMER(world);
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
@@ -1519,6 +1546,7 @@ namespace madness {
     /// Returned is a *replicated* tensor of \f$(ij|kl)\f$ with \f$i>=j\f$
     /// and \f$k>=l\f$.  The symmetry \f$(ij|kl)=(kl|ij)\f$ is enforced.
     Tensor<double> SCF::twoint(World& world, const vecfuncT& psi) const {
+        PROFILE_MEMBER_FUNC(SCF);
         double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
         reconstruct(world, psi);
         norm_tree(world, psi);
@@ -1539,6 +1567,7 @@ namespace madness {
     }
     
     tensorT SCF::matrix_exponential(const tensorT& A) const {
+        PROFILE_MEMBER_FUNC(SCF);
         const double tol = 1e-13;
         MADNESS_ASSERT(A.dim((0) == A.dim(1)));
         
@@ -1586,6 +1615,7 @@ namespace madness {
     tensorT SCF::get_fock_transformation(World& world, const tensorT& overlap,
                                          tensorT& fock, tensorT& evals, const tensorT& occ,
                                          const double thresh_degenerate) const {
+        PROFILE_MEMBER_FUNC(SCF);
         
         TAU_START("Diagonalization Fock-mat w sygv");
         START_TIMER(world);
@@ -1691,6 +1721,7 @@ namespace madness {
     tensorT SCF::diag_fock_matrix(World& world, tensorT& fock, vecfuncT& psi,
                                   vecfuncT& Vpsi, tensorT& evals, const tensorT& occ,
                                   const double thresh) const {
+        PROFILE_MEMBER_FUNC(SCF);
         
         // compute the unitary transformation matrix U that diagonalizes
         // the fock matrix
@@ -1744,6 +1775,7 @@ namespace madness {
     
     void SCF::rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
                               int lo, int nfunc, double trantol) const {
+        PROFILE_MEMBER_FUNC(SCF);
         for (unsigned int iter = 0; iter < subspace.size(); ++iter) {
             vecfuncT& v = subspace[iter].first;
             vecfuncT& r = subspace[iter].second;
@@ -1754,6 +1786,7 @@ namespace madness {
     
     void SCF::rotate_subspace(World& world, const distmatT& dUT, subspaceT& subspace,
                               int lo, int nfunc, double trantol) const {
+        PROFILE_MEMBER_FUNC(SCF);
         for (unsigned int iter = 0; iter < subspace.size(); ++iter) {
             vecfuncT& v = subspace[iter].first;
             vecfuncT& r = subspace[iter].second;
@@ -1765,6 +1798,7 @@ namespace madness {
     void SCF::update_subspace(World & world, vecfuncT & Vpsia, vecfuncT & Vpsib,
                               tensorT & focka, tensorT & fockb, subspaceT & subspace, tensorT & Q,
                               double & bsh_residual, double & update_residual) {
+        PROFILE_MEMBER_FUNC(SCF);
         double aerr = 0.0, berr = 0.0;
         vecfuncT vm = amo;
         
@@ -1903,6 +1937,7 @@ namespace madness {
     /// @return                     max residual
     double SCF::do_step_restriction(World& world, const vecfuncT& mo, vecfuncT& mo_new,
                                     std::string spin) const {
+        PROFILE_MEMBER_FUNC(SCF);
         std::vector<double> anorm = norm2s(world, sub(world, mo, mo_new));
         int nres = 0;
         for (unsigned int i = 0; i < mo.size(); ++i) {
@@ -1933,6 +1968,7 @@ namespace madness {
     /// @param[in]          world   the world
     /// @param[inout]       amo_new the vectors to be orthonormalized
     void SCF::orthonormalize(World& world, vecfuncT& amo_new) const {
+        PROFILE_MEMBER_FUNC(SCF);
         TAU_START("Orthonormalize");
         START_TIMER(world);
         double trantol = vtol / std::min(30.0, double(amo.size()));
@@ -1960,6 +1996,7 @@ namespace madness {
     
     
     void SCF::propagate(World& world, double omega, int step0) {
+        PROFILE_MEMBER_FUNC(SCF);
         // Load molecular orbitals
         set_protocol < 3 > (world, 1e-4);
         make_nuclear_potential(world);
@@ -2057,6 +2094,7 @@ namespace madness {
     void SCF::iterate_trotter(World& world, Convolution1D<double_complex>* G,
                               cvecfuncT& camo, cvecfuncT& cbmo, double t, double time_step,
                               double thresh) {
+        PROFILE_MEMBER_FUNC(SCF);
         
         // first kinetic energy apply
         cvecfuncT camo2 = zero_functions<double_complex, 3>(world, param.nalpha);
@@ -2123,6 +2161,7 @@ namespace madness {
     
     // For given protocol, solve the DFT/HF/response equations
     void SCF::solve(World & world) {
+        PROFILE_MEMBER_FUNC(SCF);
         functionT arho_old, brho_old;
         const double dconv = std::max(FunctionDefaults < 3 > ::get_thresh(),
                                       param.dconv);

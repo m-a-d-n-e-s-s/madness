@@ -31,26 +31,46 @@
   $Id$
 */
 #include <madness/world/world.h>
+#include <cmath>
+#include <cstdio>
 using namespace madness;
 
 class A {
 public:
     void member() {
         PROFILE_MEMBER_FUNC(A);
+        double sum = 0.0;
+        for (int i=0; i<100000.0; i++) sum += sin(i*0.001);
+        std::printf("from A::member sum=%.6f\n", sum);
     }
 };
 
 void b() {
     PROFILE_FUNC;
 
+    double sum = 0.0;
+    for (int i=0; i<100000.0; i++) sum += sin(i*0.001);
+    std::printf("from B before sum=%.6f\n", sum);
+
     A a;
     a.member();
+
+    for (int i=0; i<100000.0; i++) sum += sin(i*0.001);
+    std::printf("from B after  sum=%.6f\n", sum);
+
 }
 
 void a() {
     PROFILE_FUNC;
 
+    double sum = 0.0;
+    for (int i=0; i<100000.0; i++) sum += sin(i*0.001);
+    std::printf("from A before sum=%.6f\n", sum);
+
     b();
+
+    for (int i=0; i<100000.0; i++) sum += sin(i*0.001);
+    std::printf("from A after  sum=%.6f\n", sum);
 }
 
 int main(int argc, char** argv) {
@@ -61,7 +81,15 @@ int main(int argc, char** argv) {
 
     {
         PROFILE_BLOCK(main);
+
+        double sum = 0.0;
+        for (int i=0; i<100000.0; i++) sum += sin(i*0.001);
+        std::printf("from main before sum=%.6f\n", sum);
+
         a();
+
+        for (int i=0; i<100000.0; i++) sum += sin(i*0.001);
+        std::printf("from main after  sum=%.6f\n", sum);
     }
 
     print_stats(world);
