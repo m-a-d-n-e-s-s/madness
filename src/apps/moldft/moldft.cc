@@ -41,7 +41,18 @@
 
 using namespace madness;
 
+
+    static double ttt, sss;
+    static void START_TIMER(World& world) {
+        world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+    }
+    
+    static void END_TIMER(World& world, const char* msg) {
+        ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+    }
+
 int main(int argc, char** argv) {
+
     TAU_START("main()");
     TAU_START("initialize()");
     initialize(argc, argv);
@@ -50,7 +61,7 @@ int main(int argc, char** argv) {
     TAU_START("World lifetime");
     { // limit lifetime of world so that finalize() can execute cleanly
       World world(SafeMPI::COMM_WORLD);
-
+START_TIMER(world);
       try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
@@ -80,7 +91,7 @@ int main(int argc, char** argv) {
           print("\n");
           calc.param.print(world);
         }
-
+END_TIMER(world, "initialize");
         // Come up with an initial OK data map
         if (world.size() > 1) {
           calc.set_protocol<3>(world,calc.param.econv);
@@ -174,3 +185,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+

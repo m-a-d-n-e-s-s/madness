@@ -506,6 +506,7 @@ namespace madness {
     
     void SCF::analyze_vectors(World& world, const vecfuncT & mo, const tensorT& occ,
                               const tensorT& energy, const std::vector<int>& set) {
+        START_TIMER(world);
         PROFILE_MEMBER_FUNC(SCF);
         tensorT Saomo = matrix_inner(world, ao, mo);
         tensorT Saoao = matrix_inner(world, ao, ao, true);
@@ -524,12 +525,13 @@ namespace madness {
             }
         }
         tensorT C;
+        END_TIMER(world, "Analyze vectors");
         
-        TAU_START("compute eigen gesv analize vectors");
+        TAU_START("compute eigen gesv analyze vectors");
         START_TIMER(world);
         gesvp(world, Saoao, Saomo, C);
-        END_TIMER(world, " compute eigen gesv analize vectors");
-        TAU_STOP("compute eigen gesv analize vectors");
+        END_TIMER(world, "Compute eigen gesv analyze vectors");
+        TAU_STOP("compute eigen gesv analyze vectors");
         if (world.rank() == 0) {
             C = transpose(C);
             long nmo = mo.size();
@@ -833,7 +835,7 @@ namespace madness {
                                         functorT(
                                                  new MolecularGuessDensityFunctor(molecule,
                                                                                   aobasis))).truncate_on_project();
-            END_TIMER(world, "guess density");
+
             double nel = rho.trace();
             if (world.rank() == 0)
                 print("guess dens trace", nel);
@@ -843,6 +845,7 @@ namespace madness {
                 int nmo = int(molecule.total_nuclear_charge() + 0.1)/2;
                 rho.scale((2.0*nmo)/nel); 
             }
+            END_TIMER(world, "guess density");
             
             if (world.size() > 1) {
                 TAU_START("guess loadbal");
@@ -878,8 +881,10 @@ namespace madness {
                 TAU_STOP("guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
+                START_TIMER(world);
                 vlocal = vlocal + make_lda_potential(world, rho);
                 vlocal.truncate();
+                END_TIMER(world, "guess lda potn");
                 param.spin_restricted = save;
             } else {
                 real_function_3d vnuc;
@@ -892,6 +897,7 @@ namespace madness {
             rho.clear();
             vlocal.reconstruct();
             if (world.size() > 1) {
+                START_TIMER(world);
                 LoadBalanceDeux < 3 > lb(world);
                 real_function_3d vnuc;
                 if (param.psp_calc){
@@ -903,11 +909,12 @@ namespace madness {
                 for (unsigned int i = 0; i < ao.size(); ++i) {
                     lb.add_tree(ao[i], lbcost<double, 3>(1.0, 8.0), false);
                 }
-                
                 FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+                END_TIMER(world, "guess loadbal");
             }
-            
+            START_TIMER(world);
             tensorT overlap = matrix_inner(world, ao, ao, true);
+            END_TIMER(world, "guess overlap");
             TAU_START("guess Kinet potn");
             START_TIMER(world);
 
@@ -919,6 +926,8 @@ namespace madness {
             END_TIMER(world, "guess Kinet potn");
 
             TAU_STOP("guess Kinet potn");
+
+            START_TIMER(world);
             reconstruct(world, ao);
             vlocal.reconstruct();
             vecfuncT vpsi;
@@ -939,6 +948,7 @@ namespace madness {
             tensorT fock = kinetic + potential;
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
+            END_TIMER(world, "guess fock");
             
             TAU_START("guess eigen sol");
             START_TIMER(world);
@@ -955,7 +965,8 @@ namespace madness {
             //   print("\n\nWSTHORNTON: initial eigenvectors");
             //   print(c);
             // }
-            
+
+            START_TIMER(world);            
             compress(world, ao);
             
             unsigned int ncore = 0;
@@ -989,6 +1000,7 @@ namespace madness {
                 bset=group_orbital_sets(world,beps,bocc,param.nmo_beta);
 
             }
+            END_TIMER(world, "guess orbital grouping");
         }
     }
     
@@ -1425,6 +1437,8 @@ namespace madness {
     
     vecfuncT SCF::compute_residual(World & world, tensorT & occ, tensorT & fock,
                                    const vecfuncT & psi, vecfuncT & Vpsi, double & err) {
+
+        START_TIMER(world);
         PROFILE_MEMBER_FUNC(SCF);
         double trantol = vtol / std::min(30.0, double(psi.size()));
         int nmo = psi.size();
@@ -1446,9 +1460,11 @@ namespace madness {
         scale(world, Vpsi, fac);
         std::vector < poperatorT > ops = make_bsh_operators(world, eps);
         set_thresh(world, Vpsi, FunctionDefaults < 3 > ::get_thresh());
+        END_TIMER(world, "Compute residual stuff");
+
         if (world.rank() == 0)
-            std::cout << "entering apply\n";
-        
+            std::cout << "entering apply\n";        
+
         TAU_START("Apply BSH");
         START_TIMER(world);
         vecfuncT new_psi = apply(world, ops, Vpsi);
@@ -1467,6 +1483,7 @@ namespace madness {
         END_TIMER(world, "Truncate new psi");
         TAU_STOP("Truncate new psi");
         
+        START_TIMER(world);
         vecfuncT r = sub(world, psi, new_psi);
         std::vector<double> rnorm = norm2s(world, r);
         if (world.rank() == 0)
@@ -1476,7 +1493,7 @@ namespace madness {
         err = maxval;
         if (world.rank() == 0)
             print("BSH residual: rms", rms, "   max", maxval);
-        
+        END_TIMER(world, "BSH residual");
         return r;
     }
     
@@ -1811,6 +1828,8 @@ namespace madness {
             vm.insert(vm.end(), bmo.begin(), bmo.end());
             rm.insert(rm.end(), br.begin(), br.end());
         }
+
+        START_TIMER(world);
         bsh_residual = std::max(aerr, berr);
         world.gop.broadcast(bsh_residual, 0);
         compress(world, vm, false);
@@ -1859,7 +1878,8 @@ namespace madness {
                 }
             }
         }
-        
+        END_TIMER(world, "Update subspace stuff");        
+
         world.gop.broadcast_serializable(c, 0);
         if (world.rank() == 0) {
             print("Subspace solution", c);
@@ -2192,19 +2212,23 @@ namespace madness {
                 distmatT dUT;
                 dUT = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0, true);
                 dUT.data().screen(trantol);
-                
+
+                START_TIMER(world);
                 amo = transform(world, amo, dUT, true);
                 truncate(world, amo);
                 normalize(world, amo);
                 rotate_subspace(world, dUT, subspace, 0, amo.size(), trantol);
+                END_TIMER(world, "Rotate subspace");
                 if (!param.spin_restricted && param.nbeta != 0) {
                     dUT = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0, true);
+                    START_TIMER(world);
                     dUT.data().screen(trantol);
                     bmo = transform(world, bmo, dUT, true);
                     truncate(world, bmo);
                     normalize(world, bmo);
                     rotate_subspace(world, dUT, subspace, amo.size(), bmo.size(),
                                     trantol);
+                    END_TIMER(world, "Rotate subspace");
                 }
             }
             
@@ -2241,6 +2265,7 @@ namespace madness {
                 
             }
             
+            START_TIMER(world);
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
@@ -2251,6 +2276,7 @@ namespace madness {
             else{
                 vnuc = potentialmanager->vnuclear();}
             double enuclear = inner(rho, vnuc);
+            END_TIMER(world, "Nuclear energy");
 
             TAU_START("Coulomb");
             START_TIMER(world);
@@ -2288,6 +2314,7 @@ namespace madness {
             
             vecfuncT vf, delrho;
             if (xc.is_dft()) {
+                START_TIMER(world);
                 arho.reconstruct();
                 if (param.nbeta != 0 && xc.is_spin_polarized())
                     brho.reconstruct();
@@ -2333,7 +2360,9 @@ namespace madness {
 		if (xc.is_spin_polarized() && param.nbeta == 0 && xc.is_gga()){
 		        vf.push_back(brho);
 			vf.push_back(brho);}
-		}
+                END_TIMER(world, "DFT setup");
+            }
+
             double enla = 0.0, enlb = 0.0;
             vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal,
                                              exca, enla, 0);
@@ -2402,7 +2431,9 @@ namespace madness {
                     
                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
+                    START_TIMER(world);
                     tensorT overlap = matrix_inner(world, amo, amo, true);
+                    END_TIMER(world, "Overlap");
                     
                     TAU_START("focka eigen sol");
                     START_TIMER(world);
@@ -2411,12 +2442,17 @@ namespace madness {
                     TAU_STOP("focka eigen sol");
                     
                     if (!param.localize) {
+                        START_TIMER(world);
                         amo = transform(world, amo, U, trantol, true);
                         truncate(world, amo);
                         normalize(world, amo);
+                        END_TIMER(world, "Transform MOs");
                     }
                     if (param.nbeta != 0 && !param.spin_restricted) {
+
+                        START_TIMER(world);
                         overlap = matrix_inner(world, bmo, bmo, true);
+                        END_TIMER(world, "Overlap");
                         
                         TAU_START("fockb eigen sol");
                         START_TIMER(world);
@@ -2425,9 +2461,11 @@ namespace madness {
                         TAU_STOP("fockb eigen sol");
                         
                         if (!param.localize) {
+                            START_TIMER(world);
                             bmo = transform(world, bmo, U, trantol, true);
                             truncate(world, bmo);
                             normalize(world, bmo);
+                            END_TIMER(world, "Transform MOs");
                         }
                     }
                     
