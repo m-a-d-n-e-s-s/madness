@@ -88,7 +88,7 @@ int test_proj(World& world) {
     //double x = 0.0;
     const coordT origin(x);
 
-    for (int i=7; i<=7; ++i) {
+    for (int i=0; i<=7; ++i) {
         double L = pow(2.0,double(i));
         FunctionDefaults<NDIM>::set_cubic_cell(-L,L);
         print("I think the cell volume is", FunctionDefaults<NDIM>::get_cell_volume());
@@ -101,7 +101,7 @@ int test_proj(World& world) {
         print("L",L,f.trace(),f.norm2(),f.size()/6/6/6,f.max_depth());
         double err=f.err(gauss);
         if (world.rank()==0) print("error in ",NDIM, "dimensions ", err);
-        if (err>FunctionDefaults<3>::get_thresh()) success++;
+        if (err>1.2*FunctionDefaults<3>::get_thresh()) success++;
 
         //f.print_tree();
 
