@@ -152,6 +152,8 @@ int test_opdir(World& world) {
     FunctionDefaults<3>::set_cell(cell);
     FunctionDefaults<3>::set_k(8);
     FunctionDefaults<3>::set_thresh(1e-6);
+    //FunctionDefaults<3>::set_k(10);
+    //FunctionDefaults<3>::set_thresh(1e-8);
     FunctionDefaults<3>::set_initial_level(3);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_autorefine(true);
@@ -178,11 +180,11 @@ int test_opdir(World& world) {
 //                           4.5e-06,3.8e-05,6.3e-05,2.7e-05,7.9e-05,6.2e-05,
 //                           2.2e-05,1.9e-04,2.0e-04,3.1e-05,1.5e-04,1.5e-04,
 //                           1.8e-04,2.5e-04,2.6e-04};
-    const double errs[] = {5.8e-06, 1.0e-05, 1.9e-05, 5.0e-06, 8.1e-06, 1.7e-05,
-                           8.4e-06, 1.1e-05, 4.5e-05, 1.0e-05, 2.3e-05, 2.1e-05,
-                           1.0e-05, 1.2e-05, 1.8e-05, 1.6e-05, 1.5e-05, 5.4e-05,
-                           6.8e-06, 8.5e-06, 2.0e-05, 5.4e-06, 8.7e-06, 3.8e-05,
-                           1.8e-05, 3.0e-05, 1.2e-04 };
+    const double errs[] = {5.8e-06, 5.0e-06, 1.9e-05, 5.0e-06, 8.1e-06, 1.7e-05,
+                           1.2e-05, 3.1e-05, 4.5e-05, 1.0e-05, 2.3e-05, 5.7e-05,
+                           1.0e-05, 4.2e-05, 5.0e-05, 3.2e-05, 6.0e-05, 5.4e-05,
+                           6.8e-06, 1.3e-04, 1.0e-04, 6.4e-06, 1.5e-04, 8.8e-05,
+                           1.2e-04, 2.0e-04, 2.2e-04 };
 
     const char* msg[] = {"FAIL <<<<<<<<<<<<<","PASS"};
     int inderr = 0;

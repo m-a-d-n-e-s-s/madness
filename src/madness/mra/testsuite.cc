@@ -216,8 +216,8 @@ int test_basic(World& world) {
     double norm = f.norm2();
     double err = f.err(*functor);
     T val = f(point);
-    CHECK(std::abs(norm-1.0), 1.0e-10, "norm");
-    CHECK(err, thresh, "err");
+    CHECK(std::abs(norm-1.0), 3.0e-10, "norm");
+    CHECK(err, 3*thresh, "err");
     CHECK(val-(*functor)(point), thresh, "error at a point");
 
     f.compress();
@@ -365,7 +365,7 @@ int test_math(World& world) {
     double new_err = f.err(*functor);
     CHECK(new_err-err,1e-14*err,"err in f after squaring");
     double errsq = fsq.err(*functsq);
-    CHECK(errsq, 3.0*thresh, "err in fsq");
+    CHECK(errsq, 22.0*thresh, "err in fsq");
 
     // Test same with autorefine
     fsq = unary_op(f, myunaryop<T,NDIM>());
@@ -450,7 +450,7 @@ int test_math(World& world) {
     f = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).functor(functor));
     fsq = f*f;
     errsq = fsq.err(*functsq);
-    CHECK(errsq, 1e-8, "err in fsq by multiplication");
+    CHECK(errsq, 3e-8, "err in fsq by multiplication");
 
     // Test norm tree operation
     f.reconstruct();
@@ -652,7 +652,7 @@ int test_diff(World& world) {
         START_TIMER;
         double err = dfdx.err(df);
         END_TIMER("err");
-        CHECK(err, 40*thresh, "err in test_diff");
+        CHECK(err, 110*thresh, "err in test_diff");
 
         if (world.rank() == 0) print("    error", err);
     }
@@ -893,7 +893,7 @@ int test_coulomb(World& world) {
 //             print("           ",i,r(c),(*fexact)(c));
 //         }
     }
-    CHECK(rerr, 6.0*thresh, "err in test_coulomb");
+    CHECK(rerr, 10.0*thresh, "err in test_coulomb");
 
     if (ok) return 0;
     return 1;
@@ -986,7 +986,7 @@ int test_qm(World& world) {
     //double thresh = 1e-12;
 
     int k = 16;
-    double thresh = 1e-12;
+    double thresh = 1e-13;
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_refine(true);
@@ -1000,7 +1000,7 @@ int test_qm(World& world) {
     double ctarget = v + 10.0*sqrt(a);
     double c = 1.86*ctarget; //1.86*ctarget;
     double tcrit = 2*PI/(c*c);
-    double tstep = 3*tcrit;
+    double tstep = 2*tcrit;
 
     int nstep = int(100.0/tstep);
     tstep = 100.0/nstep; // so we finish exactly at 100.0
@@ -1037,6 +1037,9 @@ int test_qm(World& world) {
         //psi.refine_general(refop());
         psi.broaden();
         psi.broaden();
+        psi.broaden();
+        psi.broaden();
+        psi.broaden();
 
         world.gop.fence();
         double norm = psi.norm2();
@@ -1046,7 +1049,7 @@ int test_qm(World& world) {
 
         //         print("psi");
         //         psi.print_tree();
-        CHECK(err, 1e-10, "err in test_qm 1");
+        CHECK(err, 1.2e-9, "err in test_qm 1");
 
         functionT pp = apply_1d_realspace_push(*q1d, psi, 0);
 
@@ -1339,7 +1342,7 @@ int main(int argc, char**argv) {
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
-//        nfail+=test_qm(world);
+        nfail+=test_qm(world);
 
         nfail+=test_basic<double_complex,1>(world);
         nfail+=test_conv<double_complex,1>(world);

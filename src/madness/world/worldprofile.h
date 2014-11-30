@@ -34,6 +34,7 @@
 #define MADNESS_WORLD_WORLDPROFILE_H__INCLUDED
 
 #include <madness/madness_config.h>
+#include <madness/world/worldrmi.h>
 #include <madness/world/worldtypes.h>
 #include <madness/world/worldmutex.h>
 #include <string>
@@ -88,11 +89,20 @@ namespace madness {
     /// Used to store profiler info
     struct WorldProfileEntry : public Spinlock {
         std::string name;          ///< name of the entry
-        int depth;                 ///< depth of recursive calls (0 if no active calls)
+        static const int MAX_NTHREAD=64;
+        int depth[MAX_NTHREAD];             ///< depth of recursive calls by thread (0 if no active calls)
 
         ProfileStat<unsigned long> count;   ///< count of times called
         ProfileStat<double> xcpu; ///< exclusive cpu time (i.e., excluding calls)
         ProfileStat<double> icpu; ///< inclusive cpu call (i.e., including calls)
+        ProfileStat<unsigned long> xnmsg_sent; ///< No. of active messages sent ... exclusive
+        ProfileStat<unsigned long> inmsg_sent; ///< No. of active messages sent ... inclusive
+        ProfileStat<unsigned long> xnmsg_recv; ///< No. of active messages recv ... exclusive
+        ProfileStat<unsigned long> inmsg_recv; ///< No. of active messages recv ... inclusive
+        ProfileStat<unsigned long> xnbyt_sent; ///< No. of bytes sent ... exclusive
+        ProfileStat<unsigned long> inbyt_sent; ///< No. of bytes sent ... inclusive
+        ProfileStat<unsigned long> xnbyt_recv; ///< No. of bytes recv ... exclusive
+        ProfileStat<unsigned long> inbyt_recv; ///< No. of bytes recv ... inclusive
 
         WorldProfileEntry(const char* name = "");
 
@@ -104,6 +114,10 @@ namespace madness {
 
         static bool inclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b);
 
+        static bool exclusivebytcmp(const WorldProfileEntry&a, const WorldProfileEntry& b);
+
+        static bool inclusivebytcmp(const WorldProfileEntry&a, const WorldProfileEntry& b);
+
         void init_par_stats(ProcessID me);
 
         void par_reduce(const WorldProfileEntry& other);
@@ -112,7 +126,7 @@ namespace madness {
 
         template <class Archive>
         void serialize(const Archive& ar) {
-            ar & name & depth & count & xcpu & icpu;
+            ar & name & depth & count & xcpu & icpu & xnmsg_sent & inmsg_sent & xnmsg_recv & inmsg_recv & xnbyt_sent & inbyt_sent & xnbyt_recv & inbyt_recv;
         }
     }; // struct WorldProfileEntry
 
@@ -158,19 +172,22 @@ namespace madness {
 
     class WorldProfileObj {
         static thread_local WorldProfileObj* call_stack;  ///< Current top of this thread's call stack
+        static thread_local int mythreadid; ///< My unique thread id
         WorldProfileObj* const prev; ///< Pointer to the entry that called me
         const int id;                ///< My entry in the world profiler
         const double cpu_base;       ///< Time that I started executing
+        RMIStats stats_base;         ///< Msg stats when I start executing
         double cpu_start;            ///< Time that I was at top of stack
+        RMIStats stats_start;        ///< Msg stats when I was at top of stack;
     public:
 
         WorldProfileObj(int id);
 
         /// Pause profiling while we are not executing ... accumulate time in self
-        void pause(double now);
+        void pause(double now, const RMIStats& stats);
 
         /// Resume profiling
-        void resume(double now);
+        void resume(double now, const RMIStats& stats);
 
         ~WorldProfileObj();
     };
