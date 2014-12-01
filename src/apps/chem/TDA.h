@@ -451,7 +451,8 @@ public:
 		kain_(false),
 		kain_subspace_(3),
 		shift_(0.0),
-		safety_(1.0)
+		safety_(1.0),
+		triplet_(false)
 {
 		setup(mos,input);
 }
@@ -528,6 +529,7 @@ public:
 			else if (tag == "guess_omega_5") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_6") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_box") ss >> guess_box_;
+			else if (tag == "triplet") triplet_=true;
 
 			else if (tag == "truncate_safety") ss>>safety_;
 			else continue;
@@ -566,6 +568,7 @@ public:
 			std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 			std::cout<< std::setw(40) << "make noise every " << noise_iter_ << " iteration" << std::endl;
+			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
 		}
 
 
@@ -812,6 +815,9 @@ private:
 
 	/// The converged xfunctions
 	std::vector<xfunction> converged_xfunctions_;
+
+	/// Calculate triplets
+	bool triplet_;
 
 	/// Print the current xfunctions in a formated way
 	/// @param[in] xfunctions a vector of xfunction structures

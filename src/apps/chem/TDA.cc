@@ -1095,7 +1095,9 @@ vecfuncT TDA::apply_perturbed_potential(const xfunction & xfunction) const {
 vecfuncT TDA::apply_gamma(const xfunction &xfunction) const {
 
 	TDA_TIMER hartree(world, "apply perturbed hartree potential...");
-	vecfuncT gamma = apply_hartree_potential(xfunction.x);
+	vecfuncT gamma ;
+	if(not triplet_) gamma = apply_hartree_potential(xfunction.x);
+	else gamma = zero_functions<double,3>(world,xfunction.x.size());
 	hartree.info(debug_);
 
 	TDA_TIMER exchange(world, "apply hf-exchange potential kernel...");\
