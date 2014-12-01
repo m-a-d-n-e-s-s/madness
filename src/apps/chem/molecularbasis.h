@@ -215,7 +215,7 @@ class AtomicBasis {
     std::vector<ContractedGaussianShell> g;
     double rmaxsq;
     int numbf;
-    Tensor<double> dmat, avec, bvec;
+    Tensor<double> dmat, avec, bvec, aocc, bocc;
 
 public:
     AtomicBasis() : g(), rmaxsq(0.0), numbf(0) {};
@@ -231,10 +231,13 @@ public:
     }
 
     void set_guess_info(const Tensor<double>& dmat,
-                        const Tensor<double>& avec, const Tensor<double>& bvec) {
+                        const Tensor<double>& avec, const Tensor<double>& bvec,
+                        const Tensor<double>& aocc, const Tensor<double>& bocc) {
         this->dmat = copy(dmat);
         this->avec = copy(avec);
         this->bvec = copy(bvec);
+        this->aocc = copy(aocc);
+        this->bocc = copy(bocc);
     }
 
     /// Returns the number of basis functions on the center
@@ -316,6 +319,10 @@ public:
         return dmat;
     };
 
+    void set_dmat(Tensor<double>& mat) {
+       dmat = mat;
+    };
+
     const Tensor<double>& get_avec() const {
         return avec;
     };
@@ -324,9 +331,25 @@ public:
         return bvec;
     };
 
+    const Tensor<double>& get_aocc() const {
+        return aocc;
+    };
+
+    const Tensor<double>& get_bocc() const {
+        return bocc;
+    };
+
+    void set_aocc(Tensor<double>& occ) {
+       aocc = occ;
+    };
+
+    void set_bocc(Tensor<double>& occ)  {
+       bocc = occ;
+    };
+
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & g & rmaxsq & numbf & dmat & avec & bvec;
+        ar & g & rmaxsq & numbf & dmat & avec & bvec & aocc & bocc;
     }
 
 };
@@ -533,6 +556,9 @@ public:
 
     /// Print basis info for atoms in the molecule (once for each unique atom type)
     void print(const Molecule& molecule) const;
+
+    /// Eliminates core orbitals from the density matrix for pseudopotential calculations
+    void modify_dmat_psp(int atn, double zeff);
 
     template <typename T>
     class AnalysisSorter {

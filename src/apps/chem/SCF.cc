@@ -829,6 +829,16 @@ namespace madness {
         if (param.restart) {
             load_mos(world);
         } else {
+
+            // recalculate initial guess density matrix without core orbitals
+            if (param.psp_calc){
+                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                    double zeff=molecule.get_atom_charge(iatom);
+                    int atn=molecule.get_atom_number(iatom);
+                    aobasis.modify_dmat_psp(atn,zeff);
+                }
+            }
+
             // Use the initial density and potential to generate a better process map
             functionT rho =
                 factoryT(world).functor(
@@ -839,12 +849,6 @@ namespace madness {
             double nel = rho.trace();
             if (world.rank() == 0)
                 print("guess dens trace", nel);
-            
-            // rescale density
-            if (param.psp_calc){
-                int nmo = int(molecule.total_nuclear_charge() + 0.1)/2;
-                rho.scale((2.0*nmo)/nel); 
-            }
             END_TIMER(world, "guess density");
             
             if (world.size() > 1) {
