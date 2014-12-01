@@ -59,7 +59,8 @@ namespace madness {
         	Tensor<double> ovlp=inner(world,f,p_);
 
             for (std::size_t i=0; i<p_.size(); ++i) {
-            	if (ovlp(i) != T(0.0)) sum.gaxpy(1.0,p_[i],ovlp(i),false);
+//            	if (ovlp(i) != T(0.0)) sum.gaxpy(1.0,p_[i],ovlp(i),false);
+            	if (ovlp(i) != T(0.0)) sum.gaxpy(1.0,p_[i],ovlp(i));
             }
             world.gop.fence();
             sum.truncate();
