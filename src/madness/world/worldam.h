@@ -364,10 +364,11 @@ namespace madness {
             lock();    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             nsent++;
             int i = get_free_send_request();
-            send_req[i] = RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr);
+            const RMI::Request req = RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr);
+            send_req[i] = req;
             if (managed) managed_send_buf[i] = (AmArg*)(arg);
             unlock();  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-            return send_req[i];
+            return req;
         }
 
 
