@@ -335,12 +335,18 @@ private:
 	/// Size of the box that will not be smoothed
 	const double box_size_;
 public:
-	guess_smoothing(const double box) : box_size_(box) {}
+	guess_smoothing(const double box) : box_size_(box/4.0) {}
 	// Smoothing function
-	double operator()(const coord_3d &r)const{
-		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
-	}
+//	double operator()(const coord_3d &r)const{
+//		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+//	}
 
+	double operator()(const coord_3d &r)const{
+		     if(fabs(r[0])>box_size_) return 0.0;
+		else if(fabs(r[1])>box_size_) return 0.0;
+		else if(fabs(r[2])>box_size_) return 0.0;
+		else return 1.0;
+	}
 };
 struct guess_anti_smoothing : public FunctionFunctorInterface<double,3> {
 private:
@@ -463,8 +469,8 @@ public:
 		mos_ = mos;
 
 		// guess box default
-		guess_box_ = calc_.molecule.bounding_cube()+15.0;
-
+		guess_box_ = calc_.param.L*2.0; //calc_.molecule.bounding_cube()+15.0;
+		std::cout << "Box size is " << guess_box_ << std::endl;
 		size_t noct = calc_.aeps.size();
 		// The highest possible excitation (-homo_energy)
 		double highest_excitation_default = -calc_.aeps(noct-1);
@@ -528,7 +534,7 @@ public:
 			else if (tag == "guess_omega_4") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_5") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_6") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_box") ss >> guess_box_;
+			//else if (tag == "guess_box") ss >> guess_box_; // guess box is for smothing function ... now very "hard" should not be changed
 			else if (tag == "triplet") triplet_=true;
 
 			else if (tag == "truncate_safety") ss>>safety_;

@@ -206,10 +206,17 @@ void TDA::solve_sequential(xfunctionsT xfunctions) {
 		plot_plane(world,rhoprime,"rhoprime_"+stringify(p));
 	}
 
+	// make cube plot of homo responses
+	for(size_t i=0;i<converged_xfunctions_.size();i++){
+		std::string tmp="homo_excitation_"+stringify(i);
+		test_plot_cube(world,converged_xfunctions_[i].x.back(),tmp);
+	}
+
 	print("Final result :");
 	print_status(xfunctions);
 	analyze(converged_xfunctions_);
 	print_performance(converged_xfunctions_,"final-");
+	print_status(xfunctions);
 
 }
 
@@ -300,6 +307,7 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 						new guess_smoothing(guess_box_));
 
 	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
+	smoothing_function.print_size("smoothing_function size");
 	plot_plane(world,smoothing_function,"smoothing_function");
 
 	// when dft is used add diffuse functions to the mos to increase delocalisation

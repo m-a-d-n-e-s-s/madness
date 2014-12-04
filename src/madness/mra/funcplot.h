@@ -622,6 +622,87 @@ namespace madness {
     	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
     }
 
+    template<size_t NDIM>
+    void test_plot_cube(World& world, const Function<double,NDIM>& function,
+    		const std::string name) {
+
+		if (world.size()>1) return;
+
+    	// zoom factor
+    	double zoom=1.0;
+
+    	// output type: mathematica or gnuplot
+    	std::string output_type="gnuplot";
+
+    	// number of points in each direction
+        int npoints=50;
+
+        // the coordinates to be plotted
+        Vector<double,3> coord(0.0);
+        Vector<double,3> origin(0.0);
+
+        std::ifstream f("input");
+        position_stream(f, "plot");
+        std::string s;
+        while (f >> s) {
+        	if (s == "end") {
+        		break;
+        	} else if (s == "zoom") {
+        		f >> zoom;
+        	} else if (s == "output") {
+        		f >> output_type;
+        	} else if (s == "points") {
+        		f >> npoints;
+        	} else if (s == "origin") {
+        		for (std::size_t i=0; i<3; ++i) f >> origin[i];
+        	}
+        }
+    	double scale=1.0/zoom;
+    	coord=origin;
+
+        // convert human to mad form
+        int cc1=0, cc2=1, cc3=2;
+
+        // output file name for the gnuplot data
+        std::string filename="cube_"+name;
+        // assume a cubic cell
+        double lo=-FunctionDefaults<3>::get_cell_width()[0]*0.5;
+        lo=lo*scale;
+
+        const double stepsize=FunctionDefaults<3>::get_cell_width()[0]*scale/npoints;
+
+        if(world.rank() == 0) {
+
+        	// plot 3d plot
+        	FILE *f =  0;
+        	f=fopen(filename.c_str(), "w");
+        	if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+
+        	for (int i0=0; i0<npoints; i0++) {
+        		for (int i1=0; i1<npoints; i1++) {
+        			for (int i2=0; i2<npoints; i2++) {
+        			// plot plane
+        			coord[cc1]=lo+origin[cc1]+i0*stepsize;
+        			coord[cc2]=lo+origin[cc2]+i1*stepsize;
+        			coord[cc3]=lo+origin[cc3]+i2*stepsize;
+
+        			// other electron
+        			fprintf(f,"%12.6f %12.6f %12.6f %12.20f\n",coord[cc1],coord[cc2],coord[cc3],
+        					function(coord));
+
+        		}
+        		// additional blank line between blocks for gnuplot
+        		if (output_type=="gnuplot") fprintf(f,"\n");
+        		}
+        		// additional blank line between blocks for gnuplot
+        		if (output_type=="gnuplot") fprintf(f,"\n");
+        	}
+        	fclose(f);
+
+        }
+
+    }
+
     template<typename T>
     static std::string stringify(T arg) {
     	std::ostringstream o;
