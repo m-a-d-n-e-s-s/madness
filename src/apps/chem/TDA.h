@@ -605,6 +605,7 @@ public:
 		}
 
 		// Initialize the KAIN solvers
+		noct -= nfreeze_;
 		kain_solvers.initialize(world,excitations_,noct,kain_,kain_subspace_);
 
 
