@@ -249,7 +249,7 @@ namespace madness {
         Void
         set_has_children_recursive(const typename FunctionNode<T,NDIM>::dcT& c,const Key<NDIM>& key) {
             //madness::print("   set_chi_recu: ", key, *this);
-            PROFILE_MEMBER_FUNC(FunctionNode);
+            //PROFILE_MEMBER_FUNC(FunctionNode); // Too fine grain for routine profiling
             if (!(has_children() || has_coeff() || key.level()==0)) {
                 // If node already knows it has children or it has
                 // coefficients then it must already be connected to
@@ -311,7 +311,7 @@ namespace madness {
         /// true in the result if either this/other have children.
         template <typename Q, typename R>
         Void gaxpy_inplace(const T& alpha, const FunctionNode<Q,NDIM>& other, const R& beta) {
-            PROFILE_MEMBER_FUNC(FuncNode);
+            //PROFILE_MEMBER_FUNC(FuncNode);  // Too fine grain for routine profiling
             if (other.has_children())
                 _has_children = true;
             if (has_coeff()) {
@@ -972,7 +972,7 @@ namespace madness {
             , coeffs(world,factory._pmap,false)
             //, bc(factory._bc)
         {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // No need to profile this
             // !!! Ensure that all local state is correctly formed
             // before invoking process_pending for the coeffs and
             // for this.  Otherwise, there is a race condition.
@@ -1568,7 +1568,7 @@ namespace madness {
 
         template <typename Q>
         GenTensor<Q> coeffs2values(const keyT& key, const GenTensor<Q>& coeff) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(coeff,cdata.quad_phit).scale(scale);
         }
@@ -1585,7 +1585,7 @@ namespace madness {
         template <typename Q>
         GenTensor<Q> NScoeffs2values(const keyT& key, const GenTensor<Q>& coeff,
                                      const bool s_only) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
 
             // sanity checks
             MADNESS_ASSERT((coeff.dim(0)==this->get_k()) == s_only);
@@ -1621,7 +1621,7 @@ namespace madness {
         template <typename Q>
         GenTensor<Q> NS_fcube_for_mul(const keyT& child, const keyT& parent,
                                       const GenTensor<Q>& coeff, const bool s_only) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
 
             // sanity checks
             MADNESS_ASSERT((coeff.dim(0)==this->get_k()) == s_only);
@@ -1669,7 +1669,7 @@ namespace madness {
         /// @return		NS coeffs belonging to key
         template <typename Q>
         GenTensor<Q> values2NScoeffs(const keyT& key, const GenTensor<Q>& values) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            //PROFILE_MEMBER_FUNC(FunctionImpl);  // Too fine grain for routine profiling
 
             // sanity checks
             MADNESS_ASSERT(values.dim(0)==2*this->get_k());
@@ -1691,21 +1691,21 @@ namespace madness {
 
         template <typename Q>
         Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(coeff,cdata.quad_phit).scale(scale);
         }
 
         template <typename Q>
         GenTensor<Q> values2coeffs(const keyT& key, const GenTensor<Q>& values) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(values,cdata.quad_phiw).scale(scale);
         }
 
         template <typename Q>
         Tensor<Q> values2coeffs(const keyT& key, const Tensor<Q>& values) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(values,cdata.quad_phiw).scale(scale);
         }
@@ -1716,7 +1716,7 @@ namespace madness {
         /// the functions at the quadrature points of a child
         template <typename Q>
         Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             if (child.level() == parent.level()) {
                 return coeffs2values(parent, coeff);
             }
@@ -1741,7 +1741,7 @@ namespace madness {
         /// the functions at the quadrature points of a child
         template <typename Q>
         GenTensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const GenTensor<Q>& coeff) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             if (child.level() == parent.level()) {
                 return coeffs2values(parent, coeff);
             }
@@ -1763,7 +1763,7 @@ namespace madness {
         /// Invoked as a task by mul with the actual coefficients
         template <typename L, typename R>
         Void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
             //madness::print("do_mul: r", rkey, rcoeff.size());
@@ -1818,7 +1818,7 @@ namespace madness {
 	  Void do_binary_op(const keyT& key, const Tensor<L>& left,
 			    const std::pair< keyT, Tensor<R> >& arg,
 			    const opT& op) {
-	  PROFILE_MEMBER_FUNC(FunctionImpl);
+            //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
 	  const keyT& rkey = arg.first;
 	  const Tensor<R>& rcoeff = arg.second;
 	  Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
