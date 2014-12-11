@@ -173,9 +173,11 @@ foundit:
             MADNESS_ASSERT(is_supported(atn));
             int nbf = ag[atn].nbf();
             Tensor<double> dmat = load_tixml_matrix<double>(node, nbf, nbf, "guessdensitymatrix");
+            Tensor<double> aocc = load_tixml_matrix<double>(node, nbf, 1, "alphaocc");
+            Tensor<double> bocc = load_tixml_matrix<double>(node, nbf, 1, "betaocc");
             Tensor<double> avec = load_tixml_matrix<double>(node, nbf, nbf, "alphavectors");
             Tensor<double> bvec = load_tixml_matrix<double>(node, nbf, nbf, "betavectors");
-            ag[atn].set_guess_info(dmat, avec, bvec);
+            ag[atn].set_guess_info(dmat, avec, bvec, aocc, bocc);
         }
         else {
             MADNESS_EXCEPTION("Loading atomic basis set: unexpected XML element", 0);
@@ -183,5 +185,75 @@ foundit:
     }
 
 }
+
+void AtomicBasisSet::modify_dmat_psp(int atn, double zeff){
+    static const bool debug = false;
+
+    // number of core states to be eliminated
+    int zcore = atn - round(zeff);
+
+    Tensor<double> aocc = ag[atn].get_aocc();
+    Tensor<double> bocc = ag[atn].get_bocc();
+
+    double occ_sum = aocc.sum() + bocc.sum();
+
+    if (debug) std::cout << "before: atn, zeff, occ_sum  " << atn << " " << zeff << "  " << occ_sum << std::endl;
+    if (debug) std::cout << "aocc:" << std::endl;
+    if (debug) std::cout << aocc << std::endl;
+    if (debug) std::cout << "bocc:" << std::endl;
+    if (debug) std::cout << bocc << std::endl;
+
+    // return  immediately if we already modified this atom type or if there are no core states
+    // allow for noise in occupancy sum
+    double tol=1e-4;
+    if (zcore==0 || (occ_sum < zeff+tol && occ_sum > zeff-tol)) return;
+
+    // otherwise check that total occupancy matches atomic number within tolerance
+    if (occ_sum > atn+tol || occ_sum < atn-tol){
+        MADNESS_EXCEPTION("Problem with occupancy of initial guess", 0);
+    }
+
+    // set occupancies for relevant core states to zero
+    // assuming that there is an even number of core states with occupancy 1
+    for (int i=0;i<zcore/2;++i){
+        aocc[i] = 0.0;
+        bocc[i] = 0.0;
+    }
+
+    if (debug) std::cout << "after: atn, zeff, occ_sum  " << atn << " " << zeff << "  " << occ_sum << std::endl;
+    if (debug) std::cout << "aocc:" << std::endl;
+    if (debug) std::cout << aocc << std::endl;
+    if (debug) std::cout << "bocc:" << std::endl;
+    if (debug) std::cout << bocc << std::endl;
+
+    ag[atn].set_aocc(aocc);
+    ag[atn].set_bocc(bocc);
+
+    // recalculate the density matrix with new occupancies
+    Tensor<double> avec = ag[atn].get_avec();
+    Tensor<double> bvec = ag[atn].get_bvec();
+
+    Tensor<double> aovec = transpose(avec);
+    Tensor<double> bovec = transpose(bvec);
+
+    // multiply vectors by occupancies
+    for (int i=0;i<aocc.size();++i){
+        for (int j=0;j<aocc.size();++j){
+            aovec(i,j) *= aocc[i];
+            bovec(i,j) *= bocc[i];
+        }
+    }
+
+    Tensor<double> dmata = inner(avec, aovec);
+    Tensor<double> dmatb = inner(bvec, bovec);
+    Tensor<double> dmat = dmata + dmatb;
+
+    if (debug) std::cout << "dmat:" << std::endl;
+    if (debug) std::cout << dmat << std::endl;
+
+    ag[atn].set_dmat(dmat);
+
+}
+
 
 }
