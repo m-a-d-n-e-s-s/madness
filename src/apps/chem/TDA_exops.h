@@ -477,8 +477,8 @@ public:
 					double range = 0.1;
 					if(k>3) range =0.1;
 					if(k>10) range = 0.1;
-					if(k>20) range =0.05;
-					if(k>34) range =0.01;
+					if(k>20) range =0.1;
+					if(k>34) range =0.1;
 					double c = random_number()*range;
 					tmp += c*polynom_basis_[k];
 					std::cout <<std::fixed << std::setprecision(2) << " "<< c << " " <<  key_[k];

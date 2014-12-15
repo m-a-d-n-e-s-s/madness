@@ -113,6 +113,15 @@ int main(int argc, char** argv) {
 		for(int i=0;i<calc.molecule.natom();i++){
 			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
 		}
+		// Check if center of charge is 0,0,0
+		coord_3d cm(0.0);
+		for(size_t i=0;i<3;i++){
+			for(int j=0;j<calc.molecule.natom();j++){
+			cm[i] = calc.molecule.get_atom(j).atomic_number*Coord(i,j);
+			}
+		}
+		std::cout << "Center of Charge is " << cm << std::endl;
+
 	}
 
 

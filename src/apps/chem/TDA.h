@@ -335,7 +335,7 @@ private:
 	/// Size of the box that will not be smoothed
 	const double box_size_;
 public:
-	guess_smoothing(const double box) : box_size_(box/4.0) {}
+	guess_smoothing(const double box) : box_size_(18.75) {}
 	// Smoothing function
 //	double operator()(const coord_3d &r)const{
 //		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
