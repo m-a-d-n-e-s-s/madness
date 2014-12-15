@@ -589,9 +589,9 @@ private:
 	static double d2h_B2g  (const coord_3d &r){return xz_function(r) ;}
 	static double d2h_B3g  (const coord_3d &r){return yz_function(r) ;}
 	static double d2h_Au   (const coord_3d &r){return xyz_function(r);}
-	static double d2h_B1u  (const coord_3d &r){return x_function(r)+zzz_function(r)+yyz_function(r)+xzz_function(r) ;}
+	static double d2h_B1u  (const coord_3d &r){return z_function(r)+zzz_function(r)+yyz_function(r)+xzz_function(r) ;}
 	static double d2h_B2u  (const coord_3d &r){return y_function(r)+yzz_function(r)+xxy_function(r)+yyy_function(r) ;}
-	static double d2h_B3u  (const coord_3d &r){return z_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r) ;}
+	static double d2h_B3u  (const coord_3d &r){return x_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r) ;}
 	/// C1
 
 	/// C2
