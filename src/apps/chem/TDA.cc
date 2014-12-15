@@ -574,7 +574,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			for (size_t i = 0; i < xfunctions.size(); i++) {
 				if (xfunctions[i].converged == false)
 					xfunctions[i].Vx = apply_perturbed_potential(xfunctions[i]);
-				xfunctions[i].Vx.back().print_size("size of homo pert pot "+stringify(i));
+				//xfunctions[i].Vx.back().print_size("size of homo pert pot "+stringify(i));
 			}
 			update_potentials.info();
 
