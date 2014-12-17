@@ -25,7 +25,7 @@ AC_DEFUN([ACX_WITH_GOOGLE_PERF], [
     AC_LANG([C++])
 
     AC_CHECK_LIB([tcmalloc_and_profiler], [ProfilerStart], 
-                 [LIBS="-ltcmalloc_and_profiler $LIBS" 
+                 [LIBS="-lprofiler -ltcmalloc $LIBS" 
                   have_profiler=yes
                   AC_MSG_NOTICE([Google profiler and fast malloc found])
                   AC_DEFINE([MADNESS_HAS_GOOGLE_PERF], [1], [Define if using Google PerformanceTools])],
