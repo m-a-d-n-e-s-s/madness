@@ -41,9 +41,9 @@ public:
 		//quadrupole
 		for(size_t i=0;i<creators.size();i++){
 			for(size_t j=0;j<=i;j++){
-				real_function_3d tmp = creators[j]*creators[i];
+				real_function_3d tmp = creators[i]*creators[j];
 				basis.push_back(tmp);
-				std::string stmp = key_creator[j]+key_creator[i];
+				std::string stmp = key_creator[i]+key_creator[j];
 				key.push_back(stmp);
 			}
 		}
@@ -53,9 +53,9 @@ public:
 		for(size_t i=0;i<creators.size();i++){
 			for(size_t j=0;j<=i;j++){
 				for(size_t k=0;k<=j;k++){
-					real_function_3d tmp = creators[j]*creators[i]*creators[k];
+					real_function_3d tmp = creators[i]*creators[j]*creators[k];
 					basis.push_back(tmp);
-					std::string stmp = key_creator[j]+key_creator[i]+key_creator[k];
+					std::string stmp = key_creator[i]+key_creator[j]+key_creator[k];
 					key.push_back(stmp);
 				}
 			}
@@ -67,9 +67,9 @@ public:
 			for(size_t j=0;j<=i;j++){
 				for(size_t k=0;k<=j;k++){
 					for(size_t l=0;l<=k;l++){
-						real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l];
+						real_function_3d tmp = creators[i]*creators[j]*creators[k]*creators[l];
 						basis.push_back(tmp);
-						std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l];
+						std::string stmp = key_creator[i]+key_creator[j]+key_creator[k]+key_creator[l];
 						key.push_back(stmp);
 					}
 				}
@@ -84,9 +84,9 @@ public:
 				for(size_t k=0;k<=j;k++){
 					for(size_t l=0;l<=k;l++){
 						for(size_t m=0;m<=l;m++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m];
+							real_function_3d tmp = creators[i]*creators[j]*creators[k]*creators[l]*creators[m];
 							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m];
+							std::string stmp = key_creator[i]+key_creator[j]+key_creator[k]+key_creator[l]+key_creator[m];
 							key.push_back(stmp);
 					}
 				}
@@ -100,9 +100,9 @@ public:
 					for(size_t l=0;l<=k;l++){
 						for(size_t m=0;m<=l;m++){
 							for(size_t n=0;n<=m;n++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n];
+							real_function_3d tmp = creators[i]*creators[j]*creators[k]*creators[l]*creators[m]*creators[n];
 							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n];
+							std::string stmp = key_creator[i]+key_creator[j]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n];
 							key.push_back(stmp);
 					}
 				}
@@ -154,6 +154,9 @@ public:
 	}
 
 	real_function_3d project_function_on_aos(World &world,const real_function_3d &f){
+		// Was just for testing purposes, avoid calling this in real calculations
+		MADNESS_EXCEPTION("WE SHOULD NOT BE HERE (TDA_exops.cc, line 160",1);
+
 		real_function_3d projected_f;
 		vecfuncT pol = polynom_basis_;
 		std::vector<double> overlaps;

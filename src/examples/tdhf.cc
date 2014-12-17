@@ -77,6 +77,9 @@ int main(int argc, char** argv) {
 
     typedef std::vector<functionT> vecfuncT;
 
+
+
+
     // take the HF orbitals to start
     const std::string input="input";
     const std::string high_input="high_input";
@@ -84,6 +87,42 @@ int main(int argc, char** argv) {
     calc.molecule.print();
     print("\n");
     calc.param.print(world);
+
+	// Print the coordinates
+	if (world.rank()==0){
+		print("Coordinates before MolDFT:");
+		Tensor<double> Coord = calc.molecule.get_all_coords();
+		for(int i=0;i<calc.molecule.natom();i++){
+			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
+		}
+		// Check if center of charge is 0,0,0
+		coord_3d cm(0.0);
+		double overal_charge=0.0;
+		for(int j=0;j<calc.molecule.natom();j++){
+			double charge = (double) calc.molecule.get_atom(j).atomic_number;
+			overal_charge += charge;
+		}
+		std::cout << "overal charge of nuclei is " << overal_charge << std::endl;
+		for(size_t i=0;i<3;i++){
+			for(int j=0;j<calc.molecule.natom();j++){
+				double charge = (double) calc.molecule.get_atom(j).atomic_number;
+			cm[i] += charge*Coord(j,i);
+			}
+		}
+		cm = 1.0/overal_charge*cm;
+		std::cout << "Center of Charge is " << cm << std::endl;
+
+		// make center of charge coordinates
+		for(int i=0;i<calc.molecule.natom();i++){
+			for(size_t j=0;j<3;j++){
+				Coord(i,j)-=cm[j];
+			}
+		}
+		for(int i=0;i<calc.molecule.natom();i++){
+			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
+		}
+
+	}
 
     // solve the ground state energy; calc is a reference
     MolecularEnergy me(world,calc);

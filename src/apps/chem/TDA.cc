@@ -269,28 +269,28 @@ void TDA::guess_custom(xfunctionsT & xfunctions) {
 	plot_plane(world,anti_smoothing_function,"anti_smoothing_function");
 	exoperators exops(world);
 
-	// project the active_mos on ao functions
-	vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
-	for(size_t i=0;i<active_mo_.size();i++){
-		projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
-	}
-	plot_vecfunction(projected_mos,"projected_mos_");
+//	// project the active_mos on ao functions
+//	vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
+//	for(size_t i=0;i<active_mo_.size();i++){
+//		projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
+//	}
+//	plot_vecfunction(projected_mos,"projected_mos_");
 
 	std::vector<vecfuncT> xguess_inner = exops.make_custom_guess(world,custom_exops_,active_mo_, smoothing_function);
-	std::vector<vecfuncT> xguess_outer = exops.make_custom_guess(world,custom_exops_,projected_mos, anti_smoothing_function);
+	//std::vector<vecfuncT> xguess_outer = exops.make_custom_guess(world,custom_exops_,projected_mos, anti_smoothing_function);
 	for(size_t i=0;i<xguess_inner.size();i++){
 		xfunction tmp(world);
 		tmp.omega = guess_omegas_[i];
-		tmp.x = add(world,xguess_inner[i],xguess_outer[i]);
+		tmp.x = xguess_inner[i];
 		plot_vecfunction(tmp.x,"custom_guessfunction_"+stringify(i));
-		plot_vecfunction(xguess_inner[i],"custom_guessfunction_inner"+stringify(i));
-		plot_vecfunction(xguess_outer[i],"custom_guessfunction_outer"+stringify(i));
+		//plot_vecfunction(xguess_inner[i],"custom_guessfunction_inner"+stringify(i));
+		//plot_vecfunction(xguess_outer[i],"custom_guessfunction_outer"+stringify(i));
 		xfunctions.push_back(tmp);
 	}
-	//TESTING DEBUG
-	double c=inner(xfunctions[0].x[0],projected_mos[0]);
-	xfunctions[0].x[0] -= c*projected_mos[0];
-	plot_vecfunction(xfunctions[0].x,"custom_guessfunction_woocc");
+//	//TESTING DEBUG
+//	double c=inner(xfunctions[0].x[0],projected_mos[0]);
+//	xfunctions[0].x[0] -= c*projected_mos[0];
+//	plot_vecfunction(xfunctions[0].x,"custom_guessfunction_woocc");
 
 
 
@@ -1481,12 +1481,12 @@ void TDA::analyze(xfunctionsT& roots) const {
 
 		// TESTING DEBUG
 		// project the active_mos on ao functions
-		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
-		for(size_t i=0;i<active_mo_.size();i++){
-			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
-		}
+//		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
+//		for(size_t i=0;i<active_mo_.size();i++){
+//			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
+//		}
 
-		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,projected_mos,smoothing_function);
+		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
 		std::vector<std::string> key = exops.key_;
 		if(world.rank()==0){
 //			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
