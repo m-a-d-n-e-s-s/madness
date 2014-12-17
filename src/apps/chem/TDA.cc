@@ -1504,17 +1504,17 @@ void TDA::analyze(xfunctionsT& roots) const {
 			std::cout << std::endl;
 		}
 	// Get overlap with for each mo
-		for(size_t j=0;j<roots[i].x.size();j++){
-			double xtmp_norm = roots[i].x[j].norm2();
-			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
-			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
-			vecfuncT motmp; motmp.push_back(active_mo_[j]);
-
-			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
-			for(size_t k=0;k<mo_overlap_tmp.size();k++){
-				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
-			}
-		}
+//		for(size_t j=0;j<roots[i].x.size();j++){
+//			double xtmp_norm = roots[i].x[j].norm2();
+//			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
+//			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
+//			vecfuncT motmp; motmp.push_back(active_mo_[j]);
+//
+//			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
+//			for(size_t k=0;k<mo_overlap_tmp.size();k++){
+//				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
+//			}
+//		}
 	}
 }
 
