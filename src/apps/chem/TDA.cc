@@ -706,7 +706,7 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess) {
 	Tensor<double> inner_tmp = inner(world, residual, residual);
 	double error = sqrt(inner_tmp.sum());
 	xfunction.error.push_back(error);
-	if (error < 8.e-2)
+	if (error < kain_conv_thresh_)
 		xfunction.kain = true;
 
 	// Calculate 2nd order update:

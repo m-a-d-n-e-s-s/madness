@@ -456,6 +456,7 @@ public:
 		rydberg_exponent_(0.1),
 		kain_(false),
 		kain_subspace_(3),
+		kain_conv_thresh_(1.e-2),
 		shift_(0.0),
 		safety_(1.0),
 		triplet_(false)
@@ -524,6 +525,7 @@ public:
 			else if (tag == "rydberg") {rydberg_=true; ss>>rydberg_exponent_;}
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
+			else if (tag == "kain_conv_thresh") ss>> kain_conv_thresh_;
 			else if (tag == "exop1") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "exop2") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "exop3") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
@@ -803,6 +805,9 @@ private:
 
 	/// Kain subspace size for the sequential iterations
 	size_t kain_subspace_;
+
+	/// Kain convergence threshold
+	double kain_conv_thresh_;
 
 	/// The potential shift for the unperturbed DFT potential when using TDDFT (shift = -ipot_ -homo)
 	double shift_;
