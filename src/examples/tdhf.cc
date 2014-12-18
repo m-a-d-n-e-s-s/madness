@@ -121,6 +121,8 @@ int main(int argc, char** argv) {
 		for(int i=0;i<calc.molecule.natom();i++){
 			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
 		}
+		// Get the molecular bounding cube
+		std::cout << "molecular bounding cube is " << calc.molecule.bounding_cube() << std::endl;
 
 	}
 

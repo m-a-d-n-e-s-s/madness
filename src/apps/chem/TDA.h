@@ -332,10 +332,10 @@ public:
 /// Functor that smoothes guess functions with the error functions (no fluctuations at the box borders)
 struct guess_smoothing : public FunctionFunctorInterface<double,3> {
 private:
-	/// Size of the box that will not be smoothed
+	/// The size of the smoothing box (rectangular function, borders must be at dyadic points)
 	const double box_size_;
 public:
-	guess_smoothing(const double box) : box_size_(12.5) {}
+	guess_smoothing(const double box_size) : box_size_(box_size) {}
 	// Smoothing function
 //	double operator()(const coord_3d &r)const{
 //		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
@@ -469,8 +469,14 @@ public:
 		mos_ = mos;
 
 		// guess box default
-		guess_box_ = calc_.param.L*2.0; //calc_.molecule.bounding_cube()+15.0;
-		std::cout << "Box size is " << guess_box_ << std::endl;
+		double bc =  calc_.molecule.bounding_cube();
+		double default_guess_box_ = calc_.param.L;
+		if(bc < 2.0) default_guess_box_ = calc_.param.L * 1.0/8.0;
+		else if(bc < 5) default_guess_box_ = calc_.param.L * 1.0/4.0;
+		else if(bc < 10) default_guess_box_ = calc_.param.L * 3.0/8.0;
+		else if(bc < 15) default_guess_box_ = calc_.param.L * 1.0/2.0;
+
+
 		size_t noct = calc_.aeps.size();
 		// The highest possible excitation (-homo_energy)
 		double highest_excitation_default = -calc_.aeps(noct-1);
@@ -534,7 +540,7 @@ public:
 			else if (tag == "guess_omega_4") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_5") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_6") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			//else if (tag == "guess_box") ss >> guess_box_; // guess box is for smothing function ... now very "hard" should not be changed
+			else if (tag == "smoothing_mode") ss >> smoothing_mode_; // mode for the smoothing function
 			else if (tag == "triplet") triplet_=true;
 
 			else if (tag == "truncate_safety") ss>>safety_;
@@ -545,6 +551,9 @@ public:
 		if(dft_) shift_= -ipot_ - get_calc().aeps[noct-1];
 		highest_excitation_=highest_excitation_-shift_;
 
+		// Make the guess box for the smoothing function (smoothing_mode_ == 0 is the default)
+		if(smoothing_mode_ == 0.0) guess_box_ = default_guess_box_;
+		else guess_box_ = calc_.param.L * smoothing_mode_/8.0;
 
 		if (world.rank() == 0) {
 			std::cout<< std::setw(60) <<"\n\n\n\n ======= TDA info =======\n\n\n" << std::endl;
@@ -700,6 +709,9 @@ private:
 	size_t guess_iter_;
 	double guess_omega_;
 	double guess_box_;
+	/// The smoothing mode determines the size of the guess_box (box where the guess functions are not truncated to 0)
+	/// The size will be smoothing_mode_/8*L to ensure the borders are at dyadic points
+	double smoothing_mode_;
 
 	/// mode is either mo or all_orbitals (decides on which of the two functions the excitation operators act)
 	/// mo is the default, all_orbitals mode can increase the freedom (if there are convergence problems) of the guess functions
