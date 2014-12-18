@@ -372,7 +372,7 @@ public:
 	/// @param[in] natoms the number of atoms (if the coordinates are of nuclei) or just the size of the coord vector
 	/// @param[in] mode the level of diffuseness (0 and 1 possible)
 	diffuse_functions(const double exponent,const std::vector<coord_3d> coord,const std::vector<int> signs, const size_t natoms, const size_t mode):
-		exponent(exponent), coord(coord), signs(signs),natoms(natoms),mode(mode)
+		exponent(exponent), coord(coord), signs(signs),natoms(natoms)
 {if(mode>1) MADNESS_EXCEPTION("mode in diffuse_function struct is not 0,1 or 2",1);}
 
 	/// Make a rydberg guess function where the neRäar range area is 0.0 and the long range is a diffuse 2s or 2p function
@@ -404,8 +404,6 @@ private:
 	const std::vector<int> signs;
 	/// number of atoms
 	const size_t natoms;
-	/// the mode of diffuseness (from 0 to 2)
-	const size_t mode;
 
 	/// Helper function to evaluate the radius
 	double r_function(const coord_3d &r)const{return sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);}
@@ -431,7 +429,9 @@ public:
 		print_grid_(false),
 		guess_("physical"),
 		guess_iter_(15),
+		smoothing_mode_(0.0),
 		guess_mode_("physical"),
+		replace_guess_functions_(true),
 		guess_exop_("quadrupole"),
 		guess_excitations_(6),
 		excitations_(4),
@@ -477,7 +477,6 @@ public:
 		else if(bc < 10) default_guess_box_ = calc_.param.L * 3.0/8.0;
 		else if(bc < 15) default_guess_box_ = calc_.param.L * 1.0/2.0;
 
-
 		size_t noct = calc_.aeps.size();
 		// The highest possible excitation (-homo_energy)
 		double highest_excitation_default = -calc_.aeps(noct-1);
@@ -504,6 +503,7 @@ public:
 			else if (tag == "guess_iter") ss >> guess_iter_;
 			else if (tag == "guess_omega") ss >> guess_omega_;
 			else if (tag == "guess_mode") ss >> guess_mode_;
+			else if (tag == "replace_guess_functions") ss >> replace_guess_functions_;
 			else if (tag == "guess_exop") ss >> guess_exop_;
 			else if (tag == "guess_excitations") ss >> guess_excitations_;
 			else if (tag == "bsh_eps") ss >> bsh_eps_;
@@ -718,6 +718,9 @@ private:
 	/// mode is either mo or all_orbitals (decides on which of the two functions the excitation operators act)
 	/// mo is the default, all_orbitals mode can increase the freedom (if there are convergence problems) of the guess functions
 	std::string guess_mode_;
+
+	/// Determine if guess functions should be replaced after pre convergence
+	bool replace_guess_functions_;
 
 	/// Excitation operator for the guess functions (bsp "dipole" or "quadrupole" which will be dipole + quadrupole operators)
 	std::string guess_exop_;

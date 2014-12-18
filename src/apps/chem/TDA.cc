@@ -227,7 +227,7 @@ void TDA::print_status(const xfunctionsT & xfunctions) const {
 void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-							<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+									<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
@@ -248,7 +248,12 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 			print("unknown keyword for guess: ", guess_);
 		MADNESS_EXCEPTION("Reached end of initialize", 1);
 	}
-
+	// failsafe
+	if(guess_xfunctions_.size()<guess_excitations_ and not replace_guess_functions_){
+		if(world.rank()==0) std::cout<< guess_excitations_ << " guess excitations demanded but only " << guess_xfunctions_.size() << " guess functions created ...."
+				<< " guess functions will be replaced after pre-convergence ... replace_guess_functions_ keyword will be set to true" << std::endl;
+		replace_guess_functions_ = true;
+	}
 }
 
 void TDA::guess_custom(xfunctionsT & xfunctions) {
@@ -258,23 +263,23 @@ void TDA::guess_custom(xfunctionsT & xfunctions) {
 		for(size_t i=0;i<diff;i++) guess_omegas_.push_back(guess_omega_);
 	}
 	std::shared_ptr<FunctionFunctorInterface<double, 3> > smooth_functor(
-						new guess_smoothing(guess_box_));
+			new guess_smoothing(guess_box_));
 
 	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
 	plot_plane(world,smoothing_function,"smoothing_function");
 	std::shared_ptr<FunctionFunctorInterface<double, 3> > anti_smooth_functor(
-						new guess_anti_smoothing(guess_box_));
+			new guess_anti_smoothing(guess_box_));
 
 	real_function_3d anti_smoothing_function = real_factory_3d(world).functor(anti_smooth_functor);
 	plot_plane(world,anti_smoothing_function,"anti_smoothing_function");
 	exoperators exops(world);
 
-//	// project the active_mos on ao functions
-//	vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
-//	for(size_t i=0;i<active_mo_.size();i++){
-//		projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
-//	}
-//	plot_vecfunction(projected_mos,"projected_mos_");
+	//	// project the active_mos on ao functions
+	//	vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
+	//	for(size_t i=0;i<active_mo_.size();i++){
+	//		projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
+	//	}
+	//	plot_vecfunction(projected_mos,"projected_mos_");
 
 	std::vector<vecfuncT> xguess_inner = exops.make_custom_guess(world,custom_exops_,active_mo_, smoothing_function);
 	//std::vector<vecfuncT> xguess_outer = exops.make_custom_guess(world,custom_exops_,projected_mos, anti_smoothing_function);
@@ -287,10 +292,10 @@ void TDA::guess_custom(xfunctionsT & xfunctions) {
 		//plot_vecfunction(xguess_outer[i],"custom_guessfunction_outer"+stringify(i));
 		xfunctions.push_back(tmp);
 	}
-//	//TESTING DEBUG
-//	double c=inner(xfunctions[0].x[0],projected_mos[0]);
-//	xfunctions[0].x[0] -= c*projected_mos[0];
-//	plot_vecfunction(xfunctions[0].x,"custom_guessfunction_woocc");
+	//	//TESTING DEBUG
+	//	double c=inner(xfunctions[0].x[0],projected_mos[0]);
+	//	xfunctions[0].x[0] -= c*projected_mos[0];
+	//	plot_vecfunction(xfunctions[0].x,"custom_guessfunction_woocc");
 
 
 
@@ -298,7 +303,7 @@ void TDA::guess_custom(xfunctionsT & xfunctions) {
 
 void TDA::guess_physical(xfunctionsT & xfunctions) {
 	std::shared_ptr<FunctionFunctorInterface<double, 3> > smooth_functor(
-						new guess_smoothing(guess_box_));
+			new guess_smoothing(guess_box_));
 
 	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
 	smoothing_function.print_size("smoothing_function size");
@@ -678,7 +683,7 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess) {
 
 	// If orthonormalize_fock was not used previously the expectation value must be calculated:
 	if (not ptfock){
-				xfunction.expectation_value.push_back(
+		xfunction.expectation_value.push_back(
 				expectation_value(xfunction, Vpsi));
 	}
 	scale(world, Vpsi, -2.0);
@@ -1195,7 +1200,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-									+ get_coulomb_potential();
+											+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
@@ -1295,21 +1300,23 @@ bool TDA::check_convergence(xfunctionsT &xfunctions) {
 			//if(kain_) kain_solvers.reduce_subspace(i);
 			converged_xfunctions_.push_back(xfunctions[i]);
 			//will be substituted with guess function now//xfunctions.erase(xfunctions.begin()+i);
-
-			// replace the converged xfunctions with the guess function it once was
-			//(there should be no sorting on the way, e.g in the fock orthonormalization)
-			// if random guess is demanded or if guess_xfunctions are empty -> re initialize
-			if(guess_xfunctions_.empty() or guess_exop_ == "random_4"){
-				guess_xfunctions_.clear();
-				initialize(guess_xfunctions_);
-				std::cout << "\n Re-Initialize guess functions ..." << std::endl;
+			if(not replace_guess_functions_)xfunctions.erase(xfunctions.begin()+i);
+			if(replace_guess_functions_){
+				// replace the converged xfunctions with the guess function it once was
+				//(there should be no sorting on the way, e.g in the fock orthonormalization)
+				// if random guess is demanded or if guess_xfunctions are empty -> re initialize
+				if(guess_xfunctions_.empty() or guess_exop_ == "random_4" or guess_exop_ == "random_8"){
+					guess_xfunctions_.clear();
+					initialize(guess_xfunctions_);
+					std::cout << "\n Re-Initialize guess functions ..." << std::endl;
+				}
+				xfunctions[i]=guess_xfunctions_[i];
+				xfunctions[i].x = copy(world,guess_xfunctions_[i].x);
+				xfunctions[i].omega = guess_omega_;
+				xfunctions[i].error.push_back(100);
+				xfunctions[i].delta.push_back(100);
+				xfunctions[i].expectation_value.push_back(guess_omega_);
 			}
-			xfunctions[i]=guess_xfunctions_[i];
-			xfunctions[i].x = copy(world,guess_xfunctions_[i].x);
-			xfunctions[i].omega = guess_omega_;
-			xfunctions[i].error.push_back(100);
-			xfunctions[i].delta.push_back(100);
-			xfunctions[i].expectation_value.push_back(guess_omega_);
 			if(kain_) {
 				// all subspaces have to be erased because of the fock transformation
 				for(size_t j=0;j<xfunctions.size();j++) kain_solvers.erase_subspace(j);
@@ -1481,21 +1488,21 @@ void TDA::analyze(xfunctionsT& roots) const {
 
 		// TESTING DEBUG
 		// project the active_mos on ao functions
-//		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
-//		for(size_t i=0;i<active_mo_.size();i++){
-//			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
-//		}
+		//		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
+		//		for(size_t i=0;i<active_mo_.size();i++){
+		//			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
+		//		}
 
 		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
 		std::vector<std::string> key = exops.key_;
 		if(world.rank()==0){
-//			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
-//			std::cout <<"\n dipole contributions"<< std::endl;
-//			for(size_t k=0;k<3;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" " <<overlap_tmp[k]<<" ";
-//			std::cout <<"\n quadrupole contributions"<< std::endl;
-//			for(size_t k=3;k<9;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k]<<" ";
-//			std::cout <<"\n cubic contributions"<< std::endl;
-//			for(size_t k=9;k<19;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k] << " ";
+			//			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
+			//			std::cout <<"\n dipole contributions"<< std::endl;
+			//			for(size_t k=0;k<3;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" " <<overlap_tmp[k]<<" ";
+			//			std::cout <<"\n quadrupole contributions"<< std::endl;
+			//			for(size_t k=3;k<9;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k]<<" ";
+			//			std::cout <<"\n cubic contributions"<< std::endl;
+			//			for(size_t k=9;k<19;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k] << " ";
 
 			std::cout <<"\n\n all significant contributions " << std::endl;
 			for(size_t k=0;k<overlap_tmp.size();k++){
@@ -1503,18 +1510,18 @@ void TDA::analyze(xfunctionsT& roots) const {
 			}
 			std::cout << std::endl;
 		}
-	// Get overlap with for each mo
-//		for(size_t j=0;j<roots[i].x.size();j++){
-//			double xtmp_norm = roots[i].x[j].norm2();
-//			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
-//			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
-//			vecfuncT motmp; motmp.push_back(active_mo_[j]);
-//
-//			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
-//			for(size_t k=0;k<mo_overlap_tmp.size();k++){
-//				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
-//			}
-//		}
+		// Get overlap with for each mo
+		//		for(size_t j=0;j<roots[i].x.size();j++){
+		//			double xtmp_norm = roots[i].x[j].norm2();
+		//			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
+		//			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
+		//			vecfuncT motmp; motmp.push_back(active_mo_[j]);
+		//
+		//			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
+		//			for(size_t k=0;k<mo_overlap_tmp.size();k++){
+		//				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
+		//			}
+		//		}
 	}
 }
 
