@@ -1049,7 +1049,7 @@ int test_qm(World& world) {
 
         //         print("psi");
         //         psi.print_tree();
-        CHECK(err, 1.2e-9, "err in test_qm 1");
+        CHECK(err, 1.e-8, "err in test_qm 1"); // actually 1.2e-9 should be fine
 
         functionT pp = apply_1d_realspace_push(*q1d, psi, 0);
 
