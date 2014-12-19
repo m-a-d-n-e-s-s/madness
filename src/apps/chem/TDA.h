@@ -485,7 +485,7 @@ public:
 
 
 		// The guessed lowest excitation (if no guess_omega_ is in the input)
-		double guess_omega_default = -0.1*calc_.aeps[noct-1];
+		double guess_omega_default = -0.9*calc_.aeps[noct-1];
 		guess_omega_ = guess_omega_default;
 
 		std::ifstream f(input.c_str());
