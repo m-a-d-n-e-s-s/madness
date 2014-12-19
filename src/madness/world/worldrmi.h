@@ -36,6 +36,7 @@
 #include <madness/world/safempi.h>
 #include <madness/world/worldthread.h>
 #include <madness/world/worldtypes.h>
+#include <sstream>
 #include <utility>
 #include <list>
 
@@ -138,6 +139,7 @@ namespace madness {
         static const attrT ATTR_UNORDERED=0x0;
         static const attrT ATTR_ORDERED=0x1;
 
+	static int testsome_backoff_us;
 
     private:
 
@@ -148,6 +150,7 @@ namespace madness {
                 : public madness::ThreadBase, private madness::Mutex
 #endif // HAVE_INTEL_TBB
         {
+
         public:
 
             struct header {
@@ -268,6 +271,17 @@ namespace madness {
         }
 
         static void begin() {
+
+	  testsome_backoff_us = 5;
+	  const char* buf = getenv("MAD_BACKOFF_US");
+	  if (buf) {
+            std::stringstream ss(buf);
+            ss >> testsome_backoff_us;
+	    if (testsome_backoff_us < 0) testsome_backoff_us = 0;
+	    if (testsome_backoff_us > 100) testsome_backoff_us = 100;
+	  }	  
+
+
             MADNESS_ASSERT(task_ptr == NULL);
 #if HAVE_INTEL_TBB
             tbb_rmi_parent_task = new( tbb::task::allocate_root() ) tbb::empty_task;

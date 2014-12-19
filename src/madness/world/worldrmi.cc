@@ -49,9 +49,9 @@ namespace madness {
 #if HAVE_INTEL_TBB
     tbb::task* RMI::tbb_rmi_parent_task = NULL;
 #endif
-
+  
     void RMI::RmiTask::process_some() {
-
+      
         const bool print_debug_info = RMI::debugging;
 
         if (print_debug_info && n_in_q)
@@ -64,17 +64,11 @@ namespace madness {
 
         MutexWaiter waiter;
         while((narrived == 0) && (iterations < 1000)) {
-            narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
-            ++iterations;
-//  TAU_START("MutexWaiter wait()");
-#if defined(HAVE_CRAYXT) || defined(HAVE_IBMBGP)
-            myusleep(1);
-#else
-            waiter.wait();
-#endif
-//  TAU_STOP("MutexWaiter wait()");
+	  narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
+	  ++iterations;
+	  myusleep(RMI::testsome_backoff_us);
         }
-
+	
 #ifndef HAVE_CRAYXT
         waiter.reset();
 #endif
@@ -386,5 +380,7 @@ namespace madness {
 
         return result;
     }
+
+  int RMI::testsome_backoff_us = 2;
 
 } // namespace madness
