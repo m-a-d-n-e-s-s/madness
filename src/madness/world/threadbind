@@ -1,13 +1,7 @@
 #!/usr/bin/env python
 
-# Arguments are a list of process ids ... the collective list of
-#  threads in the processes are mapped round robin to the list of
-#  cores.
-
-# An effective way to handle multiple MPI processes running an
-#  executable named prog.x is
-#
-#  threadbind `pgrep prog.x`
+# Arguments are a list of process ids or executable names.  Threads in
+# the processes are mapped round robin to the list of cores.
 
 # If you are really using MPI it may be worth leaving a core free for
 #  any additional threads created by MPI/IB etc.  To do this just
@@ -29,21 +23,23 @@ ncores = len(cores)
 
 pids = sys.argv[1:]
 
-if len(pids)==1:
-    try:
-        p = int(pids[0])
-    except:
-        cmd = "psgrep %s" % pids[0]
-        res = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True).strip().split()
-        pids[0] = res[0]
-
 core=0
-for pid in pids:
-    cmd = "ps -mo tid -p %s | egrep -v 'T|-'" % pid
-    res = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True).strip().split()
-    for tid in res:
-        cmd = 'taskset -p -c %d %s >& /dev/null' %(cores[core%ncores], tid)
-        if os.system(cmd) != 0:
-            print 'failed binding thread',tid
-        core = core + 1
 
+for p in pids:
+    plist = [p]
+    try:
+        q = int(pids[0])
+    except:
+        cmd = "pgrep %s" % p
+        plist = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True).strip().split()
+
+    for pid in plist:
+        cmd = "ps -mo tid -p %s | egrep -v 'T|-'" % pid
+        res = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True).strip().split()
+        for tid in res:
+            cmd = 'taskset -p -c %d %s' %(cores[core], tid)
+            try:
+                junk = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+            except:
+                print 'failed binding thread',tid
+            core = (core + 1)%ncores
