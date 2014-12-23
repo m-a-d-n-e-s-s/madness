@@ -184,7 +184,7 @@ using namespace std;
 const int k = 6; // wavelet order
 const double thresh = 1e-4; // truncation threshold
 const double L = 5; // box is [-L,L]
-const double sigma = 0.2; // Surface width
+const double sigma = 0.1; // Surface width
 
 const double epsilon_0 = 1.0; // Interior dielectric
 const double epsilon_1 =10.0; // Exterior dielectric

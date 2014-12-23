@@ -13,18 +13,19 @@ AC_DEFUN([ACX_WITH_GOOGLE_PERF], [
       ;;
       *)
         LIBS="$LIBS -L$withval/lib"
-	CPPFLAGS="-I$withval/include $CPPFLAGS"
+        CPPFLAGS="-I$withval/include $CPPFLAGS"
         acx_with_google_perf="$withval"
       esac
     ],
     [acx_with_google_perf="yes"]
   )
+
   if test $acx_with_google_perf != "no"; then
     AC_LANG_SAVE
     AC_LANG([C++])
 
-    AC_CHECK_LIB([profiler], [ProfilerStart], 
-                 [LIBS="$LIBS -lprofiler -ltcmalloc" 
+    AC_CHECK_LIB([tcmalloc_and_profiler], [ProfilerStart], 
+                 [LIBS="-lprofiler -ltcmalloc $LIBS" 
                   have_profiler=yes
                   AC_MSG_NOTICE([Google profiler and fast malloc found])
                   AC_DEFINE([MADNESS_HAS_GOOGLE_PERF], [1], [Define if using Google PerformanceTools])],
@@ -33,7 +34,7 @@ AC_DEFUN([ACX_WITH_GOOGLE_PERF], [
 
     if test $have_profiler = "no" ; then
       AC_CHECK_LIB([tcmalloc_minimal], [malloc], 
-                   [LIBS="$LIBS -ltcmalloc_minimal"
+                   [LIBS="-ltcmalloc_minimal $LIBS"
                     AC_MSG_NOTICE([Google minimal fast malloc found])
                     AC_DEFINE([MADNESS_HAS_GOOGLE_PERF_MINIMAL], [1], [Define if using Google PerformanceTools without libunwind])],
                    [AC_MSG_NOTICE(["Unable to link with libtcmalloc_minimal])])

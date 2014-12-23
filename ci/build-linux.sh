@@ -4,13 +4,11 @@
 set -ev
 
 # Environment variables
-export CXXFLAGS="-std=c++11"
+export CXXFLAGS="-std=c++11 -mno-avx"
+export CPPFLAGS=-DDISABLE_SSE3
 if [ "$CXX" = "g++" ]; then
     export CC=/usr/bin/gcc-$GCC_VERSION
     export CXX=/usr/bin/g++-$GCC_VERSION
-else
-    export CFLAGS="--gcc-toolchain=/usr/bin/gcc-$GCC_VERSION"
-    export CXXFLAGS="--gcc-toolchain=/usr/bin/g++-$GCC_VERSION"
 fi
 export F77=/usr/bin/gfortran-$GCC_VERSION
 export MPICH_CC=$CC
@@ -31,4 +29,4 @@ make -j2 libraries
 
 # Run unit tests
 export MAD_NUM_THREADS=2
-make -j2 check
+make -j2 -k check # run all tests, even if some fail

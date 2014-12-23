@@ -525,7 +525,7 @@ void mTxmq(long dimi, long dimj, long dimk,
     //template<>
     void mTxmqdjflkjsalkf(const long dimi, const long dimj, const long dimk,
                double* restrict c, const double* a, const double* b) {
-        PROFILE_BLOCK(mTxmq_double_asm);
+        //PROFILE_BLOCK(mTxmq_double_asm);
         //std::cout << "IN DOUBLE ASM VERSION " << dimi << " " << dimj << " " << dimk << "\n";
 
 
@@ -724,7 +724,7 @@ namespace madness {
     void mTxmq(const long dimi, const long dimj, const long dimk,
                double_complex* restrict c, const double_complex* a, const double_complex* b) {
 
-        PROFILE_BLOCK(mTxmq_complex_asm);
+        //PROFILE_BLOCK(mTxmq_complex_asm);
         const long dimi16 = dimi<<4;
         const long dimj16 = dimj<<4;
 

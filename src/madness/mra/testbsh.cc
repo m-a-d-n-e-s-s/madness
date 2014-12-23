@@ -146,13 +146,6 @@ int test_bsh(World& world) {
     // here we are testing bsh, not the initial projection
     if ((opferr>ferr) and (opferr>FunctionDefaults<3>::get_thresh())) success++;
 
-    if (world.rank()==0) {
-    	print("");
-    	print("Note that in the convolution operator there are a few heuristic");
-    	print("screening parameters that are geared towards medium accuracy.");
-    	print("High accuracy calculations might not meet the thresholds\n ");
-    }
-
     return success;
 
     // FIXME: what comes here? Is it important??
