@@ -226,11 +226,13 @@ namespace madness {
     /// Generates a vector of zero functions
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
-    zero_functions(World& world, int n) {
+      zero_functions(World& world, int n, bool fence=true) {
         PROFILE_BLOCK(Vzero_functions);
         std::vector< Function<T,NDIM> > r(n);
         for (int i=0; i<n; ++i)
-            r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world));
+  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).initial_level(0));
+
+	if (fence) world.gop.fence():
 
         return r;
     }

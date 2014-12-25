@@ -59,7 +59,7 @@
 #define FUNCTION_INSTANTIATE_6
 #endif
 
-static const bool VERIFY_TREE = false; //true;
+static const bool VERIFY_TREE = false; //true
 
 
 namespace madness {
@@ -578,6 +578,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return *this;
             verify();
+	    MADNESS_ASSERT(is_compressed());
 //            if (!is_compressed()) compress();
             impl->truncate(tol,fence);
             if (VERIFY_TREE) verify_tree();
@@ -1361,8 +1362,8 @@ namespace madness {
             vf[0].impl->refine_to_common_level(v, c, key0);
             if (mustfence) vf[0].world().gop.fence();
             if (fence) vf[0].world().gop.fence();
-            //if (VERIFY_TREE)
-                for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
+            if (VERIFY_TREE)
+	      for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
         }
 
         /// This is replaced with op(vector of functions) ... private
@@ -1374,6 +1375,8 @@ namespace madness {
             }
             impl->multiop_values(op, v);
             world().gop.fence();
+            if (VERIFY_TREE) verify_tree();
+
             return *this;
         }
 
