@@ -232,7 +232,7 @@ namespace madness {
         for (int i=0; i<n; ++i)
   	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).initial_level(0));
 
-	if (fence) world.gop.fence():
+	if (fence) world.gop.fence();
 
         return r;
     }
