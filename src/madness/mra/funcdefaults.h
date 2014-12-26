@@ -269,7 +269,7 @@ namespace madness {
         /// Existing functions are unaffected
         static void set_truncate_mode(int value) {
             truncate_mode=value;
-            MADNESS_ASSERT(value>=0 && value<3);
+            MADNESS_ASSERT(value>=0 && value<4);
         }
 
         /// Gets the default adaptive refinement flag

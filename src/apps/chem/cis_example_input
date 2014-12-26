@@ -1,0 +1,43 @@
+plot
+ plane x1 x2
+ zoom 1.0
+ npoints 50
+ origin 0.0 0.0 0.0
+end
+
+dft
+ xc hf
+ k 8
+ econv 1.e-6
+ dconv 5.e-6
+ protocol 1.e-6
+ canon
+end
+
+excite
+low_thresh 1.e-4
+high_thresh 1.e-5
+end
+
+TDA
+ guess physical
+ guess_exop C2v
+ guess_iter 5
+ guess_excitations 8
+ excitations 7
+ guess_omega 0.3225
+ iter_max 30
+ econv 5.e-4
+ dconv 5.e-3
+ hard_dconv 1.e-3
+ nfreeze 1
+ only_fock
+ kain
+ no_otf
+end
+
+geometry
+  o    0.00000000000000      0.00000000000000     -0.12178983933899
+  h    1.41713420892173      0.00000000000000      0.96657854674257
+  h   -1.41713420892173      0.00000000000000      0.96657854674257
+end

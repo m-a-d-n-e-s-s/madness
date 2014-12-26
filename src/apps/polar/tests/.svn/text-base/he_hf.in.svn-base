@@ -1,0 +1,14 @@
+# reference value from thakkar
+
+# Correct energy to ?d.p. -2.861679995
+# Should agree to at least 8 dp
+
+dft
+  xc hf
+end
+
+geometry
+  eprec 1e-7
+  he 0 0 0
+end
+

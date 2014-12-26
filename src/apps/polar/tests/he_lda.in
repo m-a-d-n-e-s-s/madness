@@ -1,0 +1,14 @@
+# reference value from http://physics.nist.gov/PhysRefData/DFTdata/Tables/ptable.html
+
+# Correct energy to 6d.p. -2.834836
+# Should agree to all figures
+
+dft
+  xc lda
+end
+
+geometry
+  eprec 1e-7
+  he 0 0 0
+end
+

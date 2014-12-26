@@ -416,14 +416,16 @@ namespace madness {
         	}
         };
 
+        typedef std::map<std::pair<int,int>,ElectronPair> pairmapT;
 
         World& world;                           ///< the world
         Parameters param;						///< SCF parameters for MP2
         std::shared_ptr<HartreeFock> hf;        ///< our reference
         CorrelationFactor corrfac;              ///< correlation factor: Slater
         std::shared_ptr<NuclearCorrelationFactor> nuclear_corrfac;
+        mutable Tensor<double> fock;			///< the Fock matrix
 
-        std::map<std::pair<int,int>,ElectronPair> pairs;       ///< pair functions and energies
+        pairmapT pairs;       ///< pair functions and energies
         double correlation_energy;				///< the correlation energy
         double coords_sum;						///< check sum for the geometry
         bool do_coupling;
@@ -523,6 +525,9 @@ namespace madness {
         /// solve the residual equation for electron pair (i,j)
         void solve_residual_equations(ElectronPair& pair) const;
 
+        /// solve the couple MP1 equations for local orbitals
+        void solve_coupled_equations(pairmapT& pairs) const;
+
         real_function_6d make_Rpsi(const ElectronPair& pair) const;
 
 		/// compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
@@ -573,7 +578,7 @@ namespace madness {
         /// compute the first iteration of the residual equations and all intermediates
         void guess_mp1_3(ElectronPair& pair) const;
 
-                /// compute the singlet and triplet energy for a given electron pair
+        /// compute the singlet and triplet energy for a given electron pair
 
         /// @return	the energy of 1 degenerate triplet and 1 singlet pair
         double compute_energy(ElectronPair& pair) const;
@@ -673,12 +678,26 @@ namespace madness {
         real_function_6d multiply_with_0th_order_Hamiltonian(const real_function_6d& f,
         		const int i, const int j) const;
 
+		// compute some intermediates
+        Tensor<double> get_fock_matrix() const {
+        	if (fock.has_data()) return copy(fock);
+    		const tensorT occ=hf->get_calc().aocc;
+    		fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
+    		if (world.rank()==0 and hf->nocc()<10) {
+    			print("The Fock matrix");
+    			print(fock);
+    		}
+    		return copy(fock);
+        }
+
+
+
         /// add the coupling terms for local MP2
 
         /// @param[in] i the current electron pair \f$ \left| u_{ij} right> \f$
         /// @param[in] j the current electron pair \f$ \left| u_{ij} right> \f$
         /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-        real_function_6d add_local_coupling(const int i, const int j) const;
+        std::map<std::pair<int,int>,real_function_6d> add_local_coupling() const;
 
     };
 };

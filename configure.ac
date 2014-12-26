@@ -1,7 +1,7 @@
 AC_PREREQ(2.59)
 # was 2.61 but jaguar is not up to date so backported which
 # involved replacing AC_PROG_SED and UINT*_T type checks.
-AC_INIT([MADNESS], [0.9], [http://code.google.com/p/m-a-d-n-e-s-s])
+AC_INIT([MADNESS], [0.9], [https://github.com/m-a-d-n-e-s-s/madness])
 AC_CONFIG_SRCDIR([configure.ac])
 
 # This is where autoconf automatically generated files go
@@ -117,7 +117,7 @@ ACX_WITH_BOOST
 ACX_CHECK_TR1
 
 # Get optional external libraries inplace so that building will partially check them
-ACX_WITH_LIBUNWIND
+#ACX_WITH_LIBUNWIND ... no longer needed for google perf?
 ACX_WITH_GOOGLE_PERF
 ACX_WITH_GOOGLE_TEST
 ACX_WITH_LIBXC
@@ -392,9 +392,8 @@ AC_CONFIG_FILES([
         src/apps/hf/Makefile
         src/apps/exciting/Makefile
         src/apps/moldft/Makefile
+        src/apps/polar/Makefile
         src/apps/nick/Makefile
-        src/apps/tkato/Makefile
-        src/apps/jacob/Makefile
         src/apps/interior_bc/Makefile
         src/apps/interior_bc/nanophoto/Makefile
       src/examples/Makefile

@@ -24,7 +24,7 @@ TESTS = test_prof.mpi test_ar.mpi test_hashdc.mpi test_hello.mpi test_atomicint.
 
 
 if MADNESS_HAS_GOOGLE_TEST
-TESTS += test_googletest.mpi test_array.mpi test_worldptr.mpi test_worldref.mpi
+TESTS += test_array.mpi test_worldptr.mpi test_worldref.mpi
 XFAIL_TESTS =  test_googletest.mpi
 endif
 
@@ -96,10 +96,10 @@ test_array_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
 test_array_mpi_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
 test_array_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 
-test_googletest_mpi_SOURCES = test_googletest.cc
-test_googletest_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
-test_googletest_mpi_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
-test_googletest_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
+#test_googletest_mpi_SOURCES = test_googletest.cc
+#test_googletest_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+#test_googletest_mpi_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+#test_googletest_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 
 test_worldptr_mpi_SOURCES = test_worldptr.cc
 test_worldptr_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)

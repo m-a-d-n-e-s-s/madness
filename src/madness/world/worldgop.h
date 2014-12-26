@@ -402,27 +402,21 @@ namespace madness {
             if(parent != -1)
                 detail::DistCache<keyT>::set_cache_value(key, value);
 
-            // Precompute send checks
-            const bool send0 = (child0 != -1);
-            const bool send1 = (child1 != -1);
-
-            // Send active messages to children
-            if(send0 || send1) { // Check that this process has children in the binary tree
+            if(child0 != -1) { // Check that this process has children in the binary tree
 
                 // Get handler function and arguments
                 void (*handler)(const AmArg&) =
                         & WorldGopInterface::template bcast_handler<keyT, valueT, taskfnT>;
-                AmArg* const args = new_am_arg(
+                AmArg* const args0 = new_am_arg(
                         & WorldGopInterface::template bcast_task<keyT, valueT>,
                         key, value, root);
 
                 // Send active message to children
-                // Note: Only the last message is "managed" so the args buffer
-                // can be reused.
-                if(send0)
-                    world_.am.send(child0, handler, args, RMI::ATTR_ORDERED, !send1);
-                if(send1)
-                    world_.am.send(child1, handler, args, RMI::ATTR_ORDERED, true);
+                if(child1 != -1) {
+                    AmArg* const args1 = copy_am_arg(*args0);
+                    world_.am.send(child1, handler, args1);
+                }
+                world_.am.send(child0, handler, args0);
             }
         }
 
@@ -443,24 +437,21 @@ namespace madness {
                 group.remote_update();
             }
 
-            // Precompute send checks
-            const bool send0 = (child0 != -1);
-            const bool send1 = (child1 != -1);
-
-            if(send0 || send1) { // Check that this process has children in the binary tree
+            if(child0 != -1) { // Check that this process has children in the binary tree
 
                 // Get handler function and arguments
                 void (*handler)(const AmArg&) =
                         & WorldGopInterface::template group_bcast_handler<keyT, valueT, taskfnT>;
-                AmArg* const args = new_am_arg(
+                AmArg* const args0 = new_am_arg(
                         & WorldGopInterface::template group_bcast_task<keyT, valueT>,
                         key, value, group_root, group.id());
 
                 // Send active message to children
-                if(send0)
-                    world_.am.send(child0, handler, args, RMI::ATTR_ORDERED, !send1);
-                if(send1)
-                    world_.am.send(child1, handler, args, RMI::ATTR_ORDERED, true);
+                if(child1 != -1) {
+                    AmArg* const args1 = copy_am_arg(*args0);
+                    world_.am.send(child1, handler, args1);
+                }
+                world_.am.send(child0, handler, args0);
             }
         }
 

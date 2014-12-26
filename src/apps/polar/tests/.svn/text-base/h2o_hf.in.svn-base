@@ -1,0 +1,16 @@
+# Any run should reproduce converged energy to at least 5 d.p. 
+
+# Correct energy to 8dp -76.06818006
+# (but need smaller eprec and dconv to get this)
+
+dft
+  xc hf
+end
+
+geometry
+   eprec 1e-6
+   units au
+   o 0 0 0
+   h 0  1.421178283 -1.064386617
+   h 0 -1.421178283 -1.064386617
+end

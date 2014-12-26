@@ -137,6 +137,7 @@ namespace madness {
                 std::cout.flush();
                 MADNESS_EXCEPTION("FunctionImpl: verify: INCONSISTENT TREE NODE", 0);
             }
+	    world.gop.fence();  // Make sure nothing is going on
         }
         
         // Ensure that parents and children exist appropriately
@@ -602,30 +603,15 @@ namespace madness {
     
     
     /// Returns the truncation threshold according to truncate_method
-    
-    /// here is our handwaving argument: this threshold will give each
-    /// FunctionNode an error of less than tol. The total error can
-    /// then be as high as sqrt(#nodes) * tol. Therefore in order to
-    /// account for higher dimensions: divide tol by about the root of
-    /// number of siblings (2^NDIM) that have a large error when we
-    /// refine along a deep branch of the tree.
-    ///
-    /// Nope ... it can easily be as high as #nodes * tol.  The real
-    /// fix for this is an end-to-end error analysis of the larger
-    /// application and if desired to include this factor into the
-    /// threshold selected by the application.  Reverting this to the
-    /// original threshold.
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::truncate_tol(double tol, const keyT& key) const {
-        const static double fac=1.0; // was /std::pow(2,NDIM*0.5);
-        tol*=fac;
         
         // RJH ... introduced max level here to avoid runaway
         // refinement due to truncation threshold going down to
         // intrinsic numerical error
         const int MAXLEVEL1 = 20; // 0.5**20 ~= 1e-6
         const int MAXLEVEL2 = 10; // 0.25**10 ~= 1e-6
-        
+
         if (truncate_mode == 0) {
             return tol;
         }
@@ -637,7 +623,28 @@ namespace madness {
             double L = FunctionDefaults<NDIM>::get_cell_min_width();
             return tol*std::min(1.0,pow(0.25,double(std::min(key.level(),MAXLEVEL2)))*L*L);
         }
-        else {
+        else if (truncate_mode == 3) {
+            // similar to truncate mode 1, but with an additional factor to
+            // account for an increased number of boxes in higher dimensions
+
+            // here is our handwaving argument: this threshold will give each
+            // FunctionNode an error of less than tol. The total error can
+            // then be as high as sqrt(#nodes) * tol. Therefore in order to
+            // account for higher dimensions: divide tol by about the root of
+            // number of siblings (2^NDIM) that have a large error when we
+            // refine along a deep branch of the tree. FAB
+            //
+            // Nope ... it can easily be as high as #nodes * tol.  The real
+            // fix for this is an end-to-end error analysis of the larger
+            // application and if desired to include this factor into the
+            // threshold selected by the application. RJH
+            const static double fac=1.0/std::pow(2,NDIM*0.5);
+            tol*=fac;
+
+            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            return tol*std::min(1.0,pow(0.5,double(std::min(key.level(),MAXLEVEL1)))*L);
+
+        } else {
             MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode);
         }
     }
@@ -1526,7 +1533,7 @@ namespace madness {
     
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::norm_tree_op(const keyT& key, const std::vector< Future<double> >& v) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl);
         double sum = 0.0;
         int i=0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
@@ -1534,7 +1541,7 @@ namespace madness {
             sum += value*value;
         }
         sum = sqrt(sum);
-        coeffs.task(key, &nodeT::set_norm_tree, sum); // why a task?????????????????????
+        coeffs.task(key, &nodeT::set_norm_tree, sum); // why a task? because send is deprecated to keep comm thread free
         //if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
         return sum;
     }
@@ -2031,7 +2038,7 @@ namespace madness {
                     const keyT& child = kit.key();
                     coeffT ss = copy(d(child_patch(child)));
                     ss.reduce_rank(thresh);
-                    PROFILE_BLOCK(recon_send);
+                    //PROFILE_BLOCK(recon_send); // Too fine grain for routine profiling
                     woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
                 }
             } else {
@@ -2424,7 +2431,7 @@ namespace madness {
                     else {
                         p = coeffs.owner(child);
                     }
-                    PROFILE_BLOCK(proj_refine_send);
+                    //PROFILE_BLOCK(proj_refine_send); // Too fine grain for routine profiling
                     woT::task(p, &implT::project_refine_op, child, do_refine, newspecialpts);
                 }
             }
@@ -2559,7 +2566,7 @@ namespace madness {
     
     template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::truncate_op(const keyT& key, double tol, const std::vector< Future<bool> >& v) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
         // If any child has coefficients, a parent cannot truncate
         for (int i=0; i<(1<<NDIM); ++i) if (v[i].get()) return true;
         nodeT& node = coeffs.find(key).get()->second;
@@ -2699,7 +2706,7 @@ namespace madness {
         else {
             keyT parent = key.parent();
             //madness::print("sock forwarding to parent",key,parent);
-            PROFILE_BLOCK(sitome_send);
+            //PROFILE_BLOCK(sitome_send); // Too fine grain for routine profiling
             woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
         }
         return None;
@@ -2722,7 +2729,7 @@ namespace madness {
         }
         else {
             keyT parent = key.parent();
-            PROFILE_BLOCK(sitome2_send);
+            //PROFILE_BLOCK(sitome2_send); // Too fine grain for routine profiling
             woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me_too, parent, ref, TaskAttributes::hipri());
         }
         return None;
@@ -2744,7 +2751,7 @@ namespace madness {
         while (1) {
             ProcessID owner = coeffs.owner(key);
             if (owner != me) {
-                PROFILE_BLOCK(eval_send);
+                //PROFILE_BLOCK(eval_send); // Too fine grain for routine profiling
                 woT::task(owner, &implT::eval, x, key, ref, TaskAttributes::hipri());
                 return None;
             }
@@ -2817,7 +2824,7 @@ namespace madness {
         while (1) {
             ProcessID owner = coeffs.owner(key);
             if (owner != me) {
-                PROFILE_BLOCK(eval_send);
+                //PROFILE_BLOCK(eval_send); // Too fine grain for routine profiling
                 woT::task(owner, &implT::evaldepthpt, x, key, ref, TaskAttributes::hipri());
                 return None;
             }
@@ -2859,7 +2866,7 @@ namespace madness {
     	while (1) {
             ProcessID owner = coeffs.owner(key);
             if (owner != me) {
-                PROFILE_BLOCK(eval_send);
+                //PROFILE_BLOCK(eval_send); // Too fine grain for routine profiling
                 woT::task(owner, &implT::evalR, x, key, ref, TaskAttributes::hipri());
                 return None;
             }
@@ -2889,7 +2896,7 @@ namespace madness {
     
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) const {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
         // Chosen approach looks stupid but it is more accurate
         // than the simple approach of summing everything and
         // subtracting off the low-order stuff to get the high
@@ -2972,7 +2979,7 @@ namespace madness {
     
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::phi_for_mul(Level np, Translation lp, Level nc, Translation lc, Tensor<double>& phi) const {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
         double p[200];
         double scale = pow(2.0,double(np-nc));
         for (int mu=0; mu<cdata.npt; ++mu) {
@@ -2987,7 +2994,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     
     const GenTensor<T> FunctionImpl<T,NDIM>::parent_to_child(const coeffT& s, const keyT& parent, const keyT& child) const {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
         // An invalid parent/child means that they are out of the box
         // and it is the responsibility of the caller to worry about that
         // ... most likely the coefficients (s) are zero to reflect
@@ -3063,10 +3070,10 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     Future< std::pair< Key<NDIM>, GenTensor<T> > >
     FunctionImpl<T,NDIM>::find_me(const Key<NDIM>& key) const {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
         typedef std::pair< Key<NDIM>,coeffT > argT;
         Future<argT> result;
-        PROFILE_BLOCK(find_me_send);
+        //PROFILE_BLOCK(find_me_send); // Too fine grain for routine profiling
         woT::task(coeffs.owner(key), &implT::sock_it_to_me_too, key, result.remote_ref(world), TaskAttributes::hipri());
         return result;
     }
@@ -3084,7 +3091,7 @@ namespace madness {
             std::vector< Future<coeffT > > v = future_vector_factory<coeffT >(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                PROFILE_BLOCK(compress_send);
+                //PROFILE_BLOCK(compress_send); // Too fine grain for routine profiling
                 // readily available
                 v[i] = woT::task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(),
                                  nonstandard, keepleaves, redundant, TaskAttributes::hipri());

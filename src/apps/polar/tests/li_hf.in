@@ -1,0 +1,15 @@
+# reference values from thakkar
+
+# Correct energy to 4d.p. (?) -7.432726928
+# Should agree to at least 4 dp and madness should be lower
+
+dft
+  xc hf
+  nopen 1
+end
+
+geometry
+  eprec 1e-7
+  li 0 0 0
+end
+

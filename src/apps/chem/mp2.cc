@@ -212,6 +212,7 @@ namespace madness {
 			// if orbitals are not canonical do the macro iterations
 			// coupling all the pair functions
 			if (hf->get_calc().param.localize) {
+				solve_coupled_equations(pairs);
 				do_coupling=true;
 				param.maxiter=1;	// number of microiterations
 				for (int macro_iter=0; macro_iter<7; macro_iter++) {
@@ -308,12 +309,6 @@ namespace madness {
 			real_function_6d vphi = multiply_with_0th_order_Hamiltonian(
 					result.function, i, j);
 
-			// add the coupling of the other mp1 functions if non-canonical
-			// orbitals are used
-			if (do_coupling and hf->get_calc().param.localize) {
-				vphi-=add_local_coupling(i,j);
-			}
-
 			vphi.scale(-2.0).truncate();
 			load_balance(vphi, false);
 
@@ -354,6 +349,11 @@ namespace madness {
 		// print the final pair energies
 		result.print_energy();
 	}
+
+	/// solve the coupled MP1 equations for local orbitals
+    void MP2::solve_coupled_equations(pairmapT& pairs) const {
+    }
+
 
 	real_function_6d MP2::make_Rpsi(const ElectronPair& pair) const {
 		const real_function_3d R = hf->nemo_calc.R;
@@ -437,38 +437,11 @@ namespace madness {
 	}
 
 	void MP2::test(const std::string filename) {
-		// compute the singlet pair function and save to file
-		real_function_6d plain_pair;
-		load_function(plain_pair, filename);
-
-		{
-			real_function_6d plain_pair_swapped = swap_particles(plain_pair);
-
-			real_function_6d singlet =
-					(plain_pair + plain_pair_swapped).truncate().reduce_rank();
-			save_function(singlet, "singlet" + filename);
-
-			real_function_6d triplet =
-					(plain_pair - plain_pair_swapped).truncate().reduce_rank();
-			save_function(triplet, "triplet" + filename);
-		}
-
-		hf->value();
-		const real_function_3d R = hf->nemo_calc.R;
-		real_function_6d Rpair1 = multiply(plain_pair, R, 1).truncate();
-		plain_pair = multiply(Rpair1, R, 2).truncate();
-		{
-			real_function_6d plain_pair_swapped = swap_particles(plain_pair);
-
-			real_function_6d singlet =
-					(plain_pair + plain_pair_swapped).truncate().reduce_rank();
-			save_function(singlet, "Rsinglet" + filename);
-
-			real_function_6d triplet =
-					(plain_pair - plain_pair_swapped).truncate().reduce_rank();
-			save_function(triplet, "Rtriplet" + filename);
-		}
-
+		if (world.rank() == 0)
+			printf("starting coupling at time %8.1fs\n", wall_time());
+		add_local_coupling();
+		if (world.rank() == 0)
+			printf("ending coupling at time %8.1fs\n", wall_time());
 	}
 
 	/// compute the matrix element <ij | g12 Q12 f12 | phi^0>
@@ -846,9 +819,6 @@ namespace madness {
 		const double eps = zeroth_order_energy(i, j);
 		real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0 * eps), lo,
 				bsh_eps);
-		//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
-		//            		FunctionDefaults<6>::get_thresh()*0.1);
-
 
 		pair.Uphi0 = make_Uphi0(pair);
 		pair.KffKphi0 = make_KffKphi0(pair);
@@ -893,11 +863,10 @@ namespace madness {
 		real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(),
 				lo, bsh_eps / fourpi);
 
+		// compute some intermediates
+		const tensorT occ=hf->get_calc().aocc;
+		tensorT fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
 		if (hf->get_calc().param.localize) {	// local orbitals -- add coupling
-
-			// compute some intermediates
-	        const tensorT occ=hf->get_calc().aocc;
-	        tensorT fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
 			vecfuncT amotilde=transform(world,hf->orbitals(),fock);
 			vecfuncT fik, fjl, gik, jl, ik, tjl, jtl, itk, tik;
 
@@ -920,16 +889,15 @@ namespace madness {
 			for (int k = 0; k < hf->nocc(); ++k) {
 				for (int l = 0; l < hf->nocc(); ++l) {
 
-					const double g_ijkl = inner(jl[l], gik[k]);		// <ij | g | kl>
+					const double g_ijkl = inner(jl[l], gik[k]);		// <i j | g | k l>
 					const double f_itjkl = inner(fik[k],tjl[l]);	// <i j~| f | k l>
 					const double f_ijktl = inner(fik[k],jtl[l]);	// <i j| f | k l~>
-					const double f_tijkl = inner(fjl[l],tik[k]);	// <i~ j| f |k l>
-					const double f_ijtkl = inner(fjl[l],itk[k]);	// <i j| f |k~ l>
+					const double f_tijkl = inner(fjl[l],tik[k]);	// <i~ j| f | k l>
+					const double f_ijtkl = inner(fjl[l],itk[k]);	// <i j| f | k~ l>
 
-					h(k, l) = g_ijkl + f_itjkl + f_ijktl - f_tijkl - f_ijtkl;
+					h(k, l) = g_ijkl - f_itjkl + f_ijktl - f_tijkl + f_ijtkl;
 				}
 			}
-
 
 		} else { // canonical orbitals -- simplified code
 
@@ -958,17 +926,6 @@ namespace madness {
 				}
 			}
 		}
-
-		//			if (world.rank()==0) print("h\n",h);
-		//			for (int k=0; k<hf->nocc(); ++k) {
-		//				for (int l=0; l<hf->nocc(); ++l) {
-		//		            real_function_6d bra=CompositeFactory<double,6,3>(world)
-		//								.particle1(copy(hf->R2orbital(k)))
-		//								.particle2(copy(hf->R2orbital(l)));
-		//		            h(k,l)=inner(Vpair1,bra);
-		//				}
-		//			}
-		//			if (world.rank()==0) print("h = <nemo |R2 (U_R -K_R) |nemo> \n",h);
 
 		// the result function; adding many functions requires tighter threshold
 		const double thresh = FunctionDefaults<6>::get_thresh();
@@ -1413,48 +1370,65 @@ namespace madness {
     /// add the coupling terms for local MP2
 
     /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-    real_function_6d MP2::add_local_coupling(const int i, const int j) const {
+	std::map<std::pair<int,int>,real_function_6d> MP2::add_local_coupling() const {
 
     	if (world.rank()==0) print("adding local coupling");
 
-        const int nmo = hf->nocc();
-
-        // compute the fock matrix
-        const vector_real_function_3d& nemo=hf->nemos();
-        const tensorT occ=hf->get_calc().aocc;
-        tensorT fock=hf->nemo_calc.compute_fock_matrix(nemo,occ);
-
-        // skip diagonal elements
-        for (int k = 0; k < nmo; ++k) {
-        	if (fock(k,k)>0.0) MADNESS_EXCEPTION("positive orbital energies",1);
-            fock(k, k) =0.0;
-        }
-        if (world.rank()==0) {
-        	print("fock matrix ");
-        	print(fock);
-        }
-
-        real_function_6d result=real_factory_6d(world);
-
-    	real_function_6d f;
+    	// temporarily make all N^2 pair functions
+    	typedef std::map<std::pair<int,int>,real_function_6d> pairsT;
+    	pairsT quadratic;
 		for (int k = param.freeze; k < hf->nocc(); ++k) {
-        	if (k==i) continue;
-        	if (k<j) {
-        		f=swap_particles(pair(k,j).function);
-        	}
-        	else f=pair(j,k).function;
-        	result+=fock(i,k) * f;
+			for (int l = param.freeze; l < hf->nocc(); ++l) {
+				if (l>=k) {
+					quadratic[std::make_pair(k,l)]=pair(k,l).function;
+				} else {
+					quadratic[std::make_pair(k,l)]=swap_particles(pair(l,k).function);
+				}
+			}
+		}
+        for (pairsT::iterator it=quadratic.begin(); it!=quadratic.end(); ++it) {
+        	it->second.compress(false);
+        }
+        world.gop.fence();
+
+		// the coupling matrix is the Fock matrix, skipping diagonal elements
+        tensorT fock1=get_fock_matrix();
+        for (int k = 0; k < hf->nocc(); ++k) {
+        	if (fock1(k,k)>0.0) MADNESS_EXCEPTION("positive orbital energies",1);
+            fock1(k, k) =0.0;
         }
 
-		for (int l = param.freeze; l < hf->nocc(); ++l) {
-        	if (l==j) continue;
-        	if (i<l) {
-        		f=swap_particles(pair(i,l).function);
-        	}
-        	else f=pair(l,i).function;
-        	result+=fock(l,j) * f;
+        // prepare the result vector
+        pairsT result;
+        for (pairsT::iterator it=result.begin(); it!=result.end(); ++it) {
+        	it->second=real_factory_6d(world);
+        	it->second.compress(false);
         }
-        result.truncate();
+        world.gop.fence();
+
+        for (int i=param.freeze; i<hf->nocc(); ++i) {
+            for (int j=i; j<hf->nocc(); ++j) {
+                for (int k=param.freeze; k<hf->nocc(); ++k) {
+                	if (fock1(k,i) != 0.0) {
+                		result[std::make_pair(i,j)].gaxpy(1.0,quadratic[std::make_pair(k,j)],fock1(k,i),false);
+                	}
+                }
+
+                for (int l=param.freeze; l<hf->nocc(); ++l) {
+                	if (fock1(l,j) != 0.0) {
+                		result[std::make_pair(i,j)].gaxpy(1.0,quadratic[std::make_pair(i,l)],fock1(l,j),false);
+                	}
+                }
+
+            }
+        }
+        world.gop.fence();
+
+        // post-processing
+        for (pairsT::iterator it=result.begin(); it!=result.end(); ++it) {
+        	it->second.truncate();
+        }
+
         return result;
 
     }

@@ -300,34 +300,6 @@ namespace madness {
             }
         }
 
-        /// Private: Finds/waits for a free send request
-        int get_free_send_request() {
-            // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
-//            // Sequentially loop looking for next free request.
-//            while (!send_req[cur_msg].Test()) {
-//                cur_msg++;
-//                if (cur_msg >= NSEND) cur_msg = 0;
-//                myusleep(5);
-//            }
-
-            // Wait for oldest request to complete
-            while (!send_req[cur_msg].Test()) {
-                // If the oldest message has still not completed then there is likely
-                // severe network or end-point congestion, so pause for 100us in a rather
-                // arbitrary attempt to decrease the injection rate.  The server thread
-                // is still polling every 1us (which is required to suck data off the net
-                // and by some engines to ensure progress on sends).
-                myusleep(100);
-            }
-
-            free_managed_send_buf(cur_msg);
-            int result = cur_msg;
-            cur_msg++;
-            if (cur_msg >= nsend) cur_msg = 0;
-
-            return result;
-        }
-
         /// This handles all incoming RMI messages for all instances
         static void handler(void *buf, std::size_t nbyte) {
             // It will be singled threaded since only the RMI receiver
@@ -344,8 +316,18 @@ namespace madness {
             w->am.nrecv++;  // Must be AFTER execution of the function
         }
 
-        /// Sends a non-blocking active message
-        RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr, bool managed) {
+    public:
+        WorldAmInterface(World& world);
+
+        virtual ~WorldAmInterface();
+
+        /// Currently a noop
+        void fence() {}
+
+        /// Sends a managed non-blocking active message
+        void send(ProcessID dest, am_handlerT op, const AmArg* arg,
+                const int attr=RMI::ATTR_ORDERED)
+        {
             {
                 AmArg* argx = const_cast<AmArg*>(arg);
 
@@ -363,30 +345,24 @@ namespace madness {
 
             lock();    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             nsent++;
-            int i = get_free_send_request();
+
+            // Wait for oldest request to complete
+            while (!send_req[cur_msg].Test()) {
+                // If the oldest message has still not completed then there is likely
+                // severe network or end-point congestion, so pause for 100us in a rather
+                // arbitrary attempt to decrease the injection rate.  The server thread
+                // is still polling every 1us (which is required to suck data off the net
+                // and by some engines to ensure progress on sends).
+                myusleep(100);
+            }
+
+            free_managed_send_buf(cur_msg);
+            const int i = cur_msg;
+            cur_msg = (cur_msg + 1) % nsend;
+
             send_req[i] = RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr);
-            if (managed) managed_send_buf[i] = (AmArg*)(arg);
+            managed_send_buf[i] = (AmArg*)(arg);
             unlock();  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-            return send_req[i];
-        }
-
-
-    public:
-        WorldAmInterface(World& world);
-
-        virtual ~WorldAmInterface();
-
-        /// Currently a noop
-        void fence() {}
-
-        /// Sends an unmanaged non-blocking active message
-        //        RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED);
-
-        /// Sends a managed non-blocking active message
-        RMI::Request send(const ProcessID dest, am_handlerT op, const AmArg* arg,
-                const int attr=RMI::ATTR_ORDERED, const bool managed = true)
-        {
-            return isend(dest, op, arg, attr, managed);
         }
 
         /// Frees as many send buffers as possible

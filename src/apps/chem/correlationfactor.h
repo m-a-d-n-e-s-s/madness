@@ -935,7 +935,7 @@ private:
         double gamma;
         nablaf2_(double gamma) : gamma(gamma) {
         	MADNESS_ASSERT(gamma>0.0);
-        	MADNESS_ASSERT(gamma=1.0);	// I don't think this is right
+        	MADNESS_ASSERT(gamma==1.0);	
         }
         double operator()(const coord_6d& r) const {
             const double rr=r12(r);
@@ -1078,7 +1078,7 @@ private:
 
     public:
     	R_functor(double gamma, int e=1) : gamma(gamma), exponent(e) {
-    		MADNESS_ASSERT(gamma=0.5);
+    		MADNESS_ASSERT(gamma==0.5);
     	}
 
         // only valid for gamma=1
@@ -1100,7 +1100,7 @@ private:
 
     public:
     	U2_functor(double gamma) : gamma(gamma) {
-    		MADNESS_ASSERT(gamma=0.5);
+    		MADNESS_ASSERT(gamma==0.5);
     	}
 
         // only valid for gamma=1

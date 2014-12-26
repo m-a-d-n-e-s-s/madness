@@ -130,10 +130,12 @@ int main(int argc, char**argv) {
 
         test_inner<double,double,3,false>(world);
         test_inner<double,double,3,true>(world);
+#if !HAVE_GENTENSOR
         test_inner<double,std::complex<double>,3,false>(world);
         test_inner<std::complex<double>,double,3,false>(world);
         test_inner<std::complex<double>,std::complex<double>,3,false>(world);
         test_inner<std::complex<double>,std::complex<double>,3,true>(world);
+#endif
     }
     catch (const SafeMPI::Exception& e) {
         //        print(e);

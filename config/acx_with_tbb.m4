@@ -63,7 +63,7 @@ AC_DEFUN([ACX_WITH_TBB], [
         acx_with_tbb="yes"
       esac
     ],
-    [acx_with_tbb="no"]
+    [acx_with_tbb="yes"]
   )
   
   # Check that we can compile with Intel TBB
@@ -72,24 +72,37 @@ AC_DEFUN([ACX_WITH_TBB], [
     AC_LANG([C++])
     
     # Check for Intel TBB header.
-    AC_CHECK_HEADER([tbb/tbb.h], [], [AC_MSG_ERROR([Unable to compile with Intel TBB.])])
+    AC_CHECK_HEADER([tbb/tbb.h], [], 
+                    [acx_with_tbb=no
+                     AC_MSG_NOTICE([Unable to compile with Intel TBB.])])
+    AC_LANG_RESTORE
+  fi
     
+  if test $acx_with_tbb != "no"; then
+    AC_LANG_SAVE
+    AC_LANG([C++])
     # Check for Intel TBB library.
     if test "x$acx_enable_debugging" == xno; then
-      AC_CHECK_LIB([tbb], [TBB_runtime_interface_version], [LIBS="$LIBS -ltbb"], [AC_MSG_ERROR(["Unable to link with Intel TBB])])
+      AC_CHECK_LIB([tbb], [TBB_runtime_interface_version], [LIBS="-ltbb $LIBS"], 
+                   [acx_with_tbb=no
+                    AC_MSG_NOTICE(["Unable to link with Intel TBB])])
     else
       AC_CHECK_LIB([tbb_debug], [TBB_runtime_interface_version],
         [
-          LIBS="$LIBS -ltbb_debug"
+          LIBS="-ltbb_debug $LIBS"
           CPPFLAGS="$CPPFLAGS -DTBB_USE_DEBUG=1"
           AC_MSG_WARN([Linking with the debug variant of Intel TBB.])
         ], [
-          AC_CHECK_LIB([tbb], [TBB_runtime_interface_version], [LIBS="$LIBS -ltbb"], [AC_MSG_ERROR(["Unable to link with Intel TBB])])
+          AC_CHECK_LIB([tbb], [TBB_runtime_interface_version], [LIBS="-ltbb $LIBS"], 
+                       [acx_with_tbb=no
+                        AC_MSG_NOTICE(["Unable to link with Intel TBB])])
         ])
       
     fi
-    
-    AC_DEFINE(HAVE_INTEL_TBB, [1], [Define if Intel TBB is available.])
     AC_LANG_RESTORE
+  fi
+
+  if test $acx_with_tbb != "no"; then
+    AC_DEFINE(HAVE_INTEL_TBB, [1], [Define if Intel TBB is available.])
   fi
 ])

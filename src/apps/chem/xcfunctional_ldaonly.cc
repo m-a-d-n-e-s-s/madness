@@ -15,11 +15,13 @@ int c_rks_vwn5__(const double *r__, double *f, double * dfdra);
 int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 int c_uks_vwn5__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 
-XCfunctional::XCfunctional() : hf_coeff(0.0) {}
+XCfunctional::XCfunctional() : hf_coeff(0.0) {
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
+}
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized, World& world) 
 {
-    rhotol=1e-12; rhomin=1e-22; sigtol=1e-7; sigmin=1e-7; // default values 
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
 
     spin_polarized = polarized;
     
@@ -98,6 +100,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
             
             f[i] = xf + cf;
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     else {
@@ -108,6 +111,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             x_rks_s__(&r, &q1, &dq);
             c_rks_vwn5__(&r, &q2, &dq);
             f[i] = q1 + q2; 
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     return result;
@@ -132,6 +136,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
             
             f[i] = xdfdr[what] + cdfdr[what];
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     else {
@@ -143,6 +148,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             x_rks_s__(&r, &q, &dq1);
             c_rks_vwn5__(&r, &q, &dq2); 
             f[i] = dq1 + dq2;
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     return result;

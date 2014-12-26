@@ -10,7 +10,10 @@
 
 namespace madness{
 struct exoperators{
-
+private:
+	static double sorbitalfunction(const coord_3d &r){
+		return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));
+	}
 public:
 	exoperators(World &world){
 		get_polynom_basis(world);
@@ -112,18 +115,73 @@ public:
 							basis.push_back(tmp);
 							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u];
 							key.push_back(stmp);}}}}}}}
+		for(size_t i=0;i<creators.size();i++){
+			for(size_t j=0;j<=i;j++){
+				for(size_t k=0;k<=j;k++){
+					for(size_t l=0;l<=k;l++){
+						for(size_t m=0;m<=l;m++){
+							for(size_t n=0;n<=m;n++){
+								for(size_t u=0;u<=n;u++){
+									for(size_t q=0;q<=u;q++){
+							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u]*creators[q];
+							basis.push_back(tmp);
+							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q];
+							key.push_back(stmp);}}}}}}}}
+		for(size_t i=0;i<creators.size();i++){
+			for(size_t j=0;j<=i;j++){
+				for(size_t k=0;k<=j;k++){
+					for(size_t l=0;l<=k;l++){
+						for(size_t m=0;m<=l;m++){
+							for(size_t n=0;n<=m;n++){
+								for(size_t u=0;u<=n;u++){
+									for(size_t q=0;q<=u;q++){
+										for(size_t w=0;w<=q;w++){
+							real_function_3d tmp = creators[j]*creators[i]*creators[k]
+							        *creators[l]*creators[m]*creators[n]*creators[u]*creators[q]*creators[w];
+							basis.push_back(tmp);
+							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]
+							               +key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q]+key_creator[w];
+							key.push_back(stmp);}}}}}}}}}
 	polynom_basis_ = basis;
 	key_=key;
 	}
 
-	std::vector<double> get_overlaps_with_guess(World &world,const vecfuncT &excitation,const vecfuncT &mo){
+	real_function_3d project_function_on_aos(World &world,const real_function_3d &f){
+		real_function_3d projected_f;
+		vecfuncT pol = polynom_basis_;
+		std::vector<double> overlaps;
+		real_function_3d sorbital = real_factory_3d(world).f(sorbitalfunction);
+
+		// get overlap with 1s function
+		double snorm = sqrt(inner(sorbital,sorbital));
+		sorbital.scale(1.0/snorm);
+		double s_overlap = inner(sorbital,f);
+		projected_f = s_overlap*sorbital;
+
+		// get rest of the overlaps
+		for(size_t i=0;i<pol.size();i++){
+			real_function_3d tmp = pol[i]*sorbital;
+			double normtmp = sqrt(inner(tmp,tmp));
+			tmp.scale(1.0/normtmp);
+			double overlap =  inner(tmp,f);
+			projected_f +=overlap*tmp;
+			overlaps.push_back(overlap);
+		}
+
+		return projected_f;
+	}
+
+	std::vector<double> get_overlaps_with_guess(World &world,vecfuncT &excitation,const vecfuncT &mo,const real_function_3d smoothing){
 		if(excitation.size()!=mo.size()) MADNESS_EXCEPTION("Error in calculating overlap with the guess operators, excitation vector and mo vector have different sizes",1);
 		vecfuncT quadbas = polynom_basis_;
 		 std::vector<double> overlaps;
 		 for(size_t i=0;i< quadbas.size();i++){
 			 vecfuncT guess_ex = mul(world,quadbas[i],mo);
+			 guess_ex = mul(world,smoothing,guess_ex);
 			 double norm2= inner(world,guess_ex,guess_ex).sum();
 			 scale(world,guess_ex,1.0/sqrt(norm2));
+			 double norm2_2 = inner(world,excitation,excitation).sum();
+			 scale(world,excitation,1.0/sqrt(norm2_2));
 			 double overlap_tmp = inner(world, guess_ex,excitation).sum();
 			 if(overlap_tmp < 1.e-5) overlap_tmp=0.0;
 			 overlaps.push_back(overlap_tmp);
@@ -131,8 +189,7 @@ public:
 		 return overlaps;
 	}
 
-	vecfuncT get_custom_exops(World &world,const std::vector< std::string > input_lines){
-
+	std::vector<std::vector<double> > get_coefficients(World &world, const std::vector< std::string > input_lines){
 		if(world.rank()==0)std::cout << "Creating custom guess operators ... " << input_lines.size() << " demanded" << std::endl;
 		if(input_lines.size()==0) MADNESS_EXCEPTION("Custom guess demanded but no input was given",1);
 		//std::cout << input_lines << std::endl;
@@ -169,6 +226,10 @@ public:
 			}
 			std::cout << "\n\n---------------------------------------\n\n" << std::endl;
 		}
+		return coefficients;
+	}
+	vecfuncT get_custom_exops(World &world,const std::vector< std::string > input_lines){
+		std::vector<std::vector<double> > coefficients = get_coefficients(world, input_lines);
 		return make_custom_exops(world,coefficients);
 	}
 	vecfuncT make_custom_exops(World &world,std::vector<std::vector<double> > coefficients){
@@ -183,6 +244,30 @@ public:
 			 exops.push_back(tmp);
 		 }
 		 return exops;
+	}
+
+	std::vector<vecfuncT> make_custom_guess(World &world,const std::vector< std::string > input_lines,const vecfuncT &mos, const real_function_3d &smoothing){
+		std::vector<std::vector<double> > coefficients = get_coefficients(world, input_lines);
+		std::vector<vecfuncT> guess;
+		vecfuncT quadbas = polynom_basis_;
+
+		// make guess
+		for(size_t i=0;i<coefficients.size();i++){
+			int n = mos.size();
+			vecfuncT xtmp = zero_functions<double,3>(world,n);
+			for(size_t j=0;j<coefficients[i].size();j++){
+				if(coefficients[i][j]!=0){
+					real_function_3d smoothed_exop = quadbas[j]*smoothing;
+					vecfuncT scaled_basis_function = mul(world,smoothed_exop,mos);
+					double norm = inner(world,scaled_basis_function,scaled_basis_function).sum();
+					norm = sqrt(norm);
+					scale(world,scaled_basis_function,coefficients[i][j]/norm);
+					xtmp = add(world,xtmp,scaled_basis_function);
+				}
+			}
+			guess.push_back(xtmp);
+		}
+		return guess;
 	}
 
 	vecfuncT get_exops(World &world,const std::string exop){
@@ -359,6 +444,15 @@ public:
 			}
 			//std::cout << "testing random numbers" << std::endl;
 			//for(size_t i=0;i<100;i++) std::cout<< std::fixed << std::setprecision(1) << random_number()<< std::endl;
+		}
+		else if (exop=="random"){
+			real_function_3d tmp = real_factory_3d(world);
+			for(size_t k=0;k<polynom_basis_.size();k++){
+				double range = 0.1;
+				double c = random_number()*range;
+				tmp += c*polynom_basis_[k];
+			}
+			xoperators.push_back(tmp);
 		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
