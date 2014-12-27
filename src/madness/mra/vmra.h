@@ -230,9 +230,9 @@ namespace madness {
         PROFILE_BLOCK(Vzero_functions);
         std::vector< Function<T,NDIM> > r(n);
         for (int i=0; i<n; ++i)
-  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).initial_level(0));
+  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false));
 
-	if (fence) world.gop.fence();
+	if (n && fence) world.gop.fence();
 
         return r;
     }
