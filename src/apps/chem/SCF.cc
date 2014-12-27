@@ -82,6 +82,13 @@ namespace madness {
         return A;
     }
     
+  template <typename T, std::size_t NDIM>
+  static void verify_tree(World& world, const std::vector< Function<T,NDIM> >& v) {
+    for (unsigned int i=0; i<v.size(); i++) {
+      v[i].verify_tree();
+    }
+  }
+    
     template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
     transform(World& world,
@@ -89,8 +96,6 @@ namespace madness {
               const DistributedMatrix<R>& c,
               bool fence=true) {
         PROFILE_FUNC;
-        
-        world.gop.fence();
         
         typedef TENSOR_RESULT_TYPE(T,R) resultT;
         long n = v.size();    // n is the old dimension
@@ -114,9 +119,6 @@ namespace madness {
         }
         
         if (fence) world.gop.fence();
-        
-        world.gop.fence();
-        
         return vc;
     }
     
@@ -1783,9 +1785,15 @@ namespace madness {
         for (unsigned int iter = 0; iter < subspace.size(); ++iter) {
             vecfuncT& v = subspace[iter].first;
             vecfuncT& r = subspace[iter].second;
-            transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U, trantol, false);
-            transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U, trantol, true);
+            vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U, trantol, false);
+            vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U, trantol, false);
+	    world.gop.fence();
+	    for (int i=0; i<nfunc; i++) {
+	      v[i] = vnew[i];
+	      r[i] = rnew[i];
+	    }
         }
+	world.gop.fence();
     }
     
     void SCF::rotate_subspace(World& world, const distmatT& dUT, subspaceT& subspace,
@@ -1794,9 +1802,15 @@ namespace madness {
         for (unsigned int iter = 0; iter < subspace.size(); ++iter) {
             vecfuncT& v = subspace[iter].first;
             vecfuncT& r = subspace[iter].second;
-            transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), dUT, false);
-            transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), dUT, true);
+            vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), dUT, false);
+            vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), dUT, false);
+	    world.gop.fence();
+	    for (int i=0; i<nfunc; i++) {
+	      v[i] = vnew[i];
+	      r[i] = rnew[i];
+	    }
         }
+	world.gop.fence();
     }
     
     void SCF::update_subspace(World & world, vecfuncT & Vpsia, vecfuncT & Vpsib,
@@ -2218,20 +2232,19 @@ namespace madness {
                 dUT.data().screen(trantol);
 
                 START_TIMER(world);
-                amo = transform(world, amo, dUT, true);
+                amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 normalize(world, amo);
-                rotate_subspace(world, dUT, subspace, 0, amo.size(), trantol);
+                ////////////////////////////////////////////rotate_subspace(world, dUT, subspace, 0, amo.size(), trantol);
                 END_TIMER(world, "Rotate subspace");
                 if (!param.spin_restricted && param.nbeta != 0) {
                     dUT = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0, true);
                     START_TIMER(world);
                     dUT.data().screen(trantol);
-                    bmo = transform(world, bmo, dUT, true);
+                    bmo = transform(world, bmo, dUT);
                     truncate(world, bmo);
                     normalize(world, bmo);
-                    rotate_subspace(world, dUT, subspace, amo.size(), bmo.size(),
-                                    trantol);
+                    /////////////////////////////////////////////rotate_subspace(world, dUT, subspace, amo.size(), bmo.size(),trantol);
                     END_TIMER(world, "Rotate subspace");
                 }
             }
@@ -2392,12 +2405,12 @@ namespace madness {
             if (!param.localize && do_this_iter) {
                 tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc,
                                              FunctionDefaults < 3 > ::get_thresh());
-                rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+                ////////////////////////////////////////////rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
                 if (!param.spin_restricted && param.nbeta != 0) {
                     U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc,
                                          FunctionDefaults < 3 > ::get_thresh());
-                    rotate_subspace(world, U, subspace, amo.size(), bmo.size(),
-                                    trantol);
+                    /////////////////////rotate_subspace(world, U, subspace, amo.size(), bmo.size(),
+		    //////////////////////////////////trantol);
                 }
             }
             
