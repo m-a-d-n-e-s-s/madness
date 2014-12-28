@@ -422,7 +422,6 @@ void Nemo::normalize(vecfuncT& nemo) const {
 
 /// @param[inout]	amo_new	the vectors to be orthonormalized
 void Nemo::orthonormalize(vecfuncT& nemo) const {
-    TAU_START("Orthonormalize");
     START_TIMER(world);
 	vecfuncT mos = mul(world, R, nemo);
     double trantol = 0.0;
@@ -431,7 +430,6 @@ void Nemo::orthonormalize(vecfuncT& nemo) const {
     truncate(world, nemo);
     normalize(nemo);
     END_TIMER(world, "Orthonormalize");
-    TAU_STOP("Orthonormalize");
 }
 
 /// return the Coulomb potential

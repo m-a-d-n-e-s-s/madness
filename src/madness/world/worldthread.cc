@@ -43,7 +43,6 @@
 #include <madness/world/atomicint.h>
 #include <cstring>
 #include <fstream>
-#include <madness/TAU.h>
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
 extern "C" unsigned int HPM_Prof_init_thread(void);
@@ -90,7 +89,6 @@ namespace madness {
 #endif
 
     void* ThreadBase::main(void* self) {
-      TAU_START("ThreadBase::main");
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
@@ -145,7 +143,7 @@ namespace madness {
 #ifdef HAVE_PAPI
         end_papi_measurement();
 #endif
-        TAU_STOP("ThreadBase::main");
+
 #if defined(HAVE_IBMBGQ) and defined(HPM)	
 	if (this_slave_instrumented) HPM_Prof_stop(slave_hpmctx);
 #endif 
@@ -411,7 +409,6 @@ namespace madness {
     }
 
     void ThreadPool::thread_main(ThreadPoolThread* const thread) {
-        TAU_START("ThreadPool::thread_main");
         PROFILE_MEMBER_FUNC(ThreadPool);
         thread->set_affinity(2, thread->get_pool_thread_index());
 
@@ -431,7 +428,6 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 
         nfinished++;
-        TAU_STOP("ThreadPool::thread_main");
     }
 
     /// Forwards thread to bound member function
