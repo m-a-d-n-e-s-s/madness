@@ -32,8 +32,6 @@
   $Id: $
 */
 
-#include <madness/TAU.h>
-
 #include <madness/world/worldtask.h>
 //#include <madness/world/worldmpi.h>
 
@@ -42,14 +40,12 @@ namespace madness {
     bool TaskInterface::debug = false;
 
     void TaskInterface::run(const TaskThreadEnv& env) { // This is what thread pool will invoke
-	TAU_START("TaskInterface::run()");
         MADNESS_ASSERT(world);
         MADNESS_ASSERT(completion);
         World* w = const_cast<World*>(world);
         if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " is now running" << std::endl;
         run(*w, env);
         if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
-	TAU_STOP("TaskInterface::run()");
     }
 
     WorldTaskQueue::WorldTaskQueue(World& world)

@@ -38,7 +38,6 @@
 #include <algorithm>
 #include <utility>
 #include <sstream>
-#include <madness/TAU.h>
 
 namespace madness {
 
@@ -127,9 +126,7 @@ namespace madness {
             // out-of-order receipt or order of recv buffer processing.
 
             // Sort queued messages by ascending recv count
-            TAU_START("Sort queued messages by ascending recv count");
             std::sort(q.get(),q.get()+n_in_q);
-            TAU_STOP("Sort queued messages by ascending recv count");
 
             // Loop thru messages ... since we have sorted only one pass
             // is necessary and if we cannot process a message we
@@ -171,7 +168,6 @@ namespace madness {
 
     void RMI::RmiTask::post_pending_huge_msg() {
         if (recv_buf[nrecv_]) return;      // Message already pending
-        TAU_START("RMI::post_pending_huge_msg()");
         if (!hugeq.empty()) {
             int src = hugeq.front().first;
             size_t nbyte = hugeq.front().second;
@@ -186,11 +182,9 @@ namespace madness {
             comm.Send(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
 #endif // MADNESS_USE_BSEND_ACKS
         }
-        TAU_STOP("RMI::post_pending_huge_msg()");
     }
 
     void RMI::RmiTask::post_recv_buf(int i) {
-      TAU_START("RMI::post_recv_buf");
         if (i < (int)nrecv_) {
             recv_req[i] = comm.Irecv(recv_buf[i], max_msg_len_, MPI_BYTE, MPI_ANY_SOURCE, SafeMPI::RMI_TAG);
         }
@@ -202,7 +196,6 @@ namespace madness {
         else {
             MADNESS_EXCEPTION("RMI::post_recv_buf: confusion", i);
         }
-      TAU_STOP("RMI::post_recv_buf");
     }
 
     RMI::RmiTask::~RmiTask() {

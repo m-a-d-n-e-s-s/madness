@@ -36,7 +36,6 @@
 /// \file moldft/molecule.cc
 /// \brief Simple management of molecular information and potential
 
-#include <madness/TAU.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/constants.h>
@@ -548,7 +547,6 @@ double Molecule::mol_nuclear_charge_density(double x, double y, double z) const 
     return  0.0;
 }
 double Molecule::nuclear_attraction_potential(double x, double y, double z) const {
-   TAU_START("Molecule::nuclear_attraction_potential");
     // This is very inefficient since it scales as O(ngrid*natom)
     // ... we can easily make an O(natom) version using
     // the integral operator and sparse projection of an effective
@@ -566,7 +564,6 @@ double Molecule::nuclear_attraction_potential(double x, double y, double z) cons
     // field contribution
     sum += field[0] * x + field[1] * y + field[2] * z;
 
-   TAU_STOP("Molecule::nuclear_attraction_potential");
     return sum;
 }
 
@@ -642,7 +639,6 @@ double Molecule::molecular_core_potential(double x, double y, double z) const {
     int natom = atoms.size();
     double sum = 0.0;
 
-    TAU_START("Molecule::molecular_core_potential");
     for (int i=0; i<natom; ++i) {
         unsigned int atn = atoms[i].atomic_number;
         if (core_pot.is_defined(atn)) {
@@ -651,7 +647,6 @@ double Molecule::molecular_core_potential(double x, double y, double z) const {
         }
     }
 
-    TAU_STOP("Molecule::molecular_core_potential");
     return sum;
 }
 

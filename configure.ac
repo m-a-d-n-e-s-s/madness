@@ -359,10 +359,6 @@ AC_ARG_WITH([mpi-thread],
 AC_DEFINE_UNQUOTED([MADNESS_MPI_THREAD_LEVEL], [$MADNESS_MPI_THREAD_LEVEL], [Thread-safety level requested from MPI by MADNESS])
 AC_MSG_NOTICE([MPI thread-safety requested: $MADNESS_MPI_THREAD_LEVEL])
 
-# Stuff that either does not work or is ill-advised
-######AC_DEFINE([WORLD_TAU_TRACE],[1],[Enable tracing using tau])
-#####AC_DEFINE([WORLD_SCHED_BACKOFF],[1],[Yield during busy spin])
-
 # Display options
 AC_MSG_NOTICE([CPPFLAGS = $CPPFLAGS])
 AC_MSG_NOTICE([CFLAGS   = $CFLAGS])
