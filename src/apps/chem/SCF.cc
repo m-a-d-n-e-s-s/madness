@@ -107,9 +107,8 @@ namespace madness {
         c.copy_to_replicated(tmp); // for debugging
         tmp = transpose(tmp);
         
-        std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
+        std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
         compress(world, v);
-        compress(world, vc);
         
         for (int i=0; i<m; ++i) {
             for (int j=0; j<n; ++j) {
@@ -1102,8 +1101,7 @@ namespace madness {
         int nocc = psi.size();
         int nf = f.size();
         double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
-        vecfuncT Kf = zero_functions<double, 3>(world, nf);
-        compress(world, Kf);
+        vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
         reconstruct(world, psi);
         norm_tree(world, psi);
         if (!same) {
@@ -1846,10 +1844,8 @@ namespace madness {
             print("Subspace solution", c);
         }
         START_TIMER(world);
-        vecfuncT amo_new = zero_functions<double, 3>(world, amo.size());
-        vecfuncT bmo_new = zero_functions<double, 3>(world, bmo.size());
-        compress(world, amo_new, false);
-        compress(world, bmo_new, false);
+        vecfuncT amo_new = zero_functions_compressed<double, 3>(world, amo.size(), false);
+        vecfuncT bmo_new = zero_functions_compressed<double, 3>(world, bmo.size(), false);
         world.gop.fence();
         for (unsigned int m = 0; m < subspace.size(); ++m) {
             const vecfuncT & vm = subspace[m].first;
