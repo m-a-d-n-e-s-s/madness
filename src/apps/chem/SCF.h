@@ -315,12 +315,6 @@ struct CalculationParameters {
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
     bool psp_calc;                ///< pseudopotential calculation or all electron
-    //bool absolvent;             ///< If true calculate solvation effects
-    //double epsilon_2;           ///< dielectric constant of solvent
-    //double Gamma;               ///< surface tension of solvent
-    //double beta;                ///switching parameter controls boundary conditions of solvent cavity
-    //double rho_0;               /// threshold density--determines size of molecular cavity
-    //double sigma;               ///switching parameter controls boundary conditions of solvent cavity-(SVPE)
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -332,7 +326,6 @@ struct CalculationParameters {
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & psp_calc;
-        //ar & absolvent & epsilon_2 & Gamma & Gamma & beta & rho_0 & sigma;
     }
 
     CalculationParameters()
@@ -384,12 +377,6 @@ struct CalculationParameters {
         , tdksprop(false)
         , nuclear_corrfac("none")
         , psp_calc(false)
-          //, absolvent(false)
-          //, epsilon_2(78.304)
-          //, Gamma(0.0719)
-          //, beta(1.3)
-          //, rho_0(0.00048)
-          //, sigma(0.3)
     {}
 
 
@@ -465,24 +452,6 @@ struct CalculationParameters {
             else if (s == "plotdens") {
                 plotdens = true;
             }
-            //            else if (s == "absolvent") {
-            //                absolvent = true;
-            //            }
-            //            else if (s == "dielec") {
-            //                f >> epsilon_2;
-            //            }
-            //            else if (s == "Gamma") {
-            //                f >> Gamma;
-            //            }
-            //            else if (s == "beta") {
-            //                f >> beta;
-            //            }
-            //            else if (s == "rho_0") {
-            //                f >> rho_0;
-            //            }
-            //            else if (s == "sigma") {
-            //                f >> sigma;
-            //            }
             else if (s == "plotcoul") {
                 plotcoul = true;
             }
@@ -689,15 +658,8 @@ struct CalculationParameters {
             madness::print("    calc derivatives ");
         if (dipole)
             madness::print("         calc dipole ");
-        //        if(absolvent){
-        //            madness::print("       isodensity solvation ", absolvent);
-        //            madness::print("       surface tension      ", Gamma);
-        //            madness::print("       switching param(beta)", beta);
-        //            madness::print("       dielectric constant  ", epsilon_2);
-        //            madness::print("       threshold density    ", rho_0);
-        //        }
     }
-//};
+
     void gprint(World& world) const {
         madness::print(" Optimizer parameters:           ");
         madness::print("   Maximum iterations (gmaxiter) ", gmaxiter);
@@ -717,12 +679,6 @@ public:
     CalculationParameters param;
     XCfunctional xc;
     AtomicBasisSet aobasis;
-    //functionT vacuo_rho;
-    //functionT rhoT;
-    //functionT rho_elec;
-    //functionT rhon;
-    //functionT mol_mask;
-    //functionT Uabinit;
     functionT mask;
 
     /// alpha and beta molecular orbitals
@@ -1073,14 +1029,11 @@ public:
             // If the basis for the inital guess was not sto-3g
             // switch to sto-3g since this is needed for analysis
             // of the MOs and orbital localization
+
             if (calc.param.aobasis != "sto-3g") {
                 calc.param.aobasis = "sto-3g";
                 calc.project_ao_basis(world);
             }
-            //if(proto==0){
-            // if(calc.param.absolvent)//||calc.param.svpe)
-            //     calc.solve_gas_phase(world);// computes vacuo density and energy
-            //     //}//  calc.save_mos(world); //debugging
 
             calc.solve(world);
             if (calc.param.save)
