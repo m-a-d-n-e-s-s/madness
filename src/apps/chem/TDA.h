@@ -312,9 +312,8 @@ public:
 
 		std::vector<vecfuncT> new_xfunctions(xfunctions.size());
 		for (std::size_t i = 0; i < xfunctions.size(); i++) {
-			new_xfunctions[i] = zero_functions<double, 3>(world,
+			new_xfunctions[i] = zero_functions_compressed<double, 3>(world,
 					xfunctions[i].size());
-			compress(world, new_xfunctions[i]);
 			compress(world, xfunctions[i]);
 		}
 

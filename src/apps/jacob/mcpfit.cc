@@ -526,8 +526,7 @@ struct Calculation {
     vecfuncT make_reference (World & world, vecfuncT & mo, tensorT & occ)
     {
         int nv = mo.size() - ncore;
-        vecfuncT vmo = zero_functions<double,3>(world, nv);
-        compress(world, vmo);
+        vecfuncT vmo = zero_functions_compressed<double,3>(world, nv);
         reconstruct(world, amo);
         norm_tree(world, amo);
         if (!spin_restricted && bmo.size()) {

@@ -729,7 +729,7 @@ namespace madness {
         if (npsi == 0)
             return psi;
         int natom = molecule.natom();
-        vecfuncT proj = zero_functions<double, 3>(world, npsi);
+        vecfuncT proj = zero_functions_compressed<double, 3>(world, npsi);
         tensorT overlap_sum(static_cast<long>(npsi));
         
         for (int i = 0; i < natom; ++i) {

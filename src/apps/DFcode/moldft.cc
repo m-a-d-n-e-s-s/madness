@@ -1603,7 +1603,7 @@ struct Calculation {
         int npsi = psi.size();
         if (npsi == 0) return psi;
         int natom = molecule.natom();
-        vecfuncT proj = zero_functions<double,3>(world, npsi);
+        vecfuncT proj = zero_functions_compressed<double,3>(world, npsi);
         tensorT overlap_sum(static_cast<long>(npsi));
 
         for (int i=0; i<natom; ++i) {
@@ -1883,8 +1883,7 @@ struct Calculation {
         int nocc = psi.size();
         int nf = f.size();
         double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
-        vecfuncT Kf = zero_functions<double,3>(world, nf);
-        compress(world, Kf);
+        vecfuncT Kf = zero_functions_compressed<double,3>(world, nf);
         reconstruct(world, psi);
         norm_tree(world, psi);
         if (!same) {
@@ -2044,8 +2043,7 @@ struct Calculation {
                 vecfuncT ggapot;
                 functionT drho;
                 int nf = amo.size();
-                vecfuncT ddd = zero_functions<double,3>(world, nf);
-        compress(world, ddd);
+                vecfuncT ddd = zero_functions_compressed<double,3>(world, nf);
         reconstruct(world, amo);
         reconstruct(world, delrho);
 //vama6//vama5                     drho=vsig*(delrho[0]+delrho[1]+delrho[2]);
@@ -2589,10 +2587,8 @@ struct Calculation {
             print("Subspace solution", c);
         }
         START_TIMER(world);
-        vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
-        vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
-        compress(world, amo_new, false);
-        compress(world, bmo_new, false);
+        vecfuncT amo_new = zero_functions_compressed<double,3>(world, amo.size());
+        vecfuncT bmo_new = zero_functions_compressed<double,3>(world, bmo.size());
         world.gop.fence();
         for(unsigned int m = 0;m < subspace.size();++m){
             const vecfuncT & vm = subspace[m].first;
@@ -2955,10 +2951,8 @@ struct Calculation {
 
         // Form linear combination for new solution
         START_TIMER(world);
-        vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
-        vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
-        compress(world, amo_new, false);
-        compress(world, bmo_new, false);
+        vecfuncT amo_new = zero_functions_compressed<double,3>(world, amo.size());
+        vecfuncT bmo_new = zero_functions_compressed<double,3>(world, bmo.size());
         world.gop.fence();
         for (unsigned int m=0; m<subspace.size(); m++) {
             const vecfuncT& vm = subspace[m].first;

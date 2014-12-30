@@ -348,11 +348,8 @@ namespace madness
         }
 
         // Form linear combination for new solution
-        vecfuncT k_phisa_new = zero_functions<valueT,NDIM>(_world, k_phisa.size());
-        vecfuncT k_phisb_new = zero_functions<valueT,NDIM>(_world, k_phisb.size());
-        compress(_world, k_phisa_new, false);
-        compress(_world, k_phisb_new, false);
-        _world.gop.fence();
+        vecfuncT k_phisa_new = zero_functions_compressed<valueT,NDIM>(_world, k_phisa.size());
+        vecfuncT k_phisb_new = zero_functions_compressed<valueT,NDIM>(_world, k_phisb.size());
         std::complex<double> one = std::complex<double>(1.0,0.0);
         unsigned int norbitals = awfs_old.size() / _kpoints.size();
         for (unsigned int m = 0; m < k_subspace.size(); m++)
@@ -524,11 +521,8 @@ namespace madness
       }
 
       // Form linear combination for new solution
-      vecfuncT phisa_new = zero_functions<valueT,NDIM>(_world, awfs_old.size());
-      vecfuncT phisb_new = zero_functions<valueT,NDIM>(_world, bwfs_old.size());
-      compress(_world, phisa_new, false);
-      compress(_world, phisb_new, false);
-      _world.gop.fence();
+      vecfuncT phisa_new = zero_functions_compressed<valueT,NDIM>(_world, awfs_old.size());
+      vecfuncT phisb_new = zero_functions_compressed<valueT,NDIM>(_world, bwfs_old.size());
       std::complex<double> one = std::complex<double>(1.0,0.0);
       for (unsigned int m=0; m<_subspace.size(); m++) {
           const vecfuncT& vm = _subspace[m].first;
@@ -3114,7 +3108,7 @@ namespace madness
           if (_params.periodic && !isgamma) // Non-zero k-point
           {
             // Do the gradient term and k^2/2
-            vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
+            vecfuncT d_wf = zero_functions_compressed<valueT,NDIM>(_world, k_wf.size());
             complex_derivative_3d Dx(_world,0);
             complex_derivative_3d Dy(_world,1);
             complex_derivative_3d Dz(_world,2);
@@ -3349,7 +3343,7 @@ namespace madness
         if (_params.periodic && !isgamma) // Non-zero k-point
         {
           // Do the gradient term and k^2/2
-          vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
+          vecfuncT d_wf = zero_functions_compressed<valueT,NDIM>(_world, k_wf.size());
           complex_derivative_3d Dx(_world,0);
           complex_derivative_3d Dy(_world,1);
           complex_derivative_3d Dz(_world,2);

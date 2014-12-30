@@ -445,8 +445,7 @@ vecfuncT Nemo::apply_exchange(const vecfuncT& nemo, const vecfuncT& psi) const {
 	// The mul_sparse in apply_hf_exchange uses a tolerance that is
 	// too loose. Fails even for H2O, eprec=1.e-5
 //    	return calc->apply_hf_exchange(world,calc->aocc,psi,nemo);
-	vecfuncT result = zero_functions<double, 3>(world, int(nemo.size()));
-	compress(world, result);
+	vecfuncT result = zero_functions_compressed<double, 3>(world, int(nemo.size()));
 	for (std::size_t i = 0; i < nemo.size(); ++i) {
 		for (std::size_t k = 0; k < psi.size(); ++k) {
 			const real_function_3d ik = psi[i] * psi[k];
