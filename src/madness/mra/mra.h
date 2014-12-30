@@ -579,7 +579,7 @@ namespace madness {
             if (!impl) return *this;
             verify();
 	    MADNESS_ASSERT(is_compressed());
-//            if (!is_compressed()) compress();
+            if (!is_compressed()) compress();
             impl->truncate(tol,fence);
             if (VERIFY_TREE) verify_tree();
             return *this;
