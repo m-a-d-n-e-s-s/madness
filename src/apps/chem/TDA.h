@@ -11,7 +11,7 @@
 //#include<examples/dft_solver.h>
 #include <chem/projector.h>
 //#include<examples/nonlinsol.h> not used anymore
-#include<chem/SCF.h>
+#include <chem/SCF.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -23,7 +23,7 @@
 #include <chem/TDA_exops.h>
 
 // Kain solver
-#include<examples/nonlinsol.h>
+#include <examples/nonlinsol.h>
 
 // std::sort
 #include <algorithm>
@@ -166,7 +166,8 @@ struct TDA_allocator{
 	const int noct;
 
 	/// @param[in]	world	the world
-	/// @param[in]	nn		the number of functions in a given vector
+	/// @param[in]	nnoct	the number of functions in a given vector
+	/// @todo validate doxygen on `nnoct`
 	TDA_allocator(World& world, const int nnoct) : world(world), noct(nnoct) {}
 
 	xfunction operator()(){
