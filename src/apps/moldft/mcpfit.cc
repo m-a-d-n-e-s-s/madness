@@ -190,7 +190,8 @@ public:
 class PotentialBasisFunctor : public FunctionFunctorInterface<double,3> {
     int n;
     double alpha, rcut;
-    double rn;
+    /// \todo Check `rn`. Should it be a member or is it only used locally?
+    //double rn;
 public:
     PotentialBasisFunctor (int n, double alpha, double rcut) : n(n), alpha(alpha), rcut(rcut) {}
     double operator() (const coordT& x) const {
