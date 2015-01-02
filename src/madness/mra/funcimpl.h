@@ -1062,6 +1062,9 @@ namespace madness {
         }
 
         /// perform inplace gaxpy: this = alpha*this + beta*other
+        /// @param[in]	alpha	prefactor for this
+        /// @param[in]	beta	prefactor for other
+        /// @param[in]	other	the other function, reconstructed
         template<typename Q, typename R>
         void gaxpy_inplace_reconstructed(const T& alpha, const FunctionImpl<Q,NDIM>& g, const R& beta, const bool fence) {
             // merge g's tree into this' tree
@@ -1103,6 +1106,11 @@ namespace madness {
         void gaxpy_oop_reconstructed(const double alpha, const implT& f,
                                      const double beta, const implT& g, const bool fence);
 
+        /// functor for the gaxpy_inplace method
+        /// parameters for the constructor are:
+        /// @param[in]  alpha   prefactor for current function impl
+        /// @param[in]  f       the current function impl
+        /// @param[in]  beta    prefactor for other function impl
         template <typename Q, typename R>
         struct do_gaxpy_inplace {
             typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
@@ -1123,6 +1131,9 @@ namespace madness {
         };
 
         /// Inplace general bilinear operation
+        /// @param[in]  alpha   prefactor for the current function impl
+        /// @param[in]  other   the other function impl
+        /// @param[in]  beta    prefactor for other
         template <typename Q, typename R>
         void gaxpy_inplace(const T& alpha,const FunctionImpl<Q,NDIM>& other, const R& beta, bool fence) {
             MADNESS_ASSERT(get_pmap() == other.get_pmap());
@@ -1134,6 +1145,8 @@ namespace madness {
                 world.gop.fence();
         }
 
+        // loads a function impl from persistence
+        // @param[in] ar   the archive where the function impl is stored
         template <typename Archive>
         void load(Archive& ar) {
             // WE RELY ON K BEING STORED FIRST
@@ -1150,6 +1163,8 @@ namespace madness {
             world.gop.fence();
         }
 
+        // saves a function impl to persistence
+        // @param[in] ar   the archive where the function impl is to be stored
         template <typename Archive>
         void store(Archive& ar) {
             // WE RELY ON K BEING STORED FIRST
@@ -1213,6 +1228,7 @@ namespace madness {
         /// In scaling function basis must add value to first polyn in
         /// each box with appropriate scaling for level.  In wavelet basis
         /// need only add at level zero.
+        /// @param[in]  t   the scalar to be added
         void add_scalar_inplace(T t, bool fence);
 
         /// Initialize nodes to zero function at initial_level of refinement.
@@ -1223,30 +1239,55 @@ namespace madness {
         /// Truncate according to the threshold with optional global fence
 
         /// If thresh<=0 the default value of this->thresh is used
+        /// @param[in]  tol   the truncation tolerance
         void truncate(double tol, bool fence);
 
         /// Returns true if after truncation this node has coefficients
 
         /// Assumed to be invoked on process owning key.  Possible non-blocking
         /// communication.
+        /// @param[in]  key   the key of the current function node
         Future<bool> truncate_spawn(const keyT& key, double tol);
 
         /// Actually do the truncate operation
+        /// @param[in] key the key to the current function node being evaluated for truncation
+        /// @param[in] tol the tolerance for thresholding
+        /// @param[in] v vector of Future<bool>'s that specify whether the current nodes children have coeffs
         bool truncate_op(const keyT& key, double tol, const std::vector< Future<bool> >& v);
 
         /// Evaluate function at quadrature points in the specified box
+    
+        /// @param[in] key the key indicating where the quadrature points are located
+        /// @param[in] f the interface to the elementary function
+        /// @param[in] qx quadrature points on a level=0 box
+        /// @param[out] fval values
         void fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const;
 
+        /// Evaluate function at quadrature points in the specified box
+    
+        /// @param[in] key the key indicating where the quadrature points are located
+        /// @param[in] f the interface to the elementary function
+        /// @param[in] qx quadrature points on a level=0 box
+        /// @param[out] fval values
         void fcube(const keyT& key,  T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const;
 
+        /// Returns cdata.key0
         const keyT& key0() const;
 
+        /// Prints the coeffs tree of the current function impl
+        /// @param[in] maxlevel the maximum level of the tree for printing
+        /// @param[out] os the ostream to where the output is sent
         void print_tree(std::ostream& os = std::cout, Level maxlevel = 10000) const;
 
+        /// Functor for the do_print_tree method
         void do_print_tree(const keyT& key, std::ostream& os, Level maxlevel) const;
 
+        /// Prints the coeffs tree of the current function impl (using GraphViz)
+        /// @param[in] maxlevel the maximum level of the tree for printing
+        /// @param[out] os the ostream to where the output is sent
         void print_tree_graphviz(std::ostream& os = std::cout, Level maxlevel = 10000) const;
 
+        /// Functor for the do_print_tree method (using GraphViz)
         void do_print_tree_graphviz(const keyT& key, std::ostream& os, Level maxlevel) const;
 
         /// convert a number [0,limit] to a hue color code [blue,red],
@@ -1289,12 +1330,17 @@ namespace madness {
         /// \todo Provide a description for el2
         Tensor<double> print_plane_local(const int xaxis, const int yaxis, const coordT& el2);
 
-        /// print the MRA structure
+        /// Functor for the print_plane method
+        /// @param[in] filename the filename for the output
+        /// @param[in] plotinfo plotting parameters
+        /// @param[in]	xaxis	the x-axis in the plot (can be any axis of the MRA box)
+        /// @param[in]	yaxis	the y-axis in the plot (can be any axis of the MRA box)
         Void do_print_plane(const std::string filename, std::vector<Tensor<double> > plotinfo,
                             const int xaxis, const int yaxis, const coordT el2);
 
         /// print the grid (the roots of the quadrature of each leaf box)
         /// of this function in user xyz coordinates
+        /// @param[in] filename the filename for the output
         void print_grid(const std::string filename) const;
 
         /// return the keys of the local leaf boxes
@@ -1514,6 +1560,7 @@ namespace madness {
 
 
         /// Compute by projection the scaling function coeffs in specified box
+        /// @param[in] key the key to the current function node (box)
         tensorT project(const keyT& key) const;
 
         /// Returns the truncation threshold according to truncate_method
@@ -1528,9 +1575,14 @@ namespace madness {
 
 
         /// Returns patch referring to coeffs of child in parent box
+        /// @param[in] key the key to the child function node (box)
         std::vector<Slice> child_patch(const keyT& child) const;
 
-        /// Projection with optional refinement
+        /// Projection with optional refinement w/ special points
+        /// @param[in] key the key to the current function node (box)
+        /// @param[in] do_refine should we continue refinement?
+        /// @param[in] specialpts vector of special points in the function where we need
+        ///            to refine at a much finer level
         Void project_refine_op(const keyT& key, bool do_refine,
                                const std::vector<Vector<double,NDIM> >& specialpts);
 
@@ -1539,11 +1591,22 @@ namespace madness {
         /// Evaluate parent polyn at quadrature points of a child.  The prefactor of
         /// 2^n/2 is included.  The tensor must be preallocated as phi(k,npt).
         /// Refer to the implementation notes for more info.
+        /// @todo Robert please verify this comment. I don't understand this method.
+        /// @param[in] np level of the parent function node (box)
+        /// @param[in] nc level of the child function node (box)
+        /// @param[in] lp translation of the parent function node (box)
+        /// @param[in] lc translation of the child function node (box)
+        /// @param[out] phi tensor of the legendre scaling functions
         void phi_for_mul(Level np, Translation lp, Level nc, Translation lc, Tensor<double>& phi) const;
 
         /// Directly project parent coeffs to child coeffs
 
         /// Currently used by diff, but other uses can be anticipated
+
+        /// @param[in]	child	the key whose coeffs we are requesting
+        /// @param[in]	parent	the (leaf) key of our function
+        /// @param[in]	coeff	the (leaf) coeffs belonging to parent
+        /// @return 	coeffs 
         const coeffT parent_to_child(const coeffT& s, const keyT& parent, const keyT& child) const;
 
         /// Directly project parent NS coeffs to child NS coeffs
@@ -1558,6 +1621,8 @@ namespace madness {
                                   const coeffT& coeff) const;
 
         /// Returns the box at level n that contains the given point in simulation coordinates
+        /// @param[in] pt point in simulation coordinates
+        /// @param[in] n the level of the box
         Key<NDIM> simpt2key(const coordT& pt, Level n) const;
 
         /// Get the scaling function coeffs at level n starting from NS form
@@ -1566,6 +1631,10 @@ namespace madness {
         // q>0 return coeffs [k,q,M] for fft sum
         tensorT coeffs_for_jun(Level n, long q=0);
 
+        /// Return the values when given the coeffs in scaling function basis
+        /// @param[in] key the key of the function node (box)
+        /// @param[in] coeff the tensor of scaling function coefficients for function node (box)
+        /// @return function values for function node (box)
         template <typename Q>
         GenTensor<Q> coeffs2values(const keyT& key, const GenTensor<Q>& coeff) const {
             // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
@@ -1689,6 +1758,10 @@ namespace madness {
             return transform(values,transf).scale(scale);
         }
 
+        /// Return the scaling function coeffs when given the function values at the quadrature points
+        /// @param[in] key the key of the function node (box)
+        /// @param[in] 
+        /// @return function values for function node (box)
         template <typename Q>
         Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
             // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
@@ -1714,6 +1787,9 @@ namespace madness {
 
         /// Given coefficients from a parent cell, compute the value of
         /// the functions at the quadrature points of a child
+        /// @param[in] child the key for the child function node (box) 
+        /// @param[in] parent the key for the parent function node (box) 
+        /// @param[in] coeff the coefficients of scaling function basis of the parent box
         template <typename Q>
         Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
             // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
@@ -1739,6 +1815,9 @@ namespace madness {
 
         /// Given coefficients from a parent cell, compute the value of
         /// the functions at the quadrature points of a child
+        /// @param[in] child the key for the child function node (box) 
+        /// @param[in] parent the key for the parent function node (box) 
+        /// @param[in] coeff the coefficients of scaling function basis of the parent box
         template <typename Q>
         GenTensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const GenTensor<Q>& coeff) const {
             // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
@@ -1760,7 +1839,7 @@ namespace madness {
         }
 
 
-        /// Invoked as a task by mul with the actual coefficients
+        /// Functor for the mul method
         template <typename L, typename R>
         Void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg) {
             // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
@@ -1813,7 +1892,7 @@ namespace madness {
         }
 
 
-        /// Invoked as a task by do_binary_op with the actual coefficients
+        /// Functor for the binary_op method
         template <typename L, typename R, typename opT>
 	  Void do_binary_op(const keyT& key, const Tensor<L>& left,
 			    const std::pair< keyT, Tensor<R> >& arg,
@@ -1865,6 +1944,7 @@ namespace madness {
         }
 
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
+        /// @param[in] op the unary operator for the coefficients
         template <typename opT>
         void unary_op_coeff_inplace(const opT& op, bool fence) {
             typename dcT::iterator end = coeffs.end();
@@ -1885,6 +1965,7 @@ namespace madness {
         }
 
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
+        /// @param[in] op the unary operator for the coefficients
         template <typename opT>
         void unary_op_node_inplace(const opT& op, bool fence) {
             typename dcT::iterator end = coeffs.end();
@@ -1898,6 +1979,7 @@ namespace madness {
         }
 
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
+        /// @param[in] op the unary operator for the coefficients
         template <typename opT>
         void flo_unary_op_node_inplace(const opT& op, bool fence) {
             typedef Range<typename dcT::iterator> rangeT;
@@ -1908,6 +1990,7 @@ namespace madness {
         }
 
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
+        /// @param[in] op the unary operator for the coefficients
         template <typename opT>
         void flo_unary_op_node_inplace(const opT& op, bool fence) const {
             typedef Range<typename dcT::const_iterator> rangeT;
@@ -1918,6 +2001,7 @@ namespace madness {
         }
 
         /// truncate tree at a certain level
+        /// @param[in] max_level truncate tree below this level
         Void erase(const Level& max_level);
 
         /// Returns some asymmetry measure ... no comms
@@ -2254,6 +2338,7 @@ namespace madness {
         };
 
         template <typename Q, typename R>
+        @todo I don't know what this does other than a trasform
         Void vtransform_doit(const std::shared_ptr< FunctionImpl<R,NDIM> >& right,
                              const Tensor<Q>& c,
                              const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
@@ -2301,13 +2386,17 @@ namespace madness {
 
         /// Refine multiple functions down to the same finest level
 
-        /// @param v is the vector of functions we are refining.
-        /// @param key is the current node.
-        /// @param c is the vector of coefficients passed from above.
+        /// @param v the vector of functions we are refining.
+        /// @param key the current node.
+        /// @param c the vector of coefficients passed from above.
         Void refine_to_common_level(const std::vector<FunctionImpl<T,NDIM>*>& v,
                                     const std::vector<tensorT>& c,
                                     const keyT key);
 
+        /// Inplace operate on many functions (impl's) with an operator within a certain box 
+        /// @param[in] key the key of the current function node (box)
+        /// @param[in] op the operand
+        /// @param[in] v the vector of function impl's on which to be operated
         template <typename opT>
         Void multiop_values_doit(const keyT& key, const opT& op, const std::vector<implT*>& v) {
             std::vector<tensorT> c(v.size());
@@ -2319,7 +2408,10 @@ namespace madness {
             return None;
         }
 
-        // assumes all functions have been refined down to the same level
+        /// Inplace operate on many functions (impl's) with an operator within a certain box 
+        /// Assumes all functions have been refined down to the same level
+        /// @param[in] op the operand
+        /// @param[in] v the vector of function impl's on which to be operated
         template <typename opT>
         void multiop_values(const opT& op, const std::vector<implT*>& v) {
             typename dcT::iterator end = v[0]->coeffs.end();
@@ -2334,6 +2426,9 @@ namespace madness {
         }
 
         /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
+        /// @param[in] vright vector of functions (impl's) on which to be transformed
+        /// @param[in] c the tensor (matrix) transformer
+        /// @param[in] vleft vector of of the *newly* transformed functions (impl's) 
         template <typename Q, typename R>
         void vtransform(const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
                         const Tensor<Q>& c,
@@ -2348,6 +2443,7 @@ namespace madness {
         }
 
         /// Unary operation applied inplace to the values with optional refinement and fence
+        /// @param[in] op the unary operator for the values
         template <typename opT>
         void unary_op_value_inplace(const opT& op, bool fence) {
             typedef Range<typename dcT::iterator> rangeT;
@@ -2358,6 +2454,16 @@ namespace madness {
         }
 
         // Multiplication assuming same distribution and recursive descent
+        /// Both left and right functions are in the scaling function basis
+        /// @param[in] key the key to the current function node (box)
+        /// @param[in] left the function impl associated with the left function
+        /// @param[in] lcin the scaling function coefficients associated with the 
+        ///            current box in the left function
+        /// @param[in] vrightin the vector of function impl's associated with 
+        ///            the vector of right functions
+        /// @param[in] vrcin the vector scaling function coefficients associated with the 
+        ///            current box in the right functions
+        /// @param[out] vresultin the vector of resulting functions (impl's)
         template <typename L, typename R>
         Void mulXXveca(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
@@ -2454,7 +2560,15 @@ namespace madness {
             return None;
         }
 
-        // Multiplication using recursive descent and assuming same distribution
+        /// Multiplication using recursive descent and assuming same distribution
+        /// Both left and right functions are in the scaling function basis
+        /// @param[in] key the key to the current function node (box)
+        /// @param[in] left the function impl associated with the left function
+        /// @param[in] lcin the scaling function coefficients associated with the 
+        ///            current box in the left function
+        /// @param[in] right the function impl associated with the right function
+        /// @param[in] rcin the scaling function coefficients associated with the 
+        ///            current box in the right function
         template <typename L, typename R>
         Void mulXXa(const keyT& key,
                     const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
@@ -2534,6 +2648,15 @@ namespace madness {
 
 
         // Binary operation on values using recursive descent and assuming same distribution
+        /// Both left and right functions are in the scaling function basis
+        /// @param[in] key the key to the current function node (box)
+        /// @param[in] left the function impl associated with the left function
+        /// @param[in] lcin the scaling function coefficients associated with the 
+        ///            current box in the left function
+        /// @param[in] right the function impl associated with the right function
+        /// @param[in] rcin the scaling function coefficients associated with the 
+        ///            current box in the right function
+        /// @param[in] op the binary operand
         template <typename L, typename R, typename opT>
         Void binaryXXa(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
@@ -2620,7 +2743,14 @@ namespace madness {
             }
         };
 
-        // Multiplication using recursive descent and assuming same distribution
+        /// Out of place unary operation on function impl
+        /// The skeleton algorithm should resemble something like
+        /// 
+        /// *this = op(*func)
+        /// 
+        /// @param[in] key the key of the current function node (box)
+        /// @param[in] func the function impl on which to be operated
+        /// @param[in] the unary operand
         template <typename Q, typename opT>
         Void unaryXXa(const keyT& key,
                       const FunctionImpl<Q,NDIM>* func, const opT& op) {

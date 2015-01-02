@@ -661,12 +661,6 @@ namespace madness {
     
     /// Directly project parent NS coeffs to child NS coeffs
     
-    /// return the NS coefficients if parent and child are the same,
-    /// or construct sum coeffs from the parents and "add" zero wavelet coeffs
-    /// @param[in]	child	the key whose coeffs we are requesting
-    /// @param[in]	parent	the (leaf) key of our function
-    /// @param[in]	coeff	the (leaf) coeffs belonging to parent
-    /// @return 	coeffs in NS form
     template <typename T, std::size_t NDIM>
     typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::parent_to_child_NS(const keyT& child, const keyT& parent,
                                                                                    const coeffT& coeff) const {
@@ -2074,12 +2068,6 @@ namespace madness {
         return fval;
     }
     
-    /// return the values of a Function on a grid
-    
-    /// @param[in]  key the key indicating where the quadrature points are located
-    /// @param[in]  f   the interface to the elementary function
-    /// @param[in]  qx  quadrature points on a level=0 box
-    /// @param[out] fval    values
     template <typename T, std::size_t NDIM>
     //    void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
     void fcube(const Key<NDIM>& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, Tensor<T>& fval) {
@@ -2668,9 +2656,9 @@ namespace madness {
         tensorT fval(cdata.vq,false); // this will be the returned result
         tensorT work(cdata.vk,false); // initially evaluate the function in here
         tensorT workq(cdata.vq,false); // initially evaluate the function in here
-        
+       
+        // compute the values of the functor at the quadrature points and scale appropriately
         madness::fcube(key,*functor,cdata.quad_x,work);
-        
         work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
         //return transform(work,cdata.quad_phiw);
         return fast_transform(work,cdata.quad_phiw,fval,workq);
