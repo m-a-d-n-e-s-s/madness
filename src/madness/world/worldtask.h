@@ -38,11 +38,7 @@
 
 /// \file worldtask.h
 /// \brief Defines TaskInterface and implements WorldTaskQueue and associated stuff.
-
-// To do:
-// a) Redo this ontop of serializable tasks which will remote much of the clutter
-//    due to multiple length argument lists.
-// b) Stealing which pretty much presume a) has been done
+/// \addtogroup parallel_runtime
 
 #include <iostream>
 #include <madness/world/nodefaults.h>
@@ -172,7 +168,7 @@ namespace madness {
         }
 
         template <typename taskT>
-        static void spawn_remote_task_handler(const AmArg& arg) {
+        static void remote_task_handler(const AmArg& arg) {
             MADNESS_ASSERT(taskT::arity <= 9u);
 
             // Get task info and arguments form active message
@@ -211,7 +207,7 @@ namespace madness {
         {
             typename taskT::futureT result;
             typedef detail::TaskHandlerInfo<typename taskT::futureT::remote_refT, typename taskT::functionT> infoT;
-            world.am.send(where, & WorldTaskQueue::template spawn_remote_task_handler<taskT>,
+            world.am.send(where, & WorldTaskQueue::template remote_task_handler<taskT>,
                     new_am_arg(infoT(result.remote_ref(world), fn, attr),
                     a1, a2, a3, a4, a5, a6, a7, a8, a9));
 
@@ -327,15 +323,15 @@ namespace madness {
         }
 
 
-        /// Spawn a local task
+        /// Create a local task with no arguments
 
-        /// Spawns a task on on process.  An argument that is a future may be
-        /// used to carry dependencies tasks.
+        /// Creates a task in this process.  An argument that is a future may be
+        /// used to carry dependencies.
         /// \tparam fnT A function pointer or functor
         /// \param fn The function to be called in the task
         /// \param attr The task attributes
-        /// \return A future to the task function's results. If the task function
-        /// return type is \c void , a \c Future<void> object is return that may
+        /// \return A future to the result. If the task function
+        /// return type is \c void , a \c Future<void> object is returned that may
         /// be ignored.
         template <typename fnT>
         typename detail::function_enabler<fnT>::type
@@ -441,19 +437,19 @@ namespace madness {
         }
 
 
-        /// Spawn a remote task
+        /// Create a remote task
 
-        /// Spawns a task on process \c dest , which may or may not be this
+        /// Creates a task in process \c dest , which may or may not be this
         /// process. An argument that is a future may be used to carry
         /// dependencies for local tasks. An future that is not ready cannot be
         /// used as an argument for a remote tasks -- i.e., remote  tasks must
         /// be ready to execute (you can work around this by making a local task
         /// to submit the remote task once everything is ready).
         /// \tparam fnT A function pointer or functor type
-        /// \param dest The process where the task will be spawned
+        /// \param dest The process where the task will be created
         /// \param fn The function to be called in the task
         /// \param attr The task attributes
-        /// \return A future to the task function's results. If the task function
+        /// \return A future to the result. If the task function
         /// return type is \c void , a \c Future<void> object is return that may
         /// be ignored.
         /// \note Arguments must be (de)serializable and must of course make
@@ -475,15 +471,15 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Spawn a remote task
+        /// Create a remote task
 
-        /// Spawns a task on process \c dest , which may or may not be this
+        /// Creates a task on process \c dest , which may or may not be this
         /// process.  An argument that is a future may be used to carry
         /// dependencies for local tasks.  An unready future cannot be used as
         /// an argument for a remote tasks -- i.e., remote  tasks must be ready
         /// to execute (you can work around this by making a local task to
         /// submit the remote task once everything is ready).
-        /// \param dest The process where the task will be spawned
+        /// \param dest The process where the task will be created
         /// \param fn The function to be called in the task
         /// \param attr The task attributes
         /// \return A future to the task function's results. If the task function
@@ -1033,8 +1029,8 @@ namespace madness {
 
         /// \tparam rangeT The range of iterators type
         /// \tparam opT The operation type
-        /// This task will progressively split range, spawning leaf for each
-        /// tasks, until the range of iterators is smaller than the range chunck
+        /// This task will progressively split range, creating leaves for each
+        /// tasks, until the range of iterators is smaller than the chunck
         /// size.
         template <typename rangeT, typename opT>
         class ForEachTask : public TaskInterface {
@@ -1062,7 +1058,7 @@ namespace madness {
 
             /// Run the task
             virtual void run(const TaskThreadEnv&) {
-                // Spawn leaf tasks and split range until it is less than chuncksize
+                // Create leaf tasks and split range until it is less than chuncksize
                 while(range_.size() > range_.get_chunksize()) {
                     rangeT right(range_,Split());
                     ForEachTask<rangeT,opT>* leaf = new ForEachTask<rangeT,opT>(right, op_, root_);
@@ -1093,7 +1089,7 @@ namespace madness {
 
         /// \tparam rangeT The range of iterators type
         /// \tparam opT The operation type
-        /// This task spawns for each tasks and collects information on the
+        /// This task creates for_each tasks and collects information on the
         /// results of those tasks. Once all tasks have completed it will set
         /// the result future.
         template <typename rangeT, typename opT>
