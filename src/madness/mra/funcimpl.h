@@ -2395,7 +2395,7 @@ namespace madness {
 
         /// Inplace operate on many functions (impl's) with an operator within a certain box 
         /// @param[in] key the key of the current function node (box)
-        /// @param[in] op the operand
+        /// @param[in] op the operator
         /// @param[in] v the vector of function impl's on which to be operated
         template <typename opT>
         Void multiop_values_doit(const keyT& key, const opT& op, const std::vector<implT*>& v) {
@@ -2410,7 +2410,7 @@ namespace madness {
 
         /// Inplace operate on many functions (impl's) with an operator within a certain box 
         /// Assumes all functions have been refined down to the same level
-        /// @param[in] op the operand
+        /// @param[in] op the operator
         /// @param[in] v the vector of function impl's on which to be operated
         template <typename opT>
         void multiop_values(const opT& op, const std::vector<implT*>& v) {
@@ -2656,7 +2656,7 @@ namespace madness {
         /// @param[in] right the function impl associated with the right function
         /// @param[in] rcin the scaling function coefficients associated with the 
         ///            current box in the right function
-        /// @param[in] op the binary operand
+        /// @param[in] op the binary operator
         template <typename L, typename R, typename opT>
         Void binaryXXa(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
@@ -2750,7 +2750,7 @@ namespace madness {
         /// 
         /// @param[in] key the key of the current function node (box)
         /// @param[in] func the function impl on which to be operated
-        /// @param[in] the unary operand
+        /// @param[in] the unary operator
         template <typename Q, typename opT>
         Void unaryXXa(const keyT& key,
                       const FunctionImpl<Q,NDIM>* func, const opT& op) {
@@ -2774,6 +2774,10 @@ namespace madness {
             return None;
         }
 
+        /// Multiplies two functions (impl's) together. Delegates to the mulXXa() method
+        /// @param[in] left pointer to the left function impl
+        /// @param[in] right pointer to the right function impl
+        /// @param[in] tol numerical tolerance
         template <typename L, typename R>
         void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, double tol, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
@@ -2784,6 +2788,10 @@ namespace madness {
             //verify_tree();
         }
 
+        /// Performs binary operation on two functions (impl's). Delegates to the binaryXXa() method
+        /// @param[in] left pointer to the left function impl
+        /// @param[in] right pointer to the right function impl
+        /// @param[in] op the binary operator
         template <typename L, typename R, typename opT>
         void binaryXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right,
                       const opT& op, bool fence) {
@@ -2795,6 +2803,9 @@ namespace madness {
             //verify_tree();
         }
 
+        /// Performs unary operation on function impl. Delegates to the unaryXXa() method
+        /// @param[in] func function impl of the operand
+        /// @param[in] op the unary operator
         template <typename Q, typename opT>
         void unaryXX(const FunctionImpl<Q,NDIM>* func, const opT& op, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
@@ -2805,6 +2816,9 @@ namespace madness {
             //verify_tree();
         }
 
+        /// Performs unary operation on function impl. Delegates to the unaryXXa() method
+        /// @param[in] func function impl of the operand
+        /// @param[in] op the unary operator
         template <typename Q, typename opT>
         void unaryXXvalues(const FunctionImpl<Q,NDIM>* func, const opT& op, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
@@ -2815,6 +2829,12 @@ namespace madness {
             //verify_tree();
         }
 
+        /// Multiplies a function (impl) with a vector of functions (impl's). Delegates to the 
+        /// mulXXveca() method.
+        /// @param[in] left pointer to the left function impl
+        /// @param[in] vright vector of pointers to the right function impl's
+        /// @param[in] tol numerical tolerance
+        /// @param[out] vresult vector of pointers to the resulting function impl's
         template <typename L, typename R>
         void mulXXvec(const FunctionImpl<L,NDIM>* left,
                       const std::vector<const FunctionImpl<R,NDIM>*>& vright,
@@ -2865,13 +2885,16 @@ namespace madness {
         /// Alternatively, reimplement multiply as a downward tree
         /// walk and just pass the parent down.  Slightly less
         /// parallelism but much less communication.
+        /// @todo Robert .... help!
         Void sock_it_to_me(const keyT& key,
                            const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const;
         /// As above, except
         /// 3) The coeffs are constructed from the avg of nodes further down the tree
+        /// @todo Robert .... help!
         Void sock_it_to_me_too(const keyT& key,
                                const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const;
 
+        /// @todo help!
         Void plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,
                               const keyT& key,
                               const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt,
@@ -2879,8 +2902,10 @@ namespace madness {
 
 
         /// Evaluate a cube/slice of points ... plotlo and plothi are already in simulation coordinates
-
         /// No communications
+        /// @param[in] plotlo the coordinate of the starting point
+        /// @param[in] plothi the coordinate of the ending point
+        /// @param[in] npt the number of points in each dimension
         Tensor<T> eval_plot_cube(const coordT& plotlo,
                                  const coordT& plothi,
                                  const std::vector<long>& npt,
