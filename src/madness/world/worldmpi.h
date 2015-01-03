@@ -38,6 +38,8 @@
 
 /// \file worldmpi.h
 /// \brief Implements WorldMpiInterface
+/// \addtogroup mpi
+///@{
 
 /*
 // If include mpi.h BEFORE stdio/iostream should not need undefs
@@ -355,5 +357,7 @@ namespace madness {
     }; // class WorldMpiInterface
 
 }
+
+///@}
 
 #endif // MADNESS_WORLD_WORLDMPI_H__INCLUDED

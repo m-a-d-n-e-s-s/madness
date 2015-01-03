@@ -34,8 +34,10 @@
 #define MADNESS_WORLD_ATOMICINT_H__INCLUDED
 
 /// \file atomicint.h
+/// \brief Implements AtomicInt
+/// \addtogroup atomics
+/// @{
 
-/// \brief Implements AtomicInteger
 
 #include <madness/madness_config.h>
 
@@ -199,4 +201,7 @@ namespace madness {
     }; // class AtomicInt
 
 }
+
+/// @}
+
 #endif // MADNESS_WORLD_ATOMICINT_H__INCLUDED

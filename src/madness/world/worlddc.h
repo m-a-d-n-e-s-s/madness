@@ -39,7 +39,9 @@
 /*!
   \file worlddc.h
   \brief Implements WorldContainer
-  \ingroup worlddc
+  \addtogroup worlddc
+  @{
+
 */
 
 #include <madness/world/parar.h>
@@ -1563,5 +1565,7 @@ namespace madness {
     }
 
 }
+
+///@}
 
 #endif // MADNESS_WORLD_WORLDDC_H__INCLUDED

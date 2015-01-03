@@ -222,7 +222,9 @@ instantiate the templates that you are using.
 N.B.: Applications using the multiresolution numerical tools probably
 do not need to definte this macro.
 
+\addtogroup world
 @{
+
 */
 #ifndef MADNESS_WORLD_WORLDFWD_H__INCLUDED
 #define MADNESS_WORLD_WORLDFWD_H__INCLUDED

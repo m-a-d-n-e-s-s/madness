@@ -64,6 +64,9 @@ inline void pthread_spin_destroy(pthread_spinlock_t* /*p*/) {}
 
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable
+/// \addtogroup mutexes
+///@{
+
 
 
 namespace madness {
@@ -673,5 +676,8 @@ namespace madness {
         extern Mutex printmutex;
     }
 }
+
+///@}
+
 
 #endif // MADNESS_WORLD_WORLDMUTEX_H__INCLUDED
