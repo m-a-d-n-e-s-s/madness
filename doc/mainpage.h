@@ -100,7 +100,7 @@ Additional technical documentation can be found in the MADNESS \c doc directory
   - The parallel runtime and API documents document the operation and 
     interface for the parallel programming environment.
 
-The <a href="http://code.google.com/p/m-a-d-n-e-s-s/">project home</a>
+The <a href="https://github.com/m-a-d-n-e-s-s/madness">project home</a>
 contains information on configuring, building, etc.
 
 \section status Status and supported platforms
@@ -112,9 +112,9 @@ yet meet our expectations.
 
 Currently, we intend that MADNESS work correctly and efficiently
 on the following platforms
-  - Cray XT, 
-  - IBM BG/P,
-  - Linux workstations with x86 32-bit and 64-bit multi-core processors, and 
+  - Cray, 
+  - IBM BGQ,
+  - Linux workstations with 64-bit multi-core processors, and 
     clusters thereof
   - Apple Macintosh (Intel processors) with recent versions of OS X.
 
@@ -135,6 +135,7 @@ Our deep gratitude to these other projects whose software we employ
   - <a href="http://gcc.gnu.org">GCC</a>
   - <a href="http://code.google.com/p/googletest">Google test</a>
   - <a href="http://code.google.com/p/google-perftools">Google performance tools</a>
+  - <a href="http://www.tddft.org/programs/octopus/wiki/index.php/Libxc">Libxc</a>
 
 \section license License
 

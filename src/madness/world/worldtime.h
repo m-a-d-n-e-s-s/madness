@@ -60,6 +60,8 @@
 
 /// \file worldtime.h
 /// \brief Wrappers around platform dependent timers and performance info
+/// \addtogroup parallel_runtime
+
 
 
 namespace madness {

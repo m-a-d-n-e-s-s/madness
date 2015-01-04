@@ -68,7 +68,7 @@
   The \c & operator chains just like \c << for \c cout or \c >> for \c
   cin.  You may discover in \c archive.h other interfaces but you
   should \em not use them --- use the \& operator!  The lower level
-  interfaces will probably not, or only inconsistently incorpoate
+  interfaces will probably not, or only inconsistently incorporate
   type information and may even appear to work when they are not.
 
   Unless type checking has not been implemented by an archive for

@@ -34,7 +34,8 @@
 
 /// \file world/worldobj.h
 /// \brief Defines and implements WorldObject
-/// \ingroup worldobj
+/// \addtogroup worldobj
+///@{
 
 #ifndef MADNESS_WORLD_WORLDOBJ_H__INCLUDED
 #define MADNESS_WORLD_WORLDOBJ_H__INCLUDED
@@ -829,3 +830,4 @@ template <typename Derived>  madness::Spinlock madness::WorldObject<Derived>::pe
 #endif
 
 #endif // MADNESS_WORLD_WORLDOBJ_H__INCLUDED
+///@}
