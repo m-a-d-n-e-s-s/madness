@@ -86,6 +86,8 @@ int main(int argc, char** argv) {
     World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     FunctionDefaults<NDIM>::set_cubic_cell(0.0,L);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(1e-6);
 
     Tensor<int> bc_periodic(NDIM,2);
     bc_periodic.fill(1);
@@ -102,9 +104,7 @@ int main(int argc, char** argv) {
         double err = df.err(FunctorInterfaceWrapper(dfunc));
         if (world.rank() == 0) print(axis,"error",err);
 
-        // FIXME: the default for the threshold is 1.e-4
-        // we set the success bar so that the current test doesn't fail
-        if (err>3.e-4) success++;
+        if (err>4e-5) success++;
     }
 
     finalize();

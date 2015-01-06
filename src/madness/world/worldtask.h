@@ -134,11 +134,21 @@ namespace madness {
                 task_result_type<fnT> >
         { };
 
-        template <typename memfnT>
-        struct memfunc_enabler : public
-            lazy_enable_if<
-                std::is_member_function_pointer<memfnT>,
-                task_result_type<memfnT> >
+        template <typename objT, typename memfnT, typename enableT = void>
+        struct memfunc_enabler { };
+
+        template <typename objT, typename memfnT>
+        struct memfunc_enabler<objT, memfnT,
+            typename enable_if_c<
+                std::is_base_of<typename detail::memfunc_traits<memfnT>::obj_type, objT>::value &&
+                std::is_member_function_pointer<memfnT>::value >::type>
+        {
+          typedef typename task_result_type<memfnT>::type type;
+        };
+
+        template <typename objT, typename memfnT>
+        struct memfunc_enabler<std::shared_ptr<objT>, memfnT, void> :
+            public memfunc_enabler<objT, memfnT>
         { };
 
     }  // namespace detail
@@ -660,20 +670,20 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename objT, typename memfnT>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),attr); }
 
         /// Invoke "resultT (obj.*memfun)(a1T)" as a local task
         template <typename objT, typename memfnT, typename a1T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,attr); }
 
         /// Invoke "resultT (obj.*memfun)(a1T,a2T)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,attr); }
@@ -681,7 +691,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,attr); }
@@ -689,7 +699,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,attr); }
@@ -697,7 +707,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const TaskAttributes attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,attr); }
@@ -705,7 +715,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6,
                 const TaskAttributes& attr=TaskAttributes())
@@ -714,7 +724,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const TaskAttributes& attr=TaskAttributes())
@@ -724,7 +734,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
             typename a8T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const a8T& a8, const TaskAttributes attr=TaskAttributes())
@@ -734,7 +744,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
             typename a8T, typename a9T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const a8T& a8, const a9T& a9, const TaskAttributes attr=TaskAttributes())
@@ -743,20 +753,20 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename objT, typename memfnT>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),attr); }
 
         /// Invoke "resultT (obj.*memfun)(a1T)" as a local task
         template <typename objT, typename memfnT, typename a1T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,attr); }
 
         /// Invoke "resultT (obj.*memfun)(a1T,a2T)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,attr); }
@@ -764,7 +774,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,attr); }
@@ -772,7 +782,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,attr); }
@@ -780,7 +790,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const TaskAttributes attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,attr); }
@@ -788,7 +798,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6,
                 const TaskAttributes& attr=TaskAttributes())
@@ -797,7 +807,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const TaskAttributes& attr=TaskAttributes())
@@ -807,7 +817,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
             typename a8T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const a8T& a8, const TaskAttributes attr=TaskAttributes())
@@ -817,7 +827,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
             typename a8T, typename a9T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const a8T& a8, const a9T& a9, const TaskAttributes attr=TaskAttributes())
@@ -825,20 +835,20 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename objT, typename memfnT>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),attr); }
 
         /// Invoke "resultT (obj.*memfun)(a1T)" as a local task
         template <typename objT, typename memfnT, typename a1T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,attr); }
 
         /// Invoke "resultT (obj.*memfun)(a1T,a2T)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,attr); }
@@ -846,7 +856,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,attr); }
@@ -854,7 +864,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,attr); }
@@ -863,7 +873,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const TaskAttributes attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,attr); }
@@ -872,7 +882,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6,
                 const TaskAttributes& attr=TaskAttributes())
@@ -881,7 +891,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const TaskAttributes& attr=TaskAttributes())
@@ -891,7 +901,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
             typename a8T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const a8T& a8, const TaskAttributes attr=TaskAttributes())
@@ -901,7 +911,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
             typename a8T, typename a9T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
                 const a7T& a7, const a8T& a8, const a9T& a9,
@@ -911,20 +921,20 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename objT, typename memfnT>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),attr); }
 
         /// Invoke "resultT (obj.*memfun)(a1T)" as a local task
         template <typename objT, typename memfnT, typename a1T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,attr); }
 
         /// Invoke "resultT (obj.*memfun)(a1T,a2T)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,attr); }
@@ -932,7 +942,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,attr); }
@@ -940,7 +950,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const TaskAttributes& attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,attr); }
@@ -949,7 +959,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const TaskAttributes attr=TaskAttributes())
         { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,attr); }
@@ -958,7 +968,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6,
                 const TaskAttributes& attr=TaskAttributes())
@@ -967,7 +977,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7)" as a local task
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const TaskAttributes& attr=TaskAttributes())
@@ -977,7 +987,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
             typename a8T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
                 const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
                 const a8T& a8, const TaskAttributes attr=TaskAttributes())
@@ -987,7 +997,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename a1T, typename a2T,
             typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
             typename a8T, typename a9T>
-        typename detail::memfunc_enabler<memfnT>::type
+        typename detail::memfunc_enabler<objT, memfnT>::type
         add(const objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
                 const a7T& a7, const a8T& a8, const a9T& a9,
