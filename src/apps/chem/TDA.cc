@@ -272,7 +272,7 @@ void TDA::guess_custom(xfunctionsT & xfunctions) {
 
 	real_function_3d anti_smoothing_function = real_factory_3d(world).functor(anti_smooth_functor);
 	plot_plane(world,anti_smoothing_function,"anti_smoothing_function");
-	exoperators exops(world);
+	exoperators exops(world,excitation_point_);
 
 	//	// project the active_mos on ao functions
 	//	vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
@@ -442,7 +442,7 @@ void TDA::add_diffuse_functions(vecfuncT &mos) {
 vecfuncT TDA::make_excitation_operators() const {
 	if(guess_exop_ == "custom"){
 
-		exoperators exops(world);
+		exoperators exops(world,excitation_point_);
 		vecfuncT xoperators = exops.get_custom_exops(world,custom_exops_);
 		return xoperators;
 
@@ -464,7 +464,7 @@ vecfuncT TDA::make_excitation_operators() const {
 		}
 		else key = guess_exop_;
 
-		exoperators exops(world);
+		exoperators exops(world,excitation_point_);
 		vecfuncT xoperators = exops.get_exops(world, key);
 
 		return xoperators;
@@ -476,7 +476,7 @@ void TDA::make_noise(xfunctionsT &xfunctions) const{
 	functorT smooth_functor(
 			new guess_smoothing(35.0));
 	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
-	exoperators exops(world);
+	exoperators exops(world,excitation_point_);
 	std::string random_key = "random";
 	for(size_t i=0;i<xfunctions.size();++i){
 		vecfuncT random_exop = exops.get_exops(world,random_key);
@@ -1481,7 +1481,7 @@ void TDA::analyze(xfunctionsT& roots) const {
 		}
 	}
 	// get the overlaps with exops
-	exoperators exops(world);
+	exoperators exops(world,excitation_point_);
 	for(size_t i=0;i<roots.size();i++){
 		functorT smooth_functor(
 				new guess_smoothing(guess_box_));

@@ -11,12 +11,12 @@
 namespace madness{
 struct exoperators{
 private:
-	static double sorbitalfunction(const coord_3d &r){
-		return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));
-	}
+	/// The point of excitation for the custom guess
+	coord_3d excitation_point_;
 public:
-	exoperators(World &world){
+	exoperators(World &world,const coord_3d excitation_point) : excitation_point_(excitation_point){
 		get_polynom_basis(world);
+		plot_polynom_basis(world);
 	}
 	std::vector<std::string> key_;
 	vecfuncT polynom_basis_;
@@ -24,9 +24,9 @@ public:
 		vecfuncT creators;
 		std::vector<std::string> key_creator;
 		std::vector<std::string> key;
-		 real_function_3d x   = real_factory_3d(world).f(x_function); creators.push_back(x);
-		 real_function_3d y   = real_factory_3d(world).f(y_function); creators.push_back(y);
-		 real_function_3d z   = real_factory_3d(world).f(z_function); creators.push_back(z);
+		 real_function_3d x   = real_factory_3d(world).f(x_function); x.add_scalar(-excitation_point_[0]); creators.push_back(x);
+		 real_function_3d y   = real_factory_3d(world).f(y_function); y.add_scalar(-excitation_point_[1]); creators.push_back(y);
+		 real_function_3d z   = real_factory_3d(world).f(z_function); z.add_scalar(-excitation_point_[2]); creators.push_back(z);
 		 std::string xstring = "x"; key_creator.push_back(xstring);
 		 std::string ystring = "y"; key_creator.push_back(ystring);
 		 std::string zstring = "z"; key_creator.push_back(zstring);
@@ -152,34 +152,12 @@ public:
 	polynom_basis_ = basis;
 	key_=key;
 	}
-
-	real_function_3d project_function_on_aos(World &world,const real_function_3d &f){
-		// Was just for testing purposes, avoid calling this in real calculations
-		MADNESS_EXCEPTION("WE SHOULD NOT BE HERE (TDA_exops.cc, line 160",1);
-
-		real_function_3d projected_f;
-		vecfuncT pol = polynom_basis_;
-		std::vector<double> overlaps;
-		real_function_3d sorbital = real_factory_3d(world).f(sorbitalfunction);
-
-		// get overlap with 1s function
-		double snorm = sqrt(inner(sorbital,sorbital));
-		sorbital.scale(1.0/snorm);
-		double s_overlap = inner(sorbital,f);
-		projected_f = s_overlap*sorbital;
-
-		// get rest of the overlaps
-		for(size_t i=0;i<pol.size();i++){
-			real_function_3d tmp = pol[i]*sorbital;
-			double normtmp = sqrt(inner(tmp,tmp));
-			tmp.scale(1.0/normtmp);
-			double overlap =  inner(tmp,f);
-			projected_f +=overlap*tmp;
-			overlaps.push_back(overlap);
+	void plot_polynom_basis(World &world){
+		for(size_t i=0;i<polynom_basis_.size();i++){
+			plot_plane(world,polynom_basis_[i],"polynom_basis_"+stringify(i));
 		}
-
-		return projected_f;
 	}
+
 
 	std::vector<double> get_overlaps_with_guess(World &world,vecfuncT &excitation,const vecfuncT &mo,const real_function_3d smoothing){
 		if(excitation.size()!=mo.size()) MADNESS_EXCEPTION("Error in calculating overlap with the guess operators, excitation vector and mo vector have different sizes",1);
@@ -544,6 +522,11 @@ private:
 		double aa = (double) a * sign;
 		return aa;
 	}
+
+	// Excitation operator creators for custom guess
+	double xc_function(const coord_3d &r){return r[0];}
+	double yc_function(const coord_3d &r){return r[1];}
+    double zc_function(const coord_3d &r){return r[2];}
 
 	// Dipole operators
 	static double x_function(const coord_3d &r){return r[0];}

@@ -466,6 +466,11 @@ public:
 	/// reads the input file and calculates needed functions
 	void setup(const vecfuncT &mos,const std::string input){
 
+		/// std excitation point is 0,0,0
+		excitation_point_[0]=0.0;
+		excitation_point_[1]=0.0;
+		excitation_point_[2]=0.0;
+
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
 
@@ -541,6 +546,9 @@ public:
 			else if (tag == "exop13") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "exop14") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "exop15") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "excitation_point_x") {ss>> excitation_point_[0];}
+			else if (tag == "excitation_point_y") {ss>> excitation_point_[1];}
+			else if (tag == "excitation_point_z") {ss>> excitation_point_[2];}
 			else if (tag == "guess_omega_1") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_2") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
 			else if (tag == "guess_omega_3") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
@@ -719,6 +727,9 @@ private:
 	/// The smoothing mode determines the size of the guess_box (box where the guess functions are not truncated to 0)
 	/// The size will be smoothing_mode_/8*L to ensure the borders are at dyadic points
 	double smoothing_mode_;
+
+	/// Excitation point: std is 0,0,0
+	coord_3d excitation_point_;
 
 	/// mode is either mo or all_orbitals (decides on which of the two functions the excitation operators act)
 	/// mo is the default, all_orbitals mode can increase the freedom (if there are convergence problems) of the guess functions
