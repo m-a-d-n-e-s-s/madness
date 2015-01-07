@@ -499,6 +499,14 @@ public:
 			}
 			xoperators.push_back(tmp);
 		}
+		else if (exop=="oscillating"){
+			real_function_3d tmp1 = real_factory_3d(world).f(sinus_x);  xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(sinus_y);  xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(sinus_z);  xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(cosinus_x);  xoperators.push_back(tmp4);
+			real_function_3d tmp5 = real_factory_3d(world).f(cosinus_y);  xoperators.push_back(tmp5);
+			real_function_3d tmp6 = real_factory_3d(world).f(cosinus_z);  xoperators.push_back(tmp6);
+		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
 			MADNESS_EXCEPTION("Unknown keyword in exop struct",1);
@@ -522,6 +530,14 @@ private:
 		double aa = (double) a * sign;
 		return aa;
 	}
+
+	// oscillating functions
+	static double sinus_x  (const coord_3d &r){return sin(r[0]);}
+	static double sinus_y  (const coord_3d &r){return sin(r[1]);}
+	static double sinus_z  (const coord_3d &r){return sin(r[2]);}
+	static double cosinus_x(const coord_3d &r){return cos(r[0]);}
+	static double cosinus_y(const coord_3d &r){return cos(r[1]);}
+	static double cosinus_z(const coord_3d &r){return cos(r[2]);}
 
 	// Excitation operator creators for custom guess
 	double xc_function(const coord_3d &r){return r[0];}

@@ -599,6 +599,7 @@ public:
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 			std::cout<< std::setw(40) << "make noise every " << noise_iter_ << " iteration" << std::endl;
 			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
+			std::cout<< std::setw(40) << "excitation_point is " << excitation_point_ << std::endl;
 		}
 
 
