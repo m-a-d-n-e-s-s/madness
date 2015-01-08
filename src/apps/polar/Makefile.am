@@ -7,7 +7,8 @@ else
 LDADD = $(MRALIBS)
 endif
 
-bin_PROGRAMS = testpg moldft mcpfit testperiodic testxc
+#bin_PROGRAMS = testpg moldft mcpfit testperiodic testxc
+bin_PROGRAMS = moldft
 
 moldft_SOURCES = moldft.cc lda.cc  molecule.cc \
                  molecule.h molecularbasis.h molecularbasis.cc \
