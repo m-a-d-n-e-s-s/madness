@@ -1,5 +1,5 @@
-#ifndef MOLDFT_XCMOLDFT_H
-#define MOLDFT_XCMOLDFT_H
+#ifndef MADNESS_CHEM_XCFUNCTIONAL_H__INCLUDED
+#define MADNESS_CHEM_XCFUNCTIONAL_H__INCLUDED
 
 #include <madness/madness_config.h>
 
@@ -12,16 +12,18 @@
 #include <algorithm>
 #include <utility>
 #include <madness/mra/key.h>
+#include <madness/world/world.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
 #endif
 
+namespace madness {
 /// Compute the spin-restricted LDA potential using unaryop (only for the initial guess)
 struct xc_lda_potential {
     xc_lda_potential() {}
 
-    void operator()(const madness::Key<3> & key, madness::Tensor<double>& t) const
+    void operator()(const Key<3> & key, Tensor<double>& t) const
     {
         int x_rks_s__(const double *r__, double *f, double * dfdra);
         int c_rks_vwn5__(const double *r__, double *f, double * dfdra);
@@ -41,13 +43,13 @@ class XCfunctional {
 protected:
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
+    double rhomin, rhotol, sigmin, sigtol; // See initialize and munge*
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
-                         madness::Tensor<double>& sigma,
-                         madness::Tensor<double>& delrho) const;
+                         madness::Tensor<double>& sigma) const;
     int nderiv;
 #endif
 
@@ -57,8 +59,8 @@ protected:
     /// \f[
     /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
     ///   \begin{array}{ll}
-    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}                   \\
-    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\
+    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}
+    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}}
     ///     x                                      & x_{\mathrm{max}} < x
     ///   \end{array}
     /// \right.
@@ -67,12 +69,11 @@ protected:
     /// satisfies \f$p(x_{min})=x_{min}\f$, \f$p(x_{max})=x_{max}\f$,
     /// \f$dp(x_{max})/dx=1\f$, and
     /// \f$dp(x_{min})/dx=d^2p(x_{min})/dx^2=d^2p(x_{max})/dx^2=0\f$.
-
     static void polyn(const double x, double& p, double& dpdx) {
         // All of the static const stuff is evaluated at compile time
 
-        static const double xmin = 1e-10; // <<<< MINIMUM VALUE OF DENSITY
-        static const double xmax = 1e-8;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
+        static const double xmin = 1.e-6; // <<<< MINIMUM VALUE OF DENSITY
+        static const double xmax = 5.e-5;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
 
         static const double xmax2 = xmax*xmax;
         static const double xmax3 = xmax2*xmax;
@@ -99,73 +100,34 @@ protected:
             dpdx = a+(2.0*b+(3.0*c+(4.0*d+5.0*e*x)*x)*x)*x;
         }
     }
-
-    static double munge(double rho) {
+public:
+    static double munge_old(double rho) {
         double p, dpdx;
         polyn(rho, p, dpdx);
         return p;
     }
 
-    static void munge2(double& rho, double& sigma) {
-        // rho(x) --> p(rho(x))
-        // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (sigma < 0.0) sigma = 0.0;
-        double p, dpdx;
-        polyn(rho, p, dpdx);
-        rho = p;
-        sigma *= dpdx*dpdx;
-    }
-    static void munge_der(double& rhoa, double& sigma, double& drx, double& dry, double& drz) {
-        // rho(x) --> p(rho(x))
-        // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (sigma < 0.0) sigma = 0.0;
-        double p, dpdx;
-        polyn(rhoa, p, dpdx);
-        rhoa = p;
-        sigma *= dpdx*dpdx;
-        drx *=dpdx;
-        dry *=dpdx;
-        drz *=dpdx;
-    }
-    static void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) {
-        // rho(x) --> p(rho(x))
-        // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (saa < 0.0) saa = 0.0;
-        if (sab < 0.0) sab = 0.0;
-        if (sbb < 0.0) sbb = 0.0;
-        double pa, pb, dpadx, dpbdx;
-        polyn(rhoa, pa, dpadx);
-        polyn(rhob, pb, dpbdx);
-        rhoa = pa;
-        rhob = pb;
-        saa *= dpadx*dpadx;
-        sab *= dpadx*dpbdx;
-        sbb *= dpbdx*dpbdx;
-    }
-    static void munge5_der(double& rhoa, double& rhob, double& saa, double& sab, double& sbb,
-                           double& drax, double& dray, double& draz,
-                           double& drbx, double& drby, double& drbz) {
-        // rho(x) --> p(rho(x))
-        // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (saa < 0.0) saa = 0.0;
-        if (sab < 0.0) sab = 0.0;
-        if (sbb < 0.0) sbb = 0.0;
-        double pa, pb, dpadx, dpbdx;
-        polyn(rhoa, pa, dpadx);
-        polyn(rhob, pb, dpbdx);
-        rhoa = pa;
-        rhob = pb;
-        saa *= dpadx*dpadx;
-        sab *= dpadx*dpbdx;
-        sbb *= dpbdx*dpbdx;
+private:
 
-        drax *=dpadx;
-        dray *=dpadx;
-        draz *=dpadx;
 
-        drbx *=dpbdx;
-        drby *=dpbdx;
-        drbz *=dpbdx;
+    double munge(double rho) const {
+        if (rho <= rhotol) rho=rhomin;
+        return rho;
+    }
+
+    void munge2(double& rho, double& sigma) const {
+        if (rho < rhotol) rho=rhomin;
+        if (rho < rhotol || sigma < sigtol) sigma=sigmin;
+    }
+
+    void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) const {
+        if (rhoa < rhotol || rhob < rhotol || sab < sigtol) sab=sigmin; // ??????????
+
+        if (rhoa < rhotol) rhoa=rhomin;
+        if (rhoa < rhotol || saa < sigtol) saa=sigmin;
+
+        if (rhob < rhotol) rhob=rhomin;
+        if (rhob < rhotol || sbb < sigtol) sbb=sigmin;
     }
 
 public:
@@ -176,7 +138,7 @@ public:
 
     /// @param[in] input_line User input line (without beginning XC keyword)
     /// @param[in] polarized Boolean flag indicating if the calculation is spin-polarized
-    void initialize(const std::string& input_line, bool polarized);
+    void initialize(const std::string& input_line, bool polarized, World& world);
 
     /// Destructor
     ~XCfunctional();
@@ -276,7 +238,10 @@ public:
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] what Specifies which component of the potential is to be computed as described above
     /// @return The component specified by the \c what parameter
+
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
+
+    madness::Tensor<double> fxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
 
     /// Crude function to plot the energy and potential functionals
     void plot() const {
@@ -333,5 +298,24 @@ struct xc_potential {
         return r;
     }
 };
+
+/// Class to compute terms of the kernel
+struct xc_kernel {
+    const XCfunctional* xc;
+    const int what;
+    const int ispin;
+
+    xc_kernel(const XCfunctional& xc, int ispin,int what)
+        : xc(&xc), what(what), ispin(ispin)
+    {}
+
+    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
+    {
+        MADNESS_ASSERT(xc);
+        madness::Tensor<double> r = xc->fxc(t, ispin, what);
+        return r;
+    }
+};
+}
 
 #endif

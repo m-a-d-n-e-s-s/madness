@@ -39,18 +39,16 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 
-#include <madness/tensor/solvers.h>
-#include <madness/tensor/distributed_matrix.h>
-
-using namespace madness;
-
 #include <polar/molecule.h>
 #include <polar/molecularbasis.h>
 #include <polar/corepotential.h>
 #include <polar/xcfunctional.h>
-
 #include <polar/potentialmanager.h>
 
+#include <madness/tensor/solvers.h>
+#include <madness/tensor/distributed_matrix.h>
+
+using namespace madness;
 
 //#include <jacob/abinitdftsolventsolver.h>
 //#include <examples/molecularmask.h>
@@ -998,7 +996,7 @@ struct Calculation {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
 
-        xc.initialize(param.xc_data, !param.spin_restricted);
+        xc.initialize(param.xc_data, !param.spin_restricted, world);
         //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
