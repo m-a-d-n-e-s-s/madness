@@ -507,20 +507,21 @@ public:
 			real_function_3d tmp5 = real_factory_3d(world).f(cosinus_y);  xoperators.push_back(tmp5);
 			real_function_3d tmp6 = real_factory_3d(world).f(cosinus_z);  xoperators.push_back(tmp6);
 		}
-		else if (exop=="oscillating2"){
+		else if (exop=="oscillating_2"){
 			real_function_3d tmp1 = real_factory_3d(world).f(sinus_x);  xoperators.push_back(tmp1);
 			real_function_3d tmp2 = real_factory_3d(world).f(sinus_y);  xoperators.push_back(tmp2);
 			real_function_3d tmp3 = real_factory_3d(world).f(sinus_z);  xoperators.push_back(tmp3);
-			real_function_3d tmp4 = real_factory_3d(world).f(cosinus_x);  xoperators.push_back(tmp4);
-			real_function_3d tmp5 = real_factory_3d(world).f(cosinus_y);  xoperators.push_back(tmp5);
-			real_function_3d tmp6 = real_factory_3d(world).f(cosinus_z);  xoperators.push_back(tmp6);
-
-			real_function_3d tmp11 = real_factory_3d(world).f(sinus_2x);  xoperators.push_back(tmp11);
-			real_function_3d tmp12 = real_factory_3d(world).f(sinus_2y);  xoperators.push_back(tmp12);
-			real_function_3d tmp13 = real_factory_3d(world).f(sinus_2z);  xoperators.push_back(tmp13);
-			real_function_3d tmp14 = real_factory_3d(world).f(cosinus_2x);  xoperators.push_back(tmp14);
-			real_function_3d tmp15 = real_factory_3d(world).f(cosinus_2y);  xoperators.push_back(tmp15);
-			real_function_3d tmp16 = real_factory_3d(world).f(cosinus_2z);  xoperators.push_back(tmp16);
+			real_function_3d tmp4 = real_factory_3d(world).f(cosinus_r); xoperators.push_back(tmp4);
+		}
+		else if (exop=="oscillating_small"){
+			real_function_3d tmp1 = real_factory_3d(world).f(sinus_r); xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(cosinus_r); xoperators.push_back(tmp2);
+		}
+		else if (exop=="oscillating_small_2"){
+			real_function_3d tmp1 = real_factory_3d(world).f(sinus_x); xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(sinus_y); xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(sinus_z); xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(cosinus_2r); xoperators.push_back(tmp4);
 		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
@@ -554,12 +555,18 @@ private:
 	static double cosinus_y(const coord_3d &r){return cos(r[1]);}
 	static double cosinus_z(const coord_3d &r){return cos(r[2]);}
 
-	static double sinus_2x  (const coord_3d &r){return sin(r[0]);}
-	static double sinus_2y  (const coord_3d &r){return sin(r[1]);}
-	static double sinus_2z  (const coord_3d &r){return sin(r[2]);}
-	static double cosinus_2x(const coord_3d &r){return cos(r[0]);}
-	static double cosinus_2y(const coord_3d &r){return cos(r[1]);}
-	static double cosinus_2z(const coord_3d &r){return cos(r[2]);}
+	static double sinus_r (const coord_3d &r){return sin(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));}
+	static double cosinus_r (const coord_3d &r){return cos(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));}
+
+	static double sinus_2r (const coord_3d &r){return sin(2*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));}
+	static double cosinus_2r (const coord_3d &r){return cos(2*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));}
+
+	static double sinus_2x  (const coord_3d &r){return sin(2*r[0]);}
+	static double sinus_2y  (const coord_3d &r){return sin(2*r[1]);}
+	static double sinus_2z  (const coord_3d &r){return sin(2*r[2]);}
+	static double cosinus_2x(const coord_3d &r){return cos(2*r[0]);}
+	static double cosinus_2y(const coord_3d &r){return cos(2*r[1]);}
+	static double cosinus_2z(const coord_3d &r){return cos(2*r[2]);}
 
 	// Excitation operator creators for custom guess
 	double xc_function(const coord_3d &r){return r[0];}
