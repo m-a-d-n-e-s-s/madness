@@ -204,12 +204,6 @@ testsystolic.cc
 embedded_dirichlet.cc
 test_problems.h
 
-./src/apps/interior_bc/nanophoto:
-atom.h
-basisfunction.h
-density.h
-nanophoto.cc
-
 ./src/apps/moldft:
 lda.f
 mcpfit.cc
