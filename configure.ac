@@ -391,7 +391,6 @@ AC_CONFIG_FILES([
         src/apps/polar/Makefile
         src/apps/nick/Makefile
         src/apps/interior_bc/Makefile
-        src/apps/interior_bc/nanophoto/Makefile
       src/examples/Makefile
     doc/Makefile
     doc/doxygen.cfg
