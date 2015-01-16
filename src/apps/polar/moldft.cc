@@ -39,19 +39,16 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 
-#include <madness/tensor/solvers.h>
-#include <madness/tensor/distributed_matrix.h>
-
-#include <madness/TAU.h>
-using namespace madness;
-
 #include <polar/molecule.h>
 #include <polar/molecularbasis.h>
 #include <polar/corepotential.h>
 #include <polar/xcfunctional.h>
-
 #include <polar/potentialmanager.h>
 
+#include <madness/tensor/solvers.h>
+#include <madness/tensor/distributed_matrix.h>
+
+using namespace madness;
 
 //#include <jacob/abinitdftsolventsolver.h>
 //#include <examples/molecularmask.h>
@@ -976,7 +973,6 @@ struct Calculation {
 
     Calculation(World & world, const char *filename)
     {
-        TAU_START("Calculation (World &, const char *");
         if(world.rank() == 0) {
             molecule.read_file(filename);
             param.read_file(filename);
@@ -1000,16 +996,13 @@ struct Calculation {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
 
-	TAU_START("xc.initialize");
-        xc.initialize(param.xc_data, !param.spin_restricted);
-	TAU_STOP("xc.initialize");
+        xc.initialize(param.xc_data, !param.spin_restricted, world);
         //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
 
         potentialmanager = std::shared_ptr<PotentialManager>(new PotentialManager(molecule, param.core_type));
-        TAU_STOP("Calculation (World &, const char *");
     }
 
     void set_protocol(World & world, double thresh)
@@ -1047,9 +1040,7 @@ struct Calculation {
     }
 
     void save_mos(World& world) {
-	TAU_START("archive::ParallelOutputArchive ar(world)");
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
-	TAU_STOP("archive::ParallelOutputArchive ar(world)");
         ar & param.spin_restricted;
         ar & (unsigned int)(amo.size());
         ar & aeps & aocc & aset;
@@ -1062,7 +1053,6 @@ struct Calculation {
     }
 
     void load_mos(World& world) {
-	TAU_START("load_mos");
         const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
@@ -1153,12 +1143,10 @@ struct Calculation {
 
             }
         }
-	TAU_STOP("load_mos");
     }
 
     void do_plots(World& world) {
         START_TIMER(world);
-	TAU_START("do_plots");
 
         std::vector<long> npt(3,param.npt_plot);
 
@@ -1201,7 +1189,6 @@ struct Calculation {
             }
         }
         END_TIMER(world, "plotting");
-	TAU_STOP("do_plots");
     }
 
     void project(World & world)
@@ -1226,11 +1213,9 @@ struct Calculation {
 
     void make_nuclear_potential(World & world)
     {
-        TAU_START("Project vnuclear");
         START_TIMER(world);
         potentialmanager->make_nuclear_potential(world);
         END_TIMER(world, "Project vnuclear");
-        TAU_STOP("Project vnuclear");
     }
 
     void project_ao_basis(World & world)
@@ -1238,7 +1223,6 @@ struct Calculation {
         // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
         aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
 
-        TAU_START("project ao basis");
         START_TIMER(world);
         ao = vecfuncT(aobasis.nbf(molecule));
         for(int i = 0;i < aobasis.nbf(molecule);++i){
@@ -1249,7 +1233,6 @@ struct Calculation {
         truncate(world, ao);
         normalize(world, ao);
         END_TIMER(world, "project ao basis");
-        TAU_STOP("project ao basis");
 	print_meminfo(world.rank(), "project ao basis");
     }
 
@@ -1399,7 +1382,6 @@ struct Calculation {
 
     tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = false)
     {
-	TAU_START("Pipek-Mezy localize");
         START_TIMER(world);
         tensorT UT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf, thresh, thetamax, randomize, doprint);
         END_TIMER(world, "Pipek-Mezy distributed ");
@@ -1456,7 +1438,6 @@ struct Calculation {
         }
         world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Pipek-Mezy localize");
-        TAU_STOP("Pipek-Mezy localize");
 	print_meminfo(world.rank(), "Pipek-Mezy localize");
         return U;
     }
@@ -1480,11 +1461,9 @@ struct Calculation {
         }
             tensorT C;
 
-            TAU_START("compute eigen gesv analize vectors");
             START_TIMER(world);
             gesvp(world, Saoao, Saomo, C);
             END_TIMER(world, " compute eigen gesv analize vectors");
-            TAU_STOP("compute eigen gesv analize vectors");
         if(world.rank() == 0){
             C = transpose(C);
             long nmo = mo.size();
@@ -1513,7 +1492,6 @@ struct Calculation {
 
     tensorT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true)
     {
-        TAU_START("Boys localize");
         START_TIMER(world);
         const bool doprint = false;
         long nmo = mo.size();
@@ -1635,7 +1613,6 @@ struct Calculation {
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Boys localize");
-        TAU_STOP("Boys localize");
         return U;
     }
 
@@ -1736,7 +1713,6 @@ struct Calculation {
                 print("guess dens trace", nel);
 
             if(world.size() > 1) {
-                TAU_START("guess loadbal");
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
                 real_function_3d vnuc = potentialmanager->vnuclear();
@@ -1745,18 +1721,15 @@ struct Calculation {
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
                 END_TIMER(world, "guess loadbal");
-                TAU_STOP("guess loadbal");
             }
 
             // Diag approximate fock matrix to get initial mos
             functionT vlocal;
             if(param.nalpha + param.nbeta > 1){
-                TAU_START("guess Coulomb potn");
                 START_TIMER(world);
                 real_function_3d vnuc = potentialmanager->vnuclear();
                 vlocal = vnuc + apply(*coulop, rho);
                 END_TIMER(world, "guess Coulomb potn");
-                TAU_STOP("guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
                 vlocal = vlocal + make_lda_potential(world, rho);
@@ -1780,11 +1753,9 @@ struct Calculation {
             }
 
             tensorT overlap = matrix_inner(world, ao, ao, true);
-            TAU_START("guess Kinet potn");
             START_TIMER(world);
             tensorT kinetic = kinetic_energy_matrix(world, ao);
             END_TIMER(world, "guess Kinet potn");
-            TAU_STOP("guess Kinet potn");
             reconstruct(world, ao);
             vlocal.reconstruct();
             vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
@@ -1797,11 +1768,9 @@ struct Calculation {
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
 
-            TAU_START("guess eigen sol");
             START_TIMER(world);
             sygvp(world, fock, overlap, 1, c, e);
             END_TIMER(world, "guess eigen sol");
-            TAU_STOP("guess eigen sol");
 	    print_meminfo(world.rank(), "guess eigen sol");
 
 	    // NAR 7/5/2013
@@ -1890,7 +1859,6 @@ struct Calculation {
                 print("guess dens trace", nel);
 
             if(world.size() > 1) {
-                TAU_START("guess loadbal");
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
                 real_function_3d vnuc = potentialmanager->vnuclear();
@@ -1899,18 +1867,15 @@ struct Calculation {
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
                 END_TIMER(world, "guess loadbal");
-                TAU_STOP("guess loadbal");
             }
 
             // Diag approximate fock matrix to get initial mos
             functionT vlocal;
             if(param.nalpha + param.nbeta > 1){
-                TAU_START("guess Coulomb potn");
                 START_TIMER(world);
                 real_function_3d vnuc = potentialmanager->vnuclear();
                 vlocal = vnuc + apply(*coulop, rho);
                 END_TIMER(world, "guess Coulomb potn");
-                TAU_STOP("guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
                 vlocal = vlocal + make_lda_potential(world, rho);
@@ -1934,11 +1899,9 @@ struct Calculation {
             }
 
             tensorT overlap = matrix_inner(world, ao, ao, true);
-            TAU_START("guess Kinet potn");
             START_TIMER(world);
             tensorT kinetic = kinetic_energy_matrix(world, ao);
             END_TIMER(world, "guess Kinet potn");
-            TAU_STOP("guess Kinet potn");
             reconstruct(world, ao);
             vlocal.reconstruct();
             vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
@@ -1951,11 +1914,9 @@ struct Calculation {
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
 
-            TAU_START("guess eigen sol");
             START_TIMER(world);
             sygvp(world, fock, overlap, 1, c, e);
             END_TIMER(world, "guess eigen sol");
-            TAU_STOP("guess eigen sol");
 	    print_meminfo(world.rank(), "guess eigen sol");
 
 	    // NAR 7/5/2013
@@ -2111,8 +2072,7 @@ struct Calculation {
         int nocc = psi.size();
         int nf = f.size();
         double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
-        vecfuncT Kf = zero_functions<double,3>(world, nf);
-        compress(world, Kf);
+        vecfuncT Kf = zero_functions_compressed<double,3>(world, nf);
         reconstruct(world, psi);
         norm_tree(world, psi);
         if (!same) {
@@ -2206,7 +2166,6 @@ struct Calculation {
 
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
-            TAU_START("DFT potential");
             START_TIMER(world);
 #ifdef MADNESS_HAS_LIBXC
             exc = make_dft_energy(world, vf, ispin);
@@ -2230,18 +2189,14 @@ struct Calculation {
             }
 #endif
             END_TIMER(world, "DFT potential");
-            TAU_STOP("DFT potential");
         }
 
 
-	TAU_START("V*psi");
         START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
-	TAU_STOP("V*psi");
 	print_meminfo(world.rank(), "V*psi");
         if(xc.hf_exchange_coefficient()){
-	    TAU_START("HF exchange");
             START_TIMER(world);
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
             tensorT excv = inner(world, Kamo, amo);
@@ -2253,24 +2208,19 @@ struct Calculation {
             gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
             Kamo.clear();
             END_TIMER(world, "HF exchange");
-	    TAU_STOP("HF exchange");
             exc = exchf* xc.hf_exchange_coefficient() + exc;
         }
         potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
 
         if (param.core_type.substr(0,3) == "mcp") {
-            TAU_START("MCP Core Projector");
             START_TIMER(world);
             gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
             END_TIMER(world, "MCP Core Projector");
-            TAU_STOP("MCP Core Projector");
         }
 
-        TAU_START("Truncate Vpsi");
         START_TIMER(world);
         truncate(world, Vpsi);
         END_TIMER(world, "Truncate Vpsi");
-        TAU_STOP("Truncate Vpsi");
 	print_meminfo(world.rank(), "Truncate Vpsi");
         world.gop.fence();
         return Vpsi;
@@ -2285,7 +2235,6 @@ struct Calculation {
 
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
-            TAU_START("DFT potential");
             START_TIMER(world);
 #ifdef MADNESS_HAS_LIBXC
             exc = make_dft_energy(world, vf, ispin);
@@ -2309,18 +2258,14 @@ struct Calculation {
             }
 #endif
             END_TIMER(world, "DFT potential");
-            TAU_STOP("DFT potential");
         }
 
 
-	TAU_START("V*dmo");
         START_TIMER(world);
         vecfuncT Vdmo = mul_sparse(world, vloc, dmo, vtol);
         END_TIMER(world, "V*dmo");
-	TAU_STOP("V*dmo");
 	print_meminfo(world.rank(), "V*dmo");
         if(xc.hf_exchange_coefficient()){
-	    TAU_START("HF exchange");
             START_TIMER(world);
             vecfuncT Kdmo;
             if(flag == 0)
@@ -2336,24 +2281,19 @@ struct Calculation {
             gaxpy(world, 1.0, Vdmo, -xc.hf_exchange_coefficient(), Kdmo);
             Kdmo.clear();
             END_TIMER(world, "HF exchange");
-            TAU_STOP("HF exchange");
             //exc = exchf* xc.hf_exchange_coefficient() + exc;
         }
         potentialmanager->apply_nonlocal_potential(world, dmo, Vdmo);
 
         if (param.core_type.substr(0,3) == "mcp") {
-            TAU_START("MCP Core Projector");
             START_TIMER(world);
             gaxpy(world, 1.0, Vdmo, 1.0, core_projection(world, dmo));
             END_TIMER(world, "MCP Core Projector");
-            TAU_STOP("MCP Core Projector");
         }
 
-        TAU_START("Truncate Vdmo");
         START_TIMER(world);
         truncate(world, Vdmo);
         END_TIMER(world, "Truncate Vdmo");
-        TAU_STOP("Truncate Vdmo");
 	print_meminfo(world.rank(), "Truncate Vdmo");
         world.gop.fence();
         return Vdmo;
@@ -2368,7 +2308,6 @@ struct Calculation {
 
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
-            TAU_START("DFT potential");
             START_TIMER(world);
 #ifdef MADNESS_HAS_LIBXC
             exc = make_dft_energy(world, vf, ispin);
@@ -2392,7 +2331,6 @@ struct Calculation {
             }
 #endif
             END_TIMER(world, "DFT potential");
-            TAU_STOP("DFT potential");
         }
 
         //vecfuncT perturbation = zero_functions<double,3>(world, 3) ;
@@ -2411,14 +2349,11 @@ struct Calculation {
         //vloc = vloc - dipolefunc;
                 print("Vloc2", vloc.trace(), vloc.norm2());
 
-	TAU_START("V*psi");
         START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amo_mp, vtol);
         END_TIMER(world, "V*psi");
-	TAU_STOP("V*psi");
 	print_meminfo(world.rank(), "V*psi");
         if(xc.hf_exchange_coefficient()){
-	    TAU_START("HF exchange");
             START_TIMER(world);
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo_mp, amo_mp);
             tensorT excv = inner(world, Kamo, amo_mp);
@@ -2430,24 +2365,19 @@ struct Calculation {
             gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
             Kamo.clear();
             END_TIMER(world, "HF exchange");
-	    TAU_STOP("HF exchange");
             exc = exchf* xc.hf_exchange_coefficient() + exc;
         }
         potentialmanager->apply_nonlocal_potential(world, amo_mp, Vpsi);
 
         if (param.core_type.substr(0,3) == "mcp") {
-            TAU_START("MCP Core Projector");
             START_TIMER(world);
             gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo_mp));
             END_TIMER(world, "MCP Core Projector");
-            TAU_STOP("MCP Core Projector");
         }
 
-        TAU_START("Truncate Vpsi");
         START_TIMER(world);
         truncate(world, Vpsi);
         END_TIMER(world, "Truncate Vpsi");
-        TAU_STOP("Truncate Vpsi");
 	print_meminfo(world.rank(), "Truncate Vpsi");
         world.gop.fence();
         return Vpsi;
@@ -2455,7 +2385,6 @@ struct Calculation {
 
     tensorT derivatives(World & world)
     {
-        TAU_START("derivatives");
         START_TIMER(world);
 
         functionT rho = make_density(world, aocc, amo);
@@ -2504,7 +2433,6 @@ struct Calculation {
         //if (world.rank() == 0) print("derivatives:\n", r, ru, rc, ra);
         r +=  ra + ru + rc;
         END_TIMER(world,"derivatives");
-        TAU_STOP("derivatives");
 
         if (world.rank() == 0) {
             print("\n Derivatives (a.u.)\n -----------\n");
@@ -2522,7 +2450,6 @@ struct Calculation {
 
     tensorT dipole(World & world)
     {
-        TAU_START("dipole");
         START_TIMER(world);
         tensorT mu(3);
         for (unsigned int axis=0; axis<3; ++axis) {
@@ -2548,7 +2475,6 @@ struct Calculation {
             print(" Total Dipole Moment: ", mu.normf());
         }
         END_TIMER(world, "dipole");
-        TAU_STOP("dipole");
 
         return mu;
     }
@@ -2589,11 +2515,9 @@ struct Calculation {
         if(world.rank() == 0)
             std::cout << "entering apply\n";
 
-        TAU_START("Apply BSH");
         START_TIMER(world);
         vecfuncT new_psi = apply(world, ops, Vpsi);
         END_TIMER(world, "Apply BSH");
-        TAU_STOP("Apply BSH");
         ops.clear();
         Vpsi.clear();
         world.gop.fence();
@@ -2601,11 +2525,9 @@ struct Calculation {
         // Thought it was a bad idea to truncate *before* computing the residual
         // but simple tests suggest otherwise ... no more iterations and
         // reduced iteration time from truncating.
-        TAU_START("Truncate new psi");
         START_TIMER(world);
         truncate(world, new_psi);
         END_TIMER(world, "Truncate new psi");
-        TAU_STOP("Truncate new psi");
 
         vecfuncT r = sub(world, psi, new_psi);
         std::vector<double> rnorm = norm2s(world, r);
@@ -2621,18 +2543,13 @@ struct Calculation {
 
     tensorT make_fock_matrix(World & world, const vecfuncT & psi, const vecfuncT & Vpsi, const tensorT & occ, double & ekinetic)
     {
-	TAU_START("PE matrix");
         START_TIMER(world);
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
         END_TIMER(world, "PE matrix");
-	TAU_STOP("PE matrix");
-	TAU_START("KE matrix");
         START_TIMER(world);
         tensorT ke = kinetic_energy_matrix(world, psi);
         END_TIMER(world, "KE matrix");
-	TAU_STOP("KE matrix");
-            TAU_START("Make fock matrix rest");
-            START_TIMER(world);
+	START_TIMER(world);
         int nocc = occ.size();
         ekinetic = 0.0;
         for(int i = 0;i < nocc;++i){
@@ -2641,8 +2558,7 @@ struct Calculation {
         ke += pe;
         pe = tensorT();
         ke.gaxpy(0.5, transpose(ke), 0.5);
-            END_TIMER(world, "Make fock matrix rest");
-            TAU_STOP("Make fock matrix rest");
+	END_TIMER(world, "Make fock matrix rest");
         return ke;
     }
 
@@ -2710,14 +2626,11 @@ struct Calculation {
         long nmo = psi.size();
         tensorT overlap = matrix_inner(world, psi, psi, true);
 
-        TAU_START("Diagonalization Fock-mat w sygv");
         START_TIMER(world);
         tensorT U;
         sygvp(world, fock, overlap, 1, U, evals);
         END_TIMER(world, "Diagonalization Fock-mat w sygv");
-        TAU_STOP("Diagonalization Fock-mat w sygv");
 
-        TAU_START("Diagonalization rest");
         START_TIMER(world);
         // Within blocks with the same occupation number attempt to
         // keep orbitals in the same order (to avoid confusing the
@@ -2808,7 +2721,6 @@ struct Calculation {
         normalize(world, psi);
 
         END_TIMER(world, "Diagonalization rest");
-        TAU_STOP("Diagonalization rest");
         return U;
     }
 
@@ -2915,15 +2827,10 @@ struct Calculation {
             print("Response Subspace solution", c);
         }
         START_TIMER(world);
-        vecfuncT ax_new = zero_functions<double,3>(world, ax.size());
-        vecfuncT ay_new = zero_functions<double,3>(world, ay.size());
-        vecfuncT bx_new = zero_functions<double,3>(world, bx.size());
-        vecfuncT by_new = zero_functions<double,3>(world, by.size());
-        compress(world, ax_new, false);
-        compress(world, ay_new, false);
-        compress(world, bx_new, false);
-        compress(world, by_new, false);
-        world.gop.fence();
+        vecfuncT ax_new = zero_functions_compressed<double,3>(world, ax.size());
+        vecfuncT ay_new = zero_functions_compressed<double,3>(world, ay.size());
+        vecfuncT bx_new = zero_functions_compressed<double,3>(world, bx.size());
+        vecfuncT by_new = zero_functions_compressed<double,3>(world, by.size());
 
         for(unsigned int m = 0;m < subspace.size();++m){
             const vecfuncT & vm = subspace[m].first;
@@ -3162,13 +3069,9 @@ struct Calculation {
         if(world.rank() == 0){
             print("Subspace solution", c);
         }
-        TAU_START("Subspace transform");
         START_TIMER(world);
-        vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
-        vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
-        compress(world, amo_new, false);
-        compress(world, bmo_new, false);
-        world.gop.fence();
+        vecfuncT amo_new = zero_functions_compressed<double,3>(world, amo.size());
+        vecfuncT bmo_new = zero_functions_compressed<double,3>(world, bmo.size());
         for(unsigned int m = 0;m < subspace.size();++m){
             const vecfuncT & vm = subspace[m].first;
             const vecfuncT & rm = subspace[m].second;
@@ -3183,7 +3086,6 @@ struct Calculation {
         }
         world.gop.fence();
         END_TIMER(world, "Subspace transform");
-        TAU_STOP("Subspace transform");
         if(param.maxsub <= 1){
             subspace.clear();
         } else if(subspace.size() == param.maxsub){
@@ -3243,7 +3145,6 @@ struct Calculation {
 
             update_residual = std::max(update_residual, maxval);
         }
-        TAU_START("Orthonormalize");
         START_TIMER(world);
         double trantol = vtol / std::min(30.0, double(amo.size()));
         normalize(world, amo_new);
@@ -3257,7 +3158,6 @@ struct Calculation {
             normalize(world, bmo_new);
         }
         END_TIMER(world, "Orthonormalize");
-        TAU_STOP("Orthonormalize");
         amo = amo_new;
         bmo = bmo_new;
     }
@@ -3362,13 +3262,9 @@ struct Calculation {
         if(world.rank() == 0){
             print("Subspace solution", c);
         }
-        TAU_START("Subspace transform");
         START_TIMER(world);
-        vecfuncT amo_new = zero_functions<double,3>(world, amo_mp.size());
-        vecfuncT bmo_new = zero_functions<double,3>(world, bmo_mp.size());
-        compress(world, amo_new, false);
-        compress(world, bmo_new, false);
-        world.gop.fence();
+        vecfuncT amo_new = zero_functions_compressed<double,3>(world, amo_mp.size());
+        vecfuncT bmo_new = zero_functions_compressed<double,3>(world, bmo_mp.size());
         for(unsigned int m = 0;m < subspace.size();++m){
             const vecfuncT & vm = subspace[m].first;
             const vecfuncT & rm = subspace[m].second;
@@ -3383,7 +3279,6 @@ struct Calculation {
         }
         world.gop.fence();
         END_TIMER(world, "Subspace transform");
-        TAU_STOP("Subspace transform");
         if(param.maxsub <= 1){
             subspace.clear();
         } else if(subspace.size() == param.maxsub){
@@ -3443,7 +3338,6 @@ struct Calculation {
 
             update_residual = std::max(update_residual, maxval);
         }
-        TAU_START("Orthonormalize");
         START_TIMER(world);
         double trantol = vtol / std::min(30.0, double(amo_mp.size()));
         normalize(world, amo_new);
@@ -3457,7 +3351,6 @@ struct Calculation {
             normalize(world, bmo_new);
         }
         END_TIMER(world, "Orthonormalize");
-        TAU_STOP("Orthonormalize");
         amo_mp = amo_new;
         bmo_mp = bmo_new;
     }
@@ -3678,7 +3571,6 @@ struct Calculation {
                 }
             }
 
-            TAU_START("Make densities");
             START_TIMER(world);
             functionT arho = make_density(world, aocc, amo), brho;
 
@@ -3694,7 +3586,6 @@ struct Calculation {
                 brho = functionT(world); // zero
             }
             END_TIMER(world, "Make densities");
-            TAU_STOP("Make densities");
 	    print_meminfo(world.rank(), "Make densities");
 
             if(iter < 2 || (iter % 10) == 0){
@@ -3720,12 +3611,10 @@ struct Calculation {
             double enuclear = inner(rho, vnuc);
 
 
-            TAU_START("Coulomb");
             START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);
             functionT vlocal;
             END_TIMER(world, "Coulomb");
-            TAU_STOP("Coulomb");
 	    print_meminfo(world.rank(), "Coulomb");
 
             double ecoulomb = 0.5 * inner(rho, vcoul);
@@ -3828,11 +3717,9 @@ struct Calculation {
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
 
-                    TAU_START("focka eigen sol");
                     START_TIMER(world);
                     sygvp(world, focka, overlap, 1, U, aeps);
                     END_TIMER(world, "focka eigen sol");
-                    TAU_STOP("focka eigen sol");
 
                     if (!param.localize) {
                         amo = transform(world, amo, U, trantol, true);
@@ -3842,11 +3729,9 @@ struct Calculation {
                     if(param.nbeta != 0 && !param.spin_restricted){
                         overlap = matrix_inner(world, bmo, bmo, true);
 
-                        TAU_START("fockb eigen sol");
                         START_TIMER(world);
                         sygvp(world, fockb, overlap, 1, U, beps);
                         END_TIMER(world, "fockb eigen sol");
-                        TAU_STOP("fockb eigen sol");
 
                         if (!param.localize) {
                             bmo = transform(world, bmo, U, trantol, true);
@@ -4142,7 +4027,6 @@ struct Calculation {
                 }
             }
 
-            TAU_START("Make densities");
             START_TIMER(world);
             functionT arho, brho;
             if(iter == 0) arho = make_density(world, aocc, amo);
@@ -4161,7 +4045,6 @@ struct Calculation {
                 brho = functionT(world); // zero
             }
             END_TIMER(world, "Make densities");
-            TAU_STOP("Make densities");
             print_meminfo(world.rank(), "Make densities");
 
             if(iter < 2 || (iter % 10) == 0){
@@ -4187,12 +4070,10 @@ struct Calculation {
             real_function_3d vnuc = potentialmanager->vnuclear();
             double enuclear = inner(rho, vnuc);
 
-            TAU_START("Coulomb");
             START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);
             functionT vlocal;
             END_TIMER(world, "Coulomb");
-            TAU_STOP("Coulomb");
             print_meminfo(world.rank(), "Coulomb");
 
             double ecoulomb = 0.5 * inner(rho, vcoul);
@@ -4311,11 +4192,9 @@ struct Calculation {
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo_mp, amo_mp, true);
 
-                    TAU_START("focka eigen sol");
                     START_TIMER(world);
                     sygvp(world, focka, overlap, 1, U, aeps_mp);
                     END_TIMER(world, "focka eigen sol");
-                    TAU_STOP("focka eigen sol");
 
                     if (!param.localize) {
                         amo_mp = transform(world, amo_mp, U, trantol, true);
@@ -4325,11 +4204,9 @@ struct Calculation {
                     if(param.nbeta != 0 && !param.spin_restricted){
                         overlap = matrix_inner(world, bmo_mp, bmo_mp, true);
 
-                        TAU_START("fockb eigen sol");
                         START_TIMER(world);
                         sygvp(world, fockb, overlap, 1, U, beps_mp);
                         END_TIMER(world, "fockb eigen sol");
-                        TAU_STOP("fockb eigen sol");
 
                         if (!param.localize) {
                             bmo_mp = transform(world, bmo_mp, U, trantol, true);
@@ -4400,7 +4277,6 @@ struct Calculation {
         functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
 
         // dipolefunc * amo[iter]
-        TAU_START("Make perturbation");
         START_TIMER(world);
         if(flag == 0) {
             dipolemo = zero_functions<double,3>(world, param.nalpha);
@@ -4413,7 +4289,6 @@ struct Calculation {
                 dipolemo[p] = dipolefunc * bmo[p];
         }
         END_TIMER(world, "Make perturbation");
-        TAU_STOP("Make perturbation");
         print_meminfo(world.rank(), "Make perturbation");
 
         dipolefunc.clear(false);
@@ -4468,7 +4343,6 @@ struct Calculation {
     void make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
             std::vector<poperatorT> & aop, std::vector<poperatorT> & bop)
     {
-        TAU_START("Make BSHOp");
         START_TIMER(world);
         for(int i=0; i<param.nalpha; ++i) {
             // thresh : 1e-6
@@ -4480,7 +4354,6 @@ struct Calculation {
             }
         }
         END_TIMER(world, "Make BSHOp");
-        TAU_STOP("Make BSHOp");
         print_meminfo(world.rank(), "Make BSHOp");
     }
 
@@ -4490,7 +4363,6 @@ struct Calculation {
         vecfuncT rhs, Vmo, djkmo;
         double exca = 0.0, excb = 0.0;
         
-        //TAU_START("Initial for response");
         //START_TIMER(world);
         if (world.rank() == 0)  
             print("\nmake initial guess for response function");
@@ -4508,7 +4380,6 @@ struct Calculation {
 
         rhs = add(world, Vmo, add(world, dipolemo, djkmo));
         //END_TIMER(world, "Initial for response");
-        //TAU_STOP("Initial for response");
         //print_meminfo(world.rank(), "Initial for response");
         
         truncate(world, rhs);
@@ -4519,7 +4390,6 @@ struct Calculation {
     {
         functionT rho = factoryT(world);
 
-        TAU_START("Make densities");
         START_TIMER(world);            
 
         arho = make_density(world, aocc, amo);
@@ -4537,7 +4407,6 @@ struct Calculation {
             brho = functionT(world); // zero
         }
         END_TIMER(world, "Make densities");
-        TAU_STOP("Make densities");
         print_meminfo(world.rank(), "Make densities");
 
         rho = arho + brho;
@@ -4596,12 +4465,10 @@ struct Calculation {
         real_function_3d vnuc = potentialmanager->vnuclear();
         //double enuclear = inner(rho, vnuc);
 
-        TAU_START("Coulomb");
         START_TIMER(world);
         functionT vcoul = apply(*coulop, rho);
         functionT vlocal;
         END_TIMER(world, "Coulomb");
-        TAU_STOP("Coulomb");
         print_meminfo(world.rank(), "Coulomb");
 
         //rho.clear(false);
@@ -4641,7 +4508,6 @@ struct Calculation {
         functionT dJmo = factoryT(world);
         functionT j = factoryT(world);
         
-        //TAU_START("Calc derivative J");
         //START_TIMER(world);
         for(int i=0; i<size; ++i) {
             j = apply(*coulop,  ( dmo1[i] * mo[i] ) + ( dmo2[i] * mo[i] ) );
@@ -4652,7 +4518,6 @@ struct Calculation {
         dJ.clear(false);
         
         //END_TIMER(world, "Calc derivative J");
-        //TAU_STOP("Calc derivative J");
         return dJmo;
     }
 
@@ -4664,7 +4529,6 @@ struct Calculation {
         functionT k1 = factoryT(world);
         functionT k2 = factoryT(world);
 
-        //TAU_START("Calc derivative xc");
         //START_TIMER(world);
         for(int i=0; i<size; ++i) {
             k1 = apply(*coulop, ( mo[i] * mo[p] )) * dmo1[i];
@@ -4674,7 +4538,6 @@ struct Calculation {
             k2.clear(false);
         }
         //END_TIMER(world, "Calc derivative xc");
-        //TAU_STOP("Calc derivative xc");
         return dKmo;
     }
 
@@ -4687,7 +4550,6 @@ struct Calculation {
         else if(flag == 1) size = param.nbeta;
         vecfuncT djkmo =zero_functions<double,3>(world, size);
         
-        TAU_START("Calc derivative V");
         START_TIMER(world);
         for(int p=0; p<size; ++p) {
             functionT dJmo = calc_derivative_Jmo(world, p, dmo1, dmo2, mo, size);        
@@ -4701,7 +4563,6 @@ struct Calculation {
         }
 
         END_TIMER(world, "Calc derivative V");
-        TAU_STOP("Calc derivative V");
         print_meminfo(world.rank(), "Calc derivative V");
         return djkmo;
     }
@@ -4710,12 +4571,10 @@ struct Calculation {
 //prod    {
 //prod        vecfuncT rhs;
 //prod
-//prod        TAU_START("Sum rhs response");
 //prod        START_TIMER(world);
 //prod        //dmo_rhs = Vdmo + dipolemo + djkmo;
 //prod        rhs = add(world, Vdmo, add(world, dipolemo, djkmo));
 //prod        END_TIMER(world, "Sum rhs response");
-//prod        TAU_STOP("Sum rhs response");
 //prod        print_meminfo(world.rank(), "Sum rhs response");
 //prod        truncate(world, rhs);
 //prod
@@ -4726,7 +4585,6 @@ struct Calculation {
     {
         vecfuncT rhs;
 
-        TAU_START("Sum rhs response");
         START_TIMER(world);
         //dmo_rhs = Vdmo + dipolemo + djkmo;
 
@@ -4749,7 +4607,6 @@ struct Calculation {
 //prod        rhs = add(world, Vdmo, add(world, dipolemo, djkmo));
 
         END_TIMER(world, "Sum rhs response");
-        TAU_STOP("Sum rhs response");
         print_meminfo(world.rank(), "Sum rhs response");
         truncate(world, rhs);
 
@@ -4817,7 +4674,6 @@ struct Calculation {
         int bflag = 1;
         int fflag = 0;
 
-        TAU_START("Calc D polar");
         START_TIMER(world);
         // derivative density matrix
         functionT drho = factoryT(world);
@@ -4917,7 +4773,6 @@ struct Calculation {
             }
         }
         END_TIMER(world, "Calc D polar");
-        TAU_STOP("Calc D polar");
         print_meminfo(world.rank(), "Calc D polar");
 
     // end of solving polarizability
@@ -4929,7 +4784,6 @@ struct Calculation {
     {
         double residual = 0.0;
         
-        TAU_START("Residual X,Y");
         START_TIMER(world);
         rx = sub(world, x_old, x);
         ry = sub(world, y_old, y);
@@ -4942,7 +4796,6 @@ struct Calculation {
         residual = std::max(maxval_x, maxval_y);
         
         END_TIMER(world, "Residual X,Y");
-        TAU_STOP("Residual X,Y");
         print_meminfo(world.rank(), "Residual X,Y");
 
         return residual;
@@ -4983,7 +4836,6 @@ struct Calculation {
         // X:axis=0, Y:axis=1, Z:axis=2
         double omega = param.response_freq;
         
-        TAU_START("Make frequency term");
         START_TIMER(world);
         //calculate frequency term
         calc_freq(world, omega, akx, bkx, 0);
@@ -4991,7 +4843,6 @@ struct Calculation {
         if(omega != 0.0)
             calc_freq(world, omega, aky, bky, 1);
         END_TIMER(world, "Make frequency term");
-        TAU_STOP("Make frequency term");
         print_meminfo(world.rank(), "Make frequency term");
 
         // make density matrix
@@ -5001,11 +4852,9 @@ struct Calculation {
 
         functionT arhod = factoryT(world);
         functionT brhod = factoryT(world);
-        TAU_START("Make delrho");
         START_TIMER(world);
         vecfuncT vf = calc_drho(world, arho, brho);
         END_TIMER(world, "Make delrho");
-        TAU_STOP("Make delrho");
         print_meminfo(world.rank(), "Make delrho");
 
         // vlocal = vnuc + 2*J  
@@ -5132,7 +4981,6 @@ struct Calculation {
 
                 }
 
-                TAU_START("Make response func");
                 START_TIMER(world);
                 // ax_new = G * axrhs;
                 calc_response_function(world, ax, aopx, axrhs);
@@ -5166,11 +5014,9 @@ struct Calculation {
                     by = bx;
                 }
                 END_TIMER(world, "Make response func");
-                TAU_STOP("Make response func");
                 print_meminfo(world.rank(), "Make response func");
 
                 if(iter > 0) {
-                    TAU_START("Update response func");
                     START_TIMER(world);
                     residual = 0.0;
                     
@@ -5237,7 +5083,6 @@ struct Calculation {
                     }
 
                     END_TIMER(world, "Update response func");
-                    TAU_STOP("Update response func");
                     print_meminfo(world.rank(), "Update response func");
                     
                     // 収束判定
@@ -5262,7 +5107,6 @@ struct Calculation {
                     
             } //end iteration
             END_TIMER(world, "Make response func");
-            TAU_STOP("Make response func");
             print_meminfo(world.rank(), "Make response func");
 
             solve_dpolar(world, total, ax, ay, bx, by, axis, total_Dpolar, Dpolar_alpha, Dpolar_beta);
@@ -5375,12 +5219,8 @@ class MolecularEnergy : public OptimizationTargetInterface {
 };
 
 int main(int argc, char** argv) {
-    TAU_START("main()");
-    TAU_START("initialize()");
     initialize(argc, argv);
-    TAU_STOP("initialize()");
 
-    TAU_START("World lifetime");
     { // limit lifetime of world so that finalize() can execute cleanly
         World world(SafeMPI::COMM_WORLD);
 
@@ -5501,9 +5341,7 @@ int main(int argc, char** argv) {
         world.gop.fence();
         print_stats(world);
     } // world is dead -- ready to finalize
-    TAU_STOP("World lifetime");
     finalize();
-    TAU_STOP("main()");
 
     return 0;
 }

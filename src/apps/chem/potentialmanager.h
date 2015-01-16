@@ -125,7 +125,7 @@ public:
         int npsi = psi.size();
         if (npsi == 0) return psi;
         int natom = molecule.natom();
-        vector_real_function_3d proj = zero_functions<double,3>(world, npsi);
+        vector_real_function_3d proj = zero_functions_compressed<double,3>(world, npsi);
         real_tensor overlap_sum(static_cast<long>(npsi));
 
         for (int i=0; i<natom; ++i) {

@@ -5,16 +5,24 @@
 #include <polar/xcfunctional.h>
 #include <madness/tensor/tensor.h>
 #include <sstream>
+#include <madness/world/world.h>
+
+namespace madness {
+
 
 int x_rks_s__(const double *r__, double *f, double * dfdra);
 int c_rks_vwn5__(const double *r__, double *f, double * dfdra);
 int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 int c_uks_vwn5__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 
-XCfunctional::XCfunctional() : hf_coeff(0.0) {}
+XCfunctional::XCfunctional() : hf_coeff(0.0) {
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
+}
 
-void XCfunctional::initialize(const std::string& input_line, bool polarized) 
+void XCfunctional::initialize(const std::string& input_line, bool polarized, World& world) 
 {
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
+
     spin_polarized = polarized;
     
     std::stringstream s(input_line);
@@ -25,6 +33,18 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
         if (token == "LDA") {
             hf_coeff = 0.0;
             found_valid_token = true;
+        }
+        else if (token == "RHOMIN") {
+            s >> rhomin;
+        }
+        else if (token == "RHOTOL") {
+            s >> rhotol;
+        }
+        else if (token == "SIGMIN") {
+            s >> sigmin;
+        }
+        else if (token == "SIGTOL") {
+            s >> sigtol;
         }
         else if (token == "HF") {
             hf_coeff = 1.0;
@@ -80,6 +100,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
             
             f[i] = xf + cf;
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     else {
@@ -90,6 +111,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             x_rks_s__(&r, &q1, &dq);
             c_rks_vwn5__(&r, &q2, &dq);
             f[i] = q1 + q2; 
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     return result;
@@ -114,6 +136,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
             
             f[i] = xdfdr[what] + cdfdr[what];
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     else {
@@ -125,10 +148,16 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             x_rks_s__(&r, &q, &dq1);
             c_rks_vwn5__(&r, &q, &dq2); 
             f[i] = dq1 + dq2;
+            if (isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     return result;
 }
 
+madness::Tensor<double> XCfunctional::fxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const
+{
+	MADNESS_EXCEPTION("fxc not implemented in xcfunctional_ldaonly.cc... use libxc",1);
+}
 
+}
 #endif

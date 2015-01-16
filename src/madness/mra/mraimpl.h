@@ -137,6 +137,7 @@ namespace madness {
                 std::cout.flush();
                 MADNESS_EXCEPTION("FunctionImpl: verify: INCONSISTENT TREE NODE", 0);
             }
+	    world.gop.fence();  // Make sure nothing is going on
         }
         
         // Ensure that parents and children exist appropriately

@@ -1708,8 +1708,7 @@ void CIS::orthonormalize_fock(World &world,std::vector<root> &roots, const std::
 	// matrix
 	std::vector<vecfuncT> vc(roots.size());
 	for (std::size_t iroot=0; iroot<roots.size(); ++iroot) {
-		vc[iroot]=zero_functions<double,3>(world,noct);
-		compress(world, vc[iroot]);
+		vc[iroot]=zero_functions_compressed<double,3>(world,noct);
 		compress(world,roots[iroot].x);
 	}
 

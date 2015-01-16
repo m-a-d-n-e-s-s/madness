@@ -38,10 +38,6 @@
 #include <madness/world/worldobj.h>
 #include <madness/world/worlddc.h>
 
-#ifdef WORLD_TAU_TRACE
-#include <madness/TAU.h>
-#endif
-
 #if MADNESS_CATCH_SIGNALS
 # include <csignal>
 #endif

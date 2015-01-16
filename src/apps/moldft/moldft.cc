@@ -53,12 +53,8 @@ using namespace madness;
 
 int main(int argc, char** argv) {
 
-    TAU_START("main()");
-    TAU_START("initialize()");
     initialize(argc, argv);
-    TAU_STOP("initialize()");
 
-    TAU_START("World lifetime");
     { // limit lifetime of world so that finalize() can execute cleanly
       World world(SafeMPI::COMM_WORLD);
 START_TIMER(world);
@@ -179,9 +175,7 @@ END_TIMER(world, "initialize");
       world.gop.fence();
       print_stats(world);
     } // world is dead -- ready to finalize
-    TAU_STOP("World lifetime");
     finalize();
-    TAU_STOP("main()");
 
     return 0;
 }
