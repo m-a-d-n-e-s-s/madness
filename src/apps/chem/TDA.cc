@@ -402,9 +402,13 @@ void TDA::guess_atomic_excitation(xfunctionsT & xfunctions){
 		project_out_occupied_space(xtmp);
 		tmp.x=xtmp;
 		tmp.number=i;
+		plot_vecfunction(tmp.x,"guess_excitation_"+stringify(i)+"_",true);
+		normalize(tmp);
 		xfunctions.push_back(tmp);
-		normalize(xfunctions);
 	}
+	normalize(xfunctions);
+	normalize(xfunctions);
+	normalize(xfunctions);
 }
 
 void TDA::add_diffuse_functions(vecfuncT &mos) {
@@ -831,7 +835,8 @@ void TDA::normalize(xfunctionsT & xfunctions) {
 void TDA::normalize(xfunction & xfunction) {
 	const Tensor<double> self_overlaps = inner(world, xfunction.x, xfunction.x);
 	const double squared_norm = self_overlaps.sum();
-	scale(world, xfunction.x, 1.0 / sqrt(squared_norm));
+	const double norm = sqrt(squared_norm);
+	scale(world, xfunction.x, 1.0 / sqrt(norm));
 }
 
 void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions) {
