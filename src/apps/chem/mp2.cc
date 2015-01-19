@@ -83,7 +83,11 @@ namespace madness {
 			std::shared_ptr<SCF> calc = std::shared_ptr<SCF>(
 					new SCF(world, input.c_str()));
 
-			// get parameters form input file for hf
+			// by default SCF sets the truncate_mode to 1
+			FunctionDefaults<3>::set_truncate_mode(3);
+            FunctionDefaults<6>::set_truncate_mode(3);
+
+            // get parameters form input file for hf
 			if (world.rank() == 0)
 				print("accuracy from dft will be overriden by mp2 to 0.01*thresh");
 			calc->set_protocol<6>(world, thresh());

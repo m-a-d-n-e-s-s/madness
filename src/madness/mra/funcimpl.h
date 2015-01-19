@@ -1115,13 +1115,7 @@ namespace madness {
                 const keyT& key = it->first;
                 const FunctionNode<Q,NDIM>& other_node = it->second;
                 // Use send to get write accessor and automated construction if missing
-//                f->coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, alpha, other_node, beta);
-
-                typename dcT::accessor acc;
-                f->coeffs.insert(acc,key);
-                nodeT& node = acc->second;
-                node.gaxpy_inplace(alpha,other_node,beta);
-
+                f->coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, alpha, other_node, beta);
                 return true;
             }
             template <typename Archive>
@@ -1133,18 +1127,9 @@ namespace madness {
         void gaxpy_inplace(const T& alpha,const FunctionImpl<Q,NDIM>& other, const R& beta, bool fence) {
             MADNESS_ASSERT(get_pmap() == other.get_pmap());
             if (alpha != T(1.0)) scale_inplace(alpha,false);
-
-            typename FunctionImpl<Q,NDIM>::dcT::const_iterator end = other.coeffs.end();
-            for (typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
-                 it!=end; ++it) {
-                const keyT& key = it->first;
-                const typename FunctionImpl<Q,NDIM>::nodeT& other_node = it->second;
-                this->coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, T(1.0), other_node, beta);
-            }
-
-//            typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
-//            typedef do_gaxpy_inplace<Q,R> opT;
-//            world.taskq.for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
+            typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
+            typedef do_gaxpy_inplace<Q,R> opT;
+            world.taskq.for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
             if (fence)
                 world.gop.fence();
         }
@@ -4511,8 +4496,13 @@ namespace madness {
             /// retrieve the coefficients (parent coeffs might be remote)
             Future<this_type> activate() const {
             	Future<ctT> f1=iaf.activate();
-                return result->world.taskq.add(*const_cast<this_type *> (this),
-                                               &this_type::forward_ctor,result,f1,apply_op);
+
+//                Future<ctL> g1=g.activate();
+//                return h->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+//                                          &this_type::forward_ctor),h,f1,g1,particle);
+
+                return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+                                               &this_type::forward_ctor),result,f1,apply_op);
             }
 
             /// taskq-compatible ctor

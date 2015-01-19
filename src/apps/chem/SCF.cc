@@ -213,6 +213,7 @@ namespace madness {
     }
     
     SCF::SCF(World & world, const char *filename) {
+        FunctionDefaults<3>::set_truncate_mode(1);
         PROFILE_MEMBER_FUNC(SCF);
         if (world.rank() == 0) {
             molecule.read_file(filename);
