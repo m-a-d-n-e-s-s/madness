@@ -422,7 +422,6 @@ void Nemo::normalize(vecfuncT& nemo) const {
 
 /// @param[inout]	amo_new	the vectors to be orthonormalized
 void Nemo::orthonormalize(vecfuncT& nemo) const {
-    TAU_START("Orthonormalize");
     START_TIMER(world);
 	vecfuncT mos = mul(world, R, nemo);
     double trantol = 0.0;
@@ -431,7 +430,6 @@ void Nemo::orthonormalize(vecfuncT& nemo) const {
     truncate(world, nemo);
     normalize(nemo);
     END_TIMER(world, "Orthonormalize");
-    TAU_STOP("Orthonormalize");
 }
 
 /// return the Coulomb potential
@@ -447,8 +445,7 @@ vecfuncT Nemo::apply_exchange(const vecfuncT& nemo, const vecfuncT& psi) const {
 	// The mul_sparse in apply_hf_exchange uses a tolerance that is
 	// too loose. Fails even for H2O, eprec=1.e-5
 //    	return calc->apply_hf_exchange(world,calc->aocc,psi,nemo);
-	vecfuncT result = zero_functions<double, 3>(world, int(nemo.size()));
-	compress(world, result);
+	vecfuncT result = zero_functions_compressed<double, 3>(world, int(nemo.size()));
 	for (std::size_t i = 0; i < nemo.size(); ++i) {
 		for (std::size_t k = 0; k < psi.size(); ++k) {
 			const real_function_3d ik = psi[i] * psi[k];

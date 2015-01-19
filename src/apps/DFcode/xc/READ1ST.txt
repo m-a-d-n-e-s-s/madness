@@ -1,2 +1,0 @@
-For more XC LDA-GGA visit
-https://sites.google.com/site/libmadxc

@@ -273,7 +273,7 @@ namespace madness {
 #ifdef HAVE_CRAYXT
         static const int DEFAULT_NSEND = 512;
 #else
-        static const int DEFAULT_NSEND = 32;
+        static const int DEFAULT_NSEND = 128;
 #endif
 
         // Multiple threads are making their way thru here ... must be careful

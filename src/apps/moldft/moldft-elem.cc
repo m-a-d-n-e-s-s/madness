@@ -1754,8 +1754,7 @@ struct Calculation {
         int nocc = psi.size();
         int nf = f.size();
         double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
-        vecfuncT Kf = zero_functions<double,3>(world, nf);
-        compress(world, Kf);
+        vecfuncT Kf = zero_functions_compressed<double,3>(world, nf);
         reconstruct(world, psi);
         norm_tree(world, psi);
         if (!same) {
@@ -2362,11 +2361,8 @@ struct Calculation {
             print("Subspace solution", c);
         }
         START_TIMER(world);
-        vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
-        vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
-        compress(world, amo_new, false);
-        compress(world, bmo_new, false);
-        world.gop.fence();
+        vecfuncT amo_new = zero_functions_compressed<double,3>(world, amo.size());
+        vecfuncT bmo_new = zero_functions_compressed<double,3>(world, bmo.size());
         for(unsigned int m = 0;m < subspace.size();++m){
             const vecfuncT & vm = subspace[m].first;
             const vecfuncT & rm = subspace[m].second;

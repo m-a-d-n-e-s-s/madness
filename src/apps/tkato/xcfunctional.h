@@ -1,1 +1,0 @@
-../moldft/xcfunctional.h

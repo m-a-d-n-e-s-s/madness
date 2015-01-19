@@ -294,9 +294,8 @@ namespace madness {
       unsigned int m = c.dim(1);  // m is the new dimension
       MADNESS_ASSERT(n==c.dim(0));
 
-      std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
+      std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
       compress(world, v, blk);
-      compress(world, vc, blk); // what to do ?
 
       for (unsigned int i=0; i<m; i+= blki) {
 	for (unsigned int ii=i; ii<std::min(m,(i+1)*blki); ii++) {

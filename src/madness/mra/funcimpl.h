@@ -967,7 +967,7 @@ namespace madness {
             , cdata(FunctionCommonData<T,NDIM>::get(k))
             , functor(factory.get_functor())
             , on_demand(factory._is_on_demand)
-            , compressed(false)
+            , compressed(factory._compressed)
             , redundant(false)
             , coeffs(world,factory._pmap,false)
             //, bc(factory._bc)
