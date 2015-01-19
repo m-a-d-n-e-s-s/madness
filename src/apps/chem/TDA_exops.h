@@ -13,14 +13,14 @@ struct exoperators{
 private:
 	/// The point of excitation for the custom guess
 	coord_3d excitation_point_;
-public:
-	exoperators(World &world,const coord_3d excitation_point) : excitation_point_(excitation_point){
-		get_polynom_basis(world);
-		plot_polynom_basis(world);
-	}
-	std::vector<std::string> key_;
 	vecfuncT polynom_basis_;
+public:
+	exoperators(World &world,const coord_3d excitation_point) : excitation_point_(excitation_point){}
+	std::vector<std::string> key_;
+	// Creates the polynom basis
 	void get_polynom_basis(World &world){
+		if(polynom_basis_.empty()){
+		if(world.rank()==0) std::cout << "Creating the polynomial guess basis ... " << std::endl;
 		vecfuncT creators;
 		std::vector<std::string> key_creator;
 		std::vector<std::string> key;
@@ -151,16 +151,29 @@ public:
 //							key.push_back(stmp);}}}}}}}}}
 	polynom_basis_ = basis;
 	key_=key;
+		}
 	}
 	void plot_polynom_basis(World &world){
+		// check if polynom_basis_ is created, if not do it
+		get_polynom_basis(world);
+
 		for(size_t i=0;i<polynom_basis_.size();i++){
 			plot_plane(world,polynom_basis_[i],"polynom_basis_"+stringify(i));
 		}
 	}
 
-
+vecfuncT atomic_excitation_dipole(World& world){
+	vecfuncT exops;
+	 real_function_3d x   = real_factory_3d(world).f(x_function); x.add_scalar(-excitation_point_[0]); exops.push_back(x);
+	 real_function_3d y   = real_factory_3d(world).f(y_function); y.add_scalar(-excitation_point_[1]); exops.push_back(y);
+	 real_function_3d z   = real_factory_3d(world).f(z_function); z.add_scalar(-excitation_point_[2]); exops.push_back(z);
+	 real_function_3d rr  = x*x + y*y +z*z; exops.push_back(rr);
+	 truncate(world,exops);
+	 return exops;
+}
 	std::vector<double> get_overlaps_with_guess(World &world,vecfuncT &excitation,const vecfuncT &mo,const real_function_3d smoothing){
 		if(excitation.size()!=mo.size()) MADNESS_EXCEPTION("Error in calculating overlap with the guess operators, excitation vector and mo vector have different sizes",1);
+		get_polynom_basis(world);
 		vecfuncT quadbas = polynom_basis_;
 		 std::vector<double> overlaps;
 		 for(size_t i=0;i< quadbas.size();i++){
@@ -221,6 +234,7 @@ public:
 		return make_custom_exops(world,coefficients);
 	}
 	vecfuncT make_custom_exops(World &world,std::vector<std::vector<double> > coefficients){
+		get_polynom_basis(world);
 		vecfuncT exops;
 		vecfuncT quadbas=polynom_basis_;
 
@@ -235,6 +249,7 @@ public:
 	}
 
 	std::vector<vecfuncT> make_custom_guess(World &world,const std::vector< std::string > input_lines,const vecfuncT &mos, const real_function_3d &smoothing){
+		get_polynom_basis(world);
 		std::vector<std::vector<double> > coefficients = get_coefficients(world, input_lines);
 		std::vector<vecfuncT> guess;
 		vecfuncT quadbas = polynom_basis_;
@@ -259,6 +274,7 @@ public:
 	}
 
 	vecfuncT get_exops(World &world,const std::string exop){
+
 		vecfuncT xoperators;
 		if(exop == "dipole"){
 			real_function_3d fx = real_factory_3d(world).f(x_function);
@@ -411,6 +427,8 @@ public:
 			real_function_3d tmp9 = real_factory_3d(world).f(d6h_E1u2 );xoperators.push_back(tmp9);
 			std::cout << "Random guess exops for irreps A2g,B1g,B2g,A2u " << std::endl;
 			real_function_3d tmp = real_factory_3d(world);
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			for(size_t k=0;k<polynom_basis_.size();k++){
 				// dont take linear, quadratic and cubic functions
 				double range = 0.0;
@@ -433,15 +451,19 @@ public:
 			real_function_3d tmp = real_factory_3d(world).f(seq_dipolep); xoperators.push_back(tmp);
 		}
 		else if (exop=="big_3"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			xoperators = polynom_basis_;
 			if(world.rank()==0){
-				std::cout << "Guess exop is big_3 excitation operators are:" << std::endl;
+				std::cout << "Guess exop is big_3 operators are:" << std::endl;
 				for(size_t i=0;i<3+6+10;i++) std::cout << " " <<key_[i] << " ";
 				std::cout << std::endl;
 			}
 			xoperators.erase(xoperators.begin()+3+6+10+1,xoperators.end());
 		}
 		else if (exop=="big_4"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			xoperators = polynom_basis_;
 			if(world.rank()==0){
 				std::cout << "Guess exop is big_4 excitation operators are:" << std::endl;
@@ -451,6 +473,8 @@ public:
 			xoperators.erase(xoperators.begin()+3+6+10+15+1,xoperators.end());
 		}
 		else if (exop=="random_4"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			for(size_t i=0;i<4;i++){
 				std::cout << "Random guess exops " << i << std::endl;
 				real_function_3d tmp = real_factory_3d(world);
@@ -471,6 +495,8 @@ public:
 			//for(size_t i=0;i<100;i++) std::cout<< std::fixed << std::setprecision(1) << random_number()<< std::endl;
 		}
 		else if (exop=="random_8"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			for(size_t i=0;i<8;i++){
 				std::cout << "Random guess exops " << i << std::endl;
 				real_function_3d tmp = real_factory_3d(world);
@@ -491,6 +517,8 @@ public:
 			//for(size_t i=0;i<100;i++) std::cout<< std::fixed << std::setprecision(1) << random_number()<< std::endl;
 		}
 		else if (exop=="random"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			real_function_3d tmp = real_factory_3d(world);
 			for(size_t k=0;k<polynom_basis_.size();k++){
 				double range = 0.1;

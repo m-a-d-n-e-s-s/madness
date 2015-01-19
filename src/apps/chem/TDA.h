@@ -21,6 +21,7 @@
 //#include <madness/world/print.h>
 
 #include <chem/TDA_exops.h>
+#include <chem/TDA_guess.h>
 
 // Kain solver
 #include<examples/nonlinsol.h>
@@ -68,6 +69,7 @@ struct xfunction{
 	/// default constructor
 	/// @param[in] world	the world is needed as a reference
 	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {}
+	xfunction(World &world, const double in_omega) :world(world),omega(in_omega),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {}
 	/// constructs a xfunctions object and initializes the x-vecfunction (response orbitals)
 	/// @param[in] world	the world is needed
 	/// @param[in] x1	vectorfunction of response orbitals
@@ -878,6 +880,12 @@ private:
 
 	/// Creates physical guess functions (x,y,z excitations - depending on the input file, see make_excitation_operators function)
 	void guess_physical(xfunctionsT & xfunctions);
+
+	/// guess_ao_excitation
+	void guess_custom_2(xfunctionsT &xfunctions);
+
+	/// Make a huge guess: Excite on every non hydrogen atom
+	void guess_atomic_excitation(xfunctionsT & xfunctions);
 
 	void guess_custom(xfunctionsT & xfunctions);
 

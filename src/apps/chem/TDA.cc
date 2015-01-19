@@ -232,6 +232,7 @@ void TDA::print_xfunction(const xfunction &x) const {
 }
 
 void TDA::initialize(xfunctionsT & xfunctions) {
+	plot_vecfunction(active_mo_,"active_mo_",true);
 	if (guess_ == "physical") {
 		guess_physical(xfunctions);
 		if (not guess_omegas_.empty() and guess_omegas_.size()<=xfunctions.size()){
@@ -242,6 +243,12 @@ void TDA::initialize(xfunctionsT & xfunctions) {
 	}
 	else if(guess_ == "custom") {
 		guess_custom(xfunctions);
+	}
+	else if(guess_ == "atomic_excitation"){
+		guess_atomic_excitation(xfunctions);
+	}
+	else if(guess_ == "custom_2"){
+		guess_custom_2(xfunctions);
 	}
 	else {
 		if (world.rank() == 0)
@@ -373,6 +380,29 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 		guess_xfunctions_[i].x = copy(world,xfunctions[i].x);
 	}
 
+}
+void TDA::guess_custom_2(xfunctionsT & xfunctions){
+	if(world.rank()==0) std::cout << "Making custom_2 guess: " << custom_exops_.size() << " custom excitations given" << std::endl;
+	guess guess_structure(calc_.param.L);
+	for(size_t i=0;i<custom_exops_.size();i++){
+		xfunction tmp(world,guess_omega_);
+		vecfuncT xtmp = guess_structure.make_guess_xfunction(world,custom_exops_[i],active_mo_);
+		project_out_occupied_space(xtmp);
+		tmp.x=xtmp;
+		tmp.number=i;
+		xfunctions.push_back(tmp);
+	}
+}
+void TDA::guess_atomic_excitation(xfunctionsT & xfunctions){
+	guess guess_structure(calc_.param.L);
+	for(size_t i=0;i<custom_exops_.size();i++){
+		xfunction tmp(world,guess_omega_);
+		vecfuncT xtmp = guess_structure.make_atomic_guess(world,custom_exops_[i],active_mo_.size());
+		project_out_occupied_space(xtmp);
+		tmp.x=xtmp;
+		tmp.number=i;
+		xfunctions.push_back(tmp);
+	}
 }
 
 void TDA::add_diffuse_functions(vecfuncT &mos) {
