@@ -392,6 +392,7 @@ void TDA::guess_custom_2(xfunctionsT & xfunctions){
 		tmp.number=i;
 		xfunctions.push_back(tmp);
 	}
+	normalize(xfunctions);
 }
 void TDA::guess_atomic_excitation(xfunctionsT & xfunctions){
 	guess guess_structure(calc_.param.L);
@@ -402,6 +403,7 @@ void TDA::guess_atomic_excitation(xfunctionsT & xfunctions){
 		tmp.x=xtmp;
 		tmp.number=i;
 		xfunctions.push_back(tmp);
+		normalize(xfunctions);
 	}
 }
 
