@@ -170,8 +170,9 @@ vecfuncT make_atomic_guess(World & world,const std::string input_info, const siz
 			real_function_3d ao_guess = real_factory_3d(world).functor(ao_functor);
 			ao_guess.truncate();
 			double norm = ao_guess.norm2();
-			ao_guess.scale(1.0/sqrt(norm));
-
+			ao_guess.scale(1.0/norm);
+			double xnorm = (double) number_of_active_mos_;
+			ao_guess.scale(1.0/xnorm);
 			vecfuncT guess_xfunction_x;
 			for(size_t i=0;i<number_of_active_mos_;i++){
 				guess_xfunction_x.push_back(ao_guess);

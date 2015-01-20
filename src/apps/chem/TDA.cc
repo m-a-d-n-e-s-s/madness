@@ -407,8 +407,6 @@ void TDA::guess_atomic_excitation(xfunctionsT & xfunctions){
 		xfunctions.push_back(tmp);
 	}
 	normalize(xfunctions);
-	normalize(xfunctions);
-	normalize(xfunctions);
 }
 
 void TDA::add_diffuse_functions(vecfuncT &mos) {
@@ -772,7 +770,7 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess) {
 	}
 
 	// Use tmp2 to normalize the new x-functions GVPsi:
-	scale(world, xfunction.x, 1.0 / tmp2);
+	scale(world, xfunction.x, 1.0 / sqrt(tmp2));
 
 	// when kain update should be used we will need the residual vectors later
 	if (kain_ and not guess) {
@@ -836,7 +834,8 @@ void TDA::normalize(xfunction & xfunction) {
 	const Tensor<double> self_overlaps = inner(world, xfunction.x, xfunction.x);
 	const double squared_norm = self_overlaps.sum();
 	const double norm = sqrt(squared_norm);
-	scale(world, xfunction.x, 1.0 / sqrt(norm));
+	//std::cout << "Norm if xfunction " << xfunction.number << " is " << norm << " squared norm is " << squared_norm << std::endl;
+	scale(world, xfunction.x, 1.0 / norm);
 }
 
 void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions) {
@@ -884,7 +883,7 @@ void TDA::orthonormalize_GS(xfunctionsT &xfunctions) {
 }
 //
 bool TDA::orthonormalize_fock(xfunctionsT &xfunctions, bool guess) {
-
+	normalize(xfunctions);
 	Tensor<double> overlap(xfunctions.size(), xfunctions.size());
 	for (size_t p = 0; p < xfunctions.size(); p++) {
 		for (size_t k = 0; k < xfunctions.size(); k++) {
