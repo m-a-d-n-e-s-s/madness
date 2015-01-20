@@ -517,6 +517,7 @@ namespace madness {
         END_TIMER(world, "Compute eigen gesv analyze vectors");
         if (world.rank() == 0) {
             C = transpose(C);
+            C_ = C;
             long nmo = mo.size();
             for (long i = 0; i < nmo; ++i) {
                 printf("  MO%4ld : ", i);

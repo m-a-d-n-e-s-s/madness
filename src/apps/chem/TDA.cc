@@ -383,19 +383,22 @@ void TDA::guess_physical(xfunctionsT & xfunctions) {
 }
 void TDA::guess_custom_2(xfunctionsT & xfunctions){
 	if(world.rank()==0) std::cout << "Making custom_2 guess: " << custom_exops_.size() << " custom excitations given" << std::endl;
-	guess guess_structure(calc_.param.L);
+	guess guess_structure(world,calc_.param.L,guess_mode_,active_mo_,calc_.ao);
 	for(size_t i=0;i<custom_exops_.size();i++){
 		xfunction tmp(world,guess_omega_);
-		vecfuncT xtmp = guess_structure.make_guess_xfunction(world,custom_exops_[i],active_mo_);
+		vecfuncT xtmp = guess_structure.make_custom_guess(world,custom_exops_[i]);
 		project_out_occupied_space(xtmp);
 		tmp.x=xtmp;
 		tmp.number=i;
 		xfunctions.push_back(tmp);
+		plot_vecfunction(tmp.x,"guess_excitation_" + stringify(tmp.number) + "_");
 	}
 	normalize(xfunctions);
+	plot_vecfunction(active_mo_,"active_mo_",true);
 }
 void TDA::guess_atomic_excitation(xfunctionsT & xfunctions){
-	guess guess_structure(calc_.param.L);
+	guess guess_structure(world,calc_.param.L,guess_mode_,active_mo_,calc_.ao);
+	std::cout << calc_.C_;
 	for(size_t i=0;i<custom_exops_.size();i++){
 		xfunction tmp(world,guess_omega_);
 		vecfuncT xtmp = guess_structure.make_atomic_guess(world,custom_exops_[i],active_mo_.size());
@@ -1515,50 +1518,57 @@ void TDA::analyze(xfunctionsT& roots) const {
 			}
 		}
 	}
-	// get the overlaps with exops
-	exoperators exops(world,excitation_point_);
+	// get the overlap with the guess exops
+	guess guess_structure(world,calc_.param.L,guess_mode_,active_mo_,calc_.ao);
+	double tol = 10.0 * FunctionDefaults<3>::get_thresh();
 	for(size_t i=0;i<roots.size();i++){
-		functorT smooth_functor(
-				new guess_smoothing(guess_box_));
-		real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
-
-		// TESTING DEBUG
-		// project the active_mos on ao functions
-		//		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
-		//		for(size_t i=0;i<active_mo_.size();i++){
-		//			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
-		//		}
-
-		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
-		std::vector<std::string> key = exops.key_;
-		if(world.rank()==0){
-			//			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
-			//			std::cout <<"\n dipole contributions"<< std::endl;
-			//			for(size_t k=0;k<3;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" " <<overlap_tmp[k]<<" ";
-			//			std::cout <<"\n quadrupole contributions"<< std::endl;
-			//			for(size_t k=3;k<9;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k]<<" ";
-			//			std::cout <<"\n cubic contributions"<< std::endl;
-			//			for(size_t k=9;k<19;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k] << " ";
-
-			std::cout <<"\n\n all significant contributions " << std::endl;
-			for(size_t k=0;k<overlap_tmp.size();k++){
-				if(fabs(overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< overlap_tmp[k]<<" ";
-			}
-			std::cout << std::endl;
-		}
-		// Get overlap with for each mo
-		//		for(size_t j=0;j<roots[i].x.size();j++){
-		//			double xtmp_norm = roots[i].x[j].norm2();
-		//			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
-		//			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
-		//			vecfuncT motmp; motmp.push_back(active_mo_[j]);
-		//
-		//			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
-		//			for(size_t k=0;k<mo_overlap_tmp.size();k++){
-		//				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
-		//			}
-		//		}
+		guess_structure.project_to_guess_basis(world,roots[i].x,tol);
 	}
+
+//	// get the overlaps with exops
+//	exoperators exops(world,excitation_point_);
+//	for(size_t i=0;i<roots.size();i++){
+//		functorT smooth_functor(
+//				new guess_smoothing(guess_box_));
+//		real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
+//
+//		// TESTING DEBUG
+//		// project the active_mos on ao functions
+//		//		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
+//		//		for(size_t i=0;i<active_mo_.size();i++){
+//		//			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
+//		//		}
+//
+//		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
+//		std::vector<std::string> key = exops.key_;
+//		if(world.rank()==0){
+//			//			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
+//			//			std::cout <<"\n dipole contributions"<< std::endl;
+//			//			for(size_t k=0;k<3;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" " <<overlap_tmp[k]<<" ";
+//			//			std::cout <<"\n quadrupole contributions"<< std::endl;
+//			//			for(size_t k=3;k<9;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k]<<" ";
+//			//			std::cout <<"\n cubic contributions"<< std::endl;
+//			//			for(size_t k=9;k<19;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k] << " ";
+//
+//			std::cout <<"\n\n all significant contributions " << std::endl;
+//			for(size_t k=0;k<overlap_tmp.size();k++){
+//				if(fabs(overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< overlap_tmp[k]<<" ";
+//			}
+//			std::cout << std::endl;
+//		}
+//		// Get overlap with for each mo
+//		//		for(size_t j=0;j<roots[i].x.size();j++){
+//		//			double xtmp_norm = roots[i].x[j].norm2();
+//		//			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
+//		//			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
+//		//			vecfuncT motmp; motmp.push_back(active_mo_[j]);
+//		//
+//		//			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
+//		//			for(size_t k=0;k<mo_overlap_tmp.size();k++){
+//		//				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
+//		//			}
+//		//		}
+//	}
 }
 
 void TDA::save_xfunctions(const xfunctionsT &xfunctions)const{

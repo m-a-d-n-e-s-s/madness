@@ -681,6 +681,9 @@ public:
     AtomicBasisSet aobasis;
     functionT mask;
 
+    /// DEBUG
+    Tensor<double> C_;
+
     /// alpha and beta molecular orbitals
     vecfuncT amo, bmo;
 
