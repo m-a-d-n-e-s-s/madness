@@ -1921,9 +1921,11 @@ namespace madness {
             result.get_impl()->reset_timer();
             op.reset_timer();
 
-            result.get_impl()->apply_source_driven(op, *f.get_impl(), fence);
-            //        result.get_impl()->recursive_apply(op, f.get_impl().get(),
-            //               r1.get_impl().get(),true);          // will fence here
+            //result.get_impl()->apply_source_driven(op, *f.get_impl(), fence);
+
+            // recursive_apply is about 20% faster than apply_source_driven
+            result.get_impl()->recursive_apply(op, f.get_impl().get(),
+                    r1.get_impl().get(),true);          // will fence here
 
 
             double time=result.get_impl()->finalize_apply(fence);   // need fence before reconstruction
