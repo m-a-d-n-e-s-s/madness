@@ -737,7 +737,7 @@ public:
         FunctionDefaults<NDIM>::set_thresh(thresh);
         FunctionDefaults<NDIM>::set_refine(true);
         FunctionDefaults<NDIM>::set_initial_level(2);
-        FunctionDefaults<NDIM>::set_truncate_mode(1);
+//        FunctionDefaults<NDIM>::set_truncate_mode(1);
         FunctionDefaults<NDIM>::set_autorefine(false);
         FunctionDefaults<NDIM>::set_apply_randomize(false);
         FunctionDefaults<NDIM>::set_project_randomize(false);
