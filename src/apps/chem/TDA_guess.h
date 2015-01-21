@@ -200,7 +200,7 @@ public :
 		for(size_t i=0;i<key_numbers_.size();i++){
 			real_function_3d tmp = make_polynomial(world,exop_exponents_[key_numbers_[i]],position,range);
 			exop += coefficients[i]*tmp;
-			if(world.rank()==0 and not silent) std::cout << coefficients[i] << " "<< exop_key_[key_numbers_[i]];
+			if(world.rank()==0 and not silent) std::cout << coefficients[i] << " "<< exop_key_[key_numbers_[i]] << " ";
 		}
 		if(world.rank()==0 and not silent) std::cout << "\n-----\n" << std::endl;
 		exop.truncate();

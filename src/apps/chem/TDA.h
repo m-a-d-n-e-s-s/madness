@@ -163,6 +163,47 @@ struct xfunction{
 
 };
 
+/// The structure defines operations on vectors of xfunctions needed by the kain solver
+struct vector_of_xfunctions{
+	vector_of_xfunctions() {}
+	vector_of_xfunctions(const std::vector<xfunction> xfunctions) : xfunctions_(xfunctions) {}
+	vector_of_xfunctions(const vector_of_xfunctions & other) : xfunctions_(other.xfunctions_) {}
+
+	std::vector<xfunction> xfunctions_;
+
+	size_t size(){return xfunctions_.size();}
+
+	vector_of_xfunctions operator=(const vector_of_xfunctions &other)const{
+		return vector_of_xfunctions(other);
+	}
+	vector_of_xfunctions operator-=(const vector_of_xfunctions &other){
+		if(xfunctions_.size()!=other.xfunctions_.size()) MADNESS_EXCEPTION("ERROR in -= operator of vector_of_xfunctions: unequal sizes",1);
+		for(size_t i=0;i<xfunctions_.size();i++) xfunctions_[i]-=other.xfunctions_[i];
+		return *this;
+	}
+	vector_of_xfunctions operator+=(const vector_of_xfunctions &other){
+		if(xfunctions_.size()!=other.xfunctions_.size()) MADNESS_EXCEPTION("ERROR in -= operator of vector_of_xfunctions: unequal sizes",1);
+		for(size_t i=0;i<xfunctions_.size();i++) xfunctions_[i]+=other.xfunctions_[i];
+		return *this;
+	}
+	vector_of_xfunctions operator *(double a)const {
+		vector_of_xfunctions result(*this);
+		for(size_t i=0;i<xfunctions_.size();i++) result.xfunctions_[i]*a;
+		return result;
+	}
+	vector_of_xfunctions operator -(const vector_of_xfunctions &other)const{
+		if(xfunctions_.size()!=other.xfunctions_.size()) MADNESS_EXCEPTION("ERROR in - operator of vector_of_xfunctions: unequal sizes",1);
+		std::vector<xfunction> res;
+		for(size_t i=0;i<xfunctions_.size();i++){
+			xfunction tmp = xfunctions_[i] - other.xfunctions_[i];
+			res.push_back(tmp);
+		}
+		vector_of_xfunctions result(res);
+		return result;
+	}
+};
+
+/// Kain allocator for single roots
 struct TDA_allocator{
 	World& world;
 	const int noct;
@@ -180,154 +221,171 @@ struct TDA_allocator{
 	}
 };
 
+/// Kain allocator for all roots
+struct KAIN_allocator{
+	World & world;
+	const size_t noct_;
+	const size_t nexc_;
+
+	KAIN_allocator(World & world, const size_t noct,const size_t nexc) : world(world), noct_(noct), nexc_(nexc) {}
+
+	vector_of_xfunctions operator()(){
+		xfunction zero_x(world,zero_functions<double,3>(world,noct_));
+		std::vector<xfunction> zero_x_vec(nexc_,zero_x);
+		return vector_of_xfunctions(zero_x_vec);
+	}
+	KAIN_allocator operator=(const KAIN_allocator &other){
+		KAIN_allocator tmp(world,other.noct_,other.nexc_);
+		return tmp;
+	}
+
+};
+
+
+
 /// An inner product for the xfunction class also needed by the KAIN solver
 static double inner(const xfunction &a, const xfunction &b) {
 	if (a.x.size()!=b.x.size()) MADNESS_EXCEPTION("ERROR :Inner product of two xfunction structures: Different sizes in x-vectors",1);
 	if (a.x.size()==0) return 0.0;
 	return madness::inner(a.x[0].world(),a.x,b.x).sum();
 }
+/// An inner product for the vector_of_xfunctions calss needed by the KAIN solver
+static double inner(const vector_of_xfunctions &a, const vector_of_xfunctions &b){
+	if (a.xfunctions_.size()!=b.xfunctions_.size()) MADNESS_EXCEPTION("ERROR :Inner product of two vector_of_xfunctions structures: Different sizes",1);
+	if(a.xfunctions_.size()==0) return 0.0;
+	double result =0.0;
+	for(size_t i=0;i<a.xfunctions_.size();i++){
+		Tensor<double> tmp = inner(a.xfunctions_[i].world,a.xfunctions_[i].x,b.xfunctions_[i].x);
+		result += tmp.sum();
+	}
+	return result;
+}
 
 // TYPEDEFS
 typedef std::vector<xfunction> xfunctionsT;
-typedef XNonlinearSolver<xfunction,double,TDA_allocator> solverT;
+typedef XNonlinearSolver<vector_of_xfunctions,double,KAIN_allocator> solverT;
+typedef XNonlinearSolver<xfunction,double,TDA_allocator> sequential_kain_solver;
 
 /// The structure needed if the kain solver shall be used
 struct kain_solver_helper_struct{
-	kain_solver_helper_struct(){}
-private:
-	/// size of the iterative subspace
-	size_t subspace_size;
-	/// number of occupied orbitals (non frozen)
-	size_t noct;
-	/// is kain used ?, this bool is needed because the struct has to be initialized if kain is used or not
-	bool is_used;
-	/// a vector of kain solvers (for each xfunction one solver) -> used when all_at_once is false
-	std::vector<solverT> solver;
-public:
+	kain_solver_helper_struct(World& world,const size_t nsub, const size_t noct, const size_t nexc, const bool is_used):
+		world(world),subspace_size_(nsub), noct_(noct), nexc_(nexc), is_used_(is_used), solver_(KAIN_allocator(world,noct_,nexc_),true) // bool is for output print
+	{
+		solver_.set_maxsub(subspace_size_);
+	}
 
+private:
+	/// World
+	World & world;
+	/// size of the iterative subspace
+	const size_t subspace_size_;
+	/// number of occupied orbitals (non frozen)
+	const size_t noct_;
+	/// number of xfunctions in iteration cycle
+	size_t nexc_;
+	/// is kain used ?, this bool is needed because the struct has to be initialized if kain is used or not
+	const bool is_used_;
+	/// Kain solver for all xfunctions
+	solverT solver_;
+public:
 	/// Check if everything is fine within the kain solver (use this when adding or deleting xfunctions)
 	/// @param[in] xfunctions the xfunctions of the current iteration
 	void sanity_check(const xfunctionsT &xfunctions)const{
-		if(xfunctions.size()!=solver.size()){
-			std::cout << "KAIN SOLVER SANITY CHECK FAILED: Unequal sizes " << xfunctions.size() << " xfunctions and " << solver.size() << " solvers" << std::endl;
-			MADNESS_EXCEPTION("Error in kain solver helper struct",1);
-		}
-		if(xfunctions[0].x.size()!=noct){
-			MADNESS_EXCEPTION("Error in kain solver helper struct, unequal sizes in occupied orbitals (check freeze_ keyword)",1);
-		}
+		if(xfunctions.size()!=nexc_) MADNESS_EXCEPTION("ERROR in KAIN solvers: Unequal sizes of excitation functions",1);
+		if(xfunctions[0].x.size()!=noct_) MADNESS_EXCEPTION("ERROR in KAIN solvers: Unequal sizes of active orbitals",1);
+		if(not is_used_) MADNESS_EXCEPTION("ERROR in KAIN solvers: Kain should not be used",1);
 	}
 
-	/// Initialize the kain solver helper structure
-	/// @param[in] world 	the world
-	/// @param[in] excitations	the number of excitations planned to calculate
-	/// @param[in] nnoct 	the number of occupied (non frozen) orbitals = the number of response orbitals
-	/// @param[in] kain		true if kain should be used, false if not (when false it is just the default initialization)
-	void initialize(World &world, const size_t excitations, const size_t nnoct, const bool kain, const size_t kain_subspace){
-		noct=nnoct;
-		is_used = kain;
-		subspace_size = kain_subspace;
-		if(kain){
-			for(size_t i=0;i<excitations; i++){
-				solverT onesolver(TDA_allocator(world,noct));
-				onesolver.set_maxsub(kain_subspace);
-				solver.push_back(onesolver);
-			}
-		}
-	}
 	/// Update the current response orbitals x of the xfunctions structures
 	/// @param[in] xfunctions	a vector if xfunctions structures of the current iteration (each xfunction should contain the x and curren_residuals)
 	void update(xfunctionsT &xfunctions){
-		if(not is_used) MADNESS_EXCEPTION("Kain update was requested, but kain should not be used",1);
-		if(is_used){
-			for(size_t k=0;k<xfunctions.size();k++){
-				// we need ot push this back if we update or not, because of the subspace transformation
-				xfunction tmp = solver[k].update(xfunction(xfunctions[k].world,xfunctions[k].x),xfunction(xfunctions[k].world,xfunctions[k].current_residuals));
-				if(xfunctions[k].kain){
-					xfunctions[k].x = tmp.x;
-				}else{
-					std::cout << "(convergence too low) forcing full step for  " << k << std::endl;
-					xfunctions[k].x = sub(xfunctions[k].world,xfunctions[k].x,xfunctions[k].current_residuals);
-				}
-			}
+		sanity_check(xfunctions);
+		// make tow xfunction vectors, one with the x of xfunctions and one with the residulas of xfunctions as x
+		xfunctionsT r;
+		xfunctionsT u;
+		for(size_t i=0;i<xfunctions.size();i++){
+			xfunction rtmp(world,xfunctions[i].current_residuals);
+			xfunction utmp(world,xfunctions[i].x);
+			r.push_back(rtmp);
+			u.push_back(utmp);
 		}
+		vector_of_xfunctions updated = solver_.update(vector_of_xfunctions(u),vector_of_xfunctions(r));
+		for(size_t i=0;i<xfunctions.size();i++){
+			xfunctions[i].x = updated.xfunctions_[i].x;
+		}
+
 	}
 	/// Transform the Kain subspace(s)
 	/// @param[in] world 	the world
 	/// @param[in] U		The transformation matrix
 	void transform_subspace(World &world,const madness::Tensor<double> U){
-		if(solver[0].get_ulist().empty()){ std::cout<<"kain: empty ulist, no transformation in "; return;}
-		if(solver[0].get_rlist().empty()){ std::cout<<"kain: empty rlist, no transformation in "; return;}
-		for(int k=0;k<solver[0].get_ulist().size();k++){
-			std::vector<vecfuncT> all_x;
-			std::vector<vecfuncT> all_r;
-			for(size_t i=0;i<solver.size();i++){
-				all_x.push_back(solver[i].get_ulist()[k].x);
-				all_r.push_back(solver[i].get_rlist()[k].x);
-			}
-			std::vector<vecfuncT> new_x = transform_vecfunctions(world,all_x,U);
-			std::vector<vecfuncT> new_r = transform_vecfunctions(world,all_r,U);
-			for(size_t i=0;i<solver.size();i++){
-				solver[i].get_ulist()[k].x = new_x[i];
-				solver[i].get_rlist()[k].x = new_r[i];
-			}
+		if(solver_.get_ulist().empty()){ std::cout<<"kain: empty ulist, no transformation in "; return;}
+		if(solver_.get_rlist().empty()){ std::cout<<"kain: empty rlist, no transformation in "; return;}
+		size_t usize = solver_.get_ulist().size();
+		size_t rsize = solver_.get_rlist().size();
+		if(usize != rsize) MADNESS_EXCEPTION("ERROR in transform subspace of kain_helper_struct: Unequal sizes in r and u subspaces",1)
+				std::vector<vector_of_xfunctions> ulist = solver_.get_ulist();
+		std::vector<vector_of_xfunctions> rlist = solver_.get_rlist();
+		for(size_t i=0;i<usize;i++){
+			solver_.get_ulist()[i] = transform_vector_of_xfunctions(world,solver_.get_ulist()[i],U);
+			solver_.get_rlist()[i] = transform_vector_of_xfunctions(world,solver_.get_rlist()[i],U);
 		}
 	}
-	/// reduce the subspace: delete whole solvers
+	/// reduce the subspace: delete the entrys of the subspace that correspond to excitation vector i
 	/// Use this if you delete xfunctions
 	/// @param[in] i	the number of the xfunction that was deleted
-	void reduce_subspace(const size_t i){
-		solver.erase(solver.begin()+i);
-	}
-	/// Only erase the subspace, not delete the solver
-	/// use this if you replace xfunctions
-	/// @param[in] i 	the number of the solver/xfunction which subspace should be erased
-	void erase_subspace(const size_t i){
-		if(solver.size()<i) MADNESS_EXCEPTION("Tried to delete subspace of nonexisting solver",1);
-		solver[i].get_ulist().clear();
-		solver[i].get_rlist().clear();
-	}
-	/// increase the subspace: adding new solvers
-	/// use this if you add new xfunctions
-	/// @param[in] world 	the world
-	/// @param[in] xfunctions the current xfunctions (which have been extended)
-	void increase_subspace(World &world,const xfunctionsT &xfunctions){
-		// if the subspace is increased (means more solvers are added) the subspaces of the existing solvers must be erased
-		// else there will be problems with the next subspace transformation
-		// the simplest solution is to add cimpletely new solvers for all xfunctions
-
-		// clean up: erase all old solvers
-		solver.clear();
-		// add new solvers
-		solverT onesolver(TDA_allocator(world,noct));
-		onesolver.set_maxsub(subspace_size);
-		for(size_t j=0;j<xfunctions.size();j++){
-			solver.push_back(onesolver);
+	void reduce_subspace(const size_t k){
+		if(solver_.get_rlist().size() != solver_.get_ulist().size()) MADNESS_EXCEPTION("ERROR in transform subspace of kain_helper_struct: Unequal sizes in r and u subspaces",1)
+		std::vector<vector_of_xfunctions> reduced_u = solver_.get_ulist();
+		std::vector<vector_of_xfunctions> reduced_r = solver_.get_rlist();
+		if(not reduced_u.empty()){
+		for(size_t i=0;i<reduced_u.size();i++){
+			reduced_u[i].xfunctions_.erase(reduced_u[i].xfunctions_.begin()+k);
+			reduced_r[i].xfunctions_.erase(reduced_r[i].xfunctions_.begin()+k);
 		}
-		sanity_check(xfunctions);
+		}
+		// this is necessary because the allocator has to change
+		re_initialize_solver(nexc_-1);
+		solver_.get_ulist() =  reduced_u ;
+		solver_.get_rlist() =  reduced_r ;
 	}
+
+	void re_initialize_solver(const size_t new_nexc){
+		nexc_ = new_nexc;
+		solverT new_solver(KAIN_allocator(world,noct_,nexc_));
+		solver_ = new_solver;
+	}
+
 	/// Helper function for the transform_subspace function of the structure
 	/// @param[in] world the world
 	/// @param[in] xfunctions a vector of vectorfunctions
 	/// @param[in] U the transformation matrix
 	/// @return U*xfunctions : the transformed vector of vectorfunctions
-	std::vector<vecfuncT> transform_vecfunctions(World &world, const std::vector<vecfuncT> &xfunctions, const madness::Tensor<double> U) const {
+	vector_of_xfunctions transform_vector_of_xfunctions(World &world, const vector_of_xfunctions &xfunctions, const madness::Tensor<double> U) const {
 
-		std::vector<vecfuncT> new_xfunctions(xfunctions.size());
-		for (std::size_t i = 0; i < xfunctions.size(); i++) {
-			new_xfunctions[i] = zero_functions_compressed<double, 3>(world,
-					xfunctions[i].size());
-			compress(world, xfunctions[i]);
+		vector_of_xfunctions new_xfunctions;
+		for (std::size_t i = 0; i < xfunctions.xfunctions_.size(); i++) {
+			vecfuncT zeros = zero_functions_compressed<double, 3>(world,xfunctions.xfunctions_[i].x.size());
+			xfunction tmp(world,zeros);
+			compress(world, tmp.x);
+			new_xfunctions.xfunctions_.push_back(tmp);
 		}
 
-		for (size_t i = 0; i < xfunctions.size(); i++) {
-			for (size_t j = 0; j < xfunctions.size(); ++j) {
-				gaxpy(world, 1.0, new_xfunctions[i], U(j, i), xfunctions[j]);
+		for (size_t i = 0; i < xfunctions.xfunctions_.size(); i++) {
+			for (size_t j = 0; j < xfunctions.xfunctions_.size(); ++j) {
+				gaxpy(world, 1.0, new_xfunctions.xfunctions_[i].x, U(j, i), xfunctions.xfunctions_[j].x);
 			}
 		}
 
 		// Return the transformed vector of vecfunctions
 		return new_xfunctions;
 
+	}
+
+	kain_solver_helper_struct operator=(const kain_solver_helper_struct &other){
+		nexc_ = other.nexc_;
+		solver_ = other.solver_;
+		return *this;
 	}
 };
 /// Functor that smoothes guess functions with the error functions (no fluctuations at the box borders)
@@ -338,79 +396,17 @@ private:
 public:
 	guess_smoothing(const double box_size) : box_size_(box_size) {}
 	// Smoothing function
-//	double operator()(const coord_3d &r)const{
-//		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
-//	}
+	//	double operator()(const coord_3d &r)const{
+	//		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+	//	}
 
 	double operator()(const coord_3d &r)const{
-		     if(fabs(r[0])>box_size_) return 0.0;
+		if(fabs(r[0])>box_size_) return 0.0;
 		else if(fabs(r[1])>box_size_) return 0.0;
 		else if(fabs(r[2])>box_size_) return 0.0;
 		else return 1.0;
 	}
 };
-struct guess_anti_smoothing : public FunctionFunctorInterface<double,3> {
-private:
-	/// Size of the box that will not be smoothed
-	const double box_size_;
-public:
-	guess_anti_smoothing(const double box) : box_size_(box) {}
-	// Smoothing function
-	double operator()(const coord_3d &r)const{
-		double smooth = 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
-		smooth -= 1.0;
-		smooth *= -1.0;
-		return smooth;
-	}
-
-};
-/// Functor that adds diffuse 1s functions on given coordinates with given signs (phases)
-struct diffuse_functions : public FunctionFunctorInterface<double,3> {
-public:
-	/// constructor
-	/// @param[in] coord the coordinates (in most cases of nuclei) where the diffuse functions shall be centered
-	/// @param[in] signs the signs the diffuse functions should have on the corresponding coordinates
-	/// @param[in] natoms the number of atoms (if the coordinates are of nuclei) or just the size of the coord vector
-	/// @param[in] mode the level of diffuseness (0 and 1 possible)
-	diffuse_functions(const double exponent,const std::vector<coord_3d> coord,const std::vector<int> signs, const size_t natoms, const size_t mode):
-		exponent(exponent), coord(coord), signs(signs),natoms(natoms)
-{if(mode>1) MADNESS_EXCEPTION("mode in diffuse_function struct is not 0,1 or 2",1);}
-
-	/// Make a rydberg guess function where the neRäar range area is 0.0 and the long range is a diffuse 2s or 2p function
-	double operator()(const coord_3d &r)const{
-		std::vector<double> diffuse_1s_functions;
-
-		for(size_t i=0;i<natoms;i++){
-			if (signs[i]!=0){
-				// make diffuse 1s functions localized at the atoms
-				double x = r[0]-coord[i][0];
-				double y = r[1]-coord[i][0];
-				double z = r[2]-coord[i][0];
-				double rad = sqrt(x*x+y*y+z*z);
-				double diffuse_tmp = signs[i]*exp(-exponent*rad);
-				diffuse_1s_functions.push_back(diffuse_tmp);
-			}else diffuse_1s_functions.push_back(0.0);
-		}
-		double result=0;
-		for(size_t i=0;i<diffuse_1s_functions.size();i++) result+=diffuse_1s_functions[i];
-		return result;
-	}
-
-private:
-	/// exponent for the diffuse s function
-	const double exponent;
-	/// The coordinates of the atoms
-	const std::vector<coord_3d> coord;
-	/// The signs of the respoinse function at the atom coordinates (0 is node)
-	const std::vector<int> signs;
-	/// number of atoms
-	const size_t natoms;
-
-	/// Helper function to evaluate the radius
-	double r_function(const coord_3d &r)const{return sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);}
-
-};
-
 
 
 /// The TDA class: computes TDA and CIS calculations
@@ -440,8 +436,10 @@ public:
 		iter_max_(100),
 		noise_iter_(1.e8),
 		econv_(1.e-4),
-		dconv_(1.e-3),
-		hard_dconv_(1.e-3),
+		guess_econv_(1.e-3),
+		dconv_(1.e-2),
+		guess_dconv_(5.e-2),
+		hard_dconv_(5.e-3),
 		hard_econv_(5.e-5),
 		nfreeze_(0),
 		plot_(false),
@@ -516,7 +514,9 @@ public:
 			else if (tag == "iter_max") ss >> iter_max_;
 			else if (tag == "noise_iter") ss >> noise_iter_;
 			else if (tag == "econv") ss >> econv_;
+			else if (tag == "guess_econv") ss >> guess_econv_;
 			else if (tag == "dconv") ss >> dconv_;
+			else if (tag == "guess_dconv") ss >> guess_dconv_;
 			else if (tag == "freeze") ss >> nfreeze_;
 			else if (tag == "print_grid") print_grid_=true;
 			else if (tag == "plot") plot_=true;
@@ -630,11 +630,6 @@ public:
 			lda_intermediate_ = make_lda_intermediate();
 		}
 
-		// Initialize the KAIN solvers
-		noct -= nfreeze_;
-		kain_solvers.initialize(world,excitations_,noct,kain_,kain_subspace_);
-
-
 		// Prevent misstakes:
 		if(shift_>0){MADNESS_EXCEPTION("Potential shift is positive",1);}
 		if(not dft_ and shift_ !=0.0){MADNESS_EXCEPTION("Non zero potential shift in TDHF calculation",1);}
@@ -654,6 +649,11 @@ public:
 		std::cout << "truncate molecular orbitals to " << truncate_thresh_ << std::endl;
 
 		std::cout << "setup of TDA class ended\n" << std::endl;
+
+		if(excitations_ > guess_excitations_){
+			std::cout << "WARNING " << excitations_ << " final and " << guess_excitations_ << " guess_excitations demanded" << " setting demanded excitations to " << guess_excitations_ << std::endl;
+			excitations_ = guess_excitations_;
+		}
 	}
 
 	/// try to gain a little bit information about the used memory
@@ -762,8 +762,10 @@ private:
 
 	/// energy convergence level for the guess functions in the solve routine
 	double econv_;
+	double guess_econv_;
 	/// maximal residual for the guess_functions in the solve routine
 	double dconv_;
+	double guess_dconv_;
 	// Convergence criteria (residual norm) for the high thresh sequential iterations in the end
 	double hard_dconv_;
 	double hard_econv_;
@@ -820,9 +822,8 @@ private:
 	bool rydberg_;
 	double rydberg_exponent_;
 
-	/// Use the Kain solver to update the functions
+	/// Kain solver used or not
 	bool kain_;
-	kain_solver_helper_struct kain_solvers;
 
 	/// Kain subspace size for the sequential iterations
 	size_t kain_subspace_;
@@ -875,29 +876,23 @@ private:
 
 	/// Takes an empty vector of excitation functions and passes it to one of the guess functions
 	/// @param[in] xfunctions empty vector of xfunctions (no necessarily empty)
-	void initialize(xfunctionsT & xfunctions);
+	void initialize(xfunctionsT & xfunctions)const;
 
 	/// Creates physical guess functions (x,y,z excitations - depending on the input file, see make_excitation_operators function)
-	void guess_physical(xfunctionsT & xfunctions);
+	void guess_physical(xfunctionsT & xfunctions)const;
 
 	/// guess_ao_excitation
-	void guess_custom_2(xfunctionsT &xfunctions);
+	void guess_custom_2(xfunctionsT &xfunctions)const;
 
 	/// Make a huge guess: Excite on every non hydrogen atom
-	void guess_atomic_excitation(xfunctionsT & xfunctions);
+	void guess_atomic_excitation(xfunctionsT & xfunctions)const;
 
-	void guess_custom(xfunctionsT & xfunctions);
-
-	/// Add diffuse 1s functions to the molecular orbitals (for LDA calculations)
-	void add_diffuse_functions(vecfuncT &mos);
+	void guess_custom(xfunctionsT & xfunctions)const;
 
 	/// Create excitation operators (e.g x,y,z for dipole excitations bzw symmetry operators)
 	/// @return gives back a vectorfunction of excitation operators (specified in the input file)
 	/// e.g the keyword: "dipole+" in the TDA section of the input file will give back a vecfunction containing (x,y,z,r)
 	vecfuncT make_excitation_operators()const;
-
-	/// Create random guess functions and add them
-	void make_noise(xfunctionsT &xfunctions) const;
 
 	/// iterates the guess_functions
 	// Calls iterate_all with the right settings
@@ -917,27 +912,20 @@ private:
 	/// @param[in] xfunction a single xfunction structure (contains the response orbitals as vecfunc x)
 	/// @param[in] ptfock this should be true if orthonormalize_fock was used before (if false, the function will calculate the expectation value of the xfunction)
 	/// @param[in] guess true if this is one of the very first iterations (no energy update, no kain update)
-	void iterate_one(xfunction & xfunction,bool ptfock,bool guess);
-
-	/// basicaly the same than iterate_one
-	// instead of x = G(-2VPsi) and G parametrized with epsilon+omega
-	// here: x= G(-2VPsi + 2omega x) and G aprametrized only with epsilon (always bound)
-	void iterate_one_unbound(xfunction & xfunction,bool ptfock,bool guess);
-
-	void iterate_one_yanai(xfunction & xfunction,bool guess);
+	void iterate_one(xfunction & xfunction,bool ptfock,bool guess)const;
 
 	/// Update energies (decide if second order or expectation value should be used)
-	void update_energies(xfunctionsT &xfunctions);
+	void update_energies(xfunctionsT &xfunctions)const;
 
 	/// Normalize one or all excitation functions
-	void normalize(xfunctionsT &xfunctions);
-	void normalize(xfunction &xfunction);
+	void normalize(xfunctionsT &xfunctions)const;
+	void normalize(xfunction &xfunction)const;
 
 	/// Project out the converged xfunctions
-	void project_out_converged_xfunctions(xfunctionsT & xfunctions);
+	void project_out_converged_xfunctions(xfunctionsT & xfunctions)const;
 
 	/// Orthonormalize the exfunctions with Gram-Schmidt
-	void orthonormalize_GS(xfunctionsT &xfunctions);
+	void orthonormalize_GS(xfunctionsT &xfunctions)const;
 
 	/// Orthonormalize the xfunction with the perturbed Fock Matrix
 	// 1. Call make_perturbed_fock_matrix(xfunctions)
@@ -945,8 +933,9 @@ private:
 	// 3. Update Energy and xfunctions
 	/// @param[in] xfunctions the xfunctions
 	/// @param[in] guess is it a guess iterations (the first iterations where the energy is fixed or not
-	/// @return true if the fock update was carried out, false if not
-	bool orthonormalize_fock(xfunctionsT &xfunctions,const bool guess);
+	/// @param[in] kain solver helper structure (rotation of subspace)
+	/// @return true is fock matrix was calculated (if not that means no energy was calculated and that the expectation value needs to be calculated in the iterate_one procedure)
+	bool orthonormalize_fock(xfunctionsT &xfunctions,const bool guess, kain_solver_helper_struct &kain_solver)const;
 
 	/// a little helper routine to measure the degree of offdiagonality in a 2d tensor
 	double measure_offdiagonality(const madness::Tensor<double> &U,const size_t size)const;
@@ -956,14 +945,14 @@ private:
 	/// Projects out the occupied space
 	// 1. Make projector
 	// 2. apply
-	void project_out_occupied_space(vecfuncT &x);
+	void project_out_occupied_space(vecfuncT &x)const;
 
 	/// Calculate offdiagonal elements of the perturbed fock matrix
 	double perturbed_fock_matrix_element(const vecfuncT &xr, const vecfuncT &Vxp,const vecfuncT &xp)const;
 
 	/// Calculate the expectation value and update xfunction.expectation_value
 	// Can also be used to calculate diagonal elements of the fock matrix
-	double expectation_value(const xfunction &x,const vecfuncT &Vx);
+	double expectation_value(const xfunction &x,const vecfuncT &Vx)const;
 
 	/// Make the perturbed Fock Matrix
 	// 1. Calculate potential (V0 + Gamma) --> Call perturbed_potential(exfunctions)
@@ -1011,10 +1000,9 @@ private:
 
 	/// Check convergence
 	/// checks if the xfunctions have converged
-	/// if so then the converged flag will be set so zero
-	/// also the converged xfunction is pushed into the converged_xfunctions_ vector and is replaced by a new guess function
 	/// @param[in] xfunctions a vector of xfunction structures
-	bool check_convergence(xfunctionsT &xfunctions);
+	/// @param[in] guess : decide if guess criteria for convergece should be used
+	void check_convergence(xfunctionsT &xfunctions, const bool guess)const ;
 
 	/// Print performance: Values of expectation values and errors of each iteration into a file
 	/// @param[in] xfunctions a vector of xfunction structures
@@ -1024,7 +1012,7 @@ private:
 	/// Truncate the xfunctions structure:
 	/// @param[in] xfunctions a vector of xfunction structures
 	/// Truncates the vecfunctions: x, Vx and the current_residual (if not empty)
-	void truncate_xfunctions(xfunctionsT &xfunctions);
+	void truncate_xfunctions(xfunctionsT &xfunctions)const;
 
 	/// load a converged root from disk
 
