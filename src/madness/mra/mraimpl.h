@@ -2098,7 +2098,7 @@ namespace madness {
   
         // Do pre-screening of the FunctionFunctorInterface, f, before calculating f(r) at quadrature points
         coordT c1, c2;
-        for (int i = 0; i < NDIM; i++) {
+        for (std::size_t i = 0; i < NDIM; i++) {
           c1[i] = cell(i,0) + h*cell_width[i]*(l[i] + qx((long)0));
           c2[i] = cell(i,0) + h*cell_width[i]*(l[i] + qx(npt-1));
         }
