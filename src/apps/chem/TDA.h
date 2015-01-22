@@ -631,7 +631,7 @@ public:
 			excitations_ = guess_excitations_;
 		}
 
-		Tensor<double> ExImNorms;
+		Tensor<double> ExImNorms(exchange_intermediate_.size(),exchange_intermediate_.size());
 		for(size_t i=0;i<exchange_intermediate_.size();i++){
 			for(size_t j=0;j<exchange_intermediate_[i].size();j++){
 				ExImNorms(i,j) = exchange_intermediate_[i][j].norm2();
