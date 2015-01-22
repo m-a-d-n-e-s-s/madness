@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
   $Id$
-*/
+ */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
@@ -42,7 +42,7 @@
   <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
   /trunk/src/apps/examples/tdhf.cc>here</a>.
 
-*/
+ */
 
 // for moldft consistency check
 //#include<examples/dft_solver.h>
@@ -54,98 +54,74 @@
 using namespace madness;
 
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    if (world.rank() == 0) {
-    	print("\n  TDHF -- time-dependent Hartree-Fock in the CIS approximation  \n");
-    	printf("starting at time %.1f\n", wall_time());
-       	print("\nmain() compiled at ",__TIME__," on ",__DATE__);
-
-    }
-    startup(world,argc,argv);
-    std::cout.precision(6);
-    FunctionDefaults<3>::set_truncate_mode(1);
-    print("Truncate mode set to ",FunctionDefaults<3>::get_truncate_mode());
-
-#ifdef GITREVISION
-    const  char* gitrev =  GITREVISION;
-    const std::string gitrevision(gitrev);
-    if (world.rank()==0) {
-    	print("           git revision ...",gitrevision);
-    }
-#endif
-
-    typedef std::vector<functionT> vecfuncT;
-
-
-
-
-    // take the HF orbitals to start
-    const std::string input="input";
-    const std::string high_input="high_input";
-	SCF calc(world,input.c_str());
-    calc.molecule.print();
-    print("\n");
-    calc.param.print(world);
-
-	// Print the coordinates
-	if (world.rank()==0){
-		print("Coordinates before MolDFT:");
-		Tensor<double> Coord = calc.molecule.get_all_coords();
-		for(int i=0;i<calc.molecule.natom();i++){
-			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
-		}
-		// Check if center of charge is 0,0,0
-		coord_3d cm(0.0);
-		double overal_charge=0.0;
-		for(int j=0;j<calc.molecule.natom();j++){
-			double charge = (double) calc.molecule.get_atom(j).atomic_number;
-			overal_charge += charge;
-		}
-		std::cout << "overal charge of nuclei is " << overal_charge << std::endl;
-		for(size_t i=0;i<3;i++){
-			for(int j=0;j<calc.molecule.natom();j++){
-				double charge = (double) calc.molecule.get_atom(j).atomic_number;
-			cm[i] += charge*Coord(j,i);
-			}
-		}
-		cm = 1.0/overal_charge*cm;
-		std::cout << "Center of Charge is " << cm << std::endl;
-
-		// make center of charge coordinates
-		for(int i=0;i<calc.molecule.natom();i++){
-			for(size_t j=0;j<3;j++){
-				Coord(i,j)-=cm[j];
-			}
-		}
-		for(int i=0;i<calc.molecule.natom();i++){
-			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
-		}
-		// Get the molecular bounding cube
-		std::cout << "molecular bounding cube is " << calc.molecule.bounding_cube() << std::endl;
+	initialize(argc, argv);
+	World world(SafeMPI::COMM_WORLD);
+	if (world.rank() == 0) {
+		print("\n  TDHF -- time-dependent Hartree-Fock in the CIS approximation  \n");
+		printf("starting at time %.1f\n", wall_time());
+		print("\nmain() compiled at ",__TIME__," on ",__DATE__);
 
 	}
+	startup(world,argc,argv);
+	std::cout.precision(6);
+	FunctionDefaults<3>::set_truncate_mode(1);
+	print("Truncate mode set to ",FunctionDefaults<3>::get_truncate_mode());
 
-    // solve the ground state energy; calc is a reference
-    MolecularEnergy me(world,calc);
-    double hf_energy=me.value(calc.molecule.get_all_coords());
+#ifdef GITREVISION
+	const  char* gitrev =  GITREVISION;
+	const std::string gitrevision(gitrev);
+	if (world.rank()==0) {
+		print("           git revision ...",gitrevision);
+	}
+#endif
 
-    // Check convergence and functional use of MolDFT
-//    dft_solver dft(world,calc);
-//    dft.solve();
+	typedef std::vector<functionT> vecfuncT;
 
-    if (world.rank()==0) print("MRA hf energy", hf_energy);
-    if (world.rank()==0) {
-    	printf("\n\n starting TDHF section at time %.1f\n",wall_time());
-    	print("nuclear repulsion: ", calc.molecule.nuclear_repulsion_energy());
-    	print("hf energy:         ", hf_energy);
-    	print("orbital energies:  ");
-    	for (std::size_t i=0; i<calc.amo.size(); ++i)
-    		print("     ",calc.aeps[i]);
-    }
+	// First solve the ground state
+	const std::string input = "input";
+	SCF calc(world,input.c_str());
+	calc.molecule.print(); print("\n");
+	calc.param.print(world);
 
+	// solve the ground state energy; calc is a reference
+	MolecularEnergy me(world,calc);
+	double hf_energy=me.value(calc.molecule.get_all_coords());
 
+	// Set the threshold defaults
+	double ground_state_thresh = FunctionDefaults<3>::get_thresh();
+	double guess_thresh = ground_state_thresh*50.0;
+	double solve_thresh = ground_state_thresh*10.0;
+	double solve_seq_thresh = ground_state_thresh*10.0;
 
+	// Get the custom thresholds from the input file
+	std::ifstream f(input.c_str());
+	position_stream(f, "excite");
+	std::string s, tag;
+	while (std::getline(f,s)) {
+		std::stringstream ss(s);
+		ss >> tag;
+		if (tag == "end") break;
+		else if(tag == "guess_thresh") ss >> guess_thresh;
+		else if(tag == "solve_thresh") ss >> solve_thresh;
+		else if(tag == "solve_seq_thresh") ss >> solve_seq_thresh;
+		else continue;
+	}
+
+	if (world.rank()==0) print("MRA hf energy", hf_energy);
+	if (world.rank()==0) {
+		printf("\n\n starting TDHF section at time %.1f\n",wall_time());
+		print("nuclear repulsion: ", calc.molecule.nuclear_repulsion_energy());
+		print("hf energy:         ", hf_energy);
+		print("orbital energies:  ");
+		for (std::size_t i=0; i<calc.amo.size(); ++i)
+			print("     ",calc.aeps[i]);
+		print("\n\n-----------------------------");
+		std::cout << "guess_thresh is:" << guess_thresh << std::endl;
+		std::cout << "solve_thresh is:" << solve_thresh << std::endl;
+		std::cout << "solve_seq_thresh is:" << solve_seq_thresh << std::endl;
+		print("-----------------------------\n\n");
+
+	}
 
 	// Print the coordinates
 	if (world.rank()==0){
@@ -154,112 +130,87 @@ int main(int argc, char** argv) {
 		for(int i=0;i<calc.molecule.natom();i++){
 			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
 		}
-		// Check if center of charge is 0,0,0
-		coord_3d cm(0.0);
-		for(size_t i=0;i<3;i++){
-			for(int j=0;j<calc.molecule.natom();j++){
+	}
+	// Check if center of charge is 0,0,0
+	Tensor<double> Coord = calc.molecule.get_all_coords();
+	coord_3d cm(0.0);
+	for(size_t i=0;i<3;i++){
+		for(int j=0;j<calc.molecule.natom();j++){
 			cm[i] = calc.molecule.get_atom(j).atomic_number*Coord(i,j);
-			}
 		}
-		std::cout << "Center of Charge is " << cm << std::endl;
+	}
+	std::cout << "Center of Charge is " << cm << std::endl;
 
+	// Make the empty vectors for the molecular orbitals and xfunctions with different thresholds
+	vecfuncT guess_mos;
+	vecfuncT solve_mos;
+	vecfuncT solve_seq_mos;
+	xfunctionsT guess_xfunctions;
+	xfunctionsT solve_xfunctions;
+	xfunctionsT solve_seq_xfunctions;
+
+	// Initialize and pre converge the guess xfunctions
+	{
+		// Set the guess_thresh
+		FunctionDefaults<3>::set_thresh(guess_thresh);
+		if(world.rank()==0) std::cout << "\n\nMODULE 1: INITIALIZE AND PRE-CONVERGE GUESS EXCITATIONS \n used threshold"
+				<< FunctionDefaults<3>::get_thresh() << "\n\n"  << std::endl;
+
+		// Make deep copys of the ground state mos and reduce the thresh
+		guess_mos = copy(world,calc.amo);
+		set_thresh(world,guess_mos,guess_thresh);
+
+		// Init. and solve the guess
+		TDA guess_cis(world,calc,guess_mos,input);
+		guess_cis.solve_guess(guess_xfunctions);
+
+		// Get the pre-converged xfunctions for the next solve routine
+		solve_xfunctions = guess_cis.get_converged_xfunctions();
+		guess_mos.clear();
+		guess_xfunctions.clear();
+	}// Destroy the guess_cis object
+
+	// Solve the pre converged guess_xfunctions all together
+	{
+		// set the solve_thresh
+		FunctionDefaults<3>::set_thresh(solve_thresh);
+		if(world.rank()==0) std::cout << "\n\nMODULE 2: ITERATE GUESS EXCITATIONS \n used threshold: "
+				<< FunctionDefaults<3>::get_thresh() << "\n\n"  << std::endl;
+
+		// Make deep copys of the ground state mos and reduce the thresh
+		solve_mos = copy(world,calc.amo);
+		set_thresh(world,solve_mos,solve_thresh);
+
+		// iterate the solve_xfunctions
+		TDA solve_cis(world,calc,solve_mos,input);
+		solve_cis.solve(solve_xfunctions);
+
+		// Get the converged xfunctions and prepare for the last sequential iterations with kain
+		solve_seq_xfunctions = solve_cis.get_converged_xfunctions();
+		solve_mos.clear();
+		solve_xfunctions.clear();
+
+	}// destroy solve_cis object
+
+	// Final iterations, sequantial and with kain (keyword: kain_subspace 1, is without kain)
+	{
+		// set the sequential thresh
+		FunctionDefaults<3>::set_thresh(solve_seq_thresh);
+		if(world.rank()==0) std::cout << "\n\nMODULE 3: SEQUENTIALLY ITERATE GUESS EXCITATIONS \n used threshold: "
+				<< FunctionDefaults<3>::get_thresh() << "\n\n"  << std::endl;
+
+		// Make deep copys of the ground state mos and reduce the thresh
+		solve_seq_mos = copy(world,calc.amo);
+		set_thresh(world,solve_seq_mos,solve_seq_thresh);
+
+		// make last iterations
+		TDA solve_seq_cis(world,calc,solve_seq_mos,input);
+		solve_seq_cis.solve_sequential(solve_seq_xfunctions);
+		solve_seq_mos.clear();
 	}
 
+	if (world.rank() == 0) printf("\n\n-------------------------\nfinished at time %.1f\n", wall_time());
+	finalize();
+	return 0;
+}// end main
 
-	// default threshs
-	double high_thresh = FunctionDefaults<3>::get_thresh();
-	double low_thresh = sqrt(high_thresh);// sqrt(high_thresh);
-
-	// fetch low thresh from the input section
-	// high thresh is always the same as in moldft
-	std::ifstream f(input.c_str());
-	position_stream(f, "excite");
-	std::string s, tag;
-	while (std::getline(f,s)) {
-		std::stringstream ss(s);
-		ss >> tag;
-		if (tag == "end") break;
-		else if(tag=="low_thresh") ss>>low_thresh;
-		else if(tag=="lo") ss>>low_thresh;
-		else if(tag=="lo_thresh") ss>>low_thresh;
-		else if(tag=="high_thresh") ss>>high_thresh;
-		else if(tag=="hi") ss>>high_thresh;
-		else if(tag=="li_thresh") ss>>high_thresh;
-		else continue;
-	}
-
-	// create the vector of xfunctions (now empty, will be filled by cis class if it is empty)
-	xfunctionsT xfunctions;
-
-	// solving with low Threshold
-
-	// make a deep copy of the occupied orbitals and change the thresh
-
-	print("\n\n-----------------------------");
-	std::cout << "high thresh is:" << high_thresh << std::endl;
-	std::cout << "low thresh is:" << low_thresh << std::endl;
-	print("-----------------------------\n\n");
-	std::vector<real_function_3d> mos;
-
-	calc.amo[0].print_size("hi, ");
-	FunctionDefaults<3>::set_thresh(low_thresh);
-	for(size_t i=0;i<calc.amo.size();i++){
-		real_function_3d tmp = copy(calc.amo[i]);
-		tmp.set_thresh(low_thresh);
-		mos.push_back(tmp);
-	}
-
-
-    // construct the CIS solver, it requires a converged HF reference
-    TDA cis(world,calc,mos,input);
-bool asd =false;
-    // print grid information to file to get a better guess from external
-    if (asd){//cis.print_grid_TDA()) {
-    	if (world.rank()==0) print("printing grid for koala\n");
-    	real_function_3d density=cis.get_calc().make_density(world,calc.aocc,
-    		calc.amo);
-    	density.get_impl()->print_grid("grid");
-    } else {
-
-    	// solve the response equation
-    	cis.solve(xfunctions);
-    }
-
-    // Now solve with high thresh
-    vecfuncT high_mos;
-	FunctionDefaults<3>::set_thresh(high_thresh);
-	for(size_t i=0;i<calc.amo.size();i++){
-		real_function_3d tmp = copy(calc.amo[i]);
-		tmp.set_thresh(high_thresh);
-		high_mos.push_back(tmp);
-	}
-
-	// set the thresh of the xfunctions up
-	xfunctions.clear();
-	xfunctionsT high_xfunctions;
-	for(size_t i=0; i<cis.get_converged_xfunctions().size();i++){
-		xfunction tmp(world);
-		tmp.x = copy(world,cis.get_converged_xfunctions()[i].x);
-		tmp.omega = cis.get_converged_xfunctions()[i].omega;
-		tmp.converged = false;
-		tmp.iterations = cis.get_converged_xfunctions()[i].iterations;
-		tmp.delta = cis.get_converged_xfunctions()[i].delta;
-		tmp.expectation_value = cis.get_converged_xfunctions()[i].expectation_value;
-		tmp.error = cis.get_converged_xfunctions()[i].error;
-		tmp.number = cis.get_converged_xfunctions()[i].number;
-		high_xfunctions.push_back(tmp);
-	}
-	for(size_t i=0;i<xfunctions.size();i++)set_thresh(world,xfunctions[i].x,high_thresh);
-
-	// sort after energy
-	std::sort(high_xfunctions.begin(),high_xfunctions.end());
-
-	TDA high_cis(world,calc,high_mos,input);
-	high_cis.solve_sequential(high_xfunctions);
-
-
-
-    if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
-    finalize();
-    return 0;
-}

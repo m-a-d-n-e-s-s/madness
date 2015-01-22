@@ -40,14 +40,12 @@ struct xyz {
 	}
 };
 
-void TDA::solve(xfunctionsT &xfunctions) {
-	if (plot_ == true)
-
-		plot_vecfunction(active_mo_, "active_mo_");
-
+void TDA::solve_guess(xfunctionsT &xfunctions) {
+	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
+				<< "SOLVE_GUESS START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n\n\n" << std::endl;
+	plot_vecfunction(active_mo_, "active_mo_");
 	// check for saved xfunctions
 	read_xfunctions(xfunctions);
-
 	// read keyword : only read xfunctions and analyze them (this happens in solve_sequential function)
 	if (read_ or only_sequential_){
 		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::endl;
@@ -68,15 +66,26 @@ void TDA::solve(xfunctionsT &xfunctions) {
 		plot_vecfunction(converged_xfunctions_[i].x,"final_guess_excitation_"+stringify(i),true);
 	}
 
-	// now take the converged guess xfunctions and iterate them with kain
-	xfunctions = converged_xfunctions_;
-	for(size_t i=0;i<xfunctions.size();i++) xfunctions[i].converged = false;
-	converged_xfunctions_.clear();
+	// now sort the pre-converged xfunctions
+	std::sort(converged_xfunctions_.begin(),converged_xfunctions_.end());
 
-	// now sort the pre-converged xfunctions according to their energy and erase all that were not demanded
+	if(world.rank()==0) std::cout << "\n\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
+			<< "SOLVE_GUESS ENDED " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n\n\n\n" << std::endl;
+
+}
+
+void TDA::solve(xfunctionsT &xfunctions) {
+	// read keyword : only read xfunctions and analyze them (this happens in solve_sequential function)
+	if (read_ or only_sequential_){
+		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::endl;
+		return;
+	}
+	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
+				<< "SOLVE START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n" << std::endl;
+
+	// use only the demanded number of xfunctions
 	std::sort(xfunctions.begin(),xfunctions.end());
-	xfunctions.erase(xfunctions.begin()+excitations_,xfunctions.end());
-
+	if(xfunctions.size()>guess_excitations_) xfunctions.erase(xfunctions.begin()+guess_excitations_,xfunctions.end());
 
 	if(world.rank()==0) std::cout << "\n------------------------------------------\n"
 			<< "The following pre-converged guess_xfunctions will be used from now on: " << "\n------------------------------------------\n"  << std::endl;
@@ -96,10 +105,17 @@ void TDA::solve(xfunctionsT &xfunctions) {
 	// Analyze
 	//analyze(xfunctions);
 
+	if(world.rank()==0) std::cout << "\n\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
+			<< "SOLVE ENDED " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n\n\n\n" << std::endl;
 
 }
 
-void TDA::solve_sequential(xfunctionsT xfunctions) {
+void TDA::solve_sequential(xfunctionsT &xfunctions) {
+	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
+				<< "SOLVE_SEQUENTIAL START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n"
+				"The following xfunctions will be solved sequentially "<< std::endl;
+
+	print_status(xfunctions);
 
 	// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
 	if (not on_the_fly_)
@@ -694,7 +710,7 @@ void TDA::update_energies(xfunctionsT &xfunctions)const {
 		//failsafe: make shure the delta and expectation values vectors are not empty to avoid segmentation faults
 		if(not xfunctions[k].delta.empty() and not xfunctions[k].expectation_value.empty() and not xfunctions[k].error.empty()) {
 			if(xfunctions[k].expectation_value.back() < highest_excitation_) {
-				if(fabs(xfunctions[k].delta.back()) < thresh*12.0) {
+				if(fabs(xfunctions[k].delta.back()) < thresh*2.0) {
 					xfunctions[k].omega +=xfunctions[k].delta.back();
 					std::cout << k << "(2nd), ";
 				} else {

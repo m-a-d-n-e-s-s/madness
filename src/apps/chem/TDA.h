@@ -68,12 +68,12 @@ public:
 struct xfunction{
 	/// default constructor
 	/// @param[in] world	the world is needed as a reference
-	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {}
-	xfunction(World &world, const double in_omega) :world(world),omega(in_omega),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {}
+	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);}
+	xfunction(World &world, const double in_omega) :world(world),omega(in_omega),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);}
 	/// constructs a xfunctions object and initializes the x-vecfunction (response orbitals)
 	/// @param[in] world	the world is needed
 	/// @param[in] x1	vectorfunction of response orbitals
-	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),f_length(999),f_velocity(999) {}
+	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);}
 	/// the copy contructor
 	xfunction(const xfunction &other) : world(other.world),x(other.x),Vx(other.Vx),omega(other.omega),expectation_value(other.expectation_value),error(other.error),
 			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain),f_length(other.f_length),f_velocity(other.f_velocity){}
@@ -532,30 +532,7 @@ public:
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
 			else if (tag == "kain_conv_thresh") ss>> kain_conv_thresh_;
-			else if (tag == "exop1") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop2") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop3") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop4") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop5") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop6") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop7") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop8") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop9") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop10") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop11") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop12") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop13") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop14") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop15") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "excitation_point_x") {ss>> excitation_point_[0];}
-			else if (tag == "excitation_point_y") {ss>> excitation_point_[1];}
-			else if (tag == "excitation_point_z") {ss>> excitation_point_[2];}
-			else if (tag == "guess_omega_1") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_2") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_3") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_4") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_5") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_6") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
+			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "smoothing_mode") ss >> smoothing_mode_; // mode for the smoothing function
 			else if (tag == "triplet") triplet_=true;
 
@@ -598,7 +575,6 @@ public:
 			std::cout<< std::setw(40) << "Guess box size : " << guess_box_ << std::endl;
 			std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
-			std::cout<< std::setw(40) << "make noise every " << noise_iter_ << " iteration" << std::endl;
 			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
 			std::cout<< std::setw(40) << "excitation_point is " << excitation_point_ << std::endl;
 		}
@@ -683,11 +659,14 @@ public:
 
 	//virtual ~TDA();
 
+	/// Creates and solves guess_xfunctions till pre_convergence is reached
+	void solve_guess(xfunctionsT &xfunctions);
+
 	/// Solves the CIS or TDA equations
 	void solve(xfunctionsT &xfunctions);
 
 	/// Solves the CIS or TDA equations sequentially for a set of preconverged xfunctions
-	void solve_sequential(xfunctionsT xfunctions);
+	void solve_sequential(xfunctionsT &xfunctions);
 
 	/// Returns the MolDFT calulation
 	const SCF &get_calc() const {return calc_;}
