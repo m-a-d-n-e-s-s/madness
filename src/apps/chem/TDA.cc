@@ -587,7 +587,12 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 
 			// convergence criterium
 			if(guess){
-				if (converged_xfunctions_.size() >= guess_excitations_) break;
+				if (converged_xfunctions_.size() >= guess_excitations_)
+				// push back all the xfunctions to converged (for the case that lower energy solutions are there)
+				for(size_t i=0;i<xfunctions.size();i++){
+					if(xfunctions[i].iterations > 1) converged_xfunctions_.push_back(xfunctions[i]);
+				}
+				break;
 			}
 			if(kain_){
 				if (counter >= excitations_){
@@ -723,7 +728,7 @@ void TDA::update_energies(xfunctionsT &xfunctions)const {
 				// set the last converged value of the same type of guess as the default
 				//double new_omega = highest_excitation_*0.8;// default
 				xfunctions[k].omega = setback_energy;
-				std::cout << k << "(setback to " << setback_energy << ") , ";
+				std::cout << k << "(-) , ";
 			}
 
 		}
