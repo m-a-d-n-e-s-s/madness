@@ -113,8 +113,9 @@ void TDA::solve(xfunctionsT &xfunctions) {
 void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
 				<< "SOLVE_SEQUENTIAL START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n"
-				"The following xfunctions will be solved sequentially "<< std::endl;
-
+				"The first " << excitations_ << " of the following xfunctions will be solved sequentially "<< std::endl;
+	std::sort(xfunctions.begin(),xfunctions.end());
+	xfunctions.erase(xfunctions.begin()+excitations_,xfunctions.end());
 	print_status(xfunctions);
 
 	// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
@@ -127,8 +128,6 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 		print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
 		print("-------------------------------------------------------\n\n\n\n");
 
-
-		xfunctions.erase(xfunctions.begin()+excitations_,xfunctions.end());
 		if(xfunctions.size()!=excitations_) {
 			print("Wrong size in xfunctions!!!!");
 			//MADNESS_EXCEPTION("Wrong size in xfunction vector",1);
@@ -586,7 +585,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			if(not kain_) project_out_converged_xfunctions(xfunctions);
 
 			// convergence criterium
-			if(guess){
+			if(guess or not kain_){
 				if (converged_xfunctions_.size() >= guess_excitations_)
 				// push back all the xfunctions to converged (for the case that lower energy solutions are there)
 				for(size_t i=0;i<xfunctions.size();i++){
@@ -602,9 +601,6 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 					}
 					break;
 				}
-			}
-			if(not guess and not kain_){
-				if (converged_xfunctions_.size() >= excitations_) break;
 			}
 
 		Iterationtime.info();
