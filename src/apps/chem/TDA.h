@@ -68,12 +68,12 @@ public:
 struct xfunction{
 	/// default constructor
 	/// @param[in] world	the world is needed as a reference
-	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);}
-	xfunction(World &world, const double in_omega) :world(world),omega(in_omega),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);}
+	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);}
+	xfunction(World &world, const double in_omega) :world(world),omega(in_omega),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);}
 	/// constructs a xfunctions object and initializes the x-vecfunction (response orbitals)
 	/// @param[in] world	the world is needed
 	/// @param[in] x1	vectorfunction of response orbitals
-	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);}
+	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);}
 	/// the copy contructor
 	xfunction(const xfunction &other) : world(other.world),x(other.x),Vx(other.Vx),omega(other.omega),expectation_value(other.expectation_value),error(other.error),
 			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain),f_length(other.f_length),f_velocity(other.f_velocity){}
@@ -630,6 +630,18 @@ public:
 			std::cout << "WARNING " << excitations_ << " final and " << guess_excitations_ << " guess_excitations demanded" << " setting demanded excitations to " << guess_excitations_ << std::endl;
 			excitations_ = guess_excitations_;
 		}
+
+		Tensor<double> ExImNorms;
+		for(size_t i=0;i<exchange_intermediate_.size();i++){
+			for(size_t j=0;j<exchange_intermediate_[i].size();j++){
+				ExImNorms(i,j) = exchange_intermediate_[i][j].norm2();
+			}
+		}
+		if(world.rank()==0){
+			std::cout << " Norms of the exchange intermediate: " << std::endl;
+			std::cout << ExImNorms << std::endl;
+		}
+
 	}
 
 	/// try to gain a little bit information about the used memory
