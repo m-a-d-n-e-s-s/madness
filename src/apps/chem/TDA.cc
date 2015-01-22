@@ -554,13 +554,16 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			for(size_t i=0;i<xfunctions.size();i++){
 				std::cout << " " << i << " (" << xfunctions[i].converged << ") ";
 				if(xfunctions[i].converged){
-					if(not kain or guess){
+					if(guess){
 						converged_xfunctions_.push_back(xfunctions[i]);
 						if(guess_xfunctions_.empty()) initialize(guess_xfunctions_);
 						xfunctions[i]=guess_xfunctions_[i];
 						i=-1; // set back i for the case that more than one xfunction converged
-					}else{
+					}else if(kain_){
 						counter++;
+					}else{
+						converged_xfunctions_.push_back(xfunctions[i]);
+						xfunctions.erase(xfunctions.begin()+i);
 					}
 				}
 			}std::cout << std::endl;
@@ -684,13 +687,14 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess)const {
 
 
 void TDA::update_energies(xfunctionsT &xfunctions)const {
+	double thresh = FunctionDefaults<3>::get_thresh();
 	std::cout << std::setw(40) << "update energies..." << " : ";
 	for(size_t k=0;k<xfunctions.size();k++) {
 
 		//failsafe: make shure the delta and expectation values vectors are not empty to avoid segmentation faults
 		if(not xfunctions[k].delta.empty() and not xfunctions[k].expectation_value.empty() and not xfunctions[k].error.empty()) {
 			if(xfunctions[k].expectation_value.back() < highest_excitation_) {
-				if(fabs(xfunctions[k].delta.back()) < xfunctions[k].error.back()*1.e-2 or fabs(xfunctions[k].delta.back())< 8.e-4) {
+				if(fabs(xfunctions[k].delta.back()) < thresh*12.0) {
 					xfunctions[k].omega +=xfunctions[k].delta.back();
 					std::cout << k << "(2nd), ";
 				} else {
@@ -700,13 +704,6 @@ void TDA::update_energies(xfunctionsT &xfunctions)const {
 			} else {
 				// get the highest converged energy, of no xfunction converged already use the guess_omega_ energy
 				double setback_energy = guess_omega_;
-//				if(not converged_xfunctions_.empty()){
-//					std::vector<double> energies;
-//					for(size_t i=0;i<converged_xfunctions_.size();i++) energies.push_back(converged_xfunctions_[i].omega);
-//					std::sort(energies.begin(),energies.end());
-//					setback_energy = energies.back();
-//				}
-
 				// set the last converged value of the same type of guess as the default
 				//double new_omega = highest_excitation_*0.8;// default
 				xfunctions[k].omega = setback_energy;
