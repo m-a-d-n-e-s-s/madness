@@ -586,12 +586,13 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 
 			// convergence criterium
 			if(guess or not kain_){
-				if (converged_xfunctions_.size() >= guess_excitations_)
+				if (converged_xfunctions_.size() >= guess_excitations_){
 				// push back all the xfunctions to converged (for the case that lower energy solutions are there)
 				for(size_t i=0;i<xfunctions.size();i++){
 					if(xfunctions[i].iterations > 1) converged_xfunctions_.push_back(xfunctions[i]);
 				}
 				break;
+				}
 			}
 			if(kain_){
 				if (counter >= excitations_){
