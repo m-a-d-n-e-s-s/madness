@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
 	double guess_thresh = ground_state_thresh*50.0;
 	double solve_thresh = ground_state_thresh*10.0;
 	double solve_seq_thresh = ground_state_thresh*10.0;
-	bool print_grid;
+	bool print_grid=false;
 
 	// Get the custom thresholds from the input file
 	std::ifstream f(input.c_str());
