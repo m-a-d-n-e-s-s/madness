@@ -57,6 +57,21 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	TDA_TIMER init(world,"\nfinished to initialize guess excitations ...");
 	// if xfunctions were read in before then xfunctions.empty() will be false
 	if(xfunctions.empty())initialize(xfunctions);
+
+	// Failsafe
+	if(guess_=="koala"){
+		if(xfunctions.size()<guess_excitations_){
+			if(world.rank()==0) std::cout << "WARNING: You demanded " << guess_excitations_  << " pre-converged " << " guess excitations, but only "
+					<< xfunctions.size() << " guess excitations could be read from the koala calculations ... correcting that"<< std::endl;
+			guess_excitations_ = xfunctions.size();
+		}
+		if(xfunctions.size()<excitations_){
+			if(world.rank()==0) std::cout << "WARNING: You demanded " << excitations_  << " pre-converged " << " guess excitations, but only "
+					<< xfunctions.size() << " guess excitations could be read from the koala calculations ... correcting that"<< std::endl;
+			excitations_ = xfunctions.size();
+		}
+	}
+
 	iterate_guess(xfunctions);
 	std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
 	init.info();
@@ -249,7 +264,7 @@ void TDA::print_status(const xfunctionsT & xfunctions) const {
 void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-													<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+															<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
@@ -272,12 +287,12 @@ void TDA::initialize(xfunctionsT & xfunctions)const{
 	else if(guess_ == "custom_2"){
 		guess_custom_2(xfunctions);
 	}
-    else if(guess_ == "local"){
-        guess_local(xfunctions);
-    }
-    else if(guess_ == "koala"){
-    	guess_koala(xfunctions);
-    }
+	else if(guess_ == "local"){
+		guess_local(xfunctions);
+	}
+	else if(guess_ == "koala"){
+		guess_koala(xfunctions);
+	}
 	else {
 		if (world.rank() == 0)
 			print("unknown keyword for guess: ", guess_);
@@ -396,30 +411,30 @@ void TDA::guess_custom_2(xfunctionsT & xfunctions)const{
 
 void TDA::guess_local(xfunctionsT & xfunctions)const{
 
-    if(world.rank()==0) print("Making local guess");
+	if(world.rank()==0) print("Making local guess");
 
-    // localize the active orbitals
+	// localize the active orbitals
 
-    std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
-    distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
-    tensorT mo2lmo(active_mo_.size(),active_mo_.size());
-    dmo2lmo.copy_to_replicated(mo2lmo);
-    vecfuncT lmo=madness::transform(world,active_mo_,mo2lmo,true);
+	std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
+	distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
+	tensorT mo2lmo(active_mo_.size(),active_mo_.size());
+	dmo2lmo.copy_to_replicated(mo2lmo);
+	vecfuncT lmo=madness::transform(world,active_mo_,mo2lmo,true);
 
-    guess guess_structure(world,calc_.param.L,guess_mode_,lmo,calc_.ao);
+	guess guess_structure(world,calc_.param.L,guess_mode_,lmo,calc_.ao);
 
-    for(size_t i=0;i<custom_exops_.size();i++){
-        xfunction tmp(world,guess_omega_);
-        vecfuncT xtmp = guess_structure.make_custom_guess(world,custom_exops_[i]);
-        project_out_occupied_space(xtmp);
+	for(size_t i=0;i<custom_exops_.size();i++){
+		xfunction tmp(world,guess_omega_);
+		vecfuncT xtmp = guess_structure.make_custom_guess(world,custom_exops_[i]);
+		project_out_occupied_space(xtmp);
 
-        tmp.x=transform(world,xtmp,transpose(mo2lmo),true);
-        tmp.number=i;
-        xfunctions.push_back(tmp);
-        plot_vecfunction(tmp.x,"guess_excitation_" + stringify(tmp.number) + "_");
-    }
-    normalize(xfunctions);
-    plot_vecfunction(active_mo_,"active_mo_",true);
+		tmp.x=transform(world,xtmp,transpose(mo2lmo),true);
+		tmp.number=i;
+		xfunctions.push_back(tmp);
+		plot_vecfunction(tmp.x,"guess_excitation_" + stringify(tmp.number) + "_");
+	}
+	normalize(xfunctions);
+	plot_vecfunction(active_mo_,"active_mo_",true);
 }
 
 void TDA::guess_atomic_excitation(xfunctionsT & xfunctions)const{
@@ -491,7 +506,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 
 			// this is the file where the guess is on disk
 			const std::string valuefile="grid.koala.orbital"+stringify(i)
-	    			+".excitation"+stringify(iroot);
+	    					+".excitation"+stringify(iroot);
 			real_function_3d x_i=real_factory_3d(world).empty();
 			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
 			root.x.push_back(x_i);
@@ -702,8 +717,10 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 		if(guess or not kain_){
 			if (converged_xfunctions_.size() >= guess_excitations_){
 				// push back all the xfunctions to converged (for the case that lower energy solutions are there)
-				for(size_t i=0;i<xfunctions.size();i++){
-					if(xfunctions[i].iterations > 1) converged_xfunctions_.push_back(xfunctions[i]);
+				if (replace_guess_functions_){
+					for(size_t i=0;i<xfunctions.size();i++){
+						if(xfunctions[i].iterations > 1) converged_xfunctions_.push_back(xfunctions[i]);
+					}
 				}
 				break;
 			}
@@ -1289,7 +1306,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-															+ get_coulomb_potential();
+																	+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);

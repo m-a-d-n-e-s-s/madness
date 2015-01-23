@@ -550,6 +550,14 @@ public:
 		if(smoothing_mode_ == 0.0) guess_box_ = default_guess_box_;
 		else guess_box_ = calc_.param.L * smoothing_mode_/8.0;
 
+		if(guess_ =="koala"){
+			if(replace_guess_functions_){
+			if(world.rank()==0) std::cout << "For the koala guess the guess functions will not be replaced after convergece \n"
+					<< std::endl;
+			replace_guess_functions_ = false;
+			}
+		}
+
 		if (world.rank() == 0) {
 			std::cout<< std::setw(60) <<"\n\n\n\n ======= TDA info =======\n\n\n" << std::endl;
 			if (nfreeze_==0) std::cout<< std::setw(40) <<"# frozen orbitals : "<<"none" << std::endl;
@@ -1030,7 +1038,7 @@ private:
 
 	/// load a converged root from disk
 
-	/// compute the oscillator strength in the length representation
+	/// compute the oscillator strength in the length resentation
 
 	/// the oscillator strength is given by
 	/// \f[
