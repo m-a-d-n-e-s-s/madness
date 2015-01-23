@@ -711,7 +711,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 				}
 			}
 		}std::cout << std::endl;
-		if(not kain_) project_out_converged_xfunctions(xfunctions);
+		project_out_converged_xfunctions(xfunctions);
 
 		// convergence criterium
 		if(guess or not kain_){
