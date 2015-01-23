@@ -121,6 +121,7 @@
 
 #include <madness/mra/mra.h>
 #include <madness/mra/derivative.h>
+#include <madness/tensor/distributed_matrix.h>
 #include <cstdio>
 
 namespace madness {
@@ -300,6 +301,39 @@ namespace madness {
         vresult[0].vtransform(v, c, vresult, tol, fence);
         return vresult;
     }
+
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
+    transform(World& world,
+              const std::vector< Function<T,NDIM> >& v,
+              const DistributedMatrix<R>& c,
+              bool fence=true) {
+        PROFILE_FUNC;
+
+        typedef TENSOR_RESULT_TYPE(T,R) resultT;
+        long n = v.size();    // n is the old dimension
+        long m = c.rowdim();  // m is the new dimension
+        MADNESS_ASSERT(n==c.coldim());
+
+        // new(i) = sum(j) old(j) c(j,i)
+
+        Tensor<T> tmp(n,m);
+        c.copy_to_replicated(tmp); // for debugging
+        tmp = transpose(tmp);
+
+        std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
+        compress(world, v);
+
+        for (int i=0; i<m; ++i) {
+            for (int j=0; j<n; ++j) {
+                if (tmp(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],tmp(j,i),false);
+            }
+        }
+
+        if (fence) world.gop.fence();
+        return vc;
+    }
+
 
     /// Scales inplace a vector of functions by distinct values
     template <typename T, typename Q, std::size_t NDIM>

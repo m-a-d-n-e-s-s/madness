@@ -892,6 +892,9 @@ private:
 	/// guess_ao_excitation
 	void guess_custom_2(xfunctionsT &xfunctions)const;
 
+    /// guess: localize MOs and excite with a dipole
+    void guess_local(xfunctionsT &xfunctions)const;
+
 	/// Make a huge guess: Excite on every non hydrogen atom
 	void guess_atomic_excitation(xfunctionsT & xfunctions)const;
 
