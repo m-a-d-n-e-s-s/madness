@@ -272,6 +272,9 @@ void TDA::initialize(xfunctionsT & xfunctions)const{
 	else if(guess_ == "custom_2"){
 		guess_custom_2(xfunctions);
 	}
+    else if(guess_ == "local"){
+        guess_local(xfunctions);
+    }
 	else {
 		if (world.rank() == 0)
 			print("unknown keyword for guess: ", guess_);
@@ -386,6 +389,34 @@ void TDA::guess_custom_2(xfunctionsT & xfunctions)const{
 	}
 	normalize(xfunctions);
 	plot_vecfunction(active_mo_,"active_mo_",true);
+}
+
+void TDA::guess_local(xfunctionsT & xfunctions)const{
+
+    if(world.rank()==0) print("Making local guess");
+
+    // localize the active orbitals
+
+    std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
+    distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
+    tensorT mo2lmo(active_mo_.size(),active_mo_.size());
+    dmo2lmo.copy_to_replicated(mo2lmo);
+    vecfuncT lmo=madness::transform(world,active_mo_,mo2lmo,true);
+
+    guess guess_structure(world,calc_.param.L,guess_mode_,lmo,calc_.ao);
+
+    for(size_t i=0;i<custom_exops_.size();i++){
+        xfunction tmp(world,guess_omega_);
+        vecfuncT xtmp = guess_structure.make_custom_guess(world,custom_exops_[i]);
+        project_out_occupied_space(xtmp);
+
+        tmp.x=transform(world,xtmp,transpose(mo2lmo),true);
+        tmp.number=i;
+        xfunctions.push_back(tmp);
+        plot_vecfunction(tmp.x,"guess_excitation_" + stringify(tmp.number) + "_");
+    }
+    normalize(xfunctions);
+    plot_vecfunction(active_mo_,"active_mo_",true);
 }
 
 void TDA::guess_atomic_excitation(xfunctionsT & xfunctions)const{
