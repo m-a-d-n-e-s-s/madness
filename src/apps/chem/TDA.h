@@ -458,7 +458,8 @@ public:
 		kain_conv_thresh_(1.e-2),
 		shift_(0.0),
 		safety_(1.0),
-		triplet_(false)
+		triplet_(false),
+		localize_exchange_intermediate_(false)
 {
 		setup(mos,input);
 }
@@ -535,6 +536,7 @@ public:
 			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "smoothing_mode") ss >> smoothing_mode_; // mode for the smoothing function
 			else if (tag == "triplet") triplet_=true;
+			else if (tag == "localize_exchange_intermediate") localize_exchange_intermediate_ = true;
 
 			else if (tag == "truncate_safety") ss>>safety_;
 			else continue;
@@ -585,6 +587,13 @@ public:
 		bsh_eps_ = FunctionDefaults<3>::get_thresh()*0.1;
 		for(size_t i=nfreeze_;i<mos_.size();i++){active_mo_.push_back(mos_[i]);}
 
+		/// Make transformation matrix from cannical to localized MOs
+		std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
+		distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
+		tensorT mo2lmo(active_mo_.size(),active_mo_.size());
+		dmo2lmo.copy_to_replicated(mo2lmo);
+		mo2lmo_ = mo2lmo;
+
 		// Initialize the projector on the occupied space
 		Projector<double,3> projector(mos_);
 		rho0 = projector;
@@ -600,7 +609,9 @@ public:
 
 		// Initialize the exchange intermediate
 		if(not dft_) {
-			exchange_intermediate_ = make_exchange_intermediate();
+			std::cout << std::setw(40) << "Make exchange intermediate" << " : locailzation is " << localize_exchange_intermediate_ << std::endl;
+			if(localize_exchange_intermediate_) exchange_intermediate_ = make_localized_exchange_intermediate();
+			else exchange_intermediate_ = make_exchange_intermediate();
 			std::cout << std::setw(40) << "CIS is used" << " : LIBXC Interface is not initialized" << std::endl;
 		}if(dft_){
 			lda_intermediate_ = make_lda_intermediate();
@@ -693,6 +704,9 @@ private:
 
 	/// The World
 	World & world;
+
+	/// MO to LMO transformation matrix
+	Tensor<double> mo2lmo_;
 
 	/// DFT or HF Calculation
 	/// for TDA calculations currently only LDA works
@@ -856,6 +870,9 @@ private:
 	/// Calculate triplets
 	bool triplet_;
 
+	/// localize the exchange intermediate
+	bool localize_exchange_intermediate_;
+
 	/// Print the current xfunctions in a formated way
 	/// @param[in] xfunctions a vector of xfunction structures
 	void print_status(const xfunctionsT & xfunctions)const;
@@ -879,6 +896,8 @@ private:
 	void guess_atomic_excitation(xfunctionsT & xfunctions)const;
 
 	void guess_custom(xfunctionsT & xfunctions)const;
+
+	void guess_koala(World &world, xfunctionsT &roots)const;
 
 	/// Create excitation operators (e.g x,y,z for dipole excitations bzw symmetry operators)
 	/// @return gives back a vectorfunction of excitation operators (specified in the input file)
@@ -971,6 +990,7 @@ private:
 	/// Create the exchange intermediate
 	// This has to be done just one time because only the unperturbed orbitals are needed
 	std::vector<vecfuncT> make_exchange_intermediate()const;
+	std::vector<vecfuncT> make_localized_exchange_intermediate()const;
 
 	vecfuncT make_lda_intermediate()const;
 

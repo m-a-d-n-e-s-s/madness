@@ -42,7 +42,7 @@ struct xyz {
 
 void TDA::solve_guess(xfunctionsT &xfunctions) {
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
-				<< "SOLVE_GUESS START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n\n\n" << std::endl;
+			<< "SOLVE_GUESS START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n\n\n" << std::endl;
 	plot_vecfunction(active_mo_, "active_mo_");
 	// check for saved xfunctions
 	read_xfunctions(xfunctions);
@@ -81,7 +81,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 		return;
 	}
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
-				<< "SOLVE START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n" << std::endl;
+			<< "SOLVE START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n" << std::endl;
 
 	// use only the demanded number of xfunctions
 	std::sort(xfunctions.begin(),xfunctions.end());
@@ -112,8 +112,8 @@ void TDA::solve(xfunctionsT &xfunctions) {
 
 void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
-				<< "SOLVE_SEQUENTIAL START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n"
-				"The first " << excitations_ << " of the following xfunctions will be solved sequentially "<< std::endl;
+			<< "SOLVE_SEQUENTIAL START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n"
+			"The first " << excitations_ << " of the following xfunctions will be solved sequentially "<< std::endl;
 	std::sort(xfunctions.begin(),xfunctions.end());
 	xfunctions.erase(xfunctions.begin()+excitations_,xfunctions.end());
 	print_status(xfunctions);
@@ -249,7 +249,7 @@ void TDA::print_status(const xfunctionsT & xfunctions) const {
 void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-									<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+											<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
@@ -403,6 +403,75 @@ void TDA::guess_atomic_excitation(xfunctionsT & xfunctions)const{
 	normalize(xfunctions);
 }
 
+void TDA::guess_koala(World &world, xfunctionsT &roots)const{
+
+	// for convenience
+	const std::size_t nmo=get_calc().amo.size();
+
+	// first we need to determine the rotation of the external orbitals
+	// to the MRA orbitals, so that we can subsequently rotate the guess
+	Tensor<double> guess_phases_;
+	vecfuncT koala_mo;
+
+		// read koala's orbitals from disk
+		for (std::size_t i=nfreeze_; i<nmo; ++i) {
+			real_function_3d x_i=real_factory_3d(world).empty();
+			const std::string valuefile="grid.koala.orbital"+stringify(i);
+			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
+			koala_mo.push_back(x_i);
+		}
+		// this is the transformation matrix for the rotation
+		guess_phases_=matrix_inner(world,koala_mo,get_calc().amo);
+		guess_phases_=guess_phases_(_,Slice(nfreeze_,nmo-1));
+
+	for(size_t iroot=0;iroot<guess_excitations_;iroot++){
+
+
+		xfunction root(world);
+
+		// read the actual external guess from file
+		for (std::size_t i=nfreeze_; i<nmo; ++i) {
+
+			// this is the file where the guess is on disk
+			const std::string valuefile="grid.koala.orbital"+stringify(i)
+	    	+".excitation"+stringify(iroot);
+			real_function_3d x_i=real_factory_3d(world).empty();
+			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
+			root.x.push_back(x_i);
+		}
+
+		// compute the inverse of the overlap matrix
+		Tensor<double> S=(guess_phases_+transpose(guess_phases_)).scale(0.5);
+		Tensor<double> U, eval;
+		syev(S,U,eval);
+		Tensor<double> Sinv=copy(U);
+		for (int i=0; i<U.dim(0); ++i) {
+			for (int j=0; j<U.dim(1); ++j) {
+				Sinv(i,j)/=eval(j);
+			}
+		}
+		Sinv=inner(Sinv,U,-1,-1);
+
+		// now rotate the active orbitals from the guess to conform with
+		// the MRA orbitals
+		// Sinv=Sinv(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
+		root.x=transform(world,root.x,Sinv);
+
+		root.omega = guess_omega_;
+		root.number = iroot;
+
+		for(size_t i=0;i<roots.size();i++){
+			for(size_t j=0;j<roots[i].x.size();j++){
+				plot_plane(world,roots[i].x[j],"Koala_guess_root_"+stringify(i)+"_"+stringify(j));
+			}
+		}
+		roots.push_back(root);
+	}
+
+	// Print information about the read roots
+	if(world.rank()==0) std::cout << "Read " << roots.size() << " excitation vectors from the koala calculation" << std::endl;
+	if(roots.empty()) MADNESS_EXCEPTION("ERROR: Koala guess demanded, but no KOALA results found ...",1);
+}
 
 
 vecfuncT TDA::make_excitation_operators()const {
@@ -516,7 +585,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			// Update the perturbed vectorpotentials
 			TDA_TIMER update_potentials(world, "update all potentials...");
 			for (size_t i = 0; i < xfunctions.size(); i++) {
-					xfunctions[i].Vx = apply_perturbed_potential(xfunctions[i]);
+				xfunctions[i].Vx = apply_perturbed_potential(xfunctions[i]);
 				//xfunctions[i].Vx.back().print_size("size of homo pert pot "+stringify(i));
 			}
 			update_potentials.info();
@@ -563,46 +632,46 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			kain.info();
 		}
 		//check convergence
-			check_convergence(xfunctions,guess);
-			size_t counter = 0;
-			std::cout << std::setw(40) << "converged excitations ..." << " : ";
-			for(size_t i=0;i<xfunctions.size();i++){
-				std::cout << " " << i << " (" << xfunctions[i].converged << ") ";
-				if(xfunctions[i].converged){
-					if(guess){
-						converged_xfunctions_.push_back(xfunctions[i]);
-						if(guess_xfunctions_.empty()) initialize(guess_xfunctions_);
-						xfunctions[i]=guess_xfunctions_[i];
-						i=-1; // set back i for the case that more than one xfunction converged
-					}else if(kain_){
-						counter++;
-					}else{
-						converged_xfunctions_.push_back(xfunctions[i]);
-						xfunctions.erase(xfunctions.begin()+i);
-					}
+		check_convergence(xfunctions,guess);
+		size_t counter = 0;
+		std::cout << std::setw(40) << "converged excitations ..." << " : ";
+		for(size_t i=0;i<xfunctions.size();i++){
+			std::cout << " " << i << " (" << xfunctions[i].converged << ") ";
+			if(xfunctions[i].converged){
+				if(guess){
+					converged_xfunctions_.push_back(xfunctions[i]);
+					if(guess_xfunctions_.empty()) initialize(guess_xfunctions_);
+					xfunctions[i]=guess_xfunctions_[i];
+					i=-1; // set back i for the case that more than one xfunction converged
+				}else if(kain_){
+					counter++;
+				}else{
+					converged_xfunctions_.push_back(xfunctions[i]);
+					xfunctions.erase(xfunctions.begin()+i);
 				}
-			}std::cout << std::endl;
-			if(not kain_) project_out_converged_xfunctions(xfunctions);
+			}
+		}std::cout << std::endl;
+		if(not kain_) project_out_converged_xfunctions(xfunctions);
 
-			// convergence criterium
-			if(guess or not kain_){
-				if (converged_xfunctions_.size() >= guess_excitations_){
+		// convergence criterium
+		if(guess or not kain_){
+			if (converged_xfunctions_.size() >= guess_excitations_){
 				// push back all the xfunctions to converged (for the case that lower energy solutions are there)
 				for(size_t i=0;i<xfunctions.size();i++){
 					if(xfunctions[i].iterations > 1) converged_xfunctions_.push_back(xfunctions[i]);
 				}
 				break;
-				}
 			}
-			if(kain_){
-				if (counter >= excitations_){
-					converged_xfunctions_.clear();
-					for(size_t i=0;i<xfunctions.size();i++){
-						if(xfunctions[i].converged) converged_xfunctions_.push_back(xfunctions[i]);
-					}
-					break;
+		}
+		if(kain_){
+			if (counter >= excitations_){
+				converged_xfunctions_.clear();
+				for(size_t i=0;i<xfunctions.size();i++){
+					if(xfunctions[i].converged) converged_xfunctions_.push_back(xfunctions[i]);
 				}
+				break;
 			}
+		}
 
 		Iterationtime.info();
 		print_status(xfunctions);
@@ -1051,19 +1120,50 @@ vecfuncT TDA::apply_gamma(const xfunction &xfunction) const {
 	if(not triplet_) gamma = apply_hartree_potential(xfunction.x);
 	else gamma = zero_functions<double,3>(world,xfunction.x.size());
 	hartree.info(debug_);
+	std::string the_message = "apply hf-exchange potential kernel, localization is " + stringify(localize_exchange_intermediate_) + " ...";
+	TDA_TIMER exchange(world, the_message);\
+	// transform xfunction to lmo basis
+	if(localize_exchange_intermediate_){
+		std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
+		distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
+		tensorT mo2lmo(active_mo_.size(),active_mo_.size());
+		dmo2lmo.copy_to_replicated(mo2lmo);
+		vecfuncT lmo_x=madness::transform(world,xfunction.x,mo2lmo,true);
+		vecfuncT gamma_ex_lmo=zero_functions<double,3>(world,lmo_x.size());
+		for (std::size_t p = 0; p < xfunction.x.size(); p++) {
 
-	TDA_TIMER exchange(world, "apply hf-exchange potential kernel...");\
-	for (std::size_t p = 0; p < xfunction.x.size(); p++) {
+			vecfuncT x_Ppi=zero_functions<double,3>(world,lmo_x.size());
+			norm_tree(world,lmo_x);
+			norm_tree(world,exchange_intermediate_[p]);
+			for(size_t i=0 ; i<x_Ppi.size();i++){
+				x_Ppi[i]=mul_sparse(lmo_x[i],exchange_intermediate_[p][i],FunctionDefaults<3>::get_thresh());
+			}
+			compress(world, x_Ppi);
+			for (std::size_t i = 0; i < lmo_x.size(); i++) {
+				gamma_ex_lmo[p] -= x_Ppi[i];
+			}
 
-		const vecfuncT x_Ppi = mul(world, xfunction.x, exchange_intermediate_[p]);
-		compress(world, x_Ppi);
-		for (std::size_t i = 0; i < xfunction.x.size(); i++) {
-			gamma[p] -= x_Ppi[i];
+			// Project out occupied space
+			gamma_ex_lmo[p] -= rho0(gamma[p]);
 		}
-
-		// Project out occupied space
-		gamma[p] -= rho0(gamma[p]);
+		// Transform gamma to canonical basis
+		vecfuncT gamma_ex_canon=madness::transform(world,gamma_ex_lmo,transpose(mo2lmo),true);
+		gamma = add(world,gamma,gamma_ex_canon);
 	}
+	else{
+		for (std::size_t p = 0; p < xfunction.x.size(); p++) {
+
+			const vecfuncT x_Ppi = mul(world, xfunction.x, exchange_intermediate_[p]);
+			compress(world, x_Ppi);
+			for (std::size_t i = 0; i < xfunction.x.size(); i++) {
+				gamma[p] -= x_Ppi[i];
+			}
+
+			// Project out occupied space
+			gamma[p] -= rho0(gamma[p]);
+		}
+	}
+
 	exchange.info(debug_);
 
 	return gamma;
@@ -1144,7 +1244,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-											+ get_coulomb_potential();
+													+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
@@ -1193,6 +1293,21 @@ std::vector<vecfuncT> TDA::make_exchange_intermediate() const {
 	for (std::size_t p = 0; p < active_mo.size(); ++p) {
 		intermediate[p] = apply(world, (*poisson),
 				mul(world, active_mo[p], amo));
+	}
+	return intermediate;
+}
+
+std::vector<vecfuncT> TDA::make_localized_exchange_intermediate() const {
+	vecfuncT lmo=madness::transform(world,active_mo_,mo2lmo_,true);
+
+	std::shared_ptr<real_convolution_3d> poisson = std::shared_ptr<
+			real_convolution_3d>(CoulombOperatorPtr(world, lo, bsh_eps_));
+
+	std::vector<vecfuncT> intermediate(lmo.size());
+
+	for (std::size_t p = 0; p < lmo.size(); ++p) {
+		intermediate[p] = apply(world, (*poisson),
+				mul(world, lmo[p], lmo));
 	}
 	return intermediate;
 }
@@ -1367,50 +1482,50 @@ void TDA::analyze(xfunctionsT& roots) const {
 		guess_structure.project_to_guess_basis(world,roots[i].x,tol);
 	}
 
-//	// get the overlaps with exops
-//	exoperators exops(world,excitation_point_);
-//	for(size_t i=0;i<roots.size();i++){
-//		functorT smooth_functor(
-//				new guess_smoothing(guess_box_));
-//		real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
-//
-//		// TESTING DEBUG
-//		// project the active_mos on ao functions
-//		//		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
-//		//		for(size_t i=0;i<active_mo_.size();i++){
-//		//			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
-//		//		}
-//
-//		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
-//		std::vector<std::string> key = exops.key_;
-//		if(world.rank()==0){
-//			//			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
-//			//			std::cout <<"\n dipole contributions"<< std::endl;
-//			//			for(size_t k=0;k<3;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" " <<overlap_tmp[k]<<" ";
-//			//			std::cout <<"\n quadrupole contributions"<< std::endl;
-//			//			for(size_t k=3;k<9;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k]<<" ";
-//			//			std::cout <<"\n cubic contributions"<< std::endl;
-//			//			for(size_t k=9;k<19;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k] << " ";
-//
-//			std::cout <<"\n\n all significant contributions " << std::endl;
-//			for(size_t k=0;k<overlap_tmp.size();k++){
-//				if(fabs(overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< overlap_tmp[k]<<" ";
-//			}
-//			std::cout << std::endl;
-//		}
-//		// Get overlap with for each mo
-//		//		for(size_t j=0;j<roots[i].x.size();j++){
-//		//			double xtmp_norm = roots[i].x[j].norm2();
-//		//			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
-//		//			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
-//		//			vecfuncT motmp; motmp.push_back(active_mo_[j]);
-//		//
-//		//			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
-//		//			for(size_t k=0;k<mo_overlap_tmp.size();k++){
-//		//				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
-//		//			}
-//		//		}
-//	}
+	//	// get the overlaps with exops
+	//	exoperators exops(world,excitation_point_);
+	//	for(size_t i=0;i<roots.size();i++){
+	//		functorT smooth_functor(
+	//				new guess_smoothing(guess_box_));
+	//		real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
+	//
+	//		// TESTING DEBUG
+	//		// project the active_mos on ao functions
+	//		//		vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
+	//		//		for(size_t i=0;i<active_mo_.size();i++){
+	//		//			projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
+	//		//		}
+	//
+	//		std::vector<double> overlap_tmp = exops.get_overlaps_with_guess(world,roots[i].x,active_mo_,smoothing_function);
+	//		std::vector<std::string> key = exops.key_;
+	//		if(world.rank()==0){
+	//			//			std::cout <<"\n\n----excitation "<< i << "----"<< std::endl;
+	//			//			std::cout <<"\n dipole contributions"<< std::endl;
+	//			//			for(size_t k=0;k<3;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" " <<overlap_tmp[k]<<" ";
+	//			//			std::cout <<"\n quadrupole contributions"<< std::endl;
+	//			//			for(size_t k=3;k<9;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k]<<" ";
+	//			//			std::cout <<"\n cubic contributions"<< std::endl;
+	//			//			for(size_t k=9;k<19;k++) std::cout << std::fixed << std::setprecision(2) << key[k]<<" "<< overlap_tmp[k] << " ";
+	//
+	//			std::cout <<"\n\n all significant contributions " << std::endl;
+	//			for(size_t k=0;k<overlap_tmp.size();k++){
+	//				if(fabs(overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< overlap_tmp[k]<<" ";
+	//			}
+	//			std::cout << std::endl;
+	//		}
+	//		// Get overlap with for each mo
+	//		//		for(size_t j=0;j<roots[i].x.size();j++){
+	//		//			double xtmp_norm = roots[i].x[j].norm2();
+	//		//			std::cout << "Contributions for excitation " << i << " and MO " << j << " ... norm is " << xtmp_norm << std::endl;
+	//		//			vecfuncT xtmp; xtmp.push_back(roots[i].x[j]);
+	//		//			vecfuncT motmp; motmp.push_back(active_mo_[j]);
+	//		//
+	//		//			std::vector<double> mo_overlap_tmp = exops.get_overlaps_with_guess(world,xtmp,motmp,smoothing_function);
+	//		//			for(size_t k=0;k<mo_overlap_tmp.size();k++){
+	//		//				if(world.rank()==0)if(fabs(mo_overlap_tmp[k]) > 1.e-4) std::cout << std::fixed << std::setprecision(4) << key[k]<<" "<< mo_overlap_tmp[k]<<" ";
+	//		//			}
+	//		//		}
+	//	}
 }
 
 void TDA::save_xfunctions(const xfunctionsT &xfunctions)const{

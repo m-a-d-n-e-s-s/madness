@@ -92,6 +92,7 @@ int main(int argc, char** argv) {
 	double guess_thresh = ground_state_thresh*50.0;
 	double solve_thresh = ground_state_thresh*10.0;
 	double solve_seq_thresh = ground_state_thresh*10.0;
+	bool print_grid;
 
 	// Get the custom thresholds from the input file
 	std::ifstream f(input.c_str());
@@ -104,6 +105,7 @@ int main(int argc, char** argv) {
 		else if(tag == "guess_thresh") ss >> guess_thresh;
 		else if(tag == "solve_thresh") ss >> solve_thresh;
 		else if(tag == "solve_seq_thresh") ss >> solve_seq_thresh;
+		else if(tag == "print_grid") print_grid=true;
 		else continue;
 	}
 
@@ -148,6 +150,16 @@ int main(int argc, char** argv) {
 	xfunctionsT guess_xfunctions;
 	xfunctionsT solve_xfunctions;
 	xfunctionsT solve_seq_xfunctions;
+
+	// Print the grid (for koala guess or other external applications)
+	if(print_grid){
+		if(world.rank()==0) std::cout << " Printing grid for external application ... then stop the calculation ... remeber to remove print_grid keyword" << std::endl;
+		real_function_3d density=calc.make_density(world,calc.aocc,calc.amo);
+    	density.get_impl()->print_grid("grid");
+    	if (world.rank() == 0) printf("\n\n-------------------------\nfinished at time %.1f\n", wall_time());
+    	finalize();
+    	return 0;
+	}
 
 	// Initialize and pre converge the guess xfunctions
 	{
