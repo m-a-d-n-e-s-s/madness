@@ -59,7 +59,7 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	if(xfunctions.empty())initialize(xfunctions);
 
 	// Failsafe
-	if(guess_=="koala"){
+	if(guess_=="koala"){¿
 		if(xfunctions.size()<guess_excitations_){
 			if(world.rank()==0) std::cout << "WARNING: You demanded " << guess_excitations_  << " pre-converged " << " guess excitations, but only "
 					<< xfunctions.size() << " guess excitations could be read from the koala calculations ... correcting that"<< std::endl;
@@ -70,6 +70,9 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 					<< xfunctions.size() << " guess excitations could be read from the koala calculations ... correcting that"<< std::endl;
 			excitations_ = xfunctions.size();
 		}
+	}else if(guess_xfunctions_.size()<guess_excitations_ and not replace_guess_functions_){
+		if(world.rank()==0) std::cout << "WARNING: You demanded " << guess_excitations_  << " pre-converged " << " guess excitations, but only "
+				<< xfunctions.size() << " were initialized, replacement of guess functions is " << replace_guess_functions_ <<  " ... correcting that"<< std::endl;
 	}
 
 	iterate_guess(xfunctions);
@@ -298,9 +301,6 @@ void TDA::initialize(xfunctionsT & xfunctions)const{
 			print("unknown keyword for guess: ", guess_);
 		MADNESS_EXCEPTION("Reached end of initialize", 1);
 	}
-	// failsafe
-	if(guess_xfunctions_.size()<guess_excitations_ and not replace_guess_functions_) MADNESS_EXCEPTION("Too many guess_excitation demanded ... replace_guess_functions_ is false",1);
-
 }
 
 void TDA::guess_custom(xfunctionsT & xfunctions)const{
