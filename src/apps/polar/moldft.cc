@@ -4310,7 +4310,8 @@ struct Calculation {
                 bk[i] = sqrt(-2.0 * (beps[i] + sign * omega));
                     if (world.rank() == 0)  
                         print(" kxy(beta) [", i, "]: sqrt(-2 * (eps +/- omega)) = ", bk[i]);
-        }
+    }
+    }
     }
 
     void make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
