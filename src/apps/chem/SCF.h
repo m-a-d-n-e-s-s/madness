@@ -1002,6 +1002,7 @@ public:
 		if (calc.param.no_compute) {
 			calc.load_mos(world);
 			calc.make_nuclear_potential(world);
+			calc.project_ao_basis(world);
 			return calc.current_energy;
 			}
 
