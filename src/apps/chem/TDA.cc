@@ -249,7 +249,7 @@ void TDA::print_status(const xfunctionsT & xfunctions) const {
 void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-											<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+													<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
@@ -413,16 +413,39 @@ void TDA::guess_koala(World &world, xfunctionsT &roots)const{
 	Tensor<double> guess_phases_;
 	vecfuncT koala_mo;
 
-		// read koala's orbitals from disk
-		for (std::size_t i=nfreeze_; i<nmo; ++i) {
-			real_function_3d x_i=real_factory_3d(world).empty();
-			const std::string valuefile="grid.koala.orbital"+stringify(i);
-			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
-			koala_mo.push_back(x_i);
+	// read koala's orbitals from disk
+	for (std::size_t i=nfreeze_; i<nmo; ++i) {
+		real_function_3d x_i=real_factory_3d(world).empty();
+		const std::string valuefile="grid.koala.orbital"+stringify(i);
+		x_i.get_impl()->read_grid2<3>(valuefile,functorT());
+		koala_mo.push_back(x_i);
+	}
+	if(koala_mo.size()!=active_mo_.size()) MADNESS_EXCEPTION("ERROR in Koala guess: not the same number of Koala mos and active_mos of MRA",1);
+	// this is the transformation matrix for the rotation
+	guess_phases_=matrix_inner(world,koala_mo,get_calc().amo);
+	guess_phases_=guess_phases_(_,Slice(nfreeze_,nmo-1));
+
+	// compute the inverse of the overlap matrix
+	Tensor<double> S=(guess_phases_+transpose(guess_phases_)).scale(0.5);
+	Tensor<double> U, eval;
+	syev(S,U,eval);
+	Tensor<double> Sinv=copy(U);
+	for (int i=0; i<U.dim(0); ++i) {
+		for (int j=0; j<U.dim(1); ++j) {
+			Sinv(i,j)/=eval(j);
 		}
-		// this is the transformation matrix for the rotation
-		guess_phases_=matrix_inner(world,koala_mo,get_calc().amo);
-		guess_phases_=guess_phases_(_,Slice(nfreeze_,nmo-1));
+	}
+	Sinv=inner(Sinv,U,-1,-1);
+
+	vecfuncT transformed_koala_mos = transform(world,koala_mo,Sinv);
+	Tensor<double> check = matrix_inner(world, transformed_koala_mos,active_mo_);
+	if(world.rank()==0) std::cout << "Overlap between transformed Koala MOs and MRA MOs \n" << check << std::endl;
+	double check_2 = measure_offdiagonality(check,active_mo_.size());
+	double size_tmp = (double) active_mo_.size();
+	if(check_2 > size_tmp*FunctionDefaults<3>::get_thresh()){
+		if(world.rank()==0) std::cout << "WARNING: Koala and MRA MOs are maybe rotated" << check << std::endl;
+	}
+
 
 	for(size_t iroot=0;iroot<guess_excitations_;iroot++){
 
@@ -434,23 +457,11 @@ void TDA::guess_koala(World &world, xfunctionsT &roots)const{
 
 			// this is the file where the guess is on disk
 			const std::string valuefile="grid.koala.orbital"+stringify(i)
-	    	+".excitation"+stringify(iroot);
+	    			+".excitation"+stringify(iroot);
 			real_function_3d x_i=real_factory_3d(world).empty();
 			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
 			root.x.push_back(x_i);
 		}
-
-		// compute the inverse of the overlap matrix
-		Tensor<double> S=(guess_phases_+transpose(guess_phases_)).scale(0.5);
-		Tensor<double> U, eval;
-		syev(S,U,eval);
-		Tensor<double> Sinv=copy(U);
-		for (int i=0; i<U.dim(0); ++i) {
-			for (int j=0; j<U.dim(1); ++j) {
-				Sinv(i,j)/=eval(j);
-			}
-		}
-		Sinv=inner(Sinv,U,-1,-1);
 
 		// now rotate the active orbitals from the guess to conform with
 		// the MRA orbitals
@@ -1244,7 +1255,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-													+ get_coulomb_potential();
+															+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
