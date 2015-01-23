@@ -700,8 +700,10 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			if(xfunctions[i].converged){
 				if(guess){
 					converged_xfunctions_.push_back(xfunctions[i]);
-					if(guess_xfunctions_.empty()) initialize(guess_xfunctions_);
-					xfunctions[i]=guess_xfunctions_[i];
+					if(replace_guess_functions_){
+						if(guess_xfunctions_.empty()) initialize(guess_xfunctions_);
+						xfunctions[i]=guess_xfunctions_[i];
+					}
 					i=-1; // set back i for the case that more than one xfunction converged
 				}else if(kain_){
 					counter++;
@@ -717,11 +719,9 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 		if(guess or not kain_){
 			if (converged_xfunctions_.size() >= guess_excitations_){
 				// push back all the xfunctions to converged (for the case that lower energy solutions are there)
-				if (replace_guess_functions_){
 					for(size_t i=0;i<xfunctions.size();i++){
 						if(xfunctions[i].iterations > 1) converged_xfunctions_.push_back(xfunctions[i]);
 					}
-				}
 				break;
 			}
 		}
