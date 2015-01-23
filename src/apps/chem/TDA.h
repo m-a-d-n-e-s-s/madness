@@ -900,7 +900,7 @@ private:
 
 	void guess_custom(xfunctionsT & xfunctions)const;
 
-	void guess_koala(World &world, xfunctionsT &roots)const;
+	void guess_koala(xfunctionsT &roots)const;
 
 	/// Create excitation operators (e.g x,y,z for dipole excitations bzw symmetry operators)
 	/// @return gives back a vectorfunction of excitation operators (specified in the input file)

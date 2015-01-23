@@ -275,6 +275,9 @@ void TDA::initialize(xfunctionsT & xfunctions)const{
     else if(guess_ == "local"){
         guess_local(xfunctions);
     }
+    else if(guess_ == "koala"){
+    	guess_koala(xfunctions);
+    }
 	else {
 		if (world.rank() == 0)
 			print("unknown keyword for guess: ", guess_);
@@ -434,7 +437,7 @@ void TDA::guess_atomic_excitation(xfunctionsT & xfunctions)const{
 	normalize(xfunctions);
 }
 
-void TDA::guess_koala(World &world, xfunctionsT &roots)const{
+void TDA::guess_koala(xfunctionsT &roots)const{
 
 	// for convenience
 	const std::size_t nmo=get_calc().amo.size();
