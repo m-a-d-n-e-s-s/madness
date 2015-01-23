@@ -59,7 +59,7 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	if(xfunctions.empty())initialize(xfunctions);
 
 	// Failsafe
-	if(guess_=="koala"){¿
+	if(guess_=="koala"){
 		if(xfunctions.size()<guess_excitations_){
 			if(world.rank()==0) std::cout << "WARNING: You demanded " << guess_excitations_  << " pre-converged " << " guess excitations, but only "
 					<< xfunctions.size() << " guess excitations could be read from the koala calculations ... correcting that"<< std::endl;
