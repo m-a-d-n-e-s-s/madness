@@ -190,9 +190,9 @@ public:
 
     void apply_nonlocal_potential(World& world, const vector_real_function_3d& amo, vector_real_function_3d Vpsi) {
         if (core_type.substr(0,3) == "mcp") {
-            //START_TIMER(world);
+            START_TIMER(world);
             gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
-            //END_TIMER(world, "MCP Core Projector");
+            END_TIMER(world, "MCP Core Projector");
         }
     }
 
