@@ -310,7 +310,7 @@ public :
 			real_function_3d tmp = real_factory_3d(world);
 			for(size_t j=0;j<ao_basis.size();j++){
 				tmp += C(i,j)*ao_basis[j];
-				if(world.rank()==0)std::cout << C(i,j) <<  " ";
+				if(world.rank()==0 and fabs(C(i,j))>FunctionDefaults<3>::get_thresh()*100.0)std::cout << C(i,j) <<  " ";
 			}
 			if(world.rank()==0)std::cout << std::endl;
 			tmp.truncate();
@@ -345,6 +345,7 @@ public :
 	void project_to_guess_basis(World &world, const vecfuncT &solution,const double tol)const{
 		if(world.rank()==0) std::cout << "Projecting back the solution vectors to the polynomial guess basis up to order " << order_-1 << std::endl;
 		if(world.rank()==0) std::cout << "Projection of MOs to AO basis is " << projected_ << std::endl;
+		std::vector<std::string> dominant_c;
 		for(size_t i=0;i<exop_exponents_.size();i++){
 			// make the corresponding guess_excitation_vector to every key element
 			std::string input = exop_key_[i] + " 1.0";
@@ -352,9 +353,27 @@ public :
 			// calculate overlap with the solution vector
 			Tensor<double> ctensor = inner(world,solution,guess_x);
 			double c = ctensor.sum();
+			std::string tmp = exop_key_[i] + " " + stringify(c);
+			dominant_c.push_back(tmp);
 			if(world.rank()==0 and fabs(c)>tol) std::cout << std::setprecision(2) << exop_key_[i] << " " << c << " ";
 		}
-		if(world.rank()==0) std::cout << "\n-----\n" << std::endl;
+
+	}
+	/// Project chosen components the solution vectors back to the polynomial basis
+	void project_to_guess_basis(World &world, const real_function_3d &solution,const double tol,const size_t mo_number)const{
+		if(world.rank()==0) std::cout << " Projection corresponds to MO " << mo_number << std::endl;
+		std::vector<std::string> dominant_c;
+		for(size_t i=0;i<exop_exponents_.size();i++){
+			// make the corresponding guess_excitation_vector to every key element
+			std::string input = exop_key_[i] + " 1.0";
+			vecfuncT guess_x = make_custom_guess(world,input,true);
+			// calculate overlap with the solution vector
+			double c = inner(solution,guess_x[mo_number]);
+			std::string tmp = exop_key_[i] + " " + stringify(c);
+			dominant_c.push_back(tmp);
+			if(world.rank()==0 and fabs(c)>tol) std::cout << std::setprecision(2) << exop_key_[i] << " " << c << " ";
+		}
+
 	}
 };
 }// namespace madness

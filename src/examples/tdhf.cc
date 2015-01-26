@@ -93,6 +93,7 @@ int main(int argc, char** argv) {
 	double solve_thresh = ground_state_thresh*10.0;
 	double solve_seq_thresh = ground_state_thresh*10.0;
 	bool print_grid=false;
+	bool no_compute=false;
 
 	// Get the custom thresholds from the input file
 	std::ifstream f(input.c_str());
@@ -106,6 +107,7 @@ int main(int argc, char** argv) {
 		else if(tag == "solve_thresh") ss >> solve_thresh;
 		else if(tag == "solve_seq_thresh") ss >> solve_seq_thresh;
 		else if(tag == "print_grid") print_grid=true;
+		else if(tag == "no_compute") no_compute = true;
 		else continue;
 	}
 
@@ -159,6 +161,27 @@ int main(int argc, char** argv) {
     	if (world.rank() == 0) printf("\n\n-------------------------\nfinished at time %.1f\n", wall_time());
     	finalize();
     	return 0;
+	}
+
+	// just read and analyze the xfunctions
+	if(no_compute){
+		if(world.rank()==0) std::cout << "\n\n\n---no_compute keyword detected ... just read and analyze---\n\n\n " << std::endl;
+		TDA cis(world,calc,calc.amo,input);
+		xfunctionsT read_roots;
+		cis.read_xfunctions(read_roots);
+		xfunctionsT read_converged_roots = cis.get_converged_xfunctions();
+
+		if(not read_roots.empty()){
+			if(world.rank()==0) std::cout << "\nAnalyze the given " << read_roots.size() << " excitation vectors ..." << std::endl;
+			cis.analyze(read_roots);
+		}
+		if(not read_converged_roots.empty()){
+			if(world.rank()==0) std::cout << "\nAnalyze the given " << read_converged_roots.size() << " excitation vectors ..." << std::endl;
+			cis.analyze(read_converged_roots);
+		}else if(world.rank()==0) std::cout << "\nno converged excitation vectors found ..." << std::endl;
+
+    	finalize();
+		return 0;
 	}
 
 	// Initialize and pre converge the guess xfunctions

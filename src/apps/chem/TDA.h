@@ -1058,11 +1058,11 @@ private:
 	/// @param[in]	root	a converged root
 	double oscillator_strength_velocity(const xfunction& root) const;
 
+	void save_xfunctions(const xfunctionsT &xfunctions)const;
+public:
+	bool read_xfunctions(xfunctionsT &xfunctions);
 	/// analyze the root: oscillator strength and contributions from occ
 	void analyze(xfunctionsT& roots) const;
-
-	void save_xfunctions(const xfunctionsT &xfunctions)const;
-	bool read_xfunctions(xfunctionsT &xfunctions);
 };
 
 } /* namespace madness */
