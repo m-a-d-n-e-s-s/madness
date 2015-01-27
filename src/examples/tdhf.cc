@@ -95,6 +95,12 @@ int main(int argc, char** argv) {
 	bool print_grid=false;
 	bool no_compute=false;
 
+	for(size_t i=0;i<argc;i++){
+		if(strcmp(argv[i],"-print_grid")==0) print_grid = true;
+		if(strcmp(argv[i],"-no_compute")==0) no_compute = true;
+		if(strcmp(argv[i],"-analyze")==0) no_compute = true;
+	}
+
 	// Get the custom thresholds from the input file
 	std::ifstream f(input.c_str());
 	position_stream(f, "excite");

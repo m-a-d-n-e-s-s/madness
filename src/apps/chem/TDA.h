@@ -656,7 +656,7 @@ public:
 				ExImNorms(i,j) = exchange_intermediate_[i][j].norm2();
 			}
 		}
-		if(world.rank()==0){
+		if(world.rank()==0 and active_mo_.size()<6){
 			std::cout << " Norms of the exchange intermediate: " << std::endl;
 			std::cout << ExImNorms << std::endl;
 		}

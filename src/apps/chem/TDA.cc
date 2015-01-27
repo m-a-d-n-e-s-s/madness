@@ -488,7 +488,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 
 	vecfuncT transformed_koala_mos = transform(world,koala_mo,Sinv);
 	Tensor<double> check = matrix_inner(world, transformed_koala_mos,active_mo_);
-	if(world.rank()==0) std::cout << "Overlap between transformed Koala MOs and MRA MOs \n" << check << std::endl;
+	if(world.rank()==0 and active_mo_.size()<6) std::cout << "Overlap between transformed Koala MOs and MRA MOs \n" << check << std::endl;
 	double check_2 = measure_offdiagonality(check,active_mo_.size());
 	double size_tmp = (double) active_mo_.size();
 	if(check_2 > size_tmp*FunctionDefaults<3>::get_thresh()){
@@ -930,7 +930,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions, bool guess, kain_solver_h
 		}
 	}
 
-	std::cout<< "\n overlap matrix\n" << overlap << std::endl;
+	if(world.rank()==0 and active_mo_.size()<6) std::cout<< "\n overlap matrix\n" << overlap << std::endl;
 	// if the overlap matrix is already the unit matrix then no orthogonalization is needed
 	double overlap_offdiag = measure_offdiagonality(overlap, xfunctions.size());
 	if (fabs(overlap_offdiag) < FunctionDefaults<3>::get_thresh()) {
@@ -952,7 +952,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions, bool guess, kain_solver_h
 			1.5 * econv_);
 	//}
 	print("\n\n");
-	std::cout<<std::setw(40)<< "Transformation-Matrix-U \n" << U << std::endl;
+	if(world.rank()==0 and active_mo_.size()<6) std::cout<<std::setw(40)<< "Transformation-Matrix-U \n" << U << std::endl;
 	print("\n\n");
 
 	//Prevent printout when expectation value is calculated

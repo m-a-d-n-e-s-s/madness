@@ -310,7 +310,7 @@ public :
 			real_function_3d tmp = real_factory_3d(world);
 			for(size_t j=0;j<ao_basis.size();j++){
 				tmp += C(i,j)*ao_basis[j];
-				if(world.rank()==0 and fabs(C(i,j))>FunctionDefaults<3>::get_thresh()*100.0)std::cout << C(i,j) <<  " ";
+				if(world.rank()==0 and fabs(C(i,j))>FunctionDefaults<3>::get_thresh()*100.0 and active_mo.size()<6)std::cout << C(i,j) <<  " ";
 			}
 			if(world.rank()==0)std::cout << std::endl;
 			tmp.truncate();
