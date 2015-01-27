@@ -190,15 +190,9 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 				xfunctionsT courier;
 				courier.push_back(xfunctions[iroot]);
 				project_out_converged_xfunctions(courier);
-				if (fabs(xfunctions[iroot].delta.back())
-						< xfunctions[iroot].error.back() * 1.e-2
-						or fabs(xfunctions[iroot].delta.back()) < 8.e-4) {
-					xfunctions[iroot].omega += xfunctions[iroot].delta.back();
-				} else
-					xfunctions[iroot].omega =
-							xfunctions[iroot].expectation_value.back();
-				project_out_occupied_space(xfunctions[iroot].x);
-				// print update
+				update_energies(courier);
+				xfunctions[iroot] = courier[0];
+				courier.clear();
 
 				//print("Iteration ", iter ," on xfunction " ,iroot, " starts at ",wall_time());
 				print_xfunction(xfunctions[iroot]);
@@ -441,18 +435,6 @@ void TDA::guess_local(xfunctionsT & xfunctions)const{
 }
 
 void TDA::guess_atomic_excitation(xfunctionsT & xfunctions)const{
-	guess guess_structure(world,calc_.param.L,guess_mode_,active_mo_,calc_.ao);
-	for(size_t i=0;i<custom_exops_.size();i++){
-		xfunction tmp(world,guess_omega_);
-		vecfuncT xtmp = guess_structure.make_atomic_guess(world,custom_exops_[i],active_mo_.size());
-		project_out_occupied_space(xtmp);
-		tmp.x=xtmp;
-		tmp.number=i;
-		plot_vecfunction(tmp.x,"guess_excitation_"+stringify(i)+"_",true);
-		normalize(tmp);
-		xfunctions.push_back(tmp);
-	}
-	normalize(xfunctions);
 }
 
 void TDA::guess_koala(xfunctionsT &roots)const{
@@ -844,7 +826,7 @@ void TDA::update_energies(xfunctionsT &xfunctions)const {
 		//failsafe: make shure the delta and expectation values vectors are not empty to avoid segmentation faults
 		if(not xfunctions[k].delta.empty() and not xfunctions[k].expectation_value.empty() and not xfunctions[k].error.empty()) {
 			if(xfunctions[k].expectation_value.back() < highest_excitation_) {
-				if(fabs(xfunctions[k].delta.back()) < thresh*2.0) {
+				if(fabs(xfunctions[k].delta.back()) < thresh*20.0) {
 					xfunctions[k].omega +=xfunctions[k].delta.back();
 					std::cout << k << "(2nd), ";
 				} else {

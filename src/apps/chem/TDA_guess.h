@@ -14,62 +14,6 @@
 
 namespace madness{
 
-/// Gaussian analoges of atomic orbitals
-struct general_ao : public FunctionFunctorInterface<double,3> {
-private:
-	const double exponent_;
-	const std::string type_;
-	double rad2(const coord_3d &r)const{
-		return r[0]*r[0]+r[1]*r[1]+r[2]*r[2];
-	}
-	double s_orbital(const coord_3d &r)const{
-		return exp(-rad2(r)*exponent_);
-	}
-	double px_orbital(const coord_3d &r)const{
-		return r[0]*s_orbital(r);
-	}
-	double py_orbital(const coord_3d &r)const{
-		return r[1]*s_orbital(r);
-	}
-	double pz_orbital(const coord_3d &r)const{
-		return r[2]*s_orbital(r);
-	}
-	double dxx_orbital(const coord_3d &r) const{
-		return r[0]*r[0]*s_orbital(r);
-	}
-	double dyy_orbital(const coord_3d &r) const{
-		return r[1]*r[1]*s_orbital(r);
-	}
-	double dzz_orbital(const coord_3d &r) const{
-		return r[2]*r[2]*s_orbital(r);
-	}
-	double dxy_orbital(const coord_3d &r) const{
-		return r[0]*r[1]*s_orbital(r);
-	}
-	double dxz_orbital(const coord_3d &r) const{
-		return r[0]*r[2]*s_orbital(r);
-	}
-	double dyz_orbital(const coord_3d &r) const{
-		return r[1]*r[2]*s_orbital(r);
-	}
-public:
-	general_ao(const double ceta, const std::string typ) : exponent_(ceta),type_(typ) {}
-
-	double operator()(const coord_3d &r)const{
-		if(type_=="s") return s_orbital(r);
-		else if(type_=="px") return px_orbital(r);
-		else if(type_=="py") return py_orbital(r);
-		else if(type_=="pz") return pz_orbital(r);
-		else if(type_=="dxx") return dxx_orbital(r);
-		else if(type_=="dyy") return dyy_orbital(r);
-		else if(type_=="dzz") return dzz_orbital(r);
-		else if(type_=="dxy") return dxy_orbital(r);
-		else if(type_=="dxz") return dxz_orbital(r);
-		else if(type_=="dyz") return dyz_orbital(r);
-		else MADNESS_EXCEPTION("ERROR in creating atomic orbital guess: Type unknown, use s, px, py or pz" ,1);
-	}
-};
-
 /// Creates a general polynomial C*x^aY^bz^c with origin at xpos,ypos,zpos which is 1 at the borders (discontinous, but at the dyadic points)
 struct general_polynomial : public FunctionFunctorInterface<double,3> {
 public:
@@ -258,35 +202,6 @@ public :
 		return guess_x;
 	}
 
-	/// Creates guess functions like big atomic orbitals (for anions and extreme rydberg states)
-	vecfuncT make_atomic_guess(World & world,const std::string input_info, const size_t number_of_active_mos_){
-		// Read the input line given in the string input_info
-		std::stringstream line(input_info);
-		std::string name;
-		double exponent=1.0;
-		std::string type = "s";
-		while(line>>name){
-			std::transform(name.begin(), name.end(), name.begin(), ::tolower);
-			if(name=="exponent") line >> exponent;
-			else if(name=="type") line >> type;
-		}
-		// Generate atomic orbital
-		if(world.rank()==0){
-			std::cout << "Making " << type<< " type atomic orbital as guess (exponent is " << exponent << ")" << std::endl;
-		}
-		std::shared_ptr<FunctionFunctorInterface<double, 3> > ao_functor(new general_ao(exponent,type));
-		real_function_3d ao_guess = real_factory_3d(world).functor(ao_functor);
-		ao_guess.truncate();
-		double norm = ao_guess.norm2();
-		ao_guess.scale(1.0/norm);
-		double xnorm = (double) number_of_active_mos_;
-		ao_guess.scale(1.0/xnorm);
-		vecfuncT guess_xfunction_x;
-		for(size_t i=0;i<number_of_active_mos_;i++){
-			guess_xfunction_x.push_back(ao_guess);
-		}
-		return guess_xfunction_x;
-	}
 
 	/// Project to AO basis
 	vecfuncT project_to_ao_basis(World & world, const vecfuncT & active_mo, const vecfuncT & ao_basis)const{
