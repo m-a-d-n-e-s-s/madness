@@ -96,9 +96,9 @@ int main(int argc, char** argv) {
 	bool no_compute=false;
 
 	for(size_t i=0;i<argc;i++){
-		if(strcmp(argv[i],"-print_grid")==0) print_grid = true;
-		if(strcmp(argv[i],"-no_compute")==0) no_compute = true;
-		if(strcmp(argv[i],"-analyze")==0) no_compute = true;
+		if(strcmp(argv[i],"-tda_print_grid")==0) print_grid = true;
+		if(strcmp(argv[i],"-tda_no_compute")==0) no_compute = true;
+		if(strcmp(argv[i],"-tda_analyze")==0) no_compute = true;
 	}
 
 	// Get the custom thresholds from the input file
