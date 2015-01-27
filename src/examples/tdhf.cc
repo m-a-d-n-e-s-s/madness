@@ -94,11 +94,13 @@ int main(int argc, char** argv) {
 	double solve_seq_thresh = ground_state_thresh*10.0;
 	bool print_grid=false;
 	bool no_compute=false;
+	bool only_sequential=false;
 
 	for(size_t i=0;i<argc;i++){
 		if(strcmp(argv[i],"-tda_print_grid")==0) print_grid = true;
 		if(strcmp(argv[i],"-tda_no_compute")==0) no_compute = true;
 		if(strcmp(argv[i],"-tda_analyze")==0) no_compute = true;
+		if(strcmp(argv[i],"-tda_sequential")==0) only_sequential = true;
 	}
 
 	// Get the custom thresholds from the input file
@@ -186,6 +188,17 @@ int main(int argc, char** argv) {
 			cis.analyze(read_converged_roots);
 		}else if(world.rank()==0) std::cout << "\nno converged excitation vectors found ..." << std::endl;
 
+    	finalize();
+		return 0;
+	}
+
+	if(only_sequential){
+		FunctionDefaults<3>::set_thresh(solve_seq_thresh);
+		if(world.rank()==0) std::cout << "\n\n\n---Only sequential CIS iterations---\n\n\n " << std::endl;
+		TDA cis(world,calc,calc.amo,input);
+		xfunctionsT seq_roots;
+		cis.read_xfunctions(seq_roots);
+		cis.solve_sequential(seq_roots);
     	finalize();
 		return 0;
 	}

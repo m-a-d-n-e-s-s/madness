@@ -223,12 +223,8 @@ public:
 		}
 
 		plot_plane(world,rho,"rho");
-		Vector<double,3> plot_coord_1; plot_coord_1[0]=-50.0;plot_coord_1[1]=0.0;plot_coord_1[2]=0.0;
-		Vector<double,3> plot_coord_2; plot_coord_2[0]= 50.0;plot_coord_2[1]=0.0;plot_coord_2[2]=0.0;
-		plot_line("rho_line_",1000,plot_coord_1,plot_coord_2,rho);
 		rho_=rho;
 		rho.unaryop(munge_density);
-		plot_line("rho_line_munged",1000,plot_coord_1,plot_coord_2,rho);
 
 
 //		// Make the contracted gradient of the unperturbed density sum_i (d/dxi rho)^2

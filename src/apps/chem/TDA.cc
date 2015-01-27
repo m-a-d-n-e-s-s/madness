@@ -132,6 +132,9 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
 			<< "SOLVE_SEQUENTIAL START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n"
 			"The first " << excitations_ << " of the following xfunctions will be solved sequentially "<< std::endl;
+
+	if(xfunctions.empty()) initialize(xfunctions);
+
 	std::sort(xfunctions.begin(),xfunctions.end());
 	xfunctions.erase(xfunctions.begin()+excitations_,xfunctions.end());
 	print_status(xfunctions);
