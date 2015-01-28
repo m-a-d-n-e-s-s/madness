@@ -519,8 +519,10 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			if(xfunctions[i].converged){
 				if(guess and replace_guess_functions_){
 					converged_xfunctions_.push_back(xfunctions[i]);
-					if(guess_xfunctions_.empty()) initialize(guess_xfunctions_);
-					xfunctions[i]=guess_xfunctions_[i];
+					xfunctions[i] = xfunction(world);
+					xfunctions[i].x=make_guess_vector(xfunctions[i].guess_excitation_operator);
+					xfunctions[i].omega = guess_omega_;
+					xfunctions[i].number = i;
 					i=-1; // set back i for the case that more than one xfunction converged
 				}else if(kain_){
 					counter++;
