@@ -43,6 +43,12 @@ struct xyz {
 void TDA::solve_guess(xfunctionsT &xfunctions) {
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
 			<< "SOLVE_GUESS START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n\n\n" << std::endl;
+
+	if(guess_ =="koala"){
+		guess_koala(xfunctions);
+		return;
+	}
+
 	plot_vecfunction(active_mo_, "active_mo_");
 	// check for saved xfunctions
 	read_xfunctions(xfunctions);
@@ -269,173 +275,33 @@ void TDA::print_xfunction(const xfunction &x) const {
 }
 
 void TDA::initialize(xfunctionsT & xfunctions)const{
-	plot_vecfunction(active_mo_,"active_mo_",true);
-	if (guess_ == "physical") {
-		guess_physical(xfunctions);
-		if (not guess_omegas_.empty() and guess_omegas_.size()<=xfunctions.size()){
-			for(size_t i=0;i<guess_omegas_.size();i++){
-				xfunctions[i].omega = guess_omegas_[i];
-			}
-		}
-	}
-	else if(guess_ == "custom") {
-		guess_custom(xfunctions);
-	}
-	else if(guess_ == "atomic_excitation"){
-		guess_atomic_excitation(xfunctions);
-	}
-	else if(guess_ == "custom_2"){
-		guess_custom_2(xfunctions);
-	}
-	else if(guess_ == "local"){
-		guess_local(xfunctions);
-	}
-	else if(guess_ == "koala"){
-		guess_koala(xfunctions);
-	}
-	else {
-		if (world.rank() == 0)
-			print("unknown keyword for guess: ", guess_);
-		MADNESS_EXCEPTION("Reached end of initialize", 1);
-	}
-}
-
-void TDA::guess_custom(xfunctionsT & xfunctions)const{
-
-	std::shared_ptr<FunctionFunctorInterface<double, 3> > smooth_functor(
-			new guess_smoothing(guess_box_));
-
-	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
-	plot_plane(world,smoothing_function,"smoothing_function");
-
-	exoperators exops(world,excitation_point_);
-
-	//	// project the active_mos on ao functions
-	//	vecfuncT projected_mos = zero_functions<double,3>(world,active_mo_.size());
-	//	for(size_t i=0;i<active_mo_.size();i++){
-	//		projected_mos[i] = exops.project_function_on_aos(world,active_mo_[i]);
-	//	}
-	//	plot_vecfunction(projected_mos,"projected_mos_");
-
-	std::vector<vecfuncT> xguess_inner = exops.make_custom_guess(world,custom_exops_,active_mo_, smoothing_function);
-	//std::vector<vecfuncT> xguess_outer = exops.make_custom_guess(world,custom_exops_,projected_mos, anti_smoothing_function);
-	for(size_t i=0;i<xguess_inner.size();i++){
+	if(world.rank()==0) std::cout << "\nDemanded guess is " << guess_ <<"\n"<< std::endl;
+	std::vector<std::string> exop_strings;
+	if(guess_ == "custom"){
+		exop_strings = custom_exops_;
+	}else exop_strings =  make_predefined_guess_strings(guess_);
+	if(exop_strings.empty()) MADNESS_EXCEPTION("ERROR in intializing xfunctions, no guess strings were created ... unknown keyword ?",1);
+	for(size_t i=0;i<exop_strings.size();i++){
 		xfunction tmp(world);
-		tmp.omega = guess_omegas_[i];
-		tmp.x = xguess_inner[i];
-		plot_vecfunction(tmp.x,"custom_guessfunction_"+stringify(i));
-		//plot_vecfunction(xguess_inner[i],"custom_guessfunction_inner"+stringify(i));
-		//plot_vecfunction(xguess_outer[i],"custom_guessfunction_outer"+stringify(i));
-		xfunctions.push_back(tmp);
-	}
-	//	//TESTING DEBUG
-	//	double c=inner(xfunctions[0].x[0],projected_mos[0]);
-	//	xfunctions[0].x[0] -= c*projected_mos[0];
-	//	plot_vecfunction(xfunctions[0].x,"custom_guessfunction_woocc");
-
-
-
-}
-
-void TDA::guess_physical(xfunctionsT & xfunctions)const{
-	std::shared_ptr<FunctionFunctorInterface<double, 3> > smooth_functor(
-			new guess_smoothing(guess_box_));
-
-	real_function_3d smoothing_function = real_factory_3d(world).functor(smooth_functor);
-	smoothing_function.print_size("smoothing_function size");
-	plot_plane(world,smoothing_function,"smoothing_function");
-
-	vecfuncT xoperators = make_excitation_operators();
-
-	real_function_3d all_orbitals = real_factory_3d(world);
-	if (guess_mode_ == "all_orbitals") {
-		for (size_t i = 0; i < mos_.size(); i++) {
-			all_orbitals += mos_[i];
-		}
-		all_orbitals.truncate(truncate_thresh_);
-	}
-
-	for (size_t j = 0; j < xoperators.size(); j++) {
-
-		vecfuncT x;
-		for (size_t i = 0; i < active_mo_.size(); i++) {
-			real_function_3d tmp;
-			if (guess_mode_ == "all_orbitals") {
-				tmp = all_orbitals * xoperators[j]*smoothing_function;
-			} else
-				tmp = active_mo_[i] * xoperators[j]*smoothing_function;
-
-			double norm = tmp.norm2();
-			tmp.scale(1.0 / norm);
-			x.push_back(copy(tmp));
-		}
-		xfunction xtmp(world, x);
-		xtmp.number = xfunctions.size();
-		xtmp.omega = guess_omega_;
-		xtmp.kain = false;
-		normalize(xtmp);
-		project_out_occupied_space(xtmp.x);
-		plot_vecfunction(xtmp.x,
-				"guess_excitation_" + stringify(xtmp.number) + "_");
-		xfunctions.push_back(xtmp);
-	}
-	normalize(xfunctions);
-
-	// Initalize energies
-	double factor = 1.0;
-	for (size_t i = 0; i < xfunctions.size(); i++) {
-		xfunctions[i].omega = guess_omega_ * factor;
-		//factor += 0.05;
-	}
-
-}
-
-void TDA::guess_custom_2(xfunctionsT & xfunctions)const{
-	if(world.rank()==0) std::cout << "Making custom_2 guess: " << custom_exops_.size() << " custom excitations given" << std::endl;
-	guess guess_structure(world,calc_.param.L,guess_mode_,active_mo_,calc_.ao);
-	for(size_t i=0;i<custom_exops_.size();i++){
-		xfunction tmp(world,guess_omega_);
-		vecfuncT xtmp = guess_structure.make_custom_guess(world,custom_exops_[i]);
-		project_out_occupied_space(xtmp);
-		tmp.x=xtmp;
 		tmp.number=i;
+		tmp.guess_excitation_operator = exop_strings[i];
+		tmp.omega = guess_omega_;
 		xfunctions.push_back(tmp);
-		plot_vecfunction(tmp.x,"guess_excitation_" + stringify(tmp.number) + "_");
 	}
-	normalize(xfunctions);
-	plot_vecfunction(active_mo_,"active_mo_",true);
-}
-
-void TDA::guess_local(xfunctionsT & xfunctions)const{
-
-	if(world.rank()==0) print("Making local guess");
-
-	// localize the active orbitals
-
-	std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
-	distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
-	tensorT mo2lmo(active_mo_.size(),active_mo_.size());
-	dmo2lmo.copy_to_replicated(mo2lmo);
-	vecfuncT lmo=madness::transform(world,active_mo_,mo2lmo,true);
-
-	guess guess_structure(world,calc_.param.L,guess_mode_,lmo,calc_.ao);
-
-	for(size_t i=0;i<custom_exops_.size();i++){
-		xfunction tmp(world,guess_omega_);
-		vecfuncT xtmp = guess_structure.make_custom_guess(world,custom_exops_[i]);
-		project_out_occupied_space(xtmp);
-
-		tmp.x=transform(world,xtmp,transpose(mo2lmo),true);
-		tmp.number=i;
-		xfunctions.push_back(tmp);
-		plot_vecfunction(tmp.x,"guess_excitation_" + stringify(tmp.number) + "_");
+	for(size_t i=0;i<xfunctions.size();i++){
+		xfunctions[i].x = make_guess_vector(xfunctions[i].guess_excitation_operator);
 	}
-	normalize(xfunctions);
-	plot_vecfunction(active_mo_,"active_mo_",true);
+
 }
 
-void TDA::guess_atomic_excitation(xfunctionsT & xfunctions)const{
+vecfuncT TDA::make_guess_vector(const std::string &input_string)const{
+	if(world.rank()==0) std::cout << "\nMaking guess excitation with excitation operator \n " << input_string << std::endl;
+	std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(
+				new polynomial_exop_functor(input_string));
+	real_function_3d exop = real_factory_3d(world).functor(exop_functor);
+	return mul(world,exop,active_mos_for_guess_calculation_);
 }
+
 
 void TDA::guess_koala(xfunctionsT &roots)const{
 
@@ -518,38 +384,6 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 	if(roots.empty()) MADNESS_EXCEPTION("ERROR: Koala guess demanded, but no KOALA results found ...",1);
 }
 
-
-vecfuncT TDA::make_excitation_operators()const {
-	if(guess_exop_ == "custom"){
-
-		exoperators exops(world,excitation_point_);
-		vecfuncT xoperators = exops.get_custom_exops(world,custom_exops_);
-		return xoperators;
-
-	}else{
-		std::string key;
-		if (guess_exop_ == "symmetry") {
-			key = calc_.molecule.pointgroup_;
-			std::cout << std::setw(40) << "symmetry_guess" << " : point group is " << key;
-			if (key == "C1") {
-				key = "quadrupole+";
-				std::cout<< "and not yet implemented ...";}
-			if (key == "Ci") {
-				key = "quadrupole+";
-				std::cout<< "and not yet implemented ...";}
-			if (key == "D2") {
-				key = "quadrupole+";
-				std::cout<< "and not yet implemented ...";}
-			std::cout << std::endl;
-		}
-		else key = guess_exop_;
-
-		exoperators exops(world,excitation_point_);
-		vecfuncT xoperators = exops.get_exops(world, key);
-
-		return xoperators;
-	}
-}
 
 void TDA::iterate_guess(xfunctionsT &xfunctions) {
 	std::cout << "\n" << std::endl;
@@ -1520,16 +1354,7 @@ void TDA::analyze(xfunctionsT& roots) const {
 			}
 		}
 	}
-	// get the overlap with the guess exops
-	guess guess_structure(world,calc_.param.L,guess_mode_,active_mo_,calc_.ao);
-	double tol = 100.0 * FunctionDefaults<3>::get_thresh();
-	for(size_t i=0;i<roots.size();i++){
-		guess_structure.project_to_guess_basis(world,roots[i].x,tol);
-		for(size_t j=1;j<4;j++){
-			if(j>active_mo_.size()) break;
-			guess_structure.project_to_guess_basis(world,roots[i].x[active_mo_.size()-j],tol,active_mo_.size()-j);
-		}
-	}
+
 
 	// Get overlap with chosen components of guess operators
 }
@@ -1567,7 +1392,7 @@ void TDA::save_xfunctions(const xfunctionsT &xfunctions)const{
 	}
 }
 
-bool TDA::read_xfunctions(xfunctionsT &xfunctions){
+bool TDA::read_xfunctions(xfunctionsT &xfunctions ){
 	size_t noct = active_mo_.size();
 	const std::string name_x = "xfunctions_current";
 	const std::string name_xconv = "xfunctions_converged";
@@ -1613,4 +1438,31 @@ bool TDA::read_xfunctions(xfunctionsT &xfunctions){
 	}
 	if(not xfunctions.empty()) return true;
 	else return false;
+}
+
+vecfuncT TDA::project_to_ao_basis(const vecfuncT & active_mo, const vecfuncT &ao_basis)const{
+	if(world.rank()==0) std::cout << "Projecting to AO basis ..." << std::endl;
+	Tensor<double> Saa = matrix_inner(world,ao_basis,ao_basis,true);
+	// Make AOMO overlap Matrix
+	Tensor<double> Sam = matrix_inner(world,ao_basis,active_mo,false);
+	// Get the coefficients : solve Sam = C*Sao
+	Tensor<double> C;
+	gesv(Saa, Sam, C);
+	C = transpose(C);
+
+	// make projected mos
+	vecfuncT projected_mos;
+	for(size_t i=0;i<active_mo.size();i++){
+		//if(world.rank()==0)std::cout << "Projecting MO " << i << " to AO Basis ...\n Coefficients: ";
+		real_function_3d tmp = real_factory_3d(world);
+		for(size_t j=0;j<ao_basis.size();j++){
+			tmp += C(i,j)*ao_basis[j];
+			if(world.rank()==0 and fabs(C(i,j))>FunctionDefaults<3>::get_thresh()*100.0 and active_mo.size()<6)std::cout << C(i,j) <<  " ";
+		}
+		if(world.rank()==0)std::cout << std::endl;
+		tmp.truncate();
+		projected_mos.push_back(tmp);
+		plot_plane(world,tmp,"projected_mo_"+stringify(i));
+	}
+	return projected_mos;
 }

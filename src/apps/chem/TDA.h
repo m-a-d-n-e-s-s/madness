@@ -68,15 +68,19 @@ public:
 struct xfunction{
 	/// default constructor
 	/// @param[in] world	the world is needed as a reference
-	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);}
-	xfunction(World &world, const double in_omega) :world(world),omega(in_omega),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);}
+	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),
+			f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);guess_excitation_operator="not initialized";}
+	xfunction(World &world, const double in_omega) :world(world),omega(in_omega),converged(false),number(100),iterations(0),kain(false),
+			f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);guess_excitation_operator="not initialized";}
 	/// constructs a xfunctions object and initializes the x-vecfunction (response orbitals)
 	/// @param[in] world	the world is needed
 	/// @param[in] x1	vectorfunction of response orbitals
-	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);}
+	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),
+			f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);guess_excitation_operator="not initialized";}
 	/// the copy contructor
 	xfunction(const xfunction &other) : world(other.world),x(other.x),Vx(other.Vx),omega(other.omega),expectation_value(other.expectation_value),error(other.error),
-			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain),f_length(other.f_length),f_velocity(other.f_velocity){}
+			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain),
+			f_length(other.f_length),f_velocity(other.f_velocity),guess_excitation_operator(other.guess_excitation_operator){}
 
 	World & world;
 	/// the response orbitals
@@ -102,10 +106,14 @@ struct xfunction{
 	/// the residuals of the last bsh step, is needed if the kain solver should be used
 	vecfuncT current_residuals;
 
+
 	/// Oscillator strenght in length and velocity gauge
 	/// will be calcualted after convergece, default is 999
 	double f_length;
 	double f_velocity;
+
+	/// A string which determines the guess excitation operator
+	std::string guess_excitation_operator;
 
 	/// assignment operator (needed by kain)
 	xfunction& operator=(const xfunction &other){
@@ -121,6 +129,7 @@ struct xfunction{
 		kain=other.kain;
 		f_length = other.f_length;
 		f_velocity = other.f_velocity;
+		guess_excitation_operator = other.guess_excitation_operator;
 
 		return *this;
 	}
@@ -408,6 +417,48 @@ public:
 	}
 };
 
+/// Structure that makes the excitation operators in polynomial form from strings
+struct polynomial_exop_functor : public FunctionFunctorInterface<double,3> {
+public :
+	polynomial_exop_functor(const std::string input) : input_string_(input), data_(read_string(input)) {}
+
+	double operator()(const coord_3d &r)const{
+		double result =0.0;
+		for(size_t i=0;i<data_.size();i++){
+			if(data_[i].size()!=4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, empty data_ entry",1);
+			result += ( data_[i][3]*pow(r[0],data_[i][0])*pow(r[1],data_[i][1])*pow(r[2],data_[i][2]) );
+		}
+		return result;
+	}
+private:
+	const std::string input_string_;
+	/// The data for the construction of the polynomial chain
+	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
+	const std::vector<std::vector<double>> data_;
+	std::vector<std::vector<double> > read_string(const std::string string)const{
+		std::stringstream line(string);
+				std::string name;
+				size_t counter = 0;
+				std::vector<double> current_data = vector_factory(0.0,0.0,0.0,1.0);
+				std::vector<std::vector<double> > read_data;
+				while(line>>name){
+					if(name=="c") line>>current_data[3];
+					else if(name=="x") line>>current_data[0];
+					else if(name=="y") line>>current_data[1];
+					else if(name=="z") line>>current_data[2];
+					else if(name==","){
+						counter++; read_data.push_back(current_data); current_data = vector_factory(0.0,0.0,0.0,1.0);
+					}
+				}
+				// dont forget the last read polynomial
+				read_data.push_back(current_data);
+				return read_data;
+	}
+	void test(){
+		std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
+		std::cout << "\n read data is \n" << data_ << std::endl;
+ 	}
+};
 
 /// The TDA class: computes TDA and CIS calculations
 class TDA {
@@ -423,6 +474,7 @@ public:
 		dft_(false),
 		calc_(calc),
 		mos_(mos),
+		active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
 		guess_("physical"),
 		guess_iter_(15),
@@ -593,7 +645,14 @@ public:
 
 		lo=get_calc().param.lo;
 		bsh_eps_ = FunctionDefaults<3>::get_thresh()*0.1;
+
+		// Make the active_mos_ vector
 		for(size_t i=nfreeze_;i<mos_.size();i++){active_mo_.push_back(mos_[i]);}
+
+		// project the mos if demanded (default is true)
+		if(guess_mode_ != "numerical"){
+			active_mos_for_guess_calculation_ = project_to_ao_basis(active_mo_,calc_.ao);
+		}
 
 		/// Make transformation matrix from cannical to localized MOs
 		std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
@@ -726,6 +785,10 @@ private:
 	/// The molecular orbitals of moldft
 	/// extra member variable that the thresh can be changed without changing calc_
 	vecfuncT mos_;
+
+	/// The molecular orbitals that are used to calcualte the guess excitation vectors
+	/// Theese are either the projected numerical mos (projected to minimal AO basis) or just a reference to the numerical mos from moldft
+	vecfuncT active_mos_for_guess_calculation_;
 
 	/// Print grid option
 	bool print_grid_;
@@ -906,7 +969,7 @@ private:
 	/// Make a huge guess: Excite on every non hydrogen atom
 	void guess_atomic_excitation(xfunctionsT & xfunctions)const;
 
-	void guess_custom(xfunctionsT & xfunctions)const;
+	vecfuncT make_guess_vector(const std::string &input)const;
 
 	void guess_koala(xfunctionsT &roots)const;
 
@@ -1063,6 +1126,8 @@ public:
 	bool read_xfunctions(xfunctionsT &xfunctions);
 	/// analyze the root: oscillator strength and contributions from occ
 	void analyze(xfunctionsT& roots) const;
+	/// Project a vecfuncT to the ao basis (used to create projected MOs for the guess calculation)
+	vecfuncT project_to_ao_basis(const vecfuncT & mos, const vecfuncT& ao_basis)const;
 };
 
 } /* namespace madness */
