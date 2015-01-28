@@ -476,17 +476,14 @@ public:
 		mos_(mos),
 		active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
-		guess_("physical"),
-		guess_iter_(15),
-		smoothing_mode_(0.0),
-		guess_mode_("physical"),
+		guess_("dipole+"),
+		guess_iter_(20),
+		guess_mode_("projected"),
 		replace_guess_functions_(true),
-		guess_exop_("quadrupole"),
 		guess_excitations_(6),
 		excitations_(4),
 		bsh_eps_(1.e-5),
 		iter_max_(100),
-		noise_iter_(1.e8),
 		econv_(1.e-4),
 		guess_econv_(1.e-3),
 		dconv_(1.e-2),
@@ -499,17 +496,11 @@ public:
 		only_fock_(false),
 		only_GS_(false),
 		on_the_fly_(true),
-		read_(false),
-		only_sequential_(false),
 		xclib_interface_(world,calc),
 		ipot_(0.0),
-		rydberg_(false),
-		rydberg_exponent_(0.1),
 		kain_(false),
 		kain_subspace_(3),
-		kain_conv_thresh_(1.e-2),
 		shift_(0.0),
-		safety_(1.0),
 		triplet_(false),
 		localize_exchange_intermediate_(false)
 {
@@ -518,21 +509,8 @@ public:
 	/// reads the input file and calculates needed functions
 	void setup(const vecfuncT &mos,const std::string input){
 
-		/// std excitation point is 0,0,0
-		excitation_point_[0]=0.0;
-		excitation_point_[1]=0.0;
-		excitation_point_[2]=0.0;
-
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
-
-		// guess box default
-		double bc =  calc_.molecule.bounding_cube();
-		double default_guess_box_ = calc_.param.L;
-		if(bc < 2.0) default_guess_box_ = calc_.param.L * 1.0/8.0;
-		else if(bc < 5) default_guess_box_ = calc_.param.L * 1.0/4.0;
-		else if(bc < 10) default_guess_box_ = calc_.param.L * 3.0/8.0;
-		else if(bc < 15) default_guess_box_ = calc_.param.L * 1.0/2.0;
 
 		size_t noct = calc_.aeps.size();
 		// The highest possible excitation (-homo_energy)
@@ -561,11 +539,9 @@ public:
 			else if (tag == "guess_omega") ss >> guess_omega_;
 			else if (tag == "guess_mode") ss >> guess_mode_;
 			else if (tag == "replace_guess_functions") ss >> replace_guess_functions_;
-			else if (tag == "guess_exop") ss >> guess_exop_;
 			else if (tag == "guess_excitations") ss >> guess_excitations_;
 			else if (tag == "bsh_eps") ss >> bsh_eps_;
 			else if (tag == "iter_max") ss >> iter_max_;
-			else if (tag == "noise_iter") ss >> noise_iter_;
 			else if (tag == "econv") ss >> econv_;
 			else if (tag == "guess_econv") ss >> guess_econv_;
 			else if (tag == "dconv") ss >> dconv_;
@@ -578,29 +554,18 @@ public:
 			else if (tag == "only_GS") only_GS_=true;
 			else if (tag == "highest_excitation") ss >> highest_excitation_;
 			else if (tag == "no_otf") on_the_fly_=false;
-			else if (tag == "read") read_ = true;
-			else if (tag == "only_sequential") only_sequential_=true;
 			else if (tag == "ipot") ss >> ipot_;
-			else if (tag == "rydberg") {rydberg_=true; ss>>rydberg_exponent_;}
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
-			else if (tag == "kain_conv_thresh") ss>> kain_conv_thresh_;
 			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "smoothing_mode") ss >> smoothing_mode_; // mode for the smoothing function
 			else if (tag == "triplet") triplet_=true;
 			else if (tag == "localize_exchange_intermediate") localize_exchange_intermediate_ = true;
-
-			else if (tag == "truncate_safety") ss>>safety_;
 			else continue;
 		}
 
 		// make potential shift = -ipot - homo
 		if(dft_) shift_= -ipot_ - get_calc().aeps[noct-1];
 		highest_excitation_=highest_excitation_-shift_;
-
-		// Make the guess box for the smoothing function (smoothing_mode_ == 0 is the default)
-		if(smoothing_mode_ == 0.0) guess_box_ = default_guess_box_;
-		else guess_box_ = calc_.param.L * smoothing_mode_/8.0;
 
 		if(guess_ =="koala"){
 			if(replace_guess_functions_){
@@ -621,9 +586,7 @@ public:
 			std::cout<< std::setw(40) << "energy convergence : " << econv_ << std::endl;
 			std::cout<< std::setw(40) << "max residual (dconv) : " << dconv_ << std::endl;
 			std::cout<< std::setw(40) << "number of excitations : " << excitations_ << std::endl;
-			std::cout<< std::setw(40) << "number of guess excitations : " << guess_excitations_ << std::endl;
 			std::cout<< std::setw(40) << "guessed lowest extitation energy : " << guess_omega_ << std::endl;
-			std::cout<< std::setw(40) << "guessed excitation operators : " << guess_exop_ << std::endl;
 			std::cout<< std::setw(40) << "highest possible excitation : " << highest_excitation_default << std::endl;
 			std::cout<< std::setw(40) << "used highest possible excitation : " << highest_excitation_ << std::endl;
 			std::cout<< std::setw(40) << "guessed ionization potential is : " << ipot_ << std::endl;
@@ -634,11 +597,9 @@ public:
 			if(only_fock_) std::cout << "only perturbed fock matrix"<< std::endl;
 			else if(only_GS_) std::cout << "only Gram-Schmidt"<< std::endl;
 			else std::cout << "use both"<< std::endl;
-			std::cout<< std::setw(40) << "Guess box size : " << guess_box_ << std::endl;
 			std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
-			std::cout<< std::setw(40) << "excitation_point is " << excitation_point_ << std::endl;
 		}
 
 
@@ -694,20 +655,10 @@ public:
 			only_GS_ = false;
 		}
 
-		// make the truncate thresh
-		truncate_thresh_ = FunctionDefaults<3>::get_thresh() * safety_;
-		std::cout << "Truncate threshold is set to " << truncate_thresh_ << std::endl;
-
 		// Truncate the current mos
-		truncate(world,mos_,truncate_thresh_);
-		std::cout << "truncate molecular orbitals to " << truncate_thresh_ << std::endl;
+		truncate(world,mos_);
 
 		std::cout << "setup of TDA class ended\n" << std::endl;
-
-		if(excitations_ > guess_excitations_){
-			std::cout << "WARNING " << excitations_ << " final and " << guess_excitations_ << " guess_excitations demanded" << " setting demanded excitations to " << guess_excitations_ << std::endl;
-			excitations_ = guess_excitations_;
-		}
 
 		Tensor<double> ExImNorms(exchange_intermediate_.size(),exchange_intermediate_.size());
 		for(size_t i=0;i<exchange_intermediate_.size();i++){
@@ -801,30 +752,19 @@ private:
 	/// guess iterations are the first iterations where the energy is kept fixed at the guess_omega energy
 	size_t guess_iter_;
 	double guess_omega_;
-	double guess_box_;
-	/// The smoothing mode determines the size of the guess_box (box where the guess functions are not truncated to 0)
-	/// The size will be smoothing_mode_/8*L to ensure the borders are at dyadic points
-	double smoothing_mode_;
 
-	/// Excitation point: std is 0,0,0
-	coord_3d excitation_point_;
-
-	/// mode is either mo or all_orbitals (decides on which of the two functions the excitation operators act)
-	/// mo is the default, all_orbitals mode can increase the freedom (if there are convergence problems) of the guess functions
+	/// if guess_mode_ is "numerical" the MOs from moldft will not be projected to the ao basis to form the guess functions
 	std::string guess_mode_;
 
 	/// Determine if guess functions should be replaced after pre convergence
 	bool replace_guess_functions_;
 
-	/// Excitation operator for the guess functions (bsp "dipole" or "quadrupole" which will be dipole + quadrupole operators)
-	std::string guess_exop_;
-	/// how many excitations should pre_converge (recommended: 1-2 more than demanded in the end)
-	size_t guess_excitations_;
+	/// Excitation operators given in string form
+	/// bsp for the excitationoperatr: 1.0*x^2z^3 - 2.0y the string c 1.0 x 2.0 z 3.0 , c -2.0 y 1.0 is needed
 	std::vector<std::string> custom_exops_;
-	std::vector<double> guess_omegas_;
-	std::vector<std::vector<double> > exop_coefficients_;
 
 	/// Number of excitations to be caluclated
+	size_t guess_excitations_;
 	size_t excitations_;
 
 	/// Thresholds and convergence cirteria
@@ -832,9 +772,6 @@ private:
 
 	/// maximal iterations per guess_function
 	size_t iter_max_;
-
-	/// iterations between every addition of noise to the current xfunctions
-	size_t noise_iter_;
 
 	/// energy convergence level for the guess functions in the solve routine
 	double econv_;
@@ -879,24 +816,11 @@ private:
 	/// The potential is calculated when needed and then deleted (saves memory but the potential has to be calculated more often)
 	bool on_the_fly_;
 
-	/// only read and analyze functions
-	bool read_;
-
-	/// only read and do sequential iterations (improve convergence on pre converged functions)
-	bool only_sequential_;
-
-	/// Iterate the read xfunctions sequentially
-	bool sequential_;
-
 	/// The interface to XCLIB library
 	TDA_DFT xclib_interface_;
 
 	/// Ionization potential for the potential shift used in TDDFT calculations to get bound states for the first excitations (default is -2.0*homo)
 	double ipot_;
-
-	/// Make a rydberg guess
-	bool rydberg_;
-	double rydberg_exponent_;
 
 	/// Kain solver used or not
 	bool kain_;
@@ -904,17 +828,8 @@ private:
 	/// Kain subspace size for the sequential iterations
 	size_t kain_subspace_;
 
-	/// Kain convergence threshold
-	double kain_conv_thresh_;
-
 	/// The potential shift for the unperturbed DFT potential when using TDDFT (shift = -ipot_ -homo)
 	double shift_;
-
-	/// The truncate threshold (default is the default threshold)
-	double truncate_thresh_;
-
-	/// Truncate threshold as factor ot the detault thresh (safety)
-	double safety_;
 
 	/// The unperturbed dft potential;
 	real_function_3d unperturbed_vxc_;
@@ -931,9 +846,6 @@ private:
 
 	/// the coulomb potential
 	mutable real_function_3d coulomb_;
-
-	/// The guess functions
-	std::vector<xfunction> guess_xfunctions_;
 
 	/// The converged xfunctions
 	std::vector<xfunction> converged_xfunctions_;
@@ -992,14 +904,15 @@ private:
 	/// @param[in] guess for the first iterations (no energy update, no kain update)
 	void iterate_all(xfunctionsT &xfunctions,bool guess);
 
-	/// Update process for one xfunction
+	/// Applies the greens operator and calcualtes the updated xfunction for one xfunction
 	/// @param[in] xfunction a single xfunction structure (contains the response orbitals as vecfunc x)
 	/// @param[in] ptfock this should be true if orthonormalize_fock was used before (if false, the function will calculate the expectation value of the xfunction)
-	/// @param[in] guess true if this is one of the very first iterations (no energy update, no kain update)
-	void iterate_one(xfunction & xfunction,bool ptfock,bool guess)const;
+	/// @param[out] The updated xfunction
+	vecfuncT iterate_one(xfunction & xfunction)const;
 
 	/// Update energies (decide if second order or expectation value should be used)
-	void update_energies(xfunctionsT &xfunctions)const;
+	/// @param[out] the update method (2nd order, expectation value, setback)
+	std::string update_energy(xfunction &xfunction)const;
 
 	/// Normalize one or all excitation functions
 	void normalize(xfunctionsT &xfunctions)const;
@@ -1016,10 +929,8 @@ private:
 	// 2. Diagonalize
 	// 3. Update Energy and xfunctions
 	/// @param[in] xfunctions the xfunctions
-	/// @param[in] guess is it a guess iterations (the first iterations where the energy is fixed or not
-	/// @param[in] kain solver helper structure (rotation of subspace)
 	/// @return true is fock matrix was calculated (if not that means no energy was calculated and that the expectation value needs to be calculated in the iterate_one procedure)
-	bool orthonormalize_fock(xfunctionsT &xfunctions,const bool guess, kain_solver_helper_struct &kain_solver)const;
+	bool orthonormalize_fock(xfunctionsT &xfunctions)const;
 
 	/// a little helper routine to measure the degree of offdiagonality in a 2d tensor
 	double measure_offdiagonality(const madness::Tensor<double> &U,const size_t size)const;

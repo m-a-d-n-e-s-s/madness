@@ -52,11 +52,6 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	plot_vecfunction(active_mo_, "active_mo_");
 	// check for saved xfunctions
 	read_xfunctions(xfunctions);
-	// read keyword : only read xfunctions and analyze them (this happens in solve_sequential function)
-	if (read_ or only_sequential_){
-		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::endl;
-		return;
-	}
 
 	// Create the excitation_function vector and initialize
 	std::cout << "\n\n---Start Initialize Guess Functions---" << "\n\n " << std::endl;
@@ -76,7 +71,7 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 					<< xfunctions.size() << " guess excitations could be read from the koala calculations ... correcting that"<< std::endl;
 			excitations_ = xfunctions.size();
 		}
-	}else if(guess_xfunctions_.size()<guess_excitations_ and not replace_guess_functions_){
+	}else if(xfunctions.size()<guess_excitations_ and not replace_guess_functions_){
 		if(world.rank()==0) std::cout << "WARNING: You demanded " << guess_excitations_  << " pre-converged " << " guess excitations, but only "
 				<< xfunctions.size() << " were initialized, replacement of guess functions is " << replace_guess_functions_ <<  " ... correcting that"<< std::endl;
 	}
@@ -99,11 +94,6 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 }
 
 void TDA::solve(xfunctionsT &xfunctions) {
-	// read keyword : only read xfunctions and analyze them (this happens in solve_sequential function)
-	if (read_ or only_sequential_){
-		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::endl;
-		return;
-	}
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
 			<< "SOLVE START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n" << std::endl;
 
@@ -149,90 +139,80 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	if (not on_the_fly_)
 		on_the_fly_ = true;
 
-	if(not read_){
 
-		print("\n\n\n\n-------------------------------------------------------");
-		print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
-		print("-------------------------------------------------------\n\n\n\n");
+	print("\n\n\n\n-------------------------------------------------------");
+	print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
+	print("-------------------------------------------------------\n\n\n\n");
 
-		if(xfunctions.size()!=excitations_) {
-			print("Wrong size in xfunctions!!!!");
-			//MADNESS_EXCEPTION("Wrong size in xfunction vector",1);
-		}
-		// The fock matrix routine needs a dummy kain solver
-		kain_solver_helper_struct dummy_kain(world,1,active_mo_.size(),xfunctions.size(),false);
-		orthonormalize_fock(xfunctions,true,dummy_kain);
+	if(xfunctions.size()!=excitations_) {
+		print("Wrong size in xfunctions!!!!");
+		//MADNESS_EXCEPTION("Wrong size in xfunction vector",1);
+	}
 
-		size_t max = xfunctions.size();
+	orthonormalize_fock(xfunctions);
 
-		// failsafe
-		if(excitations_ > xfunctions.size()){
-			print("\nDemanded ", excitations_, " excitations, but only ",
-					xfunctions.size(), " pre-converged\n");
-			max = xfunctions.size();
-		}
+	size_t max = xfunctions.size();
 
-		// The given xfunctions should be sorted by energy in ascending order:
-		for (size_t iroot = 0; iroot < max; iroot++) {
-			print("\n\n-----xfunction ", iroot, " ------\n\n");
-			// create the kain solver for the current xfunction
-			sequential_kain_solver solver(TDA_allocator(world, xfunctions[iroot].x.size()));
-			solver.set_maxsub(kain_subspace_);
-			kain_ = true;
+	// failsafe
+	if(excitations_ > xfunctions.size()){
+		print("\nDemanded ", excitations_, " excitations, but only ",
+				xfunctions.size(), " pre-converged\n");
+		max = xfunctions.size();
+	}
 
-			// begin the final iterations
-			for (int iter = 0; iter < 100; iter++) {
-				TDA_TIMER iteration_timer(world, "");
-				normalize(xfunctions[iroot]);
-				// first false: expectation value is calculated and saved, second false: no guess calculation
-				iterate_one(xfunctions[iroot], false, false);
-				normalize(xfunctions[iroot]);
+	// The given xfunctions should be sorted by energy in ascending order:
+	for (size_t iroot = 0; iroot < max; iroot++) {
+		print("\n\n-----xfunction ", iroot, " ------\n\n");
+		// create the kain solver for the current xfunction
+		sequential_kain_solver solver(TDA_allocator(world, xfunctions[iroot].x.size()));
+		solver.set_maxsub(kain_subspace_);
+		kain_ = true;
 
-				// update with kain
-				xfunction tmp = solver.update(xfunction(world, xfunctions[iroot].x),
-						xfunction(world, xfunctions[iroot].current_residuals));
-				xfunctions[iroot].x = tmp.x;
-				// need to pack another vector to proejct out the converged functions (function only takes vectors)
-				xfunctionsT courier;
-				courier.push_back(xfunctions[iroot]);
-				project_out_converged_xfunctions(courier);
-				update_energies(courier);
-				xfunctions[iroot] = courier[0];
-				courier.clear();
+		// begin the final iterations
+		for (int iter = 0; iter < iter_max_; iter++) {
+			TDA_TIMER iteration_timer(world, "");
+			normalize(xfunctions[iroot]);
 
-				//print("Iteration ", iter ," on xfunction " ,iroot, " starts at ",wall_time());
-				print_xfunction(xfunctions[iroot]);
-				std::cout << "time: "; iteration_timer.info(); std::cout << std::endl;
+			xfunctions[iroot].Vx = apply_perturbed_potential(xfunctions[iroot]);
+			xfunctions[iroot].expectation_value.push_back(expectation_value(xfunctions[iroot], xfunctions[iroot].Vx));
+			vecfuncT updated_x = iterate_one(xfunctions[iroot]);
+			vecfuncT residual = sub(world,xfunctions[iroot].x,updated_x);
 
-				// check convergence
-				if (xfunctions[iroot].error.back() < hard_dconv_ and fabs(xfunctions[iroot].delta.back()) < hard_econv_) {
-					std::cout << "\n ------xfunction " << iroot << " converged!!! -----\n" << std::endl;
-					xfunctions[iroot].converged =true;
-					converged_xfunctions_.push_back(xfunctions[iroot]);
-					break;
-				}
-				if (iter > iter_max_) {
-					std::cout << "\n ------xfunction " << iroot << " did not converge ------\n" << std::endl;
-					xfunctions[iroot].converged =false;
-					converged_xfunctions_.push_back(xfunctions[iroot]);
-					break;
-				}
+			// update with kain
+			xfunction tmp = solver.update(xfunction(world, updated_x),xfunction(world, residual));
+			xfunctions[iroot].x = tmp.x;
 
+			project_out_converged_xfunctions(xfunctions);
+			update_energy(xfunctions[iroot]);
+
+			//print("Iteration ", iter ," on xfunction " ,iroot, " starts at ",wall_time());
+			print_xfunction(xfunctions[iroot]);
+			std::cout << "time: "; iteration_timer.info(); std::cout << std::endl;
+
+			// check convergence
+			if (xfunctions[iroot].error.back() < hard_dconv_ and fabs(xfunctions[iroot].delta.back()) < hard_econv_) {
+				std::cout << "\n ------xfunction " << iroot << " converged!!! -----\n" << std::endl;
+				xfunctions[iroot].converged =true;
+				converged_xfunctions_.push_back(xfunctions[iroot]);
+				break;
+			}
+			if (iter > iter_max_) {
+				std::cout << "\n ------xfunction " << iroot << " did not converge ------\n" << std::endl;
+				xfunctions[iroot].converged =false;
+				converged_xfunctions_.push_back(xfunctions[iroot]);
+				break;
 			}
 
 		}
-	}else{
-		for(size_t i=0;i<xfunctions.size();i++) converged_xfunctions_.push_back(xfunctions[i]);
-		std::cout << "\n\n ----- found read keyword ... skipping iterations \n\n" << std::endl;
+
 	}
+
 
 	plot_vecfunction(active_mo_, "active_mo_");
 	// plot
 	for(size_t i=0;i<converged_xfunctions_.size();i++) {
 		plot_vecfunction(converged_xfunctions_[i].x,"final_excitation_"+stringify(i),true);
 	}
-	// save converged xfunctions to disc
-	if(not read_) save_xfunctions(xfunctions);
 
 	// calculate densities and plot
 	real_function_3d rho = real_factory_3d(world);
@@ -270,7 +250,7 @@ void TDA::print_status(const xfunctionsT & xfunctions) const {
 void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-															<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+																					<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
@@ -297,7 +277,7 @@ void TDA::initialize(xfunctionsT & xfunctions)const{
 vecfuncT TDA::make_guess_vector(const std::string &input_string)const{
 	if(world.rank()==0) std::cout << "\nMaking guess excitation with excitation operator \n " << input_string << std::endl;
 	std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(
-				new polynomial_exop_functor(input_string));
+			new polynomial_exop_functor(input_string));
 	real_function_3d exop = real_factory_3d(world).functor(exop_functor);
 	return mul(world,exop,active_mos_for_guess_calculation_);
 }
@@ -357,7 +337,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 
 			// this is the file where the guess is on disk
 			const std::string valuefile="grid.koala.orbital"+stringify(i)
-	    					+".excitation"+stringify(iroot);
+	    											+".excitation"+stringify(iroot);
 			real_function_3d x_i=real_factory_3d(world).empty();
 			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
 			root.x.push_back(x_i);
@@ -402,190 +382,103 @@ void TDA::iterate(xfunctionsT &xfunctions) {
 }
 
 void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
-	size_t max = iter_max_ * excitations_ + guess_iter_;
+	// Assign maximum iteration values
+	size_t iter_max = iter_max_;
+	if(guess) iter_max = guess_iter_;
 
-	// Initialize the kain solver (not during guess iteraions)
-	bool kain = kain_;
-	if(guess) kain = false;
-	kain_solver_helper_struct kain_solver(world,kain_subspace_,active_mo_.size(),xfunctions.size(),kain_);
+	// Bool checks if the perturbed fock matrix has been calculated (if not the expencation value has to be calculated in the iterate_one routine)
+	bool pert_fock_applied = false;
 
-	// start iteration cycle
-	for (size_t current_iteration = 0; current_iteration < max;
-			current_iteration++) {
+	for(size_t i=0;i<1000;i++){
+		TDA_TIMER iteration_time(world,"\nEnd of iteration " + stringify(i) +": ");
 
-		// get information about the used memory
-		double xfunction_size = memwatch(xfunctions,debug_);
-		double conv_xfunction_size = memwatch(converged_xfunctions_,debug_);
-		if(debug_)print("mos ",get_size(world,mos_)," (GB)\n");
-		std::cout << std::scientific << std::setprecision(0);
-		std::cout << std::setw(40) << " memory information..." << " : ";
-		std::cout << "xfunctions " << xfunction_size << " (GB), ";
-		std::cout <<" converged xfunctions "<< conv_xfunction_size <<" (GB)" << std::endl;
-
-		int iter = current_iteration;
-		std::cout<< std::setw(40)<<"Starting iteration"+stringify(iter)+" at time   "
-				<<" : "<<std::setprecision(6)<<wall_time() << std::endl;
-		//  memory management
-		for (size_t i = 0; i < xfunctions.size(); i++) {
-			if (on_the_fly_ and not xfunctions[i].Vx.empty())
-				print(
-						"MEMORY PROBLEM: On the fly calculation of the applied potential is ",
-						on_the_fly_, " but Vx of xfunction ", i,
-						" is not empty, size is ", xfunctions[i].Vx.size());
-			if (not kain_ and not xfunctions[i].current_residuals.empty())
-				print("MEMORY PROBLEM: Kain is ", kain_,
-						" but Residual-vector of xfunction-struct ", i,
-						" is not empty, size is ",
-						xfunctions[i].current_residuals.size());
-		}
-		bool ptfock_orthonormalization = true;
-		if (only_fock_)
-			ptfock_orthonormalization = true;
-		if (only_GS_)
-			ptfock_orthonormalization = false;
-
-		TDA_TIMER Iterationtime(world,
-				"\nIteration " + stringify(current_iteration) + " time: ");
-
-		TDA_TIMER poo(world, "project out occ. space...");
-		for (size_t p = 0; p < xfunctions.size(); p++) {
-			project_out_occupied_space(xfunctions[p].x);
-		}
-		poo.info();
-
-		normalize(xfunctions);
-
-		// Truncate xfunctions
-		TDA_TIMER truncate1(world, "truncate |x> and |Vx>...");
-		truncate_xfunctions(xfunctions);
-		truncate1.info();
-
-		if (not on_the_fly_) {
-			// Update the perturbed vectorpotentials
-			TDA_TIMER update_potentials(world, "update all potentials...");
-			for (size_t i = 0; i < xfunctions.size(); i++) {
-				xfunctions[i].Vx = apply_perturbed_potential(xfunctions[i]);
-				//xfunctions[i].Vx.back().print_size("size of homo pert pot "+stringify(i));
-			}
+		if(not on_the_fly_){
+			TDA_TIMER update_potentials(world,"Update potentials: ");
+			for(size_t i=0;i<xfunctions.size();i++) xfunctions[i].Vx=apply_perturbed_potential(xfunctions[i]);
 			update_potentials.info();
-
-			// Truncate xfunctions
-			TDA_TIMER truncate2(world, "truncate |x> and |Vx>...");
-			truncate_xfunctions(xfunctions);
-			truncate2.info();
-		}
-
-		if (ptfock_orthonormalization) {
-			TDA_TIMER orthonormalize_fock_matrix(world, "orthogonalize_fock : ");
-
-			ptfock_orthonormalization = orthonormalize_fock(xfunctions, guess, kain_solver);
-			orthonormalize_fock_matrix.info();
-
-			// Update the energies
-			update_energies(xfunctions);
-
-			// Truncate xfunctions
-			TDA_TIMER truncate3(world, "truncate |x> and |Vx>...");
-			truncate_xfunctions(xfunctions);
-			truncate3.info();
-		}
-		// if there is no fock update demanded: just update the energy
-		update_energies(xfunctions);
-
-		TDA_TIMER apply_bsh(world, "apply BSH operators...");
-		// apply BSH operator
-		std::vector<size_t> frozen_excitations;
-		for (size_t i = 0; i < xfunctions.size(); i++) {iterate_one(xfunctions[i], ptfock_orthonormalization, guess);}
-		apply_bsh.info();
-
-		if (not only_fock_)
-			orthonormalize_GS(xfunctions);
-		else {
+		}{
+			TDA_TIMER normalization(world,"Normalization: ");
 			normalize(xfunctions);
-		}
-		// Update with the KAIN solver (not during guess iterations)
-		if (kain_ and not guess) {
-			TDA_TIMER kain(world, "update with kain solver...");
-			print("\n");
-			kain_solver.update(xfunctions);
-			kain.info();
-		}
-		//check convergence
-		check_convergence(xfunctions,guess);
-		size_t counter = 0;
-		std::cout << std::setw(40) << "converged excitations ..." << " : ";
-		for(size_t i=0;i<xfunctions.size();i++){
-			std::cout << " " << i << " (" << xfunctions[i].converged << ") ";
-			if(xfunctions[i].converged){
-				if(guess and replace_guess_functions_){
+			normalization.info();
+		}{
+			TDA_TIMER orthonormalization(world,"Orthonormalization: ");
+			pert_fock_applied= orthonormalize_fock(xfunctions);
+			orthonormalization.info();
+		}{
+			TDA_TIMER truncation(world,"Truncate: ");
+			truncate_xfunctions(xfunctions);
+			truncation.info();
+		}{
+			TDA_TIMER apply_bsh(world,"Apply Green's operator: ");
+			if(world.rank()==0) std::cout << std::setw(40) << "update energy..." << " : ";
+			for(size_t i=0;i<xfunctions.size();i++){
+				// if on_the_fly_ is true we have to recalculate the potential
+				if(on_the_fly_) xfunctions[i].Vx=apply_perturbed_potential(xfunctions[i]);
+				// if the fock matrix has not been calculated we need to caluclate the expectation value
+				if(not pert_fock_applied) xfunctions[i].expectation_value.push_back(expectation_value(xfunctions[i], xfunctions[i].Vx));
+				if(world.rank()==0) std::cout << " " <<  update_energy(xfunctions[i]) << " ";
+				xfunctions[i].x=iterate_one(xfunctions[i]);
+			}
+			std::cout << std::endl;
+			apply_bsh.info();
+		}{
+			TDA_TIMER normalization(world,"Normalization: ");
+			normalize(xfunctions);
+			normalization.info();
+		}{
+			TDA_TIMER truncation(world,"Truncate: ");
+			truncate_xfunctions(xfunctions);
+			truncation.info();
+		}{
+			check_convergence(xfunctions,guess);
+			for(size_t i=0;i<xfunctions.size();i++){
+				if(xfunctions[i].converged or xfunctions[i].iterations > iter_max){
 					converged_xfunctions_.push_back(xfunctions[i]);
-					xfunctions[i] = xfunction(world);
-					xfunctions[i].x=make_guess_vector(xfunctions[i].guess_excitation_operator);
-					xfunctions[i].omega = guess_omega_;
-					xfunctions[i].number = i;
-					i=-1; // set back i for the case that more than one xfunction converged
-				}else if(kain_){
-					counter++;
-				}else{
-					converged_xfunctions_.push_back(xfunctions[i]);
-					xfunctions.erase(xfunctions.begin()+i);
+					if(guess){
+						xfunction new_guess = xfunction(world,guess_omega_);
+						new_guess.number = i;
+						new_guess.guess_excitation_operator = xfunctions[i].guess_excitation_operator;
+						new_guess.x = make_guess_vector(new_guess.guess_excitation_operator);
+						xfunctions[i] = new_guess;
+					}else xfunctions.erase(xfunctions.begin()+i);
+					break;
 				}
 			}
-		}std::cout << std::endl;
-		project_out_converged_xfunctions(xfunctions);
 
-		// convergence criterium
-		if(guess or not kain_){
-			if (converged_xfunctions_.size() >= guess_excitations_){
-				// push back all the xfunctions to converged (for the case that lower energy solutions are there)
-					for(size_t i=0;i<xfunctions.size();i++){
-						if(xfunctions[i].iterations > 1) converged_xfunctions_.push_back(xfunctions[i]);
-					}
-				break;
-			}
-		}
-		if(kain_){
-			if (counter >= excitations_){
-				converged_xfunctions_.clear();
+			TDA_TIMER project_time(world,"Project out converged excitations: ");
+			project_out_converged_xfunctions(xfunctions);
+			project_time.info();
+
+			print_status(xfunctions);
+
+			size_t break_condition = excitations_;
+			if(guess) break_condition = guess_excitations_;
+			if(converged_xfunctions_.size()>=break_condition){
+				// push all current iterating roots which are not freshly re-initialized to the converged roots
 				for(size_t i=0;i<xfunctions.size();i++){
-					if(xfunctions[i].converged) converged_xfunctions_.push_back(xfunctions[i]);
+					if(xfunctions[i].iterations>2) converged_xfunctions_.push_back(xfunctions[i]);
 				}
 				break;
 			}
 		}
 
-		Iterationtime.info();
-		print_status(xfunctions);
-		for (size_t p = 0; p < xfunctions.size(); p++) {
-			plot_vecfunction(xfunctions[p].x,
-					"current_iteration_" + stringify(p) + "_", plot_);
-		}
+		iteration_time.info();
 	}
+
 }
 
-void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess)const {
+vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	xfunction.iterations += 1;
 
 	if (not dft_ and shift_ != 0.0)
 		MADNESS_EXCEPTION("DFT is off but potential shift is not zero", 1);
 
-	vecfuncT Vpsi;
-	if (on_the_fly_)
-		Vpsi = apply_perturbed_potential(xfunction);
-	else if (not on_the_fly_){
-		if(xfunction.Vx.empty()) Vpsi = apply_perturbed_potential(xfunction);
-		else Vpsi = xfunction.Vx;
-	}
-
+	vecfuncT Vpsi=xfunction.Vx;
 	double omega = xfunction.omega;
+	if(Vpsi.empty()) MADNESS_EXCEPTION("ERROR in iterate_one function: Applied potential of xfunction is empty",1);
 
-	// If orthonormalize_fock was not used previously the expectation value must be calculated:
-	if (not ptfock){
-		xfunction.expectation_value.push_back(
-				expectation_value(xfunction, Vpsi));
-	}
 	scale(world, Vpsi, -2.0);
-	truncate(world, Vpsi, truncate_thresh_); // no fence
+	truncate(world, Vpsi); // no fence
 
 	std::vector<poperatorT> bsh(active_mo_.size());
 	for (size_t p = 0; p < active_mo_.size(); p++) {
@@ -610,8 +503,6 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess)const {
 	if(debug_ and world.rank()==0) std::cout << "\n residual-self-overlaps \n" << inner_tmp << std::endl;
 	double error = sqrt(inner_tmp.sum());
 	xfunction.error.push_back(error);
-	if (error < kain_conv_thresh_)
-		xfunction.kain = true;
 
 	// Calculate 2nd order update:
 	// Inner product of Vpsi and the residual (Vspi is scaled to -2.0 --> multiply later with 0.5)
@@ -627,61 +518,34 @@ void TDA::iterate_one(xfunction & xfunction, bool ptfock, bool guess)const {
 	// Factor 0.5 removes the factor 2 from the scaling before
 	xfunction.delta.push_back(0.5 * tmp.sum() / tmp2);
 
-	// Update x-function (only if kain_ is false or during the guess iterations where kain is not used)
-	if (not kain_ or guess) {
-		xfunction.x = GVpsi;
-		project_out_occupied_space(xfunction.x);
-	}
-
-	// Use tmp2 to normalize the new x-functions GVPsi:
-	scale(world, xfunction.x, 1.0 / sqrt(tmp2));
-
-	// when kain update should be used we will need the residual vectors later
-	if (kain_ and not guess) {
-		//print("do not rescale residual wiht -1.0");
-		//scale(world,residual,-1.0); //???????
-		truncate(world, residual,truncate_thresh_);
-		xfunction.current_residuals = residual;
-	}
-	// when kain is not used the current_residual vector of the xfunction struct should be empty all the time (check this here to avoid memory overflow)
-	if (not kain_) {
-		if (xfunction.current_residuals.size() != 0)
-			MADNESS_EXCEPTION(
-					"KAIN is turned off, but the current_residuals vector of the xfunction structures is not empty",
-					1);
-	}
+	// return Updated x-function
+	return GVpsi;
 
 }
 
 
-void TDA::update_energies(xfunctionsT &xfunctions)const {
+std::string TDA::update_energy(xfunction &xfunction)const {
 	double thresh = FunctionDefaults<3>::get_thresh();
-	std::cout << std::setw(40) << "update energies..." << " : ";
-	for(size_t k=0;k<xfunctions.size();k++) {
-
 		//failsafe: make shure the delta and expectation values vectors are not empty to avoid segmentation faults
-		if(not xfunctions[k].delta.empty() and not xfunctions[k].expectation_value.empty() and not xfunctions[k].error.empty()) {
-			if(xfunctions[k].expectation_value.back() < highest_excitation_) {
-				if(fabs(xfunctions[k].delta.back()) < thresh*20.0) {
-					xfunctions[k].omega +=xfunctions[k].delta.back();
-					std::cout << k << "(2nd), ";
+		if(not xfunction.delta.empty() and not xfunction.expectation_value.empty() and not xfunction.error.empty()) {
+			if(xfunction.expectation_value.back() < highest_excitation_) {
+				if(fabs(xfunction.delta.back()) < thresh*20.0) {
+					xfunction.omega +=xfunction.delta.back();
+					return "(2nd)";
 				} else {
-					xfunctions[k].omega = xfunctions[k].expectation_value.back();
-					std::cout << k << "(exp), ";
+					xfunction.omega = xfunction.expectation_value.back();
+					return "(exp)";
 				}
 			} else {
 				// get the highest converged energy, of no xfunction converged already use the guess_omega_ energy
 				double setback_energy = guess_omega_;
 				// set the last converged value of the same type of guess as the default
 				//double new_omega = highest_excitation_*0.8;// default
-				xfunctions[k].omega = setback_energy;
-				std::cout << k << "(-) , ";
+				xfunction.omega = setback_energy;
+				return "(-)";
 			}
 
-		}
-
-	}std::cout<<std::endl;
-
+		}else return "(no energies)";
 }
 
 void TDA::normalize(xfunctionsT & xfunctions)const {
@@ -697,8 +561,6 @@ void TDA::normalize(xfunction & xfunction)const {
 }
 
 void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions)const {
-	TDA_TIMER project(world, "project out converged xfunctions...");
-
 	for (size_t p = 0; p < xfunctions.size(); p++) {
 		for (size_t k = 0; k < converged_xfunctions_.size(); k++) {
 			Tensor<double> overlap = inner(world, xfunctions[p].x,
@@ -709,7 +571,6 @@ void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions)const {
 			}
 		}
 	}
-	project.info();
 }
 
 void TDA::orthonormalize_GS(xfunctionsT &xfunctions)const {
@@ -740,7 +601,7 @@ void TDA::orthonormalize_GS(xfunctionsT &xfunctions)const {
 
 }
 //
-bool TDA::orthonormalize_fock(xfunctionsT &xfunctions, bool guess, kain_solver_helper_struct & kain_solver)const {
+bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 	normalize(xfunctions);
 	Tensor<double> overlap(xfunctions.size(), xfunctions.size());
 	for (size_t p = 0; p < xfunctions.size(); p++) {
@@ -809,11 +670,6 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions, bool guess, kain_solver_h
 		std::cout << "potentials... ";
 	}
 
-	// rotate Kain subspace
-	if (kain_ and not guess) {
-		kain_solver.transform_subspace(world, U);
-		std::cout << "Kain subspace is transformed...";
-	}
 	std::cout << std::endl;
 
 	return true;
@@ -976,7 +832,6 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 }
 
 vecfuncT TDA::apply_perturbed_potential(const xfunction & xfunction) const {
-
 	vecfuncT Gamma;
 	TDA_TIMER gammatimer(world, "make gamma...");
 	if (not dft_)
@@ -1099,7 +954,7 @@ vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
 	//applyit.info(debug_);
 	//plot_vecfunction(gamma, "gamma", plot_);
 	//return add(world,gamma,gamma2);
-	truncate(world, gamma,truncate_thresh_);
+	truncate(world, gamma);
 	return gamma;
 }
 
@@ -1125,7 +980,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-																	+ get_coulomb_potential();
+																							+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
@@ -1285,12 +1140,12 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 void TDA::truncate_xfunctions(xfunctionsT &xfunctions)const {
 	for (size_t k = 0; k < xfunctions.size(); k++) {
 		for (size_t i = 0; i < xfunctions[k].x.size(); i++) {
-			xfunctions[k].x[i].truncate(truncate_thresh_);
+			xfunctions[k].x[i].truncate();
 			// The potential or residual vectors can be empty, not failsafe for the x-vector because it should never be empty
 			if (not xfunctions[k].Vx.empty())
-				xfunctions[k].Vx[i].truncate(truncate_thresh_);
+				xfunctions[k].Vx[i].truncate();
 			if (not xfunctions[k].current_residuals.empty())
-				xfunctions[k].current_residuals[i].truncate(truncate_thresh_);
+				xfunctions[k].current_residuals[i].truncate();
 		}
 	}
 }
