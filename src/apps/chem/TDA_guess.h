@@ -42,7 +42,7 @@ static std::vector<std::string> make_predefined_guess_strings(const std::string 
 		exop_strings[7] = "x 2.0 y 1.0 , x 2.0 y 1.0 z 1.0";
 	}else if(what == "big_fock"){
 		std::cout << "zers" << std::endl;
-		size_t order = 3;
+		size_t order = 6;
 		for(size_t i=0; i<order+1; i++){
 			for(size_t j=0; j<order+1 ; j++){
 				for(size_t k=0;k<order+1 ; k++){
