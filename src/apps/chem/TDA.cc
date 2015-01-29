@@ -334,7 +334,7 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 	if(world.rank()==0){
 		std::cout << "\nCorresponding excitation operators are:\n" << std::endl;
 		for(size_t i=0;i<xfunctions.size();i++){
-			xfunctions[i].numer =i ;
+			xfunctions[i].number =i ;
 			std::cout << std::setprecision(2) << xfunctions[i].guess_excitation_operator << std::endl;
 		}
 	}
