@@ -135,30 +135,12 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	xfunctions.erase(xfunctions.begin()+excitations_,xfunctions.end());
 	print_status(xfunctions);
 
-	// on the fly or not makes no sense here, but since the same input file is used for both solve functions this has to be here
-	if (not on_the_fly_)
-		on_the_fly_ = true;
-
-
 	print("\n\n\n\n-------------------------------------------------------");
 	print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ... no kain right now", hard_dconv_);
 	print("-------------------------------------------------------\n\n\n\n");
 
-	if(xfunctions.size()!=excitations_) {
-		print("Wrong size in xfunctions!!!!");
-		//MADNESS_EXCEPTION("Wrong size in xfunction vector",1);
-	}
-
 	orthonormalize_fock(xfunctions);
-
 	size_t max = xfunctions.size();
-
-	// failsafe
-	if(excitations_ > xfunctions.size()){
-		print("\nDemanded ", excitations_, " excitations, but only ",
-				xfunctions.size(), " pre-converged\n");
-		max = xfunctions.size();
-	}
 
 	// The given xfunctions should be sorted by energy in ascending order:
 	for (size_t iroot = 0; iroot < max; iroot++) {
@@ -166,6 +148,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 		xfunction current_root = xfunctions[iroot];
 
 		for(size_t iter =0;iter<iter_max_+1;iter++){
+			TDA_TIMER seq_iter(world,"Sequential iteration "+ stringify(iter) + " time:");
 			normalize(current_root);
 			project_out_occupied_space(current_root.x);
 			xfunctionsT carrier(1,current_root);
@@ -178,6 +161,9 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 			truncate(world,current_root.Vx);
 			update_energy(current_root);
 			current_root.x = iterate_one(current_root);
+
+			print_xfunction(current_root);
+			seq_iter.info();
 
 			if(fabs(current_root.error.back())<hard_dconv_ and fabs(current_root.delta.back())<hard_econv_){
 				converged_xfunctions_.push_back(current_root);
@@ -439,8 +425,8 @@ void TDA::iterate(xfunctionsT &xfunctions) {
 
 void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 	// Assign maximum iteration values
-	size_t iter_max = iter_max_;
-	if(guess) iter_max = guess_iter_;
+	size_t iter_max = guess_iter_;
+	if(not guess) iter_max += iter_max_;
 
 	// Bool checks if the perturbed fock matrix has been calculated (if not the expencation value has to be calculated in the iterate_one routine)
 	bool pert_fock_applied = false;
@@ -497,7 +483,7 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 						new_guess.x = make_guess_vector(new_guess.guess_excitation_operator);
 						xfunctions[i] = new_guess;
 					}else xfunctions.erase(xfunctions.begin()+i);
-					break;
+					i=0;
 				}
 			}
 
