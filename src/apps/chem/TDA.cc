@@ -487,7 +487,8 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 				}
 			}
 
-			TDA_TIMER project_time(world,"Project out converged excitations: ");
+			TDA_TIMER project_time(world,"Project out converged excitations and occupied space: ");
+			for(size_t i=0;i<xfunctions.size();i++) project_out_occupied_space(xfunctions[i].x);
 			project_out_converged_xfunctions(xfunctions);
 			project_time.info();
 
