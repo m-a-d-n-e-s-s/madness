@@ -169,7 +169,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 		kain_ = true;
 
 		// begin the final iterations
-		for (int iter = 0; iter < iter_max_; iter++) {
+		for (int iter = 0; iter < iter_max_*2.0; iter++) {
 			TDA_TIMER iteration_timer(world, "");
 			normalize(xfunctions[iroot]);
 
@@ -259,7 +259,8 @@ void TDA::initialize(xfunctionsT & xfunctions)const{
 	std::vector<std::string> exop_strings;
 	if(guess_ == "custom"){
 		exop_strings = custom_exops_;
-	}else exop_strings =  make_predefined_guess_strings(guess_);
+	}
+	else exop_strings =  make_predefined_guess_strings(guess_);
 	if(exop_strings.empty()) MADNESS_EXCEPTION("ERROR in intializing xfunctions, no guess strings were created ... unknown keyword ?",1);
 	for(size_t i=0;i<exop_strings.size();i++){
 		xfunction tmp(world);
@@ -271,7 +272,70 @@ void TDA::initialize(xfunctionsT & xfunctions)const{
 	for(size_t i=0;i<xfunctions.size();i++){
 		xfunctions[i].x = make_guess_vector(xfunctions[i].guess_excitation_operator);
 	}
+	if(guess_=="big_fock") make_big_fock_guess(xfunctions);
+	normalize(xfunctions);
+	for(size_t i=0;i<xfunctions.size();i++) plot_vecfunction(xfunctions[i].x,"guess_excitation_" + stringify(i) + "_",true);
 
+}
+
+void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
+	if(world.rank()==0) std::cout << "\n\nMaking big perturbed fock guess...\n\n" << std::endl;
+
+	TDA_TIMER big_ortho(world,"Big Perturbed Fock Matrix: ");
+	normalize(xfunctions);
+	truncate_xfunctions(xfunctions);
+
+	// Diagonalize the big fock guess
+	{
+		Tensor<double> overlap(xfunctions.size(), xfunctions.size());
+		for (size_t p = 0; p < xfunctions.size(); p++) {
+			for (size_t k = 0; k < xfunctions.size(); k++) {
+				Tensor<double> overlap_vec = inner(world, xfunctions[p].x,
+						xfunctions[k].x);
+				overlap(p, k) = overlap_vec.sum();
+			}
+		}
+
+		Tensor<double> F = make_perturbed_fock_matrix(xfunctions);
+		Tensor<double> U, evals, dummy(xfunctions.size());
+		U = calc_.get_fock_transformation(world, overlap, F, evals, dummy,
+				1.5 * econv_);
+		std::vector<vecfuncT> old_x;
+		std::vector<std::string> old_exop_strings;
+		for (size_t i = 0; i < xfunctions.size(); i++) {
+			old_x.push_back(xfunctions[i].x);
+			old_exop_strings.push_back(xfunctions[i].guess_excitation_operator);
+		}
+		std::vector<vecfuncT> new_x = transform_vecfunctions(old_x, U);
+		std::vector<std::string> new_exop_strings(new_x.size());
+
+		for (size_t i = 0; i < xfunctions.size(); i++) {
+			size_t counter =0;
+			for (size_t j = 0; j < xfunctions.size(); ++j) {
+				if(fabs(U(i,j)) > FunctionDefaults<3>::get_thresh()*10.0){
+					if(counter != 0) new_exop_strings[i] += " , ";
+					new_exop_strings[i] +=old_exop_strings[j] + " c " + stringify(U(i,j));
+					counter++;
+				}
+			}
+		}
+		for (size_t i = 0; i < xfunctions.size(); i++) {
+			xfunctions[i].x = new_x[i];
+			xfunctions[i].expectation_value.push_back(evals(i));
+			xfunctions[i].guess_excitation_operator = new_exop_strings[i];
+		}
+	}
+	// Reduce
+	std::sort(xfunctions.begin(),xfunctions.end());
+	print_status(xfunctions);
+	big_ortho.info();
+	xfunctions.erase(xfunctions.begin()+guess_excitations_,xfunctions.end());
+	if(world.rank()==0) std::cout << "\nthe following guess functions have been created:\n " << std::endl;
+	print_status(xfunctions);
+	if(world.rank()==0){
+		std::cout << "\nCorresponding excitation operators are:\n" << std::endl;
+		for(size_t i=0;i<xfunctions.size();i++) std::cout << std::setprecision(2) << xfunctions[i].guess_excitation_operator << std::endl;
+	}
 }
 
 vecfuncT TDA::make_guess_vector(const std::string &input_string)const{
@@ -612,7 +676,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 		}
 	}
 
-	if(world.rank()==0 and active_mo_.size()<6) std::cout<< "\n overlap matrix\n" << overlap << std::endl;
+	if(world.rank()==0 and active_mo_.size()<6) std::cout << std::setprecision(3)<< "\n overlap matrix\n" << overlap << std::endl;
 	// if the overlap matrix is already the unit matrix then no orthogonalization is needed
 	double overlap_offdiag = measure_offdiagonality(overlap, xfunctions.size());
 	if (fabs(overlap_offdiag) < FunctionDefaults<3>::get_thresh()) {
@@ -634,7 +698,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 			1.5 * econv_);
 	//}
 	print("\n\n");
-	if(world.rank()==0 and active_mo_.size()<6) std::cout<<std::setw(40)<< "Transformation-Matrix-U \n" << U << std::endl;
+	if(world.rank()==0 and active_mo_.size()<6) std::cout << std::setprecision(3) << std::setw(40)<< "Transformation-Matrix-U \n" << U << std::endl;
 	print("\n\n");
 
 	//Prevent printout when expectation value is calculated
@@ -770,27 +834,16 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 	Tensor<double> F(xfunctions.size(), xfunctions.size());
 
 	//The potential part
-	// if bool on_the_fly_ is true the potential is calculated, if not the potential has been calculated before and is stored in the
-	// xfunction structure via : xfunction.Vx[i]
-	// the later is too costly in memory for our clusters right know
-	if (on_the_fly_) {
 		for (std::size_t p = 0; p < xfunctions.size(); p++) {
-			vecfuncT Vxp = apply_perturbed_potential(xfunctions[p]);
+			vecfuncT Vxp;
+			if(xfunctions[p].Vx.empty()) Vxp = apply_perturbed_potential(xfunctions[p]);
+			else Vxp = xfunctions[p].Vx;
 			for (std::size_t k = 0; k < xfunctions.size(); k++) {
 				Tensor<double> fpk_i = inner(world, xfunctions[k].x, Vxp);
 				F(p, k) = fpk_i.sum();
 			}
 		}
 
-	} else {
-		for (std::size_t p = 0; p < xfunctions.size(); p++) {
-			for (std::size_t r = 0; r < xfunctions.size(); r++) {
-				Tensor<double> fpr_i = inner(world, xfunctions[p].x,
-						xfunctions[r].Vx);
-				F(p, r) = fpr_i.sum();
-			}
-		}
-	}
 	//The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
 	for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
 		const vecfuncT& xp = xfunctions[iroot].x;

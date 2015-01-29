@@ -869,6 +869,8 @@ private:
 	/// @param[in] xfunctions empty vector of xfunctions (no necessarily empty)
 	void initialize(xfunctionsT & xfunctions)const;
 
+	void make_big_fock_guess(xfunctionsT &xfunctions)const;
+
 	/// Creates physical guess functions (x,y,z excitations - depending on the input file, see make_excitation_operators function)
 	void guess_physical(xfunctionsT & xfunctions)const;
 
