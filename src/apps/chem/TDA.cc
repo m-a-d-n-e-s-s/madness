@@ -141,7 +141,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 
 
 	print("\n\n\n\n-------------------------------------------------------");
-	print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ", hard_dconv_);
+	print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ... no kain right now", hard_dconv_);
 	print("-------------------------------------------------------\n\n\n\n");
 
 	if(xfunctions.size()!=excitations_) {
@@ -175,12 +175,12 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 
 			xfunctions[iroot].Vx = apply_perturbed_potential(xfunctions[iroot]);
 			xfunctions[iroot].expectation_value.push_back(expectation_value(xfunctions[iroot], xfunctions[iroot].Vx));
-			vecfuncT updated_x = iterate_one(xfunctions[iroot]);
-			vecfuncT residual = sub(world,xfunctions[iroot].x,updated_x);
+			xfunctions[iroot].x = iterate_one(xfunctions[iroot]);
+			//vecfuncT residual = sub(world,xfunctions[iroot].x,updated_x);
 
 			// update with kain
-			xfunction tmp = solver.update(xfunction(world, updated_x),xfunction(world, residual));
-			xfunctions[iroot].x = tmp.x;
+			//xfunction tmp = solver.update(xfunction(world, updated_x),xfunction(world, residual));
+			//xfunctions[iroot].x = tmp.x;
 
 			project_out_converged_xfunctions(xfunctions);
 			update_energy(xfunctions[iroot]);
