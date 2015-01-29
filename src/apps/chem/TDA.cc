@@ -323,11 +323,11 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 			xfunctions[i].x = new_x[i];
 			xfunctions[i].expectation_value.push_back(evals(i));
 			xfunctions[i].guess_excitation_operator = new_exop_strings[i];
+			xfunctions[i].number = i;
 		}
 	}
 	// Reduce
 	std::sort(xfunctions.begin(),xfunctions.end());
-	print_status(xfunctions);
 	big_ortho.info();
 	xfunctions.erase(xfunctions.begin()+guess_excitations_,xfunctions.end());
 	if(world.rank()==0) std::cout << "\nthe following guess functions have been created:\n " << std::endl;
@@ -343,7 +343,9 @@ vecfuncT TDA::make_guess_vector(const std::string &input_string)const{
 	std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(
 			new polynomial_exop_functor(input_string));
 	real_function_3d exop = real_factory_3d(world).functor(exop_functor);
-	return mul(world,exop,active_mos_for_guess_calculation_);
+	vecfuncT guess = mul(world,exop,active_mos_for_guess_calculation_);
+	project_out_occupied_space(guess);
+	return guess;
 }
 
 
