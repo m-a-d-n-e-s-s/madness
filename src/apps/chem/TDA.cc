@@ -323,7 +323,6 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 			xfunctions[i].x = new_x[i];
 			xfunctions[i].expectation_value.push_back(evals(i));
 			xfunctions[i].guess_excitation_operator = new_exop_strings[i];
-			xfunctions[i].number = i;
 		}
 	}
 	// Reduce
@@ -334,7 +333,10 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 	print_status(xfunctions);
 	if(world.rank()==0){
 		std::cout << "\nCorresponding excitation operators are:\n" << std::endl;
-		for(size_t i=0;i<xfunctions.size();i++) std::cout << std::setprecision(2) << xfunctions[i].guess_excitation_operator << std::endl;
+		for(size_t i=0;i<xfunctions.size();i++){
+			xfunctions[i].numer =i ;
+			std::cout << std::setprecision(2) << xfunctions[i].guess_excitation_operator << std::endl;
+		}
 	}
 }
 
