@@ -125,6 +125,10 @@ void TDA::solve(xfunctionsT &xfunctions) {
 }
 
 void TDA::solve_sequential(xfunctionsT &xfunctions) {
+
+	// manual now
+	bool kain=true;
+
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
 			<< "SOLVE_SEQUENTIAL START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n"
 			"The first " << excitations_ << " of the following xfunctions will be solved sequentially "<< std::endl;
@@ -146,9 +150,14 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	for (size_t iroot = 0; iroot < max; iroot++) {
 		print("\n\n-----xfunction ", iroot, " ------\n\n");
 		xfunction current_root = xfunctions[iroot];
+		current_root.converged = false;
+
+		// make kain solver
+		sequential_kain_solver kain_solver(TDA_allocator(world,active_mo_.size()),true);
+		kain_solver.set_maxsub(kain_subspace_);
 
 		for(size_t iter =0;iter<iter_max_+1;iter++){
-			TDA_TIMER seq_iter(world,"Sequential iteration "+ stringify(iter) + " time:");
+			TDA_TIMER seq_iter(world,"\nSequential iteration "+ stringify(iter) + " time:");
 			normalize(current_root);
 			project_out_occupied_space(current_root.x);
 			xfunctionsT carrier(1,current_root);
@@ -160,18 +169,28 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 			truncate(world,current_root.x);
 			truncate(world,current_root.Vx);
 			update_energy(current_root);
-			current_root.x = iterate_one(current_root);
 
-			print_xfunction(current_root);
+			if(not kain){
+				current_root.x = iterate_one(current_root);
+			}else{
+				vecfuncT updated_x = iterate_one(current_root);
+				vecfuncT residual = sub(world,updated_x,current_root.x);
+				xfunction new_x = kain_solver.update(xfunction(world,current_root.x),xfunction(world,residual));
+				current_root.x = new_x.x;
+			}
 			seq_iter.info();
+			print_xfunction(current_root);
+
 
 			if(fabs(current_root.error.back())<hard_dconv_ and fabs(current_root.delta.back())<hard_econv_){
+				current_root.converged =true;
 				converged_xfunctions_.push_back(current_root);
-				if(world.rank()==0) std::cout << "excitation " << iroot << " converged!!!" << std::endl;
+				if(world.rank()==0) std::cout << "\nexcitation " << iroot << " converged!!!\n" << std::endl;
 				break;
 			}else if(iter==iter_max_){
+				current_root.converged=false;
 				converged_xfunctions_.push_back(current_root);
-				if(world.rank()==0) std::cout << "excitation " << iroot << " converged not ..." << std::endl;
+				if(world.rank()==0) std::cout << "\nexcitation " << iroot << " converged not ...\n" << std::endl;
 				break;
 			}
 
@@ -204,7 +223,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	}
 
 	print("Final result :");
-	print_status(xfunctions);
+	print_status(converged_xfunctions_);
 	analyze(converged_xfunctions_);
 	print_performance(converged_xfunctions_,"final-");
 	print_status(xfunctions);
