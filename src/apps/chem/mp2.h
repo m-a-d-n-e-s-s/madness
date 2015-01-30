@@ -299,13 +299,7 @@ namespace madness {
 
         int i, j;                       ///< orbitals i and j
         real_function_6d function;      ///< pair function for a specific pair w/o correlation factor part
-        real_function_6d r12phi;      	///< orbital product multiplied with the correlation factor
         real_function_6d constant_term;	///< the first order contribution to the MP1 wave function
-
-        real_function_6d Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
-        real_function_6d KffKphi0;      ///< the function [K,f12] |phi^0>
-        std::vector<real_function_3d> phi_k_UK_phi0;	///< < k(1) | U-K | phi^0(1,2)>
-        std::vector<real_function_3d> phi_l_UK_phi0;	///< < l(2) | U-K | phi^0(1,2)>
 
         double e_singlet;				///< the energy of the singlet pair ij
         double e_triplet;				///< the energy of the triplet pair ij
@@ -416,7 +410,30 @@ namespace madness {
         	}
         };
 
-        typedef std::map<std::pair<int,int>,ElectronPair> pairmapT;
+        /// POD holding all electron pairs with easy access
+        template<typename T>
+        struct AllElectronPairs {
+
+            typedef std::map<std::pair<int,int>, T> pairmapT;
+            pairmapT allpairs;
+
+            /// getter
+            const T& operator()(int i, int j) const {
+                return allpairs.find(std::make_pair(i, j))->second;
+            }
+
+            /// getter
+            T& operator()(int i, int j) {
+                return allpairs[std::make_pair(i, j)];
+            }
+
+            /// setter
+            void insert(int i, int j, T pair) {
+                std::pair<int, int> key = std::make_pair(i, j);
+                allpairs.insert(std::make_pair(key, pair));
+            }
+        };
+
 
         World& world;                           ///< the world
         Parameters param;						///< SCF parameters for MP2
@@ -425,79 +442,20 @@ namespace madness {
         std::shared_ptr<NuclearCorrelationFactor> nuclear_corrfac;
         mutable Tensor<double> fock;			///< the Fock matrix
 
-        pairmapT pairs;       ///< pair functions and energies
+        AllElectronPairs<ElectronPair> pairs;       ///< pair functions and energies
         double correlation_energy;				///< the correlation energy
         double coords_sum;						///< check sum for the geometry
-        bool do_coupling;
 
         StrongOrthogonalityProjector<double,3> Q12;
 
     private:
-        struct Intermediates {
-            std::string function;      ///< pair function for a specific pair w/o correlation factor part
-            std::string r12phi;        ///< orbital product multiplied with the correlation factor
-            std::string Kfphi0;        ///< the function K f12 |phi^0>
-            std::string Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
-            std::string KffKphi0;      ///< the function [K,f12] |phi^0>
-            std::string OUKphi0;		///< < k(1) | U-K | phi^0(1,2) >
 
-            Intermediates() : r12phi(), Kfphi0(), Uphi0(), KffKphi0() {};
-
-            Intermediates(World& world, const std::string& filename) : function(), r12phi(),
-                    Kfphi0(), Uphi0(), KffKphi0() {
-                std::ifstream f(filename.c_str());
-                position_stream(f, "mp2");
-                std::string s;
-
-                while (f >> s) {
-                    if (s == "end") break;
-                    else if (s == "function") f >> function;
-                    else if (s == "r12phi") f >> r12phi;
-                    else if (s == "Kfphi0") f >> Kfphi0;
-                    else if (s == "Uphi0") f >> Uphi0;
-                    else if (s == "KffKphi0") f >> KffKphi0;
-                    else {continue;
-                    }
-                    if (world.rank()==0) print("found intermediate in control file: ",s);
-                }
-            }
-
-            template <typename Archive> void serialize (Archive& ar) {
-                ar & function & r12phi & Kfphi0 & Uphi0 & KffKphi0;
-            }
-
-        };
-
-
-        Intermediates intermediates;
         std::shared_ptr<real_convolution_3d> poisson;
 
     public:
 
         /// ctor
         MP2(World& world, const std::string& input);
-
-    	/// return a reference to the electron pair for electrons i and j
-
-    	/// @param[in]	i	index for electron 1
-    	/// @param[in]	j	index for electron 2
-    	/// @return		reference to the electron pair ij
-    	ElectronPair& pair(const int i, const int j) {
-    		// since we return a reference the keyval must already exist in the map
-    		MADNESS_ASSERT(pairs.find(std::make_pair(i, j)) != pairs.end());
-    		return pairs[std::make_pair(i, j)];
-    	}
-
-    	/// return a reference to the electron pair for electrons i and j
-
-    	/// @param[in]	i	index for electron 1
-    	/// @param[in]	j	index for electron 2
-    	/// @return		reference to the electron pair ij
-    	const ElectronPair& pair(const int i, const int j) const {
-    		// since we return a reference the keyval must already exist in the map
-    		MADNESS_ASSERT(pairs.find(std::make_pair(i, j)) != pairs.end());
-    		return pairs.find(std::make_pair(i, j))->second;
-    	}
 
         /// return a checksum for the geometry
         double coord_chksum() const {return coords_sum;}
@@ -526,7 +484,7 @@ namespace madness {
         void solve_residual_equations(ElectronPair& pair) const;
 
         /// solve the couple MP1 equations for local orbitals
-        void solve_coupled_equations(pairmapT& pairs) const;
+        void solve_coupled_equations(AllElectronPairs<ElectronPair>& pairs) const;
 
         real_function_6d make_Rpsi(const ElectronPair& pair) const;
 
@@ -644,9 +602,6 @@ namespace madness {
         		const real_function_3d& phi_j, const real_convolution_3d& op,
         		const bool hc=false) const;
 
-        /// compute the terms O1 (U - [K,f]) |phi0> and O2 UK |phi0>
-        void OUKphi0(ElectronPair& pair) const;
-
          /// apply the operator K on the reference and multiply with f; fK |phi^0>
 
         /// @param[in]  i   index of orbital i
@@ -697,7 +652,8 @@ namespace madness {
         /// @param[in] i the current electron pair \f$ \left| u_{ij} right> \f$
         /// @param[in] j the current electron pair \f$ \left| u_{ij} right> \f$
         /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-        std::map<std::pair<int,int>,real_function_6d> add_local_coupling() const;
+        void add_local_coupling(const AllElectronPairs<ElectronPair>& pairs,
+                AllElectronPairs<real_function_6d>& coupling) const;
 
     };
 };
