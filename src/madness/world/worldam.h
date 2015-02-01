@@ -179,88 +179,30 @@ namespace madness {
         delete [] arg;
     }
 
+    /// Terminate argument serialization
+    template <typename Archive>
+    inline void serialize_am_args(Archive&) { }
 
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h,
-                             const I& i, const J& j) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e,f,g,h,i,j));
-        *arg & a & b & c & d & e & f & g & h & i & j;
-        return arg;
+    /// Argument serialization
+    template <typename Archive, typename T, typename... argT>
+    inline void serialize_am_args(Archive& archive, const T& t, const argT&... args) {
+        archive & t;
+        serialize_am_args(archive, args...);
     }
 
     /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h,
-                             const I& i) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e,f,g,h,i));
-        *arg & a & b & c & d & e & f & g & h & i;
-        return arg;
+    template <typename... argT>
+    inline AmArg* new_am_arg(const argT&... args) {
+        // compute size
+        archive::BufferOutputArchive count;
+        serialize_am_args(count, args...);
+
+        // Serialize arguments
+        AmArg* am_args = alloc_am_arg(count.size());
+        serialize_am_args(*am_args, args...);
+        return am_args;
     }
 
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e,f,g,h));
-        *arg & a & b & c & d & e & f & g & h;
-        return arg;
-    }
-
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B, typename C, typename D, typename E, typename F, typename G>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e,f,g));
-        *arg & a & b & c & d & e & f & g;
-        return arg;
-    }
-
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B, typename C, typename D, typename E, typename F>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,e,d,f));
-        *arg & a & b & c & d & e & f;
-        return arg;
-    }
-
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B, typename C, typename D, typename E>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e));
-        *arg & a & b & c & d & e;
-        return arg;
-    }
-
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B, typename C, typename D>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d));
-        *arg & a & b & c & d;
-        return arg;
-    }
-
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B, typename C>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c));
-        *arg & a & b & c;
-        return arg;
-    }
-
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A, typename B>
-    inline AmArg* new_am_arg(const A& a, const B& b) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b));
-        *arg & a & b;
-        return arg;
-    }
-
-    /// Convenience template for serializing arguments into a new AmArg
-    template <typename A>
-    inline AmArg* new_am_arg(const A& a) {
-        AmArg* arg = alloc_am_arg(archive::bufar_size(a));
-        *arg & a;
-        return arg;
-    }
 
     /// Implements AM interface
     class WorldAmInterface : private SCALABLE_MUTEX_TYPE {
