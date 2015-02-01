@@ -835,6 +835,30 @@ namespace madness {
             return archive_array<unsigned char>((unsigned char*) &t,sizeof(t));
         }
 
+        /// Serialize function pointer
+        template <class Archive, typename resT, typename... paramT>
+        struct ArchiveSerializeImpl<Archive, resT(*)(paramT...)> {
+            static inline void serialize(const Archive& ar, resT(*fn)(paramT...)) {
+                ar & wrap_opaque(fn);
+            }
+        };
+
+        /// Serialize member function pointer
+        template <class Archive, typename resT, typename objT, typename... paramT>
+        struct ArchiveSerializeImpl<Archive, resT(objT::*)(paramT...)> {
+            static inline void serialize(const Archive& ar, resT(objT::*memfn)(paramT...)) {
+                ar & wrap_opaque(memfn);
+            }
+        };
+
+        /// Serialize const member function pointer
+        template <class Archive, typename resT, typename objT, typename... paramT>
+        struct ArchiveSerializeImpl<Archive, resT(objT::*)(paramT...) const> {
+            static inline void serialize(const Archive& ar, resT(objT::*memfn)(paramT...) const) {
+                ar & wrap_opaque(memfn);
+            }
+        };
+
         /// Partial specialization for archive_array
 
         /// This makes use of stuff that user specializations need not
