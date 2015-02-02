@@ -71,6 +71,7 @@
 #include <madness/world/scopedptr.h>
 #include <iostream>
 #include <cstring>
+#include <memory>
 
 #define MADNESS_MPI_TEST(condition) \
     { \
