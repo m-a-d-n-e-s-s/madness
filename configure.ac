@@ -109,10 +109,6 @@ ACX_ENABLE_WARN
 # Selelect best compilation flags
 ACX_ENABLE_OPTIMAL
 
-# Check for boost
-ACX_WITH_BOOST
-ACX_CHECK_CXX11
-
 # Get optional external libraries inplace so that building will partially check them
 #ACX_WITH_LIBUNWIND ... no longer needed for google perf?
 ACX_WITH_GOOGLE_PERF
@@ -163,8 +159,7 @@ AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
 # Check c++11 headers
 AC_CHECK_HEADERS([array type_traits tuple initializer_list])
 AC_HEADER_STDBOOL
-# No longer used
-#ACX_GNU_HASHMAP
+ACX_CHECK_CXX11
 
 # Types
 AC_TYPE_PID_T
