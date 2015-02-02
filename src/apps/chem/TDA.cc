@@ -453,6 +453,9 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	xfunctionsT xfunctions(all_xfunctions.begin(),all_xfunctions.begin()+guess_excitations_);
 	xfunctionsT remaining_xfunctions(all_xfunctions.begin()+guess_excitations_,all_xfunctions.end());
 
+	if(world.rank()==0) std::cout << "\nremaining guess functions are\n " << std::endl;
+	print_status(remaining_xfunctions);
+
 	for(size_t i=0;i<1000;i++){
 		TDA_TIMER iteration_time(world,"\nEnd of iteration " + stringify(i) +": ");
 
@@ -495,15 +498,16 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 			truncation.info();
 		}{
 			check_convergence(xfunctions,guess);
-			for(auto x:xfunctions){
-				if(x.converged){
-					converged_xfunctions_.push_back(x);
+			for(size_t i=0;i<xfunctions.size();i++){
+
+				if(xfunctions[i].converged){
+					converged_xfunctions_.push_back(xfunctions[i]);
 					if(remaining_xfunctions.empty()){
-						xfunction new_xfunction(world,make_guess_vector(x.guess_excitation_operator));
-						x = new_xfunction;
+						xfunction new_xfunction(world,make_guess_vector(xfunctions[i].guess_excitation_operator));
+						xfunctions[i] = new_xfunction;
 					}
 					else{
-						x = remaining_xfunctions.front();
+						xfunctions[i] = remaining_xfunctions.front();
 						remaining_xfunctions.erase(remaining_xfunctions.begin());
 					}
 				}
