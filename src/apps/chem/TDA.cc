@@ -96,10 +96,6 @@ void TDA::solve(xfunctionsT &xfunctions) {
 	if(world.rank()==0) std::cout << "\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
 			<< "SOLVE START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n" << std::endl;
 
-	// use only the demanded number of xfunctions
-	std::sort(xfunctions.begin(),xfunctions.end());
-	if(xfunctions.size()>guess_excitations_) xfunctions.erase(xfunctions.begin()+guess_excitations_,xfunctions.end());
-
 	if(world.rank()==0) std::cout << "\n------------------------------------------\n"
 			<< "The following pre-converged guess_xfunctions will be used from now on: " << "\n------------------------------------------\n"  << std::endl;
 	print_status(xfunctions);
@@ -247,7 +243,7 @@ void TDA::print_xfunction(const xfunction &x) const {
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 }
 
-void TDA::initialize(xfunctionsT & xfunctions)const{
+void TDA::initialize(xfunctionsT & xfunctions){
 	if(world.rank()==0) std::cout << "\nDemanded guess is " << guess_ <<"\n"<< std::endl;
 	std::vector<std::string> exop_strings;
 	if(guess_ == "custom"){
@@ -265,7 +261,7 @@ void TDA::initialize(xfunctionsT & xfunctions)const{
 	for(size_t i=0;i<xfunctions.size();i++){
 		xfunctions[i].x = make_guess_vector(xfunctions[i].guess_excitation_operator);
 	}
-	if(guess_=="big_fock") make_big_fock_guess(xfunctions);
+	make_big_fock_guess(xfunctions);
 	normalize(xfunctions);
 	for(size_t i=0;i<xfunctions.size();i++) plot_vecfunction(xfunctions[i].x,"guess_excitation_" + stringify(i) + "_",true);
 
@@ -320,8 +316,8 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 	}
 	// Reduce
 	std::sort(xfunctions.begin(),xfunctions.end());
+	if(guess_ == "big_fock") xfunctions.erase(xfunctions.begin()+guess_excitations_+excitations_+4,xfunctions.end()); // no need to store all 80 xfunctions, we wont need them
 	big_ortho.info();
-	xfunctions.erase(xfunctions.begin()+guess_excitations_,xfunctions.end());
 	if(world.rank()==0) std::cout << "\nthe following guess functions have been created:\n " << std::endl;
 	print_status(xfunctions);
 	if(world.rank()==0){
@@ -331,6 +327,7 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 			std::cout << std::setprecision(2) << xfunctions[i].guess_excitation_operator << std::endl;
 		}
 	}
+
 }
 
 vecfuncT TDA::make_guess_vector(const std::string &input_string)const{
@@ -442,13 +439,18 @@ void TDA::iterate(xfunctionsT &xfunctions) {
 	std::cout <<std::setw(100)<< "---End Main Iterations---" << "\n\n " << std::endl;
 }
 
-void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
+void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	// Assign maximum iteration values
 	size_t iter_max = guess_iter_;
 	if(not guess) iter_max += iter_max_;
 
 	// Bool checks if the perturbed fock matrix has been calculated (if not the expencation value has to be calculated in the iterate_one routine)
 	bool pert_fock_applied = false;
+
+	// Restrict the number of parallel iterating guess functions
+	std::sort(all_xfunctions.begin(),all_xfunctions.end());
+	xfunctionsT xfunctions(all_xfunctions.begin(),all_xfunctions.begin()+guess_excitations_);
+	xfunctionsT remaining_xfunctions(all_xfunctions.begin()+guess_excitations_,all_xfunctions.end());
 
 	for(size_t i=0;i<1000;i++){
 		TDA_TIMER iteration_time(world,"\nEnd of iteration " + stringify(i) +": ");
@@ -495,13 +497,11 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			for(size_t i=0;i<xfunctions.size();i++){
 				if(xfunctions[i].converged or xfunctions[i].iterations > iter_max){
 					converged_xfunctions_.push_back(xfunctions[i]);
-					if(guess){
-						xfunction new_guess = xfunction(world,guess_omega_);
-						new_guess.number = i;
-						new_guess.guess_excitation_operator = xfunctions[i].guess_excitation_operator;
-						new_guess.x = make_guess_vector(new_guess.guess_excitation_operator);
-						xfunctions[i] = new_guess;
-					}else xfunctions.erase(xfunctions.begin()+i);
+					if(remaining_xfunctions.empty()) xfunctions.erase(xfunctions.begin()+i);
+					else{
+						xfunctions[i] = remaining_xfunctions.front();
+						remaining_xfunctions.erase(remaining_xfunctions.begin());
+					}
 					i=0;
 				}
 			}
@@ -514,7 +514,6 @@ void TDA::iterate_all(xfunctionsT &xfunctions, bool guess) {
 			print_status(xfunctions);
 
 			size_t break_condition = excitations_;
-			if(guess) break_condition = guess_excitations_;
 			if(converged_xfunctions_.size()>=break_condition){
 				// push all current iterating roots which are not freshly re-initialized to the converged roots
 				for(size_t i=0;i<xfunctions.size();i++){

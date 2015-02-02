@@ -763,6 +763,9 @@ private:
 	/// bsp for the excitationoperatr: 1.0*x^2z^3 - 2.0y the string c 1.0 x 2.0 z 3.0 , c -2.0 y 1.0 is needed
 	std::vector<std::string> custom_exops_;
 
+	/// Excitation operators for the guess used by big_fock guess
+	std::vector<std::string> guess_exops_;
+
 	/// Number of excitations to be caluclated
 	size_t guess_excitations_;
 	size_t excitations_;
@@ -867,7 +870,7 @@ private:
 
 	/// Takes an empty vector of excitation functions and passes it to one of the guess functions
 	/// @param[in] xfunctions empty vector of xfunctions (no necessarily empty)
-	void initialize(xfunctionsT & xfunctions)const;
+	void initialize(xfunctionsT & xfunctions);
 
 	void make_big_fock_guess(xfunctionsT &xfunctions)const;
 
