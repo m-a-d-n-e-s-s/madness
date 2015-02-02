@@ -120,6 +120,23 @@ which merely blows instead of sucking.
     template <typename T>
     struct is_future< Future<T> > : public std::true_type { };
 
+
+    /// Boost-type-trait-like mapping of Future<T> to T
+
+    /// \ingroup futures
+    template <typename T>
+    struct add_future {
+        typedef Future<T> type;
+    };
+
+    /// Boost-type-trait-like mapping of Future<T> to T
+
+    /// \ingroup futures
+    template <typename T>
+    struct add_future< Future<T> > {
+        typedef Future<T> type;
+    };
+
     /// Boost-type-trait-like mapping of Future<T> to T
 
     /// \ingroup futures
