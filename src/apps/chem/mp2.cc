@@ -90,8 +90,8 @@ namespace madness {
             // get parameters form input file for hf
 			if (world.rank() == 0)
 				print("accuracy from dft will be overriden by mp2 to 0.01*thresh");
-			calc->set_protocol<6>(world, thresh());
-			calc->param.econv = thresh() * 0.01;
+			calc->set_protocol<6>(world, param.thresh_);
+			calc->param.econv = param.thresh_ * 0.01;
 			calc->set_protocol<3>(world, calc->param.econv);
 
 			// override computed parameters if they are provided explicitly
@@ -113,8 +113,7 @@ namespace madness {
 			}
 
 			calc->molecule.set_eprec(eprec);
-			if (world.rank() == 0)
-				calc->molecule.print();
+			if (world.rank() == 0) calc->molecule.print();
 
 			hf = std::shared_ptr<HartreeFock>(new HartreeFock(world, calc));
 			poisson = std::shared_ptr<real_convolution_3d>(
@@ -189,76 +188,82 @@ namespace madness {
 		// compute only one single pair
 		if ((param.i > -1) and (param.j > -1)) {
 			pairs(param.i,param.j)=make_pair(param.i,param.j);	// initialize
-			solve_residual_equations(pairs(param.i, param.j));	// solve
+			solve_residual_equations(pairs(param.i, param.j),param.econv_*0.05,param.dconv_);	// solve
 			correlation_energy += pairs(param.i, param.j).e_singlet
 					+ pairs(param.i, param.j).e_triplet;
 
-		} else {
-			// solve the residual equations for all pairs ij
-			for (int i = param.freeze; i < hf->nocc(); ++i) {
-				for (int j = i; j < hf->nocc(); ++j) {
-					pairs(i,j)=make_pair(i,j);				// initialize
-					solve_residual_equations(pairs(i,j));	// solve
-					correlation_energy += pairs(i, j).e_singlet
-								+ pairs(i, j).e_triplet;
-				}
-			}
-			if (world.rank()==0) {
-				printf("current decoupled mp2 energy %12.8f\n",
-						correlation_energy);
-			}
-
-			// if orbitals are not canonical do the macro iterations
-			// coupling all the pair functions
-			if (hf->get_calc().param.localize) {
-				solve_coupled_equations(pairs);
-
-				if (world.rank()==0) {
-				    printf("current coupled mp2 energy   %12.8f\n", correlation_energy);
-				}
-			}
+			return correlation_energy;
 		}
+
+		// compute the 0th order term and do some coarse pre-iterations
+        for (int i = param.freeze; i < hf->nocc(); ++i) {
+            for (int j = i; j < hf->nocc(); ++j) {
+                pairs(i,j)=make_pair(i,j);				// initialize
+                solve_residual_equations(pairs(i,j),param.econv_*0.5,param.dconv_);
+                correlation_energy += pairs(i, j).e_singlet
+                            + pairs(i, j).e_triplet;
+            }
+        }
+        if (world.rank()==0) {
+            printf("current decoupled mp2 energy %12.8f\n", correlation_energy);
+        }
+
+        if (hf->get_calc().param.localize) {
+            // solve the coupled MP1 equations
+            correlation_energy=solve_coupled_equations(pairs,param.econv_*0.1,param.dconv_);
+
+        } else {
+
+            // solve the canonical MP1 equations with increased accuracy
+            for (int i = param.freeze; i < hf->nocc(); ++i) {
+                for (int j = i; j < hf->nocc(); ++j) {
+                    solve_residual_equations(pairs(i,j),param.econv_*0.05,param.dconv_);
+                    correlation_energy += pairs(i, j).e_singlet + pairs(i, j).e_triplet;
+                }
+            }
+        }
 		return correlation_energy;
 	}
 
 	/// print the SCF parameters
 	void MP2::print_info(World& world) const {
 		if (world.rank() == 0) {
-			madness::print("\n === MP2 info === \n");
-			madness::print("         MP2 restart ", param.restart);
-			madness::print("        threshold 3D ",
-					FunctionDefaults<3>::get_thresh());
-			madness::print("        threshold 6D ",
-					FunctionDefaults<6>::get_thresh());
-			madness::print("    threshold energy ", param.thresh_);
-			madness::print("  threshold residual ", param.dconv_);
-			madness::print("     truncation mode ",
-					FunctionDefaults<6>::get_truncate_mode());
-			madness::print("         tensor type ",
-					FunctionDefaults<6>::get_tensor_type());
-			madness::print("           facReduce ",
-					GenTensor<double>::fac_reduce());
-			madness::print("    max displacement ",
-					Displacements<6>::bmax_default());
-			madness::print("     apply randomize ",
-					FunctionDefaults<6>::get_apply_randomize());
-			if (param.i >= 0 and param.j >= 0) {
-				madness::print("      computing pair ", param.i, param.j);
-			} else if (param.i < 0 and param.j < 0) {
-				if (param.freeze == 0)
-					madness::print("   # frozen orbitals ", "none");
-				if (param.freeze > 0)
-					madness::print("   # frozen orbitals ", 0, " to ",
-							param.freeze - 1);
-				madness::print(" correlated orbitals ", param.freeze, " to ",
-						hf->nocc() - 1);
-			}
-			madness::print("   max KAIN subspace ", param.maxsub);
+		    madness::print("\n");
+		    madness::print_centered("MP2 info\n",31,false);
+            print_options("MP2 restart",param.restart);
+            print_options("threshold 3D",FunctionDefaults<3>::get_thresh());
+            print_options("threshold 6D",FunctionDefaults<6>::get_thresh());
+            print_options("density threshold (dconv)", param.dconv_);
+            print_options("energy threshold (econv)", param.econv_);
+            print_options("truncation mode",FunctionDefaults<6>::get_truncate_mode());
+            print_options("tensor type",FunctionDefaults<6>::get_tensor_type());
+            print_options("facReduce",GenTensor<double>::fac_reduce());
+            print_options("max displacement",Displacements<6>::bmax_default());
+            print_options("apply randomize",FunctionDefaults<6>::get_apply_randomize());
+
+            if (param.i >= 0 and param.j >= 0) {
+                std::stringstream ss;
+                ss << param.i << " " << param.j;
+                print_options("computing pair",ss.str());
+            }
+            if (param.freeze == 0) {
+                print_options("# frozen orbitals", "none");
+            }else {
+                std::stringstream ss;
+                ss<< 0 << " to " << param.freeze - 1;
+                print_options("# frozen orbitals",ss.str());
+            }
+            std::stringstream ss1;
+            ss1 << param.freeze <<" to "<< hf->nocc() - 1;
+            print_options(" correlated orbitals",ss1.str());
+
+			print_options("max KAIN subspace", param.maxsub);
 		}
 	}
 
 	/// solve the residual equation for electron pair (i,j)
-	void MP2::solve_residual_equations(ElectronPair& result) const {
+	void MP2::solve_residual_equations(ElectronPair& result,
+	        const double econv, const double dconv) const {
 
 		if (result.converged) {
 			result.print_energy();
@@ -314,8 +319,8 @@ namespace madness {
 			double old_energy = energy;
 			energy = compute_energy(result);
 
-			result.converged = ((std::abs(old_energy - energy)
-					< result.function.thresh() * 0.01) and (rnorm < param.dconv_));
+			result.converged = ((std::abs(old_energy - energy) < econv) and (
+			        rnorm < dconv));
 			result.store_pair(world);
 
 			if (world.rank() == 0)
@@ -338,7 +343,8 @@ namespace madness {
 	/// solve the coupled MP1 equations for local orbitals
 
 	/// @param[in]  pairs   solved decoupled electron pairs
-    void MP2::solve_coupled_equations(AllElectronPairs<ElectronPair>& pairs) const {
+    double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
+            const double econv, const double dconv) const {
 
         if (world.rank() == 0) printf("\nsolving coupled MP2 equations\n\n");
 
@@ -353,11 +359,11 @@ namespace madness {
         for (int iteration=0; iteration<param.maxiter; ++iteration) {
 
             // compute the coupling between the pair functions
-            AllElectronPairs<real_function_6d> coupling;
+            Pairs<real_function_6d> coupling;
             add_local_coupling(pairs,coupling);
 
             // compute the vector function, aka the rhs of the residual equations
-            AllElectronPairs<real_function_6d> vectorfunction;
+            Pairs<real_function_6d> vectorfunction;
             for (int i = param.freeze; i < hf->nocc(); ++i) {
                 for (int j = i; j < hf->nocc(); ++j) {
 
@@ -398,8 +404,8 @@ namespace madness {
             }
 
             // check convergence
-            bool converged = ((std::abs(old_energy - total_energy)
-                    < thresh() * 0.05) and (total_rnorm < param.dconv_));
+            bool converged = ((std::abs(old_energy - total_energy) < econv)
+                    and (total_rnorm < dconv));
 
             if (world.rank() == 0)
                 printf("finished iteration %2d at time %8.1fs with coupled energy %12.8f\n\n",
@@ -408,6 +414,7 @@ namespace madness {
             if (converged) break;
         }
 
+        return total_energy;
     }
 
 
@@ -460,7 +467,7 @@ namespace madness {
 			if (world.rank() == 0)
 				printf("finished increment %2d at time %.1fs\n\n", ii, wall_time());
 			const double residual_norm = latest_increment.norm2();
-			if (residual_norm < pair.function.thresh() * 0.01)
+			if (residual_norm < pair.function.thresh())
 				break;
 		}
 	}
@@ -643,9 +650,10 @@ namespace madness {
 		    //                if (hf->nemo_calc.nuclear_correlation->type()!=NuclearCorrelationFactor::None) {
 		    if (world.rank() == 0)
 		        print("adding the mixed commutator R^{-1} [[T,f],R]");
+		    const double thresh=FunctionDefaults<6>::get_thresh();
 		    for (int axis = 0; axis < 3; axis++) {
 
-		        double tight_thresh = std::min(thresh(), 1.e-4);
+		        double tight_thresh = std::min(thresh, 1.e-4);
 
 		        real_convolution_6d op_mod = BSHOperator<6>(world,
 		                sqrt(-2 * eps), 0.0001, 1e-5);
@@ -669,7 +677,7 @@ namespace madness {
 		                        copy(u1_nuc_nemo_i)).particle2(
 		                                copy(hf->nemo(j))).thresh(tight_thresh);
 		        U1_mix1.fill_tree(op_mod);
-		        U1_mix1.set_thresh(thresh());
+		        U1_mix1.set_thresh(thresh);
 		        U1_mix1.print_size("U1_mix1");
 		        //						plot_plane(world,U1_mix1,"U1_mix1");
 
@@ -678,7 +686,7 @@ namespace madness {
 		                        copy(hf->nemo(i))).particle2(
 		                                copy(u1_nuc_nemo_j)).thresh(tight_thresh);
 		        U1_mix2.fill_tree(op_mod);
-		        U1_mix2.set_thresh(thresh());
+		        U1_mix2.set_thresh(thresh);
 		        U1_mix2.print_size("U1_mix2");
 		        //						plot_plane(world,U1_mix2,"U1_mix2");
 
@@ -722,9 +730,9 @@ namespace madness {
 		if (world.rank() == 0) {
 			printf("< phi0 | U_R   | phi0 >  %12.8f\n", a);
 			printf("< phi0 | 1/r12 | phi0 >  %12.8f\n", aa);
-			if (error > thresh())
+			if (error > FunctionDefaults<6>::get_thresh())
 				print("WARNING : Kutzelnigg's potential inaccurate");
-			if (error > thresh() * 10.0)
+			if (error > FunctionDefaults<6>::get_thresh() * 10.0)
 				MADNESS_EXCEPTION("Kutzelnigg's potential plain wrong", 1);
 		}
 		Uphi0.print_size("Uphi0");
@@ -816,9 +824,9 @@ namespace madness {
 		const double a = inner(KffKphi0, tmp);
 		if (world.rank() == 0) {
 			printf("< nemo0 | R^2 R-1 [K,f] R | nemo0 >  %12.8f\n", a);
-			if (std::fabs(a) > thresh())
+			if (std::fabs(a) > FunctionDefaults<6>::get_thresh())
 				print("WARNING : exchange commutator inaccurate");
-			if (std::fabs(a) > thresh() * 10.0)
+			if (std::fabs(a) > FunctionDefaults<6>::get_thresh() * 10.0)
 				MADNESS_EXCEPTION("exchange commutator plain wrong", 1);
 		}
 		KffKphi0.print_size("KffKphi0");
@@ -829,7 +837,7 @@ namespace madness {
 	ElectronPair MP2::make_pair(const int i, const int j) const {
 
 		ElectronPair p = ElectronPair(i, j);
-		p.load_pair(world);
+		if (param.restart) p.load_pair(world);
 
 		// compute and store them if they have not been read from disk
 		if (p.ij_gQf_ij == ElectronPair::uninitialized()) {
@@ -838,6 +846,15 @@ namespace madness {
 			if (i != j)
 				p.ji_gQf_ij = compute_gQf(j, i, p);
 			p.store_pair(world);
+		} else {
+		    if (world.rank()==0) {
+	            printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n",
+	                    i, j, i, j, p.ij_gQf_ij);
+	            if (i != j) {
+	                printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n",
+                        j, i, i, j, p.ji_gQf_ij);
+	            }
+		    }
 		}
 
 		if (world.rank() == 0)
@@ -1363,7 +1380,7 @@ namespace madness {
 						hf->nemo_calc.nuclear_correlation->U1(axis % 3);
 				//                    real_function_6d x=multiply(copy(Drhs),copy(U1_axis),axis/3+1).truncate();
 
-				double tight_thresh = std::min(thresh(), 1.e-4);
+				double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);
 				real_function_6d x;
 				if (axis / 3 + 1 == 1) {
 					x =CompositeFactory<double, 6, 3>(world).ket(Drhs)
@@ -1376,7 +1393,7 @@ namespace madness {
 							.thresh(tight_thresh);
 				}
 				x.fill_tree(op_mod);
-				x.set_thresh(thresh());
+				x.set_thresh(FunctionDefaults<6>::get_thresh());
 				vphi += x;
 				vphi.truncate().reduce_rank();
 
@@ -1396,8 +1413,8 @@ namespace madness {
     /// add the coupling terms for local MP2
 
     /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-	void MP2::add_local_coupling(const AllElectronPairs<ElectronPair>& pairs,
-            AllElectronPairs<real_function_6d>& coupling) const {
+	void MP2::add_local_coupling(const Pairs<ElectronPair>& pairs,
+            Pairs<real_function_6d>& coupling) const {
 
     	if (world.rank()==0) print("adding local coupling");
 
