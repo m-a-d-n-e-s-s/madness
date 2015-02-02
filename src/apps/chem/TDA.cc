@@ -448,6 +448,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	bool pert_fock_applied = false;
 
 	// Restrict the number of parallel iterating guess functions
+	for(auto x:all_xfunctions) x.converged = false;
 	std::sort(all_xfunctions.begin(),all_xfunctions.end());
 	xfunctionsT xfunctions(all_xfunctions.begin(),all_xfunctions.begin()+guess_excitations_);
 	xfunctionsT remaining_xfunctions(all_xfunctions.begin()+guess_excitations_,all_xfunctions.end());
