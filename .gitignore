@@ -33,3 +33,9 @@ org.eclipse.cdt.core.prefs
 org.eclipse.cdt.ui.prefs
 .autotools
 .externalToolBuilders/org.eclipse.cdt.autotools.core.genmakebuilderV2.launch
+compile
+config.guess
+config.sub
+depcomp
+install-sh
+missing
