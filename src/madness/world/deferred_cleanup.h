@@ -37,6 +37,7 @@
 
 #include <madness/world/worldmutex.h>  // For Mutex
 #include <list>
+#include <memory>
 
 namespace madness {
 
