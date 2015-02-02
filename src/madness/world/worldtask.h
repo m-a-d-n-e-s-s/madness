@@ -158,6 +158,26 @@ namespace madness {
         { };
 
         template <typename objT, typename memfnT>
+        struct memfunc_enabler<objT*, memfnT> :
+            public memfunc_enabler<objT, memfnT>
+        { };
+
+        template <typename objT, typename memfnT>
+        struct memfunc_enabler<const objT*, memfnT> :
+            public memfunc_enabler<objT, memfnT>
+        { };
+
+        template <typename objT, typename memfnT>
+        struct memfunc_enabler<objT* const, memfnT> :
+            public memfunc_enabler<objT, memfnT>
+        { };
+
+        template <typename objT, typename memfnT>
+        struct memfunc_enabler<const objT* const, memfnT> :
+            public memfunc_enabler<objT, memfnT>
+        { };
+
+        template <typename objT, typename memfnT>
         struct memfunc_enabler<std::shared_ptr<objT>&, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
@@ -168,12 +188,12 @@ namespace madness {
         { };
 
         template <typename objT, typename memfnT>
-        struct memfunc_enabler<std::shared_ptr<objT>&&, memfnT> :
+        struct memfunc_enabler<std::shared_ptr<objT>, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
         template <typename objT, typename memfnT>
-        struct memfunc_enabler<const std::shared_ptr<objT>&&, memfnT> :
+        struct memfunc_enabler<const std::shared_ptr<objT>, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
