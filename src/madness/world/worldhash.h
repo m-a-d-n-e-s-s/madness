@@ -128,7 +128,6 @@ provide the appropriate template parameter to the hashing container.
 */
 
 #include <madness/madness_config.h>
-#include <madness/world/typestuff.h>
 #include <madness/world/enable_if.h>
 #include <stdint.h>
 #include <cstddef>

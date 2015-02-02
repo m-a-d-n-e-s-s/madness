@@ -46,9 +46,7 @@
 #include <madness/world/nodefaults.h>
 #include <madness/world/worlddep.h>
 #include <madness/world/array.h>
-#include <madness/world/shared_ptr.h>
 #include <madness/world/worldref.h>
-#include <madness/world/typestuff.h>
 #include <madness/world/worldfwd.h>
 #include <madness/world/move.h>
 

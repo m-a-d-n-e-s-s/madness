@@ -66,7 +66,7 @@
 #endif
 
 #include <madness/world/worldmutex.h>
-#include <madness/world/typestuff.h>
+#include <madness/world/type_traits.h>
 #include <madness/world/enable_if.h>
 #include <madness/world/scopedptr.h>
 #include <iostream>

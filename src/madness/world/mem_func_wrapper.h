@@ -34,8 +34,6 @@
 #define MADNESS_WORLD_MEM_FUNC_WRAPPER_H__INCLUDED
 
 #include <madness/world/worldexc.h>
-#include <madness/world/shared_ptr.h>
-#include <madness/world/typestuff.h>
 
 namespace madness {
     namespace detail {

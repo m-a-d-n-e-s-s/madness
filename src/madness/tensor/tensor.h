@@ -38,7 +38,7 @@
 #include <madness/madness_config.h>
 #include <madness/misc/ran.h>
 #include <madness/world/posixmem.h>
-#include <madness/world/shared_ptr.h>
+#include <madness/world/boost_checked_delete_bits.h>
 
 #include <complex>
 #include <vector>

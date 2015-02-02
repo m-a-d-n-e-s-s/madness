@@ -6,15 +6,15 @@ lib_LIBRARIES = libMADworld.a
 thisincludedir = $(includedir)/madness/world
 thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worldtask.h array.h worldgop.h worldobj.h bufar.h nodefaults.h \
-	typestuff.h enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
+	enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
 	dqueue.h parar.h vecar.h worldexc.h worldmem.h worldser.h worldthread.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
 	worldfwd.h uniqueid.h worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h \
 	worlddc.h mem_func_wrapper.h scopedptr.h worldtask.h taskfn.h \
-	shared_ptr.h shared_ptr_bits.h stdarray.h ref.h move.h group.h dist_cache.h dist_keys.h \
-	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
-	function_traits_bits.h integral_constant.h stubmpi.h bgq_atomics.h binsorter.h
+	ref.h move.h group.h dist_cache.h dist_keys.h \
+	type_traits.h boost_checked_delete_bits.h \
+	function_traits.h integral_constant.h stubmpi.h bgq_atomics.h binsorter.h
 
 
                       
