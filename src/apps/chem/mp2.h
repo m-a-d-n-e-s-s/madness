@@ -332,6 +332,8 @@ namespace madness {
                 archive::ParallelInputArchive ar(world, name.c_str(), 1);
                 ar & *this;
             	if (world.rank()==0) printf(" %s\n",(converged)?" converged":" not converged");
+            	function.set_thresh(FunctionDefaults<6>::get_thresh());
+                constant_term.set_thresh(FunctionDefaults<6>::get_thresh());
             } else {
 		    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
             }
@@ -353,7 +355,8 @@ namespace madness {
     	/// POD for MP2 keywords
         struct Parameters {
         	double thresh_;			///< the accuracy threshold
-        	double dconv_;			///< threshold for the MP1 residual
+            double econv_;          ///< energy threshold for the MP1 residual
+        	double dconv_;			///< density threshold for the MP1 residual
         	int i; 					///< electron 1, used only if a specific pair is requested
         	int j; 					///< electron 2, used only if a specific pair is requested
 
@@ -379,8 +382,9 @@ namespace madness {
         	int maxiter;
 
         	/// ctor reading out the input file
-        	Parameters(const std::string& input) : thresh_(-1.0), dconv_(-1.0),
-        			i(-1), j(-1), freeze(0), restart(false), maxsub(2), maxiter(20) {
+        	Parameters(const std::string& input) : thresh_(-1.0), econv_(-1.0),
+        	        dconv_(-1.0), i(-1), j(-1), freeze(0), restart(false),
+        	        maxsub(2), maxiter(20) {
 
         		// get the parameters from the input file
                 std::ifstream f(input.c_str());
@@ -389,7 +393,8 @@ namespace madness {
 
                 while (f >> s) {
                     if (s == "end") break;
-                    else if (s == "econv") f >> thresh_;
+                    else if (s == "thresh") f >> thresh_;
+                    else if (s == "econv") f >> econv_;
                     else if (s == "dconv") f >> dconv_;
                     else if (s == "pair") f >> i >> j;
                     else if (s == "maxsub") f >> maxsub;
@@ -398,7 +403,8 @@ namespace madness {
                     else continue;
                 }
                 // set default for dconv if not explicitly given
-                if (dconv_<0.0) dconv_=sqrt(thresh_)*0.1;
+                if (dconv_<0.0) dconv_=sqrt(econv_)*0.1;
+                if (thresh_<0.0) thresh_=econv_;
         	}
 
             /// check the user input
@@ -408,11 +414,12 @@ namespace madness {
                 if (j>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
                 if (thresh_<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
         	}
+
         };
 
         /// POD holding all electron pairs with easy access
         template<typename T>
-        struct AllElectronPairs {
+        struct Pairs {
 
             typedef std::map<std::pair<int,int>, T> pairmapT;
             pairmapT allpairs;
@@ -442,7 +449,7 @@ namespace madness {
         std::shared_ptr<NuclearCorrelationFactor> nuclear_corrfac;
         mutable Tensor<double> fock;			///< the Fock matrix
 
-        AllElectronPairs<ElectronPair> pairs;       ///< pair functions and energies
+        Pairs<ElectronPair> pairs;       ///< pair functions and energies
         double correlation_energy;				///< the correlation energy
         double coords_sum;						///< check sum for the geometry
 
@@ -472,19 +479,26 @@ namespace madness {
         /// return the underlying HF reference
         HartreeFock& get_hf() {return *hf;}
 
-        /// return the accuracy
-        double thresh() const {return param.thresh_;}
-
         /// return the 0th order energy of pair ij (= sum of orbital energies)
         double zeroth_order_energy(const int i, const int j) const {
             return hf->orbital_energy(i)+hf->orbital_energy(j);
         }
 
         /// solve the residual equation for electron pair (i,j)
-        void solve_residual_equations(ElectronPair& pair) const;
 
-        /// solve the couple MP1 equations for local orbitals
-        void solve_coupled_equations(AllElectronPairs<ElectronPair>& pairs) const;
+        /// @param[in]  pair    electron pair to solve
+        /// @param[in]  econv   energy convergence criterion (for a single pair)
+        /// @param[in]  dconv   density convergence criterion (for a single pair)
+        void solve_residual_equations(ElectronPair& pair,
+                const double econv, const double dconv) const;
+
+        /// solve the coupled MP1 equations (e.g. for local orbitals)
+
+        /// @param[in]  pairs   set of (coupled) electron pairs to solve
+        /// @param[in]  econv   energy convergence criterion (for all pairs)
+        /// @param[in]  dconv   density convergence criterion (for all pairs)
+        double solve_coupled_equations(Pairs<ElectronPair>& pairs,
+                const double econv, const double dconv) const;
 
         real_function_6d make_Rpsi(const ElectronPair& pair) const;
 
@@ -513,6 +527,15 @@ namespace madness {
         /// as for the formulas cf the article mra_molecule
         /// @return 	the energy <ij | g Q f | kl>
         double compute_gQf(const int i, const int j, ElectronPair& pair) const;
+
+        /// pretty print the options
+
+        /// invoke only in (world.rank()==0) !!
+        template<typename T>
+        void print_options(const std::string option, const T val) const {
+            std::cout << std::setfill (' ') << std::setw(30);
+            std::cout << option << "  " << val << std::endl;
+        }
 
     private:
 
@@ -652,8 +675,8 @@ namespace madness {
         /// @param[in] i the current electron pair \f$ \left| u_{ij} right> \f$
         /// @param[in] j the current electron pair \f$ \left| u_{ij} right> \f$
         /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-        void add_local_coupling(const AllElectronPairs<ElectronPair>& pairs,
-                AllElectronPairs<real_function_6d>& coupling) const;
+        void add_local_coupling(const Pairs<ElectronPair>& pairs,
+                Pairs<real_function_6d>& coupling) const;
 
     };
 };
