@@ -174,7 +174,8 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 				current_root.x = iterate_one(current_root);
 			}else{
 				vecfuncT updated_x = iterate_one(current_root);
-				vecfuncT residual = sub(world,updated_x,current_root.x);
+				// The kain structure needs the residual like this: old - new
+				vecfuncT residual = sub(world,current_root.x,updated_x);
 				xfunction new_x = kain_solver.update(xfunction(world,current_root.x),xfunction(world,residual));
 				current_root.x = new_x.x;
 			}
