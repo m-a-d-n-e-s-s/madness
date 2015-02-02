@@ -495,15 +495,17 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 			truncation.info();
 		}{
 			check_convergence(xfunctions,guess);
-			for(size_t i=0;i<xfunctions.size();i++){
-				if(xfunctions[i].converged or xfunctions[i].iterations > iter_max){
-					converged_xfunctions_.push_back(xfunctions[i]);
-					if(remaining_xfunctions.empty()) xfunctions.erase(xfunctions.begin()+i);
+			for(auto x:xfunctions){
+				if(x.converged){
+					converged_xfunctions_.push_back(x);
+					if(remaining_xfunctions.empty()){
+						xfunction new_xfunction(world,make_guess_vector(x.guess_excitation_operator));
+						x = new_xfunction;
+					}
 					else{
-						xfunctions[i] = remaining_xfunctions.front();
+						x = remaining_xfunctions.front();
 						remaining_xfunctions.erase(remaining_xfunctions.begin());
 					}
-					i=0;
 				}
 			}
 
