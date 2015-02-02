@@ -27,9 +27,6 @@ AC_DEFUN([ACX_WITH_GOOGLE_TEST], [
     AC_MSG_NOTICE([Configuring with Google Unit Test --- no])
   else
     AC_MSG_NOTICE([Configuring with Google Unit Test --- yes])
-    if test $acx_with_boost != "no"; then
-      GTEST_CPPFLAGS="$GTEST_CPPFLAGS -DGTEST_HAS_TR1_TUPLE=0 -DGTEST_USE_OWN_TR1_TUPLE=1"
-    fi
 
     # Set preprocessor and build variables
     AC_DEFINE([MADNESS_HAS_GOOGLE_TEST], [1], [Define if should use Google unit testing])

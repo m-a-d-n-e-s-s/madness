@@ -40,8 +40,8 @@
 /// \brief Implements archive wrapping a binary filestream
 
 #include <fstream>
+#include <memory>
 #include <madness/world/archive.h>
-#include <madness/world/shared_ptr.h>
 
 
 namespace madness {

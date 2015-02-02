@@ -2893,7 +2893,7 @@ struct Calculation {
         for(unsigned int i = 0;i < ay.size();++i){
             if(aynorm[i] > param.maxrotn){
                 double s = param.maxrotn / aynorm[i];
-                ++nres;
+                nres++;
                 if(world.rank() == 0){
                     if(nres == 1)
                         printf("  restricting step for alpha orbitals:");
@@ -2902,7 +2902,6 @@ struct Calculation {
                 }
                 ay_new[i].gaxpy(s, ay[i], 1.0 - s, false);
             }
-
         }
         if(nres > 0 && world.rank() == 0)
             printf("\n");
@@ -2912,7 +2911,7 @@ struct Calculation {
             for(unsigned int i = 0;i < bx.size();++i){
                 if(bxnorm[i] > param.maxrotn){
                     double s = param.maxrotn / bxnorm[i];
-                    ++nres;
+                    nres++;
                     if(world.rank() == 0){
                         if(nres == 1)
                             printf("  restricting step for  beta orbitals:");
@@ -2921,7 +2920,6 @@ struct Calculation {
                     }
                     bx_new[i].gaxpy(s, bx[i], 1.0 - s, false);
                 }
-
             }
             if(nres > 0 && world.rank() == 0)
                 printf("\n");
@@ -4256,8 +4254,8 @@ struct Calculation {
 
     void response_frequency(World & world, int & axis)
     {
-        print("\n");
         if (world.rank() == 0) { 
+            print("\n");
             if(axis == 0) 
                 print(" AXIS of frequency = x");
 
@@ -4310,11 +4308,10 @@ struct Calculation {
         if(!param.spin_restricted && param.nbeta != 0) {
             for(int i=0; i<param.nbeta; ++i){
                 bk[i] = sqrt(-2.0 * (beps[i] + sign * omega));
-                if (world.rank() == 0)  
                     if (world.rank() == 0)  
                         print(" kxy(beta) [", i, "]: sqrt(-2 * (eps +/- omega)) = ", bk[i]);
-            }
-        }
+    }
+    }
     }
 
     void make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
@@ -4331,13 +4328,14 @@ struct Calculation {
             for(int i=0; i<param.nbeta; ++i) {
                 bop[i] = poperatorT(BSHOperatorPtr3D(world, bk[i], param.lo, tol));
             }
-        }
+        } 
+
         END_TIMER(world, "Make BSHOp");
         print_meminfo(world.rank(), "Make BSHOp");
     }
 
     vecfuncT initial_guess_response(World & world, vecfuncT & dipolemo,
-            functionT & vlocal, vecfuncT & vf, int  spin) {
+            functionT & vlocal, vecfuncT & vf, int  spin, int & axis) {
         
         START_TIMER(world);
 
@@ -4364,13 +4362,14 @@ struct Calculation {
       functionT rho = arho + brho;
 
         if(spin == 0){
-            Vmo = apply_potential_response(world, aocc, amo, vf, vlocal, exca, 0 );
-            djkmo = calc_djkmo(world, amo, amo, rho, 0);
+          // initial guess >>  x,y_MOs = dipoleamo
+            Vmo = apply_potential_response(world, aocc, dipolemo, vf, vlocal, exca, 0 );
+            djkmo = calc_djkmo(world, dipolemo, dipolemo, rho, 0);
             rhs = calc_rhs(world, amo, Vmo, dipolemo, djkmo);
         }
         else {
-            Vmo = apply_potential_response(world, bocc, bmo, vf, vlocal, excb, 1);
-            djkmo = calc_djkmo(world, bmo, bmo, rho, 1);
+            Vmo = apply_potential_response(world, bocc, dipolemo, vf, vlocal, excb, 1);
+            djkmo = calc_djkmo(world, dipolemo, dipolemo, rho, 1);
             rhs = calc_rhs(world, bmo, Vmo, dipolemo, djkmo);
         }
 
@@ -4517,7 +4516,7 @@ struct Calculation {
 
     vecfuncT calc_rhs(World & world, vecfuncT & mo , vecfuncT & Vdmo, vecfuncT & dipolemo, vecfuncT & djkmo )
     {
-        vecfuncT rhs;
+        vecfuncT rhs = zero_functions<double,3>(world, Vdmo.size());
 
         START_TIMER(world);
         //dmo_rhs = Vdmo + dipolemo + djkmo;
@@ -4591,7 +4590,7 @@ struct Calculation {
 
         for(int i=0; i<3; ++i) {
             std::vector<int> f(3, 0);
-            f[i] = true;
+            f[i] = 1;
             dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
             polar(axis, i) = -2 * dipolefunc.inner(drho);
 
@@ -4744,8 +4743,10 @@ struct Calculation {
         }
 
         const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
+
         subspaceT subspace;
         tensorT Q;
+
         double update_residual = 0.0;
         int maxsub_save = param.maxsub;
 
@@ -4850,8 +4851,8 @@ struct Calculation {
         std::vector<poperatorT> bopx(param.nbeta); 
         std::vector<poperatorT> aopy(param.nalpha); 
         std::vector<poperatorT> bopy(param.nbeta); 
-        make_BSHOperatorPtr(world, akx, bkx, aopx, bopx);
 
+        make_BSHOperatorPtr(world, akx, bkx, aopx, bopx);
         if(omega != 0.0)
             make_BSHOperatorPtr(world, aky, bky, aopy, bopy);
        
@@ -4866,25 +4867,25 @@ struct Calculation {
                 print(" Frequency for response function = ", omega);
 
             // perturbation
-            vecfuncT dipoleamo = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT dipolebmo = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT dipoleamo;// = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT dipolebmo;// = zero_functions<double,3>(world, param.nbeta);
 
             // make response function x, y
-            vecfuncT ax = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT ay = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT bx = zero_functions<double,3>(world, param.nbeta);
-            vecfuncT by = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT ax;// = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ay;// = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bx;// = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT by;// = zero_functions<double,3>(world, param.nbeta);
 
             // old response function
-            vecfuncT ax_old = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT ay_old = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT bx_old = zero_functions<double,3>(world, param.nbeta);
-            vecfuncT by_old = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT ax_old;// = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ay_old; // = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bx_old; // = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT by_old; // = zero_functions<double,3>(world, param.nbeta);
 
-            vecfuncT axrhs = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT ayrhs = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT bxrhs = zero_functions<double,3>(world, param.nbeta);
-            vecfuncT byrhs = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT axrhs; // = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ayrhs; //= zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bxrhs; // = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT byrhs; // = zero_functions<double,3>(world, param.nbeta);
 
             dipoleamo = calc_dipole_mo(world, amo, axis, param.nalpha);
             if(!param.spin_restricted && param.nbeta != 0) {
@@ -4893,13 +4894,13 @@ struct Calculation {
             else {
                 dipolebmo = dipoleamo;
             }
-            dipoleamo = calc_dipole_mo(world, amo, axis, param.nalpha);
-            if(!param.spin_restricted && param.nbeta != 0) {
-                dipolebmo = calc_dipole_mo(world, bmo, axis, param.nbeta);
-            }
-            else {
-                dipolebmo = dipoleamo;
-            }
+//goo            dipoleamo = calc_dipole_mo(world, amo, axis, param.nalpha);
+//goo            if(!param.spin_restricted && param.nbeta != 0) {
+//goo                dipolebmo = calc_dipole_mo(world, bmo, axis, param.nbeta);
+//goo            }
+//goo            else {
+//goo                dipolebmo = dipoleamo;
+//goo            }
 
             for(int iter = 0; iter < param.maxiter; ++iter) {
                 if(world.rank() == 0)
@@ -4916,15 +4917,15 @@ struct Calculation {
                 if(iter == 0) {
                     // iter = 0 initial_guess
 
-                    axrhs = initial_guess_response(world, dipoleamo, vlocal, vf, 0);
+                    axrhs = initial_guess_response(world, dipoleamo, vlocal, vf, 0, axis);
                     if(!param.spin_restricted && param.nbeta != 0) { 
-                        bxrhs = initial_guess_response(world, dipolebmo, vlocal, vf, 1);
+                        bxrhs = initial_guess_response(world, dipolebmo, vlocal, vf, 1, axis);
                     } 
  
                     if(omega != 0.0) {
-                        ayrhs = initial_guess_response(world, dipoleamo, vlocal, vf, 0);
+                        ayrhs = initial_guess_response(world, dipoleamo, vlocal, vf, 0, axis);
                         if(!param.spin_restricted && param.nbeta != 0) 
-                            byrhs = initial_guess_response(world, dipolebmo, vlocal, vf, 1);
+                            byrhs = initial_guess_response(world, dipolebmo, vlocal, vf, 1, axis);
                     } 
                 }
 
@@ -4943,7 +4944,6 @@ struct Calculation {
                     vecfuncT djkbmox; // = zero_functions<double,3>(world, param.nbeta);
                     vecfuncT djkbmoy; // = zero_functions<double,3>(world, param.nbeta);
 
-                    aVx = apply_potential_response(world, aocc, ax_old, vf, vlocal, exca, 0);
 
                     // calculate (dJ-dK)*2*mo
                     functionT drhoa = make_derivative_density( world, ax_old, ay_old, 0, param.nalpha );
@@ -4953,11 +4953,10 @@ struct Calculation {
                     } else {
                        drhob = drhoa;
                     } 
- 
                     functionT drho = drhoa + drhob; 
 
+                    aVx = apply_potential_response(world, aocc, ax_old, vf, vlocal, exca, 0);
                     djkamox = calc_djkmo(world, ax_old, ay_old, drho, 0);
-
                     // axrhs = -2.0 * (aVx + dipoleamo + duamo)
                     axrhs = calc_rhs(world, amo,  aVx, dipoleamo, djkamox);
 
@@ -5124,8 +5123,9 @@ struct Calculation {
                 }
 
                 ax_old = ax;
-                ay_old = ay;
                 bx_old = bx;
+
+                ay_old = ay;
                 by_old = by;
                     
             } //end iteration
