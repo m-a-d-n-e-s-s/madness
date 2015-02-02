@@ -1,9 +1,9 @@
 #ifndef MADNESS_FUNCTION_TRAITS
 #define MADNESS_FUNCTION_TRAITS
-// Used only if we don't have boost or C++0x
+
+#include <madness/world/enable_if.h>
 
 namespace madness {
-  namespace tr1 {
     namespace detail {
         /// Function traits in the spirt of boost function traits
         template <typename functionT>
@@ -476,12 +476,10 @@ namespace madness {
             typedef typename fnT::result_type type;
         };
 
-#if (__cplusplus >= 201103L) ||  defined(__INTEL_CXX11_MODE__)
         template <typename fnT>
         struct result_of<fnT, typename enable_if<is_type<decltype(&fnT::operator())> >::type> :
                 public result_of<decltype(&fnT::operator())>
         { };
-#endif
 
         template <typename fnT>
         struct result_of<fnT, typename enable_if_c<function_traits<fnT>::value>::type> {
@@ -493,9 +491,5 @@ namespace madness {
             typedef typename memfunc_traits<fnT>::result_type type;
         };
     }
-}
-  namespace detail {
-    using namespace ::madness::tr1::detail;
-  }
 }
 #endif

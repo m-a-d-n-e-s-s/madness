@@ -1229,12 +1229,6 @@ namespace madness {
         if (!param.psp_calc){
             potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);}
         
-        if (param.core_type.substr(0, 3) == "mcp") {
-            START_TIMER(world);
-            gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
-            END_TIMER(world, "MCP Core Projector");
-        }
-        
         START_TIMER(world);
         truncate(world, Vpsi);
         END_TIMER(world, "Truncate Vpsi");

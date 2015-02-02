@@ -54,7 +54,6 @@
 
 #include <madness/world/safempi.h>
 #include <madness/world/worldtypes.h>
-#include <madness/world/shared_ptr.h>
 #include <cstdlib>
 
 

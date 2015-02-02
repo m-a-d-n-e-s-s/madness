@@ -544,9 +544,11 @@ struct CalculationParameters {
                 f >> gmaxiter;
             }
             else if (s == "algopt") {
-                char buf[1024];
-                f.getline(buf,sizeof(buf));
-                algopt = buf;
+                f >> algopt;
+
+//                char buf[1024];
+//                f.getline(buf,sizeof(buf));
+//                algopt = buf;
             }
             else if (s == "tdksprop") {
               tdksprop = true;

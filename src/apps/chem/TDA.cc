@@ -20,7 +20,6 @@
 #include "../../madness/world/archive.h"
 #include "../../madness/world/parar.h"
 #include "../../madness/world/print.h"
-#include "../../madness/world/shared_ptr_bits.h"
 #include "../../madness/world/worldexc.h"
 #include "../../madness/world/worldfwd.h"
 #include "../../madness/world/worldgop.h"

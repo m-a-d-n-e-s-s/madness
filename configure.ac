@@ -106,15 +106,8 @@ ACX_ENABLE_OPTIMIZATION
 # Set warning flags by compiler vendor
 ACX_ENABLE_WARN
 
-# Look for user choice of language standard
-ACX_ENABLE_CPP0XTR1
-
 # Selelect best compilation flags
 ACX_ENABLE_OPTIMAL
-
-# Check for boost
-ACX_WITH_BOOST
-ACX_CHECK_TR1
 
 # Get optional external libraries inplace so that building will partially check them
 #ACX_WITH_LIBUNWIND ... no longer needed for google perf?
@@ -163,9 +156,10 @@ AC_HEADER_TIME
 AC_HEADER_STDC
 AC_CHECK_HEADERS([limits.h stddef.h stdint.h stdlib.h string.h sys/param.h sys/time.h unistd.h])
 AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
+# Check c++11 headers
+AC_CHECK_HEADERS([array type_traits tuple initializer_list])
 AC_HEADER_STDBOOL
-# No longer used
-#ACX_GNU_HASHMAP
+ACX_CHECK_CXX11
 
 # Types
 AC_TYPE_PID_T
@@ -373,6 +367,7 @@ AC_CONFIG_FILES([
     config/Makefile
     config/Makefile.sample
     config/MADNESS.pc
+    config/madness-config.cmake
     src/Makefile
       src/gtest/Makefile
       src/madness/Makefile

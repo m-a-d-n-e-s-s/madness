@@ -34,6 +34,7 @@
 
 #include <madness/world/binfsar.h>
 #include <madness/world/worldexc.h>
+#include <madness/world/boost_checked_delete_bits.h>
 #include <cstring>
 
 namespace madness {

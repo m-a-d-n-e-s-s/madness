@@ -139,7 +139,7 @@ namespace madness {
         static const attrT ATTR_UNORDERED=0x0;
         static const attrT ATTR_ORDERED=0x1;
 
-	static int testsome_backoff_us;
+        static int testsome_backoff_us;
 
     private:
 
@@ -235,11 +235,7 @@ namespace madness {
         static volatile bool debugging;    // True if debugging
 
         static const size_t DEFAULT_MAX_MSG_LEN = 3*512*1024;
-#ifdef HAVE_CRAYXT
-        static const int DEFAULT_NRECV=128;
-#else
-        static const int DEFAULT_NRECV=32;
-#endif
+        static const int DEFAULT_NRECV = 128;
 
         // Not allowed
         RMI(const RMI&);
@@ -272,14 +268,14 @@ namespace madness {
 
         static void begin() {
 
-	  testsome_backoff_us = 5;
-	  const char* buf = getenv("MAD_BACKOFF_US");
-	  if (buf) {
-            std::stringstream ss(buf);
-            ss >> testsome_backoff_us;
-	    if (testsome_backoff_us < 0) testsome_backoff_us = 0;
-	    if (testsome_backoff_us > 100) testsome_backoff_us = 100;
-	  }	  
+            testsome_backoff_us = 5;
+            const char* buf = getenv("MAD_BACKOFF_US");
+            if (buf) {
+                std::stringstream ss(buf);
+                ss >> testsome_backoff_us;
+                if (testsome_backoff_us < 0) testsome_backoff_us = 0;
+                if (testsome_backoff_us > 100) testsome_backoff_us = 100;
+            }
 
 
             MADNESS_ASSERT(task_ptr == NULL);

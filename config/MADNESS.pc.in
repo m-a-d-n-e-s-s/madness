@@ -14,5 +14,5 @@ fortran_integer_width=@MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE@
 Name: MADNESS
 Description: Multiresolution Adaptive Numerical Environment for Scientific Simulation
 Version: @PACKAGE_VERSION@
-Libs: -L${libdir} -lMADmra -lMADlinalg -lMADtensor -lMADmisc -lMADparser -lMADtinyxml -lMADworld ${libs}
+Libs: -L${libdir} -lMADmra -lMADlinalg -lMADtensor -lMADmisc -lMADmuparser -lMADtinyxml -lMADworld ${libs}
 Cflags: -I${includedir}

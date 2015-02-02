@@ -35,7 +35,7 @@ testsolver_SOURCES = testsolver.cc
 
 tdhf_SOURCES = tdhf.cc  ../apps/chem/TDA.cc ../apps/chem/TDA_XC.cc
 
-nemo_SOURCES = nemo.cc
+nemo_SOURCES = nemo.cc 
 
 newsolver_SOURCES = newsolver.cc
 
