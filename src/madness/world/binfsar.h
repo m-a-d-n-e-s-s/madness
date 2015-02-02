@@ -40,6 +40,7 @@
 /// \brief Implements archive wrapping a binary filestream
 
 #include <fstream>
+#include <memory>
 #include <madness/world/archive.h>
 
 
