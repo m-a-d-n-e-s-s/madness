@@ -325,7 +325,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & psp_calc;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & nuclear_corrfac & psp_calc;
     }
 
     CalculationParameters()

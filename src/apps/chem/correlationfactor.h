@@ -107,6 +107,9 @@ public:
 		: world(world), vtol(FunctionDefaults<3>::get_thresh()*0.1)
 		, molecule(mol) {}
 
+	/// virtual destructor
+	virtual ~NuclearCorrelationFactor() {};
+
 	/// initialize the regularized potentials U1 and U2
 	void initialize() {
 
