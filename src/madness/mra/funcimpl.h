@@ -42,7 +42,6 @@
 #include <madness/world/world.h>
 #include <madness/world/print.h>
 #include <madness/world/scopedptr.h>
-#include <madness/world/typestuff.h>
 #include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/gentensor.h>

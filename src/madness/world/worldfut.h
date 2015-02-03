@@ -46,9 +46,7 @@
 #include <madness/world/nodefaults.h>
 #include <madness/world/worlddep.h>
 #include <madness/world/array.h>
-#include <madness/world/shared_ptr.h>
 #include <madness/world/worldref.h>
-#include <madness/world/typestuff.h>
 #include <madness/world/worldfwd.h>
 #include <madness/world/move.h>
 
@@ -121,6 +119,23 @@ which merely blows instead of sucking.
     /// \ingroup futures
     template <typename T>
     struct is_future< Future<T> > : public std::true_type { };
+
+
+    /// Boost-type-trait-like mapping of Future<T> to T
+
+    /// \ingroup futures
+    template <typename T>
+    struct add_future {
+        typedef Future<T> type;
+    };
+
+    /// Boost-type-trait-like mapping of Future<T> to T
+
+    /// \ingroup futures
+    template <typename T>
+    struct add_future< Future<T> > {
+        typedef Future<T> type;
+    };
 
     /// Boost-type-trait-like mapping of Future<T> to T
 

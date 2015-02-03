@@ -65,7 +65,7 @@
 #define MADNESS_WORLD_SCOPED_PTR_H__INCLUDED
 
 #include <madness/world/worldexc.h>
-#include <madness/world/shared_ptr.h>
+#include <madness/world/boost_checked_delete_bits.h>
 #include <cstddef>
 
 namespace madness {

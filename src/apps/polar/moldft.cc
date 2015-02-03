@@ -45,6 +45,11 @@
 #include <polar/xcfunctional.h>
 #include <polar/potentialmanager.h>
 
+#include <madness/tensor/elem.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/mra/qmprop.h>
+#include <madness/misc/misc.h>
+#include <madness/misc/ran.h>
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/distributed_matrix.h>
 
@@ -2227,8 +2232,7 @@ struct Calculation {
     }
 
     vecfuncT apply_potential_response(World & world, const tensorT & occ, const vecfuncT & dmo,
-                             const vecfuncT& vf, const functionT & vlocal, double & exc, int ispin, 
-                             int & flag)
+                             const vecfuncT& vf, const functionT & vlocal, double & exc, int ispin)
     {
         functionT vloc = vlocal;
         exc = 0.0;
@@ -2268,9 +2272,9 @@ struct Calculation {
         if(xc.hf_exchange_coefficient()){
             START_TIMER(world);
             vecfuncT Kdmo;
-            if(flag == 0)
+            if(ispin == 0)
                 Kdmo= apply_hf_exchange(world, occ, amo, dmo);
-            if(flag == 1)
+            if(ispin == 1)
                 Kdmo= apply_hf_exchange(world, occ, bmo, dmo);
             //tensorT excv = inner(world, Kdmo, dmo);
             //double exchf = 0.0;
@@ -2889,7 +2893,7 @@ struct Calculation {
         for(unsigned int i = 0;i < ay.size();++i){
             if(aynorm[i] > param.maxrotn){
                 double s = param.maxrotn / aynorm[i];
-                ++nres;
+                nres++;
                 if(world.rank() == 0){
                     if(nres == 1)
                         printf("  restricting step for alpha orbitals:");
@@ -2898,7 +2902,6 @@ struct Calculation {
                 }
                 ay_new[i].gaxpy(s, ay[i], 1.0 - s, false);
             }
-
         }
         if(nres > 0 && world.rank() == 0)
             printf("\n");
@@ -2908,7 +2911,7 @@ struct Calculation {
             for(unsigned int i = 0;i < bx.size();++i){
                 if(bxnorm[i] > param.maxrotn){
                     double s = param.maxrotn / bxnorm[i];
-                    ++nres;
+                    nres++;
                     if(world.rank() == 0){
                         if(nres == 1)
                             printf("  restricting step for  beta orbitals:");
@@ -2917,7 +2920,6 @@ struct Calculation {
                     }
                     bx_new[i].gaxpy(s, bx[i], 1.0 - s, false);
                 }
-
             }
             if(nres > 0 && world.rank() == 0)
                 printf("\n");
@@ -3781,481 +3783,479 @@ struct Calculation {
 
     }// end solve function
 
-    void solve_finite_mo(World & world) {
-
-        double ep = param.epsf;
-
-        if(param.response_freq != 0.0) 
-            error("Frequency should be ZERO.");
-        if(world.rank() == 0) { 
-            print("**********************");
-            print("   start solve plus   ");
-            print("**********************");
-        }
-        // amo_p, bmo_p
-        solve_mp(world, amo_p, bmo_p, 0, ep);
-
-        if(world.rank() == 0) { 
-            print("**********************");
-            print("   start solve minus  ");
-            print("**********************");
-        }
-        // amo_m, bmo_m
-        solve_mp(world, amo_m, bmo_m, 1, ep);
-    }
-
-    void solve_spolar(World & world)
-    {
-        double ep = param.epsf;
-        subspaceT subspace;
-        tensorT Q;
-        //bool do_this_iter = true;
-        // Shrink subspace until stop localizing/canonicalizing
-
-        int aflag = 0;
-        int bflag = 1;
-        
-        // X:axis=0, Y:axis=1, Z:axis=2
-        double omega = 0.0;
-        int axis = param.response_axis;
-
-        response_frequency(world, axis);
-        if(world.rank() == 0)  
-            print(" Frequency for response function = ", omega);
-        
-        const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
-        vecfuncT ax = zero_functions<double, 3>(world, param.nalpha);
-        vecfuncT ay = zero_functions<double, 3>(world, param.nalpha);
-        vecfuncT bx = zero_functions<double, 3>(world, param.nbeta);
-        vecfuncT by = zero_functions<double, 3>(world, param.nbeta);
-
-        // new response function
-        vecfuncT ax_old = zero_functions<double,3>(world, param.nalpha);
-        vecfuncT ay_old = zero_functions<double,3>(world, param.nalpha);
-        vecfuncT bx_old = zero_functions<double,3>(world, param.nbeta);
-        vecfuncT by_old = zero_functions<double,3>(world, param.nbeta);
-        
-        if(world.rank() == 0) { 
-            print("\n\n\n");
-            print(" ------------------------------------------------------------------------------");
-            print(" |                MADNESS FINITE FIELD SOLVATION MODULE                  |");
-            print(" ------------------------------------------------------------------------------");
-            print(" \n\n");
-        }
-
-        for(int iter = 0;iter < param.maxiter;++iter){
-            if(world.rank() == 0)
-                printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
-            double residual = 0.0;
-
-            for(int p=0; p<param.nalpha; ++p) {
-                ax[p] = amo_p[p] - amo_m[p];
-                ax[p].scale(1/(2*ep));
-            }
-            if(!param.spin_restricted && param.nbeta != 0) {
-                for(int p=0; p<param.nbeta; ++p) {
-                    bx[p] = bmo_p[p] - bmo_m[p];
-                    bx[p].scale(1/(2*ep));
-                }
-            }
-
-            if(iter > 0) {
-#if 0
-                vecfuncT rax = zero_functions<double,3>(world, param.nalpha); //residual alpha x
-                vecfuncT ray = zero_functions<double,3>(world, param.nalpha); //residual alpha y
-                vecfuncT rbx = zero_functions<double,3>(world, param.nbeta);  //residual beta x
-                vecfuncT rby = zero_functions<double,3>(world, param.nbeta);  //residual beta y
-
-                rax = sub(world, ax, ax_old);
-                ray = sub(world, ay, ay_old);
-
-                if(!param.spin_restricted && param.nbeta != 0) {
-                    // bxerr = (bx_new - bx).norm2() 
-                    rbx = sub(world, bx, bx_old);
-                    rby = sub(world, by, by_old);
-                }
-                double update_residual = 0.0;
-                    update_response_subspace(world, ax, ay, bx, by, rax, ray, rbx, rby, subspace, Q, update_residual); 
-#endif
-                orthogonalize_response(ax, aflag);
-                orthogonalize_response(ay, aflag);
-                orthogonalize_response(bx, bflag);
-                orthogonalize_response(by, bflag);
-
-                if(!param.spin_restricted && param.nbeta != 0) residual = norm2(world, sub(world, ax, ax_old)) + norm2(world, sub(world, bx, bx_old));
-                else if (param.nbeta != 0) residual = 2 * norm2(world, sub(world, ax, ax_old));
-                else residual = norm2(world, sub(world, ax, ax_old)); 
-
-                print("\nOLD response function (plus, alpha_spin) = ", norm2(world, ax_old));
-                print("NEW response function (plus, alpha_spin) = ", norm2(world, ax));
-                print("\nresiduals_response (final) = ", residual);
-                print("rconv *(param.nalpha + param.nbeta)*2", rconv *(param.nalpha + param.nbeta)*2);
-
-                // 収束判定
-                if( residual < (rconv *(param.nalpha + param.nbeta)*2))
-                {
-                    print("\n\n\n");
-                    print(" ------------------------------------------------------------------------------");
-                    print(" |                  MADNESS CALCULATION POLARIZABILITY                        |");
-                    print(" ------------------------------------------------------------------------------");
-                    print(" \n\n");
-
-                    break; 
-                }
-            }
-            ax_old = ax;
-            ay_old = ay;
-            bx_old = bx;
-            by_old = by;
-
-        } // end iteration
-
-        print("\nConverged response function!!\n");
-
-        double polar_alpha_p, polar_alpha_m, polar_beta_p, polar_beta_m;
-        double total_polar;
-        polar_alpha_p = polar_alpha_m = polar_beta_p = polar_beta_m = 0.0;
-
-        std::vector<int> f(3, 0);
-        f[axis] = true;
-        functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
-
-        vecfuncT damo = zero_functions<double,3>(world, param.nalpha); // dipolefunc * amo
-        vecfuncT dbmo = zero_functions<double,3>(world, param.nbeta);  // dipolefunc * bmo
-
-        for(int i = 0; i<param.nalpha; ++i) {
-            damo[i] = dipolefunc * amo[i];
-
-            polar_alpha_p += -2 * inner(ax[i], damo[i]);
-            polar_alpha_m += -2 * inner(ay[i], damo[i]);
-        }
-        if(!param.spin_restricted && param.nbeta != 0) {
-            for(int i = 0; i<param.nbeta; ++i) {
-                dbmo[i] = dipolefunc * bmo[i];
-                
-                polar_beta_p += -2 * inner(bx[i], dbmo[i]);
-                polar_beta_m += -2 * inner(by[i], dbmo[i]);
-            }
-        }
-
-        if(!param.spin_restricted && param.nbeta != 0) {
-            total_polar = polar_alpha_p + polar_beta_p;
-        }
-        else if(param.nbeta != 0) total_polar = 2 * polar_alpha_p;
-        else total_polar = polar_alpha_p;
-
-        if(!param.spin_restricted && param.nbeta != 0) {
-            if(axis == 0) {
-                print("Static Polarizability alpha [X][X]", polar_alpha_p);
-                print("Static Polarizability beta  [X][X]", polar_beta_p);
-                print("Static Polarizability TOTAL [X][X]", total_polar);
-            }
-            if(axis == 1) {
-                print("Static Polarizability alpha [Y][Y]", polar_alpha_p);
-                print("Static Polarizability beta  [Y][Y]", polar_beta_p);
-                print("Static Polarizability TOTAL [Y][Y]", total_polar);
-            }
-            if(axis == 2) {
-                print("Static Polarizability alpha [Z][Z]", polar_alpha_p);
-                print("Static Polarizability beta  [Z][Z]", polar_beta_p);
-                print("Static Polarizability TOTAL [Z][Z]", total_polar);
-            }
-        }
-        else {
-            if(axis == 0) {
-                print("Static Polarizability alpha [X][X]", polar_alpha_p);
-                print("Static Polarizability TOTAL [X][X]", total_polar);
-            }
-            if(axis == 1) {
-                print("Static Polarizability alpha [Y][Y]", polar_alpha_p);
-                print("Static Polarizability TOTAL [Y][Y]", total_polar);
-            }
-            if(axis == 2) { 
-                print("Static Polarizability alpha [Z][Z]", polar_alpha_p);
-                print("Static Polarizability TOTAL [Z][Z]", total_polar);
-            }
-        }
-
-    } // end solve_polar function
-
-    void solve_mp(World & world, vecfuncT & amo_mp, vecfuncT & bmo_mp, int mflag, double & ep) 
-    {
-
-        functionT arho_old, brho_old;
-        const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
-        const double trantol = vtol / std::min(30.0, double(amo_mp.size()));
-        const double tolloc = 1e-3;
-        double update_residual = 0.0, bsh_residual = 0.0;
-        subspaceT subspace;
-        tensorT Q;
-        bool do_this_iter = true;
-        int maxsub_save = param.maxsub;
-        param.maxsub = 2;
-
-        for(int iter = 0;iter < param.maxiter;++iter){
-            if(world.rank() == 0)
-                printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
-
-            if (iter > 0 && update_residual < 0.1) {
-                //do_this_iter = false;
-                param.maxsub = maxsub_save;
-            }
-            if(param.localize && do_this_iter) {
-                tensorT U;
-                if (param.localize_pm) {
-                    U = localize_PM(world, amo_mp, aset_mp, tolloc, 0.25, iter == 0, true);
-                }
-                else {
-                    U = localize_boys(world, amo_mp, aset_mp, tolloc, 0.25, iter==0);
-                }
-
-                amo_mp = transform(world, amo_mp, U, trantol, true);
-                truncate(world, amo_mp);
-                normalize(world, amo_mp);
-                rotate_subspace(world, U, subspace, 0, amo_mp.size(), trantol);
-                if(!param.spin_restricted && param.nbeta != 0 ){
-                    if (param.localize_pm) {
-                        U = localize_PM(world, bmo_mp, bset_mp, tolloc, 0.25, iter == 0, true);
-                    }
-                    else {
-                        U = localize_boys(world, bmo_mp, bset_mp, tolloc, 0.25, iter==0);
-                    }
-                    bmo_mp = transform(world, bmo_mp, U, trantol, true);
-                    truncate(world, bmo_mp);
-                    normalize(world, bmo_mp);
-                    rotate_subspace(world, U, subspace, amo_mp.size(), bmo_mp.size(), trantol);
-                }
-            }
-
-            START_TIMER(world);
-            functionT arho, brho;
-            if(iter == 0) arho = make_density(world, aocc, amo);
-            else arho = make_density(world, aocc_mp, amo_mp);
-
-            if (param.nbeta) {
-                if (param.spin_restricted) {
-                    brho = arho;
-                }
-                else {
-                    if(iter == 0) brho = make_density(world, bocc, bmo);
-                    else brho = make_density(world, bocc_mp, bmo_mp);
-                }
-            }
-            else {
-                brho = functionT(world); // zero
-            }
-            END_TIMER(world, "Make densities");
-            print_meminfo(world.rank(), "Make densities");
-
-            if(iter < 2 || (iter % 10) == 0){
-                START_TIMER(world);
-                loadbal(world, arho, brho, arho_old, brho_old, subspace);
-                END_TIMER(world, "Load balancing");
-                print_meminfo(world.rank(), "Load balancing");
-            }
-            double da = 0.0, db = 0.0;
-            if(iter > 0){
-                da = (arho - arho_old).norm2();
-                db = (brho - brho_old).norm2();
-                if(world.rank() == 0)
-                    print("delta rho", da, db, "residuals", bsh_residual, update_residual);
-
-            }
-
-            arho_old = arho;
-            brho_old = brho;
-            functionT rho = arho + brho;
-            rho.truncate();
-            print("rho = ", rho.norm2());
-            real_function_3d vnuc = potentialmanager->vnuclear();
-            double enuclear = inner(rho, vnuc);
-
-            START_TIMER(world);
-            functionT vcoul = apply(*coulop, rho);
-            functionT vlocal;
-            END_TIMER(world, "Coulomb");
-            print_meminfo(world.rank(), "Coulomb");
-
-            double ecoulomb = 0.5 * inner(rho, vcoul);
-            //rho.clear(false);
-            vlocal = vcoul + vnuc ;
-
-            print("Vloc1", vlocal.trace(), vlocal.norm2());
-
-            std::vector<int> f(3, 0);
-            f[param.response_axis] = true; // 2 -> axis = z
-            functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
-            dipolefunc.scale(ep);
-            dipolefunc.truncate();
-            
-            if (mflag == 1) vlocal = vlocal - dipolefunc;
-            else vlocal = vlocal + dipolefunc;
-            print("Vloc2", vlocal.trace(), vlocal.norm2());
-            
-            double edipole = inner(rho, dipolefunc);
-            print("Energy of finite field = ", edipole);
-
-            rho.clear(false);
-
-            vcoul.clear(false);
-            vlocal.truncate();
-            double exca = 0.0, excb = 0.0;
-
-            vecfuncT vf, delrho;
-            if (xc.is_dft()) {
-                arho.reconstruct();
-                if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
-                // brho.reconstruct();
-
-                vf.push_back(arho);
-
-                if (xc.is_spin_polarized()) vf.push_back(brho);
-
-                if (xc.is_gga()) {
-
-                    for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
-                    if (xc.is_spin_polarized())
-                        for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
-
-
-                    world.gop.fence(); // NECESSARY
-
-                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
-
-                    if (xc.is_spin_polarized())
-                        vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
-                    if (xc.is_spin_polarized())
-                        vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-
-                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
-
-                    if (xc.is_spin_polarized())
-                        for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
-                    world.gop.fence(); // NECESSARY
-                }
-                if (vf.size()) {
-                    reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-                }
-            }
-
-            vecfuncT Vpsia = apply_potential(world, aocc_mp, amo_mp, vf, delrho, vlocal, exca, 0);
-
-            vecfuncT Vpsib;
-            if(!param.spin_restricted && param.nbeta) {
-                Vpsib = apply_potential(world, bocc_mp, bmo_mp, vf, delrho, vlocal, excb, 1);
-            }
-
-            double ekina = 0.0, ekinb = 0.0;
-            tensorT focka = make_fock_matrix(world, amo_mp, Vpsia, aocc_mp, ekina);
-            tensorT fockb = focka;
-
-            if (!param.spin_restricted && param.nbeta != 0)
-                fockb = make_fock_matrix(world, bmo_mp, Vpsib, bocc_mp, ekinb);
-            else if (param.nbeta != 0) {
-                ekinb = ekina;
-            }
-
-            if (!param.localize && do_this_iter) {
-                tensorT U = diag_fock_matrix(world, focka, amo_mp, Vpsia, aeps_mp, aocc_mp, FunctionDefaults<3>::get_thresh());
-                rotate_subspace(world, U, subspace, 0, amo_mp.size(), trantol);
-                if (!param.spin_restricted && param.nbeta != 0) {
-                    U = diag_fock_matrix(world, fockb, bmo_mp, Vpsib, beps_mp, bocc_mp, FunctionDefaults<3>::get_thresh());
-                    rotate_subspace(world, U, subspace, amo_mp.size(), bmo_mp.size(), trantol);
-                }
-            }
-
-            double enrep = molecule.nuclear_repulsion_energy();
-            double ekinetic = ekina + ekinb;
-            double exc = exca + excb;
-            double etot = ekinetic + enuclear + ecoulomb + exc + enrep + edipole;
-            current_energy = etot;
-            esol = etot;
-
-            if(world.rank() == 0){
-                printf("\n              kinetic %16.8f\n", ekinetic);
-                printf("   nuclear attraction %16.8f\n", enuclear);
-                printf("              coulomb %16.8f\n", ecoulomb);
-                printf(" exchange-correlation %16.8f\n", exc);
-                printf("    nuclear-repulsion %16.8f\n", enrep);
-                printf("                total %16.8f\n\n", etot);
-            }
-
-            if(iter > 0){
-                //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
-                if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && (param.conv_only_dens || bsh_residual < 5.0*dconv)){
-                    if(world.rank() == 0) {
-                        print("\nConverged!\n");
-                    }
-
-                    // Diagonalize to get the eigenvalues and if desired the final eigenvectors
-                    tensorT U;
-                    tensorT overlap = matrix_inner(world, amo_mp, amo_mp, true);
-
-                    START_TIMER(world);
-                    sygvp(world, focka, overlap, 1, U, aeps_mp);
-                    END_TIMER(world, "focka eigen sol");
-
-                    if (!param.localize) {
-                        amo_mp = transform(world, amo_mp, U, trantol, true);
-                        truncate(world, amo_mp);
-                        normalize(world, amo_mp);
-                    }
-                    if(param.nbeta != 0 && !param.spin_restricted){
-                        overlap = matrix_inner(world, bmo_mp, bmo_mp, true);
-
-                        START_TIMER(world);
-                        sygvp(world, fockb, overlap, 1, U, beps_mp);
-                        END_TIMER(world, "fockb eigen sol");
-
-                        if (!param.localize) {
-                            bmo_mp = transform(world, bmo_mp, U, trantol, true);
-                            truncate(world, bmo_mp);
-                            normalize(world, bmo_mp);
-                        }
-                    }
-
-                    if(world.rank() == 0) {
-                        print(" ");
-                        print("alpha mp eigenvalues");
-                        print(aeps_mp);
-                        if(param.nbeta==0.0 && !param.spin_restricted){
-                            print("beta mp eigenvalues");
-                            print(beps_mp);
-                        }
-                    }
-
-                    if (param.localize) {
-                        // Restore the diagonal elements for the analysis
-                        for (unsigned int i=0; i<amo_mp.size(); ++i) aeps_mp[i] = focka(i,i);
-                        for (unsigned int i=0; i<bmo_mp.size(); ++i) beps_mp[i] = fockb(i,i);
-                    }
-
-                    break;
-                }
-            }
-            update_subspace_mp(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual, mflag, amo_mp, bmo_mp);
-        }
-        if (world.rank() == 0) {
-            if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
-            else print("Orbitals are eigenvectors - energies are eigenvalues\n");
-            print("Analysis of alpha MO vectors");
-        }
-
-        analyze_vectors(world, amo_mp, aocc_mp, aeps_mp);
-        if (param.nbeta != 0 && !param.spin_restricted) {
-            if (world.rank() == 0)
-                print("Analysis of beta MO vectors");
-
-            analyze_vectors(world, bmo_mp, bocc_mp, beps_mp);
-        }
-
-    }// end solve mp function
+//dsol    void solve_finite_mo(World & world) {
+//dsol
+//dsol        double ep = param.epsf;
+//dsol
+//dsol        if(param.response_freq != 0.0) 
+//dsol            error("Frequency should be ZERO.");
+//dsol        if(world.rank() == 0) { 
+//dsol            print("**********************");
+//dsol            print("   start solve plus   ");
+//dsol            print("**********************");
+//dsol        }
+//dsol        // amo_p, bmo_p
+//dsol        solve_mp(world, amo_p, bmo_p, 0, ep);
+//dsol
+//dsol        if(world.rank() == 0) { 
+//dsol            print("**********************");
+//dsol            print("   start solve minus  ");
+//dsol            print("**********************");
+//dsol        }
+//dsol        // amo_m, bmo_m
+//dsol        solve_mp(world, amo_m, bmo_m, 1, ep);
+//dsol    }
+//dsol
+//dsol    void solve_spolar(World & world)
+//dsol    {
+//dsol        double ep = param.epsf;
+//dsol        subspaceT subspace;
+//dsol        tensorT Q;
+//dsol        //bool do_this_iter = true;
+//dsol        // Shrink subspace until stop localizing/canonicalizing
+//dsol
+//dsol        
+//dsol        // X:axis=0, Y:axis=1, Z:axis=2
+//dsol        double omega = 0.0;
+//dsol        int axis = param.response_axis;
+//dsol
+//dsol        response_frequency(world, axis);
+//dsol        if(world.rank() == 0)  
+//dsol            print(" Frequency for response function = ", omega);
+//dsol        
+//dsol        const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
+//dsol        vecfuncT ax = zero_functions<double, 3>(world, param.nalpha);
+//dsol        vecfuncT ay = zero_functions<double, 3>(world, param.nalpha);
+//dsol        vecfuncT bx = zero_functions<double, 3>(world, param.nbeta);
+//dsol        vecfuncT by = zero_functions<double, 3>(world, param.nbeta);
+//dsol
+//dsol        // new response function
+//dsol        vecfuncT ax_old = zero_functions<double,3>(world, param.nalpha);
+//dsol        vecfuncT ay_old = zero_functions<double,3>(world, param.nalpha);
+//dsol        vecfuncT bx_old = zero_functions<double,3>(world, param.nbeta);
+//dsol        vecfuncT by_old = zero_functions<double,3>(world, param.nbeta);
+//dsol        
+//dsol        if(world.rank() == 0) { 
+//dsol            print("\n\n\n");
+//dsol            print(" ------------------------------------------------------------------------------");
+//dsol            print(" |                MADNESS FINITE FIELD SOLVATION MODULE                  |");
+//dsol            print(" ------------------------------------------------------------------------------");
+//dsol            print(" \n\n");
+//dsol        }
+//dsol
+//dsol        for(int iter = 0;iter < param.maxiter;++iter){
+//dsol            if(world.rank() == 0)
+//dsol                printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
+//dsol            double residual = 0.0;
+//dsol
+//dsol            for(int p=0; p<param.nalpha; ++p) {
+//dsol                ax[p] = amo_p[p] - amo_m[p];
+//dsol                ax[p].scale(1/(2*ep));
+//dsol            }
+//dsol            if(!param.spin_restricted && param.nbeta != 0) {
+//dsol                for(int p=0; p<param.nbeta; ++p) {
+//dsol                    bx[p] = bmo_p[p] - bmo_m[p];
+//dsol                    bx[p].scale(1/(2*ep));
+//dsol                }
+//dsol            }
+//dsol
+//dsol            if(iter > 0) {
+//dsol#if 0
+//dsol                vecfuncT rax = zero_functions<double,3>(world, param.nalpha); //residual alpha x
+//dsol                vecfuncT ray = zero_functions<double,3>(world, param.nalpha); //residual alpha y
+//dsol                vecfuncT rbx = zero_functions<double,3>(world, param.nbeta);  //residual beta x
+//dsol                vecfuncT rby = zero_functions<double,3>(world, param.nbeta);  //residual beta y
+//dsol
+//dsol                rax = sub(world, ax, ax_old);
+//dsol                ray = sub(world, ay, ay_old);
+//dsol
+//dsol                if(!param.spin_restricted && param.nbeta != 0) {
+//dsol                    // bxerr = (bx_new - bx).norm2() 
+//dsol                    rbx = sub(world, bx, bx_old);
+//dsol                    rby = sub(world, by, by_old);
+//dsol                }
+//dsol                double update_residual = 0.0;
+//dsol                    update_response_subspace(world, ax, ay, bx, by, rax, ray, rbx, rby, subspace, Q, update_residual); 
+//dsol#endif
+//dsol                orthogonalize_response(ax, 0);
+//dsol                orthogonalize_response(ay, 0);
+//dsol                orthogonalize_response(bx, 1);
+//dsol                orthogonalize_response(by, 1);
+//dsol
+//dsol                if(!param.spin_restricted && param.nbeta != 0) residual = norm2(world, sub(world, ax, ax_old)) + norm2(world, sub(world, bx, bx_old));
+//dsol                else if (param.nbeta != 0) residual = 2 * norm2(world, sub(world, ax, ax_old));
+//dsol                else residual = norm2(world, sub(world, ax, ax_old)); 
+//dsol
+//dsol                print("\nOLD response function (plus, alpha_spin) = ", norm2(world, ax_old));
+//dsol                print("NEW response function (plus, alpha_spin) = ", norm2(world, ax));
+//dsol                print("\nresiduals_response (final) = ", residual);
+//dsol                print("rconv *(param.nalpha + param.nbeta)*2", rconv *(param.nalpha + param.nbeta)*2);
+//dsol
+//dsol                // 収束判定
+//dsol                if( residual < (rconv *(param.nalpha + param.nbeta)*2))
+//dsol                {
+//dsol                    print("\n\n\n");
+//dsol                    print(" ------------------------------------------------------------------------------");
+//dsol                    print(" |                  MADNESS CALCULATION POLARIZABILITY                        |");
+//dsol                    print(" ------------------------------------------------------------------------------");
+//dsol                    print(" \n\n");
+//dsol
+//dsol                    break; 
+//dsol                }
+//dsol            }
+//dsol            ax_old = ax;
+//dsol            ay_old = ay;
+//dsol            bx_old = bx;
+//dsol            by_old = by;
+//dsol
+//dsol        } // end iteration
+//dsol
+//dsol        print("\nConverged response function!!\n");
+//dsol
+//dsol        double polar_alpha_p, polar_alpha_m, polar_beta_p, polar_beta_m;
+//dsol        double total_polar;
+//dsol        polar_alpha_p = polar_alpha_m = polar_beta_p = polar_beta_m = 0.0;
+//dsol
+//dsol        std::vector<int> f(3, 0);
+//dsol        f[axis] = true;
+//dsol        functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
+//dsol
+//dsol        vecfuncT damo = zero_functions<double,3>(world, param.nalpha); // dipolefunc * amo
+//dsol        vecfuncT dbmo = zero_functions<double,3>(world, param.nbeta);  // dipolefunc * bmo
+//dsol
+//dsol        for(int i = 0; i<param.nalpha; ++i) {
+//dsol            damo[i] = dipolefunc * amo[i];
+//dsol
+//dsol            polar_alpha_p += -2 * inner(ax[i], damo[i]);
+//dsol            polar_alpha_m += -2 * inner(ay[i], damo[i]);
+//dsol        }
+//dsol        if(!param.spin_restricted && param.nbeta != 0) {
+//dsol            for(int i = 0; i<param.nbeta; ++i) {
+//dsol                dbmo[i] = dipolefunc * bmo[i];
+//dsol                
+//dsol                polar_beta_p += -2 * inner(bx[i], dbmo[i]);
+//dsol                polar_beta_m += -2 * inner(by[i], dbmo[i]);
+//dsol            }
+//dsol        }
+//dsol
+//dsol        if(!param.spin_restricted && param.nbeta != 0) {
+//dsol            total_polar = polar_alpha_p + polar_beta_p;
+//dsol        }
+//dsol        else if(param.nbeta != 0) total_polar = 2 * polar_alpha_p;
+//dsol        else total_polar = polar_alpha_p;
+//dsol
+//dsol        if(!param.spin_restricted && param.nbeta != 0) {
+//dsol            if(axis == 0) {
+//dsol                print("Static Polarizability alpha [X][X]", polar_alpha_p);
+//dsol                print("Static Polarizability beta  [X][X]", polar_beta_p);
+//dsol                print("Static Polarizability TOTAL [X][X]", total_polar);
+//dsol            }
+//dsol            if(axis == 1) {
+//dsol                print("Static Polarizability alpha [Y][Y]", polar_alpha_p);
+//dsol                print("Static Polarizability beta  [Y][Y]", polar_beta_p);
+//dsol                print("Static Polarizability TOTAL [Y][Y]", total_polar);
+//dsol            }
+//dsol            if(axis == 2) {
+//dsol                print("Static Polarizability alpha [Z][Z]", polar_alpha_p);
+//dsol                print("Static Polarizability beta  [Z][Z]", polar_beta_p);
+//dsol                print("Static Polarizability TOTAL [Z][Z]", total_polar);
+//dsol            }
+//dsol        }
+//dsol        else {
+//dsol            if(axis == 0) {
+//dsol                print("Static Polarizability alpha [X][X]", polar_alpha_p);
+//dsol                print("Static Polarizability TOTAL [X][X]", total_polar);
+//dsol            }
+//dsol            if(axis == 1) {
+//dsol                print("Static Polarizability alpha [Y][Y]", polar_alpha_p);
+//dsol                print("Static Polarizability TOTAL [Y][Y]", total_polar);
+//dsol            }
+//dsol            if(axis == 2) { 
+//dsol                print("Static Polarizability alpha [Z][Z]", polar_alpha_p);
+//dsol                print("Static Polarizability TOTAL [Z][Z]", total_polar);
+//dsol            }
+//dsol        }
+//dsol
+//dsol    } // end solve_polar function
+
+//dsolmp    void solve_mp(World & world, vecfuncT & amo_mp, vecfuncT & bmo_mp, int mflag, double & ep) 
+//dsolmp    {
+//dsolmp
+//dsolmp        functionT arho_old, brho_old;
+//dsolmp        const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
+//dsolmp        const double trantol = vtol / std::min(30.0, double(amo_mp.size()));
+//dsolmp        const double tolloc = 1e-3;
+//dsolmp        double update_residual = 0.0, bsh_residual = 0.0;
+//dsolmp        subspaceT subspace;
+//dsolmp        tensorT Q;
+//dsolmp        bool do_this_iter = true;
+//dsolmp        int maxsub_save = param.maxsub;
+//dsolmp        param.maxsub = 2;
+//dsolmp
+//dsolmp        for(int iter = 0;iter < param.maxiter;++iter){
+//dsolmp            if(world.rank() == 0)
+//dsolmp                printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
+//dsolmp
+//dsolmp            if (iter > 0 && update_residual < 0.1) {
+//dsolmp                //do_this_iter = false;
+//dsolmp                param.maxsub = maxsub_save;
+//dsolmp            }
+//dsolmp            if(param.localize && do_this_iter) {
+//dsolmp                tensorT U;
+//dsolmp                if (param.localize_pm) {
+//dsolmp                    U = localize_PM(world, amo_mp, aset_mp, tolloc, 0.25, iter == 0, true);
+//dsolmp                }
+//dsolmp                else {
+//dsolmp                    U = localize_boys(world, amo_mp, aset_mp, tolloc, 0.25, iter==0);
+//dsolmp                }
+//dsolmp
+//dsolmp                amo_mp = transform(world, amo_mp, U, trantol, true);
+//dsolmp                truncate(world, amo_mp);
+//dsolmp                normalize(world, amo_mp);
+//dsolmp                rotate_subspace(world, U, subspace, 0, amo_mp.size(), trantol);
+//dsolmp                if(!param.spin_restricted && param.nbeta != 0 ){
+//dsolmp                    if (param.localize_pm) {
+//dsolmp                        U = localize_PM(world, bmo_mp, bset_mp, tolloc, 0.25, iter == 0, true);
+//dsolmp                    }
+//dsolmp                    else {
+//dsolmp                        U = localize_boys(world, bmo_mp, bset_mp, tolloc, 0.25, iter==0);
+//dsolmp                    }
+//dsolmp                    bmo_mp = transform(world, bmo_mp, U, trantol, true);
+//dsolmp                    truncate(world, bmo_mp);
+//dsolmp                    normalize(world, bmo_mp);
+//dsolmp                    rotate_subspace(world, U, subspace, amo_mp.size(), bmo_mp.size(), trantol);
+//dsolmp                }
+//dsolmp            }
+//dsolmp
+//dsolmp            START_TIMER(world);
+//dsolmp            functionT arho, brho;
+//dsolmp            if(iter == 0) arho = make_density(world, aocc, amo);
+//dsolmp            else arho = make_density(world, aocc_mp, amo_mp);
+//dsolmp
+//dsolmp            if (param.nbeta) {
+//dsolmp                if (param.spin_restricted) {
+//dsolmp                    brho = arho;
+//dsolmp                }
+//dsolmp                else {
+//dsolmp                    if(iter == 0) brho = make_density(world, bocc, bmo);
+//dsolmp                    else brho = make_density(world, bocc_mp, bmo_mp);
+//dsolmp                }
+//dsolmp            }
+//dsolmp            else {
+//dsolmp                brho = functionT(world); // zero
+//dsolmp            }
+//dsolmp            END_TIMER(world, "Make densities");
+//dsolmp            print_meminfo(world.rank(), "Make densities");
+//dsolmp
+//dsolmp            if(iter < 2 || (iter % 10) == 0){
+//dsolmp                START_TIMER(world);
+//dsolmp                loadbal(world, arho, brho, arho_old, brho_old, subspace);
+//dsolmp                END_TIMER(world, "Load balancing");
+//dsolmp                print_meminfo(world.rank(), "Load balancing");
+//dsolmp            }
+//dsolmp            double da = 0.0, db = 0.0;
+//dsolmp            if(iter > 0){
+//dsolmp                da = (arho - arho_old).norm2();
+//dsolmp                db = (brho - brho_old).norm2();
+//dsolmp                if(world.rank() == 0)
+//dsolmp                    print("delta rho", da, db, "residuals", bsh_residual, update_residual);
+//dsolmp
+//dsolmp            }
+//dsolmp
+//dsolmp            arho_old = arho;
+//dsolmp            brho_old = brho;
+//dsolmp            functionT rho = arho + brho;
+//dsolmp            rho.truncate();
+//dsolmp            print("rho = ", rho.norm2());
+//dsolmp            real_function_3d vnuc = potentialmanager->vnuclear();
+//dsolmp            double enuclear = inner(rho, vnuc);
+//dsolmp
+//dsolmp            START_TIMER(world);
+//dsolmp            functionT vcoul = apply(*coulop, rho);
+//dsolmp            functionT vlocal;
+//dsolmp            END_TIMER(world, "Coulomb");
+//dsolmp            print_meminfo(world.rank(), "Coulomb");
+//dsolmp
+//dsolmp            double ecoulomb = 0.5 * inner(rho, vcoul);
+//dsolmp            //rho.clear(false);
+//dsolmp            vlocal = vcoul + vnuc ;
+//dsolmp
+//dsolmp            print("Vloc1", vlocal.trace(), vlocal.norm2());
+//dsolmp
+//dsolmp            std::vector<int> f(3, 0);
+//dsolmp            f[param.response_axis] = true; // 2 -> axis = z
+//dsolmp            functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
+//dsolmp            dipolefunc.scale(ep);
+//dsolmp            dipolefunc.truncate();
+//dsolmp            
+//dsolmp            if (mflag == 1) vlocal = vlocal - dipolefunc;
+//dsolmp            else vlocal = vlocal + dipolefunc;
+//dsolmp            print("Vloc2", vlocal.trace(), vlocal.norm2());
+//dsolmp            
+//dsolmp            double edipole = inner(rho, dipolefunc);
+//dsolmp            print("Energy of finite field = ", edipole);
+//dsolmp
+//dsolmp            rho.clear(false);
+//dsolmp
+//dsolmp            vcoul.clear(false);
+//dsolmp            vlocal.truncate();
+//dsolmp            double exca = 0.0, excb = 0.0;
+//dsolmp
+//dsolmp            vecfuncT vf, delrho;
+//dsolmp            if (xc.is_dft()) {
+//dsolmp                arho.reconstruct();
+//dsolmp                if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
+//dsolmp                // brho.reconstruct();
+//dsolmp
+//dsolmp                vf.push_back(arho);
+//dsolmp
+//dsolmp                if (xc.is_spin_polarized()) vf.push_back(brho);
+//dsolmp
+//dsolmp                if (xc.is_gga()) {
+//dsolmp
+//dsolmp                    for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
+//dsolmp                    if (xc.is_spin_polarized())
+//dsolmp                        for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
+//dsolmp
+//dsolmp
+//dsolmp                    world.gop.fence(); // NECESSARY
+//dsolmp
+//dsolmp                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
+//dsolmp
+//dsolmp                    if (xc.is_spin_polarized())
+//dsolmp                        vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+//dsolmp                    if (xc.is_spin_polarized())
+//dsolmp                        vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
+//dsolmp
+//dsolmp                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
+//dsolmp
+//dsolmp                    if (xc.is_spin_polarized())
+//dsolmp                        for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
+//dsolmp                    world.gop.fence(); // NECESSARY
+//dsolmp                }
+//dsolmp                if (vf.size()) {
+//dsolmp                    reconstruct(world, vf);
+//dsolmp                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//dsolmp                }
+//dsolmp            }
+//dsolmp
+//dsolmp            vecfuncT Vpsia = apply_potential(world, aocc_mp, amo_mp, vf, delrho, vlocal, exca, 0);
+//dsolmp
+//dsolmp            vecfuncT Vpsib;
+//dsolmp            if(!param.spin_restricted && param.nbeta) {
+//dsolmp                Vpsib = apply_potential(world, bocc_mp, bmo_mp, vf, delrho, vlocal, excb, 1);
+//dsolmp            }
+//dsolmp
+//dsolmp            double ekina = 0.0, ekinb = 0.0;
+//dsolmp            tensorT focka = make_fock_matrix(world, amo_mp, Vpsia, aocc_mp, ekina);
+//dsolmp            tensorT fockb = focka;
+//dsolmp
+//dsolmp            if (!param.spin_restricted && param.nbeta != 0)
+//dsolmp                fockb = make_fock_matrix(world, bmo_mp, Vpsib, bocc_mp, ekinb);
+//dsolmp            else if (param.nbeta != 0) {
+//dsolmp                ekinb = ekina;
+//dsolmp            }
+//dsolmp
+//dsolmp            if (!param.localize && do_this_iter) {
+//dsolmp                tensorT U = diag_fock_matrix(world, focka, amo_mp, Vpsia, aeps_mp, aocc_mp, FunctionDefaults<3>::get_thresh());
+//dsolmp                rotate_subspace(world, U, subspace, 0, amo_mp.size(), trantol);
+//dsolmp                if (!param.spin_restricted && param.nbeta != 0) {
+//dsolmp                    U = diag_fock_matrix(world, fockb, bmo_mp, Vpsib, beps_mp, bocc_mp, FunctionDefaults<3>::get_thresh());
+//dsolmp                    rotate_subspace(world, U, subspace, amo_mp.size(), bmo_mp.size(), trantol);
+//dsolmp                }
+//dsolmp            }
+//dsolmp
+//dsolmp            double enrep = molecule.nuclear_repulsion_energy();
+//dsolmp            double ekinetic = ekina + ekinb;
+//dsolmp            double exc = exca + excb;
+//dsolmp            double etot = ekinetic + enuclear + ecoulomb + exc + enrep + edipole;
+//dsolmp            current_energy = etot;
+//dsolmp            esol = etot;
+//dsolmp
+//dsolmp            if(world.rank() == 0){
+//dsolmp                printf("\n              kinetic %16.8f\n", ekinetic);
+//dsolmp                printf("   nuclear attraction %16.8f\n", enuclear);
+//dsolmp                printf("              coulomb %16.8f\n", ecoulomb);
+//dsolmp                printf(" exchange-correlation %16.8f\n", exc);
+//dsolmp                printf("    nuclear-repulsion %16.8f\n", enrep);
+//dsolmp                printf("                total %16.8f\n\n", etot);
+//dsolmp            }
+//dsolmp
+//dsolmp            if(iter > 0){
+//dsolmp                //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
+//dsolmp                if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && (param.conv_only_dens || bsh_residual < 5.0*dconv)){
+//dsolmp                    if(world.rank() == 0) {
+//dsolmp                        print("\nConverged!\n");
+//dsolmp                    }
+//dsolmp
+//dsolmp                    // Diagonalize to get the eigenvalues and if desired the final eigenvectors
+//dsolmp                    tensorT U;
+//dsolmp                    tensorT overlap = matrix_inner(world, amo_mp, amo_mp, true);
+//dsolmp
+//dsolmp                    START_TIMER(world);
+//dsolmp                    sygvp(world, focka, overlap, 1, U, aeps_mp);
+//dsolmp                    END_TIMER(world, "focka eigen sol");
+//dsolmp
+//dsolmp                    if (!param.localize) {
+//dsolmp                        amo_mp = transform(world, amo_mp, U, trantol, true);
+//dsolmp                        truncate(world, amo_mp);
+//dsolmp                        normalize(world, amo_mp);
+//dsolmp                    }
+//dsolmp                    if(param.nbeta != 0 && !param.spin_restricted){
+//dsolmp                        overlap = matrix_inner(world, bmo_mp, bmo_mp, true);
+//dsolmp
+//dsolmp                        START_TIMER(world);
+//dsolmp                        sygvp(world, fockb, overlap, 1, U, beps_mp);
+//dsolmp                        END_TIMER(world, "fockb eigen sol");
+//dsolmp
+//dsolmp                        if (!param.localize) {
+//dsolmp                            bmo_mp = transform(world, bmo_mp, U, trantol, true);
+//dsolmp                            truncate(world, bmo_mp);
+//dsolmp                            normalize(world, bmo_mp);
+//dsolmp                        }
+//dsolmp                    }
+//dsolmp
+//dsolmp                    if(world.rank() == 0) {
+//dsolmp                        print(" ");
+//dsolmp                        print("alpha mp eigenvalues");
+//dsolmp                        print(aeps_mp);
+//dsolmp                        if(param.nbeta==0.0 && !param.spin_restricted){
+//dsolmp                            print("beta mp eigenvalues");
+//dsolmp                            print(beps_mp);
+//dsolmp                        }
+//dsolmp                    }
+//dsolmp
+//dsolmp                    if (param.localize) {
+//dsolmp                        // Restore the diagonal elements for the analysis
+//dsolmp                        for (unsigned int i=0; i<amo_mp.size(); ++i) aeps_mp[i] = focka(i,i);
+//dsolmp                        for (unsigned int i=0; i<bmo_mp.size(); ++i) beps_mp[i] = fockb(i,i);
+//dsolmp                    }
+//dsolmp
+//dsolmp                    break;
+//dsolmp                }
+//dsolmp            }
+//dsolmp            update_subspace_mp(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual, mflag, amo_mp, bmo_mp);
+//dsolmp        }
+//dsolmp        if (world.rank() == 0) {
+//dsolmp            if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
+//dsolmp            else print("Orbitals are eigenvectors - energies are eigenvalues\n");
+//dsolmp            print("Analysis of alpha MO vectors");
+//dsolmp        }
+//dsolmp
+//dsolmp        analyze_vectors(world, amo_mp, aocc_mp, aeps_mp);
+//dsolmp        if (param.nbeta != 0 && !param.spin_restricted) {
+//dsolmp            if (world.rank() == 0)
+//dsolmp                print("Analysis of beta MO vectors");
+//dsolmp
+//dsolmp            analyze_vectors(world, bmo_mp, bocc_mp, beps_mp);
+//dsolmp        }
+//dsolmp
+//dsolmp    }// end solve mp function
 
     void response_frequency(World & world, int & axis)
     {
-        print("\n");
         if (world.rank() == 0) { 
+            print("\n");
             if(axis == 0) 
                 print(" AXIS of frequency = x");
 
@@ -4267,37 +4267,28 @@ struct Calculation {
         }
     }
 
-    vecfuncT calc_dipole_mo(World & world, int & axis, int & flag)
+    vecfuncT calc_dipole_mo(World & world,  vecfuncT & mo, int & axis, int  & size)
     {
-        vecfuncT dipolemo;
+        START_TIMER(world);
+
+        vecfuncT dipolemo = zero_functions<double,3>(world, size);
         
         std::vector<int> f(3, 0);
-        f[axis] = true;
+        f[axis] = 1;
         //print("f = ", f[0]," ",  f[1], " ", f[2]);
         functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
 
-        // dipolefunc * amo[iter]
-        START_TIMER(world);
-        if(flag == 0) {
-            dipolemo = zero_functions<double,3>(world, param.nalpha);
-            for(int p=0; p<param.nalpha; ++p)
-                dipolemo[p] = dipolefunc * amo[p];
-        }
-        else {
-            dipolemo = zero_functions<double,3>(world, param.nbeta);
-            for(int p=0; p<param.nbeta; ++p)
-                dipolemo[p] = dipolefunc * bmo[p];
-        }
+        // dipolefunc * mo[iter]
+        for(int p=0; p<size; ++p)
+            dipolemo[p] = dipolefunc * mo[p];
+
         END_TIMER(world, "Make perturbation");
         print_meminfo(world.rank(), "Make perturbation");
 
-        dipolefunc.clear(false);
-        f.clear();
-        
         return dipolemo;
     }
 
-    void calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int flag)
+    void calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int sign)
     {
         if (world.rank() == 0) { 
             print(" eps_alpha");
@@ -4309,80 +4300,85 @@ struct Calculation {
             print(" number of beta orbital = ", param.nbeta);
         }
 
-        if(flag == 0) {
-            for(int i=0; i<param.nalpha; ++i){
-                ak[i] = sqrt(-2.0 * (aeps[i] + omega));
-                if (world.rank() == 0)  
-                    print(" kx(alpha) [", i, "] : sqrt(-2 * (eps + omega)) = ", ak[i]);
-            }
-            if(!param.spin_restricted && param.nbeta != 0) {
-                for(int i=0; i<param.nbeta; ++i){
-                    bk[i] = sqrt(-2.0 * (beps[i] + omega));
-                    if (world.rank() == 0)  
-                        if (world.rank() == 0)  
-                            print(" kx(beta) [", i, "]: sqrt(-2 * (eps + omega)) = ", bk[i]);
-                }
-            }
+        for(int i=0; i<param.nalpha; ++i){
+            ak[i] = sqrt(-2.0 * (aeps[i] + sign * omega));
+            if (world.rank() == 0)  
+                print(" kxy(alpha) [", i, "] : sqrt(-2 * (eps +/- omega)) = ", ak[i]);
         }
-        else {
-            for(int i=0; i<param.nalpha; ++i){
-                ak[i] = sqrt(-2.0 * (aeps[i] - omega));
-                if (world.rank() == 0)  
-                    print(" ky(alpha) [", i, "] : sqrt(-2 * (eps - omega)) = ", ak[i]);
-            }
-            if(!param.spin_restricted && param.nbeta != 0) {
-                for(int i=0; i<param.nbeta; ++i){
-                    bk[i] = sqrt(-2.0 * (beps[i] - omega));
+        if(!param.spin_restricted && param.nbeta != 0) {
+            for(int i=0; i<param.nbeta; ++i){
+                bk[i] = sqrt(-2.0 * (beps[i] + sign * omega));
                     if (world.rank() == 0)  
-                        print(" ky(beta) [", i, "]: sqrt(-2 * (eps - omega)) = ", bk[i]);
-                }
-            }
-        }
+                        print(" kxy(beta) [", i, "]: sqrt(-2 * (eps +/- omega)) = ", bk[i]);
+    }
+    }
     }
 
     void make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
             std::vector<poperatorT> & aop, std::vector<poperatorT> & bop)
     {
         START_TIMER(world);
+        double tol = FunctionDefaults < 3 > ::get_thresh();
+
         for(int i=0; i<param.nalpha; ++i) {
-            // thresh : 1e-6
-            aop[i] = poperatorT(BSHOperatorPtr3D(world, ak[i], 0.001, 1e-6));
+            // thresh tol : 1e-6
+            aop[i] = poperatorT(BSHOperatorPtr3D(world, ak[i], param.lo , tol));
         }
         if(!param.spin_restricted && param.nbeta != 0) {
             for(int i=0; i<param.nbeta; ++i) {
-                bop[i] = poperatorT(BSHOperatorPtr3D(world, bk[i], 0.001, 1e-6));
+                bop[i] = poperatorT(BSHOperatorPtr3D(world, bk[i], param.lo, tol));
             }
-        }
+        } 
+
         END_TIMER(world, "Make BSHOp");
         print_meminfo(world.rank(), "Make BSHOp");
     }
 
     vecfuncT initial_guess_response(World & world, vecfuncT & dipolemo,
-            functionT & vlocal, vecfuncT & vf, int & flag) {
+            functionT & vlocal, vecfuncT & vf, int  spin, int & axis) {
         
+        START_TIMER(world);
+
         vecfuncT rhs, Vmo, djkmo;
         double exca = 0.0, excb = 0.0;
         
-        //START_TIMER(world);
         if (world.rank() == 0)  
             print("\nmake initial guess for response function");
         
-        if(flag == 0){
-            Vmo = zero_functions<double,3>(world, param.nalpha);
-            Vmo = apply_potential_response(world, aocc, amo, vf, vlocal, exca, 0, flag);
-            djkmo = calc_djkmo(world, amo, amo, amo, flag);
+      functionT arho = make_density(world, aocc, amo);
+      functionT brho;
+
+      if (param.nbeta) {
+          if (!param.spin_restricted) {
+              brho = make_density(world, bocc, bmo);
+          }
+          else {
+              brho = arho;
+          }
+      }
+      else {
+          brho = functionT(world); // zero
+      }
+      functionT rho = arho + brho;
+
+        if(spin == 0){
+          // initial guess >>  x,y_MOs = dipoleamo
+            Vmo = apply_potential_response(world, aocc, dipolemo, vf, vlocal, exca, 0 );
+            djkmo = calc_djkmo(world, dipolemo, dipolemo, rho, 0);
+            rhs = calc_rhs(world, amo, Vmo, dipolemo, djkmo);
         }
         else {
-            Vmo = zero_functions<double,3>(world, param.nbeta);
-            Vmo = apply_potential_response(world, bocc, bmo, vf, vlocal, excb, 1, flag);
-            djkmo = calc_djkmo(world, bmo, bmo, bmo, flag);
+            Vmo = apply_potential_response(world, bocc, dipolemo, vf, vlocal, excb, 1);
+            djkmo = calc_djkmo(world, dipolemo, dipolemo, rho, 1);
+            rhs = calc_rhs(world, bmo, Vmo, dipolemo, djkmo);
         }
 
-        rhs = add(world, Vmo, add(world, dipolemo, djkmo));
-        //END_TIMER(world, "Initial for response");
-        //print_meminfo(world.rank(), "Initial for response");
+        //rhs = add(world, Vmo, add(world, dipolemo, djkmo));
+
+        END_TIMER(world, "Initial for response");
+        print_meminfo(world.rank(), "Initial for response");
         
-        truncate(world, rhs);
+        //truncate(world, rhs);
         return rhs;
     }
 
@@ -4393,96 +4389,24 @@ struct Calculation {
         START_TIMER(world);            
 
         arho = make_density(world, aocc, amo);
-        brho = factoryT(world);
-
-        if (param.nbeta) {
-            if (param.spin_restricted) {
-                brho = arho;
-            }
-            else {
-                brho = make_density(world, bocc, bmo);
-            }
+        if (!param.spin_restricted) {
+            brho = make_density(world, bocc, bmo);
         }
         else {
-            brho = functionT(world); // zero
+            brho = arho;
         }
-        END_TIMER(world, "Make densities");
-        print_meminfo(world.rank(), "Make densities");
 
         rho = arho + brho;
         rho.truncate();
-        
-        //double enuclear = inner(rho, vnuc);
+
+        END_TIMER(world, "Make densities");
+        print_meminfo(world.rank(), "Make densities");
 
         return rho;
     }
 
-    vecfuncT calc_drho(World & world, functionT & arho, functionT & brho)
-    {
-
-        vecfuncT vf, delrho;
-        if (xc.is_dft()) {
-            arho.reconstruct();
-            if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
-            // brho.reconstruct();
-
-            vf.push_back(arho);
-
-            if (xc.is_spin_polarized()) vf.push_back(brho);
-
-            if (xc.is_gga()) {
-
-                for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
-                if (xc.is_spin_polarized())
-                    for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
-
-
-                world.gop.fence(); // NECESSARY
-
-                vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
-
-                if (xc.is_spin_polarized())
-                    vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
-                if (xc.is_spin_polarized())
-                    vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-
-                for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
-
-                if (xc.is_spin_polarized())
-                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
-                world.gop.fence(); // NECESSARY
-            }
-            if (vf.size()) {
-                reconstruct(world, vf);
-                arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-            }
-        }
-        return vf;
-    }
-
-    functionT make_potential(World & world, functionT & rho)
-    {
-        real_function_3d vnuc = potentialmanager->vnuclear();
-        //double enuclear = inner(rho, vnuc);
-
-        START_TIMER(world);
-        functionT vcoul = apply(*coulop, rho);
-        functionT vlocal;
-        END_TIMER(world, "Coulomb");
-        print_meminfo(world.rank(), "Coulomb");
-
-        //rho.clear(false);
-        //vcoul.scale(2.0); 
-        vlocal = vcoul + vnuc ;
-
-        vcoul.clear(false);
-        vlocal.truncate();
-
-        return vlocal;
-    }
-
     functionT make_derivative_density(World & world, vecfuncT & x, vecfuncT & y,
-            int & flag, int & size)
+            int  flag, int & size)
     {
         functionT drho = factoryT(world);
 
@@ -4501,21 +4425,22 @@ struct Calculation {
     }
 
     functionT calc_derivative_Jmo(World & world, int & p, 
-            vecfuncT & dmo1, vecfuncT & dmo2, 
-            vecfuncT & mo, int & size)
+            functionT & drho, 
+            vecfuncT & mo, int  spin, int & size)
     {
         functionT dJ = factoryT(world);
         functionT dJmo = factoryT(world);
         functionT j = factoryT(world);
         
         //START_TIMER(world);
-        for(int i=0; i<size; ++i) {
-            j = apply(*coulop,  ( dmo1[i] * mo[i] ) + ( dmo2[i] * mo[i] ) );
-            dJ = dJ + j;
-            j.clear(false);
-        }
+
+        dJ = apply(*coulop,   drho  );
+//vam2        for(int i=0; i<size; ++i) {
+//vam2            j = apply(*coulop,  ( dmo1[i] * mo[i] ) + ( dmo2[i] * mo[i] ) );
+//vam2            dJ = dJ + j;
+//vam2            j.clear(false);
+//vam2        }
         dJmo = dJ * mo[p];
-        dJ.clear(false);
         
         //END_TIMER(world, "Calc derivative J");
         return dJmo;
@@ -4540,22 +4465,30 @@ struct Calculation {
         //END_TIMER(world, "Calc derivative xc");
         return dKmo;
     }
-
+    
     vecfuncT calc_djkmo(World & world, vecfuncT & dmo1, 
-            vecfuncT & dmo2, vecfuncT & mo, int & flag)
+            vecfuncT & dmo2,  functionT drho, int  spin)
     {
-        int size = 0;
-
-        if(flag == 0) size = param.nalpha;
-        else if(flag == 1) size = param.nbeta;
-        vecfuncT djkmo =zero_functions<double,3>(world, size);
-        
         START_TIMER(world);
+
+        int size = 0;
+        vecfuncT mo; 
+
+        if(spin == 0) {
+           size = param.nalpha;
+           mo = amo;
+        }
+        else {
+           size = param.nbeta;
+           mo = bmo;
+        }
+
+        vecfuncT djkmo = zero_functions<double,3>(world, size);
+        
         for(int p=0; p<size; ++p) {
-            functionT dJmo = calc_derivative_Jmo(world, p, dmo1, dmo2, mo, size);        
+            functionT dJmo = calc_derivative_Jmo(world, p, drho, mo,  spin, size);        
             functionT dKmo = calc_exchange_function(world, p, dmo1, dmo2, mo, size);
 
-            dJmo.scale(2.0);
             djkmo[p] = dJmo - dKmo;
 
             dJmo.clear(false);
@@ -4581,24 +4514,25 @@ struct Calculation {
 //prod        return rhs;
 //prod    }
 
-    vecfuncT calc_rhs(World & world, vecfuncT & Vdmo, vecfuncT & dipolemo, vecfuncT & djkmo )
+    vecfuncT calc_rhs(World & world, vecfuncT & mo , vecfuncT & Vdmo, vecfuncT & dipolemo, vecfuncT & djkmo )
     {
-        vecfuncT rhs;
+        vecfuncT rhs = zero_functions<double,3>(world, Vdmo.size());
 
         START_TIMER(world);
         //dmo_rhs = Vdmo + dipolemo + djkmo;
 
         // the projector on the unperturbed density
-        Projector<double,3> rho0(amo);
+        Projector<double,3> rho0(mo);
 
-       vecfuncT gp= add(world, dipolemo, djkmo);
+       vecfuncT gp = add(world, dipolemo, djkmo);
 //        vecfuncT gp1= mul_sparse(world, rho0, gp, vtol);
 //prod        vecfuncT Gampsi;
         for (int i=0; i<Vdmo.size(); ++i) {
-            functionT gp1 =  Vdmo[i] + gp[i];
-            gp1 -= rho0(gp1);
+            functionT gp1 =  gp[i];
+            gp1 = gp1 - rho0(gp1);
 //prod            functionT a = rho0*gp;
 //prod            Gampsi.push_back(gp);
+            gp1 = Vdmo[i] + gp1 ;
             rhs.push_back(gp1);
         }
 //prod
@@ -4625,7 +4559,7 @@ struct Calculation {
     }
 
     // orthogonalization
-    void orthogonalize_response(vecfuncT & dmo, int & flag)
+    void orthogonalize_response(vecfuncT & dmo, int flag)
     {
         if(flag == 0){ 
             for(int i=0; i<param.nalpha; ++i){
@@ -4650,13 +4584,13 @@ struct Calculation {
 
 //vama ugly ! alpha_ij(w) = - sum(m occ) [<psi_m(0)|r_i|psi_mj(1)(w)> + <psi_mj(1)(-w)|r_i|psi_m(0)>]
 
-    void calc_dpolar(World & world, tensorT & polar, functionT & drho, int & axis)
+    void dpolar(World & world, tensorT & polar, functionT & drho, int & axis)
     {
         functionT dipolefunc;
 
         for(int i=0; i<3; ++i) {
             std::vector<int> f(3, 0);
-            f[i] = true;
+            f[i] = 1;
             dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
             polar(axis, i) = -2 * dipolefunc.inner(drho);
 
@@ -4664,61 +4598,57 @@ struct Calculation {
         }
     }
 
-    void solve_dpolar(World & world, double & total, 
+    void calc_dpolar(World & world, double & Dpolar_average, 
             vecfuncT & ax, vecfuncT & ay, 
             vecfuncT & bx, vecfuncT & by, 
-            int & axis, tensorT & total_Dpolar,
+            int & axis, tensorT & Dpolar_total,
             tensorT & Dpolar_alpha, tensorT & Dpolar_beta)
     {
-        int aflag = 0;
-        int bflag = 1;
         int fflag = 0;
 
         START_TIMER(world);
         // derivative density matrix
-        functionT drho = factoryT(world);
-        functionT adrho = make_derivative_density(world, ax, ay, aflag, param.nalpha), bdrho;
-        if(param.spin_restricted) 
-            bdrho = adrho;
-        else if(param.nbeta != 0) 
-            bdrho = make_derivative_density(world, bx, by ,bflag, param.nbeta);
-        else bdrho = factoryT(world);
+        functionT drhoa = make_derivative_density(world, ax, ay, 0, param.nalpha);
+        functionT drhob;
+        if(!param.spin_restricted) 
+            drhob = make_derivative_density(world, bx, by ,1, param.nbeta);
+        else 
+            drhob = drhoa;
 
-        drho = adrho + bdrho;
+        functionT drho = drhoa + drhob;
         
-        calc_dpolar(world, Dpolar_alpha, adrho, axis);
+        dpolar(world, Dpolar_alpha, drhoa, axis);
 
-        if(param.nbeta != 0) 
-            calc_dpolar(world, Dpolar_beta, bdrho, axis);
+        dpolar(world, Dpolar_beta, drhob, axis);
 
-        calc_dpolar(world, total_Dpolar, drho, axis);
+        dpolar(world, Dpolar_total, drho, axis);
         
         for(int i=0; i<3; ++i) {
-            total_Dpolar(axis, i) = 0.5 * total_Dpolar(axis, i);
+            Dpolar_total(axis, i) = 0.5 * Dpolar_total(axis, i);
 
             if (world.rank() == 0) { 
                 print("Dynamic Polarizability alpha [", axis, "][", i, "]", Dpolar_alpha(axis, i));
                 if(param.nbeta != 0) 
                     print("Dynamic Polarizability beta  [", axis, "][", i, "]", Dpolar_beta(axis, i));
-                print("Dynamic Polarizability TOTAL [", axis, "][", i, "]", total_Dpolar(axis, i), "\n");
+                print("Dynamic Polarizability TOTAL [", axis, "][", i, "]", Dpolar_total(axis, i), "\n");
             }
             
             // final flag
             if((i == 2) && (axis == 2)) fflag = 1;
         }
 
-        adrho.clear(false);
-        bdrho.clear(false);
+        drhoa.clear(false);
+        drhob.clear(false);
 
         //diagonalize
         tensorT V, epolar, eapolar, ebpolar;
         if(fflag != 0) {
             syev(Dpolar_alpha, V, eapolar);
-            syev(total_Dpolar, V, epolar);
+            syev(Dpolar_total, V, epolar);
                 if(param.nbeta != 0) 
                     syev(Dpolar_beta, V, ebpolar);
             for(unsigned int i=0; i<3; ++i) {
-                total = total + epolar[i];
+                Dpolar_average = Dpolar_average + epolar[i];
             }
         }
 
@@ -4730,8 +4660,8 @@ struct Calculation {
                             Dpolar_alpha(j, k) = 0.0;
                         if(Dpolar_beta(j, k) < 0.001 && Dpolar_beta(j, k) < -0.001)
                             Dpolar_beta(j, k) = 0.0;
-                        if(total_Dpolar(j, k) < 0.001 && total_Dpolar(j, k) < -0.001)
-                            total_Dpolar(j, k) = 0.0;
+                        if(Dpolar_total(j, k) < 0.001 && Dpolar_total(j, k) < -0.001)
+                            Dpolar_total(j, k) = 0.0;
                     }
                 }
                     print("\n");
@@ -4764,12 +4694,12 @@ struct Calculation {
                 print("\n");
                 print("\tTotal Dynamic Polarizability ( Frequency = ", param.response_freq, ")");
                 print("************************************************************************");
-                print("\n\t", total_Dpolar(0,0), "\t", total_Dpolar(0,1), "\t", total_Dpolar(0,2));
-                print("\t", total_Dpolar(1,0), "\t", total_Dpolar(1,1), "\t", total_Dpolar(1,2));
-                print("\t", total_Dpolar(2,0), "\t", total_Dpolar(2,1), "\t", total_Dpolar(2,2));
+                print("\n\t", Dpolar_total(0,0), "\t", Dpolar_total(0,1), "\t", Dpolar_total(0,2));
+                print("\t", Dpolar_total(1,0), "\t", Dpolar_total(1,1), "\t", Dpolar_total(1,2));
+                print("\t", Dpolar_total(2,0), "\t", Dpolar_total(2,1), "\t", Dpolar_total(2,2));
                 print("\n************************************************************************");
                 
-                print("\nThe average of polarizability = ", total/3.0, "\n");
+                print("\nThe average of polarizability = ", Dpolar_average/3.0, "\n");
             }
         }
         END_TIMER(world, "Calc D polar");
@@ -4807,14 +4737,16 @@ struct Calculation {
         if(world.rank() == 0) {
             print("\n\n\n");
             print(" ------------------------------------------------------------------------------");
-            print(" |                MADNESS RESPONSE FUNCTION SOLVATION MODULE                  |");
+            print(" |                MADNESS RESPONSE                                            |");
             print(" ------------------------------------------------------------------------------");
             print(" \n\n");
         }
 
         const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
+
         subspaceT subspace;
         tensorT Q;
+
         double update_residual = 0.0;
         int maxsub_save = param.maxsub;
 
@@ -4823,8 +4755,6 @@ struct Calculation {
                         print("alpha eigenvalues 2");
                         print(aeps);
                     }
-        int aflag = 0;
-        int bflag = 1;
         
         START_TIMER(world);
         // Green's function
@@ -4838,43 +4768,98 @@ struct Calculation {
         
         START_TIMER(world);
         //calculate frequency term
-        calc_freq(world, omega, akx, bkx, 0);
+        calc_freq(world, omega, akx, bkx, 1);
 
         if(omega != 0.0)
-            calc_freq(world, omega, aky, bky, 1);
+            calc_freq(world, omega, aky, bky, -1);
         END_TIMER(world, "Make frequency term");
         print_meminfo(world.rank(), "Make frequency term");
 
         // make density matrix
-        functionT arho = factoryT(world);
-        functionT brho = factoryT(world);
+        functionT arho ; // = factoryT(world);
+        functionT brho ; // = factoryT(world);
         functionT rho = make_density_ground(world, arho, brho);
 
-        functionT arhod = factoryT(world);
-        functionT brhod = factoryT(world);
-        START_TIMER(world);
-        vecfuncT vf = calc_drho(world, arho, brho);
-        END_TIMER(world, "Make delrho");
+        vecfuncT vf, delrho;
+        if (xc.is_dft()) {
+            START_TIMER(world);
+            arho.reconstruct();
+            if (param.nbeta != 0 && xc.is_spin_polarized())
+                brho.reconstruct();
+            // brho.reconstruct();
+
+            vf.push_back(arho);
+
+            if (xc.is_spin_polarized())
+                vf.push_back(brho);
+
+            if (xc.is_gga()) {
+
+                for (int axis = 0; axis < 3; ++axis)
+                    delrho.push_back((*gradop[axis])(arho, false)); // delrho
+                    if (xc.is_spin_polarized() && param.nbeta != 0)
+                    for (int axis = 0; axis < 3; ++axis)
+                        delrho.push_back((*gradop[axis])(brho, false));
+
+                world.gop.fence(); // NECESSARY
+
+                vf.push_back(
+                             delrho[0] * delrho[0] + delrho[1] * delrho[1]
+                             + delrho[2] * delrho[2]);     // sigma_aa
+
+                if (xc.is_spin_polarized() && param.nbeta != 0)
+                    vf.push_back(
+                                 delrho[0] * delrho[3] + delrho[1] * delrho[4]
+                                 + delrho[2] * delrho[5]); // sigma_ab
+                if (xc.is_spin_polarized() && param.nbeta != 0)
+                    vf.push_back(
+                                 delrho[3] * delrho[3] + delrho[4] * delrho[4]
+                                 + delrho[5] * delrho[5]); // sigma_bb
+
+                world.gop.fence(); // NECESSARY
+            }
+            if (vf.size()) {
+                reconstruct(world, vf);
+                arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+            }
+
+            // this is a nasty hack, just adding something so that make_libxc_args receives 5 arguments
+            // has to be here or refine_to_common_level(vf) above hangs, but we really need a better solution for when nbeta=0
+            if (xc.is_spin_polarized() && param.nbeta == 0 && xc.is_gga()){
+                    vf.push_back(brho);
+                    vf.push_back(brho);}
+            END_TIMER(world, "DFT setup");
+        } 
+
+
         print_meminfo(world.rank(), "Make delrho");
 
         // vlocal = vnuc + 2*J  
-        functionT vlocal = make_potential(world, rho);
+
+        functionT vnuc;
+        vnuc = potentialmanager->vnuclear();
+        START_TIMER(world);
+        functionT vcoul = apply(*coulop, rho);
+        END_TIMER(world, "Coulomb");
+        functionT vlocal = vcoul + vnuc;
         
+        vcoul.clear(false);
+        vlocal.truncate();
+
         // BSHOperatorPtr
         std::vector<poperatorT> aopx(param.nalpha); 
         std::vector<poperatorT> bopx(param.nbeta); 
         std::vector<poperatorT> aopy(param.nalpha); 
         std::vector<poperatorT> bopy(param.nbeta); 
-        make_BSHOperatorPtr(world, akx, bkx, aopx, bopx);
 
+        make_BSHOperatorPtr(world, akx, bkx, aopx, bopx);
         if(omega != 0.0)
             make_BSHOperatorPtr(world, aky, bky, aopy, bopy);
        
-        tensorT total_Dpolar(3, 3), Dpolar_alpha(3, 3), Dpolar_beta(3, 3);
-        double total = 0.0;
+        tensorT Dpolar_total(3, 3), Dpolar_alpha(3, 3), Dpolar_beta(3, 3);
+        double Dpolar_average = 0.0;
 
-        int axis = 0;
-        for(axis=0; axis<3; ++axis) {
+        for(int axis = 0; axis<3; ++axis) {
         
             //int axis = param.response_axis;
             response_frequency(world, axis);
@@ -4882,31 +4867,42 @@ struct Calculation {
                 print(" Frequency for response function = ", omega);
 
             // perturbation
-            vecfuncT dipoleamo = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT dipolebmo = zero_functions<double,3>(world, param.nbeta);
-
-            dipoleamo = calc_dipole_mo(world, axis, aflag);
-            if(!param.spin_restricted && param.nbeta != 0) 
-                dipolebmo = calc_dipole_mo(world, axis, bflag);
+            vecfuncT dipoleamo;// = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT dipolebmo;// = zero_functions<double,3>(world, param.nbeta);
 
             // make response function x, y
-            vecfuncT ax = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT ay = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT bx = zero_functions<double,3>(world, param.nbeta);
-            vecfuncT by = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT ax;// = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ay;// = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bx;// = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT by;// = zero_functions<double,3>(world, param.nbeta);
 
             // old response function
-            vecfuncT ax_old = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT ay_old = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT bx_old = zero_functions<double,3>(world, param.nbeta);
-            vecfuncT by_old = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT ax_old;// = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ay_old; // = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bx_old; // = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT by_old; // = zero_functions<double,3>(world, param.nbeta);
 
-            vecfuncT axrhs = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT ayrhs = zero_functions<double,3>(world, param.nalpha);
-            vecfuncT bxrhs = zero_functions<double,3>(world, param.nbeta);
-            vecfuncT byrhs = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT axrhs; // = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ayrhs; //= zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bxrhs; // = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT byrhs; // = zero_functions<double,3>(world, param.nbeta);
 
-            for(int iter=0; iter<param.maxiter; ++iter) {
+            dipoleamo = calc_dipole_mo(world, amo, axis, param.nalpha);
+            if(!param.spin_restricted && param.nbeta != 0) {
+                dipolebmo = calc_dipole_mo(world, bmo, axis, param.nbeta);
+            }
+            else {
+                dipolebmo = dipoleamo;
+            }
+//goo            dipoleamo = calc_dipole_mo(world, amo, axis, param.nalpha);
+//goo            if(!param.spin_restricted && param.nbeta != 0) {
+//goo                dipolebmo = calc_dipole_mo(world, bmo, axis, param.nbeta);
+//goo            }
+//goo            else {
+//goo                dipolebmo = dipoleamo;
+//goo            }
+
+            for(int iter = 0; iter < param.maxiter; ++iter) {
                 if(world.rank() == 0)
                     printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
                 
@@ -4920,55 +4916,73 @@ struct Calculation {
                 
                 if(iter == 0) {
                     // iter = 0 initial_guess
-                    axrhs = initial_guess_response(world, dipoleamo, vlocal, vf, aflag);
-                    if(!param.spin_restricted && param.nbeta != 0) 
-                        bxrhs = initial_guess_response(world, dipolebmo, vlocal, vf, bflag);
 
+                    axrhs = initial_guess_response(world, dipoleamo, vlocal, vf, 0, axis);
+                    if(!param.spin_restricted && param.nbeta != 0) { 
+                        bxrhs = initial_guess_response(world, dipolebmo, vlocal, vf, 1, axis);
+                    } 
+ 
                     if(omega != 0.0) {
-                        ayrhs = initial_guess_response(world, dipoleamo, vlocal, vf, aflag);
+                        ayrhs = initial_guess_response(world, dipoleamo, vlocal, vf, 0, axis);
                         if(!param.spin_restricted && param.nbeta != 0) 
-                            byrhs = initial_guess_response(world, dipolebmo, vlocal, vf, bflag);
-                    }
+                            byrhs = initial_guess_response(world, dipolebmo, vlocal, vf, 1, axis);
+                    } 
                 }
 
                 else{
                     // make potential * wave function
-                    vecfuncT aVx = zero_functions<double,3>(world, param.nalpha);
-                    vecfuncT bVx = zero_functions<double,3>(world, param.nbeta); 
-                    vecfuncT aVy = zero_functions<double,3>(world, param.nalpha);
-                    vecfuncT bVy = zero_functions<double,3>(world, param.nbeta);
+                    vecfuncT aVx;// = zero_functions<double,3>(world, param.nalpha);
+                    vecfuncT bVx; // = zero_functions<double,3>(world, param.nbeta); 
+
+                    vecfuncT aVy;// = zero_functions<double,3>(world, param.nalpha);
+                    vecfuncT bVy;// = zero_functions<double,3>(world, param.nbeta);
 
                     // make (dJ-dK)*2*mo
-                    vecfuncT djkamox = zero_functions<double,3>(world, param.nalpha);
-                    vecfuncT djkamoy = zero_functions<double,3>(world, param.nalpha);
-                    vecfuncT djkbmox = zero_functions<double,3>(world, param.nbeta);
-                    vecfuncT djkbmoy = zero_functions<double,3>(world, param.nbeta);
+                    vecfuncT djkamox; // = zero_functions<double,3>(world, param.nalpha);
+                    vecfuncT djkamoy; // = zero_functions<double,3>(world, param.nalpha);
 
-                    aVx = apply_potential_response(world, aocc, ax_old, vf, vlocal, exca, 0, aflag);
+                    vecfuncT djkbmox; // = zero_functions<double,3>(world, param.nbeta);
+                    vecfuncT djkbmoy; // = zero_functions<double,3>(world, param.nbeta);
+
 
                     // calculate (dJ-dK)*2*mo
-                    djkamox = calc_djkmo(world, ax_old, ay_old, amo, aflag);
+                    functionT drhoa = make_derivative_density( world, ax_old, ay_old, 0, param.nalpha );
+                    functionT drhob;
+                    if(!param.spin_restricted && param.nbeta != 0) {
+                       drhob = make_derivative_density( world, bx_old, by_old, 1, param.nbeta );
+                    } else {
+                       drhob = drhoa;
+                    } 
+                    functionT drho = drhoa + drhob; 
 
+                    aVx = apply_potential_response(world, aocc, ax_old, vf, vlocal, exca, 0);
+                    djkamox = calc_djkmo(world, ax_old, ay_old, drho, 0);
                     // axrhs = -2.0 * (aVx + dipoleamo + duamo)
-                    axrhs= calc_rhs(world, aVx, dipoleamo, djkamox);
+                    axrhs = calc_rhs(world, amo,  aVx, dipoleamo, djkamox);
 
                     if(!param.spin_restricted && param.nbeta != 0) {
-                        bVx = apply_potential_response(world, bocc, bx_old, vf, vlocal, excb, 1, bflag);
-                        djkbmox = calc_djkmo(world, bx_old, by_old, bmo, bflag);
-                        bxrhs = calc_rhs(world, bVx, dipolebmo, djkbmox);
+                        bVx = apply_potential_response(world, bocc, bx_old, vf, vlocal, excb, 1);
+                        djkbmox = calc_djkmo(world, bx_old, by_old, drho, 1);
+                        bxrhs = calc_rhs(world, bmo, bVx, dipolebmo, djkbmox);
                     }
+//goo                    else {
+//goo                       bxrhs = axrhs;
+//goo                    }
 
                     if(omega != 0.0) {
-                        aVy = apply_potential_response(world, aocc, ay_old, vf, vlocal, exca, 0, aflag);
-                        djkamoy = calc_djkmo(world, ay_old, ax_old, amo, aflag);
+                        aVy = apply_potential_response(world, aocc, ay_old, vf, vlocal, exca, 0);
+                        djkamoy = calc_djkmo(world, ay_old, ax_old,  drho, 0);
                         // bxrhs = -2.0 * (bVx + dipolebmo + dubmo)
-                        ayrhs = calc_rhs(world, aVy, dipoleamo, djkamoy);
+                        ayrhs = calc_rhs(world, amo, aVy, dipoleamo, djkamoy);
 
                         if(!param.spin_restricted && param.nbeta != 0) {
-                            bVy = apply_potential_response(world, bocc, by_old, vf, vlocal, excb, 1, bflag);
-                            djkbmoy = calc_djkmo(world, by_old, bx_old, bmo, bflag);
-                            byrhs = calc_rhs(world, bVy, dipolebmo, djkbmoy);
+                            bVy = apply_potential_response(world, bocc, by_old, vf, vlocal, excb, 1);
+                            djkbmoy = calc_djkmo(world, by_old, bx_old, drho, 1);
+                            byrhs = calc_rhs(world, bmo, bVy, dipolebmo, djkbmoy);
                         }
+//goo                        else {
+//goo                           byrhs = ayrhs;
+//goo                         }
                     }
                     aVx.clear();
                     bVx.clear(); 
@@ -4984,40 +4998,46 @@ struct Calculation {
                 START_TIMER(world);
                 // ax_new = G * axrhs;
                 calc_response_function(world, ax, aopx, axrhs);
-                orthogonalize_response(ax, aflag);
+                orthogonalize_response(ax, 0);
                 truncate(world, ax);
                 axrhs.clear();
 
                 if(!param.spin_restricted && param.nbeta != 0) {
                     // bx_new = G * bxrhs;
                     calc_response_function(world, bx, bopx, bxrhs);
-                    orthogonalize_response(bx, bflag);
+                    orthogonalize_response(bx, 1);
                     truncate(world, bx);
                     bxrhs.clear();
+                }
+                else {
+                    bx = ax;
                 }
 
                 if(omega != 0.0){
                     calc_response_function(world, ay, aopy, ayrhs);
-                    orthogonalize_response(ay, aflag);
+                    orthogonalize_response(ay, 0);
                     truncate(world, ay);
                     ayrhs.clear();
 
                     if(!param.spin_restricted && param.nbeta != 0) {
                         calc_response_function(world, by, bopy, byrhs);
-                        orthogonalize_response(by, bflag);
+                        orthogonalize_response(by, 1);
                         truncate(world, by);
                         byrhs.clear();
                     }
-                }
-                else{
-                    ay = ax;
-                    by = bx;
+                    else {
+                       by = ay;
+                    }
+                }     
+                else {
+                       ay = ax;
+                       by = bx;
                 }
                 END_TIMER(world, "Make response func");
                 print_meminfo(world.rank(), "Make response func");
 
                 if(iter > 0) {
-                    START_TIMER(world);
+                   // START_TIMER(world);
                     residual = 0.0;
                     
                     vecfuncT rax = zero_functions<double,3>(world, param.nalpha); //residual alpha x
@@ -5033,7 +5053,9 @@ struct Calculation {
                         residual = std::max(aresidual, bresidual);
                         world.gop.fence(); 
                     }
-                    else residual = aresidual;
+                    else { 
+                      residual = aresidual;
+                    } 
 
                     if (world.rank() == 0)  
                         print("\nresiduals_response (first) = ", residual);
@@ -5082,7 +5104,7 @@ struct Calculation {
                         print("rconv *(param.nalpha + param.nbeta)*2", thresh);
                     }
 
-                    END_TIMER(world, "Update response func");
+                  //  END_TIMER(world, "Update response func");
                     print_meminfo(world.rank(), "Update response func");
                     
                     // 収束判定
@@ -5101,15 +5123,16 @@ struct Calculation {
                 }
 
                 ax_old = ax;
-                ay_old = ay;
                 bx_old = bx;
+
+                ay_old = ay;
                 by_old = by;
                     
             } //end iteration
             END_TIMER(world, "Make response func");
             print_meminfo(world.rank(), "Make response func");
 
-            solve_dpolar(world, total, ax, ay, bx, by, axis, total_Dpolar, Dpolar_alpha, Dpolar_beta);
+            calc_dpolar(world, Dpolar_average, ax, ay, bx, by, axis, Dpolar_total, Dpolar_alpha, Dpolar_beta);
             
             ax.clear();
             ay.clear();
@@ -5198,8 +5221,8 @@ class MolecularEnergy : public OptimizationTargetInterface {
                     }
             if(calc.param.polar == true) {
                 if(calc.param.polar_ds == 0) {
-                    calc.solve_finite_mo(world);
-                    calc.solve_spolar(world);
+//dsolmp                    calc.solve_finite_mo(world);
+//dsolmp                    calc.solve_spolar(world);
                 }
                 else if (calc.param.polar_ds == 1) {
                     calc.solve_response(world);
