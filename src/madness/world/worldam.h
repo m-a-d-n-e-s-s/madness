@@ -181,13 +181,12 @@ namespace madness {
 
     /// Terminate argument serialization
     template <typename Archive>
-    inline void serialize_am_args(Archive&) { }
+    inline void serialize_am_args(Archive&&) { }
 
     /// Argument serialization
     template <typename Archive, typename T, typename... argT>
-    inline void serialize_am_args(Archive& archive, const T& t, const argT&... args) {
-        archive & t;
-        serialize_am_args(archive, args...);
+    inline void serialize_am_args(Archive&& archive, T&& t, argT&&... args) {
+        serialize_am_args(archive & t, std::forward<argT>(args)...);
     }
 
     /// Convenience template for serializing arguments into a new AmArg
