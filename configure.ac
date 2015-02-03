@@ -96,6 +96,9 @@ AC_LINK_IFELSE(
 AC_LANG_POP
   
 ACX_DETECT_CXX
+# Check for C++11 support, and
+# add the -std=c++11 or -std=c++0x flag to CXXFLAGS if necessary.
+AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 
 # Set debugging
 ACX_ENABLE_DEBUGGING
@@ -159,7 +162,6 @@ AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
 # Check c++11 headers
 AC_CHECK_HEADERS([array type_traits tuple initializer_list])
 AC_HEADER_STDBOOL
-ACX_CHECK_CXX11
 
 # Types
 AC_TYPE_PID_T
