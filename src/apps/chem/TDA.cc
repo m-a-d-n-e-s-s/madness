@@ -510,6 +510,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 			print_status(xfunctions);
 
 			size_t break_condition = excitations_;
+			if(guess) break_condition = guess_excitations_;
 			if(converged_xfunctions_.size()>=break_condition){
 				// push all current iterating roots which are not freshly re-initialized to the converged roots
 				for(size_t i=0;i<xfunctions.size();i++){
