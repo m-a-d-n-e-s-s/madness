@@ -435,6 +435,7 @@ private:
 	/// The data for the construction of the polynomial chain
 	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
 	const std::vector<std::vector<double>> data_;
+public:
 	std::vector<std::vector<double> > read_string(const std::string string)const{
 		std::stringstream line(string);
 				std::string name;
@@ -458,7 +459,45 @@ private:
 		std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
 		std::cout << "\n read data is \n" << data_ << std::endl;
  	}
+	std::vector<std::vector<double> > give_data(){return data_;}
 };
+
+/// Structure that multiplicates two polynomial strings (needed for fock matrix of guess functions)
+struct multiply_polynomials_functor : public FunctionFunctorInterface<double,3> {
+public:
+	multiply_polynomials_functor(const std::string polynomial1, const std::string polynomial2){
+		polynomial_exop_functor dummy(polynomial1);
+		std::vector<std::vector<double>> data1 = dummy.read_string(polynomial1);
+		std::vector<std::vector<double>> data2 = dummy.read_string(polynomial2);
+		for(size_t i=0;i<data1.size();i++){
+			for(size_t j=0;j<data2.size();j++){
+				std::vector<double> new_data(4);
+				new_data[0] = data1[i][0]+data2[j][0];
+				new_data[1] = data1[i][1]+data2[j][1];
+				new_data[2] = data1[i][2]+data2[j][2];
+				new_data[3] = data1[i][3]*data2[j][3];
+				data_.push_back(new_data);
+			}
+		}
+		std::cout << " \ndata1\n " << data1 << " \ndata2\n " << data2 << std::endl;
+		test();
+
+	}
+	double operator()(const coord_3d &r)const{
+		double result =0.0;
+		for(size_t i=0;i<data_.size();i++){
+			if(data_[i].size()!=4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, empty data_ entry",1);
+			result += ( data_[i][3]*pow(r[0],data_[i][0])*pow(r[1],data_[i][1])*pow(r[2],data_[i][2]) );
+		}
+		return result;
+	}
+	void test(){
+		std::cout << "\n Multiplied functor made polynomial\n " << data_ << std::endl;
+	}
+private :
+	std::vector<std::vector<double>> data_;
+};
+
 
 /// The TDA class: computes TDA and CIS calculations
 class TDA {
@@ -477,13 +516,14 @@ public:
 		active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
 		guess_("dipole+"),
-		guess_iter_(20),
+		guess_iter_(10),
 		guess_mode_("projected"),
 		replace_guess_functions_(true),
-		guess_excitations_(4),
-		excitations_(6),
+		guess_excitations_(0),
+		excitations_(8),
+		iterating_excitations_(4),
 		bsh_eps_(1.e-5),
-		iter_max_(100),
+		iter_max_(20),
 		econv_(1.e-4),
 		guess_econv_(1.e-3),
 		dconv_(1.e-2),
@@ -532,6 +572,7 @@ public:
 			if (tag == "end") break;
 			else if (tag == "dft") dft_=true;
 			else if (tag == "excitations") ss >> excitations_;
+			else if (tag == "iterating_excitations") ss >> iterating_excitations_;
 			else if (tag == "guess") ss >> guess_;
 			else if (tag == "hard_dconv") ss >> hard_dconv_;
 			else if (tag == "hard_econv") ss >> hard_econv_;
@@ -561,6 +602,13 @@ public:
 			else if (tag == "triplet") triplet_=true;
 			else if (tag == "localize_exchange_intermediate") localize_exchange_intermediate_ = true;
 			else continue;
+		}
+
+		// this will be the case if guess_excitations are not assigned
+		if(guess_excitations_ == 0) guess_excitations_ = excitations_*2;
+		if(guess_excitations_ < excitations_){
+			if(world.rank()==0) std::cout << "WARNING: More converged excitations than guess excitations demanded ... correcting that " << std::endl;
+			guess_excitations_ = excitations_ + 2;
 		}
 
 		// make potential shift = -ipot - homo
@@ -766,9 +814,12 @@ private:
 	/// Excitation operators for the guess used by big_fock guess
 	std::vector<std::string> guess_exops_;
 
-	/// Number of excitations to be caluclated
+	/// Number of guess excitations to be calculated
 	size_t guess_excitations_;
+	/// Number of excitations to be caluclated
 	size_t excitations_;
+	/// Number of parallel iterating excitations
+	size_t iterating_excitations_;
 
 	/// Thresholds and convergence cirteria
 	double bsh_eps_;
@@ -958,6 +1009,7 @@ private:
 	// 1. Calculate potential (V0 + Gamma) --> Call perturbed_potential(exfunctions)
 	// 2. Calculate Matrix Elements
 	Tensor<double> make_perturbed_fock_matrix(const xfunctionsT &xfunctions)const;
+	Tensor<double> make_perturbed_fock_matrix_for_guess_functions(const xfunctionsT &xfunctions)const;
 
 	/// Calculate the perturbed Potential (V0 + Gamma)
 	// 1. Call get_V0
