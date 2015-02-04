@@ -455,19 +455,27 @@ vecfuncT Nemo::apply_exchange(const vecfuncT& nemo, const vecfuncT& psi) const {
 	return result;
 }
 
+/// rotate the KAIN subspace (cf. SCF.cc)
 template<typename solverT>
 void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
-		int lo, int nfunc, double trantol) const {
-	std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
-	std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
-	for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
-		vecfuncT& v = ulist[iter].x;
-		vecfuncT& r = rlist[iter].x;
-		transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U, trantol,
-				false);
-		transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U, trantol,
-				true);
-	}
+        int lo, int nfunc, double trantol) const {
+    std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
+    std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
+    for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
+        vecfuncT& v = ulist[iter].x;
+        vecfuncT& r = rlist[iter].x;
+        vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
+                trantol, false);
+        vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,
+                trantol, true);
+
+        world.gop.fence();
+        for (int i=0; i<nfunc; i++) {
+            v[i] = vnew[i];
+            r[i] = rnew[i];
+        }
+    }
+    world.gop.fence();
 }
 
 /// save a function
