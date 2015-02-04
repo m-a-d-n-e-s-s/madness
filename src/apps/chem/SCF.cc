@@ -219,10 +219,6 @@ namespace madness {
         FunctionDefaults < 3 > ::set_cubic_cell(-param.L, param.L);
         set_protocol < 3 > (world, param.econv);
 
-        potentialmanager = std::shared_ptr < PotentialManager
-                                             > (new PotentialManager(molecule, param.core_type));
-        gthpseudopotential = std::shared_ptr<GTHPseudopotential<double> 
-                                             >(new GTHPseudopotential<double>(world, molecule));
     }
     
     
@@ -415,6 +411,11 @@ namespace madness {
     void SCF::make_nuclear_potential(World & world) {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
+        potentialmanager = std::shared_ptr < PotentialManager
+                                             > (new PotentialManager(molecule, param.core_type));
+        gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>
+                                             >(new GTHPseudopotential<double>(world, molecule));
+
         if (param.psp_calc){
             gthpseudopotential->make_pseudo_potential(world);}
         else{
