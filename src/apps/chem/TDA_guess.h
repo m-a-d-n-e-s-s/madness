@@ -1,5 +1,8 @@
 /// Helper Function which gives back pre defined guess operators in string form
+namespace madness{
 
+struct guess{
+public:
 static std::vector<std::string> make_predefined_guess_strings(const std::string what){
 	std::vector<std::string> exop_strings;
 	if(what == "dipole"){
@@ -41,25 +44,44 @@ static std::vector<std::string> make_predefined_guess_strings(const std::string 
 		exop_strings[6] = "y 1.0 , y 1.0 z 1.0 , y 1.0 z 2.0 , y 3.0 z 1.0 , y 1.0 z 3.0 , y 3.0";
 		exop_strings[7] = "x 2.0 y 1.0 , x 2.0 y 1.0 z 1.0";
 	}else if(what == "big_fock"){
-		size_t order = 6;
-		for(size_t i=0; i<order+1; i++){
-			for(size_t j=0; j<order+1 ; j++){
-				for(size_t k=0;k<order+1 ; k++){
-					if(i+j+k > order) ; // do nothing
-					else if(i==0 and j==0 and k==0) ; // do nothing
-					else{
-						if(i==0 and j!=0 and k!=0) exop_strings.push_back(" y " + madness::stringify(j) + " z " + madness::stringify(k) );
-						else if(j==0 and i!=0 and k!=0) exop_strings.push_back("x " + madness::stringify(i) + " z " + madness::stringify(k) );
-						else if(k==0 and i!=0 and j!=0) exop_strings.push_back("x " + madness::stringify(i) + " y " + madness::stringify(j));
-						else if(i==0 and j==0) exop_strings.push_back(" z " + madness::stringify(k) );
-						else if(i==0 and k==0) exop_strings.push_back(" y " + madness::stringify(j));
-						else if(j==0 and k==0) exop_strings.push_back("x " + madness::stringify(i));
-						else exop_strings.push_back("x " + madness::stringify(i) + " y " + madness::stringify(j) + " z " + madness::stringify(k) );
-					}
+		exop_strings = make_auto_polynom_guess(6);
+	}else if(what == "small_fock"){
+		exop_strings = make_auto_polynom_guess(4);
+	}else if(what == "big_fock_2"){
+		exop_strings = make_auto_polynom_guess(2);
+	}else if(what == "big_fock_3"){
+		exop_strings = make_auto_polynom_guess(3);
+	}else if(what == "big_fock_4"){
+		exop_strings = make_auto_polynom_guess(4);
+	}else if(what == "big_fock_5"){
+		exop_strings = make_auto_polynom_guess(5);
+	}else if(what == "big_fock_6"){
+		exop_strings = make_auto_polynom_guess(6);
+	}else std::cout << "Keyword " << what << " is not known" << std::endl;
+return exop_strings;
+}
+
+static std::vector<std::string> make_auto_polynom_guess(const size_t order){
+	std::vector<std::string> exop_strings;
+	for(size_t i=0; i<order+1; i++){
+		for(size_t j=0; j<order+1 ; j++){
+			for(size_t k=0;k<order+1 ; k++){
+				if(i+j+k > order) ; // do nothing
+				else if(i==0 and j==0 and k==0) ; // do nothing
+				else{
+					if(i==0 and j!=0 and k!=0) exop_strings.push_back(" y " + madness::stringify(j) + " z " + madness::stringify(k) );
+					else if(j==0 and i!=0 and k!=0) exop_strings.push_back("x " + madness::stringify(i) + " z " + madness::stringify(k) );
+					else if(k==0 and i!=0 and j!=0) exop_strings.push_back("x " + madness::stringify(i) + " y " + madness::stringify(j));
+					else if(i==0 and j==0) exop_strings.push_back(" z " + madness::stringify(k) );
+					else if(i==0 and k==0) exop_strings.push_back(" y " + madness::stringify(j));
+					else if(j==0 and k==0) exop_strings.push_back("x " + madness::stringify(i));
+					else exop_strings.push_back("x " + madness::stringify(i) + " y " + madness::stringify(j) + " z " + madness::stringify(k) );
 				}
 			}
 		}
 	}
-	else std::cout << "Keyword " << what << " is not known" << std::endl;
-return exop_strings;
+	return exop_strings;
+}
+
+};
 }
