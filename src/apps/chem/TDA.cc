@@ -1450,7 +1450,7 @@ vecfuncT TDA::project_to_ao_basis(const vecfuncT & active_mo, const vecfuncT &ao
 	vecfuncT projected_mos;
 	for(size_t i=0;i<active_mo.size();i++){
 		//if(world.rank()==0)std::cout << "Projecting MO " << i << " to AO Basis ...\n Coefficients: ";
-		real_function_3d tmp = real_factory_3d(world);
+		real_function_3d tmp = real_factory_3d(world).compressed();
 		for(size_t j=0;j<ao_basis.size();j++){
 			tmp += C(i,j)*ao_basis[j];
 			if(world.rank()==0 and fabs(C(i,j))>FunctionDefaults<3>::get_thresh()*100.0 and active_mo.size()<6)std::cout << C(i,j) <<  " ";
