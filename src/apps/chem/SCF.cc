@@ -1238,7 +1238,7 @@ namespace madness {
         return Vpsi;
     }
     
-    tensorT SCF::derivatives(World & world) {
+    tensorT SCF::derivatives(World & world) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         
@@ -1317,22 +1317,16 @@ namespace madness {
         return r;
     }
     
-    tensorT SCF::dipole(World & world) {
+    tensorT SCF::dipole(World & world, const functionT& rho) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         tensorT mu(3);
+
         for (unsigned int axis = 0; axis < 3; ++axis) {
             std::vector<int> x(3, 0);
             x[axis] = true;
-            functionT dipolefunc = factoryT(world).functor(
-                                                           functorT(new MomentFunctor(x)));
-            functionT rho = make_density(world, aocc, amo);
-            if (!param.spin_restricted) {
-                if (param.nbeta)
-                    rho += make_density(world, bocc, bmo);
-            } else {
-                rho.scale(2.0);
-            }
+            functionT dipolefunc = factoryT(world)
+                    .functor(functorT(new MomentFunctor(x)));
             mu[axis] = -dipolefunc.inner(rho);
             mu[axis] += molecule.nuclear_dipole(axis, param.psp_calc);
         }
@@ -2362,8 +2356,16 @@ namespace madness {
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q,
                             bsh_residual, update_residual);
         }
-        
-        dipole(world);
+
+        // compute the dipole moment
+        functionT rho = make_density(world, aocc, amo);
+        if (!param.spin_restricted) {
+            if (param.nbeta)
+                rho += make_density(world, bocc, bmo);
+        } else {
+            rho.scale(2.0);
+        }
+        dipole(world,rho);
         
         if (world.rank() == 0) {
             if (param.localize)

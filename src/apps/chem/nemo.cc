@@ -77,6 +77,15 @@ double Nemo::value(const Tensor<double>& x) {
 	calc->project_ao_basis(world);
 	save_function(calc->potentialmanager->vnuclear(),"vnuc");
 
+    // construct the Poisson solver
+    poisson = std::shared_ptr<real_convolution_3d>(
+            CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
+
+    // construct the nuclear correlation factor:
+    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+    R = nuclear_correlation->function();
+    R_inverse = nuclear_correlation->inverse();
+
 	print_nuclear_corrfac();
 
 	// read converged wave function from disk if there is one
@@ -120,6 +129,9 @@ double Nemo::value(const Tensor<double>& x) {
 		save_function(psi[imo], "psi" + stringify(imo));
 	}
 
+	// compute the dipole moment
+    functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
+    calc->dipole(world,rho);
 	return energy;
 }
 

@@ -147,15 +147,6 @@ public:
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
 			world(world1), calc(calc), coords_sum(-1.0) {
 
-		// construct the Poisson solver
-		poisson = std::shared_ptr<real_convolution_3d>(
-				CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
-
-		// construct the nuclear correlation factor:
-		nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
-		R = nuclear_correlation->function();
-		R_inverse = nuclear_correlation->inverse();
-
 	}
 
 	double value() {return value(calc->molecule.get_all_coords());}
@@ -164,6 +155,7 @@ public:
 
 	Tensor<double> gradient(const Tensor<double>& x) {
 		MADNESS_EXCEPTION("no nemo gradients", 1);
+		return Tensor<double>();
 	}
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}

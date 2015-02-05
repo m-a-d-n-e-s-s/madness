@@ -848,9 +848,13 @@ public:
 			const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
 			const functionT & vlocal, double & exc, double & enl, int ispin);
 
-    tensorT derivatives(World & world);
+    tensorT derivatives(World & world) const;
 
-    tensorT dipole(World & world);
+    /// compute the total dipole moment of the molecule
+
+    /// @param[in]  the total (alpha + beta) density
+    /// @return     the x,y,z components of the el. + nucl. dipole moment
+    tensorT dipole(World & world, const functionT& rho) const;
 
     void vector_stats(const std::vector<double> & v, double & rms,
     		double & maxabsval) const;
