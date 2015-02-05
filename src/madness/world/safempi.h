@@ -83,7 +83,7 @@ namespace SafeMPI {
 
 #ifdef MADNESS_SERIALIZES_MPI
     extern madness::SCALABLE_MUTEX_TYPE charon;      // Inside safempi.cc
-#define SAFE_MPI_GLOBAL_MUTEX madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon)
+#define SAFE_MPI_GLOBAL_MUTEX madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
 #else
 #define SAFE_MPI_GLOBAL_MUTEX
 #endif
@@ -476,7 +476,7 @@ namespace SafeMPI {
 		 * It will preprocess to nothing for MPI_THREAD_MULTIPLE!
 		 *	SAFE_MPI_GLOBAL_MUTEX;
 		 */
-		madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon)
+		madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
                 int result = utag++;
                 if (utag >= 4095) utag = 1024;
                 return result;
@@ -492,7 +492,7 @@ namespace SafeMPI {
 		 * It will preprocess to nothing for MPI_THREAD_MULTIPLE!
 		 *	SAFE_MPI_GLOBAL_MUTEX;
 		 */
-		madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon)
+		madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
                 int result = urtag++;
                 if (result >= 1000) MADNESS_EXCEPTION( "too many reserved tags in use" , result );
                 return result;
