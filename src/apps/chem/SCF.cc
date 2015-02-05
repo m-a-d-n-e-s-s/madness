@@ -1238,15 +1238,9 @@ namespace madness {
         return Vpsi;
     }
     
-    tensorT SCF::derivatives(World & world) const {
+    tensorT SCF::derivatives(World & world, const functionT& rho) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
-        
-        functionT rho = make_density(world, aocc, amo);
-        functionT brho = rho;
-        if (!param.spin_restricted)
-            brho = make_density(world, bocc, bmo);
-        rho.gaxpy(1.0, brho, 1.0);
         
         vecfuncT dv(molecule.natom() * 3);
         vecfuncT du = zero_functions<double, 3>(world, molecule.natom() * 3);

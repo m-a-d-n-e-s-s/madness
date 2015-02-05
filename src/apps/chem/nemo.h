@@ -153,10 +153,14 @@ public:
 
 	double value(const Tensor<double>& x);
 
+	/// compute the nuclear gradients
 	Tensor<double> gradient(const Tensor<double>& x) {
-		MADNESS_EXCEPTION("no nemo gradients", 1);
-		return Tensor<double>();
+	    vecfuncT psi = mul(world, R, calc->amo);
+	    functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
+        return calc->derivatives(world,rho);
 	}
+
+	bool provides_gradient() const {return true;}
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 

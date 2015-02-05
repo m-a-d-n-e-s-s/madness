@@ -848,7 +848,7 @@ public:
 			const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
 			const functionT & vlocal, double & exc, double & enl, int ispin);
 
-    tensorT derivatives(World & world) const;
+    tensorT derivatives(World & world, const functionT& rho) const;
 
     /// compute the total dipole moment of the molecule
 
@@ -1052,7 +1052,14 @@ public:
     madness::Tensor<double> gradient(const Tensor<double>& x) {
         value(x); // Ensures DFT equations are solved at this geometry
 
-        return calc.derivatives(world);
+
+        functionT rho = calc.make_density(world, calc.aocc, calc.amo);
+        functionT brho = rho;
+        if (!calc.param.spin_restricted)
+            brho = calc.make_density(world, calc.bocc, calc.bmo);
+        rho.gaxpy(1.0, brho, 1.0);
+
+        return calc.derivatives(world,rho);
     }
 };
 }

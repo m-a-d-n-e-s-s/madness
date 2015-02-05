@@ -126,8 +126,15 @@ END_TIMER(world, "initialize");
         else {
           MolecularEnergy E(world, calc);
           E.value(calc.molecule.get_all_coords().flat()); // ugh!
-          if (calc.param.derivatives) calc.derivatives(world);
-          if (calc.param.dipole) calc.dipole(world);
+
+          functionT rho = calc.make_density(world, calc.aocc, calc.amo);
+          functionT brho = rho;
+          if (!calc.param.spin_restricted)
+              brho = calc.make_density(world, calc.bocc, calc.bmo);
+          rho.gaxpy(1.0, brho, 1.0);
+
+          if (calc.param.derivatives) calc.derivatives(world,rho);
+          if (calc.param.dipole) calc.dipole(world,rho);
         }
 
         //        if (calc.param.twoint) {

@@ -181,7 +181,7 @@ namespace madness {
         Tensor<double> gradient(const Tensor<double>& x) {
 
             value(x); // Ensures DFT equations are solved at this geometry
-            return calc->derivatives(world);
+            return nemo_calc.gradient(x);
         }
 
         double coord_chksum() const {return coords_sum;}
