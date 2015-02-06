@@ -104,17 +104,17 @@ public:
                 else hessian_update_sr1(dx, g-gp,h);
             }
 
-            Tensor<double> v, e;
-            syev(h, v, e);
-            print("hessian eigenvalues",e);
-            remove_translation(h,molecule);
-            syev(h, v, e);
-            print("hessian eigenvalues",e);
-
-            print("gradient",g);
-            // project gradients onto purified hessian
-            g=inner(v,g,0,0);
-            print("gradient (proj)",g);
+//            Tensor<double> v, e;
+//            syev(h, v, e);
+//            print("hessian eigenvalues",e);
+//            remove_translation(h,molecule);
+//            syev(h, v, e);
+//            print("hessian eigenvalues",e);
+//
+//            print("gradient",g);
+//            // project gradients onto purified hessian
+//            g=inner(v,g,0,0);
+//            print("gradient (proj)",g);
 
 
             dx = new_search_direction(g);
