@@ -95,10 +95,9 @@ public:
         for (int iter=0; iter<maxiter; ++iter) {
             Tensor<double> g;
 
-            print("current coordinates and energy");
-            print(x);
             target->value_and_gradient(x, f, g);
-            print("new energy and gradient",f);
+            print("new energy, corresponding coords and gradient",f);
+            print(x);
             print(g);
             gnorm = g.normf();
             printf(" QuasiNewton iteration %2d value %.12e gradient %.2e\n",iter,f,gnorm);
@@ -116,21 +115,15 @@ public:
             }
 
             Tensor<double> v, e;
-            syev(h, v, e);
-            print("hessian eigenvalues",e);
+//            syev(h, v, e);
+//            print("hessian eigenvalues",e);
             remove_translation(h,molecule);
             syev(h, v, e);
             print("hessian eigenvalues",e);
 
-            print("gradient",g);
-//            // project gradients onto purified hessian
-//            g=inner(v,g,0,0);
-//            print("gradient (proj)",g);
-
-
             // this will invert the hessian, multiply with the gradient and
             // return the displacements
-            dx = new_search_direction2(g);
+            dx = new_search_direction2(g,h);
 
             double step = line_search(1.0, f, dx.trace(g), x, dx);
 
@@ -194,16 +187,22 @@ private:
     /// conjugate_gradients method
     std::string cg_method;
 
-    Tensor<double> new_search_direction2(const Tensor<double>& g) const {
+    /// effectively invert the hessian and multiply with the gradient
+    Tensor<double> new_search_direction2(const Tensor<double>& g,
+            const Tensor<double>& hessian) const {
         Tensor<double> dx, s;
         double tol = gradient_precision;
         double trust = 1.0; // This applied in spectral basis
 
+        // diagonalize the hessian:
+        // VT H V = lambda
+        // H^-1   = V lambda^-1 VT
         Tensor<double> v, e;
-        syev(h, v, e);
+        syev(hessian, v, e);
 
         // Transform gradient into spectral basis
-        Tensor<double> gv = inner(g,v);
+        // H^-1 g = V lambda^-1 VT g
+        Tensor<double> gv = inner(g,v); // this is VT g == gT V == gv
 
         // Take step applying restriction
         int nneg=0, nsmall=0, nrestrict=0;
@@ -215,12 +214,13 @@ private:
                 e[i] = -0.1*e[i]; // Enforce positive search direction
             }
             else if (e[i] < tol) {
-                if (printtest) printf("   forcing small eigenvalue to be positive %d %.1e\n", i, e[i]);
+                if (printtest) printf("   forcing small eigenvalue to be zero %d %.1e\n", i, e[i]);
                 nsmall++;
                 e[i] = tol;
                 gv[i]=0.0;   // effectively removing this direction
             }
 
+            // this is the step -lambda^-1 gv
             gv[i] = -gv[i] / e[i];
             if (std::abs(gv[i]) > trust) { // Step restriction
                 double gvnew = trust*std::abs(gv(i))/gv[i];
@@ -231,7 +231,8 @@ private:
         }
         if (nneg || nsmall || nrestrict) printf("   nneg=%d nsmall=%d nrestrict=%d\n", nneg, nsmall, nrestrict);
 
-        // Transform back from spectral basis
+        // Transform back from spectral basis to give the displacements
+        // disp = -V lambda^-1 VT g = V lambda^-1 gv
         return inner(v,gv);
     }
 
@@ -257,15 +258,15 @@ private:
         Tensor<double> project_T=identity-outer(transx,transx)
                 - outer(transy,transy) - outer(transz,transz);
 
-        print("hessian");
-        print(hessian);
-        print("project_T");
-        print(project_T);
+//        print("hessian");
+//        print(hessian);
+//        print("project_T");
+//        print(project_T);
         // this is P^T * H * P
         hessian=inner(project_T,inner(hessian,project_T),0,0);
 
-        print("hessian (proj)");
-        print(hessian);
+//        print("hessian (proj)");
+//        print(hessian);
 
     }
 
