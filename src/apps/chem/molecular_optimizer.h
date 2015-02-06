@@ -52,7 +52,7 @@ public:
             int maxiter = 20, double tol = 1e-6, double value_precision = 1e-12,
             double gradient_precision = 1e-12)
         : QuasiNewton(tar,maxiter,tol,value_precision,gradient_precision)
-        , molecule(mol) {
+        , molecule(mol), cg_method("polak_ribiere") {
     }
 
     /// optimize the underlying molecule
@@ -164,7 +164,10 @@ public:
             gnorm = gradient.normf();
 
             // compute new displacement (Fletcher-Reeves)
-            double beta=gradient.normf()/oldgradient.normf();
+            double beta=0.0;
+            if (cg_method=="fletcher_reeves") beta=gradient.normf()/oldgradient.normf();
+            if (cg_method=="polak_ribiere") beta=gradient.normf()/(gradient-oldgradient).normf();
+
             displacement=-gradient + beta * old_displacement;
             old_displacement=displacement;
 
@@ -178,6 +181,9 @@ private:
 
     /// need the molecule for projecting rotation and translation
     const Molecule& molecule;
+
+    /// conjugate_gradients method
+    std::string cg_method;
 
     /// remove translational degrees of freedom from the hessian
     void remove_translation(Tensor<double>& hessian,
