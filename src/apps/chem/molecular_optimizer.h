@@ -59,7 +59,11 @@ public:
 
     /// @param[in]  x   the coordinates to compute energy and gradient
     bool optimize(Tensor<double>& x) {
+        bool converge=optimize_conjugate_gradients(x);
+        return converge;
+    }
 
+    bool optimize_quasi_newton(Tensor<double>& x) {
         if (n != x.dim(0)) {
             n = x.dim(0);
             h = Tensor<double>();
@@ -130,6 +134,43 @@ public:
             print("final hessian");
             print(h);
         }
+        return converged();
+    }
+
+    bool optimize_conjugate_gradients(Tensor<double>& x) {
+
+
+        // initial energy and gradient gradient
+        double energy=0.0;
+        Tensor<double> gradient;
+        target->value_and_gradient(x, energy, gradient);
+
+        // first step is steepest descent
+        Tensor<double> displacement=-gradient;
+        Tensor<double> oldgradient=gradient;
+        Tensor<double> old_displacement=displacement;
+
+
+        for (int iter=1; iter<maxiter; ++iter) {
+
+            // displace coordinates
+            x+=displacement;
+
+            print("current coordinates and energy",energy);
+            print(x);
+            target->value_and_gradient(x, energy, gradient);
+            print("new energy and gradient",energy);
+            print(gradient);
+            gnorm = gradient.normf();
+
+            // compute new displacement (Fletcher-Reeves)
+            double beta=gradient.normf()/oldgradient.normf();
+            displacement=-gradient + beta * old_displacement;
+            old_displacement=displacement;
+
+            if (converged()) break;
+        }
+
         return converged();
     }
 
