@@ -44,6 +44,7 @@
  */
 
 #include <chem/nemo.h>
+#include <chem/molecular_optimizer.h>
 namespace madness {
 
 static double ttt, sss;

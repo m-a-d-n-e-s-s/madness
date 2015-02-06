@@ -268,10 +268,10 @@ namespace madness {
         if (method == "BFGS" || method == "SR1") update=method;
         else throw "QuasiNewton: unknown update mthod";
     }
-     void QuasiNewton::set_test(const bool& test_level) {
-          printtest = test_level;
-   }
 
+    void QuasiNewton::set_test(const bool& test_level) {
+        printtest = test_level;
+    }
 
     bool QuasiNewton::optimize(Tensor<double>& x) {
 //        int maxiter = 20; // !!!!!!!!! dumb
@@ -280,7 +280,7 @@ namespace madness {
             h = Tensor<double>();
         }
 
- 
+
        if(printtest)  target->test_gradient(x, value_precision);
 
         bool h_is_identity = (h.size() == 0);
@@ -320,7 +320,7 @@ namespace madness {
             x += dx;
             gp = g;
         }
- 
+
         if (printtest) {
             print("final hessian");
             print(h);
