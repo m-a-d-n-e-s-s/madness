@@ -56,16 +56,25 @@ class Atom {
 public:
     double x, y, z, q;          ///< Coordinates and charge in atomic units
     unsigned int atomic_number; ///< Atomic number
+    double mass;                ///< mass
 
     explicit Atom(double x, double y, double z, double q, unsigned int atomic_number)
-            : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {}
+            : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {
+        mass= get_atomic_data(atomic_number).mass;
 
-    Atom(const Atom& a)
-            : x(a.x), y(a.y), z(a.z), q(a.q), atomic_number(a.atomic_number) {}
+        if (mass==-1.0) MADNESS_EXCEPTION("faulty element in Atom",1);
+
+        // unstable elements are indicated by negative masses, the mass
+        // is taken from the longest-living isotope.
+        if (mass<0.0) mass*=-1.0;
+
+    }
+
+    Atom(const Atom& a) : x(a.x), y(a.y), z(a.z), q(a.q),
+            atomic_number(a.atomic_number), mass(a.mass) {}
 
     /// Default construct makes a zero charge ghost atom at origin
-    Atom()
-            : x(0), y(0), z(0), q(0), atomic_number(0) {}
+    Atom() : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0) {}
 
 
     madness::Vector<double,3> get_coords() const {
@@ -74,7 +83,7 @@ public:
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & x & y & z & q & atomic_number;
+        ar & x & y & z & q & atomic_number & mass;
     }
 };
 
@@ -206,6 +215,8 @@ public:
     void identify_point_group();
 
     void center();
+
+    Tensor<double> moment_of_inertia() const;
 
     void orient();
 

@@ -495,6 +495,18 @@ void Molecule::identify_point_group() {
 }
 
 
+// Align molecule with axes of charge inertia
+Tensor<double> Molecule::moment_of_inertia() const {
+    madness::Tensor<double> I(3L,3L);
+    for (unsigned int i=0; i<atoms.size(); ++i) {
+        double q = atoms[i].q, x[3] = {atoms[i].x, atoms[i].y, atoms[i].z};
+        for (int j=0; j<3; ++j)
+            for (int k=0; k<3; ++k)
+                I(j,k) += q*x[j]*x[k];
+    }
+    return I;
+}
+
 /// Centers and orients the molecule in a standard manner
 void Molecule::orient() {
 
