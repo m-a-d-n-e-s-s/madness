@@ -98,6 +98,7 @@ int main(int argc, char** argv) {
             Tensor<double> h(ncoord,ncoord);
             for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
             geom.set_hessian(h);
+            geom.set_test(true);
             geom.optimize(geomcoord);
         } else {
 
