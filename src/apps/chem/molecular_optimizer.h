@@ -59,7 +59,9 @@ public:
 
     /// @param[in]  x   the coordinates to compute energy and gradient
     bool optimize(Tensor<double>& x) {
-        bool converge=optimize_conjugate_gradients(x);
+        bool converge;
+        converge=optimize_quasi_newton(x);
+//        converge=optimize_conjugate_gradients(x);
         return converge;
     }
 
@@ -108,19 +110,21 @@ public:
                 else hessian_update_sr1(dx, g-gp,h);
             }
 
-//            Tensor<double> v, e;
-//            syev(h, v, e);
-//            print("hessian eigenvalues",e);
-//            remove_translation(h,molecule);
-//            syev(h, v, e);
-//            print("hessian eigenvalues",e);
-//
-//            print("gradient",g);
-//            // project gradients onto purified hessian
-//            g=inner(v,g,0,0);
-//            print("gradient (proj)",g);
+            Tensor<double> v, e;
+            syev(h, v, e);
+            print("hessian eigenvalues",e);
+            remove_translation(h,molecule);
+            syev(h, v, e);
+            print("hessian eigenvalues",e);
+
+            print("gradient",g);
+            // project gradients onto purified hessian
+            g=inner(v,g,0,0);
+            print("gradient (proj)",g);
 
 
+            // this will invert the hessian, multiply with the gradient and
+            // return the displacements
             dx = new_search_direction(g);
 
             double step = line_search(1.0, f, dx.trace(g), x, dx);

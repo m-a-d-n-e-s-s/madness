@@ -225,7 +225,7 @@ namespace madness {
                 //e[i] = -2.0*e[i]; // Enforce positive search direction
                 e[i] = -0.1*e[i]; // Enforce positive search direction
             }
-            else if (e[i] < -tol) {
+            else if (e[i] < tol) {
                 if (printtest) printf("   forcing small eigenvalue to be positive %d %.1e\n", i, e[i]);
                 nsmall++;
                 e[i] = tol;
