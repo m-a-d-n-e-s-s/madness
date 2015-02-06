@@ -94,7 +94,12 @@ public:
 
         for (int iter=0; iter<maxiter; ++iter) {
             Tensor<double> g;
+
+            print("current coordinates and energy");
+            print(x);
             target->value_and_gradient(x, f, g);
+            print("new energy and gradient",f);
+            print(g);
             gnorm = g.normf();
             printf(" QuasiNewton iteration %2d value %.12e gradient %.2e\n",iter,f,gnorm);
             if (converged()) break;
@@ -118,14 +123,14 @@ public:
             print("hessian eigenvalues",e);
 
             print("gradient",g);
-            // project gradients onto purified hessian
-            g=inner(v,g,0,0);
-            print("gradient (proj)",g);
+//            // project gradients onto purified hessian
+//            g=inner(v,g,0,0);
+//            print("gradient (proj)",g);
 
 
             // this will invert the hessian, multiply with the gradient and
             // return the displacements
-            dx = new_search_direction(g);
+            dx = new_search_direction2(g);
 
             double step = line_search(1.0, f, dx.trace(g), x, dx);
 
@@ -188,6 +193,48 @@ private:
 
     /// conjugate_gradients method
     std::string cg_method;
+
+    Tensor<double> new_search_direction2(const Tensor<double>& g) const {
+        Tensor<double> dx, s;
+        double tol = gradient_precision;
+        double trust = 1.0; // This applied in spectral basis
+
+        Tensor<double> v, e;
+        syev(h, v, e);
+
+        // Transform gradient into spectral basis
+        Tensor<double> gv = inner(g,v);
+
+        // Take step applying restriction
+        int nneg=0, nsmall=0, nrestrict=0;
+        for (int i=0; i<n; ++i) {
+            if (e[i] < -tol) {
+                if (printtest) printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
+                nneg++;
+                //e[i] = -2.0*e[i]; // Enforce positive search direction
+                e[i] = -0.1*e[i]; // Enforce positive search direction
+            }
+            else if (e[i] < tol) {
+                if (printtest) printf("   forcing small eigenvalue to be positive %d %.1e\n", i, e[i]);
+                nsmall++;
+                e[i] = tol;
+                gv[i]=0.0;   // effectively removing this direction
+            }
+
+            gv[i] = -gv[i] / e[i];
+            if (std::abs(gv[i]) > trust) { // Step restriction
+                double gvnew = trust*std::abs(gv(i))/gv[i];
+                if (printtest) printf("   restricting step in spectral direction %d %.1e --> %.1e\n", i, gv[i], gvnew);
+                nrestrict++;
+                gv[i] = gvnew;
+            }
+        }
+        if (nneg || nsmall || nrestrict) printf("   nneg=%d nsmall=%d nrestrict=%d\n", nneg, nsmall, nrestrict);
+
+        // Transform back from spectral basis
+        return inner(v,gv);
+    }
+
 
     /// remove translational degrees of freedom from the hessian
     void remove_translation(Tensor<double>& hessian,
