@@ -44,6 +44,7 @@
 #include <madness/madness_config.h>
 #include <madness/tensor/tensor.h>
 #include <cstring>
+#include <climits>
 
 namespace madness {
 
@@ -65,6 +66,14 @@ namespace madness {
         }
         for (long i=0; i<rem; ++i) *a++ = 0;
 #endif
+    }
+
+    template <>
+    static
+    inline
+    void aligned_axpy(long n, double * restrict a, const double * restrict b, double s) {
+        MADNESS_ASSERT(n<INT_MAX);
+        madness::cblas::axpy((int)n, s, b, 1, a, 1);
     }
 
     template <typename T, typename Q>
