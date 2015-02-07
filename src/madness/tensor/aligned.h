@@ -68,12 +68,32 @@ namespace madness {
 #endif
     }
 
+    /* Jeff: In the following three template specializations, a long is implicitly
+     *       cast into the MADNESS integer type, which defaults to int64_t but can
+     *       be int32_t, in which case, there could be an overflow for n>INT_MAX. 
+     *
+     *       I am choosing to ignore this issue for now. I know all of the workarounds
+     *       but it seems unlikely that they will be necessary because 2^31 is a big number. */
     template <>
     static
     inline
     void aligned_axpy(long n, double * restrict a, const double * restrict b, double s) {
-        MADNESS_ASSERT(n<INT_MAX);
-        madness::cblas::axpy((int)n, s, b, 1, a, 1);
+        madness::cblas::axpy(n, s, b, 1, a, 1);
+    }
+
+    template <>
+    static
+    inline
+    void aligned_axpy(long n, double_complex * restrict a, const double_complex * restrict b, double_complex s) {
+        madness::cblas::axpy(n, s, b, 1, a, 1);
+    }
+
+    template <>
+    static
+    inline
+    void aligned_axpy(long n, double_complex * restrict a, const double_complex * restrict b, double s) {
+        double_complex cs = (s,0.0); /* turn real into complex */
+        madness::cblas::axpy(n, cs, b, 1, a, 1);
     }
 
     template <typename T, typename Q>
