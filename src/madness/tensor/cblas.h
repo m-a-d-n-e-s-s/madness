@@ -255,6 +255,12 @@ extern "C" {
             const complex_real4*, const integer*, complex_real4*);
     void F77_ZDOTU(const integer*, const complex_real8*, const integer*,
             const complex_real8*, const integer*, complex_real8*);
+    //
+    // BLAS _AXPY declarations (INTEGER n, NUMERICAL alpha, NUMERICAL x, INTEGER incx, NUMERICAL y, INTEGER incy )
+    void F77_SAXPY(const integer*, const float*        , float*        , const integer*, float*        , const integer*);
+    void F77_DAXPY(const integer*, const double*       , double*       , const integer*, double*       , const integer*);
+    void F77_CAXPY(const integer*, const complex_real4*, complex_real4*, const integer*, complex_real4*, const integer*);
+    void F77_ZAXPY(const integer*, const complex_real8*, complex_real8*, const integer*, complex_real8*, const integer*);
 }
 
 
@@ -501,6 +507,40 @@ namespace cblas {
       F77_ZDSCAL(&n, &alpha, x, &incx);
     }
     ///@}
+
+    /// Scale and add a vector to another
+
+    /// \f[
+    /// \mathbf{y} \leftarrow \alpha \mathbf{x} + \mathbf{y}
+    /// \f]
+    /// \param n The size of the vector
+    /// \param alpha The scaling factor for vector \f$ \mathbf{x} \f$
+    /// \param x Pointer to vector \f$ \mathbf{x} \f$
+    /// \param incx Stride for vector \f$ \mathbf{x} \f$
+    /// \param y Pointer to vector \f$ \mathbf{y} \f$
+    /// \param incy Stride for vector \f$ \mathbf{y} \f$
+    ///@{
+    inline void axpy(const integer n, const float alpha, float* x, const integer incx,
+                     float* y, const integer incy) {
+      F77_SAXPY(&n, &alpha, x, &incx, y, &incy);
+    }
+
+    inline void axpy(const integer n, const double alpha, double* x, const integer incx,
+                     double* y, const integer incy) {
+      F77_DAXPY(&n, &alpha, x, &incx, y, &incy);
+    }
+
+    inline void axpy(const integer n, const complex_real4 alpha, complex_real4* x, const integer incx,
+                     complex_real4* y, const integer incy) {
+      F77_CAXPY(&n, &alpha, x, &incx, y, &incy);
+    }
+
+    inline void axpy(const integer n, const complex_real8 alpha, complex_real8* x, const integer incx,
+                     complex_real8* y, const integer incy) {
+      F77_ZAXPY(&n, &alpha, x, &incx, y, &incy);
+    }
+    ///@}
+
 
 } // namespace cblas
 } // namespace madness
