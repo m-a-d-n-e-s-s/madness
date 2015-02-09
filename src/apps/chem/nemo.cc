@@ -491,6 +491,21 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
     world.gop.fence();
 }
 
+/// compute the nuclear gradients
+Tensor<double> Nemo::gradient(const Tensor<double>& x) {
+    const double thresh=FunctionDefaults<3>::get_thresh();
+    FunctionDefaults<3>::set_thresh(thresh*0.1);
+    R.set_thresh(thresh*0.1);
+    vecfuncT psi = mul(world, R, calc->amo);
+    functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
+    R.set_thresh(thresh);
+    Tensor<double> grad=calc->derivatives(world,rho);
+    FunctionDefaults<3>::set_thresh(thresh);
+
+    return grad;
+}
+
+
 /// save a function
 template<typename T, size_t NDIM>
 void Nemo::save_function(const Function<T,NDIM>& f, const std::string name) const {

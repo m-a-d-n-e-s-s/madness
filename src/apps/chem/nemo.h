@@ -154,11 +154,7 @@ public:
 	double value(const Tensor<double>& x);
 
 	/// compute the nuclear gradients
-	Tensor<double> gradient(const Tensor<double>& x) {
-	    vecfuncT psi = mul(world, R, calc->amo);
-	    functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
-        return calc->derivatives(world,rho);
-	}
+	Tensor<double> gradient(const Tensor<double>& x);
 
 	bool provides_gradient() const {return true;}
 
