@@ -220,6 +220,7 @@ namespace madness {
             // solve the canonical MP1 equations with increased accuracy
             for (int i = param.freeze; i < hf->nocc(); ++i) {
                 for (int j = i; j < hf->nocc(); ++j) {
+                    pairs(i,j).converged=false;
                     solve_residual_equations(pairs(i,j),param.econv_*0.05,param.dconv_);
                     correlation_energy += pairs(i, j).e_singlet + pairs(i, j).e_triplet;
                 }
@@ -418,6 +419,13 @@ namespace madness {
             // check convergence
             bool converged = ((std::abs(old_energy - total_energy) < econv)
                     and (total_rnorm < dconv));
+
+            // save the pairs
+            for (int i = param.freeze; i < hf->nocc(); ++i) {
+                for (int j = i; j < hf->nocc(); ++j) {
+                    pairs(i,j).store_pair(world);
+                }
+            }
 
             if (world.rank() == 0)
                 printf("finished iteration %2d at time %8.1fs with coupled energy %12.8f\n\n",
