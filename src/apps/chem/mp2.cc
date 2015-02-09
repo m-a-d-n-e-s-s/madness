@@ -1458,18 +1458,20 @@ namespace madness {
 
                 for (int l=param.freeze; l<hf->nocc(); ++l) {
                 	if (fock1(l,j) != 0.0) {
-                	    coupling(i,j).gaxpy(1.0,quadratic[std::make_pair(i,l)],fock1(l,j),false);
+                	    coupling(i,j).gaxpy(1.0,quadratic[std::make_pair(i,l)],fock1(l,j),true);
                 	}
                 }
+                world.gop.fence();
+                coupling(i,j).truncate();
             }
         }
         world.gop.fence();
 
-        for (int i=param.freeze; i<hf->nocc(); ++i) {
-            for (int j=i; j<hf->nocc(); ++j) {
-                coupling(i,j).truncate();
-            }
-        }
+//        for (int i=param.freeze; i<hf->nocc(); ++i) {
+//            for (int j=i; j<hf->nocc(); ++j) {
+//                coupling(i,j).truncate();
+//            }
+//        }
 
     }
 
