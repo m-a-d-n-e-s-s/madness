@@ -61,6 +61,9 @@ using namespace madness;
 
 namespace madness {
 
+    extern void START_TIMER(World& world);
+    extern void END_TIMER(World& world, const char* msg);
+
 	/// do some load-balancing
 
 	/// @param[in]	f		the function we want to distribute evenly
@@ -359,10 +362,13 @@ namespace madness {
         for (int iteration=0; iteration<param.maxiter; ++iteration) {
 
             // compute the coupling between the pair functions
+            START_TIMER(world);
             Pairs<real_function_6d> coupling;
             add_local_coupling(pairs,coupling);
+            END_TIMER(world,"compute coupling");
 
             // compute the vector function, aka the rhs of the residual equations
+            START_TIMER(world);
             Pairs<real_function_6d> vectorfunction;
             for (int i = param.freeze; i < hf->nocc(); ++i) {
                 for (int j = i; j < hf->nocc(); ++j) {
@@ -374,6 +380,7 @@ namespace madness {
                     vectorfunction(i,j)-=coupling(i,j);
                 }
             }
+            END_TIMER(world,"apply H^(0) |ket>");
 
             double total_rnorm=0.0;
             double old_energy=total_energy;
@@ -383,10 +390,14 @@ namespace madness {
                 for (int j = i; j < hf->nocc(); ++j) {
                     const double eps = zeroth_order_energy(i, j);
 
+                    START_TIMER(world);
                     real_convolution_6d green = BSHOperator<6>(world, sqrt(-2 * eps), lo,
                             bsh_eps);
                     vectorfunction(i,j).scale(-2.0).truncate();
                     real_function_6d tmp=green(vectorfunction(i,j)).truncate();
+                    END_TIMER(world,"apply BSH |ket>");
+
+                    START_TIMER(world);
                     tmp = (Q12(pairs(i,j).constant_term + tmp)).truncate();
 
                     real_function_6d residual = pairs(i,j).function - tmp;
@@ -400,6 +411,7 @@ namespace madness {
 
                     total_rnorm+=rnorm;
                     total_energy+=energy;
+                    END_TIMER(world,std::string(" post-BSH "+stringify(i)+stringify(j)).c_str());
                 }
             }
 
@@ -1051,6 +1063,7 @@ namespace madness {
 	/// @return	the energy of 1 degenerate triplet and 1 singlet pair
 	double MP2::compute_energy(ElectronPair& pair) const {
 
+	    START_TIMER(world);
 		// a11 will be the bra space, therefore take the hermitian conjugate
 		const double a11 = inner(pair.function,
 				JK1phi0_on_demand(pair.i, pair.j, true))
@@ -1096,6 +1109,7 @@ namespace madness {
 					pair.e_singlet, pair.e_triplet);
 		}
 
+		END_TIMER(world,"compute MP2 energy");
 		// return the total energy of this pair
 		return pair.e_singlet + pair.e_triplet;
 	}
@@ -1331,6 +1345,7 @@ namespace madness {
 
 		real_function_6d vphi;
 
+        START_TIMER(world);
 		if (0) {
 			//            if (hf->nemo_calc.nuclear_correlation->type()==NuclearCorrelationFactor::None) {
 			real_function_3d v_total = hf->get_nuclear_potential()
@@ -1401,11 +1416,14 @@ namespace madness {
 			vphi.print_size("(U_nuc + J) |ket>:  made V tree");
 			asymmetry(vphi, "U+J");
 		}
+        END_TIMER(world, "apply (U + J) |ket>");
 
 		// and the exchange
+        START_TIMER(world);
 		vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
 		asymmetry(vphi, "U+J-K");
 		vphi.print_size("(U_nuc + J - K) |ket>:  made V tree");
+        END_TIMER(world, "apply K |ket>");
 
 		return vphi;
 	}
