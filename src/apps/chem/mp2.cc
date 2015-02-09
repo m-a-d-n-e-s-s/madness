@@ -122,8 +122,10 @@ namespace madness {
 			poisson = std::shared_ptr<real_convolution_3d>(
 					CoulombOperatorPtr(world, 0.0001, calc->param.econv));
 
+			// construct electronic correlation factor only, nuclear correlation
+			// factor depends on the coordinates and must be reassigned for
+			// for each geometric structure
 			corrfac = CorrelationFactor(world, 1.0, dcut, calc->molecule);
-			nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
 
 		}
 
@@ -151,7 +153,6 @@ namespace madness {
 	/// return the molecular correlation energy energy (without the HF energy)
 	double MP2::value() {
 		hf->value();		// make sure the reference is converged
-
 		return value(hf->get_calc().molecule.get_all_coords());
 	}
 
@@ -162,6 +163,9 @@ namespace madness {
 		double xsq = x.sumsq();
 		if (xsq == coord_chksum())
 			return correlation_energy;
+
+		// nuclear correlation factor depends on the coordinates
+        nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
 
 		// make sure HF used the same geometry as we do
 		coords_sum = xsq;
