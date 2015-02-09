@@ -45,6 +45,7 @@
 */
 
 #include <chem/nemo.h>
+#include <chem/molecular_optimizer.h>
 
 using namespace madness;
 
@@ -87,7 +88,8 @@ int main(int argc, char** argv) {
             calc->param.gprint(world);
 
             Tensor<double> geomcoord = calc->molecule.get_all_coords().flat();
-            QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new Nemo(world, calc)),
+            MolecularOptimizer geom(std::shared_ptr<OptimizationTargetInterface>(new Nemo(world, calc)),
+                    calc->molecule,
                     calc->param.gmaxiter,
                     calc->param.gtol,  //tol
                     calc->param.gval,  //value prec
@@ -98,7 +100,6 @@ int main(int argc, char** argv) {
             Tensor<double> h(ncoord,ncoord);
             for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
             geom.set_hessian(h);
-            geom.set_test(true);
             geom.optimize(geomcoord);
         } else {
 

@@ -44,6 +44,7 @@
  */
 
 #include <chem/nemo.h>
+#include <chem/molecular_optimizer.h>
 namespace madness {
 
 static double ttt, sss;
@@ -101,7 +102,7 @@ double Nemo::value(const Tensor<double>& x) {
 
 		// guess: multiply the guess orbitals with the inverse R
 		calc->amo = mul(world, R_inverse, calc->amo);
-		calc->param.restart = true;
+//		calc->param.restart = true;
 	}
 
 	double energy = solve();

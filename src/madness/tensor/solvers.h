@@ -246,7 +246,7 @@ namespace madness {
     /// \ingroup solvers
     /// This is presently not a low memory algorithm ... we really need one!
     class QuasiNewton : public OptimizerInterface {
-    private:
+    protected:
         std::string update;              // One of BFGS or SR1
         std::shared_ptr<OptimizationTargetInterface> target;
         const int maxiter;

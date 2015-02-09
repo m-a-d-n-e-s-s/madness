@@ -65,7 +65,7 @@ public:
         if (mass==-1.0) MADNESS_EXCEPTION("faulty element in Atom",1);
 
         // unstable elements are indicated by negative masses, the mass
-        // is taken from the longest-living isotope.
+        // is taken from the longest-living element
         if (mass<0.0) mass*=-1.0;
 
     }
