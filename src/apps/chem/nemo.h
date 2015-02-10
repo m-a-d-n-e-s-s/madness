@@ -198,6 +198,10 @@ private:
 	double compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 			const vecfuncT& Kpsi) const;
 
+    /// given nemos, compute the HF energy using the regularized expressions for T and V
+    double compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
+            const vecfuncT& Knemo, const vecfuncT& Unemo) const;
+
 	/// compute the reconstructed orbitals, and all potentials applied on nemo
 
 	/// to use these potentials in the fock matrix computation they must

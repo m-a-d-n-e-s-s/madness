@@ -133,6 +133,19 @@ double Nemo::value(const Tensor<double>& x) {
 	// compute the dipole moment
     functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
     calc->dipole(world,rho);
+
+    // compute stuff
+    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+    real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
+    real_function_3d rhonemoz=Dz(rhonemo);
+    std::string filename="plot_rhonemoz";
+    Vector<double,3> lo=vec<double>(0,0,-10);
+    Vector<double,3> hi=vec<double>(0,0,10);
+    plot_line(filename.c_str(),500, lo, hi, rhonemoz);
+
+    filename="plot_rhonemo";
+    plot_line(filename.c_str(),500, lo, hi, rhonemo);
+
 	return energy;
 }
 
@@ -241,6 +254,7 @@ double Nemo::solve() {
 		double oldenergy=energy;
 		energy = compute_energy(psi, mul(world, R, Jnemo),
 				mul(world, R, Knemo));
+        energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
 
 		// Diagonalize overlap to get the eigenvalues and eigenvectors
 		tensorT overlap = matrix_inner(world, psi, psi, true);
@@ -364,6 +378,39 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 		printf("                total %16.8f\n\n", energy);
 	}
 	return energy;
+}
+
+/// given nemos, compute the HF energy using the regularized expressions for T and V
+double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
+        const vecfuncT& Knemo, const vecfuncT& Unemo) const {
+
+    const vecfuncT R2nemo=mul(world,nuclear_correlation->square(),nemo);
+
+    const tensorT U = inner(world, R2nemo, Unemo);
+    const double pe = 2.0 * U.sum();  // closed shell
+
+    double ke = 0.0;
+    for (int axis = 0; axis < 3; axis++) {
+        real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+        const vecfuncT dnemo = apply(world, D, nemo);
+        const vecfuncT dr2nemo = apply(world, D, R2nemo);
+        ke += 0.5 * (inner(world, dnemo, dr2nemo)).sum();
+    }
+    ke *= 2.0; // closed shell
+
+    const double J = inner(world, R2nemo, Jnemo).sum();
+    const double K = inner(world, R2nemo, Knemo).sum();
+    const double nucrep = calc->molecule.nuclear_repulsion_energy();
+
+    const double energy = ke + J - K + pe + nucrep;
+    if (world.rank() == 0) {
+        printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
+        printf("              coulomb %16.8f\n", J);
+        printf(" exchange-correlation %16.8f\n", -K);
+        printf("    nuclear-repulsion %16.8f\n", nucrep);
+        printf("   regularized energy %16.8f\n", energy);
+    }
+    return energy;
 }
 
 
@@ -493,6 +540,7 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
 
 /// compute the nuclear gradients
 Tensor<double> Nemo::gradient(const Tensor<double>& x) {
+#if 0
     const double thresh=FunctionDefaults<3>::get_thresh();
     FunctionDefaults<3>::set_thresh(thresh*0.1);
     R.set_thresh(thresh*0.1);
@@ -501,7 +549,63 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     R.set_thresh(thresh);
     Tensor<double> grad=calc->derivatives(world,rho);
     FunctionDefaults<3>::set_thresh(thresh);
+#else
 
+    Tensor<double> grad(3*calc->molecule.natom());
+    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+    if (0) {
+        vecfuncT bra(3);
+        for (int axis=0; axis<3; ++axis) {
+
+            // compute \frac{\partial \rho}{\partial x_i}
+            real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
+            real_function_3d Drhonemo=D(rhonemo);
+
+            // compute the second term of the bra
+            real_function_3d tmp=rhonemo.scale(2.0)*nuclear_correlation->U1(axis);
+            bra[axis]=(Drhonemo-tmp).truncate();
+        }
+
+        for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+            const Atom& atom=calc->molecule.get_atom(iatom);
+            real_function_3d r2v=nuclear_correlation->square_times_V(atom);
+
+            for (int axis=0; axis<3; axis++) {
+                grad(3*iatom + axis)=inner(bra[axis],r2v);
+            }
+
+        }
+    } else {
+        for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+            for (int axis=0; axis<3; ++axis) {
+                real_function_3d r2v=nuclear_correlation->square_times_V_derivative(iatom,axis);
+                grad(3*iatom + axis)=inner(rhonemo,r2v);
+            }
+        }
+    }
+    for (int atom = 0; atom < calc->molecule.natom(); ++atom) {
+        for (int axis = 0; axis < 3; ++axis) {
+            grad[atom * 3 + axis] += calc->molecule.nuclear_repulsion_derivative(atom,
+                                                                        axis);
+        }
+    }
+
+#endif
+
+    if (world.rank() == 0) {
+        print("\n Derivatives (a.u.)\n -----------\n");
+        print(
+              "  atom        x            y            z          dE/dx        dE/dy        dE/dz");
+        print(
+              " ------ ------------ ------------ ------------ ------------ ------------ ------------");
+        for (int i = 0; i < calc->molecule.natom(); ++i) {
+            const Atom& atom = calc->molecule.get_atom(i);
+            printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", i,
+                   atom.x, atom.y, atom.z, grad[i * 3 + 0], grad[i * 3 + 1],
+                   grad[i * 3 + 2]);
+        }
+    }
+    throw;
     return grad;
 }
 
