@@ -620,7 +620,9 @@ void TDA::normalize(xfunction & xfunction)const {
 
 void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions)const {
 	for (size_t p = 0; p < xfunctions.size(); p++) {
+		compress(world,xfunctions[p].x);
 		for (size_t k = 0; k < converged_xfunctions_.size(); k++) {
+			compress(world,converged_xfunctions_[k].x);
 			Tensor<double> overlap = inner(world, xfunctions[p].x,
 					converged_xfunctions_[k].x);
 			double c = overlap.sum();
