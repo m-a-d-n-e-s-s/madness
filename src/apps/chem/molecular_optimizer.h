@@ -292,6 +292,8 @@ private:
 
         Tensor<double> project_T=identity-outer(transx,transx)
                 - outer(transy,transy) - outer(transz,transz);
+        print("projector_T");
+        print(project_T);
         return project_T;
     }
 
