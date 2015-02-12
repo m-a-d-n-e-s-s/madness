@@ -33,26 +33,47 @@
 
 /// \file chem/molecular_optimizer.h
 /// \brief optimize the geometrical structure of a molecule
+#ifndef MADNESS_CHEM_MOLECULAR_OPTIMIZER_H__INCLUDED
+#define MADNESS_CHEM_MOLECULAR_OPTIMIZER_H__INCLUDED
 
 #include <madness/tensor/solvers.h>
 #include <chem/molecule.h>
 
 namespace madness {
 
+
+struct MolecularOptimizationTargetInterface : public OptimizationTargetInterface {
+
+    /// return the molecule of the target
+    virtual Molecule& molecule() {
+        MADNESS_EXCEPTION("you need to return a molecule",1);
+        return *(new Molecule());   // this is a memory leak silencing warnings
+    }
+};
+
+
+
 /// Molecular optimizer derived from the QuasiNewton optimizer
 
 /// Essentially the QuasiNewton optimizer, but with the additional feature
 /// of projecting out rotational and translational degrees of freedom
-class MolecularOptimizer : public QuasiNewton {
+class MolecularOptimizer : public OptimizerInterface {
 
 public:
     /// same ctor as the QuasiNewton optimizer
-    MolecularOptimizer(const std::shared_ptr<OptimizationTargetInterface>& tar,
-            const Molecule& mol,
+    MolecularOptimizer(const std::shared_ptr<MolecularOptimizationTargetInterface>& tar,
             int maxiter = 20, double tol = 1e-6, double value_precision = 1e-12,
             double gradient_precision = 1e-12)
-        : QuasiNewton(tar,maxiter,tol,value_precision,gradient_precision)
-        , molecule(mol), cg_method("polak_ribiere") {
+        : update("BFGS")
+        , target(tar)
+        , maxiter(maxiter)
+        , tol(tol)
+        , value_precision(value_precision)
+        , gradient_precision(gradient_precision)
+        , f(tol*1e16)
+        , gnorm(tol*1e16)
+        , printtest(false)
+        , cg_method("polak_ribiere") {
     }
 
     /// optimize the underlying molecule
@@ -65,25 +86,45 @@ public:
         return converge;
     }
 
+    bool converged() const {return gradient_norm()<tol;}
+
+    double value() const {return 0.0;}
+
+    double gradient_norm() const {return gnorm;}
+
+private:
+
+    /// How to update the hessian: BFGS or SR1
+    std::string update;
+    std::shared_ptr<MolecularOptimizationTargetInterface> target;
+    const int maxiter;
+    const double tol;       // the gradient convergence threshold
+    const double value_precision;  // Numerical precision of value
+    const double gradient_precision; // Numerical precision of each element of residual
+    double f;
+    double gnorm;
+    Tensor<double> h;
+    bool printtest;
+
+    /// conjugate_gradients method
+    std::string cg_method;
+
     bool optimize_quasi_newton(Tensor<double>& x) {
-        if (n != x.dim(0)) {
-            n = x.dim(0);
-            h = Tensor<double>();
-        }
 
 
-       if(printtest)  target->test_gradient(x, value_precision);
+        if(printtest)  target->test_gradient(x, value_precision);
 
         bool h_is_identity = (h.size() == 0);
         if (h_is_identity) {
+            int n = x.dim(0);
             h = Tensor<double>(n,n);
             for (int i=0; i<n; ++i) h(i,i) = 1.0;
 
             // mass-weight the initial hessian
-            for (int i=0; i<molecule.natom(); ++i) {
-                h(i  ,i  )/=(molecule.get_atom(i).mass);
-                h(i+1,i+1)/=(molecule.get_atom(i).mass);
-                h(i+2,i+2)/=(molecule.get_atom(i).mass);
+            for (int i=0; i<target->molecule().natom(); ++i) {
+                h(i  ,i  )/=(target->molecule().get_atom(i).mass);
+                h(i+1,i+1)/=(target->molecule().get_atom(i).mass);
+                h(i+2,i+2)/=(target->molecule().get_atom(i).mass);
             }
         }
 
@@ -110,14 +151,14 @@ public:
             }
 
             if (iter > 0) {
-                if (update == "BFGS") hessian_update_bfgs(dx, g-gp,h);
-                else hessian_update_sr1(dx, g-gp,h);
+                if (update == "BFGS") QuasiNewton::hessian_update_bfgs(dx, g-gp,h);
+                else QuasiNewton::hessian_update_sr1(dx, g-gp,h);
             }
 
             Tensor<double> v, e;
 //            syev(h, v, e);
 //            print("hessian eigenvalues",e);
-            remove_translation(h,molecule);
+            remove_translation(h,target->molecule());
             syev(h, v, e);
             print("hessian eigenvalues",e);
 
@@ -125,7 +166,8 @@ public:
             // return the displacements
             dx = new_search_direction2(g,h);
 
-            double step = line_search(1.0, f, dx.trace(g), x, dx);
+//            double step = line_search(1.0, f, dx.trace(g), x, dx);
+            double step=0.5;
 
             dx.scale(step);
             x += dx;
@@ -158,7 +200,7 @@ public:
             // displace coordinates
             x+=displacement;
 
-            Tensor<double> com=center_of_mass(molecule);
+            Tensor<double> com=center_of_mass(target->molecule());
             print("current coordinates and center of mass",com);
             print(x);
             target->value_and_gradient(x, energy, gradient);
@@ -166,7 +208,7 @@ public:
             print(gradient);
             gnorm = gradient.normf();
             print("raw gradient norm ",gnorm);
-            Tensor<double> project_T=projector_translation(molecule);
+            Tensor<double> project_T=projector_translation(target->molecule());
             gradient=inner(gradient,project_T);
             gnorm = gradient.normf();
             print("projected gradient norm ",gnorm);
@@ -184,14 +226,6 @@ public:
 
         return converged();
     }
-
-private:
-
-    /// need the molecule for projecting rotation and translation
-    const Molecule& molecule;
-
-    /// conjugate_gradients method
-    std::string cg_method;
 
     /// effectively invert the hessian and multiply with the gradient
     Tensor<double> new_search_direction2(const Tensor<double>& g,
@@ -212,7 +246,7 @@ private:
 
         // Take step applying restriction
         int nneg=0, nsmall=0, nrestrict=0;
-        for (int i=0; i<n; ++i) {
+        for (int i=0; i<e.size(); ++i) {
             if (e[i] < -tol) {
                 if (printtest) printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
                 nneg++;
@@ -261,6 +295,37 @@ private:
         return project_T;
     }
 
+    /// compute the projector to remove rotational degrees of freedom
+    Tensor<double> projector_rotation(const Molecule& mol) const {
+
+        Tensor<double> rotx, roty, rotz;
+
+        // diagonalize the moment of inertia
+        Tensor<double> I=mol.moment_of_inertia();
+        Tensor<double> v,e;
+        syev(I, v, e);
+
+        // compute the center of mass
+        Tensor<double> com=center_of_mass(mol);
+
+        for (int iatom=0; iatom<mol.natom(); ++iatom) {
+
+            // coordinates wrt the center of mass
+            Tensor<double> coord(3);
+            coord(0l)=mol.get_atom(iatom).x-com(0l);
+            coord(1l)=mol.get_atom(iatom).y-com(1l);
+            coord(2l)=mol.get_atom(iatom).z-com(2l);
+
+//
+//            for (int i=0; i<3; ++i) {
+//                rotx=
+//            }
+        }
+
+
+    }
+
+
     /// remove translational degrees of freedom from the hessian
     void remove_translation(Tensor<double>& hessian,
             const Molecule& mol) const {
@@ -293,3 +358,5 @@ private:
 };
 
 }
+
+#endif //MADNESS_CHEM_MOLECULAR_OPTIMIZER_H__INCLUDED

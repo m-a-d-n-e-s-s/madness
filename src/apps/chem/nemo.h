@@ -52,6 +52,7 @@
 #include <madness/mra/lbdeux.h>
 #include <chem/SCF.h>
 #include <chem/correlationfactor.h>
+#include <chem/molecular_optimizer.h>
 #include <examples/nonlinsol.h>
 #include <madness/mra/vmra.h>
 
@@ -135,7 +136,7 @@ struct allocator {
 };
 
 /// The Nemo class
-class Nemo: public OptimizationTargetInterface {
+class Nemo: public MolecularOptimizationTargetInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 
 public:
@@ -162,6 +163,11 @@ public:
 
 	/// compute the Fock matrix from scratch
 	tensorT compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const;
+
+	/// return a reference to the molecule
+	Molecule& molecule() {
+	    return calc->molecule;
+	}
 
 private:
 

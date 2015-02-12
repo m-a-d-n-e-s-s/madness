@@ -214,7 +214,16 @@ public:
 
     void identify_point_group();
 
+    /// Moves the center of nuclear charge to the origin
     void center();
+
+    /// rotates the molecule and the external field
+
+    /// @param[in]  D   the rotation matrix
+    void rotate(const Tensor<double>& D);
+
+    /// translate the molecule
+    void translate(const Tensor<double>& translation);
 
     Tensor<double> moment_of_inertia() const;
 

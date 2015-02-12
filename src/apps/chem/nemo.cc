@@ -60,16 +60,6 @@ void END_TIMER(World& world, const char* msg) {
 
 extern Tensor<double> Q3(const Tensor<double>& s);
 
-static double V1(const coord_3d& r) {
-    double ZA=0.8;
-    return 1./sqrt(r[0]*r[0] + r[1]*r[1] + (r[2]-ZA)*(r[2]-ZA) + 1.e-8);
-}
-static double V2(const coord_3d& r) {
-    double ZA=-1.0;
-    return 1./sqrt(r[0]*r[0] + r[1]*r[1] + (r[2]-ZA)*(r[2]-ZA) + 1.e-8);
-}
-
-
 double Nemo::value(const Tensor<double>& x) {
 
 	// fast return if the reference is already solved at this geometry

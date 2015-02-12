@@ -88,18 +88,13 @@ int main(int argc, char** argv) {
             calc->param.gprint(world);
 
             Tensor<double> geomcoord = calc->molecule.get_all_coords().flat();
-            MolecularOptimizer geom(std::shared_ptr<OptimizationTargetInterface>(new Nemo(world, calc)),
-                    calc->molecule,
+            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
                     calc->param.gmaxiter,
                     calc->param.gtol,  //tol
                     calc->param.gval,  //value prec
                     calc->param.gprec); // grad prec
-            geom.set_update(calc->param.algopt);
-            geom.set_test(calc->param.gtest);
-            long ncoord = calc->molecule.natom()*3;
-            Tensor<double> h(ncoord,ncoord);
-            for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
-            geom.set_hessian(h);
+//            geom.set_update(calc->param.algopt);
+//            geom.set_test(calc->param.gtest);
             geom.optimize(geomcoord);
         } else {
 
