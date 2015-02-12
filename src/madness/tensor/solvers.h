@@ -259,13 +259,19 @@ namespace madness {
         int n;
         bool printtest;
 
-        double line_search(double a1, double f0, double dxgrad, const Tensor<double>& x, const Tensor<double>& dx);
+    public:
 
-        void hessian_update_sr1(const Tensor<double>& s, const Tensor<double>& y,
-                Tensor<double>& hessian) const;
+        /// make this static for other QN classed to have access to it
+        double line_search(double a1, double f0, double dxgrad,
+                const Tensor<double>& x, const Tensor<double>& dx) const;
 
-        void hessian_update_bfgs(const Tensor<double>& dx,
-                     const Tensor<double>& dg, Tensor<double>& hessian) const;
+        /// make this static for other QN classed to have access to it
+        static void hessian_update_sr1(const Tensor<double>& s, const Tensor<double>& y,
+                Tensor<double>& hessian);
+
+        /// make this static for other QN classed to have access to it
+        static void hessian_update_bfgs(const Tensor<double>& dx,
+                     const Tensor<double>& dg, Tensor<double>& hessian);
 
         Tensor<double> new_search_direction(const Tensor<double>& g) const;
 

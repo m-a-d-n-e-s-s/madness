@@ -112,7 +112,8 @@ namespace madness {
 
     double SteepestDescent::value() const {return f;}
 
-    double QuasiNewton::line_search(double a1, double f0, double dxgrad, const Tensor<double>& x, const Tensor<double>& dx) {
+    double QuasiNewton::line_search(double a1, double f0, double dxgrad,
+            const Tensor<double>& x, const Tensor<double>& dx) const {
         double f1, f2p;
         double hess, a2;
         const char* lsmode = "";
@@ -163,7 +164,7 @@ namespace madness {
     }
 
     void QuasiNewton::hessian_update_sr1(const Tensor<double>& s,
-            const Tensor<double>& y, Tensor<double>& hessian) const {
+            const Tensor<double>& y, Tensor<double>& hessian) {
         Tensor<double> q = y - inner(hessian,s);
         double qds = q.trace(s);
         if (std::abs(qds) > 1e-8 * s.normf() * q.normf()) {
@@ -176,7 +177,7 @@ namespace madness {
 
 
     void QuasiNewton::hessian_update_bfgs(const Tensor<double>& dx,
-                const Tensor<double>& dg, Tensor<double>& hessian) const {
+                const Tensor<double>& dg, Tensor<double>& hessian) {
         /*
           Apply the BFGS update to the approximate Hessian h[][].
 
@@ -193,6 +194,7 @@ namespace madness {
         double dxdg  = dx.trace(dg);
         double dgdg  = dg.trace(dg);
 
+        const int n=hessian.dim(0);
         if ( (dxdx > 0.0) && (dgdg > 0.0) && (std::abs(dxdg/std::sqrt(dxdx*dgdg)) > 1.e-8) ) {
             for (int i=0; i<n; ++i) {
                 for (int j=0; j<n; ++j) {
