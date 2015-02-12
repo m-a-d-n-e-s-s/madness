@@ -351,9 +351,9 @@ void Molecule::center() {
 /// translate the molecule
  void Molecule::translate(const Tensor<double>& translation) {
     for (unsigned int i=0; i<atoms.size(); ++i) {
-        atoms[i].x = translation(0l);
-        atoms[i].y = translation(1l);
-        atoms[i].z = translation(2l);
+        atoms[i].x += translation(0l);
+        atoms[i].y += translation(1l);
+        atoms[i].z += translation(2l);
     }
 }
 
