@@ -60,8 +60,8 @@ public:
     /// @param[in]  x   the coordinates to compute energy and gradient
     bool optimize(Tensor<double>& x) {
         bool converge;
-        converge=optimize_quasi_newton(x);
-//        converge=optimize_conjugate_gradients(x);
+//        converge=optimize_quasi_newton(x);
+        converge=optimize_conjugate_gradients(x);
         return converge;
     }
 
@@ -158,12 +158,18 @@ public:
             // displace coordinates
             x+=displacement;
 
-            print("current coordinates and energy",energy);
+            Tensor<double> com=center_of_mass(molecule);
+            print("current coordinates and center of mass",com);
             print(x);
             target->value_and_gradient(x, energy, gradient);
             print("new energy and gradient",energy);
             print(gradient);
             gnorm = gradient.normf();
+            print("raw gradient norm ",gnorm);
+            Tensor<double> project_T=projector_translation(molecule);
+            gradient=inner(gradient,project_T);
+            gnorm = gradient.normf();
+            print("projected gradient norm ",gnorm);
 
             // compute new displacement (Fletcher-Reeves)
             double beta=0.0;
@@ -236,13 +242,8 @@ private:
         return inner(v,gv);
     }
 
-
-    /// remove translational degrees of freedom from the hessian
-    void remove_translation(Tensor<double>& hessian,
-            const Molecule& mol) const {
-
-        print("projecting out translational degrees of freedom");
-        // compute the translation of the center of mass
+    /// compute the projector to remove translational degrees of freedom
+    Tensor<double> projector_translation(const Molecule& mol) const {
         Tensor<double> transx(3*mol.natom());
         Tensor<double> transy(3*mol.natom());
         Tensor<double> transz(3*mol.natom());
@@ -257,17 +258,35 @@ private:
 
         Tensor<double> project_T=identity-outer(transx,transx)
                 - outer(transy,transy) - outer(transz,transz);
+        return project_T;
+    }
 
-//        print("hessian");
-//        print(hessian);
-//        print("project_T");
-//        print(project_T);
+    /// remove translational degrees of freedom from the hessian
+    void remove_translation(Tensor<double>& hessian,
+            const Molecule& mol) const {
+
+        print("projecting out translational degrees of freedom");
+        // compute the translation of the center of mass
+        Tensor<double> project_T=projector_translation(mol);
+
         // this is P^T * H * P
         hessian=inner(project_T,inner(hessian,project_T),0,0);
+    }
 
-//        print("hessian (proj)");
-//        print(hessian);
-
+    /// compute the center of mass
+    Tensor<double> center_of_mass(const Molecule& molecule) const {
+        Tensor<double> com(3);
+        double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
+        for (unsigned int i=0; i<molecule.natom(); ++i) {
+            xx += molecule.get_atom(i).x*molecule.get_atom(i).mass;
+            yy += molecule.get_atom(i).y*molecule.get_atom(i).mass;
+            zz += molecule.get_atom(i).z*molecule.get_atom(i).mass;
+            qq += molecule.get_atom(i).mass;
+        }
+        com(0l)=xx/qq;
+        com(1l)=yy/qq;
+        com(2l)=zz/qq;
+        return com;
     }
 
 
