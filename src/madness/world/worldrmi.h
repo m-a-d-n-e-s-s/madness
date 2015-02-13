@@ -192,6 +192,8 @@ namespace madness {
                 if(! finished) {
                    tbb::task::increment_ref_count();
                    tbb::task::recycle_as_safe_continuation();
+                } else {
+                    finished = false;
                 }
                 return NULL;
             }
@@ -199,6 +201,7 @@ namespace madness {
             void run() {
                 try {
                     while (! finished) process_some();
+                    finished = false;
                 } catch(...) {
                     delete this;
                     throw;
@@ -213,7 +216,8 @@ namespace madness {
 
                 // Set finished flag
                 finished = true;
-                myusleep(10000);
+                while(finished)
+                    myusleep(1000);
             }
 
             static void huge_msg_handler(void *buf, size_t nbytein);
