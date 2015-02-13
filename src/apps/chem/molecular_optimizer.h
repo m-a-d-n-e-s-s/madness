@@ -81,8 +81,8 @@ public:
     /// @param[in]  x   the coordinates to compute energy and gradient
     bool optimize(Tensor<double>& x) {
         bool converge;
-//        converge=optimize_quasi_newton(x);
-        converge=optimize_conjugate_gradients(x);
+        converge=optimize_quasi_newton(x);
+//        converge=optimize_conjugate_gradients(x);
         return converge;
     }
 
@@ -111,7 +111,6 @@ private:
 
     bool optimize_quasi_newton(Tensor<double>& x) {
 
-
         if(printtest)  target->test_gradient(x, value_precision);
 
         bool h_is_identity = (h.size() == 0);
@@ -128,50 +127,60 @@ private:
             }
         }
 
+        remove_external_dof(h,target->molecule());
+
         // the previous gradient
         Tensor<double> gp;
         // the displacement
         Tensor<double> dx;
 
         for (int iter=0; iter<maxiter; ++iter) {
-            Tensor<double> g;
+            Tensor<double> gradient;
 
-            target->value_and_gradient(x, f, g);
-            print("new energy, corresponding coords and gradient",f);
-            print(x);
-            print(g);
-            gnorm = g.normf();
+            target->value_and_gradient(x, f, gradient);
+            print("gopt: new energy",f);
+            gnorm = gradient.normf()/sqrt(gradient.size());
+            print("gopt: raw gradient norm ",gnorm);
+
+            // remove external degrees of freedom (translation and rotation)
+            Tensor<double> project_ext=projector_external_dof(target->molecule());
+            gradient=inner(gradient,project_ext);
+            gnorm = gradient.normf()/sqrt(gradient.size());
+            print("gopt: projected gradient norm ",gnorm);
+
+
             printf(" QuasiNewton iteration %2d value %.12e gradient %.2e\n",iter,f,gnorm);
             if (converged()) break;
 
             if (iter == 1 && h_is_identity) {
                 // Default initial Hessian is scaled identity but
                 // prefer to reuse any existing approximation.
-                h.scale(g.trace(gp)/gp.trace(dx));
+                h.scale(gradient.trace(gp)/gp.trace(dx));
             }
 
             if (iter > 0) {
-                if (update == "BFGS") QuasiNewton::hessian_update_bfgs(dx, g-gp,h);
-                else QuasiNewton::hessian_update_sr1(dx, g-gp,h);
+                if (update == "BFGS") QuasiNewton::hessian_update_bfgs(dx, gradient-gp,h);
+                else QuasiNewton::hessian_update_sr1(dx, gradient-gp,h);
             }
 
             Tensor<double> v, e;
 //            syev(h, v, e);
 //            print("hessian eigenvalues",e);
-            remove_translation(h,target->molecule());
+
+            remove_external_dof(h,target->molecule());
             syev(h, v, e);
             print("hessian eigenvalues",e);
 
             // this will invert the hessian, multiply with the gradient and
             // return the displacements
-            dx = new_search_direction2(g,h);
+            dx = new_search_direction2(gradient,h);
 
 //            double step = line_search(1.0, f, dx.trace(g), x, dx);
             double step=0.5;
 
             dx.scale(step);
             x += dx;
-            gp = g;
+            gp = gradient;
         }
 
         if (printtest) {
@@ -183,45 +192,52 @@ private:
 
     bool optimize_conjugate_gradients(Tensor<double>& x) {
 
+//        Tensor<double> project_ext=projector_external_dof(target->molecule());
+
 
         // initial energy and gradient gradient
         double energy=0.0;
         Tensor<double> gradient;
-        target->value_and_gradient(x, energy, gradient);
 
         // first step is steepest descent
-        Tensor<double> displacement=-gradient;
-        Tensor<double> oldgradient=gradient;
-        Tensor<double> old_displacement=displacement;
-
+        Tensor<double> displacement(x.size());
+        Tensor<double> oldgradient;
+        Tensor<double> old_displacement(x.size());
+        old_displacement.fill(0.0);
 
         for (int iter=1; iter<maxiter; ++iter) {
 
             // displace coordinates
-            x+=displacement;
+            if (iter>1) x+=displacement;
 
-            Tensor<double> com=center_of_mass(target->molecule());
-            print("current coordinates and center of mass",com);
-            print(x);
+            // compute energy and gradient
             target->value_and_gradient(x, energy, gradient);
-            print("new energy and gradient",energy);
-            print(gradient);
-            gnorm = gradient.normf();
-            print("raw gradient norm ",gnorm);
-            Tensor<double> project_T=projector_translation(target->molecule());
-            gradient=inner(gradient,project_T);
-            gnorm = gradient.normf();
-            print("projected gradient norm ",gnorm);
+            print("gopt: new energy",energy);
+            gnorm = gradient.normf()/sqrt(gradient.size());
+            print("gopt: raw gradient norm ",gnorm);
 
-            // compute new displacement (Fletcher-Reeves)
-            double beta=0.0;
-            if (cg_method=="fletcher_reeves") beta=gradient.normf()/oldgradient.normf();
-            if (cg_method=="polak_ribiere") beta=gradient.normf()/(gradient-oldgradient).normf();
+            // remove external degrees of freedom (translation and rotation)
+            Tensor<double> project_ext=projector_external_dof(target->molecule());
+            gradient=inner(gradient,project_ext);
+            gnorm = gradient.normf()/sqrt(gradient.size());
+            print("gopt: projected gradient norm ",gnorm);
 
-            displacement=-gradient + beta * old_displacement;
+            // compute new displacement
+            if (iter==1) {
+                displacement=-gradient;
+            } else {
+                double beta=0.0;
+                if (cg_method=="fletcher_reeves")
+                    beta=gradient.normf()/oldgradient.normf();
+                if (cg_method=="polak_ribiere")
+                    beta=gradient.normf()/(gradient-oldgradient).normf();
+                displacement=-gradient + beta * old_displacement;
+            }
+
+            // save displacement for the next step
             old_displacement=displacement;
 
-            if (converged()) break;
+            if (converged() and (displacement.normf()/displacement.size()<tol)) break;
         }
 
         return converged();
@@ -248,13 +264,15 @@ private:
         int nneg=0, nsmall=0, nrestrict=0;
         for (int i=0; i<e.size(); ++i) {
             if (e[i] < -tol) {
-                if (printtest) printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
+                if (printtest) printf(
+                        "   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
                 nneg++;
                 //e[i] = -2.0*e[i]; // Enforce positive search direction
                 e[i] = -0.1*e[i]; // Enforce positive search direction
             }
             else if (e[i] < tol) {
-                if (printtest) printf("   forcing small eigenvalue to be zero %d %.1e\n", i, e[i]);
+                if (printtest) printf(
+                        "   forcing small eigenvalue to be zero %d %.1e\n", i, e[i]);
                 nsmall++;
                 e[i] = tol;
                 gv[i]=0.0;   // effectively removing this direction
@@ -264,20 +282,30 @@ private:
             gv[i] = -gv[i] / e[i];
             if (std::abs(gv[i]) > trust) { // Step restriction
                 double gvnew = trust*std::abs(gv(i))/gv[i];
-                if (printtest) printf("   restricting step in spectral direction %d %.1e --> %.1e\n", i, gv[i], gvnew);
+                if (printtest) printf(
+                        "   restricting step in spectral direction %d %.1e --> %.1e\n",
+                        i, gv[i], gvnew);
                 nrestrict++;
                 gv[i] = gvnew;
             }
         }
-        if (nneg || nsmall || nrestrict) printf("   nneg=%d nsmall=%d nrestrict=%d\n", nneg, nsmall, nrestrict);
+        if (nneg || nsmall || nrestrict)
+            printf("   nneg=%d nsmall=%d nrestrict=%d\n", nneg, nsmall, nrestrict);
 
         // Transform back from spectral basis to give the displacements
         // disp = -V lambda^-1 VT g = V lambda^-1 gv
         return inner(v,gv);
     }
 
-    /// compute the projector to remove translational degrees of freedom
-    Tensor<double> projector_translation(const Molecule& mol) const {
+    /// compute the projector to remove transl. and rot. degrees of freedom
+
+    /// taken from http://www.gaussian.com/g_whitepap/vib.htm
+    /// I don't really understand the concept behind the projectors, but it
+    /// seems to work, and it is not written down explicitly anywhere!
+    /// All quantities are computed in non-mass-weighted coordinates.
+    Tensor<double> projector_external_dof(Molecule& mol) const {
+
+        // compute the translation vectors
         Tensor<double> transx(3*mol.natom());
         Tensor<double> transy(3*mol.natom());
         Tensor<double> transz(3*mol.natom());
@@ -287,57 +315,95 @@ private:
             transz[i+2]=1.0/sqrt(mol.natom());
         }
 
-        Tensor<double> identity(3*mol.natom(),3*mol.natom());
-        for (int i=0; i<3*mol.natom(); ++i) identity(i,i)=1.0;
+        // compute the rotation vectors
 
-        Tensor<double> project_T=identity-outer(transx,transx)
-                - outer(transy,transy) - outer(transz,transz);
-        print("projector_T");
-        print(project_T);
-        return project_T;
-    }
-
-    /// compute the projector to remove rotational degrees of freedom
-    Tensor<double> projector_rotation(const Molecule& mol) const {
-
-        Tensor<double> rotx, roty, rotz;
+        // move the molecule to its center of mass and compute
+        // the moment of inertia tensor
+        Tensor<double> com=center_of_mass(mol);
+        mol.translate(-1.0*com);
+        Tensor<double> I=mol.moment_of_inertia();
+        mol.translate(1.0*com);
 
         // diagonalize the moment of inertia
-        Tensor<double> I=mol.moment_of_inertia();
         Tensor<double> v,e;
-        syev(I, v, e);
+        syev(I, v, e);  // v being the "X" tensor on the web site
 
-        // compute the center of mass
-        Tensor<double> com=center_of_mass(mol);
+        // rotation vectors
+        Tensor<double> rotx(3*mol.natom());
+        Tensor<double> roty(3*mol.natom());
+        Tensor<double> rotz(3*mol.natom());
 
         for (int iatom=0; iatom<mol.natom(); ++iatom) {
 
-            // coordinates wrt the center of mass
+            // coordinates wrt the center of mass ("R" on the web site)
             Tensor<double> coord(3);
             coord(0l)=mol.get_atom(iatom).x-com(0l);
             coord(1l)=mol.get_atom(iatom).y-com(1l);
             coord(2l)=mol.get_atom(iatom).z-com(2l);
 
-//
-//            for (int i=0; i<3; ++i) {
-//                rotx=
-//            }
+            // p is the dot product of R and X on the web site
+            Tensor<double> p=inner(coord,v);
+
+            // Eq. (5)
+            rotx(3*iatom + 0)=p(1)*v(0,2)-p(2)*v(0,1);
+            rotx(3*iatom + 1)=p(1)*v(1,2)-p(2)*v(1,1);
+            rotx(3*iatom + 2)=p(1)*v(2,2)-p(2)*v(2,1);
+
+            roty(3*iatom + 0)=p(2)*v(0,0)-p(0l)*v(0,2);
+            roty(3*iatom + 1)=p(2)*v(1,0)-p(0l)*v(1,2);
+            roty(3*iatom + 2)=p(2)*v(2,0)-p(0l)*v(2,2);
+
+            rotz(3*iatom + 0)=p(0l)*v(0,1)-p(1)*v(0,0);
+            rotz(3*iatom + 1)=p(0l)*v(1,1)-p(1)*v(1,0);
+            rotz(3*iatom + 2)=p(0l)*v(2,1)-p(1)*v(2,0);
+
         }
 
+        // move the translational and rotational vectors to a common tensor
+        Tensor<double> ext_dof(6,3*mol.natom());
+        ext_dof(0l,_)=rotx;
+        ext_dof(1l,_)=roty;
+        ext_dof(2l,_)=rotz;
+        ext_dof(3l,_)=transx;
+        ext_dof(4l,_)=transy;
+        ext_dof(5l,_)=transz;
+
+        // compute overlap to orthonormalize the projectors
+        Tensor<double> ovlp=inner(ext_dof,ext_dof,1,1);
+        syev(ovlp,v,e);
+        // orthogonalize with the eigenvectors of ovlp
+        ext_dof=inner(v,ext_dof,0,0);
+
+        // normalize or remove the dof if necessary (e.g. linear molecules)
+        for (int i=0; i<6; ++i) {
+            if (e(i)<1.e-14) {
+                ext_dof(i,_).scale(0.0);      // take out this degree of freedom
+            } else {
+                ext_dof(i,_).scale(1/sqrt(e(i)));   // normalize
+            }
+        }
+
+        // construct projector on the complement of the rotations
+        Tensor<double> projector(3*mol.natom(),3*mol.natom());
+        for (int i=0; i<3*mol.natom(); ++i) projector(i,i)=1.0;
+
+        // compute the outer products of the projectors
+        // 1- \sum_i | t_i >< t_i |
+        projector-=inner(ext_dof,ext_dof,0,0);
+        return projector;
 
     }
 
-
     /// remove translational degrees of freedom from the hessian
-    void remove_translation(Tensor<double>& hessian,
-            const Molecule& mol) const {
+    void remove_external_dof(Tensor<double>& hessian,
+            Molecule& mol) const {
 
         print("projecting out translational degrees of freedom");
         // compute the translation of the center of mass
-        Tensor<double> project_T=projector_translation(mol);
+        Tensor<double> projector_ext=projector_external_dof(mol);
 
         // this is P^T * H * P
-        hessian=inner(project_T,inner(hessian,project_T),0,0);
+        hessian=inner(projector_ext,inner(hessian,projector_ext),0,0);
     }
 
     /// compute the center of mass

@@ -60,7 +60,6 @@ int main(int argc, char** argv) {
     }
     startup(world,argc,argv);
     std::cout.precision(6);
-    typedef std::vector<functionT> vecfuncT;
 
 #ifdef GITREVISION
     const  char* gitrev =  GITREVISION;
