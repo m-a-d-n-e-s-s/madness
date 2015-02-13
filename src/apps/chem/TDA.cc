@@ -53,13 +53,13 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	read_xfunctions(xfunctions);
 
 	// Create the excitation_function vector and initialize
-	std::cout << "\n\n---Start Initialize Guess Functions---" << "\n\n " << std::endl;
+	if(world.rank()==0)std::cout << "\n\n---Start Initialize Guess Functions---" << "\n\n " << std::endl;
 	TDA_TIMER init(world,"\nfinished to initialize guess excitations ...");
 	// if xfunctions were read in before then xfunctions.empty() will be false
 	if(xfunctions.empty())initialize(xfunctions);
 
 	iterate_guess(xfunctions);
-	std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
+	if(world.rank()==0)std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
 	init.info();
 
 	// plot
@@ -80,7 +80,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 			<< "SOLVE START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n" << std::endl;
 
 	if(world.rank()==0) std::cout << "\n------------------------------------------\n"
-			<< "The following pre-converged guess_xfunctions will be used from now on: " << "\n------------------------------------------\n"  << std::endl;
+<< "The following pre-converged guess_xfunctions will be used from now on: " << "\n------------------------------------------\n"  << std::endl;
 	print_status(xfunctions);
 
 	// Iterate till convergence is reached
@@ -210,20 +210,24 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 }
 
 void TDA::print_status(const xfunctionsT & xfunctions) const {
-	std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
+	if(world.rank()==0){
+		std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
 	<< "error"<<std::setw(20)
 	<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
 	for(size_t i=0;i<converged_xfunctions_.size();i++) print_xfunction(converged_xfunctions_[i]);
 	std::cout <<"--------"<< std::endl;
 	for(size_t i=0;i<xfunctions.size();i++)print_xfunction(xfunctions[i]);
 	std::cout << "\n" << std::endl;
+	}
 }
 
 void TDA::print_xfunction(const xfunction &x) const {
+	if(world.rank()==0){
 	std::cout << std::setw(5) << x.number;
 	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
 																									<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
+	}
 }
 
 void TDA::initialize(xfunctionsT & xfunctions){
@@ -300,13 +304,13 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 			xfunctions[i].guess_excitation_operator = new_exop_strings[i];
 		}
 	}
-	// Reduce
 	std::sort(xfunctions.begin(),xfunctions.end());
-	if(guess_ == "big_fock") xfunctions.erase(xfunctions.begin()+guess_excitations_+excitations_+iterating_excitations_ + 2,xfunctions.end()); // no need to store all 80 xfunctions, we wont need them
+	// safe memory
+	if(xfunctions.size()>guess_excitations_+excitations_+iterating_excitations_+2) xfunctions.erase(xfunctions.begin()+guess_excitations_+excitations_+iterating_excitations_ + 2,xfunctions.end());
 	big_ortho.info();
 	if(world.rank()==0) std::cout << "\nthe following guess functions have been created:\n " << std::endl;
 	print_status(xfunctions);
-	if(world.rank()==0){
+	if(world.rank()==0 and debug_){
 		std::cout << "\nCorresponding excitation operators are:\n" << std::endl;
 		for(size_t i=0;i<xfunctions.size();i++){
 			xfunctions[i].number =i ;
@@ -410,19 +414,19 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 
 
 void TDA::iterate_guess(xfunctionsT &xfunctions) {
-	std::cout << "\n" << std::endl;
-	std::cout << "---Start Guess Iterations---" << "\n\n " << std::endl;
+	if(world.rank()==0)std::cout << "\n" << std::endl;
+	if(world.rank()==0)std::cout << "---Start Guess Iterations---" << "\n\n " << std::endl;
 	iterate_all(xfunctions,true);
 	// set back iteration counter
 	//for(size_t i=0;i<xfunctions.size();i++)xfunctions[i].iterations = 0;
-	std::cout <<std::setw(100)<< "---End Guess Iterations---" << "\n\n " << std::endl;
+	if(world.rank()==0)std::cout <<std::setw(100)<< "---End Guess Iterations---" << "\n\n " << std::endl;
 }
 
 void TDA::iterate(xfunctionsT &xfunctions) {
-	std::cout << "\n" << std::endl;
-	std::cout << "---Start Main Iterations---" << "\n\n " << std::endl;
+	if(world.rank()==0)std::cout << "\n" << std::endl;
+	if(world.rank()==0)std::cout << "---Start Main Iterations---" << "\n\n " << std::endl;
 	iterate_all(xfunctions,false);
-	std::cout <<std::setw(100)<< "---End Main Iterations---" << "\n\n " << std::endl;
+	if(world.rank()==0)std::cout <<std::setw(100)<< "---End Main Iterations---" << "\n\n " << std::endl;
 }
 
 void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
@@ -432,6 +436,9 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 
 	// Bool checks if the perturbed fock matrix has been calculated (if not the expencation value has to be calculated in the iterate_one routine)
 	bool pert_fock_applied = false;
+
+	// make big fock diagonalization
+	make_big_fock_guess(all_xfunctions);
 
 	// Restrict the number of parallel iterating guess functions
 	for(size_t i=0;i<all_xfunctions.size();i++) all_xfunctions[i].converged = false;
@@ -475,7 +482,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 				if(world.rank()==0) std::cout << " " <<  update_energy(xfunctions[i]) << " ";
 				xfunctions[i].x=iterate_one(xfunctions[i]);
 			}
-			std::cout << std::endl;
+			if(world.rank()==0)std::cout << std::endl;
 			apply_bsh.info();
 		}{
 			TDA_TIMER normalization(world,"Normalization: ");
@@ -614,7 +621,6 @@ void TDA::normalize(xfunction & xfunction)const {
 	const Tensor<double> self_overlaps = inner(world, xfunction.x, xfunction.x);
 	const double squared_norm = self_overlaps.sum();
 	const double norm = sqrt(squared_norm);
-	//std::cout << "Norm if xfunction " << xfunction.number << " is " << norm << " squared norm is " << squared_norm << std::endl;
 	scale(world, xfunction.x, 1.0 / norm);
 }
 
@@ -676,7 +682,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 	// if the overlap matrix is already the unit matrix then no orthogonalization is needed
 	double overlap_offdiag = measure_offdiagonality(overlap, xfunctions.size());
 	if (fabs(overlap_offdiag) < FunctionDefaults<3>::get_thresh()) {
-		std::cout << " already orthogonal: perturbed fock matrix will not be calculated \n" <<std ::endl;
+		if(world.rank()==0) std::cout << " already orthogonal: perturbed fock matrix will not be calculated \n" <<std ::endl;
 		return false;
 	}
 
@@ -701,7 +707,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 	if (xfunctions.size() > 1) {
 		// Make an estimation how "strong" the xfunctions are linear combinated
 		double offdiagonal = measure_offdiagonality(U, xfunctions.size());
-		std::cout << std::setw(40) << "offdiagonal transformation part..." << " : " << fabs(offdiagonal) << std::endl;
+		if(world.rank()==0) std::cout << std::setw(40) << "offdiagonal transformation part..." << " : " << fabs(offdiagonal) << std::endl;
 	}
 
 	// Transform the xfunctions, and if demanded the kain subspace and the potentials
@@ -715,7 +721,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 		xfunctions[i].x = new_x[i];
 		xfunctions[i].expectation_value.push_back(evals(i));
 	}
-	std::cout << std::setw(40) << "Transforming..." << " : xfunctions... ";
+	if(world.rank()==0) std::cout << std::setw(40) << "Transforming..." << " : xfunctions... ";
 
 	// potentials
 	if (not on_the_fly_) {
@@ -727,10 +733,10 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 		for (size_t i = 0; i < xfunctions.size(); i++) {
 			xfunctions[i].Vx = new_Vx[i];
 		}
-		std::cout << "potentials... ";
+		if(world.rank()==0)std::cout << "potentials... ";
 	}
 
-	std::cout << std::endl;
+	if(world.rank()==0) std::cout << std::endl;
 
 	return true;
 
@@ -824,7 +830,7 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 		const xfunctionsT &xfunctions) const {
 	if (not dft_ and shift_ != 0.0)
 		MADNESS_EXCEPTION("No DFT calculation but shift is not zero", 1);
-	std::cout << std::setw(40) << "perturbed fock matrix dimension..." << " : " << xfunctions.size() << "x" << xfunctions.size() << std::endl;
+	if(world.rank()==0) std::cout << std::setw(40) << "perturbed fock matrix dimension..." << " : " << xfunctions.size() << "x" << xfunctions.size() << std::endl;
 
 	//Tensor<double> F(xfunctions.size(),xfunctions.size());
 	Tensor<double> F(xfunctions.size(), xfunctions.size());
@@ -983,7 +989,7 @@ vecfuncT TDA::apply_perturbed_potential(const xfunction & xfunction) const {
 
 	TDA_TIMER vxctimer(world, "apply the unperturbed potential...");
 	vecfuncT V0 = get_V0(xfunction.x);
-	vxctimer.info(debug_);
+	vxctimer.info();
 
 	vecfuncT Vpsi = add(world, V0, Gamma);
 	return Vpsi;
@@ -1332,7 +1338,7 @@ void TDA::analyze(xfunctionsT& roots) const {
 		it->f_length = osl;
 		it->f_velocity = osv;
 
-		std::cout << std::scientific << std::setprecision(10) << std::setw(20);
+		if(world.rank()==0) std::cout << std::scientific << std::setprecision(10) << std::setw(20);
 		if (world.rank()==0) {
 			std::cout.width(10); std::cout.precision(8);
 			print("excitation energy for root ",iroot,": ",it->omega);
@@ -1395,14 +1401,14 @@ bool TDA::read_xfunctions(xfunctionsT &xfunctions ){
 	const std::string name_x = "xfunctions_current";
 	const std::string name_xconv = "xfunctions_converged";
 	// check for converged_xfunctions
-	std::cout << "check for saved converged functions " << std::endl;
+	if(world.rank()==0) std::cout << "check for saved converged functions " << std::endl;
 	for(size_t i=0;i<guess_excitations_;i++){
 		std::string filename = name_xconv+stringify(i);
-		std::cout << "converged xfunction " << i;
+		if(world.rank()==0)std::cout << "converged xfunction " << i;
 		if(archive::ParallelInputArchive::exists(world,filename.c_str())){
 			xfunction dummy(world,active_mo_);
 			archive::ParallelInputArchive ar(world, filename.c_str(), 1);
-			std::cout << "...found"<<std::endl;
+			if(world.rank()==0)std::cout << "...found"<<std::endl;
 			ar & dummy.omega;
 			ar & dummy.expectation_value;
 			ar & dummy.delta;
@@ -1412,17 +1418,19 @@ bool TDA::read_xfunctions(xfunctionsT &xfunctions ){
 			ar & dummy.iterations;
 			for(size_t j=0;j<noct;j++){ar & dummy.x[j];}
 			converged_xfunctions_.push_back(dummy);
-		}else std::cout << "...not found" << std::endl;
+		}else{
+			if(world.rank()==0)std::cout << "...not found" << std::endl;
+		}
 	}
 
 	// check for unconverged xfunctions
 	for(size_t i=0;i<guess_excitations_;i++){
 		std::string filename = name_x+stringify(i);
-		std::cout << "xfunction " << i;
+		if(world.rank()==0) std::cout << "xfunction " << i;
 		if(archive::ParallelInputArchive::exists(world,filename.c_str())){
 			xfunction dummy(world,active_mo_);
 			archive::ParallelInputArchive ar(world, filename.c_str(), 1);
-			std::cout << "...found"<<std::endl;
+			if(world.rank()==0) std::cout << "...found"<<std::endl;
 			ar & dummy.omega;
 			ar & dummy.expectation_value;
 			ar & dummy.delta;
@@ -1432,7 +1440,9 @@ bool TDA::read_xfunctions(xfunctionsT &xfunctions ){
 			ar & dummy.iterations;
 			for(size_t j=0;j<noct;j++){ar & dummy.x[j];}
 			xfunctions.push_back(dummy);
-		}else std::cout << "...not found" << std::endl;
+		}else{
+			if(world.rank()==0)std::cout << "...not found" << std::endl;
+		}
 	}
 	if(not xfunctions.empty()) return true;
 	else return false;

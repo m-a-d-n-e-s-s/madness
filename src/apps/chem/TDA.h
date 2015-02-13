@@ -681,14 +681,13 @@ public:
 		real_function_3d density = real_factory_3d(world);
 		for(size_t i=0;i<mos_.size();i++){density+=2.0*mos_[i]*mos_[i];}
 		density_=density;
-		std::cout <<std::setw(40) <<"Norm of unperturbed density is : " << density_.norm2() << std::endl;
 
 		// Initialize the exchange intermediate
 		if(not dft_) {
-			std::cout << std::setw(40) << "Make exchange intermediate" << " : locailzation is " << localize_exchange_intermediate_ << std::endl;
+			if(world.rank()==0)std::cout << std::setw(40) << "Make exchange intermediate" << " : locailzation is " << localize_exchange_intermediate_ << std::endl;
 			if(localize_exchange_intermediate_) exchange_intermediate_ = make_localized_exchange_intermediate();
 			else exchange_intermediate_ = make_exchange_intermediate();
-			std::cout << std::setw(40) << "CIS is used" << " : LIBXC Interface is not initialized" << std::endl;
+			if(world.rank()==0)std::cout << std::setw(40) << "CIS is used" << " : LIBXC Interface is not initialized" << std::endl;
 		}if(dft_){
 			lda_intermediate_ = make_lda_intermediate();
 		}
@@ -706,7 +705,7 @@ public:
 		// Truncate the current mos
 		truncate(world,mos_);
 
-		std::cout << "setup of TDA class ended\n" << std::endl;
+		if(world.rank()==0)std::cout << "setup of TDA class ended\n" << std::endl;
 
 		Tensor<double> ExImNorms(exchange_intermediate_.size(),exchange_intermediate_.size());
 		for(size_t i=0;i<exchange_intermediate_.size();i++){
@@ -715,8 +714,8 @@ public:
 			}
 		}
 		if(world.rank()==0 and active_mo_.size()<6){
-			std::cout << " Norms of the exchange intermediate: " << std::endl;
-			std::cout << ExImNorms << std::endl;
+			if(world.rank()==0)std::cout << " Norms of the exchange intermediate: " << std::endl;
+			if(world.rank()==0)std::cout << ExImNorms << std::endl;
 		}
 
 	}
@@ -727,7 +726,7 @@ public:
 		// sanity_check
 		if(xfunctions.empty())return 0.0;
 		double allx=0.0; double allVx=0.0; double allr=0.0;
-		if(printout)std::cout << "\n\n#" << "  " << "     x " << "     Vx " << "     r " << std::endl;
+		if(printout and world.rank()==0)std::cout << "\n\n#" << "  " << "     x " << "     Vx " << "     r " << std::endl;
 		if(printout)print("-------------------------------");
 		for(size_t i=0;i<xfunctions.size();i++){
 			if(on_the_fly_ and not xfunctions[i].Vx.empty()) MADNESS_EXCEPTION("on the fly calculation used but Vx not empty",1);
