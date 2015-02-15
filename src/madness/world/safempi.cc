@@ -35,9 +35,7 @@
 
 namespace SafeMPI {
 
-#ifdef MADNESS_SERIALIZES_MPI
     madness::SCALABLE_MUTEX_TYPE charon;
-#endif
 
     void Intracomm::binary_tree_info(int root, int& parent, int& child0, int& child1) {
         const int np = Get_size();

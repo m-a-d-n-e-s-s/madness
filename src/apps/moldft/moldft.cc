@@ -36,8 +36,19 @@
 /// \brief Molecular HF and DFT code
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
-
 #include <chem/SCF.h>
+
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+static inline int file_exists(const char * inpname)
+{
+    struct stat buffer;
+    int rc = stat(inpname, &buffer);
+    return (rc==0);
+}
+#endif
 
 using namespace madness;
 
@@ -74,7 +85,10 @@ START_TIMER(world);
                 break;
             }
         }
-        if (world.rank() == 0) print(inpname);
+        if (world.rank() == 0) print("input filename: ", inpname);
+        if (!file_exists(inpname)) {
+            throw "input file not found!";
+        }
         SCF calc(world, inpname);
 
         // Warm and fuzzy for the user

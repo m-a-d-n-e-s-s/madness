@@ -1306,7 +1306,7 @@ int main(int argc, char**argv) {
 #elif defined(CORE_DUO_TUNE)
             print("             tuning for ...", "core duo");
 #else
-            print("             tuning for ...", "core2");
+            print("             tuning for ...", "default");
 #endif
 #ifdef BOUNDS_CHECKING
             print(" tensor bounds checking ...", "enabled");

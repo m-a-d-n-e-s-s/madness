@@ -134,7 +134,8 @@ Tensor<double_complex> transform3d(const Tensor<double_complex>& t, const Tensor
         for (long kp = 0; kp < c_d0; ++kp) {
             for (long jp = 0; jp < c_d0; ++jp) {
                 double_complex sum = 0.0;
-                for (long ip = 0; ip < c_d0; ++ip)  sum += t(ip,jp,kp) * c(ip,i);
+                for (long ip = 0; ip < c_d0; ++ip)  
+                    sum += t(ip,jp,kp) * c(ip,i);
                 v_kpjpi[kp][jp] = sum;
             }
         }
