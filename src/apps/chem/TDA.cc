@@ -148,8 +148,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	print("-------------------------------------------------------\n\n\n\n");
 
 	// Failsafe for comming fock orthonormalization
-	for(auto x:xfunctions) x.Vx.clear();
-
+	for(size_t i=0;i<xfunctions.size();i++)xfunctions[i].Vx.clear();
 	orthonormalize_fock(xfunctions);
 	size_t max = xfunctions.size();
 
@@ -565,12 +564,10 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 					for(auto x:iteration_counters) x++;
 				}
 			}
-
 			TDA_TIMER project_time(world,"Project out converged excitations and occupied space: ");
 			for(size_t i=0;i<xfunctions.size();i++) project_out_occupied_space(xfunctions[i].x);
 			project_out_converged_xfunctions(xfunctions);
 			project_time.info();
-
 			print_status(xfunctions);
 
 			size_t break_condition = excitations_;
@@ -728,6 +725,12 @@ void TDA::orthonormalize_GS(xfunctionsT &xfunctions)const {
 //
 bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 	normalize(xfunctions);
+
+	if(xfunctions.size()<2){
+		if(world.rank()==0) std::cout << "no Fock diagonalization just " << xfunctions.size() << " xfunctions" << std::endl;
+		return false;
+	}
+
 	Tensor<double> overlap(xfunctions.size(), xfunctions.size());
 	for (size_t p = 0; p < xfunctions.size(); p++) {
 		for (size_t k = 0; k < xfunctions.size(); k++) {
