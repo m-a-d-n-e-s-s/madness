@@ -453,7 +453,11 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	orthonormalize_fock(all_xfunctions);
 
 	// Restrict the number of parallel iterating guess functions
-	for(size_t i=0;i<all_xfunctions.size();i++) all_xfunctions[i].converged = false;
+	for(size_t i=0;i<all_xfunctions.size();i++){
+		all_xfunctions[i].current_residuals.clear();
+		all_xfunctions[i].Vx.clear();
+		all_xfunctions[i].converged = false;
+	}
 	std::sort(all_xfunctions.begin(),all_xfunctions.end());
 	xfunctionsT xfunctions(all_xfunctions.begin(),all_xfunctions.begin()+iterating_excitations_);
 	xfunctionsT remaining_xfunctions(all_xfunctions.begin()+iterating_excitations_,all_xfunctions.end());
@@ -558,6 +562,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 		}
 
 		iteration_time.info();
+		if(world.rank()==0) std::cout << "\n\n" << std::endl;
 		guess_iter_counter++;
 	}
 
@@ -711,11 +716,11 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 
 	if(world.rank()==0 and xfunctions.size()<6) std::cout << std::setprecision(3)<< "\n overlap matrix\n" << overlap << std::endl;
 	// if the overlap matrix is already the unit matrix then no orthogonalization is needed
-	double overlap_offdiag = measure_offdiagonality(overlap, xfunctions.size());
-	if (fabs(overlap_offdiag) < FunctionDefaults<3>::get_thresh()) {
-		if(world.rank()==0) std::cout << " already orthogonal: perturbed fock matrix will not be calculated \n" <<std ::endl;
-		return false;
-	}
+//	double overlap_offdiag = measure_offdiagonality(overlap, xfunctions.size());
+//	if (fabs(overlap_offdiag) < FunctionDefaults<3>::get_thresh()) {
+//		if(world.rank()==0) std::cout << " already orthogonal: perturbed fock matrix will not be calculated \n" <<std ::endl;
+//		return false;
+//	}
 
 	Tensor<double> F(3L, xfunctions.size());
 	if (dft_) {
