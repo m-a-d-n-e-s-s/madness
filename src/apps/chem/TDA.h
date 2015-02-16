@@ -172,45 +172,87 @@ struct xfunction{
 
 };
 
-/// The structure defines operations on vectors of xfunctions needed by the kain solver
+/// This is a structure to perform operations on a vector of xfunctions
 struct vector_of_xfunctions{
-	vector_of_xfunctions() {}
-	vector_of_xfunctions(const std::vector<xfunction> xfunctions) : xfunctions_(xfunctions) {}
-	vector_of_xfunctions(const vector_of_xfunctions & other) : xfunctions_(other.xfunctions_) {}
-
-	std::vector<xfunction> xfunctions_;
-
-	size_t size(){return xfunctions_.size();}
-
-	vector_of_xfunctions operator=(const vector_of_xfunctions &other)const{
-		return vector_of_xfunctions(other);
+public:
+	vector_of_xfunctions(const size_t active_element_size): active_element_size(active_element_size){}
+	vector_of_xfunctions(const vector_of_xfunctions &other) : active_element_size(other.active_element_size),active_elements(other.active_elements),remaining_elements(other.remaining_elements),converged_elements(other.converged_elements){}
+	void sort(){
+		std::sort(active_elements.begin(),active_elements.end());
+		std::sort(remaining_elements.begin(),remaining_elements.end());
+		std::sort(converged_elements.begin(),converged_elements.end());
 	}
-	vector_of_xfunctions operator-=(const vector_of_xfunctions &other){
-		if(xfunctions_.size()!=other.xfunctions_.size()) MADNESS_EXCEPTION("ERROR in -= operator of vector_of_xfunctions: unequal sizes",1);
-		for(size_t i=0;i<xfunctions_.size();i++) xfunctions_[i]-=other.xfunctions_[i];
-		return *this;
+	std::vector<xfunction> get_converged_xfunctions(){return converged_elements;}
+	std::vector<xfunction> get_active_xfunctions(){return active_elements;}
+	std::vector<xfunction> get_all_xfunctions(){
+		std::vector<xfunction> all_xfunctions = converged_elements;
+		for(auto x:active_elements) all_xfunctions.push_back(x);
+		for(auto x:remaining_elements) all_xfunctions.push_back(x);
+		return all_xfunctions;
 	}
-	vector_of_xfunctions operator+=(const vector_of_xfunctions &other){
-		if(xfunctions_.size()!=other.xfunctions_.size()) MADNESS_EXCEPTION("ERROR in -= operator of vector_of_xfunctions: unequal sizes",1);
-		for(size_t i=0;i<xfunctions_.size();i++) xfunctions_[i]+=other.xfunctions_[i];
-		return *this;
-	}
-	vector_of_xfunctions operator *(double a)const {
-		vector_of_xfunctions result(*this);
-		for(size_t i=0;i<xfunctions_.size();i++) result.xfunctions_[i]*a;
-		return result;
-	}
-	vector_of_xfunctions operator -(const vector_of_xfunctions &other)const{
-		if(xfunctions_.size()!=other.xfunctions_.size()) MADNESS_EXCEPTION("ERROR in - operator of vector_of_xfunctions: unequal sizes",1);
-		std::vector<xfunction> res;
-		for(size_t i=0;i<xfunctions_.size();i++){
-			xfunction tmp = xfunctions_[i] - other.xfunctions_[i];
-			res.push_back(tmp);
+	void push_to_converged(){
+		std::vector<xfunction> not_converged;
+		for(auto x:active_elements){
+			if(x.converged)converged_elements.push_back(x);
+			else not_converged.push_back(x);
 		}
-		vector_of_xfunctions result(res);
-		return result;
+		active_elements = not_converged;
 	}
+	void fill_up(const size_t i){
+		if(active_elements.size()>=i) return;
+		else if(remaining_elements.empty()) return;
+		else {
+			for(size_t k=0;k<i;k++){
+				active_elements.push_back(remaining_elements.front());
+				remaining_elements.erase(remaining_elements.begin());
+				if(remaining_elements.empty())break;
+				if(active_elements.size()==i)break;
+			}
+		}
+	}
+	void clear(){
+		active_elements.clear();
+		converged_elements.clear();
+		remaining_elements.clear();
+	}
+	void set(const std::vector<xfunction> &x){
+		clear();
+		for(size_t i=0;i<active_element_size;i++) active_elements.push_back(x[i]);
+		for(size_t i=active_element_size;i<x.size();i++) remaining_elements.push_back(x[i]);
+	}
+	void reset(){
+		std::vector<xfunction> all_xfunctions = get_all_xfunctions();
+		std::sort(all_xfunctions.begin(),all_xfunctions.end());
+		set(all_xfunctions);
+
+	}
+	void print_status(){
+		std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
+		<< "error"<<std::setw(20)
+		<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
+		std::cout << "_._._._(pre) converged xfunctions" << std::endl;
+		for(auto x:converged_elements) print_xfunction(x);
+		std::cout << "_._._._active xfunctions"<< std::endl;
+		for(auto x:active_elements) print_xfunction(x);
+		std::cout << "_._._._remaining xfunctions" << std::endl;
+		for(auto x:remaining_elements) print_xfunction(x);
+	}
+	void print_xfunction(const xfunction &x){
+		std::cout << std::setw(5) << x.number;
+		std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
+																											<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+		std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
+	}
+	xfunction operator()(const size_t i){return active_elements[i];}
+
+private:
+	const size_t active_element_size;
+	std::vector<xfunction> active_elements;
+	std::vector<xfunction> remaining_elements;
+	std::vector<xfunction> converged_elements;
 };
+
+
 
 /// Kain allocator for single roots
 struct TDA_allocator{
@@ -230,26 +272,6 @@ struct TDA_allocator{
 	}
 };
 
-/// Kain allocator for all roots
-struct KAIN_allocator{
-	World & world;
-	const size_t noct_;
-	const size_t nexc_;
-
-	KAIN_allocator(World & world, const size_t noct,const size_t nexc) : world(world), noct_(noct), nexc_(nexc) {}
-
-	vector_of_xfunctions operator()(){
-		xfunction zero_x(world,zero_functions<double,3>(world,noct_));
-		std::vector<xfunction> zero_x_vec(nexc_,zero_x);
-		return vector_of_xfunctions(zero_x_vec);
-	}
-	KAIN_allocator operator=(const KAIN_allocator &other){
-		KAIN_allocator tmp(world,other.noct_,other.nexc_);
-		return tmp;
-	}
-
-};
-
 
 
 /// An inner product for the xfunction class also needed by the KAIN solver
@@ -258,145 +280,13 @@ static double inner(const xfunction &a, const xfunction &b) {
 	if (a.x.size()==0) return 0.0;
 	return madness::inner(a.x[0].world(),a.x,b.x).sum();
 }
-/// An inner product for the vector_of_xfunctions calss needed by the KAIN solver
-static double inner(const vector_of_xfunctions &a, const vector_of_xfunctions &b){
-	if (a.xfunctions_.size()!=b.xfunctions_.size()) MADNESS_EXCEPTION("ERROR :Inner product of two vector_of_xfunctions structures: Different sizes",1);
-	if(a.xfunctions_.size()==0) return 0.0;
-	double result =0.0;
-	for(size_t i=0;i<a.xfunctions_.size();i++){
-		Tensor<double> tmp = inner(a.xfunctions_[i].world,a.xfunctions_[i].x,b.xfunctions_[i].x);
-		result += tmp.sum();
-	}
-	return result;
-}
 
 // TYPEDEFS
 typedef std::vector<xfunction> xfunctionsT;
-typedef XNonlinearSolver<vector_of_xfunctions,double,KAIN_allocator> solverT;
 typedef XNonlinearSolver<xfunction,double,TDA_allocator> sequential_kain_solver;
 
 /// The structure needed if the kain solver shall be used
-struct kain_solver_helper_struct{
-	kain_solver_helper_struct(World& world,const size_t nsub, const size_t noct, const size_t nexc, const bool is_used):
-		world(world),subspace_size_(nsub), noct_(noct), nexc_(nexc), is_used_(is_used), solver_(KAIN_allocator(world,noct_,nexc_),true) // bool is for output print
-	{
-		solver_.set_maxsub(subspace_size_);
-	}
 
-private:
-	/// World
-	World & world;
-	/// size of the iterative subspace
-	const size_t subspace_size_;
-	/// number of occupied orbitals (non frozen)
-	const size_t noct_;
-	/// number of xfunctions in iteration cycle
-	size_t nexc_;
-	/// is kain used ?, this bool is needed because the struct has to be initialized if kain is used or not
-	const bool is_used_;
-	/// Kain solver for all xfunctions
-	solverT solver_;
-public:
-	/// Check if everything is fine within the kain solver (use this when adding or deleting xfunctions)
-	/// @param[in] xfunctions the xfunctions of the current iteration
-	void sanity_check(const xfunctionsT &xfunctions)const{
-		if(xfunctions.size()!=nexc_) MADNESS_EXCEPTION("ERROR in KAIN solvers: Unequal sizes of excitation functions",1);
-		if(xfunctions[0].x.size()!=noct_) MADNESS_EXCEPTION("ERROR in KAIN solvers: Unequal sizes of active orbitals",1);
-		if(not is_used_) MADNESS_EXCEPTION("ERROR in KAIN solvers: Kain should not be used",1);
-	}
-
-	/// Update the current response orbitals x of the xfunctions structures
-	/// @param[in] xfunctions	a vector if xfunctions structures of the current iteration (each xfunction should contain the x and curren_residuals)
-	void update(xfunctionsT &xfunctions){
-		sanity_check(xfunctions);
-		// make tow xfunction vectors, one with the x of xfunctions and one with the residulas of xfunctions as x
-		xfunctionsT r;
-		xfunctionsT u;
-		for(size_t i=0;i<xfunctions.size();i++){
-			xfunction rtmp(world,xfunctions[i].current_residuals);
-			xfunction utmp(world,xfunctions[i].x);
-			r.push_back(rtmp);
-			u.push_back(utmp);
-		}
-		vector_of_xfunctions updated = solver_.update(vector_of_xfunctions(u),vector_of_xfunctions(r));
-		for(size_t i=0;i<xfunctions.size();i++){
-			xfunctions[i].x = updated.xfunctions_[i].x;
-		}
-
-	}
-	/// Transform the Kain subspace(s)
-	/// @param[in] world 	the world
-	/// @param[in] U		The transformation matrix
-	void transform_subspace(World &world,const madness::Tensor<double> U){
-		if(solver_.get_ulist().empty()){ std::cout<<"kain: empty ulist, no transformation in "; return;}
-		if(solver_.get_rlist().empty()){ std::cout<<"kain: empty rlist, no transformation in "; return;}
-		size_t usize = solver_.get_ulist().size();
-		size_t rsize = solver_.get_rlist().size();
-		if(usize != rsize) MADNESS_EXCEPTION("ERROR in transform subspace of kain_helper_struct: Unequal sizes in r and u subspaces",1)
-				std::vector<vector_of_xfunctions> ulist = solver_.get_ulist();
-		std::vector<vector_of_xfunctions> rlist = solver_.get_rlist();
-		for(size_t i=0;i<usize;i++){
-			solver_.get_ulist()[i] = transform_vector_of_xfunctions(world,solver_.get_ulist()[i],U);
-			solver_.get_rlist()[i] = transform_vector_of_xfunctions(world,solver_.get_rlist()[i],U);
-		}
-	}
-	/// reduce the subspace: delete the entrys of the subspace that correspond to excitation vector i
-	/// Use this if you delete xfunctions
-	/// @param[in] i	the number of the xfunction that was deleted
-	void reduce_subspace(const size_t k){
-		if(solver_.get_rlist().size() != solver_.get_ulist().size()) MADNESS_EXCEPTION("ERROR in transform subspace of kain_helper_struct: Unequal sizes in r and u subspaces",1)
-		std::vector<vector_of_xfunctions> reduced_u = solver_.get_ulist();
-		std::vector<vector_of_xfunctions> reduced_r = solver_.get_rlist();
-		if(not reduced_u.empty()){
-		for(size_t i=0;i<reduced_u.size();i++){
-			reduced_u[i].xfunctions_.erase(reduced_u[i].xfunctions_.begin()+k);
-			reduced_r[i].xfunctions_.erase(reduced_r[i].xfunctions_.begin()+k);
-		}
-		}
-		// this is necessary because the allocator has to change
-		re_initialize_solver(nexc_-1);
-		solver_.get_ulist() =  reduced_u ;
-		solver_.get_rlist() =  reduced_r ;
-	}
-
-	void re_initialize_solver(const size_t new_nexc){
-		nexc_ = new_nexc;
-		solverT new_solver(KAIN_allocator(world,noct_,nexc_));
-		solver_ = new_solver;
-	}
-
-	/// Helper function for the transform_subspace function of the structure
-	/// @param[in] world the world
-	/// @param[in] xfunctions a vector of vectorfunctions
-	/// @param[in] U the transformation matrix
-	/// @return U*xfunctions : the transformed vector of vectorfunctions
-	vector_of_xfunctions transform_vector_of_xfunctions(World &world, const vector_of_xfunctions &xfunctions, const madness::Tensor<double> U) const {
-
-		vector_of_xfunctions new_xfunctions;
-		for (std::size_t i = 0; i < xfunctions.xfunctions_.size(); i++) {
-			vecfuncT zeros = zero_functions_compressed<double, 3>(world,xfunctions.xfunctions_[i].x.size());
-			xfunction tmp(world,zeros);
-			compress(world, tmp.x);
-			new_xfunctions.xfunctions_.push_back(tmp);
-		}
-
-		for (size_t i = 0; i < xfunctions.xfunctions_.size(); i++) {
-			for (size_t j = 0; j < xfunctions.xfunctions_.size(); ++j) {
-				gaxpy(world, 1.0, new_xfunctions.xfunctions_[i].x, U(j, i), xfunctions.xfunctions_[j].x);
-			}
-		}
-
-		// Return the transformed vector of vecfunctions
-		return new_xfunctions;
-
-	}
-
-	kain_solver_helper_struct operator=(const kain_solver_helper_struct &other){
-		nexc_ = other.nexc_;
-		solver_ = other.solver_;
-		return *this;
-	}
-};
 /// Functor that smoothes guess functions with the error functions (no fluctuations at the box borders)
 struct guess_smoothing : public FunctionFunctorInterface<double,3> {
 private:
@@ -507,7 +397,6 @@ public:
 	/// @param[in] calc 	the SCF calcualtion
 	/// @param[in] mos		the occupied molecular orbitals from the scf calculation
 	/// @param[in] input	name of the input file
-	/// @todo add parameter lowt:		will be used later to ditinguish between low and high threshold computations (not yet implemented)
 	TDA(World &world,const SCF &calc,const vecfuncT &mos,const std::string input):
 		world(world),
 		dft_(false),

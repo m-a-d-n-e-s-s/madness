@@ -59,15 +59,9 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	if(xfunctions.empty())initialize(xfunctions);
 	for(size_t i=0;i<10;i++){
 		if(world.rank()==0) std::cout << "\n\n\n" << "Guess Iteration Cycle " << i << "\n\n\n"<< std::endl;
-
-		iterate_guess(xfunctions);
-		size_t conv_counter=0;
-		for(size_t j=0;j<converged_xfunctions_.size();j++){
-			if(converged_xfunctions_[j].converged) conv_counter++;
-		}
-		if(conv_counter == excitations_) break;
-		xfunctions = converged_xfunctions_;
 		converged_xfunctions_.clear();
+		iterate_guess(xfunctions);
+		xfunctions = converged_xfunctions_;
 	}
 	if(world.rank()==0)std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
 	init.info();
@@ -458,8 +452,10 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	xfunctionsT xfunctions(all_xfunctions.begin(),all_xfunctions.begin()+iterating_excitations_);
 	xfunctionsT remaining_xfunctions(all_xfunctions.begin()+iterating_excitations_,all_xfunctions.end());
 
-	if(world.rank()==0) std::cout << "\nremaining guess functions are\n " << std::endl;
-	print_status(remaining_xfunctions);
+	print_status(xfunctions);
+
+//	if(world.rank()==0) std::cout << "\nremaining guess functions are\n " << std::endl;
+//	print_status(remaining_xfunctions);
 
 	size_t guess_iter_counter =1;
 	for(size_t i=0;i<1000;i++){
