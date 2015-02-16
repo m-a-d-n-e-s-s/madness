@@ -61,7 +61,13 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 		if(world.rank()==0) std::cout << "\n\n\n" << "Guess Iteration Cycle " << i << "\n\n\n"<< std::endl;
 		converged_xfunctions_.clear();
 		iterate_guess(xfunctions);
-		xfunctions = converged_xfunctions_;
+		std::sort(converged_xfunctions_.begin(),converged_xfunctions_.end());
+		size_t convergedc = 0;
+		for(auto x:converged_xfunctions_){
+			if(x.converged) convergedc++;
+		}
+		if(convergedc>=excitations_) break;
+		else xfunctions = converged_xfunctions_;
 	}
 	if(world.rank()==0)std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
 	init.info();
@@ -703,7 +709,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 		}
 	}
 
-	if(world.rank()==0 and active_mo_.size()<6) std::cout << std::setprecision(3)<< "\n overlap matrix\n" << overlap << std::endl;
+	if(world.rank()==0 and xfunctions.size()<6) std::cout << std::setprecision(3)<< "\n overlap matrix\n" << overlap << std::endl;
 	// if the overlap matrix is already the unit matrix then no orthogonalization is needed
 	double overlap_offdiag = measure_offdiagonality(overlap, xfunctions.size());
 	if (fabs(overlap_offdiag) < FunctionDefaults<3>::get_thresh()) {
@@ -725,7 +731,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 			1.5 * econv_);
 	//}
 	print("\n\n");
-	if(world.rank()==0 and active_mo_.size()<6) std::cout << std::setprecision(3) << std::setw(40)<< "Transformation-Matrix-U \n" << U << std::endl;
+	if(world.rank()==0 and xfunctions.size()<6) std::cout << std::setprecision(3) << std::setw(40)<< "Transformation-Matrix-U \n" << U << std::endl;
 	print("\n\n");
 
 	//Prevent printout when expectation value is calculated
