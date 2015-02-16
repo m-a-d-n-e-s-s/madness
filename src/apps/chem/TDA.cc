@@ -95,7 +95,22 @@ void TDA::solve(xfunctionsT &xfunctions) {
 	print_status(xfunctions);
 
 	// Iterate till convergence is reached
-	iterate(xfunctions);
+	for(size_t iter=0;iter<300;iter++){
+		converged_xfunctions_.clear();
+		iterate(xfunctions);
+		size_t convergedc=0;
+		for(auto x:converged_xfunctions_){
+			if(x.converged) convergedc++;
+		}
+		if(convergedc>=excitations_) break;
+		else{
+		xfunctionsT tmp = converged_xfunctions_;
+		for(auto x:xfunctions) tmp.push_back(x);
+		xfunctions = tmp;
+		}
+
+	}
+
 
 	// plot
 	for(size_t i=0;i<converged_xfunctions_.size();i++) {
@@ -446,7 +461,7 @@ void TDA::iterate(xfunctionsT &xfunctions) {
 void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	// Assign maximum iteration values
 	size_t iter_max = guess_iter_;
-	if(not guess) iter_max += iter_max_;
+	if(not guess) iter_max = iter_max_;
 
 	// Bool checks if the perturbed fock matrix has been calculated (if not the expencation value has to be calculated in the iterate_one routine)
 	bool pert_fock_applied = false;
@@ -472,6 +487,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 //	print_status(remaining_xfunctions);
 
 	size_t guess_iter_counter =1;
+	std::vector<size_t> iteration_counters(xfunctions.size(),0);
 	for(size_t i=0;i<1000;i++){
 		TDA_TIMER iteration_time(world,"\nEnd of iteration " + stringify(i) +": ");
 
@@ -520,14 +536,16 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 			if(not guess){
 			for(size_t ix=0;ix<xfunctions.size();ix++){
 
-				if(xfunctions[ix].converged or xfunctions[ix].iterations > iter_max){
+				if(xfunctions[ix].converged or iteration_counters[ix]>=iter_max){
 					converged_xfunctions_.push_back(xfunctions[ix]);
 					if(remaining_xfunctions.empty()){
 						xfunctions.erase(xfunctions.begin()+ix);
+						iteration_counters.erase(iteration_counters.begin()+ix);
 					}
 					else{
 						xfunctions[ix] = remaining_xfunctions.front();
 						remaining_xfunctions.erase(remaining_xfunctions.begin());
+						iteration_counters[ix]=0;
 					}
 				}
 			}
@@ -544,6 +562,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 						}
 					}
 					guess_iter_counter = 0;
+					for(auto x:iteration_counters) x++;
 				}
 			}
 
