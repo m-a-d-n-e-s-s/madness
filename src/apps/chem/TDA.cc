@@ -523,12 +523,13 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 			}else{
 				if(guess_iter_counter==guess_iter_){
 					for(size_t j=0;j<xfunctions.size();j++)converged_xfunctions_.push_back(xfunctions[j]);
+					xfunctions.clear();
 					if(remaining_xfunctions.empty()) break;
 					else{
 						for(size_t j=0;j<iterating_excitations_;j++){
+							if(remaining_xfunctions.empty()) break;
 							xfunctions.push_back(remaining_xfunctions.front());
 							remaining_xfunctions.erase(remaining_xfunctions.begin());
-							if(remaining_xfunctions.empty()) break;
 						}
 					}
 					guess_iter_counter = 0;
