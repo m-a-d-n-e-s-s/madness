@@ -59,14 +59,15 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	if(xfunctions.empty())initialize(xfunctions);
 	for(size_t i=0;i<10;i++){
 	if(world.rank()==0) std::cout << "\n\n\n" << "Guess Iteration Cycle " << i << "\n\n\n"<< std::endl;
-	xfunctions = converged_xfunctions_;
-	converged_xfunctions_.clear();
+
 	iterate_guess(xfunctions);
 	size_t conv_counter=0;
 	for(size_t j=0;j<converged_xfunctions_.size();j++){
 		if(converged_xfunctions_[j].converged) conv_counter++;
 	}
 	if(conv_counter == excitations_) break;
+	xfunctions = converged_xfunctions_;
+	converged_xfunctions_.clear();
 	}
 	if(world.rank()==0)std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
 	init.info();
