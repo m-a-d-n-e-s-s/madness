@@ -317,7 +317,7 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 	}
 	std::sort(xfunctions.begin(),xfunctions.end());
 	// safe memory
-	if(xfunctions.size()>guess_excitations_+excitations_+iterating_excitations_+2) xfunctions.erase(xfunctions.begin()+guess_excitations_+excitations_+iterating_excitations_ + 2,xfunctions.end());
+	if(xfunctions.size()>guess_excitations_) xfunctions.erase(xfunctions.begin()+guess_excitations_,xfunctions.end());
 	big_ortho.info();
 	if(world.rank()==0) std::cout << "\nthe following guess functions have been created:\n " << std::endl;
 	print_status(xfunctions);
@@ -449,7 +449,8 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	bool pert_fock_applied = false;
 
 	// make big fock diagonalization
-	make_big_fock_guess(all_xfunctions);
+	//make_big_fock_guess(all_xfunctions);
+	orthonormalize_fock(all_xfunctions);
 
 	// Restrict the number of parallel iterating guess functions
 	for(size_t i=0;i<all_xfunctions.size();i++) all_xfunctions[i].converged = false;
