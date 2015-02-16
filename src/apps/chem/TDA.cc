@@ -460,7 +460,7 @@ void TDA::iterate(xfunctionsT &xfunctions) {
 void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	// Assign maximum iteration values
 	size_t iter_max = guess_iter_;
-	if(not guess) iter_max = iter_max_;
+	if(not guess) iter_max = solve_iter_;
 
 	// Bool checks if the perturbed fock matrix has been calculated (if not the expencation value has to be calculated in the iterate_one routine)
 	bool pert_fock_applied = false;

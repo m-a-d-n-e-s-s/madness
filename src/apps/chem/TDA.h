@@ -405,7 +405,8 @@ public:
 		active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
 		guess_("dipole+"),
-		guess_iter_(10),
+		solve_iter_(5),
+		guess_iter_(3),
 		guess_mode_("projected"),
 		replace_guess_functions_(true),
 		guess_excitations_(0),
@@ -465,6 +466,7 @@ public:
 			else if (tag == "guess") ss >> guess_;
 			else if (tag == "hard_dconv") ss >> hard_dconv_;
 			else if (tag == "hard_econv") ss >> hard_econv_;
+			else if (tag == "solve_iter") ss >> solve_iter_;
 			else if (tag == "guess_iter") ss >> guess_iter_;
 			else if (tag == "guess_omega") ss >> guess_omega_;
 			else if (tag == "guess_mode") ss >> guess_mode_;
@@ -685,7 +687,7 @@ private:
 	/// guess == physical is the only implementation left
 	/// new guess functions can be implemented and called in the intialize function
 	std::string guess_;
-	/// guess iterations are the first iterations where the energy is kept fixed at the guess_omega energy
+	size_t solve_iter_;
 	size_t guess_iter_;
 	double guess_omega_;
 
