@@ -538,7 +538,7 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
 
 /// compute the nuclear gradients
 Tensor<double> Nemo::gradient(const Tensor<double>& x) {
-#if 0
+#if 1
     const double thresh=FunctionDefaults<3>::get_thresh();
     FunctionDefaults<3>::set_thresh(thresh*0.1);
     R.set_thresh(thresh*0.1);
