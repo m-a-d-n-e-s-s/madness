@@ -58,16 +58,16 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	// if xfunctions were read in before then xfunctions.empty() will be false
 	if(xfunctions.empty())initialize(xfunctions);
 	for(size_t i=0;i<10;i++){
-	if(world.rank()==0) std::cout << "\n\n\n" << "Guess Iteration Cycle " << i << "\n\n\n"<< std::endl;
+		if(world.rank()==0) std::cout << "\n\n\n" << "Guess Iteration Cycle " << i << "\n\n\n"<< std::endl;
 
-	iterate_guess(xfunctions);
-	size_t conv_counter=0;
-	for(size_t j=0;j<converged_xfunctions_.size();j++){
-		if(converged_xfunctions_[j].converged) conv_counter++;
-	}
-	if(conv_counter == excitations_) break;
-	xfunctions = converged_xfunctions_;
-	converged_xfunctions_.clear();
+		iterate_guess(xfunctions);
+		size_t conv_counter=0;
+		for(size_t j=0;j<converged_xfunctions_.size();j++){
+			if(converged_xfunctions_[j].converged) conv_counter++;
+		}
+		if(conv_counter == excitations_) break;
+		xfunctions = converged_xfunctions_;
+		converged_xfunctions_.clear();
 	}
 	if(world.rank()==0)std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
 	init.info();
@@ -91,7 +91,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 			<< "SOLVE START " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n" << std::endl;
 
 	if(world.rank()==0) std::cout << "\n------------------------------------------\n"
-<< "The following pre-converged guess_xfunctions will be used from now on: " << "\n------------------------------------------\n"  << std::endl;
+			<< "The following pre-converged guess_xfunctions will be used from now on: " << "\n------------------------------------------\n"  << std::endl;
 	print_status(xfunctions);
 
 	// Iterate till convergence is reached
@@ -223,21 +223,21 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 void TDA::print_status(const xfunctionsT & xfunctions) const {
 	if(world.rank()==0){
 		std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
-	<< "error"<<std::setw(20)
-	<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
-	for(size_t i=0;i<converged_xfunctions_.size();i++) print_xfunction(converged_xfunctions_[i]);
-	std::cout <<"--------"<< std::endl;
-	for(size_t i=0;i<xfunctions.size();i++)print_xfunction(xfunctions[i]);
-	std::cout << "\n" << std::endl;
+		<< "error"<<std::setw(20)
+		<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
+		for(size_t i=0;i<converged_xfunctions_.size();i++) print_xfunction(converged_xfunctions_[i]);
+		std::cout <<"--------"<< std::endl;
+		for(size_t i=0;i<xfunctions.size();i++)print_xfunction(xfunctions[i]);
+		std::cout << "\n" << std::endl;
 	}
 }
 
 void TDA::print_xfunction(const xfunction &x) const {
 	if(world.rank()==0){
-	std::cout << std::setw(5) << x.number;
-	std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-																									<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
-	std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
+		std::cout << std::setw(5) << x.number;
+		std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
+																											<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+		std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 	}
 }
 
@@ -396,7 +396,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 
 			// this is the file where the guess is on disk
 			const std::string valuefile="grid.koala.orbital"+stringify(i)
-	    															+".excitation"+stringify(iroot);
+	    																	+".excitation"+stringify(iroot);
 			real_function_3d x_i=real_factory_3d(world).empty();
 			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
 			root.x.push_back(x_i);
@@ -460,7 +460,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	if(world.rank()==0) std::cout << "\nremaining guess functions are\n " << std::endl;
 	print_status(remaining_xfunctions);
 
-	size_t fock_update_counter=0;
+	size_t guess_iter_counter =1;
 	for(size_t i=0;i<1000;i++){
 		TDA_TIMER iteration_time(world,"\nEnd of iteration " + stringify(i) +": ");
 
@@ -506,18 +506,32 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 			truncation.info();
 		}{
 			check_convergence(xfunctions,guess);
-			for(size_t i=0;i<xfunctions.size();i++){
+			if(not guess){
+			for(size_t ix=0;ix<xfunctions.size();i++){
 
-				if(xfunctions[i].converged or xfunctions[i].iterations > iter_max){
-					converged_xfunctions_.push_back(xfunctions[i]);
+				if(xfunctions[ix].converged or xfunctions[ix].iterations > iter_max){
+					converged_xfunctions_.push_back(xfunctions[ix]);
 					if(remaining_xfunctions.empty()){
-						xfunction new_xfunction(world,make_guess_vector(xfunctions[i].guess_excitation_operator));
-						xfunctions[i] = new_xfunction;
+						xfunctions.erase(xfunctions.begin()+ix);
 					}
 					else{
-						xfunctions[i] = remaining_xfunctions.front();
+						xfunctions[ix] = remaining_xfunctions.front();
 						remaining_xfunctions.erase(remaining_xfunctions.begin());
 					}
+				}
+			}
+			}else{
+				if(guess_iter_counter==guess_iter_){
+					for(size_t j=0;j<xfunctions.size();j++)converged_xfunctions_.push_back(xfunctions[j]);
+					if(remaining_xfunctions.empty()) break;
+					else{
+						for(size_t j=0;j<iterating_excitations_;j++){
+							xfunctions.push_back(remaining_xfunctions.front());
+							remaining_xfunctions.erase(remaining_xfunctions.begin());
+							if(remaining_xfunctions.empty()) break;
+						}
+					}
+					guess_iter_counter = 0;
 				}
 			}
 
@@ -540,7 +554,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 		}
 
 		iteration_time.info();
-		fock_update_counter++;
+		guess_iter_counter++;
 	}
 
 }
@@ -915,7 +929,7 @@ Tensor<double> TDA::make_perturbed_fock_matrix_for_guess_functions(const xfuncti
 	V0T.info();
 
 	TDA_TIMER HT(world,"perturbed hartree part: ");
-//	// perturbed hartree
+	//	// perturbed hartree
 	for(size_t i=0;i<xguess.size();i++){
 		vecfuncT Ji = apply_hartree_potential(xguess[i].x);
 		for(size_t j=0;j<xguess.size();j++){
@@ -933,16 +947,16 @@ Tensor<double> TDA::make_perturbed_fock_matrix_for_guess_functions(const xfuncti
 	for(size_t i=0;i<intermediate.size();i++){
 		real_function_3d tmp =real_factory_3d(world);
 		for(size_t j=0;j<active_mo_.size();j++){
-				tmp += active_mo_[j] * (*poisson)( active_mo_[j]*active_mo_[i]);
+			tmp += active_mo_[j] * (*poisson)( active_mo_[j]*active_mo_[i]);
 		}
 		intermediate[i] = tmp;
 	}
 	for(size_t i=0;i<xguess.size();i++){
 		std::shared_ptr<FunctionFunctorInterface<double, 3> >
-			polynom_functor(new polynomial_exop_functor(xguess[i].guess_excitation_operator));
+		polynom_functor(new polynomial_exop_functor(xguess[i].guess_excitation_operator));
 		for(size_t j=0;j<xguess.size();j++){
 			std::shared_ptr<FunctionFunctorInterface<double, 3> >
-				polynom_functor(new polynomial_exop_functor(xguess[j].guess_excitation_operator));
+			polynom_functor(new polynomial_exop_functor(xguess[j].guess_excitation_operator));
 			real_function_3d exop_j = real_factory_3d(world).functor(polynom_functor);
 			vecfuncT tmp = mul(world,exop_j,intermediate);
 			project_out_occupied_space(tmp);
@@ -1140,7 +1154,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-																											+ get_coulomb_potential();
+																													+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
