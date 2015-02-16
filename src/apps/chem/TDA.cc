@@ -57,8 +57,19 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	TDA_TIMER init(world,"\nfinished to initialize guess excitations ...");
 	// if xfunctions were read in before then xfunctions.empty() will be false
 	if(xfunctions.empty())initialize(xfunctions);
-
+	for(size_t i=0;i<10;i++){
+	if(world.rank()==0) std::cout << "\n\n\n" << "Guess Iteration Cycle " << i << "\n\n\n"<< std::endl;
+	for(size_t j=0;j<converged_xfunctions_.size();j++){
+		xfunctions.push_back(converged_xfunctions_[j]);
+	}
+	converged_xfunctions_.clear();
 	iterate_guess(xfunctions);
+	size_t conv_counter=0;
+	for(size_t j=0;j<converged_xfunctions_.size();j++){
+		if(converged_xfunctions_[j].converged) conv_counter++;
+	}
+	if(conv_counter == excitations_) break;
+	}
 	if(world.rank()==0)std::cout << std::setw(100) << "---End Initialize Guess Functions---" << " " << std::endl;
 	init.info();
 
@@ -69,6 +80,7 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 
 	// now sort the pre-converged xfunctions
 	std::sort(converged_xfunctions_.begin(),converged_xfunctions_.end());
+
 
 	if(world.rank()==0) std::cout << "\n\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
 			<< "SOLVE_GUESS ENDED " << "\n------------------------------------------------------------------------------------------------------------------------\n\n\n\n\n\n" << std::endl;
@@ -449,6 +461,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	if(world.rank()==0) std::cout << "\nremaining guess functions are\n " << std::endl;
 	print_status(remaining_xfunctions);
 
+	size_t fock_update_counter=0;
 	for(size_t i=0;i<1000;i++){
 		TDA_TIMER iteration_time(world,"\nEnd of iteration " + stringify(i) +": ");
 
@@ -528,6 +541,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 		}
 
 		iteration_time.info();
+		fock_update_counter++;
 	}
 
 }
