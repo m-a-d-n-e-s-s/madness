@@ -448,16 +448,17 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	// Bool checks if the perturbed fock matrix has been calculated (if not the expencation value has to be calculated in the iterate_one routine)
 	bool pert_fock_applied = false;
 
-	// make big fock diagonalization
-	//make_big_fock_guess(all_xfunctions);
-	orthonormalize_fock(all_xfunctions);
-
 	// Restrict the number of parallel iterating guess functions
 	for(size_t i=0;i<all_xfunctions.size();i++){
 		all_xfunctions[i].current_residuals.clear();
 		all_xfunctions[i].Vx.clear();
 		all_xfunctions[i].converged = false;
 	}
+
+	// make big fock diagonalization
+	//make_big_fock_guess(all_xfunctions);
+	orthonormalize_fock(all_xfunctions);
+
 	std::sort(all_xfunctions.begin(),all_xfunctions.end());
 	xfunctionsT xfunctions(all_xfunctions.begin(),all_xfunctions.begin()+iterating_excitations_);
 	xfunctionsT remaining_xfunctions(all_xfunctions.begin()+iterating_excitations_,all_xfunctions.end());
