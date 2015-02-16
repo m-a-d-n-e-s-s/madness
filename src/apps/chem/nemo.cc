@@ -584,7 +584,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 //        }
 //    }
 
-    if (1) {
+    if (0) {
         vecfuncT bra(3);
         for (int axis=0; axis<3; ++axis) {
 
