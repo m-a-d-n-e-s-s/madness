@@ -332,6 +332,7 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 			xfunctions[i].x = new_x[i];
 			xfunctions[i].expectation_value.push_back(evals(i));
 			xfunctions[i].guess_excitation_operator = new_exop_strings[i];
+			xfunctions[i].number = i;
 		}
 	}
 	std::sort(xfunctions.begin(),xfunctions.end());
@@ -460,9 +461,6 @@ void TDA::iterate(xfunctionsT &xfunctions) {
 }
 
 void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
-	// Assign maximum iteration values
-	size_t iter_max = guess_iter_;
-	if(not guess) iter_max = solve_iter_;
 
 	// Bool checks if the perturbed fock matrix has been calculated (if not the expencation value has to be calculated in the iterate_one routine)
 	bool pert_fock_applied = false;
@@ -479,10 +477,11 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 	orthonormalize_fock(all_xfunctions);
 
 	std::sort(all_xfunctions.begin(),all_xfunctions.end());
+	print_status(all_xfunctions);
 	xfunctionsT xfunctions(all_xfunctions.begin(),all_xfunctions.begin()+iterating_excitations_);
 	xfunctionsT remaining_xfunctions(all_xfunctions.begin()+iterating_excitations_,all_xfunctions.end());
 
-	print_status(xfunctions);
+
 
 	//	if(world.rank()==0) std::cout << "\nremaining guess functions are\n " << std::endl;
 	//	print_status(remaining_xfunctions);
@@ -538,7 +537,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 			if(not guess){
 				for(size_t ix=0;ix<xfunctions.size();ix++){
 
-					if(xfunctions[ix].converged or iteration_counters[ix]>=iter_max){
+					if(xfunctions[ix].converged or iteration_counters[ix]>=solve_iter_){
 						converged_xfunctions_.push_back(xfunctions[ix]);
 						if(remaining_xfunctions.empty()){
 							xfunctions.erase(xfunctions.begin()+ix);
@@ -564,7 +563,6 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 						}
 					}
 					guess_iter_counter = 0;
-					for(auto x:iteration_counters) x++;
 				}
 			}
 			TDA_TIMER project_time(world,"Project out converged excitations and occupied space: ");

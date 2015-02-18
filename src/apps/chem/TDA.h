@@ -524,7 +524,11 @@ public:
 			std::cout<< std::setw(40) << "threshold 3D : " << FunctionDefaults<3>::get_thresh() << std::endl;
 			std::cout<< std::setw(40) << "energy convergence : " << econv_ << std::endl;
 			std::cout<< std::setw(40) << "max residual (dconv) : " << dconv_ << std::endl;
-			std::cout<< std::setw(40) << "number of excitations : " << excitations_ << std::endl;
+			std::cout<< std::setw(40) << "number of final excitations : " << excitations_ << std::endl;
+			std::cout<< std::setw(40) << "number of guess excitations : " << guess_excitations_ << std::endl;
+			std::cout<< std::setw(40) << "number of parallel iterating excitations : " << iterating_excitations_ << std::endl;
+			std::cout<< std::setw(40) << "guess_iter : " << guess_iter_<< std::endl;
+			std::cout<< std::setw(40) << "solve_iter : " << solve_iter_ << std::endl;
 			std::cout<< std::setw(40) << "guessed lowest extitation energy : " << guess_omega_ << std::endl;
 			std::cout<< std::setw(40) << "highest possible excitation : " << highest_excitation_default << std::endl;
 			std::cout<< std::setw(40) << "used highest possible excitation : " << highest_excitation_ << std::endl;
