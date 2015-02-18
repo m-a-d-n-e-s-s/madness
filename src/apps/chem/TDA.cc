@@ -96,6 +96,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 
 	// Iterate till convergence is reached
 	for(size_t iter=0;iter<300;iter++){
+		if(world.rank()==0) std::cout << "\n\n\n" << "Solve Iteration Cycle " << iter << "\n\n\n"<< std::endl;
 		converged_xfunctions_.clear();
 		iterate(xfunctions);
 		size_t convergedc=0;
@@ -104,9 +105,9 @@ void TDA::solve(xfunctionsT &xfunctions) {
 		}
 		if(convergedc>=excitations_) break;
 		else{
-		xfunctionsT tmp = converged_xfunctions_;
-		for(auto x:xfunctions) tmp.push_back(x);
-		xfunctions = tmp;
+			xfunctionsT tmp = converged_xfunctions_;
+			for(auto x:xfunctions) tmp.push_back(x);
+			xfunctions = tmp;
 		}
 
 	}
@@ -253,7 +254,7 @@ void TDA::print_xfunction(const xfunction &x) const {
 	if(world.rank()==0){
 		std::cout << std::setw(5) << x.number;
 		std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-																											<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+																													<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 		std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 	}
 }
@@ -413,7 +414,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 
 			// this is the file where the guess is on disk
 			const std::string valuefile="grid.koala.orbital"+stringify(i)
-	    																	+".excitation"+stringify(iroot);
+	    																			+".excitation"+stringify(iroot);
 			real_function_3d x_i=real_factory_3d(world).empty();
 			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
 			root.x.push_back(x_i);
@@ -482,8 +483,8 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 
 	print_status(xfunctions);
 
-//	if(world.rank()==0) std::cout << "\nremaining guess functions are\n " << std::endl;
-//	print_status(remaining_xfunctions);
+	//	if(world.rank()==0) std::cout << "\nremaining guess functions are\n " << std::endl;
+	//	print_status(remaining_xfunctions);
 
 	size_t guess_iter_counter =1;
 	std::vector<size_t> iteration_counters(xfunctions.size(),0);
@@ -519,6 +520,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 				if(not pert_fock_applied) xfunctions[i].expectation_value.push_back(expectation_value(xfunctions[i], xfunctions[i].Vx));
 				if(world.rank()==0) std::cout << " " <<  update_energy(xfunctions[i]) << " ";
 				xfunctions[i].x=iterate_one(xfunctions[i]);
+				xfunctions[i].Vx.clear();
 			}
 			if(world.rank()==0)std::cout << std::endl;
 			apply_bsh.info();
@@ -533,21 +535,21 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 		}{
 			check_convergence(xfunctions,guess);
 			if(not guess){
-			for(size_t ix=0;ix<xfunctions.size();ix++){
+				for(size_t ix=0;ix<xfunctions.size();ix++){
 
-				if(xfunctions[ix].converged or iteration_counters[ix]>=iter_max){
-					converged_xfunctions_.push_back(xfunctions[ix]);
-					if(remaining_xfunctions.empty()){
-						xfunctions.erase(xfunctions.begin()+ix);
-						iteration_counters.erase(iteration_counters.begin()+ix);
-					}
-					else{
-						xfunctions[ix] = remaining_xfunctions.front();
-						remaining_xfunctions.erase(remaining_xfunctions.begin());
-						iteration_counters[ix]=0;
-					}
+					if(xfunctions[ix].converged or iteration_counters[ix]>=iter_max){
+						converged_xfunctions_.push_back(xfunctions[ix]);
+						if(remaining_xfunctions.empty()){
+							xfunctions.erase(xfunctions.begin()+ix);
+							iteration_counters.erase(iteration_counters.begin()+ix);
+						}
+						else{
+							xfunctions[ix] = remaining_xfunctions.front();
+							remaining_xfunctions.erase(remaining_xfunctions.begin());
+							iteration_counters[ix]=0;
+						}
+					}else iteration_counters[ix]++;
 				}
-			}
 			}else{
 				if(guess_iter_counter==guess_iter_){
 					for(size_t j=0;j<xfunctions.size();j++)converged_xfunctions_.push_back(xfunctions[j]);
@@ -1189,7 +1191,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-																													+ get_coulomb_potential();
+																															+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
