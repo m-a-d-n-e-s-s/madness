@@ -79,6 +79,7 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 
 	// now sort the pre-converged xfunctions
 	std::sort(converged_xfunctions_.begin(),converged_xfunctions_.end());
+	if(converged_xfunctions_.size()>excitations_)converged_xfunctions_.erase(converged_xfunctions_.begin()+excitations_,converged_xfunctions_.end());
 
 
 	if(world.rank()==0) std::cout << "\n\n\n\n\n------------------------------------------------------------------------------------------------------------------------\n"
