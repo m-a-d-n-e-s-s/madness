@@ -106,9 +106,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 		}
 		if(convergedc>=excitations_) break;
 		else{
-			xfunctionsT tmp = converged_xfunctions_;
-			for(auto x:xfunctions) tmp.push_back(x);
-			xfunctions = tmp;
+			xfunctions = converged_xfunctions_;
 		}
 
 	}
