@@ -84,8 +84,45 @@ int main(int argc, char** argv) {
 	calc.param.print(world);
 
 	// solve the ground state energy; calc is a reference
-	MolecularEnergy me(world,calc);
-	double hf_energy=me.value(calc.molecule.get_all_coords());
+
+	//MolecularEnergy me(world,calc);
+	//double hf_energy=me.value(calc.molecule.get_all_coords());
+
+	// copied from moldft to search bug in hlrn
+    // Warm and fuzzy for the user
+    if (world.rank() == 0) {
+      print("CODE FROM MOLDFT TO DEBUG ----\n\n");
+      print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+      print(" ----------------------------------------------------------\n");
+      print("\n");
+      calc.molecule.print();
+      print("\n");
+      calc.param.print(world);
+    }
+
+    // Come up with an initial OK data map
+    if (world.size() > 1) {
+      calc.set_protocol<3>(world,calc.param.econv);
+      calc.make_nuclear_potential(world);
+      calc.initial_load_bal(world);
+    }
+//vama
+    calc.set_protocol<3>(world,calc.param.protocol_data[0]);
+
+    MolecularEnergy E(world, calc);
+    double hf_energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
+
+    functionT rho = calc.make_density(world, calc.aocc, calc.amo);
+    functionT brho = rho;
+    if (!calc.param.spin_restricted)
+        brho = calc.make_density(world, calc.bocc, calc.bmo);
+    rho.gaxpy(1.0, brho, 1.0);
+
+    if (calc.param.derivatives) calc.derivatives(world,rho);
+    if (calc.param.dipole) calc.dipole(world,rho);
+
+	// end copy
+
 
 	// Set the threshold defaults
 	double ground_state_thresh = FunctionDefaults<3>::get_thresh();
