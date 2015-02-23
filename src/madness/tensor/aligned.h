@@ -43,7 +43,9 @@
 
 #include <madness/madness_config.h>
 #include <madness/tensor/tensor.h>
+#include <madness/tensor/cblas.h>
 #include <cstring>
+#include <climits>
 
 namespace madness {
 
@@ -80,6 +82,36 @@ namespace madness {
             a[3] += s*b[3];
         }
         for (long i=0; i<rem; ++i) *a++ += s * *b++;
+    }
+
+    /* Jeff: In the following three template specializations, a long is implicitly
+     *       cast into the MADNESS integer type, which defaults to int64_t but can
+     *       be int32_t, in which case, there could be an overflow for n>INT_MAX. 
+     *
+     *       I am choosing to ignore this issue for now. I know all of the workarounds
+     *       but it seems unlikely that they will be necessary because 2^31 is a big number. */
+    template <>
+    //static
+    inline
+    void aligned_axpy(long n, double * restrict a, const double * restrict b, double s) {
+        madness::cblas::axpy((integer)n, s, (double*)b, 1, (double*)a, 1);
+    }
+
+    /* Jeff: I have no idea if casting double_complex to complex_real8 is valid... */
+
+    template <>
+    //static
+    inline
+    void aligned_axpy(long n, double_complex * restrict a, const double_complex * restrict b, double_complex s) {
+        madness::cblas::axpy((integer)n, (complex_real8)s, (complex_real8*)b, 1, (complex_real8*)a, 1);
+    }
+
+    template <>
+    //static
+    inline
+    void aligned_axpy(long n, double_complex * restrict a, const double_complex * restrict b, double s) {
+        complex_real8 cs = (s,0.0); // turn real into complex 
+        madness::cblas::axpy((integer)n, cs, (complex_real8*)b, 1, (complex_real8*)a, 1);
     }
 
     template <typename T, typename Q>

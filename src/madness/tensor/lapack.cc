@@ -52,14 +52,8 @@ using std::max;
 
 using madness::Tensor;
 
-#ifdef MADNESS_HAS_EIGEN3
-#  include <madness/tensor/eigen.h>
-#endif
-
-#ifndef MADNESS_HAS_EIGEN3  // ignore lapack+blas
-#  include <madness/tensor/tensor_lapack.h>
-#  include <madness/tensor/clapack.h>
-#endif
+#include <madness/tensor/tensor_lapack.h>
+#include <madness/tensor/clapack.h>
 
 
 
@@ -76,7 +70,6 @@ double tt1, ss1;
 #  define STATIC
 #endif
 
-#ifndef MADNESS_HAS_EIGEN3  // ignore lapack+blas
 /// These oddly-named wrappers enable the generic svd iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
 /// use only.
@@ -244,11 +237,9 @@ STATIC void dorgqr_(integer *m, integer *n, integer *k,
 	 	 complex_real8 *work, integer *lwork, integer *info) {
 	zungqr_(m, n, k, a, m, tau, work, lwork, info);
 }
-#endif //MADNESS_HAS_EIGEN3
 
 namespace madness {
 
-#ifndef MADNESS_HAS_EIGEN3
     static void mask_info(integer& info) {
         if ( (info&0xffffffff) == 0) info = 0;
     }
@@ -537,7 +528,7 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
         V = transpose(V);
     }
-    
+
     /** \brief  Compute the Cholesky factorization.
 
     Compute the Cholesky factorization of the symmetric positive definite matrix A
@@ -718,7 +709,6 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "xorgqr: Lapack failed", info, &A);
     }
 
-#endif //MADNESS_HAS_EIGEN3
 
 //     template <typename T>
 //     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, const char* side, const char* transa) {
@@ -891,7 +881,6 @@ namespace madness {
 
 
     void init_tensor_lapack() {
-#ifndef MADNESS_HAS_EIGEN3
 	char e[] = "e";
 	dlamch_(e,1);
 	slamch_(e,1);
@@ -900,7 +889,6 @@ namespace madness {
 // 	for (int i=0; i<10; ++i) {
 // 	    cout << "init_tensor_lapack: dlamch: " << modes[i] << " = " << dlamch_(modes+i,1) << endl;
 // 	}
-#endif //MADNESS_HAS_EIGEN3
     }
 
 
@@ -909,44 +897,34 @@ namespace madness {
         try {
             cout << "error in float svd " << test_svd<float>(20,30) << endl;
             cout << "error in double svd " << test_svd<double>(30,20) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex svd " << test_svd<float_complex>(23,27) << endl;
             cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
-#endif
             cout << endl;
-            
-            
+
+
             cout << "error in float  gelss " << test_gelss<float>(20,30) << endl;
             cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex gelss " << test_gelss<float_complex>(23,27) << endl;
             cout << "error in double_complex gelss " << test_gelss<double_complex>(37,19) << endl;
-#endif
             cout << endl;
-            
+
             cout << "error in double syev " << test_syev<double>(21) << endl;
             cout << "error in float syev " << test_syev<float>(21) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
             cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
-#endif
             cout << endl;
-            
-            
+
+
             cout << "error in float sygv " << test_sygv<float>(20) << endl;
             cout << "error in double sygv " << test_sygv<double>(20) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
             cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
-#endif
             cout << endl;
-            
+
             cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
             cout << "error in double gesv " << test_gesv<double>(20,30) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
             cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
-#endif
             cout << endl;
             cout << "error in double cholesky " << test_cholesky<double>(22) << endl;
             cout << endl;
@@ -971,7 +949,6 @@ namespace madness {
     //   return 0;
     // }
 
-//#ifndef MADNESS_HAS_EIGEN3
     // GCC 4.4.3 seems to want these explicitly instantiated whereas previous
     // versions were happy with the instantiations caused by the test code above
 
@@ -1070,6 +1047,4 @@ namespace madness {
     void orgqr(Tensor<double_complex>& A, const Tensor<double_complex>& tau);
 
 
-//#endif //MADNESS_HAS_EIGEN
-
-}
+} // namespace madness
