@@ -247,6 +247,8 @@ private:
 	///				by the correlation factor minus the nuclear potential
 	virtual double Spp_div_S(const double& r, const double& Z) const = 0;
 
+public:
+
 	class R_functor : public FunctionFunctorInterface<double,3> {
 		const NuclearCorrelationFactor* ncf;
 		int exponent;

@@ -4922,13 +4922,18 @@ namespace madness {
             const std::shared_ptr< FunctionFunctorInterface<T, NDIM> > fref;
             const implT * impl;
             const bool leaf_refine;
+            const bool do_leaves;   ///< start with leaf nodes instead of initial_level
 
-            do_inner_ext_local_ffi(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const implT * impl, const bool leaf_refine) : fref(f), impl(impl), leaf_refine(leaf_refine) {};
+            do_inner_ext_local_ffi(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f,
+                    const implT * impl, const bool leaf_refine, const bool do_leaves)
+                    : fref(f), impl(impl), leaf_refine(leaf_refine), do_leaves(do_leaves) {};
 
             T operator()(typename dcT::const_iterator& it) const {
-                /* if (it->second.is_leaf()) { */
-                if (it->first.level() == impl->initial_level) {
-                    tensorT cc = it->second.coeff().full_tensor_copy();
+                if (do_leaves and it->second.is_leaf()) {
+                    tensorT cc = it->second.coeff().full_tensor();
+                    return impl->inner_adaptive_recursive(it->first, cc, fref, leaf_refine, T(0));
+                } else if ((not do_leaves) and (it->first.level() == impl->initial_level)) {
+                    tensorT cc = it->second.coeff().full_tensor();
                     return impl->inner_ext_recursive(it->first, cc, fref, leaf_refine, T(0));
                 } else {
                     return 0.0;
@@ -4952,8 +4957,65 @@ namespace madness {
             typedef Range<typename dcT::const_iterator> rangeT;
 
             return world.taskq.reduce<T, rangeT, do_inner_ext_local_ffi>(rangeT(coeffs.begin(),coeffs.end()),
-                    do_inner_ext_local_ffi(f, this, leaf_refine));
+                    do_inner_ext_local_ffi(f, this, leaf_refine, false));
         }
+
+        /// Return the local part of inner product with external function ... no communication.
+        /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
+        T inner_adaptive_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine) const {
+            typedef Range<typename dcT::const_iterator> rangeT;
+
+            return world.taskq.reduce<T, rangeT, do_inner_ext_local_ffi>(rangeT(coeffs.begin(),coeffs.end()),
+                    do_inner_ext_local_ffi(f, this, leaf_refine, true));
+        }
+
+        /// Call inner_ext_node recursively until convergence.
+        /// @param[in] key Key of the function node on which to compute inner product (the domain of integration)
+        /// @param[in] c coeffs for the function at the node given by key
+        /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @param[in] old_inner the inner product on the parent function node
+        /// @return Returns the inner product over the domain of a single function, checks for convergence.
+        T inner_adaptive_recursive(keyT key, const tensorT& c,
+                const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f,
+                const bool leaf_refine, T old_inner=T(0)) const {
+
+            // the inner product in the current node
+            old_inner = inner_ext_node(key, c, f);
+            T result=0.0;
+
+            // the inner product in the child nodes
+
+            // compute the sum coefficients of the MRA function
+            tensorT d = tensorT(cdata.v2k);
+            d = T(0);
+            d(cdata.s0) = copy(c);
+            tensorT c_child = unfilter(d);
+
+            // compute the inner product in the child nodes
+            T new_inner=0.0; // child inner products
+            for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                const keyT& child = it.key();
+                tensorT cc = tensorT(c_child(child_patch(child)));
+                new_inner+= inner_ext_node(child, cc, f);
+            }
+
+            // continue recursion if needed
+            if (leaf_refine and (std::abs(new_inner - old_inner) > thresh)) {
+                for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                    const keyT& child = it.key();
+                    tensorT cc = tensorT(c_child(child_patch(child)));
+                    result += inner_adaptive_recursive(child, cc, f, leaf_refine, T(0));
+                }
+            } else {
+                result = new_inner;
+            }
+            return result;
+
+        }
+
 
         /// Return the gaxpy product with an external function on a specified
         /// function node.

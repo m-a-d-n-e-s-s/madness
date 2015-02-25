@@ -1203,6 +1203,23 @@ namespace madness {
             return local;
         }
 
+        /// Return the inner product with external function ... requires communication.
+        /// If you are going to be doing a bunch of inner_ext calls, set
+        /// keep_redundant to true and then manually undo_redundant when you
+        /// are finished.
+        /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @return Returns the inner product
+        T inner_adaptive(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f,
+                const bool leaf_refine=true) const {
+            PROFILE_MEMBER_FUNC(Function);
+            reconstruct();
+            T local = impl->inner_adaptive_local(f, leaf_refine);
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
+            return local;
+        }
+
         /// Return the local part of gaxpy with external function, this*alpha + f*beta ... no communication.
         /// @param[in] alpha prefactor for this Function
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
@@ -2155,6 +2172,34 @@ namespace madness {
     TENSOR_RESULT_TYPE(T,R) inner(const Function<T,NDIM>& f, const Function<R,NDIM>& g) {
         PROFILE_FUNC;
         return f.inner(g);
+    }
+
+    /// Computes the scalar/inner product between an MRA function and an external functor
+
+    /// Currently this defaults to inner_adaptive, which might be more expensive
+    /// than inner_ext since it loops over all leaf nodes. If you feel inner_ext
+    /// is more efficient you need to call it directly
+    /// @param[in]  f   MRA function
+    /// @param[in]  g   functor
+    /// @result     inner(f,g)
+    template <typename T, typename opT, std::size_t NDIM>
+    TENSOR_RESULT_TYPE(T,typename opT::value_type) inner(const Function<T,NDIM>& f, const opT& g) {
+        PROFILE_FUNC;
+        std::shared_ptr< FunctionFunctorInterface<double,3> > func(new opT(g));
+        return f.inner_adaptive(func);
+    }
+
+    /// Computes the scalar/inner product between an MRA function and an external functor
+
+    /// Currently this defaults to inner_adaptive, which might be more expensive
+    /// than inner_ext since it loops over all leaf nodes. If you feel inner_ext
+    /// is more efficient you need to call it directly
+    /// @param[in]  g   functor
+    /// @param[in]  f   MRA function
+    /// @result     inner(f,g)
+    template <typename T, typename opT, std::size_t NDIM>
+    TENSOR_RESULT_TYPE(T,typename opT::value_type) inner(const opT& g, const Function<T,NDIM>& f) {
+        return inner(f,g);
     }
 
     template <typename T, typename R, std::size_t NDIM>
