@@ -398,7 +398,7 @@ private:
     void remove_external_dof(Tensor<double>& hessian,
             Molecule& mol) const {
 
-        print("projecting out translational degrees of freedom");
+        print("projecting out translational and rotational degrees of freedom");
         // compute the translation of the center of mass
         Tensor<double> projector_ext=projector_external_dof(mol);
 

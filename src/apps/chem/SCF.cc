@@ -218,6 +218,7 @@ namespace madness {
         
         FunctionDefaults < 3 > ::set_cubic_cell(-param.L, param.L);
         set_protocol < 3 > (world, param.econv);
+        FunctionDefaults<3>::set_truncate_mode(1);
 
     }
     
