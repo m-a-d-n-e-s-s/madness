@@ -11,22 +11,22 @@
 namespace madness{
 struct exoperators{
 private:
-	static double sorbitalfunction(const coord_3d &r){
-		return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));
-	}
-public:
-	exoperators(World &world){
-		get_polynom_basis(world);
-	}
-	std::vector<std::string> key_;
+	/// The point of excitation for the custom guess
+	coord_3d excitation_point_;
 	vecfuncT polynom_basis_;
+public:
+	exoperators(World &world,const coord_3d excitation_point) : excitation_point_(excitation_point){}
+	std::vector<std::string> key_;
+	// Creates the polynom basis
 	void get_polynom_basis(World &world){
+		if(polynom_basis_.empty()){
+		if(world.rank()==0) std::cout << "Creating the polynomial guess basis ... " << std::endl;
 		vecfuncT creators;
 		std::vector<std::string> key_creator;
 		std::vector<std::string> key;
-		 real_function_3d x   = real_factory_3d(world).f(x_function); creators.push_back(x);
-		 real_function_3d y   = real_factory_3d(world).f(y_function); creators.push_back(y);
-		 real_function_3d z   = real_factory_3d(world).f(z_function); creators.push_back(z);
+		 real_function_3d x   = real_factory_3d(world).f(x_function); x.add_scalar(-excitation_point_[0]); creators.push_back(x);
+		 real_function_3d y   = real_factory_3d(world).f(y_function); y.add_scalar(-excitation_point_[1]); creators.push_back(y);
+		 real_function_3d z   = real_factory_3d(world).f(z_function); z.add_scalar(-excitation_point_[2]); creators.push_back(z);
 		 std::string xstring = "x"; key_creator.push_back(xstring);
 		 std::string ystring = "y"; key_creator.push_back(ystring);
 		 std::string zstring = "z"; key_creator.push_back(zstring);
@@ -37,41 +37,45 @@ public:
 			basis.push_back(creators[i]);
 			key.push_back(key_creator[i]);
 		}
+		std::cout << "Dipole Basis size " << key.size();
 		//quadrupole
 		for(size_t i=0;i<creators.size();i++){
 			for(size_t j=0;j<=i;j++){
-				real_function_3d tmp = creators[j]*creators[i];
+				real_function_3d tmp = creators[i]*creators[j];
 				basis.push_back(tmp);
-				std::string stmp = key_creator[j]+key_creator[i];
+				std::string stmp = key_creator[i]+key_creator[j];
 				key.push_back(stmp);
 			}
 		}
+		std::cout << "Quadrupole Basis size " << key.size();
 		// cubics
 		//quadrupole
 		for(size_t i=0;i<creators.size();i++){
 			for(size_t j=0;j<=i;j++){
 				for(size_t k=0;k<=j;k++){
-					real_function_3d tmp = creators[j]*creators[i]*creators[k];
+					real_function_3d tmp = creators[i]*creators[j]*creators[k];
 					basis.push_back(tmp);
-					std::string stmp = key_creator[j]+key_creator[i]+key_creator[k];
+					std::string stmp = key_creator[i]+key_creator[j]+key_creator[k];
 					key.push_back(stmp);
 				}
 			}
 		}
+		std::cout << "cubics Basis size " << key.size();
 		// quartics
 		//quadrupole
 		for(size_t i=0;i<creators.size();i++){
 			for(size_t j=0;j<=i;j++){
 				for(size_t k=0;k<=j;k++){
 					for(size_t l=0;l<=k;l++){
-						real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l];
+						real_function_3d tmp = creators[i]*creators[j]*creators[k]*creators[l];
 						basis.push_back(tmp);
-						std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l];
+						std::string stmp = key_creator[i]+key_creator[j]+key_creator[k]+key_creator[l];
 						key.push_back(stmp);
 					}
 				}
 			}
 		}
+		std::cout << "quartics Basis size " << key.size();
 		//quints
 		// quartics
 		//quadrupole
@@ -80,99 +84,96 @@ public:
 				for(size_t k=0;k<=j;k++){
 					for(size_t l=0;l<=k;l++){
 						for(size_t m=0;m<=l;m++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m];
+							real_function_3d tmp = creators[i]*creators[j]*creators[k]*creators[l]*creators[m];
 							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m];
+							std::string stmp = key_creator[i]+key_creator[j]+key_creator[k]+key_creator[l]+key_creator[m];
 							key.push_back(stmp);
 					}
 				}
 			}
 		}
 	}
+	std::cout << "quints Basis size " << key.size();
 		for(size_t i=0;i<creators.size();i++){
 			for(size_t j=0;j<=i;j++){
 				for(size_t k=0;k<=j;k++){
 					for(size_t l=0;l<=k;l++){
 						for(size_t m=0;m<=l;m++){
 							for(size_t n=0;n<=m;n++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n];
+							real_function_3d tmp = creators[i]*creators[j]*creators[k]*creators[l]*creators[m]*creators[n];
 							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n];
+							std::string stmp = key_creator[i]+key_creator[j]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n];
 							key.push_back(stmp);
 					}
 				}
 			}
 		}
 	}}
-		for(size_t i=0;i<creators.size();i++){
-			for(size_t j=0;j<=i;j++){
-				for(size_t k=0;k<=j;k++){
-					for(size_t l=0;l<=k;l++){
-						for(size_t m=0;m<=l;m++){
-							for(size_t n=0;n<=m;n++){
-								for(size_t u=0;u<=n;u++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u];
-							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u];
-							key.push_back(stmp);}}}}}}}
-		for(size_t i=0;i<creators.size();i++){
-			for(size_t j=0;j<=i;j++){
-				for(size_t k=0;k<=j;k++){
-					for(size_t l=0;l<=k;l++){
-						for(size_t m=0;m<=l;m++){
-							for(size_t n=0;n<=m;n++){
-								for(size_t u=0;u<=n;u++){
-									for(size_t q=0;q<=u;q++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u]*creators[q];
-							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q];
-							key.push_back(stmp);}}}}}}}}
-		for(size_t i=0;i<creators.size();i++){
-			for(size_t j=0;j<=i;j++){
-				for(size_t k=0;k<=j;k++){
-					for(size_t l=0;l<=k;l++){
-						for(size_t m=0;m<=l;m++){
-							for(size_t n=0;n<=m;n++){
-								for(size_t u=0;u<=n;u++){
-									for(size_t q=0;q<=u;q++){
-										for(size_t w=0;w<=q;w++){
-							real_function_3d tmp = creators[j]*creators[i]*creators[k]
-							        *creators[l]*creators[m]*creators[n]*creators[u]*creators[q]*creators[w];
-							basis.push_back(tmp);
-							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]
-							               +key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q]+key_creator[w];
-							key.push_back(stmp);}}}}}}}}}
+//	std::cout << "6th order Basis size " << key.size();
+//		for(size_t i=0;i<creators.size();i++){
+//			for(size_t j=0;j<=i;j++){
+//				for(size_t k=0;k<=j;k++){
+//					for(size_t l=0;l<=k;l++){
+//						for(size_t m=0;m<=l;m++){
+//							for(size_t n=0;n<=m;n++){
+//								for(size_t u=0;u<=n;u++){
+//							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u];
+//							basis.push_back(tmp);
+//							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u];
+//							key.push_back(stmp);}}}}}}}
+//		for(size_t i=0;i<creators.size();i++){
+//			for(size_t j=0;j<=i;j++){
+//				for(size_t k=0;k<=j;k++){
+//					for(size_t l=0;l<=k;l++){
+//						for(size_t m=0;m<=l;m++){
+//							for(size_t n=0;n<=m;n++){
+//								for(size_t u=0;u<=n;u++){
+//									for(size_t q=0;q<=u;q++){
+//							real_function_3d tmp = creators[j]*creators[i]*creators[k]*creators[l]*creators[m]*creators[n]*creators[u]*creators[q];
+//							basis.push_back(tmp);
+//							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]+key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q];
+//							key.push_back(stmp);}}}}}}}}
+//		std::cout << "7th order Basis size " << key.size();
+//		for(size_t i=0;i<creators.size();i++){
+//			for(size_t j=0;j<=i;j++){
+//				for(size_t k=0;k<=j;k++){
+//					for(size_t l=0;l<=k;l++){
+//						for(size_t m=0;m<=l;m++){
+//							for(size_t n=0;n<=m;n++){
+//								for(size_t u=0;u<=n;u++){
+//									for(size_t q=0;q<=u;q++){
+//										for(size_t w=0;w<=q;w++){
+//							real_function_3d tmp = creators[j]*creators[i]*creators[k]
+//							        *creators[l]*creators[m]*creators[n]*creators[u]*creators[q]*creators[w];
+//							basis.push_back(tmp);
+//							std::string stmp = key_creator[j]+key_creator[i]+key_creator[k]+key_creator[l]
+//							               +key_creator[m]+key_creator[n]+key_creator[u]+key_creator[q]+key_creator[w];
+//							key.push_back(stmp);}}}}}}}}}
 	polynom_basis_ = basis;
 	key_=key;
-	}
-
-	real_function_3d project_function_on_aos(World &world,const real_function_3d &f){
-		real_function_3d projected_f;
-		vecfuncT pol = polynom_basis_;
-		std::vector<double> overlaps;
-		real_function_3d sorbital = real_factory_3d(world).f(sorbitalfunction);
-
-		// get overlap with 1s function
-		double snorm = sqrt(inner(sorbital,sorbital));
-		sorbital.scale(1.0/snorm);
-		double s_overlap = inner(sorbital,f);
-		projected_f = s_overlap*sorbital;
-
-		// get rest of the overlaps
-		for(size_t i=0;i<pol.size();i++){
-			real_function_3d tmp = pol[i]*sorbital;
-			double normtmp = sqrt(inner(tmp,tmp));
-			tmp.scale(1.0/normtmp);
-			double overlap =  inner(tmp,f);
-			projected_f +=overlap*tmp;
-			overlaps.push_back(overlap);
 		}
+	}
+	void plot_polynom_basis(World &world){
+		// check if polynom_basis_ is created, if not do it
+		get_polynom_basis(world);
 
-		return projected_f;
+		for(size_t i=0;i<polynom_basis_.size();i++){
+			plot_plane(world,polynom_basis_[i],"polynom_basis_"+stringify(i));
+		}
 	}
 
+vecfuncT atomic_excitation_dipole(World& world){
+	vecfuncT exops;
+	 real_function_3d x   = real_factory_3d(world).f(x_function); x.add_scalar(-excitation_point_[0]); exops.push_back(x);
+	 real_function_3d y   = real_factory_3d(world).f(y_function); y.add_scalar(-excitation_point_[1]); exops.push_back(y);
+	 real_function_3d z   = real_factory_3d(world).f(z_function); z.add_scalar(-excitation_point_[2]); exops.push_back(z);
+	 real_function_3d rr  = x*x + y*y +z*z; exops.push_back(rr);
+	 truncate(world,exops);
+	 return exops;
+}
 	std::vector<double> get_overlaps_with_guess(World &world,vecfuncT &excitation,const vecfuncT &mo,const real_function_3d smoothing){
 		if(excitation.size()!=mo.size()) MADNESS_EXCEPTION("Error in calculating overlap with the guess operators, excitation vector and mo vector have different sizes",1);
+		get_polynom_basis(world);
 		vecfuncT quadbas = polynom_basis_;
 		 std::vector<double> overlaps;
 		 for(size_t i=0;i< quadbas.size();i++){
@@ -233,6 +234,7 @@ public:
 		return make_custom_exops(world,coefficients);
 	}
 	vecfuncT make_custom_exops(World &world,std::vector<std::vector<double> > coefficients){
+		get_polynom_basis(world);
 		vecfuncT exops;
 		vecfuncT quadbas=polynom_basis_;
 
@@ -247,6 +249,7 @@ public:
 	}
 
 	std::vector<vecfuncT> make_custom_guess(World &world,const std::vector< std::string > input_lines,const vecfuncT &mos, const real_function_3d &smoothing){
+		get_polynom_basis(world);
 		std::vector<std::vector<double> > coefficients = get_coefficients(world, input_lines);
 		std::vector<vecfuncT> guess;
 		vecfuncT quadbas = polynom_basis_;
@@ -271,6 +274,7 @@ public:
 	}
 
 	vecfuncT get_exops(World &world,const std::string exop){
+
 		vecfuncT xoperators;
 		if(exop == "dipole"){
 			real_function_3d fx = real_factory_3d(world).f(x_function);
@@ -398,6 +402,45 @@ public:
 			real_function_3d tmp4 = real_factory_3d(world).f(d2d_E1); xoperators.push_back(tmp4);
 			real_function_3d tmp5 = real_factory_3d(world).f(d2d_E2); xoperators.push_back(tmp5);
 		}
+		else if(exop=="reduced-D6h"){
+			real_function_3d tmp0 = real_factory_3d(world).f(d6h_A1g  );xoperators.push_back(tmp0);
+			real_function_3d tmp1 = real_factory_3d(world).f(d6h_E1g1 );xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(d6h_E1g2 );xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(d6h_E2g1 );xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(d6h_E2g2 );xoperators.push_back(tmp4);
+			real_function_3d tmp5 = real_factory_3d(world).f(d6h_A2u  );xoperators.push_back(tmp5);
+			real_function_3d tmp6 = real_factory_3d(world).f(d6h_B1u  );xoperators.push_back(tmp6);
+			real_function_3d tmp7 = real_factory_3d(world).f(d6h_B2u  );xoperators.push_back(tmp7);
+			real_function_3d tmp8 = real_factory_3d(world).f(d6h_E1u1 );xoperators.push_back(tmp8);
+			real_function_3d tmp9 = real_factory_3d(world).f(d6h_E1u2 );xoperators.push_back(tmp9);
+		}
+		else if(exop=="D6h"){
+			real_function_3d tmp0 = real_factory_3d(world).f(d6h_A1g  );xoperators.push_back(tmp0);
+			real_function_3d tmp1 = real_factory_3d(world).f(d6h_E1g1 );xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(d6h_E1g2 );xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(d6h_E2g1 );xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(d6h_E2g2 );xoperators.push_back(tmp4);
+			real_function_3d tmp5 = real_factory_3d(world).f(d6h_A2u  );xoperators.push_back(tmp5);
+			real_function_3d tmp6 = real_factory_3d(world).f(d6h_B1u  );xoperators.push_back(tmp6);
+			real_function_3d tmp7 = real_factory_3d(world).f(d6h_B2u  );xoperators.push_back(tmp7);
+			real_function_3d tmp8 = real_factory_3d(world).f(d6h_E1u1 );xoperators.push_back(tmp8);
+			real_function_3d tmp9 = real_factory_3d(world).f(d6h_E1u2 );xoperators.push_back(tmp9);
+			std::cout << "Random guess exops for irreps A2g,B1g,B2g,A2u " << std::endl;
+			real_function_3d tmp = real_factory_3d(world);
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
+			for(size_t k=0;k<polynom_basis_.size();k++){
+				// dont take linear, quadratic and cubic functions
+				double range = 0.0;
+				if(k>19) range = 0.1;
+				double c = random_number()*range;
+				tmp += c*polynom_basis_[k];
+				std::cout <<std::fixed << std::setprecision(2) << " "<< c << " " <<  key_[k];
+			}
+			xoperators.push_back(tmp);
+			std::cout << std::endl;
+
+		}
 		else if(exop=="sequential_full"){
 			real_function_3d tmp = real_factory_3d(world).f(seq_full); xoperators.push_back(tmp);
 		}
@@ -408,15 +451,19 @@ public:
 			real_function_3d tmp = real_factory_3d(world).f(seq_dipolep); xoperators.push_back(tmp);
 		}
 		else if (exop=="big_3"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			xoperators = polynom_basis_;
 			if(world.rank()==0){
-				std::cout << "Guess exop is big_3 excitation operators are:" << std::endl;
+				std::cout << "Guess exop is big_3 operators are:" << std::endl;
 				for(size_t i=0;i<3+6+10;i++) std::cout << " " <<key_[i] << " ";
 				std::cout << std::endl;
 			}
 			xoperators.erase(xoperators.begin()+3+6+10+1,xoperators.end());
 		}
 		else if (exop=="big_4"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			xoperators = polynom_basis_;
 			if(world.rank()==0){
 				std::cout << "Guess exop is big_4 excitation operators are:" << std::endl;
@@ -426,6 +473,8 @@ public:
 			xoperators.erase(xoperators.begin()+3+6+10+15+1,xoperators.end());
 		}
 		else if (exop=="random_4"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			for(size_t i=0;i<4;i++){
 				std::cout << "Random guess exops " << i << std::endl;
 				real_function_3d tmp = real_factory_3d(world);
@@ -433,8 +482,30 @@ public:
 					double range = 0.1;
 					if(k>3) range =0.1;
 					if(k>10) range = 0.1;
-					if(k>20) range =0.05;
-					if(k>34) range =0.01;
+					if(k>20) range =0.1;
+					if(k>34) range =0.1;
+					double c = random_number()*range;
+					tmp += c*polynom_basis_[k];
+					std::cout <<std::fixed << std::setprecision(2) << " "<< c << " " <<  key_[k];
+				}
+				xoperators.push_back(tmp);
+				std::cout << std::endl;
+			}
+			//std::cout << "testing random numbers" << std::endl;
+			//for(size_t i=0;i<100;i++) std::cout<< std::fixed << std::setprecision(1) << random_number()<< std::endl;
+		}
+		else if (exop=="random_8"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
+			for(size_t i=0;i<8;i++){
+				std::cout << "Random guess exops " << i << std::endl;
+				real_function_3d tmp = real_factory_3d(world);
+				for(size_t k=0;k<polynom_basis_.size();k++){
+					double range = 0.1;
+					if(k>3) range =0.1;
+					if(k>10) range = 0.1;
+					if(k>20) range =0.1;
+					if(k>34) range =0.1;
 					double c = random_number()*range;
 					tmp += c*polynom_basis_[k];
 					std::cout <<std::fixed << std::setprecision(2) << " "<< c << " " <<  key_[k];
@@ -446,6 +517,8 @@ public:
 			//for(size_t i=0;i<100;i++) std::cout<< std::fixed << std::setprecision(1) << random_number()<< std::endl;
 		}
 		else if (exop=="random"){
+			// check if polynom_basis is created, if not, do so
+			get_polynom_basis(world);
 			real_function_3d tmp = real_factory_3d(world);
 			for(size_t k=0;k<polynom_basis_.size();k++){
 				double range = 0.1;
@@ -453,6 +526,30 @@ public:
 				tmp += c*polynom_basis_[k];
 			}
 			xoperators.push_back(tmp);
+		}
+		else if (exop=="oscillating"){
+			real_function_3d tmp1 = real_factory_3d(world).f(sinus_x);  xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(sinus_y);  xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(sinus_z);  xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(cosinus_x);  xoperators.push_back(tmp4);
+			real_function_3d tmp5 = real_factory_3d(world).f(cosinus_y);  xoperators.push_back(tmp5);
+			real_function_3d tmp6 = real_factory_3d(world).f(cosinus_z);  xoperators.push_back(tmp6);
+		}
+		else if (exop=="oscillating_2"){
+			real_function_3d tmp1 = real_factory_3d(world).f(sinus_x);  xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(sinus_y);  xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(sinus_z);  xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(cosinus_r); xoperators.push_back(tmp4);
+		}
+		else if (exop=="oscillating_small"){
+			real_function_3d tmp1 = real_factory_3d(world).f(sinus_r); xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(cosinus_r); xoperators.push_back(tmp2);
+		}
+		else if (exop=="oscillating_small_2"){
+			real_function_3d tmp1 = real_factory_3d(world).f(sinus_x); xoperators.push_back(tmp1);
+			real_function_3d tmp2 = real_factory_3d(world).f(sinus_y); xoperators.push_back(tmp2);
+			real_function_3d tmp3 = real_factory_3d(world).f(sinus_z); xoperators.push_back(tmp3);
+			real_function_3d tmp4 = real_factory_3d(world).f(cosinus_2r); xoperators.push_back(tmp4);
 		}
 		else {
 			std::cout << "exop keyword " << exop << "is not known" << std::endl;
@@ -477,6 +574,32 @@ private:
 		double aa = (double) a * sign;
 		return aa;
 	}
+
+	// oscillating functions
+	static double sinus_x  (const coord_3d &r){return sin(r[0]);}
+	static double sinus_y  (const coord_3d &r){return sin(r[1]);}
+	static double sinus_z  (const coord_3d &r){return sin(r[2]);}
+	static double cosinus_x(const coord_3d &r){return cos(r[0]);}
+	static double cosinus_y(const coord_3d &r){return cos(r[1]);}
+	static double cosinus_z(const coord_3d &r){return cos(r[2]);}
+
+	static double sinus_r (const coord_3d &r){return sin(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));}
+	static double cosinus_r (const coord_3d &r){return cos(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));}
+
+	static double sinus_2r (const coord_3d &r){return sin(2*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));}
+	static double cosinus_2r (const coord_3d &r){return cos(2*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));}
+
+	static double sinus_2x  (const coord_3d &r){return sin(2*r[0]);}
+	static double sinus_2y  (const coord_3d &r){return sin(2*r[1]);}
+	static double sinus_2z  (const coord_3d &r){return sin(2*r[2]);}
+	static double cosinus_2x(const coord_3d &r){return cos(2*r[0]);}
+	static double cosinus_2y(const coord_3d &r){return cos(2*r[1]);}
+	static double cosinus_2z(const coord_3d &r){return cos(2*r[2]);}
+
+	// Excitation operator creators for custom guess
+	double xc_function(const coord_3d &r){return r[0];}
+	double yc_function(const coord_3d &r){return r[1];}
+    double zc_function(const coord_3d &r){return r[2];}
 
 	// Dipole operators
 	static double x_function(const coord_3d &r){return r[0];}
@@ -545,9 +668,9 @@ private:
 	static double d2h_B2g  (const coord_3d &r){return xz_function(r) ;}
 	static double d2h_B3g  (const coord_3d &r){return yz_function(r) ;}
 	static double d2h_Au   (const coord_3d &r){return xyz_function(r);}
-	static double d2h_B1u  (const coord_3d &r){return x_function(r)+zzz_function(r)+yyz_function(r)+xzz_function(r) ;}
+	static double d2h_B1u  (const coord_3d &r){return z_function(r)+zzz_function(r)+yyz_function(r)+xzz_function(r) ;}
 	static double d2h_B2u  (const coord_3d &r){return y_function(r)+yzz_function(r)+xxy_function(r)+yyy_function(r) ;}
-	static double d2h_B3u  (const coord_3d &r){return z_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r) ;}
+	static double d2h_B3u  (const coord_3d &r){return x_function(r)+xzz_function(r)+xyy_function(r)+xxx_function(r) ;}
 	/// C1
 
 	/// C2
@@ -587,6 +710,20 @@ private:
 	 static double benzene_4(const coord_3d &r){return z_function(r);}
 	 static double benzene_5(const coord_3d &r){return xyz_function(r);}
 	 static double benzene_6(const coord_3d &r){return xxz_function(r) - yyz_function(r);}
+
+	 /// D6h without irreps A2g, B1g, B2g, A2u because no linear, quadratic or cubic polynomial transforms like them
+	 // Suggestion to include them: Make random guess functions with polynomials of order 4 and higher and orthonormalize
+	 static double d6h_A1g (const coord_3d &r){return xx_function(r)+yy_function(r)+zz_function(r) ;}
+	 static double d6h_E1g1(const coord_3d &r){return xz_function(r);}
+	 static double d6h_E1g2(const coord_3d &r){return yz_function(r);}
+	 static double d6h_E2g1(const coord_3d &r){return xx_function(r)-yy_function(r);}
+	 static double d6h_E2g2(const coord_3d &r){return xy_function(r);}
+	 static double d6h_A2u (const coord_3d &r){return z_function(r) + zzz_function(r) + xxz_function(r) + yyz_function(r);}
+	 static double d6h_B1u (const coord_3d &r){return xxx_function(r)-3.0*xyy_function(r);}
+	 static double d6h_B2u (const coord_3d &r){return 3.0*xxy_function(r)-yyy_function(r);}
+	 static double d6h_E1u1(const coord_3d &r){return x_function(r) + xzz_function(r) + xxx_function(r) +xyy_function(r);}
+	 static double d6h_E1u2(const coord_3d &r){return y_function(r) + yzz_function(r) + xxy_function(r) +yyy_function(r);}
+	 //static double rest(const coord_3d &r){return ;}
 
 	 /// D2d
 	 static double d2d_A1(const coord_3d &r){return rr_function(r) +xyz_function(r)   ;}

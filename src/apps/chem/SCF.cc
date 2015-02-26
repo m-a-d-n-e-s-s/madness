@@ -88,37 +88,6 @@ namespace madness {
     }
   }
     
-    template <typename T, typename R, std::size_t NDIM>
-    std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
-    transform(World& world,
-              const std::vector< Function<T,NDIM> >& v,
-              const DistributedMatrix<R>& c,
-              bool fence=true) {
-        PROFILE_FUNC;
-        
-        typedef TENSOR_RESULT_TYPE(T,R) resultT;
-        long n = v.size();    // n is the old dimension
-        long m = c.rowdim();  // m is the new dimension
-        MADNESS_ASSERT(n==c.coldim());
-        
-        // new(i) = sum(j) old(j) c(j,i)
-        
-        Tensor<T> tmp(n,m);
-        c.copy_to_replicated(tmp); // for debugging
-        tmp = transpose(tmp);
-        
-        std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
-        compress(world, v);
-        
-        for (int i=0; i<m; ++i) {
-            for (int j=0; j<n; ++j) {
-                if (tmp(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],tmp(j,i),false);
-            }
-        }
-        
-        if (fence) world.gop.fence();
-        return vc;
-    }
     
     template<int NDIM>
     struct unaryexp {
@@ -213,6 +182,7 @@ namespace madness {
     }
     
     SCF::SCF(World & world, const char *filename) {
+        FunctionDefaults<3>::set_truncate_mode(1);
         PROFILE_MEMBER_FUNC(SCF);
         if (world.rank() == 0) {
             molecule.read_file(filename);
@@ -249,10 +219,6 @@ namespace madness {
         FunctionDefaults < 3 > ::set_cubic_cell(-param.L, param.L);
         set_protocol < 3 > (world, param.econv);
 
-        potentialmanager = std::shared_ptr < PotentialManager
-                                             > (new PotentialManager(molecule, param.core_type));
-        gthpseudopotential = std::shared_ptr<GTHPseudopotential<double> 
-                                             >(new GTHPseudopotential<double>(world, molecule));
     }
     
     
@@ -445,6 +411,11 @@ namespace madness {
     void SCF::make_nuclear_potential(World & world) {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
+        potentialmanager = std::shared_ptr < PotentialManager
+                                             > (new PotentialManager(molecule, param.core_type));
+        gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>
+                                             >(new GTHPseudopotential<double>(world, molecule));
+
         if (param.psp_calc){
             gthpseudopotential->make_pseudo_potential(world);}
         else{
@@ -1267,15 +1238,9 @@ namespace madness {
         return Vpsi;
     }
     
-    tensorT SCF::derivatives(World & world) {
+    tensorT SCF::derivatives(World & world, const functionT& rho) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
-        
-        functionT rho = make_density(world, aocc, amo);
-        functionT brho = rho;
-        if (!param.spin_restricted)
-            brho = make_density(world, bocc, bmo);
-        rho.gaxpy(1.0, brho, 1.0);
         
         vecfuncT dv(molecule.natom() * 3);
         vecfuncT du = zero_functions<double, 3>(world, molecule.natom() * 3);
@@ -1346,22 +1311,16 @@ namespace madness {
         return r;
     }
     
-    tensorT SCF::dipole(World & world) {
+    tensorT SCF::dipole(World & world, const functionT& rho) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         tensorT mu(3);
+
         for (unsigned int axis = 0; axis < 3; ++axis) {
             std::vector<int> x(3, 0);
             x[axis] = true;
-            functionT dipolefunc = factoryT(world).functor(
-                                                           functorT(new MomentFunctor(x)));
-            functionT rho = make_density(world, aocc, amo);
-            if (!param.spin_restricted) {
-                if (param.nbeta)
-                    rho += make_density(world, bocc, bmo);
-            } else {
-                rho.scale(2.0);
-            }
+            functionT dipolefunc = factoryT(world)
+                    .functor(functorT(new MomentFunctor(x)));
             mu[axis] = -dipolefunc.inner(rho);
             mu[axis] += molecule.nuclear_dipole(axis, param.psp_calc);
         }
@@ -2391,8 +2350,16 @@ namespace madness {
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q,
                             bsh_residual, update_residual);
         }
-        
-        dipole(world);
+
+        // compute the dipole moment
+        functionT rho = make_density(world, aocc, amo);
+        if (!param.spin_restricted) {
+            if (param.nbeta)
+                rho += make_density(world, bocc, bmo);
+        } else {
+            rho.scale(2.0);
+        }
+        dipole(world,rho);
         
         if (world.rank() == 0) {
             if (param.localize)

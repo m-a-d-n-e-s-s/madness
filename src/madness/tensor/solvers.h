@@ -200,16 +200,6 @@ namespace madness {
     };
 
 
-    /// The interface to be provided by solvers ... NOT USED ANYWHERE?
-
-    /// \ingroup solvers
-    struct SolverInterface {
-        virtual bool solve(Tensor<double>& x) = 0;
-        virtual bool converged() const = 0;
-        virtual double residual_norm() const = 0;
-	virtual ~SolverInterface() {}
-    };
-
     /// The interface to be provided by optimizers
 
     /// \ingroup solvers
@@ -256,7 +246,7 @@ namespace madness {
     /// \ingroup solvers
     /// This is presently not a low memory algorithm ... we really need one!
     class QuasiNewton : public OptimizerInterface {
-    private:
+    protected:
         std::string update;              // One of BFGS or SR1
         std::shared_ptr<OptimizationTargetInterface> target;
         const int maxiter;
@@ -269,14 +259,21 @@ namespace madness {
         int n;
         bool printtest;
 
-        double line_search(double a1, double f0, double dxgrad, const Tensor<double>& x, const Tensor<double>& dx);
+    public:
 
-        void hessian_update_sr1(const Tensor<double>& s, const Tensor<double>& y);
+        /// make this static for other QN classed to have access to it
+        double line_search(double a1, double f0, double dxgrad,
+                const Tensor<double>& x, const Tensor<double>& dx) const;
 
-        void hessian_update_bfgs(const Tensor<double>& dx,
-                                 const Tensor<double>& dg);
+        /// make this static for other QN classed to have access to it
+        static void hessian_update_sr1(const Tensor<double>& s, const Tensor<double>& y,
+                Tensor<double>& hessian);
 
-        Tensor<double> new_search_direction(const Tensor<double>& g);
+        /// make this static for other QN classed to have access to it
+        static void hessian_update_bfgs(const Tensor<double>& dx,
+                     const Tensor<double>& dg, Tensor<double>& hessian);
+
+        Tensor<double> new_search_direction(const Tensor<double>& g) const;
 
     public:
         QuasiNewton(const std::shared_ptr<OptimizationTargetInterface>& tar,

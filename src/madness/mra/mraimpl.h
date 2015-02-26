@@ -1602,27 +1602,12 @@ namespace madness {
         // and we must not truncate; so just return empty coeffs again
         for (size_t i=0; i<v.size(); ++i) if (v[i].get().has_no_data()) return coeffT();
         
+        // do not truncate below level 1
+        if (key.level()<2) return coeffT();
+
+        // compute the wavelet coefficients from the child nodes
         typename dcT::accessor acc;
         MADNESS_ASSERT(coeffs.find(acc, key));
-        
-        //
-        // !! THIS IS NO NUMERICALLY STABLE CODE !!
-        //
-#if 0
-        // the sum coefficients on this level, and their norm
-        const tensorT s=downsample(key,v);
-        const double snorm=s.normf();
-        
-        // get the norm of all child coefficients
-        double dnorm=0.0;
-        for (size_t i=0; i<v.size(); ++i) {
-            const double d=v[i].get().normf();
-            dnorm+=d*d;
-        }
-        
-        // the error; equivalent to the norm of the wavelet coefficients
-        const double error=sqrt(dnorm-snorm*snorm);
-#else
         int i=0;
         tensorT d(cdata.v2k);
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
@@ -1634,8 +1619,7 @@ namespace madness {
         tensorT s=copy(d(cdata.s0));
         d(cdata.s0) = 0.0;
         const double error=d.normf();
-        
-#endif
+
         nodeT& node = coeffs.find(key).get()->second;
         
         if (error < truncate_tol(tol,key)) {
@@ -2098,7 +2082,7 @@ namespace madness {
   
         // Do pre-screening of the FunctionFunctorInterface, f, before calculating f(r) at quadrature points
         coordT c1, c2;
-        for (int i = 0; i < NDIM; i++) {
+        for (std::size_t i = 0; i < NDIM; i++) {
           c1[i] = cell(i,0) + h*cell_width[i]*(l[i] + qx((long)0));
           c2[i] = cell(i,0) + h*cell_width[i]*(l[i] + qx(npt-1));
         }

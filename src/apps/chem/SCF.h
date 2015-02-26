@@ -325,7 +325,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & psp_calc;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & nuclear_corrfac & psp_calc;
     }
 
     CalculationParameters()
@@ -544,9 +544,11 @@ struct CalculationParameters {
                 f >> gmaxiter;
             }
             else if (s == "algopt") {
-                char buf[1024];
-                f.getline(buf,sizeof(buf));
-                algopt = buf;
+                f >> algopt;
+
+//                char buf[1024];
+//                f.getline(buf,sizeof(buf));
+//                algopt = buf;
             }
             else if (s == "tdksprop") {
               tdksprop = true;
@@ -737,7 +739,7 @@ public:
         FunctionDefaults<NDIM>::set_thresh(thresh);
         FunctionDefaults<NDIM>::set_refine(true);
         FunctionDefaults<NDIM>::set_initial_level(2);
-        FunctionDefaults<NDIM>::set_truncate_mode(1);
+//        FunctionDefaults<NDIM>::set_truncate_mode(1);
         FunctionDefaults<NDIM>::set_autorefine(false);
         FunctionDefaults<NDIM>::set_apply_randomize(false);
         FunctionDefaults<NDIM>::set_project_randomize(false);
@@ -846,9 +848,13 @@ public:
 			const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
 			const functionT & vlocal, double & exc, double & enl, int ispin);
 
-    tensorT derivatives(World & world);
+    tensorT derivatives(World & world, const functionT& rho) const;
 
-    tensorT dipole(World & world);
+    /// compute the total dipole moment of the molecule
+
+    /// @param[in]  the total (alpha + beta) density
+    /// @return     the x,y,z components of the el. + nucl. dipole moment
+    tensorT dipole(World & world, const functionT& rho) const;
 
     void vector_stats(const std::vector<double> & v, double & rms,
     		double & maxabsval) const;
@@ -1002,6 +1008,7 @@ public:
 		if (calc.param.no_compute) {
 			calc.load_mos(world);
 			calc.make_nuclear_potential(world);
+			calc.project_ao_basis(world);
 			return calc.current_energy;
 			}
 
@@ -1045,7 +1052,14 @@ public:
     madness::Tensor<double> gradient(const Tensor<double>& x) {
         value(x); // Ensures DFT equations are solved at this geometry
 
-        return calc.derivatives(world);
+
+        functionT rho = calc.make_density(world, calc.aocc, calc.amo);
+        functionT brho = rho;
+        if (!calc.param.spin_restricted)
+            brho = calc.make_density(world, calc.bocc, calc.bmo);
+        rho.gaxpy(1.0, brho, 1.0);
+
+        return calc.derivatives(world,rho);
     }
 };
 }

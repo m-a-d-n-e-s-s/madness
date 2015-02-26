@@ -179,16 +179,16 @@ namespace madness {
     public:
         bool do_print;
 
-	XNonlinearSolver(const Alloc& alloc = Alloc())
+	XNonlinearSolver(const Alloc& alloc = Alloc(),bool print=false)
             : maxsub(10)
             , alloc(alloc)
-    		, do_print(false)
+    		, do_print(print)
         {}
 
 	XNonlinearSolver(const XNonlinearSolver& other)
             : maxsub(other.maxsub)
             , alloc(other.alloc)
-			, do_print(false)
+			, do_print(other.do_print)
         {}
 
 

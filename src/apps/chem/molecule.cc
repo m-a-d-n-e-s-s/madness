@@ -341,10 +341,19 @@ void Molecule::center() {
     xx /= qq;
     yy /= qq;
     zz /= qq;
+    Tensor<double> translation(3);
+    translation(0l)=-xx;
+    translation(1l)=-yy;
+    translation(2l)=-zz;
+    translate(translation);
+}
+
+/// translate the molecule
+ void Molecule::translate(const Tensor<double>& translation) {
     for (unsigned int i=0; i<atoms.size(); ++i) {
-        atoms[i].x -= xx;
-        atoms[i].y -= yy;
-        atoms[i].z -= zz;
+        atoms[i].x += translation(0l);
+        atoms[i].y += translation(1l);
+        atoms[i].z += translation(2l);
     }
 }
 
@@ -495,6 +504,20 @@ void Molecule::identify_point_group() {
 }
 
 
+// Align molecule with axes of inertia
+Tensor<double> Molecule::moment_of_inertia() const {
+    madness::Tensor<double> I(3L,3L);
+    for (unsigned int i=0; i<atoms.size(); ++i) {
+        double q = atoms[i].mass, x[3] = {atoms[i].x, atoms[i].y, atoms[i].z};
+        for (int j=0; j<3; ++j) {
+            I(j,j)=q*(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+            for (int k=0; k<3; ++k)
+                I(j,k) -= q*x[j]*x[k];
+        }
+    }
+    return I;
+}
+
 /// Centers and orients the molecule in a standard manner
 void Molecule::orient() {
 
@@ -515,18 +538,9 @@ void Molecule::orient() {
     // madness::print(U);
     // madness::print(e);
 
-    madness::Tensor<double> r(3L), rU;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        r[0]=atoms[i].x; r[1]=atoms[i].y, r[2]= atoms[i].z;
-        rU = inner(r,U);
-        atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2];
-    }
+    // rotate the molecule and the external field
+    rotate(U);
 
-    // field rotation
-    rU = inner(field,U);
-    field[0] = rU[0];
-    field[1] = rU[1];
-    field[2] = rU[2];
 
     // Try to resolve degenerate rotations
     double symtol = 1e-2;
@@ -550,6 +564,23 @@ void Molecule::orient() {
     // Figure out what elements are actually present and enforce
     // conventional ordering
     identify_point_group();
+}
+
+/// rotates the molecule and the external field
+
+/// @param[in]  D   the rotation matrix
+void Molecule::rotate(const Tensor<double>& D) {
+    madness::Tensor<double> r(3L), rU;
+    for (unsigned int i=0; i<atoms.size(); ++i) {
+        r[0]=atoms[i].x; r[1]=atoms[i].y, r[2]= atoms[i].z;
+        rU = inner(r,D);
+        atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2];
+    }
+    // field rotation
+    rU = inner(field,D);
+    field[0] = rU[0];
+    field[1] = rU[1];
+    field[2] = rU[2];
 }
 
 /// Returns the half width of the bounding cube
