@@ -68,6 +68,10 @@
 #   define F77_DDOT ddot
 #   define F77_CDOTU cdotu
 #   define F77_ZDOTU zdotu
+#   define F77_SAXPY saxpy
+#   define F77_DAXPY daxpy
+#   define F77_CAXPY caxpy
+#   define F77_ZAXPY zaxpy
 
 #elif defined(FORTRAN_LINKAGE_LCU)
 
@@ -93,6 +97,10 @@
 #   define F77_DDOT ddot_
 #   define F77_CDOTU cdotu_
 #   define F77_ZDOTU zdotu_
+#   define F77_SAXPY saxpy_
+#   define F77_DAXPY daxpy_
+#   define F77_CAXPY caxpy_
+#   define F77_ZAXPY zaxpy_
 
 #elif defined(FORTRAN_LINKAGE_LCUU)
 
@@ -118,6 +126,10 @@
 #   define F77_DDOT   ddot__
 #   define F77_CDOTU  cdotu__
 #   define F77_ZDOTU  zdotu__
+#   define F77_SAXPY  saxpy__
+#   define F77_DAXPY  daxpy__
+#   define F77_CAXPY  caxpy__
+#   define F77_ZAXPY  zaxpy__
 
 #elif defined(FORTRAN_LINKAGE_UC)
 
@@ -143,6 +155,10 @@
 #   define F77_DDOT   DDOTU
 #   define F77_CDOTU  CDOTU
 #   define F77_ZDOTU  ZDOTU
+#   define F77_SAXPY  SAXPY
+#   define F77_DAXPY  DAXPY
+#   define F77_CAXPY  CAXPY
+#   define F77_ZAXPY  ZAXPY
 
 #elif defined(FORTRAN_LINKAGE_UCU)
 
@@ -168,6 +184,10 @@
 #   define F77_DDOT   DDOTSUB_
 #   define F77_CDOTU  CDOTU_
 #   define F77_ZDOTU  ZDOTU_
+#   define F77_SAXPY  SAXPY_
+#   define F77_DAXPY  DAXPY_
+#   define F77_CAXPY  CAXPY_
+#   define F77_ZAXPY  ZAXPY_
 
 #else
 // If detected another convention complain loudly.
@@ -235,6 +255,12 @@ extern "C" {
             const complex_real4*, const integer*, complex_real4*);
     void F77_ZDOTU(const integer*, const complex_real8*, const integer*,
             const complex_real8*, const integer*, complex_real8*);
+    //
+    // BLAS _AXPY declarations (INTEGER n, NUMERICAL alpha, NUMERICAL x, INTEGER incx, NUMERICAL y, INTEGER incy )
+    void F77_SAXPY(const integer*, const float*        , float*        , const integer*, float*        , const integer*);
+    void F77_DAXPY(const integer*, const double*       , double*       , const integer*, double*       , const integer*);
+    void F77_CAXPY(const integer*, const complex_real4*, complex_real4*, const integer*, complex_real4*, const integer*);
+    void F77_ZAXPY(const integer*, const complex_real8*, complex_real8*, const integer*, complex_real8*, const integer*);
 }
 
 
@@ -481,6 +507,40 @@ namespace cblas {
       F77_ZDSCAL(&n, &alpha, x, &incx);
     }
     ///@}
+
+    /// Scale and add a vector to another
+
+    /// \f[
+    /// \mathbf{y} \leftarrow \alpha \mathbf{x} + \mathbf{y}
+    /// \f]
+    /// \param n The size of the vector
+    /// \param alpha The scaling factor for vector \f$ \mathbf{x} \f$
+    /// \param x Pointer to vector \f$ \mathbf{x} \f$
+    /// \param incx Stride for vector \f$ \mathbf{x} \f$
+    /// \param y Pointer to vector \f$ \mathbf{y} \f$
+    /// \param incy Stride for vector \f$ \mathbf{y} \f$
+    ///@{
+    inline void axpy(const integer n, const float alpha, float* x, const integer incx,
+                     float* y, const integer incy) {
+      F77_SAXPY(&n, &alpha, x, &incx, y, &incy);
+    }
+
+    inline void axpy(const integer n, const double alpha, double* x, const integer incx,
+                     double* y, const integer incy) {
+      F77_DAXPY(&n, &alpha, x, &incx, y, &incy);
+    }
+
+    inline void axpy(const integer n, const complex_real4 alpha, complex_real4* x, const integer incx,
+                     complex_real4* y, const integer incy) {
+      F77_CAXPY(&n, &alpha, x, &incx, y, &incy);
+    }
+
+    inline void axpy(const integer n, const complex_real8 alpha, complex_real8* x, const integer incx,
+                     complex_real8* y, const integer incy) {
+      F77_ZAXPY(&n, &alpha, x, &incx, y, &incy);
+    }
+    ///@}
+
 
 } // namespace cblas
 } // namespace madness

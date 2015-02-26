@@ -538,6 +538,8 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
 
 /// compute the nuclear gradients
 Tensor<double> Nemo::gradient(const Tensor<double>& x) {
+    START_TIMER(world);
+
 #if 0
     const double thresh=FunctionDefaults<3>::get_thresh();
     FunctionDefaults<3>::set_thresh(thresh*0.1);
@@ -552,79 +554,37 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     Tensor<double> grad(3*calc->molecule.natom());
     functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
 
-    // conventional
-//    {
-//        vecfuncT psi = mul(world, R, calc->amo);
-//        functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
-//        for (int atom = 0; atom < calc->molecule.natom(); ++atom) {
-//            for (int axis = 0; axis < 3; ++axis) {
-//                functorT func(new MolecularDerivativeFunctor(calc->molecule, atom, axis));
+    vecfuncT bra(3);
+    for (int axis=0; axis<3; ++axis) {
+
+        // compute \frac{\partial \rho}{\partial x_i}
+        real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
+        real_function_3d Drhonemo=D(rhonemo);
+
+        // compute the second term of the bra
+        real_function_3d tmp=rhonemo*nuclear_correlation->U1(axis);
+        tmp.scale(2.0);
+        bra[axis]=(Drhonemo-tmp).truncate();
+    }
+
+//    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+//        const Atom& atom=calc->molecule.get_atom(iatom);
+//        std::shared_ptr< FunctionFunctorInterface<double,3> > r2v(new
+//        NuclearCorrelationFactor::square_times_V_functor(nuclear_correlation.get(),atom));
 //
-//                real_function_3d tmp=functionT(factoryT(world).functor(func).truncate_on_project());
-//                grad[atom * 3 + axis] = inner(rho,tmp);
-//            }
+//        for (int axis=0; axis<3; axis++) {
+//            grad(3*iatom + axis)=-bra[axis].inner_adaptive(r2v);
 //        }
 //    }
 
-    // partial integration
-//    print("partial integration");
-//    for (int axis=0; axis<3; ++axis) {
-//        real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
-//        real_function_3d r2=nuclear_correlation->square();
-//        real_function_3d tmp=rhonemo*r2;
-//
-//        real_function_3d Dtmp=D(tmp);
-//
-//        for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
-//            real_function_3d v;
-//            if (iatom==0) v=real_factory_3d(world).f(V1).truncate_on_project();
-//            if (iatom==1) v=real_factory_3d(world).f(V2).truncate_on_project();
-//            grad(3*iatom + axis)=-inner(Dtmp,v);
-//
-//        }
-//    }
-
-    if (1) {
-        vecfuncT bra(3);
-        for (int axis=0; axis<3; ++axis) {
-
-            // compute \frac{\partial \rho}{\partial x_i}
-            real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
-            real_function_3d Drhonemo=D(rhonemo);
-
-            // compute the second term of the bra
-            real_function_3d tmp=rhonemo*nuclear_correlation->U1(axis);
-            tmp.scale(2.0);
-            bra[axis]=(Drhonemo-tmp).truncate();
-        }
-
-//        if (0) {
-//            real_function_3d v=real_factory_3d(world).f(V).truncate_on_project();
-//            real_function_3d r2=nuclear_correlation->square();
-//            for (int axis=0; axis<3; axis++) {
-//                bra[axis]=bra[axis]*r2;
-//                for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
-//                    grad(3*iatom + axis)=-inner(bra[axis],v);
-//                }
-//            }
-//        } else {
-            for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
-                const Atom& atom=calc->molecule.get_atom(iatom);
-                real_function_3d r2v=nuclear_correlation->square_times_V(atom);
-
-                for (int axis=0; axis<3; axis++) {
-                    grad(3*iatom + axis)=-inner(bra[axis],r2v);
-                }
-            }
-//        }
-    } else {
         for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
             for (int axis=0; axis<3; ++axis) {
-                real_function_3d r2v=nuclear_correlation->square_times_V_derivative(iatom,axis);
-                grad(3*iatom + axis)=-inner(rhonemo,r2v);
+                NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
+                        nuclear_correlation.get(),this->molecule(),iatom,axis);
+                grad(3*iatom + axis)=inner(rhonemo,r2v);
+
             }
         }
-    }
 
     // add the nuclear contribution
     for (int atom = 0; atom < calc->molecule.natom(); ++atom) {
@@ -635,6 +595,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     }
 
 #endif
+    END_TIMER(world, "compute gradients");
 
     if (world.rank() == 0) {
         print("\n Derivatives (a.u.)\n -----------\n");
