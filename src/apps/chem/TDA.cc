@@ -265,7 +265,7 @@ void TDA::initialize(xfunctionsT & xfunctions){
 		exop_strings = custom_exops_;
 	}
 	else{
-		guess guess_structure;
+		polynomial_guess guess_structure;
 		exop_strings =  guess_structure.make_predefined_guess_strings(guess_);
 	}
 	if(exop_strings.empty()) MADNESS_EXCEPTION("ERROR in intializing xfunctions, no guess strings were created ... unknown keyword ?",1);
