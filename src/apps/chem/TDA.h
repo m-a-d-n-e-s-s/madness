@@ -17,7 +17,7 @@
 #include <madness/mra/vmra.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/misc/ran.h>
-#include <chem/TDA_XC.h>
+//#include <chem/TDA_XC.h>
 //#include <madness/world/print.h>
 
 #include <chem/TDA_exops.h>
@@ -426,7 +426,7 @@ public:
 		only_fock_(false),
 		only_GS_(false),
 		on_the_fly_(true),
-		xclib_interface_(world,calc),
+		//xclib_interface_(world,calc),
 		ipot_(0.0),
 		kain_(false),
 		kain_subspace_(3),
@@ -765,7 +765,7 @@ private:
 	bool on_the_fly_;
 
 	/// The interface to XCLIB library
-	TDA_DFT xclib_interface_;
+	//TDA_DFT xclib_interface_;
 
 	/// Ionization potential for the potential shift used in TDDFT calculations to get bound states for the first excitations (default is -2.0*homo)
 	double ipot_;

@@ -1114,56 +1114,56 @@ vecfuncT TDA::apply_gamma(const xfunction &xfunction) const {
 }
 
 vecfuncT TDA::apply_gamma_dft(const xfunction &xfunction) const {
-
-	TDA_TIMER hartree(world, "apply perturbed hartree potential...");
-	vecfuncT gamma = apply_hartree_potential(xfunction.x);
-	hartree.info(debug_);
-
-	TDA_TIMER rhoprime(world, "make perturbed density...");
-
-	// Make the perturbed density for closed shell molecules
-	real_function_3d perturbed_density = real_factory_3d(world);
-	for (size_t i = 0; i < active_mo_.size(); i++) {
-		perturbed_density += 2.0 * xfunction.x[i] * active_mo_[i];
-	}
-	rhoprime.info(debug_);
-	//
-	//	TDA_TIMER applyit(world,"apply vxc...");
-	//
-	// Get the perturbed xc potential from the dft class
-	//		real_function_3d vxc = xclib_interface_.convolution_with_kernel(
-	//				perturbed_density);
-
-	//		for (size_t i = 0; i < gamma.size(); i++) {
-	//			gamma[i] += vxc * active_mo_[i];
-	//		}
-
-	// Alternative way (more expensive, but avoid the unprecise kernel)
-	// for small test molecules this seems to bring no improvement
-	// when using this:
-	// 1.comment out the line before
-	// 2.return add(world,gamma,gamma2)
-	// 3. dont forget to project out occupied space also from gamma2 (below here)
-	// THIS DOES NOT WORK FOR GGA
-	//	vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
-	//	for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
-
-	//	vecfuncT gamma2 = mul(world,perturbed_density,lda_intermediate_);
-
-	for(size_t p=0;p<gamma.size();p++){
-		gamma[p] += xclib_interface_.get_fxc()*perturbed_density*active_mo_[p];
-	}
-	plot_vecfunction(gamma,"complete_gamma_");
-
-	// project out occupied space
-	for (size_t p = 0; p < active_mo_.size(); ++p)
-		gamma[p] -= rho0(gamma[p]);
-
-	//applyit.info(debug_);
-	//plot_vecfunction(gamma, "gamma", plot_);
-	//return add(world,gamma,gamma2);
-	truncate(world, gamma);
-	return gamma;
+MADNESS_EXCEPTION("NO TDDFT AVAILABLE RIGHT NOW",1);
+//	TDA_TIMER hartree(world, "apply perturbed hartree potential...");
+//	vecfuncT gamma = apply_hartree_potential(xfunction.x);
+//	hartree.info(debug_);
+//
+//	TDA_TIMER rhoprime(world, "make perturbed density...");
+//
+//	// Make the perturbed density for closed shell molecules
+//	real_function_3d perturbed_density = real_factory_3d(world);
+//	for (size_t i = 0; i < active_mo_.size(); i++) {
+//		perturbed_density += 2.0 * xfunction.x[i] * active_mo_[i];
+//	}
+//	rhoprime.info(debug_);
+//	//
+//	//	TDA_TIMER applyit(world,"apply vxc...");
+//	//
+//	// Get the perturbed xc potential from the dft class
+//	//		real_function_3d vxc = xclib_interface_.convolution_with_kernel(
+//	//				perturbed_density);
+//
+//	//		for (size_t i = 0; i < gamma.size(); i++) {
+//	//			gamma[i] += vxc * active_mo_[i];
+//	//		}
+//
+//	// Alternative way (more expensive, but avoid the unprecise kernel)
+//	// for small test molecules this seems to bring no improvement
+//	// when using this:
+//	// 1.comment out the line before
+//	// 2.return add(world,gamma,gamma2)
+//	// 3. dont forget to project out occupied space also from gamma2 (below here)
+//	// THIS DOES NOT WORK FOR GGA
+//	//	vecfuncT gamma2=xclib_interface_.apply_kernel(xfunction.x);
+//	//	for (int p=0; p<active_mo_.size(); ++p) gamma2[p] -= rho0(gamma2[p]);
+//
+//	//	vecfuncT gamma2 = mul(world,perturbed_density,lda_intermediate_);
+//
+//	for(size_t p=0;p<gamma.size();p++){
+//		gamma[p] += xclib_interface_.get_fxc()*perturbed_density*active_mo_[p];
+//	}
+//	plot_vecfunction(gamma,"complete_gamma_");
+//
+//	// project out occupied space
+//	for (size_t p = 0; p < active_mo_.size(); ++p)
+//		gamma[p] -= rho0(gamma[p]);
+//
+//	//applyit.info(debug_);
+//	//plot_vecfunction(gamma, "gamma", plot_);
+//	//return add(world,gamma,gamma2);
+//	truncate(world, gamma);
+//	return gamma;
 }
 
 vecfuncT TDA::apply_hartree_potential(const vecfuncT &x) const {
@@ -1198,10 +1198,11 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	if (not dft_)
 		Kx = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, x);
 	if (dft_) {
-		real_function_3d vxc = xclib_interface_.get_unperturbed_vxc();
+		MADNESS_EXCEPTION("NO TDDFT AVAILABLE RIGHT NOW",1);
+		//real_function_3d vxc = xclib_interface_.get_unperturbed_vxc();
 		// Shift the unperturbed potential down
-		vxc = vxc + shift_;
-		Kx = mul(world, vxc, x);
+		//vxc = vxc + shift_;
+		//Kx = mul(world, vxc, x);
 	}
 
 	// sum up: V0 xp = V_loc xp - K xp // this is 2J - K (factor 2 is included in get_coulomb_potential())
@@ -1257,12 +1258,13 @@ std::vector<vecfuncT> TDA::make_localized_exchange_intermediate() const {
 }
 
 vecfuncT TDA::make_lda_intermediate()const{
-	vecfuncT mo;
-	for(size_t i=0;i<active_mo_.size();i++) mo.push_back(copy(active_mo_[i]));
-	vecfuncT result = xclib_interface_.get_lda_intermediate(mo);
-	plot_vecfunction(result,"lda_intermediate_");
-	mo.clear();
-	return result;
+	MADNESS_EXCEPTION("NO TDDFT AVAILABLE RIGHT NOW",1);
+//	vecfuncT mo;
+//	for(size_t i=0;i<active_mo_.size();i++) mo.push_back(copy(active_mo_[i]));
+//	vecfuncT result = xclib_interface_.get_lda_intermediate(mo);
+//	plot_vecfunction(result,"lda_intermediate_");
+//	mo.clear();
+//	return result;
 }
 
 void TDA::plot_vecfunction(const vecfuncT &x, std::string msg = "name_",

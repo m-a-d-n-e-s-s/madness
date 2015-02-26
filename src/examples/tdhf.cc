@@ -54,8 +54,11 @@
 using namespace madness;
 
 int main(int argc, char** argv) {
+
 	initialize(argc, argv);
+
 	World world(SafeMPI::COMM_WORLD);
+
 	if (world.rank() == 0) {
 		print("\n  TDHF -- time-dependent Hartree-Fock in the CIS approximation  \n");
 		printf("starting at time %.1f\n", wall_time());
