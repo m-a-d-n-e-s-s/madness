@@ -257,10 +257,14 @@ extern "C" {
             const complex_real8*, const integer*, complex_real8*);
     //
     // BLAS _AXPY declarations (INTEGER n, NUMERICAL alpha, NUMERICAL x, INTEGER incx, NUMERICAL y, INTEGER incy )
-    void F77_SAXPY(const integer*, const float*        , float*        , const integer*, float*        , const integer*);
-    void F77_DAXPY(const integer*, const double*       , double*       , const integer*, double*       , const integer*);
-    void F77_CAXPY(const integer*, const complex_real4*, complex_real4*, const integer*, complex_real4*, const integer*);
-    void F77_ZAXPY(const integer*, const complex_real8*, complex_real8*, const integer*, complex_real8*, const integer*);
+    void F77_SAXPY(const integer*, const float*, const float*, const integer*,
+            float*, const integer*);
+    void F77_DAXPY(const integer*, const double*, const double*, const integer*,
+            double*, const integer*);
+    void F77_CAXPY(const integer*, const complex_real4*, const complex_real4*,
+            const integer*, complex_real4*, const integer*);
+    void F77_ZAXPY(const integer*, const complex_real8*, const complex_real8*,
+            const integer*, complex_real8*, const integer*);
 }
 
 
