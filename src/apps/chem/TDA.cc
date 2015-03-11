@@ -1039,20 +1039,41 @@ Tensor<double> TDA::make_perturbed_fock_matrix_for_guess_functions(const xfuncti
 	return F;
 }
 
+vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction) const{
+	real_function_3d vlocal = get_coulomb_potential();
+	vecfuncT J = mul(world,vlocal,xfunction.x);
+	vecfuncT K = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, xfunction.x);
+	vecfuncT smooth_V0 = sub(world,J,K);
+	vecfuncT gamma = apply_gamma(xfunction);
+	vecfuncT smooth_V = add(world,smooth_V0,gamma);
+	return smooth_V;
+}
+
 vecfuncT TDA::apply_perturbed_potential(const xfunction & xfunction) const {
-	vecfuncT Gamma;
-	TDA_TIMER gammatimer(world, "make gamma...");
-	if (not dft_)
-		Gamma = apply_gamma(xfunction);
-	if (dft_)
-		Gamma = apply_gamma_dft(xfunction);
-	gammatimer.info(debug_);
+//	vecfuncT Gamma;
+//	TDA_TIMER gammatimer(world, "make gamma...");
+//	if (not dft_)
+//		Gamma = apply_gamma(xfunction);
+//	if (dft_)
+//		Gamma = apply_gamma_dft(xfunction);
+//	gammatimer.info(debug_);
+//
+//	TDA_TIMER vxctimer(world, "apply the unperturbed potential...");
+//	vecfuncT V0 = get_V0(xfunction.x);
+//	vxctimer.info();
+//
+//	vecfuncT Vpsi = add(world, V0, Gamma);
 
-	TDA_TIMER vxctimer(world, "apply the unperturbed potential...");
-	vecfuncT V0 = get_V0(xfunction.x);
-	vxctimer.info();
+	vecfuncT smooth_V  = apply_smooth_potential(xfunction);
+	real_function_3d vnuc = get_calc().potentialmanager->vnuclear();
+	vecfuncT vnucx = mul(world,vnuc,xfunction.x);
+	vecfuncT Vpsi = add(world,vnucx,smooth_V);
 
-	vecfuncT Vpsi = add(world, V0, Gamma);
+	if(world.rank()==0) std::cout << std::scientific << std::setprecision(2) << "\n---Memory information for the potentials---" << std::endl;
+	if(world.rank()==0) std::cout << std::setw(40) << "Applied Vnuc in GB: " << get_size(world,vnucx)  <<   std::endl;
+	if(world.rank()==0) std::cout << std::setw(40) << "Smooth potential in GB: " << get_size(world,smooth_V) << std::endl;
+	if(world.rank()==0) std::cout << std::setw(40) << "Overall potential in GB: " << get_size(world,Vpsi) << std::endl;
+	if(world.rank()==0) std::cout << "\n\n"<<  std::setw(40) <<  std::endl;
 	return Vpsi;
 
 }
@@ -1188,7 +1209,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	// the local potential V^0 of Eq. (4)
 	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-																															+ get_coulomb_potential();
+							+ get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
@@ -1254,6 +1275,8 @@ std::vector<vecfuncT> TDA::make_localized_exchange_intermediate() const {
 		intermediate[p] = apply(world, (*poisson),
 				mul(world, lmo[p], lmo));
 	}
+	if(world.rank()==0) std::cout << std::setw(40) << "\n\n----Memory information in GB for the exchange intermediate---- "<<  std::endl;
+	if(world.rank()==0) std::cout << std::scientific << std::setprecision(2) << get_size(world,intermediate[0]) << " x " << intermediate.size() << std::setw(40) <<  std::endl;
 	return intermediate;
 }
 

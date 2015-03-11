@@ -905,6 +905,8 @@ private:
 	Tensor<double> make_perturbed_fock_matrix(const xfunctionsT &xfunctions)const;
 	Tensor<double> make_perturbed_fock_matrix_for_guess_functions(const xfunctionsT &xfunctions)const;
 
+	vecfuncT apply_smooth_potential(const xfunction&xfunction) const;
+
 	/// Calculate the perturbed Potential (V0 + Gamma)
 	// 1. Call get_V0
 	// 2. Call apply_gamma or apply_gamma_dft
