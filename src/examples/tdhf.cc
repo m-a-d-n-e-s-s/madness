@@ -213,33 +213,28 @@ int main(int argc, char** argv) {
 
 	// just read and analyze the xfunctions
 	if(no_compute){
-		if(world.rank()==0) std::cout << "\n\n\n---no_compute keyword detected ... just read and analyze---\n\n\n " << std::endl;
-		TDA cis(world,calc,calc.amo,input);
-		xfunctionsT read_roots;
-		cis.read_xfunctions(read_roots);
-		xfunctionsT read_converged_roots = cis.get_converged_xfunctions();
-
-		if(not read_roots.empty()){
-			if(world.rank()==0) std::cout << "\nAnalyze the given " << read_roots.size() << " excitation vectors ..." << std::endl;
-			cis.analyze(read_roots);
-		}
-		if(not read_converged_roots.empty()){
-			if(world.rank()==0) std::cout << "\nAnalyze the given " << read_converged_roots.size() << " excitation vectors ..." << std::endl;
-			cis.analyze(read_converged_roots);
-		}else if(world.rank()==0) std::cout << "\nno converged excitation vectors found ..." << std::endl;
-
-    	finalize();
+		MADNESS_EXCEPTION("Can not read xfunction currently due to strange crash in read_xfunctions",1);
+//		if(world.rank()==0) std::cout << "\n\n\n---no_compute keyword detected ... just read and analyze---\n\n\n " << std::endl;
+//		TDA cis(world,calc,calc.amo,input);
+//		xfunctionsT read_roots;
+//		cis.read_xfunctions(read_roots);
+//		xfunctionsT read_converged_roots = cis.get_converged_xfunctions();
+//
+//		if(not read_roots.empty()){
+//			if(world.rank()==0) std::cout << "\nAnalyze the given " << read_roots.size() << " excitation vectors ..." << std::endl;
+//			cis.analyze(read_roots);
+//		}
+//		if(not read_converged_roots.empty()){
+//			if(world.rank()==0) std::cout << "\nAnalyze the given " << read_converged_roots.size() << " excitation vectors ..." << std::endl;
+//			cis.analyze(read_converged_roots);
+//		}else if(world.rank()==0) std::cout << "\nno converged excitation vectors found ..." << std::endl;
+//
+//    	finalize();
 		return 0;
 	}
 
 	if(only_sequential){
-		FunctionDefaults<3>::set_thresh(solve_seq_thresh);
-		if(world.rank()==0) std::cout << "\n\n\n---Only sequential CIS iterations---\n\n\n " << std::endl;
-		TDA cis(world,calc,calc.amo,input);
-		xfunctionsT seq_roots;
-		cis.read_xfunctions(seq_roots);
-		cis.solve_sequential(seq_roots);
-    	finalize();
+		MADNESS_EXCEPTION("Can not read xfunction currently due to strange crash in read_xfunctions",1);
 		return 0;
 	}
 
