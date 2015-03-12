@@ -590,12 +590,14 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	if (not dft_ and shift_ != 0.0)
 		MADNESS_EXCEPTION("DFT is off but potential shift is not zero", 1);
 
-	vecfuncT Vpsi=add(world,xfunction.smooth_potential,mul(world,get_calc().potentialmanager -> vnuclear(),xfunction.x));
+	real_function_3d vn = get_calc().potentialmanager -> vnuclear();
+	vn.truncate();
+	vecfuncT Vpsi=add(world,xfunction.smooth_potential,mul(world,vn,xfunction.x));
 	double omega = xfunction.omega;
 	if(Vpsi.empty()) MADNESS_EXCEPTION("ERROR in iterate_one function: Applied potential of xfunction is empty",1);
 
-	scale(world, Vpsi, -2.0);
 	truncate(world, Vpsi); // no fence
+	scale(world, Vpsi, -2.0);
 
 	std::vector<poperatorT> bsh(active_mo_.size());
 	for (size_t p = 0; p < active_mo_.size(); p++) {
@@ -918,7 +920,10 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 
 	// The nuclear potential part
 	for(size_t i=0; i < xfunctions.size();i++){
-		vecfuncT vnuci = mul(world,get_calc().potentialmanager->vnuclear(),xfunctions[i].x);
+		real_function_3d vn = get_calc().potentialmanager->vnuclear();
+		vn.truncate();
+		vecfuncT vnuci = mul(world,vn,xfunctions[i].x);
+		truncate(world,vnuci);
 		for(size_t j=0; j < xfunctions.size();j++){
 			Tensor<double> fij = inner(world, xfunctions[j].x, vnuci);
 			F(i,j) += fij.sum();
@@ -1060,9 +1065,12 @@ MADNESS_EXCEPTION("perturbed fock matrix for guess functions is not used",1);
 vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction) const{
 	real_function_3d vlocal = get_coulomb_potential();
 	vecfuncT J = mul(world,vlocal,xfunction.x);
+	truncate(world,J);
 	vecfuncT K = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, xfunction.x);
+	truncate(world,K);
 	vecfuncT smooth_V0 = sub(world,J,K);
 	vecfuncT gamma = apply_gamma(xfunction);
+	truncate(world,gamma);
 	vecfuncT smooth_V = add(world,smooth_V0,gamma);
 	return smooth_V;
 }
