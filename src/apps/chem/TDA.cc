@@ -150,6 +150,8 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	orthonormalize_fock(xfunctions);
 	size_t max = xfunctions.size();
 
+	print_status(xfunctions);
+
 	// The given xfunctions should be sorted by energy in ascending order:
 	for (size_t iroot = 0; iroot < max; iroot++) {
 		print("\n\n-----xfunction ", iroot, " ------\n\n");
@@ -874,13 +876,17 @@ double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potenti
 	double exp_smooth_v = smooth_pot.sum();
 
 	// The Vnuc part
-	double exp_vnuc =0.0;
-	for(size_t i=0;i<x.x.size();i++){
-		real_function_3d vnuci = x.x[i] * get_calc().potentialmanager->vnuclear();
-			for(size_t j=0;j<x.x.size();j++){
-				exp_vnuc += vnuci.inner(x.x[j]);
-			}
-	}
+	real_function_3d vnuc = get_calc().potentialmanager->vnuclear();
+	vecfuncT vnuci = mul(world,vnuc,x.x);
+	Tensor<double> vnuc_pot = inner(world, x.x, vnuci);
+	double exp_vnuc = vnuc_pot.sum();
+//	double exp_vnuc =0.0;
+//	for(size_t i=0;i<x.x.size();i++){
+//		real_function_3d vnuci = x.x[i] * get_calc().potentialmanager->vnuclear();
+//			for(size_t j=0;j<x.x.size();j++){
+//				exp_vnuc += vnuci.inner(x.x[j]);
+//			}
+//	}
 
 	double expv = exp_smooth_v + exp_vnuc;
 
