@@ -17,7 +17,7 @@
 #include <madness/mra/vmra.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/misc/ran.h>
-#include <chem/TDA_XC.h>
+//#include <chem/TDA_XC.h>
 //#include <madness/world/print.h>
 
 #include <chem/TDA_exops.h>
@@ -78,15 +78,15 @@ struct xfunction{
 	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),
 			f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);guess_excitation_operator="not initialized";}
 	/// the copy contructor
-	xfunction(const xfunction &other) : world(other.world),x(other.x),Vx(other.Vx),omega(other.omega),expectation_value(other.expectation_value),error(other.error),
+	xfunction(const xfunction &other) : world(other.world),x(other.x),smooth_potential(other.smooth_potential),omega(other.omega),expectation_value(other.expectation_value),error(other.error),
 			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain),
 			f_length(other.f_length),f_velocity(other.f_velocity),guess_excitation_operator(other.guess_excitation_operator){}
 
 	World & world;
 	/// the response orbitals
 	vecfuncT x;
-	/// the applied potentials (to save memory this will mostly be empty)
-	vecfuncT Vx;
+	/// the applied potentials (to save memory the nuclear potential is missing)
+	vecfuncT smooth_potential;
 	/// the currrent excitation energy used to parametrize the BSH operator
 	double omega;
 	/// the expectation values (as vector so the conergence can be plotted)
@@ -118,7 +118,7 @@ struct xfunction{
 	/// assignment operator (needed by kain)
 	xfunction& operator=(const xfunction &other){
 		x=other.x;
-		Vx=other.Vx;
+		smooth_potential=other.smooth_potential;
 		omega = other.omega;
 		expectation_value = other.expectation_value;
 		error=other.error;
@@ -425,8 +425,8 @@ public:
 		debug_(false),
 		only_fock_(false),
 		only_GS_(false),
-		on_the_fly_(true),
-		xclib_interface_(world,calc),
+		//on_the_fly_(true),
+		//xclib_interface_(world,calc),
 		ipot_(0.0),
 		kain_(false),
 		kain_subspace_(3),
@@ -485,7 +485,6 @@ public:
 			else if (tag == "only_fock") only_fock_=true;
 			else if (tag == "only_GS") only_GS_=true;
 			else if (tag == "highest_excitation") ss >> highest_excitation_;
-			else if (tag == "no_otf") on_the_fly_=false;
 			else if (tag == "ipot") ss >> ipot_;
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
@@ -540,7 +539,7 @@ public:
 			if(only_fock_) std::cout << "only perturbed fock matrix"<< std::endl;
 			else if(only_GS_) std::cout << "only Gram-Schmidt"<< std::endl;
 			else std::cout << "use both"<< std::endl;
-			std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
+			//std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
 		}
@@ -614,31 +613,6 @@ public:
 		}
 
 	}
-
-	/// try to gain a little bit information about the used memory
-
-	double memwatch(const xfunctionsT &xfunctions,const bool printout)const{
-		// sanity_check
-		if(xfunctions.empty())return 0.0;
-		double allx=0.0; double allVx=0.0; double allr=0.0;
-		if(printout and world.rank()==0)std::cout << "\n\n#" << "  " << "     x " << "     Vx " << "     r " << std::endl;
-		if(printout)print("-------------------------------");
-		for(size_t i=0;i<xfunctions.size();i++){
-			if(on_the_fly_ and not xfunctions[i].Vx.empty()) MADNESS_EXCEPTION("on the fly calculation used but Vx not empty",1);
-			if(not kain_ and not xfunctions[i].current_residuals.empty()) MADNESS_EXCEPTION("no kain is used but current residuals are not empty",1);
-
-			// mem information
-			double x_size = get_size(world,xfunctions[i].x);
-			double Vx_size= get_size(world,xfunctions[i].Vx);
-			double r_size=get_size(world,xfunctions[i].current_residuals);
-			allx+=x_size; allVx+=Vx_size; allr=r_size;
-			if(printout)std::cout << i << "  " << x_size <<" "<< Vx_size <<" "<< r_size << " (GB)" <<  std::endl;
-		}
-		if(printout)print("-------------------------------");
-		if(printout)std::cout << "all" << "  " << allx <<" "<< allVx <<" "<< allr << " (GB)\n\n" <<  std::endl;
-		return allx+allVx+allr;
-	}
-
 
 	//virtual ~TDA();
 
@@ -762,10 +736,10 @@ private:
 	real_function_3d density_;
 
 	/// The potential is calculated when needed and then deleted (saves memory but the potential has to be calculated more often)
-	bool on_the_fly_;
+	//bool on_the_fly_;
 
 	/// The interface to XCLIB library
-	TDA_DFT xclib_interface_;
+	//TDA_DFT xclib_interface_;
 
 	/// Ionization potential for the potential shift used in TDDFT calculations to get bound states for the first excitations (default is -2.0*homo)
 	double ipot_;
@@ -905,6 +879,8 @@ private:
 	Tensor<double> make_perturbed_fock_matrix(const xfunctionsT &xfunctions)const;
 	Tensor<double> make_perturbed_fock_matrix_for_guess_functions(const xfunctionsT &xfunctions)const;
 
+	vecfuncT apply_smooth_potential(const xfunction&xfunction) const;
+
 	/// Calculate the perturbed Potential (V0 + Gamma)
 	// 1. Call get_V0
 	// 2. Call apply_gamma or apply_gamma_dft
@@ -983,9 +959,8 @@ private:
 	/// @param[in]	root	a converged root
 	double oscillator_strength_velocity(const xfunction& root) const;
 
-	void save_xfunctions(const xfunctionsT &xfunctions)const;
+	void memory_information(const xfunctionsT &xfunctions)const;
 public:
-	bool read_xfunctions(xfunctionsT &xfunctions);
 	/// analyze the root: oscillator strength and contributions from occ
 	void analyze(xfunctionsT& roots) const;
 	/// Project a vecfuncT to the ao basis (used to create projected MOs for the guess calculation)
