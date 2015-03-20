@@ -5003,7 +5003,8 @@ namespace madness {
             }
 
             // continue recursion if needed
-            if (leaf_refine and (std::abs(new_inner - old_inner) > thresh)) {
+            const double tol=truncate_tol(thresh,key);
+            if (leaf_refine and (std::abs(new_inner - old_inner) > tol)) {
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
                     tensorT cc = tensorT(c_child(child_patch(child)));

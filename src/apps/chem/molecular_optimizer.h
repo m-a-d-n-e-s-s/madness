@@ -139,17 +139,18 @@ private:
 
             target->value_and_gradient(x, f, gradient);
             print("gopt: new energy",f);
-            gnorm = gradient.normf()/sqrt(gradient.size());
-            print("gopt: raw gradient norm ",gnorm);
+            const double rawgnorm = gradient.normf()/sqrt(gradient.size());
+            print("gopt: raw gradient norm ",rawgnorm);
 
             // remove external degrees of freedom (translation and rotation)
             Tensor<double> project_ext=projector_external_dof(target->molecule());
             gradient=inner(gradient,project_ext);
             gnorm = gradient.normf()/sqrt(gradient.size());
             print("gopt: projected gradient norm ",gnorm);
+            const double gradratio=rawgnorm/gnorm;
 
-
-            printf(" QuasiNewton iteration %2d value %.12e gradient %.2e\n",iter,f,gnorm);
+            printf(" QuasiNewton iteration %2d value %.12e gradient %.2e  %.2e\n",
+                    iter,f,gnorm,gradratio);
             if (converged()) break;
 
             if (iter == 1 && h_is_identity) {

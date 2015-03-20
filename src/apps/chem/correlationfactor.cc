@@ -67,6 +67,8 @@ namespace madness{
 			return ncf_ptr(new GaussSlater(world, calc.molecule));
 		} else if (corrfac == "linearslater") {
 			return ncf_ptr(new LinearSlater(world, calc.molecule, a));
+        } else if ((corrfac == "gradientalgaussslater") or (corrfac == "ggs")) {
+            return ncf_ptr(new GradientalGaussSlater(world, calc.molecule,a));
 		} else if (corrfac == "slater") {
 			return ncf_ptr(new Slater(world, calc.molecule, a));
 		} else if (corrfac == "polynomial4") {
@@ -95,6 +97,7 @@ namespace madness{
 		} else {
 			if (world.rank()==0) print(calc.param.nuclear_corrfac);
 			MADNESS_EXCEPTION("unknown nuclear correlation factor", 1);
+			return ncf_ptr();
 		}
 	}
 }

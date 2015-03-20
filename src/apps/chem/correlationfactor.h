@@ -95,8 +95,8 @@ class SCF;
 /// ABC for the nuclear correlation factors
 class NuclearCorrelationFactor {
 public:
-	enum corrfactype {None, GaussSlater, LinearSlater, Polynomial,
-		Slater, Two};
+	enum corrfactype {None, GradientalGaussSlater, GaussSlater, LinearSlater,
+	    Polynomial, Slater, Two};
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 	/// ctor
@@ -471,6 +471,85 @@ private:
 
 };
 
+/// A nuclear correlation factor class
+
+/// The nuclear correlation factor is given by
+/// \[f
+///     R = \prod S_A   ; S_A=exp(-Z_A r_{1A}) + ( 1 - exp(-r_{1A}^2) )
+/// \]f
+class GradientalGaussSlater : public NuclearCorrelationFactor {
+public:
+    /// ctor
+
+    /// @param[in]  world   the world
+    /// @param[in]  mol molecule with the sites of the nuclei
+    GradientalGaussSlater(World& world, const Molecule& mol, const double a)
+        : NuclearCorrelationFactor(world,mol), a(a) {
+
+        if (world.rank()==0) {
+            print("constructed nuclear correlation factor of the form");
+            print("  R   = Prod_A S_A");
+            print("  S_A = 1/sqrt{Z} exp(-Z_A r_{1A}) + (1 - exp(-Z_A^2*r_{1A}^2))");
+            print("which is of Gradiental Gaussian-Slater type\n");
+        }
+
+        initialize();
+    }
+
+    corrfactype type() const {return NuclearCorrelationFactor::GradientalGaussSlater;}
+
+private:
+
+    const double a;
+
+    /// the nuclear correlation factor
+    double S(const double& r, const double& Z) const {
+        const double rho=r*Z;
+        return 1/sqrt(Z) * exp(-rho)+(1.0-exp(-(a*a*rho*rho)));
+    }
+
+    /// radial part first derivative of the nuclear correlation factor
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+
+        const double r=sqrt(vr1A[0]*vr1A[0] +
+                vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
+
+        const double rho=Z*r;
+        const double sqrtz=sqrt(Z);
+        const double term=-exp(-rho)*sqrtz + 2.0*a*a*exp(-a*a*rho*rho)*Z*rho;
+        return term*n12(vr1A,1.e-8);
+    }
+
+    /// second derivative of the nuclear correlation factor
+
+    /// -1/2 S"/S - Z/r
+    double Spp_div_S(const double& r, const double& Z) const {
+        const double rho=Z*r;
+        const double sqrtz=sqrt(Z);
+        if (rho<1.e-4) {
+            const double zfivehalf=Z*Z*sqrtz;
+            const double a2=a*a;
+            const double a4=a2*a2;
+            return  -0.5*Z*Z
+                    - 3. *a2 * zfivehalf
+                    - 4.* a2 *rho* zfivehalf
+                    - 2. *a2 * rho*rho*zfivehalf
+                    + 5. *a4 *rho*rho*zfivehalf
+                    + 3. *a4 *rho*rho*Z*Z*Z
+                    -0.5 *a2 *rho*rho*rho*zfivehalf
+                    +5.5 *a4 *rho*rho*rho*zfivehalf
+                    +7.  *a4 *rho*rho*rho*Z*Z*Z;
+        } else {
+            const double e=exp(-rho);
+            const double g=exp(-a*a*rho*rho);
+            const double poly=(2.0-6.0*a*a*rho + 4.0*a*a*a*a*rho*rho*rho);
+            const double num=Z*(-2.0 - e*r*sqrtz + g*poly);
+            const double denom=2.0*r*(1.0-g+e/sqrtz);
+            return num/denom;
+        }
+    }
+
+};
 
 
 /// A nuclear correlation factor class

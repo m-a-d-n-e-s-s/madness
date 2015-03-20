@@ -85,14 +85,13 @@ double Nemo::value(const Tensor<double>& x) {
     // construct the nuclear correlation factor:
     nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
     R = nuclear_correlation->function();
-    R_inverse = nuclear_correlation->inverse();
 
-	print_nuclear_corrfac();
+//	print_nuclear_corrfac();
 
 	// read converged wave function from disk if there is one
 	if (calc->param.no_compute) {
 		calc->load_mos(world);
-	    hessian(x);
+//	    hessian(x);
 
 		return calc->current_energy;
 	}
@@ -103,6 +102,7 @@ double Nemo::value(const Tensor<double>& x) {
 		calc->initial_guess(world);
 
 		// guess: multiply the guess orbitals with the inverse R
+	    real_function_3d R_inverse = nuclear_correlation->inverse();
 		calc->amo = mul(world, R_inverse, calc->amo);
 //		calc->param.restart = true;
 	}
@@ -136,17 +136,17 @@ double Nemo::value(const Tensor<double>& x) {
     functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
     calc->dipole(world,rho);
 
-    // compute stuff
-    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
-    real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
-    real_function_3d rhonemoz=Dz(rhonemo);
-    std::string filename="plot_rhonemoz";
-    Vector<double,3> lo=vec<double>(0,0,-10);
-    Vector<double,3> hi=vec<double>(0,0,10);
-    plot_line(filename.c_str(),500, lo, hi, rhonemoz);
-
-    filename="plot_rhonemo";
-    plot_line(filename.c_str(),500, lo, hi, rhonemo);
+//    // compute stuff
+//    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+//    real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
+//    real_function_3d rhonemoz=Dz(rhonemo);
+//    std::string filename="plot_rhonemoz";
+//    Vector<double,3> lo=vec<double>(0,0,-10);
+//    Vector<double,3> hi=vec<double>(0,0,10);
+//    plot_line(filename.c_str(),500, lo, hi, rhonemoz);
+//
+//    filename="plot_rhonemo";
+//    plot_line(filename.c_str(),500, lo, hi, rhonemo);
 
 	return energy;
 }
@@ -331,6 +331,7 @@ double Nemo::solve() {
 				"finished iteration %2d at time %8.1fs with energy %12.8f\n",
 					iter, wall_time(), energy);
 			print("current residual norm  ", norm, "\n");
+//			gradient(calc->molecule.get_all_coords());
 		}
 
 		if (converged)
@@ -544,20 +545,11 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
 Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     START_TIMER(world);
 
-#if 0
-    const double thresh=FunctionDefaults<3>::get_thresh();
-    FunctionDefaults<3>::set_thresh(thresh*0.1);
-    R.set_thresh(thresh*0.1);
-    vecfuncT psi = mul(world, R, calc->amo);
-    functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
-    R.set_thresh(thresh);
-    Tensor<double> grad=calc->derivatives(world,rho);
-    FunctionDefaults<3>::set_thresh(thresh);
-#else
-
-    Tensor<double> grad(3*calc->molecule.natom());
+    // the pseudo-density made up of the square of the nemo orbitals
     functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
 
+    // the following block computes the gradients more precisely than the
+    // direct evaluation of the derivative of the nuclear potential
     vecfuncT bra(3);
     for (int axis=0; axis<3; ++axis) {
 
@@ -571,24 +563,26 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
         bra[axis]=(Drhonemo-tmp).truncate();
     }
 
+    Tensor<double> grad(3*calc->molecule.natom());
+
+    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+        const Atom& atom=calc->molecule.get_atom(iatom);
+        NuclearCorrelationFactor::square_times_V_functor r2v(nuclear_correlation.get(),atom);
+
+        for (int axis=0; axis<3; axis++) {
+            grad(3*iatom + axis)=-inner(bra[axis],r2v);
+        }
+    }
+
+//    // this block is less precise
 //    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
-//        const Atom& atom=calc->molecule.get_atom(iatom);
-//        std::shared_ptr< FunctionFunctorInterface<double,3> > r2v(new
-//        NuclearCorrelationFactor::square_times_V_functor(nuclear_correlation.get(),atom));
+//        for (int axis=0; axis<3; ++axis) {
+//            NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
+//                    nuclear_correlation.get(),this->molecule(),iatom,axis);
+//            grad(3*iatom + axis)=inner(rhonemo,r2v);
 //
-//        for (int axis=0; axis<3; axis++) {
-//            grad(3*iatom + axis)=-bra[axis].inner_adaptive(r2v);
 //        }
 //    }
-
-        for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
-            for (int axis=0; axis<3; ++axis) {
-                NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
-                        nuclear_correlation.get(),this->molecule(),iatom,axis);
-                grad(3*iatom + axis)=inner(rhonemo,r2v);
-
-            }
-        }
 
     // add the nuclear contribution
     for (int atom = 0; atom < calc->molecule.natom(); ++atom) {
@@ -598,7 +592,6 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
         }
     }
 
-#endif
     END_TIMER(world, "compute gradients");
 
     if (world.rank() == 0) {
