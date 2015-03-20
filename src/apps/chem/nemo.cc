@@ -47,6 +47,8 @@
 #include <chem/molecular_optimizer.h>
 namespace madness {
 
+
+const static double au2invcm=219474.6313705;
 static double ttt, sss;
 void START_TIMER(World& world) {
     world.gop.fence(); ttt=wall_time(); sss=cpu_time();
@@ -90,6 +92,8 @@ double Nemo::value(const Tensor<double>& x) {
 	// read converged wave function from disk if there is one
 	if (calc->param.no_compute) {
 		calc->load_mos(world);
+	    hessian(x);
+
 		return calc->current_energy;
 	}
 
@@ -611,6 +615,119 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
         }
     }
     return grad;
+}
+
+
+/// compute the nuclear gradients
+Tensor<double> Nemo::hessian(const Tensor<double>& x) {
+    START_TIMER(world);
+
+    const int natom=molecule().natom();
+    Tensor<double> hessian(3*natom,3*natom);
+
+    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+
+    // take the derivative of \frac{\partial}{\partial X_A} 2\rho R^2
+    vecfuncT bra(3);
+    for (int axis=0; axis<3; ++axis) {
+
+        // compute \frac{\partial \rho}{\partial x_i}
+        real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
+        real_function_3d Drhonemo=D(rhonemo);
+
+        // compute the second term of the bra
+        real_function_3d tmp=rhonemo*nuclear_correlation->U1(axis);
+        tmp.scale(2.0);
+        bra[axis]=(Drhonemo-tmp).truncate();
+    }
+
+    // compute the first and third terms
+    for (int iaxis=0; iaxis<3; ++iaxis) {
+        real_function_3d tmp=rhonemo*nuclear_correlation->U1(iaxis);
+        for (int jatom=0; jatom<molecule().natom(); ++jatom) {
+            for (int jaxis=0; jaxis<3; ++jaxis) {
+                NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
+                        nuclear_correlation.get(),this->molecule(),jatom,jaxis);
+                for (int iatom=0; iatom<molecule().natom(); ++iatom) {
+
+
+
+                    hessian(3*iatom+iaxis, 3*jatom+jaxis) +=2.0*inner(tmp,r2v);
+
+                }
+            }
+        }
+    }
+
+    // compute the second derivative using integration by parts
+    for (int iatom=0; iatom<molecule().natom(); ++iatom) {
+
+        // compute the term < \phi | D_XA D_YB V | \phi >
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            for (int jaxis=0; jaxis<3; ++jaxis) {
+                NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
+                        nuclear_correlation.get(),this->molecule(),iatom,jaxis);
+                hessian(3*iatom+iaxis, 3*iatom+jaxis)=+inner(bra[iaxis],r2v);
+            }
+        }
+
+        // compute the term < \zeta | D_XA V | \phi >
+        for (int jatom=0; jatom<molecule().natom(); ++jatom) {
+
+        }
+    }
+
+    // add the nuclear-nuclear contribution
+    hessian+=molecule().nuclear_repulsion_hessian();
+
+
+    if (world.rank() == 0) {
+        print("\n Hessian (a.u.)\n");
+        print(hessian);
+    }
+    END_TIMER(world, "compute hessian");
+    Tensor<double> frequencies=compute_frequencies(hessian);
+
+    if (world.rank() == 0) {
+        print("\n vibrational frequencies (a.u.)\n");
+        print(frequencies);
+        print("\n vibrational frequencies (cm-1)\n");
+        print(au2invcm*frequencies);
+    }
+
+    MolecularOptimizer::remove_external_dof(hessian,molecule());
+
+    if (world.rank() == 0) {
+        print("\n Hessian projected (a.u.)\n");
+        print(hessian);
+    }
+    frequencies=compute_frequencies(hessian);
+
+    if (world.rank() == 0) {
+        print("\n vibrational frequencies projected (a.u.)\n");
+        print(frequencies);
+        print("\n vibrational frequencies projected (cm-1)\n");
+        print(au2invcm*frequencies);
+    }
+
+    return hessian;
+
+}
+
+/// returns the vibrational frequencies
+
+/// @param[in]  hessian the hessian matrix
+/// @return the frequencies in atomic units
+Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian) const {
+
+    Tensor<double> freq(3*molecule().natom());
+    Tensor<double> U;
+    syev(hessian,U,freq);
+    for (std::size_t i=0; i<freq.size(); ++i) {
+        if (freq(i)>0.0) freq(i)=sqrt(freq(i)); // real frequencies
+        else freq(i)=-sqrt(-freq(i));           // imaginary frequencies
+    }
+    return freq;
 }
 
 

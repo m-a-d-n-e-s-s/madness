@@ -159,15 +159,25 @@ public:
 
 	bool provides_gradient() const {return true;}
 
+	/// returns the molecular hessian matrix at structure x
+	Tensor<double> hessian(const Tensor<double>& x);
+
+	/// returns the vibrational frequencies
+
+	/// @param[in]  hessian the hessian matrix
+	/// @return the frequencies in atomic units
+	Tensor<double> compute_frequencies(const Tensor<double>& hessian) const;
+
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
 	/// compute the Fock matrix from scratch
 	tensorT compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const;
 
 	/// return a reference to the molecule
-	Molecule& molecule() {
-	    return calc->molecule;
-	}
+	Molecule& molecule() {return calc->molecule;}
+
+    /// return a const reference to the molecule
+    Molecule& molecule() const {return calc->molecule;}
 
 private:
 

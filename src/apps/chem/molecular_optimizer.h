@@ -303,7 +303,7 @@ private:
     /// I don't really understand the concept behind the projectors, but it
     /// seems to work, and it is not written down explicitly anywhere!
     /// All quantities are computed in non-mass-weighted coordinates.
-    Tensor<double> projector_external_dof(Molecule& mol) const {
+    static Tensor<double> projector_external_dof(Molecule& mol) {
 
         // compute the translation vectors
         Tensor<double> transx(3*mol.natom());
@@ -319,7 +319,7 @@ private:
 
         // move the molecule to its center of mass and compute
         // the moment of inertia tensor
-        Tensor<double> com=center_of_mass(mol);
+        Tensor<double> com=mol.center_of_mass();
         mol.translate(-1.0*com);
         Tensor<double> I=mol.moment_of_inertia();
         mol.translate(1.0*com);
@@ -394,9 +394,10 @@ private:
 
     }
 
+public:
     /// remove translational degrees of freedom from the hessian
-    void remove_external_dof(Tensor<double>& hessian,
-            Molecule& mol) const {
+    static void remove_external_dof(Tensor<double>& hessian,
+            Molecule& mol) {
 
         print("projecting out translational and rotational degrees of freedom");
         // compute the translation of the center of mass
@@ -406,21 +407,6 @@ private:
         hessian=inner(projector_ext,inner(hessian,projector_ext),0,0);
     }
 
-    /// compute the center of mass
-    Tensor<double> center_of_mass(const Molecule& molecule) const {
-        Tensor<double> com(3);
-        double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
-        for (unsigned int i=0; i<molecule.natom(); ++i) {
-            xx += molecule.get_atom(i).x*molecule.get_atom(i).mass;
-            yy += molecule.get_atom(i).y*molecule.get_atom(i).mass;
-            zz += molecule.get_atom(i).z*molecule.get_atom(i).mass;
-            qq += molecule.get_atom(i).mass;
-        }
-        com(0l)=xx/qq;
-        com(1l)=yy/qq;
-        com(2l)=zz/qq;
-        return com;
-    }
 
 
 };
