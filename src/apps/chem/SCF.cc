@@ -530,28 +530,7 @@ namespace madness {
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i),
                        dip(1, i), dip(2, i), sqrt(rsq(i)));
                 aobasis.print_anal(molecule, C(i, _));
-            }
-
-
-            // write eigenvalues etc to a file at the same time for plotting DOS etc.
-            //std::ofstream bands("energies.dat");
-            FILE *f=0;
-            f = fopen("energies.dat", "w");
-
-            //long nmo = mo.size();
-            fprintf(f, "# %8li\n", nmo);
-            for (long i = 0; i < nmo; ++i) {
-                if (energy.size())
-                    fprintf(f, "%13.8f\t", energy(i));
-
-                if (occ.size())
-                    fprintf(f, "%6.2f\t", occ(i));
-                
-                fprintf(f, "%8.2f %8.2f %8.2f\t%8.2f\n", dip(0, i),
-                       dip(1, i), dip(2, i), sqrt(rsq(i)));
-            }
-            fclose(f);
-            
+            }           
         }
         
     }
@@ -2440,6 +2419,32 @@ namespace madness {
                             print("beta eigenvalues");
                             print (beps);
                         }
+                    }
+
+                    // write eigenvalues etc to a file at the same time for plotting DOS etc.
+                    FILE *f=0;
+                    if (param.nbeta != 0 && !param.spin_restricted) {
+                        f = fopen("energies_alpha.dat", "w");}
+                    else{
+                        f = fopen("energies.dat", "w");}
+
+                    long nmo = amo.size();
+                    fprintf(f, "# %8li\n", nmo);
+                    for (long i = 0; i < nmo; ++i) {
+                        fprintf(f, "%13.8f\n", aeps(i));
+                    }
+                    fclose(f);
+
+                    if (param.nbeta != 0 && !param.spin_restricted) {
+                        long nmo = bmo.size();
+                        FILE *f=0;
+                        f = fopen("energies_beta.dat", "w");
+
+                        fprintf(f, "# %8li\n", nmo);
+                        for (long i = 0; i < nmo; ++i) {
+                            fprintf(f, "%13.8f\t", beps(i));
+                        }
+                        fclose(f);
                     }
                     
                     if (param.localize) {
