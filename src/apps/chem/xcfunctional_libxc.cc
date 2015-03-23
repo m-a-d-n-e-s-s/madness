@@ -257,7 +257,6 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized, Wor
             funcs.push_back(std::make_pair(lookup_func("LDA_C_VWN",polarized),1.0));
         }
         else if (name == "RHOMIN") {
-        	std::cout << "hello" << std::endl;
             line >> rhomin;
         }
         else if (name == "RHOTOL") {

@@ -314,7 +314,8 @@ struct CalculationParameters {
     std::string algopt;         ///< algorithm used for optimization
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
-    bool psp_calc;                ///< pseudopotential calculation or all electron
+    bool psp_calc;                ///< pseudopotential calculation for all atoms
+    bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -325,7 +326,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & nuclear_corrfac & psp_calc;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & nuclear_corrfac & psp_calc & pure_ae;
     }
 
     CalculationParameters()
@@ -377,6 +378,7 @@ struct CalculationParameters {
         , tdksprop(false)
         , nuclear_corrfac("none")
         , psp_calc(false)
+        , pure_ae(true)
     {}
 
 
@@ -560,6 +562,7 @@ struct CalculationParameters {
             }
             else if (s == "psp_calc") {
               psp_calc = true;
+              pure_ae = false;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -660,6 +663,12 @@ struct CalculationParameters {
             madness::print("    calc derivatives ");
         if (dipole)
             madness::print("         calc dipole ");
+        if (psp_calc)
+            madness::print(" psp or all electron ", "pseudopotential");
+        else if (pure_ae)
+            madness::print(" psp or all electron ", "all electron");
+        else
+            madness::print(" psp or all electron ", "mixed psp/AE");
     }
 
     void gprint(World& world) const {
