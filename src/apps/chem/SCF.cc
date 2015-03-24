@@ -206,7 +206,7 @@ namespace madness {
             }
 
             //print list of pseudo-atoms in mixed psp/ae calculation
-            if (!param.psp_calc && !param.pure_ae){
+            if (!param.psp_calc && !param.pure_ae && world.rank() == 0){
                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
                    //std::cout << "pseudo-atom " << iatom << "  " << molecule.get_pseudo_atom(iatom) << std::endl;
                    if (molecule.get_pseudo_atom(iatom)) std::cout << "atom " << iatom << " is a pseudo-atom" <<  std::endl;
@@ -2419,32 +2419,34 @@ namespace madness {
                             print("beta eigenvalues");
                             print (beps);
                         }
-                    }
 
-                    // write eigenvalues etc to a file at the same time for plotting DOS etc.
-                    FILE *f=0;
-                    if (param.nbeta != 0 && !param.spin_restricted) {
-                        f = fopen("energies_alpha.dat", "w");}
-                    else{
-                        f = fopen("energies.dat", "w");}
 
-                    long nmo = amo.size();
-                    fprintf(f, "# %8li\n", nmo);
-                    for (long i = 0; i < nmo; ++i) {
-                        fprintf(f, "%13.8f\n", aeps(i));
-                    }
-                    fclose(f);
-
-                    if (param.nbeta != 0 && !param.spin_restricted) {
-                        long nmo = bmo.size();
+                        // write eigenvalues etc to a file at the same time for plotting DOS etc.
                         FILE *f=0;
-                        f = fopen("energies_beta.dat", "w");
+                        if (param.nbeta != 0 && !param.spin_restricted) {
+                            f = fopen("energies_alpha.dat", "w");}
+                        else{
+                            f = fopen("energies.dat", "w");}
 
+                        long nmo = amo.size();
                         fprintf(f, "# %8li\n", nmo);
                         for (long i = 0; i < nmo; ++i) {
-                            fprintf(f, "%13.8f\t", beps(i));
+                            fprintf(f, "%13.8f\n", aeps(i));
                         }
                         fclose(f);
+
+                        if (param.nbeta != 0 && !param.spin_restricted) {
+                            long nmo = bmo.size();
+                            FILE *f=0;
+                            f = fopen("energies_beta.dat", "w");
+
+                            fprintf(f, "# %8li\n", nmo);
+                            for (long i = 0; i < nmo; ++i) {
+                                fprintf(f, "%13.8f\t", beps(i));
+                            }
+                            fclose(f);
+                        }
+
                     }
                     
                     if (param.localize) {
