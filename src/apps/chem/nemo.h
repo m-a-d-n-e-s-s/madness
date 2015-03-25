@@ -162,11 +162,26 @@ public:
 	/// returns the molecular hessian matrix at structure x
 	Tensor<double> hessian(const Tensor<double>& x);
 
+	/// solve the CPHF equations for the nuclear displacements
+
+	/// @param[in]  iatom   the atom A to be moved
+	/// @param[in]  iaxis   the coordinate X of iatom to be moved
+	/// @return     \frac{\partial}{\partial X_A} \varphi
+	vecfuncT cphf(const int iatom, const int iaxis) const;
+
 	/// returns the vibrational frequencies
 
 	/// @param[in]  hessian the hessian matrix
 	/// @return the frequencies in atomic units
 	Tensor<double> compute_frequencies(const Tensor<double>& hessian) const;
+
+	/// compute the mass-weight the hessian matrix
+
+	/// @param[in]  hessian     the non-mass-weighted hessian
+	/// @param[in]  molecule    for getting access to the atomic masses
+	/// @return the mass-weighted hessian
+	Tensor<double> massweighted_hessian(const Tensor<double>& hessian,
+	        const Molecule& molecule) const;
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 

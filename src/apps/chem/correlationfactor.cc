@@ -69,7 +69,9 @@ namespace madness{
 			return ncf_ptr(new LinearSlater(world, calc.molecule, a));
         } else if ((corrfac == "gradientalgaussslater") or (corrfac == "ggs")) {
             return ncf_ptr(new GradientalGaussSlater(world, calc.molecule,a));
-		} else if (corrfac == "slater") {
+        } else if (corrfac == "u2smooth") {
+            return ncf_ptr(new U2Smooth(world, calc.molecule,a));
+        } else if (corrfac == "slater") {
 			return ncf_ptr(new Slater(world, calc.molecule, a));
 		} else if (corrfac == "polynomial4") {
 			return ncf_ptr(new Polynomial<4>(world, calc.molecule, a ));

@@ -86,12 +86,12 @@ double Nemo::value(const Tensor<double>& x) {
     nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
     R = nuclear_correlation->function();
 
-//	print_nuclear_corrfac();
+	print_nuclear_corrfac();
 
 	// read converged wave function from disk if there is one
 	if (calc->param.no_compute) {
 		calc->load_mos(world);
-//	    hessian(x);
+	    hessian(x);
 
 		return calc->current_energy;
 	}
@@ -136,17 +136,23 @@ double Nemo::value(const Tensor<double>& x) {
     functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
     calc->dipole(world,rho);
 
-//    // compute stuff
-//    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
-//    real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
-//    real_function_3d rhonemoz=Dz(rhonemo);
-//    std::string filename="plot_rhonemoz";
-//    Vector<double,3> lo=vec<double>(0,0,-10);
-//    Vector<double,3> hi=vec<double>(0,0,10);
-//    plot_line(filename.c_str(),500, lo, hi, rhonemoz);
-//
-//    filename="plot_rhonemo";
-//    plot_line(filename.c_str(),500, lo, hi, rhonemo);
+    // compute stuff
+    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+    real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
+    real_function_3d rhonemoz=Dz(rhonemo);
+    real_function_3d rhoz=Dz(rho);
+
+    Vector<double,3> lo=vec<double>(0,0,-10);
+    Vector<double,3> hi=vec<double>(0,0,10);
+
+    std::string filename="plot_rhonemoz";
+    plot_line(filename.c_str(),500, lo, hi, rhonemoz);
+    filename="plot_rhoz";
+    plot_line(filename.c_str(),500, lo, hi, rhoz);
+    filename="plot_rhonemo";
+    plot_line(filename.c_str(),500, lo, hi, rhonemo);
+    filename="plot_rho";
+    plot_line(filename.c_str(),500, lo, hi, rho);
 
 	return energy;
 }
@@ -331,7 +337,6 @@ double Nemo::solve() {
 				"finished iteration %2d at time %8.1fs with energy %12.8f\n",
 					iter, wall_time(), energy);
 			print("current residual norm  ", norm, "\n");
-//			gradient(calc->molecule.get_all_coords());
 		}
 
 		if (converged)
@@ -673,12 +678,12 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     // add the nuclear-nuclear contribution
     hessian+=molecule().nuclear_repulsion_hessian();
 
-
     if (world.rank() == 0) {
         print("\n Hessian (a.u.)\n");
         print(hessian);
     }
     END_TIMER(world, "compute hessian");
+
     Tensor<double> frequencies=compute_frequencies(hessian);
 
     if (world.rank() == 0) {
@@ -694,6 +699,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         print("\n Hessian projected (a.u.)\n");
         print(hessian);
     }
+
     frequencies=compute_frequencies(hessian);
 
     if (world.rank() == 0) {
@@ -707,15 +713,38 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 
 }
 
+/// solve the CPHF equation for the nuclear displacements
+
+/// @param[in]  iatom   the atom A to be moved
+/// @param[in]  iaxis   the coordinate X of iatom to be moved
+/// @return     \frac{\partial}{\partial X_A} \varphi
+vecfuncT Nemo::cphf(const int iatom, const int iaxis) const {
+
+    // use the product rule
+    // \varphi_i^X = R^X F_i + R F_i^X
+
+    // compute R^X
+    const Atom& atom=molecule().get_atom(iatom);
+    NuclearCorrelationFactor::SX_div_S_functor
+            U1Xfunc(nuclear_correlation.get(),iaxis,atom);
+    const real_function_3d U1X=real_factory_3d(world).functor2(U1Xfunc);
+    const real_function_3d RX=U1X*R;
+
+    return mul(world,RX,calc->amo);
+}
+
+
 /// returns the vibrational frequencies
 
-/// @param[in]  hessian the hessian matrix
+/// @param[in]  hessian the hessian matrix (not mass-weighted)
 /// @return the frequencies in atomic units
 Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian) const {
 
+    // mass-weight the hessian
+    Tensor<double> mwhessian=massweighted_hessian(hessian,molecule());
     Tensor<double> freq(3*molecule().natom());
     Tensor<double> U;
-    syev(hessian,U,freq);
+    syev(mwhessian,U,freq);
     for (std::size_t i=0; i<freq.size(); ++i) {
         if (freq(i)>0.0) freq(i)=sqrt(freq(i)); // real frequencies
         else freq(i)=-sqrt(-freq(i));           // imaginary frequencies
@@ -723,6 +752,20 @@ Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian) const {
     return freq;
 }
 
+/// compute the mass-weighted hessian
+Tensor<double> Nemo::massweighted_hessian(const Tensor<double>& hessian,
+        const Molecule& molecule) const {
+
+    Tensor<double> masses(3*molecule.natom());
+    for (std::size_t i=0; i<molecule.natom();++i) {
+        const double sqrtmass=1.0/sqrt(molecule.get_atom(i).mass);
+        masses(3*i)=sqrtmass;
+        masses(3*i+1)=sqrtmass;
+        masses(3*i+2)=sqrtmass;
+    }
+    Tensor<double> mass_weights=outer(masses,masses);
+    return copy(hessian).emul(mass_weights);
+}
 
 /// save a function
 template<typename T, size_t NDIM>

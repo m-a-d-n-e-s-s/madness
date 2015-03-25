@@ -96,7 +96,7 @@ class SCF;
 class NuclearCorrelationFactor {
 public:
 	enum corrfactype {None, GradientalGaussSlater, GaussSlater, LinearSlater,
-	    Polynomial, Slater, Two};
+	    U2Smooth, Polynomial, Slater, Two};
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 	/// ctor
@@ -403,6 +403,31 @@ public:
         }
     };
 
+
+    class SX_div_S_functor : public FunctionFunctorInterface<double,3> {
+        const NuclearCorrelationFactor* ncf;
+        const Atom& thisatom;
+        const int axis;
+    public:
+        SX_div_S_functor(const NuclearCorrelationFactor* ncf,
+                const int axis, const Atom& atom1) : ncf(ncf), thisatom(atom1),
+                axis(axis) {}
+
+        double operator()(const coord_3d& xyz) const {
+            const coord_3d vr1A=xyz-thisatom.get_coords();
+            const double r=vr1A.normf();
+            return ncf->Sp(vr1A,thisatom.q)[axis]/ncf->S(r,thisatom.q);
+        }
+        std::vector<coord_3d> special_points() const {
+            std::vector< madness::Vector<double,3> > c(1);
+            c[0][0]=thisatom.x;
+            c[0][1]=thisatom.y;
+            c[0][2]=thisatom.z;
+            return c;
+        }
+    };
+
+
 };
 
 /// A nuclear correlation factor class
@@ -546,6 +571,88 @@ private:
             const double num=Z*(-2.0 - e*r*sqrtz + g*poly);
             const double denom=2.0*r*(1.0-g+e/sqrtz);
             return num/denom;
+        }
+    }
+
+};
+
+
+/// A nuclear correlation factor class
+
+/// This factor is smooth for U2 at the cusp resulting in a
+/// smooth derivative of the factor wrt nuclear displacements
+class U2Smooth : public NuclearCorrelationFactor {
+public:
+    /// ctor
+
+    /// @param[in]  world   the world
+    /// @param[in]  mol molecule with the sites of the nuclei
+    U2Smooth(World& world, const Molecule& mol, const double a)
+        : NuclearCorrelationFactor(world,mol), a(a) {
+
+        if (world.rank()==0) {
+            print("constructed nuclear correlation factor of the form");
+            print("  R   = Prod_A S_A");
+            print("  S_A = 1/b exp(-b Z r_{1A}) + (1 - 1/b exp(- a b r_{1A}^2))");
+            print("  b=(2 sqrt(a) + Z)/Z");
+            print("  a=",a);
+            print("which is of U2smooth type\n");
+        }
+
+        initialize();
+    }
+
+    corrfactype type() const {return NuclearCorrelationFactor::U2Smooth;}
+
+private:
+
+    const double a;
+
+    /// the nuclear correlation factor
+    double S(const double& r, const double& Z) const {
+        const double bb=(2.*sqrt(a)+Z)/Z;
+        return 1. + (exp(-bb * r) - exp(-a * bb*r*r/Z) ) *Z/bb;
+
+    }
+
+    /// radial part first derivative of the nuclear correlation factor
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+
+        const double r=sqrt(vr1A[0]*vr1A[0] +
+                vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
+
+        const double bb= (2.*sqrt(a)+Z);
+        const double term=2.*a*exp(-a*bb*r*r/Z)*r-exp(-bb *r)*Z;
+
+        return term*n12(vr1A,1.e-8);
+    }
+
+    /// second derivative of the nuclear correlation factor
+
+    /// -1/2 S"/S - Z/r
+    double Spp_div_S(const double& r, const double& Z) const {
+        const double rho=Z*r;
+        const double bb=(2.*sqrt(a)+Z)/Z;
+        const double ZZ=Z*Z;
+
+        if (rho<1.e-3) {
+            const double ZZZ=ZZ*Z;
+            const double rr=r*r;
+            const double aa=a*a;
+            const double sqrta=sqrt(a);
+            return (-6*ZZZ + 4*sqrta*a*rr*ZZ*(8 + 7*r*Z) +
+                         12*aa*sqrta*rr*(10 + 11*r*Z) + 6*aa*rr*Z*(16 + 17*r*Z) +
+                         sqrta*ZZ*(-36 + 2*rr*ZZ + rr*r*ZZZ) +
+                         4*a*Z*(-9 + 2*rr*ZZ + rr*r*ZZ*Z))/(12.*Z);
+        } else {
+
+            const double ebrZ=exp(-bb* r*Z);
+            const double eabr=exp(-a*bb*r*r);
+            const double num=-(6.0* a *bb* r)*eabr + (4 * a*a* bb*bb *r*r*r)*eabr
+                    + (2 *bb *Z)*ebrZ - (bb*bb* r* ZZ)*ebrZ;
+            const double denom=2* bb * r - (2* r)*eabr + (2* r)*ebrZ;
+
+            return -Z/r + num/denom;
         }
     }
 

@@ -171,6 +171,7 @@ private:
             remove_external_dof(h,target->molecule());
             syev(h, v, e);
             print("hessian eigenvalues",e);
+            print(h);
 
             // this will invert the hessian, multiply with the gradient and
             // return the displacements
