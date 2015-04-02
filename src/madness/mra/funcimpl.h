@@ -1064,7 +1064,7 @@ namespace madness {
         /// perform inplace gaxpy: this = alpha*this + beta*other
         /// @param[in]	alpha	prefactor for this
         /// @param[in]	beta	prefactor for other
-        /// @param[in]	other	the other function, reconstructed
+        /// @param[in]	g       the other function, reconstructed
         template<typename Q, typename R>
         void gaxpy_inplace_reconstructed(const T& alpha, const FunctionImpl<Q,NDIM>& g, const R& beta, const bool fence) {
             // merge g's tree into this' tree
@@ -1107,16 +1107,12 @@ namespace madness {
                                      const double beta, const implT& g, const bool fence);
 
         /// functor for the gaxpy_inplace method
-        /// parameters for the constructor are:
-        /// @param[in]  alpha   prefactor for current function impl
-        /// @param[in]  f       the current function impl
-        /// @param[in]  beta    prefactor for other function impl
         template <typename Q, typename R>
         struct do_gaxpy_inplace {
             typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
-            FunctionImpl<T,NDIM>* f;
-            T alpha;
-            R beta;
+            FunctionImpl<T,NDIM>* f; ///< prefactor for current function impl
+            T alpha; ///< the current function impl
+            R beta; ///< prefactor for other function impl
             do_gaxpy_inplace() {};
             do_gaxpy_inplace(FunctionImpl<T,NDIM>* f, T alpha, R beta) : f(f), alpha(alpha), beta(beta) {}
             bool operator()(typename rangeT::iterator& it) const {
@@ -1575,7 +1571,7 @@ namespace madness {
 
 
         /// Returns patch referring to coeffs of child in parent box
-        /// @param[in] key the key to the child function node (box)
+        /// @param[in] child the key to the child function node (box)
         std::vector<Slice> child_patch(const keyT& child) const;
 
         /// Projection with optional refinement w/ special points
@@ -1603,9 +1599,10 @@ namespace madness {
 
         /// Currently used by diff, but other uses can be anticipated
 
+        /// @todo is this documentation correct?
         /// @param[in]	child	the key whose coeffs we are requesting
         /// @param[in]	parent	the (leaf) key of our function
-        /// @param[in]	coeff	the (leaf) coeffs belonging to parent
+        /// @param[in]	s	the (leaf) coeffs belonging to parent
         /// @return 	coeffs 
         const coeffT parent_to_child(const coeffT& s, const keyT& parent, const keyT& child) const;
 
@@ -1760,7 +1757,6 @@ namespace madness {
 
         /// Return the scaling function coeffs when given the function values at the quadrature points
         /// @param[in] key the key of the function node (box)
-        /// @param[in] 
         /// @return function values for function node (box)
         template <typename Q>
         Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
@@ -2750,7 +2746,7 @@ namespace madness {
         /// 
         /// @param[in] key the key of the current function node (box)
         /// @param[in] func the function impl on which to be operated
-        /// @param[in] the unary operator
+        /// @param[in] op the unary operator
         template <typename Q, typename opT>
         Void unaryXXa(const keyT& key,
                       const FunctionImpl<Q,NDIM>* func, const opT& op) {
