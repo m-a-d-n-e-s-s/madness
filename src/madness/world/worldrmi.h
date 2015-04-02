@@ -88,10 +88,11 @@
 
 */
 
-\file worldrmi.h
-\brief Lowest level API for sending active messages --- you should probably be looking at worldam.h instead.
-\addtogroup parallel_runtime
-
+/**
+ \file worldrmi.h
+ \brief Lowest level API for sending active messages --- you should probably be looking at worldam.h instead.
+ \addtogroup parallel_runtime
+ */
 
 namespace madness {
 

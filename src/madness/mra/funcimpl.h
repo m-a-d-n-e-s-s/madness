@@ -2338,7 +2338,7 @@ namespace madness {
         };
 
         template <typename Q, typename R>
-        @todo I don't know what this does other than a trasform
+        /// @todo I don't know what this does other than a trasform
         Void vtransform_doit(const std::shared_ptr< FunctionImpl<R,NDIM> >& right,
                              const Tensor<Q>& c,
                              const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
