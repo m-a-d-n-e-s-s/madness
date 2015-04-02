@@ -358,6 +358,6 @@ namespace madness {
 
 } // namespace madness
 
-///@{
+///@}
 
 #endif // MADNESS_WORLD_WORLDHASH_H__INCLUDED
