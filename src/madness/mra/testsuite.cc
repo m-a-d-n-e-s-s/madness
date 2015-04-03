@@ -1049,7 +1049,7 @@ int test_qm(World& world) {
 
         //         print("psi");
         //         psi.print_tree();
-        CHECK(err, 1.e-8, "err in test_qm 1"); // actually 1.2e-9 should be fine
+        CHECK(err, 5.e-8, "err in test_qm 1"); // actually 1.2e-9 should be fine
 
         functionT pp = apply_1d_realspace_push(*q1d, psi, 0);
 
@@ -1306,7 +1306,7 @@ int main(int argc, char**argv) {
 #elif defined(CORE_DUO_TUNE)
             print("             tuning for ...", "core duo");
 #else
-            print("             tuning for ...", "core2");
+            print("             tuning for ...", "default");
 #endif
 #ifdef BOUNDS_CHECKING
             print(" tensor bounds checking ...", "enabled");

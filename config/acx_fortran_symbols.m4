@@ -42,27 +42,34 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
 # will need to be appened after any LAPACK library that is yet to
 # be found.
 
+# OS X
+    if test $fsym$ON_A_MAC = noyes; then
+        LDFLAGS="$LDFLAGS -framework Accelerate"
+        fsym="lcu"
+        AC_MSG_NOTICE([Using Accelerate framework for BLAS support])
+    fi
+
 # Linux
-       BLASLIB=""
-       if test $fsym = no; then
-           AC_LANG_SAVE
-           AC_LANG([C++])
-           for blaslib in openblas blas; do
-               AC_CHECK_LIB([$blaslib], 
-                            [dgemm_], 
-                            [fsym="lcu"; BLASLIB="-l$blaslib"; AC_MSG_NOTICE([Found dgemm_ in $blaslib]); break], 
-                            [AC_MSG_NOTICE([Unable to find dgemm_ in $blaslib])],
-                            [-lpthread])
-           done
-           AC_LANG_RESTORE
-       fi
-# Mac and others ... insert here or extend above for loop if correct symbol is dgemm_
+    BLASLIB=""
+    if test $fsym = no; then
+        AC_LANG_SAVE
+        AC_LANG([C++])
+        for blaslib in openblas blas; do
+            AC_CHECK_LIB([$blaslib], 
+                         [dgemm_], 
+                         [fsym="lcu"; BLASLIB="-l$blaslib"; AC_MSG_NOTICE([Found dgemm_ in $blaslib]); break], 
+                         [AC_MSG_NOTICE([Unable to find dgemm_ in $blaslib])],
+                         [-lpthread])
+        done
+        AC_LANG_RESTORE
+    fi
+ 
+# others ... insert here or extend above for loop if correct symbol is dgemm_
+    if test $fsym = no; then
+        AC_MSG_ERROR([Could not find dgemm with any known linking conventions])
+    fi
 
-       if test $fsym = no; then
-           AC_MSG_ERROR([Could not find dgemm with any known linking conventions])
-       fi
-
-       AC_MSG_NOTICE([Fortran linking convention is $fsym]) 
+    AC_MSG_NOTICE([Fortran linking convention is $fsym]) 
 
 # Now verify that we have at least one of the required lapack routines and again attempt to search for candidate libraries if nothing is found
 

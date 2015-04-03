@@ -66,11 +66,12 @@
 #endif
 
 #include <madness/world/worldmutex.h>
-#include <madness/world/typestuff.h>
+#include <madness/world/type_traits.h>
 #include <madness/world/enable_if.h>
 #include <madness/world/scopedptr.h>
 #include <iostream>
 #include <cstring>
+#include <memory>
 
 #define MADNESS_MPI_TEST(condition) \
     { \
@@ -80,9 +81,9 @@
 
 namespace SafeMPI {
 
-#ifdef MADNESS_SERIALIZES_MPI
     extern madness::SCALABLE_MUTEX_TYPE charon;      // Inside safempi.cc
-#define SAFE_MPI_GLOBAL_MUTEX madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon)
+#ifdef MADNESS_SERIALIZES_MPI
+#define SAFE_MPI_GLOBAL_MUTEX madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
 #else
 #define SAFE_MPI_GLOBAL_MUTEX
 #endif
@@ -471,7 +472,9 @@ namespace SafeMPI {
             /// So that send and receiver agree on the tag all processes
             /// need to call this routine in the same sequence.
             int unique_tag() {
-                SAFE_MPI_GLOBAL_MUTEX;
+                // Cannot use MPI mutex for anything else!
+                // It will preprocess to nothing for MPI_THREAD_MULTIPLE!
+                madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
                 int result = utag++;
                 if (utag >= 4095) utag = 1024;
                 return result;
@@ -483,7 +486,9 @@ namespace SafeMPI {
             ///
             /// Tags in [1000,1023] are statically assigned.
             int unique_reserved_tag() {
-                SAFE_MPI_GLOBAL_MUTEX;
+                // Cannot use MPI mutex for anything else!
+                // It will preprocess to nothing for MPI_THREAD_MULTIPLE!
+                madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
                 int result = urtag++;
                 if (result >= 1000) MADNESS_EXCEPTION( "too many reserved tags in use" , result );
                 return result;

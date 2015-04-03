@@ -44,7 +44,6 @@
 #include <complex>
 #include <list>
 #include <vector>
-#include <madness/world/typestuff.h>
 #include <madness/world/enable_if.h>
 #include <madness/world/worldmutex.h>
 

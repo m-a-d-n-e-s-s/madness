@@ -44,6 +44,7 @@
  */
 
 #include <chem/nemo.h>
+#include <chem/molecular_optimizer.h>
 namespace madness {
 
 static double ttt, sss;
@@ -58,8 +59,6 @@ void END_TIMER(World& world, const char* msg) {
 
 
 extern Tensor<double> Q3(const Tensor<double>& s);
-
-
 
 double Nemo::value(const Tensor<double>& x) {
 
@@ -77,6 +76,15 @@ double Nemo::value(const Tensor<double>& x) {
 	calc->project_ao_basis(world);
 	save_function(calc->potentialmanager->vnuclear(),"vnuc");
 
+    // construct the Poisson solver
+    poisson = std::shared_ptr<real_convolution_3d>(
+            CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
+
+    // construct the nuclear correlation factor:
+    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+    R = nuclear_correlation->function();
+    R_inverse = nuclear_correlation->inverse();
+
 	print_nuclear_corrfac();
 
 	// read converged wave function from disk if there is one
@@ -92,7 +100,7 @@ double Nemo::value(const Tensor<double>& x) {
 
 		// guess: multiply the guess orbitals with the inverse R
 		calc->amo = mul(world, R_inverse, calc->amo);
-		calc->param.restart = true;
+//		calc->param.restart = true;
 	}
 
 	double energy = solve();
@@ -119,6 +127,22 @@ double Nemo::value(const Tensor<double>& x) {
 		save_function(calc->amo[imo], "nemo" + stringify(imo));
 		save_function(psi[imo], "psi" + stringify(imo));
 	}
+
+	// compute the dipole moment
+    functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
+    calc->dipole(world,rho);
+
+    // compute stuff
+    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+    real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
+    real_function_3d rhonemoz=Dz(rhonemo);
+    std::string filename="plot_rhonemoz";
+    Vector<double,3> lo=vec<double>(0,0,-10);
+    Vector<double,3> hi=vec<double>(0,0,10);
+    plot_line(filename.c_str(),500, lo, hi, rhonemoz);
+
+    filename="plot_rhonemo";
+    plot_line(filename.c_str(),500, lo, hi, rhonemo);
 
 	return energy;
 }
@@ -228,6 +252,7 @@ double Nemo::solve() {
 		double oldenergy=energy;
 		energy = compute_energy(psi, mul(world, R, Jnemo),
 				mul(world, R, Knemo));
+        energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
 
 		// Diagonalize overlap to get the eigenvalues and eigenvectors
 		tensorT overlap = matrix_inner(world, psi, psi, true);
@@ -353,6 +378,39 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 	return energy;
 }
 
+/// given nemos, compute the HF energy using the regularized expressions for T and V
+double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
+        const vecfuncT& Knemo, const vecfuncT& Unemo) const {
+
+    const vecfuncT R2nemo=mul(world,nuclear_correlation->square(),nemo);
+
+    const tensorT U = inner(world, R2nemo, Unemo);
+    const double pe = 2.0 * U.sum();  // closed shell
+
+    double ke = 0.0;
+    for (int axis = 0; axis < 3; axis++) {
+        real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+        const vecfuncT dnemo = apply(world, D, nemo);
+        const vecfuncT dr2nemo = apply(world, D, R2nemo);
+        ke += 0.5 * (inner(world, dnemo, dr2nemo)).sum();
+    }
+    ke *= 2.0; // closed shell
+
+    const double J = inner(world, R2nemo, Jnemo).sum();
+    const double K = inner(world, R2nemo, Knemo).sum();
+    const double nucrep = calc->molecule.nuclear_repulsion_energy();
+
+    const double energy = ke + J - K + pe + nucrep;
+    if (world.rank() == 0) {
+        printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
+        printf("              coulomb %16.8f\n", J);
+        printf(" exchange-correlation %16.8f\n", -K);
+        printf("    nuclear-repulsion %16.8f\n", nucrep);
+        printf("   regularized energy %16.8f\n", energy);
+    }
+    return energy;
+}
+
 
 /// compute the reconstructed orbitals, and all potentials applied on nemo
 
@@ -455,20 +513,106 @@ vecfuncT Nemo::apply_exchange(const vecfuncT& nemo, const vecfuncT& psi) const {
 	return result;
 }
 
+/// rotate the KAIN subspace (cf. SCF.cc)
 template<typename solverT>
 void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
-		int lo, int nfunc, double trantol) const {
-	std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
-	std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
-	for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
-		vecfuncT& v = ulist[iter].x;
-		vecfuncT& r = rlist[iter].x;
-		transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U, trantol,
-				false);
-		transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U, trantol,
-				true);
-	}
+        int lo, int nfunc, double trantol) const {
+    std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
+    std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
+    for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
+        vecfuncT& v = ulist[iter].x;
+        vecfuncT& r = rlist[iter].x;
+        vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
+                trantol, false);
+        vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,
+                trantol, true);
+
+        world.gop.fence();
+        for (int i=0; i<nfunc; i++) {
+            v[i] = vnew[i];
+            r[i] = rnew[i];
+        }
+    }
+    world.gop.fence();
 }
+
+/// compute the nuclear gradients
+Tensor<double> Nemo::gradient(const Tensor<double>& x) {
+    START_TIMER(world);
+
+#if 0
+    const double thresh=FunctionDefaults<3>::get_thresh();
+    FunctionDefaults<3>::set_thresh(thresh*0.1);
+    R.set_thresh(thresh*0.1);
+    vecfuncT psi = mul(world, R, calc->amo);
+    functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
+    R.set_thresh(thresh);
+    Tensor<double> grad=calc->derivatives(world,rho);
+    FunctionDefaults<3>::set_thresh(thresh);
+#else
+
+    Tensor<double> grad(3*calc->molecule.natom());
+    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+
+    vecfuncT bra(3);
+    for (int axis=0; axis<3; ++axis) {
+
+        // compute \frac{\partial \rho}{\partial x_i}
+        real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
+        real_function_3d Drhonemo=D(rhonemo);
+
+        // compute the second term of the bra
+        real_function_3d tmp=rhonemo*nuclear_correlation->U1(axis);
+        tmp.scale(2.0);
+        bra[axis]=(Drhonemo-tmp).truncate();
+    }
+
+//    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+//        const Atom& atom=calc->molecule.get_atom(iatom);
+//        std::shared_ptr< FunctionFunctorInterface<double,3> > r2v(new
+//        NuclearCorrelationFactor::square_times_V_functor(nuclear_correlation.get(),atom));
+//
+//        for (int axis=0; axis<3; axis++) {
+//            grad(3*iatom + axis)=-bra[axis].inner_adaptive(r2v);
+//        }
+//    }
+
+        for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+            for (int axis=0; axis<3; ++axis) {
+                NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
+                        nuclear_correlation.get(),this->molecule(),iatom,axis);
+                grad(3*iatom + axis)=inner(rhonemo,r2v);
+
+            }
+        }
+
+    // add the nuclear contribution
+    for (int atom = 0; atom < calc->molecule.natom(); ++atom) {
+        for (int axis = 0; axis < 3; ++axis) {
+            grad[atom * 3 + axis] +=
+                    calc->molecule.nuclear_repulsion_derivative(atom,axis);
+        }
+    }
+
+#endif
+    END_TIMER(world, "compute gradients");
+
+    if (world.rank() == 0) {
+        print("\n Derivatives (a.u.)\n -----------\n");
+        print(
+              "  atom        x            y            z          dE/dx        dE/dy        dE/dz");
+        print(
+              " ------ ------------ ------------ ------------ ------------ ------------ ------------");
+        for (int i = 0; i < calc->molecule.natom(); ++i) {
+            const Atom& atom = calc->molecule.get_atom(i);
+            printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", i,
+                   atom.x, atom.y, atom.z, grad[i * 3 + 0], grad[i * 3 + 1],
+                   grad[i * 3 + 2]);
+        }
+    }
+    return grad;
+}
+
 
 /// save a function
 template<typename T, size_t NDIM>

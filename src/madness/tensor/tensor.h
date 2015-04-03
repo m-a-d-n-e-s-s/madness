@@ -38,8 +38,9 @@
 #include <madness/madness_config.h>
 #include <madness/misc/ran.h>
 #include <madness/world/posixmem.h>
-#include <madness/world/shared_ptr.h>
+#include <madness/world/boost_checked_delete_bits.h>
 
+#include <memory>
 #include <complex>
 #include <vector>
 #include <cmath>
@@ -47,10 +48,10 @@
 
 #include <madness/world/archive.h>
 // #include <madness/world/print.h>
-// 
+//
 // typedef std::complex<float> float_complex;
 // typedef std::complex<double> double_complex;
-// 
+//
 // // These probably have to be included in this order
 // #include <madness/tensor/tensor_macros.h>
 // #include <madness/tensor/type_data.h>
@@ -2096,7 +2097,7 @@ namespace madness {
             for (long i=0; i<iter.ndim; ++i) {
                 s.width(index_width);
                 s << iter.ind[i];
-                //if (i != iter.ndim) 
+                //if (i != iter.ndim)
                 s << ",";
             }
             s << "*]";
@@ -2107,7 +2108,7 @@ namespace madness {
                 s << " ";
                 s.precision(8);
                 s.width(12);
-                s << *p; 
+                s << *p;
             }
             s.unsetf(std::ios::scientific);
             s << std::endl;

@@ -21,6 +21,7 @@
 //#include <madness/world/print.h>
 
 #include <chem/TDA_exops.h>
+#include <chem/TDA_guess.h>
 
 // Kain solver
 #include <examples/nonlinsol.h>
@@ -67,14 +68,19 @@ public:
 struct xfunction{
 	/// default constructor
 	/// @param[in] world	the world is needed as a reference
-	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),f_length(999),f_velocity(999) {}
+	xfunction(World &world) :world(world),omega(0.00001),converged(false),number(100),iterations(0),kain(false),
+			f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);guess_excitation_operator="not initialized";}
+	xfunction(World &world, const double in_omega) :world(world),omega(in_omega),converged(false),number(100),iterations(0),kain(false),
+			f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);guess_excitation_operator="not initialized";}
 	/// constructs a xfunctions object and initializes the x-vecfunction (response orbitals)
 	/// @param[in] world	the world is needed
 	/// @param[in] x1	vectorfunction of response orbitals
-	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),f_length(999),f_velocity(999) {}
+	xfunction(World& world, const vecfuncT& x1) : world(world), x(x1),omega(0.00001),converged(false),number(100),iterations(0),kain(true),
+			f_length(999),f_velocity(999) {error.push_back(999);delta.push_back(999);expectation_value.push_back(999);guess_excitation_operator="not initialized";}
 	/// the copy contructor
 	xfunction(const xfunction &other) : world(other.world),x(other.x),Vx(other.Vx),omega(other.omega),expectation_value(other.expectation_value),error(other.error),
-			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain),f_length(other.f_length),f_velocity(other.f_velocity){}
+			delta(other.delta),converged(other.converged),number(other.number),iterations(other.iterations),kain(other.kain),
+			f_length(other.f_length),f_velocity(other.f_velocity),guess_excitation_operator(other.guess_excitation_operator){}
 
 	World & world;
 	/// the response orbitals
@@ -100,10 +106,14 @@ struct xfunction{
 	/// the residuals of the last bsh step, is needed if the kain solver should be used
 	vecfuncT current_residuals;
 
+
 	/// Oscillator strenght in length and velocity gauge
 	/// will be calcualted after convergece, default is 999
 	double f_length;
 	double f_velocity;
+
+	/// A string which determines the guess excitation operator
+	std::string guess_excitation_operator;
 
 	/// assignment operator (needed by kain)
 	xfunction& operator=(const xfunction &other){
@@ -119,6 +129,7 @@ struct xfunction{
 		kain=other.kain;
 		f_length = other.f_length;
 		f_velocity = other.f_velocity;
+		guess_excitation_operator = other.guess_excitation_operator;
 
 		return *this;
 	}
@@ -161,6 +172,89 @@ struct xfunction{
 
 };
 
+/// This is a structure to perform operations on a vector of xfunctions
+struct vector_of_xfunctions{
+public:
+	vector_of_xfunctions(const size_t active_element_size): active_element_size(active_element_size){}
+	vector_of_xfunctions(const vector_of_xfunctions &other) : active_element_size(other.active_element_size),active_elements(other.active_elements),remaining_elements(other.remaining_elements),converged_elements(other.converged_elements){}
+	void sort(){
+		std::sort(active_elements.begin(),active_elements.end());
+		std::sort(remaining_elements.begin(),remaining_elements.end());
+		std::sort(converged_elements.begin(),converged_elements.end());
+	}
+	std::vector<xfunction> get_converged_xfunctions(){return converged_elements;}
+	std::vector<xfunction> get_active_xfunctions(){return active_elements;}
+	std::vector<xfunction> get_all_xfunctions(){
+		std::vector<xfunction> all_xfunctions = converged_elements;
+		for(auto x:active_elements) all_xfunctions.push_back(x);
+		for(auto x:remaining_elements) all_xfunctions.push_back(x);
+		return all_xfunctions;
+	}
+	void push_to_converged(){
+		std::vector<xfunction> not_converged;
+		for(auto x:active_elements){
+			if(x.converged)converged_elements.push_back(x);
+			else not_converged.push_back(x);
+		}
+		active_elements = not_converged;
+	}
+	void fill_up(const size_t i){
+		if(active_elements.size()>=i) return;
+		else if(remaining_elements.empty()) return;
+		else {
+			for(size_t k=0;k<i;k++){
+				active_elements.push_back(remaining_elements.front());
+				remaining_elements.erase(remaining_elements.begin());
+				if(remaining_elements.empty())break;
+				if(active_elements.size()==i)break;
+			}
+		}
+	}
+	void clear(){
+		active_elements.clear();
+		converged_elements.clear();
+		remaining_elements.clear();
+	}
+	void set(const std::vector<xfunction> &x){
+		clear();
+		for(size_t i=0;i<active_element_size;i++) active_elements.push_back(x[i]);
+		for(size_t i=active_element_size;i<x.size();i++) remaining_elements.push_back(x[i]);
+	}
+	void reset(){
+		std::vector<xfunction> all_xfunctions = get_all_xfunctions();
+		std::sort(all_xfunctions.begin(),all_xfunctions.end());
+		set(all_xfunctions);
+
+	}
+	void print_status(){
+		std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
+		<< "error"<<std::setw(20)
+		<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
+		std::cout << "_._._._(pre) converged xfunctions" << std::endl;
+		for(auto x:converged_elements) print_xfunction(x);
+		std::cout << "_._._._active xfunctions"<< std::endl;
+		for(auto x:active_elements) print_xfunction(x);
+		std::cout << "_._._._remaining xfunctions" << std::endl;
+		for(auto x:remaining_elements) print_xfunction(x);
+	}
+	void print_xfunction(const xfunction &x){
+		std::cout << std::setw(5) << x.number;
+		std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
+																											<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+		std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
+	}
+	xfunction operator()(const size_t i){return active_elements[i];}
+
+private:
+	const size_t active_element_size;
+	std::vector<xfunction> active_elements;
+	std::vector<xfunction> remaining_elements;
+	std::vector<xfunction> converged_elements;
+};
+
+
+
+/// Kain allocator for single roots
 struct TDA_allocator{
 	World& world;
 	const int noct;
@@ -179,6 +273,8 @@ struct TDA_allocator{
 	}
 };
 
+
+
 /// An inner product for the xfunction class also needed by the KAIN solver
 static double inner(const xfunction &a, const xfunction &b) {
 	if (a.x.size()!=b.x.size()) MADNESS_EXCEPTION("ERROR :Inner product of two xfunction structures: Different sizes in x-vectors",1);
@@ -188,224 +284,110 @@ static double inner(const xfunction &a, const xfunction &b) {
 
 // TYPEDEFS
 typedef std::vector<xfunction> xfunctionsT;
-typedef XNonlinearSolver<xfunction,double,TDA_allocator> solverT;
+typedef XNonlinearSolver<xfunction,double,TDA_allocator> sequential_kain_solver;
 
 /// The structure needed if the kain solver shall be used
-struct kain_solver_helper_struct{
-	kain_solver_helper_struct(){}
-private:
-	/// size of the iterative subspace
-	size_t subspace_size;
-	/// number of occupied orbitals (non frozen)
-	size_t noct;
-	/// is kain used ?, this bool is needed because the struct has to be initialized if kain is used or not
-	bool is_used;
-	/// a vector of kain solvers (for each xfunction one solver) -> used when all_at_once is false
-	std::vector<solverT> solver;
-public:
 
-	/// Check if everything is fine within the kain solver (use this when adding or deleting xfunctions)
-	/// @param[in] xfunctions the xfunctions of the current iteration
-	void sanity_check(const xfunctionsT &xfunctions)const{
-		if(xfunctions.size()!=solver.size()){
-			std::cout << "KAIN SOLVER SANITY CHECK FAILED: Unequal sizes " << xfunctions.size() << " xfunctions and " << solver.size() << " solvers" << std::endl;
-			MADNESS_EXCEPTION("Error in kain solver helper struct",1);
-		}
-		if(xfunctions[0].x.size()!=noct){
-			MADNESS_EXCEPTION("Error in kain solver helper struct, unequal sizes in occupied orbitals (check freeze_ keyword)",1);
-		}
-	}
-
-	/// Initialize the kain solver helper structure
-	/// @param[in] world 	the world
-	/// @param[in] excitations	the number of excitations planned to calculate
-	/// @param[in] nnoct 	the number of occupied (non frozen) orbitals = the number of response orbitals
-	/// @param[in] kain		true if kain should be used, false if not (when false it is just the default initialization)
-	void initialize(World &world, const size_t excitations, const size_t nnoct, const bool kain, const size_t kain_subspace){
-		noct=nnoct;
-		is_used = kain;
-		subspace_size = kain_subspace;
-		if(kain){
-			for(size_t i=0;i<excitations; i++){
-				solverT onesolver(TDA_allocator(world,noct));
-				onesolver.set_maxsub(kain_subspace);
-				solver.push_back(onesolver);
-			}
-		}
-	}
-	/// Update the current response orbitals x of the xfunctions structures
-	/// @param[in] xfunctions	a vector if xfunctions structures of the current iteration (each xfunction should contain the x and curren_residuals)
-	void update(xfunctionsT &xfunctions){
-		if(not is_used) MADNESS_EXCEPTION("Kain update was requested, but kain should not be used",1);
-		if(is_used){
-			for(size_t k=0;k<xfunctions.size();k++){
-				// we need ot push this back if we update or not, because of the subspace transformation
-				xfunction tmp = solver[k].update(xfunction(xfunctions[k].world,xfunctions[k].x),xfunction(xfunctions[k].world,xfunctions[k].current_residuals));
-				if(xfunctions[k].kain){
-					xfunctions[k].x = tmp.x;
-				}else{
-					std::cout << "(convergence too low) forcing full step for  " << k << std::endl;
-					xfunctions[k].x = sub(xfunctions[k].world,xfunctions[k].x,xfunctions[k].current_residuals);
-				}
-			}
-		}
-	}
-	/// Transform the Kain subspace(s)
-	/// @param[in] world 	the world
-	/// @param[in] U		The transformation matrix
-	void transform_subspace(World &world,const madness::Tensor<double> U){
-		if(solver[0].get_ulist().empty()){ std::cout<<"kain: empty ulist, no transformation in "; return;}
-		if(solver[0].get_rlist().empty()){ std::cout<<"kain: empty rlist, no transformation in "; return;}
-		for(int k=0;k<solver[0].get_ulist().size();k++){
-			std::vector<vecfuncT> all_x;
-			std::vector<vecfuncT> all_r;
-			for(size_t i=0;i<solver.size();i++){
-				all_x.push_back(solver[i].get_ulist()[k].x);
-				all_r.push_back(solver[i].get_rlist()[k].x);
-			}
-			std::vector<vecfuncT> new_x = transform_vecfunctions(world,all_x,U);
-			std::vector<vecfuncT> new_r = transform_vecfunctions(world,all_r,U);
-			for(size_t i=0;i<solver.size();i++){
-				solver[i].get_ulist()[k].x = new_x[i];
-				solver[i].get_rlist()[k].x = new_r[i];
-			}
-		}
-	}
-	/// reduce the subspace: delete whole solvers
-	/// Use this if you delete xfunctions
-	/// @param[in] i	the number of the xfunction that was deleted
-	void reduce_subspace(const size_t i){
-		solver.erase(solver.begin()+i);
-	}
-	/// Only erase the subspace, not delete the solver
-	/// use this if you replace xfunctions
-	/// @param[in] i 	the number of the solver/xfunction which subspace should be erased
-	void erase_subspace(const size_t i){
-		if(solver.size()<i) MADNESS_EXCEPTION("Tried to delete subspace of nonexisting solver",1);
-		solver[i].get_ulist().clear();
-		solver[i].get_rlist().clear();
-	}
-	/// increase the subspace: adding new solvers
-	/// use this if you add new xfunctions
-	/// @param[in] world 	the world
-	/// @param[in] xfunctions the current xfunctions (which have been extended)
-	void increase_subspace(World &world,const xfunctionsT &xfunctions){
-		// if the subspace is increased (means more solvers are added) the subspaces of the existing solvers must be erased
-		// else there will be problems with the next subspace transformation
-		// the simplest solution is to add cimpletely new solvers for all xfunctions
-
-		// clean up: erase all old solvers
-		solver.clear();
-		// add new solvers
-		solverT onesolver(TDA_allocator(world,noct));
-		onesolver.set_maxsub(subspace_size);
-		for(size_t j=0;j<xfunctions.size();j++){
-			solver.push_back(onesolver);
-		}
-		sanity_check(xfunctions);
-	}
-	/// Helper function for the transform_subspace function of the structure
-	/// @param[in] world the world
-	/// @param[in] xfunctions a vector of vectorfunctions
-	/// @param[in] U the transformation matrix
-	/// @return U*xfunctions : the transformed vector of vectorfunctions
-	std::vector<vecfuncT> transform_vecfunctions(World &world, const std::vector<vecfuncT> &xfunctions, const madness::Tensor<double> U) const {
-
-		std::vector<vecfuncT> new_xfunctions(xfunctions.size());
-		for (std::size_t i = 0; i < xfunctions.size(); i++) {
-			new_xfunctions[i] = zero_functions_compressed<double, 3>(world,
-					xfunctions[i].size());
-			compress(world, xfunctions[i]);
-		}
-
-		for (size_t i = 0; i < xfunctions.size(); i++) {
-			for (size_t j = 0; j < xfunctions.size(); ++j) {
-				gaxpy(world, 1.0, new_xfunctions[i], U(j, i), xfunctions[j]);
-			}
-		}
-
-		// Return the transformed vector of vecfunctions
-		return new_xfunctions;
-
-	}
-};
 /// Functor that smoothes guess functions with the error functions (no fluctuations at the box borders)
 struct guess_smoothing : public FunctionFunctorInterface<double,3> {
 private:
-	/// Size of the box that will not be smoothed
+	/// The size of the smoothing box (rectangular function, borders must be at dyadic points)
 	const double box_size_;
 public:
-	guess_smoothing(const double box) : box_size_(box) {}
+	guess_smoothing(const double box_size) : box_size_(box_size) {}
 	// Smoothing function
+	//	double operator()(const coord_3d &r)const{
+	//		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+	//	}
+
 	double operator()(const coord_3d &r)const{
-		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+		if(fabs(r[0])>box_size_) return 0.0;
+		else if(fabs(r[1])>box_size_) return 0.0;
+		else if(fabs(r[2])>box_size_) return 0.0;
+		else return 1.0;
 	}
-
 };
-struct guess_anti_smoothing : public FunctionFunctorInterface<double,3> {
-private:
-	/// Size of the box that will not be smoothed
-	const double box_size_;
-public:
-	guess_anti_smoothing(const double box) : box_size_(box) {}
-	// Smoothing function
+
+/// Structure that makes the excitation operators in polynomial form from strings
+struct polynomial_exop_functor : public FunctionFunctorInterface<double,3> {
+public :
+	polynomial_exop_functor(const std::string input) : input_string_(input), data_(read_string(input)) {}
+
 	double operator()(const coord_3d &r)const{
-		double smooth = 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
-		smooth -= 1.0;
-		smooth *= -1.0;
-		return smooth;
-	}
-
-};
-/// Functor that adds diffuse 1s functions on given coordinates with given signs (phases)
-struct diffuse_functions : public FunctionFunctorInterface<double,3> {
-public:
-	/// constructor
-	/// @param[in] coord the coordinates (in most cases of nuclei) where the diffuse functions shall be centered
-	/// @param[in] signs the signs the diffuse functions should have on the corresponding coordinates
-	/// @param[in] natoms the number of atoms (if the coordinates are of nuclei) or just the size of the coord vector
-	/// @param[in] mode the level of diffuseness (0 and 1 possible)
-	diffuse_functions(const double exponent,const std::vector<coord_3d> coord,const std::vector<int> signs, const size_t natoms, const size_t mode):
-		exponent(exponent), coord(coord), signs(signs),natoms(natoms),mode(mode)
-{if(mode>1) MADNESS_EXCEPTION("mode in diffuse_function struct is not 0,1 or 2",1);}
-
-	/// Make a rydberg guess function where the neRäar range area is 0.0 and the long range is a diffuse 2s or 2p function
-	double operator()(const coord_3d &r)const{
-		std::vector<double> diffuse_1s_functions;
-
-		for(size_t i=0;i<natoms;i++){
-			if (signs[i]!=0){
-				// make diffuse 1s functions localized at the atoms
-				double x = r[0]-coord[i][0];
-				double y = r[1]-coord[i][0];
-				double z = r[2]-coord[i][0];
-				double rad = sqrt(x*x+y*y+z*z);
-				double diffuse_tmp = signs[i]*exp(-exponent*rad);
-				diffuse_1s_functions.push_back(diffuse_tmp);
-			}else diffuse_1s_functions.push_back(0.0);
+		double result =0.0;
+		for(size_t i=0;i<data_.size();i++){
+			if(data_[i].size()!=4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, empty data_ entry",1);
+			result += ( data_[i][3]*pow(r[0],data_[i][0])*pow(r[1],data_[i][1])*pow(r[2],data_[i][2]) );
 		}
-		double result=0;
-		for(size_t i=0;i<diffuse_1s_functions.size();i++) result+=diffuse_1s_functions[i];
 		return result;
 	}
-
 private:
-	/// exponent for the diffuse s function
-	const double exponent;
-	/// The coordinates of the atoms
-	const std::vector<coord_3d> coord;
-	/// The signs of the respoinse function at the atom coordinates (0 is node)
-	const std::vector<int> signs;
-	/// number of atoms
-	const size_t natoms;
-	/// the mode of diffuseness (from 0 to 2)
-	const size_t mode;
-
-	/// Helper function to evaluate the radius
-	double r_function(const coord_3d &r)const{return sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);}
-
+	const std::string input_string_;
+	/// The data for the construction of the polynomial chain
+	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
+	const std::vector<std::vector<double>> data_;
+public:
+	std::vector<std::vector<double> > read_string(const std::string string)const{
+		std::stringstream line(string);
+				std::string name;
+				size_t counter = 0;
+				std::vector<double> current_data = vector_factory(0.0,0.0,0.0,1.0);
+				std::vector<std::vector<double> > read_data;
+				while(line>>name){
+					if(name=="c") line>>current_data[3];
+					else if(name=="x") line>>current_data[0];
+					else if(name=="y") line>>current_data[1];
+					else if(name=="z") line>>current_data[2];
+					else if(name==","){
+						counter++; read_data.push_back(current_data); current_data = vector_factory(0.0,0.0,0.0,1.0);
+					}
+				}
+				// dont forget the last read polynomial
+				read_data.push_back(current_data);
+				return read_data;
+	}
+	void test(){
+		std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
+		std::cout << "\n read data is \n" << data_ << std::endl;
+ 	}
+	std::vector<std::vector<double> > give_data(){return data_;}
 };
 
+/// Structure that multiplicates two polynomial strings (needed for fock matrix of guess functions)
+struct multiply_polynomials_functor : public FunctionFunctorInterface<double,3> {
+public:
+	multiply_polynomials_functor(const std::string polynomial1, const std::string polynomial2){
+		polynomial_exop_functor dummy(polynomial1);
+		std::vector<std::vector<double>> data1 = dummy.read_string(polynomial1);
+		std::vector<std::vector<double>> data2 = dummy.read_string(polynomial2);
+		for(size_t i=0;i<data1.size();i++){
+			for(size_t j=0;j<data2.size();j++){
+				std::vector<double> new_data(4);
+				new_data[0] = data1[i][0]+data2[j][0];
+				new_data[1] = data1[i][1]+data2[j][1];
+				new_data[2] = data1[i][2]+data2[j][2];
+				new_data[3] = data1[i][3]*data2[j][3];
+				data_.push_back(new_data);
+			}
+		}
+		std::cout << " \ndata1\n " << data1 << " \ndata2\n " << data2 << std::endl;
+		test();
+
+	}
+	double operator()(const coord_3d &r)const{
+		double result =0.0;
+		for(size_t i=0;i<data_.size();i++){
+			if(data_[i].size()!=4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, empty data_ entry",1);
+			result += ( data_[i][3]*pow(r[0],data_[i][0])*pow(r[1],data_[i][1])*pow(r[2],data_[i][2]) );
+		}
+		return result;
+	}
+	void test(){
+		std::cout << "\n Multiplied functor made polynomial\n " << data_ << std::endl;
+	}
+private :
+	std::vector<std::vector<double>> data_;
+};
 
 
 /// The TDA class: computes TDA and CIS calculations
@@ -416,25 +398,28 @@ public:
 	/// @param[in] calc 	the SCF calcualtion
 	/// @param[in] mos		the occupied molecular orbitals from the scf calculation
 	/// @param[in] input	name of the input file
-	/// @todo add parameter lowt:		will be used later to ditinguish between low and high threshold computations (not yet implemented)
 	TDA(World &world,const SCF &calc,const vecfuncT &mos,const std::string input):
 		world(world),
 		dft_(false),
 		calc_(calc),
 		mos_(mos),
+		active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
-		guess_("physical"),
-		guess_iter_(15),
-		guess_mode_("physical"),
-		guess_exop_("quadrupole"),
-		guess_excitations_(6),
-		excitations_(4),
+		guess_("dipole+"),
+		solve_iter_(5),
+		guess_iter_(3),
+		guess_mode_("projected"),
+		replace_guess_functions_(true),
+		guess_excitations_(0),
+		excitations_(8),
+		iterating_excitations_(4),
 		bsh_eps_(1.e-5),
-		iter_max_(100),
-		noise_iter_(1.e8),
+		iter_max_(20),
 		econv_(1.e-4),
-		dconv_(1.e-3),
-		hard_dconv_(1.e-3),
+		guess_econv_(1.e-3),
+		dconv_(1.e-2),
+		guess_dconv_(5.e-2),
+		hard_dconv_(5.e-3),
 		hard_econv_(5.e-5),
 		nfreeze_(0),
 		plot_(false),
@@ -442,16 +427,13 @@ public:
 		only_fock_(false),
 		only_GS_(false),
 		on_the_fly_(true),
-		read_(false),
-		only_sequential_(false),
 		xclib_interface_(world,calc),
 		ipot_(0.0),
-		rydberg_(false),
-		rydberg_exponent_(0.1),
 		kain_(false),
 		kain_subspace_(3),
 		shift_(0.0),
-		safety_(1.0)
+		triplet_(false),
+		localize_exchange_intermediate_(false)
 {
 		setup(mos,input);
 }
@@ -461,9 +443,6 @@ public:
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
 
-		// guess box default
-		guess_box_ = calc_.molecule.bounding_cube()+15.0;
-
 		size_t noct = calc_.aeps.size();
 		// The highest possible excitation (-homo_energy)
 		double highest_excitation_default = -calc_.aeps(noct-1);
@@ -472,7 +451,7 @@ public:
 
 
 		// The guessed lowest excitation (if no guess_omega_ is in the input)
-		double guess_omega_default = -0.1*calc_.aeps[noct-1];
+		double guess_omega_default = -0.9*calc_.aeps[noct-1];
 		guess_omega_ = guess_omega_default;
 
 		std::ifstream f(input.c_str());
@@ -484,19 +463,22 @@ public:
 			if (tag == "end") break;
 			else if (tag == "dft") dft_=true;
 			else if (tag == "excitations") ss >> excitations_;
+			else if (tag == "iterating_excitations") ss >> iterating_excitations_;
 			else if (tag == "guess") ss >> guess_;
 			else if (tag == "hard_dconv") ss >> hard_dconv_;
 			else if (tag == "hard_econv") ss >> hard_econv_;
+			else if (tag == "solve_iter") ss >> solve_iter_;
 			else if (tag == "guess_iter") ss >> guess_iter_;
 			else if (tag == "guess_omega") ss >> guess_omega_;
 			else if (tag == "guess_mode") ss >> guess_mode_;
-			else if (tag == "guess_exop") ss >> guess_exop_;
+			else if (tag == "replace_guess_functions") ss >> replace_guess_functions_;
 			else if (tag == "guess_excitations") ss >> guess_excitations_;
 			else if (tag == "bsh_eps") ss >> bsh_eps_;
 			else if (tag == "iter_max") ss >> iter_max_;
-			else if (tag == "noise_iter") ss >> noise_iter_;
 			else if (tag == "econv") ss >> econv_;
+			else if (tag == "guess_econv") ss >> guess_econv_;
 			else if (tag == "dconv") ss >> dconv_;
+			else if (tag == "guess_dconv") ss >> guess_dconv_;
 			else if (tag == "freeze") ss >> nfreeze_;
 			else if (tag == "print_grid") print_grid_=true;
 			else if (tag == "plot") plot_=true;
@@ -505,38 +487,33 @@ public:
 			else if (tag == "only_GS") only_GS_=true;
 			else if (tag == "highest_excitation") ss >> highest_excitation_;
 			else if (tag == "no_otf") on_the_fly_=false;
-			else if (tag == "read") read_ = true;
-			else if (tag == "only_sequential") only_sequential_=true;
 			else if (tag == "ipot") ss >> ipot_;
-			else if (tag == "rydberg") {rydberg_=true; ss>>rydberg_exponent_;}
 			else if (tag == "kain") kain_=true;
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
-			else if (tag == "exop1") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop2") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop3") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop4") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop5") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop6") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop7") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop8") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop9") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "exop10") {std::string tmp; char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "guess_omega_1") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_2") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_3") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_4") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_5") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_omega_6") {double tmp; ss>>tmp;guess_omegas_.push_back(tmp);}
-			else if (tag == "guess_box") ss >> guess_box_;
-
-			else if (tag == "truncate_safety") ss>>safety_;
+			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
+			else if (tag == "triplet") triplet_=true;
+			else if (tag == "localize_exchange_intermediate") localize_exchange_intermediate_ = true;
 			else continue;
+		}
+
+		// this will be the case if guess_excitations are not assigned
+		if(guess_excitations_ == 0) guess_excitations_ = excitations_*2;
+		if(guess_excitations_ < excitations_){
+			if(world.rank()==0) std::cout << "WARNING: More converged excitations than guess excitations demanded ... correcting that " << std::endl;
+			guess_excitations_ = excitations_ + 2;
 		}
 
 		// make potential shift = -ipot - homo
 		if(dft_) shift_= -ipot_ - get_calc().aeps[noct-1];
 		highest_excitation_=highest_excitation_-shift_;
 
+		if(guess_ =="koala"){
+			if(replace_guess_functions_){
+			if(world.rank()==0) std::cout << "For the koala guess the guess functions will not be replaced after convergece \n"
+					<< std::endl;
+			replace_guess_functions_ = false;
+			}
+		}
 
 		if (world.rank() == 0) {
 			std::cout<< std::setw(60) <<"\n\n\n\n ======= TDA info =======\n\n\n" << std::endl;
@@ -548,10 +525,12 @@ public:
 			std::cout<< std::setw(40) << "threshold 3D : " << FunctionDefaults<3>::get_thresh() << std::endl;
 			std::cout<< std::setw(40) << "energy convergence : " << econv_ << std::endl;
 			std::cout<< std::setw(40) << "max residual (dconv) : " << dconv_ << std::endl;
-			std::cout<< std::setw(40) << "number of excitations : " << excitations_ << std::endl;
+			std::cout<< std::setw(40) << "number of final excitations : " << excitations_ << std::endl;
 			std::cout<< std::setw(40) << "number of guess excitations : " << guess_excitations_ << std::endl;
+			std::cout<< std::setw(40) << "number of parallel iterating excitations : " << iterating_excitations_ << std::endl;
+			std::cout<< std::setw(40) << "guess_iter : " << guess_iter_<< std::endl;
+			std::cout<< std::setw(40) << "solve_iter : " << solve_iter_ << std::endl;
 			std::cout<< std::setw(40) << "guessed lowest extitation energy : " << guess_omega_ << std::endl;
-			std::cout<< std::setw(40) << "guessed excitation operators : " << guess_exop_ << std::endl;
 			std::cout<< std::setw(40) << "highest possible excitation : " << highest_excitation_default << std::endl;
 			std::cout<< std::setw(40) << "used highest possible excitation : " << highest_excitation_ << std::endl;
 			std::cout<< std::setw(40) << "guessed ionization potential is : " << ipot_ << std::endl;
@@ -562,17 +541,30 @@ public:
 			if(only_fock_) std::cout << "only perturbed fock matrix"<< std::endl;
 			else if(only_GS_) std::cout << "only Gram-Schmidt"<< std::endl;
 			else std::cout << "use both"<< std::endl;
-			std::cout<< std::setw(40) << "Guess box size : " << guess_box_ << std::endl;
 			std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
-			std::cout<< std::setw(40) << "make noise every " << noise_iter_ << " iteration" << std::endl;
+			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
 		}
 
 
 
 		lo=get_calc().param.lo;
 		bsh_eps_ = FunctionDefaults<3>::get_thresh()*0.1;
+
+		// Make the active_mos_ vector
 		for(size_t i=nfreeze_;i<mos_.size();i++){active_mo_.push_back(mos_[i]);}
+
+		// project the mos if demanded (default is true)
+		if(guess_mode_ != "numerical"){
+			active_mos_for_guess_calculation_ = project_to_ao_basis(active_mo_,calc_.ao);
+		}
+
+		/// Make transformation matrix from cannical to localized MOs
+		std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
+		distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
+		tensorT mo2lmo(active_mo_.size(),active_mo_.size());
+		dmo2lmo.copy_to_replicated(mo2lmo);
+		mo2lmo_ = mo2lmo;
 
 		// Initialize the projector on the occupied space
 		Projector<double,3> projector(mos_);
@@ -585,19 +577,16 @@ public:
 		real_function_3d density = real_factory_3d(world);
 		for(size_t i=0;i<mos_.size();i++){density+=2.0*mos_[i]*mos_[i];}
 		density_=density;
-		std::cout <<std::setw(40) <<"Norm of unperturbed density is : " << density_.norm2() << std::endl;
 
 		// Initialize the exchange intermediate
 		if(not dft_) {
-			exchange_intermediate_ = make_exchange_intermediate();
-			std::cout << std::setw(40) << "CIS is used" << " : LIBXC Interface is not initialized" << std::endl;
+			if(world.rank()==0)std::cout << std::setw(40) << "Make exchange intermediate" << " : locailzation is " << localize_exchange_intermediate_ << std::endl;
+			if(localize_exchange_intermediate_) exchange_intermediate_ = make_localized_exchange_intermediate();
+			else exchange_intermediate_ = make_exchange_intermediate();
+			if(world.rank()==0)std::cout << std::setw(40) << "CIS is used" << " : LIBXC Interface is not initialized" << std::endl;
 		}if(dft_){
 			lda_intermediate_ = make_lda_intermediate();
 		}
-
-		// Initialize the KAIN solvers
-		kain_solvers.initialize(world,excitations_,noct,kain_,kain_subspace_);
-
 
 		// Prevent misstakes:
 		if(shift_>0){MADNESS_EXCEPTION("Potential shift is positive",1);}
@@ -609,15 +598,22 @@ public:
 			only_GS_ = false;
 		}
 
-		// make the truncate thresh
-		truncate_thresh_ = FunctionDefaults<3>::get_thresh() * safety_;
-		std::cout << "Truncate threshold is set to " << truncate_thresh_ << std::endl;
-
 		// Truncate the current mos
-		truncate(world,mos_,truncate_thresh_);
-		std::cout << "truncate molecular orbitals to " << truncate_thresh_ << std::endl;
+		truncate(world,mos_);
 
-		std::cout << "setup of TDA class ended\n" << std::endl;
+		if(world.rank()==0)std::cout << "setup of TDA class ended\n" << std::endl;
+
+		Tensor<double> ExImNorms(exchange_intermediate_.size(),exchange_intermediate_.size());
+		for(size_t i=0;i<exchange_intermediate_.size();i++){
+			for(size_t j=0;j<exchange_intermediate_[i].size();j++){
+				ExImNorms(i,j) = exchange_intermediate_[i][j].norm2();
+			}
+		}
+		if(world.rank()==0 and active_mo_.size()<6){
+			if(world.rank()==0)std::cout << " Norms of the exchange intermediate: " << std::endl;
+			if(world.rank()==0)std::cout << ExImNorms << std::endl;
+		}
+
 	}
 
 	/// try to gain a little bit information about the used memory
@@ -626,7 +622,7 @@ public:
 		// sanity_check
 		if(xfunctions.empty())return 0.0;
 		double allx=0.0; double allVx=0.0; double allr=0.0;
-		if(printout)std::cout << "\n\n#" << "  " << "     x " << "     Vx " << "     r " << std::endl;
+		if(printout and world.rank()==0)std::cout << "\n\n#" << "  " << "     x " << "     Vx " << "     r " << std::endl;
 		if(printout)print("-------------------------------");
 		for(size_t i=0;i<xfunctions.size();i++){
 			if(on_the_fly_ and not xfunctions[i].Vx.empty()) MADNESS_EXCEPTION("on the fly calculation used but Vx not empty",1);
@@ -647,11 +643,14 @@ public:
 
 	//virtual ~TDA();
 
+	/// Creates and solves guess_xfunctions till pre_convergence is reached
+	void solve_guess(xfunctionsT &xfunctions);
+
 	/// Solves the CIS or TDA equations
 	void solve(xfunctionsT &xfunctions);
 
 	/// Solves the CIS or TDA equations sequentially for a set of preconverged xfunctions
-	void solve_sequential(xfunctionsT xfunctions);
+	void solve_sequential(xfunctionsT &xfunctions);
 
 	/// Returns the MolDFT calulation
 	const SCF &get_calc() const {return calc_;}
@@ -667,6 +666,9 @@ private:
 	/// The World
 	World & world;
 
+	/// MO to LMO transformation matrix
+	Tensor<double> mo2lmo_;
+
 	/// DFT or HF Calculation
 	/// for TDA calculations currently only LDA works
 	bool dft_;
@@ -678,6 +680,10 @@ private:
 	/// extra member variable that the thresh can be changed without changing calc_
 	vecfuncT mos_;
 
+	/// The molecular orbitals that are used to calcualte the guess excitation vectors
+	/// Theese are either the projected numerical mos (projected to minimal AO basis) or just a reference to the numerical mos from moldft
+	vecfuncT active_mos_for_guess_calculation_;
+
 	/// Print grid option
 	bool print_grid_;
 
@@ -686,25 +692,29 @@ private:
 	/// guess == physical is the only implementation left
 	/// new guess functions can be implemented and called in the intialize function
 	std::string guess_;
-	/// guess iterations are the first iterations where the energy is kept fixed at the guess_omega energy
+	size_t solve_iter_;
 	size_t guess_iter_;
 	double guess_omega_;
-	double guess_box_;
 
-	/// mode is either mo or all_orbitals (decides on which of the two functions the excitation operators act)
-	/// mo is the default, all_orbitals mode can increase the freedom (if there are convergence problems) of the guess functions
+	/// if guess_mode_ is "numerical" the MOs from moldft will not be projected to the ao basis to form the guess functions
 	std::string guess_mode_;
 
-	/// Excitation operator for the guess functions (bsp "dipole" or "quadrupole" which will be dipole + quadrupole operators)
-	std::string guess_exop_;
-	/// how many excitations should pre_converge (recommended: 1-2 more than demanded in the end)
-	size_t guess_excitations_;
-	std::vector<std::string> custom_exops_;
-	std::vector<double> guess_omegas_;
-	std::vector<std::vector<double> > exop_coefficients_;
+	/// Determine if guess functions should be replaced after pre convergence
+	bool replace_guess_functions_;
 
+	/// Excitation operators given in string form
+	/// bsp for the excitationoperatr: 1.0*x^2z^3 - 2.0y the string c 1.0 x 2.0 z 3.0 , c -2.0 y 1.0 is needed
+	std::vector<std::string> custom_exops_;
+
+	/// Excitation operators for the guess used by big_fock guess
+	std::vector<std::string> guess_exops_;
+
+	/// Number of guess excitations to be calculated
+	size_t guess_excitations_;
 	/// Number of excitations to be caluclated
 	size_t excitations_;
+	/// Number of parallel iterating excitations
+	size_t iterating_excitations_;
 
 	/// Thresholds and convergence cirteria
 	double bsh_eps_;
@@ -712,13 +722,12 @@ private:
 	/// maximal iterations per guess_function
 	size_t iter_max_;
 
-	/// iterations between every addition of noise to the current xfunctions
-	size_t noise_iter_;
-
 	/// energy convergence level for the guess functions in the solve routine
 	double econv_;
+	double guess_econv_;
 	/// maximal residual for the guess_functions in the solve routine
 	double dconv_;
+	double guess_dconv_;
 	// Convergence criteria (residual norm) for the high thresh sequential iterations in the end
 	double hard_dconv_;
 	double hard_econv_;
@@ -756,40 +765,20 @@ private:
 	/// The potential is calculated when needed and then deleted (saves memory but the potential has to be calculated more often)
 	bool on_the_fly_;
 
-	/// only read and analyze functions
-	bool read_;
-
-	/// only read and do sequential iterations (improve convergence on pre converged functions)
-	bool only_sequential_;
-
-	/// Iterate the read xfunctions sequentially
-	bool sequential_;
-
 	/// The interface to XCLIB library
 	TDA_DFT xclib_interface_;
 
 	/// Ionization potential for the potential shift used in TDDFT calculations to get bound states for the first excitations (default is -2.0*homo)
 	double ipot_;
 
-	/// Make a rydberg guess
-	bool rydberg_;
-	double rydberg_exponent_;
-
-	/// Use the Kain solver to update the functions
+	/// Kain solver used or not
 	bool kain_;
-	kain_solver_helper_struct kain_solvers;
 
 	/// Kain subspace size for the sequential iterations
 	size_t kain_subspace_;
 
 	/// The potential shift for the unperturbed DFT potential when using TDDFT (shift = -ipot_ -homo)
 	double shift_;
-
-	/// The truncate threshold (default is the default threshold)
-	double truncate_thresh_;
-
-	/// Truncate threshold as factor ot the detault thresh (safety)
-	double safety_;
 
 	/// The unperturbed dft potential;
 	real_function_3d unperturbed_vxc_;
@@ -807,11 +796,14 @@ private:
 	/// the coulomb potential
 	mutable real_function_3d coulomb_;
 
-	/// The guess functions
-	std::vector<xfunction> guess_xfunctions_;
-
 	/// The converged xfunctions
 	std::vector<xfunction> converged_xfunctions_;
+
+	/// Calculate triplets
+	bool triplet_;
+
+	/// localize the exchange intermediate
+	bool localize_exchange_intermediate_;
 
 	/// Print the current xfunctions in a formated way
 	/// @param[in] xfunctions a vector of xfunction structures
@@ -826,21 +818,28 @@ private:
 	/// @param[in] xfunctions empty vector of xfunctions (no necessarily empty)
 	void initialize(xfunctionsT & xfunctions);
 
+	void make_big_fock_guess(xfunctionsT &xfunctions)const;
+
 	/// Creates physical guess functions (x,y,z excitations - depending on the input file, see make_excitation_operators function)
-	void guess_physical(xfunctionsT & xfunctions);
+	void guess_physical(xfunctionsT & xfunctions)const;
 
-	void guess_custom(xfunctionsT & xfunctions);
+	/// guess_ao_excitation
+	void guess_custom_2(xfunctionsT &xfunctions)const;
 
-	/// Add diffuse 1s functions to the molecular orbitals (for LDA calculations)
-	void add_diffuse_functions(vecfuncT &mos);
+    /// guess: localize MOs and excite with a dipole
+    void guess_local(xfunctionsT &xfunctions)const;
+
+	/// Make a huge guess: Excite on every non hydrogen atom
+	void guess_atomic_excitation(xfunctionsT & xfunctions)const;
+
+	vecfuncT make_guess_vector(const std::string &input)const;
+
+	void guess_koala(xfunctionsT &roots)const;
 
 	/// Create excitation operators (e.g x,y,z for dipole excitations bzw symmetry operators)
 	/// @return gives back a vectorfunction of excitation operators (specified in the input file)
 	/// e.g the keyword: "dipole+" in the TDA section of the input file will give back a vecfunction containing (x,y,z,r)
 	vecfuncT make_excitation_operators()const;
-
-	/// Create random guess functions and add them
-	void make_noise(xfunctionsT &xfunctions) const;
 
 	/// iterates the guess_functions
 	// Calls iterate_all with the right settings
@@ -856,40 +855,33 @@ private:
 	/// @param[in] guess for the first iterations (no energy update, no kain update)
 	void iterate_all(xfunctionsT &xfunctions,bool guess);
 
-	/// Update process for one xfunction
+	/// Applies the greens operator and calcualtes the updated xfunction for one xfunction
 	/// @param[in] xfunction a single xfunction structure (contains the response orbitals as vecfunc x)
 	/// @param[in] ptfock this should be true if orthonormalize_fock was used before (if false, the function will calculate the expectation value of the xfunction)
-	/// @param[in] guess true if this is one of the very first iterations (no energy update, no kain update)
-	void iterate_one(xfunction & xfunction,bool ptfock,bool guess);
-
-	/// basicaly the same than iterate_one
-	// instead of x = G(-2VPsi) and G parametrized with epsilon+omega
-	// here: x= G(-2VPsi + 2omega x) and G aprametrized only with epsilon (always bound)
-	void iterate_one_unbound(xfunction & xfunction,bool ptfock,bool guess);
-
-	void iterate_one_yanai(xfunction & xfunction,bool guess);
+	/// @param[out] The updated xfunction
+	vecfuncT iterate_one(xfunction & xfunction)const;
 
 	/// Update energies (decide if second order or expectation value should be used)
-	void update_energies(xfunctionsT &xfunctions);
+	/// @param[out] the update method (2nd order, expectation value, setback)
+	std::string update_energy(xfunction &xfunction)const;
 
 	/// Normalize one or all excitation functions
-	void normalize(xfunctionsT &xfunctions);
-	void normalize(xfunction &xfunction);
+	void normalize(xfunctionsT &xfunctions)const;
+	void normalize(xfunction &xfunction)const;
 
 	/// Project out the converged xfunctions
-	void project_out_converged_xfunctions(xfunctionsT & xfunctions);
+	void project_out_converged_xfunctions(xfunctionsT & xfunctions)const;
 
 	/// Orthonormalize the exfunctions with Gram-Schmidt
-	void orthonormalize_GS(xfunctionsT &xfunctions);
+	void orthonormalize_GS(xfunctionsT &xfunctions)const;
 
 	/// Orthonormalize the xfunction with the perturbed Fock Matrix
 	// 1. Call make_perturbed_fock_matrix(xfunctions)
 	// 2. Diagonalize
 	// 3. Update Energy and xfunctions
 	/// @param[in] xfunctions the xfunctions
-	/// @param[in] guess is it a guess iterations (the first iterations where the energy is fixed or not
-	/// @return true if the fock update was carried out, false if not
-	bool orthonormalize_fock(xfunctionsT &xfunctions,const bool guess);
+	/// @return true is fock matrix was calculated (if not that means no energy was calculated and that the expectation value needs to be calculated in the iterate_one procedure)
+	bool orthonormalize_fock(xfunctionsT &xfunctions)const;
 
 	/// a little helper routine to measure the degree of offdiagonality in a 2d tensor
 	double measure_offdiagonality(const madness::Tensor<double> &U,const size_t size)const;
@@ -899,19 +891,20 @@ private:
 	/// Projects out the occupied space
 	// 1. Make projector
 	// 2. apply
-	void project_out_occupied_space(vecfuncT &x);
+	void project_out_occupied_space(vecfuncT &x)const;
 
 	/// Calculate offdiagonal elements of the perturbed fock matrix
 	double perturbed_fock_matrix_element(const vecfuncT &xr, const vecfuncT &Vxp,const vecfuncT &xp)const;
 
 	/// Calculate the expectation value and update xfunction.expectation_value
 	// Can also be used to calculate diagonal elements of the fock matrix
-	double expectation_value(const xfunction &x,const vecfuncT &Vx);
+	double expectation_value(const xfunction &x,const vecfuncT &Vx)const;
 
 	/// Make the perturbed Fock Matrix
 	// 1. Calculate potential (V0 + Gamma) --> Call perturbed_potential(exfunctions)
 	// 2. Calculate Matrix Elements
 	Tensor<double> make_perturbed_fock_matrix(const xfunctionsT &xfunctions)const;
+	Tensor<double> make_perturbed_fock_matrix_for_guess_functions(const xfunctionsT &xfunctions)const;
 
 	/// Calculate the perturbed Potential (V0 + Gamma)
 	// 1. Call get_V0
@@ -934,6 +927,7 @@ private:
 	/// Create the exchange intermediate
 	// This has to be done just one time because only the unperturbed orbitals are needed
 	std::vector<vecfuncT> make_exchange_intermediate()const;
+	std::vector<vecfuncT> make_localized_exchange_intermediate()const;
 
 	vecfuncT make_lda_intermediate()const;
 
@@ -954,10 +948,9 @@ private:
 
 	/// Check convergence
 	/// checks if the xfunctions have converged
-	/// if so then the converged flag will be set so zero
-	/// also the converged xfunction is pushed into the converged_xfunctions_ vector and is replaced by a new guess function
 	/// @param[in] xfunctions a vector of xfunction structures
-	bool check_convergence(xfunctionsT &xfunctions);
+	/// @param[in] guess : decide if guess criteria for convergece should be used
+	void check_convergence(xfunctionsT &xfunctions, const bool guess)const ;
 
 	/// Print performance: Values of expectation values and errors of each iteration into a file
 	/// @param[in] xfunctions a vector of xfunction structures
@@ -967,11 +960,11 @@ private:
 	/// Truncate the xfunctions structure:
 	/// @param[in] xfunctions a vector of xfunction structures
 	/// Truncates the vecfunctions: x, Vx and the current_residual (if not empty)
-	void truncate_xfunctions(xfunctionsT &xfunctions);
+	void truncate_xfunctions(xfunctionsT &xfunctions)const;
 
 	/// load a converged root from disk
 
-	/// compute the oscillator strength in the length representation
+	/// compute the oscillator strength in the length resentation
 
 	/// the oscillator strength is given by
 	/// \f[
@@ -991,11 +984,13 @@ private:
 	/// @param[in]	root	a converged root
 	double oscillator_strength_velocity(const xfunction& root) const;
 
+	void save_xfunctions(const xfunctionsT &xfunctions)const;
+public:
+	bool read_xfunctions(xfunctionsT &xfunctions);
 	/// analyze the root: oscillator strength and contributions from occ
 	void analyze(xfunctionsT& roots) const;
-
-	void save_xfunctions(const xfunctionsT &xfunctions)const;
-	bool read_xfunctions(xfunctionsT &xfunctions);
+	/// Project a vecfuncT to the ao basis (used to create projected MOs for the guess calculation)
+	vecfuncT project_to_ao_basis(const vecfuncT & mos, const vecfuncT& ao_basis)const;
 };
 
 } /* namespace madness */

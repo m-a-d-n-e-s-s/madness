@@ -42,7 +42,7 @@
 /// \brief Declaration of utility class and functions for atom
 
 namespace madness {
-struct AtomicData {
+struct AtomicData  {
     // !!! The order of declaration here must match the order in the initializer !!!
 
     // Nuclear info from L. Visscher and K.G. Dyall, Dirac-Fock
@@ -61,6 +61,9 @@ struct AtomicData {
 
     /// Covalent radii stolen without shame from NWChem
     const double covalent_radius;
+    const double mass;              ///< the atomic mass
+
+
 };
 
 const AtomicData& get_atomic_data(unsigned int atn);

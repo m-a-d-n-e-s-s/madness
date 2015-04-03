@@ -20,6 +20,7 @@ TDA.h
 TDA_XC.cc
 TDA_XC.h
 TDA_exops.h
+TDA_guess.h
 atomutil.cc
 atomutil.h
 corepotential.cc
@@ -30,6 +31,7 @@ distpm.cc
 gth_pseudopotential.cc
 gth_pseudopotential.h
 lda.cc
+molecular_optimizer.h
 molecularbasis.cc
 molecularbasis.h
 molecule.cc
@@ -272,6 +274,7 @@ hehf.cc
 helium_exact.cc
 helium_mp2.cc
 hello.cc
+hefxc.cc
 molecularmask.h
 molecularsurface.cc
 mp2.cc
@@ -407,7 +410,6 @@ cblas.h
 clapack.h
 distributed_matrix.h
 dummy_main.c
-eigen.h
 elem.cc
 elem.h
 fred.cc
@@ -485,7 +487,7 @@ dist_cache.h
 dist_keys.h
 dqueue.h
 enable_if.h
-function_traits_bits.h
+function_traits.h
 group.cc
 group.h
 hardware.cc
@@ -506,10 +508,6 @@ ref.h
 safempi.cc
 safempi.h
 scopedptr.h
-shared_ptr.h
-shared_ptr_bits.h
-stdarray.h
-stdarray_bits.h
 stubmpi.h
 taskfn.h
 test_ar.cc
@@ -540,7 +538,6 @@ test_worldref.cc
 textfsar.cc
 textfsar.h
 type_traits.h
-type_traits_bits.h
 typestuff.h
 uniqueid.h
 vecar.h

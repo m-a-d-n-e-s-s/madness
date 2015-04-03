@@ -46,13 +46,6 @@
 // routines for all except T=double.
 
 
-// Here undef _CRAY since no longer care about Cray X1
-// and want to ignore it for the XT3/4
-#ifdef _CRAY
-#undef _CRAY
-#endif
-
-
 /// Matrix * matrix reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
 static inline void mxm(long dimi, long dimj, long dimk,
@@ -67,9 +60,6 @@ static inline void mxm(long dimi, long dimj, long dimk,
 
     for (long i=0; i<dimi; ++i) {
         for (long k=0; k<dimk; ++k) {
-#ifdef _CRAY
-#pragma _CRI prefervector
-#endif
             for (long j=0; j<dimj; ++j) {
                 c[i*dimj+j] += a[i*dimk+k]*b[k*dimj+j];
             }
@@ -95,9 +85,6 @@ void mTxm(long dimi, long dimj, long dimk,
 
     for (long k=0; k<dimk; ++k) {
         for (long j=0; j<dimj; ++j) {
-#ifdef _CRAY
-#pragma _CRI prefervector
-#endif
             for (long i=0; i<dimi; ++i) {
                 c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
             }
@@ -143,9 +130,6 @@ static inline void mTxmT(long dimi, long dimj, long dimk,
     */
 
     for (long i=0; i<dimi; ++i) {
-#ifdef _CRAY
-#pragma _CRI prefervector
-#endif
         for (long j=0; j<dimj; ++j) {
             for (long k=0; k<dimk; ++k) {
                 c[i*dimj+j] += a[k*dimi+i]*b[j*dimk+k];
@@ -154,12 +138,6 @@ static inline void mTxmT(long dimi, long dimj, long dimk,
     }
 }
 
-#ifdef _CRAY
-// Simple loop structure best on the Cray X1
-template
-void mTxm(long dimi, long dimj, long dimk, double* restrict c,
-          const double* restrict a, const double* restrict b);
-#else
 // The following are restricted to double only
 
 /// Matrix transpose * matrix (hand unrolled version)
@@ -349,5 +327,4 @@ inline void mTxmT(long dimi, long dimj, long dimk,
         }
     }
 }
-#endif
 #endif // MADNESS_TENSOR_MXM_H__INCLUDED

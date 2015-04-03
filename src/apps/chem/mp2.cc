@@ -61,6 +61,9 @@ using namespace madness;
 
 namespace madness {
 
+    extern void START_TIMER(World& world);
+    extern void END_TIMER(World& world, const char* msg);
+
 	/// do some load-balancing
 
 	/// @param[in]	f		the function we want to distribute evenly
@@ -77,17 +80,21 @@ namespace madness {
 	/// ctor
 	MP2::MP2(World& world, const std::string& input) :
 			world(world), param(input.c_str()), corrfac(world), correlation_energy(
-					0.0), coords_sum(-1.0), do_coupling(false), Q12(world), intermediates() {
+					0.0), coords_sum(-1.0), Q12(world) {
 
 		{
 			std::shared_ptr<SCF> calc = std::shared_ptr<SCF>(
 					new SCF(world, input.c_str()));
 
-			// get parameters form input file for hf
+			// by default SCF sets the truncate_mode to 1
+			FunctionDefaults<3>::set_truncate_mode(3);
+            FunctionDefaults<6>::set_truncate_mode(3);
+
+            // get parameters form input file for hf
 			if (world.rank() == 0)
 				print("accuracy from dft will be overriden by mp2 to 0.01*thresh");
-			calc->set_protocol<6>(world, thresh());
-			calc->param.econv = thresh() * 0.01;
+			calc->set_protocol<6>(world, param.thresh_);
+			calc->param.econv = param.thresh_ * 0.01;
 			calc->set_protocol<3>(world, calc->param.econv);
 
 			// override computed parameters if they are provided explicitly
@@ -109,15 +116,16 @@ namespace madness {
 			}
 
 			calc->molecule.set_eprec(eprec);
-			if (world.rank() == 0)
-				calc->molecule.print();
+			if (world.rank() == 0) calc->molecule.print();
 
 			hf = std::shared_ptr<HartreeFock>(new HartreeFock(world, calc));
 			poisson = std::shared_ptr<real_convolution_3d>(
 					CoulombOperatorPtr(world, 0.0001, calc->param.econv));
 
+			// construct electronic correlation factor only, nuclear correlation
+			// factor depends on the coordinates and must be reassigned for
+			// for each geometric structure
 			corrfac = CorrelationFactor(world, 1.0, dcut, calc->molecule);
-			nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
 
 		}
 
@@ -134,23 +142,17 @@ namespace madness {
 		// or load previous restart information
 		for (int i = param.freeze; i < hf->nocc(); ++i) {
 			for (int j = i; j < hf->nocc(); ++j) {
-				std::pair<int, int> key = std::make_pair(i, j);
-				pairs.insert(std::make_pair(key, ElectronPair(i, j)));
+				pairs.insert(i,j,ElectronPair(i, j));
 				if (param.restart)
-					pair(i, j).load_pair(world);
+					pairs(i, j).load_pair(world);
 			}
 		}
-
-		if (world.rank() == 0)
-			intermediates = Intermediates(world, input);
-		world.gop.broadcast_serializable(intermediates, 0);
 
 	}
 
 	/// return the molecular correlation energy energy (without the HF energy)
 	double MP2::value() {
 		hf->value();		// make sure the reference is converged
-
 		return value(hf->get_calc().molecule.get_all_coords());
 	}
 
@@ -161,6 +163,9 @@ namespace madness {
 		double xsq = x.sumsq();
 		if (xsq == coord_chksum())
 			return correlation_energy;
+
+		// nuclear correlation factor depends on the coordinates
+        nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
 
 		// make sure HF used the same geometry as we do
 		coords_sum = xsq;
@@ -189,91 +194,84 @@ namespace madness {
 
 		// compute only one single pair
 		if ((param.i > -1) and (param.j > -1)) {
-			pair(param.i,param.j)=make_pair(param.i,param.j);	// initialize
-			solve_residual_equations(pair(param.i, param.j));	// solve
-			correlation_energy += pair(param.i, param.j).e_singlet
-					+ pair(param.i, param.j).e_triplet;
+			pairs(param.i,param.j)=make_pair(param.i,param.j);	// initialize
+			solve_residual_equations(pairs(param.i, param.j),param.econv_*0.05,param.dconv_);	// solve
+			correlation_energy += pairs(param.i, param.j).e_singlet
+					+ pairs(param.i, param.j).e_triplet;
 
-		} else {
-			// solve the residual equations for all pairs ij
-			for (int i = param.freeze; i < hf->nocc(); ++i) {
-				for (int j = i; j < hf->nocc(); ++j) {
-					pair(i,j)=make_pair(i,j);				// initialize
-					solve_residual_equations(pair(i,j));	// solve
-					correlation_energy += pair(i, j).e_singlet
-								+ pair(i, j).e_triplet;
-				}
-			}
-			if (world.rank()==0) {
-				printf("current decoupled mp2 energy %12.8f\n",
-						correlation_energy);
-			}
-
-			// if orbitals are not canonical do the macro iterations
-			// coupling all the pair functions
-			if (hf->get_calc().param.localize) {
-				solve_coupled_equations(pairs);
-				do_coupling=true;
-				param.maxiter=1;	// number of microiterations
-				for (int macro_iter=0; macro_iter<7; macro_iter++) {
-					correlation_energy=0.0;
-					for (int i = param.freeze; i < hf->nocc(); ++i) {
-						for (int j = i; j < hf->nocc(); ++j) {
-							pair(i,j).iteration=0;
-							pair(i,j).converged=false;
-							solve_residual_equations(pair(i,j));
-							correlation_energy += pair(i, j).e_singlet
-									+ pair(i, j).e_triplet;
-						}
-					}
-					if (world.rank()==0) {
-						printf("current coupled mp2 energy   %12.8f\n",
-								correlation_energy);
-					}
-				}
-			}
+			return correlation_energy;
 		}
+
+		// compute the 0th order term and do some coarse pre-iterations
+        for (int i = param.freeze; i < hf->nocc(); ++i) {
+            for (int j = i; j < hf->nocc(); ++j) {
+                pairs(i,j)=make_pair(i,j);				// initialize
+                solve_residual_equations(pairs(i,j),param.econv_*0.5,param.dconv_);
+                correlation_energy += pairs(i, j).e_singlet
+                            + pairs(i, j).e_triplet;
+            }
+        }
+        if (world.rank()==0) {
+            printf("current decoupled mp2 energy %12.8f\n", correlation_energy);
+        }
+
+        if (hf->get_calc().param.localize) {
+            // solve the coupled MP1 equations
+            correlation_energy=solve_coupled_equations(pairs,param.econv_*0.1,param.dconv_);
+
+        } else {
+
+            // solve the canonical MP1 equations with increased accuracy
+            for (int i = param.freeze; i < hf->nocc(); ++i) {
+                for (int j = i; j < hf->nocc(); ++j) {
+                    pairs(i,j).converged=false;
+                    solve_residual_equations(pairs(i,j),param.econv_*0.05,param.dconv_);
+                    correlation_energy += pairs(i, j).e_singlet + pairs(i, j).e_triplet;
+                }
+            }
+        }
 		return correlation_energy;
 	}
 
 	/// print the SCF parameters
 	void MP2::print_info(World& world) const {
 		if (world.rank() == 0) {
-			madness::print("\n === MP2 info === \n");
-			madness::print("         MP2 restart ", param.restart);
-			madness::print("        threshold 3D ",
-					FunctionDefaults<3>::get_thresh());
-			madness::print("        threshold 6D ",
-					FunctionDefaults<6>::get_thresh());
-			madness::print("    threshold energy ", param.thresh_);
-			madness::print("  threshold residual ", param.dconv_);
-			madness::print("     truncation mode ",
-					FunctionDefaults<6>::get_truncate_mode());
-			madness::print("         tensor type ",
-					FunctionDefaults<6>::get_tensor_type());
-			madness::print("           facReduce ",
-					GenTensor<double>::fac_reduce());
-			madness::print("    max displacement ",
-					Displacements<6>::bmax_default());
-			madness::print("     apply randomize ",
-					FunctionDefaults<6>::get_apply_randomize());
-			if (param.i >= 0 and param.j >= 0) {
-				madness::print("      computing pair ", param.i, param.j);
-			} else if (param.i < 0 and param.j < 0) {
-				if (param.freeze == 0)
-					madness::print("   # frozen orbitals ", "none");
-				if (param.freeze > 0)
-					madness::print("   # frozen orbitals ", 0, " to ",
-							param.freeze - 1);
-				madness::print(" correlated orbitals ", param.freeze, " to ",
-						hf->nocc() - 1);
-			}
-			madness::print("   max KAIN subspace ", param.maxsub);
+		    madness::print("\n");
+		    madness::print_centered("MP2 info\n",31,false);
+            print_options("MP2 restart",param.restart);
+            print_options("threshold 3D",FunctionDefaults<3>::get_thresh());
+            print_options("threshold 6D",FunctionDefaults<6>::get_thresh());
+            print_options("density threshold (dconv)", param.dconv_);
+            print_options("energy threshold (econv)", param.econv_);
+            print_options("truncation mode",FunctionDefaults<6>::get_truncate_mode());
+            print_options("tensor type",FunctionDefaults<6>::get_tensor_type());
+            print_options("facReduce",GenTensor<double>::fac_reduce());
+            print_options("max displacement",Displacements<6>::bmax_default());
+            print_options("apply randomize",FunctionDefaults<6>::get_apply_randomize());
+
+            if (param.i >= 0 and param.j >= 0) {
+                std::stringstream ss;
+                ss << param.i << " " << param.j;
+                print_options("computing pair",ss.str());
+            }
+            if (param.freeze == 0) {
+                print_options("# frozen orbitals", "none");
+            }else {
+                std::stringstream ss;
+                ss<< 0 << " to " << param.freeze - 1;
+                print_options("# frozen orbitals",ss.str());
+            }
+            std::stringstream ss1;
+            ss1 << param.freeze <<" to "<< hf->nocc() - 1;
+            print_options(" correlated orbitals",ss1.str());
+
+			print_options("max KAIN subspace", param.maxsub);
 		}
 	}
 
 	/// solve the residual equation for electron pair (i,j)
-	void MP2::solve_residual_equations(ElectronPair& result) const {
+	void MP2::solve_residual_equations(ElectronPair& result,
+	        const double econv, const double dconv) const {
 
 		if (result.converged) {
 			result.print_energy();
@@ -329,8 +327,8 @@ namespace madness {
 			double old_energy = energy;
 			energy = compute_energy(result);
 
-			result.converged = ((std::abs(old_energy - energy)
-					< result.function.thresh() * 0.01) and (rnorm < param.dconv_));
+			result.converged = ((std::abs(old_energy - energy) < econv) and (
+			        rnorm < dconv));
 			result.store_pair(world);
 
 			if (world.rank() == 0)
@@ -351,7 +349,96 @@ namespace madness {
 	}
 
 	/// solve the coupled MP1 equations for local orbitals
-    void MP2::solve_coupled_equations(pairmapT& pairs) const {
+
+	/// @param[in]  pairs   solved decoupled electron pairs
+    double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
+            const double econv, const double dconv) const {
+
+        if (world.rank() == 0) printf("\nsolving coupled MP2 equations\n\n");
+
+        double total_energy=0.0;
+        for (int i = param.freeze; i < hf->nocc(); ++i) {
+            for (int j = i; j < hf->nocc(); ++j) {
+                total_energy+=compute_energy(pairs(i,j));
+            }
+        }
+
+        // do the macro-iterations of the whole set of pair functions
+        for (int iteration=0; iteration<param.maxiter; ++iteration) {
+
+            // compute the coupling between the pair functions
+            START_TIMER(world);
+            Pairs<real_function_6d> coupling;
+            add_local_coupling(pairs,coupling);
+            END_TIMER(world,"compute coupling");
+
+            // compute the vector function, aka the rhs of the residual equations
+            START_TIMER(world);
+            Pairs<real_function_6d> vectorfunction;
+            for (int i = param.freeze; i < hf->nocc(); ++i) {
+                for (int j = i; j < hf->nocc(); ++j) {
+
+                    vectorfunction(i,j)=multiply_with_0th_order_Hamiltonian(
+                            pairs(i,j).function, i, j);
+
+                    // NOTE THE SIGN
+                    vectorfunction(i,j)-=coupling(i,j);
+                }
+            }
+            END_TIMER(world,"apply H^(0) |ket>");
+
+            double total_rnorm=0.0;
+            double old_energy=total_energy;
+            total_energy=0.0;
+            // apply the Green's function on the vector function
+            for (int i = param.freeze; i < hf->nocc(); ++i) {
+                for (int j = i; j < hf->nocc(); ++j) {
+                    const double eps = zeroth_order_energy(i, j);
+
+                    START_TIMER(world);
+                    real_convolution_6d green = BSHOperator<6>(world, sqrt(-2 * eps), lo,
+                            bsh_eps);
+                    vectorfunction(i,j).scale(-2.0).truncate();
+                    real_function_6d tmp=green(vectorfunction(i,j)).truncate();
+                    END_TIMER(world,"apply BSH |ket>");
+
+                    START_TIMER(world);
+                    tmp = (Q12(pairs(i,j).constant_term + tmp)).truncate();
+
+                    real_function_6d residual = pairs(i,j).function - tmp;
+                    pairs(i,j).function=tmp;
+
+                    const double rnorm = residual.norm2();
+                    const double fnorm = pairs(i,j).function.norm2();
+                    if (world.rank() == 0) printf("norm2 of psi, residual %2d %2d "
+                            "%12.8f %12.8f\n", i,j, fnorm, rnorm);
+                    double energy=compute_energy(pairs(i,j));
+
+                    total_rnorm+=rnorm;
+                    total_energy+=energy;
+                    END_TIMER(world,std::string(" post-BSH "+stringify(i)+stringify(j)).c_str());
+                }
+            }
+
+            // check convergence
+            bool converged = ((std::abs(old_energy - total_energy) < econv)
+                    and (total_rnorm < dconv));
+
+            // save the pairs
+            for (int i = param.freeze; i < hf->nocc(); ++i) {
+                for (int j = i; j < hf->nocc(); ++j) {
+                    pairs(i,j).store_pair(world);
+                }
+            }
+
+            if (world.rank() == 0)
+                printf("finished iteration %2d at time %8.1fs with coupled energy %12.8f\n\n",
+                        iteration, wall_time(), total_energy);
+
+            if (converged) break;
+        }
+
+        return total_energy;
     }
 
 
@@ -404,7 +491,7 @@ namespace madness {
 			if (world.rank() == 0)
 				printf("finished increment %2d at time %.1fs\n\n", ii, wall_time());
 			const double residual_norm = latest_increment.norm2();
-			if (residual_norm < pair.function.thresh() * 0.01)
+			if (residual_norm < pair.function.thresh())
 				break;
 		}
 	}
@@ -439,7 +526,6 @@ namespace madness {
 	void MP2::test(const std::string filename) {
 		if (world.rank() == 0)
 			printf("starting coupling at time %8.1fs\n", wall_time());
-		add_local_coupling();
 		if (world.rank() == 0)
 			printf("ending coupling at time %8.1fs\n", wall_time());
 	}
@@ -560,105 +646,100 @@ namespace madness {
 		const int i = pair.i;
 		const int j = pair.j;
 		real_function_6d Uphi0 = real_factory_6d(world);
-		if (not intermediates.Uphi0.empty()) {
-			load_function(Uphi0, intermediates.Uphi0);
-		} else {
-			// apply the pure commutator of the kinetic energy and the
-			// electronic correlation factor on the (regularized)
-			// orbitals i and j
-			//  [T,f]
-			const double eps = this->zeroth_order_energy(i, j);
-			Uphi0 = corrfac.apply_U(hf->nemo(i), hf->nemo(j), eps);
-			{
-				real_function_6d tmp =
-						CompositeFactory<double, 6, 3>(world).particle1(
-								copy(hf->R2orbital(i))).particle2(
-								copy(hf->R2orbital(j)));
+		// apply the pure commutator of the kinetic energy and the
+		// electronic correlation factor on the (regularized)
+		// orbitals i and j
+		//  [T,f]
+		const double eps = this->zeroth_order_energy(i, j);
+		Uphi0 = corrfac.apply_U(hf->nemo(i), hf->nemo(j), eps);
+		{
+		    real_function_6d tmp =
+		            CompositeFactory<double, 6, 3>(world).particle1(
+		                    copy(hf->R2orbital(i))).particle2(
+		                            copy(hf->R2orbital(j)));
 
-				const double a = inner(Uphi0, tmp);
-				if (world.rank() == 0)
-					print("< nemo | R2 U | nemo>", a);
-			}
-			asymmetry(Uphi0, "Uphi w/o R");
-
-			// apply the mixed commutator of the kinetic energy and the
-			// electronic and nuclear correlation factor on the regularized
-			// orbitals i and j:
-			//  R^{-1} [[T,f],R]
-			// Vanishes if no nuclear correlation factor
-			// is used, since [[T,f],1] = 0
-			if (1) {
-				//                if (hf->nemo_calc.nuclear_correlation->type()!=NuclearCorrelationFactor::None) {
-				if (world.rank() == 0)
-					print("adding the mixed commutator R^{-1} [[T,f],R]");
-				for (int axis = 0; axis < 3; axis++) {
-
-					double tight_thresh = std::min(thresh(), 1.e-4);
-
-					real_convolution_6d op_mod = BSHOperator<6>(world,
-							sqrt(-2 * eps), 0.0001, 1e-5);
-					op_mod.modified() = true;
-
-					const real_function_3d u1_nuc =
-							hf->nemo_calc.nuclear_correlation->U1(axis);
-					const real_function_3d u1_nuc_nemo_i = u1_nuc * hf->nemo(i);
-					const real_function_3d u1_nuc_nemo_j = u1_nuc * hf->nemo(j);
-					const real_function_6d u1_el = corrfac.U1(axis);
-					//						u1_nuc.print_size("u1_nuc");
-					//						plot_plane(world,u1_nuc,"u1_nuc");
-					//						u1_nuc_nemo_i.print_size("u1_nuc_nemo_i");
-					//						plot_plane(world,u1_nuc_nemo_i,"u1_nuc_nemo_i");
-					//						plot_plane(world,hf->nemo(i),"nemo_i");
-					//						u1_nuc_nemo_j.print_size("u1_nuc_nemo_j");
-					//						u1_el.print_size("u1_el");
-
-					real_function_6d U1_mix1 =
-							CompositeFactory<double, 6, 3>(world).g12(u1_el).particle1(
-									copy(u1_nuc_nemo_i)).particle2(
-									copy(hf->nemo(j))).thresh(tight_thresh);
-					U1_mix1.fill_tree(op_mod);
-					U1_mix1.set_thresh(thresh());
-					U1_mix1.print_size("U1_mix1");
-					//						plot_plane(world,U1_mix1,"U1_mix1");
-
-					real_function_6d U1_mix2 =
-							CompositeFactory<double, 6, 3>(world).g12(u1_el).particle1(
-									copy(hf->nemo(i))).particle2(
-									copy(u1_nuc_nemo_j)).thresh(tight_thresh);
-					U1_mix2.fill_tree(op_mod);
-					U1_mix2.set_thresh(thresh());
-					U1_mix2.print_size("U1_mix2");
-					//						plot_plane(world,U1_mix2,"U1_mix2");
-
-					real_function_6d diff = (U1_mix1 - U1_mix2).scale(-1.0);
-					diff.truncate();
-
-					// multiply with -1 from the kinetic energy operator
-					//						Uphi0=(Uphi0+(U1_mix1-U1_mix2).scale(-1.0)).truncate();
-					Uphi0 = (Uphi0 + diff).truncate();
-					this->asymmetry(Uphi0, "Uphi0 in R");
-
-					//						Uphi0.print_size("Uphi0");
-					//						plot_plane(world,Uphi0,"Uphi0");
-
-					{
-						real_function_6d tmp =
-								CompositeFactory<double, 6, 3>(world).particle1(
-										copy(hf->R2orbital(i))).particle2(
-										copy(hf->R2orbital(j)));
-
-						const double a = inner(Uphi0, tmp);
-						if (world.rank() == 0)
-							print("< nemo | R2 U | nemo>", a);
-					}
-
-				}
-			}
-			asymmetry(Uphi0, "Uphi0");
-
-			// save the function for restart
-			//                save_function(Uphi0,"Uphi0");
+		    const double a = inner(Uphi0, tmp);
+		    if (world.rank() == 0)
+		        print("< nemo | R2 U | nemo>", a);
 		}
+		asymmetry(Uphi0, "Uphi w/o R");
+
+		// apply the mixed commutator of the kinetic energy and the
+		// electronic and nuclear correlation factor on the regularized
+		// orbitals i and j:
+		//  R^{-1} [[T,f],R]
+		// Vanishes if no nuclear correlation factor
+		// is used, since [[T,f],1] = 0
+		if (1) {
+		    //                if (hf->nemo_calc.nuclear_correlation->type()!=NuclearCorrelationFactor::None) {
+		    if (world.rank() == 0)
+		        print("adding the mixed commutator R^{-1} [[T,f],R]");
+		    const double thresh=FunctionDefaults<6>::get_thresh();
+		    for (int axis = 0; axis < 3; axis++) {
+
+		        double tight_thresh = std::min(thresh, 1.e-4);
+
+		        real_convolution_6d op_mod = BSHOperator<6>(world,
+		                sqrt(-2 * eps), 0.0001, 1e-5);
+		        op_mod.modified() = true;
+
+		        const real_function_3d u1_nuc =
+		                hf->nemo_calc.nuclear_correlation->U1(axis);
+		        const real_function_3d u1_nuc_nemo_i = u1_nuc * hf->nemo(i);
+		        const real_function_3d u1_nuc_nemo_j = u1_nuc * hf->nemo(j);
+		        const real_function_6d u1_el = corrfac.U1(axis);
+		        //						u1_nuc.print_size("u1_nuc");
+		        //						plot_plane(world,u1_nuc,"u1_nuc");
+		        //						u1_nuc_nemo_i.print_size("u1_nuc_nemo_i");
+		        //						plot_plane(world,u1_nuc_nemo_i,"u1_nuc_nemo_i");
+		        //						plot_plane(world,hf->nemo(i),"nemo_i");
+		        //						u1_nuc_nemo_j.print_size("u1_nuc_nemo_j");
+		        //						u1_el.print_size("u1_el");
+
+		        real_function_6d U1_mix1 =
+		                CompositeFactory<double, 6, 3>(world).g12(u1_el).particle1(
+		                        copy(u1_nuc_nemo_i)).particle2(
+		                                copy(hf->nemo(j))).thresh(tight_thresh);
+		        U1_mix1.fill_tree(op_mod);
+		        U1_mix1.set_thresh(thresh);
+		        U1_mix1.print_size("U1_mix1");
+		        //						plot_plane(world,U1_mix1,"U1_mix1");
+
+		        real_function_6d U1_mix2 =
+		                CompositeFactory<double, 6, 3>(world).g12(u1_el).particle1(
+		                        copy(hf->nemo(i))).particle2(
+		                                copy(u1_nuc_nemo_j)).thresh(tight_thresh);
+		        U1_mix2.fill_tree(op_mod);
+		        U1_mix2.set_thresh(thresh);
+		        U1_mix2.print_size("U1_mix2");
+		        //						plot_plane(world,U1_mix2,"U1_mix2");
+
+		        real_function_6d diff = (U1_mix1 - U1_mix2).scale(-1.0);
+		        diff.truncate();
+
+		        // multiply with -1 from the kinetic energy operator
+		        //						Uphi0=(Uphi0+(U1_mix1-U1_mix2).scale(-1.0)).truncate();
+		        Uphi0 = (Uphi0 + diff).truncate();
+		        this->asymmetry(Uphi0, "Uphi0 in R");
+
+		        //						Uphi0.print_size("Uphi0");
+		        //						plot_plane(world,Uphi0,"Uphi0");
+
+		        {
+		            real_function_6d tmp =
+		                    CompositeFactory<double, 6, 3>(world).particle1(
+		                            copy(hf->R2orbital(i))).particle2(
+		                                    copy(hf->R2orbital(j)));
+
+		            const double a = inner(Uphi0, tmp);
+		            if (world.rank() == 0)
+		                print("< nemo | R2 U | nemo>", a);
+		        }
+
+		    }
+		}
+		asymmetry(Uphi0, "Uphi0");
+
 
 		// sanity check: <ij| [T,g12] |ij> = <ij | U |ij> - <ij| g12 | ij> = 0
 		real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
@@ -673,9 +754,9 @@ namespace madness {
 		if (world.rank() == 0) {
 			printf("< phi0 | U_R   | phi0 >  %12.8f\n", a);
 			printf("< phi0 | 1/r12 | phi0 >  %12.8f\n", aa);
-			if (error > thresh())
+			if (error > FunctionDefaults<6>::get_thresh())
 				print("WARNING : Kutzelnigg's potential inaccurate");
-			if (error > thresh() * 10.0)
+			if (error > FunctionDefaults<6>::get_thresh() * 10.0)
 				MADNESS_EXCEPTION("Kutzelnigg's potential plain wrong", 1);
 		}
 		Uphi0.print_size("Uphi0");
@@ -689,87 +770,77 @@ namespace madness {
 		const int j = pair.j;
 
 		real_function_6d KffKphi0;
-		if (not intermediates.KffKphi0.empty()) {
-			load_function(KffKphi0, intermediates.KffKphi0);
+		real_function_6d r12nemo = CompositeFactory<double, 6, 3>(world).g12(
+		        corrfac.f()).particle1(copy(hf->nemo(i))).particle2(
+		                copy(hf->nemo(j)));
+		r12nemo.fill_tree().truncate().reduce_rank();
+		r12nemo.print_size("r12nemo");
+		//                save_function(r12nemo,"r12nemo");
 
-		} else {
-			real_function_6d r12nemo = CompositeFactory<double, 6, 3>(world).g12(
-					corrfac.f()).particle1(copy(hf->nemo(i))).particle2(
-					copy(hf->nemo(j)));
-			r12nemo.fill_tree().truncate().reduce_rank();
-			r12nemo.print_size("r12nemo");
-			//                save_function(r12nemo,"r12nemo");
+		real_function_6d Kfphi0;
+        Kfphi0 = K(r12nemo, i == j);
 
-			real_function_6d Kfphi0;
-			if (not intermediates.Kfphi0.empty()) {
-				load_function(Kfphi0, intermediates.Kfphi0);
-			} else {
-				Kfphi0 = K(r12nemo, i == j);
+        //					const real_function_3d& phi_i=hf->nemo(i);
+        //					const real_function_3d& phi_j=hf->nemo(j);
+        //
+        //					real_convolution_3d op=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
+        //					op.particle()=1;
+        //
+        //					real_convolution_3d op_mod=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
+        //	                op_mod.modified()=true;
+        //
+        //					real_function_6d result=real_factory_6d(world);
+        //					for (int k=0; k<hf->nocc(); ++k) {
+        //						const real_function_3d& phi_k_bra=hf->R2orbital(k);
+        //						const real_function_3d& phi_k_ket=hf->nemo(k);
+        //						real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
+        //								.g12(corrfac.f())
+        //								.particle1(copy(phi_i*phi_k_bra))
+        //								.particle2(copy(phi_j));
+        //						f_ijk.fill_tree(op_mod).truncate();
+        //						real_function_6d x=op(f_ijk).truncate();
+        //			            result+=multiply(copy(x),copy(phi_k_ket),1).truncate();
+        //					}
+        //
+        //					if (i==j) {
+        //						result+=swap_particles(result);
+        //					} else {
+        //						op.particle()=2;
+        //						for (int k=0; k<hf->nocc(); ++k) {
+        //							const real_function_3d& phi_k_bra=hf->R2orbital(k);
+        //							const real_function_3d& phi_k_ket=hf->nemo(k);
+        //							real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
+        //									.g12(corrfac.f())
+        //									.particle1(copy(phi_i))
+        //									.particle2(copy(phi_j*phi_k_bra));
+        //							f_ijk.fill_tree(op_mod).truncate();
+        //							real_function_6d x=op(f_ijk).truncate();
+        //				            result+=multiply(copy(x),copy(phi_k_ket),2).truncate();
+        //						}
+        //					}
+        //					Kfphi0=result;
 
-				//					const real_function_3d& phi_i=hf->nemo(i);
-				//					const real_function_3d& phi_j=hf->nemo(j);
-				//
-				//					real_convolution_3d op=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
-				//					op.particle()=1;
-				//
-				//					real_convolution_3d op_mod=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
-				//	                op_mod.modified()=true;
-				//
-				//					real_function_6d result=real_factory_6d(world);
-				//					for (int k=0; k<hf->nocc(); ++k) {
-				//						const real_function_3d& phi_k_bra=hf->R2orbital(k);
-				//						const real_function_3d& phi_k_ket=hf->nemo(k);
-				//						real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
-				//								.g12(corrfac.f())
-				//								.particle1(copy(phi_i*phi_k_bra))
-				//								.particle2(copy(phi_j));
-				//						f_ijk.fill_tree(op_mod).truncate();
-				//						real_function_6d x=op(f_ijk).truncate();
-				//			            result+=multiply(copy(x),copy(phi_k_ket),1).truncate();
-				//					}
-				//
-				//					if (i==j) {
-				//						result+=swap_particles(result);
-				//					} else {
-				//						op.particle()=2;
-				//						for (int k=0; k<hf->nocc(); ++k) {
-				//							const real_function_3d& phi_k_bra=hf->R2orbital(k);
-				//							const real_function_3d& phi_k_ket=hf->nemo(k);
-				//							real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
-				//									.g12(corrfac.f())
-				//									.particle1(copy(phi_i))
-				//									.particle2(copy(phi_j*phi_k_bra));
-				//							f_ijk.fill_tree(op_mod).truncate();
-				//							real_function_6d x=op(f_ijk).truncate();
-				//				            result+=multiply(copy(x),copy(phi_k_ket),2).truncate();
-				//						}
-				//					}
-				//					Kfphi0=result;
-			}
-
-			{
-				real_function_6d tmp =
-						CompositeFactory<double, 6, 3>(world).particle1(
-								copy(hf->R2orbitals()[i])).particle2(
-								copy(hf->R2orbitals()[j]));
-				double a1 = inner(Kfphi0, tmp);
-				if (world.rank() == 0)
-					printf("< nemo0 | R^2 R-1 K f R | nemo0 >  %12.8f\n", a1);
-				//					save_function(Kfphi0,"Kfphi0");
-			}
-			const real_function_6d fKphi0 = make_fKphi0(pair.i, pair.j);
-			{
-				real_function_6d tmp =
-						CompositeFactory<double, 6, 3>(world).particle1(
-								copy(hf->R2orbitals()[i])).particle2(
-								copy(hf->R2orbitals()[j]));
-				double a2 = inner(fKphi0, tmp);
-				if (world.rank() == 0)
-					printf("< nemo0 | R^2 R-1 f K R | nemo0 >  %12.8f\n", a2);
-			}
-			KffKphi0 = (Kfphi0 - fKphi0).truncate().reduce_rank();
-			//				save_function(KffKphi0,"KffKphi0");
+		{
+		    real_function_6d tmp =
+		            CompositeFactory<double, 6, 3>(world).particle1(
+		                    copy(hf->R2orbitals()[i])).particle2(
+		                            copy(hf->R2orbitals()[j]));
+		    double a1 = inner(Kfphi0, tmp);
+		    if (world.rank() == 0)
+		        printf("< nemo0 | R^2 R-1 K f R | nemo0 >  %12.8f\n", a1);
+		    //					save_function(Kfphi0,"Kfphi0");
 		}
+		const real_function_6d fKphi0 = make_fKphi0(pair.i, pair.j);
+		{
+		    real_function_6d tmp =
+		            CompositeFactory<double, 6, 3>(world).particle1(
+		                    copy(hf->R2orbitals()[i])).particle2(
+		                            copy(hf->R2orbitals()[j]));
+		    double a2 = inner(fKphi0, tmp);
+		    if (world.rank() == 0)
+		        printf("< nemo0 | R^2 R-1 f K R | nemo0 >  %12.8f\n", a2);
+		}
+		KffKphi0 = (Kfphi0 - fKphi0).truncate().reduce_rank();
 
 		// sanity check
 		real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
@@ -777,9 +848,9 @@ namespace madness {
 		const double a = inner(KffKphi0, tmp);
 		if (world.rank() == 0) {
 			printf("< nemo0 | R^2 R-1 [K,f] R | nemo0 >  %12.8f\n", a);
-			if (std::fabs(a) > thresh())
+			if (std::fabs(a) > FunctionDefaults<6>::get_thresh())
 				print("WARNING : exchange commutator inaccurate");
-			if (std::fabs(a) > thresh() * 10.0)
+			if (std::fabs(a) > FunctionDefaults<6>::get_thresh() * 10.0)
 				MADNESS_EXCEPTION("exchange commutator plain wrong", 1);
 		}
 		KffKphi0.print_size("KffKphi0");
@@ -790,7 +861,7 @@ namespace madness {
 	ElectronPair MP2::make_pair(const int i, const int j) const {
 
 		ElectronPair p = ElectronPair(i, j);
-		p.load_pair(world);
+		if (param.restart) p.load_pair(world);
 
 		// compute and store them if they have not been read from disk
 		if (p.ij_gQf_ij == ElectronPair::uninitialized()) {
@@ -799,6 +870,15 @@ namespace madness {
 			if (i != j)
 				p.ji_gQf_ij = compute_gQf(j, i, p);
 			p.store_pair(world);
+		} else {
+		    if (world.rank()==0) {
+	            printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n",
+	                    i, j, i, j, p.ij_gQf_ij);
+	            if (i != j) {
+	                printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n",
+                        j, i, i, j, p.ji_gQf_ij);
+	            }
+		    }
 		}
 
 		if (world.rank() == 0)
@@ -820,18 +900,30 @@ namespace madness {
 		real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0 * eps), lo,
 				bsh_eps);
 
-		pair.Uphi0 = make_Uphi0(pair);
-		pair.KffKphi0 = make_KffKphi0(pair);
+		real_function_6d Uphi0 = make_Uphi0(pair);
+		real_function_6d KffKphi0 = make_KffKphi0(pair);
 
 		// these are the terms that come from the single projectors: (O1 + O2) (U+[K,f])|phi^0>
-		OUKphi0(pair);
+        std::vector<real_function_3d> phi_k_UK_phi0;
+        std::vector<real_function_3d> phi_l_UK_phi0;
+
+        for (int k = 0; k < hf->nocc(); ++k) {
+            real_function_3d tmp;
+            tmp = Uphi0.project_out(hf->R2orbitals()[k], 0)
+                    - KffKphi0.project_out(hf->R2orbitals()[k], 0);
+            phi_k_UK_phi0.push_back(tmp);
+
+            tmp = Uphi0.project_out(hf->R2orbitals()[k], 1)
+                    - KffKphi0.project_out(hf->R2orbitals()[k], 1);
+            phi_l_UK_phi0.push_back(tmp);
+        }
+
 
 		// make the terms with high ranks and smallish trees
-		load_balance(pair.Uphi0, true);
-		real_function_6d Vpair1 =
-				(pair.Uphi0 - pair.KffKphi0).truncate().reduce_rank();
-		pair.Uphi0.clear();
-		pair.KffKphi0.clear();
+		load_balance(Uphi0, true);
+		real_function_6d Vpair1 = (Uphi0 - KffKphi0).truncate().reduce_rank();
+		Uphi0.clear();
+		KffKphi0.clear();
 		asymmetry(Vpair1, "Vpair");
 		load_balance(Vpair1, false);
 		real_function_6d GVpair;
@@ -935,7 +1027,7 @@ namespace madness {
 		for (int k = 0; k < hf->nocc(); ++k) {
 
 			// make the term  tmp2(2) = |UK_k(2)> - 1/2 |l(2)> h(kl)
-			real_function_3d tmp2 = pair.phi_k_UK_phi0[k];
+			real_function_3d tmp2 = phi_k_UK_phi0[k];
 			for (int l = 0; l < hf->nocc(); ++l)
 				tmp2 -= 0.5 * h(k, l) * hf->nemo(l);
 
@@ -951,7 +1043,7 @@ namespace madness {
 		for (int l = 0; l < hf->nocc(); ++l) {
 
 			// make the term  tmp1(1) = |UK_l(1) - 1/2 |k(1)> h(kl)
-			real_function_3d tmp1 = pair.phi_l_UK_phi0[l];
+			real_function_3d tmp1 = phi_l_UK_phi0[l];
 			for (int k = 0; k < hf->nocc(); ++k)
 				tmp1 -= 0.5 * h(k, l) * hf->nemo(k);
 
@@ -983,6 +1075,7 @@ namespace madness {
 	/// @return	the energy of 1 degenerate triplet and 1 singlet pair
 	double MP2::compute_energy(ElectronPair& pair) const {
 
+	    START_TIMER(world);
 		// a11 will be the bra space, therefore take the hermitian conjugate
 		const double a11 = inner(pair.function,
 				JK1phi0_on_demand(pair.i, pair.j, true))
@@ -1028,6 +1121,7 @@ namespace madness {
 					pair.e_singlet, pair.e_triplet);
 		}
 
+		END_TIMER(world,"compute MP2 energy");
 		// return the total energy of this pair
 		return pair.e_singlet + pair.e_triplet;
 	}
@@ -1175,31 +1269,6 @@ namespace madness {
 		return mul_sparse(world, phi_j, make_chi(phi_i, op, hc), tol);
 	}
 
-	/// compute the terms O1 (U - [K,f]) |phi0> and O2 UK |phi0>
-	void MP2::OUKphi0(ElectronPair& pair) const {
-
-		std::vector<real_function_3d> phi_k_UK_phi0;
-		std::vector<real_function_3d> phi_l_UK_phi0;
-
-		pair.Uphi0.verify();
-		pair.KffKphi0.verify();
-		const std::string root = "OUKphi0";
-
-		for (int k = 0; k < hf->nocc(); ++k) {
-			real_function_3d tmp;
-			tmp = pair.Uphi0.project_out(hf->R2orbitals()[k], 0)
-					- pair.KffKphi0.project_out(hf->R2orbitals()[k], 0);
-			phi_k_UK_phi0.push_back(tmp);
-
-			tmp = pair.Uphi0.project_out(hf->R2orbitals()[k], 1)
-					- pair.KffKphi0.project_out(hf->R2orbitals()[k], 1);
-			phi_l_UK_phi0.push_back(tmp);
-		}
-
-		pair.phi_k_UK_phi0 = phi_k_UK_phi0;
-		pair.phi_l_UK_phi0 = phi_l_UK_phi0;
-	}
-
 	/// apply the operator K on the reference and multiply with f; fK |phi^0>
 
 	/// @param[in]  i   index of orbital i
@@ -1288,6 +1357,7 @@ namespace madness {
 
 		real_function_6d vphi;
 
+        START_TIMER(world);
 		if (0) {
 			//            if (hf->nemo_calc.nuclear_correlation->type()==NuclearCorrelationFactor::None) {
 			real_function_3d v_total = hf->get_nuclear_potential()
@@ -1337,7 +1407,7 @@ namespace madness {
 						hf->nemo_calc.nuclear_correlation->U1(axis % 3);
 				//                    real_function_6d x=multiply(copy(Drhs),copy(U1_axis),axis/3+1).truncate();
 
-				double tight_thresh = std::min(thresh(), 1.e-4);
+				double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);
 				real_function_6d x;
 				if (axis / 3 + 1 == 1) {
 					x =CompositeFactory<double, 6, 3>(world).ket(Drhs)
@@ -1350,7 +1420,7 @@ namespace madness {
 							.thresh(tight_thresh);
 				}
 				x.fill_tree(op_mod);
-				x.set_thresh(thresh());
+				x.set_thresh(FunctionDefaults<6>::get_thresh());
 				vphi += x;
 				vphi.truncate().reduce_rank();
 
@@ -1358,11 +1428,14 @@ namespace madness {
 			vphi.print_size("(U_nuc + J) |ket>:  made V tree");
 			asymmetry(vphi, "U+J");
 		}
+        END_TIMER(world, "apply (U + J) |ket>");
 
 		// and the exchange
+        START_TIMER(world);
 		vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
 		asymmetry(vphi, "U+J-K");
 		vphi.print_size("(U_nuc + J - K) |ket>:  made V tree");
+        END_TIMER(world, "apply K |ket>");
 
 		return vphi;
 	}
@@ -1370,7 +1443,8 @@ namespace madness {
     /// add the coupling terms for local MP2
 
     /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-	std::map<std::pair<int,int>,real_function_6d> MP2::add_local_coupling() const {
+	void MP2::add_local_coupling(const Pairs<ElectronPair>& pairs,
+            Pairs<real_function_6d>& coupling) const {
 
     	if (world.rank()==0) print("adding local coupling");
 
@@ -1380,9 +1454,9 @@ namespace madness {
 		for (int k = param.freeze; k < hf->nocc(); ++k) {
 			for (int l = param.freeze; l < hf->nocc(); ++l) {
 				if (l>=k) {
-					quadratic[std::make_pair(k,l)]=pair(k,l).function;
+					quadratic[std::make_pair(k,l)]=pairs(k,l).function;
 				} else {
-					quadratic[std::make_pair(k,l)]=swap_particles(pair(l,k).function);
+					quadratic[std::make_pair(k,l)]=swap_particles(pairs(l,k).function);
 				}
 			}
 		}
@@ -1398,38 +1472,36 @@ namespace madness {
             fock1(k, k) =0.0;
         }
 
-        // prepare the result vector
-        pairsT result;
-        for (pairsT::iterator it=result.begin(); it!=result.end(); ++it) {
-        	it->second=real_factory_6d(world);
-        	it->second.compress(false);
+        for (int i=param.freeze; i<hf->nocc(); ++i) {
+            for (int j=i; j<hf->nocc(); ++j) {
+                coupling(i,j)=real_factory_6d(world).compressed();
+            }
         }
-        world.gop.fence();
 
         for (int i=param.freeze; i<hf->nocc(); ++i) {
             for (int j=i; j<hf->nocc(); ++j) {
                 for (int k=param.freeze; k<hf->nocc(); ++k) {
                 	if (fock1(k,i) != 0.0) {
-                		result[std::make_pair(i,j)].gaxpy(1.0,quadratic[std::make_pair(k,j)],fock1(k,i),false);
+                	    coupling(i,j).gaxpy(1.0,quadratic[std::make_pair(k,j)],fock1(k,i),false);
                 	}
                 }
 
                 for (int l=param.freeze; l<hf->nocc(); ++l) {
                 	if (fock1(l,j) != 0.0) {
-                		result[std::make_pair(i,j)].gaxpy(1.0,quadratic[std::make_pair(i,l)],fock1(l,j),false);
+                	    coupling(i,j).gaxpy(1.0,quadratic[std::make_pair(i,l)],fock1(l,j),true);
                 	}
                 }
-
+                world.gop.fence();
+                coupling(i,j).truncate();
             }
         }
         world.gop.fence();
 
-        // post-processing
-        for (pairsT::iterator it=result.begin(); it!=result.end(); ++it) {
-        	it->second.truncate();
-        }
-
-        return result;
+//        for (int i=param.freeze; i<hf->nocc(); ++i) {
+//            for (int j=i; j<hf->nocc(); ++j) {
+//                coupling(i,j).truncate();
+//            }
+//        }
 
     }
 

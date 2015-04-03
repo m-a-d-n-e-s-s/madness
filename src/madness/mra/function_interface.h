@@ -58,68 +58,69 @@ namespace madness {
 	class FunctionFunctorInterface {
 	public:
 
-		typedef GenTensor<T> coeffT;
-		typedef Key<NDIM> keyT;
+	    typedef GenTensor<T> coeffT;
+	    typedef Key<NDIM> keyT;
+	    typedef T value_type;
 
-                /// Can we screen this function based on the bounding box information?
-                virtual bool screened(const Vector<double,NDIM>& c1, const Vector<double,NDIM>& c2) const {
-                  return false;
-                }
-             
-                /// Does the interface support a vectorized operator()?
-                virtual bool supports_vectorized() const {return false;}
+	    /// Can we screen this function based on the bounding box information?
+	    virtual bool screened(const Vector<double,NDIM>& c1, const Vector<double,NDIM>& c2) const {
+	        return false;
+	    }
 
-                virtual void operator()(const Vector<double*,1>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    /// Does the interface support a vectorized operator()?
+	    virtual bool supports_vectorized() const {return false;}
 
-                virtual void operator()(const Vector<double*,2>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    virtual void operator()(const Vector<double*,1>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-                virtual void operator()(const Vector<double*,3>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    virtual void operator()(const Vector<double*,2>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-                virtual void operator()(const Vector<double*,4>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    virtual void operator()(const Vector<double*,3>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-                virtual void operator()(const Vector<double*,5>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    virtual void operator()(const Vector<double*,4>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-                virtual void operator()(const Vector<double*,6>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    virtual void operator()(const Vector<double*,5>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-		/// You should implement this to return \c f(x)
-		virtual T operator()(const Vector<double, NDIM>& x) const = 0;
+	    virtual void operator()(const Vector<double*,6>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-		/// Override this to return list of special points to be refined more deeply
-		virtual std::vector< Vector<double,NDIM> > special_points() const {
-			return std::vector< Vector<double,NDIM> >();
-		}
+	    /// You should implement this to return \c f(x)
+	    virtual T operator()(const Vector<double, NDIM>& x) const = 0;
 
-		/// Override this change level refinement for special points (default is 6)
-		virtual Level special_level() {return 6;}
+	    /// Override this to return list of special points to be refined more deeply
+	    virtual std::vector< Vector<double,NDIM> > special_points() const {
+	        return std::vector< Vector<double,NDIM> >();
+	    }
 
-		virtual ~FunctionFunctorInterface() {}
+	    /// Override this change level refinement for special points (default is 6)
+	    virtual Level special_level() {return 6;}
 
-		virtual coeffT coeff(const keyT&) const {
-			MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
-			return coeffT();
-		}
+	    virtual ~FunctionFunctorInterface() {}
 
-        virtual coeffT values(const keyT& key, const Tensor<double>& tensor) const {
-            MADNESS_EXCEPTION("implement values for FunctionFunctorInterface",0);
-            return coeffT();
-        }
+	    virtual coeffT coeff(const keyT&) const {
+	        MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
+	        return coeffT();
+	    }
 
-		/// does this functor directly provide sum coefficients? or only function values?
-		virtual bool provides_coeff() const {
-			return false;
-		}
+	    virtual coeffT values(const keyT& key, const Tensor<double>& tensor) const {
+	        MADNESS_EXCEPTION("implement values for FunctionFunctorInterface",0);
+	        return coeffT();
+	    }
+
+	    /// does this functor directly provide sum coefficients? or only function values?
+	    virtual bool provides_coeff() const {
+	        return false;
+	    }
 
 	};
 

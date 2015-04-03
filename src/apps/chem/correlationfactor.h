@@ -107,6 +107,9 @@ public:
 		: world(world), vtol(FunctionDefaults<3>::get_thresh()*0.1)
 		, molecule(mol) {}
 
+	/// virtual destructor
+	virtual ~NuclearCorrelationFactor() {};
+
 	/// initialize the regularized potentials U1 and U2
 	void initialize() {
 
@@ -169,6 +172,26 @@ public:
 		return R2;
 	}
 
+    /// return the square of the nuclear correlation factor multiplied with
+	/// the nuclear potential for the specified atom
+
+	/// @return R^2 * Z_A/r_{1A}
+    virtual real_function_3d square_times_V(const Atom& atom) const {
+        real_function_3d R2=real_factory_3d(world).thresh(vtol)
+                .functor2(square_times_V_functor(this,atom)).truncate_on_project();
+        return R2;
+    }
+
+    /// return the square of the nuclear correlation factor multiplied with
+    /// the derivative of the nuclear potential for the specified atom
+
+    /// @return R^2 * \frac{\partial Z_A/r_{1A}}{\partial X_A}
+    virtual real_function_3d square_times_V_derivative(const int iatom, const int axis) const {
+        real_function_3d R2=real_factory_3d(world).thresh(vtol)
+                .functor2(square_times_V_derivative_functor(this,molecule,iatom,axis)).truncate_on_project();
+        return R2;
+    }
+
 	/// return the inverse nuclear correlation factor
 	virtual real_function_3d inverse() const {
 		real_function_3d R_inverse=real_factory_3d(world).thresh(vtol)
@@ -223,6 +246,8 @@ private:
 	/// @return 	the Laplacian of the nuclear correlation factor divided
 	///				by the correlation factor minus the nuclear potential
 	virtual double Spp_div_S(const double& r, const double& Z) const = 0;
+
+public:
 
 	class R_functor : public FunctionFunctorInterface<double,3> {
 		const NuclearCorrelationFactor* ncf;
@@ -325,6 +350,58 @@ private:
 			return ncf->molecule.get_all_coords_vec();
 		}
 	};
+
+    class square_times_V_functor : public FunctionFunctorInterface<double,3> {
+        const NuclearCorrelationFactor* ncf;
+        const Atom& thisatom;
+    public:
+        square_times_V_functor(const NuclearCorrelationFactor* ncf,
+                const Atom& atom1) : ncf(ncf), thisatom(atom1) {}
+        double operator()(const coord_3d& xyz) const {
+            double result=1.0;
+            for (int i=0; i<ncf->molecule.natom(); ++i) {
+                const Atom& atom=ncf->molecule.get_atom(i);
+                const coord_3d vr1A=xyz-atom.get_coords();
+                const double r=vr1A.normf();
+                result*=ncf->S(r,atom.q);
+            }
+            const coord_3d vr1A=xyz-thisatom.get_coords();
+            const double V=thisatom.atomic_number/(vr1A.normf()+1.e-6);
+            return result*result*V;
+
+        }
+        std::vector<coord_3d> special_points() const {
+            return ncf->molecule.get_all_coords_vec();
+        }
+    };
+
+
+    class square_times_V_derivative_functor : public FunctionFunctorInterface<double,3> {
+        const NuclearCorrelationFactor* ncf;
+        const Molecule& molecule;
+        const int iatom;
+        const int axis;
+    public:
+        square_times_V_derivative_functor(const NuclearCorrelationFactor* ncf,
+                const Molecule& molecule1, const int atom1, const int axis1)
+            : ncf(ncf), molecule(molecule1), iatom(atom1), axis(axis1) {}
+        double operator()(const coord_3d& xyz) const {
+            double result=1.0;
+            for (int i=0; i<ncf->molecule.natom(); ++i) {
+                const Atom& atom=ncf->molecule.get_atom(i);
+                const coord_3d vr1A=xyz-atom.get_coords();
+                const double r=vr1A.normf();
+                result*=ncf->S(r,atom.q);
+            }
+            const double Vprime=molecule.nuclear_attraction_potential_derivative(
+                    iatom, axis, xyz[0], xyz[1], xyz[2]);
+            return result*result*Vprime;
+
+        }
+        std::vector<coord_3d> special_points() const {
+            return ncf->molecule.get_all_coords_vec();
+        }
+    };
 
 };
 

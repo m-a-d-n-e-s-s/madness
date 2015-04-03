@@ -38,11 +38,12 @@
 /// \ingroup threads
 
 #include <madness/world/dqueue.h>
+#include <madness/world/enable_if.h>
+#include <madness/world/function_traits.h>
 #include <vector>
 #include <cstddef>
 #include <cstdio>
 #include <pthread.h>
-#include <madness/world/typestuff.h>
 #include <typeinfo>
 #include <new>
 

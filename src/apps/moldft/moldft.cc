@@ -36,8 +36,19 @@
 /// \brief Molecular HF and DFT code
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
-
 #include <chem/SCF.h>
+
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+static inline int file_exists(const char * inpname)
+{
+    struct stat buffer;
+    int rc = stat(inpname, &buffer);
+    return (rc==0);
+}
+#endif
 
 using namespace madness;
 
@@ -74,7 +85,10 @@ START_TIMER(world);
                 break;
             }
         }
-        if (world.rank() == 0) print(inpname);
+        if (world.rank() == 0) print("input filename: ", inpname);
+        if (!file_exists(inpname)) {
+            throw "input file not found!";
+        }
         SCF calc(world, inpname);
 
         // Warm and fuzzy for the user
@@ -126,8 +140,15 @@ END_TIMER(world, "initialize");
         else {
           MolecularEnergy E(world, calc);
           E.value(calc.molecule.get_all_coords().flat()); // ugh!
-          if (calc.param.derivatives) calc.derivatives(world);
-          if (calc.param.dipole) calc.dipole(world);
+
+          functionT rho = calc.make_density(world, calc.aocc, calc.amo);
+          functionT brho = rho;
+          if (!calc.param.spin_restricted)
+              brho = calc.make_density(world, calc.bocc, calc.bmo);
+          rho.gaxpy(1.0, brho, 1.0);
+
+          if (calc.param.derivatives) calc.derivatives(world,rho);
+          if (calc.param.dipole) calc.dipole(world,rho);
         }
 
         //        if (calc.param.twoint) {
