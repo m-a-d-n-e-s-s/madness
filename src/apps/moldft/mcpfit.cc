@@ -903,8 +903,6 @@ struct CoreFittingTarget : public OptimizationTargetInterface {
 class MySteepestDescent : public OptimizerInterface {
     std::shared_ptr<OptimizationTargetInterface> target;
     const double tol;
-    const double value_precision;  // Numerical precision of value
-    const double gradient_precision; // Numerical precision of each element of residual
     double f;
     double gnorm;
 
@@ -915,8 +913,6 @@ class MySteepestDescent : public OptimizerInterface {
             double gradient_precision = 1e-12)
         : target(target)
           , tol(tol)
-          , value_precision(value_precision)
-          , gradient_precision(gradient_precision)
           , gnorm(tol*1e16)
     {
         if (!target->provides_gradient()) throw "Steepest descent requires the gradient";

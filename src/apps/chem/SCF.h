@@ -852,7 +852,7 @@ public:
 
     /// compute the total dipole moment of the molecule
 
-    /// @param[in]  the total (alpha + beta) density
+    /// @param[in]  rho the total (alpha + beta) density
     /// @return     the x,y,z components of the el. + nucl. dipole moment
     tensorT dipole(World & world, const functionT& rho) const;
 

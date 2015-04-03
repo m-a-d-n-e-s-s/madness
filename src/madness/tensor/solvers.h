@@ -218,8 +218,6 @@ namespace madness {
     class SteepestDescent : public OptimizerInterface {
         std::shared_ptr<OptimizationTargetInterface> target;
         const double tol;
-        const double value_precision;  // Numerical precision of value
-        const double gradient_precision; // Numerical precision of each element of residual
         double f;
         double gnorm;
 

@@ -70,8 +70,6 @@ namespace madness {
                                      double gradient_precision)
         : target(tar)
         , tol(tol)
-        , value_precision(value_precision)
-        , gradient_precision(gradient_precision)
         , f(tol*1e16)
         , gnorm(tol*1e16)
     {
