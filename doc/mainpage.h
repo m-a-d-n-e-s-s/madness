@@ -1,7 +1,7 @@
 /// \file mainpage.h
 /// \brief MADNESS 
 
-// \defgroup configuration MADNESS installation and configuration
+/// \defgroup configuration MADNESS installation and configuration
 
 // \defgroup libraries MADNESS libraries
 
