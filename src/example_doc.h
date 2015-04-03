@@ -116,8 +116,3 @@ int example_func(int a);
 
 /* Closing group membership */
 // @}
-
-
-
-
-  
