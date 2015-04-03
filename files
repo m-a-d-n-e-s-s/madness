@@ -1,9 +1,3 @@
-./doc/Latex:
-api.tex
-gettingstarted.tex
-implementation.tex
-parallel-runtime.tex
-
 ./src:
 example_doc.cc
 example_doc.h
