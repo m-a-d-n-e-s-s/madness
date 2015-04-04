@@ -39,5 +39,5 @@
 
   \todo Write this section.
 
-  In the mean time, instructions on installing and configuring MADNESS can be found in the wiki at <a href="https://github.com/m-a-d-n-e-s-s/madness">the MADNESS repository</a>.
+  In the mean time, instructions on installing and configuring MADNESS can be found in the wiki at <a href="\website">the MADNESS repository</a>.
  */
