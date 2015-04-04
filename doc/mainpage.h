@@ -82,7 +82,7 @@
 //    \defgroup misc Miscellany
 //    \ingroup libraries
 
-// \defgroup applications MADNESS applications
+/// \defgroup applications MADNESS applications
 
 //    \defgroup examples Examples 
 //    \ingroup applications

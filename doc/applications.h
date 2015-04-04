@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2014 Virgina Tech
+  Copyright (C) 2015 Stony Brook University
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -28,17 +28,15 @@
   tel:   865-241-3937
   fax:   865-572-0680
 
+
+  $Id$
 */
 
 /**
- \file madness.h
- \brief General header file for using MADNESS.
- \ingroup applications
+ \file applications.h
+ \brief General information about MADNESS applications.
+ \addtogroup applications
+
+\todo Write this section. Perhaps include the sample code (include MADNESS, etc.) and how to compile it.
+
  */
-
-#ifndef MADNESS_H__INCLUDED
-#define MADNESS_H__INCLUDED
-
-#include <madness/mra/mra.h>
-
-#endif // MADNESS_H__INCLUDED
