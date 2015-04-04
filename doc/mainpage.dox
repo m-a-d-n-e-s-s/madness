@@ -1,4 +1,4 @@
-/// \file mainpage.h
+/// \file mainpage.dox
 /// \brief MADNESS 
 
 /// \defgroup configuration MADNESS installation and configuration
@@ -8,7 +8,7 @@
 ///    \defgroup style MADNESS coding style
 ///    \ingroup contribution
 
-// \defgroup libraries MADNESS libraries
+/// \defgroup libraries MADNESS libraries
 
 //    \defgroup parallel_runtime Parallel programming environment
 //    \ingroup libraries
@@ -82,7 +82,7 @@
 //    \defgroup misc Miscellany
 //    \ingroup libraries
 
-// \defgroup applications MADNESS applications
+/// \defgroup applications MADNESS applications
 
 //    \defgroup examples Examples 
 //    \ingroup applications

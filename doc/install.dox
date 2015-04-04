@@ -33,9 +33,11 @@
 */
 
 /**
-  \file contribute.h
-  \brief Notes on how to contribute to MADNESS.
-  \addtogroup contribution
+  \file install.dox
+  \brief Notes on installing and configuring MADNESS.
+  \addtogroup configuration
 
   \todo Write this section.
+
+  In the mean time, instructions on installing and configuring MADNESS can be found in the wiki at <a href="\website">the MADNESS repository</a>.
  */
