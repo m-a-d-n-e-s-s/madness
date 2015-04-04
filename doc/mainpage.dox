@@ -10,11 +10,11 @@
 
 /// \defgroup libraries MADNESS libraries
 
-//    \defgroup parallel_runtime Parallel programming environment
-//    \ingroup libraries
+///    \defgroup parallel_runtime Parallel programming environment
+///    \ingroup libraries
 
-//       \defgroup world Distributed computing environment (World and its relations)
-//       \ingroup parallel_runtime
+///       \defgroup world Distributed computing environment (World and its relations)
+///       \ingroup parallel_runtime
 
 //       \defgroup rmi Remote method invocation
 //       \ingroup parallel_runtime
