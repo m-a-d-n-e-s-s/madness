@@ -3,6 +3,11 @@
 
 /// \defgroup configuration MADNESS installation and configuration
 
+/// \defgroup contribution Contributing to MADNESS
+
+///    \defgroup style MADNESS coding style
+///    \ingroup contribution
+
 // \defgroup libraries MADNESS libraries
 
 //    \defgroup parallel_runtime Parallel programming environment

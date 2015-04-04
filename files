@@ -1,6 +1,4 @@
 ./src:
-example_doc.cc
-example_doc.h
 madness.h
 
 ./src/apps/chem:
