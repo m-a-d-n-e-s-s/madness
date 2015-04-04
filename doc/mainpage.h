@@ -1,106 +1,112 @@
-///  \file mainpage.h
-///  \brief MADNESS 
+/// \file mainpage.h
+/// \brief MADNESS 
 
-///  \defgroup configuration MADNESS installation and configuration
-///  \defgroup libraries MADNESS libraries
+/// \defgroup configuration MADNESS installation and configuration
 
-///          \defgroup parallel_runtime Parallel programming environment
-///          \ingroup libraries
+/// \defgroup contribution Contributing to MADNESS
 
-///                  \defgroup world Distributed computing environment (World and its relations)
-///                  \ingroup parallel_runtime
+///    \defgroup style MADNESS coding style
+///    \ingroup contribution
 
-///                          \defgroup rmi Remote method invocation
-///                          \ingroup parallel_runtime
+// \defgroup libraries MADNESS libraries
 
-///                          \defgroup mpi Interfaces from World to MPI
-///                          \ingroup parallel_runtime
+//    \defgroup parallel_runtime Parallel programming environment
+//    \ingroup libraries
 
-///                          \defgroup worldobj Globally addressable objects (WorldObject)
-///                          \ingroup parallel_runtime
+//       \defgroup world Distributed computing environment (World and its relations)
+//       \ingroup parallel_runtime
 
-///                          \defgroup worlddc Distributed containers (WorldContainer)
-///                          \ingroup parallel_runtime
+//       \defgroup rmi Remote method invocation
+//       \ingroup parallel_runtime
 
-///                          \defgroup futures Futures
-///                          \ingroup parallel_runtime
+//       \defgroup mpi Interfaces from World to MPI
+//       \ingroup parallel_runtime
 
-///                          \defgroup serialization Serialization
-///                          \ingroup parallel_runtime
+//       \defgroup worldobj Globally addressable objects (WorldObject)
+//       \ingroup parallel_runtime
 
-///                          \defgroup hashing Hashing
-///                          \ingroup parallel_runtime
+//       \defgroup worlddc Distributed containers (WorldContainer)
+//       \ingroup parallel_runtime
 
-///                          \defgroup threading Multi-threading 
-///                          \ingroup parallel_runtime
+//       \defgroup futures Futures
+//       \ingroup parallel_runtime
 
-///                                  \defgroup mutexes Mutexes
-///                                  \ingroup threading
+//       \defgroup serialization Serialization
+//       \ingroup parallel_runtime
 
-///                                  \defgroup atomics Atomic operations
-///                                  \ingroup threading
+//       \defgroup hashing Hashing
+//       \ingroup parallel_runtime
 
-///                                  \defgroup threads Threads
-///                                  \ingroup threading
+//       \defgroup threading Multi-threading 
+//       \ingroup parallel_runtime
 
-///                                  \defgroup threadpool Thread pool
-///                                  \ingroup threading
+//          \defgroup mutexes Mutexes
+//          \ingroup threading
 
-///                                  \defgroup taskq Task queue
-///                                  \ingroup threading
+//          \defgroup atomics Atomic operations
+//          \ingroup threading
 
-///                                  \defgroup conhash Concurrent hash table
-///                                  \ingroup threading
+//          \defgroup threads Threads
+//          \ingroup threading
 
-///         \defgroup mra Multiresolution analaysis
-///         \ingroup libraries
+//          \defgroup threadpool Thread pool
+//          \ingroup threading
 
-///                 \defgroup funcplot Function plotting routines
-///                 \ingroup mra
+//          \defgroup taskq Task queue
+//          \ingroup threading
 
-///                 \defgroup mrabcext Exterior boundary conditions
-///                 \ingroup mra
+//          \defgroup conhash Concurrent hash table
+//          \ingroup threading
 
-///                 \defgroup mrabcint Preliminary support for interior boundary conditions
-///                 \ingroup mra
+//    \defgroup mra Multiresolution analaysis
+//    \ingroup libraries
 
-///         \defgroup tensor Tensors or multidimension arrays
-///         \ingroup libraries
+//       \defgroup funcplot Function plotting routines
+//       \ingroup mra
 
-///         \defgroup linalg Linear algebra (interface to LAPACK)
-///         \ingroup libraries
+//       \defgroup mrabcext Exterior boundary conditions
+//       \ingroup mra
 
-///         \defgroup solvers Iterative solvers for linear/non-linear equations and optimizers
-///         \ingroup libraries
+//       \defgroup mrabcint Preliminary support for interior boundary conditions
+//       \ingroup mra
 
-///         \defgroup misc Miscellany
-///         \ingroup libraries
+//    \defgroup tensor Tensors or multidimension arrays
+//    \ingroup libraries
 
-/// \defgroup applications MADNESS applications
+//    \defgroup linalg Linear algebra (interface to LAPACK)
+//    \ingroup libraries
 
-///          \defgroup examples Examples 
-///          \ingroup applications
+//    \defgroup solvers Iterative solvers for linear/non-linear equations and optimizers
+//    \ingroup libraries
 
-/*!
+//    \defgroup misc Miscellany
+//    \ingroup libraries
+
+// \defgroup applications MADNESS applications
+
+//    \defgroup examples Examples 
+//    \ingroup applications
+
+/**
 
 \mainpage
 
 These pages serve as the main programmer's reference manual for MADNESS and 
 were automatically generated from the source using Doxygen.
 
-A good place to start is the <a href="modules.html">modules page</a>
-that provides access to documentation for libraries, examples, and 
-applications.  The examples are intended to meet the needs of those 
+A good place to start is the <a href="modules.html">modules page</a>,
+which provides access to documentation for libraries, examples, and 
+applications. The examples are intended to meet the needs of those 
 starting to develop new applications.
 
-Additional technical documentation can be found in the MADNESS \c doc directory
-  - The getting started guide introduces use of the numerical functionality
+Additional technical documentation can be found in the MADNESS \c doc directory.
+  - The getting started guide introduces use of the numerical functionality.
   - The implementation notes document the internal numerical workings 
     as a resource for both users and MADNESS developers.
   - The parallel runtime and API documents document the operation and 
     interface for the parallel programming environment.
 
-The <a href="https://github.com/m-a-d-n-e-s-s/madness">project home</a>
+The <a href="\website">project home</a>
 contains information on configuring, building, etc.
 
 \section status Status and supported platforms
@@ -167,6 +173,5 @@ Our deep gratitude to these other projects whose software we employ
   tel:   865-241-3937
   fax:   865-572-0680
 \endverbatim
-
 
 */
