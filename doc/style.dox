@@ -33,7 +33,7 @@
 */
 
 /**
- \file style.h
+ \file style.dox
  \brief Coding style guidelines for MADNESS.
  \addtogroup style
 

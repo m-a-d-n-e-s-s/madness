@@ -33,7 +33,7 @@
 */
 
 /**
- \file applications.h
+ \file applications.dox
  \brief General information about MADNESS applications.
  \addtogroup applications
 

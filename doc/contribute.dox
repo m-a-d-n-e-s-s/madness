@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+  Copyright (C) 2015 Stony Brook University
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -33,11 +33,9 @@
 */
 
 /**
-  \file install.h
-  \brief Notes on installing and configuring MADNESS.
-  \addtogroup configuration
+  \file contribute.dox
+  \brief Notes on how to contribute to MADNESS.
+  \addtogroup contribution
 
   \todo Write this section.
-
-  In the mean time, instructions on installing and configuring MADNESS can be found in the wiki at <a href="\website">the MADNESS repository</a>.
  */
