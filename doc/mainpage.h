@@ -101,7 +101,7 @@ Additional technical documentation can be found in the MADNESS \c doc directory.
   - The parallel runtime and API documents document the operation and 
     interface for the parallel programming environment.
 
-The <a href="https://github.com/m-a-d-n-e-s-s/madness">project home</a>
+The <a href="\website">project home</a>
 contains information on configuring, building, etc.
 
 \section status Status and supported platforms
