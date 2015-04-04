@@ -470,7 +470,6 @@ worlddc.h
 worlddep.h
 worldexc.h
 worldfut.h
-worldfwd.h
 worldgop.cc
 worldgop.h
 worldhash.h
