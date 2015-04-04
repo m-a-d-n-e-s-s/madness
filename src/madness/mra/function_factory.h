@@ -31,6 +31,17 @@
   $Id$
 */
 
+/// \file function_factory.h
+/// Holds machinery to set up Functions/FuncImpls using various Factories and Interfaces
+
+/// We provide an abstract base class FunctionFunctorInterface, of which we derive
+/// (as of now) the following classes:
+///  - ElementaryInterface (formerly FunctorInterfaceWrapper) to wrap elementary functions
+///  - ElectronRepulsionInterface to provide 1/r12, which is not elementarily accessible
+///  - CompositeFunctionInterface to provide on-demand coefficients of pair functions
+///
+/// Each of these Interfaces can be used in a FunctionFactory to set up a Function
+
 
 #ifndef MADNESS_MRA_FUNCTION_FACTORY_H__INCLUDED
 #define MADNESS_MRA_FUNCTION_FACTORY_H__INCLUDED
@@ -41,15 +52,6 @@
 #include <madness/mra/function_interface.h>
 
 
-/// Holds machinery to set up Functions/FuncImpls using various Factories and Interfaces
-
-/// We provide an abstract base class FunctionFunctorInterface, of which we derive
-/// (as of now) the following classes:
-///  - ElementaryInterface (formerly FunctorInterfaceWrapper) to wrap elementary functions
-///  - ElectronRepulsionInterface to provide 1/r12, which is not elementarily accessible
-///  - CompositeFunctionInterface to provide on-demand coefficients of pair functions
-///
-/// Each of these Interfaces can be used in a FunctionFactory to set up a Function
 namespace madness {
     
     // needed for the CompositeFactory
