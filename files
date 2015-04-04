@@ -463,12 +463,10 @@ typestuff.h
 uniqueid.h
 vecar.h
 world.cc
-world.h
 worldam.cc
 worldam.h
 worlddc.h
 worlddep.h
-worldexc.h
 worldfut.h
 worldgop.cc
 worldgop.h

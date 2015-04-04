@@ -32,6 +32,15 @@
   $Id$
 */
 
+/**
+ \file world.cc
+ \brief Static variables/functions for the parallel runtime.
+ \ingroup world
+
+ Implementations for various function related to the parallel runtime and also
+ the \c World class. Most of these functions are declared in `worldfwd.h`.
+*/
+
 #include <madness/world/worldfwd.h>
 #include <madness/world/worldmem.h>
 #include <madness/world/worldtime.h>
@@ -40,9 +49,6 @@
 #include <madness/world/worldgop.h>
 #include <cstdlib>
 #include <sstream>
-
-/// \file worldstuff.cc
-/// \brief Static variables/functions that must be linked in
 
 #ifdef MADNESS_HAS_ELEMENTAL
 #include <elemental.hpp>
@@ -57,15 +63,15 @@ namespace madness {
 
     // File scope variables
     namespace {
-        double start_cpu_time;
-        double start_wall_time;
-        bool madness_initialized_ = false;
+        double start_cpu_time; ///< \todo Documentation needed.
+        double start_wall_time; ///< \todo Documentation needed.
+        bool madness_initialized_ = false;  ///< Tracks if MADNESS has been initialized.
     } // namespace
 
     // World static member variables
-    std::list<World*> World::worlds;
-    World* World::default_world = NULL;
-    unsigned long World::idbase = 0;
+    std::list<World*> World::worlds; ///< List of \c World pointers in the parallel runtime.
+    World* World::default_world = NULL; ///< The default \c World.
+    unsigned long World::idbase = 0; ///< \todo Verify: Base unique ID for objects in the runtime.
 
     bool initialized() {
       return madness_initialized_;
@@ -227,7 +233,7 @@ namespace madness {
         madness_initialized_ = false;
     }
 
-    // Enables easy printing of MadnessExceptions
+
     std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
         out << "MadnessException : ";
         if (e.msg) out << "msg=" << e.msg << " : ";

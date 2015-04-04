@@ -32,11 +32,12 @@
   $Id$
 */
 
-/*!
-  \file world.h
-  \brief This header should include pretty much everything needed for the parallel runtime
-  \addtogroup parallel_runtime
-  */
+/**
+ \file world.h
+ \brief This header should include pretty much everything needed for the
+     parallel runtime.
+ \ingroup parallel_runtime
+*/
 
 #ifndef MADNESS_WORLD_WORLD_H__INCLUDED
 #define MADNESS_WORLD_WORLD_H__INCLUDED
@@ -47,7 +48,6 @@
 #include <madness/world/worldtask.h>
 #include <madness/world/worldgop.h>
 #include <madness/world/worlddc.h>
-
 
 
 #endif // MADNESS_WORLD_WORLD_H__INCLUDED
