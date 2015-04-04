@@ -8,7 +8,7 @@
 ///    \defgroup style MADNESS coding style
 ///    \ingroup contribution
 
-// \defgroup libraries MADNESS libraries
+/// \defgroup libraries MADNESS libraries
 
 //    \defgroup parallel_runtime Parallel programming environment
 //    \ingroup libraries

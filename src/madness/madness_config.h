@@ -29,6 +29,13 @@
   fax:   865-572-0680
 
 */
+
+/**
+ \file madness_config.h
+ \brief Macros and tools pertaining to the configuration of MADNESS.
+ \ingroup libraries
+ */
+
 #ifndef MADNESS_MADNESS_CONFIG_H__INCLUDED
 #define MADNESS_MADNESS_CONFIG_H__INCLUDED
 

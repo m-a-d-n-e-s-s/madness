@@ -233,12 +233,6 @@ mra-driver.cc
 mra-driver.hh
 mra.cc
 
-./src/madness:
-constants.h
-fortran_ctypes.h
-mad_types.h
-madness_config.h
-
 ./src/madness/misc:
 cfft.cc
 cfft.h
