@@ -34,7 +34,7 @@
 
 /**
  \file worldfwd.h
- \brief Declares the World class for the parallel runtime environment.
+ \brief Declares the \c World class for the parallel runtime environment.
  \ingroup world
 
  \todo More detailed description of this file.

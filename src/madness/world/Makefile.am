@@ -113,7 +113,8 @@ test_worldref_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 
 endif
 
-libMADworld_a_SOURCES = madexception.cc world.cc redirectio.cc archive_type_names.cc \
+libMADworld_a_SOURCES = madexception.cc worldfwd.cc world.cc redirectio.cc \
+	archive_type_names.cc \
 	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
 	worldgop.cc deferred_cleanup.cc worldmutex.cc binfsar.cc textfsar.cc \
