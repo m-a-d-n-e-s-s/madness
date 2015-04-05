@@ -32,10 +32,11 @@
   $Id$
 */
 
-/// \file world/worldobj.h
-/// \brief Defines and implements WorldObject
-/// \addtogroup worldobj
-///@{
+/**
+ \file worldobj.h
+ \brief Defines and implements WorldObject
+ \ingroup worldobj
+*/
 
 #ifndef MADNESS_WORLD_WORLDOBJ_H__INCLUDED
 #define MADNESS_WORLD_WORLDOBJ_H__INCLUDED
@@ -43,17 +44,20 @@
 #include <madness/world/worldthread.h>
 #include <madness/world/worldtask.h>
 
+/// \addtogroup worldobj
+/// @{
+
 namespace madness {
 
     template <typename> class WorldObject;
 
     namespace detail {
 
-        // Common base class for pending messages to ensure in-order processing
+        /// Common base class for pending messages to ensure in-order processing.
 
-        // To eliminate synchronization when a distributed object is first
-        // constructed, we buffer pending messages for containers that
-        // don't have their id yet registered.
+        /// To eliminate synchronization when a distributed object is first
+        /// constructed, we buffer pending messages for containers that
+        /// don't have their ID yet registered.
         struct PendingMsg {
             uniqueidT id;
             am_handlerT handler;
@@ -68,61 +72,100 @@ namespace madness {
             }
         };
 
-        // It is annoying that we must replicate the task forwarding stuff here but we must
-        // so that pending messages creating tasks are correctly handled.  Cannot merge
-        // easily with send handlers since task layer is more restrictive on the
-        // copy capability of arguments.
+        /// \todo Brief description needed.
 
-        // It is also annoying that info needs to be broken into two parts so
-        // that it id and ref are properly serialized. We need to have id
-        // correctly aligned via opaque_wrap, but ref cannot be serialized that
-        // way. Thus we break the class into two parts.
-
-        // Info stored for AM method forwarding
+        /// We cannot use the normal task forwarding stuff here because pending
+        /// messages can creating tasks are must be correctly handled. The
+        /// following code does not easily merge with the send handlers since
+        /// the task layer is more restrictive on the copy capability of
+        /// arguments.
+        ///
+        /// It is also annoying that info needs to be broken into two parts so
+        /// that it \c id and \c ref are properly serialized. We need to have
+        /// \c id correctly aligned via \c opaque_wrap, but \c ref cannot be
+        /// serialized that way. Thus we break the class into two parts.
+        ///
+        /// Info stored for AM method forwarding.
+        /// \tparam memfunT Description needed.
+        /// \todo Verify & complete; what is AM?
         template <typename memfunT>
         struct info_base {
-            uniqueidT id; // Must be at front ... see peek.
-            ProcessID requestor;
-            memfunT memfun;
-            TaskAttributes attr;
+            // id must be at front ... see peek.
+            uniqueidT id; ///< \todo Description needed. Context with the "see peek" comment above?
+            ProcessID requestor; ///< \todo Description needed.
+            memfunT memfun; ///< \todo Description needed.
+            TaskAttributes attr; ///< \todo Description needed.
 
         protected:
 
             info_base() {}
 
-            info_base(const uniqueidT& id, ProcessID requestor,  memfunT memfun,
+            /// \todo Constructor that [brief description needed].
+
+            /// \todo Descriptions needed.
+            /// \param[in] id Description needed.
+            /// \param[in] requestor Description needed.
+            /// \param[in] memfun Description needed.
+            /// \param[in] attr Description needed.
+            info_base(const uniqueidT& id, ProcessID requestor, memfunT memfun,
                  const TaskAttributes& attr=TaskAttributes())
                     : id(id)
                     , requestor(requestor)
                     , memfun(memfun)
                     , attr(attr) {}
 
+            /// Serializes a \c info_base for I/O.
 
+            /// \tparam Archive The type of I/O archive.
+            /// \param[in,out] ar The I/O archive.
             template <typename Archive>
             void serialize(const Archive& ar) {
                 ar & archive::wrap_opaque(*this); // Must be opaque ... see peek.
             }
         }; // struct info_base
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfunT Description needed.
         template <typename memfunT>
         struct info : public info_base<memfunT> {
+            /// Future for a return value of the memory function. \todo Verify.
             typedef Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > futureT;
+            /// \todo Description needed.
             typedef RemoteReference< FutureImpl< REMFUTURE(MEMFUN_RETURNT(memfunT)) > > refT;
-            refT ref;
+
+            refT ref; ///< \todo Description needed.
 
             info() : info_base<memfunT>() {}
 
+            /// \todo Constructor that [brief description needed].
+
+            /// \todo Descriptions needed.
+            /// \param[in] arg Description needed.
             info(const AmArg& arg) :
                 info_base<memfunT>()
             {
                 arg & *this;
             }
 
-            info(const uniqueidT& id, ProcessID requestor,  memfunT memfun, const refT& ref,
-                 const TaskAttributes& attr=TaskAttributes()) :
-                     info_base<memfunT>(id, requestor, memfun, attr), ref(ref)
+            /// \todo Constructor that [brief description needed].
+
+            /// \todo Descriptions needed.
+            /// \param[in] id Description needed.
+            /// \param[in] requestor Description needed.
+            /// \param[in] memfun Description needed.
+            /// \param[in] ref Description needed.
+            /// \param[in] attr Description needed.
+            info(const uniqueidT& id, ProcessID requestor, memfunT memfun,
+                 const refT& ref, const TaskAttributes& attr=TaskAttributes())
+                : info_base<memfunT>(id, requestor, memfun, attr), ref(ref)
             {}
 
+            /// Serializes a \c info for I/O.
+
+            /// \tparam Archive the type of I/O archive.
+            /// \param[in] ar The I/O archive.
             template <typename Archive>
             void serialize(const Archive& ar) {
                 info_base<memfunT>::serialize(ar);
@@ -130,19 +173,22 @@ namespace madness {
             }
         }; // struct info
 
-        // Extract the unique object ID from an incoming active message header
+        /// Extract the unique object ID from an incoming active message header.
 
-        // We deserialize the header and all arguments at the same
-        // time to simplify the code.  However, it is common that
-        // when sending a message to an item in a container to
-        // include a pointer to the container itself.  But this
-        // breaks if the container is not initialized since the
-        // deserialization throws if the object is not initialized
-        // (which seems preferable to hidden race condition).  Hence,
-        // we use this routine to extract the unique ID from the very
-        // front of the info structure.  For efficiency we here rely
-        // upon the serialization of info being opaque and the
-        // id being at the front of info.
+        /// We deserialize the header and all arguments at the same
+        /// time to simplify the code. However, it is common that
+        /// when sending a message to an item in a container to
+        /// include a pointer to the container itself. But this
+        /// breaks if the container is not initialized since the
+        /// deserialization throws if the object is not initialized
+        /// (which seems preferable to a hidden race condition). Hence,
+        /// we use this routine to extract the unique ID from the very
+        /// front of the \c info structure. For efficiency we here rely
+        /// upon the serialization of \c info being opaque and the
+        /// ID being at the front of \c info.
+        ///
+        /// \todo Verify parameter description.
+        /// \param[in] arg The active message header.
         static inline const uniqueidT& peek(const AmArg& arg) {
             return *((uniqueidT*)(arg.buf()));
         }

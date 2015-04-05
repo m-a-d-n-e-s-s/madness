@@ -22,8 +22,8 @@
 //       \defgroup mpi Interfaces from World to MPI
 //       \ingroup parallel_runtime
 
-//       \defgroup worldobj Globally addressable objects (WorldObject)
-//       \ingroup parallel_runtime
+///       \defgroup worldobj Globally addressable objects (WorldObject)
+///       \ingroup parallel_runtime
 
 //       \defgroup worlddc Distributed containers (WorldContainer)
 //       \ingroup parallel_runtime
