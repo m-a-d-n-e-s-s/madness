@@ -51,11 +51,9 @@ module or group, otherwise it acts as documentation for the file.
 Note that doxygen is really picky about placement and association of
 comments so you always have to check what was generated.
 
-Links to known classes (such as World), functions (such as
-example_func()), and files (such as madness.h) are made
+Links to known classes (such as \c madness::World), functions (such as
+\c madness::error()), and files (such as madness.h) are made
 automatically.
-
-\todo Need to find a better example class and function for the above examples.
 
 \par Subsection title
 
@@ -69,10 +67,11 @@ Here is an example header file that appropriately uses doxygen comment blocks.
 \code
 /// \file example_doc.h
 /// \brief Brief description of this file's contents.
+/// \ingroup example_group
 
 // Add your code to a group, if desired, using the \addtogroup command. See doc/mainpage.h for available groups.
 // The @{ and @} commands allow blocks of code to be added to the group.
-/// \addtogroup example_group
+/// \addtogroup possibly_different_example_group
 /// @{
 
 /// Every class should be documented (this is the brief line).
