@@ -415,7 +415,6 @@ hardware.cc
 hardware.h
 integral_constant.h
 lookup3.c
-mem_func_wrapper.h
 move.h
 mpiar.h
 nodefaults.h
