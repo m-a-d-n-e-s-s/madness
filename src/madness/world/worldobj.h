@@ -44,8 +44,13 @@
 #include <madness/world/worldthread.h>
 #include <madness/world/worldtask.h>
 
-/// \addtogroup worldobj
-/// @{
+/**
+ \addtogroup worldobj
+
+ \todo An overview of the \c WorldObject class and the other concepts it works with.
+
+ @{
+*/
 
 namespace madness {
 
@@ -105,7 +110,7 @@ namespace madness {
             /// \todo Descriptions needed.
             /// \param[in] id Description needed.
             /// \param[in] requestor Description needed.
-            /// \param[in] memfun Description needed.
+            /// \param memfun Verify: The member function to be invoked for the task.
             /// \param[in] attr Description needed.
             info_base(const uniqueidT& id, ProcessID requestor, memfunT memfun,
                  const TaskAttributes& attr=TaskAttributes())
@@ -127,7 +132,7 @@ namespace madness {
         /// \todo Brief description needed.
 
         /// \todo Descriptions needed.
-        /// \tparam memfunT Description needed.
+        /// \tparam memfunT Verify: Signature of the member function in the derived class to be invoked for the task.
         template <typename memfunT>
         struct info : public info_base<memfunT> {
             /// Future for a return value of the memory function. \todo Verify.
@@ -154,7 +159,7 @@ namespace madness {
             /// \todo Descriptions needed.
             /// \param[in] id Description needed.
             /// \param[in] requestor Description needed.
-            /// \param[in] memfun Description needed.
+            /// \param memfun Verify: The member function to be invoked for the task.
             /// \param[in] ref Description needed.
             /// \param[in] attr Description needed.
             info(const uniqueidT& id, ProcessID requestor, memfunT memfun,
@@ -194,58 +199,131 @@ namespace madness {
         }
 
 
+        /// \todo Brief description needed.
 
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam Enabler Description needed.
         template <typename objT, typename memfnT, typename Enabler = void>
         struct WorldObjectTaskHelper {
+            /// \todo Description needed.
             typedef typename if_c<memfunc_traits<memfnT>::constness,
                     const objT*, objT*>::type ptrT;
+
+            /// \todo Description needed.
             typedef MemFuncWrapper<ptrT, memfnT, typename result_of<memfnT>::type> wrapperT;
 
 
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] obj Description needed.
+            /// \param memfn Verify: The member function to be invoked for the task.
+            /// \return Description needed.
             static wrapperT make_task_fn(const objT* obj, memfnT memfn) {
                 return wrapperT(const_cast<ptrT>(obj), memfn);
             }
 
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] obj Description needed.
+            /// \param memfn Verify: The member function to be invoked for the task.
+            /// \return Description needed.
             static wrapperT make_task_fn(objT* obj, memfnT memfn) {
                 return wrapperT(const_cast<ptrT>(obj), memfn);
             }
 
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] obj Description needed.
+            /// \param memfn Verify: The member function to be invoked for the task.
+            /// \return Description needed.
             static wrapperT make_task_fn(const WorldObject<objT>* obj, memfnT memfn) {
                 return make_task_fn(static_cast<const objT*>(obj), memfn);
             }
 
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] obj Description needed.
+            /// \param memfn Verify: The member function to be invoked for the task.
+            /// \return Description needed.
             static wrapperT make_task_fn(WorldObject<objT>* obj, memfnT memfn) {
                 return make_task_fn(static_cast<objT*>(obj), memfn);
             }
-        }; // struct WorldObjectTaskHelpe
+        }; // struct WorldObjectTaskHelper
 
 
 #ifndef MADNESS_DISABLE_SHARED_FROM_THIS
         // Disable the use of std::enable_shared_from_this if we are using MADNESS's
         // implementation since weak_ptr is not fully implemented.
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
         template <typename objT, typename memfnT>
         struct WorldObjectTaskHelper<objT, memfnT,
                 typename enable_if< std::is_base_of<std::enable_shared_from_this<objT>, objT> >::type>
         {
+            /// \todo Description needed.
             typedef typename if_c<memfunc_traits<memfnT>::constness,
                     const objT*, objT*>::type ptrT;
+
+            /// \todo Description needed.
             typedef typename if_c<memfunc_traits<memfnT>::constness,
                     std::shared_ptr<const objT>, std::shared_ptr<objT> >::type shared_ptrT;
+
+            /// \todo Description needed.
             typedef MemFuncWrapper<shared_ptrT, memfnT, typename result_of<memfnT>::type> wrapperT;
 
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] obj Description needed.
+            /// \param memfn Verify: The member function to be invoked for the task.
+            /// \return Description needed.
             static wrapperT make_task_fn(const objT* obj, memfnT memfn) {
                 return wrapperT(const_cast<ptrT>(obj)->shared_from_this(), memfn);
             }
 
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] obj Description needed.
+            /// \param memfn Verify: The member function to be invoked for the task.
+            /// \return Description needed.
             static wrapperT make_task_fn(objT* obj, memfnT memfn) {
                 return wrapperT(const_cast<ptrT>(obj)->shared_from_this(), memfn);
             }
 
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] obj Description needed.
+            /// \param memfn Verify: The member function to be invoked for the task.
+            /// \return Description needed.
             static wrapperT make_task_fn(const WorldObject<objT>* obj, memfnT memfn) {
                 return make_task_fn(static_cast<const objT*>(obj), memfn);
             }
 
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] obj Description needed.
+            /// \param memfn Verify: The member function to be invoked for the task.
+            /// \return Description needed.
             static wrapperT make_task_fn(WorldObject<objT>* obj, memfnT memfn) {
                 return make_task_fn(static_cast<objT*>(obj), memfn);
             }
@@ -256,52 +334,68 @@ namespace madness {
     } // namespace detail
 
 
-    /// Implements most parts of a globally addressable object (via unique ID)
+    /// Implements most parts of a globally addressable object (via unique ID).
 
-    /// \ingroup worldobj
-    /// 1) Derived class has WorldObject<Derived> as a public base class
-    /// 2) Derived constructor
-    ///    a) invokes WorldObject<Derived>(world) constructor
-    ///    b) invokes process_pending()
-    /// 3) Derived destructor must either be deferred or preceeded by gop.fence()
-    /// 4) Derived class must have at least one virtual function for serialization
-    ///    of derived class pointers to be cast to the appropriate type.
-    ///
     /// This class is deliberately not default constructible and does
-    /// not support assignment or copying.  This ensures that each instance
-    /// is unique.  Have a look at the WorldContainer for an example
+    /// not support assignment or copying. This ensures that each instance
+    /// is unique. Have a look at \c madness::WorldContainer for an example
     /// of wrapping this using the PIMPL idiom and a shared pointer.
     ///
-    /// Note that world is exposed for convenience as a public data member.
+    /// When deriving classes:
+    /// -# Derived class has `WorldObject<Derived>` as a public base class.
+    /// -# Derived constructor:
+    ///    -# invokes `WorldObject<Derived>(world)` constructor.
+    ///    -# invokes `process_pending()`.
+    /// -# Derived destructor must either be deferred or preceeded by `gop.fence()`.
+    /// -# Derived class must have at least one virtual function for serialization
+    ///    of derived class pointers to be cast to the appropriate type.
+    ///
+    /// Note that \c world is exposed for convenience as a public data member.
+    /// \tparam Derived The derived class. \c WorldObject is a curiously
+    ///     recurring template pattern.
     template <class Derived>
     class WorldObject {
     public:
-        // Typedefs
+        /// \todo Description needed.
         typedef WorldObject<Derived> objT;
 
     private:
+        /// \todo Description needed.
         typedef std::list<detail::PendingMsg> pendingT;
+
+        /// \todo Description needed.
         typedef detail::voidT voidT;
 
-        World& world;                              ///< Think globally act locally
+        World& world; ///< The \c World this object belongs to. (Think globally, act locally).
+
         // The order here matters in a multi-threaded world
-        volatile bool ready;                       ///< True if ready to rock 'n roll
-        ProcessID me;                              ///< Rank of self
-        uniqueidT objid;                           ///< Sense of self
+        volatile bool ready; ///< True if ready to rock 'n roll.
+        ProcessID me; ///< Rank of self.
+        uniqueidT objid; ///< Sense of self.
 
 
-        static Spinlock pending_mutex;
-        static volatile pendingT pending;          ///< Buffers pending messages
+        static Spinlock pending_mutex; ///< \todo Description needed.
+        static volatile pendingT pending; ///< Buffer for pending messages.
 
-        // This slightly convoluted logic is to ensure ordering when
-        // processing pending messages.  If a new message arrives
-        // while processing incoming messages it must be queued.
-        //
-        // If the object does not exist ---> not ready
-        // If the object exists and is ready ---> ready
-        // If the object exists and is not ready then
-        //    if we are doing a queued/pending message --> ready
-        //    else this is a new message --> not ready
+
+        /// \todo Complete: Determine if [unknown] is ready (for ...).
+
+        /// The slightly convoluted logic is to ensure ordering when
+        /// processing pending messages. If a new message arrives
+        /// while processing incoming messages it must be queued.
+        ///
+        /// - If the object does not exist ---> not ready.
+        /// - If the object exists and is ready ---> ready.
+        /// - If the object exists and is not ready then
+        ///      - if we are doing a queued/pending message --> ready.
+        ///      - else this is a new message --> not ready.
+        ///
+        /// \param[in] id Description needed.
+        /// \param[in,out] obj Description needed.
+        /// \param[in] arg Description needed.
+        /// \param[in,out] ptr Description needed.
+        /// \return Description needed.
+        /// \todo Parameter/return descriptions needed.
         static bool is_ready(const uniqueidT& id, objT*& obj, const AmArg& arg, am_handlerT ptr) {
             obj = static_cast<objT*>(arg.get_world()->template ptr_from_id<Derived>(id));
 
@@ -323,7 +417,20 @@ namespace madness {
         }
 
 
-        // Handler for incoming AM
+        /// Handler for an incoming AM.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam arg1T Type of argument 1.
+        /// \tparam arg2T Type of argument 2.
+        /// \tparam arg3T Type of argument 3.
+        /// \tparam arg4T Type of argument 4.
+        /// \tparam arg5T Type of argument 5.
+        /// \tparam arg6T Type of argument 6.
+        /// \tparam arg7T Type of argument 7.
+        /// \tparam arg8T Type of argument 8.
+        /// \tparam arg9T Type of argument 9.
+        /// \param[in] arg Description needed.
         template <typename memfnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
         typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
         static void handler(const AmArg& arg) {
@@ -350,7 +457,12 @@ namespace madness {
             }
         }
 
-        // Handler for remote arguments
+
+        /// Handler for remote arguments.
+
+        /// \todo Descriptions needed.
+        /// \tparam taskT Description needed.
+        /// \param[in] arg Description needed.
         template <typename taskT>
         static void spawn_remote_task_handler(const AmArg& arg) {
             typedef detail::WorldObjectTaskHelper<Derived,
@@ -375,14 +487,57 @@ namespace madness {
             }
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam T Description needed.
+        /// \param[in] f Description needed.
+        /// \return Description needed.
         template <typename T>
         static inline const T& am_arg(const Future<T>& f) {
             MADNESS_ASSERT(f.probe()); // Cannot serialize unassigned futures
             return f.get();
         }
 
-        template <typename T> static inline const T& am_arg(const T& t) { return t; }
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam T Description needed.
+        /// \param[in] t Description needed.
+        /// \return Description needed.
+        template <typename T>
+        static inline const T& am_arg(const T& t) {
+            return t;
+        }
+
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \tparam a9T Type of argument 9.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param a7 Argument 7.
+        /// \param a8 Argument 8.
+        /// \param a9 Argument 9.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T,
                 typename a8T, typename a9T>
@@ -405,6 +560,34 @@ namespace madness {
             return result;
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam taskT Description needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \tparam a9T Type of argument 9.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param a7 Argument 7.
+        /// \param a8 Argument 8.
+        /// \param a9 Argument 9.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename taskT, typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T,
                 typename a8T, typename a9T>
@@ -424,14 +607,14 @@ namespace madness {
 
     protected:
 
-        /// To be called from \em derived constructor to process pending messages
+        /// To be called from \em derived constructor to process pending messages.
 
-        /// Cannot call this from the WorldObject constructor since the
+        /// Cannot call this from the \c WorldObject constructor since the
         /// derived class would not yet be fully constructed.
         ///
-        /// !! No incoming messages are processed until this routine is invoked
-        /// so the Derived class may rely upon well defined state until this routine
-        /// is invoked.
+        /// \attention No incoming messages are processed until this routine is
+        /// invoked; the derived class may rely upon a well defined state
+        /// until this routine is invoked.
         void process_pending() {
             // Messages may be arriving while we are processing the
             // pending queue.  To maximize concurrency copy messages
@@ -466,11 +649,14 @@ namespace madness {
 
 
     public:
-        /// Associates object with globally unique ID
+        /// \brief Constructor that associates an object (via the derived class)
+        ///     with a globally unique ID.
 
-        /// !! The derived class MUST call process_pending both to
-        /// process any messages that arrived prior to construction
-        /// and to enable processing of future messages.
+        /// \attention The derived class MUST call \c process_pending from
+        /// its constructor to both
+        /// -# process any messages that arrived prior to construction.
+        /// -# to enable processing of future messages.
+        /// \param[in,out] world The \c World encapsulating the \"global\" domain.
         WorldObject(World& world)
                 : world(world)
                 , ready(false)
@@ -478,16 +664,25 @@ namespace madness {
                 , objid(world.register_ptr(static_cast<Derived*>(this))) {};
 
 
-        /// Returns the globally unique object ID
+        /// Returns the globally unique object ID.
         const uniqueidT& id() const {
             return objid;
         }
 
-        /// Returns a reference to the world
+
+        /// Returns a reference to the \c world.
         World& get_world() const {
             return const_cast<WorldObject<Derived>*>(this)->world;
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \return Description needed.
         template <typename memfnT>
         typename detail::task_result_type<memfnT>::futureT
         send(ProcessID dest, memfnT memfn) const {
@@ -496,6 +691,16 @@ namespace madness {
                     voidT::value, voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \return Description needed.
         template <typename memfnT, typename a1T>
         typename detail::task_result_type<memfnT>::futureT
         send(ProcessID dest, memfnT memfn, const a1T& a1) const {
@@ -504,6 +709,18 @@ namespace madness {
                     voidT::value, voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T>
         typename detail::task_result_type<memfnT>::futureT
         send(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2) const {
@@ -512,6 +729,20 @@ namespace madness {
                     voidT::value, voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T>
         typename detail::task_result_type<memfnT>::futureT
         send(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
@@ -522,6 +753,22 @@ namespace madness {
                     voidT::value, voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T>
         typename detail::task_result_type<memfnT>::futureT
@@ -533,6 +780,24 @@ namespace madness {
                     voidT::value, voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T>
         typename detail::task_result_type<memfnT>::futureT
@@ -544,6 +809,26 @@ namespace madness {
                     voidT::value, voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T>
         typename detail::task_result_type<memfnT>::futureT
@@ -555,6 +840,28 @@ namespace madness {
                     voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param a7 Argument 7.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T>
         typename detail::task_result_type<memfnT>::futureT
@@ -567,6 +874,30 @@ namespace madness {
                     voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param a7 Argument 7.
+        /// \param a8 Argument 8.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T, typename a8T>
         typename detail::task_result_type<memfnT>::futureT
@@ -579,6 +910,32 @@ namespace madness {
                     voidT::value);
         }
 
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \tparam a9T Type of argument 9.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param a7 Argument 7.
+        /// \param a8 Argument 8.
+        /// \param a9 Argument 9.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T, typename a8T,
                 typename a9T>
@@ -592,7 +949,14 @@ namespace madness {
                     am_arg(a9));
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2,a3,a4,a5,a6,a7,a8,a9)"
+        /// Sends task to derived class method `returnT (this->*memfn)()`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT>
         typename detail::task_result_type<memfnT>::futureT
         task(ProcessID dest, memfnT memfn, const TaskAttributes& attr = TaskAttributes()) const {
@@ -606,7 +970,16 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T>
         typename detail::task_result_type<memfnT>::futureT
         task(ProcessID dest, memfnT memfn, const a1T& a1,
@@ -624,7 +997,18 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1,a2)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T>
         typename detail::task_result_type<memfnT>::futureT
         task(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
@@ -643,7 +1027,20 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2,a3)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1,a2,a3)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T>
         typename detail::task_result_type<memfnT>::futureT
         task(ProcessID dest, memfnT memfn, const a1T& a1, const a2T& a2,
@@ -663,7 +1060,22 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2,a3,a4)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1,a2,a3,a4)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T>
         typename detail::task_result_type<memfnT>::futureT
@@ -685,7 +1097,24 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2,a3,a4,a5)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1,a2,a3,a4,a5)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T>
         typename detail::task_result_type<memfnT>::futureT
@@ -709,7 +1138,26 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2,a3,a4,a5,a6)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1,a2,a3,a4,a5,a6)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T>
         typename detail::task_result_type<memfnT>::futureT
@@ -735,7 +1183,28 @@ namespace madness {
             }
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2,a3,a4,a5,a6,a7)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1,a2,a3,a4,a5,a6,a7)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param a7 Argument 7.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T>
         typename detail::task_result_type<memfnT>::futureT
@@ -761,7 +1230,30 @@ namespace madness {
                         am_arg(a7), voidT::value, voidT::value, attr);
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2,a3,a4,a5,a6,a7,a8)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1,a2,a3,a4,a5,a6,a7,a8)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param a7 Argument 7.
+        /// \param a8 Argument 8.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T, typename a8T>
         typename detail::task_result_type<memfnT>::futureT
@@ -790,7 +1282,32 @@ namespace madness {
             }
         }
 
-        /// Sends task to derived class method "returnT (this->*memfn)(a1,a2,a3,a4,a5,a6,a7,a8,a9)"
+        /// Sends task to derived class method `returnT (this->*memfn)(a1,a2,a3,a4,a5,a6,a7,a8,a9)`.
+
+        /// \todo Descriptions needed.
+        /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \tparam a9T Type of argument 9.
+        /// \param dest Description needed.
+        /// \param memfn Verify: The member function to be invoked for the task.
+        /// \param a1 Argument 1.
+        /// \param a2 Argument 2.
+        /// \param a3 Argument 3.
+        /// \param a4 Argument 4.
+        /// \param a5 Argument 5.
+        /// \param a6 Argument 6.
+        /// \param a7 Argument 7.
+        /// \param a8 Argument 8.
+        /// \param a9 Argument 9.
+        /// \param attr Description needed.
+        /// \return Description needed.
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T, typename a8T,
                 typename a9T>
@@ -827,8 +1344,18 @@ namespace madness {
     };
 
     namespace archive {
+        
+        /// Specialization of \c ArchiveLoadImpl for globally-addressable objects.
+
+        /// \tparam Derived The derived class of \c WorldObject in a curiously
+        ///     repeating template pattern.
         template <class Derived>
         struct ArchiveLoadImpl<BufferInputArchive,WorldObject<Derived>*> {
+
+            /// Read a globally-addressable object from a \c BufferInputArchive.
+
+            /// \param[in,out] ar The archive.
+            /// \param[out] ptr The read object.
             static inline void load(const BufferInputArchive& ar, WorldObject<Derived>*& ptr) {
                 uniqueidT id;
                 ar & id;
@@ -839,15 +1366,33 @@ namespace madness {
             }
         };
 
+        /// Specialization of \c ArchiveStoreImpl for globally-addressable objects.
+
+        /// \tparam Derived The derived class of \c WorldObject in a curiously
+        ///     repeating template pattern.
         template <class Derived>
         struct ArchiveStoreImpl<BufferOutputArchive,WorldObject<Derived>*> {
-            static inline void store(const BufferOutputArchive& ar, WorldObject<Derived>* const&  ptr) {
+
+            /// Write a globally-addressable object to a \c BufferOutputArchive.
+
+            /// \param[in,out] ar The archive.
+            /// \param[in] ptr The object to store.
+            static inline void store(const BufferOutputArchive& ar, WorldObject<Derived>* const& ptr) {
                 ar & ptr->id();
             }
         };
 
+        /// Specialization of \c ArchiveLoadImpl for constant, globally-addressable objects.
+
+        /// \tparam Derived The derived class of \c WorldObject in a curiously
+        ///     repeating template pattern.
         template <class Derived>
-        struct ArchiveLoadImpl<BufferInputArchive,const WorldObject<Derived>*> {
+        struct ArchiveLoadImpl<BufferInputArchive, const WorldObject<Derived>*> {
+
+            /// Read a globally-addressable object from a \c BufferInputArchive.
+
+            /// \param[in,out] ar The archive.
+            /// \param[out] ptr The read object.
             static inline void load(const BufferInputArchive& ar, const WorldObject<Derived>*& ptr) {
                 uniqueidT id;
                 ar & id;
@@ -858,8 +1403,17 @@ namespace madness {
             }
         };
 
+        /// Specialization of \c ArchiveStoreImpl for constant, globally-addressable objects.
+
+        /// \tparam Derived The derived class of \c WorldObject in a curiously
+        ///     repeating template pattern.
         template <class Derived>
-        struct ArchiveStoreImpl<BufferOutputArchive,const WorldObject<Derived>*> {
+        struct ArchiveStoreImpl<BufferOutputArchive, const WorldObject<Derived>*> {
+
+            /// Write a globally-addressable object to a \c BufferOutputArchive.
+
+            /// \param[in,out] ar The archive.
+            /// \param[in] ptr The object to store.
             static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>* const& ptr) {
                 ar & ptr->id();
             }
@@ -871,7 +1425,8 @@ namespace madness {
 template <typename Derived>
 volatile std::list<madness::detail::PendingMsg> madness::WorldObject<Derived>::pending;
 
-template <typename Derived>  madness::Spinlock madness::WorldObject<Derived>::pending_mutex;
+template <typename Derived>
+madness::Spinlock madness::WorldObject<Derived>::pending_mutex;
 
 #endif
 

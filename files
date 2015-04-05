@@ -478,7 +478,6 @@ worldmpi.cc
 worldmpi.h
 worldmutex.cc
 worldmutex.h
-worldobj.h
 worldpapi.cc
 worldpapi.h
 worldprofile.cc

@@ -39,7 +39,7 @@
 
  \todo More detailed description of this file.
 
- \todo Also, are some of the forward declarations in this file necessary? A quick inspection suggests most of the functions before the World class don't need to be declared first...
+ \todo Are some of the forward declarations in this file necessary? A quick inspection suggests most of the functions before the World class don't need to be declared first...
 */
 
 #ifndef MADNESS_WORLD_WORLDFWD_H__INCLUDED
@@ -75,8 +75,13 @@
 #include <madness/world/uniqueid.h>
 #include <madness/world/nodefaults.h>
 
-/// \ingroup world
-/// @{
+/**
+ \addtogroup world
+
+ \todo Overview of the \c World class and concepts for the documentation module.
+
+ @{
+*/
 namespace madness {
 
     class World;
