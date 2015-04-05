@@ -33,13 +33,13 @@
 */
 
 /** 
- \file worldtime.h
+ \file timers.h
  \brief Wrappers around platform dependent timers and performance info.
  \ingroup parallel_runtime
 */
 
-#ifndef MADNESS_WORLD_WORLDTIME_H__INCLUDED
-#define MADNESS_WORLD_WORLDTIME_H__INCLUDED
+#ifndef MADNESS_WORLD_TIMERS_H__INCLUDED
+#define MADNESS_WORLD_TIMERS_H__INCLUDED
 
 #include <stdint.h>
 #include <time.h>
@@ -177,4 +177,4 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     }
 }
 
-#endif // MADNESS_WORLD_WORLDTIME_H__INCLUDED
+#endif // MADNESS_WORLD_TIMERS_H__INCLUDED

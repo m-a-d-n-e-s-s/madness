@@ -494,5 +494,4 @@ worldtask.cc
 worldtask.h
 worldthread.cc
 worldthread.h
-worldtime.h
 worldtypes.h

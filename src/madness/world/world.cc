@@ -40,65 +40,16 @@
 
 #include <madness/world/worldfwd.h>
 #include <madness/world/worldmem.h>
-#include <madness/world/worldtime.h>
+#include <madness/world/timers.h>
 #include <madness/world/worldam.h>
 #include <madness/world/worldtask.h>
 #include <madness/world/worldgop.h>
 #include <cstdlib>
 #include <sstream>
 
-#ifdef __CYGWIN__
-#include <windows.h>
-#endif
-
 namespace madness {
 
     const Future<void> Future<void>::value = Future<void>();
-
-    double wall_time() {
-#ifdef __CYGWIN__
-        static bool initialized = false;
-        static double rfreq;
-        if (!initialized) {
-            _LARGE_INTEGER freq;
-            if (QueryPerformanceFrequency(&freq))
-                rfreq = 1.0/double(freq.QuadPart);
-            else
-                rfreq = 0.0;
-            initialized = true;
-        }
-        _LARGE_INTEGER ins;
-        QueryPerformanceCounter(&ins);
-        return double(ins.QuadPart)*rfreq;
-#else
-        static bool first_call = true;
-        static double start_time;
-
-        struct timeval tv;
-        gettimeofday(&tv,0);
-        double now = tv.tv_sec + 1e-6*tv.tv_usec;
-
-        if (first_call) {
-            first_call = false;
-            start_time = now;
-        }
-        return now - start_time;
-#endif
-    }
-
-    double cpu_frequency() {
-        static double freq = -1.0;
-        if (freq == -1.0) {
-            double used = wall_time();
-            uint64_t ins = cycle_count();
-            if (ins == 0) return 0;
-            while ((cycle_count()-ins) < 100000000);  // 100M cycles at 1GHz = 0.1s
-            ins = cycle_count() - ins;
-            used = wall_time() - used;
-            freq = ins/used;
-        }
-        return freq;
-    }
 
     template <>
     std::ostream& operator<<(std::ostream& out, const Future<void>& f) {
