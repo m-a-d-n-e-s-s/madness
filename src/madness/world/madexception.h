@@ -45,8 +45,8 @@
     - ABORT: abort execution.
 */
 
-#ifndef MADNESS_WORLD_WORLDEXC_H__INCLUDED
-#define MADNESS_WORLD_WORLDEXC_H__INCLUDED
+#ifndef MADNESS_WORLD_MADEXCEPTION_H__INCLUDED
+#define MADNESS_WORLD_MADEXCEPTION_H__INCLUDED
 
 #include <iosfwd>
 #include <exception>
@@ -162,4 +162,4 @@ namespace madness {
 
 } // namespace madness
 
-#endif // MADNESS_WORLD_WORLDEXC_H__INCLUDED
+#endif // MADNESS_WORLD_MADEXCEPTION_H__INCLUDED
