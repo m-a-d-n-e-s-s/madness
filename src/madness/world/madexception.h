@@ -33,7 +33,7 @@
 */
 
 /**
- \file worldexc.h
+ \file madexception.h
  \brief Defines \c madness::MadnessException for exception handling.
  \ingroup libraries
 

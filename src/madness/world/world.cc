@@ -233,24 +233,6 @@ namespace madness {
         madness_initialized_ = false;
     }
 
-
-    std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
-        out << "MadnessException : ";
-        if (e.msg) out << "msg=" << e.msg << " : ";
-        if (e.assertion) out << "assertion=" << e.assertion << " : ";
-        out << "value=" << e.value << " : ";
-        if (e.line) out << "line=" << e.line << " : ";
-        if (e.function) out << "function=" << e.function << " : ";
-        if (e.filename) out << "filename='" << e.filename << "'";
-        out << std::endl;
-        return out;
-    }
-
-    void exception_break(bool message) {
-        if(message)
-            std::cerr << "A madness exception occurred. Place a break point at madness::exception_break to debug.\n";
-    }
-
     double wall_time() {
 #ifdef __CYGWIN__
         static bool initialized = false;

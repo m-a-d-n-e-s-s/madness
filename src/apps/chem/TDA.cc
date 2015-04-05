@@ -20,7 +20,7 @@
 #include "../../madness/world/archive.h"
 #include "../../madness/world/parar.h"
 #include "../../madness/world/print.h"
-#include "../../madness/world/worldexc.h"
+#include "../../madness/world/madexception.h"
 #include "../../madness/world/worldfwd.h"
 #include "../../madness/world/worldgop.h"
 #include "../../madness/world/worldtime.h"

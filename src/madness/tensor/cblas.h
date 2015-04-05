@@ -42,7 +42,7 @@
 
 #include <madness/fortran_ctypes.h>
 #include <madness/madness_config.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 
 #if defined(FORTRAN_LINKAGE_LC)
 

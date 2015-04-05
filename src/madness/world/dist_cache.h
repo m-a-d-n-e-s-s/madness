@@ -35,7 +35,7 @@
 #ifndef MADNESS_WORLD_DIST_CACHE_H__INCLUDED
 #define MADNESS_WORLD_DIST_CACHE_H__INCLUDED
 
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/worldfut.h>
 

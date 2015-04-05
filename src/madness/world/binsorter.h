@@ -1,6 +1,6 @@
 #include <madness/world/world.h>
 #include <madness/world/worldobj.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 #include <vector>
 
 namespace madness {

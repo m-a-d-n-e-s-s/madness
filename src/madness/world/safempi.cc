@@ -31,7 +31,7 @@
   $Id$
 */
 #include <madness/world/safempi.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 
 namespace SafeMPI {
 

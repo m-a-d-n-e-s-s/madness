@@ -36,7 +36,7 @@
 #define MADNESS_WORLD_GROUP_H__INCLUDED
 
 #include <madness/world/dist_keys.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 #include <madness/world/worldfwd.h>
 #include <madness/world/worldtask.h>
 

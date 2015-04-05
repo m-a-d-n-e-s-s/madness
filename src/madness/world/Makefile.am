@@ -7,7 +7,7 @@ thisincludedir = $(includedir)/madness/world
 thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worldtask.h array.h worldgop.h worldobj.h bufar.h nodefaults.h \
 	enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
-	dqueue.h parar.h vecar.h worldexc.h worldmem.h worldser.h worldthread.h \
+	dqueue.h parar.h vecar.h madexception.h worldmem.h worldser.h worldthread.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
 	worldfwd.h uniqueid.h worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h \
@@ -113,7 +113,7 @@ test_worldref_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 
 endif
 
-libMADworld_a_SOURCES = world.cc redirectio.cc archive_type_names.cc \
+libMADworld_a_SOURCES = madexception.cc world.cc redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
 	worldgop.cc deferred_cleanup.cc worldmutex.cc binfsar.cc textfsar.cc \

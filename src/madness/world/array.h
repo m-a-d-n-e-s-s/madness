@@ -36,7 +36,7 @@
 #define MADNESS_WORLD_ARRAY_H__INCLUDED
 
 #include <madness/madness_config.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 #include <madness/world/worldhash.h>
 #include <array>
 #include <vector>
