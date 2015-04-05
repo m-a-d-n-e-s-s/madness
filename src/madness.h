@@ -41,4 +41,35 @@
 
 #include <madness/mra/mra.h>
 
+// Documentation for MADNESS namespaces.
+
+/// Namespace for all elements and tools of MADNESS.
+namespace madness {
+
+    /// Namespace for I/O tools.
+    namespace archive { 
+    }
+
+    /// \todo Description needed
+    namespace cblas {
+    }
+
+    /// Namespace storing mathematical and physical constants.
+    namespace constants {
+    }
+
+    /// \todo Description needed
+    namespace detail {
+    }
+
+    /// \todo Description needed
+    namespace Hash_private {
+    }
+
+    /// \todo Description needed
+    namespace tr1 {
+    }
+
+} // namespace madness
+
 #endif // MADNESS_H__INCLUDED

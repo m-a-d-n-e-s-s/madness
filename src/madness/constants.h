@@ -41,9 +41,8 @@
  \todo We should consider a more uniform naming scheme for all of the conversion ratios.
  */
 
-/// Namespace for all elements and tools of MADNESS.
 namespace madness {
-    /// Namespace storing mathematical and physical constants.
+
     namespace constants {
 
         // Mathematical constants
