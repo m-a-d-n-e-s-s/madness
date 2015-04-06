@@ -456,7 +456,6 @@ namespace madness {
         /// \tparam a7T Type of argument 7.
         /// \tparam a8T Type of argument 8.
         /// \tparam a9T Type of argument 9.
-        /// \param fn Description needed.
         /// \param[in] t Description needed.
         /// \return Description needed.
         template <typename fnT, typename a1T, typename a2T, typename a3T,
@@ -552,16 +551,16 @@ namespace madness {
         }
 
 
-        /// Create a local task with no arguments
+        /// Create a local task with no arguments.
 
-        /// Creates a task in this process.  An argument that is a future may be
+        /// Creates a task in this process. An argument that is a future may be
         /// used to carry dependencies.
-        /// \tparam fnT A function pointer or functor
-        /// \param fn The function to be called in the task
-        /// \param attr The task attributes
-        /// \return A future to the result. If the task function
-        /// return type is \c void , a \c Future<void> object is returned that may
-        /// be ignored.
+        /// \tparam fnT A function pointer or functor.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT>
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const TaskAttributes& attr=TaskAttributes()) {
@@ -570,6 +569,18 @@ namespace madness {
                     fn, attr));
         }
 
+        /// Create a local task with one argument.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T>
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const a1T& a1, const TaskAttributes& attr=TaskAttributes()) {
@@ -578,6 +589,20 @@ namespace madness {
                     fn, a1, attr));
         }
 
+        /// Create a local task with two arguments.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T, typename a2T>
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const TaskAttributes& attr=TaskAttributes()) {
@@ -586,6 +611,22 @@ namespace madness {
                     fn, a1, a2, attr));
         }
 
+        /// Create a local task with three arguments.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T>
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
@@ -596,6 +637,24 @@ namespace madness {
                     fn, a1, a2, a3, attr));
         }
 
+        /// Create a local task with four arguments.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
@@ -606,6 +665,26 @@ namespace madness {
                     fn, a1, a2, a3, a4, attr));
         }
 
+        /// Create a local task with five arguments.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T>
         typename detail::function_enabler<fnT>::type
@@ -617,6 +696,28 @@ namespace madness {
                     fn, a1, a2, a3, a4, a5, attr));
         }
 
+        /// Create a local task with six arguments.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T>
         typename detail::function_enabler<fnT>::type
@@ -628,6 +729,30 @@ namespace madness {
                     fn, a1, a2, a3, a4, a5, a6, attr));
         }
 
+        /// Create a local task with seven arguments.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] a7 Argument 7.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T>
         typename detail::function_enabler<fnT>::type
@@ -640,6 +765,32 @@ namespace madness {
                     fn, a1, a2, a3, a4, a5, a6, a7, attr));
         }
 
+        /// Create a local task with eight arguments.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] a7 Argument 7.
+        /// \param[in] a8 Argument 8.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T, typename a8T>
         typename detail::function_enabler<fnT>::type
@@ -652,7 +803,34 @@ namespace madness {
                     fn, a1, a2, a3, a4, a5, a6, a7, a8, attr));
         }
 
+        /// Create a local task with nine arguments.
 
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \tparam a9T Type of argument 9.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] a7 Argument 7.
+        /// \param[in] a8 Argument 8.
+        /// \param[in] a9 Argument 9.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
         typename detail::function_enabler<fnT>::type
@@ -666,27 +844,26 @@ namespace madness {
         }
 
 
-        /// Create a remote task
+        /// Create a remote task.
 
-        /// Creates a task in process \c dest , which may or may not be this
+        /// Creates a task in process \c dest, which may or may not be this
         /// process. An argument that is a future may be used to carry
-        /// dependencies for local tasks. An future that is not ready cannot be
-        /// used as an argument for a remote tasks -- i.e., remote  tasks must
+        /// dependencies for local tasks. A future that is not ready cannot be
+        /// used as an argument for remote tasks -- i.e., remote tasks must
         /// be ready to execute (you can work around this by making a local task
         /// to submit the remote task once everything is ready).
-        /// \tparam fnT A function pointer or functor type
-        /// \param dest The process where the task will be created
-        /// \param fn The function to be called in the task
-        /// \param attr The task attributes
-        /// \return A future to the result. If the task function
-        /// return type is \c void , a \c Future<void> object is return that may
+        /// \tparam fnT A function pointer or functor type.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
         /// be ignored.
         /// \note Arguments must be (de)serializable and must of course make
-        /// sense at the remote destination.  Fundamental types,
-        /// simple STL containers, and pointers to World,
-        /// WorldContainer, and user-defined types derived from
-        /// WorldObject<> are automatically handled.  Anything else is
-        /// your problem.
+        /// sense at the remote destination. Fundamental types, simple STL
+        /// containers, and pointers to \c World, \c WorldContainer, and
+        /// user-defined types derived from \c WorldObject<> are automatically
+        /// handled. Anything else is your problem.
         template <typename fnT>
         typename detail::function_enabler<fnT>::type
         add(ProcessID dest, fnT fn, const TaskAttributes& attr=TaskAttributes())
@@ -700,29 +877,24 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Create a remote task
+        /// Invoke `resultT (*fn)(a1T)` as a task, local or remote.
 
-        /// Creates a task on process \c dest , which may or may not be this
-        /// process.  An argument that is a future may be used to carry
-        /// dependencies for local tasks.  An unready future cannot be used as
-        /// an argument for a remote tasks -- i.e., remote  tasks must be ready
-        /// to execute (you can work around this by making a local task to
-        /// submit the remote task once everything is ready).
-        /// \param dest The process where the task will be created
-        /// \param fn The function to be called in the task
-        /// \param attr The task attributes
-        /// \return A future to the task function's results. If the task function
-        /// return type is \c void , a \c Future<void> object is return that may
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
         /// be ignored.
-        /// Invoke "resultT (*fn)(a1T)" as a task, local or remote
-
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
         /// \note Arguments must be (de)serializable and must of course make
-        /// sense at the remote destination.  Fundamental types,
-        /// simple STL containers, and pointers to World,
-        /// WorldContainer, and user-defined types derived from
-        /// WorldObject<> are automatically handled.  Anything else is
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
         /// your problem.
         template <typename fnT, typename a1T>
         typename detail::function_enabler<fnT>::type
@@ -737,10 +909,27 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*fn)(a1T,a2T)" as a task, local or remote
+        /// Invoke `resultT (*fn)(a1T,a2T)` as a task, local or remote.
 
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
         template <typename fnT, typename a1T, typename a2T>
         typename detail::function_enabler<fnT>::type
         add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
@@ -755,10 +944,29 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*fn)(a1T,a2T,a3T)" as a task, local or remote
+        /// Invoke `resultT (*fn)(a1T,a2T,a3T)` as a task, local or remote.
 
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
         template <typename fnT, typename a1T, typename a2T, typename a3T>
         typename detail::function_enabler<fnT>::type
         add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
@@ -773,10 +981,31 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T)" as a task, local or remote
+        /// Invoke `resultT (*fn)(a1T,a2T,a3T,a4T)` as a task, local or remote.
 
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
         template <typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T>
         typename detail::function_enabler<fnT>::type
@@ -792,10 +1021,33 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T)" as a task, local or remote
+        /// Invoke `resultT (*fn)(a1T,a2T,a3T,a4T,a5T)` as a task, local or remote.
 
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
         template <typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T>
         typename detail::function_enabler<fnT>::type
@@ -811,10 +1063,35 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T)" as a task, local or remote
+        /// Invoke `resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T)` as a task, local or remote.
 
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
         template <typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T>
         typename detail::function_enabler<fnT>::type
@@ -831,10 +1108,37 @@ namespace madness {
                         voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T)" as a task, local or remote
+        /// Invoke `resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T)` as a task, local or remote.
 
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] a7 Argument 7.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
         template <typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T>
         typename detail::function_enabler<fnT>::type
@@ -851,10 +1155,39 @@ namespace madness {
                         am_arg(a7), voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T,a8T)" as a task, local or remote
+        /// Invoke `resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T,a8T)` as a task, local or remote.
 
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] a7 Argument 7.
+        /// \param[in] a8 Argument 8.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
         template <typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T,
                 typename a8T>
@@ -872,10 +1205,42 @@ namespace madness {
                         am_arg(a7), am_arg(a8), voidT::value, attr);
         }
 
-        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T,a8T,a9T)" as a task, local or remote
+        /// Invoke `resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T,a8T,a9T)` as a task, local or remote.
 
-        /// A future is returned to hold the eventual result of the
-        /// task.  Future<void> is an empty class that may be ignored.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam fnT A function pointer or functor type.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \tparam a9T Type of argument 9.
+        /// \param[in] dest The process where the task will be created.
+        /// \param[in] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] a7 Argument 7.
+        /// \param[in] a8 Argument 8.
+        /// \param[in] a9 Argument 9.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
+        /// \todo Could we use metaprogramming to reduce all of these instances to one template that generates versions for one more (less) parameter?
         template <typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T,
                 typename a8T, typename a9T>
@@ -893,7 +1258,26 @@ namespace madness {
                         am_arg(a7), am_arg(a8), am_arg(a9), attr);
         }
 
-        /// Invoke "resultT (obj.*memfn)(args...)" as a local task
+        /// Invoke `resultT (obj.*memfn)(args...)` as a local task.
+
+        /// \todo Verify this documentation.
+        /// A future is returned to hold the eventual result of the task.
+        /// \c Future<void> is an empty class that may be ignored.
+        /// \tparam objT The object type.
+        /// \tparam memfnT The member function type.
+        /// \tparam argT Variadic template for arguments.
+        /// \param[in] obj The associated object for invoking the member function pointer.
+        /// \param[in] memfn The member function pointer.
+        /// \param[in] args The argument pack.
+        /// \return A future to the result. If the task function return type
+        /// is \c void, a \c Future<void> object is return that may
+        /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination. Fundamental types,
+        /// simple STL containers, and pointers to \c World,
+        /// \c WorldContainer, and user-defined types derived from
+        /// \c WorldObject are automatically handled. Anything else is
+        /// your problem.
         template <typename objT, typename memfnT, typename... argT>
         typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT&& obj, memfnT memfn, argT&&... args)
@@ -903,18 +1287,31 @@ namespace madness {
 
     private:
 
+        /// \todo Brief description needed.
         struct ProbeAllDone {
-            WorldTaskQueue* tq;
-            ProbeAllDone(WorldTaskQueue* tq) : tq(tq) {}
-            bool operator()() const { return (tq->nregistered == 0); }
+            WorldTaskQueue* tq; ///< The task queue.
+
+            /// Construct a \c ProbeAllDone for a given task queue.
+
+            /// \param[in] tq Pointer to the task queue.
+            ProbeAllDone(WorldTaskQueue* tq)
+                : tq(tq)
+            {}
+
+            /// Determine if all tasks in the queue are complete.
+
+            /// \return True if all tasks are complete; false otherwise.
+            bool operator()() const {
+                return (tq->nregistered == 0);
+            }
         };
 
     public:
 
-        /// Returns after all local tasks have completed
+        /// Returns after all local tasks have completed.
 
-        /// While waiting the calling thread will run tasks.
-        void fence()  {
+        /// While waiting, the calling thread will run tasks.
+        void fence() {
             try {
                 ThreadPool::await(ProbeAllDone(this), true);
             } catch(...) {
@@ -926,27 +1323,41 @@ namespace madness {
 
     namespace detail {
 
-        /// Apply an operation to a range of iterators
+        /// Apply an operation to a range of iterators.
 
-        /// \tparam rangeT The range of iterators type
-        /// \tparam opT The operation type
         /// This task will progressively split range, creating leaves for each
-        /// tasks, until the range of iterators is smaller than the chunck
-        /// size.
+        /// task, until the range of iterators is smaller than the chunk size.
+        /// \tparam rangeT The range of iterators type.
+        /// \tparam opT The operation type.
         template <typename rangeT, typename opT>
         class ForEachTask : public TaskInterface {
         private:
-            rangeT range_; ///< The range of iterators
-            opT op_; ///< The operation to apply to range
-            ForEachRootTask<rangeT, opT>& root_; ///< The root task that signals completion and status
+            rangeT range_; ///< The range of iterators.
+            opT op_; ///< The operation to apply to range.
+            ForEachRootTask<rangeT, opT>& root_; ///< The root task that signals completion and status.
 
             // not allowed
-            ForEachTask(const ForEachTask<rangeT, opT>&);
-            ForEachTask& operator=(const ForEachTask<rangeT, opT>&);
+
+            /// Disallowed copy constructor.
+
+            /// \param[in] fet The \c ForEachTask that we won't copy.
+            /// \todo In C++11, just `= delete` this.
+            ForEachTask(const ForEachTask<rangeT, opT>& fet);
+
+            /// Disallowed copy operator.
+
+            /// \param[in] fet The \c ForEachTask that we won't copy.
+            /// \todo In C++11, just `= delete` this.
+            ForEachTask& operator=(const ForEachTask<rangeT, opT>& fet);
 
         public:
 
-            /// Constructor
+            /// Constructor.
+
+            /// \todo Descriptions needed.
+            /// \param[in] range The range of tasks.
+            /// \param[in] op The operation to perform.
+            /// \param root Description needed.
             ForEachTask(const rangeT range, const opT& op, ForEachRootTask<rangeT, opT>& root) :
                 TaskInterface(0, TaskAttributes::hipri()), range_(range), op_(op), root_(root)
             {
@@ -954,11 +1365,15 @@ namespace madness {
                 root_.inc();
             }
 
-            /// Virtual destructor
-            virtual ~ForEachTask() { }
+            /// Virtual destructor.
+            virtual ~ForEachTask()
+            { }
 
-            /// Run the task
-            virtual void run(const TaskThreadEnv&) {
+            /// Run the task.
+
+            /// \todo Descriptions needed.
+            /// \param[in] tte Description needed.
+            virtual void run(const TaskThreadEnv& tte) {
                 // Create leaf tasks and split range until it is less than chuncksize
                 while(range_.size() > range_.get_chunksize()) {
                     rangeT right(range_,Split());
@@ -977,36 +1392,37 @@ namespace madness {
             }
 
         private:
-            /// Get the task id
+            /// Get the task ID.
 
-            /// \param id The id to set for this task
+            /// \todo Is \c id an input and/or output parameter?
+            /// \param id The ID to set for this task
             virtual void get_id(std::pair<void*,unsigned short>& id) const {
                 PoolTaskInterface::make_id(id, *this);
             }
         }; // class ForEachTask
 
 
-        /// Apply an operation to a range of iterators
+        /// Apply an operation to a range of iterators.
 
-        /// \tparam rangeT The range of iterators type
-        /// \tparam opT The operation type
-        /// This task creates for_each tasks and collects information on the
+        /// \tparam rangeT The range of iterators type.
+        /// \tparam opT The operation type.
+        /// This task creates `for_each` tasks and collects information on the
         /// results of those tasks. Once all tasks have completed it will set
         /// the result future.
         template <typename rangeT, typename opT>
         class ForEachRootTask : public TaskInterface {
         private:
-            World& world_; ///< The world where this task will run
-            AtomicInt status_; ///< Accumulates the status of each iteration
-            Future<bool> completion_status_; ///< The result of this set of tasks
+            World& world_; ///< The world where this task will run.
+            AtomicInt status_; ///< Accumulates the status of each iteration.
+            Future<bool> completion_status_; ///< The result of this set of tasks.
 
         public:
 
-            /// Constructor
+            /// Constructor.
 
-            /// \param world The world where the tasks will run
-            /// \param range The range of iterators
-            /// \param op The oeration that will be applied to the range of iterators
+            /// \param[in] world The world where the tasks will run.
+            /// \param[in] range The range of iterators.
+            /// \param[in] op The operation that will be applied to the range of iterators.
             ForEachRootTask(World& world, const rangeT range, const opT& op) :
                 TaskInterface(0, TaskAttributes::hipri()), world_(world)
             {
@@ -1015,41 +1431,48 @@ namespace madness {
                 world_.taskq.add(new ForEachTask<rangeT,opT>(range, op, *this));
             }
 
-            /// Virtual destructor
-            virtual ~ForEachRootTask() { }
+            /// Virtual destructor.
+            virtual ~ForEachRootTask()
+            { }
 
-            /// World accessor
+            /// World accessor.
 
-            /// \return A reference to the world
-            World& world() const { return world_; }
+            /// \return A reference to the \c World.
+            World& world() const {
+                return world_;
+            }
 
-            /// Result accessor
+            /// Result accessor.
 
-            /// \return A const reference to the result future
-            const Future<bool>& result() const { return completion_status_; }
+            /// \return A const reference to the result future.
+            const Future<bool>& result() const {
+                return completion_status_;
+            }
 
-            /// Called by child tasks when they are complete
+            /// Called by child tasks when they are complete.
 
-            /// \param status The number of iterations that returned true
+            /// \param[in] status The number of iterations that returned true.
             void complete(const int status) {
                 status_ += status;
                 DependencyInterface::notify();
             }
 
-            /// Task run work
+            /// Task run work.
 
-            /// Sets the result future based on the status of all iterations
-            virtual void run(const TaskThreadEnv&) { completion_status_.set(status_ == 0); }
+            /// Sets the result future based on the status of all iterations.
+            virtual void run(const TaskThreadEnv&) {
+                completion_status_.set(status_ == 0);
+            }
 
         private:
-            /// Get the task id
+            /// Get the task ID.
 
-            /// \param id The id to set for this task
+            /// \todo Verify that \c id is an output parameter.
+            /// \param[out] id The ID to set for this task.
             virtual void get_id(std::pair<void*,unsigned short>& id) const {
                 PoolTaskInterface::make_id(id, *this);
             }
         }; // class ForEachRootTask
-
 
     }  // namespace detail
 
