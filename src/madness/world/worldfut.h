@@ -27,18 +27,16 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
+/**
+ \file worldfut.h
+ \brief Implements \c Future and related items.
+ \ingroup futures
+*/
 
 #ifndef MADNESS_WORLD_WORLDFUT_H__INCLUDED
 #define MADNESS_WORLD_WORLDFUT_H__INCLUDED
-
-/// \file worldfut.h
-/// \brief Implements Future
-/// \ingroup futures
 
 #include <vector>
 #include <stack>
@@ -54,57 +52,6 @@ namespace madness {
 
     //extern SharedCounter future_count; // For tracking memory leak
 
-
-/*
-
-\section gotchas Gotchas
-
-\subsection futures Futures and STL vectors (e.g., \c vectors<Future<int>> )
-
- This to be turned back into documentation eventually
-
-A common misconception is that STL containers initialize their
-contents by \invoking the default constructor of each item in
-the container since we are told that the items must be default
-constructable.  But this is \em incorrect.  The items are initialized
-by invoking the copy constructor for each element on a \em single
-object made with the default constructor.   For futures this
-is a very bad problem.  For instance,
-\code
-   vector< Future<double> > v(3);
-\endcode
-is equivalent to the following with an array of three elements
-\code
-   Future<double> junk;
-   Future<double> v[3] = {junk,junk,junk};
-\endcode
-Since the Future copy constructor is by necessity shallow, each
-element of \c v ends up referring to the future implementation that
-underlies \c junk.  When you assign to an element of \c v, you'll also
-be assigning to junk.  But since futures are single assignment
-variables, you can only do that once.  Hence, when you assign a
-second element of \c v you'll get a runtime exception.
-
-The fix (other than using arrays) is to initialize STL vectors and
-other containers from the special element returned by
-\c Future<T>::default_initializer() which if passed into the copy
-constructor will cause it to behave just like the default contructor.
-Thus, the following code is what you actually need to use an STL
-vector of futures
-\code
-   vector< Future<double> > v(3,Future<double>::default_initializer());
-\endcode
-which sucks, so we provide the factory function
-\code
-   template <typename T>
-   vector< Future<T> > future_vector_factory(std::size_t n);
-\endcode
-which enables you to write
-\code
-   vector< Future<double> > v = future_vector_factory<double>(3);
-\endcode
-which merely blows instead of sucking.
-*/
 
     template <typename T> class Future;
 

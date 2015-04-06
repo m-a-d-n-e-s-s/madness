@@ -31,8 +31,8 @@
 //       \defgroup worlddc Distributed containers (WorldContainer)
 //       \ingroup parallel_runtime
 
-//       \defgroup futures Futures
-//       \ingroup parallel_runtime
+///       \defgroup futures Futures
+///       \ingroup parallel_runtime
 
 //       \defgroup serialization Serialization
 //       \ingroup parallel_runtime
