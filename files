@@ -466,7 +466,6 @@ worldam.cc
 worldam.h
 worlddc.h
 worlddep.h
-worldfut.h
 worldgop.cc
 worldgop.h
 worldhash.h

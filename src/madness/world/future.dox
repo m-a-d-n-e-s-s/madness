@@ -34,8 +34,23 @@
  \brief Overview of futures.
  \addtogroup futures
 
-\todo This is taken from some crude remarks that used to be in worldfut.h.
-    It needs to be edited/verified before this goes live.
+\todo Badly in need of a general description. There's a lot of jargon in the implementation's documentation -- a future is \em assigned, etc. -- that should be clarified, possibly in \ref futures. Just sayin'. There's some text in a comment (not doxygen) near the beginning of the \c Future class. Maybe move it here? Hell, I went ahead an copied (cut, really) it here, right here, just for you.
+\code
+  // This future object can exist in one of three states:
+  //   - f == NULL && value == NULL : Default initialized state
+  //        This state occurs when the future is constructed via
+  //        Future::default_initializer().
+  //   - f != NULL && value == NULL : FutureImpl object will hold the T object
+  //        This state occurs when a future is constructed without a value,
+  //        or from a remote reference.
+  //   - f == NULL $$ value != NULL : T object is held in buffer
+  //        This state occurs when a future is constructed with a value
+  //        or from an input archive.
+\endcode
+
+\par Gotchas
+
+\todo This is taken from some crude remarks that used to be in worldfut.h. It needs to be edited/verified before this goes live. It could probably use a better section heading than "Gotchas", too...
 
 A common misconception is that STL containers initialize their
 contents by invoking the default constructor of each item in
