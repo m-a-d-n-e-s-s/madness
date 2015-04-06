@@ -16,6 +16,9 @@
 ///       \defgroup world Distributed computing environment (World and its relations)
 ///       \ingroup parallel_runtime
 
+///       \defgroup tasks Tasks
+///       \ingroup parallel_runtime
+
 //       \defgroup rmi Remote method invocation
 //       \ingroup parallel_runtime
 

@@ -27,18 +27,16 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
+/**
+ \file worldtask.h
+ \brief Defines TaskInterface and implements WorldTaskQueue and associated stuff.
+ \ingroup tasks
+*/
 
 #ifndef MADNESS_WORLD_WORLDTASK_H__INCLUDED
 #define MADNESS_WORLD_WORLDTASK_H__INCLUDED
-
-/// \file worldtask.h
-/// \brief Defines TaskInterface and implements WorldTaskQueue and associated stuff.
-/// \addtogroup parallel_runtime
 
 #include <iostream>
 #include <madness/world/nodefaults.h>
@@ -46,6 +44,13 @@
 #include <madness/world/timers.h>
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
+
+/**
+ \todo Description/overview of tasks and related concepts for the documentation module.
+
+ \addtogroup tasks
+ @{
+*/
 
 namespace madness {
 
@@ -57,33 +62,39 @@ namespace madness {
 
     namespace detail {
 
+        // a few more forward decls
         template <typename ptrT, typename memfnT, typename resT>
         memfnT get_mem_func_ptr(const MemFuncWrapper<ptrT, memfnT, resT>&);
-        template <typename, typename> class ForEachRootTask;
 
-        /// Serialization container for sending tasks to remote nodes
-        /// This is for internal use only. You should not use this class directly.
-        /// \tparam refT The remote reference type for task result future
-        /// \tparam functionT The task function type
+        template <typename, typename>
+        class ForEachRootTask;
+
+        /// Serialization container for sending tasks to remote nodes.
+
+        /// \attention This struct is for internal use only. You should not
+        ///     use this class directly.
+        /// \tparam refT The remote reference type for task result future.
+        /// \tparam functionT The task function type.
         template <typename refT, typename functionT>
         struct TaskHandlerInfo {
-            refT ref;               ///< Remote reference for a task result future
-            functionT func;         ///< A task function
-            TaskAttributes attr;    ///< Task attributes
+            refT ref; ///< Remote reference for a task result future.
+            functionT func; ///< A task function.
+            TaskAttributes attr; ///< Task attributes.
 
-            /// Construct task info object
-
-            /// \param ref Remote reference to the result future
-            /// \param func The task function
-            /// \param attr The task attrubutes
-            TaskHandlerInfo(const refT& ref, functionT func, const TaskAttributes& attr)
-                    : ref(ref), func(func),attr(attr) {}
             TaskHandlerInfo() {}
 
-            /// Serialization of object
+            /// Construct task info object.
 
-            /// \tparam Archive The serialization archive type
-            /// \param ar The serialization archive
+            /// \param[in] ref Remote reference to the result future.
+            /// \param[in] func The task function.
+            /// \param[in] attr The task attrubutes.
+            TaskHandlerInfo(const refT& ref, functionT func, const TaskAttributes& attr)
+                : ref(ref), func(func),attr(attr) {}
+
+            /// Serialization of an object.
+
+            /// \tparam Archive The serialization archive type.
+            /// \param[in,out] ar The serialization archive.
             template <typename Archive>
             void serialize(const Archive& ar) {
                 serialize_internal<functionT>(ar);
@@ -91,9 +102,9 @@ namespace madness {
 
         private:
 
-            /// Identify function and member function pointers
+            /// Identify function and member function pointers.
 
-            /// \tparam fnT The function to identify
+            /// \tparam fnT The function to identify.
             template <typename fnT>
             struct is_func_ptr {
                 static const bool value =
@@ -101,11 +112,11 @@ namespace madness {
                     || std::is_member_function_pointer<fnT>::value);
             };
 
-            /// Serialization for function pointers and member function pointers
+            /// Serialization for function pointers and member function pointers.
 
-            /// \tparam fnT The function type
-            /// \tparam Archive The serialization archive type
-            /// \param ar The serialization archive
+            /// \tparam fnT The function type.
+            /// \tparam Archive The serialization archive type.
+            /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
             typename enable_if<is_func_ptr<fnT> >::type
             serialize_internal(const Archive& ar) {
@@ -113,9 +124,10 @@ namespace madness {
             }
 
             /// Serialization for non- function pointers and member function pointers.
-            /// \tparam fnT The function type
-            /// \tparam Archive The serialization archive type
-            /// \param ar The serialization archive
+
+            /// \tparam fnT The function type.
+            /// \tparam Archive The serialization archive type.
+            /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
             typename disable_if<is_func_ptr<fnT> >::type
             serialize_internal(const Archive& ar) {
@@ -123,6 +135,10 @@ namespace madness {
             }
         }; // struct TaskHandlerInfo
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam fnT Description needed.
         template <typename fnT>
         struct function_enabler : public
             lazy_enable_if_c<
@@ -130,64 +146,131 @@ namespace madness {
                 task_result_type<fnT> >
         { };
 
-        template <typename objT, typename memfnT, typename enableT = void>
-        struct memfunc_enabler_base { };
+        /// \todo Brief description needed.
 
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
+        /// \tparam enableT Description needed.
+        template <typename objT, typename memfnT, typename enableT = void>
+        struct memfunc_enabler_base
+        { };
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed
+        /// \tparam objT Description needed.
+        /// \tparam resT Description needed.
+        /// \tparam baseT Description needed.
+        /// \tparam paramT Description needed.
         template <typename objT, typename resT, typename baseT, typename ... paramT>
         struct memfunc_enabler_base<objT, resT (baseT::*)(paramT...),
             typename std::enable_if<std::is_base_of<baseT, objT>::value>::type >
         {
-          typedef typename add_future<resT>::type type;
+            /// \todo Brief description needed.
+            typedef typename add_future<resT>::type type;
         };
 
+        /// \todo Brief description needed.
 
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam resT Description needed.
+        /// \tparam baseT Description needed.
+        /// \tparam paramT Description needed.
         template <typename objT, typename resT, typename baseT, typename ... paramT>
         struct memfunc_enabler_base<objT, resT (baseT::*)(paramT...) const,
             typename std::enable_if<std::is_base_of<baseT, objT>::value>::type >
         {
-          typedef typename add_future<resT>::type type;
+            /// \todo Brief description needed.
+            typedef typename add_future<resT>::type type;
         };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler :
                 public memfunc_enabler_base<typename std::decay<objT>::type, memfnT>
         { };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler<objT*, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler<const objT*, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler<objT* const, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler<const objT* const, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler<std::shared_ptr<objT>&, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler<const std::shared_ptr<objT>&, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler<std::shared_ptr<objT>, memfnT> :
             public memfunc_enabler<objT, memfnT>
         { };
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam objT Description needed.
+        /// \tparam memfnT Description needed.
         template <typename objT, typename memfnT>
         struct memfunc_enabler<const std::shared_ptr<objT>, memfnT> :
             public memfunc_enabler<objT, memfnT>
@@ -197,22 +280,41 @@ namespace madness {
 
 
     /// Multi-threaded queue to manage and run tasks.
+
+    /// \todo A concise description of the inner workings...
     class WorldTaskQueue : public CallbackInterface, private NO_DEFAULTS {
         friend class TaskInterface;
     private:
-        World& world;              ///< The communication context
-        const ProcessID me;        ///< This process
-        AtomicInt nregistered;     ///< Counts pending tasks
+        World& world; ///< The communication context.
+        const ProcessID me; ///< This process.
+        AtomicInt nregistered; ///< Count of pending tasks.
 
-        void notify() { nregistered--; }
+        /// \todo Brief description needed.
+        void notify() {
+            nregistered--;
+        }
 
-        // Used in reduce kernel
+        /// \todo Brief description needed.
+
+        /// This template is used in the reduce kernel.
+        /// \todo Template parameter descriptions need verification.
+        /// \tparam resultT Return type of the operation.
+        /// \tparam opT The operation.
+        /// \param[in] left Description needed.
+        /// \param[in] right Description needed.
+        /// \param[in] op The operation used in the reduce.
+        /// \return Reduce of \c left and \c right using \c op.
         template <typename resultT, typename opT>
         static resultT sum(const resultT& left, const resultT& right, const opT& op) {
             //std::cout << " REDUCE SUM " << left << " " << right << std::endl;
             return op(left,right);
         }
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam taskT Description needed.
+        /// \param arg Description needed.
         template <typename taskT>
         static void remote_task_handler(const AmArg& arg) {
             MADNESS_ASSERT(taskT::arity <= 9u);
@@ -232,16 +334,58 @@ namespace madness {
             arg.get_world()->taskq.add(task);
         }
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam T Description needed.
+        /// \param[in] f Description needed.
         template <typename T>
         inline const T& am_arg(const Future<T>& f) {
             MADNESS_ASSERT(f.probe());
             return f.get();
         }
 
-        template <typename T> inline const T& am_arg(const T& t) { return t; }
+        /// \todo Brief description needed.
 
+        /// \todo Descriptions needed.
+        /// \tparam T Description needed.
+        /// \param[in] t Description needed.
+        /// \return Description needed.
+        template <typename T>
+        inline const T& am_arg(const T& t) {
+            return t;
+        }
+
+        /// \todo Brief description needed.
         typedef detail::voidT voidT;
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam taskT Description needed.
+        /// \tparam fnT Description needed.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \tparam a9T Type of argument 9.
+        /// \param where Description needed.
+        /// \param fn Description needed.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] a2 Argument 2.
+        /// \param[in] a3 Argument 3.
+        /// \param[in] a4 Argument 4.
+        /// \param[in] a5 Argument 5.
+        /// \param[in] a6 Argument 6.
+        /// \param[in] a7 Argument 7.
+        /// \param[in] a8 Argument 8.
+        /// \param[in] a9 Argument 9.
+        /// \param[in] attr Description needed.
+        /// \return Description needed.
         template <typename taskT, typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T,
                 typename a8T, typename a9T>
@@ -262,21 +406,29 @@ namespace madness {
 
 
     public:
+        /// Constructor requiring a communication context (\c World).
+
+        /// \param[in,out] world The communication context.
         WorldTaskQueue(World& world);
 
-        /// Returns the number of pending tasks
-        size_t size() const { return nregistered; }
+        /// Returns the number of pending tasks.
+
+        /// \return The number of pending tasks.
+        size_t size() const {
+            return nregistered;
+        }
 
 
-        /// Add a new local task taking ownership of the pointer
+        /// Add a new local task, taking ownership of the pointer.
 
-        /// The task pointer (t) is assumed to have been created with
+        /// The task pointer (\c t) is assumed to have been created with
         /// \c new and when the task is eventually run the queue
         /// will call the task's destructor using \c delete.
         ///
         /// Once the task is complete it will execute
-        /// task_complete_callback to decrement the number of pending
+        /// \c task_complete_callback to decrement the number of pending
         /// tasks and be deleted.
+        /// \param[in] t Pointer to the task.
         void add(TaskInterface* t)  {
             nregistered++;
 
@@ -291,6 +443,22 @@ namespace madness {
             }
         }
 
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam fnT Description needed.
+        /// \tparam a1T Type of argument 1.
+        /// \tparam a2T Type of argument 2.
+        /// \tparam a3T Type of argument 3.
+        /// \tparam a4T Type of argument 4.
+        /// \tparam a5T Type of argument 5.
+        /// \tparam a6T Type of argument 6.
+        /// \tparam a7T Type of argument 7.
+        /// \tparam a8T Type of argument 8.
+        /// \tparam a9T Type of argument 9.
+        /// \param fn Description needed.
+        /// \param[in] t Description needed.
+        /// \return Description needed.
         template <typename fnT, typename a1T, typename a2T, typename a3T,
             typename a4T, typename a5T, typename a6T, typename a7T, typename a8T,
             typename a9T>
@@ -302,10 +470,10 @@ namespace madness {
             return res;
         }
 
-        /// Reduce op(item) for all items in range using op(sum,op(item))
+        /// Reduce `op(item)` for all items in range using `op(sum,op(item))`.
 
-        /// The operation must provide the following interface of
-        /// which the \c operator() methods are required by reduce()
+        /// The operation must provide the following interface, of
+        /// which the \c operator() methods are required by \c reduce()
         /// and the rest by the task interface.
         /// \code
         /// struct opT {
@@ -316,9 +484,17 @@ namespace madness {
         ///     template <typename Archive> void serialize(const Archive& ar);
         /// }
         /// \endcode
-        /// Note that the serialize method does not actually have to
+        /// \note The serialize method does not actually have to
         /// work unless you want to have the task be stealable.
+        ///
         /// Adjust the chunksize in the range to control granularity.
+        /// \todo Descriptions needed and/or verified.
+        /// \tparam resultT The result type of the operation.
+        /// \tparam rangeT Description needed.
+        /// \tparam opT Function type of the operation.
+        /// \param[in] range The range of items.
+        /// \param[in] op The operation.
+        /// \return Description needed.
         template <typename resultT, typename rangeT, typename opT>
         Future<resultT> reduce(const rangeT& range, const opT& op) {
             if (range.size() <= range.get_chunksize()) {
@@ -335,10 +511,10 @@ namespace madness {
             }
         }
 
-        /// Apply op(item) for all items in range
+        /// Apply `op(item)` on all items in range.
 
-        /// The operation must provide the following interface of
-        /// which the \c operator() method is required by for_each()
+        /// The operation must provide the following interface, of
+        /// which the \c operator() method is required by `for_each()`
         /// and the rest by the task interface.
         /// \code
         /// struct opT {
@@ -348,7 +524,7 @@ namespace madness {
         ///     template <typename Archive> void serialize(const Archive& ar);
         /// };
         /// \endcode
-        /// Note that the serialize method does not actually have to
+        /// \note The serialize method does not actually have to
         /// work unless you want to have the task be stealable.
         ///
         /// Adjust the chunksize in the range to control granularity.
@@ -359,6 +535,13 @@ namespace madness {
         ///
         /// You can ignore the result if you are interested
         /// in neither synchronization nor result status.
+        /// \todo Descriptions needed and/or verified.
+        /// \tparam rangeT Description needed.
+        /// \tparam opT Funtion type of the operation. This function should
+        ///     have a return type of \c bool.
+        /// \param[in] range The range of items.
+        /// \param[in] op The operation.
+        /// \return Future for a bool which is the logical `and` of all `op(item)` calls.
         template <typename rangeT, typename opT>
         Future<bool> for_each(const rangeT& range, const opT& op) {
             detail::ForEachRootTask<rangeT, opT>* for_each_root =
@@ -870,7 +1053,8 @@ namespace madness {
 
     }  // namespace detail
 
-}
+} // namespace madness
 
+/// @}
 
 #endif // MADNESS_WORLD_WORLDTASK_H__INCLUDED
