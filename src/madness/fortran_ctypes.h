@@ -27,13 +27,12 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
-/// \file fortran_ctypes.h
-/// \brief Correspondence between C++ and Fortran types.
+/**
+ \file fortran_ctypes.h
+ \brief Correspondence between C++ and Fortran types.
+*/
 
 #ifndef FORTRAN_CTYPES_H
 #define FORTRAN_CTYPES_H

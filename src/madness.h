@@ -27,14 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
 */
 
 /**
  \file madness.h
  \brief General header file for using MADNESS.
  \ingroup applications
- */
+*/
 
 #ifndef MADNESS_H__INCLUDED
 #define MADNESS_H__INCLUDED

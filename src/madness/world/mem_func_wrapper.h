@@ -16,7 +16,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-
   For more information please contact:
 
   Robert J. Harrison
@@ -27,7 +26,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
 */
 
 /**
