@@ -143,6 +143,8 @@ namespace madness {
             /// This variant should only be called for a member function with
             /// no arguments.
             /// \return The member function's return value.
+            /// \todo Could we use template metaprogramming to remove all the
+            ///     variants for the number/types of arguments?
             resT operator()() const {
                 MADNESS_ASSERT(ptr_);
                 return ((*ptr_).*memfn_)();
@@ -426,6 +428,8 @@ namespace madness {
 
             /// This variant should only be called for a member function with
             /// no arguments.
+            /// \todo Could we use template metaprogramming to remove all the
+            ///     variants for the number/types of arguments?
             void operator()() const {
                 MADNESS_ASSERT(ptr_);
                 ((*ptr_).*memfn_)();

@@ -31,7 +31,7 @@
 
 /**
  \file worldtask.h
- \brief Defines TaskInterface and implements WorldTaskQueue and associated stuff.
+ \brief Defines \c TaskInterface and implements \c WorldTaskQueue and associated stuff.
  \ingroup tasks
 */
 
