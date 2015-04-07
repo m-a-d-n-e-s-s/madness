@@ -575,6 +575,7 @@ namespace madness {
         /// Specialization of \c ArchiveLoadImpl for \c World pointers.
 
         /// Helps in archiving (reading) \c World objects.
+        /// \tparam Archive The archive type.
         /// \todo Verify this documentation.
         template <class Archive>
         struct ArchiveLoadImpl<Archive,World*> {
@@ -595,6 +596,7 @@ namespace madness {
         /// Specialization of \c ArchiveStoreImpl for \c World pointers.
 
         /// Helps in archiving (writing) \c World objects.
+        /// \tparam Archive The archive type.
         /// \todo Verify this documentation.
         template <class Archive>
         struct ArchiveStoreImpl<Archive,World*> {

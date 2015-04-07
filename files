@@ -479,7 +479,6 @@ worldpapi.cc
 worldpapi.h
 worldprofile.cc
 worldprofile.h
-worldptr.h
 worldrange.h
 worldref.cc
 worldref.h
