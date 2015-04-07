@@ -461,7 +461,6 @@ type_traits.h
 typestuff.h
 uniqueid.h
 vecar.h
-world.cc
 worldam.cc
 worldam.h
 worlddc.h

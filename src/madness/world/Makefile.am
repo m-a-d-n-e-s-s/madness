@@ -4,7 +4,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/madness/world
-thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
+thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
 	worldtask.h array.h worldgop.h worldobj.h bufar.h nodefaults.h \
 	enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
 	dqueue.h parar.h vecar.h madexception.h worldmem.h worldser.h worldthread.h \
@@ -113,7 +113,7 @@ test_worldref_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 
 endif
 
-libMADworld_a_SOURCES = madexception.cc worldfwd.cc timers.cc world.cc \
+libMADworld_a_SOURCES = madexception.cc worldfwd.cc timers.cc future.cc \
 	redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \

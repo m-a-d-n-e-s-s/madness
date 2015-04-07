@@ -30,17 +30,12 @@
 */
 
 /**
- \file world.cc
- \brief Static variables/functions for the parallel runtime.
+ \file future.cc
+ \brief Implementations for \c Future and related functions.
  \ingroup world
 */
 
-#include <madness/world/worldfwd.h>
-#include <madness/world/worldmem.h>
-#include <madness/world/timers.h>
-#include <madness/world/worldam.h>
-#include <madness/world/worldtask.h>
-#include <madness/world/worldgop.h>
+#include <madness/world/future.h>
 #include <cstdlib>
 #include <sstream>
 

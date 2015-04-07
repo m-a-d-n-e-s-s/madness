@@ -30,13 +30,13 @@
 */
 
 /**
- \file worldfut.h
+ \file future.h
  \brief Implements \c Future and related items.
  \ingroup futures
 */
 
-#ifndef MADNESS_WORLD_WORLDFUT_H__INCLUDED
-#define MADNESS_WORLD_WORLDFUT_H__INCLUDED
+#ifndef MADNESS_WORLD_FUTURE_H__INCLUDED
+#define MADNESS_WORLD_FUTURE_H__INCLUDED
 
 #include <vector>
 #include <stack>
@@ -1138,4 +1138,4 @@ namespace madness {
 
 /// @}
 
-#endif // MADNESS_WORLD_WORLDFUT_H__INCLUDED
+#endif // MADNESS_WORLD_FUTURE_H__INCLUDED

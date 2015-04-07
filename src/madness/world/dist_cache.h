@@ -37,7 +37,7 @@
 
 #include <madness/world/madexception.h>
 #include <madness/world/worldhashmap.h>
-#include <madness/world/worldfut.h>
+#include <madness/world/future.h>
 
 namespace madness {
     namespace detail {

@@ -50,7 +50,7 @@
 
 \par Gotchas
 
-\todo This is taken from some crude remarks that used to be in worldfut.h. It needs to be edited/verified before this goes live. It could probably use a better section heading than "Gotchas", too...
+\todo This is taken from some crude remarks that used to be in worldfut.h (now future.h). It needs to be edited/verified before this goes live. It could probably use a better section heading than "Gotchas", too...
 
 A common misconception is that STL containers initialize their
 contents by invoking the default constructor of each item in
