@@ -41,7 +41,7 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <math.h>
-#include <madness/world/worldobj.h>
+#include <madness/world/world_object.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/mra/function_common_data.h>

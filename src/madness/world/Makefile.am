@@ -5,7 +5,7 @@ lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/madness/world
 thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
-	world_task_queue.h array.h worldgop.h worldobj.h bufar.h nodefaults.h \
+	world_task_queue.h array.h worldgop.h world_object.h bufar.h nodefaults.h \
 	enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
 	dqueue.h parar.h vecar.h madness_exception.h worldmem.h worldser.h
 	worldthread.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
