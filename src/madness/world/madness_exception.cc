@@ -30,12 +30,12 @@
 */
 
 /**
- \file madexception.cc
+ \file madness_exception.cc
  \brief Implementation of \c madness::MadnessException.
  \ingroup libraries
 */
 
-#include <madness/world/madexception.h>
+#include <madness/world/madness_exception.h>
 #include <cstdlib>
 #include <sstream>
 #include <iostream>

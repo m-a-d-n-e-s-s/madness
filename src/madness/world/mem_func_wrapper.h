@@ -43,7 +43,7 @@
 #ifndef MADNESS_WORLD_MEM_FUNC_WRAPPER_H__INCLUDED
 #define MADNESS_WORLD_MEM_FUNC_WRAPPER_H__INCLUDED
 
-#include <madness/world/madexception.h>
+#include <madness/world/madness_exception.h>
 
 namespace madness {
     namespace detail {

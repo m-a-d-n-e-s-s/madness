@@ -423,7 +423,7 @@
 //#include <madness/world/worldprofile.h>
 #include <madness/world/enable_if.h>
 #include <madness/world/type_traits.h>
-#include <madness/world/madexception.h>
+#include <madness/world/madness_exception.h>
 
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
