@@ -30,16 +30,16 @@
 */
 
 /**
- \file worldobj.h
- \brief Defines and implements WorldObject
+ \file world_object.h
+ \brief Defines and implements \c WorldObject.
  \ingroup worldobj
 */
 
-#ifndef MADNESS_WORLD_WORLDOBJ_H__INCLUDED
-#define MADNESS_WORLD_WORLDOBJ_H__INCLUDED
+#ifndef MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
+#define MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 
 #include <madness/world/worldthread.h>
-#include <madness/world/worldtask.h>
+#include <madness/world/world_task_queue.h>
 
 /**
  \addtogroup worldobj
@@ -1427,5 +1427,6 @@ madness::Spinlock madness::WorldObject<Derived>::pending_mutex;
 
 #endif
 
-#endif // MADNESS_WORLD_WORLDOBJ_H__INCLUDED
-///@}
+#endif // MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
+
+/// @}
