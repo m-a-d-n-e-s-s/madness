@@ -32,7 +32,7 @@
 /**
  \file world_task_queue.h
  \brief Defines \c TaskInterface and implements \c WorldTaskQueue and associated stuff.
- \ingroup tasks
+ \ingroup taskq
 */
 
 #ifndef MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
@@ -48,7 +48,7 @@
 /**
  \todo Description/overview of tasks and related concepts for the documentation module.
 
- \addtogroup tasks
+ \addtogroup taskq
  @{
 */
 

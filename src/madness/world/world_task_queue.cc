@@ -32,7 +32,7 @@
 /**
  \file world_task_queue.cc
  \brief Implementation of \c TaskInterface and \c WorldTaskQueue functions.
- \ingroup tasks
+ \ingroup taskq
 */
 
 #include <madness/world/world_task_queue.h>
