@@ -30,12 +30,12 @@
 */
 
 /**
- \file worldtask.cc
+ \file world_task_queue.cc
  \brief Implementation of \c TaskInterface and \c WorldTaskQueue functions.
  \ingroup tasks
 */
 
-#include <madness/world/worldtask.h>
+#include <madness/world/world_task_queue.h>
 
 namespace madness {
 

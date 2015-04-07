@@ -31,7 +31,7 @@
 
 /**
  \file worldobj.h
- \brief Defines and implements WorldObject
+ \brief Defines and implements \c WorldObject.
  \ingroup worldobj
 */
 
@@ -39,7 +39,7 @@
 #define MADNESS_WORLD_WORLDOBJ_H__INCLUDED
 
 #include <madness/world/worldthread.h>
-#include <madness/world/worldtask.h>
+#include <madness/world/world_task_queue.h>
 
 /**
  \addtogroup worldobj

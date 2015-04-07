@@ -39,7 +39,7 @@
 #include <madness/world/worldmem.h>
 #include <madness/world/timers.h>
 #include <madness/world/worldam.h>
-#include <madness/world/worldtask.h>
+#include <madness/world/world_task_queue.h>
 #include <madness/world/worldgop.h>
 #include <cstdlib>
 #include <sstream>

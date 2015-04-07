@@ -35,7 +35,7 @@
 #include <madness/world/dist_keys.h>
 #include <madness/world/madness_exception.h>
 #include <madness/world/world.h>
-#include <madness/world/worldtask.h>
+#include <madness/world/world_task_queue.h>
 
 namespace madness {
 

@@ -30,13 +30,13 @@
 */
 
 /**
- \file worldtask.h
+ \file world_task_queue.h
  \brief Defines \c TaskInterface and implements \c WorldTaskQueue and associated stuff.
  \ingroup tasks
 */
 
-#ifndef MADNESS_WORLD_WORLDTASK_H__INCLUDED
-#define MADNESS_WORLD_WORLDTASK_H__INCLUDED
+#ifndef MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
+#define MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
 
 #include <iostream>
 #include <madness/world/nodefaults.h>
@@ -1480,4 +1480,4 @@ namespace madness {
 
 /// @}
 
-#endif // MADNESS_WORLD_WORLDTASK_H__INCLUDED
+#endif // MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
