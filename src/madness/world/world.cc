@@ -27,51 +27,44 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
-#include <madness/world/worldfwd.h>
+/**
+ \file world.cc
+ \brief Implementation of the \c World class and associated functions.
+ \ingroup world
+*/
+
+#include <madness/world/world.h>
 #include <madness/world/worldmem.h>
-#include <madness/world/worldtime.h>
+#include <madness/world/timers.h>
 #include <madness/world/worldam.h>
 #include <madness/world/worldtask.h>
 #include <madness/world/worldgop.h>
 #include <cstdlib>
 #include <sstream>
 
-/// \file worldstuff.cc
-/// \brief Static variables/functions that must be linked in
-
 #ifdef MADNESS_HAS_ELEMENTAL
 #include <elemental.hpp>
-#endif
-
-
-#ifdef __CYGWIN__
-#include <windows.h>
 #endif
 
 namespace madness {
 
     // File scope variables
     namespace {
-        double start_cpu_time;
-        double start_wall_time;
-        bool madness_initialized_ = false;
+        double start_cpu_time; ///< \todo Documentation needed.
+        double start_wall_time; ///< \todo Documentation needed.
+        bool madness_initialized_ = false;  ///< Tracks if MADNESS has been initialized.
     } // namespace
 
     // World static member variables
-    std::list<World*> World::worlds;
-    World* World::default_world = NULL;
-    unsigned long World::idbase = 0;
+    std::list<World*> World::worlds; ///< List of \c World pointers in the parallel runtime.
+    World* World::default_world = NULL; ///< The default \c World.
+    unsigned long World::idbase = 0; ///< \todo Verify: Base unique ID for objects in the runtime.
 
     bool initialized() {
       return madness_initialized_;
     }
-
-    const Future<void> Future<void>::value = Future<void>();
 
     World::World(const SafeMPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
@@ -225,81 +218,6 @@ namespace madness {
         ThreadPool::end();
         detail::WorldMpi::finalize();
         madness_initialized_ = false;
-    }
-
-    // Enables easy printing of MadnessExceptions
-    std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
-        out << "MadnessException : ";
-        if (e.msg) out << "msg=" << e.msg << " : ";
-        if (e.assertion) out << "assertion=" << e.assertion << " : ";
-        out << "value=" << e.value << " : ";
-        if (e.line) out << "line=" << e.line << " : ";
-        if (e.function) out << "function=" << e.function << " : ";
-        if (e.filename) out << "filename='" << e.filename << "'";
-        out << std::endl;
-        return out;
-    }
-
-    void exception_break(bool message) {
-        if(message)
-            std::cerr << "A madness exception occurred. Place a break point at madness::exception_break to debug.\n";
-    }
-
-    double wall_time() {
-#ifdef __CYGWIN__
-        static bool initialized = false;
-        static double rfreq;
-        if (!initialized) {
-            _LARGE_INTEGER freq;
-            if (QueryPerformanceFrequency(&freq))
-                rfreq = 1.0/double(freq.QuadPart);
-            else
-                rfreq = 0.0;
-            initialized = true;
-        }
-        _LARGE_INTEGER ins;
-        QueryPerformanceCounter(&ins);
-        return double(ins.QuadPart)*rfreq;
-#else
-        static bool first_call = true;
-        static double start_time;
-
-        struct timeval tv;
-        gettimeofday(&tv,0);
-        double now = tv.tv_sec + 1e-6*tv.tv_usec;
-
-        if (first_call) {
-            first_call = false;
-            start_time = now;
-        }
-        return now - start_time;
-#endif
-    }
-
-    double cpu_frequency() {
-        static double freq = -1.0;
-        if (freq == -1.0) {
-            double used = wall_time();
-            uint64_t ins = cycle_count();
-            if (ins == 0) return 0;
-            while ((cycle_count()-ins) < 100000000);  // 100M cycles at 1GHz = 0.1s
-            ins = cycle_count() - ins;
-            used = wall_time() - used;
-            freq = ins/used;
-        }
-        return freq;
-    }
-
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<void>& f) {
-        out << "<void>";
-        return out;
-    }
-
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<Void>& f) {
-        out << "<Void>";
-        return out;
     }
 
     void print_stats(World& world) {

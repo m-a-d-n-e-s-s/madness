@@ -36,7 +36,7 @@
 
 #include <madness/world/worldthread.h>
 #include <madness/world/worldprofile.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 #include <madness/world/print.h>
 #include <madness/world/worldpapi.h>
 #include <madness/world/safempi.h>

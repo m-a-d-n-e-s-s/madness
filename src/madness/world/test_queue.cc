@@ -1,4 +1,4 @@
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 
 // This program is used to do a simple test of the task queue.
 

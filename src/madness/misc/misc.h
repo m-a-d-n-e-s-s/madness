@@ -39,7 +39,7 @@
 /// \file misc.h
 /// \brief Header to declare stuff which has not yet found a home
 
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 #include <iostream>
 #include <string>
 

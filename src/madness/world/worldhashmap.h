@@ -45,7 +45,7 @@
 // vague compatibility with the TBB API.
 
 #include <madness/world/worldmutex.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madexception.h>
 #include <madness/world/worldhash.h>
 #include <madness/world/enable_if.h>
 #include <new>

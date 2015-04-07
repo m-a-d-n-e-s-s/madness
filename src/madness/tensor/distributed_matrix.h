@@ -30,8 +30,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
 // THE STUFF IN THIS FILE IS IN TRANSITION!  THE API AND
@@ -39,7 +37,7 @@
 // REPLICATED TO DISTRIBUTED MATRIX ALGORITHMS, AND SUBSEQUENTLY
 // REFINE THE DESIGN AND INTERFACE TO 3RD PARTY PACKAGES.
 
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <utility>
 #include <madness/tensor/tensor.h>
 

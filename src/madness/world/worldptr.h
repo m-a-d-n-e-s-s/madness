@@ -27,18 +27,15 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 #ifndef MADNESS_WORLD_WORLDPTR_H__INCLUDED
 #define MADNESS_WORLD_WORLDPTR_H__INCLUDED
 
-#include <madness/world/worldexc.h>     // for MADNESS_ASSERT
+#include <madness/world/madexception.h>     // for MADNESS_ASSERT
 #include <madness/world/worldtypes.h>   // for ProcessID
 #include <madness/world/archive.h>      // for wrap_opaque
-#include <madness/world/worldfwd.h>
+#include <madness/world/world.h>
 #include <algorithm>            // for std::swap
 #include <iostream>             // for std::iostream
 

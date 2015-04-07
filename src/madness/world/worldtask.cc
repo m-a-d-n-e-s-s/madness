@@ -27,19 +27,22 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
+*/
 
-
-  $Id: $
+/**
+ \file worldtask.cc
+ \brief Implementation of \c TaskInterface and \c WorldTaskQueue functions.
+ \ingroup tasks
 */
 
 #include <madness/world/worldtask.h>
-//#include <madness/world/worldmpi.h>
 
 namespace madness {
 
     bool TaskInterface::debug = false;
 
-    void TaskInterface::run(const TaskThreadEnv& env) { // This is what thread pool will invoke
+    // This is what thread pool will invoke
+    void TaskInterface::run(const TaskThreadEnv& env) {
         MADNESS_ASSERT(world);
         MADNESS_ASSERT(completion);
         World* w = const_cast<World*>(world);
