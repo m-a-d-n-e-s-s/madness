@@ -64,7 +64,7 @@
 #ifndef MADNESS_WORLD_SCOPED_PTR_H__INCLUDED
 #define MADNESS_WORLD_SCOPED_PTR_H__INCLUDED
 
-#include <madness/world/madexception.h>
+#include <madness/world/madness_exception.h>
 #include <madness/world/boost_checked_delete_bits.h>
 #include <cstddef>
 

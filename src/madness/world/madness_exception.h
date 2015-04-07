@@ -30,7 +30,7 @@
 */
 
 /**
- \file madexception.h
+ \file madness_exception.h
  \brief Defines \c madness::MadnessException for exception handling.
  \ingroup libraries
 
@@ -42,8 +42,8 @@
     - ABORT: abort execution.
 */
 
-#ifndef MADNESS_WORLD_MADEXCEPTION_H__INCLUDED
-#define MADNESS_WORLD_MADEXCEPTION_H__INCLUDED
+#ifndef MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
+#define MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
 
 #include <iosfwd>
 #include <exception>
@@ -159,4 +159,4 @@ namespace madness {
 
 } // namespace madness
 
-#endif // MADNESS_WORLD_MADEXCEPTION_H__INCLUDED
+#endif // MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED

@@ -1,6 +1,6 @@
 #include <madness/world/parallel_runtime.h>
 #include <madness/world/worldobj.h>
-#include <madness/world/madexception.h>
+#include <madness/world/madness_exception.h>
 #include <vector>
 
 namespace madness {

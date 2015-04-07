@@ -32,7 +32,7 @@
 #ifndef MADNESS_WORLD_WORLDPTR_H__INCLUDED
 #define MADNESS_WORLD_WORLDPTR_H__INCLUDED
 
-#include <madness/world/madexception.h>     // for MADNESS_ASSERT
+#include <madness/world/madness_exception.h>
 #include <madness/world/worldtypes.h>   // for ProcessID
 #include <madness/world/archive.h>      // for wrap_opaque
 #include <madness/world/world.h>
