@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
  */
 
 #ifndef MADNESS_WORLD_WORLDAM_H__INCLUDED
@@ -40,7 +37,7 @@
 
 #include <madness/world/bufar.h>
 #include <madness/world/worldrmi.h>
-#include <madness/world/worldfwd.h>
+#include <madness/world/world.h>
 #include <vector>
 #include <cstddef>
 

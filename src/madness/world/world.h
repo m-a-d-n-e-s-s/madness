@@ -30,7 +30,7 @@
 */
 
 /**
- \file worldfwd.h
+ \file world.h
  \brief Declares the \c World class for the parallel runtime environment.
  \ingroup world
 
@@ -39,8 +39,8 @@
  \todo Are some of the forward declarations in this file necessary? A quick inspection suggests most of the functions before the World class don't need to be declared first...
 */
 
-#ifndef MADNESS_WORLD_WORLDFWD_H__INCLUDED
-#define MADNESS_WORLD_WORLDFWD_H__INCLUDED
+#ifndef MADNESS_WORLD_WORLD_H__INCLUDED
+#define MADNESS_WORLD_WORLD_H__INCLUDED
 
 #include <madness/madness_config.h>
 
@@ -621,4 +621,4 @@ namespace madness {
 
 /// @}
 
-#endif // MADNESS_WORLD_WORLDFWD_H__INCLUDED
+#endif // MADNESS_WORLD_WORLD_H__INCLUDED

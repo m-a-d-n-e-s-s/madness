@@ -45,7 +45,7 @@
 #include <madness/world/worlddep.h>
 #include <madness/world/array.h>
 #include <madness/world/worldref.h>
-#include <madness/world/worldfwd.h>
+#include <madness/world/world.h>
 #include <madness/world/move.h>
 
 /// \addtogroup futures

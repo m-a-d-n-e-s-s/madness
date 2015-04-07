@@ -30,12 +30,12 @@
 */
 
 /**
- \file worldfwd.cc
+ \file world.cc
  \brief Implementation of the \c World class and associated functions.
  \ingroup world
 */
 
-#include <madness/world/worldfwd.h>
+#include <madness/world/world.h>
 #include <madness/world/worldmem.h>
 #include <madness/world/timers.h>
 #include <madness/world/worldam.h>

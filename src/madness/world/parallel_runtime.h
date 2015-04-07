@@ -39,8 +39,8 @@
 #ifndef MADNESS_WORLD_PARALLEL_RUNTIME_H__INCLUDED
 #define MADNESS_WORLD_PARALLEL_RUNTIME_H__INCLUDED
 
-#include <madness/world/worldfwd.h>
-// These includes must go after worldfwd.h.
+#include <madness/world/world.h>
+// These includes must go after world.h.
 #include <madness/world/worldam.h>
 #include <madness/world/worldtask.h>
 #include <madness/world/worldgop.h>

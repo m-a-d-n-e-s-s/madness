@@ -10,7 +10,7 @@ thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
 	dqueue.h parar.h vecar.h madexception.h worldmem.h worldser.h worldthread.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h \
-	parallel_runtime.h worldfwd.h uniqueid.h worldprofile.h timers.h binfsar.h \
+	parallel_runtime.h world.h uniqueid.h worldprofile.h timers.h binfsar.h \
 	mpiar.h textfsar.h worlddc.h mem_func_wrapper.h scopedptr.h worldtask.h \
 	taskfn.h ref.h move.h group.h dist_cache.h dist_keys.h \
 	type_traits.h boost_checked_delete_bits.h \
@@ -113,7 +113,7 @@ test_worldref_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 
 endif
 
-libMADworld_a_SOURCES = madexception.cc worldfwd.cc timers.cc future.cc \
+libMADworld_a_SOURCES = madexception.cc world.cc timers.cc future.cc \
 	redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
