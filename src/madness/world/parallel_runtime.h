@@ -30,14 +30,14 @@
 */
 
 /**
- \file world.h
+ \file parallel_runtime.h
  \brief This header should include pretty much everything needed for the
      parallel runtime.
  \ingroup parallel_runtime
 */
 
-#ifndef MADNESS_WORLD_WORLD_H__INCLUDED
-#define MADNESS_WORLD_WORLD_H__INCLUDED
+#ifndef MADNESS_WORLD_PARALLEL_RUNTIME_H__INCLUDED
+#define MADNESS_WORLD_PARALLEL_RUNTIME_H__INCLUDED
 
 #include <madness/world/worldfwd.h>
 // These includes must go after worldfwd.h.
@@ -47,4 +47,4 @@
 #include <madness/world/worlddc.h>
 
 
-#endif // MADNESS_WORLD_WORLD_H__INCLUDED
+#endif // MADNESS_WORLD_PARALLEL_RUNTIME_H__INCLUDED

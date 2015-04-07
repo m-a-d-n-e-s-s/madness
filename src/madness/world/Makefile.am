@@ -9,10 +9,10 @@ thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
 	enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
 	dqueue.h parar.h vecar.h madexception.h worldmem.h worldser.h worldthread.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
-	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
-	worldfwd.h uniqueid.h worldprofile.h timers.h binfsar.h mpiar.h textfsar.h \
-	worlddc.h mem_func_wrapper.h scopedptr.h worldtask.h taskfn.h \
-	ref.h move.h group.h dist_cache.h dist_keys.h \
+	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h \
+	parallel_runtime.h worldfwd.h uniqueid.h worldprofile.h timers.h binfsar.h \
+	mpiar.h textfsar.h worlddc.h mem_func_wrapper.h scopedptr.h worldtask.h \
+	taskfn.h ref.h move.h group.h dist_cache.h dist_keys.h \
 	type_traits.h boost_checked_delete_bits.h \
 	function_traits.h integral_constant.h stubmpi.h bgq_atomics.h binsorter.h
 

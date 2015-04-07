@@ -27,15 +27,12 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 
 #define MAD_ARCHIVE_TYPE_NAMES_CC
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <cstring>
 
 namespace madness {

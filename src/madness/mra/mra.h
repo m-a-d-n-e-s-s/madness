@@ -27,10 +27,6 @@ O  This file is part of MADNESS.
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
-
 */
 
 
@@ -46,7 +42,7 @@ O  This file is part of MADNESS.
 */
 
 
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 
