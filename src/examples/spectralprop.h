@@ -83,7 +83,7 @@
 
 
 #include <madness/mra/legendre.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 
 #include <algorithm>
 #include <cmath>

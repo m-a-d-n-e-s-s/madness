@@ -27,8 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id $
 */
 
 /// \file worldthread.h
@@ -36,7 +34,7 @@
 
 #include <madness/world/worldthread.h>
 #include <madness/world/worldprofile.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 #include <madness/world/print.h>
 #include <madness/world/worldpapi.h>
 #include <madness/world/safempi.h>

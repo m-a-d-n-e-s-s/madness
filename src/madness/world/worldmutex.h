@@ -58,9 +58,9 @@ inline void pthread_spin_destroy(pthread_spinlock_t* /*p*/) {}
 
 
 #include <madness/world/nodefaults.h>
-#include <madness/world/worldtime.h>
+#include <madness/world/timers.h>
 #include <madness/world/atomicint.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable

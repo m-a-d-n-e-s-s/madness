@@ -27,11 +27,7 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  $Id$
 */
-#ifndef MADNESS_CONSTANTS_H
-#define MADNESS_CONSTANTS_H
 
 /**
  \file constants.h
@@ -39,11 +35,13 @@
  \ingroup libraries
 
  \todo We should consider a more uniform naming scheme for all of the conversion ratios.
- */
+*/
 
-/// Namespace for all elements and tools of MADNESS.
+#ifndef MADNESS_CONSTANTS_H
+#define MADNESS_CONSTANTS_H
+
 namespace madness {
-    /// Namespace storing mathematical and physical constants.
+
     namespace constants {
 
         // Mathematical constants

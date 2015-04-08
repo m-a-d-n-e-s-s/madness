@@ -44,9 +44,9 @@
 
 #include <madness/world/worldtypes.h>
 #include <madness/world/bufar.h>
-#include <madness/world/worldfwd.h>
+#include <madness/world/world.h>
 #include <madness/world/deferred_cleanup.h>
-#include <madness/world/worldtask.h>
+#include <madness/world/world_task_queue.h>
 #include <madness/world/group.h>
 #include <madness/world/dist_cache.h>
 
