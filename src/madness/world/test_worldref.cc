@@ -35,7 +35,7 @@
 //#define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 0
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/worldref.h>
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <madness/world/world_object.h>
 #include <gtest/gtest.h>
 
