@@ -116,8 +116,25 @@ private:
     }
 
     void munge2(double& rho, double& sigma) const {
+        // original thresholding
         if (rho < rhotol) rho=rhomin;
         if (rho < rhotol || sigma < sigtol) sigma=sigmin;
+
+        // no thresholding at all, just check to ensure rho and sigma don't go negative
+        /*if (rho < 0.0 || sigma < 0.0){
+           rho=rhomin;
+           sigma=sigmin;
+        }*/
+
+        // new 'ratio' threshold' - still need to ensure rho and sigma don't go negative
+        /*if ( (0.5 * log10(sigma) - 2) > log10(rho) || rho < 0.0 || sigma < 0.0){
+           //std::cout << "rho,sig " << rho << " " << sigma << " " << rhomin << " " << sigmin << std::endl;
+           rho=rhomin;
+           sigma=sigmin;
+        }
+        //else{
+        //    std::cout << "rho,sig " << rho << " " << sigma << std::endl;
+        //}*/
     }
 
     void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) const {
