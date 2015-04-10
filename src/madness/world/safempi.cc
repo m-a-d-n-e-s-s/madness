@@ -27,11 +27,10 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #include <madness/world/safempi.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 
 namespace SafeMPI {
 

@@ -27,16 +27,21 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  $Id$
 */
+
+/** 
+ \file worldtypes.h
+ \brief Defines types used by the parallel runtime.
+ \ingroup parallel_runtime
+*/
+
 #ifndef MADNESS_WORLD_WORLDTYPES_H__INCLUDED
 #define MADNESS_WORLD_WORLDTYPES_H__INCLUDED
 
 #include <stdint.h>
-typedef int ProcessID; ///< Used to clearly identify process number/rank
-typedef int Tag;       ///< Used to clearly identify message tag/type
+
+typedef int ProcessID; ///< Used to clearly identify process number/rank.
+typedef int Tag;       ///< Used to clearly identify message tag/type.
 
 
 #endif // MADNESS_WORLD_WORLDTYPES_H__INCLUDED
-

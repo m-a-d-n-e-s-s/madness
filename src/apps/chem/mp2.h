@@ -672,9 +672,8 @@ namespace madness {
 
         /// add the coupling terms for local MP2
 
-        /// @param[in] i the current electron pair \f$ \left| u_{ij} right> \f$
-        /// @param[in] j the current electron pair \f$ \left| u_{ij} right> \f$
-        /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
+        /// \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
+        /// @todo Verify this doxygen block.
         void add_local_coupling(const Pairs<ElectronPair>& pairs,
                 Pairs<real_function_6d>& coupling) const;
 

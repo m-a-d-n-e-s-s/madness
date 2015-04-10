@@ -33,7 +33,7 @@
 */
 
 
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <iostream>
 using std::cout;
 using std::endl;

@@ -1,6 +1,6 @@
     // Junk below due to void should be factored out by using the Void
     // class recently introduced in typestuff.h as was done already in
-    // worldobj.h.
+    // world_object.h.
 
     // Internal: This silliness since cannot use a void expression as a void argument
     template <typename resultT>

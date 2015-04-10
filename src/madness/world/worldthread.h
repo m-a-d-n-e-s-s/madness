@@ -35,6 +35,7 @@
 
 /// \file worldthread.h
 /// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
+/// \ingroup threads
 
 #include <madness/world/dqueue.h>
 #include <madness/world/enable_if.h>

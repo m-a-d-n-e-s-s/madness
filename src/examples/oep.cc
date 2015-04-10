@@ -37,10 +37,6 @@
 /*!
   \file examples/oep.cc
   \brief optimized effective potentials for DFT
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/oep.cc>here</a>.
-  \todo fix the URL.
 */
 
 #include <chem/mp2.h>

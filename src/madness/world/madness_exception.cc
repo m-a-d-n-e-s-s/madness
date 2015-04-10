@@ -27,31 +27,36 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id: $
 */
 
-#include <madness/world/worldtask.h>
-//#include <madness/world/worldmpi.h>
+/**
+ \file madness_exception.cc
+ \brief Implementation of \c madness::MadnessException.
+ \ingroup libraries
+*/
+
+#include <madness/world/madness_exception.h>
+#include <cstdlib>
+#include <sstream>
+#include <iostream>
 
 namespace madness {
 
-    bool TaskInterface::debug = false;
-
-    void TaskInterface::run(const TaskThreadEnv& env) { // This is what thread pool will invoke
-        MADNESS_ASSERT(world);
-        MADNESS_ASSERT(completion);
-        World* w = const_cast<World*>(world);
-        if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " is now running" << std::endl;
-        run(*w, env);
-        if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
+    std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
+        out << "MadnessException : ";
+        if (e.msg) out << "msg=" << e.msg << " : ";
+        if (e.assertion) out << "assertion=" << e.assertion << " : ";
+        out << "value=" << e.value << " : ";
+        if (e.line) out << "line=" << e.line << " : ";
+        if (e.function) out << "function=" << e.function << " : ";
+        if (e.filename) out << "filename='" << e.filename << "'";
+        out << std::endl;
+        return out;
     }
 
-    WorldTaskQueue::WorldTaskQueue(World& world)
-            : world(world)
-            , me(world.rank()) {
-        nregistered = 0;
+    void exception_break(bool message) {
+        if(message)
+            std::cerr << "A madness exception occurred. Place a break point at madness::exception_break to debug.\n";
     }
 
-}  // namespace madness
+} // namespace madness

@@ -88,9 +88,15 @@
 
 */
 
+/**
+ \file worldrmi.h
+ \brief Lowest level API for sending active messages --- you should probably be looking at worldam.h instead.
+ \addtogroup parallel_runtime
+ */
+
 namespace madness {
 
-    // This is the generic low-level interface for a message handler
+    /// This is the generic low-level interface for a message handler
     typedef void (*rmi_handlerT)(void* buf, size_t nbyte);
 
     struct qmsg {
@@ -125,6 +131,8 @@ namespace madness {
                 : nmsg_sent(0), nbyte_sent(0), nmsg_recv(0), nbyte_recv(0) {}
     };
 
+
+    /// This class implements the communications server thread and provides the only send interface
     class RMI  {
         typedef uint16_t counterT;
         typedef uint32_t attrT;
@@ -259,6 +267,14 @@ namespace madness {
             return task_ptr->nrecv_;
         }
 
+        /// Send a remote method invocation (again you should probably be looking at worldam.h instead)
+
+        /// @param[in] buf Pointer to the data buffer (do not modify until send is completed)
+        /// @param[in] nbyte Size of the data in bytes
+        /// @param[in] dest Process to receive the message
+        /// @param[in] func The function to handle the message on the remote end
+        /// @param[in] attr Attributes of the message (ATTR_UNORDERED or ATTR_ORDERED)
+        /// @return The status as an RMI::Request that presently is a SafeMPI::Request
         static Request
         isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr=ATTR_UNORDERED) {
             if(!task_ptr) {
@@ -271,7 +287,6 @@ namespace madness {
         }
 
         static void begin() {
-
             testsome_backoff_us = 5;
             const char* buf = getenv("MAD_BACKOFF_US");
             if (buf) {
@@ -280,7 +295,6 @@ namespace madness {
                 if (testsome_backoff_us < 0) testsome_backoff_us = 0;
                 if (testsome_backoff_us > 100) testsome_backoff_us = 100;
             }
-
 
             MADNESS_ASSERT(task_ptr == NULL);
 #if HAVE_INTEL_TBB

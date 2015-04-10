@@ -37,7 +37,7 @@
 
 #include <madness/world/worlddep.h>
 #include <madness/world/worldthread.h>
-#include <madness/world/worldfut.h>
+#include <madness/world/future.h>
 
 namespace madness {
 

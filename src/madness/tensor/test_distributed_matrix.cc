@@ -1,7 +1,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include <madness/madness_config.h>
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <madness/tensor/distributed_matrix.h>
 
 using namespace madness;

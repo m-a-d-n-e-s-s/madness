@@ -27,14 +27,16 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
+/** 
+ \file timers.h
+ \brief Wrappers around platform dependent timers and performance info.
+ \ingroup parallel_runtime
+*/
 
-#ifndef MADNESS_WORLD_WORLDTIME_H__INCLUDED
-#define MADNESS_WORLD_WORLDTIME_H__INCLUDED
+#ifndef MADNESS_WORLD_TIMERS_H__INCLUDED
+#define MADNESS_WORLD_TIMERS_H__INCLUDED
 
 #include <stdint.h>
 #include <time.h>
@@ -58,24 +60,23 @@
 #  include <hwi/include/bqc/A2_inlines.h>
 #endif
 
-/// \file worldtime.h
-/// \brief Wrappers around platform dependent timers and performance info
-
 
 namespace madness {
 
-    /// Returns the wall time in seconds relative to arbitrary origin
+    /// Returns the wall time in seconds relative to an arbitrary origin.
 
     /// As accurate and lightweight as we can get it, but may not
     /// be any better than the gettime of day system call.
+    /// \return The wall time (in seconds).
     double wall_time();
 
-    /// On some machines we have access to a cycle count
+    /// On some machines we have access to a cycle count.
 
     /// For small intervals this is probably the most lightweight and accurate timer
     /// but may not be meaningful over long intervals due to O/S scheduling,
     /// migration to different cores, frequency shifts, etc.  On x86 uses rtdsc.
     /// Otherwise uses wall_time() in nanoseconds.
+    /// \return Timing, in cycle count.
     static inline uint64_t cycle_count() {
         uint64_t x;
 #if defined(HAVE_IBMBGP)
@@ -104,23 +105,24 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         return x;
     }
 
-    /// Estimates frequency of the processor in Hz
+    /// Estimate the processor frequency, in Hz.
 
-    /// First call may take about 0.1s to execute.  Subsequent
-    /// calls return value cached from the first call so does
+    /// First call may take about 0.1s to execute. Subsequent
+    /// calls return the value, cached from the first call, so it does
     /// not respond to changing processor frequency.
     ///
-    /// If cycle_count() is returning wall_time() in nanoseconds
+    /// If \c cycle_count() returns \c wall_time() in nanoseconds,
     /// this will return 1GHz.
     ///
     /// If not available returns 0.
+    /// \return CPU frequency, in Hz.
     double cpu_frequency();
 
-
-    /// Returns the cpu time in seconds relative to arbitrary origin
+    /// Returns the cpu time in seconds relative to an arbitrary origin.
 
     /// As accurate and lightweight as we can get it, but may not
     /// be any better than the clock system call.
+    /// \return The cpu time, in second.
     static inline double cpu_time() {
 #if defined(X86_32) || defined(X86_64) || defined(HAVE_IBMBGP)
         static const double rfreq = 1.0/cpu_frequency();
@@ -137,7 +139,9 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     }
 
 
-    /// Do nothing and especially do not touch memory
+    /// Do nothing and especially do not touch memory.
+    
+    /// \todo Can we provide some context for this function?
     inline void cpu_relax() {
 #if defined(X86_32) || defined(X86_64)
         asm volatile("rep;nop" : : : "memory");
@@ -148,10 +152,10 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 #endif
     }
 
+    /// Sleep or spin for specified number of microseconds.
 
-    /// Sleep or spin for specified no. of microseconds
-
-    /// Wrapper to ensure desired behavior (and what is that one might ask??)
+    /// Wrapper to ensure desired behavior across various platforms.
+    /// \param[in] us The number of microseconds.
     static inline void myusleep(unsigned int us) {
 #if defined(HAVE_CRAYXT)
         double secs = us*1e-6;
@@ -170,5 +174,4 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     }
 }
 
-
-#endif // MADNESS_WORLD_WORLDTIME_H__INCLUDED
+#endif // MADNESS_WORLD_TIMERS_H__INCLUDED

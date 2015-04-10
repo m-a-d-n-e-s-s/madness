@@ -47,7 +47,7 @@
 /// \c startup(world,argc,argv) and should include mra/mra.h rather
 /// than world/world.h .
 
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 
 int main(int argc, char** argv) {
     madness::initialize(argc,argv);

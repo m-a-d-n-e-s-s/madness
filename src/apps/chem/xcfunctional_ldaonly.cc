@@ -5,7 +5,7 @@
 #include <chem/xcfunctional.h>
 #include <madness/tensor/tensor.h>
 #include <sstream>
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 
 namespace madness {
 

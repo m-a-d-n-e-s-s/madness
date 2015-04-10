@@ -11,7 +11,7 @@
 //#include<examples/dft_solver.h>
 #include <chem/projector.h>
 //#include<examples/nonlinsol.h> not used anymore
-#include<chem/SCF.h>
+#include <chem/SCF.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -24,7 +24,7 @@
 #include <chem/TDA_guess.h>
 
 // Kain solver
-#include<examples/nonlinsol.h>
+#include <examples/nonlinsol.h>
 
 // std::sort
 #include <algorithm>
@@ -260,7 +260,8 @@ struct TDA_allocator{
 	const int noct;
 
 	/// @param[in]	world	the world
-	/// @param[in]	nn		the number of functions in a given vector
+	/// @param[in]	nnoct	the number of functions in a given vector
+	/// @todo validate doxygen on `nnoct`
 	TDA_allocator(World& world, const int nnoct) : world(world), noct(nnoct) {}
 
 	xfunction operator()(){
@@ -856,12 +857,11 @@ private:
 
 	/// Applies the greens operator and calcualtes the updated xfunction for one xfunction
 	/// @param[in] xfunction a single xfunction structure (contains the response orbitals as vecfunc x)
-	/// @param[in] ptfock this should be true if orthonormalize_fock was used before (if false, the function will calculate the expectation value of the xfunction)
-	/// @param[out] The updated xfunction
+	/// @return The updated xfunction
 	vecfuncT iterate_one(xfunction & xfunction)const;
 
 	/// Update energies (decide if second order or expectation value should be used)
-	/// @param[out] the update method (2nd order, expectation value, setback)
+	/// @return the update method (2nd order, expectation value, setback)
 	std::string update_energy(xfunction &xfunction)const;
 
 	/// Normalize one or all excitation functions

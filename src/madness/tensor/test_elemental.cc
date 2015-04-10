@@ -2,7 +2,7 @@
 
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 using namespace madness;
 using namespace std;
 

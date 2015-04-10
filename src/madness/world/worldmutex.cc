@@ -32,7 +32,6 @@
 */
 
 #include <madness/world/worldmutex.h>
-#include <madness/world/worldtime.h>
 
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable
