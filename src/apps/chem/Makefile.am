@@ -3,7 +3,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 # default location for basis sets etc
 AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\"
 
-noinst_PROGRAMS = testxc
+noinst_PROGRAMS = testxc plotxc
 
 lib_LIBRARIES = libMADchem.a 
 
@@ -20,6 +20,8 @@ thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h corepotent
 testxc_SOURCES = testxc.cc xcfunctional.h xcfunctional_ldaonly.cc lda.cc
 testxc_LDADD = libMADchem.a $(LIBMRA) $(LIBWORLD)
 
+plotxc_SOURCES = plotxc.cc xcfunctional.h xcfunctional_ldaonly.cc lda.cc
+plotxc_LDADD = libMADchem.a $(LIBMRA) $(LIBWORLD)
 
 libMADchem_a_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
                        corepotential.cc atomutil.cc lda.cc \

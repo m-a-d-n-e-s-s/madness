@@ -1399,6 +1399,39 @@ namespace madness {
         return r;
     }
     
+    void SCF::dipole_matrix_elements(World& world, const vecfuncT & mo, const tensorT& occ,
+                              const tensorT& energy, int spin) {
+        START_TIMER(world);
+        int nmo = mo.size();
+        tensorT mat_el(3, nmo, nmo);
+        for (int axis = 0; axis < 3; ++axis) {
+            functionT fdip = factoryT(world).functor(
+                                                     functorT(new DipoleFunctor(axis)));
+                mat_el(axis, _, _) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
+        }
+
+        double ha2ev=27.211396132;
+        FILE *f=0;
+        if (spin==0){
+            f = fopen("mat_els_alpha.dat", "w");}
+        else{
+            f = fopen("mat_els_beta.dat", "w");}
+        fprintf(f, "#initial | Energy (eV) | final  | Energy (eV) | Matrix el.  | Trans. E (eV)\n");
+        fprintf(f, "%4i  %4i\n", nmo, nmo);
+        fprintf(f, "%2i\n", 1);
+        fprintf(f, "%13.8f\n", 0.0);
+        for (int axis = 0; axis < 3; ++axis) {
+            fprintf(f, "# Cartesian component %2i\n", axis+1);
+            for (int i = 0; i < nmo; ++i) {
+                for (int j = 0; j < nmo; ++j) {
+                    fprintf(f, "%4i\t %13.8f\t %4i\t %13.8f\t %13.8f\t %13.8f\n", i+1, energy(i)*ha2ev, j+1, energy(j)*ha2ev, mat_el(axis,i,j), (energy(j)-energy(i))*ha2ev);
+                }
+            }
+        }
+        fclose(f);
+        END_TIMER(world, "Matrix elements");     
+    }
+
     tensorT SCF::dipole(World & world, const functionT& rho) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
@@ -2358,6 +2391,15 @@ namespace madness {
             //esol = etot;
             
             if (world.rank() == 0) {
+                //lots of dps for testing Exc stuff
+                /*printf("\n              kinetic %32.24f\n", ekinetic);
+                printf("         nonlocal psp %32.24f\n", enonlocal);
+                printf("   nuclear attraction %32.24f\n", enuclear);
+                printf("              coulomb %32.24f\n", ecoulomb);
+                printf(" exchange-correlation %32.24f\n", exc);
+                printf("    nuclear-repulsion %32.24f\n", enrep);
+                printf("                total %32.24f\n\n", etot);*/
+
                 printf("\n              kinetic %16.8f\n", ekinetic);
                 printf("         nonlocal psp %16.8f\n", enonlocal);
                 printf("   nuclear attraction %16.8f\n", enuclear);
@@ -2493,6 +2535,12 @@ namespace madness {
             
             analyze_vectors(world, bmo, bocc, beps);
         }
+
+        dipole_matrix_elements(world, amo, aocc, aeps, 0);
+        if (param.nbeta != 0 && !param.spin_restricted) {    
+            dipole_matrix_elements(world, bmo, bocc, beps, 1);
+        }
+
         
     }        // end solve function
     

@@ -297,6 +297,7 @@ struct CalculationParameters {
     bool derivatives;           ///< If true calculate derivatives
     bool dipole;                ///< If true calculate dipole moment
     bool conv_only_dens;        ///< If true remove bsh_residual from convergence criteria   how ugly name is...
+    bool psp_calc;                ///< pseudopotential calculation for all atoms
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -314,7 +315,6 @@ struct CalculationParameters {
     std::string algopt;         ///< algorithm used for optimization
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
-    bool psp_calc;                ///< pseudopotential calculation for all atoms
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
 
     template <typename Archive>
@@ -864,6 +864,9 @@ public:
     /// @param[in]  the total (alpha + beta) density
     /// @return     the x,y,z components of the el. + nucl. dipole moment
     tensorT dipole(World & world, const functionT& rho) const;
+
+    void dipole_matrix_elements(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(),
+    		const tensorT & energy = tensorT(), int spin=0);
 
     void vector_stats(const std::vector<double> & v, double & rms,
     		double & maxabsval) const;
