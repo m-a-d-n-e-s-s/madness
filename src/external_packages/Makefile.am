@@ -1,7 +1,4 @@
-SUBDIRS = world misc tensor mra
-
-thisincludedir = $(includedir)/madness
-thisinclude_HEADERS = constants.h fortran_ctypes.h madness_config.h config.h 
+SUBDIRS = gtest tinyxml muParser
 
 libraries:
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir libraries ; done

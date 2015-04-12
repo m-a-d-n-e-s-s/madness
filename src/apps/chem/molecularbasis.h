@@ -37,7 +37,7 @@
 #include <madness/constants.h>
 #include <chem/molecule.h>
 #include <chem/atomutil.h>
-#include <madness/tinyxml/tinyxml.h>
+#include <external_packages/tinyxml/tinyxml.h>
 #include <madness/tensor/tensor.h>
 
 #include <vector>

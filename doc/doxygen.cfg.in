@@ -799,10 +799,7 @@ RECURSIVE              = YES
 # Note that relative paths are relative to the directory from which doxygen is
 # run.
 
-EXCLUDE                = "@abs_top_srcdir@/src/elemental" \
-                         "@abs_top_srcdir@/src/gtest" \
-                         "@abs_top_srcdir@/src/madness/muParser" \
-                         "@abs_top_srcdir@/src/madness/tinyxml" \
+EXCLUDE                = "@abs_top_srcdir@/src/external_packages" \
                          "@abs_top_srcdir@/src/apps/DFcode" \
                          "@abs_top_srcdir@/src/apps/ii" \
                          "@abs_top_srcdir@/src/apps/jacob" \
@@ -825,8 +822,7 @@ EXCLUDE_SYMLINKS       = NO
 
 EXCLUDE_PATTERNS       = LIBS.h \
                          mraX.cc \
-                         mraX.h \
-                         test*
+                         mraX.h
 
 # The EXCLUDE_SYMBOLS tag can be used to specify one or more symbol names
 # (namespaces, classes, functions, etc.) that should be excluded from the

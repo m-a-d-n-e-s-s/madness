@@ -1,4 +1,4 @@
-SUBDIRS = gtest madness apps examples
+SUBDIRS = external_packages madness apps examples
 
 thisincludedir = $(includedir)
 thisinclude_HEADERS = madness.h

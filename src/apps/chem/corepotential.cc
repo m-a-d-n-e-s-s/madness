@@ -38,7 +38,7 @@
 #include <madness/madness_config.h>
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
-#include <madness/tinyxml/tinyxml.h>
+#include <external_packages/tinyxml/tinyxml.h>
 #include <chem/corepotential.h>
 #include <cstdio>
 #include <cmath>
