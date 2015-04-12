@@ -1,4 +1,4 @@
-SUBDIRS = tinyxml muParser
+SUBDIRS = gtest tinyxml muParser
 
 libraries:
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir libraries ; done
