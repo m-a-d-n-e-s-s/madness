@@ -188,6 +188,7 @@ dataloadbal.cc
 dielectric.cc
 dielectric_external_field.cc
 functionio.cc
+gaussian.cc
 gygi_soltion.cc
 h2.cc
 h2dft.cc

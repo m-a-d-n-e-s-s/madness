@@ -361,6 +361,7 @@ struct CalculationParameters {
         , derivatives(false)
         , dipole(false)
         , conv_only_dens(false)
+        , psp_calc(false)
         , nalpha(0)
         , nbeta(0)
         , nmo_alpha(0)
@@ -377,7 +378,6 @@ struct CalculationParameters {
         , algopt("BFGS")
         , tdksprop(false)
         , nuclear_corrfac("none")
-        , psp_calc(false)
         , pure_ae(true)
     {}
 
