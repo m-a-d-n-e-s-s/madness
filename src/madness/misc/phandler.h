@@ -51,7 +51,7 @@
     ...
 */
 
-#include <madness/muParser/muParser.h>
+#include <external_packages/muParser/muParser.h>
 #include <string>
 #include <madness/mra/mra.h>
 

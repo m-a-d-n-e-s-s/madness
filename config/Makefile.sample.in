@@ -13,7 +13,7 @@ LIBTENSORDIR=$(TRUNK)/src/madness/tensor
 LIBMISCDIR=$(TRUNK)/src/madness/misc
 LIBMRADIR=$(TRUNK)/src/madness/mra
 LIBTINYXMLDIR=$(TRUNK)/src/external_packages/tinyxml
-LIBMUPARSERDIR=$(TRUNK)/src/madness/muParser
+LIBMUPARSERDIR=$(TRUNK)/src/external_packages/muParser
 
 # Individual libraries
 LIBWORLD=$(LIBWORLDDIR)/libMADworld.a

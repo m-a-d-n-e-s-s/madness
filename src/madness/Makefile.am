@@ -1,4 +1,4 @@
-SUBDIRS = world muParser misc tensor mra
+SUBDIRS = world misc tensor mra
 
 thisincludedir = $(includedir)/madness
 thisinclude_HEADERS = constants.h fortran_ctypes.h madness_config.h config.h 

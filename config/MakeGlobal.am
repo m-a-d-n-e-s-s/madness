@@ -9,7 +9,7 @@ LIBMISCDIR=$(top_builddir)/src/madness/misc
 LIBMRADIR=$(top_builddir)/src/madness/mra
 LIBCHEMDIR=$(top_builddir)/src/apps/chem
 LIBTINYXMLDIR=$(top_builddir)/src/external_packages/tinyxml
-LIBMUPARSERDIR=$(top_builddir)/src/madness/muParser
+LIBMUPARSERDIR=$(top_builddir)/src/external_packages/muParser
 
 LIBGTEST=$(LIBGTESTDIR)/libMADgtest.a
 LIBWORLD=$(LIBWORLDDIR)/libMADworld.a

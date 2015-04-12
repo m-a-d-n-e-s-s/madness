@@ -369,11 +369,11 @@ AC_CONFIG_FILES([
     config/madness-config.cmake
     src/Makefile
       src/external_packages/Makefile
+        src/external_packages/muParser/Makefile
         src/external_packages/tinyxml/Makefile
       src/gtest/Makefile
       src/madness/Makefile
         src/madness/world/Makefile
-        src/madness/muParser/Makefile
         src/madness/misc/Makefile
         src/madness/tensor/Makefile
         src/madness/mra/Makefile
