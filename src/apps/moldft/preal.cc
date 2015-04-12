@@ -1,7 +1,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/tensor/solvers.h>
-#include <madness/tinyxml/tinyxml.h>
+#include <external_packages/tinyxml/tinyxml.h>
 
 using namespace madness;
 

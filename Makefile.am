@@ -16,7 +16,7 @@ world:
 	$(MAKE) -C src/madness/world libraries
 
 tinyxml:
-	$(MAKE) -C src/madness/tinyxml libraries
+	$(MAKE) -C src/external_packages/tinyxml libraries
 
 muparser:
 	$(MAKE) -C src/madness/muParser libraries
@@ -44,7 +44,7 @@ install-world: install-madinclude
 	$(MAKE) -C src/madness/world install-libraries
 
 install-tinyxml: install-madinclude
-	$(MAKE) -C src/madness/tinyxml install-libraries
+	$(MAKE) -C src/external_packages/tinyxml install-libraries
 
 install-muparser: install-madinclude
 	$(MAKE) -C src/madness/muParser install-libraries

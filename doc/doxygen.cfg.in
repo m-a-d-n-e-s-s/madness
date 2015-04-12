@@ -800,10 +800,8 @@ RECURSIVE              = YES
 # run.
 
 EXCLUDE                = "@abs_top_srcdir@/src/external_packages" \
-                         "@abs_top_srcdir@/src/elemental" \
                          "@abs_top_srcdir@/src/gtest" \
                          "@abs_top_srcdir@/src/madness/muParser" \
-                         "@abs_top_srcdir@/src/madness/tinyxml" \
                          "@abs_top_srcdir@/src/apps/DFcode" \
                          "@abs_top_srcdir@/src/apps/ii" \
                          "@abs_top_srcdir@/src/apps/jacob" \
