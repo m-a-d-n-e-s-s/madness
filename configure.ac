@@ -362,12 +362,13 @@ AC_MSG_NOTICE([LIBS     = $LIBS])
 # These are the files that must be generated/preprocessed ... as you add files
 # please maintain the directory tree file order and indenting.
 AC_CONFIG_FILES([
- Makefile
+  Makefile
     config/Makefile
     config/Makefile.sample
     config/MADNESS.pc
     config/madness-config.cmake
     src/Makefile
+      src/external_packages/Makefile
       src/gtest/Makefile
       src/madness/Makefile
         src/madness/world/Makefile
