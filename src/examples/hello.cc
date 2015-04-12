@@ -27,8 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
 
@@ -37,15 +35,13 @@
 /// \defgroup hellowworldmad Hello world MADNESS style
 /// \ingroup examples
 ///
-///  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/hello.cc>here</a>.
-///
 /// Simplest program that initializes the MADNESS parallel runtime
 /// using initialize(), makes a madness::World object, prints
 /// a greeting, and then cleans up.
 ///
 /// To initialize the MADNESS numerical environment you also need
 /// \c startup(world,argc,argv) and should include mra/mra.h rather
-/// than world/world.h .
+/// than world/parallel_runtime.h .
 
 #include <madness/world/parallel_runtime.h>
 

@@ -27,17 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id: eigen.h 2615 2011-10-23 13:24:06Z jeff.science@gmail.com $
 */
-
 
 #include <madness/madness_config.h>
 
 #ifdef MADNESS_HAS_ELEMENTAL
 
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/tensor/distributed_matrix.h>

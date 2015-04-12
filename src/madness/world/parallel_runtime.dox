@@ -215,7 +215,7 @@ necessary templates have been wrapped in C-preprocessor conditional
 block so that they are only enabled if \c
 WORLD_INSTANTIATE_STATIC_TEMPLATES is defined.  In just one of your source
 (not a header) files,
-define this macro \em before including \c world.h, and then
+define this macro \em before including \c parallel_runtime.h, and then
 instantiate the templates that you are using.  
 
 \note Applications using the multiresolution numerical tools probably
