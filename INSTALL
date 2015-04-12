@@ -7,7 +7,7 @@ MPI, BLAS, LAPACK and other non-standard libraries most machines
 require options passed to configure and build.  More information on
 the MADNESS software environment is available on the wiki at
 
-   http://code.google.com/p/m-a-d-n-e-s-s/wiki/SoftwareEnvironment
+   https://github.com/m-a-d-n-e-s-s/madness
 
 
 Hardware requirements:
