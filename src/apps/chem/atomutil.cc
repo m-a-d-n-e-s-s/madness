@@ -171,11 +171,26 @@ const AtomicData& get_atomic_data(unsigned int atomic_number) {
 
 
 unsigned int symbol_to_atomic_number(const std::string& symbol) {
-    std::string tlow = madness::lowercase(symbol);
+    //first check if pseudo-atom (i.e. starts with ps)
+    std::string rsymbol(symbol);
+    if (symbol.size()>1){
+        if (symbol[0]=='p' && symbol[1]=='s') rsymbol.erase(0,2);}
+
+    std::string tlow = madness::lowercase(rsymbol);    
+
     for (unsigned int i=0; i<NUMBER_OF_ATOMS_IN_TABLE; ++i) {
         if (tlow.compare(atomic_data[i].symbol_lowercase) == 0) return i;
     }
     throw "unknown atom";
+}
+
+
+bool check_if_pseudo_atom(const std::string& symbol) {
+    //check if pseudo-atom (i.e. starts with ps)
+    if (symbol.size()>1) {
+        if (symbol[0]=='p' && symbol[1]=='s') return true;}
+    return false;
+
 }
 
 

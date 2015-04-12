@@ -393,6 +393,10 @@ public:
         // fill list with atoms-with-projectors (i.e. not H or He)
         for (int iatom = 0; iatom < molecule.natom(); iatom++) {
             Atom atom = molecule.get_atom(iatom);
+
+            //make sure this is actually a pseudo-atom
+            if (!atom.pseudo_atom) continue;
+
             unsigned int atype = atom.atomic_number;
             if (radii[atype-1].dim(0) > 0)
               atoms_with_projectors.push_back(iatom);
@@ -401,8 +405,12 @@ public:
         vlocalp = real_factory_3d(world);
         vlocalp.compress();
         for (int iatom = 0; iatom < molecule.natom(); iatom++) {
-            // Get atom and it's associated GTH tensors
+            // Get atom and its associated GTH tensors
             Atom atom = molecule.get_atom(iatom);
+
+            //make sure this is actually a pseudo-atom
+            if (!atom.pseudo_atom) continue;
+
             coord_3d center = atom.get_coords();
             unsigned int atype = atom.atomic_number;
             // do local part
@@ -608,18 +616,19 @@ public:
             enl += occ[i] * nlmat(i, i);
         }
 
-        //test
+        //debug printing
         /*tensorT lmat = matrix_inner(world, vpsi, psi, true);
         Q el = 0.0;
         for(int i = 0;i < nocc;++i){
             el += occ[i] * lmat(i, i);
+            std::cout << "nloc/loc " << i << "  " << occ[i] << "  " << nlmat(i,i) << "  "<< lmat(i,i) << std::endl;
         }
 
         if(world.rank() == 0){
             printf("\n              enl, el, epot %16.8f  %16.8f  %16.8f\n", enl, el, enl+el);
         }*/
 
-        gaxpy(world, 1.0, vpsi, 1.0, dpsi);  
+        gaxpy(world, 1.0, vpsi, 1.0, dpsi);
 
         return vpsi;
     }

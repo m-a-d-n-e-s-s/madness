@@ -69,6 +69,7 @@ struct AtomicData  {
 const AtomicData& get_atomic_data(unsigned int atn);
 
 unsigned int symbol_to_atomic_number(const std::string& symbol);
+bool check_if_pseudo_atom(const std::string& symbol);
 
 double smoothing_parameter(double Z, double eprec);
 double smoothed_potential(double r);

@@ -56,7 +56,20 @@ class Atom {
 public:
     double x, y, z, q;          ///< Coordinates and charge in atomic units
     unsigned int atomic_number; ///< Atomic number
-    double mass;                ///< mass
+    double mass;                ///< Mass
+    bool pseudo_atom;           ///< Indicates if this atom uses a pseudopotential
+
+    explicit Atom(double x, double y, double z, double q, unsigned int atomic_number, bool pseudo_atom)
+            : x(x), y(y), z(z), q(q), atomic_number(atomic_number), pseudo_atom(pseudo_atom) {
+        mass= get_atomic_data(atomic_number).mass;
+
+        if (mass==-1.0) MADNESS_EXCEPTION("faulty element in Atom",1);
+
+        // unstable elements are indicated by negative masses, the mass
+        // is taken from the longest-living element
+        if (mass<0.0) mass*=-1.0;
+
+    }
 
     explicit Atom(double x, double y, double z, double q, unsigned int atomic_number)
             : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {
@@ -68,13 +81,15 @@ public:
         // is taken from the longest-living element
         if (mass<0.0) mass*=-1.0;
 
+        pseudo_atom = false;
+
     }
 
     Atom(const Atom& a) : x(a.x), y(a.y), z(a.z), q(a.q),
-            atomic_number(a.atomic_number), mass(a.mass) {}
+            atomic_number(a.atomic_number), mass(a.mass), pseudo_atom(a.pseudo_atom) {}
 
     /// Default construct makes a zero charge ghost atom at origin
-    Atom() : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0) {}
+    Atom() : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0), pseudo_atom(false) {}
 
 
     madness::Vector<double,3> get_coords() const {
@@ -83,7 +98,7 @@ public:
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & x & y & z & q & atomic_number & mass;
+        ar & x & y & z & q & atomic_number & mass & pseudo_atom;
     }
 };
 
@@ -154,6 +169,8 @@ public:
 
     void add_atom(double x, double y, double z,  double q, int atn);
 
+    void add_atom(double x, double y, double z,  double q, int atn, bool psat);
+
     int natom() const {
         return atoms.size();
     };
@@ -163,6 +180,10 @@ public:
     unsigned int get_atom_charge(unsigned int i);
 
     unsigned int get_atom_number(unsigned int i);
+
+    void set_pseudo_atom(unsigned int i, bool psat);
+
+    bool get_pseudo_atom(unsigned int i);
 
     void set_atom_coords(unsigned int i, double x, double y, double z);
 
@@ -200,11 +221,9 @@ public:
 
     double nuclear_repulsion_energy() const;
 
-    double nuclear_repulsion_energy_pseudo() const;
-
     double nuclear_repulsion_derivative(int i, int j) const;
 
-    double nuclear_dipole(int axis, bool psp_calc) const;
+    double nuclear_dipole(int axis) const;
 
     double nuclear_charge_density(double x, double y, double z) const;
 

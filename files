@@ -26,6 +26,7 @@ mp2.cc
 mp2.h
 nemo.cc
 nemo.h
+plotxc.cc
 potentialmanager.h
 projector.h
 tdhf_CIS.cc

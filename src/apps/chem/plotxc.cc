@@ -27,10 +27,11 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
+  
+  $Id$
 */
-
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/world.h>
 #include <madness/mra/mra.h>
 #include <madness/tensor/tensor.h>
 #include <fstream>
@@ -40,6 +41,13 @@ using namespace madness;
 
 static std::string df_repo_functionals[] = {
 "lda_x", 
+"lda_c_vwn", 
+"gga_x_pbe", 
+"gga_c_pbe", 
+"gga_x_pw91",
+"gga_c_pw91", 
+"gga_x_b88", 
+"gga_c_lyp",
 "lda_c_vwn_rpa", 
 "lda_c_vwn", 
 "lda_c_pz", 
@@ -76,52 +84,47 @@ struct xcfunc_data_point
 std::vector<xcfunc_data_point> read_test_data(const std::string& dfname,
                                               bool spin_polarized)
 {
-  std::ifstream fstr(dfname.c_str());
-  char buffer[120];
-  fstr.getline(buffer, 120);
-  fstr.getline(buffer, 120);
-
-  std::string tmpstr;
 
   std::vector<xcfunc_data_point> dps;
-  print(dfname.c_str());
-  int i=1;
-  while(!fstr.eof())
+
+  double rhoa=1e-25;
+  double siga;
+  while (rhoa<1e16)
   {
-    xcfunc_data_point dp;
+    siga=1e-25;
 
-    fstr >> tmpstr; fstr >> dp.rhoa;
-    fstr >> tmpstr; fstr >> dp.rhob;
-    fstr >> tmpstr; fstr >> dp.sigmaaa;
-    fstr >> tmpstr; fstr >> dp.sigmaab;
-    fstr >> tmpstr; fstr >> dp.sigmabb;
-
-
-
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.zk;
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.vrhoa;
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.vrhob;
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.vsigmaaa;
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.vsigmaab;
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.vsigmabb;
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.v2rhoa2;
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.v2rhoab;
-    fstr >> tmpstr; fstr >> tmpstr; fstr >> dp.v2rhob2;
-
-
-    for (int iskip = 0; iskip < 13; iskip++)
-      fstr.getline(buffer,120);
-    if (!spin_polarized)
+    while (siga<1e16)
     {
-      if (std::abs(dp.rhoa-dp.rhob) <= 1e-10)
+      xcfunc_data_point dp;
+      dp.rhoa=rhoa;
+      dp.rhob=rhoa;
+      dp.sigmaaa=siga;
+      dp.sigmaab=siga;
+      dp.sigmabb=siga;
+
+      dp.zk=0.0;
+      dp.vrhoa=0.0;
+      dp.vrhob=0.0;
+      dp.vsigmaaa=0.0;
+      dp.vsigmaab=0.0;
+      dp.vsigmabb=0.0;
+      dp.v2rhoa2=0.0;
+      dp.v2rhoab=0.0;
+      dp.v2rhob2=0.0;
+
+      if (!spin_polarized)
+      {
+        if (std::abs(dp.rhoa-dp.rhob) <= 1e-10)
+          dps.push_back(dp);
+      }
+      else
+      {
         dps.push_back(dp);
+      }
+   
+      siga*=10;
     }
-    else
-    {
-      dps.push_back(dp);
-    }
-    i=i+1;
-    if(i == 26) break;
+    rhoa*=10;
   }
 
   return dps;
@@ -138,7 +141,8 @@ void test_xcfunctional(World& world)
 
     int what = 0 ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
 
-    int istr = 0;
+    //int istr = 0; // 0-7
+for (int istr=2;istr<3;istr++){
 
 //vama5     0  "lda_x", 
 //vama5     1	"lda_c_vwn_rpa", 
@@ -170,6 +174,8 @@ void test_xcfunctional(World& world)
     std::cout << "Testing exchange-correlation functional:  "<< xcfuncstr << std::endl;
 
     xcfuncstr += " 1.0";
+    xcfuncstr += " gga_c_pbe 1.0";  //hack to do both x and c for PBE
+    xcfuncstr += " RHOTOL 0.0 RHOMIN 0.0 SIGTOL 0.0 SIGMIN 0.0";
     xcfunc.initialize(xcfuncstr,spin_polarized,world);
 
     std::string fpath("df_repo/");
@@ -177,7 +183,6 @@ void test_xcfunctional(World& world)
     fpath += ".data";
     std::vector<xcfunc_data_point> dps = read_test_data(fpath.c_str(),spin_polarized);
 
-    print("hola");
     Tensor<double> rhoa_t((long)dps.size());
     Tensor<double> rhob_t((long)dps.size());
     Tensor<double> sigmaaa_t((long)dps.size());
@@ -239,10 +244,18 @@ void test_xcfunctional(World& world)
 
     Tensor<double> vr;
     if( what == 3){
-    vr = xcfunc.exc(xc_args,ispin);
+      vr = xcfunc.exc(xc_args,ispin);
     }
     else {
-    vr = xcfunc.vxc(xc_args,ispin, what);
+      vr = xcfunc.vxc(xc_args,ispin,what);
+    }
+
+    Tensor<double> vs;
+    if(xcfunc.is_gga()){
+      vs = xcfunc.vxc(xc_args,ispin,1);
+    }
+    else{
+      vs=vr;
     }
 
 #if 0
@@ -291,30 +304,58 @@ void test_xcfunctional(World& world)
     print("\n\n");
 #endif
 
+    FILE *f=0;
+    f = fopen((df_repo_functionals[istr]+".dat").c_str(), "w");
+
     if(what == 0) {
+      //if(xcfunc.is_gga()){
         if (xcfunc.is_spin_polarized())
         {
-          printf("%25s %25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa","sigmaab","sigmabb","vrhoa (input)","vr (output)","vrhoa-vr");
+          fprintf(f,"%25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa","sigmaab","sigmabb","vrhoa","vsigmaaa");
           for (unsigned int idp = 0; idp < dps.size(); idp++)
           {
-            printf("%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
-                rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],
-                dps[idp].vrhoa, vr[idp],
-                std::abs(dps[idp].vrhoa - vr[idp]));
+            fprintf(f,"%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
+                rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],vr[idp], vs[idp]);
           }
         }
         else
         {
-          printf("%25s %25s  %25s %25s   %25s\n","#rhoa","sigmaaa","vrhoa (input)","vr (output)","vrhoa-vr");
+          fprintf(f,"%25s %25s %25s %25s\n","#rho","sigma","vrho","vsigma");
           for (unsigned int idp = 0; idp < dps.size(); idp++)
           {
-            printf("%25.12e %25.12e  %25.12e %25.12e   %25.12e\n",
-                rhoa_t[idp], sigmaaa_t[idp], dps[idp].vrhoa, vr[idp],
-                std::abs(dps[idp].vrhoa - vr[idp]));
+            fprintf(f,"%25.12e %25.12e %25.12e %25.12e\n",
+                rhoa_t[idp], sigmaaa_t[idp], vr[idp], vs[idp]);
           }
         }
-        print("\n\n");
-      }
+        fprintf(f,"\n\n");
+      /*}
+      else
+      {
+        if (xcfunc.is_spin_polarized())
+        {
+          fprintf(f,"%25s %25s %25s\n","#rhoa","rhob","vrhoa");
+          for (unsigned int idp = 0; idp < dps.size(); idp++)
+          {
+            fprintf(f,"%25.12e %25.12e %25.12e\n",
+                rhoa_t[idp], rhob_t[idp], vr[idp]);
+          }
+        }
+        else
+        {
+          fprintf(f,"%25s %25s\n","#rho","vrho");
+          for (unsigned int idp = 0; idp < dps.size(); idp++)
+          {
+            fprintf(f,"%25.12e %25.12e\n",
+                rhoa_t[idp], vr[idp]);
+          }
+        }
+        fprintf(f,"\n\n");
+      }*/
+    }
+
+    fclose(f);
+
+}
 
 }
 

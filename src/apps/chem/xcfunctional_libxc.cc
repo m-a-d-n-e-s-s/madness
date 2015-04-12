@@ -257,7 +257,6 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized, Wor
             funcs.push_back(std::make_pair(lookup_func("LDA_C_VWN",polarized),1.0));
         }
         else if (name == "RHOMIN") {
-        	std::cout << "hello" << std::endl;
             line >> rhomin;
         }
         else if (name == "RHOTOL") {
@@ -286,7 +285,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized, Wor
  //       if (funcs[i].first->info->family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
         if (world.rank() == 0) std::cout << "factor " << i << "  " << funcs[i].second << std::endl;
     }
-    if (world.rank() == 0) std::cout << "rhotol " << rhotol << " rhomin " << rhomin << " factor " <<factor << "hfcorf" <<hf_coeff <<  " input line was " << input_line << std::endl;
+    if (world.rank() == 0) std::cout << "rhotol " << rhotol << " rhomin " << rhomin << " factor " <<factor << " hfcoeff " <<hf_coeff <<  " input line was " << input_line << std::endl;
 }
 
 XCfunctional::~XCfunctional() {
@@ -446,10 +445,11 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         else {
             for (long j=0; j<np; j++) {
                 res[j] += work[j]*dens[j]*funcs[i].second;
+                //std::cout << "exc: " << j << " " << res[j] << " " << work[j] << " " << dens[j] << " " << sig[j] << " " << funcs[i].first << " " << funcs[i].second << std::endl;
             }
         }
     }
-
+    //std::cout << "result " << result << std::endl;
     return result;
 }
 

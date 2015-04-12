@@ -61,6 +61,10 @@ std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
         s << "     " << "Guess density matrix" << std::endl;
         s << c.get_dmat();
     }
+    if (c.has_guesspsp_info()) {
+        s << "     " << "Guess density matrix (psp)" << std::endl;
+        s << c.get_dmatpsp();
+    }
 
     return s;
 }
@@ -173,11 +177,14 @@ foundit:
             MADNESS_ASSERT(is_supported(atn));
             int nbf = ag[atn].nbf();
             Tensor<double> dmat = load_tixml_matrix<double>(node, nbf, nbf, "guessdensitymatrix");
+            Tensor<double> dmatpsp = dmat;
             Tensor<double> aocc = load_tixml_matrix<double>(node, nbf, 1, "alphaocc");
             Tensor<double> bocc = load_tixml_matrix<double>(node, nbf, 1, "betaocc");
+            Tensor<double> aoccpsp = aocc;
+             Tensor<double> boccpsp = bocc;
             Tensor<double> avec = load_tixml_matrix<double>(node, nbf, nbf, "alphavectors");
             Tensor<double> bvec = load_tixml_matrix<double>(node, nbf, nbf, "betavectors");
-            ag[atn].set_guess_info(dmat, avec, bvec, aocc, bocc);
+            ag[atn].set_guess_info(dmat, dmatpsp, avec, bvec, aocc, bocc, aoccpsp, boccpsp);
         }
         else {
             MADNESS_EXCEPTION("Loading atomic basis set: unexpected XML element", 0);
@@ -192,8 +199,8 @@ void AtomicBasisSet::modify_dmat_psp(int atn, double zeff){
     // number of core states to be eliminated
     int zcore = atn - round(zeff);
 
-    Tensor<double> aocc = ag[atn].get_aocc();
-    Tensor<double> bocc = ag[atn].get_bocc();
+    Tensor<double> aocc = ag[atn].get_aoccpsp();
+    Tensor<double> bocc = ag[atn].get_boccpsp();
 
     double occ_sum = aocc.sum() + bocc.sum();
 
@@ -203,7 +210,7 @@ void AtomicBasisSet::modify_dmat_psp(int atn, double zeff){
     if (debug) std::cout << "bocc:" << std::endl;
     if (debug) std::cout << bocc << std::endl;
 
-    // return  immediately if we already modified this atom type or if there are no core states
+    // return immediately if we already modified this atom type or if there are no core states
     // allow for noise in occupancy sum
     double tol=1e-4;
     if (zcore==0 || (occ_sum < zeff+tol && occ_sum > zeff-tol)) return;
@@ -226,8 +233,8 @@ void AtomicBasisSet::modify_dmat_psp(int atn, double zeff){
     if (debug) std::cout << "bocc:" << std::endl;
     if (debug) std::cout << bocc << std::endl;
 
-    ag[atn].set_aocc(aocc);
-    ag[atn].set_bocc(bocc);
+    ag[atn].set_aoccpsp(aocc);
+    ag[atn].set_boccpsp(bocc);
 
     // recalculate the density matrix with new occupancies
     Tensor<double> avec = ag[atn].get_avec();
@@ -251,7 +258,7 @@ void AtomicBasisSet::modify_dmat_psp(int atn, double zeff){
     if (debug) std::cout << "dmat:" << std::endl;
     if (debug) std::cout << dmat << std::endl;
 
-    ag[atn].set_dmat(dmat);
+    ag[atn].set_dmatpsp(dmat);
 
 }
 

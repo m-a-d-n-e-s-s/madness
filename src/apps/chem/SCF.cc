@@ -189,12 +189,38 @@ namespace madness {
             if (molecule.natom() < 3) param.localize = false; // symmetry confuses orbital localization
             param.read_file(filename);
             
-            //modify atomic charge for PSP calc
-            if (param.psp_calc){
+            //if psp_calc is true, set all atoms to PS atoms
+            //if not, check whether some atoms are PS atoms or if this a pure AE calculation
+            if (param.psp_calc) {
                 for (int iatom = 0; iatom < molecule.natom(); iatom++) {
-                    unsigned int an=molecule.get_atom_number(iatom);
-                    double zeff=get_charge_from_file("gth.xml",an);
-                    molecule.set_atom_charge(iatom,zeff);
+                    molecule.set_pseudo_atom(iatom,true);
+                }
+            }
+            else{
+               for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                   if (molecule.get_pseudo_atom(iatom)){
+                       param.pure_ae=false;
+                       continue;
+                   }
+               }
+            }
+
+            //print list of pseudo-atoms in mixed psp/ae calculation
+            if (!param.psp_calc && !param.pure_ae && world.rank() == 0){
+               for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                   //std::cout << "pseudo-atom " << iatom << "  " << molecule.get_pseudo_atom(iatom) << std::endl;
+                   if (molecule.get_pseudo_atom(iatom)) std::cout << "atom " << iatom << " is a pseudo-atom" <<  std::endl;
+               }
+            }
+
+            //modify atomic charge for complete PSP calc or individual PS atoms
+            if (!param.pure_ae){
+                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                    if (molecule.get_pseudo_atom(iatom)){
+                        unsigned int an=molecule.get_atom_number(iatom);
+                        double zeff=get_charge_from_file("gth.xml",an);
+                        molecule.set_atom_charge(iatom,zeff);
+                    }
                 }
             }
             
@@ -206,6 +232,7 @@ namespace madness {
             }
             
             if(not param.no_orient)molecule.orient();
+
             aobasis.read_file(param.aobasis);
             param.set_molecular_info(molecule, aobasis, n_core);
         }
@@ -416,9 +443,9 @@ namespace madness {
         gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>
                                              >(new GTHPseudopotential<double>(world, molecule));
 
-        if (param.psp_calc){
+        if (!param.pure_ae){
             gthpseudopotential->make_pseudo_potential(world);}
-        else{
+        if (!param.psp_calc) {
             potentialmanager->make_nuclear_potential(world);}
         END_TIMER(world, "Project vnuclear");
     }
@@ -503,7 +530,7 @@ namespace madness {
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i),
                        dip(1, i), dip(2, i), sqrt(rsq(i)));
                 aobasis.print_anal(molecule, C(i, _));
-            }
+            }           
         }
         
     }
@@ -783,11 +810,13 @@ namespace madness {
         } else {
 
             // recalculate initial guess density matrix without core orbitals
-            if (param.psp_calc){
+            if (!param.pure_ae){
                 for (int iatom = 0; iatom < molecule.natom(); iatom++) {
-                    double zeff=molecule.get_atom_charge(iatom);
-                    int atn=molecule.get_atom_number(iatom);
-                    aobasis.modify_dmat_psp(atn,zeff);
+                    if (molecule.get_pseudo_atom(iatom)){
+                        double zeff=molecule.get_atom_charge(iatom);
+                        int atn=molecule.get_atom_number(iatom);
+                        aobasis.modify_dmat_psp(atn,zeff);
+                    }
                 }
             }
 
@@ -797,7 +826,6 @@ namespace madness {
                                         functorT(
                                                  new MolecularGuessDensityFunctor(molecule,
                                                                                   aobasis))).truncate_on_project();
-
             double nel = rho.trace();
             if (world.rank() == 0)
                 print("guess dens trace", nel);
@@ -809,8 +837,11 @@ namespace madness {
                 real_function_3d vnuc;
                 if (param.psp_calc){
                     vnuc = gthpseudopotential->vlocalpot();}
-                else{
+                else if (param.pure_ae){
                     vnuc = potentialmanager->vnuclear();}
+                else {
+                    vnuc = potentialmanager->vnuclear();
+                    vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 
                 lb.add_tree(vnuc,
                             lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
@@ -827,8 +858,11 @@ namespace madness {
                 real_function_3d vnuc;
                 if (param.psp_calc){
                     vnuc = gthpseudopotential->vlocalpot();}
-                else{
+                else if (param.pure_ae){
                     vnuc = potentialmanager->vnuclear();}
+                else {
+                    vnuc = potentialmanager->vnuclear();
+                    vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 vlocal = vnuc + apply(*coulop, rho);
                 END_TIMER(world, "guess Coulomb potn");
                 bool save = param.spin_restricted;
@@ -842,8 +876,11 @@ namespace madness {
                 real_function_3d vnuc;
                 if (param.psp_calc){
                     vnuc = gthpseudopotential->vlocalpot();}
-                else{
+                else if (param.pure_ae){
                     vnuc = potentialmanager->vnuclear();}
+                else {
+                    vnuc = potentialmanager->vnuclear();
+                    vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 vlocal = vnuc;
             }
             rho.clear();
@@ -854,8 +891,11 @@ namespace madness {
                 real_function_3d vnuc;
                 if (param.psp_calc){
                     vnuc = gthpseudopotential->vlocalpot();}
-                else{
+                else if (param.pure_ae){
                     vnuc = potentialmanager->vnuclear();}
+                else {
+                    vnuc = potentialmanager->vnuclear();
+                    vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 lb.add_tree(vnuc,
                             lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
                 for (unsigned int i = 0; i < ao.size(); ++i) {
@@ -880,7 +920,36 @@ namespace madness {
             reconstruct(world, ao);
             vlocal.reconstruct();
             vecfuncT vpsi;
-            if (param.psp_calc){
+
+            //debug plots:
+            /*{
+                int npt=1001;
+                functionT rhotmp =
+                    factoryT(world).functor(
+                                            functorT(
+                                                     new MolecularGuessDensityFunctor(molecule,
+                                                                                      aobasis))).truncate_on_project();
+                functionT vlda=make_lda_potential(world, rhotmp);
+                functionT coul=apply(*coulop, rhotmp);
+                plot_line("vlocal.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vlocal);
+                plot_line("vcoul.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vcoul);    
+                plot_line("vlda.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vlda);
+                plot_line("dens.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), rhotmp);
+    
+                if (!param.pure_ae && !param.psp_calc){
+                    real_function_3d vloc_ae;
+                    vloc_ae = potentialmanager->vnuclear();
+                    vloc_ae.reconstruct();
+                    plot_line("vlocal_ae.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vloc_ae);
+                    real_function_3d vloc_psp;
+                    vloc_psp = gthpseudopotential->vlocalpot();
+                    vloc_psp.reconstruct();
+                    plot_line("vlocal_psp.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vloc_psp);
+                }
+            }*/
+
+            //vlocal treated in psp includes psp and ae contribution so don't need separate clause for mixed psp/AE
+            if (!param.pure_ae){
                 double enl;
                 tensorT occ = tensorT(ao.size());
                 for(unsigned int i = 0;i < ao.size();++i){
@@ -888,7 +957,7 @@ namespace madness {
                 vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);}
             else{
                 vpsi = mul_sparse(world, vlocal, ao, vtol);}
-            
+
             compress(world, vpsi);
             truncate(world, vpsi);
             compress(world, ao);
@@ -897,6 +966,20 @@ namespace madness {
             tensorT fock = kinetic + potential;
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
+
+            //debug printing
+            /*double ep = 0.0;
+            double ek = 0.0;
+            for(int i = 0;i < ao.size();++i){
+                ep += potential(i, i);
+                ek += kinetic(i, i);
+                std::cout << "pot/kin " << i << "  " << potential(i,i) << "  "<< kinetic(i,i) << std::endl;
+            }
+
+            if(world.rank() == 0){
+                printf("\n              epot, ekin, efock %16.8f  %16.8f  %16.8f\n", ek, ep, ek+ep);
+            */
+
             END_TIMER(world, "guess fock");
             
             START_TIMER(world);
@@ -987,8 +1070,11 @@ namespace madness {
         real_function_3d vnuc;
         if (param.psp_calc){
             vnuc = gthpseudopotential->vlocalpot();}
-        else{
+        else if (param.pure_ae){
             vnuc = potentialmanager->vnuclear();}
+        else {
+            vnuc = potentialmanager->vnuclear();
+            vnuc = vnuc + gthpseudopotential->vlocalpot();}     
         lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0));
         
         FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
@@ -1206,10 +1292,11 @@ namespace madness {
         
         START_TIMER(world);
         vecfuncT Vpsi;
-        if (param.psp_calc){
+        if (!param.pure_ae){
             Vpsi = gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);}
-        else{
+        else {
             Vpsi = mul_sparse(world, vloc, amo, vtol);}
+
         END_TIMER(world, "V*psi");
         print_meminfo(world.rank(), "V*psi");
         if (xc.hf_exchange_coefficient()) {
@@ -1227,7 +1314,8 @@ namespace madness {
             END_TIMER(world, "HF exchange");
             exc = exchf * xc.hf_exchange_coefficient() + exc;
         }
-        if (!param.psp_calc){
+        // need to come back to this for psp - when is this used?
+        if (param.pure_ae){
             potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);}
         
         START_TIMER(world);
@@ -1311,6 +1399,39 @@ namespace madness {
         return r;
     }
     
+    void SCF::dipole_matrix_elements(World& world, const vecfuncT & mo, const tensorT& occ,
+                              const tensorT& energy, int spin) {
+        START_TIMER(world);
+        int nmo = mo.size();
+        tensorT mat_el(3, nmo, nmo);
+        for (int axis = 0; axis < 3; ++axis) {
+            functionT fdip = factoryT(world).functor(
+                                                     functorT(new DipoleFunctor(axis)));
+                mat_el(axis, _, _) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
+        }
+
+        double ha2ev=27.211396132;
+        FILE *f=0;
+        if (spin==0){
+            f = fopen("mat_els_alpha.dat", "w");}
+        else{
+            f = fopen("mat_els_beta.dat", "w");}
+        fprintf(f, "#initial | Energy (eV) | final  | Energy (eV) | Matrix el.  | Trans. E (eV)\n");
+        fprintf(f, "%4i  %4i\n", nmo, nmo);
+        fprintf(f, "%2i\n", 1);
+        fprintf(f, "%13.8f\n", 0.0);
+        for (int axis = 0; axis < 3; ++axis) {
+            fprintf(f, "# Cartesian component %2i\n", axis+1);
+            for (int i = 0; i < nmo; ++i) {
+                for (int j = 0; j < nmo; ++j) {
+                    fprintf(f, "%4i\t %13.8f\t %4i\t %13.8f\t %13.8f\t %13.8f\n", i+1, energy(i)*ha2ev, j+1, energy(j)*ha2ev, mat_el(axis,i,j), (energy(j)-energy(i))*ha2ev);
+                }
+            }
+        }
+        fclose(f);
+        END_TIMER(world, "Matrix elements");     
+    }
+
     tensorT SCF::dipole(World & world, const functionT& rho) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
@@ -1322,7 +1443,7 @@ namespace madness {
             functionT dipolefunc = factoryT(world)
                     .functor(functorT(new MomentFunctor(x)));
             mu[axis] = -dipolefunc.inner(rho);
-            mu[axis] += molecule.nuclear_dipole(axis, param.psp_calc);
+            mu[axis] += molecule.nuclear_dipole(axis);
         }
         
         if (world.rank() == 0) {
@@ -1654,8 +1775,11 @@ namespace madness {
         real_function_3d vnuc;
         if (param.psp_calc){
             vnuc = gthpseudopotential->vlocalpot();}
-        else{
+        else if (param.pure_ae){
             vnuc = potentialmanager->vnuclear();}
+        else {
+            vnuc = potentialmanager->vnuclear();
+            vnuc = vnuc + gthpseudopotential->vlocalpot();}     
         lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0),
                     false);
         lb.add_tree(arho, lbcost<double, 3>(1.0, 8.0), false);
@@ -2151,8 +2275,11 @@ namespace madness {
             real_function_3d vnuc;
             if (param.psp_calc){
                 vnuc = gthpseudopotential->vlocalpot();}
-            else{
+            else if (param.pure_ae){
                 vnuc = potentialmanager->vnuclear();}
+            else {
+                vnuc = potentialmanager->vnuclear();
+                vnuc = vnuc + gthpseudopotential->vlocalpot();}     
             double enuclear = inner(rho, vnuc);
             END_TIMER(world, "Nuclear energy");
 
@@ -2255,13 +2382,7 @@ namespace madness {
                 }
             }
             
-            double enrep;
-            if (param.psp_calc){
-                enrep = molecule.nuclear_repulsion_energy_pseudo();           
-            }
-            else{
-                enrep = molecule.nuclear_repulsion_energy();
-            }
+            double enrep = molecule.nuclear_repulsion_energy();
             double ekinetic = ekina + ekinb;
             double enonlocal = enla + enlb;
             double exc = exca + excb;
@@ -2270,6 +2391,15 @@ namespace madness {
             //esol = etot;
             
             if (world.rank() == 0) {
+                //lots of dps for testing Exc stuff
+                /*printf("\n              kinetic %32.24f\n", ekinetic);
+                printf("         nonlocal psp %32.24f\n", enonlocal);
+                printf("   nuclear attraction %32.24f\n", enuclear);
+                printf("              coulomb %32.24f\n", ecoulomb);
+                printf(" exchange-correlation %32.24f\n", exc);
+                printf("    nuclear-repulsion %32.24f\n", enrep);
+                printf("                total %32.24f\n\n", etot);*/
+
                 printf("\n              kinetic %16.8f\n", ekinetic);
                 printf("         nonlocal psp %16.8f\n", enonlocal);
                 printf("   nuclear attraction %16.8f\n", enuclear);
@@ -2331,6 +2461,34 @@ namespace madness {
                             print("beta eigenvalues");
                             print (beps);
                         }
+
+
+                        // write eigenvalues etc to a file at the same time for plotting DOS etc.
+                        FILE *f=0;
+                        if (param.nbeta != 0 && !param.spin_restricted) {
+                            f = fopen("energies_alpha.dat", "w");}
+                        else{
+                            f = fopen("energies.dat", "w");}
+
+                        long nmo = amo.size();
+                        fprintf(f, "# %8li\n", nmo);
+                        for (long i = 0; i < nmo; ++i) {
+                            fprintf(f, "%13.8f\n", aeps(i));
+                        }
+                        fclose(f);
+
+                        if (param.nbeta != 0 && !param.spin_restricted) {
+                            long nmo = bmo.size();
+                            FILE *f=0;
+                            f = fopen("energies_beta.dat", "w");
+
+                            fprintf(f, "# %8li\n", nmo);
+                            for (long i = 0; i < nmo; ++i) {
+                                fprintf(f, "%13.8f\t", beps(i));
+                            }
+                            fclose(f);
+                        }
+
                     }
                     
                     if (param.localize) {
@@ -2377,6 +2535,12 @@ namespace madness {
             
             analyze_vectors(world, bmo, bocc, beps);
         }
+
+        dipole_matrix_elements(world, amo, aocc, aeps, 0);
+        if (param.nbeta != 0 && !param.spin_restricted) {    
+            dipole_matrix_elements(world, bmo, bocc, beps, 1);
+        }
+
         
     }        // end solve function
     
