@@ -71,7 +71,7 @@ namespace madness {
         /// Constructor that processes the requisite information.
 
         /// Capturing the line/function/filename info is best done with the
-        /// macros listed below in `worldexc.h`.
+        /// macros listed below.
         /// \param[in] m The error message.
         /// \param[in] a String describing the assertion.
         /// \param[in] v Value associated with the exception.

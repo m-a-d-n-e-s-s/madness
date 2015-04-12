@@ -16,9 +16,6 @@
 ///       \defgroup world Distributed computing environment (World and its relations)
 ///       \ingroup parallel_runtime
 
-///       \defgroup tasks Tasks
-///       \ingroup parallel_runtime
-
 //       \defgroup rmi Remote method invocation
 //       \ingroup parallel_runtime
 
@@ -40,8 +37,8 @@
 //       \defgroup hashing Hashing
 //       \ingroup parallel_runtime
 
-//       \defgroup threading Multi-threading 
-//       \ingroup parallel_runtime
+///       \defgroup threading Multi-threading 
+///       \ingroup parallel_runtime
 
 //          \defgroup mutexes Mutexes
 //          \ingroup threading
@@ -55,8 +52,8 @@
 //          \defgroup threadpool Thread pool
 //          \ingroup threading
 
-//          \defgroup taskq Task queue
-//          \ingroup threading
+///          \defgroup taskq Task queue
+///          \ingroup threading
 
 //          \defgroup conhash Concurrent hash table
 //          \ingroup threading

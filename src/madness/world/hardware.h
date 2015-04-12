@@ -34,7 +34,6 @@
   Argonne, IL 60439
 
   email: jhammond@alcf.anl.gov
-
 */
 
 #ifndef MADNESS_WOLRD_HARDWARE_H__INCLUDED
@@ -64,7 +63,7 @@
 #  error U R EFFED
 #endif
 
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 
 namespace madness {
 

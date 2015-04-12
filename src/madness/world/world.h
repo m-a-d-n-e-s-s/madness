@@ -54,7 +54,7 @@
 // #undef SEEK_END
 // #endif
 
-// Standard C++ header files needed by world.h
+// Standard C++ header files needed by parallel_runtime.h
 #include <iostream>
 #include <list>
 #include <utility>
@@ -575,6 +575,7 @@ namespace madness {
         /// Specialization of \c ArchiveLoadImpl for \c World pointers.
 
         /// Helps in archiving (reading) \c World objects.
+        /// \tparam Archive The archive type.
         /// \todo Verify this documentation.
         template <class Archive>
         struct ArchiveLoadImpl<Archive,World*> {
@@ -595,6 +596,7 @@ namespace madness {
         /// Specialization of \c ArchiveStoreImpl for \c World pointers.
 
         /// Helps in archiving (writing) \c World objects.
+        /// \tparam Archive The archive type.
         /// \todo Verify this documentation.
         template <class Archive>
         struct ArchiveStoreImpl<Archive,World*> {
