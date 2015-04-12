@@ -5,7 +5,7 @@
 #include <string>
 #include <sstream>
 #include <utility>
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_excecption.h>
 #include <madness/world/parallel_runtime.h>
 #include <xc.h>
 #include <xc_funcs.h>
