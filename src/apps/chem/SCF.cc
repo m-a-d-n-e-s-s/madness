@@ -694,8 +694,8 @@ namespace madness {
         return r;
     }*/
 
-  // this version is faster than the previous version on BG/Q
-     distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
+    // this version is faster than the previous version on BG/Q
+    distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
         PROFILE_MEMBER_FUNC(SCF);
          int n = v.size();
          distmatT r = column_distributed_matrix<double>(world, n, n);
@@ -1148,7 +1148,7 @@ namespace madness {
         return rho;
     }
     
-    std::vector<poperatorT> SCF::make_bsh_operators(World& world, const tensorT& evals) {
+    std::vector<poperatorT> SCF::make_bsh_operators(World& world, const tensorT& evals) const {
         PROFILE_MEMBER_FUNC(SCF);
         int nmo = evals.dim(0);
         std::vector < poperatorT > ops(nmo);

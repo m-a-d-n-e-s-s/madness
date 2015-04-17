@@ -353,6 +353,32 @@ namespace madness {
         if (b.ndim() == 2) x = transpose(x);
     }
 
+    /// invert general square matrix A
+    template<typename T>
+    Tensor<T> inverse(const Tensor<T>& a_in) {
+        Tensor<T> a=copy(a_in);
+        TENSOR_ASSERT(a.ndim() == 2, "inverse requires matrix",a.ndim(),&a);
+        TENSOR_ASSERT(a.dim(0) == a.dim(1), "inverse requires square matrix",a.ndim(),&a);
+        integer n = a.dim(0);;
+
+        Tensor<integer> ipiv(n);
+        integer info;
+
+        // DGETRF computes an LU factorization of a general M-by-N matrix A
+        // using partial pivoting with row interchanges.
+        dgetrf_(&n,&n,a.ptr(),&n,ipiv.ptr(),&info);
+
+        // DGETRI computes the inverse of a matrix using the LU factorization
+        // computed by DGETRF.
+        integer lwork=(10*n);
+        Tensor<T> work(lwork);
+        dgetri_(&n,a.ptr(),&n,ipiv.ptr(),work.ptr(),&lwork,&info);
+
+        mask_info(info);
+        TENSOR_ASSERT((info == 0), "inverse failed", info, &a);
+        return a;
+    }
+
     /** \brief  Solve Ax = b for general A using the LAPACK *gelss routines.
 
     A should be a matrix (float, double, float_complex,
@@ -761,6 +787,27 @@ namespace madness {
         return b.absmax();
     }
 
+    /// Example and test code for interface to LAPACK SVD interfae
+    template <typename T>
+    double test_inverse(int n) {
+        Tensor<T> A(n,n);
+
+        A.fillrandom();
+        Tensor<T> Ainv=inverse(A);
+        Tensor<T> id1=inner(A,Ainv);
+        Tensor<T> id2=inner(Ainv,A);
+
+        for (int i=0; i<n; ++i) {
+            id1(i,i)-=1.0;
+            id2(i,i)-=1.0;
+        }
+
+        double error1=id1.normf()/id1.size();
+        double error2=id2.normf()/id2.size();
+
+        return error1+error2;
+    }
+
     template <typename T>
     double test_gesv(int n, int nrhs) {
         Tensor<T> a(n,n), b1(n), b(n,nrhs), x1, x;
@@ -933,6 +980,9 @@ namespace madness {
             cout << "error in double QR/LQ " << test_qr<double>() << endl;
             cout << endl;
 
+            cout << "error in double inverse " << test_inverse<double>(32) << endl;
+            cout << "error in double inverse " << test_inverse<double>(47) << endl;
+            cout << endl;
         }
 
         catch (TensorException e) {
@@ -980,6 +1030,9 @@ namespace madness {
 
     template
     void cholesky(Tensor<double>& A);
+
+    template
+    Tensor<double> inverse(const Tensor<double>& A);
 
     template
     void qr(Tensor<double>& A, Tensor<double>& R);
