@@ -186,84 +186,15 @@ namespace madness {
     /* Macros to make some of this stuff more readable */
 
     /**
-       \def REMREF(TYPE)
-       \brief Macro to make remove_reference<T> easier to use
-
        \def REMCONST(TYPE)
        \brief Macro to make remove_const<T> easier to use
 
        \def MEMFUN_RETURNT(TYPE)
        \brief Macro to make member function type traits easier to use
-
-       \def MEMFUN_OBJT(TYPE)
-       \brief Macro to make member function type traits easier to use
-
-       \def MEMFUN_ARITY(TYPE)
-       \brief Macro to make member function type traits easier to use
-
-       \def MEMFUN_ARG1T(TYPE)
-       \brief Macro to make member function type traits easier to use
-
-       \def MEMFUN_ARG2T(TYPE)
-       \brief Macro to make member function type traits easier to use
-
-       \def MEMFUN_ARG3T(TYPE)
-       \brief Macro to make member function type traits easier to use
-
-       \def MEMFUN_ARG4T(TYPE)
-       \brief Macro to make member function type traits easier to use
-
-       \def FUNCTION_RETURNT(TYPE)
-       \brief Macro to make function type traits easier to use
-
-       \def FUNCTION_ARITY(TYPE)
-       \brief Macro to make function type traits easier to use
-
-       \def FUNCTION_ARG1T(TYPE)
-       \brief Macro to make function type traits easier to use
-
-       \def FUNCTION_ARG2T(TYPE)
-       \brief Macro to make function type traits easier to use
-
-       \def FUNCTION_ARG3T(TYPE)
-       \brief Macro to make function type traits easier to use
-
-       \def FUNCTION_ARG4T(TYPE)
-       \brief Macro to make function type traits easier to use
-
-       \def IS_SAME(TYPEA, TYPEB)
-       \brief Macro to make is_same<T> template easier to use
-
-       \def RETURN_WRAPPERT(TYPE)
-       \brief Returns TYPE unless TYPE is void when returns ReturnWrapper<void>
-
     */
 
-#define REMREF(TYPE)    typename std::remove_reference< TYPE >::type
 #define REMCONST(TYPE)  typename std::remove_const< TYPE >::type
-#define REMCONSTX(TYPE) std::remove_const< TYPE >::type
-#define RETURN_WRAPPERT(TYPE) typename madness::ReturnWrapper< TYPE >::type
-
 #define MEMFUN_RETURNT(MEMFUN) typename madness::detail::memfunc_traits< MEMFUN >::result_type
-#define MEMFUN_CONSTNESS(MEMFUN) madness::detail::memfunc_traits< MEMFUN >::constness
-#define MEMFUN_OBJT(MEMFUN)    typename madness::detail::memfunc_traits< MEMFUN >::obj_type
-#define MEMFUN_ARITY(MEMFUN)   madness::detail::memfunc_traits< MEMFUN >::arity
-#define MEMFUN_ARG1T(MEMFUN)   typename madness::detail::memfunc_traits< MEMFUN >::arg1_type
-#define MEMFUN_ARG2T(MEMFUN)   typename madness::detail::memfunc_traits< MEMFUN >::arg2_type
-#define MEMFUN_ARG3T(MEMFUN)   typename madness::detail::memfunc_traits< MEMFUN >::arg3_type
-#define MEMFUN_ARG4T(MEMFUN)   typename madness::detail::memfunc_traits< MEMFUN >::arg4_type
-
-#define FUNCTION_RETURNT(FUNCTION) typename madness::detail::function_traits< FUNCTION >::result_type
-#define FUNCTION_ARITY(FUNCTION)   madness::detail::function_traits< FUNCTION >::arity
-#define FUNCTION_ARG1T(FUNCTION)   typename madness::detail::function_traits< FUNCTION >::arg1_type
-#define FUNCTION_ARG2T(FUNCTION)   typename madness::detail::function_traits< FUNCTION >::arg2_type
-#define FUNCTION_ARG3T(FUNCTION)   typename madness::detail::function_traits< FUNCTION >::arg3_type
-#define FUNCTION_ARG4T(FUNCTION)   typename madness::detail::function_traits< FUNCTION >::arg4_type
-
-#define RESULT_OF(FUNCTION) typename madness::detail::result_of< FUNCTION >::type
-
-#define IS_SAME(A, B) std::is_same< A, B >
-#define IS_EQ(A, B) std::is_eq< A, B >
 
 } // namespace madness
 
