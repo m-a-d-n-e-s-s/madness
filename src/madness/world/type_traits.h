@@ -164,15 +164,6 @@ namespace madness {
     };
 
 
-    /// Used to provide rvalue references to support move semantics
-    template <typename T> class Reference {
-        T* p;
-    public:
-        Reference(T* x) : p(x) {}
-        T& operator*() const {return *p;}
-        T* operator->() const {return p;}
-    };
-
     template <typename T>
     struct has_result_type {
         // yes and no are guaranteed to have different sizes,
