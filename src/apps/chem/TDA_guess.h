@@ -1,4 +1,8 @@
-/// Helper Function which gives back pre defined guess operators in string form
+/**
+ \file TDA_guess.h
+ \brief Helper Function which gives back pre defined guess operators in string form
+ */
+
 namespace madness{
 
 struct polynomial_guess{

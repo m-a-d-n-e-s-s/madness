@@ -27,17 +27,14 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
  */
 
 #ifndef MADNESS_WORLD_DIST_CACHE_H__INCLUDED
 #define MADNESS_WORLD_DIST_CACHE_H__INCLUDED
 
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 #include <madness/world/worldhashmap.h>
-#include <madness/world/worldfut.h>
+#include <madness/world/future.h>
 
 namespace madness {
     namespace detail {

@@ -27,14 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 /// \file testsystolic.cc
 /// systolic example of eigen solver using one-sided Jacobi method.
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <utility>
 #include <madness/tensor/tensor.h>
 #include <ii/systolic.h>

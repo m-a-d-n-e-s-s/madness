@@ -297,6 +297,7 @@ struct CalculationParameters {
     bool derivatives;           ///< If true calculate derivatives
     bool dipole;                ///< If true calculate dipole moment
     bool conv_only_dens;        ///< If true remove bsh_residual from convergence criteria   how ugly name is...
+    bool psp_calc;                ///< pseudopotential calculation for all atoms
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -314,7 +315,7 @@ struct CalculationParameters {
     std::string algopt;         ///< algorithm used for optimization
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
-    bool psp_calc;                ///< pseudopotential calculation or all electron
+    bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -325,7 +326,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & nuclear_corrfac & psp_calc;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & nuclear_corrfac & psp_calc & pure_ae;
     }
 
     CalculationParameters()
@@ -360,6 +361,7 @@ struct CalculationParameters {
         , derivatives(false)
         , dipole(false)
         , conv_only_dens(false)
+        , psp_calc(false)
         , nalpha(0)
         , nbeta(0)
         , nmo_alpha(0)
@@ -376,7 +378,7 @@ struct CalculationParameters {
         , algopt("BFGS")
         , tdksprop(false)
         , nuclear_corrfac("none")
-        , psp_calc(false)
+        , pure_ae(true)
     {}
 
 
@@ -560,6 +562,7 @@ struct CalculationParameters {
             }
             else if (s == "psp_calc") {
               psp_calc = true;
+              pure_ae = false;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -661,6 +664,12 @@ struct CalculationParameters {
             madness::print("    calc derivatives ");
         if (dipole)
             madness::print("         calc dipole ");
+        if (psp_calc)
+            madness::print(" psp or all electron ", "pseudopotential");
+        else if (pure_ae)
+            madness::print(" psp or all electron ", "all electron");
+        else
+            madness::print(" psp or all electron ", "mixed psp/AE");
     }
 
     void gprint(World& world) const {
@@ -853,9 +862,12 @@ public:
 
     /// compute the total dipole moment of the molecule
 
-    /// @param[in]  the total (alpha + beta) density
+    /// @param[in]  rho the total (alpha + beta) density
     /// @return     the x,y,z components of the el. + nucl. dipole moment
     tensorT dipole(World & world, const functionT& rho) const;
+
+    void dipole_matrix_elements(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(),
+    		const tensorT & energy = tensorT(), int spin=0);
 
     void vector_stats(const std::vector<double> & v, double & rms,
     		double & maxabsval) const;

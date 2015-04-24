@@ -35,6 +35,7 @@
 
 /// \file worldthread.h
 /// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
+/// \ingroup threads
 
 #include <madness/world/dqueue.h>
 #include <madness/world/enable_if.h>
@@ -1088,7 +1089,7 @@ namespace madness {
 
         ~ThreadPool() {
 #if HAVE_INTEL_TBB
-            tbb_parent_task->decrement_ref_count();
+            tbb_parent_task->wait_for_all();
             tbb::task::destroy(*tbb_parent_task);
             tbb_scheduler->terminate();
             delete(tbb_scheduler);

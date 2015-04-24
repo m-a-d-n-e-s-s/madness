@@ -27,12 +27,11 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #include <madness/mra/mra.h>
 //#include <madness/mra/lbdeux.h>
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <madness/tensor/solvers.h>
 #include <vector>
 #include <madness/fortran_ctypes.h>

@@ -112,30 +112,31 @@ int main(int argc, char** argv) {
 	FunctionDefaults<3>::set_cubic_cell(-Length/2, Length/2);
 
 	if (world.rank() == 0) print("\n  Solving for the KS aux. wave function\n");
-	functionT Vnuc = real_factory_3d(world).f(V);
 	functionT psi  = real_factory_3d(world).f(guess);
 	psi.truncate();
 	psi.scale(1.0/psi.norm2());
 
 
 	std::string xc_data;
-	//xc_data="LDA_X 1.0 LDA_C_VWN 1.0";
-	//xc_data="GGA_X_PBE 1.0 GGA_C_PBE 1.0  RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 0.0 SIGMIN 0.0";
 	//xc_data="GGA_X_PBE 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 0.0 SIGMIN 0.0";
 
 	//xc_data="GGA_X_PBE 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 1.e-10 SIGMIN 1.e-10";
-	xc_data="GGA_X_PBE 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 1.e-10 SIGMIN 1.e-10";
+	//xc_data="GGA_X_PBE 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 1.e-10 SIGMIN 1.e-10";
 
-	//xc_data="GGA_C_LYP 1.0 GGA_X_B88 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 1e-10 SIGMIN 1e-10";
+//	xc_data="GGA_X_B88 1.0 RHOTOL 1e-5 RHOMIN 1e-4 SIGTOL 1e-3 SIGMIN 1e-5";
+        //xc_data="GGA_X_B88 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 0.0 SIGMIN 0.0";
+ //robert suggestions
+	//xc_data="LDA_X 1.0 LDA_C_VWN 1.0";
+        //xc_data="GGA_C_LYP 1.0 GGA_X_B88 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 0.0 SIGMIN 0.0";
+	//xc_data="GGA_X_PBE 1.0 GGA_C_PBE 1.0 RHOTOL 0.0 RHOMIN 0.0 SIGTOL 1e-8 SIGMIN 1e-8";
+        //xc_data="GGA_X_B88 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 0.0 SIGMIN 0.0";
+	xc_data="GGA_C_LYP 1.0 GGA_X_B88 1.0 RHOTOL 1e-7 RHOMIN 0.0 SIGTOL 1e-10 SIGMIN 1e-10";
 	//xc_data="GGA_X_PBE 1.";
 	//xc_data="GGA_C_PBE 1.";
 	//xc_data="GGA_X_B88 1.";
 	xc.initialize(xc_data, false, world);
 
-        poperatorT coulop;
-        coulop = poperatorT(CoulombOperatorPtr(world, 1e-10, thresh));
         gradop = gradient_operator<double,3>(world);
-	real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
 
 	{
         functionT rho = square(psi).truncate();
@@ -161,17 +162,157 @@ int main(int argc, char** argv) {
                        rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
                  }
            }
-                   //double exc = make_dft_energy(world, vf, 0);
-                   //print("exc=",exc );
+                  double exc = make_dft_energy(world, vf, 0);
+                  print("exc=",exc );
+
+          real_function_3d  vxco = make_dft_potential(world, vf, 0, 0); //.truncate();
+#if 1
+                        if (xc.is_gga() ) {
+                            // get Vsigma_aa (if it is the case and Vsigma_bb)
+                            functionT vsigaa = make_dft_potential(world, vf, 0, 1); //.truncate();
+
+                            for (int axis=0; axis<3; axis++) {
+                                functionT gradn = delrho[axis];
+                                functionT ddel = vsigaa*gradn;
+                                ddel.scale(4.0);
+                                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+                                functionT vxc2=D(ddel);
+                                vxco = vxco - vxc2;//.truncate();
+                            }
+                        } //is gga
+#endif
+//#else
+
+          real_function_3d vxc = real_factory_3d(world);
+          vxc.scale(0.0);
 
 
+          real_function_3d d1 = make_dft_kernel(world, vf, 0, 0); //.truncate();
+          d1.scale(constants::pi);
+          functionT vxc0 =  d1*rho;
+          vxc0.scale(2.);
+          vxc = vxc + vxc0;
 
+
+#if 1
+          if (xc.is_gga() ) {
+                         // get Vsigma_aa (if it is the case and Vsigma_bb)
+          functionT d2 = make_dft_kernel(world, vf, 0, 1);
+          d2.scale(constants::pi);
+//
+          functionT vxc1 = d2 * saa ;//  d2e/drds *s
+          vxc1.scale(1.*1.*4.);
+          vxc = vxc + vxc1;
+//        
+          functionT d3 = make_dft_kernel(world, vf, 0, 2);
+          d3.scale(constants::pi);
+//        
+          functionT d4 = make_dft_potential(world, vf, 0, 1);
+          d4.scale(constants::pi);
+          d4.scale(1.*2);
+//
+//
+          functionT fxct4 = d2 * rho;
+          fxct4.scale(1.*1.*2); //2 because rho
+          functionT fxct5 = d3 * saa ;
+          fxct5.scale(1.*1.*4); //4 cause saa
+          functionT fxct6 = fxct5 + fxct4;
+
+          for (int axis=0; axis<3; axis++) {
+              functionT gradn = delrho[axis ];
+
+              functionT ddel = (fxct6 + d4) * gradn;
+              ddel.scale(1.*1.*2);
+
+              Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+              functionT fxc2=D(ddel);
+              vxc = vxc + fxc2 ;//.truncate();
+//        
+          }
+          } //isgga
+  
+            //  vxc.scale(4);
+#endif
+//#endif
+/************************
           real_function_3d fxc = make_dft_kernel(world, vf, 0, 0); //.truncate();
-          fxc.scale(constants::pi);
+          fxc.scale((constants::pi));
+          vxc = fxc*rho;
+
+
+
+                     if (xc.is_gga() ) {
+                         // get Vsigma_aa (if it is the case and Vsigma_bb)
+                         functionT v2rhosigma_a_aa = make_dft_kernel(world, vf, 0, 1);
+                         v2rhosigma_a_aa.scale(constants::pi);
+//
+                         functionT vxc1 = v2rhosigma_a_aa*saa ;//  d2e/drds *s
+                         vxc1.scale(1.*2.*2.);
+                         //vxc =  vxc1*rho;
+                         //vxc = vxc - vxc1*rho;
+                         vxc = vxc - vxc1;
+         
+                         functionT v2sigma2_aa_aa = make_dft_kernel(world, vf, 0, 2);
+                         v2sigma2_aa_aa.scale(constants::pi);
+//         
+                         //functionT vsigaa = make_dft_potential(world, vf, 0, 1);
+                         //vsigaa.scale(constants::pi);
+//
+//
+//
+                         for (int axis=0; axis<3; axis++) {
+                             functionT gradn = delrho[axis ];
+                             functionT fxct4 = v2rhosigma_a_aa * rho;
+                             fxct4.scale(1.*2.*2);
+                             //fxct4.scale(4.);
+
+                             functionT fxct5 = v2sigma2_aa_aa * saa ;
+                             fxct5.scale(2.*4.*2);
+                             //fxct5.scale(4.*4.);
+
+                             functionT ddel = (fxct4 + fxct5) * gradn;
+
+                             functionT ddel3 = vsigaa*gradn;         
+                             ddel3.scale(2.);
+
+                             Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+                             functionT fxc2=D(ddel);
+                             functionT fxc3 = D(ddel3);
+                             vxc = vxc + fxc2 ;//.truncate();
+                             vxc = vxc + fxc3 ;
+                             //vxc = vxc + fxc2 *rho;//.truncate();
+                             //vxc = vxc + fxc3 *rho;
+                         }
+                        // vxc.scale(1.);
+                     }
+  
+               vxc = vxc*rho;
+               vxc = vxc*rho;
+               vxc.scale(4);
+
+*****************/
+
+               //vxc = vxc*rho;
+
+
  	  std::ofstream file;
  	  file.open ("fxc.txt");
 	     file.precision(12);
-	  coord_3d r(0.0);
+#if 0
+ 	  std::ofstream fd1;
+ 	  fd1.open ("fd1.txt");
+	     fd1.precision(12);
+ 	  std::ofstream fd2;
+ 	  fd2.open ("fd2.txt");
+	     fd2.precision(12);
+ 	  std::ofstream fd3;
+ 	  fd3.open ("fd3.txt");
+	     fd3.precision(12);
+ 	  std::ofstream fd4;
+ 	  fd4.open ("fd4.txt");
+	     fd4.precision(12);
+#endif
+           coord_3d r(0.0);
              /*double av, avrho, avpot;*/
              //double dx=0.1;
             //int imax=Length/dx;
@@ -206,11 +347,13 @@ int main(int argc, char** argv) {
                    //functionT rho_nt = square(psi);
                    //functionT rho_rec = square(psi).truncate();
 	        //rho_rec.reconstruct();
-                   functionT rho_nt = real_factory_3d(world);
-                   functionT rho_rec = real_factory_3d(world);
 
-                   file << r[0] << "\t" << fxc(r) << "\t" ;
-                   file << rho(r) ;  
+                   file << r[0] << "\t" << vxc(r) << "\t"<< "\t" << vxco(r) << "\t";
+                   //file << rho(r) ;  
+               //    fd1 << r[0] << "\t" << d1(r) << "\n" ;  
+               //    fd2 << r[0] << "\t" << d2(r) << "\n" ;  
+               //    fd3 << r[0] << "\t" << d3(r) << "\n" ;  
+               //    fd4 << r[0] << "\t" << d4(r) << "\n" ;  
 /*
                    file << r[0] << "\t" << vxc(r) << "\t" << potential(r) << "\t" << Vnuc(r) << "\t";
                    file << rho(r) << "\t" << rho_nt(r) << "\t"  << rho_rec(r) << "\t" << psi(r);
@@ -220,6 +363,12 @@ int main(int argc, char** argv) {
                    file << "\n";
 	        }
                 file.close();
+#if 0
+                fd1.close();
+                fd2.close();
+                fd3.close();
+                fd4.close();
+#endif
 
                 ///////////////////////////////////////////////////////////
                 /*{

@@ -42,7 +42,11 @@
 namespace madness {
 
     /// Dummy class a la Intel TBB used to distinguish splitting constructor
+#ifdef HAVE_INTEL_TBB
+    typedef tbb::split Split;
+#else
     class Split {};
+#endif /// HAVE_INTEL_TBB
 
     /// Range vaguely a la Intel TBB encapsulates random-access STL-like start and end iterators with chunksize
     template <typename iteratorT>
@@ -96,26 +100,18 @@ namespace madness {
         }
 
         /// Returns number of items in the range (cost is O(1))
-        size_t size() const {
-            return n;
-        }
+        size_t size() const { return n; }
 
         /// Returns true if size=0
-        bool empty() const {
-            return n==0;
-        }
+        bool empty() const { return n==0; }
 
-        const iterator& begin() const {
-            return start;
-        }
+        const iterator& begin() const { return start; }
 
-        const iterator& end() const {
-            return finish;
-        }
+        const iterator& end() const { return finish; }
 
-        unsigned int get_chunksize() const {
-            return chunksize;
-        }
+        bool is_divisible() const { return n > chunksize; }
+
+        unsigned int get_chunksize() const { return chunksize; }
 
     private:
         template<typename integralT, typename distanceT>

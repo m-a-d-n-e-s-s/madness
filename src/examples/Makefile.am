@@ -46,7 +46,7 @@ newsolver_SOURCES = newsolver.cc
 hedft_SOURCES = hedft.cc 
 h2dft_SOURCES = h2dft.cc
 if MADNESS_HAS_LIBXC
-hefxc_SOURCES = hedft.cc  
+hefxc_SOURCES = hefxc.cc  
 hefxc_SOURCES += ../apps/chem/xcfunctional_libxc.cc
 hedft_SOURCES += ../apps/chem/xcfunctional_libxc.cc
 h2dft_SOURCES += ../apps/chem/xcfunctional_libxc.cc

@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <utility>
 #include <madness/mra/key.h>
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>

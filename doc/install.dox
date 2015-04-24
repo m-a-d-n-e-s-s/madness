@@ -29,29 +29,15 @@
   fax:   865-572-0680
 
 
-  $Id: $
+  $Id$
 */
 
-#include <madness/world/worldtask.h>
-//#include <madness/world/worldmpi.h>
+/**
+  \file install.dox
+  \brief Notes on installing and configuring MADNESS.
+  \addtogroup configuration
 
-namespace madness {
+  \todo Write this section.
 
-    bool TaskInterface::debug = false;
-
-    void TaskInterface::run(const TaskThreadEnv& env) { // This is what thread pool will invoke
-        MADNESS_ASSERT(world);
-        MADNESS_ASSERT(completion);
-        World* w = const_cast<World*>(world);
-        if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " is now running" << std::endl;
-        run(*w, env);
-        if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
-    }
-
-    WorldTaskQueue::WorldTaskQueue(World& world)
-            : world(world)
-            , me(world.rank()) {
-        nregistered = 0;
-    }
-
-}  // namespace madness
+  In the mean time, instructions on installing and configuring MADNESS can be found in the wiki at <a href="\website">the MADNESS repository</a>.
+ */

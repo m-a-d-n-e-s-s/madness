@@ -27,11 +27,10 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  $Id$
 */
+
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
+#include <madness/world/parallel_runtime.h>
 #include <madness/mra/mra.h>
 #include <madness/tensor/tensor.h>
 #include <fstream>
@@ -132,10 +131,10 @@ std::vector<xcfunc_data_point> read_test_data(const std::string& dfname,
 void test_xcfunctional(World& world)
 {
     bool spin_polarized ;
-    spin_polarized = true;
-    //spin_polarized = false;
+    //spin_polarized = true;
+    spin_polarized = false;
 
-    int ispin = 1; //alpha=0 beta=1
+    int ispin = 0; //alpha=0 beta=1
 
     int what = 0 ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
 
@@ -231,6 +230,7 @@ void test_xcfunctional(World& world)
          xc_args.push_back(sigmaaa_t);
       }
     }
+
     print("xc_args_size", xc_args.size());
     print("ispin ", ispin);
     print("what ", what);
@@ -244,6 +244,7 @@ void test_xcfunctional(World& world)
     else {
     vr = xcfunc.vxc(xc_args,ispin, what);
     }
+
 #if 0
     print("\n");
     if(what == 0)
@@ -293,6 +294,7 @@ void test_xcfunctional(World& world)
     if(what == 0) {
         if (xcfunc.is_spin_polarized())
         {
+          printf("%25s %25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa","sigmaab","sigmabb","vrhoa (input)","vr (output)","vrhoa-vr");
           for (unsigned int idp = 0; idp < dps.size(); idp++)
           {
             printf("%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
@@ -303,6 +305,7 @@ void test_xcfunctional(World& world)
         }
         else
         {
+          printf("%25s %25s  %25s %25s   %25s\n","#rhoa","sigmaaa","vrhoa (input)","vr (output)","vrhoa-vr");
           for (unsigned int idp = 0; idp < dps.size(); idp++)
           {
             printf("%25.12e %25.12e  %25.12e %25.12e   %25.12e\n",
