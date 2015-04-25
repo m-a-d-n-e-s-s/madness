@@ -34,7 +34,7 @@
  \brief Overview of the interface templates for archives (serialization).
  \addtogroup serialization
 
-The programmer should not need to include world/archive.h directly. Instead, include the header file for the actual archive (binary file, text/xml file, vector in memory, etc.) that is desired.
+The programmer should not need to include madness/world/archive.h directly. Instead, include the header file for the actual archive (binary file, text/xml file, vector in memory, etc.) that is desired.
 
 \par Background
 
@@ -278,7 +278,7 @@ Things that you know are contiguously stored in memory and are painful to serial
 To enable type checking for user-defined types you must register them with the system. There are 64 empty slots for user types beginning at cookie=128.  Type checked archives (currently all except the MPI archive) store a cookie (byte with value 0-255) with each datum. Unknown (user-defined) types all end up with the same cookie indicating unkown --- i.e., no type checking unless you register.
 
 Two steps are required to register your own types (e.g., here for the types \c %Foo and \c Bar)
--# In a header file, after including world/archive.h, associate your types and pointers to them with cookie values.
+-# In a header file, after including madness/world/archive.h, associate your types and pointers to them with cookie values.
   \code
     namespace madness {
         namespace archive {
@@ -296,17 +296,17 @@ Two steps are required to register your own types (e.g., here for the types \c %
     ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Foo);
     ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Bar);
   \endcode
-Have a look at the test in \c src/madness/world/test_ar.cc to see things in action.
+Have a look at the test in \c madness/world/test_ar.cc to see things in action.
   
 \par Types of archive
 
 Presently provided are
-- world/text_fstream_archive.h --- (text \c std::fstream) a file in text (XML).
-- world/binary_fstream_archive.h --- (binary \c std::fstream) a file in binary.
-- world/vector_archive.h --- binary in memory using an \c std::vector<unsigned_char>.
-- world/buffer_archive.h --- binary in memory buffer (this is rather heavily specialized for internal use, so applications should use a vector instead).
-- world/mpiar.h --- binary stream for point-to-point communication using MPI (non-typesafe for efficiency).
-- world/parar.h --- parallel archive to binary file with multiple readers/writers. This is here mostly to support efficient transfer of large \c WorldContainer (world/worlddc.h) and MADNESS \c Function (mra/mra.h) objects, though any serializable object can employ it.
+- madness/world/text_fstream_archive.h --- (text \c std::fstream) a file in text (XML).
+- madness/world/binary_fstream_archive.h --- (binary \c std::fstream) a file in binary.
+- madness/world/vector_archive.h --- binary in memory using an \c std::vector<unsigned_char>.
+- madness/world/buffer_archive.h --- binary in memory buffer (this is rather heavily specialized for internal use, so applications should use a vector instead).
+- madness/world/mpiar.h --- binary stream for point-to-point communication using MPI (non-typesafe for efficiency).
+- madness/world/parar.h --- parallel archive to binary file with multiple readers/writers. This is here mostly to support efficient transfer of large \c WorldContainer (madness/world/worlddc.h) and MADNESS \c Function (mra/mra.h) objects, though any serializable object can employ it.
 
 The buffer and \c vector archives are bitwise identical to the binary file archive.
 
