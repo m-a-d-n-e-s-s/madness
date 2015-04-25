@@ -1089,7 +1089,7 @@ namespace madness {
 
         ~ThreadPool() {
 #if HAVE_INTEL_TBB
-            tbb_parent_task->decrement_ref_count();
+            tbb_parent_task->wait_for_all();
             tbb::task::destroy(*tbb_parent_task);
             tbb_scheduler->terminate();
             delete(tbb_scheduler);

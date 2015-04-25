@@ -415,9 +415,7 @@ group.cc
 group.h
 hardware.cc
 hardware.h
-integral_constant.h
 lookup3.c
-move.h
 mpiar.h
 nodefaults.h
 parar.h
@@ -426,7 +424,6 @@ print.cc
 print.h
 print_seq.h
 redirectio.cc
-ref.h
 safempi.cc
 safempi.h
 scopedptr.h

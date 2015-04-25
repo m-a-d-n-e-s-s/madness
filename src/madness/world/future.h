@@ -46,7 +46,6 @@
 #include <madness/world/array.h>
 #include <madness/world/worldref.h>
 #include <madness/world/world.h>
-#include <madness/world/move.h>
 
 /// \addtogroup futures
 /// @{
@@ -307,7 +306,7 @@ namespace madness {
                 World& world = remote_ref.get_world();
                 const ProcessID owner = remote_ref.owner();
                 world.am.send(owner, FutureImpl<T>::set_handler,
-                        new_am_arg(remote_ref, unwrap_move(value)));
+                        new_am_arg(remote_ref, value));
                 set_assigned(value);
             } else {
                 set_assigned((const_cast<T&>(t) = value));
@@ -1122,7 +1121,7 @@ namespace madness {
     std::ostream& operator<<(std::ostream& out, const Future<Void>& f);
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
-    
+
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
         if (f.probe()) out << f.get();
