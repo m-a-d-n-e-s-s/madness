@@ -76,7 +76,6 @@ namespace madness {
     double ThreadPool::await_timeout = 900.0;
 #if HAVE_INTEL_TBB
     tbb::task_scheduler_init* ThreadPool::tbb_scheduler = 0;
-    tbb::empty_task* ThreadPool::tbb_parent_task = 0;
 #endif
 #ifdef MADNESS_TASK_PROFILING
     Mutex profiling::TaskProfiler::output_mutex_;
@@ -361,8 +360,6 @@ namespace madness {
         else {
             tbb_scheduler = new tbb::task_scheduler_init(nthreads);
         }
-        tbb_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
-        tbb_parent_task->increment_ref_count();
 #else
 
         try {
