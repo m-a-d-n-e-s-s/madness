@@ -351,14 +351,12 @@ namespace madness {
             nthreads = 1;
 
         if (SafeMPI::COMM_WORLD.Get_size() > 1) {
-            // There are nthreads+2 because the main and communicator thread
-            // are now a part of tbb.
-            tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
+            // There are nthreads+1 because the communication thread
+            // is run as a tbb task.
+            tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
         }
         else {
-            // There are nthreads+1 because the main
-            // is now part of tbb.
-            tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
+            tbb_scheduler = new tbb::task_scheduler_init(nthreads);
         }
         tbb_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
         tbb_parent_task->increment_ref_count();
