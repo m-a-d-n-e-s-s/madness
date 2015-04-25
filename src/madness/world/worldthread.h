@@ -1133,7 +1133,8 @@ namespace madness {
 #endif
         /// The constructor is private to enforce the singleton model.
 
-        /// \todo Could we use C++11's `= delete` to accomplish this?
+        /// \todo Description needed.
+        /// \param[in] nthread Description needed.
         ThreadPool(int nthread=-1);
 
         /// \todo Could we use C++11's `= delete` to hide this?

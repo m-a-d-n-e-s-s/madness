@@ -29,8 +29,11 @@
   fax:   865-572-0680
 */
 
-/// \file worldthread.h
-/// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
+/**
+ \file worldthread.cc
+ \brief Implements Dqueue, Thread, ThreadBase and ThreadPool.
+ \ingroup threads
+*/
 
 #include <madness/world/worldthread.h>
 #include <madness/world/worldprofile.h>
@@ -148,7 +151,7 @@ namespace madness {
         return 0;
     }
 
-    /// Start the thread running
+    // Start the thread running
     void ThreadBase::start() {
         pthread_attr_t attr;
         // Want detached thread with kernel scheduling so can use multiple cpus
@@ -164,7 +167,7 @@ namespace madness {
         pthread_attr_destroy(&attr);
     }
 
-    /// Get no. of actual hardware processors
+    // Get no. of actual hardware processors
     int ThreadBase::num_hw_processors() {
 #if defined(HAVE_IBMBGP)
     #if 0 /* total overkill - what was i thinking? */
@@ -198,7 +201,7 @@ namespace madness {
 #endif
     }
 
-    /// Specify the affinity pattern or how to bind threads to cpus
+    // Specify the affinity pattern or how to bind threads to cpus
     void ThreadBase::set_affinity_pattern(const bool bind[3], const int cpu[3]) {
         memcpy(ThreadBase::bind, bind, 3*sizeof(bool));
         memcpy(ThreadBase::cpulo, cpu, 3*sizeof(int));
@@ -331,7 +334,7 @@ namespace madness {
 
 #endif // MADNESS_TASK_PROFILING
 
-    /// The constructor is private to enforce the singleton model
+    // The constructor is private to enforce the singleton model
     ThreadPool::ThreadPool(int nthread) :
             threads(NULL), main_thread(), nthreads(nthread), finish(false)
     {
@@ -379,7 +382,7 @@ namespace madness {
 #endif
     }
 
-    /// Get number of threads from the environment
+    // Get number of threads from the environment
     int ThreadPool::default_nthread() {
         int nthread;
         int shift = 0;
@@ -426,7 +429,7 @@ namespace madness {
         nfinished++;
     }
 
-    /// Forwards thread to bound member function
+    // Forwards thread to bound member function
     void* ThreadPool::pool_thread_main(void *v) {
         instance()->thread_main((ThreadPoolThread*)(v));
         return 0;
@@ -513,7 +516,7 @@ namespace madness {
         instance_ptr = NULL;
     }
 
-    /// Returns queue statistics
+    // Returns queue statistics
     const DQStats& ThreadPool::get_stats() {
         return instance()->queue.get_stats();
     }
