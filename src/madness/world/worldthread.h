@@ -1026,11 +1026,33 @@ namespace madness {
 
         /// Returns true if one was run
         static bool run_task() {
-#ifdef MADNESS_TASK_PROFILING
-            return instance()->run_tasks(false, static_cast<ThreadPoolThread*>(ThreadBase::this_thread()));
+#ifdef HAVE_INTEL_TBB
+            const std::size_t num_pending_tasks = tbb_parent_task->ref_count();
+
+            // Construct a the parent task
+            tbb::task& waiter = *new( tbb::task::allocate_root() ) tbb::empty_task;
+            waiter.set_ref_count(2);
+
+            // Create a dummy task that we send throught the queue.
+            tbb::task& dummy = *new( waiter.allocate_child() ) tbb::empty_task;
+            tbb::task::enqueue(dummy);
+
+            // Run tasks while we wait for the dummy task.
+            waiter.wait_for_all();
+
+            // destroy the waiter
+            tbb::task::destroy(waiter);
+            return num_pending_tasks != tbb_parent_task->ref_count();
 #else
-            return instance()->run_tasks(false, NULL);
+
+#ifdef MADNESS_TASK_PROFILING
+            ThreadBase* const thread = static_cast<ThreadPoolThread*>(ThreadBase::this_thread());
+#else
+            ThreadBase* const thread = nullptr;
 #endif // MADNESS_TASK_PROFILING
+
+            return instance()->run_tasks(false, thread);
+#endif // HAVE_INTEL_TBB
         }
 
         /// Returns number of threads in the pool
@@ -1058,12 +1080,7 @@ namespace madness {
             MutexWaiter waiter;
             while (!probe()) {
 
-#if HAVE_INTEL_TBB
-                // TODO: Enable busy waiting with TBB.
-                const bool working = false;
-#else
                 const bool working = (dowork ? ThreadPool::run_task() : false);
-#endif // HAVE_INTEL_TBB
                 const double current_time = cpu_time();
 
                 if (working) {
