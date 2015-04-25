@@ -68,7 +68,7 @@
 #include <madness/world/worldmpi.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/worldprofile.h>
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <madness/world/uniqueid.h>
 #include <madness/world/nodefaults.h>
 

@@ -565,7 +565,7 @@ MADATOMIC\_INT atom = MADATOMIC\_INITIALIZE(value)}
 
 \bigskip
 
-\subsubsection{Mutex, MutexReaderWriter, ScopedMutex, MutexWaiter (worldthread.h)}
+\subsubsection{Mutex, MutexReaderWriter, ScopedMutex, MutexWaiter (thread.h)}
 Simple locking mechanisms based upon either atomic memory operations or Pthread mutexes. The locks are spin-locks with a
 rudimentary back-off algorithm implemented by \texttt{MutexWaiter}. Over subscribing processors might cause performance
 problems without care. \texttt{Mutex} provides a simple lock. \texttt{MutexReaderWriter} provides a non-exclusive read
@@ -693,7 +693,7 @@ namespace madness \{}
 
 \bigskip
 
-\subsubsection{Threads (worldthread.h)}
+\subsubsection{Threads (thread.h)}
 This provides simple wrappers around POSIX standard Pthread calls to simplify creation of detached system scheduled
 threads. It is probable that this interface will change either to match Intel TBB or the new C++ standard. The first
 wrapper provides a base class that enables object instances to be associated with threads. The second is probably not
@@ -746,7 +746,7 @@ namespace madness \{}
 Mmm ... I see that the ThreadBase destructor does not cancel the thread if it is still running ... probably should? Seem
 to recall an issue here but it seems bad to delete the object and leave the thread running. 
 
-\subsubsection{Tasks, task attributes and the thread pool (worldthread.h)}
+\subsubsection{Tasks, task attributes and the thread pool (thread.h)}
 The primary (only?) source of SMP concurrency inside MADNESS comes from inserting tasks into the task queue for
 execution by the pool of threads. The class is a singleton. The one pool of threads serves all activities and worlds
 within the SMP node so as to avoid oversubscribing the processors and to facilitate (eventually) switching between

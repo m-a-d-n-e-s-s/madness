@@ -30,12 +30,12 @@
 */
 
 /**
- \file worldthread.cc
+ \file thread.cc
  \brief Implements Dqueue, Thread, ThreadBase and ThreadPool.
  \ingroup threads
 */
 
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <madness/world/worldprofile.h>
 #include <madness/world/madness_exception.h>
 #include <madness/world/print.h>

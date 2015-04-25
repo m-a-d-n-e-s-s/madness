@@ -29,11 +29,11 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_WORLD_WORLDTHREAD_H__INCLUDED
-#define MADNESS_WORLD_WORLDTHREAD_H__INCLUDED
+#ifndef MADNESS_WORLD_THREAD_H__INCLUDED
+#define MADNESS_WORLD_THREAD_H__INCLUDED
 
 /**
- \file worldthread.h
+ \file thread.h
  \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
  \ingroup threads
 */
@@ -1439,4 +1439,4 @@ namespace madness {
     /// @}
 }
 
-#endif // MADNESS_WORLD_WORLDTHREAD_H__INCLUDED
+#endif // MADNESS_WORLD_THREAD_H__INCLUDED

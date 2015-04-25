@@ -30,7 +30,7 @@
 */
 
 #include <madness/world/world.h>
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <iostream>
 #include <pthread.h>
 #include <unistd.h>

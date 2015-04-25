@@ -38,7 +38,7 @@
 #ifndef MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 #define MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <madness/world/world_task_queue.h>
 
 /**
