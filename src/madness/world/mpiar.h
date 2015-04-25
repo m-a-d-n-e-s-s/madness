@@ -29,13 +29,12 @@
   fax:   865-572-0680
 */
 
-
 #ifndef MADNESS_WORLD_MPIAR_H__INCLUDED
 #define MADNESS_WORLD_MPIAR_H__INCLUDED
 
 #include <madness/world/archive.h>
 #include <madness/world/world.h>
-#include <madness/world/vecar.h>
+#include <madness/world/vector_archive.h>
 
 namespace madness {
     namespace archive {

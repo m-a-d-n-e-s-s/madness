@@ -29,11 +29,11 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_WORLD_VECAR_H__INCLUDED
-#define MADNESS_WORLD_VECAR_H__INCLUDED
+#ifndef MADNESS_WORLD_VECTOR_ARCHIVE_H__INCLUDED
+#define MADNESS_WORLD_VECTOR_ARCHIVE_H__INCLUDED
 
 /**
- \file vecar.h
+ \file vector_archive.h
  \brief Implements an archive wrapping an STL \c vector.
  \ingroup serialization
 
@@ -146,4 +146,4 @@ namespace madness {
     }
 }
 
-#endif // MADNESS_WORLD_VECAR_H__INCLUDED
+#endif // MADNESS_WORLD_VECTOR_ARCHIVE_H__INCLUDED

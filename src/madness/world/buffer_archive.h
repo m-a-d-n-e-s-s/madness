@@ -29,11 +29,11 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_WORLD_BUFAR_H__INCLUDED
-#define MADNESS_WORLD_BUFAR_H__INCLUDED
+#ifndef MADNESS_WORLD_BUFFER_ARCHIVE_H__INCLUDED
+#define MADNESS_WORLD_BUFFER_ARCHIVE_H__INCLUDED
 
 /**
- \file bufar.h
+ \file buffer_archive.h
  \brief Implements an archive wrapping a memory buffer.
  \ingroup serialization
 */
@@ -208,4 +208,4 @@ namespace madness {
         /// @}
     }
 }
-#endif // MADNESS_WORLD_BUFAR_H__INCLUDED
+#endif // MADNESS_WORLD_BUFFER_ARCHIVE_H__INCLUDED

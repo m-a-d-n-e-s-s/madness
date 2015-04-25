@@ -29,11 +29,11 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_WORLD_BINFSAR_H__INCLUDED
-#define MADNESS_WORLD_BINFSAR_H__INCLUDED
+#ifndef MADNESS_WORLD_BINARY_FSTREAM_ARCHIVE_H__INCLUDED
+#define MADNESS_WORLD_BINARY_FSTREAM_ARCHIVE_H__INCLUDED
 
 /**
- \file binfsar.h
+ \file binary_fstream_archive.h
  \brief Implements an archive wrapping a binary filestream.
  \ingroup serialization
 */
@@ -136,4 +136,4 @@ namespace madness {
         /// @}
     }
 }
-#endif // MADNESS_WORLD_BINFSAR_H__INCLUDED
+#endif // MADNESS_WORLD_BINARY_FSTREAM_ARCHIVE_H__INCLUDED

@@ -29,11 +29,11 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_WORLD_TEXTFSAR_H__INCLUDED
-#define MADNESS_WORLD_TEXTFSAR_H__INCLUDED
+#ifndef MADNESS_WORLD_TEXT_FSTREAM_ARCHIVE_H__INCLUDED
+#define MADNESS_WORLD_TEXT_FSTREAM_ARCHIVE_H__INCLUDED
 
 /**
- \file textfsar.h
+ \file text_fstream_archive.h
  \brief Implements an archive wrapping text filestream.
  \ingroup serialization
 */
@@ -281,4 +281,4 @@ namespace madness {
     }
 }
 
-#endif // MADNESS_WORLD_TEXTFSAR_H__INCLUDED
+#endif // MADNESS_WORLD_TEXT_FSTREAM_ARCHIVE_H__INCLUDED

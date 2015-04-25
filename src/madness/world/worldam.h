@@ -35,7 +35,7 @@
 /// \file worldam.h
 /// \brief Implements active message layer for World on top of RMI layer
 
-#include <madness/world/bufar.h>
+#include <madness/world/buffer_archive.h>
 #include <madness/world/worldrmi.h>
 #include <madness/world/world.h>
 #include <vector>

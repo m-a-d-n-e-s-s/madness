@@ -36,7 +36,7 @@
 /// \brief Implements ParallelInputArchive and ParallelOutputArchive
 
 #include <madness/world/archive.h>
-#include <madness/world/binfsar.h>
+#include <madness/world/binary_fstream_archive.h>
 #include <madness/world/world.h>
 #include <madness/world/worldgop.h>
 

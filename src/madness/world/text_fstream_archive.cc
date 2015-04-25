@@ -30,12 +30,12 @@
 */
 
 /**
- \file textfsar.cc
+ \file text_fstream_archive.cc
  \brief Implements an archive wrapping text filestream.
  \ingroup serialization
 */
 
-#include <madness/world/textfsar.h>
+#include <madness/world/text_fstream_archive.h>
 
 namespace madness {
     namespace archive {

@@ -38,7 +38,7 @@
 #include <madness/world/worldptr.h>
 #include <madness/world/parallel_runtime.h>
 #include <madness/world/world_object.h>
-#include <madness/world/bufar.h>
+#include <madness/world/buffer_archive.h>
 
 #include <gtest/gtest.h>
 

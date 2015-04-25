@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 #ifndef MADNESS_WORLD_ARCHIVE_H__INCLUDED
@@ -363,10 +360,10 @@
   \par Types of archive
 
   Presently provided are
-  - world/textfsar.h --- (text \c std::fstream ) a file in text (XML)
-  - world/binfsar.h --- (binary \c std::fstream ) a file in binary
-  - world/vecar.h --- binary in memory using an \c std::vector<unsigned_char>
-  - world/bufar.h --- binary in memory buffer (this is rather heavily specialized for internal
+  - world/text_fstream_archive.h --- (text \c std::fstream ) a file in text (XML)
+  - world/binary_fstream_archive.h --- (binary \c std::fstream ) a file in binary
+  - world/vector_archive.h --- binary in memory using an \c std::vector<unsigned_char>
+  - world/buffer_archive.h --- binary in memory buffer (this is rather heavily specialized for internal
     use so applications should use a vector instead)
   - world/mpiar.h --- binary stream for point-to-point communication
     using MPI (non-typesafe for efficiency).
