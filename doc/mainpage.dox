@@ -58,7 +58,7 @@
 //          \defgroup conhash Concurrent hash table
 //          \ingroup threading
 
-//    \defgroup mra Multiresolution analaysis
+//    \defgroup mra Multiresolution analysis
 //    \ingroup libraries
 
 //       \defgroup funcplot Function plotting routines
