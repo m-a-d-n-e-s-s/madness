@@ -27,21 +27,20 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
+#ifndef MADNESS_WORLD_SERIALIZE_H__INCLUDED
+#define MADNESS_WORLD_SERIALIZE_H__INCLUDED
 
-#ifndef MADNESS_WORLD_WORLDSER_H__INCLUDED
-#define MADNESS_WORLD_WORLDSER_H__INCLUDED
-
-/// \file worldser.h
-/// \brief Includes archive headers, and also the archive names into madness namespace
+/**
+ \file serialize.h
+ \brief Includes archive headers, and archive names, in the madness namespace.
+ \ingroup serialization
+*/
 
 #include <madness/world/bufar.h>
 #include <madness/world/vecar.h>
 #include <madness/world/binfsar.h>
 #include <madness/world/textfsar.h>
 
-#endif // MADNESS_WORLD_WORLDSER_H__INCLUDED
+#endif // MADNESS_WORLD_SERIALIZE_H__INCLUDED

@@ -31,8 +31,8 @@
 ///       \defgroup futures Futures
 ///       \ingroup parallel_runtime
 
-//       \defgroup serialization Serialization
-//       \ingroup parallel_runtime
+///       \defgroup serialization Serialization
+///       \ingroup parallel_runtime
 
 //       \defgroup hashing Hashing
 //       \ingroup parallel_runtime
