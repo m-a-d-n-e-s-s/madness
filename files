@@ -398,11 +398,8 @@ archive_type_names.cc
 array.h
 atomicint.h
 bgq_atomics.h
-binfsar.cc
-binfsar.h
 binsorter.h
 boost_checked_delete_bits.h
-bufar.h
 debug.cc
 deferred_cleanup.cc
 deferred_cleanup.h
@@ -454,12 +451,9 @@ test_world.cc
 test_worldprofile.cc
 test_worldptr.cc
 test_worldref.cc
-textfsar.cc
-textfsar.h
 type_traits.h
 typestuff.h
 uniqueid.h
-vecar.h
 worldam.cc
 worldam.h
 worlddc.h

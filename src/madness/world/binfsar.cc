@@ -29,6 +29,12 @@
   fax:   865-572-0680
 */
 
+/**
+ \file binfsar.cc
+ \brief Implements an archive wrapping a binary filestream.
+ \ingroup serialization
+*/
+
 #include <madness/world/binfsar.h>
 #include <madness/world/madness_exception.h>
 #include <madness/world/boost_checked_delete_bits.h>

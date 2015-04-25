@@ -27,36 +27,51 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #ifndef MADNESS_WORLD_BINFSAR_H__INCLUDED
 #define MADNESS_WORLD_BINFSAR_H__INCLUDED
 
-/// \file binfsar.h
-/// \brief Implements archive wrapping a binary filestream
+/**
+ \file binfsar.h
+ \brief Implements an archive wrapping a binary filestream.
+ \ingroup serialization
+*/
 
 #include <fstream>
 #include <memory>
 #include <madness/world/archive.h>
 
-
 namespace madness {
     namespace archive {
 
-        /// Wraps an archive around a binary file stream for output
+        /// \addtogroup serialization
+        /// @{
+
+        /// Wraps an archive around a binary filestream for output.
         class BinaryFstreamOutputArchive : public BaseOutputArchive {
-            static const std::size_t IOBUFSIZE = 4*1024*1024;
-            std::shared_ptr<char> iobuf;
-            mutable std::ofstream os;
+            static const std::size_t IOBUFSIZE = 4*1024*1024; ///< Buffer size.
+            std::shared_ptr<char> iobuf; ///< Buffer.
+            mutable std::ofstream os; ///< The filestream.
+
         public:
+            /// Default constructor.
+
+            /// The filename and open modes are optional here; they can be
+            /// specified later by calling \c open().
+            /// \param[in] filename Name of the file to write to.
+            /// \param[in] mode I/O attributes for opening the file.
             BinaryFstreamOutputArchive(const char* filename = 0,
                                        std::ios_base::openmode mode = std::ios_base::binary | \
                                                                       std::ios_base::out | std::ios_base::trunc);
 
+            /// Write to the filestream.
+
+            /// \todo Verify/complete documentation.
+            /// \tparam T The type of data to be written.
+            /// \param[in] t Location of the data to be written.
+            /// \param[in] n The number of data items to be written.
+            /// \return Description needed.
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
@@ -64,24 +79,43 @@ namespace madness {
                 os.write((const char *) t, n*sizeof(T));
             }
 
+            /// Open the filestream.
+
+            /// \param[in] filename The name of the file.
+            /// \param[in] mode I/O attributes for opening the file.
             void open(const char* filename,
                       std::ios_base::openmode mode = std::ios_base::binary | \
-                                                     std::ios_base::out |  std::ios_base::trunc);
+                                                     std::ios_base::out | std::ios_base::trunc);
 
+            /// Close the filestream.
             void close();
 
+            /// Flush the filestream.
             void flush();
         };
 
-
-        /// Wraps an archive around a binary file stream for input
+        /// Wraps an archive around a binary filestream for input.
         class BinaryFstreamInputArchive : public BaseInputArchive {
-            static const std::size_t IOBUFSIZE = 4*1024*1024;
-            std::shared_ptr<char> iobuf;
-            mutable std::ifstream is;
+            static const std::size_t IOBUFSIZE = 4*1024*1024; ///< Buffer size.
+            std::shared_ptr<char> iobuf; ///< Buffer.
+            mutable std::ifstream is; ///< The filestream.
+
         public:
+            /// Default constructor.
+
+            /// The filename and open modes are optional here; they can be
+            /// specified later by calling \c open().
+            /// \param[in] filename Name of the file to read from.
+            /// \param[in] mode I/O attributes for opening the file.
             BinaryFstreamInputArchive(const char* filename = 0, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in);
 
+            /// Load from the filestream.
+
+            /// \todo Verify/complete documentation.
+            /// \tparam T The type of data to be read.
+            /// \param[out] t Where to put the loaded data.
+            /// \param[in] n The number of data items to be loaded.
+            /// \return Description needed.
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
@@ -89,10 +123,17 @@ namespace madness {
                 is.read((char *) t, n*sizeof(T));
             }
 
-            void open(const char* filename,  std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in);
+            /// Open the filestream.
 
+            /// \param[in] filename Name of the file to read from.
+            /// \param[in] mode I/O attributes for opening the file.
+            void open(const char* filename, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in);
+
+            /// Close the filestream.
             void close();
         };
+
+        /// @}
     }
 }
 #endif // MADNESS_WORLD_BINFSAR_H__INCLUDED

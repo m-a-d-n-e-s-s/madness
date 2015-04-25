@@ -27,9 +27,12 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
+*/
 
-
-  $Id: textfsar.h 2173 2011-02-23 21:40:46Z justus.c79@gmail.com $
+/**
+ \file textfsar.cc
+ \brief Implements an archive wrapping text filestream.
+ \ingroup serialization
 */
 
 #include <madness/world/textfsar.h>
