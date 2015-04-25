@@ -966,9 +966,6 @@ namespace madness {
     public:
 
 #if HAVE_INTEL_TBB
-        // all tasks run as children of tbb_parent_task
-        // be sure to allocate tasks with tbb_parent_task->allocate_child()
-        static tbb::empty_task* tbb_parent_task;
         static tbb::task_scheduler_init* tbb_scheduler;
 #endif
 
@@ -983,12 +980,10 @@ namespace madness {
             task->submit();
 #endif // MADNESS_TASK_PROFILING
 #if HAVE_INTEL_TBB
-            ThreadPool::tbb_parent_task->increment_ref_count();
-            if (task->is_high_priority()) {
-                ThreadPool::tbb_parent_task->spawn(*task);
-            }
-            else {
-                ThreadPool::tbb_parent_task->enqueue(*task);
+            if(task->is_high_priority()) {
+                tbb::task::spawn(*task);
+            } else {
+                tbb::task::enqueue(*task);
             }
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
@@ -1027,7 +1022,6 @@ namespace madness {
         /// Returns true if one was run
         static bool run_task() {
 #ifdef HAVE_INTEL_TBB
-            const std::size_t num_pending_tasks = tbb_parent_task->ref_count();
 
             // Construct a the parent task
             tbb::task& waiter = *new( tbb::task::allocate_root() ) tbb::empty_task;
@@ -1042,7 +1036,7 @@ namespace madness {
 
             // destroy the waiter
             tbb::task::destroy(waiter);
-            return num_pending_tasks != tbb_parent_task->ref_count();
+            return false;
 #else
 
 #ifdef MADNESS_TASK_PROFILING
@@ -1106,8 +1100,6 @@ namespace madness {
 
         ~ThreadPool() {
 #if HAVE_INTEL_TBB
-            tbb_parent_task->wait_for_all();
-            tbb::task::destroy(*tbb_parent_task);
             tbb_scheduler->terminate();
             delete(tbb_scheduler);
 #endif
@@ -1117,11 +1109,7 @@ namespace madness {
 #ifdef HAVE_INTEL_TBB
     inline void * PoolTaskInterface::operator new(std::size_t size) throw(std::bad_alloc)
     {
-        if(! ThreadPool::tbb_parent_task) {
-            std::cerr << "!!! Error: Cannot allocate task object because the thread pool has not been initialized.\n";
-            throw std::bad_alloc();
-        }
-        return ::operator new(size, ThreadPool::tbb_parent_task->allocate_child());
+        return ::operator new(size, tbb::task::allocate_root());
     }
 #endif // HAVE_INTEL_TBB
 
