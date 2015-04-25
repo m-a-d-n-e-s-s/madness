@@ -909,7 +909,7 @@ namespace madness {
 #endif
         }
 
-        bool run_tasks(bool wait, ThreadPoolThread* this_thread) {
+        bool run_tasks(bool wait, ThreadPoolThread* const this_thread) {
 #if HAVE_INTEL_TBB
 //            if (!wait && tbb_task_list->empty()) return false;
 //            tbb::task* t = &tbb_task_list->pop_front();
@@ -1046,9 +1046,9 @@ namespace madness {
 #else
 
 #ifdef MADNESS_TASK_PROFILING
-            ThreadBase* const thread = static_cast<ThreadPoolThread*>(ThreadBase::this_thread());
+            ThreadPoolThread* const thread = static_cast<ThreadPoolThread*>(ThreadBase::this_thread());
 #else
-            ThreadBase* const thread = nullptr;
+            ThreadPoolThread* const thread = nullptr;
 #endif // MADNESS_TASK_PROFILING
 
             return instance()->run_tasks(false, thread);
