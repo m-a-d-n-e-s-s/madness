@@ -29,6 +29,11 @@
   fax:   865-572-0680
 */
 
+/**
+ \file archive_type_names.cc
+ \brief Defines archive type names for supported (by default) types.
+ \ingroup serialization
+*/
 
 #define MAD_ARCHIVE_TYPE_NAMES_CC
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
@@ -43,15 +48,17 @@ namespace madness {
 
         // Forces initialization of type names at startup
         // (breaks on shared libs ?)
+        /// \todo Investigate if this is necessary...
         static BaseArchive fred_and_mary_sitting_under_a_tree;
 
         void archive_initialize_type_names() {
-            static  bool initialized = false;
-            if (initialized) return;
-            initialized = true;
+            static bool initialized = false;
+            if (initialized)
+                return;
 
+            for (int i=0; i<255; ++i)
+                archive_type_names[i] = "invalid";
 
-            for (int i=0; i<255; ++i) archive_type_names[i] = "invalid";
             archive_type_names[255] = "unknown/user-defined";
 
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(unsigned char);
@@ -92,6 +99,7 @@ namespace madness {
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor< std::complex<float> >);
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor< std::complex<double> >);
 
+            initialized = true;
         }
     }
 }
