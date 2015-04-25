@@ -485,4 +485,3 @@ worldrmi.cc
 worldrmi.h
 worldser.h
 worldthread.cc
-worldthread.h

@@ -66,6 +66,10 @@ namespace madness {
     }
 
     /// \todo Description needed
+    namespace profiling {
+    }
+
+    /// \todo Description needed
     namespace tr1 {
     }
 

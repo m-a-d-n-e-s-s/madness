@@ -46,8 +46,8 @@
 //          \defgroup atomics Atomic operations
 //          \ingroup threading
 
-//          \defgroup threads Threads
-//          \ingroup threading
+///          \defgroup threads Threads
+///          \ingroup threading
 
 //          \defgroup threadpool Thread pool
 //          \ingroup threading
