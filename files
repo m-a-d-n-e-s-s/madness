@@ -393,8 +393,6 @@ test_Zmtxmq.cc
 test_mtxmq.cc
 
 ./src/madness/world:
-archive.h
-archive_type_names.cc
 array.h
 atomicint.h
 bgq_atomics.h

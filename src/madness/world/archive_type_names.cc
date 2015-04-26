@@ -35,8 +35,12 @@
  \ingroup serialization
 */
 
+/// \todo Brief description needed.
 #define MAD_ARCHIVE_TYPE_NAMES_CC
+
+/// \todo Brief description needed.
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
+
 #include <madness/world/parallel_runtime.h>
 #include <cstring>
 
@@ -55,6 +59,7 @@ namespace madness {
             static bool initialized = false;
             if (initialized)
                 return;
+            initialized = true;
 
             for (int i=0; i<255; ++i)
                 archive_type_names[i] = "invalid";
@@ -98,8 +103,6 @@ namespace madness {
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor<double>);
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor< std::complex<float> >);
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor< std::complex<double> >);
-
-            initialized = true;
         }
     }
 }

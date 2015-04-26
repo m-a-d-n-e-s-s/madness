@@ -33,7 +33,7 @@
 #define MADNESS_WORLD_ARCHIVE_H__INCLUDED
 
 /**
- \file world/archive.h
+ \file archive.h
  \brief Interface templates for the archives (serialization).
  \ingroup serialization
 */
@@ -48,12 +48,17 @@
 #include <madness/world/type_traits.h>
 #include <madness/world/madness_exception.h>
 
+/// \todo Brief description needed.
 #define ARCHIVE_COOKIE "archive"
+
+/// Major version number for archive.
 #define ARCHIVE_MAJOR_VERSION 0
+/// Minor version number for archive.
 #define ARCHIVE_MINOR_VERSION 1
 
 //#define MAD_ARCHIVE_DEBUG_ENABLE
 
+/// Macro for helping debug archive tools.
 #ifdef MAD_ARCHIVE_DEBUG_ENABLE
 #define MAD_ARCHIVE_DEBUG(s) s
 //using std::endl;
@@ -62,7 +67,6 @@
 #endif
 
 namespace madness {
-
 
     // Forward declarations
     template <typename T> class Tensor;
@@ -79,29 +83,47 @@ namespace madness {
         template <class T>
         inline archive_array<unsigned char> wrap_opaque(const T&);
 
-        // There are 64 empty slots for user types.  Free space for
+        /// \addtogroup serialization
+        /// @{
+
+        // There are 64 empty slots for user types. Free space for
         // registering user types begins at cookie=128.
 
+
+
+        /// The list of type names for use in archives.
+
+        /// \todo Could this namespace-scope variable be defined in archive_type_names.cc and just externed here always?
 #ifdef MAD_ARCHIVE_TYPE_NAMES_CC
         const char *archive_type_names[256];
 #else
         extern const char *archive_type_names[256];
 #endif
+
+        /// Initializes the type names for the archives.
+        // Implemented in archive_type_names.cc
         void archive_initialize_type_names();
 
-        // Used to enable type checking inside archives
+        /// Used to enable type checking inside archives.
+
+        /// \tparam T The data type.
         template <typename T>
         struct archive_typeinfo {
-            static const unsigned char cookie = 255; ///< 255 indicates unknown type
+            static const unsigned char cookie = 255; ///< Numeric ID for the type; 255 indicates unknown type.
         };
 
-        // Returns the name of the type, or unknown if not registered.
+        /// Returns the name of the type, or unknown if not registered.
+
+        /// \tparam T The data type.
+        /// \return The name of the type.
         template <typename T>
         const char* get_type_name() {
             return archive_type_names[archive_typeinfo<T>::cookie];
         }
 
+        /// \todo Brief description needed (ARCHIVE_REGISTER_TYPE_XLC_EXTRA).
 
+        /// \param[in] T The type to register.
 #if defined(ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE) && defined(ARCHIVE_REGISTER_TYPE_IBMBUG)
 #define ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T) \
         ; const unsigned char archive_typeinfo< T >::cookie
@@ -109,40 +131,61 @@ namespace madness {
 #define ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T)
 #endif
 
-        /// \def ARCHIVE_REGISTER_TYPE(T, cooky)
-        /// \brief Used to associate type with cookie value inside archive
-        ///
-        /// \def  ARCHIVE_REGISTER_TYPE_AND_PTR(T, cooky)
-        /// \brief Used to associate type and ptr to type with cookie value inside archive
-        ///
-        /// \def ARCHIVE_REGISTER_TYPE_NAME(T)
-        /// \brief Used to associate names with types
-        ///
-        /// \def ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(T)
-        /// \brief Used to associate names with types and pointers
+        /// Used to associate a type with a cookie value inside archive.
 
+        /// Makes a specialization of \c archive_typeinfo for type \c T that
+        /// specifies the correct cookie value.
+        /// \param[in] T The type.
+        /// \param[in] cooky The cookie value.
 #define ARCHIVE_REGISTER_TYPE(T, cooky) \
-	template <> struct archive_typeinfo< T > { \
-		static const unsigned char cookie = cooky; \
-	} \
+        template <> \
+        struct archive_typeinfo< T > { \
+            static const unsigned char cookie = cooky; \
+        } \
         ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T)
 
+
+        /// Used to associate a type and a pointer to the type with a cookie value inside archive.
+
+        /// \param[in] T The type.
+        /// \param[in] cooky The cookie value.
 #define ARCHIVE_REGISTER_TYPE_AND_PTR(T, cooky) \
         ARCHIVE_REGISTER_TYPE(T, cooky); \
         ARCHIVE_REGISTER_TYPE(T*, cooky+64)
 
-#define ATN ::madness::archive::archive_type_names
-#define ATI ::madness::archive::archive_typeinfo
-#define ARCHIVE_REGISTER_TYPE_NAME(T) \
-     if (strcmp(ATN[ATI< T >::cookie],"invalid")) {\
-        std::cout << "archive_register_type_name: slot/cookie already in use! "<< #T << " " << ATN[ATI< T >::cookie]<< std::endl; \
-        MADNESS_EXCEPTION("archive_register_type_name: slot/cookie already in use!", 0); \
-     } \
-     ATN[ATI< T >::cookie] = #T
 
+        /// Alias for \c archive_type_names.
+#define ATN ::madness::archive::archive_type_names
+        /// Alias for \c archive_typeinfo.
+#define ATI ::madness::archive::archive_typeinfo
+
+
+        /// Used to associate names with types.
+
+        /// \param[in] T The type.
+#define ARCHIVE_REGISTER_TYPE_NAME(T) \
+        if (strcmp( ATN[ATI< T >::cookie], "invalid") ) { \
+            std::cout << "archive_register_type_name: slot/cookie already in use! " << #T << " " << ATN[ATI< T >::cookie] << std::endl; \
+            MADNESS_EXCEPTION("archive_register_type_name: slot/cookie already in use!", 0); \
+         } \
+         ATN[ATI< T >::cookie] = #T        
+
+
+        /// Used to associate names with types and pointers to that type.
+
+        /// \param[in] T The type.
 #define ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(T) \
-     ARCHIVE_REGISTER_TYPE_NAME(T); \
-     ARCHIVE_REGISTER_TYPE_NAME(T*)
+        ARCHIVE_REGISTER_TYPE_NAME(T); \
+        ARCHIVE_REGISTER_TYPE_NAME(T*)
+
+
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+        // **********
+        // Register standard types and "common" MADNESS types.
+        //
+        // doxygen interprets these all as functions, not as calls to a macro.
+        // Thus, we force doxygen to skip this block.
 
         ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned char,0);
         ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned short,1);
@@ -182,57 +225,77 @@ namespace madness {
         ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<double>,35);
         ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<float> >,36);
         ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<double> >,37);
+        // **********
+#endif
 
-        /// Base class for all archives classes
+
+        /// Base class for all archive classes.
         class BaseArchive {
         public:
-            static const bool is_archive = true;
-            static const bool is_input_archive = false;
-            static const bool is_output_archive = false;
-            static const bool is_parallel_archive = false;
+            static const bool is_archive = true; ///< Flag to determine if this object is an archive.
+            static const bool is_input_archive = false; ///< Flag to determine if this object is an input archive.
+            static const bool is_output_archive = false; ///< Flag to determine if this object is an output archive.
+            static const bool is_parallel_archive = false; ///< Flag to determine if this object is a parallel archive.
+
             BaseArchive() {
                 archive_initialize_type_names();
             }
         }; // class BaseArchive
 
-        /// Base class for input archives classes
+
+        /// Base class for input archive classes.
         class BaseInputArchive : public BaseArchive {
         public:
-            static const bool is_input_archive = true;
+            static const bool is_input_archive = true; ///< Flag to determine if this object is an input archive.
         }; // class BaseInputArchive
 
 
-        /// Base class for output archives classes
+        /// Base class for output archive classes.
         class BaseOutputArchive : public BaseArchive {
         public:
-            static const bool is_output_archive = true;
+            static const bool is_output_archive = true; ///< Flag to determine if this object is an output archive.
         }; // class BaseOutputArchive
 
-        /// Checks that \c T is an archive type
 
-        /// If \c T is an archive type then \c is_archive will be inherited from
-        /// \c std::true_type , otherwise it is inherited from
-        /// \c std::false_type .
+        /// Checks if \c T is an archive type.
+
+        /// If \c T is an archive type, then \c is_archive will be inherited
+        /// from \c std::true_type, otherwise it is inherited from
+        /// \c std::false_type.
+        /// \tparam T The type to check.
         template <typename T>
-        struct is_archive : public std::is_base_of<BaseArchive, T> {};
+        struct is_archive : public std::is_base_of<BaseArchive, T>{};
 
-        /// Checks that \c T is an input archive type
 
-        /// If \c T is an input archive type then \c is_archive will be
-        /// inherited from \c std::true_type , otherwise it is inherited from
-        /// \c std::false_type .
+        /// Checks if \c T is an input archive type.
+
+        /// If \c T is an input archive type, then \c is_input_archive will be
+        /// inherited from \c std::true_type, otherwise it is inherited from
+        /// \c std::false_type.
+        /// \tparam T The type to check.
         template <typename T>
         struct is_input_archive : public std::is_base_of<BaseInputArchive, T> {};
 
-        /// Checks that \c T is an output archive type
 
-        /// If \c T is an output archive type then \c is_archive will be
-        /// inherited from \c std::true_type , otherwise it is inherited from
-        /// \c std::false_type .
+        /// Checks if \c T is an output archive type.
+
+        /// If \c T is an output archive type, then \c is_output_archive will
+        /// be inherited from \c std::true_type, otherwise it is inherited from
+        /// \c std::false_type.
+        /// \tparam T The type to check.
         template <typename T>
         struct is_output_archive : public std::is_base_of<BaseOutputArchive, T> {};
 
-        // Serialize an array of fundamental stuff
+
+        /// Serialize an array of fundamental stuff.
+
+        /// The function only appears (via \c enable_if_c) if \c T is
+        /// serializable and \c Archive is an output archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The type of data in the array.
+        /// \param[in] ar The archive.
+        /// \param[in] t Pointer to the start of the array.
+        /// \param[in] n Number of data items to be serialized.
         template <class Archive, class T>
         typename enable_if_c< is_serializable<T>::value && is_output_archive<Archive>::value >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
@@ -241,7 +304,15 @@ namespace madness {
         }
 
 
-        // Deserialize an array of fundamental stuff
+        /// Deserialize an array of fundamental stuff.
+
+        /// The function only appears (via \c enable_if_c) if \c T is
+        /// serializable and \c Archive is an input archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The type of data in the array.
+        /// \param[in] ar The archive.
+        /// \param[in] t Pointer to the start of the array.
+        /// \param[in] n Number of data items to be deserialized.
         template <class Archive, class T>
         typename enable_if_c< is_serializable<T>::value && is_input_archive<Archive>::value >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
@@ -250,18 +321,33 @@ namespace madness {
         }
 
 
-        // (de)Serialize an array of non-fundamental stuff
+        /// Serialize (or deserialize) an array of non-fundamental stuff.
+
+        /// The function only appears (via \c enable_if_c) if \c T is
+        /// not serializable and \c Archive is an archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The type of data in the array.
+        /// \param[in] ar The archive.
+        /// \param[in] t Pointer to the start of the array.
+        /// \param[in] n Number of data items to be serialized.
         template <class Archive, class T>
         typename enable_if_c< ! is_serializable<T>::value && is_archive<Archive>::value >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
-            for (unsigned int i=0; i<n; ++i) ar & t[i];
+            for (unsigned int i=0; i<n; ++i)
+                ar & t[i];
         }
 
 
-        /// Default implementation of pre/postamble
+        /// Default implementation of the pre/postamble for type checking.
+
+        /// \tparam Archive The archive class.
+        /// \tparam T The type to serialized or to expect upon deserialization.
         template <class Archive, class T>
         struct ArchivePrePostImpl {
+            /// Deserialize a cookie and check the type.
+
+            /// \param[in] ar The archive.
             static inline void preamble_load(const Archive& ar) {
                 unsigned char ck = archive_typeinfo<T>::cookie;
                 unsigned char cookie;
@@ -280,33 +366,47 @@ namespace madness {
                 }
             }
 
+            /// Serialize a cookie for type checking.
 
-            /// Serialize a cookie for type checking
+            /// \param[in] ar The archive.
             static inline void preamble_store(const Archive& ar) {
                 unsigned char ck = archive_typeinfo<T>::cookie;
                 ar.store(&ck, 1); // cannot use <<
                 MAD_ARCHIVE_DEBUG(std::cout << "wrote cookie " << archive_type_names[ck] << std::endl);
             }
 
-
-            /// By default there is no postamble
+            /// By default there is no postamble.
             static inline void postamble_load(const Archive& /*ar*/) {}
 
-            /// By default there is no postamble
+            /// By default there is no postamble.
             static inline void postamble_store(const Archive& /*ar*/) {}
         };
 
 
-        /// Default symmetric serialization of a non-fundamental thingy
+        /// Default symmetric serialization of a non-fundamental type.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The type to symmetrically serialize.
         template <class Archive, class T>
         struct ArchiveSerializeImpl {
+            /// Serializes the type.
+
+            /// \param[in] ar The archive.
+            /// \param[in,out] t The data.
             static inline void serialize(const Archive& ar, T& t) {
                 t.serialize(ar);
             }
         };
 
 
-        // Redirect \c serialize(ar,t) to \c serialize(ar,&t,1) for fundamental types
+        /// Redirect `serialize(ar, t)` to `serialize(ar, &t, 1)` for fundamental types.
+
+        /// The function only appears (due to \c enable_if_c) if \c T is
+        /// serializable and \c Archive is an archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
+        /// \param[in] ar The archive.
+        /// \param[in] t The data to be serialized.
         template <class Archive, class T>
         inline
         typename enable_if_c< is_serializable<T>::value && is_archive<Archive>::value >::type
@@ -316,7 +416,14 @@ namespace madness {
         }
 
 
-        // Redirect \c serialize(ar,t) to \c ArchiveSerializeImpl for non-fundamental types
+        /// Redirect `serialize(ar,t)` to \c ArchiveSerializeImpl for non-fundamental types.
+
+        /// The function only appears (due to \c enable_if_c) if \c T is not
+        /// serializable and \c Archive is an archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
+        /// \param[in] ar The archive.
+        /// \param[in] t The data to be serialized.
         template <class Archive, class T>
         inline
         typename enable_if_c< !is_serializable<T>::value && is_archive<Archive>::value >::type
@@ -326,9 +433,16 @@ namespace madness {
         }
 
 
-        /// Default store of a thingy via serialize(ar,t)
+        /// Default store of an object via `serialize(ar, t)`.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
         template <class Archive, class T>
         struct ArchiveStoreImpl {
+            /// Store an object.
+
+            /// \param[in] ar The archive.
+            /// \param[in] t The data.
             static inline void store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
                 serialize(ar,t);
@@ -336,9 +450,16 @@ namespace madness {
         };
 
 
-        /// Default load of a thingy via serialize(ar,t)
+        /// Default load of an object via `serialize(ar, t)`.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
         template <class Archive, class T>
         struct ArchiveLoadImpl {
+            /// Load an object.
+
+            /// \param[in] ar The archive.
+            /// \param[in] t The data.
             static inline void load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
                 serialize(ar,t);
@@ -346,9 +467,19 @@ namespace madness {
         };
 
 
-        /// Default implementation of wrap_store and wrap_load
+        /// Default implementations of \c wrap_store and \c wrap_load.
+
+        /// "Wrapping" refers to the addition of the type's preamble and
+        /// postamble around the data to provide runtime type-checking.
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
         template <class Archive, class T>
         struct ArchiveImpl {
+            /// Store an object sandwiched between its preamble and postamble.
+
+            /// \param[in] ar The archive.
+            /// \param[in] t The data.
+            /// \return The archive.
             static inline const Archive& wrap_store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for default" << std::endl);
                 ArchivePrePostImpl<Archive,T>::preamble_store(ar);
@@ -357,6 +488,11 @@ namespace madness {
                 return ar;
             }
 
+            /// Load an object sandwiched between its preamble and postamble.
+
+            /// \param[in] ar The archive.
+            /// \param[in] t The data.
+            /// \return The archive.
             static inline const Archive& wrap_load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for default" << std::endl);
                 ArchivePrePostImpl<Archive,T>::preamble_load(ar);
@@ -367,7 +503,14 @@ namespace madness {
         };
 
 
-        // Redirect \c << to ArchiveImpl::wrap_store for output archives
+        /// Redirect \c << to \c ArchiveImpl::wrap_store for output archives.
+
+        /// The function only appears (due to \c enable_if_c) if \c Archive
+        /// is an output archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
+        /// \param[in] ar The archive.
+        /// \param[in] t The data.
         template <class Archive, class T>
         inline
         typename enable_if<is_output_archive<Archive>, const Archive&>::type
@@ -376,7 +519,14 @@ namespace madness {
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
 
-        // Redirect \c >> to ArchiveImpl::wrap_load for input archives
+        /// Redirect \c >> to `ArchiveImpl::wrap_load` for input archives.
+
+        /// The function only appears (due to \c enable_if_c) if \c Archive
+        /// is an input archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
+        /// \param[in] ar The archive.
+        /// \param[in] t The data.
         template <class Archive, class T>
         inline
         typename enable_if<is_input_archive<Archive>, const Archive&>::type
@@ -385,7 +535,14 @@ namespace madness {
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
         }
 
-        // Redirect \c & to ArchiveImpl::wrap_store for output archives
+        /// Redirect \c & to `ArchiveImpl::wrap_store` for output archives.
+
+        /// The function only appears (due to \c enable_if_c) if \c Archive
+        /// is an output archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
+        /// \param[in] ar The archive.
+        /// \param[in] t The data.
         template <class Archive, class T>
         inline
         typename enable_if<is_output_archive<Archive>, const Archive&>::type
@@ -394,7 +551,14 @@ namespace madness {
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
 
-        // Redirect \c & to ArchiveImpl::wrap_load for input archives
+        /// Redirect \c & to `ArchiveImpl::wrap_load` for input archives.
+
+        /// The function only appears (due to \c enable_if_c) if \c Archive
+        /// is an input archive.
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
+        /// \param[in] ar The archive.
+        /// \param[in] t The data.
         template <class Archive, class T>
         inline
         typename enable_if<is_input_archive<Archive>, const Archive&>::type
@@ -404,89 +568,170 @@ namespace madness {
         }
 
 
-        ///////////////////////////////////////////////////////////////
+        // -----------------------------------------------------------------
 
-        /// Wrapper for opaque pointer ... bitwise copy of the pointer ... no remapping performed
+        /// Wrapper for an opaque pointer for serialization purposes.
+
+        /// Performs a bitwise copy of the pointer without any remapping.
+        /// \tparam T The type of object being pointed to.
+        /// \todo Verify this documentation.
         template <class T>
         class archive_ptr {
         public:
-            T* ptr;
+            T* ptr; ///< The pointer.
 
-            archive_ptr(T* t = 0) : ptr(t) {}
+            /// Constructor specifying `nullptr` by default.
 
-            T& operator*(){return *ptr;}
+            /// \param[in] t The pointer.
+            /// \todo C++11 nullptr here?
+            archive_ptr(T* t = 0)
+                : ptr(t) {}
 
+            /// Dereference the pointer.
+
+            /// \return The dereferenced pointer.
+            T& operator*() {
+                return *ptr;
+            }
+
+            /// Serialize the pointer.
+
+            /// \tparam Archive The archive type.
+            /// \param[in] ar The archive.
             template <class Archive>
             void serialize(const Archive& ar) {ar & wrap_opaque(&ptr, 1);}
         };
 
-	template <class T>
-	inline
-	archive_ptr<T> wrap_ptr(T* p) {return archive_ptr<T>(p);}
 
-        /// Wrapper for dynamic arrays and pointers
+        /// Wrapper for pointers.
+
+        /// \tparam T The type of object being pointed to.
+        /// \param[in] p The pointer.
+        /// \return The wrapped pointer.
+      	template <class T>
+      	inline archive_ptr<T> wrap_ptr(T* p) {
+            return archive_ptr<T>(p);
+        }
+
+        /// Wrapper for dynamic arrays and pointers.
+
+        /// \tparam T The type of object being pointed to.
         template <class T>
         class archive_array {
         public:
-            const T* ptr;
-            unsigned int n;
+            const T* ptr; ///< The pointer.
+            unsigned int n; ///< The number of objects in the array.
 
+            /// Constructor specifying a memory location and size.
+
+            /// \param[in] ptr The pointer.
+            /// \param[in] n The number of objects in the array.
             archive_array(const T *ptr, unsigned int n) : ptr(ptr), n(n) {}
 
+            /// Constructor specifying no array and of 0 length.
+
+            /// \todo nullptr?
             archive_array() : ptr(0), n(0) {}
         };
 
 
-        /// Factory function to wrap dynamically allocated pointer as typed archive_array
+        /// Factory function to wrap a dynamically allocated pointer as a typed \c archive_array.
+
+        /// \tparam T The data type.
+        /// \param[in] ptr The pointer.
+        /// \param[in] n The number of data elements in the array.
+        /// \return The wrapped pointer.
         template <class T>
-        inline
-        archive_array<T> wrap(const T* ptr, unsigned int n) {
+        inline archive_array<T> wrap(const T* ptr, unsigned int n) {
             return archive_array<T>(ptr,n);
         }
 
-        /// Factory function to wrap pointer to contiguous data as opaque (uchar) archive_array
+
+        /// Factory function to wrap a pointer to contiguous data as an opaque (\c uchar) \c archive_array.
+
+        /// \tparam T The data type.
+        /// \param[in] ptr The pointer.
+        /// \param[in] n The number of data elements in the array.
+        /// \return The wrapped pointer, as an opaque \c archive_array.
         template <class T>
-        inline
-        archive_array<unsigned char> wrap_opaque(const T* ptr, unsigned int n) {
+        inline archive_array<unsigned char> wrap_opaque(const T* ptr, unsigned int n) {
             return archive_array<unsigned char>((unsigned char*) ptr, n*sizeof(T));
         }
 
-        /// Factory function to wrap contiguous scalar as opaque (uchar) archive_array
+        /// Factory function to wrap a contiguous scalar as an opaque (\c uchar) \c archive_array.
+
+        /// \tparam T The data type.
+        /// \param[in] t The data.
+        /// \return The wrapped data.
         template <class T>
-        inline
-        archive_array<unsigned char> wrap_opaque(const T& t) {
+        inline archive_array<unsigned char> wrap_opaque(const T& t) {
             return archive_array<unsigned char>((unsigned char*) &t,sizeof(t));
         }
 
-        /// Serialize function pointer
+
+        /// Serialize a function pointer.
+
+        /// \tparam Archive The archive type.
+        /// \tparam resT The function's return type.
+        /// \tparam paramT Parameter pack for the function's arguments.
         template <class Archive, typename resT, typename... paramT>
         struct ArchiveSerializeImpl<Archive, resT(*)(paramT...)> {
+            /// Serialize the function pointer.
+
+            /// \param[in] ar The archive.
+            /// \param[in] fn The function pointer.
             static inline void serialize(const Archive& ar, resT(*fn)(paramT...)) {
                 ar & wrap_opaque(fn);
             }
         };
 
-        /// Serialize member function pointer
+
+        /// Serialize a member function pointer.
+
+        /// \tparam Archive The archive type.
+        /// \tparam resT The member function's return type.
+        /// \tparam objT The object type.
+        /// \tparam paramT Parameter pack for the member function's arguments.
         template <class Archive, typename resT, typename objT, typename... paramT>
         struct ArchiveSerializeImpl<Archive, resT(objT::*)(paramT...)> {
+            /// Serialize the member function pointer.
+
+            /// \param[in] ar The archive.
+            /// \param[in] memfn The member function pointer.
             static inline void serialize(const Archive& ar, resT(objT::*memfn)(paramT...)) {
                 ar & wrap_opaque(memfn);
             }
         };
 
-        /// Serialize const member function pointer
+        /// Serialize a const member function pointer.
+
+        /// \tparam Archive The archive type.
+        /// \tparam resT The const member function's return type.
+        /// \tparam objT The object type.
+        /// \tparam paramT Parameter pack for the const member function's arguments.
         template <class Archive, typename resT, typename objT, typename... paramT>
         struct ArchiveSerializeImpl<Archive, resT(objT::*)(paramT...) const> {
+            /// Serialize the const member function pointer.
+
+            /// \param[in] ar The archive.
+            /// \param[in] memfn The const member function pointer.
             static inline void serialize(const Archive& ar, resT(objT::*memfn)(paramT...) const) {
                 ar & wrap_opaque(memfn);
             }
         };
 
-        /// Partial specialization for archive_array
 
-        /// This makes use of stuff that user specializations need not
+        /// Partial specialization of \c ArchiveImpl for \c archive_array.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type in the \c archive_array.
         template <class Archive, class T>
         struct ArchiveImpl< Archive, archive_array<T> > {
+            /// Store the \c archive_array, wrapped by the preamble/postamble.
+
+            /// \param[in] ar The archive.
+            /// \param[in] t The \c archive_array.
+            /// \return The archive.
             static inline const Archive& wrap_store(const Archive& ar, const archive_array<T>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for archive_array" << std::endl);
                 ArchivePrePostImpl<Archive,T*>::preamble_store(ar);
@@ -498,6 +743,11 @@ namespace madness {
                 return ar;
             }
 
+            /// Load the \c archive_array, using the preamble and postamble to perform runtime type-checking.
+
+            /// \param[in] ar The archive.
+            /// \param[out] t The \c archive_array.
+            /// \return The archive.
             static inline const Archive& wrap_load(const Archive& ar, const archive_array<T>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for archive_array" << std::endl);
                 ArchivePrePostImpl<Archive,T*>::preamble_load(ar);
@@ -514,15 +764,29 @@ namespace madness {
         };
 
 
-        /// Partial specialization for fixed dimension array redirects to archive_array
+        /// Partial specialization of \c ArchiveImpl for fixed-dimension arrays that redirects to \c archive_array.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type.
+        /// \tparam n The array size.
         template <class Archive, class T, std::size_t n>
         struct ArchiveImpl<Archive, T[n]> {
+            /// Store the array, wrapped by the preamble/postamble.
+
+            /// \param[in] ar The archive.
+            /// \param[in] t The array.
+            /// \return The archive.
             static inline const Archive& wrap_store(const Archive& ar, const T(&t)[n]) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for array" << std::endl);
                 ar << wrap(&t[0],n);
                 return ar;
             }
 
+            /// Load the array, using the preamble and postamble to perform runtime type-checking.
+
+            /// \param[in] ar The archive.
+            /// \param[out] t The array.
+            /// \return The archive.
             static inline const Archive& wrap_load(const Archive& ar, const T(&t)[n]) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for array" << std::endl);
                 ar >> wrap(&t[0],n);
@@ -531,9 +795,16 @@ namespace madness {
         };
 
 
-        /// Serialize a complex number
+        /// Serialize a complex number.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type underlying the complex number.
         template <class Archive, typename T>
         struct ArchiveStoreImpl< Archive, std::complex<T> > {
+            /// Store a complex number.
+
+            /// \param[in] ar The archive.
+            /// \param[in] c The complex number.
             static inline void store(const Archive& ar, const std::complex<T>& c) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize complex number" << std::endl);
                 ar & c.real() & c.imag();
@@ -541,9 +812,16 @@ namespace madness {
         };
 
 
-        /// Deserialize a complex number
+        /// Deserialize a complex number.
+
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type underlying the complex number.
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, std::complex<T> > {
+            /// Load a complex number.
+
+            /// \param[in] ar The archive.
+            /// \param[out] c The complex number.
             static inline void load(const Archive& ar, std::complex<T>& c) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize complex number" << std::endl);
                 T r = 0, i = 0;
@@ -553,9 +831,16 @@ namespace madness {
         };
 
 
-        /// Serialize STL vector.
+        /// Serialize a STL \c vector.
+
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type stored in the \c vector.
         template <class Archive, typename T>
         struct ArchiveStoreImpl< Archive, std::vector<T> > {
+            /// Store a \c vector.
+
+            /// \param[in] ar The archive.
+            /// \param[in] v The \c vector.
             static inline void store(const Archive& ar, const std::vector<T>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector" << std::endl);
                 ar & v.size();
@@ -564,9 +849,17 @@ namespace madness {
         };
 
 
-        /// Deserialize STL vector. Clears & resizes as necessary.
+        /// Deserialize a STL \c vector. Clears and resizes as necessary.
+
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type stored in the \c vector.
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, std::vector<T> > {
+            /// Load a \c vector.
+
+            /// Clears and resizes the \c vector as necessary.
+            /// \param[in] ar The archive.
+            /// \param[out] v The \c vector.
             static void load(const Archive& ar, std::vector<T>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
                 std::size_t n = 0ul;
@@ -579,9 +872,16 @@ namespace madness {
             }
         };
 
-        /// Serialize STL vector<bool> (as plain array of bool)
+
+        /// Serialize a STL \c vector<bool> (as a plain array of bool).
+
+        /// \tparam Archive The archive type.
         template <class Archive>
         struct ArchiveStoreImpl< Archive, std::vector<bool> > {
+            /// Store a \c vector<bool>.
+
+            /// \param[in] ar The archive.
+            /// \param[in] v The \c vector.
             static inline void store(const Archive& ar, const std::vector<bool>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
                 std::size_t n = v.size();
@@ -593,9 +893,16 @@ namespace madness {
         };
 
 
-        /// Deserialize STL vector<bool>. Clears & resizes as necessary.
+        /// Deserialize a STL vector<bool>. Clears and resizes as necessary.
+
+        /// \tparam Archive The archive type.
         template <class Archive>
         struct ArchiveLoadImpl< Archive, std::vector<bool> > {
+            /// Load a \c vector<bool>.
+
+            /// Clears and resizes the \c vector as necessary.
+            /// \param[in] ar The archive.
+            /// \param[out] v The \c vector.
             static void load(const Archive& ar, std::vector<bool>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
                 std::size_t n = 0ul;
@@ -611,9 +918,16 @@ namespace madness {
             }
         };
 
-        /// Serialize STL string
+
+        /// Serialize a STL string.
+
+        /// \tparam Archive The archive type.
         template <class Archive>
         struct ArchiveStoreImpl< Archive, std::string > {
+            /// Store a string.
+
+            /// \param[in] ar The archive.
+            /// \param[in] v The string.
             static void store(const Archive& ar, const std::string& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL string" << std::endl);
                 ar & v.size();
@@ -622,9 +936,16 @@ namespace madness {
         };
 
 
-        /// Deserialize STL string. Clears & resizes as necessary.
+        /// Deserialize a STL string. Clears and resizes as necessary.
+
+        /// \tparam Archive The archive type.
         template <class Archive>
         struct ArchiveLoadImpl< Archive, std::string > {
+            /// Load a string.
+
+            /// Clears and resizes the string as necessary.
+            /// \param[in] ar The archive.
+            /// \param[out] v The string.
             static void load(const Archive& ar, std::string& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL string" << std::endl);
                 std::size_t n = 0ul;
@@ -638,9 +959,17 @@ namespace madness {
         };
 
 
-        /// (de)Serialize an STL pair.
+        /// Serialize (deserialize) an STL pair.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The first data type in the pair.
+        /// \tparam Q The second data type in the pair.
         template <class Archive, typename T, typename Q>
-        struct ArchiveSerializeImpl< Archive, std::pair<T,Q> > {
+        struct ArchiveSerializeImpl< Archive, std::pair<T, Q> > {
+            /// Serialize the \c pair.
+
+            /// \param[in] ar The archive.
+            /// \param[in,out] t The \c pair.
             static inline void serialize(const Archive& ar, std::pair<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize STL pair" << std::endl);
                 ar & t.first & t.second;
@@ -648,9 +977,17 @@ namespace madness {
         };
 
 
-        /// Serialize an STL map (crudely).
+        /// Serialize an STL \c map (crudely).
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The map's key type.
+        /// \tparam Q The map's data type.
         template <class Archive, typename T, typename Q>
         struct ArchiveStoreImpl< Archive, std::map<T,Q> > {
+            /// Store a \c map.
+
+            /// \param[in] ar The archive.
+            /// \param[in] t The \c map.
             static void store(const Archive& ar, const std::map<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL map" << std::endl);
                 ar << t.size();
@@ -668,9 +1005,18 @@ namespace madness {
         };
 
 
-        /// Deserialize an STL map.  Map is NOT cleared; duplicate elements are replaced.
+        /// Deserialize an STL \c map. The \c map is \em not cleared; duplicate elements are replaced.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The map's key type.
+        /// \tparam Q The map's data type.
         template <class Archive, typename T, typename Q>
         struct ArchiveLoadImpl< Archive, std::map<T,Q> > {
+            /// Load a \c map.
+
+            /// The \c map is \em not cleared; duplicate elements are replaced.
+            /// \param[in] ar The archive.
+            /// \param[out] t The \c map.
             static void load(const Archive& ar, std::map<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL map" << std::endl);
                 std::size_t n = 0;
@@ -683,7 +1029,7 @@ namespace madness {
             }
         };
 
-
+        /// @}
 
     }
 }
