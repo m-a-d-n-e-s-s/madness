@@ -1305,6 +1305,8 @@ namespace madness {
         /// \param a9 Argument 9.
         /// \param attr Description needed.
         /// \return Description needed.
+        ///
+        /// \todo Could we use variadic templates to eliminate a lot of this code duplication?
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T, typename a8T,
                 typename a9T>
