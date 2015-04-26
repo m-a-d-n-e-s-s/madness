@@ -411,9 +411,7 @@ group.h
 hardware.cc
 hardware.h
 lookup3.c
-mpiar.h
 nodefaults.h
-parar.h
 posixmem.h
 print.cc
 print.h
