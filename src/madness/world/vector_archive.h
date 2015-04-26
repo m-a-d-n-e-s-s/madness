@@ -87,10 +87,10 @@ namespace madness {
                 v->reserve(hint);
             };
 
-            /// \todo Brief description needed.
+            /// Close the archive.
             void close() {};
 
-            /// \todo Brief escription needed.
+            /// Flush the archive.
             void flush() {};
         };
 
@@ -108,11 +108,11 @@ namespace madness {
 
             /// Load data from the vector.
 
-            /// \todo Verify/complete the documentation.
+            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// serializable.
             /// \tparam T The type of data to be loaded.
             /// \param[out] t Where to store the loaded data.
             /// \param[in] n The number of data items to be loaded.
-            /// \return Description needed.
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
@@ -123,7 +123,7 @@ namespace madness {
                 i += m;
             }
 
-            /// \todo Brief description needed.
+            /// Open the archive.
             void open() {};
 
             /// Reset the read location to the beginning of the \c vector.
@@ -138,7 +138,7 @@ namespace madness {
                 return v->size()-i;
             };
 
-            /// \todo Brief description needed.
+            /// Close the archive.
             void close() {}
         };
 

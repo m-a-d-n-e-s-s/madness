@@ -67,11 +67,11 @@ namespace madness {
 
             /// Write to the filestream.
 
-            /// \todo Verify/complete documentation.
+            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// serializable.
             /// \tparam T The type of data to be written.
             /// \param[in] t Location of the data to be written.
             /// \param[in] n The number of data items to be written.
-            /// \return Description needed.
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
@@ -111,11 +111,11 @@ namespace madness {
 
             /// Load from the filestream.
 
-            /// \todo Verify/complete documentation.
+            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// serializable.
             /// \tparam T The type of data to be read.
             /// \param[out] t Where to put the loaded data.
             /// \param[in] n The number of data items to be loaded.
-            /// \return Description needed.
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type

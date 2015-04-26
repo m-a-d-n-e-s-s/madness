@@ -54,7 +54,7 @@ namespace madness {
         ///
         /// \throw madness::MadnessException in case of buffer overflow.
         ///
-        /// The dcefault constructor can also be used to count stuff.
+        /// The default constructor can also be used to count stuff.
         class BufferOutputArchive : public BaseOutputArchive {
         private:
             unsigned char * const ptr; ///< The memory buffer.
@@ -76,11 +76,11 @@ namespace madness {
 
             /// Stores (counts) data into the memory buffer.
 
-            /// \todo Verify/complete documentation.
+            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// serializable.
             /// \tparam T Type of the data to be stored (counted).
             /// \param[in] t Pointer to the data to be stored (counted).
             /// \param[in] n Size of data to be stored (counted).
-            /// \return Description needed.
             template <typename T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
@@ -99,13 +99,13 @@ namespace madness {
                 }
             }
 
-            /// \todo Brief description needed.
+            /// Open a buffer with a specific size.
             void open(std::size_t /*hint*/) {}
 
-            /// \todo Brief description needed.
+            /// Close the archive.
             void close() {}
 
-            /// \todo Brief description needed.
+            /// Flush the archive.
             void flush() {}
 
             /// Determine if this buffer is used for counting.
@@ -143,11 +143,11 @@ namespace madness {
 
             /// Reads data from the memory buffer.
 
-            /// \todo Verify/complete documentation.
+            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// serializable.
             /// \tparam T Type of the data to be read.
             /// \param[out] t Where to store the read data.
             /// \param[in] n Size of data to be read.
-            /// \return Description needed.
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
@@ -158,7 +158,7 @@ namespace madness {
                 i += m;
             }
 
-            /// \todo Brief description needed.
+            /// Open the archive.
             void open() {};
 
             /// Reset the read location to the beginning of the buffer.
@@ -173,35 +173,33 @@ namespace madness {
                 return nbyte-i;
             };
 
-            /// \todo Brief description needed.
+            /// Close the archive.
             void close() {}
         };
 
-        /// \todo Brief description needed.
+        /// Implement pre/postamble storage routines for a \c BufferOutputArchive.
 
-        /// \note No type checking over \c Buffer stream, for efficiency.
-        /// \todo Descriptions needed.
-        /// \tparam T Description needed.
+        /// \note No type checking over the buffer stream, for efficiency.
+        /// \tparam T The type to be stored.
         template <class T>
-        struct ArchivePrePostImpl<BufferOutputArchive,T> {
-            /// \todo Brief description needed.
+        struct ArchivePrePostImpl<BufferOutputArchive, T> {
+            /// Write the preamble to the archive.
             static inline void preamble_store(const BufferOutputArchive& /*ar*/) {}
 
-            /// \todo Brief description needed.
+            /// Write the postamble to the archive.
             static inline void postamble_store(const BufferOutputArchive& /*ar*/) {}
         };
 
-        /// \todo Brief description needed.
+        /// Implement pre/postamble load routines for a \c BufferInputArchive.
 
         /// \note No type checking over \c Buffer stream, for efficiency.
-        /// \todo Descriptions needed.
-        /// \tparam T Description needed.
+        /// \tparam T The type to be loaded.
         template <class T>
-        struct ArchivePrePostImpl<BufferInputArchive,T> {
-            /// \todo Brief description needed.
+        struct ArchivePrePostImpl<BufferInputArchive, T> {
+            /// Load the preamble.
             static inline void preamble_load(const BufferInputArchive& /*ar*/) {}
 
-            /// \todo Brief description needed.
+            /// Load the postamble.
             static inline void postamble_load(const BufferInputArchive& /*ar*/) {}
         };
 

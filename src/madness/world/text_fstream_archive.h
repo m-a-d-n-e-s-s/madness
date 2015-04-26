@@ -66,10 +66,9 @@ namespace madness {
                     open(filename, mode);
             }
 
-            /// \todo Brief description needed.
+            /// Stores the cookie for runtime type-checking into the archive as a tag.
 
-            /// \todo Descriptions needed.
-            /// \tparam T Description needed.
+            /// \tparam T The type of data to be stored between the tags.
             template <class T>
             void store_start_tag() const {
                 char tag[256];
@@ -79,10 +78,9 @@ namespace madness {
                 MAD_ARCHIVE_DEBUG(std::cout << "textarchive: tag = " << tag << std::endl);
             }
 
-            /// \todo Brief description needed.
+            /// Closes the "cookie" tag for runtime type-checking.
 
-            /// \todo Descriptions needed.
-            /// \tparam T Description needed.
+            /// \tparam T The type of data to be stored between the tags.
             template <class T>
             void store_end_tag() const {
                 char tag[256];
@@ -93,11 +91,11 @@ namespace madness {
 
             /// Store data to the filestream.
 
-            /// \todo Verify/complete documentation.
+            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// serializable.
             /// \tparam T The type of data to be written.
             /// \param[in] t Location of the data to be written.
             /// \param[in] n The number of data items to be written.
-            /// \return Description needed.
             template <class T>
             typename madness::enable_if< madness::is_serializable<T> >::type
             store(const T* t, long n) const {
@@ -163,10 +161,11 @@ namespace madness {
                     open(filename, mode);
             }
 
-            /// \todo Brief description needed.
+            /// Check the "cookie" tag in the archive for runtime type-checking.
 
-            /// \todo Descriptions needed.
-            /// \tparam T Description needed.
+            /// \tparam T The expected data type.
+            /// \throw MadnessException if the tag does not match that of the
+            ///     expected type.
             template <class T>
             void check_start_tag(bool end=false) const {
                 char tag[256], ftag[256];
@@ -187,10 +186,9 @@ namespace madness {
                 }
             }
 
-            /// \todo Brief description needed.
+            /// Read the closing "cookie" tag.
 
-            /// \todo Descriptions needed.
-            /// \tparam T Description needed.
+            /// \tparam T The expected data type between the tags.
             template <class T>
             inline void check_end_tag() const {
                 check_start_tag<T>(true);
@@ -198,11 +196,11 @@ namespace madness {
 
             /// Load from the filestream.
 
-            /// \todo Verify/complete documentation.
+            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// serializable.
             /// \tparam T The type of data to be read.
             /// \param[out] t Where to put the loaded data.
             /// \param[in] n The number of data items to be loaded.
-            /// \return Description needed.
             template <class T>
             typename madness::enable_if< madness::is_serializable<T> >::type
             load(T* t, long n) const {
@@ -235,20 +233,19 @@ namespace madness {
             }
         }; // class TextFstreamInputArchive
 
-        /// \todo Brief description needed.
+        /// Implement pre/postamble storage routines for a \c TextFstreamOutputArchive.
 
-        /// \todo Description needed.
-        /// \tparam T Description needed.
+        /// \tparam T The type to be stored.
         template <class T>
-        struct ArchivePrePostImpl<TextFstreamOutputArchive,T> {
-            /// \todo Brief description needed.
+        struct ArchivePrePostImpl<TextFstreamOutputArchive, T> {
+            /// Write the preamble to the archive.
 
             /// \param[in] ar The archive.
             static void preamble_store(const TextFstreamOutputArchive& ar) {
                 ar.store_start_tag<T>();
             }
 
-            /// \todo Brief description needed.
+            /// Write the postamble to the archive.
 
             /// \param[in] ar The archive.
             static inline void postamble_store(const TextFstreamOutputArchive& ar) {
@@ -256,20 +253,19 @@ namespace madness {
             }
         }; // struct ArchivePrePostImpl<TextFstreamOutputArchive,T>
 
-        /// \todo Brief description needed.
+        /// Implement pre/postamble load routines for a \c TextFstreamInputArchive.
 
-        /// \todo Description needed.
-        /// \tparam T Description needed.
+        /// \tparam T The expected type to be loaded.
         template <class T>
         struct ArchivePrePostImpl<TextFstreamInputArchive,T> {
-            /// \todo Brief description needed.
+            /// Load the preamble and perform type-checking.
 
             /// \param[in] ar The archive.
             static inline void preamble_load(const TextFstreamInputArchive& ar) {
                 ar.check_start_tag<T>();
             }
 
-            /// \todo Brief description needed.
+            /// Load the postamble and perform type-checking.
 
             /// \param[in] ar The archive.
             static inline void postamble_load(const TextFstreamInputArchive& ar) {
