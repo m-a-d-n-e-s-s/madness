@@ -8,7 +8,16 @@
 ///    \defgroup style MADNESS coding style
 ///    \ingroup contribution
 
-/// \defgroup getting_started Getting Started with MADNESS
+/// \defgroup getting_started Getting started with MADNESS
+
+///    \defgroup gstart_basics MADNESS basics
+///    \ingroup getting_started
+
+///    \defgroup gstart_comp_run Compiling and running MADNESS programs
+///    \ingroup getting_started
+
+///    \defgroup gstart_functions MADNESS functions
+///    \ingroup getting_started
 
 /// \defgroup libraries MADNESS libraries
 
