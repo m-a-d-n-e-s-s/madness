@@ -30,10 +30,9 @@
 */
 
 /**
- \file applications.dox
- \brief General information about MADNESS applications.
- \addtogroup applications
+ \file world.dox
+ \brief Overview of the \c World class and its dependents for the documentation.
+ \addtogroup world
 
-\todo Write this section. Perhaps include the sample code (include MADNESS, etc.) and how to compile it.
-
- */
+ \todo Overview of the \c World class and concepts for the documentation module.
+*/

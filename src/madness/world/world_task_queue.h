@@ -45,12 +45,8 @@
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
 
-/**
- \todo Description/overview of tasks and related concepts for the documentation module.
-
- \addtogroup taskq
- @{
-*/
+/// \addtogroup taskq
+/// @{
 
 namespace madness {
 

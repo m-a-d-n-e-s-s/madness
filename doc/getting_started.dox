@@ -30,10 +30,9 @@
 */
 
 /**
- \file applications.dox
- \brief General information about MADNESS applications.
- \addtogroup applications
+  \file getting_started.dox
+  \brief An overview of programming with MADNESS.
+  \addtogroup getting_started
 
-\todo Write this section. Perhaps include the sample code (include MADNESS, etc.) and how to compile it.
-
- */
+  \todo Write this section.
+*/

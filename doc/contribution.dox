@@ -30,10 +30,9 @@
 */
 
 /**
- \file applications.dox
- \brief General information about MADNESS applications.
- \addtogroup applications
+  \file contribution.dox
+  \brief Notes on how to contribute to MADNESS.
+  \addtogroup contribution
 
-\todo Write this section. Perhaps include the sample code (include MADNESS, etc.) and how to compile it.
-
- */
+  \todo Write this section.
+*/

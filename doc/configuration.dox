@@ -30,10 +30,11 @@
 */
 
 /**
- \file applications.dox
- \brief General information about MADNESS applications.
- \addtogroup applications
+  \file configuration.dox
+  \brief Notes on installing and configuring MADNESS.
+  \addtogroup configuration
 
-\todo Write this section. Perhaps include the sample code (include MADNESS, etc.) and how to compile it.
+  \todo Write this section.
 
+  In the mean time, instructions on installing and configuring MADNESS can be found in the wiki at <a href="\website">the MADNESS repository</a>.
  */

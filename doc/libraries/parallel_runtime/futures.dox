@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+  Copyright (C) 2015 Stony Brook University
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -30,11 +30,11 @@
 */
 
 /**
- \file future.dox
+ \file futures.dox
  \brief Overview of futures.
  \addtogroup futures
 
-\todo Badly in need of a general description. There's a lot of jargon in the implementation's documentation -- a future is \em assigned, etc. -- that should be clarified, possibly in \ref futures. Just sayin'. There's some text in a comment (not doxygen) near the beginning of the \c Future class. Maybe move it here? Hell, I went ahead an copied (cut, really) it here, right here, just for you.
+\todo Badly in need of a general description. There's a lot of jargon in the implementation's documentation -- a future is \em assigned, etc. -- that should be clarified. Just sayin'. There's some text in a comment (not doxygen) near the beginning of the \c Future class. Maybe move it here? Hell, I went ahead an copied (cut, really) it here, right here, just for you.
 \code
   // This future object can exist in one of three states:
   //   - f == NULL && value == NULL : Default initialized state

@@ -1,5 +1,5 @@
 /// \file mainpage.dox
-/// \brief MADNESS 
+/// \brief Top-level page for MADNESS documentation.
 
 /// \defgroup configuration MADNESS installation and configuration
 
@@ -7,6 +7,8 @@
 
 ///    \defgroup style MADNESS coding style
 ///    \ingroup contribution
+
+/// \defgroup getting_started Getting Started with MADNESS
 
 /// \defgroup libraries MADNESS libraries
 
@@ -22,7 +24,7 @@
 //       \defgroup mpi Interfaces from World to MPI
 //       \ingroup parallel_runtime
 
-///       \defgroup worldobj Globally addressable objects (WorldObject)
+///       \defgroup world_object Globally addressable objects (WorldObject)
 ///       \ingroup parallel_runtime
 
 //       \defgroup worlddc Distributed containers (WorldContainer)

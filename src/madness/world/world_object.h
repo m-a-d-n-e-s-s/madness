@@ -32,7 +32,7 @@
 /**
  \file world_object.h
  \brief Defines and implements \c WorldObject.
- \ingroup worldobj
+ \ingroup world_object
 */
 
 #ifndef MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
@@ -41,13 +41,8 @@
 #include <madness/world/thread.h>
 #include <madness/world/world_task_queue.h>
 
-/**
- \addtogroup worldobj
-
- \todo An overview of the \c WorldObject class and the other concepts it works with.
-
- @{
-*/
+/// \addtogroup world_object
+/// @{
 
 namespace madness {
 

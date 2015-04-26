@@ -27,15 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /**
-  \file contribute.dox
-  \brief Notes on how to contribute to MADNESS.
-  \addtogroup contribution
+ \file world_object.dox
+ \brief Documentation: The world_object module.
+ \addtogroup world_object
 
-  \todo Write this section.
- */
+ \todo An overview of the \c WorldObject class and the other concepts it works with.
+*/
+

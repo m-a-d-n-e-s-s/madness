@@ -72,13 +72,9 @@
 #include <madness/world/uniqueid.h>
 #include <madness/world/nodefaults.h>
 
-/**
- \addtogroup world
+/// \addtogroup world
+/// @{
 
- \todo Overview of the \c World class and concepts for the documentation module.
-
- @{
-*/
 namespace madness {
 
     class World;
