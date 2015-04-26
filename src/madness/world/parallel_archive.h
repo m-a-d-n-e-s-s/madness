@@ -29,11 +29,11 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_WORLD_PARAR_H__INCLUDED
-#define MADNESS_WORLD_PARAR_H__INCLUDED
+#ifndef MADNESS_WORLD_PARALLEL_ARCHIVE_H__INCLUDED
+#define MADNESS_WORLD_PARALLEL_ARCHIVE_H__INCLUDED
 
 /**
- \file parar.h
+ \file parallel_archive.h
  \brief Implements \c ParallelInputArchive and \c ParallelOutputArchive for parallel serialization of data.
  \ingroup serialization
 */
@@ -524,4 +524,4 @@ namespace madness {
     }
 }
 
-#endif // MADNESS_WORLD_PARAR_H__INCLUDED
+#endif // MADNESS_WORLD_PARALLEL_ARCHIVE_H__INCLUDED

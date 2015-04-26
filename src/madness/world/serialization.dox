@@ -305,8 +305,8 @@ Presently provided are
 - madness/world/binary_fstream_archive.h --- (binary \c std::fstream) a file in binary.
 - madness/world/vector_archive.h --- binary in memory using an \c std::vector<unsigned_char>.
 - madness/world/buffer_archive.h --- binary in memory buffer (this is rather heavily specialized for internal use, so applications should use a vector instead).
-- madness/world/mpiar.h --- binary stream for point-to-point communication using MPI (non-typesafe for efficiency).
-- madness/world/parar.h --- parallel archive to binary file with multiple readers/writers. This is here mostly to support efficient transfer of large \c WorldContainer (madness/world/worlddc.h) and MADNESS \c Function (mra/mra.h) objects, though any serializable object can employ it.
+- madness/world/mpi_archive.h --- binary stream for point-to-point communication using MPI (non-typesafe for efficiency).
+- madness/world/parallel_archive.h --- parallel archive to binary file with multiple readers/writers. This is here mostly to support efficient transfer of large \c WorldContainer (madness/world/worlddc.h) and MADNESS \c Function (mra/mra.h) objects, though any serializable object can employ it.
 
 The buffer and \c vector archives are bitwise identical to the binary file archive.
 

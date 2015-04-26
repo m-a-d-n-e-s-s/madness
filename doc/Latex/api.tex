@@ -269,7 +269,7 @@ namespace madness \{}
 {\ttfamily
 \}}
 
-\subsubsection{Serialization (archive.h, buffer\_archive.h, mpiar.h, binary\_fstream\_archive.h, vector\_archive.h, parar.h)}
+\subsubsection{Serialization (archive.h, buffer\_archive.h, mpi\_archive.h, binary\_fstream\_archive.h, vector\_archive.h, parallel\_archive.h)}
 Central to MADNESS's ability to move data and computation freely around the machine is the ability to serialize all data
 types with full type safety. For fundamental data types and standard containers this is already provided in
 \texttt{archive.h} in which it is also described how to accomplish this for user types. See there for more info.
@@ -280,9 +280,9 @@ Issues
 
 \liststyleLi
 \begin{itemize}
-\item mpiar.h needs to be made independent of world so that it is more broadly useful and this discussion needs moving
+\item mpi\_archive.h needs to be made independent of world so that it is more broadly useful and this discussion needs moving
 to the low-level parallel runtime level
-\item discussion of parar.h should be up at the world level
+\item discussion of parallel\_archive.h should be up at the world level
 \item discussion of serialization of World and WorldObjects into buffer\_archive should be at the world level
 \item need to implement type-safe serialization of ConcurrentHashMap to archive.h
 \item need to discuss special role and overloading of buffer\_archive (basically user should use vector\_archive not buffer\_archive which is reserved

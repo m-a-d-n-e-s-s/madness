@@ -30,13 +30,13 @@
 */
 
 /**
- \file mpiar.h
+ \file mpi_archive.h
  \brief Implements archives to serialize data for MPI.
  \ingroup serialization
 */
 
-#ifndef MADNESS_WORLD_MPIAR_H__INCLUDED
-#define MADNESS_WORLD_MPIAR_H__INCLUDED
+#ifndef MADNESS_WORLD_MPI_ARCHIVE_H__INCLUDED
+#define MADNESS_WORLD_MPI_ARCHIVE_H__INCLUDED
 
 #include <madness/world/archive.h>
 #include <madness/world/world.h>
@@ -279,4 +279,4 @@ namespace madness {
         /// @}
     }
 }
-#endif // MADNESS_WORLD_MPIAR_H__INCLUDED
+#endif // MADNESS_WORLD_MPI_ARCHIVE_H__INCLUDED

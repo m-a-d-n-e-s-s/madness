@@ -7,12 +7,12 @@ thisincludedir = $(includedir)/madness/world
 thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
 	world_task_queue.h array.h worldgop.h world_object.h buffer_archive.h \
 	nodefaults.h enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
-	dqueue.h parar.h vector_archive.h madness_exception.h worldmem.h \
-	thread.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
-	worldhashmap.h worldrange.h atomicint.h posixmem.h worldptr.h \
+	dqueue.h parallel_archive.h vector_archive.h madness_exception.h \
+	worldmem.h thread.h worldrmi.h safempi.h worldpapi.h worldmutex.h \
+	print_seq.h worldhashmap.h worldrange.h atomicint.h posixmem.h worldptr.h \
 	deferred_cleanup.h parallel_runtime.h world.h uniqueid.h worldprofile.h \
-	timers.h binary_fstream_archive.h mpiar.h text_fstream_archive.h worlddc.h \
-	mem_func_wrapper.h scopedptr.h taskfn.h group.h dist_cache.h \
+	timers.h binary_fstream_archive.h mpi_archive.h text_fstream_archive.h \
+	worlddc.h mem_func_wrapper.h scopedptr.h taskfn.h group.h dist_cache.h \
 	dist_keys.h type_traits.h boost_checked_delete_bits.h \
 	function_traits.h stubmpi.h bgq_atomics.h binsorter.h
 
