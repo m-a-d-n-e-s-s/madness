@@ -643,8 +643,6 @@ namespace madness {
         friend class ThreadPool;
 
     private:
-        Barrier* barrier;     ///< Barrier, only allocated for multithreaded tasks
-    	AtomicInt count;  ///< Used to count threads as they start
 
 #ifdef MADNESS_TASK_PROFILING
     	profiling::TaskEvent* task_event_;
@@ -700,11 +698,13 @@ namespace madness {
             id.second = 0ul;
         }
 
+#ifndef HAVE_INTEL_TBB
+
+        Barrier* barrier;     ///< Barrier, only allocated for multithreaded tasks
+        AtomicInt count;  ///< Used to count threads as they start
+
     	/// Returns true for the one thread that should invoke the destructor
     	bool run_multi_threaded() {
-#ifdef HAVE_INTEL_TBB
-            MADNESS_EXCEPTION("run_multi_threaded should not be called when using Intel TBB", 1);
-#else
             // As a thread enters this routine it increments the shared counter
             // to generate a unique id without needing any thread-local storage.
             // A downside is this does not preserve any relationships between thread
@@ -740,10 +740,10 @@ namespace madness {
                 return barrier->enter(id);
 #endif // MADNESS_TASK_PROFILING
             }
-#endif // HAVE_INTEL_TBB
         }
 
     public:
+
         PoolTaskInterface()
             : TaskAttributes()
             , barrier(0)
@@ -756,6 +756,10 @@ namespace madness {
             , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
         {
             count = 0;
+        }
+
+        virtual ~PoolTaskInterface() {
+            delete barrier;
         }
 
         /// Call this to reset the number of threads before the task is submitted
@@ -774,30 +778,46 @@ namespace madness {
             }
         }
 
-#if HAVE_INTEL_TBB
+#else
+
+    public:
+
+        PoolTaskInterface() : TaskAttributes() { }
+
+        explicit PoolTaskInterface(const TaskAttributes& attr) :
+            TaskAttributes(attr)
+        { }
+
+        virtual ~PoolTaskInterface() { }
+
+        /// Call this to reset the number of threads before the task is submitted
+
+        /// Once a task has been constructed /c TaskAttributes::set_nthread()
+        /// is insufficient because a multithreaded task includes a
+        /// barrier that needs to know the number of threads.
+        void set_nthread(int nthread) {
+            if (nthread != get_nthread())
+                TaskAttributes::set_nthread(nthread);
+        }
+
         tbb::task* execute() {
             const int nthread = get_nthread();
-//            volatile bool barrier_flag;
-//            barrier->register_thread(id, &barrier_flag);
-
             run( TaskThreadEnv(nthread, 0) );
             return NULL;
         }
 
-        static inline void * operator new(std::size_t size) throw(std::bad_alloc);
-
-#endif // HAVE_INTEL_TBB
+        static inline void * operator new(std::size_t size) throw(std::bad_alloc) {
+             return ::operator new(size, tbb::task::allocate_root());
+         }
 
         /// Destroy task object
         static inline void operator delete(void* p, std::size_t size) throw() {
             if(p != NULL) {
-#ifdef HAVE_INTEL_TBB
                 tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
-#else
-                ::operator delete(p);
-#endif // HAVE_INTEL_TBB
             }
         }
+
+#endif // HAVE_INTEL_TBB
 
         /// Override this method to implement a multi-threaded task
 
@@ -809,9 +829,6 @@ namespace madness {
         /// \c true for the last thread to enter the barrier (other threads get false)
         virtual void run(const TaskThreadEnv& info) = 0;
 
-        virtual ~PoolTaskInterface() {
-            delete barrier;
-        }
     };
 
     /// A no-op task used for various purposes
@@ -1104,13 +1121,6 @@ namespace madness {
 #endif
         }
     };
-
-#ifdef HAVE_INTEL_TBB
-    inline void * PoolTaskInterface::operator new(std::size_t size) throw(std::bad_alloc)
-    {
-        return ::operator new(size, tbb::task::allocate_root());
-    }
-#endif // HAVE_INTEL_TBB
 
 }
 
