@@ -19,6 +19,12 @@
 ///    \defgroup gstart_functions MADNESS functions
 ///    \ingroup getting_started
 
+///    \defgroup gstart_io Input/Output
+///    \ingroup getting_started
+
+///    \defgroup gstart_load_balance Load and memory balancing
+///    \ingroup getting_started
+
 /// \defgroup libraries MADNESS libraries
 
 ///    \defgroup parallel_runtime Parallel programming environment
