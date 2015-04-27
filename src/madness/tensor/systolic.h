@@ -53,6 +53,54 @@ namespace madness {
         std::vector<T*> iptr, jptr;     ///< Indirection for implementing cyclic buffer !! SHOULD BE VOLATILE ?????
         std::vector<int64_t> map;       ///< Used to keep track of actual row indices
 
+#ifdef HAVE_INTEL_TBB
+        void iteration(const int nthread) {
+            SystolicMatrixAlgorithm<T>* const this_task = this;
+
+            // Parallel initialization hook
+            tbb::parallel_for(0, nthread, [=](const int id) {
+                this_task->start_iteration_hook(TaskThreadEnv(nthread, id));
+            });
+
+            if (nlocal > 0) {
+//                int64_t ilo, ihi;
+//                A.local_colrange(ilo, ihi);
+
+                const int neven = coldim + (coldim&0x1);
+                const int pairlo = rank*A.coltile()/2;
+
+                for (int loop=0; loop<(neven-1); ++loop) {
+
+                    // This loop is parallelized over threads
+                    tbb::parallel_for(0, nthread, [=](const int id) {
+                        for (int pair=id; pair<nlocal; pair+=nthread) {
+
+                            int rp = neven/2-1-(pair+pairlo);
+                            int iii = (rp+loop)%(neven-1);
+                            int jjj = (2*neven-2-rp+loop)%(neven-1);
+                            if (rp == 0) jjj = neven-1;
+
+                            iii = map[iii];
+                            jjj = map[jjj];
+
+                            if (jptr[pair]) {
+                                this_task->kernel(iii, jjj, iptr[pair], jptr[pair]);
+                            }
+                        }
+                    });
+
+                    cycle();
+
+                }
+            }
+
+            // Parallel finalization hook
+            tbb::parallel_for(0, nthread, [=](const int id) {
+                this_task->end_iteration_hook(TaskThreadEnv(nthread, id));
+            });
+
+        }
+#else
         void iteration(const TaskThreadEnv& env) {
 
             env.barrier();
@@ -99,6 +147,7 @@ namespace madness {
 
             env.barrier();
         }
+#endif // HAVE_INTEL_TBB
 
         /// Call this after iterating to restore correct order of rows in original matrix
 
@@ -346,6 +395,31 @@ namespace madness {
         /// @param[in] env The madness thread environment in case synchronization between threads is needed during startup.
         virtual void end_iteration_hook(const TaskThreadEnv& env) {}
 
+
+#ifdef HAVE_INTEL_TBB
+        /// Invoked by the task queue to run the algorithm with multiple threads
+
+        /// This is a collective call ... all processes in world should submit this task
+        void run(World& world, const TaskThreadEnv& env) {
+            const int nthread = env.nthread();
+            SystolicMatrixAlgorithm<T>* const this_task = this;
+            bool done = false;
+            do {
+                iteration(nthread);
+                done = tbb::parallel_reduce(tbb::blocked_range<int>(0,nthread), true,
+                    [=] (const tbb::blocked_range<int>& range, bool init) {
+                        for(int id = range.begin(); id < range.end(); ++id)
+                            init = init &&
+                                this_task->converged(TaskThreadEnv(nthread, id));
+                        return init;
+                    },
+                    [] (const bool l, const bool r) { return l && r; });
+
+            } while (!done);
+
+            unshuffle();
+        }
+#else
         /// Invoked by the task queue to run the algorithm with multiple threads
 
         /// This is a collective call ... all processes in world should submit this task
@@ -358,7 +432,7 @@ namespace madness {
 
             env.barrier();
         }
-
+#endif // HAVE_INTEL_TBB
 
         /// Invoked by the user to run the algorithm with one thread mostly for debugging
 

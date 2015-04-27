@@ -776,12 +776,11 @@ namespace madness {
 
 #if HAVE_INTEL_TBB
         tbb::task* execute() {
-            int nthread = get_nthread();
-            int id = count++;
+            const int nthread = get_nthread();
 //            volatile bool barrier_flag;
 //            barrier->register_thread(id, &barrier_flag);
 
-            run( TaskThreadEnv(nthread, id) );
+            run( TaskThreadEnv(nthread, 0) );
             return NULL;
         }
 
