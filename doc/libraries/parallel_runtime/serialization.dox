@@ -30,7 +30,7 @@
 */
 
 /**
- \file world/serialization.dox
+ \file serialization.dox
  \brief Overview of the interface templates for archives (serialization).
  \addtogroup serialization
 

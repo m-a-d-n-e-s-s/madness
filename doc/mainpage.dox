@@ -25,6 +25,12 @@
 ///    \defgroup gstart_load_balance Load and memory balancing
 ///    \ingroup getting_started
 
+///    \defgroup gstart_think_madness Thinking in MADNESS
+///    \ingroup getting_started
+
+///    \defgroup gstart_env_var MADNESS environment variables
+///    \ingroup getting_started
+
 /// \defgroup libraries MADNESS libraries
 
 ///    \defgroup parallel_runtime Parallel programming environment
@@ -190,5 +196,7 @@ Our deep gratitude to these other projects whose software we employ
   tel:   865-241-3937
   fax:   865-572-0680
 \endverbatim
+
+\todo Turn all of the doxygen modules into a PDF users' manual.
 
 */
