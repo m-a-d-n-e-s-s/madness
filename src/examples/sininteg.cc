@@ -34,11 +34,9 @@
 /*!
   \file examples/sininteg.cc
   \brief Compute the integral sin(x) x=0..10
-  \warning If you change this example, please update the "MADNESS Basics" module in the documentation. (doc/getting_started/gstart_basics.dox).
+  \warning If you change this example, please update the "MADNESS Basics" module in the documentation (doc/getting_started/gstart_basics.dox).
   \defgroup sininteg First example from getting started guide
   \ingroup examples
-
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/sininteg.cc>here</a>.
 
   Computes the integral
   \f[
@@ -48,7 +46,7 @@
   basis and using the \c trace() method.
  */
 
-#warning If you change this example, please update the "Getting started with MADNESS" documentation module.
+#warning If you changed this example, please update the "Getting started with MADNESS" documentation module.
 
 #include <madness/mra/mra.h>
 
