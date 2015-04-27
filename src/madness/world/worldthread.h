@@ -621,7 +621,7 @@ namespace madness {
             /// \warning This function should only be called from the thread
             /// that owns it, otherwise data will likely be corrupted.
             /// \note This function is thread safe, in that it may be called by
-            /// different objects in different threads simultaniously.
+            /// different objects in different threads simultaneously.
             void write_to_file();
         }; // class TaskProfiler
 
@@ -653,7 +653,7 @@ namespace madness {
             task_event_ = task_event;
         }
 
-        /// Collect info on the task and record the sbumit time.
+        /// Collect info on the task and record the submit time.
         void submit() {
             submit_time_ = wall_time();
             this->get_id(id_);
