@@ -34,6 +34,7 @@
 /*!
   \file examples/sininteg.cc
   \brief Compute the integral sin(x) x=0..10
+  \warning If you change this example, please update the "MADNESS Basics" module in the documentation. (doc/getting_started/gstart_basics.dox).
   \defgroup sininteg First example from getting started guide
   \ingroup examples
 
@@ -46,6 +47,8 @@
   by projecting \f$ sin(x) \f$ into the discontinuous spectral element
   basis and using the \c trace() method.
  */
+
+#warning If you change this example, please update the "Getting started with MADNESS" documentation module.
 
 #include <madness/mra/mra.h>
 
