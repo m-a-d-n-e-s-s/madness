@@ -34,7 +34,7 @@
 
 /**
  \file thread.h
- \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
+ \brief Implements Dqueue, Thread, ThreadBase and ThreadPool.
  \ingroup threads
 */
 
