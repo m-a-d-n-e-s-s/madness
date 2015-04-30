@@ -405,7 +405,7 @@ namespace madness {
             SystolicMatrixAlgorithm<T>* const this_task = this;
             bool done = false;
             do {
-                iteration(nthread);
+                SystolicMatrixAlgorithm::iteration(nthread);
                 done = tbb::parallel_reduce(tbb::blocked_range<int>(0,nthread), true,
                     [=] (const tbb::blocked_range<int>& range, bool init) {
                         for(int id = range.begin(); id < range.end(); ++id)
