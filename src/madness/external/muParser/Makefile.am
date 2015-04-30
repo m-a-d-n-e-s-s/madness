@@ -2,7 +2,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 
 lib_LIBRARIES = libMADmuparser.a
 
-thisincludedir = $(includedir)/external_packages/muParser
+thisincludedir = $(includedir)/madness/external/muParser
 thisinclude_HEADERS = muParserBase.h muParserBytecode.h muParserCallback.h \
                       muParserDef.h muParserDLL.h muParserError.h \
                       muParserFixes.h muParser.h muParserInt.h \

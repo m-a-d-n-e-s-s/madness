@@ -72,7 +72,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/tensor/gmres.h>
-#include <external_packages/muParser/muParser.h>
+#include <madness/external/muParser/muParser.h>
 #include "test_problems.h"
 
 using namespace madness;
