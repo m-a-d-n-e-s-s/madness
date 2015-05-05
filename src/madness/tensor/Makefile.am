@@ -3,7 +3,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 lib_LIBRARIES = libMADtensor.a libMADlinalg.a
 
 TESTS = oldtest.seq test_mtxmq.seq test_Zmtxmq.seq jimkernel.seq \
-        test_scott.seq test_systolic.mpi test_linalg.seq test_solvers.seq \
+        test_scott.seq test_linalg.seq test_solvers.seq \
         test_elemental.mpi testseprep.seq test_distributed_matrix.mpi
 
 if MADNESS_HAS_GOOGLE_TEST
@@ -24,7 +24,7 @@ AM_SEQ_LOG_FLAGS =
 LOG_COMPILER = 
 AM_LOG_FLAGS =
 
-noinst_PROGRAMS = $(TESTS)
+noinst_PROGRAMS = $(TESTS) test_systolic.mpi
 
 thisincludedir = $(includedir)/madness/tensor
 thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \

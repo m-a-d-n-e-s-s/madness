@@ -621,7 +621,7 @@ namespace madness {
             /// \warning This function should only be called from the thread
             /// that owns it, otherwise data will likely be corrupted.
             /// \note This function is thread safe, in that it may be called by
-            /// different objects in different threads simultaniously.
+            /// different objects in different threads simultaneously.
             void write_to_file();
         }; // class TaskProfiler
 
@@ -643,8 +643,6 @@ namespace madness {
         friend class ThreadPool;
 
     private:
-        Barrier* barrier;     ///< Barrier, only allocated for multithreaded tasks
-    	AtomicInt count;  ///< Used to count threads as they start
 
 #ifdef MADNESS_TASK_PROFILING
     	profiling::TaskEvent* task_event_;
@@ -655,7 +653,7 @@ namespace madness {
             task_event_ = task_event;
         }
 
-        /// Collect info on the task and record the sbumit time.
+        /// Collect info on the task and record the submit time.
         void submit() {
             submit_time_ = wall_time();
             this->get_id(id_);
@@ -700,11 +698,13 @@ namespace madness {
             id.second = 0ul;
         }
 
+#ifndef HAVE_INTEL_TBB
+
+        Barrier* barrier;     ///< Barrier, only allocated for multithreaded tasks
+        AtomicInt count;  ///< Used to count threads as they start
+
     	/// Returns true for the one thread that should invoke the destructor
     	bool run_multi_threaded() {
-#ifdef HAVE_INTEL_TBB
-            MADNESS_EXCEPTION("run_multi_threaded should not be called when using Intel TBB", 1);
-#else
             // As a thread enters this routine it increments the shared counter
             // to generate a unique id without needing any thread-local storage.
             // A downside is this does not preserve any relationships between thread
@@ -740,10 +740,10 @@ namespace madness {
                 return barrier->enter(id);
 #endif // MADNESS_TASK_PROFILING
             }
-#endif // HAVE_INTEL_TBB
         }
 
     public:
+
         PoolTaskInterface()
             : TaskAttributes()
             , barrier(0)
@@ -756,6 +756,10 @@ namespace madness {
             , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
         {
             count = 0;
+        }
+
+        virtual ~PoolTaskInterface() {
+            delete barrier;
         }
 
         /// Call this to reset the number of threads before the task is submitted
@@ -774,31 +778,46 @@ namespace madness {
             }
         }
 
-#if HAVE_INTEL_TBB
-        tbb::task* execute() {
-            int nthread = get_nthread();
-            int id = count++;
-//            volatile bool barrier_flag;
-//            barrier->register_thread(id, &barrier_flag);
+#else
 
-            run( TaskThreadEnv(nthread, id) );
+    public:
+
+        PoolTaskInterface() : TaskAttributes() { }
+
+        explicit PoolTaskInterface(const TaskAttributes& attr) :
+            TaskAttributes(attr)
+        { }
+
+        virtual ~PoolTaskInterface() { }
+
+        /// Call this to reset the number of threads before the task is submitted
+
+        /// Once a task has been constructed /c TaskAttributes::set_nthread()
+        /// is insufficient because a multithreaded task includes a
+        /// barrier that needs to know the number of threads.
+        void set_nthread(int nthread) {
+            if (nthread != get_nthread())
+                TaskAttributes::set_nthread(nthread);
+        }
+
+        tbb::task* execute() {
+            const int nthread = get_nthread();
+            run( TaskThreadEnv(nthread, 0) );
             return NULL;
         }
 
-        static inline void * operator new(std::size_t size) throw(std::bad_alloc);
-
-#endif // HAVE_INTEL_TBB
+        static inline void * operator new(std::size_t size) throw(std::bad_alloc) {
+             return ::operator new(size, tbb::task::allocate_root());
+         }
 
         /// Destroy task object
         static inline void operator delete(void* p, std::size_t size) throw() {
             if(p != NULL) {
-#ifdef HAVE_INTEL_TBB
                 tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
-#else
-                ::operator delete(p);
-#endif // HAVE_INTEL_TBB
             }
         }
+
+#endif // HAVE_INTEL_TBB
 
         /// Override this method to implement a multi-threaded task
 
@@ -810,9 +829,6 @@ namespace madness {
         /// \c true for the last thread to enter the barrier (other threads get false)
         virtual void run(const TaskThreadEnv& info) = 0;
 
-        virtual ~PoolTaskInterface() {
-            delete barrier;
-        }
     };
 
     /// A no-op task used for various purposes
@@ -909,7 +925,7 @@ namespace madness {
 #endif
         }
 
-        bool run_tasks(bool wait, ThreadPoolThread* this_thread) {
+        bool run_tasks(bool wait, ThreadPoolThread* const this_thread) {
 #if HAVE_INTEL_TBB
 //            if (!wait && tbb_task_list->empty()) return false;
 //            tbb::task* t = &tbb_task_list->pop_front();
@@ -966,9 +982,6 @@ namespace madness {
     public:
 
 #if HAVE_INTEL_TBB
-        // all tasks run as children of tbb_parent_task
-        // be sure to allocate tasks with tbb_parent_task->allocate_child()
-        static tbb::empty_task* tbb_parent_task;
         static tbb::task_scheduler_init* tbb_scheduler;
 #endif
 
@@ -983,12 +996,10 @@ namespace madness {
             task->submit();
 #endif // MADNESS_TASK_PROFILING
 #if HAVE_INTEL_TBB
-            ThreadPool::tbb_parent_task->increment_ref_count();
-            if (task->is_high_priority()) {
-                ThreadPool::tbb_parent_task->spawn(*task);
-            }
-            else {
-                ThreadPool::tbb_parent_task->enqueue(*task);
+            if(task->is_high_priority()) {
+                tbb::task::spawn(*task);
+            } else {
+                tbb::task::enqueue(*task);
             }
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
@@ -1026,11 +1037,32 @@ namespace madness {
 
         /// Returns true if one was run
         static bool run_task() {
-#ifdef MADNESS_TASK_PROFILING
-            return instance()->run_tasks(false, static_cast<ThreadPoolThread*>(ThreadBase::this_thread()));
+#ifdef HAVE_INTEL_TBB
+
+            // Construct a the parent task
+            tbb::task& waiter = *new( tbb::task::allocate_root() ) tbb::empty_task;
+            waiter.set_ref_count(2);
+
+            // Create a dummy task that we send throught the queue.
+            tbb::task& dummy = *new( waiter.allocate_child() ) tbb::empty_task;
+            tbb::task::enqueue(dummy);
+
+            // Run tasks while we wait for the dummy task.
+            waiter.wait_for_all();
+
+            // destroy the waiter
+            tbb::task::destroy(waiter);
+            return false;
 #else
-            return instance()->run_tasks(false, NULL);
+
+#ifdef MADNESS_TASK_PROFILING
+            ThreadPoolThread* const thread = static_cast<ThreadPoolThread*>(ThreadBase::this_thread());
+#else
+            ThreadPoolThread* const thread = nullptr;
 #endif // MADNESS_TASK_PROFILING
+
+            return instance()->run_tasks(false, thread);
+#endif // HAVE_INTEL_TBB
         }
 
         /// Returns number of threads in the pool
@@ -1058,12 +1090,7 @@ namespace madness {
             MutexWaiter waiter;
             while (!probe()) {
 
-#if HAVE_INTEL_TBB
-                // TODO: Enable busy waiting with TBB.
-                const bool working = false;
-#else
                 const bool working = (dowork ? ThreadPool::run_task() : false);
-#endif // HAVE_INTEL_TBB
                 const double current_time = cpu_time();
 
                 if (working) {
@@ -1089,24 +1116,11 @@ namespace madness {
 
         ~ThreadPool() {
 #if HAVE_INTEL_TBB
-            tbb_parent_task->decrement_ref_count();
-            tbb::task::destroy(*tbb_parent_task);
             tbb_scheduler->terminate();
             delete(tbb_scheduler);
 #endif
         }
     };
-
-#ifdef HAVE_INTEL_TBB
-    inline void * PoolTaskInterface::operator new(std::size_t size) throw(std::bad_alloc)
-    {
-        if(! ThreadPool::tbb_parent_task) {
-            std::cerr << "!!! Error: Cannot allocate task object because the thread pool has not been initialized.\n";
-            throw std::bad_alloc();
-        }
-        return ::operator new(size, ThreadPool::tbb_parent_task->allocate_child());
-    }
-#endif // HAVE_INTEL_TBB
 
 }
 
