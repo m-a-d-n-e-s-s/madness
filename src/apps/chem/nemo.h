@@ -169,6 +169,11 @@ public:
 	    return calc->molecule;
 	}
 
+    /// return a const reference to the molecule
+	const Molecule& molecule() const {
+        return calc->molecule;
+    }
+
 private:
 
 	/// the world
