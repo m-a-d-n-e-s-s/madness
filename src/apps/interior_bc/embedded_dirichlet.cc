@@ -27,8 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
 /** \file embedded_dirichlet.cc
@@ -74,7 +72,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/tensor/gmres.h>
-#include <madness/muParser/muParser.h>
+#include <madness/external/muParser/muParser.h>
 #include "test_problems.h"
 
 using namespace madness;

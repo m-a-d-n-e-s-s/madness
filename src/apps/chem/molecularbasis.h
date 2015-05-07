@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_CHEM_MOLECULAR_BASIS_H__INCLUDED
 #define MADNESS_CHEM_MOLECULAR_BASIS_H__INCLUDED
 
@@ -37,7 +36,7 @@
 #include <madness/constants.h>
 #include <chem/molecule.h>
 #include <chem/atomutil.h>
-#include <madness/tinyxml/tinyxml.h>
+#include <madness/external/tinyxml/tinyxml.h>
 #include <madness/tensor/tensor.h>
 
 #include <vector>
