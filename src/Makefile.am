@@ -1,4 +1,4 @@
-SUBDIRS = external_packages madness apps examples
+SUBDIRS = madness apps examples
 
 thisincludedir = $(includedir)
 thisinclude_HEADERS = madness.h

@@ -842,8 +842,6 @@ namespace madness {
         friend class ThreadPool;
 
     private:
-        Barrier* barrier; ///< Barrier, only allocated for multithreaded tasks.
-    	AtomicInt count; ///< Used to count threads as they start.
 
 #ifdef MADNESS_TASK_PROFILING
     	profiling::TaskEvent* task_event_; ///< \todo Description needed.
@@ -920,13 +918,15 @@ namespace madness {
             id.second = 0ul;
         }
 
+#ifndef HAVE_INTEL_TBB
+
+        Barrier* barrier; ///< Barrier, only allocated for multithreaded tasks.
+        AtomicInt count; ///< Used to count threads as they start.
+
     	/// Returns true for the one thread that should invoke the destructor.
 
         /// \return True for the one thread that should invoke the destructor.
     	bool run_multi_threaded() {
-#ifdef HAVE_INTEL_TBB
-            MADNESS_EXCEPTION("run_multi_threaded should not be called when using Intel TBB", 1);
-#else
             // As a thread enters this routine it increments the shared counter
             // to generate a unique id without needing any thread-local storage.
             // A downside is this does not preserve any relationships between thread
@@ -962,10 +962,10 @@ namespace madness {
                 return barrier->enter(id);
 #endif // MADNESS_TASK_PROFILING
             }
-#endif // HAVE_INTEL_TBB
         }
 
     public:
+
         /// Default constructor.
         PoolTaskInterface()
             : TaskAttributes()
@@ -982,6 +982,11 @@ namespace madness {
             , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
         {
             count = 0;
+        }
+
+        /// Destructor.
+        virtual ~PoolTaskInterface() {
+            delete barrier;
         }
 
         /// Call this to reset the number of threads before the task is submitted.
@@ -1002,28 +1007,53 @@ namespace madness {
             }
         }
 
-#if HAVE_INTEL_TBB
+#else
+
+    public:
+
+        /// Default constructor.
+        PoolTaskInterface() : TaskAttributes() { }
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \param[in] attr Description needed.
+        explicit PoolTaskInterface(const TaskAttributes& attr) :
+            TaskAttributes(attr)
+        { }
+
+        /// Destructor.
+        virtual ~PoolTaskInterface() { }
+
+        /// Call this to reset the number of threads before the task is submitted
+
+        /// Once a task has been constructed /c TaskAttributes::set_nthread()
+        /// is insufficient because a multithreaded task includes a
+        /// barrier that needs to know the number of threads.
+        void set_nthread(int nthread) {
+            if (nthread != get_nthread())
+                TaskAttributes::set_nthread(nthread);
+        }
+
         /// \todo Brief description needed.
 
         /// \todo Descriptions needed.
         /// \return Description needed.
         tbb::task* execute() {
-            int nthread = get_nthread();
-            int id = count++;
-//            volatile bool barrier_flag;
-//            barrier->register_thread(id, &barrier_flag);
-
-            run( TaskThreadEnv(nthread, id) );
+            const int nthread = get_nthread();
+            run( TaskThreadEnv(nthread, 0) );
             return NULL;
         }
 
         /// \todo Brief description needed.
 
         /// \todo Descriptions needed.
+        /// \throw std::bad_alloc Description needed.
         /// \param[in] size Description needed.
-        static inline void * operator new(std::size_t size) throw(std::bad_alloc);
-
-#endif // HAVE_INTEL_TBB
+        /// \return Description needed.
+        static inline void * operator new(std::size_t size) throw(std::bad_alloc) {
+             return ::operator new(size, tbb::task::allocate_root());
+        }
 
         /// Destroy a task object.
 
@@ -1032,13 +1062,11 @@ namespace madness {
         /// \param[in] size The size of the array.
         static inline void operator delete(void* p, std::size_t size) throw() {
             if(p != NULL) {
-#ifdef HAVE_INTEL_TBB
                 tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
-#else
-                ::operator delete(p);
-#endif // HAVE_INTEL_TBB
             }
         }
+
+#endif // HAVE_INTEL_TBB
 
         /// Override this method to implement a multi-threaded task.
 
@@ -1053,10 +1081,6 @@ namespace madness {
         /// \param[in] info Description needed.
         virtual void run(const TaskThreadEnv& info) = 0;
 
-        /// Destructor.
-        virtual ~PoolTaskInterface() {
-            delete barrier;
-        }
     };
 
     /// A no-operation task used for various purposes.
@@ -1065,6 +1089,7 @@ namespace madness {
         /// Execution function that does nothing.
         void run(const TaskThreadEnv& /*info*/) {}
 
+        /// Destructor.
         virtual ~PoolTaskNull() {}
 
     private:
@@ -1125,7 +1150,7 @@ namespace madness {
 #warning WE NEED TO TUNE THE nmax PARAMETER
 #endif
         // nmax WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
-        static const int nmax=128; ///< \todo Description needed.
+        static const int nmax = 128; ///< \todo Description needed.
         static double await_timeout; ///< Waiter timeout.
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
@@ -1411,19 +1436,7 @@ namespace madness {
 #endif
         }
     };
-
-#ifdef HAVE_INTEL_TBB
-    /// \todo Brief description needed.
-
-    /// \todo Descriptions needed.
-    /// \param[in] size Description needed.
-    /// \return Description needed.
-    inline void * PoolTaskInterface::operator new(std::size_t size) throw(std::bad_alloc)
-    {
-        return ::operator new(size, tbb::task::allocate_root());
-    }
-#endif // HAVE_INTEL_TBB
-
+    
     /// @}
 }
 

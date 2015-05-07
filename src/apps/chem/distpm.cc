@@ -9,11 +9,11 @@
 #include <utility>
 #include <vector>
 
-#ifdef HAVE_INTEL_TBB
-#define NTHREAD 1
-#else
+//#ifdef HAVE_INTEL_TBB
+//#define NTHREAD 1
+//#else
 #define NTHREAD ThreadPool::size()+1
-#endif
+//#endif
 
 namespace madness {
 
@@ -45,12 +45,12 @@ template <typename T, std::size_t NDIM>
 void matrix_inner(DistributedMatrix<T>& A,
                   const std::vector< Function<T,NDIM> >& f,
                   const std::vector< Function<T,NDIM> >& g,
-                  bool sym=false) 
+                  bool sym=false)
 {
     const int64_t n = A.coldim();
     const int64_t m = A.rowdim();
     MADNESS_ASSERT(int64_t(f.size()) == n && int64_t(g.size()) == m);
-    
+
     // Assume we can always create an ichunk*jchunk matrix locally
     const int ichunk = 1000;
     const int jchunk = 1000; // 1000*1000*8 = 8 MBytes
@@ -83,7 +83,7 @@ static inline double PM_q(const tensorT & S, const double * restrict Ci, const d
             qij += Ci[mu + lo] * Smuj;
         }
     }
-    
+
     return qij;
 }
 
@@ -92,7 +92,7 @@ class SystolicFixOrbitalOrders : public SystolicMatrixAlgorithm<double> {
     AtomicInt nswitched;
 
 public:
-    SystolicFixOrbitalOrders(DistributedMatrix<double>& U, int tag=5556) 
+    SystolicFixOrbitalOrders(DistributedMatrix<double>& U, int tag=5556)
         : SystolicMatrixAlgorithm<double>(U, tag, NTHREAD)
     {}
 
@@ -147,13 +147,13 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
     const int natom;
     const int nao;
     const int nmo;
-    int iter;    
+    int iter;
     AtomicInt ndone_iter;
-    
+
 
     // Applies rotation between orbitals i and j for Pipek Mezy
-    void localize_PM_ij(const int seti, const int setj, 
-                        double * restrict Ci, double * restrict Cj, 
+    void localize_PM_ij(const int seti, const int setj,
+                        double * restrict Ci, double * restrict Cj,
                         double * restrict Ui, double * restrict Uj)
     {
         if(seti == setj){
@@ -164,7 +164,7 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
                 Qj[a] = PM_q(Svec[a], Cj, Cj, at_to_bf[a], at_nbf[a]);
                 ovij += Qi[a] * Qj[a];
             }
-            
+
             if(fabs(ovij) > tol * tol){
                 double aij = 0.0;
                 double bij = 0.0;
@@ -180,13 +180,13 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
 
                 if(bij > 0.0)
                     theta = -theta;
-                
+
                 if(theta > thetamax)
                     theta = thetamax;
                 else
                     if(theta < -thetamax)
                         theta = -thetamax;
-                
+
                 if(fabs(theta) >= tol){
                     ndone_iter++;
                     double c = cos(theta);
@@ -204,9 +204,9 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
 
 
 public:
-    
+
     // A[i,...] = [ C[i,...],  U[i,...], Q[i,...] ]
-    SystolicPMOrbitalLocalize(DistributedMatrix<double>& A, 
+    SystolicPMOrbitalLocalize(DistributedMatrix<double>& A,
                               const std::vector<int>& set,
                               const std::vector<int>& at_to_bf,
                               const std::vector<int>& at_nbf,
@@ -216,7 +216,7 @@ public:
                               int natom,
                               int nao,
                               int nmo,
-                              int tag=5555) 
+                              int tag=5555)
     : SystolicMatrixAlgorithm<double>(A, tag, NTHREAD),
           set(set),
           at_to_bf(at_to_bf),
@@ -242,7 +242,7 @@ public:
             if (iter > 0) tol = std::max(0.1 * tol, thresh);
             ndone_iter = 0;
             //madness::print("start", SystolicMatrixAlgorithm::get_world().rank(),iter);
-        }            
+        }
     }
 
     void end_iteration_hook(const TaskThreadEnv& env) {
@@ -252,7 +252,7 @@ public:
             ndone_iter = ndone;
             //madness::print("end", SystolicMatrixAlgorithm::get_world().rank(),iter,ndone);
         }
-    }        
+    }
 
     bool converged(const TaskThreadEnv& env) const {
         //if (env.id() == 0) madness::print("converged", SystolicMatrixAlgorithm::get_world().rank(),iter,int(ndone_iter), tol, thresh, (ndone_iter == 0 && tol == thresh));
@@ -265,7 +265,7 @@ public:
         double * restrict Cj = rowj;
         double * restrict Ui = Ci + nao;
         double * restrict Uj = Cj + nao;
- 
+
         localize_PM_ij(set[i], set[j],
                        Ci, Cj,
                        Ui, Uj);
@@ -273,19 +273,19 @@ public:
 };
 
 
-DistributedMatrix<double> distributed_localize_PM(World & world, 
-                                                  const vecfuncT & mo, 
-                                                  const vecfuncT & ao, 
-                                                  const std::vector<int> & set, 
+DistributedMatrix<double> distributed_localize_PM(World & world,
+                                                  const vecfuncT & mo,
+                                                  const vecfuncT & ao,
+                                                  const std::vector<int> & set,
                                                   const std::vector<int> & at_to_bf,
-                                                  const std::vector<int> & at_nbf, 
-                                                  const double thresh = 1e-9, 
-                                                  const double thetamax = 0.5, 
-                                                  const bool randomize = true, 
+                                                  const std::vector<int> & at_nbf,
+                                                  const double thresh = 1e-9,
+                                                  const double thetamax = 0.5,
+                                                  const bool randomize = true,
                                                   const bool doprint = false)
 {
     // Make Svec ... this can be much more efficient!
-    tensorT S = matrix_inner(world, ao, ao, true);  
+    tensorT S = matrix_inner(world, ao, ao, true);
     long nmo = mo.size();
     long nao = S.dim(0);
     long natom = at_to_bf.size();
@@ -296,11 +296,11 @@ DistributedMatrix<double> distributed_localize_PM(World & world,
         Svec[a] = copy(S(as, as));
     }
     S = tensorT();
-    
+
     // Make initial matrices
     DistributedMatrix<double> dU = column_distributed_matrix<double>(world, nmo, nmo);
     dU.fill_identity();
-    
+
     DistributedMatrix<double> dC = column_distributed_matrix<double>(world, nmo, nao);
     matrix_inner(dC, mo, ao);
 
@@ -316,7 +316,7 @@ DistributedMatrix<double> distributed_localize_PM(World & world,
     Tensor<double> A(nmo, nao+nmo+natom);
     //    dA.copy_to_replicated(A);
     //U(___) = A(_,Slice(nao,nao+nmo-1));
-        
+
 
     dA.extract_columns(nao,nmo+nao-1,dU);
 
@@ -329,7 +329,7 @@ DistributedMatrix<double> distributed_localize_PM(World & world,
     //tensorT U(nmo, nmo);
     //dU.copy_to_replicated(U);
     //U = transpose(U);
-        
+
     // if(world.rank() == 0){
     //     // Fix orbital orders
     //     bool switched = true;
@@ -350,7 +350,7 @@ DistributedMatrix<double> distributed_localize_PM(World & world,
     //     	}
     //         }
     //     }
-        
+
     //     // Fix phases.
     //     for (long i=0; i<nmo; ++i) {
     //         if (U(i,i) < 0.0) U(_,i).scale(-1.0);
