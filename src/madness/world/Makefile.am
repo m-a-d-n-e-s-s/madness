@@ -12,9 +12,9 @@ thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
 	worldhashmap.h worldrange.h atomicint.h posixmem.h worldptr.h \
 	deferred_cleanup.h parallel_runtime.h world.h uniqueid.h worldprofile.h \
 	timers.h binfsar.h mpiar.h textfsar.h worlddc.h mem_func_wrapper.h \
-	scopedptr.h taskfn.h ref.h move.h group.h dist_cache.h \
+	scopedptr.h taskfn.h group.h dist_cache.h \
 	dist_keys.h type_traits.h boost_checked_delete_bits.h \
-	function_traits.h integral_constant.h stubmpi.h bgq_atomics.h binsorter.h
+	function_traits.h stubmpi.h bgq_atomics.h binsorter.h
 
 
                       

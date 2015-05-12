@@ -812,6 +812,7 @@ public:
 
 
     distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
+    distmatT kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const;
 
 
     vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true);

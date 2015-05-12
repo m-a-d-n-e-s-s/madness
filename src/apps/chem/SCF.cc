@@ -720,7 +720,35 @@ namespace madness {
          //r.copy_to_replicated(p);
          return r;
      }
-    
+
+     distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const {
+         PROFILE_MEMBER_FUNC(SCF);
+         MADNESS_ASSERT(vbra.size() == vket.size());
+         int n = vbra.size();
+         distmatT r = column_distributed_matrix<double>(world, n, n);
+         reconstruct(world, vbra);
+         reconstruct(world, vket);
+         vecfuncT dvx_bra = apply(world, *(gradop[0]), vbra, false);
+         vecfuncT dvy_bra = apply(world, *(gradop[1]), vbra, false);
+         vecfuncT dvz_bra = apply(world, *(gradop[2]), vbra, false);
+         vecfuncT dvx_ket = apply(world, *(gradop[0]), vket, false);
+         vecfuncT dvy_ket = apply(world, *(gradop[1]), vket, false);
+         vecfuncT dvz_ket = apply(world, *(gradop[2]), vket, false);
+         world.gop.fence();
+         compress(world,dvx_bra,false);
+         compress(world,dvy_bra,false);
+         compress(world,dvz_bra,false);
+         compress(world,dvx_ket,false);
+         compress(world,dvy_ket,false);
+         compress(world,dvz_ket,false);
+         world.gop.fence();
+         r += matrix_inner(r.distribution(), dvx_bra, dvx_ket, true);
+         r += matrix_inner(r.distribution(), dvy_bra, dvy_ket, true);
+         r += matrix_inner(r.distribution(), dvz_bra, dvz_ket, true);
+         r *= 0.5;
+         return r;
+     }
+
     vecfuncT SCF::core_projection(World & world, const vecfuncT & psi,
                                   const bool include_Bc) {
         PROFILE_MEMBER_FUNC(SCF);

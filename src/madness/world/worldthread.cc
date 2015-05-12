@@ -73,7 +73,6 @@ namespace madness {
     double ThreadPool::await_timeout = 900.0;
 #if HAVE_INTEL_TBB
     tbb::task_scheduler_init* ThreadPool::tbb_scheduler = 0;
-    tbb::empty_task* ThreadPool::tbb_parent_task = 0;
 #endif
 #ifdef MADNESS_TASK_PROFILING
     Mutex profiling::TaskProfiler::output_mutex_;
@@ -352,16 +351,15 @@ namespace madness {
 
         if (SafeMPI::COMM_WORLD.Get_size() > 1) {
             // There are nthreads+2 because the main and communicator thread
-            // are now a part of tbb.
+            // are counted as part of tbb.
             tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
         }
         else {
             // There are nthreads+1 because the main
-            // is now part of tbb.
+            // is counted as part of tbb.
             tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
+
         }
-        tbb_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
-        tbb_parent_task->increment_ref_count();
 #else
 
         try {
