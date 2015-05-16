@@ -255,10 +255,13 @@ public:
 
     /// POD for PNO keywords
     struct Parameters {
-        int npno;   ///< number of PNOs
+        /// max l quantum number in the guess
+        int lmax;
 
-        bool do_diagonal_fock;  ///< diagonalize the Fock matrix in the space of the virtuals
-        bool do_multiplier; ///< use the lagrangian multiplier for orthogonality
+        /// type of partial wave guess function, e.g. 3s2p1d
+        /// must be a single string
+        std::vector<int> pw_guess;
+
         /// number of frozen orbitals; note the difference to the "pair" keyword where you
         /// request a specific orbital. Here you freeze lowest orbitals, i.e. if you find
         ///  freeze 1
@@ -269,27 +272,59 @@ public:
         int maxiter;    ///< max number of iterations
 
         /// ctor reading out the input file
-        Parameters(const std::string& input) : npno(10),
-                do_diagonal_fock(true), do_multiplier(false),
+        Parameters(const std::string& input) : lmax(8),
                 freeze(0), maxiter(20) {
 
+            read_parameters(input);
+
+        }
+
+        /// read pno parameters from the input file
+        void read_parameters(const std::string& input) {
             // get the parameters from the input file
             std::ifstream f(input.c_str());
             position_stream(f, "pno");
             std::string s;
+            std::string str_pw_guess;
 
             while (f >> s) {
                 if (s == "end") break;
                 else if (s == "maxiter") f >> maxiter;
                 else if (s == "freeze") f >> freeze;
-                else if (s == "diagonal_fock") do_diagonal_fock=true;
-                else if (s == "no_diagonal_fock") do_diagonal_fock=false;
-                else if (s == "do_multiplier") do_multiplier=true;
-                else if (s == "no_multiplier") do_multiplier=false;
-                else if (s == "npno") f >> npno;
+                else if (s == "pw_guess") f >> str_pw_guess;
                 else continue;
             }
+            pw_guess=convert_pw_guess(str_pw_guess);
         }
+
+        /// convert "11s8p2d" into a vector of ints
+        std::vector<int> convert_pw_guess(const std::string& input) const {
+            std::vector<int> pw_guess(20);
+
+            int ones=0;
+            for (std::size_t i=0; i<input.size(); ++i) {
+                if ((input[i]>='0') and (input[i]<='9')) {
+                    if (ones==0) ones=atoi(&input[i]);  // converts all digits
+                } else {
+                    const char lquant=input[i];
+                    if (lquant=='s') {pw_guess[0]=ones;}
+                    if (lquant=='p') {pw_guess[1]=ones;}
+                    if (lquant=='d') {pw_guess[2]=ones;}
+                    if (lquant=='f') {pw_guess[3]=ones;}
+                    if (lquant=='g') {pw_guess[4]=ones;}
+                    if (lquant=='h') {pw_guess[5]=ones;}
+                    if (lquant=='i') {pw_guess[6]=ones;}
+                    if (lquant=='k') {pw_guess[7]=ones;}
+                    ones=0;
+                }
+            }
+            std::cout << "final partial wave guess" << std::endl;
+            for (std::size_t i=0; i<pw_guess.size(); ++i) {
+                if (pw_guess[i]>0) print("l ",i,pw_guess[i]);
+            }
+            return pw_guess;
+        }
+
 
     };
 
@@ -302,16 +337,12 @@ public:
         F(world,nemo),
         Q(nemo.get_calc()->amo) {
 
-
         poisson = std::shared_ptr<real_convolution_3d>(
               CoulombOperatorPtr(world, nemo.get_calc()->param.lo,
                         nemo.get_calc()->param.econv));
         bsh = std::shared_ptr<real_convolution_3d>(
                 BSHOperatorPtr3D(world, 1.e-8, nemo.get_calc()->param.lo,
                         nemo.get_calc()->param.econv));
-        print("doing Lagrangian multiplier ",param.do_multiplier);
-        print("doing diagonal Fock matrix  ",param.do_diagonal_fock);
-
     }
 
     void solve() const {
@@ -324,9 +355,9 @@ public:
         }
 
         double energy=0.0;
-        for (int i=0; i<amo.size(); ++i) {
-            for (int j=i; j<amo.size(); ++j) {
-                energy+=solve_pair(i,j);
+        for (std::size_t i=0; i<amo.size(); ++i) {
+            for (std::size_t j=i; j<amo.size(); ++j) {
+                if ((i==0) and (j==1)) energy+=solve_pair(i,j);
             }
         }
 
@@ -334,17 +365,15 @@ public:
 
     double solve_pair(const int i, const int j) const {
         const vecfuncT& amo=nemo.get_calc()->amo;
+        print("solving pair ",i,j);
 
-        vecfuncT virtuals1=guess_virtuals();
-        vecfuncT virtuals;
+        vecfuncT virtuals=guess_virtuals();
 
-        const int npno=std::min(param.npno,int(virtuals1.size()));
-        for (int i=0; i<npno; ++i) virtuals.push_back(virtuals1[i]);
-        print("number of virtuals",virtuals.size());
         orthonormalize_cholesky(virtuals);
+        vecfuncT virtuals_bar=copy(world,virtuals);
 
         // compute the energies of the occupied orbitals i and j
-        const double f_ii=F(amo[i],amo[j]);
+        const double f_ii=F(amo[i],amo[i]);
         const double f_jj=F(amo[j],amo[j]);
         print("diagonal fock matrix elements ",f_ii,f_jj);
         Tensor<double> amplitudes;
@@ -352,25 +381,33 @@ public:
         for (int iter=0; iter<param.maxiter; iter++) {
 
             // recompute intermediates
-            vecfuncT V_aj_i=compute_V_aj_i(amo[i],amo[j],virtuals);
+            vecfuncT V_baraj_i=compute_V_aj_i(amo[i],amo[j],virtuals_bar);
+            vecfuncT V_ai_j=compute_V_aj_i(amo[j],amo[i],virtuals);
             Tensor<double> fmat=F(virtuals,virtuals);
+            Tensor<double> fmat_bar=F(virtuals_bar,virtuals_bar);
 
             // compute energy (might resort virtuals and intermediates)
-            double e=compute_hylleraas(V_aj_i,virtuals,f_ii+f_jj,fmat,amplitudes);
+            double e=compute_hylleraas(i,j,V_ai_j,V_baraj_i,virtuals,virtuals_bar,
+                    f_ii+f_jj,fmat,fmat_bar,amplitudes);
 
             if (world.rank() == 0) printf("in iteration %2d at time %6.1f: %12.8f\n",iter, wall_time(),e);
-            for (std::size_t i=0; i<virtuals.size(); ++i) {
-                std::string name="virtual"+stringify(i)+"_iteration"+stringify(iter);
-                plot_plane(world,virtuals[i],name);
+            for (std::size_t a=0; a<virtuals.size(); ++a) {
+                std::string name="virtual"+stringify(a)+"_iteration"+stringify(iter);
+                plot_plane(world,virtuals[a],name);
             }
+
             // will change virtuals and invalidate V_aj_i
-            virtuals=update_virtuals(V_aj_i,virtuals,f_ii+f_jj,fmat,amplitudes);
+            virtuals=update_virtuals(V_baraj_i,virtuals,f_ii+f_jj,fmat_bar,amplitudes);
+            virtuals_bar=update_virtuals(V_ai_j,virtuals_bar,f_ii+f_jj,fmat,amplitudes);
         }
 
         // compute the fock matrix of the virtuals
+        vecfuncT V_baraj_i=compute_V_aj_i(amo[i],amo[j],virtuals_bar);
+        vecfuncT V_ai_j=compute_V_aj_i(amo[j],amo[i],virtuals);
         Tensor<double> fmat=F(virtuals,virtuals);
-        vecfuncT V_aj_i=compute_V_aj_i(amo[i],amo[j],virtuals);
-        double e=compute_hylleraas(V_aj_i,virtuals,f_ii+f_jj,fmat,amplitudes);
+        Tensor<double> fmat_bar=F(virtuals_bar,virtuals_bar);
+        double e=compute_hylleraas(i,j,V_ai_j,V_baraj_i,virtuals,virtuals_bar,
+                f_ii+f_jj,fmat,fmat_bar,amplitudes);
         return e;
     }
 
@@ -423,9 +460,16 @@ public:
 
     /// guess a set up virtual orbitals -- currently from the minimal AO basis
     vecfuncT guess_virtuals() const {
-        vecfuncT virtuals=guess_virtuals_from_gaussians();
+        vecfuncT virtuals;
+        for (int l=0; l<param.lmax; ++l) {
+            for (std::size_t i=0; i<param.pw_guess[l]; ++i) {
+                double e=double(param.pw_guess[l])/double(i+1.0);
+                append(virtuals,guess_virtual_gaussian_shell(l,e));
+                print("l,e",l,e);
+            }
+        }
+        print("number of guess virtuals: ",virtuals.size());
         virtuals=Q(virtuals);
-//        orthonormalize_cholesky(virtuals);
         return virtuals;
     }
 
@@ -433,36 +477,10 @@ public:
     vecfuncT guess_virtual_gaussian_shell(const int l, const double e) const {
         vecfuncT virtuals;
         std::vector<GaussianGuess> gg=make_guess(nemo.molecule(),l,e);
-        for (int m=0; m<gg.size(); ++m) {
+        for (std::size_t m=0; m<gg.size(); ++m) {
             virtuals.push_back(real_factory_3d(world).functor2(gg[m]).truncate_on_project());
         }
         normalize(world,virtuals);
-        return virtuals;
-    }
-
-    /// add guess virtuals as principal expansion
-    vecfuncT guess_virtuals_from_gaussians() const {
-
-        vecfuncT virtuals;
-        append(virtuals,guess_virtual_gaussian_shell(0,1.0));
-
-        append(virtuals,guess_virtual_gaussian_shell(0,2.0));
-        append(virtuals,guess_virtual_gaussian_shell(1,1.0));
-
-//        append(virtuals,guess_virtual_gaussian_shell(0,3.0)); // spherical vs cartesian
-        append(virtuals,guess_virtual_gaussian_shell(1,2.0));
-        append(virtuals,guess_virtual_gaussian_shell(2,1.0));
-
-//        append(virtuals,guess_virtual_gaussian_shell(0,4.0)); // spherical vs cartesian
-//        append(virtuals,guess_virtual_gaussian_shell(1,3.0)); // spherical vs cartesian
-        append(virtuals,guess_virtual_gaussian_shell(2,2.0));
-        append(virtuals,guess_virtual_gaussian_shell(3,1.0));
-
-//        append(virtuals,guess_virtual_gaussian_shell(0,0.5)); // spherical vs cartesian
-//        append(virtuals,guess_virtual_gaussian_shell(1,0.5)); // spherical vs cartesian
-        append(virtuals,guess_virtual_gaussian_shell(2,0.5));
-        append(virtuals,guess_virtual_gaussian_shell(3,0.5));
-        print("number of guess virtuals: ",virtuals.size());
         return virtuals;
     }
 
@@ -479,9 +497,9 @@ public:
     /// the first line is zero due to orthogonality, the second line drops out
     /// due to the orthogonality projector.
     vecfuncT compute_V_aj_i(const real_function_3d& phi_i,
-            const real_function_3d& phi_j, const vecfuncT& virtuals_bar) const {
+            const real_function_3d& phi_j, const vecfuncT& virtuals) const {
 
-        const vecfuncT aj=mul(world,phi_j,virtuals_bar);    // multiply \bar a j
+        const vecfuncT aj=mul(world,phi_j,virtuals);    // multiply \bar a j
         vecfuncT gaj=apply(world,*poisson,aj);        // \int \dr2 aj(2)/r12
         vecfuncT Vaj_i=mul(world,phi_i,gaj);
         vecfuncT Vaj_i1=Q(Vaj_i);
@@ -500,30 +518,63 @@ public:
     /// @param[in]  e0  the zeroth-order energy (e_i + e_j)
     /// @param[out] t the optimized amplitudes
     /// @return the total energy of this pair
-    double compute_hylleraas(vecfuncT& V_aj_i, vecfuncT& virtuals,
-            const double e0, Tensor<double>& fmat, Tensor<double>& t) const {
+    double compute_hylleraas(int i, int j, vecfuncT& V_ai_j, vecfuncT& V_baraj_i,
+            vecfuncT& virtuals, vecfuncT& virtuals_bar, const double e0,
+            Tensor<double>& f_aa, Tensor<double>& f_barabara, Tensor<double>& t) const {
 
-        Tensor<double> V=inner(world,virtuals,V_aj_i);
-
-        // compute the B matrix <a \bar a | F1 + F2 - E | b \bar b>
         const std::size_t nvir=virtuals.size();
-        Tensor<double> B(nvir,nvir);
-        for (std::size_t i=0; i<nvir; ++i) B(i,i)=fmat(i,i) *2.0 - e0;
+        Tensor<double> B(nvir,nvir),V;
 
+        double energy=0.0;
+//        if (i==j) {
+//
+//            V=inner(world,virtuals,V_aj_i);
+//            for (std::size_t a=0; a<nvir; ++a) B(a,a)=f_aa(a,a) *2.0 - e0;
+//
+//
+//        } else {
+            const Tensor<double> f_abarb=F(virtuals,virtuals_bar);  // F_{a \bar b}
+            const Tensor<double> f_barab=F(virtuals_bar,virtuals);  // F_{\bar a b}
+            const Tensor<double> S_abarb=matrix_inner(world,virtuals,virtuals_bar);
+            const Tensor<double> S_barab=matrix_inner(world,virtuals_bar,virtuals);
+            Tensor<double> V_abara=inner(world,virtuals,V_baraj_i);
+            Tensor<double> V_baraa=inner(world,virtuals_bar,V_ai_j);
+            V=2.0*V_abara-V_baraa;
+
+            for (std::size_t a=0; a<nvir; ++a) {
+                B(a,a)=2.0*(f_aa(a,a)+f_barabara(a,a) - e0);
+                for (std::size_t b=0; b<nvir; ++b) {
+                    B(a,b)-=(f_abarb(a,b)*S_barab(a,b)+f_barab(a,b)*S_abarb(a,b)
+                            -e0*S_abarb(a,b)*S_barab(a,b));
+                }
+            }
+//        }
+        double fac=2.0;
+        if (i==j) fac-=1.0;
+        B.scale(fac);
+        V.scale(fac);
         Tensor<double> Binv=inverse(B);
 
         t=-inner(Binv,V);
         V.emul(t);
-        if (sort_virtuals(virtuals,V_aj_i,V,t)) fmat=F(virtuals,virtuals);
-        return V.sum();
+        if (sort_virtuals(virtuals,virtuals_bar,V_ai_j,V_baraj_i,V,t)) {
+            f_aa=F(virtuals,virtuals);
+            f_barabara=F(virtuals_bar,virtuals_bar);
+        }
+        energy=V.sum();
+        return energy;
     }
 
     struct sort_helper {
-        sort_helper(const real_function_3d& v1, const real_function_3d& Vaji,
+        sort_helper(const real_function_3d& v1, const real_function_3d& v2,
+                const real_function_3d& Vaji, const real_function_3d& Vbaraji,
                 double e, double a)
-            : v(v1), V_aj_i(Vaji), energy(e), amplitude(a) {}
+            : v(v1), vbar(v2), V_aj_i(Vaji), V_baraj_i(Vbaraji), energy(e),
+              amplitude(a) {}
         real_function_3d v;
+        real_function_3d vbar;
         real_function_3d V_aj_i;
+        real_function_3d V_baraj_i;
         double energy;
         double amplitude;
     };
@@ -535,11 +586,11 @@ public:
     /// sort the virtuals according to their pair energies
 
     /// @return if the virtuals have been resorted
-    bool sort_virtuals(vecfuncT& v, vecfuncT& V_aj_i,
+    bool sort_virtuals(vecfuncT& v, vecfuncT& vbar, vecfuncT& V_aj_i, vecfuncT& V_baraj_i,
             Tensor<double>& VT, Tensor<double>& t) const {
         std::vector<sort_helper> pairs;
         for (std::size_t i=0; i<v.size(); ++i) {
-            pairs.push_back(sort_helper(copy(v[i]),V_aj_i[i],VT(i),t(i)));
+            pairs.push_back(sort_helper(v[i],vbar[i],V_aj_i[i],V_baraj_i[i],VT(i),t(i)));
         }
         if (std::is_sorted(pairs.begin(),pairs.end(),PNO::comp)) {
             return false;
@@ -547,21 +598,14 @@ public:
             std::sort(pairs.begin(),pairs.end(),PNO::comp);
             for (std::size_t i=0; i<v.size(); ++i) {
                 v[i]=pairs[i].v;
+                vbar[i]=pairs[i].vbar;
                 t(i)=pairs[i].amplitude;
                 VT(i)=pairs[i].energy;
                 V_aj_i[i]=pairs[i].V_aj_i;
+                V_baraj_i[i]=pairs[i].V_baraj_i;
             }
         }
         return true;
-    }
-
-
-    void orthonormalize(vecfuncT& v) const {
-        Tensor<double> ovlp=matrix_inner(world,v,v);
-        Tensor<double> U, evals;
-        syev(ovlp,U,evals);
-        v=transform(world,v,U);
-        normalize(world,v);
     }
 
     void orthonormalize_gram_schmidt(vecfuncT& v) const {
