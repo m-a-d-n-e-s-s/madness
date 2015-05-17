@@ -269,11 +269,13 @@ public:
         /// be correlated.
         int freeze;
 
+        int i, j;
+
         int maxiter;    ///< max number of iterations
 
         /// ctor reading out the input file
         Parameters(const std::string& input) : lmax(8),
-                freeze(0), maxiter(20) {
+                freeze(0), i(-1), j(-1), maxiter(20) {
 
             read_parameters(input);
 
@@ -291,6 +293,7 @@ public:
                 if (s == "end") break;
                 else if (s == "maxiter") f >> maxiter;
                 else if (s == "freeze") f >> freeze;
+                else if (s == "pair") f >> i >> j;
                 else if (s == "pw_guess") f >> str_pw_guess;
                 else continue;
             }
@@ -355,9 +358,13 @@ public:
         }
 
         double energy=0.0;
-        for (std::size_t i=0; i<amo.size(); ++i) {
-            for (std::size_t j=i; j<amo.size(); ++j) {
-                if ((i==0) and (j==1)) energy+=solve_pair(i,j);
+        if ((param.i >= 0) and (param.j>=0)) {
+            energy+=solve_pair(param.i,param.j);
+        } else {
+            for (std::size_t i=0; i<amo.size(); ++i) {
+                for (std::size_t j=i; j<amo.size(); ++j) {
+                    energy+=solve_pair(i,j);
+                }
             }
         }
 
@@ -383,22 +390,39 @@ public:
             // recompute intermediates
             vecfuncT V_baraj_i=compute_V_aj_i(amo[i],amo[j],virtuals_bar);
             vecfuncT V_ai_j=compute_V_aj_i(amo[j],amo[i],virtuals);
+            vecfuncT V_barai_j=compute_V_aj_i(amo[j],amo[i],virtuals_bar);
+            vecfuncT V_aj_i=compute_V_aj_i(amo[i],amo[j],virtuals);
             Tensor<double> fmat=F(virtuals,virtuals);
             Tensor<double> fmat_bar=F(virtuals_bar,virtuals_bar);
 
-            // compute energy (might resort virtuals and intermediates)
-            double e=compute_hylleraas(i,j,V_ai_j,V_baraj_i,virtuals,virtuals_bar,
-                    f_ii+f_jj,fmat,fmat_bar,amplitudes);
+            // compute energy
+            Tensor<double> VBV=compute_hylleraas(i,j,V_ai_j,V_baraj_i,virtuals,virtuals_bar,
+                    fmat,fmat_bar,f_ii+f_jj,amplitudes);
+            double energy=VBV.sum();
 
-            if (world.rank() == 0) printf("in iteration %2d at time %6.1f: %12.8f\n",iter, wall_time(),e);
+            // sort the amplitudes and intermediates with increasing energy
+            // and recompute the Fock matrices if necessary
+            if (sort_virtuals(VBV,amplitudes,virtuals,virtuals_bar,
+                    V_ai_j,V_baraj_i,V_barai_j,V_aj_i)) {
+                fmat=F(virtuals,virtuals);
+                fmat_bar=F(virtuals_bar,virtuals_bar);
+            }
+
+
+            if (world.rank() == 0) printf("in iteration %2d at time %6.1f: %12.8f\n",
+                    iter, wall_time(),energy);
             for (std::size_t a=0; a<virtuals.size(); ++a) {
                 std::string name="virtual"+stringify(a)+"_iteration"+stringify(iter);
                 plot_plane(world,virtuals[a],name);
             }
 
             // will change virtuals and invalidate V_aj_i
-            virtuals=update_virtuals(V_baraj_i,virtuals,f_ii+f_jj,fmat_bar,amplitudes);
-            virtuals_bar=update_virtuals(V_ai_j,virtuals_bar,f_ii+f_jj,fmat,amplitudes);
+            vecfuncT newvirtuals=update_virtuals(i,j,V_baraj_i,V_barai_j,virtuals,virtuals_bar,
+                    f_ii+f_jj,fmat_bar,amplitudes);
+            virtuals_bar=update_virtuals(i,j,V_aj_i,V_ai_j,virtuals_bar,virtuals,
+                    f_ii+f_jj,fmat,amplitudes);
+            virtuals=newvirtuals;
+
         }
 
         // compute the fock matrix of the virtuals
@@ -406,20 +430,34 @@ public:
         vecfuncT V_ai_j=compute_V_aj_i(amo[j],amo[i],virtuals);
         Tensor<double> fmat=F(virtuals,virtuals);
         Tensor<double> fmat_bar=F(virtuals_bar,virtuals_bar);
-        double e=compute_hylleraas(i,j,V_ai_j,V_baraj_i,virtuals,virtuals_bar,
-                f_ii+f_jj,fmat,fmat_bar,amplitudes);
-        return e;
+        Tensor<double> VBV=compute_hylleraas(i,j,V_ai_j,V_baraj_i,virtuals,virtuals_bar,
+                fmat,fmat_bar,f_ii+f_jj,amplitudes);
+        double energy=VBV.sum();
+        return energy;
     }
 
     /// update the virtual functions
 
     /// @param[in]  amplitudes  the amplitudes t_a
-    vecfuncT update_virtuals(vecfuncT& V_aj_i, const vecfuncT& virtuals,
+    vecfuncT update_virtuals(const int i, const int j,
+            const vecfuncT& V_baraj_i, const vecfuncT& V_barai_j,
+            const vecfuncT& virtuals, const vecfuncT& virtuals_bar,
             const double e0, const Tensor<double>& fmat,
             const Tensor<double> amplitudes) const {
 
         const int nvir=virtuals.size();
-        for (std::size_t a=0; a<V_aj_i.size(); ++a) V_aj_i[a].scale(1./amplitudes(a));
+
+        // compute the inhomogeneous term
+        vecfuncT V_baraj_i_scaled=copy(world,V_baraj_i);
+        vecfuncT V_barai_j_scaled=copy(world,V_barai_j);
+
+        for (std::size_t a=0; a<V_baraj_i.size(); ++a) {
+            V_baraj_i_scaled[a].scale(1./amplitudes(a));
+            V_barai_j_scaled[a].scale(0.5/amplitudes(a));
+        }
+//        if (i!=j) {
+            V_baraj_i_scaled=sub(world,V_baraj_i_scaled,V_barai_j_scaled);
+//        }
 
         // compute the coupling term \sum_b |b> ...
         Tensor<double> transf(nvir,nvir);
@@ -432,7 +470,7 @@ public:
 
         // combine coupling and inhomogeneous term
         vecfuncT btilde=transform(world,virtuals,transf);
-        btilde=sub(world,btilde,V_aj_i);
+        btilde=sub(world,btilde,V_baraj_i_scaled);
 
         // compute (J-K+V) | a >
         vecfuncT Ja=J(virtuals);
@@ -442,6 +480,12 @@ public:
         truncate(world,JKVa);
 
         vecfuncT Vpsi=sub(world,btilde,JKVa);
+//        if (i!=j) {
+            vecfuncT coupling=compute_coupling_terms(virtuals,virtuals_bar,
+                    amplitudes);
+            Vpsi=add(world,Vpsi,coupling);
+//        }
+
         scale(world,Vpsi,2.0);
         vecfuncT GVpsi;
 
@@ -449,6 +493,18 @@ public:
         for (long a=0; a<evals.size(); ++a) evals(a)=e0-fmat(a,a);
         std::vector<poperatorT> bsh3= nemo.get_calc()->make_bsh_operators(world,evals);
         GVpsi=apply(world,bsh3,Vpsi);
+
+//        if (i!=j) {
+            Tensor<double> S_bbara=matrix_inner(world,virtuals,virtuals_bar);
+            for (int a=0; a<S_bbara.dim(1); ++a) {
+                for (int b=0; b<S_bbara.dim(0); ++b) {
+                    S_bbara(b,a)=S_bbara(b,a)*amplitudes(b)/amplitudes(a);
+                }
+            }
+            vecfuncT tmp=transform(world,virtuals_bar,S_bbara);
+            scale(world,tmp,0.5);
+            GVpsi=add(world,GVpsi,tmp);
+//        }
 
         // post-processing: project out occ space, orthogonalize
         GVpsi=Q(GVpsi);
@@ -458,12 +514,46 @@ public:
         return GVpsi;
     }
 
+    vecfuncT compute_coupling_terms(const vecfuncT& virtuals,
+            const vecfuncT& virtuals_bar, const Tensor<double>& amplitudes) const {
+        Tensor<double> S_bbara=matrix_inner(world,virtuals,virtuals_bar);
+        Tensor<double> F_bbara=F(virtuals,virtuals_bar);
+
+        for (int b=0; b<S_bbara.dim(0); ++b) {
+            for (int a=0; a<S_bbara.dim(1); ++a) {
+                S_bbara(b,a)=S_bbara(b,a)*amplitudes(b)/amplitudes(a);
+                F_bbara(b,a)=F_bbara(b,a)*amplitudes(b)/amplitudes(a);
+            }
+        }
+
+        vecfuncT Fb=transform(world,virtuals_bar,F_bbara);
+
+        Tensor<double> F_barabarb=F(virtuals_bar,virtuals_bar);
+        std::vector<double> F_aa(virtuals_bar.size());
+        for (std::size_t i=0; i<F_aa.size(); ++i) F_aa[i]=F_barabarb(i,i);
+
+        vecfuncT Jb=J(virtuals_bar);
+        vecfuncT Kb=K(virtuals_bar);
+        vecfuncT Vb=V(virtuals_bar);
+        vecfuncT Faab=copy(world,virtuals_bar);
+        scale(world,Faab,F_aa);
+        vecfuncT JKVa=sub(world,add(world,sub(world,Jb,Kb),Vb),Faab);
+
+        vecfuncT barc=transform(world,JKVa,S_bbara);
+
+        vecfuncT result=add(world,barc,Fb);
+        truncate(world,result);
+        scale(world,result,0.5);
+
+        return result;
+    }
+
     /// guess a set up virtual orbitals -- currently from the minimal AO basis
     vecfuncT guess_virtuals() const {
         vecfuncT virtuals;
         for (int l=0; l<param.lmax; ++l) {
-            for (std::size_t i=0; i<param.pw_guess[l]; ++i) {
-                double e=double(param.pw_guess[l])/double(i+1.0);
+            for (int i=0; i<param.pw_guess[l]; ++i) {
+                double e=double(param.pw_guess[l])/(double(i+1.0));
                 append(virtuals,guess_virtual_gaussian_shell(l,e));
                 print("l,e",l,e);
             }
@@ -473,7 +563,7 @@ public:
         return virtuals;
     }
 
-    /// return a shell of l-quantum l and exponent e
+    /// return a shell of l-quantum l and exponent e, including all cartesian components
     vecfuncT guess_virtual_gaussian_shell(const int l, const double e) const {
         vecfuncT virtuals;
         std::vector<GaussianGuess> gg=make_guess(nemo.molecule(),l,e);
@@ -517,18 +607,19 @@ public:
     /// @param[inout]  virtuals    the optimal virtual orbitals; sorted upon exit
     /// @param[in]  e0  the zeroth-order energy (e_i + e_j)
     /// @param[out] t the optimized amplitudes
-    /// @return the total energy of this pair
-    double compute_hylleraas(int i, int j, vecfuncT& V_ai_j, vecfuncT& V_baraj_i,
-            vecfuncT& virtuals, vecfuncT& virtuals_bar, const double e0,
-            Tensor<double>& f_aa, Tensor<double>& f_barabara, Tensor<double>& t) const {
+    /// @return the energy contributions of each virtual
+    Tensor<double> compute_hylleraas(const int i, const int j,
+            const vecfuncT& V_ai_j, const vecfuncT& V_baraj_i,
+            const vecfuncT& virtuals, const vecfuncT& virtuals_bar,
+            const Tensor<double>& f_aa, const Tensor<double>& f_barabara,
+            const double e0, Tensor<double>& t) const {
 
         const std::size_t nvir=virtuals.size();
         Tensor<double> B(nvir,nvir),V;
 
-        double energy=0.0;
 //        if (i==j) {
 //
-//            V=inner(world,virtuals,V_aj_i);
+//            V=inner(world,virtuals,V_ai_j);
 //            for (std::size_t a=0; a<nvir; ++a) B(a,a)=f_aa(a,a) *2.0 - e0;
 //
 //
@@ -557,26 +648,19 @@ public:
 
         t=-inner(Binv,V);
         V.emul(t);
-        if (sort_virtuals(virtuals,virtuals_bar,V_ai_j,V_baraj_i,V,t)) {
-            f_aa=F(virtuals,virtuals);
-            f_barabara=F(virtuals_bar,virtuals_bar);
-        }
-        energy=V.sum();
-        return energy;
+        return V;
     }
 
     struct sort_helper {
-        sort_helper(const real_function_3d& v1, const real_function_3d& v2,
-                const real_function_3d& Vaji, const real_function_3d& Vbaraji,
-                double e, double a)
-            : v(v1), vbar(v2), V_aj_i(Vaji), V_baraj_i(Vbaraji), energy(e),
-              amplitude(a) {}
-        real_function_3d v;
-        real_function_3d vbar;
-        real_function_3d V_aj_i;
-        real_function_3d V_baraj_i;
+        sort_helper(double e, double a,
+                const real_function_3d& v1, const real_function_3d& v2,
+                const real_function_3d& v3, const real_function_3d& v4,
+                const real_function_3d& v5, const real_function_3d& v6)
+            : energy(e), amplitude(a), v1(v1), v2(v2), v3(v3), v4(v4),
+              v5(v5), v6(v6) {}
         double energy;
         double amplitude;
+        real_function_3d v1, v2, v3, v4, v5, v6;
     };
 
     static bool comp(const sort_helper& rhs, const sort_helper& lhs) {
@@ -586,23 +670,27 @@ public:
     /// sort the virtuals according to their pair energies
 
     /// @return if the virtuals have been resorted
-    bool sort_virtuals(vecfuncT& v, vecfuncT& vbar, vecfuncT& V_aj_i, vecfuncT& V_baraj_i,
-            Tensor<double>& VT, Tensor<double>& t) const {
+    bool sort_virtuals(Tensor<double>& VT, Tensor<double> amplitudes,
+            vecfuncT& v1, vecfuncT& v2, vecfuncT& v3, vecfuncT& v4,
+            vecfuncT& v5, vecfuncT& v6) const {
         std::vector<sort_helper> pairs;
-        for (std::size_t i=0; i<v.size(); ++i) {
-            pairs.push_back(sort_helper(v[i],vbar[i],V_aj_i[i],V_baraj_i[i],VT(i),t(i)));
+        for (long i=0; i<VT.size(); ++i) {
+            pairs.push_back(sort_helper(VT(i),amplitudes(i),v1[i],v2[i],v3[i],
+                    v4[i],v5[i],v6[i]));
         }
         if (std::is_sorted(pairs.begin(),pairs.end(),PNO::comp)) {
             return false;
         } else {
             std::sort(pairs.begin(),pairs.end(),PNO::comp);
-            for (std::size_t i=0; i<v.size(); ++i) {
-                v[i]=pairs[i].v;
-                vbar[i]=pairs[i].vbar;
-                t(i)=pairs[i].amplitude;
+            for (long i=0; i<VT.size(); ++i) {
                 VT(i)=pairs[i].energy;
-                V_aj_i[i]=pairs[i].V_aj_i;
-                V_baraj_i[i]=pairs[i].V_baraj_i;
+                amplitudes(i)=pairs[i].amplitude;
+                v1[i]=pairs[i].v1;
+                v2[i]=pairs[i].v2;
+                v3[i]=pairs[i].v3;
+                v4[i]=pairs[i].v4;
+                v5[i]=pairs[i].v5;
+                v6[i]=pairs[i].v6;
             }
         }
         return true;
