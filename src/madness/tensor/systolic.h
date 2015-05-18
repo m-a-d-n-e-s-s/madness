@@ -55,11 +55,10 @@ namespace madness {
 
 #ifdef HAVE_INTEL_TBB
         void iteration(const int nthread) {
-            SystolicMatrixAlgorithm<T>* const this_task = this;
 
             // Parallel initialization hook
             tbb::parallel_for(0, nthread, [=](const int id) {
-                this_task->start_iteration_hook(TaskThreadEnv(nthread, id));
+                this->start_iteration_hook(TaskThreadEnv(nthread, id));
             });
 
             if (nlocal > 0) {
@@ -72,22 +71,23 @@ namespace madness {
                 for (int loop=0; loop<(neven-1); ++loop) {
 
                     // This loop is parallelized over threads
-                    tbb::parallel_for(0, nthread, [=](const int id) {
-                        for (int pair=id; pair<nlocal; pair+=nthread) {
+                    tbb::parallel_for(0, nthread,
+                        [this,neven,pairlo,nthread,loop](const int id) {
+                            for (int pair=id; pair<nlocal; pair+=nthread) {
 
-                            int rp = neven/2-1-(pair+pairlo);
-                            int iii = (rp+loop)%(neven-1);
-                            int jjj = (2*neven-2-rp+loop)%(neven-1);
-                            if (rp == 0) jjj = neven-1;
+                                int rp = neven/2-1-(pair+pairlo);
+                                int iii = (rp+loop)%(neven-1);
+                                int jjj = (2*neven-2-rp+loop)%(neven-1);
+                                if (rp == 0) jjj = neven-1;
 
-                            iii = map[iii];
-                            jjj = map[jjj];
+                                iii = map[iii];
+                                jjj = map[jjj];
 
-                            if (jptr[pair]) {
-                                this_task->kernel(iii, jjj, iptr[pair], jptr[pair]);
+                                if (jptr[pair]) {
+                                    this->kernel(iii, jjj, iptr[pair], jptr[pair]);
+                                }
                             }
-                        }
-                    });
+                        });
 
                     cycle();
 
@@ -96,7 +96,7 @@ namespace madness {
 
             // Parallel finalization hook
             tbb::parallel_for(0, nthread, [=](const int id) {
-                this_task->end_iteration_hook(TaskThreadEnv(nthread, id));
+                this->end_iteration_hook(TaskThreadEnv(nthread, id));
             });
 
         }
@@ -402,15 +402,14 @@ namespace madness {
         /// This is a collective call ... all processes in world should submit this task
         void run(World& world, const TaskThreadEnv& env) {
             const int nthread = env.nthread();
-            SystolicMatrixAlgorithm<T>* const this_task = this;
             bool done = false;
             do {
-                SystolicMatrixAlgorithm::iteration(nthread);
+                iteration(nthread);
                 done = tbb::parallel_reduce(tbb::blocked_range<int>(0,nthread), true,
                     [=] (const tbb::blocked_range<int>& range, bool init) {
                         for(int id = range.begin(); id < range.end(); ++id)
                             init = init &&
-                                this_task->converged(TaskThreadEnv(nthread, id));
+                                this->converged(TaskThreadEnv(nthread, id));
                         return init;
                     },
                     [] (const bool l, const bool r) { return l && r; });
