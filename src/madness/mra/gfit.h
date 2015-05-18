@@ -118,21 +118,21 @@ public:
 				}
 			}
 		} else {
-			// Relies on expnts being in decreasing order
-			int icut = -1;
-			for (int i=0; i<e.dim(0); ++i) {
-				if (e(i) < tcut) {
-					icut = i;
-					break;
-				}
-			}
-			if (icut > 0) {
-				for (int i=icut+1; i<e.dim(0); ++i) {
-					c(icut) += c(i);
-				}
-				c = c(Slice(0,icut));
-				e = e(Slice(0,icut));
-			}
+//			// Relies on expnts being in decreasing order
+//			int icut = -1;
+//			for (int i=0; i<e.dim(0); ++i) {
+//				if (e(i) < tcut) {
+//					icut = i;
+//					break;
+//				}
+//			}
+//			if (icut > 0) {
+//				for (int i=icut+1; i<e.dim(0); ++i) {
+//					c(icut) += c(i);
+//				}
+//				c = c(Slice(0,icut));
+//				e = e(Slice(0,icut));
+//			}
 		}
 	}
 
