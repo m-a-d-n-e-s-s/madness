@@ -33,7 +33,7 @@
 #define MADNESS_WORLD_DISTRIBUTED_ID_H__INCLUDED
 
 /**
- \file dist_keys.h
+ \file distributed_id.h
  \brief \todo Description needed.
  \ingroup parallel_runtime
 */

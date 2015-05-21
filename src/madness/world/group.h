@@ -32,7 +32,7 @@
 #ifndef MADNESS_WORLD_GROUP_H__INCLUDED
 #define MADNESS_WORLD_GROUP_H__INCLUDED
 
-#include <madness/world/dist_keys.h>
+#include <madness/world/distributed_id.h>
 #include <madness/world/madness_exception.h>
 #include <madness/world/world.h>
 #include <madness/world/world_task_queue.h>
