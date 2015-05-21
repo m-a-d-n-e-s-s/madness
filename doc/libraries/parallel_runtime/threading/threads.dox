@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+  Copyright (C) 2015 Stony Brook University
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -27,17 +27,12 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /**
-  \file install.dox
-  \brief Notes on installing and configuring MADNESS.
-  \addtogroup configuration
+  \file threads.dox
+  \brief Documentation: The \ref threads module.
+  \addtogroup threads
 
   \todo Write this section.
-
-  In the mean time, instructions on installing and configuring MADNESS can be found in the wiki at <a href="\website">the MADNESS repository</a>.
- */
+*/

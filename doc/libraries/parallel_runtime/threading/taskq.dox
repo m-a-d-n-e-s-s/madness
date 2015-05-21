@@ -27,19 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /**
- \file madness_libraries.dox
- \brief Overview of MADNESS libraries.
- \addtogroup libraries
+ \file taskq.dox
+ \brief Documentation: the task queue module.
+ \addtogroup taskq
 
-MADNESS is built from several libraries, such as the parallel runtime and the
-multiresolution analysis tools. The files and submodules listed here detail the
-API and implementation of these libraries.
+ \todo Description/overview of tasks and related concepts for the documentation module.
+*/
 
-\todo Add additional details to this section, if needed.
- */

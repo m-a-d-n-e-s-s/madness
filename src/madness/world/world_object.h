@@ -32,22 +32,17 @@
 /**
  \file world_object.h
  \brief Defines and implements \c WorldObject.
- \ingroup worldobj
+ \ingroup world_object
 */
 
 #ifndef MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 #define MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <madness/world/world_task_queue.h>
 
-/**
- \addtogroup worldobj
-
- \todo An overview of the \c WorldObject class and the other concepts it works with.
-
- @{
-*/
+/// \addtogroup world_object
+/// @{
 
 namespace madness {
 
@@ -1305,6 +1300,8 @@ namespace madness {
         /// \param a9 Argument 9.
         /// \param attr Description needed.
         /// \return Description needed.
+        ///
+        /// \todo Could we use variadic templates to eliminate a lot of this code duplication?
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T, typename a8T,
                 typename a9T>

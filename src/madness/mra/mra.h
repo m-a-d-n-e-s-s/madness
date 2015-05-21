@@ -1,5 +1,5 @@
 /*
-O  This file is part of MADNESS.
+  This file is part of MADNESS.
 
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
@@ -28,7 +28,6 @@ O  This file is part of MADNESS.
   tel:   865-241-3937
   fax:   865-572-0680
 */
-
 
 #ifndef MADNESS_MRA_MRA_H__INCLUDED
 #define MADNESS_MRA_MRA_H__INCLUDED
@@ -66,7 +65,7 @@ namespace madness {
 #include <madness/mra/twoscale.h>
 #include <madness/mra/legendre.h>
 #include <madness/mra/indexit.h>
-#include <madness/world/parar.h>
+#include <madness/world/parallel_archive.h>
 #include <madness/world/worlddc.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>

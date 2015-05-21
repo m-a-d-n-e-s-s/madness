@@ -68,17 +68,13 @@
 #include <madness/world/worldmpi.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/worldprofile.h>
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <madness/world/uniqueid.h>
 #include <madness/world/nodefaults.h>
 
-/**
- \addtogroup world
+/// \addtogroup world
+/// @{
 
- \todo Overview of the \c World class and concepts for the documentation module.
-
- @{
-*/
 namespace madness {
 
     class World;
@@ -576,15 +572,13 @@ namespace madness {
 
         /// Helps in archiving (reading) \c World objects.
         /// \tparam Archive The archive type.
-        /// \todo Verify this documentation.
         template <class Archive>
         struct ArchiveLoadImpl<Archive,World*> {
-            /// Loads a \c World from the specified \c Archive.
+            /// Loads a \c World from the specified archive.
 
             /// \note Aborts the program if a \c World cannot be read from the archive.
-            /// \param[in,out] ar The \c Archive.
+            /// \param[in,out] ar The archive.
             /// \param[out] wptr Pointer to the \c World.
-            /// \todo Verify this documentation.
             static inline void load(const Archive& ar, World*& wptr) {
                 unsigned long id = 0ul;
                 ar & id;
@@ -597,14 +591,12 @@ namespace madness {
 
         /// Helps in archiving (writing) \c World objects.
         /// \tparam Archive The archive type.
-        /// \todo Verify this documentation.
         template <class Archive>
         struct ArchiveStoreImpl<Archive,World*> {
-            /// Writes a \c World to the specified \c Archive.
+            /// Writes a \c World to the specified archive.
 
-            /// \param[in,out] ar The \c Archive.
+            /// \param[in,out] ar The archive.
             /// \param[in] wptr Pointer to the \c World.
-            /// \todo Verify this documentation.
             static inline void store(const Archive& ar, World* const & wptr) {
                 ar & wptr->id();
             }

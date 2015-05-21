@@ -45,12 +45,8 @@
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
 
-/**
- \todo Description/overview of tasks and related concepts for the documentation module.
-
- \addtogroup taskq
- @{
-*/
+/// \addtogroup taskq
+/// @{
 
 namespace madness {
 
@@ -1240,7 +1236,7 @@ namespace madness {
         /// \c WorldContainer, and user-defined types derived from
         /// \c WorldObject are automatically handled. Anything else is
         /// your problem.
-        /// \todo Could we use metaprogramming to reduce all of these instances to one template that generates versions for one more (less) parameter?
+        /// \todo Could we use metaprogramming or variadic templates to reduce all of these instances to one template that generates versions for one more (less) parameter?
         template <typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T,
                 typename a8T, typename a9T>

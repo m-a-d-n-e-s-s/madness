@@ -27,10 +27,9 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
+
+/// \todo Can this be replaced by C++11's \c std::enable_if?
 
 #ifndef MADNESS_WORLD_ENABLE_IF_H__INCLUDED
 #define MADNESS_WORLD_ENABLE_IF_H__INCLUDED

@@ -18,7 +18,7 @@
 #include "../../madness/tensor/srconf.h"
 #include "../../madness/tensor/tensor.h"
 #include "../../madness/world/archive.h"
-#include "../../madness/world/parar.h"
+#include "../../madness/world/parallel_archive.h"
 #include "../../madness/world/print.h"
 #include "../../madness/world/madness_exception.h"
 #include "../../madness/world/world.h"

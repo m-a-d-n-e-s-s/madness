@@ -35,7 +35,6 @@
 
  The member pointer is stored, along with a pointer to the object with which
  it should be dereferenced.
-
 */
 
 #ifndef MADNESS_WORLD_MEM_FUNC_WRAPPER_H__INCLUDED
@@ -138,8 +137,8 @@ namespace madness {
             /// \brief Evaluates the member function, when dereferenced from the
             ///     object pointer.
 
-            /// \tparam argTs Argument type pack
-            /// \param[in,out] args Argument parameter pack
+            /// \tparam argTs Argument type pack.
+            /// \param[in,out] args Argument parameter pack.
             /// \return The member function's return value.
             template <typename... argTs>
             result_type operator()(argTs&&... args) const {
@@ -220,8 +219,8 @@ namespace madness {
             /// \brief Evaluates the member function, when dereferenced from the
             ///     object pointer.
 
-            /// \tparam argTs Argument type pack
-            /// \param[in,out] args Argument parameter pack
+            /// \tparam argTs Argument type pack.
+            /// \param[in,out] args Argument parameter pack.
             template <typename... argTs>
             void operator()(argTs&&... args) const {
                 MADNESS_ASSERT(ptr_);

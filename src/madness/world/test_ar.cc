@@ -27,11 +27,7 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #include <iostream>
 using std::cout;
@@ -44,19 +40,19 @@ using std::endl;
 
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
 
-#include <madness/world/textfsar.h>
+#include <madness/world/text_fstream_archive.h>
 using madness::archive::TextFstreamInputArchive;
 using madness::archive::TextFstreamOutputArchive;
 
-#include <madness/world/binfsar.h>
+#include <madness/world/binary_fstream_archive.h>
 using madness::archive::BinaryFstreamInputArchive;
 using madness::archive::BinaryFstreamOutputArchive;
 
-#include <madness/world/vecar.h>
+#include <madness/world/vector_archive.h>
 using madness::archive::VectorInputArchive;
 using madness::archive::VectorOutputArchive;
 
-#include <madness/world/bufar.h>
+#include <madness/world/buffer_archive.h>
 using madness::archive::BufferInputArchive;
 using madness::archive::BufferOutputArchive;
 

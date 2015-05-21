@@ -27,37 +27,50 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
+#ifndef MADNESS_WORLD_VECTOR_ARCHIVE_H__INCLUDED
+#define MADNESS_WORLD_VECTOR_ARCHIVE_H__INCLUDED
 
-#ifndef MADNESS_WORLD_VECAR_H__INCLUDED
-#define MADNESS_WORLD_VECAR_H__INCLUDED
+/**
+ \file vector_archive.h
+ \brief Implements an archive wrapping an STL \c vector.
+ \ingroup serialization
 
-/// \file vecar.h
-/// \brief Implements archive wrapping an STL vector
+ \todo With a bit of thought this could be generalized to several STL containers.
+*/
 
 #include <vector>
 #include <cstring>
 #include <madness/world/archive.h>
 
-
 namespace madness {
     namespace archive {
 
-// With a bit of thought this could be generalized to several STL containers
+        /// \addtogroup serialization
+        /// @{
 
-
-        /// Wraps an archive around an STL vector for output
+        /// Wraps an archive around an STL \c vector for output.
         class VectorOutputArchive : public BaseOutputArchive {
-            mutable std::vector<unsigned char>* v;
+            mutable std::vector<unsigned char>* v; ///< The STL vector being wrapped.
+
         public:
-            VectorOutputArchive(std::vector<unsigned char>& v, std::size_t hint=262144) : v(&v) {
+            /// Create a buffer to wrap the specified \c vector.
+
+            /// \param[in] v The \c vector.
+            /// \param[in] hint The minimum capacity of the vector.
+            VectorOutputArchive(std::vector<unsigned char>& v, std::size_t hint=262144)
+                    : v(&v) {
                 open(hint);
             };
 
+            /// Appends data to the end of the vector.
+
+            /// \todo Verify/complete the documentation.
+            /// \tparam T The type of data to be appended.
+            /// \param[in] t Pointer to the data to be appended.
+            /// \param[in] n The number of data items to be appended.
+            /// \return Description needed.
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
@@ -66,24 +79,40 @@ namespace madness {
                 v->insert(v->end(),ptr,ptr+n*sizeof(T));
             }
 
+            /// Clear any data in the vector and ensure its capacity is at least \c hint.
+
+            /// \param[in] hint The minimum capacity for the vector.
             void open(std::size_t hint=262144) {
                 v->clear();
                 v->reserve(hint);
             };
 
+            /// Close the archive.
             void close() {};
 
+            /// Flush the archive.
             void flush() {};
         };
 
 
-        /// Wraps an archive around an STL vector for input
+        /// Wraps an archive around an STL \c vector for input.
         class VectorInputArchive : public BaseInputArchive {
-            mutable std::vector<unsigned char>* v;
-            mutable std::size_t i;
+            mutable std::vector<unsigned char>* v; ///< The STL vector being wrapped.
+            mutable std::size_t i; ///< Current input location.
+
         public:
+            /// Create a buffer to wrap the specified \c vector.
+
+            /// \param[in] v The \c vector.
             VectorInputArchive(std::vector<unsigned char>& v) : v(&v) , i(0) {}
 
+            /// Load data from the vector.
+
+            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// serializable.
+            /// \tparam T The type of data to be loaded.
+            /// \param[out] t Where to store the loaded data.
+            /// \param[in] n The number of data items to be loaded.
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
@@ -94,18 +123,27 @@ namespace madness {
                 i += m;
             }
 
+            /// Open the archive.
             void open() {};
 
+            /// Reset the read location to the beginning of the \c vector.
             void rewind() const {
                 i=0;
             };
 
+            /// Get the amount of space left to be read from the \c vector.
+
+            /// \return The amount of space left to be read from the \c vector.
             std::size_t nbyte_avail() const {
                 return v->size()-i;
             };
 
+            /// Close the archive.
             void close() {}
         };
+
+        /// @}
     }
 }
-#endif // MADNESS_WORLD_VECAR_H__INCLUDED
+
+#endif // MADNESS_WORLD_VECTOR_ARCHIVE_H__INCLUDED
