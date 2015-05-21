@@ -38,6 +38,7 @@
  \ingroup serialization
 */
 
+#include <type_traits>
 #include <fstream>
 #include <memory>
 #include <madness/world/archive.h>
@@ -67,14 +68,14 @@ namespace madness {
 
             /// Write to the filestream.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// serializable.
             /// \tparam T The type of data to be written.
             /// \param[in] t Location of the data to be written.
             /// \param[in] n The number of data items to be written.
             template <class T>
             inline
-            typename madness::enable_if< madness::is_serializable<T>, void >::type
+            typename std::enable_if< madness::is_serializable<T>::value, void >::type
             store(const T* t, long n) const {
                 os.write((const char *) t, n*sizeof(T));
             }
@@ -111,14 +112,14 @@ namespace madness {
 
             /// Load from the filestream.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// serializable.
             /// \tparam T The type of data to be read.
             /// \param[out] t Where to put the loaded data.
             /// \param[in] n The number of data items to be loaded.
             template <class T>
             inline
-            typename madness::enable_if< madness::is_serializable<T>, void >::type
+            typename std::enable_if< madness::is_serializable<T>::value, void >::type
             load(T* t, long n) const {
                 is.read((char *) t, n*sizeof(T));
             }

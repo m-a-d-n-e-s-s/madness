@@ -45,6 +45,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <pthread.h>
+#include <type_traits>
 #include <typeinfo>
 #include <new>
 
@@ -885,7 +886,7 @@ namespace madness {
         /// \param[in] fn Description needed.
         /// \return Description needed.
         template <typename fnT>
-        static typename enable_if_c<detail::function_traits<fnT>::value ||
+        static typename std::enable_if<detail::function_traits<fnT>::value ||
                 detail::memfunc_traits<fnT>::value>::type
         make_id(std::pair<void*,unsigned short>& id, fnT fn) {
             FunctionPointerGrabber<fnT> poop;

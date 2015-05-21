@@ -38,6 +38,7 @@
 #ifndef MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 #define MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 
+#include <type_traits>
 #include <madness/world/thread.h>
 #include <madness/world/world_task_queue.h>
 
@@ -263,7 +264,7 @@ namespace madness {
         /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
         template <typename objT, typename memfnT>
         struct WorldObjectTaskHelper<objT, memfnT,
-                typename enable_if< std::is_base_of<std::enable_shared_from_this<objT>, objT> >::type>
+                typename std::enable_if< std::is_base_of<std::enable_shared_from_this<objT>, objT>::value >::type>
         {
             /// \todo Description needed.
             typedef typename if_c<memfunc_traits<memfnT>::constness,

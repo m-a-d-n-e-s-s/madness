@@ -36,6 +36,7 @@
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
 #include <iostream>
+#include <type_traits>
 #include <madness/world/parallel_runtime.h>
 #include <madness/world/print.h>
 #include <madness/world/scopedptr.h>
@@ -1351,7 +1352,7 @@ namespace madness {
         /// @param[in]	gridfile 	file with grid points, w/o key, but with same ordering
         /// @param[in]	vnuc_functor	subtract the values of this functor if regularization is needed
         template<size_t FDIM>
-        typename enable_if_c<NDIM==FDIM>::type
+        typename std::enable_if<NDIM==FDIM>::type
         read_grid(const std::string keyfile, const std::string gridfile,
                   std::shared_ptr< FunctionFunctorInterface<double,NDIM> > vnuc_functor) {
 
@@ -1459,7 +1460,7 @@ namespace madness {
         /// @param[in]	gridfile		file with keys and grid points and values for each key
         /// @param[in]	vnuc_functor	subtract the values of this functor if regularization is needed
         template<size_t FDIM>
-        typename enable_if_c<NDIM==FDIM>::type
+        typename std::enable_if<NDIM==FDIM>::type
         read_grid2(const std::string gridfile,
                    std::shared_ptr< FunctionFunctorInterface<double,NDIM> > vnuc_functor) {
 

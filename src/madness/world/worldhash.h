@@ -134,6 +134,7 @@ provide the appropriate template parameter to the hashing container.
 #include <stdint.h>
 #include <cstddef>
 #include <iterator>
+#include <type_traits>
 
 // Bob Jenkin's "lookup v3" hash from http://www.burtleburtle.net/bob/c/lookup3.c.
 extern "C" {
@@ -156,7 +157,7 @@ namespace madness {
     /// \note Use heavily optimized hashword when sizeof(T) is multiple
     /// of sizeof(uint32_t) and presumably correctly aligned.
     template <class T>
-    inline typename enable_if_c<std::is_fundamental<T>::value &&
+    inline typename std::enable_if<std::is_fundamental<T>::value &&
         ((sizeof(T)%sizeof(uint32_t)) == 0),
         hashT>::type
     hash_value(const T t) {
@@ -172,7 +173,7 @@ namespace madness {
     /// \param t The object to hash
     /// \return The hashed value
     template <class T>
-    inline typename madness::enable_if_c<std::is_fundamental<T>::value &&
+    inline typename std::enable_if<std::is_fundamental<T>::value &&
         ((sizeof(T)%sizeof(uint32_t)) != 0),
         hashT>::type
     hash_value(const T t) {
@@ -198,7 +199,7 @@ namespace madness {
     /// \param t The object to hash
     /// \return \c t.hash()
     template <typename T>
-    inline typename enable_if_c<!(std::is_fundamental<T>::value ||
+    inline typename std::enable_if<!(std::is_fundamental<T>::value ||
         std::is_pointer<T>::value || std::is_array<T>::value), hashT>::type
     hash_value(const T& t) {
         return t.hash();
@@ -321,7 +322,7 @@ namespace madness {
     /// \note May use heavily optimized hashword when n * sizeof(T) is multiple
     /// of sizeof(uint32_t) and presumably correctly aligned.
     template <class T>
-    inline typename enable_if<std::is_fundamental<T> >::type
+    inline typename std::enable_if<std::is_fundamental<T>::value >::type
     hash_range(hashT& seed, const T* t, std::size_t n) {
         const std::size_t bytes = n * sizeof(T);
         if((bytes % sizeof(uint32_t)) == 0)

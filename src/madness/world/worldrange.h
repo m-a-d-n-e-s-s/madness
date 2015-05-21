@@ -33,6 +33,7 @@
 #ifndef MADNESS_WORLD_WORLDRANGE_H__INCLUDED
 #define MADNESS_WORLD_WORLDRANGE_H__INCLUDED
 
+#include <type_traits>
 #include <iterator>
 #include <madness/world/enable_if.h>
 
@@ -115,7 +116,7 @@ namespace madness {
 
     private:
         template<typename integralT, typename distanceT>
-        inline static typename enable_if<std::is_integral<integralT>, void>::type
+        inline static typename std::enable_if<std::is_integral<integralT>::value, void>::type
         advance(integralT& i, distanceT n) { i += n; }
 
         template<typename iterT, typename distanceT>
@@ -123,7 +124,7 @@ namespace madness {
         advance(iterT& it, distanceT n) { std::advance(it, n); }
 
         template<class integralT>
-        inline static typename enable_if<std::is_integral<integralT>, integralT>::type
+        inline static typename std::enable_if<std::is_integral<integralT>::value, integralT>::type
         distance(integralT first, integralT last) { return last - first; }
 
         template <class iterT>

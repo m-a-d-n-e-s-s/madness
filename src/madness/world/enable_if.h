@@ -29,34 +29,10 @@
   fax:   865-572-0680
 */
 
-/// \todo Can this be replaced by C++11's \c std::enable_if?
-
 #ifndef MADNESS_WORLD_ENABLE_IF_H__INCLUDED
 #define MADNESS_WORLD_ENABLE_IF_H__INCLUDED
 
 namespace madness {
-
-    /// enable_if_c from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution.
-    template <bool B, class returnT = void>
-    struct enable_if_c {
-        typedef returnT type;
-    };
-
-    /// enable_if_c from Boost for conditionally instantiating templates based on type
-    template <class returnT>
-    struct enable_if_c<false, returnT> {};
-
-    /// enable_if from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c Cond::value is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution.
-    template <class Cond, class returnT = void>
-    struct enable_if : public enable_if_c<Cond::value, returnT> {};
 
     /// disable_if from Boost for conditionally instantiating templates based on type
 

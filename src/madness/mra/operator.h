@@ -38,6 +38,7 @@
 
 /// \ingroup function
 
+#include <type_traits>
 #include <limits.h>
 #include <madness/mra/adquad.h>
 #include <madness/tensor/mtxmq.h>
@@ -1075,7 +1076,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename enable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        typename std::enable_if<FDIM==NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
         	return key;
         }

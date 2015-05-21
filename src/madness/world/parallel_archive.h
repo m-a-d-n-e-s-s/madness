@@ -38,6 +38,7 @@
  \ingroup serialization
 */
 
+#include <type_traits>
 #include <madness/world/archive.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/world.h>
@@ -376,7 +377,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename madness::enable_if<is_derived_from<Q, ParallelSerializableObject>, const ParallelOutputArchive&>::type
+            typename std::enable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelOutputArchive&>::type
             wrap_store(const ParallelOutputArchive& ar, const Q& t) {
                 ArchiveStoreImpl<ParallelOutputArchive,T>::store(ar,t);
                 return ar;
@@ -423,7 +424,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename madness::enable_if<is_derived_from<Q, ParallelSerializableObject>, const ParallelInputArchive&>::type
+            typename std::enable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelInputArchive&>::type
             wrap_load(const ParallelInputArchive& ar, const Q& t) {
                 ArchiveLoadImpl<ParallelInputArchive,T>::load(ar,const_cast<T&>(t));
                 return ar;

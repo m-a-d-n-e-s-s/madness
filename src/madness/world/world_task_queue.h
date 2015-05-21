@@ -38,6 +38,7 @@
 #ifndef MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
 #define MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
 
+#include <type_traits>
 #include <iostream>
 #include <madness/world/nodefaults.h>
 #include <madness/world/worldrange.h>
@@ -114,7 +115,7 @@ namespace madness {
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename enable_if<is_func_ptr<fnT> >::type
+            typename std::enable_if<is_func_ptr<fnT>::value >::type
             serialize_internal(const Archive& ar) {
                 ar & ref & archive::wrap_opaque(func) & attr;
             }
