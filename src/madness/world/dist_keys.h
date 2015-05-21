@@ -27,123 +27,126 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
  */
 
 #ifndef MADNESS_WORLD_DISTRIBUTED_ID_H__INCLUDED
 #define MADNESS_WORLD_DISTRIBUTED_ID_H__INCLUDED
+
+/**
+ \file dist_keys.h
+ \brief \todo Description needed.
+ \ingroup parallel_runtime
+*/
 
 #include <madness/world/uniqueid.h>
 #include <madness/world/worldtypes.h>
 
 namespace madness {
 
-    /// Distributed ID which is used to identify objects
+    /// Distributed ID which is used to identify objects.
     typedef std::pair<uniqueidT, std::size_t> DistributedID;
 
-    /// Distributed ID equality comparison operator
+    /// Distributed ID equality comparison operator.
 
-    /// \param left The first key to compare
-    /// \param right The second key to compare
-    /// \return \c true when \c first and \c second of \c left and \c right are
-    /// equal, otherwise \c false
+    /// \param[in] left The first key to compare.
+    /// \param[in] right The second key to compare.
+    /// \return True when \c first and \c second of \c left and \c right are
+    ///    equal; otherwise false.
     inline bool operator==(const DistributedID& left, const DistributedID& right) {
         return (left.first == right.first) && (left.second == right.second);
     }
 
-    /// Distributed ID inequality comparison operator
+    /// Distributed ID inequality comparison operator.
 
-    /// \param left The first key to compare
-    /// \param right The second key to compare
-    /// \return \c true when \c first or \c second of \c left and \c right are
-    /// not equal, otherwise \c false
+    /// \param[in] left The first key to compare.
+    /// \param[in] right The second key to compare.
+    /// \return True when \c first or \c second of \c left and \c right are
+    ///    not equal; otherwise false.
     inline bool operator!=(const DistributedID& left, const DistributedID& right) {
         return (left.first != right.first) || (left.second != right.second);
     }
 
-    /// Key object that included the process information
+    /// Key object that includes the process information.
 
-    /// \tparam Key The base key type
-    /// \tparam Tag A type to differentiate key types
+    /// \tparam Key The base key type.
+    /// \tparam Tag A type to differentiate key types.
     template <typename Key, typename Tag = void>
     class ProcessKey {
     private:
-        Key key_; ///< The base key type
-        ProcessID proc_; ///< The process that generated the key
+        Key key_; ///< The base key type.
+        ProcessID proc_; ///< The process that generated the key.
 
     public:
 
-        /// Default constructor
+        /// Default constructor.
         ProcessKey() : key_(), proc_(-1) { }
 
-        /// Constructor
+        /// Constructor.
 
-        /// \param key The base key
-        /// \param proc The process that generated the key
+        /// \param[in] key The base key.
+        /// \param[in] proc The process that generated the key.
         ProcessKey(const Key& key, const ProcessID proc) :
             key_(key), proc_(proc)
         { }
 
-        /// Copy constructor
+        /// Copy constructor.
 
-        /// \param other The key to be copied
+        /// \param[in] other The key to be copied.
         ProcessKey(const ProcessKey<Key, Tag>& other) :
             key_(other.key_), proc_(other.proc_)
         { }
 
-        /// Copy assignment operator
+        /// Copy assignment operator.
 
-        /// \param other The key to be copied
-        /// \return A reference to this object
+        /// \param[in] other The key to be copied.
+        /// \return A reference to this object.
         ProcessKey<Key, Tag>& operator=(const ProcessKey<Key, Tag>& other) {
             key_ = other.key_;
             proc_ = other.proc_;
             return *this;
         }
 
-        /// Base key accessor
+        /// Base key accessor.
 
-        /// \return The base key
+        /// \return The base key.
         const Key& key() const { return key_; }
 
-        /// Process id accessor
+        /// Process ID accessor.
 
-        /// \return The process id
+        /// \return The process ID.
         ProcessID proc() const { return proc_; }
 
-        /// Equality comparison
+        /// Equality comparison.
 
-        /// \param other The key to be compared to this
-        /// \return \c true when other key and other process are equal to that of
-        /// this key, otherwise \c false.
+        /// \param[in] other The key to be compared to this.
+        /// \return True when other key and other process are equal to that of
+        ///    this key; otherwise false.
         bool operator==(const ProcessKey<Key, Tag>& other) const {
             return ((key_ == other.key_) && (proc_ == other.proc_));
         }
 
-        /// Inequality comparison
+        /// Inequality comparison.
 
-        /// \param other The key to be compared to this
-        /// \return \c true when other key or other process are not equal to that
-        /// of this key, otherwise \c false.
+        /// \param[in] other The key to be compared to this.
+        /// \return True when other key or other process are not equal to that
+        ///    of this key; otherwise false.
         bool operator!=(const ProcessKey<Key, Tag>& other) const {
             return ((key_ != other.key_) || (proc_ != other.proc_));
         }
 
-        /// Serialize this key
+        /// Serialize this key.
 
-        /// \tparam Archive The archive type
-        /// \param ar The archive object that will serialize this object
+        /// \tparam Archive The archive type.
+        /// \param[in,out] ar The archive object that will serialize this object.
         template <typename Archive>
         void serialize(const Archive& ar) {
             ar & key_ & proc_;
         }
 
-        /// Hashing function
+        /// Hashing function.
 
-        /// \param key The key to be hashed
-        /// \return The hashed key value
+        /// \param[in] key The key to be hashed.
+        /// \return The hashed key value.
         friend hashT hash_value(const ProcessKey<Key, Tag>& key) {
             Hash<Key> hasher;
             hashT seed = hasher(key.key_);
@@ -153,73 +156,73 @@ namespace madness {
 
     }; // class ProcessKey
 
-    /// Key object that uses a tag to differentiate keys
+    /// Key object that uses a tag to differentiate keys.
 
-    /// \tparam Key The base key type
-    /// \tparam Tag A type to differentiate key types
+    /// \tparam Key The base key type.
+    /// \tparam Tag A type to differentiate key types.
     template <typename Key, typename Tag>
     class TaggedKey {
     private:
-        Key key_; ///< The base key type
+        Key key_; ///< The base key type.
 
     public:
 
-        /// Default constructor
+        /// Default constructor.
         TaggedKey() : key_() { }
 
-        /// Constructor
+        /// Constructor.
 
-        /// \param key The base key
+        /// \param[in] key The base key.
         TaggedKey(const Key& key) : key_(key) { }
 
-        /// Copy constructor
+        /// Copy constructor.
 
-        /// \param other The key to be copied
+        /// \param[in] other The key to be copied.
         TaggedKey(const TaggedKey<Key, Tag>& other) : key_(other.key_) { }
 
-        /// Copy assignment operator
+        /// Copy assignment operator.
 
-        /// \param other The key to be copied
-        /// \return A reference to this object
+        /// \param[in] other The key to be copied.
+        /// \return A reference to this object.
         TaggedKey<Key, Tag>& operator=(const TaggedKey<Key, Tag>& other) {
             key_ = other.key_;
             return *this;
         }
 
-        /// Base key accessor
+        /// Base key accessor.
 
-        /// \return The base key
+        /// \return The base key.
         const Key& key() const { return key_; }
 
-        /// Equality comparison
+        /// Equality comparison.
 
-        /// \param other The key to be compared to this
-        /// \return \c true when other key and other process are equal to that of
-        /// this key, otherwise \c false.
+        /// \param[in] other The key to be compared to this.
+        /// \return True when other key and other process are equal to that of
+        ///    this key; otherwise false.
         bool operator==(const TaggedKey<Key, Tag>& other) const {
             return (key_ == other.key_);
         }
 
-        /// Inequality comparison
+        /// Inequality comparison.
 
-        /// \param other The key to be compared to this
-        /// \return \c true when other key or other process are not equal to that
-        /// of this key, otherwise \c false.
+        /// \param[in] other The key to be compared to this.
+        /// \return True when other key or other process are not equal to that
+        ///    of this key; otherwise false.
         bool operator!=(const TaggedKey<Key, Tag>& other) const {
             return (key_ != other.key_);
         }
 
-        /// Serialize this key
+        /// Serialize this key.
 
-        /// \tparam Archive The archive type
-        /// \param ar The archive object that will serialize this object
+        /// \tparam Archive The archive type.
+        /// \param[in,out] ar The archive object that will serialize this object.
         template <typename Archive>
         void serialize(const Archive& ar) { ar & key_; }
 
-        /// Hashing function
+        /// Hashing function.
 
-        /// \param key The key to be hashed
-        /// \return The hashed key value
+        /// \param[in] key The key to be hashed.
+        /// \return The hashed key value.
         friend hashT hash_value(const TaggedKey<Key, Tag>& key) {
             Hash<Key> hasher;
             return hasher(key.key_);
@@ -231,10 +234,10 @@ namespace madness {
 
 namespace std {
 
-    /// Hash a DistributedID
+    /// Hash a \c DistributedID.
 
-    /// \param id The distributed id to be hashed
-    /// \return The hash value of \c id
+    /// \param[in] id The distributed ID to be hashed.
+    /// \return The hash value of \c id.
     inline madness::hashT hash_value(const madness::DistributedID& id) {
         madness::hashT seed = madness::hash_value(id.first);
         madness::detail::combine_hash(seed, madness::hash_value(id.second));
