@@ -671,7 +671,7 @@ namespace madness {
         // Returns range of Gaussian for periodic lattice sum in simulation coords
         static int maxR(bool periodic, double expnt) {
             if (periodic) {
-                return std::max(1,int(sqrt(16.0*2.3/expnt)));
+                return std::max(1,int(sqrt(16.0*2.3/expnt)+1));
             }
             else {
                 return 0;

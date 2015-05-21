@@ -27,19 +27,48 @@ static const double L = 3.8; // Unit cell size in au for LiF
 //static const double L = 8.0;
 //static const double L = 10.26085381075144364474; // Unit cell size in au for Si
 
-static const int R = 1; // periodic sums from -R to +R inclusive
+static const int maxR = 3; // periodic sums from -R to +R inclusive
 static const double thresh = 1e-4;
 static const double kwavelet = 6;
 static const int truncate_mode = 0;
 
-static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
-//static const double kx=0, ky=0, kz=0;
+//static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
+static const double kx=0.5*twopi/L, ky=0.0, kz=0.0;
+//static const double kx=0.0, ky=0.5*twopi/L, kz=0.0;
+//static const double kx=0.0, ky=0.0, kz=0.0;
 
 static Molecule molecule;
 static AtomicBasisSet aobasis;
 
 typedef SeparatedConvolution<double,3> operatorT;
+typedef SeparatedConvolution<double_complex,3> coperatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
+
+template <typename Q>
+class ExpFunctor: public FunctionFunctorInterface<Q,3> {
+private:
+    Q qx;
+    Q qy;
+    Q qz;
+public:
+    ExpFunctor(Q qx, Q qy, Q qz) : qx(qx), qy(qy), qz(qz) {}
+    Q operator()(const coord_3d& x) const {
+      return std::exp(qx*x[0] + qy*x[1] + qz*x[2]);
+    }
+};
+
+template <typename Q>
+class ExpFunctor3d: public FunctionFunctorInterface<Q,3> {
+private:
+    Q q0;
+    Q q1;
+    Q q2;
+public:
+    ExpFunctor3d(Q q0, Q q1, Q q2) : q0(q0), q1(q1), q2(q2) {}
+    Q operator()(const coord_3d& x) const {
+      return std::exp(q0*x[0])*std::exp(q1*x[1])*std::exp(q2*x[2]);
+    }
+};
 
 class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
@@ -51,9 +80,9 @@ public:
 
     double operator()(const coord_3d& x) const {
         double sum = 0.0;
-        for (int i=-R; i<=+R; i++) {
-            for (int j=-R; j<=+R; j++) {
-                for (int k=-R; k<=+R; k++) {
+        for (int i=-maxR; i<=+maxR; i++) {
+            for (int j=-maxR; j<=+maxR; j++) {
+                for (int k=-maxR; k<=+maxR; k++) {
                     sum += aobasis.eval_guess_density(molecule, x[0]+i*L, x[1]+j*L, x[2]+k*L);
                 }
             }
@@ -80,11 +109,11 @@ public:
 
     double_complex operator()(const coord_3d& x) const {
         double_complex sum = 0.0;
-        for (int i=-R; i<=+R; i++) {
+        for (int i=-maxR; i<=+maxR; i++) {
             double xx = x[0]+i*L;
-            for (int j=-R; j<=+R; j++) {
+            for (int j=-maxR; j<=+maxR; j++) {
                 double yy = x[1]+j*L;
-                for (int k=-R; k<=+R; k++) {
+                for (int k=-maxR; k<=+maxR; k++) {
                     double zz = x[2]+k*L;
                     sum += exp(-I*(kx*xx+ky*yy+kz*zz))*aofunc(xx, yy, zz);
                 }
@@ -107,7 +136,7 @@ public:
 
     double operator()(const coord_3d& x) const {
         double sum = 0.0;
-        static const int R = std::max(::R,1);
+        static const int R = std::max(::maxR,1);
         for (int i=-R; i<=+R; i++) {
             for (int j=-R; j<=+R; j++) {
                 for (int k=-R; k<=+R; k++) {
@@ -147,9 +176,9 @@ tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3
     // -1/2 (del + ik)^2 = -1/2 del^2 - i k.del + 1/2 k^2
     // -1/2 <p|del^2|q> = +1/2 <del p | del q>
 
-    tensor_complex f1 = 0.5 * (matrix_inner(world, dvx, dvx, true) +
-                               matrix_inner(world, dvy, dvy, true) +
-                               matrix_inner(world, dvz, dvz, true));
+    tensor_complex f1 = 0.5 * (matrix_inner(world, dvx, dvx, false) +
+                               matrix_inner(world, dvy, dvy, false) +
+                               matrix_inner(world, dvz, dvz, false));
 
     tensor_complex f2 =
         (-I*kx)*matrix_inner(world, v, dvx, false) +
@@ -161,11 +190,10 @@ tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3
     return f1 + f2 + f3;
 }
 
-vector_complex_function_3d apply_potential(const real_function_3d& potential, const vector_complex_function_3d& psi)
+vector_complex_function_3d apply_potential(World& world, const real_function_3d& potential, const vector_complex_function_3d& psi)
 {
-    vector_complex_function_3d vpsi;
-    for (unsigned int i=0; i<psi.size(); i++)
-        vpsi.push_back(potential*psi[i]);
+    vector_complex_function_3d vpsi = mul(world, potential, psi, false);
+    world.gop.fence();
     return vpsi;
 }
 
@@ -209,6 +237,22 @@ void orthogonalize(World& world, vector_complex_function_3d& psi) {
     }
 }
 
+// function to apply BSH with twisted PBC
+// kx, ky, kz -- some k value in the 1BZ (e.g. 0.5*2.0*pi/L where L is the lattice constant)
+// energy     -- bound state energy (should be negative)
+// L          -- lattice constant
+complex_function_3d apply_periodic_bsh(World& world, const complex_function_3d& f, 
+                                       const double& kx, const double& ky, const double& kz,
+                                       const double& energy, const double& L) {
+  complex_function_3d phase_p = complex_factory_3d(world).functor(complex_functor_3d(
+    new ExpFunctor3d<double_complex>(I*kx,I*ky,I*kz))).truncate_mode(0).truncate_on_project();
+  complex_function_3d phase_m = complex_factory_3d(world).functor(complex_functor_3d(
+    new ExpFunctor3d<double_complex>(-I*kx,-I*ky,-I*kz))).truncate_mode(0).truncate_on_project();
+  SeparatedConvolution<double_complex,3> op = 
+    PeriodicBSHOperator3D(world, vec(-kx*L, -ky*L, -kz*L), sqrt(-2.0*(energy)),  1e-4, FunctionDefaults<3>::get_thresh());
+  complex_function_3d g = phase_m*apply(op, phase_p*f);
+  return g;
+}
 
 // DESTROYS VPSI
 vector_complex_function_3d update(World& world,
@@ -224,13 +268,6 @@ vector_complex_function_3d update(World& world,
     // -ik.del + 1/2 k^2
     double ksq = kx*kx + ky*ky + kz*kz;
     coord_3d k = vec(kx, ky, kz);
-    for (int i=0; i<nmo; i++) {
-        for (int axis=0; axis<3; axis++) {
-            complex_derivative_3d D(world, axis);
-            vpsi[i] = vpsi[i] - (I*k[axis])*D(psi[i]);
-        }
-        vpsi[i] = vpsi[i] + (0.5*ksq)*psi[i];
-    }
 
     // determine shift to make homo <=-0.1
     double shift = 0.0;
@@ -242,14 +279,27 @@ vector_complex_function_3d update(World& world,
     // Do the BSH thing
     scale(world, vpsi, -2.0);
     truncate(world, vpsi);
-    vector<poperatorT> ops = make_bsh_operators(world, e, shift);
-    vector_complex_function_3d new_psi = apply(world, ops, vpsi);
+    
+    vector_complex_function_3d new_psi(nmo);
+    for (int iorb = 0; iorb < nmo; iorb++) {
+//         //coperatorT op = PeriodicBSHOperator3D(world, vec(kx*L, ky*L, kz*L), sqrt(-2.0*(e[iorb]+shift)),  1e-4, thresh);
+//        //coperatorT op = PeriodicBSHOperator3D(world, vec(-kx*L, -ky*L, -kz*L), sqrt(-2.0*(e[iorb]+shift)),  1e-4, thresh);
+//        coperatorT op = PeriodicBSHOperator3D(world, vec(kx*L, ky*L, kz*L), sqrt(-2.0*(e[iorb]+shift)),  1e-4, thresh);
+//        operatorT op2 = BSHOperator3D(world, sqrt(-2.0*(e[iorb]+shift)),  1e-4, thresh);
+//        complex_function_3d phase_p = complex_factory_3d(world).functor(complex_functor_3d(new ExpFunctor<double_complex>(I*kx,I*ky,I*kz))).truncate_mode(0).truncate_on_project();
+//        complex_function_3d phase_m = complex_factory_3d(world).functor(complex_functor_3d(new ExpFunctor<double_complex>(-I*kx,-I*ky,-I*kz))).truncate_mode(0).truncate_on_project();
+//        //new_psi[iorb] = phase_m*apply(op2, phase_p*vpsi[iorb]);
+//        new_psi[iorb] = phase_p*apply(op2, phase_m*vpsi[iorb]);
+      new_psi[iorb] = apply_periodic_bsh(world, vpsi[iorb], kx, ky, kz, e[iorb]+shift, L);
+    }
+
 
     // Step restriction
     double damp;
     if (iter < 10) damp = 0.95;
     else if (iter < 20) damp = 0.85;
     else damp = 0.75;
+    damp = 0.15;
     if (world.rank() == 0) print("  shift", shift, "damp", damp, "\n");
 
     if (world.rank() == 0) printf("      eigenvalue    residual\n");
@@ -295,12 +345,12 @@ int main(int argc, char** argv) {
 
     // Cubic cell for LiF
     molecule.add_atom(  0,  0,  0, 9.0, 9);
-    // molecule.add_atom(L/2,L/2,  0, 9.0, 9);
-    // molecule.add_atom(L/2,  0,L/2, 9.0, 9);
-    // molecule.add_atom(  0,L/2,L/2, 9.0, 9);
-    // molecule.add_atom(L/2,  0,  0, 3.0, 3);
-    // molecule.add_atom(  0,L/2,  0, 3.0, 3);
-    // molecule.add_atom(  0,  0,L/2, 3.0, 3);
+    molecule.add_atom(L/2,L/2,  0, 9.0, 9);
+    molecule.add_atom(L/2,  0,L/2, 9.0, 9);
+    molecule.add_atom(  0,L/2,L/2, 9.0, 9);
+    molecule.add_atom(L/2,  0,  0, 3.0, 3);
+    molecule.add_atom(  0,L/2,  0, 3.0, 3);
+    molecule.add_atom(  0,  0,L/2, 3.0, 3);
     molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
 
     // Cubic cell for Si
@@ -344,7 +394,7 @@ int main(int argc, char** argv) {
     for (int iter=0; iter<100; iter++) {
         if (world.rank() == 0) print("\n\n  Iteration",iter,"\n");
         real_function_3d v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
-        vector_complex_function_3d vpsi = apply_potential(v, psi);
+        vector_complex_function_3d vpsi = apply_potential(world, v, psi);
 
         tensor_complex ke_mat = make_kinetic_matrix(world, psi);
         tensor_complex pe_mat = matrix_inner(world, psi, vpsi, true);
@@ -367,6 +417,20 @@ int main(int argc, char** argv) {
             }
         }
 
+        //for (unsigned int i = 0; i < psi.size(); i++) {
+        //  for (unsigned int j = 0; j < psi.size(); j++) {
+        //    printf("%15.8e    ", real(fock(i,j)));
+        //  }
+        //  printf("\n");
+        //}
+        //printf("\n\n");
+        //for (unsigned int i = 0; i < psi.size(); i++) {
+        //  for (unsigned int j = 0; j < psi.size(); j++) {
+        //    printf("%15.8e    ", real(ov_mat(i,j)));
+        //  }
+        //  printf("\n");
+        //}
+
         tensor_complex c;
         tensor_real e;
         sygv(fock, ov_mat, 1, c, e);
@@ -381,6 +445,17 @@ int main(int argc, char** argv) {
         psi = transform(world, psi, c);
         vpsi = transform(world, vpsi, c);
 
+        if (iter == 8) {
+          print("reprojecting ..");
+            vnuc = madness::project(vnuc, kwavelet+2, thresh*1e-2, true); 
+          for (int i = 0; i < nmo; i++) {
+            FunctionDefaults<3>::set_k(kwavelet+2);
+            FunctionDefaults<3>::set_thresh(thresh*1e-2);
+            psi[i] = madness::project(psi[i], kwavelet+2, thresh*1e-2, true); 
+            vpsi[i] = madness::project(vpsi[i], kwavelet+2, thresh*1e-2, true); 
+          }
+          print("done reprojecting ..");
+        }
         psi = update(world, psi, vpsi, e, iter);
 
         rho = make_density(world, psi);

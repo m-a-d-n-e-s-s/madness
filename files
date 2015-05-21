@@ -86,6 +86,7 @@ moldx.py
 nwtoxml.py
 pointgroup.h
 preal.cc
+testcosine.cc
 testmolbas.cc
 testperiodic.cc
 testpg.cc

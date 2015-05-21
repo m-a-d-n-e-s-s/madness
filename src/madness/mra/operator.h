@@ -1007,11 +1007,13 @@ namespace madness {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
 
             for (int mu=0; mu<rank; ++mu) {
+                double c = std::pow(sqrt(expnt(mu)/madness::constants::pi),static_cast<int>(NDIM)); // Normalization coeff
+                ops[mu].setfac(coeff(mu)/c);
                 for (std::size_t d=0; d<NDIM; ++d) {
-                  Q c = pow(coeff[mu],1.0/NDIM);
-                  std::shared_ptr<GaussianConvolution1D<Q> >
-                      gcptr(new GaussianConvolution1D<Q>(k, c*width[d], expnt(mu)*width[d]*width[d],
-                              0, isperiodicsum, args[d]));
+                  double c2 = sqrt(expnt[mu]*width[d]*width[d]/madness::constants::pi);
+                  std::shared_ptr<GaussianConvolution1D<double_complex> >
+                      gcptr(new GaussianConvolution1D<double_complex>(k, c2, 
+                            expnt(mu)*width[d]*width[d], 0, isperiodicsum, args[d]));
                   ops[mu].setop(d,gcptr);
                 }
             }
@@ -1571,6 +1573,32 @@ namespace madness {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
+    }
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
+    static
+    inline
+    SeparatedConvolution<double_complex,3> PeriodicBSHOperator3D(World& world,
+                                                         Vector<double,3> args,
+                                                         double mu,
+                                                         double lo,
+                                                         double eps,
+                                                         const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                         int k=FunctionDefaults<3>::get_k())
+
+    {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+        return SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k);
     }
 
     /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
