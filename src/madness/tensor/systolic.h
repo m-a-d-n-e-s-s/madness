@@ -406,7 +406,7 @@ namespace madness {
             do {
                 iteration(nthread);
                 done = tbb::parallel_reduce(tbb::blocked_range<int>(0,nthread), true,
-                    [=] (const tbb::blocked_range<int>& range, bool init) {
+                    [=] (const tbb::blocked_range<int>& range, bool init) -> bool {
                         for(int id = range.begin(); id < range.end(); ++id)
                             init = init &&
                                 this->converged(TaskThreadEnv(nthread, id));
