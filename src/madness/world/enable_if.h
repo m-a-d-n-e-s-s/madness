@@ -119,26 +119,4 @@ namespace madness {
 
 } // namespace madness
 
-
-/* Macros to make some of this stuff more readable */
-
-/**
-
-   \def ENABLE_IF(CONDITION,TYPEIFTRUE)
-   \brief Macro to make enable_if<> template easier to use
-
-   \def DISABLE_IF(CONDITION,TYPEIFTRUE)
-   \brief Macro to make disable_if<> template easier to use
-
-
-   \def DISABLE_IF(CONDITION,TYPEIFTRUE)
-   \brief Macro to make enable_if<madness::is_same< A , B > > template easier to use
-
-*/
-
-#define ENABLE_IF(CONDITION,TYPEIFTRUE)  typename madness::enable_if< CONDITION, TYPEIFTRUE >::type
-#define DISABLE_IF(CONDITION,TYPEIFTRUE) typename madness::disable_if< CONDITION, TYPEIFTRUE >::type
-#define ENABLE_IF_SAME(A,B,TYPEIFTRUE) typename madness::enable_if<madness::is_same< A , B >, TYPEIFTRUE >::type
-#define DISABLE_IF_SAME(A,B,TYPEIFTRUE) typename madness::disable_if<madness::is_same< A , B >, TYPEIFTRUE >::type
-
 #endif // MADNESS_WORLD_ENABLE_IF_H__INCLUDED
