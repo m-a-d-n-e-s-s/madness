@@ -131,8 +131,9 @@ namespace madness {
             typedef typename std::iterator_traits<iterT>::difference_type type;
         };
 
-        template<class iterT>
-        inline static typename lazy_disable_if<std::is_integral<iterT>::value, diff_type<iterT> >::type
+        template<class iterT,
+           typename std::enable_if<!std::is_integral<iterT>::value>::type* = nullptr>
+        inline static typename std::iterator_traits<iterT>::difference_type
         distance(iterT first, iterT last) { return std::distance(first, last); }
     };
 

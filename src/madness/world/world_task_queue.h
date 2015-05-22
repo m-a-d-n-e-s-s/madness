@@ -133,13 +133,21 @@ namespace madness {
             }
         }; // struct TaskHandlerInfo
 
+        template <bool B, class returnT>
+        struct function_enabler_helper {
+          typedef typename returnT::type type;
+        };
+
+        template <class returnT>
+        struct function_enabler_helper<false, returnT> { };
+
         /// \todo Brief description needed.
 
         /// \todo Descriptions needed.
         /// \tparam fnT Description needed.
         template <typename fnT>
         struct function_enabler : public
-            lazy_enable_if<
+            function_enabler_helper<
                 function_traits<fnT>::value || is_functor<fnT>::value,
                 task_result_type<fnT> >
         { };
@@ -515,10 +523,8 @@ namespace madness {
         /// and the rest by the task interface.
         /// \code
         /// struct opT {
-        ///     opT();
         ///     opT(const opT&);
         ///     bool operator()(const rangeT::iterator& it) const;
-        ///     template <typename Archive> void serialize(const Archive& ar);
         /// };
         /// \endcode
         /// \note The serialize method does not actually have to
@@ -1321,6 +1327,76 @@ namespace madness {
 
     namespace detail {
 
+#ifdef HAVE_INTEL_TBB
+
+        /// Apply an operation to a range of iterators.
+
+        /// \tparam rangeT The range of iterators type.
+        /// \tparam opT The operation type.
+        /// This task creates `for_each` tasks and collects information on the
+        /// results of those tasks. Once all tasks have completed it will set
+        /// the result future.
+        template <typename rangeT, typename opT>
+        class ForEachRootTask : public TaskInterface {
+        private:
+            rangeT range_; ///< The range
+            opT op_; ///< The foreach function
+            Future<bool> completion_status_; ///< The result of this set of tasks.
+
+        public:
+
+            /// Constructor.
+
+            /// \param[in] world The world where the tasks will run.
+            /// \param[in] range The range of iterators.
+            /// \param[in] op The operation that will be applied to the range of iterators.
+            ForEachRootTask(World&, const rangeT range, const opT& op) :
+                TaskInterface(0, TaskAttributes::hipri()), range_(range), op_(op)
+            { }
+
+            /// Virtual destructor.
+            virtual ~ForEachRootTask() { }
+
+            /// Result accessor.
+
+            /// \return A const reference to the result future.
+            const Future<bool>& result() const { return completion_status_; }
+
+            /// Task run work.
+
+            /// Sets the result future based on the status of all iterations.
+            virtual tbb::task* execute() {
+
+                // Note: We use parallel_reduce instead of parallel_foreach to
+                // accumulate result flags. Otherwise, this logically functions
+                // like parallel_foreach.
+                const bool result =
+                    tbb::parallel_reduce(range_, true,
+                        [this](const rangeT& r, bool init) -> bool {
+                            for(typename rangeT::iterator it = r.begin(); it != r.end();  ++it)
+                                init = init && op_(it);
+                            return init;
+                        },
+                        [](const bool left, const bool right) -> bool {
+                            return left && right;
+                        }
+                    );
+                completion_status_.set(result);
+                return nullptr;
+            }
+
+        private:
+            /// Get the task ID.
+
+            /// \todo Verify that \c id is an output parameter.
+            /// \param[out] id The ID to set for this task.
+            virtual void get_id(std::pair<void*,unsigned short>& id) const {
+                PoolTaskInterface::make_id(id, *this);
+            }
+        }; // class ForEachRootTask
+
+#else
+
         /// Apply an operation to a range of iterators.
 
         /// This task will progressively split range, creating leaves for each
@@ -1459,6 +1535,8 @@ namespace madness {
                 PoolTaskInterface::make_id(id, *this);
             }
         }; // class ForEachRootTask
+
+#endif // HAVE_INTEL_TBB
 
     }  // namespace detail
 
