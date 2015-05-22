@@ -38,6 +38,7 @@
 #include <sstream>
 #include <utility>
 #include <list>
+#include <memory>
 
 /*
   There is just one server thread and it is the only one
@@ -172,17 +173,17 @@ namespace madness {
             const ProcessID rank;       // Rank of this process
             volatile bool finished;     // True if finished
 
-            ScopedArray<volatile counterT> send_counters;
-            ScopedArray<counterT> recv_counters;
+            std::unique_ptr<volatile counterT[]> send_counters;
+            std::unique_ptr<counterT[]> recv_counters;
             std::size_t max_msg_len_;
             std::size_t nrecv_;
             std::size_t maxq_;
-            ScopedArray<void*> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
-            ScopedArray<SafeMPI::Request> recv_req;
+            std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages /// \todo Are [] needed in the template?
+            std::unique_ptr<SafeMPI::Request[]> recv_req;
 
-            ScopedArray<SafeMPI::Status> status;
-            ScopedArray<int> ind;
-            ScopedArray<qmsg> q;
+            std::unique_ptr<SafeMPI::Status[]> status;
+            std::unique_ptr<int[]> ind;
+            std::unique_ptr<qmsg[]> q;
             int n_in_q;
 
             static inline bool is_ordered(attrT attr) { return attr & ATTR_ORDERED; }

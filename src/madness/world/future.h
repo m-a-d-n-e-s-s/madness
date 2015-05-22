@@ -694,13 +694,12 @@ namespace madness {
     }; // class Future
 
 
-    /// A future of a future is forbidden (by private constructor).
+    /// A future of a future is forbidden (by deleted constructor).
 
     /// \tparam T The type of future.
     template <typename T>
     class Future< Future<T> > {
-        /// \todo This can be replaced by `= delete` when C++11 is used.
-        Future() {}
+        Future() = delete;
     };
 
 
@@ -803,7 +802,7 @@ namespace madness {
             return remote_refT();
         }
 
-        Future() {}
+        Future() = default;
 
         /// \todo Brief description needed.
 

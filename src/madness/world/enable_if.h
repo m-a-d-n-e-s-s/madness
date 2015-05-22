@@ -29,147 +29,92 @@
   fax:   865-572-0680
 */
 
-/// \todo Can this be replaced by C++11's \c std::enable_if?
-
 #ifndef MADNESS_WORLD_ENABLE_IF_H__INCLUDED
 #define MADNESS_WORLD_ENABLE_IF_H__INCLUDED
 
 namespace madness {
 
-    /// enable_if_c from Boost for conditionally instantiating templates based on type
+    /// Mirror of \c std::enable_if for conditionally instantiating (disabling) templates based on type.
 
-    /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
+    /// Evaluates to \c returnT if \c B is false, otherwise to an invalid type expression,
     /// which causes the template expression in which it is used to not be considered for
     /// overload resolution.
+    /// \tparam B The bool value.
+    /// \tparam returnT The type.
     template <bool B, class returnT = void>
-    struct enable_if_c {
-        typedef returnT type;
+    struct disable_if {
+        typedef returnT type; ///< The type.
     };
 
-    /// enable_if_c from Boost for conditionally instantiating templates based on type
+    /// Mirror of \c std::enable_if for conditionally instantiating (disabling) templates based on type.
+
+    /// Specialization that disables \c type when \c B is true.
+    /// \tparam returnT The type.
     template <class returnT>
-    struct enable_if_c<false, returnT> {};
+    struct disable_if<true, returnT> {};
 
-    /// enable_if from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c Cond::value is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution.
-    template <class Cond, class returnT = void>
-    struct enable_if : public enable_if_c<Cond::value, returnT> {};
-
-    /// disable_if from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c Cond::value is false, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution.
-    template <bool B, class returnT = void>
-    struct disable_if_c {
-        typedef returnT type;
-    };
-
-    /// disable_if from Boost for conditionally instantiating templates based on type
-    template <class returnT>
-    struct disable_if_c<true, returnT> {};
-
-    /// disable_if from Boost for conditionally instantiating templates based on type
-    template <class Cond, class returnT = void>
-    struct disable_if : public disable_if_c<Cond::value, returnT> {};
-
-    /// lazy_enable_if_c from Boost for conditionally instantiating templates based on type
+    /// Mirror of \c std::enable_if f for conditionally instantiating templates based on type, when the type \c T may only be meaningful if \c B is true.
 
     /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
     /// which causes the template expression in which it is used to not be considered for
     /// overload resolution. This "lazy" version is used if \c T is only valid when
     /// B is true. Note: typename T::type is the return type and must be well formed.
+    /// \tparam B The bool value.
+    /// \tparam returnT The type.
     template <bool B, class returnT>
-    struct lazy_enable_if_c {
-      typedef typename returnT::type type;
+    struct lazy_enable_if {
+      typedef typename returnT::type type; ///< The type.
     };
 
-    /// lazy_enable_if_c from Boost for conditionally instantiating templates based on type
+    /// Mirror of \c std::enable_if for conditionally instantiating templates based on type, when the type \c T may only be meaningful if \c B is true.
+
+    /// Specialization that disables \c type when \c B is false.
+    /// \tparam returnT The type.
     template <class returnT>
-    struct lazy_enable_if_c<false, returnT> { };
+    struct lazy_enable_if<false, returnT> { };
 
-    /// lazy_enable_if from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c Cond::value is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution. This "lazy" version is used if \c returnT is only valid when
-    /// Cond::value is true. Note: typename T::type is the return type and must be well formed.
-    template <class Cond, class returnT>
-    struct lazy_enable_if : public lazy_enable_if_c<Cond::value, returnT> { };
-
-    /// lazy_disable_if_c from Boost for conditionally instantiating templates based on type
+    /// Mirror of \c madness:lazy_enable_if for conditionally instantiating (disabling) templates based on type, when the type \c T may only be meaningful if \c B is false.
 
     /// Evaluates to \c returnT if \c B is false, otherwise to an invalid type expression
     /// which causes the template expression in which it is used to not be considered for
     /// overload resolution. This "lazy" version is used if \c returnT is only valid
     /// when B is false. Note: typename T::type is the return type and must be well formed.
+    /// \tparam B The bool value.
+    /// \tparam returnT The type.
     template <bool B, class returnT>
-    struct lazy_disable_if_c {
-      typedef typename returnT::type type;
+    struct lazy_disable_if {
+      typedef typename returnT::type type; ///< The type.
     };
 
-    /// lazy_disable_if_c from Boost for conditionally instantiating templates based on type
+    /// Mirror of madness::lazy_enable_if for conditionally instantiating (disabling) templates based on type, when the type \c T may only be meaningful if \c B is false.
+
+    /// Specialization that disables \c type when \c B is true.
+    /// \tparam returnT The type.
     template <class returnT>
-    struct lazy_disable_if_c<true, returnT> {};
+    struct lazy_disable_if<true, returnT> {};
 
-    /// lazy_disable_if from Boost for conditionally instantiating templates based on type
+    /// Use \c Cond to determine the type, \c T1 or \c T2.
 
-    /// Evaluates to \c returnT if \c Cond::value is false, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution. This "lazy" version is used if \c returnT is only valid when
-    /// Cond::value is false. Note: typename T::type is the return type and must be well formed.
-    template <class Cond, class returnT>
-    struct lazy_disable_if : public lazy_disable_if_c<Cond::value, returnT> {};
+    /// \c type will have type \c T1 if \c Cond is true; otherwise it will
+    /// have type \c T2.
+    /// \tparam Cond The bool value.
+    /// \tparam T1 Type of \c type if \c Cond is true.
+    /// \tparam T2 Type of \c type if \c Cond is false.
+    template <bool Cond, typename T1, typename T2>
+    struct switch_type {
+        typedef T1 type; ///< The type.
+    };
+    
+    /// Specialization of \c switch_type for when \c Cond is false.
 
-    /// enable_if_same (from Boost?) for conditionally instantiating templates if two types are equal
-
-    /// Use example
-    /// \code
-    ///     template <class T> A(T& other, typename enable_if_same<A const,T>::type = 0) {
-    /// \endcode
-//    template <class T, class U, class returnT = void>
-//    struct enable_if_same : public enable_if<madness::is_same<T,U>, returnT> {};
-
-        template <bool Cond, typename T1, typename T2>
-        struct if_c {
-            typedef T1 type;
-        };
-        
-        template <typename T1, typename T2>
-        struct if_c<false, T1, T2> {
-            typedef T2 type;
-        };
-        
-        template <typename Cond, typename T1, typename T2>
-        struct if_ : public if_c<Cond::value, T1, T2> {};
-
-
+    /// \c type will have type \c T2.
+    /// \tparam T1 Type of \c type if \c Cond is true (not used).
+    /// \tparam T2 Type of \c type if \c Cond is false.
+    template <typename T1, typename T2>
+    struct switch_type<false, T1, T2> {
+        typedef T2 type; ///< The type.
+    };
 
 } // namespace madness
-
-
-/* Macros to make some of this stuff more readable */
-
-/**
-
-   \def ENABLE_IF(CONDITION,TYPEIFTRUE)
-   \brief Macro to make enable_if<> template easier to use
-
-   \def DISABLE_IF(CONDITION,TYPEIFTRUE)
-   \brief Macro to make disable_if<> template easier to use
-
-
-   \def DISABLE_IF(CONDITION,TYPEIFTRUE)
-   \brief Macro to make enable_if<madness::is_same< A , B > > template easier to use
-
-*/
-
-#define ENABLE_IF(CONDITION,TYPEIFTRUE)  typename madness::enable_if< CONDITION, TYPEIFTRUE >::type
-#define DISABLE_IF(CONDITION,TYPEIFTRUE) typename madness::disable_if< CONDITION, TYPEIFTRUE >::type
-#define ENABLE_IF_SAME(A,B,TYPEIFTRUE) typename madness::enable_if<madness::is_same< A , B >, TYPEIFTRUE >::type
-#define DISABLE_IF_SAME(A,B,TYPEIFTRUE) typename madness::disable_if<madness::is_same< A , B >, TYPEIFTRUE >::type
 
 #endif // MADNESS_WORLD_ENABLE_IF_H__INCLUDED

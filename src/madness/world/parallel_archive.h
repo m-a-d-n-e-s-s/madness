@@ -38,10 +38,12 @@
  \ingroup serialization
 */
 
+#include <type_traits>
 #include <madness/world/archive.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/world.h>
 #include <madness/world/worldgop.h>
+#include <madness/world/enable_if.h>
 
 #include <unistd.h>
 #include <cstring>
@@ -75,7 +77,7 @@ namespace madness {
 
             /// Default constructor.
             BaseParallelArchive()
-                : world(0), ar(), nio(0), do_fence(true) {}
+                : world(nullptr), ar(), nio(0), do_fence(true) {}
 
             /// Returns the process doing I/O for given node.
 
@@ -376,7 +378,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename madness::enable_if<is_derived_from<Q, ParallelSerializableObject>, const ParallelOutputArchive&>::type
+            typename std::enable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelOutputArchive&>::type
             wrap_store(const ParallelOutputArchive& ar, const Q& t) {
                 ArchiveStoreImpl<ParallelOutputArchive,T>::store(ar,t);
                 return ar;
@@ -395,7 +397,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename madness::disable_if<is_derived_from<Q, ParallelSerializableObject>, const ParallelOutputArchive&>::type
+            typename disable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelOutputArchive&>::type
             wrap_store(const ParallelOutputArchive& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
@@ -423,7 +425,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename madness::enable_if<is_derived_from<Q, ParallelSerializableObject>, const ParallelInputArchive&>::type
+            typename std::enable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelInputArchive&>::type
             wrap_load(const ParallelInputArchive& ar, const Q& t) {
                 ArchiveLoadImpl<ParallelInputArchive,T>::load(ar,const_cast<T&>(t));
                 return ar;
@@ -442,7 +444,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename madness::disable_if<is_derived_from<Q, ParallelSerializableObject>, const ParallelInputArchive&>::type
+            typename disable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelInputArchive&>::type
             wrap_load(const ParallelInputArchive& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;

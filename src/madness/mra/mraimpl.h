@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  
-  $Id$
 */
 
 #ifndef MADNESS_MRA_MRAIMPL_H__INCLUDED
@@ -40,6 +37,7 @@
 #endif
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <memory>
 #include <math.h>
 #include <madness/world/world_object.h>
 #include <madness/world/worlddc.h>
@@ -864,7 +862,7 @@ namespace madness {
         if (key == cdata.key0 && coeffs.owner(key)!=world.rank()) return None;
         
         // First insert coefficients from above ... also get write accessors here
-        ScopedArray<typename dcT::accessor> acc(new typename dcT::accessor[v.size()]);
+        std::unique_ptr<typename dcT::accessor[]> acc(new typename dcT::accessor[v.size()]);
         for (unsigned int i=0; i<c.size(); i++) {
             MADNESS_ASSERT(v[i]->coeffs.get_pmap() == coeffs.get_pmap());
             MADNESS_ASSERT(v[i]->coeffs.owner(key) == world.rank());

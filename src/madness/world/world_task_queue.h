@@ -38,12 +38,14 @@
 #ifndef MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
 #define MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
 
+#include <type_traits>
 #include <iostream>
 #include <madness/world/nodefaults.h>
 #include <madness/world/worldrange.h>
 #include <madness/world/timers.h>
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
+#include <madness/world/world_task_queue.h>
 
 /// \addtogroup taskq
 /// @{
@@ -77,7 +79,7 @@ namespace madness {
             functionT func; ///< A task function.
             TaskAttributes attr; ///< Task attributes.
 
-            TaskHandlerInfo() {}
+            TaskHandlerInfo() = default;
 
             /// Construct task info object.
 
@@ -114,7 +116,7 @@ namespace madness {
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename enable_if<is_func_ptr<fnT> >::type
+            typename std::enable_if<is_func_ptr<fnT>::value >::type
             serialize_internal(const Archive& ar) {
                 ar & ref & archive::wrap_opaque(func) & attr;
             }
@@ -125,7 +127,7 @@ namespace madness {
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename disable_if<is_func_ptr<fnT> >::type
+            typename disable_if<is_func_ptr<fnT>::value >::type
             serialize_internal(const Archive& ar) {
                 ar & ref & func & attr;
             }
@@ -1409,18 +1411,8 @@ namespace madness {
             ForEachRootTask<rangeT, opT>& root_; ///< The root task that signals completion and status.
 
             // not allowed
-
-            /// Disallowed copy constructor.
-
-            /// \param[in] fet The \c ForEachTask that we won't copy.
-            /// \todo In C++11, just `= delete` this.
-            ForEachTask(const ForEachTask<rangeT, opT>& fet);
-
-            /// Disallowed copy operator.
-
-            /// \param[in] fet The \c ForEachTask that we won't copy.
-            /// \todo In C++11, just `= delete` this.
-            ForEachTask& operator=(const ForEachTask<rangeT, opT>& fet);
+            ForEachTask(const ForEachTask<rangeT, opT>& fet) = delete;
+            ForEachTask& operator=(const ForEachTask<rangeT, opT>& fet) = delete;
 
         public:
 
@@ -1438,8 +1430,7 @@ namespace madness {
             }
 
             /// Virtual destructor.
-            virtual ~ForEachTask()
-            { }
+            virtual ~ForEachTask() = default;
 
             /// Run the task.
 
@@ -1504,8 +1495,7 @@ namespace madness {
             }
 
             /// Virtual destructor.
-            virtual ~ForEachRootTask()
-            { }
+            virtual ~ForEachRootTask() = default;
 
             /// World accessor.
 
