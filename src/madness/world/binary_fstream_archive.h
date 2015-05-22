@@ -62,7 +62,7 @@ namespace madness {
             /// specified later by calling \c open().
             /// \param[in] filename Name of the file to write to.
             /// \param[in] mode I/O attributes for opening the file.
-            BinaryFstreamOutputArchive(const char* filename = 0,
+            BinaryFstreamOutputArchive(const char* filename = nullptr,
                                        std::ios_base::openmode mode = std::ios_base::binary | \
                                                                       std::ios_base::out | std::ios_base::trunc);
 
@@ -108,7 +108,7 @@ namespace madness {
             /// specified later by calling \c open().
             /// \param[in] filename Name of the file to read from.
             /// \param[in] mode I/O attributes for opening the file.
-            BinaryFstreamInputArchive(const char* filename = 0, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in);
+            BinaryFstreamInputArchive(const char* filename = nullptr, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in);
 
             /// Load from the filestream.
 

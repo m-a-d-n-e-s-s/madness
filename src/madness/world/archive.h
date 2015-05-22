@@ -581,11 +581,10 @@ namespace madness {
         public:
             T* ptr; ///< The pointer.
 
-            /// Constructor specifying `nullptr` by default.
+            /// Constructor specifying \c nullptr by default.
 
             /// \param[in] t The pointer.
-            /// \todo C++11 nullptr here?
-            archive_ptr(T* t = 0)
+            archive_ptr(T* t = nullptr)
                 : ptr(t) {}
 
             /// Dereference the pointer.
@@ -630,9 +629,7 @@ namespace madness {
             archive_array(const T *ptr, unsigned int n) : ptr(ptr), n(n) {}
 
             /// Constructor specifying no array and of 0 length.
-
-            /// \todo nullptr?
-            archive_array() : ptr(0), n(0) {}
+            archive_array() : ptr(nullptr), n(0) {}
         };
 
 
@@ -845,7 +842,7 @@ namespace madness {
             static inline void store(const Archive& ar, const std::vector<T>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector" << std::endl);
                 ar & v.size();
-                ar & wrap(&v[0],v.size());
+                ar & wrap(v.data(),v.size());
             }
         };
 
@@ -869,7 +866,7 @@ namespace madness {
                     v.clear();
                     v.resize(n);
                 }
-                ar & wrap((T *) &v[0],n);
+                ar & wrap((T *) v.data(),n);
             }
         };
 
@@ -932,7 +929,7 @@ namespace madness {
             static void store(const Archive& ar, const std::string& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL string" << std::endl);
                 ar & v.size();
-                ar & wrap((const char*) &v[0],v.size());
+                ar & wrap((const char*) v.data(),v.size());
             }
         };
 
@@ -955,7 +952,7 @@ namespace madness {
                     v.clear();
                     v.resize(n);
                 }
-                ar & wrap((char*) &v[0],n);
+                ar & wrap((char*) v.data(),n);
             }
         };
 

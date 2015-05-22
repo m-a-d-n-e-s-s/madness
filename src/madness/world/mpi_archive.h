@@ -203,7 +203,7 @@ namespace madness {
                     std::size_t m;
                     world->mpi.Recv(m, src, tag);
                     v.resize(m);
-                    world->mpi.Recv(&v[0], m, src, tag);
+                    world->mpi.Recv(v.data(), m, src, tag);
                 }
                 var.load(t,n);
             }

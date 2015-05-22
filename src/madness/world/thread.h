@@ -219,7 +219,7 @@ namespace madness {
 
     /// Simplified thread wrapper to hide pthread complexity.
     class Thread : public ThreadBase {
-        void* (*f)(void *); ///< The function called for executing this thread.
+        void* (*f)(void *); ///< The function called for executing this thread. \todo should we replace this by a std::function?
         void* args; ///< The arguments passed to this thread for execution.
 
         /// Invokes the function for this thread.
@@ -231,13 +231,13 @@ namespace madness {
         /// Default constructor.
 
         /// \c start() must be invoked to actually execute the thread.
-        Thread() : f(0), args(0) { }
+        Thread() : f(nullptr), args(nullptr) { }
 
         /// Create a thread and start it running `f(args)`.
 
         /// \param[in] f The function to be called.
         /// \param[in,out] args The arguments to the function.
-        Thread(void* (*f)(void *), void* args=0)
+        Thread(void* (*f)(void *), void* args=nullptr)
                 : f(f), args(args) {
             ThreadBase::start();
         }
@@ -246,13 +246,13 @@ namespace madness {
 
         /// \param[in] f The function to be called.
         /// \param[in,out] args The arguments to the function.
-        void start(void* (*f)(void *), void* args=0) {
+        void start(void* (*f)(void *), void* args=nullptr) {
             this->f = f;
             this->args = args;
             ThreadBase::start();
         }
 
-        virtual ~Thread() {}
+        virtual ~Thread() = default;
     }; // class Thread
 
 
@@ -634,25 +634,17 @@ namespace madness {
         private:
             TaskEventListBase* next_; ///< The next task event in the list.
 
-            /// Hide the copy constructor.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskEventListBase(const TaskEventListBase&);
-
-            /// Hide the copy assignment operator.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskEventListBase& operator=(const TaskEventListBase&);
+            TaskEventListBase(const TaskEventListBase&) = delete;
+            TaskEventListBase& operator=(const TaskEventListBase&) = delete;
 
         public:
 
             /// Default constructor.
             TaskEventListBase()
-                : next_(NULL) { }
+                : next_(nullptr) { }
 
             /// Virtual destructor.
-            virtual ~TaskEventListBase()
-            { }
+            virtual ~TaskEventListBase() = default;
 
             /// Get the next event list in the linked list.
 
@@ -692,17 +684,10 @@ namespace madness {
         class TaskEventList : public TaskEventListBase {
         private:
             unsigned int n_; ///< The number of events recorded.
-            TaskEvent* events_; ///< The event list. \todo Can we use unique_ptr to simplify this?
+            std::unique_ptr<TaskEvent[]> events_; ///< The event array.
 
-            /// Hide the copy constructor.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskEventList(const TaskEventList&);
-
-            /// Hide the copy assignment operator.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskEventList& operator=(const TaskEventList&);
+            TaskEventList(const TaskEventList&) = delete;
+            TaskEventList& operator=(const TaskEventList&) = delete;
 
         public:
 
@@ -716,9 +701,7 @@ namespace madness {
             { }
 
             /// Virtual destructor.
-            virtual ~TaskEventList() {
-                delete [] events_;
-            }
+            virtual ~TaskEventList() = default;
 
             /// Get a new event from this list.
 
@@ -727,7 +710,7 @@ namespace madness {
             /// many times.
             /// \return The new event from the list.
             TaskEvent* event() {
-                return events_ + (n_++);
+                return events_.get() + (n_++);
             }
 
         private:
@@ -757,15 +740,8 @@ namespace madness {
 
             static Mutex output_mutex_; ///< Mutex used to lock the output file.
 
-            /// Hide the copy constructor.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskProfiler(const TaskProfiler&);
-
-            /// Hide the copy constructor.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskProfiler& operator=(const TaskProfiler&);
+            TaskProfiler(const TaskProfiler&) = delete;
+            TaskProfiler& operator=(const TaskProfiler&) = delete;
 
         public:
             /// The output file name.
@@ -778,14 +754,14 @@ namespace madness {
         public:
             /// Default constructor.
             TaskProfiler()
-                : head_(NULL), tail_(NULL)
+                : head_(nullptr), tail_(nullptr)
             { }
 
             /// Destructor.
             ~TaskProfiler() {
                 // Cleanup linked list
-                TaskEventListBase* next = NULL;
-                while(head_ != NULL) {
+                TaskEventListBase* next = nullptr;
+                while(head_ != nullptr) {
                     next = head_->next();
                     delete head_;
                     head_ = next;
@@ -970,7 +946,7 @@ namespace madness {
         /// Default constructor.
         PoolTaskInterface()
             : TaskAttributes()
-            , barrier(0)
+            , barrier(nullptr)
         {
             count = 0;
         }
@@ -986,6 +962,7 @@ namespace madness {
         }
 
         /// Destructor.
+        /// \todo Should we either use a unique_ptr for barrier or check that barrier != nullptr here?
         virtual ~PoolTaskInterface() {
             delete barrier;
         }
@@ -1024,7 +1001,7 @@ namespace madness {
         { }
 
         /// Destructor.
-        virtual ~PoolTaskInterface() { }
+        virtual ~PoolTaskInterface() = default;
 
         /// Call this to reset the number of threads before the task is submitted
 
@@ -1116,7 +1093,7 @@ namespace madness {
 
     public:
         ThreadPoolThread() : Thread() { }
-        virtual ~ThreadPoolThread() { }
+        virtual ~ThreadPoolThread() = default;
 
 #ifdef MADNESS_TASK_PROFILING
         /// Task profiler accessor.

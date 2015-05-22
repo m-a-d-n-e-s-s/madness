@@ -79,7 +79,7 @@ namespace madness {
             functionT func; ///< A task function.
             TaskAttributes attr; ///< Task attributes.
 
-            TaskHandlerInfo() {}
+            TaskHandlerInfo() = default;
 
             /// Construct task info object.
 
@@ -1335,18 +1335,8 @@ namespace madness {
             ForEachRootTask<rangeT, opT>& root_; ///< The root task that signals completion and status.
 
             // not allowed
-
-            /// Disallowed copy constructor.
-
-            /// \param[in] fet The \c ForEachTask that we won't copy.
-            /// \todo In C++11, just `= delete` this.
-            ForEachTask(const ForEachTask<rangeT, opT>& fet);
-
-            /// Disallowed copy operator.
-
-            /// \param[in] fet The \c ForEachTask that we won't copy.
-            /// \todo In C++11, just `= delete` this.
-            ForEachTask& operator=(const ForEachTask<rangeT, opT>& fet);
+            ForEachTask(const ForEachTask<rangeT, opT>& fet) = delete;
+            ForEachTask& operator=(const ForEachTask<rangeT, opT>& fet) = delete;
 
         public:
 
@@ -1364,8 +1354,7 @@ namespace madness {
             }
 
             /// Virtual destructor.
-            virtual ~ForEachTask()
-            { }
+            virtual ~ForEachTask() = default;
 
             /// Run the task.
 
@@ -1430,8 +1419,7 @@ namespace madness {
             }
 
             /// Virtual destructor.
-            virtual ~ForEachRootTask()
-            { }
+            virtual ~ForEachRootTask() = default;
 
             /// World accessor.
 

@@ -66,7 +66,7 @@ namespace madness {
         public:
             /// Default constructor; the buffer will only count data.
             BufferOutputArchive()
-                    : ptr(0), nbyte(0), i(0), countonly(true) {}
+                    : ptr(nullptr), nbyte(0), i(0), countonly(true) {}
 
             /// Constructor that assigns a buffer.
 

@@ -77,7 +77,7 @@ namespace madness {
 
             /// Default constructor.
             BaseParallelArchive()
-                : world(0), ar(), nio(0), do_fence(true) {}
+                : world(nullptr), ar(), nio(0), do_fence(true) {}
 
             /// Returns the process doing I/O for given node.
 
