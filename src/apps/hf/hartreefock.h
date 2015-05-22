@@ -33,7 +33,7 @@
 #define HARTREEFOCK_H_
 
 #include <madness/mra/mra.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <vector>
 
 #include "eigsolver.h"

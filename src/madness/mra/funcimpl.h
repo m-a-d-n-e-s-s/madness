@@ -36,7 +36,7 @@
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
 #include <iostream>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/print.h>
 #include <madness/world/scopedptr.h>
 #include <madness/misc/misc.h>

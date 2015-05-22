@@ -54,7 +54,7 @@
 // #undef SEEK_END
 // #endif
 
-// Standard C++ header files needed by parallel_runtime.h
+// Standard C++ header files needed by MADworld.h
 #include <iostream>
 #include <list>
 #include <utility>

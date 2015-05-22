@@ -30,7 +30,7 @@
 */
 
 #include <madness/world/worldam.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/worldmpi.h>
 #include <sstream>
 

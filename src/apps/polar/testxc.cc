@@ -30,7 +30,7 @@
 */
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/mra/mra.h>
 #include <madness/tensor/tensor.h>
 #include <fstream>

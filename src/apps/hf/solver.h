@@ -31,7 +31,7 @@
 
 #include <madness/mra/mra.h>
 //#include <madness/mra/lbdeux.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/tensor/solvers.h>
 #include <vector>
 #include <madness/fortran_ctypes.h>

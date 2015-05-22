@@ -31,7 +31,7 @@
 
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 
 using namespace madness;
 using namespace std;

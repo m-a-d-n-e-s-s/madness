@@ -33,7 +33,7 @@
 #define MADNESS_DERIVATIVE_H__INCLUDED
 
 #include <iostream>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/print.h>
 #include <madness/misc/misc.h>

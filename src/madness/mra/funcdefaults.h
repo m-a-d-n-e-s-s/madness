@@ -37,7 +37,7 @@
 /// \brief Provides FunctionDefaults and utilities for coordinate transformation
 /// \ingroup mrabcext
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/array.h>
 #include <madness/world/worlddc.h>
 #include <madness/tensor/tensor.h>
