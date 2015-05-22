@@ -30,5 +30,5 @@ make -j2 libraries
 # Run unit tests
 if [ "$RUN_TEST" != "buildonly" ]; then
     export MAD_NUM_THREADS=2
-    make -c src/madness/$RUN_TEST -j2 -k check # run all tests, even if some fail
+    make -C src/madness/$RUN_TEST -j2 -k check # run all tests, even if some fail
 fi
