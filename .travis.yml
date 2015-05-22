@@ -4,15 +4,18 @@ compiler:
   - gcc
   - clang
 env:
-  global:
-    - GCC_VERSION=4.7
-    - GCC_VERSION=4.8
-    - GCC_VERSION=4.9
-  matrix:
-    - RUN_TEST=buildonly
-    - RUN_TEST=world
-    - RUN_TEST=tensor
-    - RUN_TEST=mra
+- GCC_VERSION=4.7 RUN_TEST=buildonly
+- GCC_VERSION=4.7 RUN_TEST=world
+- GCC_VERSION=4.7 RUN_TEST=tensor
+- GCC_VERSION=4.7 RUN_TEST=mra
+- GCC_VERSION=4.8 RUN_TEST=buildonly
+- GCC_VERSION=4.8 RUN_TEST=world
+- GCC_VERSION=4.8 RUN_TEST=tensor
+- GCC_VERSION=4.8 RUN_TEST=mra
+- GCC_VERSION=4.9 RUN_TEST=buildonly
+- GCC_VERSION=4.9 RUN_TEST=world
+- GCC_VERSION=4.9 RUN_TEST=tensor
+- GCC_VERSION=4.9 RUN_TEST=mra
 matrix:
   exclude:
     - compiler: clang
