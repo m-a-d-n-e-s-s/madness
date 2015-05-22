@@ -131,13 +131,21 @@ namespace madness {
             }
         }; // struct TaskHandlerInfo
 
+        template <bool B, class returnT>
+        struct function_enabler_helper {
+          typedef typename returnT::type type;
+        };
+
+        template <class returnT>
+        struct function_enabler_helper<false, returnT> { };
+
         /// \todo Brief description needed.
 
         /// \todo Descriptions needed.
         /// \tparam fnT Description needed.
         template <typename fnT>
         struct function_enabler : public
-            lazy_enable_if_c<
+            function_enabler_helper<
                 function_traits<fnT>::value || is_functor<fnT>::value,
                 task_result_type<fnT> >
         { };
