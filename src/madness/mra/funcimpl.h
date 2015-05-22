@@ -39,7 +39,6 @@
 #include <type_traits>
 #include <madness/world/parallel_runtime.h>
 #include <madness/world/print.h>
-#include <madness/world/scopedptr.h>
 #include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/gentensor.h>

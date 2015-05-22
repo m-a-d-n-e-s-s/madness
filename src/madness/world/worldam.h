@@ -40,6 +40,7 @@
 #include <madness/world/world.h>
 #include <vector>
 #include <cstddef>
+#include <memory>
 
 namespace madness {
 
@@ -218,8 +219,8 @@ namespace madness {
         // to ensure updates are atomic and consistent
 
         int nsend;                    ///< Max no. of pending sends
-        ScopedArray<AmArg* volatile>  managed_send_buf; ///< Managed buffers
-        ScopedArray<RMI::Request> send_req; ///< Tracks in-flight messages
+        std::unique_ptr<AmArg* volatile[]>  managed_send_buf; ///< Managed buffers
+        std::unique_ptr<RMI::Request[]> send_req; ///< Tracks in-flight messages
 
         unsigned long worldid; ///< The world which contains this instance of WorldAmInterface
         const ProcessID rank;
@@ -305,7 +306,7 @@ namespace madness {
 
         /// Frees as many send buffers as possible
         void free_managed_buffers() {
-            ScopedArray<int> ind(new int[nsend]);
+            std::unique_ptr<int[]> ind(new int[nsend]);
             lock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             int n = SafeMPI::Request::Testsome(nsend, send_req.get(), ind.get());
             if (n != MPI_UNDEFINED) {
