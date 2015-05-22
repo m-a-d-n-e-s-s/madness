@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_OPERATOR_H__INCLUDED
 #define MADNESS_MRA_OPERATOR_H__INCLUDED
 
@@ -53,7 +52,6 @@
 #include <madness/mra/gfit.h>
 
 namespace madness {
-
 
     /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
     /// Why is this here?? Why don't you just use ConvolutionND in SeparatedConvolutionData??
@@ -1059,7 +1057,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename disable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        typename disable_if<FDIM==NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
             Key<NDIM> source;
             Key<FDIM-NDIM> dummykey;

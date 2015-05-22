@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_WORLD_WORLDRANGE_H__INCLUDED
 #define MADNESS_WORLD_WORLDRANGE_H__INCLUDED
 
@@ -120,7 +119,7 @@ namespace madness {
         advance(integralT& i, distanceT n) { i += n; }
 
         template<typename iterT, typename distanceT>
-        inline static typename disable_if<std::is_integral<iterT>, void>::type
+        inline static typename disable_if<std::is_integral<iterT>::value, void>::type
         advance(iterT& it, distanceT n) { std::advance(it, n); }
 
         template<class integralT>

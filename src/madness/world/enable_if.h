@@ -34,23 +34,24 @@
 
 namespace madness {
 
-    /// disable_if from Boost for conditionally instantiating templates based on type
+    /// Mirror of \c std::enable_if for conditionally instantiating (disabling) templates based on type.
 
-    /// Evaluates to \c returnT if \c Cond::value is false, otherwise to an invalid type expression
+    /// Evaluates to \c returnT if \c B is false, otherwise to an invalid type expression,
     /// which causes the template expression in which it is used to not be considered for
     /// overload resolution.
+    /// \tparam B The bool value.
+    /// \tparam returnT The type.
     template <bool B, class returnT = void>
-    struct disable_if_c {
+    struct disable_if {
         typedef returnT type;
     };
 
-    /// disable_if from Boost for conditionally instantiating templates based on type
-    template <class returnT>
-    struct disable_if_c<true, returnT> {};
+    /// Mirror of \c std::enable_if for conditionally instantiating (disabling) templates based on type.
 
-    /// disable_if from Boost for conditionally instantiating templates based on type
-    template <class Cond, class returnT = void>
-    struct disable_if : public disable_if_c<Cond::value, returnT> {};
+    /// Specialization that disables \c type when \c B is true.
+    /// \tparam returnT The type.
+    template <class returnT>
+    struct disable_if<true, returnT> {};
 
     /// lazy_enable_if_c from Boost for conditionally instantiating templates based on type
 

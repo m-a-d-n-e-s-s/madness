@@ -45,6 +45,7 @@
 #include <madness/world/timers.h>
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
+#include <madness/world/world_task_queue.h>
 
 /// \addtogroup taskq
 /// @{
@@ -126,7 +127,7 @@ namespace madness {
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename disable_if<is_func_ptr<fnT> >::type
+            typename disable_if<is_func_ptr<fnT>::value >::type
             serialize_internal(const Archive& ar) {
                 ar & ref & func & attr;
             }

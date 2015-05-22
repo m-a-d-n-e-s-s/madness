@@ -27,11 +27,7 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #ifndef MADNESS_WORLD_WORLDHASH_H__INCLUDED
 #define MADNESS_WORLD_WORLDHASH_H__INCLUDED
@@ -338,7 +334,7 @@ namespace madness {
     /// \param[in] t A pointer to the beginning of the range to be hashed
     /// \param[in] n The number of elements to hashed
     template <class T>
-    inline typename disable_if<std::is_fundamental<T> >::type
+    inline typename disable_if<std::is_fundamental<T>::value >::type
     hash_range(hashT& seed, const T* t, std::size_t n) {
         hash_range(seed, t, t + n);
     }

@@ -901,7 +901,7 @@ namespace madness {
         /// \tparam fnobjT Description needed.
         /// \param[in,out] id Description needed.
         template <typename fnobjT>
-        static typename disable_if_c<detail::function_traits<fnobjT>::value ||
+        static typename disable_if<detail::function_traits<fnobjT>::value ||
                 detail::memfunc_traits<fnobjT>::value>::type
         make_id(std::pair<void*,unsigned short>& id, const fnobjT&) {
             id.first = reinterpret_cast<void*>(const_cast<char*>(typeid(fnobjT).name()));

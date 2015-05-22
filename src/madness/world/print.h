@@ -27,18 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #ifndef MADNESS_WORLD_PRINT_H__INCLUDED
 #define MADNESS_WORLD_PRINT_H__INCLUDED
 
 /// \file print.h
-/// \brief Defines simple templates for printing to std::cout "a la Python"
-
+/// \brief Defines simple templates for printing to \c std::cout "a la Python".
 
 #include <iostream>
 #include <complex>
@@ -106,7 +101,7 @@ namespace madness {
 
     /// STL I/O already does char.
     template <typename T, std::size_t N>
-    typename disable_if<std::is_same<T,char>, std::ostream&>::type
+    typename madness::disable_if<std::is_same<T,char>::value, std::ostream&>::type
     operator<<(std::ostream& s, const T(&v)[N]) {
         s << "[";
         for (std::size_t i=0; i<N; ++i) {
