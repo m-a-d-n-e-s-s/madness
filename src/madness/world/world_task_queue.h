@@ -139,7 +139,7 @@ namespace madness {
         /// \tparam fnT Description needed.
         template <typename fnT>
         struct function_enabler : public
-            lazy_enable_if_c<
+            lazy_enable_if<
                 function_traits<fnT>::value || is_functor<fnT>::value,
                 task_result_type<fnT> >
         { };

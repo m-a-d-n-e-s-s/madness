@@ -132,7 +132,7 @@ namespace madness {
         };
 
         template<class iterT>
-        inline static typename lazy_disable_if<std::is_integral<iterT>, diff_type<iterT> >::type
+        inline static typename lazy_disable_if<std::is_integral<iterT>::value, diff_type<iterT> >::type
         distance(iterT first, iterT last) { return std::distance(first, last); }
     };
 
