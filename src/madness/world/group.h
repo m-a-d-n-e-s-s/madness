@@ -36,6 +36,7 @@
 #include <madness/world/madness_exception.h>
 #include <madness/world/world.h>
 #include <madness/world/world_task_queue.h>
+#include <madness/world/enable_if.h>
 
 namespace madness {
 
@@ -111,7 +112,7 @@ namespace madness {
             /// \param v An array object
             /// \return The size of array \c v
             template <typename vectorT>
-            static typename disable_if<std::is_array<vectorT>, std::size_t>::type
+            static typename disable_if<std::is_array<vectorT>::value, std::size_t>::type
             size(const vectorT &v) { return v.size(); }
 
             public:

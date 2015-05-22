@@ -47,16 +47,16 @@ namespace madness {
 
         /// Default pointer to a. object of type \c T.
 
-        /// Returns a \c NULL pointer, by default.
+        /// Returns a null pointer, by default.
         /// \tparam T The pointer type.
         template <typename T>
         struct DefaultInitPtr {
 
             /// Get a default pointer.
 
-            /// \return \c NULL.
+            /// \return \c nullptr.
             static T init() {
-                return NULL;
+                return nullptr;
             }
         }; // struct DefaultInitPtr
 
