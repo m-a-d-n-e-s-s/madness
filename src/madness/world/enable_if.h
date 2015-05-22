@@ -43,7 +43,7 @@ namespace madness {
     /// \tparam returnT The type.
     template <bool B, class returnT = void>
     struct disable_if {
-        typedef returnT type;
+        typedef returnT type; ///< The type.
     };
 
     /// Mirror of \c std::enable_if for conditionally instantiating (disabling) templates based on type.
@@ -63,7 +63,7 @@ namespace madness {
     /// \tparam returnT The type.
     template <bool B, class returnT>
     struct lazy_enable_if {
-      typedef typename returnT::type type;
+      typedef typename returnT::type type; ///< The type.
     };
 
     /// Mirror of \c std::enable_if for conditionally instantiating templates based on type, when the type \c T may only be meaningful if \c B is true.
@@ -83,7 +83,7 @@ namespace madness {
     /// \tparam returnT The type.
     template <bool B, class returnT>
     struct lazy_disable_if {
-      typedef typename returnT::type type;
+      typedef typename returnT::type type; ///< The type.
     };
 
     /// Mirror of madness::lazy_enable_if for conditionally instantiating (disabling) templates based on type, when the type \c T may only be meaningful if \c B is false.
@@ -93,29 +93,27 @@ namespace madness {
     template <class returnT>
     struct lazy_disable_if<true, returnT> {};
 
-    /// enable_if_same (from Boost?) for conditionally instantiating templates if two types are equal
+    /// Use \c Cond to determine the type, \c T1 or \c T2.
 
-    /// Use example
-    /// \code
-    ///     template <class T> A(T& other, typename enable_if_same<A const,T>::type = 0) {
-    /// \endcode
-//    template <class T, class U, class returnT = void>
-//    struct enable_if_same : public enable_if<madness::is_same<T,U>, returnT> {};
+    /// \c type will have type \c T1 if \c Cond is true; otherwise it will
+    /// have type \c T2.
+    /// \tparam Cond The bool value.
+    /// \tparam T1 Type of \c type if \c Cond is true.
+    /// \tparam T2 Type of \c type if \c Cond is false.
+    template <bool Cond, typename T1, typename T2>
+    struct switch_type {
+        typedef T1 type; ///< The type.
+    };
+    
+    /// Specialization of \c switch_type for when \c Cond is false.
 
-        template <bool Cond, typename T1, typename T2>
-        struct if_c {
-            typedef T1 type;
-        };
-        
-        template <typename T1, typename T2>
-        struct if_c<false, T1, T2> {
-            typedef T2 type;
-        };
-        
-        template <typename Cond, typename T1, typename T2>
-        struct if_ : public if_c<Cond::value, T1, T2> {};
-
-
+    /// \c type will have type \c T2.
+    /// \tparam T1 Type of \c type if \c Cond is true (not used).
+    /// \tparam T2 Type of \c type if \c Cond is false.
+    template <typename T1, typename T2>
+    struct switch_type<false, T1, T2> {
+        typedef T2 type; ///< The type.
+    };
 
 } // namespace madness
 

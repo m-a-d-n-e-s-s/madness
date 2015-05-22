@@ -201,7 +201,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename Enabler = void>
         struct WorldObjectTaskHelper {
             /// \todo Description needed.
-            typedef typename if_c<memfunc_traits<memfnT>::constness,
+            typedef typename switch_type<memfunc_traits<memfnT>::constness,
                     const objT*, objT*>::type ptrT;
 
             /// \todo Description needed.
@@ -267,11 +267,11 @@ namespace madness {
                 typename std::enable_if< std::is_base_of<std::enable_shared_from_this<objT>, objT>::value >::type>
         {
             /// \todo Description needed.
-            typedef typename if_c<memfunc_traits<memfnT>::constness,
+            typedef typename switch_type<memfunc_traits<memfnT>::constness,
                     const objT*, objT*>::type ptrT;
 
             /// \todo Description needed.
-            typedef typename if_c<memfunc_traits<memfnT>::constness,
+            typedef typename switch_type<memfunc_traits<memfnT>::constness,
                     std::shared_ptr<const objT>, std::shared_ptr<objT> >::type shared_ptrT;
 
             /// \todo Description needed.
