@@ -3147,7 +3147,6 @@ namespace madness {
         /// @param[in]  f           the NDIM function f=f(1,2)
         /// @param[in]  g           the LDIM function g(1) (or g(2))
         /// @param[in]  particle    1 or 2, as in g(1) or g(2)
-        /// @return     this        the NDIM function h(1,2)
         template<size_t LDIM>
         void multiply(const implT* f, const FunctionImpl<T,LDIM>* g, const int particle) {
 
@@ -3245,7 +3244,6 @@ namespace madness {
         /// @param[in]	coeff_op	operator making the coefficients that needs activation
         /// @param[in]	apply_op	just passing thru
         /// @param[in]	key			the key we are working on
-        /// @return 	nothing, but will forward all input to traverse_tree()
         template<typename coeff_opT, typename apply_opT>
         void forward_traverse(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
             MADNESS_ASSERT(coeffs.is_local(key));
@@ -3260,7 +3258,6 @@ namespace madness {
         /// @param[in]	coeff_op	operator making the coefficients and determining them being leaves
         /// @param[in]	apply_op	operator processing the coefficients
         /// @param[in]	key			the key we are currently working on
-        /// @return		nothing, but might continue the recursion, depending on coeff_op
         template<typename coeff_opT, typename apply_opT>
         void traverse_tree(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
             MADNESS_ASSERT(coeffs.is_local(key));
@@ -4069,7 +4066,6 @@ namespace madness {
         /// @param[in]  op      the operator working on our function
         /// @param[in]  c       full rank tensor holding the NS coefficients
         /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
-        /// @return     nothing, but accumulate the result tensor into the destination node
         template <typename opT, typename R, size_t OPDIM>
         void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args) {
 
@@ -5172,7 +5168,6 @@ namespace madness {
         /// @param[in] beta prefactor of right argument for gaxpy
         /// @param[in] tol convergence tolerance...when the norm of the gaxpy's
         ///            difference coefficients is less than tol, we are done.
-        /// @return Return void but populates tree as side-effect
         template <typename L>
         void gaxpy_ext_recursive(const keyT& key, const FunctionImpl<L,NDIM>* left,
                                  Tensor<L> lcin, tensorT c, T (*f)(const coordT&),

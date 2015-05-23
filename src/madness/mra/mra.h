@@ -1219,7 +1219,6 @@ namespace madness {
         /// @param[in] alpha prefactor for this Function
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
         /// @param[in] beta prefactor for f
-        /// @return Returns local part of the gaxpy, i.e. over the domain of all function nodes on this compute node.
         template <typename L>
         void gaxpy_ext(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence=true) const {
             PROFILE_MEMBER_FUNC(Function);
