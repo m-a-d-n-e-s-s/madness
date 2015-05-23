@@ -39,7 +39,6 @@
 */
 
 #include <madness/world/dqueue.h>
-#include <madness/world/enable_if.h>
 #include <madness/world/function_traits.h>
 #include <vector>
 #include <cstddef>
@@ -877,8 +876,8 @@ namespace madness {
         /// \tparam fnobjT Description needed.
         /// \param[in,out] id Description needed.
         template <typename fnobjT>
-        static typename disable_if<detail::function_traits<fnobjT>::value ||
-                detail::memfunc_traits<fnobjT>::value>::type
+        static typename std::enable_if<!(detail::function_traits<fnobjT>::value ||
+                detail::memfunc_traits<fnobjT>::value) >::type
         make_id(std::pair<void*,unsigned short>& id, const fnobjT&) {
             id.first = reinterpret_cast<void*>(const_cast<char*>(typeid(fnobjT).name()));
             id.second = 2ul;

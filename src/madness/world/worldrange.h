@@ -119,7 +119,7 @@ namespace madness {
         advance(integralT& i, distanceT n) { i += n; }
 
         template<typename iterT, typename distanceT>
-        inline static typename disable_if<std::is_integral<iterT>::value, void>::type
+        inline static typename std::enable_if<!std::is_integral<iterT>::value, void>::type
         advance(iterT& it, distanceT n) { std::advance(it, n); }
 
         template<class integralT>

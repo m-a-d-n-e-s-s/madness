@@ -126,7 +126,6 @@ provide the appropriate template parameter to the hashing container.
 */
 
 #include <madness/madness_config.h>
-#include <madness/world/enable_if.h>
 #include <stdint.h>
 #include <cstddef>
 #include <iterator>
@@ -334,7 +333,7 @@ namespace madness {
     /// \param[in] t A pointer to the beginning of the range to be hashed
     /// \param[in] n The number of elements to hashed
     template <class T>
-    inline typename disable_if<std::is_fundamental<T>::value >::type
+    inline typename std::enable_if<!std::is_fundamental<T>::value >::type
     hash_range(hashT& seed, const T* t, std::size_t n) {
         hash_range(seed, t, t + n);
     }

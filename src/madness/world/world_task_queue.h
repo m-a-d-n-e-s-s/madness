@@ -127,7 +127,7 @@ namespace madness {
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename disable_if<is_func_ptr<fnT>::value >::type
+            typename std::enable_if<!is_func_ptr<fnT>::value >::type
             serialize_internal(const Archive& ar) {
                 ar & ref & func & attr;
             }

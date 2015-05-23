@@ -1057,7 +1057,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename disable_if<FDIM==NDIM, Key<NDIM> >::type
+        typename std::enable_if<FDIM!=NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
             Key<NDIM> source;
             Key<FDIM-NDIM> dummykey;

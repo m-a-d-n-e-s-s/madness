@@ -50,6 +50,7 @@
 #endif
 */
 
+#include <type_traits>
 #include <madness/world/safempi.h>
 #include <madness/world/worldtypes.h>
 #include <cstdlib>
@@ -267,7 +268,7 @@ namespace madness {
         // !! Please ensure any additional routines follow this convention.
         /// Isend one element ... disabled for pointers to reduce accidental misuse.
         template <typename T>
-        typename disable_if<std::is_pointer<T>::value, SafeMPI::Request>::type
+        typename std::enable_if<!std::is_pointer<T>::value, SafeMPI::Request>::type
         Isend(const T& datum, int dest, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
             return SafeMPI::Intracomm::Isend(&datum, sizeof(T), MPI_BYTE, dest, tag);
         }
@@ -282,7 +283,7 @@ namespace madness {
 
         /// Async receive datum from process dest with default tag=1
         template <typename T>
-        typename disable_if<std::is_pointer<T>::value, SafeMPI::Request>::type
+        typename std::enable_if<!std::is_pointer<T>::value, SafeMPI::Request>::type
         Irecv(T& buf, int source, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
             return SafeMPI::Intracomm::Irecv(&buf, sizeof(T), MPI_BYTE, source, tag);
         }
@@ -299,7 +300,7 @@ namespace madness {
 
         /// Disabled for pointers to reduce accidental misuse.
         template <typename T>
-        typename disable_if<std::is_pointer<T>::value, void>::type
+        typename std::enable_if<!std::is_pointer<T>::value, void>::type
         Send(const T& datum, int dest, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
             SafeMPI::Intracomm::Send((void*)&datum, sizeof(T), MPI_BYTE, dest, tag);
         }
@@ -320,7 +321,7 @@ namespace madness {
 
         /// Receive datum from process src
         template <typename T>
-        typename disable_if<std::is_pointer<T>::value, void>::type
+        typename std::enable_if<!std::is_pointer<T>::value, void>::type
         Recv(T& buf, int src, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
             SafeMPI::Intracomm::Recv(&buf, sizeof(T), MPI_BYTE, src, tag);
         }
@@ -339,7 +340,7 @@ namespace madness {
 
         /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
         template <typename T>
-        typename disable_if<std::is_pointer<T>::value, void>::type
+        typename std::enable_if<!std::is_pointer<T>::value, void>::type
         Bcast(T& buffer, int root) const {
             SafeMPI::Intracomm::Bcast(&buffer, sizeof(T), MPI_BYTE,root);
         }

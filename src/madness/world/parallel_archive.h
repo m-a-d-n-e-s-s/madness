@@ -43,7 +43,6 @@
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/world.h>
 #include <madness/world/worldgop.h>
-#include <madness/world/enable_if.h>
 
 #include <unistd.h>
 #include <cstring>
@@ -388,7 +387,7 @@ namespace madness {
 
             /// Serial objects write only from process 0.
             ///
-            /// The function only appears (due to \c disable_if) if \c Q is not
+            /// The function only appears (due to \c enable_if) if \c Q is not
             /// a parallel serializable object.
             /// \todo Same question about \c Q.
             /// \tparam Q Description needed.
@@ -397,7 +396,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename disable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelOutputArchive&>::type
+            typename std::enable_if<!is_derived_from<Q, ParallelSerializableObject>::value, const ParallelOutputArchive&>::type
             wrap_store(const ParallelOutputArchive& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
@@ -435,7 +434,7 @@ namespace madness {
 
             /// Serial objects are read only from process 0 and then broadcasted.
             ///
-            /// The function only appears (due to \c disable_if) if \c Q is not
+            /// The function only appears (due to \c enable_if) if \c Q is not
             /// a parallel serializable object.
             /// \todo Same question about \c Q.
             /// \tparam Q Description needed.
@@ -444,7 +443,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename disable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelInputArchive&>::type
+            typename std::enable_if<!is_derived_from<Q, ParallelSerializableObject>::value, const ParallelInputArchive&>::type
             wrap_load(const ParallelInputArchive& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
