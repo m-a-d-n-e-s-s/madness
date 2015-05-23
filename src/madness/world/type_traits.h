@@ -46,20 +46,6 @@
 
 namespace madness {
 
-    /// True if A is derived from B and is not B
-    template <class A, class B>
-    struct is_derived_from {
-        typedef char yes;
-        typedef int no;
-        static no f(...);
-        static yes f(B*);
-        static const bool value = (sizeof(f((A*)0)) == sizeof(yes));
-    };
-
-    /// True if A is derived from B and is not B
-    template <class A>
-    struct is_derived_from<A,A> : public std::false_type {};
-
     template <typename> class Future;
     template <typename> struct add_future;
     template <typename> struct remove_future;

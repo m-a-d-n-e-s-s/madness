@@ -377,7 +377,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename std::enable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelOutputArchive&>::type
+            typename std::enable_if<std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelOutputArchive&>::type
             wrap_store(const ParallelOutputArchive& ar, const Q& t) {
                 ArchiveStoreImpl<ParallelOutputArchive,T>::store(ar,t);
                 return ar;
@@ -396,7 +396,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename std::enable_if<!is_derived_from<Q, ParallelSerializableObject>::value, const ParallelOutputArchive&>::type
+            typename std::enable_if<!std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelOutputArchive&>::type
             wrap_store(const ParallelOutputArchive& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
@@ -424,7 +424,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename std::enable_if<is_derived_from<Q, ParallelSerializableObject>::value, const ParallelInputArchive&>::type
+            typename std::enable_if<std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelInputArchive&>::type
             wrap_load(const ParallelInputArchive& ar, const Q& t) {
                 ArchiveLoadImpl<ParallelInputArchive,T>::load(ar,const_cast<T&>(t));
                 return ar;
@@ -443,7 +443,7 @@ namespace madness {
             /// \return The parallel archive.
             template <typename Q>
             static inline
-            typename std::enable_if<!is_derived_from<Q, ParallelSerializableObject>::value, const ParallelInputArchive&>::type
+            typename std::enable_if<!std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelInputArchive&>::type
             wrap_load(const ParallelInputArchive& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
