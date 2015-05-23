@@ -126,15 +126,12 @@ namespace madness {
         inline static typename std::enable_if<std::is_integral<integralT>::value, integralT>::type
         distance(integralT first, integralT last) { return last - first; }
 
-        template <class iterT>
-        struct diff_type {
-            typedef typename std::iterator_traits<iterT>::difference_type type;
-        };
-
-        template<class iterT,
-           typename std::enable_if<!std::is_integral<iterT>::value>::type* = nullptr>
-        inline static typename std::iterator_traits<iterT>::difference_type
-        distance(iterT first, iterT last) { return std::distance(first, last); }
+        template<class iterT>
+        inline static auto
+        distance(iterT first, iterT last,
+                typename std::enable_if<!std::is_integral<iterT>::value>::type* = nullptr)
+            -> decltype(std::distance(first, last))
+        { return std::distance(first, last); }
     };
 
 } // namespace madness
