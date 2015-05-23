@@ -169,28 +169,28 @@ namespace madness {
     public:
         /// Default constructor makes a local uninitialized value
         explicit WorldContainerIterator()
-                : it(), value(NULL) {}
+                : it(), value(nullptr) {}
 
         /// Initializes from a local iterator
         explicit WorldContainerIterator(const internal_iteratorT& it)
-                : it(it), value(NULL) {}
+                : it(it), value(nullptr) {}
 
         /// Initializes to cache a remote value
         explicit WorldContainerIterator(const value_type& v)
-                : it(), value(NULL)
+                : it(), value(nullptr)
         {
             value = new value_type(v);
         }
 
         WorldContainerIterator(const WorldContainerIterator& other)
-                : it(), value(NULL)
+                : it(), value(nullptr)
         {
             copy(other);
         }
 
         template <class iteratorT>
         WorldContainerIterator(const WorldContainerIterator<iteratorT>& other)
-                : it(), value(NULL)
+                : it(), value(nullptr)
         {
             copy(other);
         }
@@ -251,7 +251,7 @@ namespace madness {
 
         /// Returns true if this is non-local or cached value
         bool is_cached() const {
-            return value != NULL;
+            return value != nullptr;
         }
 
         template <typename Archive>
@@ -272,7 +272,7 @@ namespace madness {
                     it = internal_iteratorT();
                 } else {
                     it = other.it;
-                    value = NULL;
+                    value = nullptr;
                 }
             }
         }
@@ -1426,7 +1426,7 @@ namespace madness {
 
         /// This just writes/reads the unique id to/from the Buffer*Archive.
         void serialize(const archive::BufferInputArchive& ar) {
-            WorldObject<implT>* ptr = NULL;
+            WorldObject<implT>* ptr = nullptr;
             ar & ptr;
             MADNESS_ASSERT(ptr);
 

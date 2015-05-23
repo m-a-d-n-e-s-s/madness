@@ -130,7 +130,7 @@ namespace madness {
             ~WorldMpi() {
 #ifdef MADNESS_USE_BSEND_ACKS
                 // Unregister the acknowlegement buffer for RMI
-                void* buff = NULL;
+                void* buff = nullptr;
                 SafeMPI::Detach_buffer(buff);
 #endif // MADNESS_USE_BSEND_ACKS
 
@@ -195,10 +195,10 @@ namespace madness {
 
 #if defined(MVAPICH2_VERSION)
                 // Check that MVAPICH2 has has the correct thread affinity
-                char * mv2_string = NULL;
+                char * mv2_string = nullptr;
                 int mv2_affinity = 1; /* this is the default behavior of MVAPICH2 */
 
-                if ((mv2_string = getenv("MV2_ENABLE_AFFINITY")) != NULL) {
+                if ((mv2_string = getenv("MV2_ENABLE_AFFINITY")) != nullptr) {
                     mv2_affinity = atoi(mv2_string);
                 }
 

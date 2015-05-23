@@ -5601,7 +5601,7 @@ namespace madness {
                     if (!ptr)
                         MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
                 } else {
-                    ptr=NULL;
+                    ptr=nullptr;
                 }
             }
         };
@@ -5629,7 +5629,7 @@ namespace madness {
                     if (!ptr)
                         MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
                 } else {
-                    ptr=NULL;
+                    ptr=nullptr;
                 }
             }
         };
@@ -5647,7 +5647,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive, std::shared_ptr<const FunctionImpl<T,NDIM> > > {
             static void load(const Archive& ar, std::shared_ptr<const FunctionImpl<T,NDIM> >& ptr) {
-                const FunctionImpl<T,NDIM>* f = NULL;
+                const FunctionImpl<T,NDIM>* f = nullptr;
                 ArchiveLoadImpl<Archive, const FunctionImpl<T,NDIM>*>::load(ar, f);
                 ptr.reset(f, & madness::detail::no_delete<const FunctionImpl<T,NDIM> >);
             }
@@ -5663,7 +5663,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive, std::shared_ptr<FunctionImpl<T,NDIM> > > {
             static void load(const Archive& ar, std::shared_ptr<FunctionImpl<T,NDIM> >& ptr) {
-                FunctionImpl<T,NDIM>* f = NULL;
+                FunctionImpl<T,NDIM>* f = nullptr;
                 ArchiveLoadImpl<Archive, FunctionImpl<T,NDIM>*>::load(ar, f);
                 ptr.reset(f, & madness::detail::no_delete<FunctionImpl<T,NDIM> >);
             }

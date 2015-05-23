@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
             print("result: size parallel cpu_time wall_time");
             print("check: size max(off-diagonal) max(diagonal) max(V^TAV-lambdaE)");
         }
-        std::srand(time(NULL));
+        std::srand(time(nullptr));
         int64_t pow[2];
         for (int64_t n=2; n<=256; n*=2) {
             // make symmetolic matrix, then distribute it all processes

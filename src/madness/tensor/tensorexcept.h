@@ -70,7 +70,7 @@ public:
                 , filename(file) {
             // We must copy the pointed-to tensor because during unwinding it
             // might go out of scope and dereferencing its pointer is invalid
-	    if (tp != NULL)
+	    if (tp != nullptr)
               new(&t) BaseTensor(*tp);
         }
 
@@ -93,7 +93,7 @@ public:
             e.function << "'\n";
         if (e.filename) out << "                 filename='" <<
             e.filename << "'\n";
-        if (e.tp != NULL) {
+        if (e.tp != nullptr) {
             out << "                 tensor=Tensor<";
             if (e.t.id()>=0 && e.t.id()<=TENSOR_MAX_TYPE_ID) {
                 out << tensor_type_names[e.t.id()] << ">(";

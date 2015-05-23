@@ -203,7 +203,7 @@ namespace madness {
                 } else {
                     finished = false;
                 }
-                return NULL;
+                return nullptr;
             }
 #else
             void run() {
@@ -281,7 +281,7 @@ namespace madness {
               std::cerr <<
                   "!! MADNESS RMI error: Attempting to send a message when the RMI thread is not running\n"
                   "!! MADNESS RMI error: This typically occurs when an active message is sent or a remote task is spawned after calling madness::finalize()\n";
-              MADNESS_EXCEPTION("!! MADNESS error: The RMI thread is not running", (task_ptr != NULL));
+              MADNESS_EXCEPTION("!! MADNESS error: The RMI thread is not running", (task_ptr != nullptr));
             }
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
@@ -296,7 +296,7 @@ namespace madness {
                 if (testsome_backoff_us > 100) testsome_backoff_us = 100;
             }
 
-            MADNESS_ASSERT(task_ptr == NULL);
+            MADNESS_ASSERT(task_ptr == nullptr);
 #if HAVE_INTEL_TBB
             tbb_rmi_parent_task = new( tbb::task::allocate_root() ) tbb::empty_task;
             tbb_rmi_parent_task->set_ref_count(2);
@@ -316,7 +316,7 @@ namespace madness {
                 tbb_rmi_parent_task->wait_for_all();
                 tbb::task::destroy(*tbb_rmi_parent_task);
 #endif // HAVE_INTEL_TBB
-                task_ptr = NULL;
+                task_ptr = nullptr;
             }
         }
 

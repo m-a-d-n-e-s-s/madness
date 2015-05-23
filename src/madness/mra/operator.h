@@ -1703,7 +1703,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void load(const Archive& ar, const SeparatedConvolution<T,NDIM>*& ptr) {
-                WorldObject< SeparatedConvolution<T,NDIM> >* p = NULL;
+                WorldObject< SeparatedConvolution<T,NDIM> >* p = nullptr;
                 ar & p;
                 ptr = static_cast< const SeparatedConvolution<T,NDIM>* >(p);
             }
