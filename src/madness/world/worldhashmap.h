@@ -46,7 +46,6 @@
 #include <madness/world/worldmutex.h>
 #include <madness/world/madness_exception.h>
 #include <madness/world/worldhash.h>
-#include <madness/world/type_traits.h>
 #include <new>
 #include <stdio.h>
 #include <map>
@@ -188,10 +187,10 @@ namespace madness {
         /// iterator for hash
         template <class hashT> class HashIterator {
         public:
-            typedef typename switch_type<std::is_const<hashT>::value,
+            typedef typename std::conditional<std::is_const<hashT>::value,
                     typename std::add_const<typename hashT::entryT>::type,
                     typename hashT::entryT>::type entryT;
-            typedef typename switch_type<std::is_const<hashT>::value,
+            typedef typename std::conditional<std::is_const<hashT>::value,
                     typename std::add_const<typename hashT::datumT>::type,
                     typename hashT::datumT>::type datumT;
             typedef std::forward_iterator_tag iterator_category;
@@ -331,10 +330,10 @@ namespace madness {
         class HashAccessor : private NO_DEFAULTS {
             template <class a,class b,class c> friend class madness::ConcurrentHashMap;
         public:
-            typedef typename switch_type<std::is_const<hashT>::value,
+            typedef typename std::conditional<std::is_const<hashT>::value,
                     typename std::add_const<typename hashT::entryT>::type,
                     typename hashT::entryT>::type entryT;
-            typedef typename switch_type<std::is_const<hashT>::value,
+            typedef typename std::conditional<std::is_const<hashT>::value,
                     typename std::add_const<typename hashT::datumT>::type,
                     typename hashT::datumT>::type datumT;
             typedef datumT value_type;

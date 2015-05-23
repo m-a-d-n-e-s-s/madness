@@ -180,29 +180,6 @@ namespace madness {
     };
 
 
-    /// Use \c Cond to determine the type, \c T1 or \c T2.
-
-    /// \c type will have type \c T1 if \c Cond is true; otherwise it will
-    /// have type \c T2.
-    /// \tparam Cond The bool value.
-    /// \tparam T1 Type of \c type if \c Cond is true.
-    /// \tparam T2 Type of \c type if \c Cond is false.
-    template <bool Cond, typename T1, typename T2>
-    struct switch_type {
-        typedef T1 type; ///< The type.
-    };
-    
-    /// Specialization of \c switch_type for when \c Cond is false.
-
-    /// \c type will have type \c T2.
-    /// \tparam T1 Type of \c type if \c Cond is true (not used).
-    /// \tparam T2 Type of \c type if \c Cond is false.
-    template <typename T1, typename T2>
-    struct switch_type<false, T1, T2> {
-        typedef T2 type; ///< The type.
-    };
-
-
     /* Macros to make some of this stuff more readable */
 
     /**
