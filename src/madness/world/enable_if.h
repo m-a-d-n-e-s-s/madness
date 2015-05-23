@@ -53,46 +53,6 @@ namespace madness {
     template <class returnT>
     struct disable_if<true, returnT> {};
 
-    /// Mirror of \c std::enable_if f for conditionally instantiating templates based on type, when the type \c T may only be meaningful if \c B is true.
-
-    /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution. This "lazy" version is used if \c T is only valid when
-    /// B is true. Note: typename T::type is the return type and must be well formed.
-    /// \tparam B The bool value.
-    /// \tparam returnT The type.
-    template <bool B, class returnT>
-    struct lazy_enable_if {
-      typedef typename returnT::type type; ///< The type.
-    };
-
-    /// Mirror of \c std::enable_if for conditionally instantiating templates based on type, when the type \c T may only be meaningful if \c B is true.
-
-    /// Specialization that disables \c type when \c B is false.
-    /// \tparam returnT The type.
-    template <class returnT>
-    struct lazy_enable_if<false, returnT> { };
-
-    /// Mirror of \c madness:lazy_enable_if for conditionally instantiating (disabling) templates based on type, when the type \c T may only be meaningful if \c B is false.
-
-    /// Evaluates to \c returnT if \c B is false, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution. This "lazy" version is used if \c returnT is only valid
-    /// when B is false. Note: typename T::type is the return type and must be well formed.
-    /// \tparam B The bool value.
-    /// \tparam returnT The type.
-    template <bool B, class returnT>
-    struct lazy_disable_if {
-      typedef typename returnT::type type; ///< The type.
-    };
-
-    /// Mirror of madness::lazy_enable_if for conditionally instantiating (disabling) templates based on type, when the type \c T may only be meaningful if \c B is false.
-
-    /// Specialization that disables \c type when \c B is true.
-    /// \tparam returnT The type.
-    template <class returnT>
-    struct lazy_disable_if<true, returnT> {};
-
     /// Use \c Cond to determine the type, \c T1 or \c T2.
 
     /// \c type will have type \c T1 if \c Cond is true; otherwise it will

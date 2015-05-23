@@ -133,11 +133,22 @@ namespace madness {
             }
         }; // struct TaskHandlerInfo
 
+        /// Behave like a lazy \c std::enable_if.
+
+        /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
+        /// which causes the template expression in which it is used to not be considered for
+        /// overload resolution. This "lazy" version is used if \c T is only valid when
+        /// B is true. Note: typename T::type is the return type and must be well formed.
+        /// \tparam B The bool value.
+        /// \tparam returnT The type.
         template <bool B, class returnT>
         struct function_enabler_helper {
           typedef typename returnT::type type;
         };
 
+        /// Specialization that disables \c type when \c B is false.
+
+        /// \tparam returnT The type.
         template <class returnT>
         struct function_enabler_helper<false, returnT> { };
 
