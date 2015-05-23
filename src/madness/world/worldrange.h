@@ -34,7 +34,6 @@
 
 #include <type_traits>
 #include <iterator>
-#include <madness/world/enable_if.h>
 
 /// \file worldrange.h
 /// \brief Implement Range class for parallel iteration

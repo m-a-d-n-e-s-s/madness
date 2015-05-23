@@ -2,7 +2,6 @@
 #define MADNESS_FUNCTION_TRAITS
 
 #include <type_traits>
-#include <madness/world/enable_if.h>
 
 namespace madness {
     namespace detail {

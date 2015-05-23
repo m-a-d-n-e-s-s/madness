@@ -67,7 +67,6 @@
 
 #include <madness/world/worldmutex.h>
 #include <madness/world/type_traits.h>
-#include <madness/world/enable_if.h>
 #include <iostream>
 #include <cstring>
 #include <memory>

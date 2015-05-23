@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id: typestuff.h 2446 2011-07-22 15:21:22Z justus.c79@gmail.com $
 */
 
 #ifndef MADNESS_WORLD_TYPE_TRAITS_H__INCLUDED
@@ -180,6 +177,29 @@ namespace madness {
         // if the sizeof the result of calling test<T>(0) is equal to the sizeof(yes),
         // the first overload worked and T has a nested type named type.
         static const bool value = sizeof(test<T>(0)) == sizeof(yes);
+    };
+
+
+    /// Use \c Cond to determine the type, \c T1 or \c T2.
+
+    /// \c type will have type \c T1 if \c Cond is true; otherwise it will
+    /// have type \c T2.
+    /// \tparam Cond The bool value.
+    /// \tparam T1 Type of \c type if \c Cond is true.
+    /// \tparam T2 Type of \c type if \c Cond is false.
+    template <bool Cond, typename T1, typename T2>
+    struct switch_type {
+        typedef T1 type; ///< The type.
+    };
+    
+    /// Specialization of \c switch_type for when \c Cond is false.
+
+    /// \c type will have type \c T2.
+    /// \tparam T1 Type of \c type if \c Cond is true (not used).
+    /// \tparam T2 Type of \c type if \c Cond is false.
+    template <typename T1, typename T2>
+    struct switch_type<false, T1, T2> {
+        typedef T2 type; ///< The type.
     };
 
 

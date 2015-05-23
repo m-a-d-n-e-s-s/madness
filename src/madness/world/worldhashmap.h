@@ -46,7 +46,7 @@
 #include <madness/world/worldmutex.h>
 #include <madness/world/madness_exception.h>
 #include <madness/world/worldhash.h>
-#include <madness/world/enable_if.h>
+#include <madness/world/type_traits.h>
 #include <new>
 #include <stdio.h>
 #include <map>

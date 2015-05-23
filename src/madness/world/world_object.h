@@ -41,6 +41,7 @@
 #include <type_traits>
 #include <madness/world/thread.h>
 #include <madness/world/world_task_queue.h>
+#include <madness/world/type_traits.h>
 
 /// \addtogroup world_object
 /// @{
