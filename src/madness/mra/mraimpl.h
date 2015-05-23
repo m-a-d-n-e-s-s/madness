@@ -1637,7 +1637,7 @@ namespace madness {
     /// @return 		the sum coefficients
     template <typename T, std::size_t NDIM>
     typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::compress_op(const keyT& key, const std::vector< Future<coeffT > >& v, bool nonstandard, bool redundant) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl);
         
         MADNESS_ASSERT(not redundant);
         double cpu0=cpu_time();
@@ -1979,7 +1979,7 @@ namespace madness {
     
     template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const coeffT& s) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl);
         // Note that after application of an integral operator not all
         // siblings may be present so it is necessary to check existence
         // and if absent insert an empty leaf node.
@@ -2056,7 +2056,7 @@ namespace madness {
         //~ template <typename T, std::size_t NDIM> template< typename FF>
         //~ void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FF& f, const Tensor<double>& qx, tensorT& fval) const {
         typedef Vector<double,NDIM> coordT;
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl);
         const Vector<Translation,NDIM>& l = key.translation();
         const Level n = key.level();
         const double h = std::pow(0.5,double(n));
@@ -2351,7 +2351,7 @@ namespace madness {
     Void FunctionImpl<T,NDIM>::project_refine_op(const keyT& key,
                                                  bool do_refine,
                                                  const std::vector<Vector<double,NDIM> >& specialpts) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl);
         if (do_refine && key.level() < max_refine_level) {
             
             // Restrict special points to this box
@@ -2500,7 +2500,7 @@ namespace madness {
     
     template <typename T, std::size_t NDIM>
     Future<bool> FunctionImpl<T,NDIM>::truncate_spawn(const keyT& key, double tol) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl);
         typename dcT::iterator it = coeffs.find(key).get();
         if (it == coeffs.end()) {
             // In a standard tree all children would exist but some ops (transform)
@@ -2627,7 +2627,7 @@ namespace madness {
     
     template <typename T, std::size_t NDIM>
     Tensor<T> FunctionImpl<T,NDIM>::project(const keyT& key) const {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl);
         
         if (not functor) MADNESS_EXCEPTION("FunctionImpl: project: confusion about function?",0);
         
@@ -2660,7 +2660,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::sock_it_to_me(const keyT& key,
                                              const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
+        //PROFILE_MEMBER_FUNC(FunctionImpl);
         if (coeffs.probe(key)) {
             const nodeT& node = coeffs.find(key).get()->second;
             Future< std::pair<keyT,coeffT> > result(ref);
