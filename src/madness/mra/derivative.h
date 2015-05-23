@@ -635,7 +635,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const DerivativeBase<T,NDIM>*> {
             static void load(const Archive& ar, const DerivativeBase<T,NDIM>*& ptr) {
-                WorldObject< DerivativeBase<T,NDIM> >* p = NULL;
+                WorldObject< DerivativeBase<T,NDIM> >* p = nullptr;
                 ar & p;
                 ptr = static_cast< const DerivativeBase<T,NDIM>* >(p);
             }

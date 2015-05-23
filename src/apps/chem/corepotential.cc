@@ -328,7 +328,7 @@ static AtomCore read_atom(TiXmlElement* e, unsigned int atn, double eprec) {
 
 void CorePotentialManager::read_file(string filename, std::set<unsigned int> atomset, double eprec) {
 
-	char* data_dir=NULL;
+	char* data_dir=nullptr;
 	if (getenv("MRA_DATA_DIR")) data_dir = getenv("MRA_DATA_DIR");
 	std::string datadir(data_dir);
 	datadir+="/"+dir;

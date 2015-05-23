@@ -557,7 +557,7 @@ namespace madness {
         ///       ... WITHOUT FACTOR INCLUDED
         /// compute for 1 term, all dim, 1 disp, essentially for SeparatedConvolutionInternal
         double munorm2_ns(Level n, const ConvolutionData1D<Q>* ops[]) const {
-            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            //PROFILE_MEMBER_FUNC(SeparatedConvolution);
             
             double prodR=1.0, prodT=1.0;
             for (std::size_t d=0; d<NDIM; ++d) {
@@ -1703,7 +1703,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void load(const Archive& ar, const SeparatedConvolution<T,NDIM>*& ptr) {
-                WorldObject< SeparatedConvolution<T,NDIM> >* p = NULL;
+                WorldObject< SeparatedConvolution<T,NDIM> >* p = nullptr;
                 ar & p;
                 ptr = static_cast< const SeparatedConvolution<T,NDIM>* >(p);
             }

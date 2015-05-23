@@ -616,7 +616,7 @@ namespace madness {
         virtual tbb::task* execute() {
             detail::run_function(result_, func_, arg1_, arg2_, arg3_, arg4_,
                     arg5_, arg6_, arg7_, arg8_, arg9_);
-            return NULL;
+            return nullptr;
         }
 #else
       protected:

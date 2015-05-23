@@ -429,7 +429,7 @@ namespace madness {
 
         /// \todo Description needed.
         /// \param[in] blah Description needed.
-        explicit Future(const dddd& blah) : f(), value(NULL) { }
+        explicit Future(const dddd& blah) : f(), value(nullptr) { }
 
     public:
         /// \todo Brief description needed.
@@ -437,7 +437,7 @@ namespace madness {
 
         /// Makes an unassigned future.
         Future() :
-            f(new FutureImpl<T>()), value(NULL)
+            f(new FutureImpl<T>()), value(nullptr)
         { }
 
         /// Makes an assigned future.
@@ -456,7 +456,7 @@ namespace madness {
                 f(remote_ref.is_local() ?
                         remote_ref.get_shared() :
                         std::shared_ptr<FutureImpl<T> >(new FutureImpl<T>(remote_ref))),
-                value(NULL)
+                value(nullptr)
         { }
 
 
@@ -477,7 +477,7 @@ namespace madness {
             f(other.f),
             value(other.value ?
                 new(static_cast<void*>(buffer)) T(* other.value) :
-                NULL)
+                nullptr)
         {
             if(other.is_default_initialized())
                 f.reset(new FutureImpl<T>()); // Other was default constructed so make a new f

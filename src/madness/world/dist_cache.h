@@ -148,7 +148,7 @@ namespace madness {
 
                 // Retrieve the cached future
                 typename cache_container::accessor acc;
-                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(NULL)))) {
+                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(nullptr)))) {
 
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<value_type>(value);
@@ -185,7 +185,7 @@ namespace madness {
             static void get_cache_value(const keyT& key, madness::Future<valueT>& value) {
                 // Retrieve the cached future
                 typename cache_container::accessor acc;
-                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(NULL)))) {
+                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(nullptr)))) {
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<valueT>(value);
                     acc.release();
@@ -214,7 +214,7 @@ namespace madness {
             static madness::Future<valueT> get_cache_value(const keyT& key) {
                 // Retrieve the cached future
                 typename cache_container::accessor acc;
-                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(NULL)))) {
+                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(nullptr)))) {
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<valueT>();
                     madness::Future<valueT> value(acc->second->template get<valueT>());

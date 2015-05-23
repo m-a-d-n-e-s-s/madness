@@ -113,7 +113,7 @@ namespace madness {
 
         /// \todo Brief description needed.
         static void init_thread_key() {
-           const int rc = pthread_key_create(&thread_key, NULL);
+           const int rc = pthread_key_create(&thread_key, nullptr);
            if(rc != 0)
                MADNESS_EXCEPTION("pthread_key_create failed", rc);
         }
@@ -435,7 +435,7 @@ namespace madness {
         /// \todo I cannot get the TaskThreadEnv to work with Barrier.
         /// Need to figure out why.
         TaskThreadEnv(int nthread, int id)
-            : _nthread(nthread), _id(id), _barrier(NULL)
+            : _nthread(nthread), _id(id), _barrier(nullptr)
         {};
 #endif
 
@@ -584,7 +584,7 @@ namespace madness {
             /// - the submit time
             /// - the start time
             /// - the stop time.
-            /// 
+            ///
             /// \param[in,out] os The output stream.
             /// \param[in] te The task event to be output.
             /// \return The \c os reference.
@@ -777,7 +777,7 @@ namespace madness {
                 TaskEventList* list = new TaskEventList(nmax);
 
                 // Append the list to the tail of the linked list
-                if(head_ != NULL) {
+                if(head_ != nullptr) {
                     tail_->insert(list);
                     tail_ = list;
                 } else {
@@ -890,7 +890,7 @@ namespace madness {
         /// \todo Descriptions needed.
         /// \param[in,out] id Description needed.
         virtual void get_id(std::pair<void*,unsigned short>& id) const {
-            id.first = NULL;
+            id.first = nullptr;
             id.second = 0ul;
         }
 
@@ -1019,7 +1019,7 @@ namespace madness {
         tbb::task* execute() {
             const int nthread = get_nthread();
             run( TaskThreadEnv(nthread, 0) );
-            return NULL;
+            return nullptr;
         }
 
         /// \todo Brief description needed.
@@ -1038,7 +1038,7 @@ namespace madness {
         ///     objects) to be destroyed.
         /// \param[in] size The size of the array.
         static inline void operator delete(void* p, std::size_t size) throw() {
-            if(p != NULL) {
+            if(p != nullptr) {
                 tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
             }
         }
@@ -1413,7 +1413,7 @@ namespace madness {
 #endif
         }
     };
-    
+
     /// @}
 }
 

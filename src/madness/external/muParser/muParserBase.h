@@ -119,7 +119,7 @@ private:
     }
 
     void SetExpr(const string_type &a_sExpr);
-    void SetVarFactory(facfun_type a_pFactory, void *pUserData = NULL);
+    void SetVarFactory(facfun_type a_pFactory, void *pUserData = nullptr);
 
     void EnableOptimizer(bool a_bIsOn=true);
     void EnableByteCode(bool a_bIsOn=true);

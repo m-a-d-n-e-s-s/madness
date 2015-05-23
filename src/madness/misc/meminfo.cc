@@ -95,7 +95,7 @@ namespace madness {
   /* Mac OS X specific hack - un-tested post Snow Leopard */
   struct malloc_statistics_t mi; /* structure in bytes */
 
-  malloc_zone_statistics(NULL, &mi);
+  malloc_zone_statistics(nullptr, &mi);
 
   memoryfile << "Allocate heap (MB): " << (mi.size_in_use/fac) << endl; 
 #elif defined(X86_32) 

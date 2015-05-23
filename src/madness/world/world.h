@@ -292,7 +292,7 @@ namespace madness {
         /// Clears the user-defined state.
 
         /// This has the same effect as `set_user_state(0)`.
-        void clear_user_state() { user_state = NULL; }
+        void clear_user_state() { user_state = nullptr; }
 
         /// Processes command line arguments.
 
@@ -395,7 +395,7 @@ namespace madness {
         T* ptr_from_id(uniqueidT id) const {
             map_id_to_ptrT::const_iterator it = map_id_to_ptr.find(id);
             if (it == map_id_to_ptr.end())
-                return NULL;
+                return nullptr;
             else
                 return (T*)(it->second);
         }
@@ -454,7 +454,7 @@ namespace madness {
             for (std::list<World *>::iterator it=worlds.begin(); it != worlds.end(); ++it) {
                 if ((*it) && (*it)->_id == id) return *it;
             }
-            return NULL;
+            return nullptr;
         }
 
     private:

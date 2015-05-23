@@ -41,8 +41,8 @@ namespace madness {
     WorldAmInterface::WorldAmInterface(World& world)
             : msg_len(RMI::max_msg_len() - sizeof(AmArg))
             , nsend(DEFAULT_NSEND)
-            , managed_send_buf(NULL)
-            , send_req(NULL)
+            , managed_send_buf(nullptr)
+            , send_req(nullptr)
             , worldid(0) // worldid is initialized in the World constructor
             , rank(world.mpi.Get_rank())
             , nproc(world.mpi.Get_size())
@@ -70,7 +70,7 @@ namespace madness {
         managed_send_buf.reset(new AmArg* volatile[nsend]);
         send_req.reset(new RMI::Request[nsend]);
 
-        for (int i=0; i<nsend; ++i) managed_send_buf[i] = NULL;
+        for (int i=0; i<nsend; ++i) managed_send_buf[i] = nullptr;
 
         std::vector<int> fred(nproc);
         for (int i=0; i<nproc; ++i) fred[i] = i;

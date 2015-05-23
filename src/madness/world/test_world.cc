@@ -519,7 +519,7 @@ void test8(World& world) {
     archive::VectorOutputArchive arout(v);
     arout & &world;
 
-    World* p = NULL;
+    World* p = nullptr;
     archive::VectorInputArchive arin(v);
     arin & p;
     MADNESS_ASSERT(p==&world);

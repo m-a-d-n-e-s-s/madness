@@ -41,12 +41,12 @@
 
 namespace madness {
 
-    RMI::RmiTask* RMI::task_ptr = NULL;
+    RMI::RmiTask* RMI::task_ptr = nullptr;
     RMIStats RMI::stats;
     volatile bool RMI::debugging = false;
 
 #if HAVE_INTEL_TBB
-    tbb::task* RMI::tbb_rmi_parent_task = NULL;
+    tbb::task* RMI::tbb_rmi_parent_task = nullptr;
 #endif
   
     void RMI::RmiTask::process_some() {
