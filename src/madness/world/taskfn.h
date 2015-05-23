@@ -470,9 +470,6 @@ namespace madness {
         /// Future<void> is always ready => no op
         inline void check_dependency(const Future<void>&) { }
 
-        /// Future<void> is always ready => no op
-        inline void check_dependency(const Future<Void>&) { }
-
         /// Check dependencies and register callbacks where necessary
         void check_dependencies() {
             check_dependency(arg1_);

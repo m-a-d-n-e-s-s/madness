@@ -66,7 +66,7 @@ namespace {
 
         template <typename T>
         class XferRef : public madness::WorldObject<XferRef<T> > {
-            madness::Void set_ptr(const RemoteReference<T>& r, bool away) {
+            void set_ptr(const RemoteReference<T>& r, bool away) {
                 if(away) {
                     //std::cout << pworld->rank() << ": Set remote_ref = " << r << "\n";
                     remote_ref.set(r);
@@ -74,7 +74,6 @@ namespace {
                     //std::cout << pworld->rank() << ": Set return_ref = " << r << "\n";
                     return_ref.set(r);
                 }
-                return madness::None;
             }
         public:
             madness::Future<RemoteReference<T> > remote_ref;

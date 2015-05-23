@@ -329,7 +329,7 @@ namespace madness {
         std::vector<keyT>* move_list;            ///< Tempoary used to record data that needs redistributing
 
         /// Handles find request
-        Void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
+        void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
             internal_iteratorT r = local.find(key);
             if (r == local.end()) {
                 //print("find_handler: failure:", key);
@@ -339,27 +339,24 @@ namespace madness {
                 //print("find_handler: success:", key, r->first, r->second);
                 this->send(requestor, &implT::find_success_handler, ref, *r);
             }
-            return None;
         }
 
         /// Handles successful find response
-        Void find_success_handler(const RemoteReference< FutureImpl<iterator> >& ref, const pairT& datum) {
+        void find_success_handler(const RemoteReference< FutureImpl<iterator> >& ref, const pairT& datum) {
             FutureImpl<iterator>* f = ref.get();
             f->set(iterator(datum));
             //print("find_success_handler: success:", datum.first, datum.second, f->get()->first, f->get()->second);
             // Todo: Look at this again.
 //            ref.reset(); // Matching inc() in find() where ref was made
-            return None;
         }
 
         /// Handles unsuccessful find response
-        Void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
+        void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
             FutureImpl<iterator>* f = ref.get();
             f->set(end());
             //print("find_failure_handler");
             // Todo: Look at this again.
 //            ref.reset(); // Matching inc() in find() where ref was made
-            return None;
         }
 
     public:
@@ -404,7 +401,7 @@ namespace madness {
             return local.size();
         }
 
-        Void insert(const pairT& datum) {
+        void insert(const pairT& datum) {
             ProcessID dest = owner(datum.first);
             if (dest == me) {
                 // Was using iterator ... try accessor ?????
@@ -415,7 +412,6 @@ namespace madness {
             else {
                 this->send(dest, &implT::insert, datum);
             }
-            return None;
         }
 
         bool insert_acc(accessor& acc, const keyT& key) {
@@ -433,16 +429,15 @@ namespace madness {
         }
 
 
-        Void erase(const keyT& key) {
+        void erase(const keyT& key) {
             ProcessID dest = owner(key);
             if (dest == me) {
                 local.erase(key);
             }
             else {
-                Void(implT::*eraser)(const keyT&) = &implT::erase;
+                void(implT::*eraser)(const keyT&) = &implT::erase;
                 this->send(dest, eraser, key);
             }
-            return None;
         }
 
         template <typename InIter>

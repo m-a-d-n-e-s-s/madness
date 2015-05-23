@@ -1165,8 +1165,8 @@ namespace madness {
         }
 
         /// Return the local part of inner product with external function ... no communication.
-        /// If you are going to be doing a bunch of inner_ext calls, set 
-        /// keep_redundant to true and then manually undo_redundant when you 
+        /// If you are going to be doing a bunch of inner_ext calls, set
+        /// keep_redundant to true and then manually undo_redundant when you
         /// are finished.
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
         /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
@@ -1181,8 +1181,8 @@ namespace madness {
         }
 
         /// Return the inner product with external function ... requires communication.
-        /// If you are going to be doing a bunch of inner_ext calls, set 
-        /// keep_redundant to true and then manually undo_redundant when you 
+        /// If you are going to be doing a bunch of inner_ext calls, set
+        /// keep_redundant to true and then manually undo_redundant when you
         /// are finished.
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
         /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
@@ -1221,11 +1221,10 @@ namespace madness {
         /// @param[in] beta prefactor for f
         /// @return Returns local part of the gaxpy, i.e. over the domain of all function nodes on this compute node.
         template <typename L>
-        Void gaxpy_ext(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence=true) const {
+        void gaxpy_ext(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence=true) const {
             PROFILE_MEMBER_FUNC(Function);
             if (left.is_compressed()) left.reconstruct();
             impl->gaxpy_ext(left.get_impl().get(), f, alpha, beta, tol, fence);
-            return None;
         }
 
         /// Returns the inner product for one on-demand function

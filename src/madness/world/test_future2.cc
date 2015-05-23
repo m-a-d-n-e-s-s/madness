@@ -62,12 +62,11 @@ public:
     }
 
     /// Write element i
-    Void write(size_t i, double value) {
+    void write(size_t i, double value) {
         if (owner(i) == get_world().rank())
             v[i-get_world().rank()*v.size()] = value;
         else
             send(owner(i), &Array::write, i, value);
-        return None;
     }
 };
 

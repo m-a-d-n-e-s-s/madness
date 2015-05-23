@@ -778,71 +778,6 @@ namespace madness {
     }; // class Future<void>
 
 
-    /// \brief Specialization of \c FutureImpl<Void> for internal convenience.
-    ///     This does nothing useful!
-    template <>
-    class FutureImpl<Void> {};
-
-
-    /// \brief Specialization of \c Future<Void> for internal convenience.
-    ///     This does nothing useful!
-    template <>
-    class Future<Void> {
-    public:
-        /// \todo Brief description needed.
-        typedef RemoteReference< FutureImpl<Void> > remote_refT;
-
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \param[in,out] world Description needed.
-        /// \return Description needed.
-        remote_refT remote_ref(World& world) const {
-            return remote_refT();
-        }
-
-        Future() = default;
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \param[in] ref Description needed.
-        Future(const RemoteReference< FutureImpl<Void> >& ref) {}
-
-
-        /// \brief Set the value from another future (does nothing in this
-        ///     \c Void specialization).
-
-        /// \param[in] f The other future.
-        inline void set(const Future<Void>& f) {}
-
-
-        /// Assignment operator.
-
-        /// \param[in] f The future to be copied.
-        /// \return This.
-        inline Future<Void>& operator=(const Future<Void>& f) {
-            return *this;
-        }
-
-
-        /// Set the value (does nothing in this \c Void specialization),
-
-        /// \param[in] f The other \c Void.
-        inline void set(const Void& f) {}
-
-
-        /// Check if this future is assigned.
-
-        /// \return True is this \c Void specialization.
-        static bool probe() {
-            return true;
-        }
-
-    }; // class Future<Void>
-
-
     /// Specialization of \c Future for a vector of `Future`s.
 
     /// Enables passing a vector of futures into a task and having the
@@ -1011,33 +946,6 @@ namespace madness {
             { }
         };
 
-        /// Serialize an assigned future (\c Void specialization).
-
-        /// \tparam Archive Archive type.
-        template <class Archive>
-        struct ArchiveStoreImpl< Archive, Future<Void> > {
-
-            /// Store the assigned \c Void future in the archive (do nothing).
-
-            /// \param[in,out] ar The archive.
-            /// \param[in] f The \c Void future.
-            static inline void store(const Archive& ar, const Future<Void>& f) { }
-        };
-
-
-        /// Deserialize a future into an unassigned future (\c Void specialization).
-
-        /// \tparam Archive Archive type.
-        template <class Archive>
-        struct ArchiveLoadImpl< Archive, Future<Void> > {
-
-            /// Read into an unassigned \c Void future.
-
-            /// \param[in,out] ar The archive.
-            /// \param[out] f The \c Void future.
-            static inline void load(const Archive& ar, Future<Void>& f) { }
-        };
-
         /// Serialize a vector of assigned futures.
 
         /// \tparam Archive Archive type.
@@ -1110,14 +1018,6 @@ namespace madness {
     template <>
     std::ostream& operator<<(std::ostream& out, const Future<void>& f);
 
-
-    /// Stream output operator for a \c Void future.
-
-    /// \param[in,out] out The output stream.
-    /// \param[in] f The future.
-    /// \return The output stream.
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<Void>& f);
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
 

@@ -81,12 +81,11 @@ namespace {
 
         template <typename T>
         class XferPtr : public madness::WorldObject<XferPtr<T> > {
-            madness::Void set_ptr(const WorldPtr<T>& p, const madness::uniqueidT & id, bool away) {
+            void set_ptr(const WorldPtr<T>& p, const madness::uniqueidT & id, bool away) {
                 if(away)
                     remote_ptr.set(p);
                 else
                     return_ptr.set(p);
-                return madness::None;
             }
         public:
             madness::Future<WorldPtr<T> > remote_ptr;
