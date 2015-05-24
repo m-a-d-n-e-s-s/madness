@@ -23,7 +23,7 @@ export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
     --enable-debugging --disable-optimization --enable-warning --disable-optimal \
     --with-google-test \
     --enable-never-spin \
-    LIBS="-L/usr/lib/lapack -L/usr/lib/openblas-base -llapack -lopenblas -lpthread"
+    LIBS="-L/usr/lib/lapack -L/usr/lib/libblas -llapack -lblas -lpthread"
     
 make -j2 libraries
 
