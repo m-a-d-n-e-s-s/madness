@@ -29,12 +29,13 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_WORLD_ARRAY_H__INCLUDED
-#define MADNESS_WORLD_ARRAY_H__INCLUDED
+#ifndef MADNESS_WORLD_VECTOR_H__INCLUDED
+#define MADNESS_WORLD_VECTOR_H__INCLUDED
 
 /**
- \file array.h
- \brief \todo Brief description needed.
+ \file vector.h
+ \brief Implement the \c madness:Vector class, an extension of \c std::array
+    that supports some mathematical operations.
  \ingroup containers
 */
 
@@ -42,85 +43,12 @@
 #include <madness/world/madness_exception.h>
 #include <madness/world/worldhash.h>
 #include <array>
+#include <madness/world/array_addons.h>
 #include <vector>
 #include <algorithm>
 #include <iostream>
 
 namespace madness {
-
-    /// Output \c std::array to stream for human consumption.
-
-    /// \tparam T The type of data stored in the array.
-    /// \tparam N The size of the array.
-    /// \param[in,out] s The output stream.
-    /// \param[in] a The array to be output.
-    /// \return The output stream.
-    template <typename T, std::size_t N>
-    std::ostream& operator<<(std::ostream& s, const std::array<T,N>& a) {
-        s << "[";
-        for(std::size_t i=0; i<N; ++i) {
-            s << a[i];
-            if (i != (N-1)) s << ",";
-        }
-        s << "]";
-        return s;
-    }
-
-    /// Hash std::array with madness hash.
-
-    /// \tparam T The type of data stored in the array.
-    /// \tparam N The size of the array.
-    /// \param[in] a The array.
-    /// \return The hash.
-    template <typename T, std::size_t N>
-    madness::hashT hash_value(const std::array<T,N>& a) {
-        // Use this version of range for potential optimization.
-        return madness::hash_range(a.data(), N);
-    }
-
-    // Serialize std::array objects
-    namespace archive {
-
-        template <class Archive, class T>
-        struct ArchiveStoreImpl;
-        template <class Archive, class T>
-        struct ArchiveLoadImpl;
-
-        /// Serialize an \c std::array.
-
-        /// \tparam Archive The archive type.
-        /// \tparam T The type of data stored in the array.
-        /// \tparam N The size of the array.
-        template <class Archive, typename T, std::size_t N>
-        struct ArchiveStoreImpl<Archive, std::array<T,N> > {
-            /// Store the designated \c std::array in the archive.
-
-            /// \param[in,out] ar The archive.
-            /// \param[in] a The array.
-            static void store(const Archive& ar, const std::array<T,N>& a) {
-                for(typename std::array<T,N>::const_iterator it = a.begin(); it != a.end(); ++it)
-                    ar & (*it);
-            }
-        };
-
-        /// Serialize an \c std::array.
-
-        /// \tparam Archive The archive type.
-        /// \tparam T The type of data stored in the array.
-        /// \tparam N The size of the array.
-        template <class Archive, typename T, std::size_t N>
-        struct ArchiveLoadImpl<Archive, std::array<T,N> > {
-            /// Load an \c std::array from an archive.
-
-            /// \param[in,out] ar The archive.
-            /// \param[out] a The array.
-            static void load(const Archive& ar, std::array<T,N>& a) {
-                for(typename std::array<T,N>::iterator it = a.begin(); it != a.end(); ++it)
-                    ar & (*it);
-            }
-        };
-
-    } // namespace archive
 
     /// A simple, fixed dimension vector.
 
@@ -404,8 +332,8 @@ namespace madness {
         l.swap(r);
     }
 
-    // Arithmetic operators
 
+    // Arithmetic operators
 
     /// Scale a \c Vector.
 
@@ -592,81 +520,6 @@ namespace madness {
     }
 
 
-    /// A simple, fixed-size, stack.
-
-    /// \tparam T The type of data stored in the stack.
-    /// \tparam N The fixed size of the stack.
-    template <typename T, std::size_t N>
-    class Stack {
-    private:
-        std::array<T,N> t; ///< The underlying array storing the stack elements.
-        std::size_t n; ///< Number of elements presently stored in the stack.
-
-    public:
-        /// Construct an empty stack.
-        Stack() : n(0) {}
-
-        /// Push a new item onto the stack.
-
-        /// \throw MadnessException (via MADNESS_ASSERT) if the stack is full.
-        /// \param[in] value The item to be pushed onto the stack.
-        void push(const T& value) {
-            MADNESS_ASSERT(n < N);
-            t[n++] = value;
-        }
-
-        /// Pop an item off of the stack.
-
-        /// \throw MadnessException (via MADNESS_ASSERT) if the stack is empty.
-        /// \return The item popped from the stack.
-        T& pop() {
-            MADNESS_ASSERT(n > 0);
-            return t[--n];
-        }
-
-        /// Look at the last item pushed onto the stack, but do not pop it off.
-
-        /// \throw MadnessException (via MADNESS_ASSERT) if the stack is empty.
-        /// \return The item at the back of the stack.
-        T& front() {
-            MADNESS_ASSERT(n > 0);
-            return t[n-1];
-        }
-
-        /// Look at the last item pushed onto the stack, but do not pop it off.
-
-        /// \throw MadnessException (via MADNESS_ASSERT) if the stack is empty.
-        /// \return The item at the back of the stack.
-        T& top() {
-            return front();
-        }
-
-        /// Access the number of items pushed to the stack.
-
-        /// \return The number of items pushed to the stack.
-        std::size_t size() const {
-            return n;
-        }
-
-        /// Determine if the stack is empty.
-
-        /// \return True if the stack is empty; false otherwise.
-        bool empty() const {
-            return n==0;
-        }
-
-        /// Empty the stack.
-        void clear() {
-            n = 0;
-        }
-
-        /// Empty the stack.
-        void reset() {
-            clear();
-        }
-
-    }; // class Stack
-
 	/// Construct a unit-`Vector` that has the same direction as \c r.
 
     /// \tparam T The type of data stored in the \c Vector.
@@ -685,77 +538,6 @@ namespace madness {
 		return r*(1.0/norm);
 	}
 
-
-    /// Returns a Vector<T,1> initialized from the arguments
-
-    /// Replace this set of functions by a variadic template.
-    template <typename T>
-    inline std::array<T,1> array_factory(const T& v0) {
-        std::array<T,1> v;
-        v[0] = v0;
-        return v;
-    }
-
-    /// Returns a Vector<T,2> initialized from the arguments
-    template <typename T>
-    inline std::array<T,2> array_factory(const T& v0, const T& v1) {
-        std::array<T,2> v;
-        v[0] = v0;
-        v[1] = v1;
-        return v;
-    }
-
-    /// Returns a Vector<T,3> initialized from the arguments
-    template <typename T>
-    inline std::array<T,3> array_factory(const T& v0, const T& v1,
-                                     const T& v2) {
-        std::array<T,3> v;
-        v[0] = v0;
-        v[1] = v1;
-        v[2] = v2;
-        return v;
-    }
-
-    /// Returns a Vector<T,4> initialized from the arguments
-    template <typename T>
-    inline std::array<T,4> array_factory(const T& v0, const T& v1,
-                                     const T& v2, const T& v3) {
-        std::array<T,4> v;
-        v[0] = v0;
-        v[1] = v1;
-        v[2] = v2;
-        v[3] = v3;
-        return v;
-    }
-
-    /// Returns a Vector<T,5> initialized from the arguments
-    template <typename T>
-    inline std::array<T,5> array_factory(const T& v0, const T& v1,
-                                     const T& v2, const T& v3,
-                                     const T& v4) {
-        std::array<T,5> v;
-        v[0] = v0;
-        v[1] = v1;
-        v[2] = v2;
-        v[3] = v3;
-        v[4] = v4;
-        return v;
-    }
-
-    /// Returns a Vector<T,6> initialized from the arguments
-    template <typename T>
-    inline std::array<T,6> array_factory(const T& v0, const T& v1,
-                                     const T& v2, const T& v3,
-                                     const T& v4, const T& v5) {
-        std::array<T,6> v;
-        v[0] = v0;
-        v[1] = v1;
-        v[2] = v2;
-        v[3] = v3;
-        v[4] = v4;
-        v[5] = v5;
-        return v;
-    }
 } // namespace madness
 
-#endif // MADNESS_WORLD_ARRAY_H__INCLUDED
+#endif // MADNESS_WORLD_VECTOR_H__INCLUDED

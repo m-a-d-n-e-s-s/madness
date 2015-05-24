@@ -37,7 +37,7 @@
 
 #include <vector>
 #include <madness/mra/power.h>
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
 #include <stdint.h>

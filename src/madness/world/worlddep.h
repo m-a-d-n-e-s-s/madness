@@ -29,14 +29,13 @@
   fax:   865-572-0680
 */
 
-
 #ifndef MADNESS_WORLD_WORLDDEP_H__INCLUDED
 #define MADNESS_WORLD_WORLDDEP_H__INCLUDED
 
 /// \file worlddep.h
 /// \brief Defines DependencyInterface and CallbackInterface
 
-#include <madness/world/array.h>
+#include <madness/world/stack.h>
 #include <madness/world/worldmutex.h>
 #include <madness/world/atomicint.h>
 #include <madness/world/world.h>

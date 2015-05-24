@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 
@@ -98,9 +95,3 @@ int main() {
 
     return 0;
 }
-
-
-
-
-
-

@@ -38,7 +38,7 @@
 /// \ingroup mrabcext
 
 #include <madness/world/MADworld.h>
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <madness/world/worlddc.h>
 #include <madness/tensor/tensor.h>
 #include <madness/mra/key.h>

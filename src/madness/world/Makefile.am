@@ -5,7 +5,8 @@ lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/madness/world
 thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
-	world_task_queue.h array.h worldgop.h world_object.h buffer_archive.h \
+	world_task_queue.h array_addons.h stack.h vector.h worldgop.h \
+	world_object.h buffer_archive.h \
 	nodefaults.h worlddep.h worldhash.h worldref.h worldtypes.h \
 	dqueue.h parallel_archive.h vector_archive.h madness_exception.h \
 	worldmem.h thread.h worldrmi.h safempi.h worldpapi.h worldmutex.h \
@@ -24,7 +25,7 @@ TESTS = test_prof.mpi test_ar.mpi test_hashdc.mpi test_hello.mpi test_atomicint.
 
 
 if MADNESS_HAS_GOOGLE_TEST
-TESTS += test_array.mpi test_worldptr.mpi test_worldref.mpi
+TESTS += test_vector.mpi test_worldptr.mpi test_worldref.mpi
 XFAIL_TESTS =  test_googletest.mpi
 endif
 
@@ -91,10 +92,10 @@ test_worldprofile_mpi_LDADD = libMADworld.a
 
 if MADNESS_HAS_GOOGLE_TEST
 
-test_array_mpi_SOURCES = test_array.cc
-test_array_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
-test_array_mpi_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
-test_array_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
+test_vector_mpi_SOURCES = test_vector.cc
+test_vector_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_vector_mpi_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_vector_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 
 #test_googletest_mpi_SOURCES = test_googletest.cc
 #test_googletest_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)

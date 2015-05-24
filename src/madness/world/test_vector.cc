@@ -29,7 +29,7 @@
   fax:   865-572-0680
 */
 
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <madness/madness_config.h>
 
 #ifdef MADNESS_HAS_GOOGLE_TEST
