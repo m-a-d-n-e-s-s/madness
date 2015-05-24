@@ -33,17 +33,6 @@ namespace madness {
             delete[] a;
         }
 
-        /// Function to free memory for a shared_ptr using free()
-
-        /// Checks the pointer to make sure it is a complete type, you will get
-        /// a compiler error if it is not.
-        template <typename T>
-        inline void checked_free(T* p) {
-            typedef char type_must_be_complete[sizeof(T) ? 1 : -1];
-            (void)sizeof(type_must_be_complete);
-            free(p);
-        }
-
     } // namespace detail
 } // namespace madness
 #endif

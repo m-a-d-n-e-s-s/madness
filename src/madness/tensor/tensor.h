@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 #ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
@@ -331,7 +328,7 @@ namespace madness {
                     _shptr = std::shared_ptr<T>(_p);
 #else
                     if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
-                    _shptr.reset(_p, &::madness::detail::checked_free<T>);
+                    _shptr.reset(_p, [] (T *p_) -> void { free(p_); } );
 #endif
                 }
                 catch (...) {
