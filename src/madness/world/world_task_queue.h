@@ -38,12 +38,14 @@
 #ifndef MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
 #define MADNESS_WORLD_WORLD_TASK_QUEUE_H__INCLUDED
 
+#include <type_traits>
 #include <iostream>
 #include <madness/world/nodefaults.h>
 #include <madness/world/worldrange.h>
 #include <madness/world/timers.h>
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
+#include <madness/world/world_task_queue.h>
 
 /// \addtogroup taskq
 /// @{
@@ -77,7 +79,7 @@ namespace madness {
             functionT func; ///< A task function.
             TaskAttributes attr; ///< Task attributes.
 
-            TaskHandlerInfo() {}
+            TaskHandlerInfo() = default;
 
             /// Construct task info object.
 
@@ -114,7 +116,7 @@ namespace madness {
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename enable_if<is_func_ptr<fnT> >::type
+            typename std::enable_if<is_func_ptr<fnT>::value >::type
             serialize_internal(const Archive& ar) {
                 ar & ref & archive::wrap_opaque(func) & attr;
             }
@@ -125,11 +127,30 @@ namespace madness {
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename disable_if<is_func_ptr<fnT> >::type
+            typename std::enable_if<!is_func_ptr<fnT>::value >::type
             serialize_internal(const Archive& ar) {
                 ar & ref & func & attr;
             }
         }; // struct TaskHandlerInfo
+
+        /// Behave like a lazy \c std::enable_if.
+
+        /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
+        /// which causes the template expression in which it is used to not be considered for
+        /// overload resolution. This "lazy" version is used if \c T is only valid when
+        /// B is true. Note: typename T::type is the return type and must be well formed.
+        /// \tparam B The bool value.
+        /// \tparam returnT The type.
+        template <bool B, class returnT>
+        struct function_enabler_helper {
+          typedef typename returnT::type type;
+        };
+
+        /// Specialization that disables \c type when \c B is false.
+
+        /// \tparam returnT The type.
+        template <class returnT>
+        struct function_enabler_helper<false, returnT> { };
 
         /// \todo Brief description needed.
 
@@ -137,7 +158,7 @@ namespace madness {
         /// \tparam fnT Description needed.
         template <typename fnT>
         struct function_enabler : public
-            lazy_enable_if_c<
+            function_enabler_helper<
                 function_traits<fnT>::value || is_functor<fnT>::value,
                 task_result_type<fnT> >
         { };
@@ -513,10 +534,8 @@ namespace madness {
         /// and the rest by the task interface.
         /// \code
         /// struct opT {
-        ///     opT();
         ///     opT(const opT&);
         ///     bool operator()(const rangeT::iterator& it) const;
-        ///     template <typename Archive> void serialize(const Archive& ar);
         /// };
         /// \endcode
         /// \note The serialize method does not actually have to
@@ -1319,6 +1338,76 @@ namespace madness {
 
     namespace detail {
 
+#ifdef HAVE_INTEL_TBB
+
+        /// Apply an operation to a range of iterators.
+
+        /// \tparam rangeT The range of iterators type.
+        /// \tparam opT The operation type.
+        /// This task creates `for_each` tasks and collects information on the
+        /// results of those tasks. Once all tasks have completed it will set
+        /// the result future.
+        template <typename rangeT, typename opT>
+        class ForEachRootTask : public TaskInterface {
+        private:
+            rangeT range_; ///< The range.
+            opT op_; ///< The foreach function.
+            Future<bool> completion_status_; ///< The result of this set of tasks.
+
+        public:
+
+            /// Constructor.
+
+            /// \param[in] world The world where the tasks will run.
+            /// \param[in] range The range of iterators.
+            /// \param[in] op The operation that will be applied to the range of iterators.
+            ForEachRootTask(World&, const rangeT range, const opT& op) :
+                TaskInterface(0, TaskAttributes::hipri()), range_(range), op_(op)
+            { }
+
+            /// Virtual destructor.
+            virtual ~ForEachRootTask() = default;
+
+            /// Result accessor.
+
+            /// \return A const reference to the result future.
+            const Future<bool>& result() const { return completion_status_; }
+
+            /// Task run work.
+
+            /// Sets the result future based on the status of all iterations.
+            virtual tbb::task* execute() {
+
+                // Note: We use parallel_reduce instead of parallel_foreach to
+                // accumulate result flags. Otherwise, this logically functions
+                // like parallel_foreach.
+                const bool result =
+                    tbb::parallel_reduce(range_, true,
+                        [this](const rangeT& r, bool init) -> bool {
+                            for(typename rangeT::iterator it = r.begin(); it != r.end();  ++it)
+                                init = init && op_(it);
+                            return init;
+                        },
+                        [](const bool left, const bool right) -> bool {
+                            return left && right;
+                        }
+                    );
+                completion_status_.set(result);
+                return nullptr;
+            }
+
+        private:
+            /// Get the task ID.
+
+            /// \todo Verify that \c id is an output parameter.
+            /// \param[out] id The ID to set for this task.
+            virtual void get_id(std::pair<void*,unsigned short>& id) const {
+                PoolTaskInterface::make_id(id, *this);
+            }
+        }; // class ForEachRootTask
+
+#else
+
         /// Apply an operation to a range of iterators.
 
         /// This task will progressively split range, creating leaves for each
@@ -1333,18 +1422,8 @@ namespace madness {
             ForEachRootTask<rangeT, opT>& root_; ///< The root task that signals completion and status.
 
             // not allowed
-
-            /// Disallowed copy constructor.
-
-            /// \param[in] fet The \c ForEachTask that we won't copy.
-            /// \todo In C++11, just `= delete` this.
-            ForEachTask(const ForEachTask<rangeT, opT>& fet);
-
-            /// Disallowed copy operator.
-
-            /// \param[in] fet The \c ForEachTask that we won't copy.
-            /// \todo In C++11, just `= delete` this.
-            ForEachTask& operator=(const ForEachTask<rangeT, opT>& fet);
+            ForEachTask(const ForEachTask<rangeT, opT>& fet) = delete;
+            ForEachTask& operator=(const ForEachTask<rangeT, opT>& fet) = delete;
 
         public:
 
@@ -1362,8 +1441,7 @@ namespace madness {
             }
 
             /// Virtual destructor.
-            virtual ~ForEachTask()
-            { }
+            virtual ~ForEachTask() = default;
 
             /// Run the task.
 
@@ -1428,8 +1506,7 @@ namespace madness {
             }
 
             /// Virtual destructor.
-            virtual ~ForEachRootTask()
-            { }
+            virtual ~ForEachRootTask() = default;
 
             /// World accessor.
 
@@ -1469,6 +1546,8 @@ namespace madness {
                 PoolTaskInterface::make_id(id, *this);
             }
         }; // class ForEachRootTask
+
+#endif // HAVE_INTEL_TBB
 
     }  // namespace detail
 

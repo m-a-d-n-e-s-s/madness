@@ -1,7 +1,7 @@
 #ifndef MADNESS_FUNCTION_TRAITS
 #define MADNESS_FUNCTION_TRAITS
 
-#include <madness/world/enable_if.h>
+#include <type_traits>
 
 namespace madness {
     namespace detail {
@@ -62,7 +62,7 @@ namespace madness {
         };
 
         template <typename fnT>
-        struct is_functor<fnT, typename enable_if<is_type<typename fnT::result_type> >::type> :
+        struct is_functor<fnT, typename std::enable_if<is_type<typename fnT::result_type>::value >::type> :
                 public std::true_type
         { };
 
@@ -72,17 +72,17 @@ namespace madness {
         };
 
         template <typename fnT>
-        struct result_of<fnT, typename enable_if<is_type<decltype(&fnT::operator())> >::type> :
+        struct result_of<fnT, typename std::enable_if<is_type<decltype(&fnT::operator())>::value >::type> :
                 public result_of<decltype(&fnT::operator())>
         { };
 
         template <typename fnT>
-        struct result_of<fnT, typename enable_if_c<function_traits<fnT>::value>::type> {
+        struct result_of<fnT, typename std::enable_if<function_traits<fnT>::value>::type> {
             typedef typename function_traits<fnT>::result_type type;
         };
 
         template <typename fnT>
-        struct result_of<fnT, typename enable_if_c<memfunc_traits<fnT>::value>::type> {
+        struct result_of<fnT, typename std::enable_if<memfunc_traits<fnT>::value>::type> {
             typedef typename memfunc_traits<fnT>::result_type type;
         };
     }

@@ -30,7 +30,7 @@
 */
 
 #include <iostream>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 
 int main(int argc, char** argv) {
     madness::World& world = madness::initialize(argc,argv);

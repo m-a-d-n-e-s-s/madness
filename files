@@ -84,6 +84,7 @@ moldft-elem.cc
 moldft.cc
 moldx.py
 nwtoxml.py
+parsemad.py
 pointgroup.h
 preal.cc
 testcosine.cc
@@ -397,13 +398,11 @@ test_mtxmq.cc
 array.h
 bgq_atomics.h
 binsorter.h
-boost_checked_delete_bits.h
 debug.cc
 deferred_cleanup.cc
 deferred_cleanup.h
 dist_cache.h
 dqueue.h
-enable_if.h
 function_traits.h
 group.cc
 group.h
@@ -418,7 +417,6 @@ print_seq.h
 redirectio.cc
 safempi.cc
 safempi.h
-scopedptr.h
 stubmpi.h
 taskfn.h
 test_ar.cc

@@ -36,9 +36,9 @@
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
 #include <iostream>
-#include <madness/world/parallel_runtime.h>
+#include <type_traits>
+#include <madness/world/MADworld.h>
 #include <madness/world/print.h>
-#include <madness/world/scopedptr.h>
 #include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/gentensor.h>
@@ -235,15 +235,12 @@ namespace madness {
         }
 
         /// Sets \c has_children attribute to value of \c flag.
-        Void
-        set_has_children(bool flag) {
+        void set_has_children(bool flag) {
             _has_children = flag;
-            return None;
         }
 
         /// Sets \c has_children attribute to true recurring up to ensure connected
-        Void
-        set_has_children_recursive(const typename FunctionNode<T,NDIM>::dcT& c,const Key<NDIM>& key) {
+        void set_has_children_recursive(const typename FunctionNode<T,NDIM>::dcT& c,const Key<NDIM>& key) {
             //madness::print("   set_chi_recu: ", key, *this);
             //PROFILE_MEMBER_FUNC(FunctionNode); // Too fine grain for routine profiling
             if (!(has_children() || has_coeff() || key.level()==0)) {
@@ -260,7 +257,6 @@ namespace madness {
                 //madness::print("   set_chi_recu: forwarding",key,parent);
             }
             _has_children = true;
-            return None;
         }
 
         /// Sets \c has_children attribute to value of \c !flag
@@ -290,9 +286,8 @@ namespace madness {
         }
 
         /// Sets the value of norm_tree
-        Void set_norm_tree(double norm_tree) {
+        void set_norm_tree(double norm_tree) {
             _norm_tree = norm_tree;
-            return None;
         }
 
         /// Gets the value of norm_tree
@@ -306,7 +301,7 @@ namespace madness {
         /// This/other may not have coefficients.  Has_children will be
         /// true in the result if either this/other have children.
         template <typename Q, typename R>
-        Void gaxpy_inplace(const T& alpha, const FunctionNode<Q,NDIM>& other, const R& beta) {
+        void gaxpy_inplace(const T& alpha, const FunctionNode<Q,NDIM>& other, const R& beta) {
             //PROFILE_MEMBER_FUNC(FuncNode);  // Too fine grain for routine profiling
             if (other.has_children())
                 _has_children = true;
@@ -321,7 +316,6 @@ namespace madness {
             else if (other.has_coeff()) {
                 coeff() = other.coeff()*beta; //? Is this the correct type conversion?
             }
-            return None;
         }
 
         /// Accumulate inplace and if necessary connect node to parent
@@ -392,14 +386,13 @@ namespace madness {
             return cpu1-cpu0;
         }
 
-        Void consolidate_buffer(const TensorArgs& args) {
+        void consolidate_buffer(const TensorArgs& args) {
             if ((coeff().has_data()) and (buffer.has_data())) {
                 coeff().add_SVD(buffer,args.thresh);
             } else if (buffer.has_data()) {
                 coeff()=buffer;
             }
             buffer=coeffT();
-            return None;
         }
 
         T trace_conj(const FunctionNode<T,NDIM>& rhs) const {
@@ -1093,7 +1086,7 @@ namespace madness {
         /// f and g are reconstructed, so we can save on the compress operation,
         /// walk down the joint tree, and add leaf coefficients; effectively refines
         /// to common finest level.
-        
+
         /// nothing returned, but leaves this's tree reconstructed and as sum of f and g
         /// @param[in]  alpha   prefactor for f
         /// @param[in]  f       first addend
@@ -1209,7 +1202,7 @@ namespace madness {
 
         const FunctionCommonData<T,NDIM>& get_cdata() const;
 
-        Void accumulate_timer(const double time) const; // !!!!!!!!!!!!  REDUNDANT !!!!!!!!!!!!!!!
+        void accumulate_timer(const double time) const; // !!!!!!!!!!!!  REDUNDANT !!!!!!!!!!!!!!!
 
         void print_timer() const;
 
@@ -1248,7 +1241,7 @@ namespace madness {
         bool truncate_op(const keyT& key, double tol, const std::vector< Future<bool> >& v);
 
         /// Evaluate function at quadrature points in the specified box
-    
+
         /// @param[in] key the key indicating where the quadrature points are located
         /// @param[in] f the interface to the elementary function
         /// @param[in] qx quadrature points on a level=0 box
@@ -1256,7 +1249,7 @@ namespace madness {
         void fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const;
 
         /// Evaluate function at quadrature points in the specified box
-    
+
         /// @param[in] key the key indicating where the quadrature points are located
         /// @param[in] f the interface to the elementary function
         /// @param[in] qx quadrature points on a level=0 box
@@ -1327,7 +1320,7 @@ namespace madness {
         /// @param[in] plotinfo plotting parameters
         /// @param[in]	xaxis	the x-axis in the plot (can be any axis of the MRA box)
         /// @param[in]	yaxis	the y-axis in the plot (can be any axis of the MRA box)
-        Void do_print_plane(const std::string filename, std::vector<Tensor<double> > plotinfo,
+        void do_print_plane(const std::string filename, std::vector<Tensor<double> > plotinfo,
                             const int xaxis, const int yaxis, const coordT el2);
 
         /// print the grid (the roots of the quadrature of each leaf box)
@@ -1351,7 +1344,7 @@ namespace madness {
         /// @param[in]	gridfile 	file with grid points, w/o key, but with same ordering
         /// @param[in]	vnuc_functor	subtract the values of this functor if regularization is needed
         template<size_t FDIM>
-        typename enable_if_c<NDIM==FDIM>::type
+        typename std::enable_if<NDIM==FDIM>::type
         read_grid(const std::string keyfile, const std::string gridfile,
                   std::shared_ptr< FunctionFunctorInterface<double,NDIM> > vnuc_functor) {
 
@@ -1459,7 +1452,7 @@ namespace madness {
         /// @param[in]	gridfile		file with keys and grid points and values for each key
         /// @param[in]	vnuc_functor	subtract the values of this functor if regularization is needed
         template<size_t FDIM>
-        typename enable_if_c<NDIM==FDIM>::type
+        typename std::enable_if<NDIM==FDIM>::type
         read_grid2(const std::string gridfile,
                    std::shared_ptr< FunctionFunctorInterface<double,NDIM> > vnuc_functor) {
 
@@ -1575,7 +1568,7 @@ namespace madness {
         /// @param[in] do_refine should we continue refinement?
         /// @param[in] specialpts vector of special points in the function where we need
         ///            to refine at a much finer level
-        Void project_refine_op(const keyT& key, bool do_refine,
+        void project_refine_op(const keyT& key, bool do_refine,
                                const std::vector<Vector<double,NDIM> >& specialpts);
 
         /// Compute the Legendre scaling functions for multiplication
@@ -1599,7 +1592,7 @@ namespace madness {
         /// @param[in]	child	the key whose coeffs we are requesting
         /// @param[in]	parent	the (leaf) key of our function
         /// @param[in]	s	the (leaf) coeffs belonging to parent
-        /// @return 	coeffs 
+        /// @return 	coeffs
         const coeffT parent_to_child(const coeffT& s, const keyT& parent, const keyT& child) const;
 
         /// Directly project parent NS coeffs to child NS coeffs
@@ -1779,8 +1772,8 @@ namespace madness {
 
         /// Given coefficients from a parent cell, compute the value of
         /// the functions at the quadrature points of a child
-        /// @param[in] child the key for the child function node (box) 
-        /// @param[in] parent the key for the parent function node (box) 
+        /// @param[in] child the key for the child function node (box)
+        /// @param[in] parent the key for the parent function node (box)
         /// @param[in] coeff the coefficients of scaling function basis of the parent box
         template <typename Q>
         Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
@@ -1807,8 +1800,8 @@ namespace madness {
 
         /// Given coefficients from a parent cell, compute the value of
         /// the functions at the quadrature points of a child
-        /// @param[in] child the key for the child function node (box) 
-        /// @param[in] parent the key for the parent function node (box) 
+        /// @param[in] child the key for the child function node (box)
+        /// @param[in] parent the key for the parent function node (box)
         /// @param[in] coeff the coefficients of scaling function basis of the parent box
         template <typename Q>
         GenTensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const GenTensor<Q>& coeff) const {
@@ -1833,7 +1826,7 @@ namespace madness {
 
         /// Functor for the mul method
         template <typename L, typename R>
-        Void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg) {
+        void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg) {
             // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
@@ -1847,7 +1840,6 @@ namespace madness {
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             tcube = transform(tcube,cdata.quad_phiw).scale(scale);
             coeffs.replace(key, nodeT(coeffT(tcube,targs),false));
-            return None;
         }
 
 
@@ -1886,7 +1878,7 @@ namespace madness {
 
         /// Functor for the binary_op method
         template <typename L, typename R, typename opT>
-	  Void do_binary_op(const keyT& key, const Tensor<L>& left,
+	  void do_binary_op(const keyT& key, const Tensor<L>& left,
 			    const std::pair< keyT, Tensor<R> >& arg,
 			    const opT& op) {
             //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
@@ -1900,7 +1892,6 @@ namespace madness {
 	  double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
 	  tcube = transform(tcube,cdata.quad_phiw).scale(scale);
 	  coeffs.replace(key, nodeT(coeffT(tcube,targs),false));
-	  return None;
 	}
 
         /// Invoked by result to perform result += alpha*left+beta*right in wavelet basis
@@ -1994,7 +1985,7 @@ namespace madness {
 
         /// truncate tree at a certain level
         /// @param[in] max_level truncate tree below this level
-        Void erase(const Level& max_level);
+        void erase(const Level& max_level);
 
         /// Returns some asymmetry measure ... no comms
         double check_symmetry_local() const;
@@ -2331,7 +2322,7 @@ namespace madness {
 
         template <typename Q, typename R>
         /// @todo I don't know what this does other than a trasform
-        Void vtransform_doit(const std::shared_ptr< FunctionImpl<R,NDIM> >& right,
+        void vtransform_doit(const std::shared_ptr< FunctionImpl<R,NDIM> >& right,
                              const Tensor<Q>& c,
                              const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
                              double tol) {
@@ -2373,7 +2364,6 @@ namespace madness {
                     }
                 }
             }
-            return None;
         }
 
         /// Refine multiple functions down to the same finest level
@@ -2381,26 +2371,25 @@ namespace madness {
         /// @param v the vector of functions we are refining.
         /// @param key the current node.
         /// @param c the vector of coefficients passed from above.
-        Void refine_to_common_level(const std::vector<FunctionImpl<T,NDIM>*>& v,
+        void refine_to_common_level(const std::vector<FunctionImpl<T,NDIM>*>& v,
                                     const std::vector<tensorT>& c,
                                     const keyT key);
 
-        /// Inplace operate on many functions (impl's) with an operator within a certain box 
+        /// Inplace operate on many functions (impl's) with an operator within a certain box
         /// @param[in] key the key of the current function node (box)
         /// @param[in] op the operator
         /// @param[in] v the vector of function impl's on which to be operated
         template <typename opT>
-        Void multiop_values_doit(const keyT& key, const opT& op, const std::vector<implT*>& v) {
+        void multiop_values_doit(const keyT& key, const opT& op, const std::vector<implT*>& v) {
             std::vector<tensorT> c(v.size());
             for (unsigned int i=0; i<v.size(); i++) {
                 c[i] = coeffs2values(key, v[i]->coeffs.find(key).get()->second.coeff().full_tensor_copy()); // !!!!! gack
             }
             tensorT r = op(key, c);
             coeffs.replace(key, nodeT(coeffT(values2coeffs(key, r),targs),false));
-            return None;
         }
 
-        /// Inplace operate on many functions (impl's) with an operator within a certain box 
+        /// Inplace operate on many functions (impl's) with an operator within a certain box
         /// Assumes all functions have been refined down to the same level
         /// @param[in] op the operator
         /// @param[in] v the vector of function impl's on which to be operated
@@ -2420,7 +2409,7 @@ namespace madness {
         /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
         /// @param[in] vright vector of functions (impl's) on which to be transformed
         /// @param[in] c the tensor (matrix) transformer
-        /// @param[in] vleft vector of of the *newly* transformed functions (impl's) 
+        /// @param[in] vleft vector of of the *newly* transformed functions (impl's)
         template <typename Q, typename R>
         void vtransform(const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
                         const Tensor<Q>& c,
@@ -2449,15 +2438,15 @@ namespace madness {
         /// Both left and right functions are in the scaling function basis
         /// @param[in] key the key to the current function node (box)
         /// @param[in] left the function impl associated with the left function
-        /// @param[in] lcin the scaling function coefficients associated with the 
+        /// @param[in] lcin the scaling function coefficients associated with the
         ///            current box in the left function
-        /// @param[in] vrightin the vector of function impl's associated with 
+        /// @param[in] vrightin the vector of function impl's associated with
         ///            the vector of right functions
-        /// @param[in] vrcin the vector scaling function coefficients associated with the 
+        /// @param[in] vrcin the vector scaling function coefficients associated with the
         ///            current box in the right functions
         /// @param[out] vresultin the vector of resulting functions (impl's)
         template <typename L, typename R>
-        Void mulXXveca(const keyT& key,
+        void mulXXveca(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                        const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
                        const std::vector< Tensor<R> >& vrcin,
@@ -2549,20 +2538,19 @@ namespace madness {
                     woT::task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol);
                 }
             }
-            return None;
         }
 
         /// Multiplication using recursive descent and assuming same distribution
         /// Both left and right functions are in the scaling function basis
         /// @param[in] key the key to the current function node (box)
         /// @param[in] left the function impl associated with the left function
-        /// @param[in] lcin the scaling function coefficients associated with the 
+        /// @param[in] lcin the scaling function coefficients associated with the
         ///            current box in the left function
         /// @param[in] right the function impl associated with the right function
-        /// @param[in] rcin the scaling function coefficients associated with the 
+        /// @param[in] rcin the scaling function coefficients associated with the
         ///            current box in the right function
         template <typename L, typename R>
-        Void mulXXa(const keyT& key,
+        void mulXXa(const keyT& key,
                     const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                     const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin,
                     double tol) {
@@ -2592,7 +2580,7 @@ namespace madness {
             // both nodes are leaf nodes: multiply and return
             if (rc.size() && lc.size()) { // Yipee!
                 do_mul<L,R>(key, lc, std::make_pair(key,rc));
-                return None;
+                return;
             }
 
             if (tol) {
@@ -2602,7 +2590,7 @@ namespace madness {
                     rnorm = rc.normf();
                 if (lnorm*rnorm < truncate_tol(tol, key)) {
                     coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false)); // Zero leaf node
-                    return None;
+                    return;
                 }
             }
 
@@ -2634,8 +2622,6 @@ namespace madness {
 
                 woT::task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
             }
-
-            return None;
         }
 
 
@@ -2643,14 +2629,14 @@ namespace madness {
         /// Both left and right functions are in the scaling function basis
         /// @param[in] key the key to the current function node (box)
         /// @param[in] left the function impl associated with the left function
-        /// @param[in] lcin the scaling function coefficients associated with the 
+        /// @param[in] lcin the scaling function coefficients associated with the
         ///            current box in the left function
         /// @param[in] right the function impl associated with the right function
-        /// @param[in] rcin the scaling function coefficients associated with the 
+        /// @param[in] rcin the scaling function coefficients associated with the
         ///            current box in the right function
         /// @param[in] op the binary operator
         template <typename L, typename R, typename opT>
-        Void binaryXXa(const keyT& key,
+        void binaryXXa(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                        const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin,
                        const opT& op) {
@@ -2675,7 +2661,7 @@ namespace madness {
 
             if (rc.size() && lc.size()) { // Yipee!
                 do_binary_op<L,R>(key, lc, std::make_pair(key,rc), op);
-                return None;
+                return;
             }
 
             // Recur down
@@ -2706,8 +2692,6 @@ namespace madness {
 
                 woT::task(coeffs.owner(child), &implT:: template binaryXXa<L,R,opT>, child, left, ll, right, rr, op);
             }
-
-            return None;
         }
 
         template <typename Q, typename opT>
@@ -2737,14 +2721,14 @@ namespace madness {
 
         /// Out of place unary operation on function impl
         /// The skeleton algorithm should resemble something like
-        /// 
+        ///
         /// *this = op(*func)
-        /// 
+        ///
         /// @param[in] key the key of the current function node (box)
         /// @param[in] func the function impl on which to be operated
         /// @param[in] op the unary operator
         template <typename Q, typename opT>
-        Void unaryXXa(const keyT& key,
+        void unaryXXa(const keyT& key,
                       const FunctionImpl<Q,NDIM>* func, const opT& op) {
 
             //            const Tensor<Q>& fc = func->coeffs.find(key).get()->second.full_tensor_copy();
@@ -2762,8 +2746,6 @@ namespace madness {
                 tensorT t=op(key,fc);
                 coeffs.replace(key, nodeT(coeffT(t,targs),false)); // Leaf node
             }
-
-            return None;
         }
 
         /// Multiplies two functions (impl's) together. Delegates to the mulXXa() method
@@ -2821,7 +2803,7 @@ namespace madness {
             //verify_tree();
         }
 
-        /// Multiplies a function (impl) with a vector of functions (impl's). Delegates to the 
+        /// Multiplies a function (impl) with a vector of functions (impl's). Delegates to the
         /// mulXXveca() method.
         /// @param[in] left pointer to the left function impl
         /// @param[in] vright vector of pointers to the right function impl's
@@ -2846,7 +2828,7 @@ namespace madness {
         mutable long box_interior[1000];
 
         // horrifically non-scalable
-        Void put_in_box(ProcessID from, long nl, long ni) const;
+        void put_in_box(ProcessID from, long nl, long ni) const;
 
         /// Prints summary of data distribution
         void print_info() const;
@@ -2878,16 +2860,16 @@ namespace madness {
         /// walk and just pass the parent down.  Slightly less
         /// parallelism but much less communication.
         /// @todo Robert .... help!
-        Void sock_it_to_me(const keyT& key,
+        void sock_it_to_me(const keyT& key,
                            const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const;
         /// As above, except
         /// 3) The coeffs are constructed from the avg of nodes further down the tree
         /// @todo Robert .... help!
-        Void sock_it_to_me_too(const keyT& key,
+        void sock_it_to_me_too(const keyT& key,
                                const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const;
 
         /// @todo help!
-        Void plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,
+        void plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,
                               const keyT& key,
                               const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt,
                               bool eval_refine) const;
@@ -2916,7 +2898,7 @@ namespace madness {
         /// Only the invoking process will get the result via the
         /// remote reference to a future.  Active messages may be sent
         /// to other nodes.
-        Void eval(const Vector<double,NDIM>& xin,
+        void eval(const Vector<double,NDIM>& xin,
                   const keyT& keyin,
                   const typename Future<T>::remote_refT& ref);
 
@@ -2927,7 +2909,7 @@ namespace madness {
         /// to other nodes.
         ///
         /// This function is a minimally-modified version of eval()
-        Void evaldepthpt(const Vector<double,NDIM>& xin,
+        void evaldepthpt(const Vector<double,NDIM>& xin,
                          const keyT& keyin,
                          const typename Future<Level>::remote_refT& ref);
 
@@ -2938,7 +2920,7 @@ namespace madness {
         /// to other nodes.
         ///
         /// This function is a minimally-modified version of eval()
-        Void evalR(const Vector<double,NDIM>& xin,
+        void evalR(const Vector<double,NDIM>& xin,
                    const keyT& keyin,
                    const typename Future<long>::remote_refT& ref);
 
@@ -2958,10 +2940,10 @@ namespace madness {
         void tnorm(const tensorT& t, double* lo, double* hi) const;
 
         // This invoked if node has not been autorefined
-        Void do_square_inplace(const keyT& key);
+        void do_square_inplace(const keyT& key);
 
         // This invoked if node has been autorefined
-        Void do_square_inplace2(const keyT& parent, const keyT& child, const tensorT& parent_coeff);
+        void do_square_inplace2(const keyT& parent, const keyT& child, const tensorT& parent_coeff);
 
         /// Always returns false (for when autorefine is not wanted)
         bool noautorefine(const keyT& key, const tensorT& t) const;
@@ -2978,7 +2960,7 @@ namespace madness {
         void abs_square_inplace(bool fence);
 
         /// is this the same as trickle_down() ?
-        Void sum_down_spawn(const keyT& key, const coeffT& s);
+        void sum_down_spawn(const keyT& key, const coeffT& s);
 
         /// After 1d push operator must sum coeffs down the tree to restore correct scaling function coefficients
         void sum_down(bool fence);
@@ -3165,9 +3147,8 @@ namespace madness {
         /// @param[in]  f           the NDIM function f=f(1,2)
         /// @param[in]  g           the LDIM function g(1) (or g(2))
         /// @param[in]  particle    1 or 2, as in g(1) or g(2)
-        /// @return     this        the NDIM function h(1,2)
         template<size_t LDIM>
-        Void multiply(const implT* f, const FunctionImpl<T,LDIM>* g, const int particle) {
+        void multiply(const implT* f, const FunctionImpl<T,LDIM>* g, const int particle) {
 
             keyT key0=f->cdata.key0;
 
@@ -3187,8 +3168,6 @@ namespace madness {
             }
 
             this->compressed=false;
-            return None;
-
         }
 
         /// Hartree product of two LDIM functions to yield a NDIM = 2*LDIM function
@@ -3265,13 +3244,11 @@ namespace madness {
         /// @param[in]	coeff_op	operator making the coefficients that needs activation
         /// @param[in]	apply_op	just passing thru
         /// @param[in]	key			the key we are working on
-        /// @return 	nothing, but will forward all input to traverse_tree()
         template<typename coeff_opT, typename apply_opT>
-        Void forward_traverse(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
+        void forward_traverse(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
             MADNESS_ASSERT(coeffs.is_local(key));
             Future<coeff_opT> active_coeff=coeff_op.activate();
             woT::task(world.rank(), &implT:: template traverse_tree<coeff_opT,apply_opT>, active_coeff, apply_op, key);
-            return None;
         }
 
 
@@ -3281,9 +3258,8 @@ namespace madness {
         /// @param[in]	coeff_op	operator making the coefficients and determining them being leaves
         /// @param[in]	apply_op	operator processing the coefficients
         /// @param[in]	key			the key we are currently working on
-        /// @return		nothing, but might continue the recursion, depending on coeff_op
         template<typename coeff_opT, typename apply_opT>
-        Void traverse_tree(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
+        void traverse_tree(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
             MADNESS_ASSERT(coeffs.is_local(key));
 
             typedef typename std::pair<bool,coeffT> argT;
@@ -3298,12 +3274,11 @@ namespace madness {
                     // spawn activation where child is local
                     ProcessID p=coeffs.owner(child);
 
-                    madness::Void (implT::*ft)(const coeff_opT&, const apply_opT&, const keyT&) const = &implT::forward_traverse<coeff_opT,apply_opT>;
+                    void (implT::*ft)(const coeff_opT&, const apply_opT&, const keyT&) const = &implT::forward_traverse<coeff_opT,apply_opT>;
 
                     woT::task(p, ft, child_op, apply_op, child);
                 }
             }
-            return None;
         }
 
 
@@ -3314,7 +3289,7 @@ namespace madness {
         /// @param[in]	p2	FunctionImpl of particle 2
         /// @param[in]	leaf_op	operator determining of a given box will be a leaf
         template<std::size_t LDIM, typename leaf_opT>
-        Void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
+        void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
                              const leaf_opT& leaf_op, bool fence) {
             MADNESS_ASSERT(p1->is_nonstandard());
             MADNESS_ASSERT(p2->is_nonstandard());
@@ -3342,12 +3317,11 @@ namespace madness {
 
             this->compressed=false;
             if (fence) world.gop.fence();
-            return None;
         }
 
 
         template <typename opT, typename R>
-        Void
+        void
         apply_1d_realspace_push_op(const archive::archive_ptr<const opT>& pop, int axis, const keyT& key, const Tensor<R>& c) {
             const opT* op = pop.ptr;
             const Level n = key.level();
@@ -3368,7 +3342,7 @@ namespace madness {
                         double Rnorm = r.normf();
 
                         if (Rnorm == 0.0) {
-                            return None; // Hard zero means finished!
+                            return; // Hard zero means finished!
                         }
 
                         if (s <= 1  ||  r.normf()*cnorm > tol) { // Always do kernel and neighbor
@@ -3395,7 +3369,6 @@ namespace madness {
                     break;
                 }
             }
-            return None;
         }
 
         template <typename opT, typename R>
@@ -3419,14 +3392,14 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
-        Void forward_do_diff1(const DerivativeBase<T,NDIM>* D,
+        void forward_do_diff1(const DerivativeBase<T,NDIM>* D,
                               const implT* f,
                               const keyT& key,
                               const std::pair<keyT,coeffT>& left,
                               const std::pair<keyT,coeffT>& center,
                               const std::pair<keyT,coeffT>& right);
 
-        Void do_diff1(const DerivativeBase<T,NDIM>* D,
+        void do_diff1(const DerivativeBase<T,NDIM>* D,
                       const implT* f,
                       const keyT& key,
                       const std::pair<keyT,coeffT>& left,
@@ -3601,7 +3574,7 @@ namespace madness {
                         // spawn activation where child is local
                         ProcessID p=result->get_coeffs().owner(child);
 
-                        madness::Void (implT::*ft)(const Vphi_op_NS<opT,LDIM>&, const noop<T,NDIM>&, const keyT&) const = &implT:: template forward_traverse< Vphi_op_NS<opT,LDIM>, noop<T,NDIM> >;
+                        void (implT::*ft)(const Vphi_op_NS<opT,LDIM>&, const noop<T,NDIM>&, const keyT&) const = &implT:: template forward_traverse< Vphi_op_NS<opT,LDIM>, noop<T,NDIM> >;
                         result->task(p, ft, child_op, no, child);
                     }
                 }
@@ -3912,7 +3885,7 @@ namespace madness {
         };
 
         template <typename opT>
-        Void refine_op(const opT& op, const keyT& key) {
+        void refine_op(const opT& op, const keyT& key) {
             // Must allow for someone already having autorefined the coeffs
             // and we get a write accessor just in case they are already executing
             typename dcT::accessor acc;
@@ -3933,11 +3906,10 @@ namespace madness {
                     // Note value -1.0 for norm tree to indicate result of refinement
                 }
             }
-            return None;
         }
 
         template <typename opT>
-        Void refine_spawn(const opT& op, const keyT& key) {
+        void refine_spawn(const opT& op, const keyT& key) {
             nodeT& node = coeffs.find(key).get()->second;
             if (node.has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit)
@@ -3946,7 +3918,6 @@ namespace madness {
             else {
                 woT::task(coeffs.owner(key), &implT:: template refine_op<opT>, op, key);
             }
-            return None;
         }
 
         // Refine in real space according to local user-defined criterion
@@ -3963,7 +3934,7 @@ namespace madness {
         bool exists_and_is_leaf(const keyT& key) const;
 
 
-        Void broaden_op(const keyT& key, const std::vector< Future <bool> >& v);
+        void broaden_op(const keyT& key, const std::vector< Future <bool> >& v);
 
         // For each local node sets value of norm tree to 0.0
         void zero_norm_tree();
@@ -3977,13 +3948,13 @@ namespace madness {
         /// sum all the contributions from all scales after applying an operator in mod-NS form
 
         /// cf reconstruct_op
-        Void trickle_down_op(const keyT& key, const coeffT& s);
+        void trickle_down_op(const keyT& key, const coeffT& s);
 
         void reconstruct(bool fence);
 
         // Invoked on node where key is local
-        //        Void reconstruct_op(const keyT& key, const tensorT& s);
-        Void reconstruct_op(const keyT& key, const coeffT& s);
+        //        void reconstruct_op(const keyT& key, const tensorT& s);
+        void reconstruct_op(const keyT& key, const coeffT& s);
 
         /// compress the wave function
 
@@ -4095,9 +4066,8 @@ namespace madness {
         /// @param[in]  op      the operator working on our function
         /// @param[in]  c       full rank tensor holding the NS coefficients
         /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
-        /// @return     nothing, but accumulate the result tensor into the destination node
         template <typename opT, typename R, size_t OPDIM>
-        Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args) {
+        void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args) {
 
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
 
@@ -4115,8 +4085,6 @@ namespace madness {
                     coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
                 }
             }
-
-            return None;
         }
 
         /// same as do_apply_kernel, but use full rank tensors as input and low rank tensors as output
@@ -4198,7 +4166,7 @@ namespace madness {
         /// @param[in] key	key of the source FunctionNode of f which is processed
         /// @param[in] c	coeffs of the FunctionNode of f which is processed
         template <typename opT, typename R>
-        Void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
+        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
             typedef typename opT::keyT opkeyT;
@@ -4252,7 +4220,6 @@ namespace madness {
                         break; // Assumes monotonic decay beyond nearest neighbor
                 }
             }
-            return None;
         }
 
 
@@ -5201,9 +5168,8 @@ namespace madness {
         /// @param[in] beta prefactor of right argument for gaxpy
         /// @param[in] tol convergence tolerance...when the norm of the gaxpy's
         ///            difference coefficients is less than tol, we are done.
-        /// @return Return void but populates tree as side-effect
         template <typename L>
-        Void gaxpy_ext_recursive(const keyT& key, const FunctionImpl<L,NDIM>* left,
+        void gaxpy_ext_recursive(const keyT& key, const FunctionImpl<L,NDIM>* left,
                                  Tensor<L> lcin, tensorT c, T (*f)(const coordT&),
                                  T alpha, T beta, double tol, bool below_leaf) {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
@@ -5222,7 +5188,7 @@ namespace madness {
                         woT::task(left->coeffs.owner(child), &implT:: template gaxpy_ext_recursive<L>,
                                   child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf);
                     }
-                    return None;
+                    return;
                 }
             }
 
@@ -5287,7 +5253,6 @@ namespace madness {
                               child, left, left_coeff, child_coeff, f, alpha, beta, tol, below_leaf);
                 }
             }
-            return None;
         }
 
         template <typename L>
@@ -5497,13 +5462,13 @@ namespace madness {
         /// @param[in]  dest    destination node for the result
         /// @param[in]  dim     which dimensions should be contracted: 0..LDIM-1 or LDIM..NDIM+LDIM-1
         template<size_t LDIM>
-        Void do_project_out(const coeffT& fcoeff, const std::pair<keyT,coeffT> gpair, const keyT& gkey,
+        void do_project_out(const coeffT& fcoeff, const std::pair<keyT,coeffT> gpair, const keyT& gkey,
                             const Key<NDIM>& dest, const int dim) const {
 
             const coeffT gcoeff=parent_to_child(gpair.second,gpair.first,gkey);
 
             // fast return if possible
-            if (fcoeff.has_no_data() or gcoeff.has_no_data()) return None;
+            if (fcoeff.has_no_data() or gcoeff.has_no_data()) return;
 
             // let's specialize for the time being on SVD tensors for f and full tensors of half dim for g
             MADNESS_ASSERT(gcoeff.tensor_type()==TT_FULL);
@@ -5527,7 +5492,6 @@ namespace madness {
 
             // accumulate the result
             coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
-            return None;
         }
 
 
@@ -5601,7 +5565,7 @@ namespace madness {
                     if (!ptr)
                         MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
                 } else {
-                    ptr=NULL;
+                    ptr=nullptr;
                 }
             }
         };
@@ -5629,7 +5593,7 @@ namespace madness {
                     if (!ptr)
                         MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
                 } else {
-                    ptr=NULL;
+                    ptr=nullptr;
                 }
             }
         };
@@ -5647,9 +5611,9 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive, std::shared_ptr<const FunctionImpl<T,NDIM> > > {
             static void load(const Archive& ar, std::shared_ptr<const FunctionImpl<T,NDIM> >& ptr) {
-                const FunctionImpl<T,NDIM>* f = NULL;
+                const FunctionImpl<T,NDIM>* f = nullptr;
                 ArchiveLoadImpl<Archive, const FunctionImpl<T,NDIM>*>::load(ar, f);
-                ptr.reset(f, & madness::detail::no_delete<const FunctionImpl<T,NDIM> >);
+                ptr.reset(f, [] (const FunctionImpl<T,NDIM> *p_) -> void {});
             }
         };
 
@@ -5663,9 +5627,9 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive, std::shared_ptr<FunctionImpl<T,NDIM> > > {
             static void load(const Archive& ar, std::shared_ptr<FunctionImpl<T,NDIM> >& ptr) {
-                FunctionImpl<T,NDIM>* f = NULL;
+                FunctionImpl<T,NDIM>* f = nullptr;
                 ArchiveLoadImpl<Archive, FunctionImpl<T,NDIM>*>::load(ar, f);
-                ptr.reset(f, & madness::detail::no_delete<FunctionImpl<T,NDIM> >);
+                ptr.reset(f, [] (FunctionImpl<T,NDIM> *p_) -> void {});
             }
         };
 

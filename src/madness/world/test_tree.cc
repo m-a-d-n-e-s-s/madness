@@ -31,7 +31,7 @@
 
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 
 using namespace madness;
 using namespace std;
@@ -81,7 +81,7 @@ public:
             , child(parent.n+1,2*parent.i,2*parent.j,2*parent.k)
             , i(0)
             , j(0)
-            , k(0) {};
+            , k(0) {}
 
     KeyChildIterator& operator++() {
         if (k == 2) return *this;  // k==2 indicates end
@@ -96,15 +96,15 @@ public:
         }
         child = Key(parent.n+1, 2*parent.i+i, 2*parent.j+j, 2*parent.k+k);
         return *this;
-    };
+    }
 
     const Key& key() {
         return child;
-    };
+    }
 
     operator bool() const {
         return k!=2;
-    };
+    }
 };
 
 struct Node;
@@ -116,11 +116,11 @@ struct Node {
     bool isleaf;
     int nrecvd;
 
-    Node() : value(0.0), isleaf(true), nrecvd(0) {};
-    Node(double value) : value(value), isleaf(true), nrecvd(0) {};
-    Node(const Node& node) : value(node.value), isleaf(node.isleaf) {};
+    Node() : value(0.0), isleaf(true), nrecvd(0) {}
+    Node(double value) : value(value), isleaf(true), nrecvd(0) {}
+    Node(const Node& node) : value(node.value), isleaf(node.isleaf) {}
 
-    Void random_insert(const dcT& constd, const Key& key, double valin) {
+    void random_insert(const dcT& constd, const Key& key, double valin) {
         dcT& d = const_cast<dcT&>(constd);
         value = valin;
         isleaf = true;
@@ -132,8 +132,7 @@ struct Node {
                 d.task(it.key(),&Node::random_insert, d, it.key(), value*ran);
             }
         }
-        return None;
-    };
+    }
 
     template <class Archive>
     void serialize(Archive& ar) {
@@ -142,22 +141,21 @@ struct Node {
 
     bool is_leaf() const {
         return isleaf;
-    };
+    }
 
     double get() const {
         return value;
-    };
+    }
 
-    Void set(double v) {
+    void set(double v) {
         value = v;
-        return None;
-    };
+    }
 
     void zero_nrecvd() {
         nrecvd = 0;
-    };
+    }
 
-    Void recursive_print(const dcT& d, const Key& key) const {
+    void recursive_print(const dcT& d, const Key& key) const {
         cout << d.world().rank() << ": RP: ";
         for (unsigned int i=0; i<key.n; ++i) cout << "   ";
         cout << key << " " << *this;
@@ -166,24 +164,22 @@ struct Node {
                 d.send(it.key(),&Node::recursive_print, d, it.key());
             }
         }
-        return None;
-    };
+    }
 
-    Void receive_sum(const dcT& d, const Key& key, double gift) {
+    void receive_sum(const dcT& d, const Key& key, double gift) {
         value += gift;
         nrecvd++;
         if (nrecvd == 8 && key.n!=0) {
             Key parent = key.parent();
             const_cast<dcT&>(d).send(parent, &Node::receive_sum, d, parent, get());
         }
-        return None;
-    };
+    }
 
     double do_sum(vector< Future<double> > v) {
         for (int i=0; i<8; ++i)
             value += v[i].get();
         return value;
-    };
+    }
 
     Future<double> do_sum_spawn(const dcT& d, const Key& key) {
         if (is_leaf()) {
@@ -198,7 +194,7 @@ struct Node {
             }
             return d.task(key, &Node::do_sum, v);
         }
-    };
+    }
 };
 
 ostream& operator<<(ostream& s, const Node& node) {

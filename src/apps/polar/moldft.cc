@@ -37,6 +37,7 @@
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <type_traits>
 #include <madness/mra/mra.h>
 
 #include <polar/molecule.h>
@@ -287,7 +288,7 @@ public:
 
     /// project f on p: |result> =  | p><p | f>
     template<std::size_t FDIM>
-    typename enable_if_c<NDIM==FDIM, Function<T,FDIM> >::type
+    typename std::enable_if<NDIM==FDIM, Function<T,FDIM> >::type
     operator()(const Function<T,FDIM>& f) const {
 
         const double ovlp=inner(f,p_[0]);
@@ -302,7 +303,7 @@ public:
 
 //prod    /// project p out of f: |result(1,2)> = sum_p | p(1)><p(1) | f(1,2)>
 //prod    template<std::size_t FDIM>
-//prod    typename enable_if_c<2*NDIM==FDIM, Function<T,FDIM> >::type
+//prod    typename std::enable_if<2*NDIM==FDIM, Function<T,FDIM> >::type
 //prod    operator()(const Function<T,FDIM>& f) const {
 //prod        real_function_6d sum=real_factory_6d(p_.begin()->world());
 //prod        for (unsigned int i=0; i<p_.size(); ++i) {

@@ -38,6 +38,7 @@
  \ingroup serialization
 */
 
+#include <type_traits>
 #include <madness/world/archive.h>
 #include <madness/world/print.h>
 #include <cstring>
@@ -65,7 +66,7 @@ namespace madness {
         public:
             /// Default constructor; the buffer will only count data.
             BufferOutputArchive()
-                    : ptr(0), nbyte(0), i(0), countonly(true) {}
+                    : ptr(nullptr), nbyte(0), i(0), countonly(true) {}
 
             /// Constructor that assigns a buffer.
 
@@ -76,14 +77,14 @@ namespace madness {
 
             /// Stores (counts) data into the memory buffer.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// serializable.
             /// \tparam T Type of the data to be stored (counted).
             /// \param[in] t Pointer to the data to be stored (counted).
             /// \param[in] n Size of data to be stored (counted).
             template <typename T>
             inline
-            typename madness::enable_if< madness::is_serializable<T>, void >::type
+            typename std::enable_if< madness::is_serializable<T>::value, void >::type
             store(const T* t, long n) const {
                 std::size_t m = n*sizeof(T);
                 if (countonly) {
@@ -143,14 +144,14 @@ namespace madness {
 
             /// Reads data from the memory buffer.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// serializable.
             /// \tparam T Type of the data to be read.
             /// \param[out] t Where to store the read data.
             /// \param[in] n Size of data to be read.
             template <class T>
             inline
-            typename madness::enable_if< madness::is_serializable<T>, void >::type
+            typename std::enable_if< madness::is_serializable<T>::value, void >::type
             load(T* t, long n) const {
                 std::size_t m = n*sizeof(T);
                 MADNESS_ASSERT(m+i <=  nbyte);

@@ -27,3 +27,34 @@ MRALIBS=$(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYX
 LIBGTEST_CPPFLAGS = $(GTEST_CPPFLAGS) -DGTEST_HAS_PTHREAD=1 -isystem $(top_srcdir)/src/madness/external/gtest/include $(AM_CPPFLAGS)
 LIBGTEST_CXXFLAGS = $(GTEST_CXXFLAGS)  $(AM_CXXFLAGS)
 LIBGTEST_LIBS = $(GTEST_LDFLAGS) $(GTEST_LIBS)
+
+# External library targets
+$(LIBGTEST):
+	make -C $(LIBGTESTDIR) libMADgtest.a
+
+$(LIBTINYXML):
+	make -C $(LIBTINYXMLDIR) libMADtinyxml.a
+
+$(LIBMUPARSER):
+	make -C $(LIBMUPARSERDIR) libMADmuparser.a
+
+# MADNESS library targets
+$(LIBWORLD): 
+	make -C $(LIBWORLDDIR) libMADworld.a
+
+$(LIBMISC): $(LIBWORLD)
+	make -C $(LIBMISCDIR) libMADmisc.a
+
+$(LIBTENSOR): $(LIBMISC)
+	make -C $(LIBTENSORDIR) libMADtensor.a
+
+$(LIBLINALG): $(LIBTENSOR)
+	make -C $(LIBTENSORDIR) libMADlinalg.a
+
+
+$(LIBMRA): $(LIBLINALG)
+	make -C $(LIBMRADIR) libMADmra.a
+
+$(LIBCHEM): $(LIBMRA)
+	make -C $(LIBCHEMDIR) libMADchem.a
+

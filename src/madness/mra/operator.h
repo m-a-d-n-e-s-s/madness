@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_OPERATOR_H__INCLUDED
 #define MADNESS_MRA_OPERATOR_H__INCLUDED
 
@@ -38,6 +37,7 @@
 
 /// \ingroup function
 
+#include <type_traits>
 #include <limits.h>
 #include <madness/mra/adquad.h>
 #include <madness/tensor/mtxmq.h>
@@ -52,7 +52,6 @@
 #include <madness/mra/gfit.h>
 
 namespace madness {
-
 
     /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
     /// Why is this here?? Why don't you just use ConvolutionND in SeparatedConvolutionData??
@@ -558,7 +557,7 @@ namespace madness {
         ///       ... WITHOUT FACTOR INCLUDED
         /// compute for 1 term, all dim, 1 disp, essentially for SeparatedConvolutionInternal
         double munorm2_ns(Level n, const ConvolutionData1D<Q>* ops[]) const {
-            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            //PROFILE_MEMBER_FUNC(SeparatedConvolution);
             
             double prodR=1.0, prodT=1.0;
             for (std::size_t d=0; d<NDIM; ++d) {
@@ -1058,7 +1057,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename disable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        typename std::enable_if<FDIM!=NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
             Key<NDIM> source;
             Key<FDIM-NDIM> dummykey;
@@ -1075,7 +1074,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename enable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        typename std::enable_if<FDIM==NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
         	return key;
         }
@@ -1704,7 +1703,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void load(const Archive& ar, const SeparatedConvolution<T,NDIM>*& ptr) {
-                WorldObject< SeparatedConvolution<T,NDIM> >* p = NULL;
+                WorldObject< SeparatedConvolution<T,NDIM> >* p = nullptr;
                 ar & p;
                 ptr = static_cast< const SeparatedConvolution<T,NDIM>* >(p);
             }

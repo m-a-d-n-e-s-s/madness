@@ -33,7 +33,7 @@
 #define MADNESS_WORLD_PRINT_SEQ_H__INCLUDED
 
 /// \file print_seq.h
-/// \brief Implements print_seq ... included by parallel_runtime.h
+/// \brief Implements print_seq ... included by MADworld.h
 
 namespace madness {
     /// Sequentially ordered printing of (serializable) data from every process ... collective no fence

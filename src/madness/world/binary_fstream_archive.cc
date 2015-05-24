@@ -37,8 +37,8 @@
 
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/madness_exception.h>
-#include <madness/world/boost_checked_delete_bits.h>
 #include <cstring>
+#include <memory>
 
 namespace madness {
     namespace archive {
@@ -50,7 +50,7 @@ namespace madness {
         }
 
         void BinaryFstreamOutputArchive::open(const char* filename, std::ios_base::openmode mode) {
-            iobuf.reset(new char[IOBUFSIZE], &madness::detail::checked_array_delete<char>);
+            iobuf.reset(new char[IOBUFSIZE], std::default_delete<char[]>() );
             os.open(filename, mode);
 #ifndef ON_A_MAC
             os.rdbuf()->pubsetbuf(iobuf.get(), IOBUFSIZE);
@@ -77,7 +77,7 @@ namespace madness {
 
 
         void BinaryFstreamInputArchive::open(const char* filename,  std::ios_base::openmode mode) {
-            iobuf.reset(new char[IOBUFSIZE], &madness::detail::checked_array_delete<char>);
+            iobuf.reset(new char[IOBUFSIZE], std::default_delete<char[]>() );
             is.open(filename, mode);
             if (!is) MADNESS_EXCEPTION("BinaryFstreamInputArchive: open: failed", 1);
             is.rdbuf()->pubsetbuf(iobuf.get(), IOBUFSIZE);

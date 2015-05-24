@@ -39,12 +39,12 @@
 */
 
 #include <madness/world/dqueue.h>
-#include <madness/world/enable_if.h>
 #include <madness/world/function_traits.h>
 #include <vector>
 #include <cstddef>
 #include <cstdio>
 #include <pthread.h>
+#include <type_traits>
 #include <typeinfo>
 #include <new>
 
@@ -113,7 +113,7 @@ namespace madness {
 
         /// \todo Brief description needed.
         static void init_thread_key() {
-           const int rc = pthread_key_create(&thread_key, NULL);
+           const int rc = pthread_key_create(&thread_key, nullptr);
            if(rc != 0)
                MADNESS_EXCEPTION("pthread_key_create failed", rc);
         }
@@ -218,7 +218,7 @@ namespace madness {
 
     /// Simplified thread wrapper to hide pthread complexity.
     class Thread : public ThreadBase {
-        void* (*f)(void *); ///< The function called for executing this thread.
+        void* (*f)(void *); ///< The function called for executing this thread. \todo should we replace this by a std::function?
         void* args; ///< The arguments passed to this thread for execution.
 
         /// Invokes the function for this thread.
@@ -230,13 +230,13 @@ namespace madness {
         /// Default constructor.
 
         /// \c start() must be invoked to actually execute the thread.
-        Thread() : f(0), args(0) { }
+        Thread() : f(nullptr), args(nullptr) { }
 
         /// Create a thread and start it running `f(args)`.
 
         /// \param[in] f The function to be called.
         /// \param[in,out] args The arguments to the function.
-        Thread(void* (*f)(void *), void* args=0)
+        Thread(void* (*f)(void *), void* args=nullptr)
                 : f(f), args(args) {
             ThreadBase::start();
         }
@@ -245,13 +245,13 @@ namespace madness {
 
         /// \param[in] f The function to be called.
         /// \param[in,out] args The arguments to the function.
-        void start(void* (*f)(void *), void* args=0) {
+        void start(void* (*f)(void *), void* args=nullptr) {
             this->f = f;
             this->args = args;
             ThreadBase::start();
         }
 
-        virtual ~Thread() {}
+        virtual ~Thread() = default;
     }; // class Thread
 
 
@@ -435,7 +435,7 @@ namespace madness {
         /// \todo I cannot get the TaskThreadEnv to work with Barrier.
         /// Need to figure out why.
         TaskThreadEnv(int nthread, int id)
-            : _nthread(nthread), _id(id), _barrier(NULL)
+            : _nthread(nthread), _id(id), _barrier(nullptr)
         {};
 #endif
 
@@ -584,7 +584,7 @@ namespace madness {
             /// - the submit time
             /// - the start time
             /// - the stop time.
-            /// 
+            ///
             /// \param[in,out] os The output stream.
             /// \param[in] te The task event to be output.
             /// \return The \c os reference.
@@ -633,25 +633,17 @@ namespace madness {
         private:
             TaskEventListBase* next_; ///< The next task event in the list.
 
-            /// Hide the copy constructor.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskEventListBase(const TaskEventListBase&);
-
-            /// Hide the copy assignment operator.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskEventListBase& operator=(const TaskEventListBase&);
+            TaskEventListBase(const TaskEventListBase&) = delete;
+            TaskEventListBase& operator=(const TaskEventListBase&) = delete;
 
         public:
 
             /// Default constructor.
             TaskEventListBase()
-                : next_(NULL) { }
+                : next_(nullptr) { }
 
             /// Virtual destructor.
-            virtual ~TaskEventListBase()
-            { }
+            virtual ~TaskEventListBase() = default;
 
             /// Get the next event list in the linked list.
 
@@ -691,17 +683,10 @@ namespace madness {
         class TaskEventList : public TaskEventListBase {
         private:
             unsigned int n_; ///< The number of events recorded.
-            TaskEvent* events_; ///< The event list. \todo Can we use unique_ptr to simplify this?
+            std::unique_ptr<TaskEvent[]> events_; ///< The event array.
 
-            /// Hide the copy constructor.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskEventList(const TaskEventList&);
-
-            /// Hide the copy assignment operator.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskEventList& operator=(const TaskEventList&);
+            TaskEventList(const TaskEventList&) = delete;
+            TaskEventList& operator=(const TaskEventList&) = delete;
 
         public:
 
@@ -715,9 +700,7 @@ namespace madness {
             { }
 
             /// Virtual destructor.
-            virtual ~TaskEventList() {
-                delete [] events_;
-            }
+            virtual ~TaskEventList() = default;
 
             /// Get a new event from this list.
 
@@ -726,7 +709,7 @@ namespace madness {
             /// many times.
             /// \return The new event from the list.
             TaskEvent* event() {
-                return events_ + (n_++);
+                return events_.get() + (n_++);
             }
 
         private:
@@ -756,15 +739,8 @@ namespace madness {
 
             static Mutex output_mutex_; ///< Mutex used to lock the output file.
 
-            /// Hide the copy constructor.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskProfiler(const TaskProfiler&);
-
-            /// Hide the copy constructor.
-
-            /// \todo Can we replace this with C++11's `= delete`?
-            TaskProfiler& operator=(const TaskProfiler&);
+            TaskProfiler(const TaskProfiler&) = delete;
+            TaskProfiler& operator=(const TaskProfiler&) = delete;
 
         public:
             /// The output file name.
@@ -777,14 +753,14 @@ namespace madness {
         public:
             /// Default constructor.
             TaskProfiler()
-                : head_(NULL), tail_(NULL)
+                : head_(nullptr), tail_(nullptr)
             { }
 
             /// Destructor.
             ~TaskProfiler() {
                 // Cleanup linked list
-                TaskEventListBase* next = NULL;
-                while(head_ != NULL) {
+                TaskEventListBase* next = nullptr;
+                while(head_ != nullptr) {
                     next = head_->next();
                     delete head_;
                     head_ = next;
@@ -801,7 +777,7 @@ namespace madness {
                 TaskEventList* list = new TaskEventList(nmax);
 
                 // Append the list to the tail of the linked list
-                if(head_ != NULL) {
+                if(head_ != nullptr) {
                     tail_->insert(list);
                     tail_ = list;
                 } else {
@@ -885,7 +861,7 @@ namespace madness {
         /// \param[in] fn Description needed.
         /// \return Description needed.
         template <typename fnT>
-        static typename enable_if_c<detail::function_traits<fnT>::value ||
+        static typename std::enable_if<detail::function_traits<fnT>::value ||
                 detail::memfunc_traits<fnT>::value>::type
         make_id(std::pair<void*,unsigned short>& id, fnT fn) {
             FunctionPointerGrabber<fnT> poop;
@@ -900,8 +876,8 @@ namespace madness {
         /// \tparam fnobjT Description needed.
         /// \param[in,out] id Description needed.
         template <typename fnobjT>
-        static typename disable_if_c<detail::function_traits<fnobjT>::value ||
-                detail::memfunc_traits<fnobjT>::value>::type
+        static typename std::enable_if<!(detail::function_traits<fnobjT>::value ||
+                detail::memfunc_traits<fnobjT>::value) >::type
         make_id(std::pair<void*,unsigned short>& id, const fnobjT&) {
             id.first = reinterpret_cast<void*>(const_cast<char*>(typeid(fnobjT).name()));
             id.second = 2ul;
@@ -914,7 +890,7 @@ namespace madness {
         /// \todo Descriptions needed.
         /// \param[in,out] id Description needed.
         virtual void get_id(std::pair<void*,unsigned short>& id) const {
-            id.first = NULL;
+            id.first = nullptr;
             id.second = 0ul;
         }
 
@@ -969,7 +945,7 @@ namespace madness {
         /// Default constructor.
         PoolTaskInterface()
             : TaskAttributes()
-            , barrier(0)
+            , barrier(nullptr)
         {
             count = 0;
         }
@@ -985,6 +961,7 @@ namespace madness {
         }
 
         /// Destructor.
+        /// \todo Should we either use a unique_ptr for barrier or check that barrier != nullptr here?
         virtual ~PoolTaskInterface() {
             delete barrier;
         }
@@ -1023,7 +1000,7 @@ namespace madness {
         { }
 
         /// Destructor.
-        virtual ~PoolTaskInterface() { }
+        virtual ~PoolTaskInterface() = default;
 
         /// Call this to reset the number of threads before the task is submitted
 
@@ -1042,7 +1019,7 @@ namespace madness {
         tbb::task* execute() {
             const int nthread = get_nthread();
             run( TaskThreadEnv(nthread, 0) );
-            return NULL;
+            return nullptr;
         }
 
         /// \todo Brief description needed.
@@ -1061,7 +1038,7 @@ namespace madness {
         ///     objects) to be destroyed.
         /// \param[in] size The size of the array.
         static inline void operator delete(void* p, std::size_t size) throw() {
-            if(p != NULL) {
+            if(p != nullptr) {
                 tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
             }
         }
@@ -1115,7 +1092,7 @@ namespace madness {
 
     public:
         ThreadPoolThread() : Thread() { }
-        virtual ~ThreadPoolThread() { }
+        virtual ~ThreadPoolThread() = default;
 
 #ifdef MADNESS_TASK_PROFILING
         /// Task profiler accessor.
@@ -1436,7 +1413,7 @@ namespace madness {
 #endif
         }
     };
-    
+
     /// @}
 }
 

@@ -41,9 +41,9 @@
 ///
 /// To initialize the MADNESS numerical environment you also need
 /// \c startup(world,argc,argv) and should include mra/mra.h rather
-/// than world/parallel_runtime.h .
+/// than world/MADworld.h .
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 
 int main(int argc, char** argv) {
     madness::initialize(argc,argv);

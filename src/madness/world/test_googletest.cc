@@ -33,7 +33,7 @@
 
 #ifdef MADNESS_HAS_GOOGLE_TEST
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <gtest/gtest.h>
 
 madness::World* pworld;

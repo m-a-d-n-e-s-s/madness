@@ -23,10 +23,12 @@ export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
     --enable-debugging --disable-optimization --enable-warning --disable-optimal \
     --with-google-test \
     --enable-never-spin \
-    LIBS="-L/usr/lib/lapack -L/usr/lib/openblas-base -llapack -lopenblas -lpthread"
+    LIBS="-L/usr/lib/lapack -L/usr/lib/libblas -llapack -lblas -lpthread"
     
 make -j2 libraries
 
 # Run unit tests
-export MAD_NUM_THREADS=2
-make -j2 -k check # run all tests, even if some fail
+if [ "$RUN_TEST" != "buildonly" ]; then
+    export MAD_NUM_THREADS=2
+    make -C src/madness/$RUN_TEST -j2 check # run all tests, even if some fail
+fi

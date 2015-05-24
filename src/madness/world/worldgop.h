@@ -38,6 +38,7 @@
 /// If you can recall the Intel hypercubes, their comm lib used GOP as
 /// the abbreviation.
 
+#include <type_traits>
 #include <madness/world/worldtypes.h>
 #include <madness/world/buffer_archive.h>
 #include <madness/world/world.h>
@@ -45,7 +46,6 @@
 #include <madness/world/world_task_queue.h>
 #include <madness/world/group.h>
 #include <madness/world/dist_cache.h>
-
 
 namespace madness {
 
@@ -218,7 +218,7 @@ namespace madness {
         /// \param key The key that is associated with the data
         /// \param value The data to be sent to \c dest
         template <typename keyT, typename valueT>
-        typename disable_if<is_future<valueT> >::type
+        typename std::enable_if<!is_future<valueT>::value >::type
         send_internal(const ProcessID dest, const keyT& key, const valueT& value) const {
             typedef detail::DistCache<keyT> dist_cache;
 

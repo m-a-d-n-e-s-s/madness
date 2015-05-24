@@ -41,16 +41,16 @@
 
 namespace madness {
 
-    RMI::RmiTask* RMI::task_ptr = NULL;
+    RMI::RmiTask* RMI::task_ptr = nullptr;
     RMIStats RMI::stats;
     volatile bool RMI::debugging = false;
 
 #if HAVE_INTEL_TBB
-    tbb::task* RMI::tbb_rmi_parent_task = NULL;
+    tbb::task* RMI::tbb_rmi_parent_task = nullptr;
 #endif
-  
+
     void RMI::RmiTask::process_some() {
-      
+
         const bool print_debug_info = RMI::debugging;
 
         if (print_debug_info && n_in_q)
@@ -67,7 +67,7 @@ namespace madness {
 	  ++iterations;
 	  myusleep(RMI::testsome_backoff_us);
         }
-	
+
 #ifndef HAVE_CRAYXT
         waiter.reset();
 #endif
@@ -213,8 +213,8 @@ namespace madness {
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , finished(false)
-            , send_counters(new unsigned short[nproc])
-            , recv_counters(new unsigned short[nproc])
+            , send_counters(new volatile counterT[nproc])
+            , recv_counters(new counterT[nproc])
             , max_msg_len_(DEFAULT_MAX_MSG_LEN)
             , nrecv_(DEFAULT_NRECV)
             , maxq_(DEFAULT_NRECV + 1)

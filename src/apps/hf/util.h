@@ -33,7 +33,7 @@
 #define UTIL_H_
 
 #include <madness/mra/mra.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 
 namespace madness {
 //  void printfunc(const World& world, Function<double,3> f, int npts)
@@ -67,7 +67,7 @@ namespace madness {
 }
 //
 //#include <madness/mra/mra.h>
-//#include <madness/world/parallel_runtime.h>
+//#include <madness/world/MADworld.h>
 //#include <vector>
 //
 //namespace madness

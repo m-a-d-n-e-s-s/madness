@@ -31,7 +31,7 @@
 
 #include <madness/world/worldprofile.h>
 #include <madness/world/mpi_archive.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/atomicint.h>
 
 namespace madness {

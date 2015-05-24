@@ -9,6 +9,7 @@
 #define MADNESS_CHEM_PROJECTOR_H__INCLUDED
 
 #include <madness/mra/mra.h>
+#include <type_traits>
 
 namespace madness {
 
@@ -43,7 +44,7 @@ namespace madness {
 
         /// project f on p: \f$ \left| result \right> =  \left| p \right>\left< p \right| f> \f$
         template<std::size_t FDIM>
-        typename enable_if_c<NDIM==FDIM, Function<T,FDIM> >::type
+        typename std::enable_if<NDIM==FDIM, Function<T,FDIM> >::type
         operator()(const Function<T,FDIM>& f) const {
 
         	World& world=f.world();
@@ -70,7 +71,7 @@ namespace madness {
 
         /// project p out of f: \f$ \left| result(1,2) \right> = sum_p \left| p(1) \right> \left< p(1) \right| \left. f(1,2) \right> \f$
         template<std::size_t FDIM>
-        typename enable_if_c<2*NDIM==FDIM, Function<T,FDIM> >::type
+        typename std::enable_if<2*NDIM==FDIM, Function<T,FDIM> >::type
         operator()(const Function<T,FDIM>& f) const {
             real_function_6d sum=real_factory_6d(f.world());
             for (unsigned int i=0; i<p_.size(); ++i) {

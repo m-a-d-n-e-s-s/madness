@@ -41,7 +41,7 @@
 /// \todo Brief description needed.
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <cstring>
 
 namespace madness {

@@ -38,6 +38,7 @@
  \ingroup serialization
 */
 
+#include <type_traits>
 #include <fstream>
 #include <cstring>
 #include <madness/world/archive.h>
@@ -59,7 +60,7 @@ namespace madness {
             /// specified later by calling \c open().
             /// \param[in] filename Name of the file to write to.
             /// \param[in] mode I/O attributes for opening the file.
-            TextFstreamOutputArchive(const char* filename = 0,
+            TextFstreamOutputArchive(const char* filename = nullptr,
                     std::ios_base::openmode mode=std::ios_base::binary | std::ios_base::out | std::ios_base::trunc)
             {
                 if (filename)
@@ -91,13 +92,13 @@ namespace madness {
 
             /// Store data to the filestream.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// serializable.
             /// \tparam T The type of data to be written.
             /// \param[in] t Location of the data to be written.
             /// \param[in] n The number of data items to be written.
             template <class T>
-            typename madness::enable_if< madness::is_serializable<T> >::type
+            typename std::enable_if< madness::is_serializable<T>::value >::type
             store(const T* t, long n) const {
                 for (long i=0; i<n; ++i)
                     os << t[i] << std::endl;
@@ -154,7 +155,7 @@ namespace madness {
             /// specified later by calling \c open().
             /// \param[in] filename Name of the file to read from.
             /// \param[in] mode I/O attributes for opening the file.
-            TextFstreamInputArchive(const char* filename = 0,
+            TextFstreamInputArchive(const char* filename = nullptr,
                     std::ios_base::openmode mode = std::ios_base::in)
             {
                 if (filename)
@@ -196,13 +197,13 @@ namespace madness {
 
             /// Load from the filestream.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// serializable.
             /// \tparam T The type of data to be read.
             /// \param[out] t Where to put the loaded data.
             /// \param[in] n The number of data items to be loaded.
             template <class T>
-            typename madness::enable_if< madness::is_serializable<T> >::type
+            typename std::enable_if< madness::is_serializable<T>::value >::type
             load(T* t, long n) const {
                 for (long i=0; i<n; ++i) is >> t[i];
                 eat_eol();

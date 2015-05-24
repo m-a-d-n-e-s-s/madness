@@ -266,8 +266,8 @@ vector_complex_function_3d update(World& world,
 
     // Append additional terms for periodic case to the potential
     // -ik.del + 1/2 k^2
-    double ksq = kx*kx + ky*ky + kz*kz;
-    coord_3d k = vec(kx, ky, kz);
+    //double ksq = kx*kx + ky*ky + kz*kz;
+    //coord_3d k = vec(kx, ky, kz);
 
     // determine shift to make homo <=-0.1
     double shift = 0.0;

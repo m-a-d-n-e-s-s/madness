@@ -59,7 +59,7 @@ namespace madness {
 
     // World static member variables
     std::list<World*> World::worlds; ///< List of \c World pointers in the parallel runtime.
-    World* World::default_world = NULL; ///< The default \c World.
+    World* World::default_world = nullptr; ///< The default \c World.
     unsigned long World::idbase = 0; ///< \todo Verify: Base unique ID for objects in the runtime.
 
     bool initialized() {
@@ -207,7 +207,7 @@ namespace madness {
 
         // Destroy the default world
         delete World::default_world;
-        World::default_world = NULL;
+        World::default_world = nullptr;
 
 #ifdef MADNESS_HAS_ELEMENTAL
         elem::Finalize();

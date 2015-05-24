@@ -192,7 +192,7 @@ namespace madness {
 #elif defined(HC_NCPU)
         int mib[2]={CTL_HW,HW_NCPU};
         size_t len = sizeof(ncpu);
-        if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0)
+        if (sysctl(mib, 2, &ncpu, &len, nullptr, 0) != 0)
             MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
         //std::cout << "NCPU " << ncpu << std::endl;
 #else
@@ -284,7 +284,7 @@ namespace madness {
 
         void TaskProfiler::write_to_file() {
             // Get output filename: NAME_[rank]x[threads + 1]
-            if(output_file_name_ != NULL) {
+            if(output_file_name_ != nullptr) {
                 // Construct the actual output filename
                 std::stringstream file_name;
                 file_name << output_file_name_ << "_"
@@ -299,15 +299,15 @@ namespace madness {
                 if(! file.fail()) {
                     // Print the task profile data
                     // and delete the data since it is not needed anymore
-                    const TaskEventListBase* next = NULL;
-                    while(head_ != NULL) {
+                    const TaskEventListBase* next = nullptr;
+                    while(head_ != nullptr) {
                         next = head_->next();
                         file << *head_;
                         delete head_;
                         head_ = const_cast<TaskEventListBase*>(next);
                     }
 
-                    tail_ = NULL;
+                    tail_ = nullptr;
                 } else {
                     std::cerr << "!!! ERROR: TaskProfiler cannot open file: "
                             << file_name.str() << "\n";
@@ -317,14 +317,14 @@ namespace madness {
                 file.close();
             } else {
                 // Nothing is written so just cleanup data
-                const TaskEventListBase* next = NULL;
-                while(head_ != NULL) {
+                const TaskEventListBase* next = nullptr;
+                while(head_ != nullptr) {
                     next = head_->next();
                     delete head_;
                     head_ = const_cast<TaskEventListBase*>(next);
                 }
 
-                tail_ = NULL;
+                tail_ = nullptr;
             }
         }
 
@@ -335,7 +335,7 @@ namespace madness {
 
     // The constructor is private to enforce the singleton model
     ThreadPool::ThreadPool(int nthread) :
-            threads(NULL), main_thread(), nthreads(nthread), finish(false)
+            threads(nullptr), main_thread(), nthreads(nthread), finish(false)
     {
         nfinished = 0;
         instance_ptr = this;
@@ -513,7 +513,7 @@ namespace madness {
 	if (ThreadBase::main_instrumented) HPM_Prof_stop(main_hpmctx);
 #endif
         delete instance_ptr;
-        instance_ptr = NULL;
+        instance_ptr = nullptr;
     }
 
     // Returns queue statistics

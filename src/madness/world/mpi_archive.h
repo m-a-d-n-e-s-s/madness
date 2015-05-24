@@ -38,6 +38,7 @@
 #ifndef MADNESS_WORLD_MPI_ARCHIVE_H__INCLUDED
 #define MADNESS_WORLD_MPI_ARCHIVE_H__INCLUDED
 
+#include <type_traits>
 #include <madness/world/archive.h>
 #include <madness/world/world.h>
 #include <madness/world/vector_archive.h>
@@ -65,14 +66,14 @@ namespace madness {
 
             /// Serialize data and send it to the destination process.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// fundamental.
             /// \tparam T The data type to be sent.
             /// \param[in] t Pointer to the data to be sent.
             /// \param[in] n The number of data items to be sent.
             template <class T>
             inline
-            typename madness::enable_if< std::is_fundamental<T>, void >::type
+            typename std::enable_if< std::is_fundamental<T>::value, void >::type
             store(const T* t, long n) const {
                 world->mpi.Send(t, n, dest, tag);
             }
@@ -96,14 +97,14 @@ namespace madness {
 
             /// Receive data from the source process and deserialize it.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// fundamental.
             /// \tparam T The data type to receive.
             /// \param[out] t Pointer to where the data should be stored.
             /// \param[in] n The number of data items to receive.
             template <class T>
             inline
-            typename madness::enable_if< std::is_fundamental<T>, void >::type
+            typename std::enable_if< std::is_fundamental<T>::value, void >::type
             load(T* t, long n) const {
                 world->mpi.Recv(t, n, src, tag);
             }
@@ -131,14 +132,14 @@ namespace madness {
 
             /// Serialize data and store it in the buffer.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// fundamental.
             /// \tparam T The data type to be serialized.
             /// \param[in] t Pointer to the data.
             /// \param[in] n Number of data items to serialize.
             template <class T>
             inline
-            typename madness::enable_if< std::is_fundamental<T>, void >::type
+            typename std::enable_if< std::is_fundamental<T>::value, void >::type
             store(const T* t, long n) const {
                 if (v.size() > bufsize) flush();
                 var.store(t,n);
@@ -188,21 +189,21 @@ namespace madness {
 
             /// Deserialize data and store it in the buffer.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// fundamental.
             /// \tparam T The data type to be deserialized.
             /// \param[out] t Pointer to the data.
             /// \param[in] n Number of data items to serialize.
             template <class T>
             inline
-            typename madness::enable_if< std::is_fundamental<T>, void >::type
+            typename std::enable_if< std::is_fundamental<T>::value, void >::type
             load(T* t, long n) const {
                 if (!var.nbyte_avail()) {
                     var.rewind();
                     std::size_t m;
                     world->mpi.Recv(m, src, tag);
                     v.resize(m);
-                    world->mpi.Recv(&v[0], m, src, tag);
+                    world->mpi.Recv(v.data(), m, src, tag);
                 }
                 var.load(t,n);
             }

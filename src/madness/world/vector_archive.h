@@ -40,6 +40,7 @@
  \todo With a bit of thought this could be generalized to several STL containers.
 */
 
+#include <type_traits>
 #include <vector>
 #include <cstring>
 #include <madness/world/archive.h>
@@ -73,7 +74,7 @@ namespace madness {
             /// \return Description needed.
             template <class T>
             inline
-            typename madness::enable_if< madness::is_serializable<T>, void >::type
+            typename std::enable_if< madness::is_serializable<T>::value, void >::type
             store(const T* t, long n) const {
                 const unsigned char* ptr = (unsigned char*) t;
                 v->insert(v->end(),ptr,ptr+n*sizeof(T));
@@ -108,14 +109,14 @@ namespace madness {
 
             /// Load data from the vector.
 
-            /// The function only appears (due to \c enable_if_c) if \c T is
+            /// The function only appears (due to \c enable_if) if \c T is
             /// serializable.
             /// \tparam T The type of data to be loaded.
             /// \param[out] t Where to store the loaded data.
             /// \param[in] n The number of data items to be loaded.
             template <class T>
             inline
-            typename madness::enable_if< madness::is_serializable<T>, void >::type
+            typename std::enable_if< madness::is_serializable<T>::value, void >::type
             load(T* t, long n) const {
                 std::size_t m = n*sizeof(T);
                 if (m+i >  v->size()) MADNESS_EXCEPTION("VectorInputArchive: reading past end", m+1);

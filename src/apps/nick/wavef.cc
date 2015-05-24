@@ -295,7 +295,7 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
         cosTH = rVec[2]/r;
     gsl_sf_result Rnl;
     int status = gsl_sf_hydrogenicR_e(n, l, Z, r, &Rnl);
-    //    gsl_set_error_handler(NULL);     //Turns on the default error handler
+    //    gsl_set_error_handler(nullptr);     //Turns on the default error handler
     if(status == GSL_EUNDRFLW) { return complexd(0,0); }
     else if(status != 0)            MADNESS_EXCEPTION("gsl_ERROR: ",status);
     if(m==0) { return complexd(Rnl.val * gsl_sf_legendre_sphPlm(l, m, cosTH), 0.0); }

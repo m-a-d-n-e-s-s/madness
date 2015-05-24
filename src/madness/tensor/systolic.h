@@ -32,7 +32,7 @@
   fax:   865-572-0680
 */
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <utility>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/distributed_matrix.h>

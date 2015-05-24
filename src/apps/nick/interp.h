@@ -32,7 +32,7 @@
 #ifndef INTERP_H
 #define INTERP_H
 #include "wavef.h"
-//#include <madness/world/parallel_runtime.h>
+//#include <madness/world/MADworld.h>
 #include <cmath>
 using std::max;
 #include <vector>

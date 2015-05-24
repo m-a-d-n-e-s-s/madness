@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id: typestuff.h 2446 2011-07-22 15:21:22Z justus.c79@gmail.com $
 */
 
 #ifndef MADNESS_WORLD_TYPE_TRAITS_H__INCLUDED
@@ -48,20 +45,6 @@
 #include <madness/world/function_traits.h>
 
 namespace madness {
-
-    /// True if A is derived from B and is not B
-    template <class A, class B>
-    struct is_derived_from {
-        typedef char yes;
-        typedef int no;
-        static no f(...);
-        static yes f(B*);
-        static const bool value = (sizeof(f((A*)0)) == sizeof(yes));
-    };
-
-    /// True if A is derived from B and is not B
-    template <class A>
-    struct is_derived_from<A,A> : public std::false_type {};
 
     template <typename> class Future;
     template <typename> struct add_future;
@@ -145,22 +128,10 @@ namespace madness {
         return BindNullaryConstMemFun<T,resultT>(t,op);
     }
 
-    /// A type you can return when you want to return void ... use "return None"
-    struct Void {};
-
-    /// None, a la Python
-    static const Void None = Void();
-
     /// Wrapper so that can return something even if returning void
     template <typename T>
     struct ReturnWrapper {
         typedef T type;
-    };
-
-    /// Wrapper so that can return something even if returning void
-    template <>
-    struct ReturnWrapper<void> {
-        typedef Void type;
     };
 
 

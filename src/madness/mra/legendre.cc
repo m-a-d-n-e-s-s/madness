@@ -29,8 +29,6 @@
   fax:   865-572-0680
 */
 
-
-#include <madness/world/parallel_runtime.h>
 #include <iostream>
 using std::cout;
 using std::endl;
