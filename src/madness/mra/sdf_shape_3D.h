@@ -426,7 +426,7 @@ namespace madness {
                 do {
                     lower = upper + temp;
                     bound = eval_cubic(lower, c, d, z);
-                    if(fabs(bound) < zero) {
+                    if(std::abs(bound) < zero) {
                         // found the root!
                         roots.push_back(lower);
                         foundroot = true;
