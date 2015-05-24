@@ -395,7 +395,6 @@ test_Zmtxmq.cc
 test_mtxmq.cc
 
 ./src/madness/world:
-array.h
 bgq_atomics.h
 binsorter.h
 debug.cc
@@ -445,7 +444,6 @@ test_worldprofile.cc
 test_worldptr.cc
 test_worldref.cc
 type_traits.h
-typestuff.h
 uniqueid.h
 worldam.cc
 worldam.h

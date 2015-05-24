@@ -33,6 +33,9 @@
 
 /// \defgroup libraries MADNESS libraries
 
+///    \defgroup containers Containers
+///    \ingroup libraries
+
 ///    \defgroup parallel_runtime Parallel programming environment
 ///    \ingroup libraries
 

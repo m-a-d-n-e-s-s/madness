@@ -27,13 +27,16 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 #ifndef MADNESS_WORLD_ARRAY_H__INCLUDED
 #define MADNESS_WORLD_ARRAY_H__INCLUDED
+
+/**
+ \file array.h
+ \brief \todo Brief description needed.
+ \ingroup containers
+*/
 
 #include <madness/madness_config.h>
 #include <madness/world/madness_exception.h>
@@ -45,7 +48,13 @@
 
 namespace madness {
 
-    /// Output std::array to stream for human consumption
+    /// Output \c std::array to stream for human consumption.
+
+    /// \tparam T The type of data stored in the array.
+    /// \tparam N The size of the array.
+    /// \param[in,out] s The output stream.
+    /// \param[in] a The array to be output.
+    /// \return The output stream.
     template <typename T, std::size_t N>
     std::ostream& operator<<(std::ostream& s, const std::array<T,N>& a) {
         s << "[";
@@ -57,7 +66,12 @@ namespace madness {
         return s;
     }
 
-    /// Hash std::array with madness::Hash
+    /// Hash std::array with madness hash.
+
+    /// \tparam T The type of data stored in the array.
+    /// \tparam N The size of the array.
+    /// \param[in] a The array.
+    /// \return The hash.
     template <typename T, std::size_t N>
     madness::hashT hash_value(const std::array<T,N>& a) {
         // Use this version of range for potential optimization.
@@ -72,16 +86,34 @@ namespace madness {
         template <class Archive, class T>
         struct ArchiveLoadImpl;
 
+        /// Serialize an \c std::array.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The type of data stored in the array.
+        /// \tparam N The size of the array.
         template <class Archive, typename T, std::size_t N>
         struct ArchiveStoreImpl<Archive, std::array<T,N> > {
+            /// Store the designated \c std::array in the archive.
+
+            /// \param[in,out] ar The archive.
+            /// \param[in] a The array.
             static void store(const Archive& ar, const std::array<T,N>& a) {
                 for(typename std::array<T,N>::const_iterator it = a.begin(); it != a.end(); ++it)
                     ar & (*it);
             }
         };
 
+        /// Serialize an \c std::array.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The type of data stored in the array.
+        /// \tparam N The size of the array.
         template <class Archive, typename T, std::size_t N>
         struct ArchiveLoadImpl<Archive, std::array<T,N> > {
+            /// Load an \c std::array from an archive.
+
+            /// \param[in,out] ar The archive.
+            /// \param[out] a The array.
             static void load(const Archive& ar, std::array<T,N>& a) {
                 for(typename std::array<T,N>::iterator it = a.begin(); it != a.end(); ++it)
                     ar & (*it);
@@ -90,11 +122,19 @@ namespace madness {
 
     } // namespace archive
 
-    /// A simple, fixed dimension Coordinate
+    /// A simple, fixed dimension vector.
 
-    /// Eliminates memory allocation cost, is just POD so can be
-    /// copied easily and allocated on the stack, and the known
+    /// This class eliminates memory allocation cost, is just POD (it can be
+    /// copied easily and allocated on the stack), and the known
     /// dimension permits aggressive compiler optimizations.
+    ///
+    /// Provides additional mathematical and I/O operations.
+    /// \tparam T The type of data stored in the vector.
+    /// \tparam N The size of the vector.
+    /// \todo Could this class be derived from std::array (to prevent
+    ///    duplication of many functions), rather than simply encapsulating
+    ///    an array? Not documenting duplicated functions until this question
+    ///    is resolved.
     template <typename T, std::size_t N>
     class Vector {
     public:
@@ -115,60 +155,92 @@ namespace madness {
         typedef typename arrayT::size_type              size_type;
         typedef typename arrayT::difference_type        difference_type;
 
-        /// The size of the vector
+        /// The size of the vector.
         static const size_type static_size = N;
 
-        /// Default constructor does not initialize vector contents
-        Vector() {}
+        /// Default constructor; does not initialize vector contents.
+        Vector() = default;
 
-        /// Initialize all elements to value t
+        /// Initialize all elements to value \c t.
+
+        /// \tparam Q The type of \c t.
+        /// \param[in] t The value used to initialized the \c Vector.
         template <typename Q>
         explicit Vector(Q t) {
             fill(t);
         }
 
-        /// Construct from a C-style array of the same dimension
+        /// Construct from a C-style array of the same dimension.
+
+        /// \tparam Q The type of data in \c t.
+        /// \param[in] t The C-style array.
         template <typename Q>
         explicit Vector(const Q (&t)[N]) {
             std::copy(t, t + N, data_.begin());
         }
 
-        /// Construct from an STL vector of equal or greater length
+        /// Construct from an STL vector of equal or greater length.
+
+        /// \tparam Q Type of data stored in the \c std::vector.
+        /// \tparam A Allocator type for the \c std::vector.
+        /// \param[in] t The \c std::vector.
         template <typename Q, typename A>
         explicit Vector(const std::vector<Q, A>& t) {
             operator=(t);
         }
 
+        /// Construct from a \c std::array of equal length.
+
+        /// \tparam Q Type of data stored in the original \c std::array.
+        /// \param[in] t The \c std::array.
         template <typename Q>
         explicit Vector(const std::array<Q, N>& t) {
             data_ = t;
         }
 
-        /// Copy constructor is deep (since a coordinate is POD)
+        /// Copy constructor is deep (because \c Vector is POD).
+
+        /// \param[in] other The \c Vector to copy.
         Vector(const Vector<T,N>& other) {
             data_ = other.data_;
         }
 
-        /// Copy constructor is deep (since a coordinate is POD)
+        /// Copy constructor is deep (because \c Vector is POD).
+
+        /// \tparam Q Type of the \c Vector to copy.
+        /// \param[in] other The \c Vector to copy.
         template <typename Q>
         Vector(const Vector<Q,N>& other) {
             data_ = other.data_;
         }
 
-        /// Assignment is deep (since a vector is POD)
+        /// Assignment is deep (because a \c Vector is POD).
+
+        /// \param[in] other The \c Vector to copy.
+        /// \return This \c Vector.
         Vector<T,N>& operator=(const Vector<T,N>& other) {
             data_ = other.data_;
             return *this;
         }
 
-        /// Assignment is deep (since a vector is POD)
+        /// Assignment is deep (because \c Vector is POD).
+
+        /// \tparam Q The type of the \c Vector to copy.
+        /// \param[in] other The \c Vector to copy.
+        /// \return This \c Vector.
         template <typename Q>
         Vector<T,N>& operator=(const Vector<Q,N>& other) {
             data_ = other.data_;
             return *this;
         }
 
-        /// Assignment is deep (since a vector is POD)
+        /// Assignment is deep (because \c Vector is POD).
+
+        /// Make sure the size of \c other is at least \c N.
+        /// \tparam Q The type of data in the \c std::vector.
+        /// \tparam A The allocator type for the \c std::vector.
+        /// \param[in] other The \c std::vector to copy.
+        /// \return This \c Vector.
         template <typename Q, typename A>
         Vector<T,N>& operator=(const std::vector<Q, A>& other) {
             MADNESS_ASSERT(other.size() >= N);
@@ -176,7 +248,10 @@ namespace madness {
             return *this;
         }
 
-        /// Fill from scalar value
+        /// Fill from a scalar value.
+
+        /// \param[in] t The scalar to use for filling.
+        /// \return This \c Vector.
         Vector<T,N>& operator=(const T& t) {
             fill(t);
             return *this;
@@ -220,9 +295,12 @@ namespace madness {
              data_.fill(t);
          }
 
-        /// In-place element-wise multiplcation by a scalar
+        /// In-place, element-wise multiplcation by a scalar.
 
-        /// Returns a reference to this for chaining operations
+        /// \tparam Q Type of the scalar.
+        /// \param[in] q The scalar.
+        /// \return A reference to this for chaining operations.
+        /// \todo Do we want a similar division operation?
         template <typename Q>
         Vector<T,N>& operator*=(Q q) {
             for(size_type i = 0; i < N; ++i)
@@ -230,9 +308,11 @@ namespace madness {
             return *this;
         }
 
-        /// In-place element-wise addition of another vector
+        /// In-place, element-wise addition of another \c Vector.
 
-        /// Returns a reference to this for chaining operations
+        /// \tparam Q Type stored in the other \c Vector.
+        /// \param[in] q The other \c Vector.
+        /// \return A reference to this for chaining operations.
         template <typename Q>
         Vector<T,N>& operator+=(const Vector<Q,N>& q) {
             for(size_type i = 0; i < N; ++i)
@@ -240,9 +320,11 @@ namespace madness {
             return *this;
         }
 
-        /// In-place element-wise subtraction of another vector
+        /// In-place, element-wise subtraction of another \c Vector.
 
-        /// Returns a reference to this for chaining operations
+        /// \tparam Q Type stored in the other \c Vector.
+        /// \param[in] q The other \c Vector.
+        /// \returns A reference to this for chaining operations.
         template <typename Q>
         Vector<T,N>& operator-=(const Vector<Q,N>& q) {
             for(size_type i = 0; i < N; ++i)
@@ -250,20 +332,27 @@ namespace madness {
             return *this;
         }
 
-        /// return the 2-norm of the vector elements
+        /// Calculate the 2-norm of the vector elements.
+
+        /// \return The 2-norm.
         T normf() const {
         	T d=0;
         	for (std::size_t i=0; i<N; ++i) d+=(data_[i])*(data_[i]);
         	return sqrt(d);
         }
 
-        /// Support for MADNESS serialization
+        /// Support for MADNESS serialization.
+
+        /// \tparam Archive The archive type.
+        /// \param[in,out] ar The archive.
         template <typename Archive>
         void serialize(Archive& ar) {
             ar & data_;
         }
 
-        /// Support for MADNESS hashing
+        /// Support for MADNESS hashing.
+
+        /// \return The hash.
         hashT hash() const {
             return hash_value(data_);
         }
@@ -293,13 +382,23 @@ namespace madness {
             return l.data_ >= r.data_;
         }
 
-        /// Output Vector to stream for human consumption
+        /// Output a \c Vector to stream.
+
+        /// \param[in] s The output stream.
+        /// \param[in] v The \c Vector to output.
+        /// \return The output stream.
         friend std::ostream& operator<<(std::ostream& s, const Vector<T,N>& v) {
             s << v.data_;
             return s;
         }
     }; // class Vector
 
+    /// Swap the contents of two `Vector`s.
+
+    /// \tparam T The type of data stored in the `Vector`s.
+    /// \tparam N The size of the `Vector`s.
+    /// \param[in,out] l One \c Vector.
+    /// \param[in,out] r The other \c Vector.
     template <typename T, std::size_t N>
     void swap(Vector<T,N>& l, Vector<T,N>& r) {
         l.swap(r);
@@ -308,16 +407,16 @@ namespace madness {
     // Arithmetic operators
 
 
-    /// Scale a coordinate
+    /// Scale a \c Vector.
 
-    /// Multiply the scalar value \c l by each \c Vector element
-    /// \tparam T The left-hand \c Vector element type
-    /// \tparam N The \c Vector size
-    /// \tparam U The right-hand scalar type
-    /// \param l The left-hand \c Vector
-    /// \param r The right-hand scalar value to be multiplied by the \c Vector
-    /// elements
-    /// \return A new coordinate, \c c, where \c c[i]==(l[i]*r)
+    /// Multiply each \c Vector element by the scalar value \c r.
+    /// \tparam T The left-hand \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \tparam U The right-hand scalar type.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand scalar value to be multiplied by
+    ///    the \c Vector elements.
+    /// \return A new \c Vector, \c c, where `c[i]==(l[i]*r)`.
     template <typename T, std::size_t N, typename U>
     Vector<T,N> operator*(Vector<T,N> l, U r) {
         // coordinate passed by value to allow compiler optimization
@@ -327,16 +426,16 @@ namespace madness {
     }
 
 
-    /// Scale a \c Vector
+    /// Scale a \c Vector.
 
-    /// Multiply the scalar value \c r by each \c Vector element
-    /// \tparam T The left-hand \c Vector element type
-    /// \tparam N The \c Vector size
-    /// \tparam U The right-hand scalar type
-    /// \param l The left-hand coordinate
-    /// \param r The right-hand scalar value to be multiplied by the \c Vector
-    /// elements
-    /// \return A new coordinate, \c c, where \c c[i]==(l*r[i])
+    /// Multiply the scalar value \c l by each \c Vector element.
+    /// \tparam T The left-hand scalar type.
+    /// \tparam U The right-hand \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \param[in] l The left-hand scalar value to be multiplied by
+    ///    the \c Vector elements.
+    /// \param[in] r The right-hand \c Vector.
+    /// \return A new \c Vector, \c c, where `c[i]==(l*r[i])`.
     template <typename T, typename U, std::size_t N>
     Vector<T,N> operator*(T l, Vector<U,N> r) {
         // coordinate passed by value to allow compiler optimization
@@ -345,16 +444,16 @@ namespace madness {
         return r;
     }
 
-    /// Multiply two \c Vector objects
+    /// Multiply (element-wise) two `Vector`s.
 
-    /// Do an element-wise multiplication of \c r and \c q and return the result
-    /// in a new coordinate.
-    /// \tparam T The left-hand \c Vector element type
-    /// \tparam N The \c Vector size
-    /// \tparam U The right-hand \c Vector element type
-    /// \param l The left-hand \c Vector
-    /// \param r The right-hand \c Vector
-    /// \return A new \c Vector, \c c, where \c c[i]==(l[i]*r[i])
+    /// Do an element-wise multiplication of \c l and \c r and return the
+    /// result in a new \c Vector.
+    /// \tparam T The left-hand \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \tparam U The right-hand \c Vector element type.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand \c Vector.
+    /// \return A new \c Vector, \c c, where `c[i]==(l[i]*r[i])`.
     template <typename T, std::size_t N, typename U>
     Vector<T,N> operator*(Vector<T,N> l, const Vector<U,N>& r) {
         // coordinate r passed by value to allow compiler optimization
@@ -363,15 +462,15 @@ namespace madness {
         return l;
     }
 
-    /// Add a scalar to a \c Vector
+    /// Add a scalar to a \c Vector.
 
-    /// Add the scalar value \c r to each \c Vector element
-    /// \tparam T The left-hand \c Vector element type
-    /// \tparam N The \c Vector size
-    /// \tparam U The right-hand scalar type
-    /// \param l The left-hand coordinate
-    /// \param r The right-hand scalar value to be added to the \c Vector
-    /// \return A new \c Vector, \c c, where \c c[i]==(l[i]+r)
+    /// Add the scalar value \c r to each \c Vector element.
+    /// \tparam T The left-hand \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \tparam U The right-hand scalar type.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand scalar value to be added to the \c Vector.
+    /// \return A new \c Vector, \c c, where `c[i]==(l[i]+r)`.
     template <typename T, std::size_t N, typename U>
     Vector<T,N> operator+(Vector<T,N> l, U r) {
         // coordinate passed by value to allow compiler optimization
@@ -380,54 +479,54 @@ namespace madness {
         return l;
     }
 
-    /// Add two \c Vector opbjects
+    /// Add (element-wise) two `Vector`s.
 
-    /// Do an element-wise addition of \c l and \c r and return the result in a
-    /// new \c Vector.
-    /// \tparam T The left-hand \c Vector element type
-    /// \tparam N The \c Vector size
-    /// \tparam U The right-hand \c Vector element type
-    /// \param l The left-hand \c Vector
-    /// \param r The right-hand \c Vector
-    /// \return A new \c Vector, \c c, where \c c[i]==(l[i]+r[i])
+    /// Do an element-wise addition of \c l and \c r and return the
+    /// result in a new \c Vector.
+    /// \tparam T The left-hand \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \tparam U The right-hand \c Vector element type.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand \c Vector.
+    /// \return A new \c Vector, \c c, where `c[i]==(l[i]+r[i])`.
     template <typename T, std::size_t N, typename U>
     Vector<T,N> operator+(Vector<T,N> l, const Vector<U,N>& r) {
-        // coordinate r passed by value to allow compiler optimization
+        // l passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] += r[i];
         return l;
     }
 
-    /// Subtract a scalar from a \c Vector
+    /// Subtract a scalar from a \c Vector.
 
-    /// Subtract the scalar value \c r from the \c Vector elements \c l[i]
-    /// \tparam T The left-hand \c Vector element type
-    /// \tparam N The \c Vector size
-    /// \tparam U The right-hand scalar type
-    /// \param l The left-hand \c Vector
-    /// \param r The right-hand scalar value to be added to the \c Vector
-    /// \return A new \c Vector, \c c, where \c c[i]==(l[i]-r)
+    /// Subtract the scalar value \c r from the \c Vector elements `l[i]`.
+    /// \tparam T The left-hand \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \tparam U The right-hand scalar type.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand scalar value to be added to the \c Vector.
+    /// \return A new \c Vector, \c c, where `c[i]==(l[i]-r)`.
     template <typename T, std::size_t N, typename U>
     Vector<T,N> operator-(Vector<T,N> l, U r) {
-        // coordinate passed by value to allow compiler optimization
+        // l passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] -= r;
         return l;
     }
 
-    /// Subtract two \c Vector
+    /// Subtract (element-wise) two `Vector`s.
 
-    /// Do an element-wise subtraction of \c l and \c r and return the result in
-    /// a new coordinate.
-    /// \tparam T The left-hand \c Vector element type
-    /// \tparam N The \c Vector size
-    /// \tparam U The right-hand \c Vector element type
-    /// \param l The left-hand \c Vector
-    /// \param r The right-hand \c Vector
-    /// \return A new coordinate, \c c, where \c c[i]==(l[i]-r[i])
+    /// Do an element-wise subtraction of \c l and \c r and return the
+    /// result in a new \c Vector.
+    /// \tparam T The left-hand \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \tparam U The right-hand \c Vector element type.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand \c Vector.
+    /// \return A new \c Vector, \c c, where `c[i]==(l[i]-r[i])`.
     template <typename T, std::size_t N, typename U>
     Vector<T,N> operator-(Vector<T,N> l, const Vector<U,N>& r) {
-        // coordinate r passed by value to allow compiler optimization
+        // l passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] -= r[i];
         return l;
@@ -439,6 +538,7 @@ namespace madness {
     /// \tparam N The \c Vector size
     /// \param v The \c Vector
     /// \return The vector norm, \f$ ||v||_2 = \sqrt{\sum_{k=1}^N v_i^2} \f$
+    /// \todo Duplicate function with the normf member function. Delete soon.
     template <typename T, std::size_t N>
     T norm(Vector<T,N> v) {
       T norm2 = 0.0;
@@ -448,6 +548,8 @@ namespace madness {
     }
 
     /// Your friendly neighborhood factory function
+
+    /// \todo Replace this set of factory functions by a variadic template.
     template <typename T>
     Vector<T,1> vec(T x) {
         Vector<T,1> r; r[0] = x;
@@ -490,54 +592,92 @@ namespace madness {
     }
 
 
-    /// A simple, fixed-size, stack
+    /// A simple, fixed-size, stack.
+
+    /// \tparam T The type of data stored in the stack.
+    /// \tparam N The fixed size of the stack.
     template <typename T, std::size_t N>
     class Stack {
     private:
-        std::array<T,N> t;
-        std::size_t n;
+        std::array<T,N> t; ///< The underlying array storing the stack elements.
+        std::size_t n; ///< Number of elements presently stored in the stack.
 
     public:
+        /// Construct an empty stack.
         Stack() : n(0) {}
 
+        /// Push a new item onto the stack.
+
+        /// \throw MadnessException (via MADNESS_ASSERT) if the stack is full.
+        /// \param[in] value The item to be pushed onto the stack.
         void push(const T& value) {
             MADNESS_ASSERT(n < N);
             t[n++] = value;
         }
 
+        /// Pop an item off of the stack.
+
+        /// \throw MadnessException (via MADNESS_ASSERT) if the stack is empty.
+        /// \return The item popped from the stack.
         T& pop() {
             MADNESS_ASSERT(n > 0);
             return t[--n];
         }
 
+        /// Look at the last item pushed onto the stack, but do not pop it off.
+
+        /// \throw MadnessException (via MADNESS_ASSERT) if the stack is empty.
+        /// \return The item at the back of the stack.
         T& front() {
             MADNESS_ASSERT(n > 0);
             return t[n-1];
         }
 
+        /// Look at the last item pushed onto the stack, but do not pop it off.
+
+        /// \throw MadnessException (via MADNESS_ASSERT) if the stack is empty.
+        /// \return The item at the back of the stack.
         T& top() {
             return front();
         }
 
+        /// Access the number of items pushed to the stack.
+
+        /// \return The number of items pushed to the stack.
         std::size_t size() const {
             return n;
         }
 
+        /// Determine if the stack is empty.
+
+        /// \return True if the stack is empty; false otherwise.
         bool empty() const {
             return n==0;
         }
 
+        /// Empty the stack.
         void clear() {
             n = 0;
         }
 
+        /// Empty the stack.
         void reset() {
             clear();
         }
 
     }; // class Stack
 
-	/// helper function unit vector in direction r
+	/// Construct a unit-`Vector` that has the same direction as \c r.
+
+    /// \tparam T The type of data stored in the \c Vector.
+    /// \tparam NDIM The size of the \c Vector.
+    /// \param[in] r The \c Vector.
+    /// \param[in] eps A precision. If the norm of \c r is less than \c eps,
+    ///    the zero vector is returned.
+    /// \return The desired unit-`Vector` (unless \c r is numerically the zero
+    ///    \c Vector).
+    /// \todo Make NDIM into N for consistency. Also, give this function a
+    ///    much more useful name.
     template<typename T, std::size_t NDIM>
 	Vector<T,NDIM> n12(const Vector<T,NDIM>& r, const double eps=1.e-6) {
 		const double norm=r.normf();
@@ -547,6 +687,8 @@ namespace madness {
 
 
     /// Returns a Vector<T,1> initialized from the arguments
+
+    /// Replace this set of functions by a variadic template.
     template <typename T>
     inline std::array<T,1> array_factory(const T& v0) {
         std::array<T,1> v;
