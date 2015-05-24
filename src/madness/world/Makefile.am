@@ -13,7 +13,7 @@ thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
 	deferred_cleanup.h MADworld.h world.h uniqueid.h worldprofile.h \
 	timers.h binary_fstream_archive.h mpi_archive.h text_fstream_archive.h \
 	worlddc.h mem_func_wrapper.h taskfn.h group.h dist_cache.h \
-	distributed_id.h type_traits.h boost_checked_delete_bits.h \
+	distributed_id.h type_traits.h \
 	function_traits.h stubmpi.h bgq_atomics.h binsorter.h
 
 

@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 #ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
@@ -38,7 +35,6 @@
 #include <madness/madness_config.h>
 #include <madness/misc/ran.h>
 #include <madness/world/posixmem.h>
-#include <madness/world/boost_checked_delete_bits.h>
 
 #include <memory>
 #include <complex>
@@ -331,7 +327,7 @@ namespace madness {
                     _shptr = std::shared_ptr<T>(_p);
 #else
                     if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
-                    _shptr.reset(_p, &::madness::detail::checked_free<T>);
+                    _shptr.reset(_p, &free);
 #endif
                 }
                 catch (...) {
