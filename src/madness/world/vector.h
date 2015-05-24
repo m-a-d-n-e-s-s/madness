@@ -263,9 +263,11 @@ namespace madness {
         /// Calculate the 2-norm of the vector elements.
 
         /// \return The 2-norm.
+        /// \todo Is there a reason this is "normf" and not "norm2"?
         T normf() const {
-        	T d=0;
-        	for (std::size_t i=0; i<N; ++i) d+=(data_[i])*(data_[i]);
+        	T d = 0.;
+        	for(std::size_t i=0; i<N; ++i)
+                d += (data_[i])*(data_[i]);
         	return sqrt(d);
         }
 
@@ -458,21 +460,6 @@ namespace madness {
         for (std::size_t i = 0; i < N; ++i)
             l[i] -= r[i];
         return l;
-    }
-
-    /// Compute norm of a \c Vector
-
-    /// \tparam T The \c Vector element type
-    /// \tparam N The \c Vector size
-    /// \param v The \c Vector
-    /// \return The vector norm, \f$ ||v||_2 = \sqrt{\sum_{k=1}^N v_i^2} \f$
-    /// \todo Duplicate function with the normf member function. Delete soon.
-    template <typename T, std::size_t N>
-    T norm(Vector<T,N> v) {
-      T norm2 = 0.0;
-      for (std::size_t i = 0; i < N; ++i)
-        norm2 += v[i] * v[i];
-      return sqrt(norm2);
     }
 
     /// Your friendly neighborhood factory function
