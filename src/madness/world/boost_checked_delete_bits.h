@@ -44,12 +44,6 @@ namespace madness {
             free(p);
         }
 
-        /// Use this function with shared_ptr to do nothing for the pointer cleanup
-        template <typename T>
-        inline void no_delete(T*) { }
-
-        inline void no_delete(void*) { }
-
     } // namespace detail
 } // namespace madness
 #endif

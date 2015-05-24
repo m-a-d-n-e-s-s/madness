@@ -1426,7 +1426,7 @@ namespace madness {
             MADNESS_ASSERT(ptr);
 
 #ifdef MADNESS_DISABLE_SHARED_FROM_THIS
-            p.reset(static_cast<implT*>(ptr), & madness::detail::no_delete<implT>);
+            p.reset(static_cast<implT*>(ptr), [] (implT *p_) -> void {});
 #else
             p = static_cast<implT*>(ptr)->shared_from_this();
 #endif // MADNESS_DISABLE_SHARED_FROM_THIS
