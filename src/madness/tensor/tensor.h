@@ -327,7 +327,7 @@ namespace madness {
                     _shptr = std::shared_ptr<T>(_p);
 #else
                     if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
-                    _shptr.reset(_p, [] (T *p_) -> void { free(p_); } );
+                    _shptr.reset(_p, &free);
 #endif
                 }
                 catch (...) {
