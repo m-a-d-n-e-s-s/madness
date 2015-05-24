@@ -395,7 +395,6 @@ test_mtxmq.cc
 
 ./src/madness/world:
 array.h
-atomicint.h
 bgq_atomics.h
 binsorter.h
 boost_checked_delete_bits.h

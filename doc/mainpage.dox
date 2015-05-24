@@ -66,8 +66,8 @@
 //          \defgroup mutexes Mutexes
 //          \ingroup threading
 
-//          \defgroup atomics Atomic operations
-//          \ingroup threading
+///          \defgroup atomics Atomic operations
+///          \ingroup threading
 
 ///          \defgroup threads Threads
 ///          \ingroup threading
