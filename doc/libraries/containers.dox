@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+  Copyright (C) 2015 Stony Brook University
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -29,43 +29,10 @@
   fax:   865-572-0680
 */
 
-#include <madness/world/array.h>
-#include <madness/madness_config.h>
+/**
+ \file containers.dox
+ \brief Overview of data containers provided by the MADNESS framework.
+ \addtogroup libraries
 
-#ifdef MADNESS_HAS_GOOGLE_TEST
-
-#include <gtest/gtest.h>
-
-namespace {
-    TEST(VectorTest, SizeWorks) {
-        madness::Vector<double,3> v;
-        EXPECT_EQ(3u, v.size());
-    }
-
-    TEST(VectorTest, InitializerWorks) {
-        madness::Vector<double,33> v(1.0);
-        for (std::size_t i=0; i<v.size(); ++i) {
-            EXPECT_EQ(1.0, v[i]);
-        }
-    }
-
-    TEST(VectorTest, Hash) {
-        madness::Vector<double,33> v(1.0);
-        EXPECT_NE(0u, v.hash());
-    }
-}
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
-
-#else
-
-#include <iostream>
-int main() {
-    std::cout << "!!! Error: You need to build with Google test to enable Array test code\n";
-    return 1;
-}
-
-#endif
+The MADNESS framework provides several container classes for convenience. They are described herein.
+*/

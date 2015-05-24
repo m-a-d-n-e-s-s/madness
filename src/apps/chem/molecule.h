@@ -38,7 +38,7 @@
 
 #include <chem/corepotential.h>
 #include <chem/atomutil.h>
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <vector>
 #include <string>
 #include <iostream>

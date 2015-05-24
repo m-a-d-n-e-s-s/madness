@@ -1350,8 +1350,8 @@ namespace madness {
         template <typename rangeT, typename opT>
         class ForEachRootTask : public TaskInterface {
         private:
-            rangeT range_; ///< The range
-            opT op_; ///< The foreach function
+            rangeT range_; ///< The range.
+            opT op_; ///< The foreach function.
             Future<bool> completion_status_; ///< The result of this set of tasks.
 
         public:
@@ -1366,7 +1366,7 @@ namespace madness {
             { }
 
             /// Virtual destructor.
-            virtual ~ForEachRootTask() { }
+            virtual ~ForEachRootTask() = default;
 
             /// Result accessor.
 

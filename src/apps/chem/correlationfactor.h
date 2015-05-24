@@ -27,8 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -38,12 +36,6 @@
   \file examples/correlationfactor.h
   \brief class for regularizing singular potentials in the molecular
   Hamilton operator
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
-  /trunk/src/apps/examples/correlationfactor.h>here</a>.
-
-
 
   \par Introduction
 
@@ -448,7 +440,7 @@ private:
 
 		const double eA=exp(-Z*r);
 		const double gA=exp(-Z*Z*r*r);
-		coord_3d term=(2.0*gA*Z*Z*vr1A-Z*eA*n12(vr1A,1.e-8));
+		coord_3d term=(2.0*gA*Z*Z*vr1A-Z*eA*unitvec(vr1A,1.e-8));
 		return term;
 	}
 
@@ -523,7 +515,7 @@ private:
 				vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
 
 		const double ebrz=exp(-b*r*Z);
-		const coord_3d term=Z*ebrz*(b*Z*(vr1A) - n12(vr1A));
+		const coord_3d term=Z*ebrz*(b*Z*(vr1A) - unitvec(vr1A));
 		return term;
 	}
 
@@ -591,7 +583,7 @@ private:
     coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
     	const double a=a_param();
 		const double r=vr1A.normf();
-    	return -(a*exp(-a*Z*r)*Z)/(a-1.0)*n12(vr1A);
+    	return -(a*exp(-a*Z*r)*Z)/(a-1.0)*unitvec(vr1A);
     }
 
     /// second derivative of the nuclear correlation factor
@@ -680,7 +672,7 @@ private:
     	const double b=Polynomial<N>::b_param(a);
 
     	if (rho<b) {
-    		return power<N>(-1.)*(1.+a)* Z* power<N-1>(-1.+rho/b)*n12(vr1A);
+    		return power<N>(-1.)*(1.+a)* Z* power<N-1>(-1.+rho/b)*unitvec(vr1A);
     	}
     	return coord_3d(0.0);
     }
@@ -984,7 +976,7 @@ private:
         double operator()(const coord_6d& r) const {
         	const double rr=r12(r);
         	const coord_3d vr12=vec(r[0]-r[3],r[1]-r[4],r[2]-r[5]);
-        	const coord_3d N=n12(vr12);
+        	const coord_3d N=unitvec(vr12);
         	if (gamma>0.0) return -0.5*exp(-gamma*rr)*N[axis];
         	MADNESS_EXCEPTION("no gamma in electronic corrfac::U1",1);
 //        	const double rr=r12(r);
@@ -1196,7 +1188,7 @@ private:
 
     /// the potential is given by
     /// U1 = -\frac{\vec\nabla_1 f_{12}}{f_{12}}
-    ///    =  \frac{e^{-r12/2}{4-2e^{-r12/2}} \vec n12
+    ///    =  \frac{e^{-r12/2}{4-2e^{-r12/2}} \vec unitvec
     /// the derivative operators are not included
     class U1_functor : public FunctionFunctorInterface<double,6> {
         double gamma;
@@ -1211,7 +1203,7 @@ private:
         double operator()(const coord_6d& r) const {
         	const double rr=r12(r);
         	const coord_3d vr12=vec(r[0]-r[3],r[1]-r[4],r[2]-r[5]);
-        	const coord_3d N=n12(vr12);
+        	const coord_3d N=unitvec(vr12);
         	// Taylor expansion for small r
         	double val;
         	if (rr<1.e-4) {	// valid for gamma==0.5, otherwise singular

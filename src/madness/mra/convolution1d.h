@@ -27,13 +27,12 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 #define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <madness/constants.h>
 #include <limits.h>
 #include <madness/tensor/tensor.h>
