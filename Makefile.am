@@ -9,21 +9,29 @@ doc:
 
 .PHONY:
 
-libraries: chem
+libraries:
+	$(MAKE) -C src libraries
 
-world: $(LIBWORLD)
+world:
+	$(MAKE) -C src/madness/world libraries
 
-tinyxml: $(LIBTINYXML)
+tinyxml:
+	$(MAKE) -C src/madness/external/tinyxml libraries
 
-muparser: $(LIBMUPARSER)
+muparser:
+	$(MAKE) -C src/madness/external/muParser libraries
 
-misc: $(LIBMISC)
+misc: world
+	$(MAKE) -C src/madness/misc libraries
 	
-tensor: $(LIBTENSOR)
+tensor: misc
+	$(MAKE) -C src/madness/tensor libraries
 
-mra: $(LIBMRA)
+mra:
+	$(MAKE) -C src libraries
 	
-chem: $(LIBCHEM)
+chem: mra
+	$(MAKE) -C src/apps/chem libraries
 
 install-libraries:
 	$(MAKE) -C src install-libraries
