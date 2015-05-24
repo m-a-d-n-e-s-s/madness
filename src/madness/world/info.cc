@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2014 Virgina Tech
+  Copyright (C) 2015 Stony Brook University
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -30,53 +30,33 @@
 */
 
 /**
- \file madness.h
- \brief General header file for using MADNESS.
- \ingroup applications
+ \file info.cc
+ \brief Implements functions that give information on this version of MADNESS.
+ \ingroup configuration
 */
 
-#ifndef MADNESS_H__INCLUDED
-#define MADNESS_H__INCLUDED
+#include "info.h"
 
-#include <madness/mra/mra.h>
+#include <madness/madness_config.h>
 
-// Documentation for MADNESS namespaces.
-
-/// Namespace for all elements and tools of MADNESS.
 namespace madness {
-
-    /// Namespace for I/O tools.
-    namespace archive { 
-    }
-
-    /// \todo Description needed
-    namespace cblas {
-    }
-
-    /// Namespace storing mathematical and physical constants.
-    namespace constants {
-    }
-
-    /// \todo Description needed
-    namespace detail {
-    }
-
-    /// \todo Description needed
-    namespace Hash_private {
-    }
-
-    /// Runtime details on the configuration and version of MADNESS.
     namespace info {
-    }
 
-    /// \todo Description needed
-    namespace profiling {
-    }
+        std::string git_commit() {
+#ifdef GITREVISION
+            return GITREVISION;
+#else
+            return "unavailable";
+#endif
+        }
 
-    /// \todo Description needed
-    namespace tr1 {
-    }
+        std::string version() {
+#ifdef VERSION // from config.h
+            return VERSION;
+#else
+            return "unavailable";
+#endif
+        }
 
+    } // namespace info
 } // namespace madness
-
-#endif // MADNESS_H__INCLUDED

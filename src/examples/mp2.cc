@@ -35,15 +35,11 @@
   \brief Solves molecular MP2 equations
   \defgroup Solves molecular MP2 equations
   \ingroup examples
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/mp2.cc>here</a>.
-
-
 */
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/world/info.h>
 #include <chem/mp2.h>
 
 using namespace madness;
@@ -56,13 +52,9 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-#ifdef GITREVISION
-    const  char* gitrev =  GITREVISION;
-    const std::string gitrevision(gitrev);
     if (world.rank()==0) {
-    	print("           git revision ...",gitrevision);
+    	print("           git revision ...", info::git_commit());
     }
-#endif
 
     if (world.rank()==0) {
     	print("main() in mp2.cc compiled at ",__TIME__," on ",__DATE__);

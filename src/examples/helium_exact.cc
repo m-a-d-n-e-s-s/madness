@@ -40,6 +40,7 @@
  */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/world/info.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/funcplot.h>
@@ -437,13 +438,9 @@ int main(int argc, char** argv) {
 	startup(world, argc, argv);
 	std::cout.precision(6);
 
-#ifdef GITREVISION
-	const char* gitrev = GITREVISION;
-	const std::string gitrevision(gitrev);
 	if (world.rank()==0) {
-		print("           git revision ...",gitrevision);
+		print("           git revision ...", info::git_commit());
 	}
-#endif
 
 	if (world.rank() == 0) {
 		print("main() in helium_exact.cc compiled at ", __TIME__, " on ",

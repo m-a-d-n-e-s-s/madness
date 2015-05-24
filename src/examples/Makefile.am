@@ -1,10 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-
-GITREV="GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
-
-AM_CPPFLAGS += -D$(GITREV)
-
 noinst_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
