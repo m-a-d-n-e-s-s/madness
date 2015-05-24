@@ -510,19 +510,18 @@ namespace madness {
 	/// Construct a unit-`Vector` that has the same direction as \c r.
 
     /// \tparam T The type of data stored in the \c Vector.
-    /// \tparam NDIM The size of the \c Vector.
+    /// \tparam N The size of the \c Vector.
     /// \param[in] r The \c Vector.
     /// \param[in] eps A precision. If the norm of \c r is less than \c eps,
     ///    the zero vector is returned.
     /// \return The desired unit-`Vector` (unless \c r is numerically the zero
     ///    \c Vector).
-    /// \todo Make NDIM into N for consistency. Also, give this function a
-    ///    much more useful name.
-    template<typename T, std::size_t NDIM>
-	Vector<T,NDIM> n12(const Vector<T,NDIM>& r, const double eps=1.e-6) {
+    template<typename T, std::size_t N>
+	Vector<T,N> unitvec(const Vector<T,N>& r, const double eps=1.e-6) {
 		const double norm=r.normf();
-		if (norm<1.e-6) return Vector<T,NDIM>(0.0);
-		return r*(1.0/norm);
+		if(norm < eps)
+            return Vector<T,N>(0.0);
+		return r * (1.0/norm);
 	}
 
 } // namespace madness
