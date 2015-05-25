@@ -68,13 +68,13 @@ mraplot_SOURCES = mraplot.cc
 
 testpdiff_mpi_SOURCES = testpdiff.cc
 
-testdiff1D_mpi_SOURCES = testdiff1D.cc
+#testdiff1D_mpi_SOURCES = testdiff1D.cc
 
 testdiff1Db_mpi_SOURCES = testdiff1Db.cc
 
-testdiff2D_mpi_SOURCES = testdiff2D.cc
+#testdiff2D_mpi_SOURCES = testdiff2D.cc
 
-testdiff3D_mpi_SOURCES = testdiff3D.cc
+#testdiff3D_mpi_SOURCES = testdiff3D.cc
 
 testqm_SOURCES = testqm.cc
 
