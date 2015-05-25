@@ -295,8 +295,7 @@ namespace madness {
         /// Direct access to the underlying array.
 
         /// \return Pointer to the underlying array.
-        /// \todo This should be renamed `data` to be consistent with C++11 \c std::array.
-        T* c_array() { return data_.data(); }
+        T* data() { return data_.data(); }
 
         /// Direct access to the underlying array.
 
