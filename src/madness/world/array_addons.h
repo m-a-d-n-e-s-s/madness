@@ -121,41 +121,6 @@ namespace madness {
 
     } // namespace archive
 
-    /// Factory function for creating a \c std::array.
-
-    /// Variadic templates are used to create factories that mimic
-    /// \code
-    /// inline std::array<T, N> array_factory(const T &t1, ..., const T &tN) {
-    ///     std::array<T, N> ret;
-    ///     ret[0] = t1;
-    ///     ...
-    ///     ret[N-1] = tN;
-    ///     return ret;
-    /// }
-    /// \endcode
-    ///
-    /// This function counts the number of arguments passed in through the
-    /// argument pack, creates a \c std::array of the appropriate size, and
-    /// forwards the arguments to the `std::array`'s constructor.
-    ///
-    /// \note The first argument is separated from the pack to prevent 0-size
-    ///    arrays and also so that the caller doesn't have to explicitly
-    ///    specify \c T. It is assumed that all arguments are of type \c T or
-    ///    are convertible to type \c T.
-    ///
-    /// \tparam T The data type for the array.
-    /// \tparam Ts The argument pack; that is, the list of arguments. The
-    ///    size of the resulting \c std::array is directly determined from the
-    ///    size of the argument pack.
-    /// \param[in] t The first argument.
-    /// \param[in] ts The rest of the arguments.
-    /// \return The \c std::array with the arguments put into it.
-    template <typename T, typename... Ts>
-    inline std::array<T, sizeof...(Ts) + 1> array_factory(T&& t, Ts&&... ts) {
-        return std::array<T, sizeof...(Ts) + 1>
-            {{ std::forward<T>(t), std::forward<Ts>(ts)... }};
-    }
-
 } // namespace madness
 
 #endif // MADNESS_WORLD_ARRAY_ADDONS_H__INCLUDED
