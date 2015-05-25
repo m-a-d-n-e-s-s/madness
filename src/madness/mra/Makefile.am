@@ -8,7 +8,7 @@ AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 #        testqm testunaryop testper
 
 TESTS = testbsh.mpi testproj.mpi testpdiff.mpi testper.mpi \
-        testdiff1Db.mpi testdiff1D.mpi testdiff2D.mpi testdiff3D.mpi \
+        testdiff1Db.mpi \
 		testgconv.mpi testopdir.mpi testsuite.mpi testinnerext.mpi \
 		testgaxpyext.mpi testvmra.mpi
 
