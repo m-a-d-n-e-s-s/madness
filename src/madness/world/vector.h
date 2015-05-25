@@ -59,31 +59,27 @@ namespace madness {
     /// Provides additional mathematical and I/O operations.
     /// \tparam T The type of data stored in the vector.
     /// \tparam N The size of the vector.
-    /// \todo Could this class be derived from std::array (to prevent
-    ///    duplication of many functions), rather than simply encapsulating
-    ///    an array? Not documenting duplicated functions until this question
-    ///    is resolved.
     template <typename T, std::size_t N>
     class Vector {
     public:
-        typedef std::array<T,N> arrayT;
+        using arrayT = std::array<T,N>; ///< The underlying array type.
 
     private:
-        arrayT data_;
+        arrayT data_; ///< The underlying array.
 
     public:
-        // type defs
-        typedef typename arrayT::value_type             value_type;
-        typedef typename arrayT::iterator               iterator;
-        typedef typename arrayT::const_iterator         const_iterator;
-        typedef typename arrayT::reverse_iterator       reverse_iterator;
-        typedef typename arrayT::const_reverse_iterator const_reverse_iterator;
-        typedef typename arrayT::reference              reference;
-        typedef typename arrayT::const_reference        const_reference;
-        typedef typename arrayT::size_type              size_type;
-        typedef typename arrayT::difference_type        difference_type;
+        // type defs... these are just wrappers to the underlying array types
+        using value_type = typename arrayT::value_type; ///< The data value type.
+        using iterator = typename arrayT::iterator; ///< Iterator type.
+        using const_iterator = typename arrayT::const_iterator; ///< Const iterator type.
+        using reverse_iterator = typename arrayT::reverse_iterator; ///< Reverse iterator type.
+        using const_reverse_iterator = typename arrayT::const_reverse_iterator; ///< Const reverse iterator type.
+        using reference = typename arrayT::reference; ///< Reference type.
+        using const_reference = typename arrayT::const_reference; ///< Const reference type.
+        using size_type = typename arrayT::size_type; ///< Size type.
+        using difference_type = typename arrayT::difference_type; ///< Difference type.
 
-        /// The size of the vector.
+        /// The size of the \c Vector.
         static const size_type static_size = N;
 
         /// Default constructor; does not initialize vector contents.
@@ -185,43 +181,140 @@ namespace madness {
             return *this;
         }
 
-        // type conversion
+        /// Type conversion to a \c std::array.
+
+        /// \return The underlying \c std::array.
         operator std::array<T,N> () { return data_; }
 
-         // iterator support
-         iterator begin() { return data_.begin(); }
-         const_iterator begin() const { return data_.begin(); }
-         iterator end() { return data_.end(); }
-         const_iterator end() const { return data_.end(); }
+        // iterator support
+        /// Iterator starting at the first element.
 
-         // reverse iterator support
-         reverse_iterator rbegin() { return data_.rbegin(); }
-         const_reverse_iterator rbegin() const { return data_.rbegin(); }
-         reverse_iterator rend() { return data_.rend(); }
-         const_reverse_iterator rend() const { return data_.rend(); }
+        /// \return Iterator to the starting element.
+        iterator begin() { return data_.begin(); }
 
-         // capacity
-         size_type size() const { return data_.size(); }
-         bool empty() const { return data_.empty(); }
-         size_type max_size() const { return data_.max_size(); }
+        /// Const iterator starting at the first element.
 
-         // element access
-         reference operator[](size_type i) { return data_[i]; }
-         const_reference operator[](size_type i) const { return data_[i]; }
-         reference at(size_type i) { return data_.at(i); }
-         const_reference at(size_type i) const { return data_.at(i); }
-         reference front() { return data_.front(); }
-         const_reference front() const { return data_.front(); }
-         reference back() { return data_.back(); }
-         const_reference back() const { return data_.back(); }
-         const T* data() const { return data_.data(); }
-         T* c_array() { return data_.data(); }
+        /// \return Const iterator to the starting element.
+        const_iterator begin() const { return data_.begin(); }
 
-         // modifiers
-         void swap(Vector<T, N>& other) { data_.swap(other.data_); }
-         void fill(const T& t) {
-             data_.fill(t);
-         }
+        /// Iterator to the end (past the last element).
+
+        /// \return Iterator to the end.
+        iterator end() { return data_.end(); }
+
+        /// Const iterator to the end (past the last element).
+
+        /// \return Const iterator to the end.
+        const_iterator end() const { return data_.end(); }
+
+        // reverse iterator support
+        /// Reverse iterator starting at the last element.
+
+        /// \return Reverse iterator to the last element.
+        reverse_iterator rbegin() { return data_.rbegin(); }
+
+        /// Const reverse iterator starting at the last element.
+
+        /// \return Const reverse iterator to the last element.
+        const_reverse_iterator rbegin() const { return data_.rbegin(); }
+
+        /// Reverse iterator to the beginning (before the first element).
+
+        /// \return Reverse iterator to the beginning.
+        reverse_iterator rend() { return data_.rend(); }
+
+        /// Const reverse iterator to the beginning (before the first element).
+
+        /// \return Const reverse iterator to the beginning.
+        const_reverse_iterator rend() const { return data_.rend(); }
+
+        // capacity
+        /// Accessor for the number of elements in the \c Vector.
+
+        /// \return The number of elements.
+        size_type size() const { return data_.size(); }
+
+        /// Check if the \c Vector is empty.
+
+        /// \return True if the \c Vector is empty; false otherwise. This
+        ///    should be false unless `N == 0`.
+        bool empty() const { return data_.empty(); }
+
+        /// Get the maximum size of the \c Vector.
+
+        /// \return The maximum size, \c N.
+        size_type max_size() const { return data_.max_size(); }
+
+        // element access
+        /// Access element \c i of the \c Vector.
+
+        /// Bounds checking is not performed.
+        /// \param[in] i The index.
+        /// \return A reference to element \c i.
+        reference operator[](size_type i) { return data_[i]; }
+
+        /// Access element \c i of the \c Vector.
+
+        /// Bounds checking is not performed.
+        /// \param[in] i The index.
+        /// \return A const reference to element \c i.
+        const_reference operator[](size_type i) const { return data_[i]; }
+
+        /// Access element \c i of the \c Vector with bounds checking.
+
+        /// \param[in] i The index.
+        /// \return A reference to element \c i.
+        reference at(size_type i) { return data_.at(i); }
+
+        /// Access element \c i of the \c Vector with bounds checking.
+
+        /// \param[in] i The index.
+        /// \return A const reference to element \c i.
+        const_reference at(size_type i) const { return data_.at(i); }
+
+        /// Access the first element.
+
+        /// \return A reference to the first element.
+        reference front() { return data_.front(); }
+
+        /// Access the first element.
+
+        /// \return A const reference to the first element.
+        const_reference front() const { return data_.front(); }
+
+        /// Access the last element.
+
+        /// \return A reference to the last element.
+        reference back() { return data_.back(); }
+
+        /// Access the last element.
+
+        /// \return A const reference to the last element.
+        const_reference back() const { return data_.back(); }
+
+        /// Direct access to the underlying array.
+
+        /// \return Pointer to the underlying array.
+        /// \todo This should be renamed `data` to be consistent with C++11 \c std::array.
+        T* c_array() { return data_.data(); }
+
+        /// Direct access to the underlying array.
+
+        /// \return Const pointer to the underlying array.
+        const T* data() const { return data_.data(); }
+
+        // modifiers
+        /// Swap the contents with another \c Vector.
+
+        /// \param[in] other The other vector.
+        void swap(Vector<T, N>& other) { data_.swap(other.data_); }
+
+        /// Fill the \c Vector with the specified value.
+
+        /// \param[in] t The value used to fill the \c Vector.
+        void fill(const T& t) {
+          data_.fill(t);
+        }
 
         /// In-place, element-wise multiplcation by a scalar.
 
@@ -288,26 +381,56 @@ namespace madness {
         }
 
         // comparisons
+        /// Check if each element is equal to its partner in the other \c Vector.
+
+        /// \param[in] l One \c Vector.
+        /// \param[in] r The other \c Vector.
+        /// \return True if each element is equal to its partner; false otherwise.
         friend bool operator==(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ == r.data_;
         }
 
+        /// Check if any element is not equal to its partner in the other \c Vector.
+
+        /// \param[in] l One \c Vector.
+        /// \param[in] r The other \c Vector.
+        /// \return True if any element is not equal to its partner; false otherwise.
         friend bool operator!=(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ != r.data_;
         }
 
+        /// Compare \c l and \c r lexicographically.
+
+        /// \param[in] l One \c Vector.
+        /// \param[in] r The other \c Vector.
+        /// \return True if the contents of \c l are lexicographically less than the contents of \c r; false otherwise.
         friend bool operator<(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ < r.data_;
         }
 
+        /// Compare \c l and \c r lexicographically.
+
+        /// \param[in] l One \c Vector.
+        /// \param[in] r The other \c Vector.
+        /// \return True if the contents of \c l are lexicographically greater than the contents of \c r; false otherwise.
         friend bool operator>(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ > r.data_;
         }
 
+        /// Compare \c l and \c r lexicographically.
+
+        /// \param[in] l One \c Vector.
+        /// \param[in] r The other \c Vector.
+        /// \return True if the contents of \c l are lexicographically less than or equal to the contents of \c r; false otherwise.
         friend bool operator<=(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ <= r.data_;
         }
 
+        /// Compare \c l and \c r lexicographically.
+
+        /// \param[in] l One \c Vector.
+        /// \param[in] r The other \c Vector.
+        /// \return True if the contents of \c l are lexicographically greater than or equal to the contents of \c r; false otherwise.
         friend bool operator>=(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ >= r.data_;
         }
