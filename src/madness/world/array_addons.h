@@ -121,76 +121,41 @@ namespace madness {
 
     } // namespace archive
 
-    /// Returns a Vector<T,1> initialized from the arguments
+    /// Factory function for creating a \c std::array.
 
-    /// \todo Replace this set of functions by a variadic template.
-    template <typename T>
-    inline std::array<T,1> array_factory(const T& v0) {
-        std::array<T,1> v;
-        v[0] = v0;
-        return v;
+    /// Variadic templates are used to create factories that mimic
+    /// \code
+    /// inline std::array<T, N> array_factory(const T &t1, ..., const T &tN) {
+    ///     std::array<T, N> ret;
+    ///     ret[0] = t1;
+    ///     ...
+    ///     ret[N-1] = tN;
+    ///     return ret;
+    /// }
+    /// \endcode
+    ///
+    /// This function counts the number of arguments passed in through the
+    /// argument pack, creates a \c std::array of the appropriate size, and
+    /// forwards the arguments to the `std::array`'s constructor.
+    ///
+    /// \note The first argument is separated from the pack to prevent 0-size
+    ///    arrays and also so that the caller doesn't have to explicitly
+    ///    specify \c T. It is assumed that all arguments are of type \c T or
+    ///    are convertible to type \c T.
+    ///
+    /// \tparam T The data type for the array.
+    /// \tparam Ts The argument pack; that is, the list of arguments. The
+    ///    size of the resulting \c std::array is directly determined from the
+    ///    size of the argument pack.
+    /// \param[in] t The first argument.
+    /// \param[in] ts The rest of the arguments.
+    /// \return The \c std::array with the arguments put into it.
+    template <typename T, typename... Ts>
+    inline std::array<T, sizeof...(Ts) + 1> array_factory(T&& t, Ts&&... ts) {
+        return std::array<T, sizeof...(Ts) + 1>
+            {{ std::forward<T>(t), std::forward<Ts>(ts)... }};
     }
 
-    /// Returns a Vector<T,2> initialized from the arguments
-    template <typename T>
-    inline std::array<T,2> array_factory(const T& v0, const T& v1) {
-        std::array<T,2> v;
-        v[0] = v0;
-        v[1] = v1;
-        return v;
-    }
-
-    /// Returns a Vector<T,3> initialized from the arguments
-    template <typename T>
-    inline std::array<T,3> array_factory(const T& v0, const T& v1,
-                                     const T& v2) {
-        std::array<T,3> v;
-        v[0] = v0;
-        v[1] = v1;
-        v[2] = v2;
-        return v;
-    }
-
-    /// Returns a Vector<T,4> initialized from the arguments
-    template <typename T>
-    inline std::array<T,4> array_factory(const T& v0, const T& v1,
-                                     const T& v2, const T& v3) {
-        std::array<T,4> v;
-        v[0] = v0;
-        v[1] = v1;
-        v[2] = v2;
-        v[3] = v3;
-        return v;
-    }
-
-    /// Returns a Vector<T,5> initialized from the arguments
-    template <typename T>
-    inline std::array<T,5> array_factory(const T& v0, const T& v1,
-                                     const T& v2, const T& v3,
-                                     const T& v4) {
-        std::array<T,5> v;
-        v[0] = v0;
-        v[1] = v1;
-        v[2] = v2;
-        v[3] = v3;
-        v[4] = v4;
-        return v;
-    }
-
-    /// Returns a Vector<T,6> initialized from the arguments
-    template <typename T>
-    inline std::array<T,6> array_factory(const T& v0, const T& v1,
-                                     const T& v2, const T& v3,
-                                     const T& v4, const T& v5) {
-        std::array<T,6> v;
-        v[0] = v0;
-        v[1] = v1;
-        v[2] = v2;
-        v[3] = v3;
-        v[4] = v4;
-        v[5] = v5;
-        return v;
-    }
 } // namespace madness
 
 #endif // MADNESS_WORLD_ARRAY_ADDONS_H__INCLUDED
