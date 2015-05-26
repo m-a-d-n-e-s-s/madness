@@ -584,48 +584,43 @@ namespace madness {
         return l;
     }
 
-    /// Your friendly neighborhood factory function
 
-    /// \todo Replace this set of factory functions by a variadic template.
-    template <typename T>
-    Vector<T,1> vec(T x) {
-        Vector<T,1> r; r[0] = x;
-        return r;
-    }
+    /// Factory function for creating a \c madness::Vector.
 
-    /// Your friendly neighborhood factory function
-    template <typename T>
-    Vector<T,2> vec(T x, T y) {
-        Vector<T,2> r; r[0] = x; r[1] = y;
-        return r;
-    }
-
-    /// Your friendly neighborhood factory function
-    template <typename T>
-    Vector<T,3> vec(T x, T y, T z) {
-        Vector<T,3> r; r[0] = x; r[1] = y; r[2] = z;
-        return r;
-    }
-
-    /// Your friendly neighborhood factory function
-    template <typename T>
-    Vector<T,4> vec(T x, T y, T z, T xx) {
-        Vector<T,4> r; r[0] = x; r[1] = y; r[2] = z; r[3] = xx;
-        return r;
-    }
-
-    /// Your friendly neighborhood factory function
-    template <typename T>
-    Vector<T,5> vec(T x, T y, T z, T xx, T yy) {
-        Vector<T,5> r; r[0] = x; r[1] = y; r[2] = z; r[3] = xx; r[4] = yy;
-        return r;
-    }
-
-    /// Your friendly neighborhood factory function
-    template <typename T>
-    Vector<T,6> vec(T x, T y, T z, T xx, T yy, T zz) {
-        Vector<T,6> r; r[0] = x; r[1] = y; r[2] = z; r[3] = xx; r[4] = yy; r[5] = zz;
-        return r;
+    /// Variadic templates are used to create factories that mimic
+    /// \code
+    /// inline madness::Vector<T, N> vec(T t1, ..., T tN) {
+    ///     std::Vector<T, N> ret;
+    ///     ret[0] = t1;
+    ///     ...
+    ///     ret[N-1] = tN;
+    ///     return ret;
+    /// }
+    /// \endcode
+    ///
+    /// This function counts the number of arguments passed in through the
+    /// argument pack, creates a \c std::array of the appropriate size,
+    /// forwards the arguments to the `std::array`'s constructor, and passes
+    /// the \c std::array to \c madness::Vector.
+    ///
+    /// \note The first argument is separated from the pack to prevent 0-size
+    ///    arrays and also so that the caller doesn't have to explicitly
+    ///    specify \c T. It is assumed that all arguments are of type \c T or
+    ///    are convertible to type \c T.
+    ///
+    /// \tparam T The data type for the array.
+    /// \tparam Ts The argument pack; that is, the list of arguments. The
+    ///    size of the resulting \c Vector is directly determined from the
+    ///    size of the argument pack.
+    /// \param[in] t The first argument.
+    /// \param[in] ts The rest of the arguments.
+    /// \return The \c Vector with the arguments put into it.
+    template<typename T, typename... Ts>
+    inline Vector<T, sizeof...(Ts) + 1> vec(T t, Ts... ts) {
+        return Vector<T, sizeof...(Ts) + 1> {
+            std::array<T, sizeof...(Ts) + 1>
+                {{ t, static_cast<T>(ts)... }}
+        };
     }
 
 

@@ -112,109 +112,68 @@ namespace madness {
         return s;
     }
 
-    /// Print a single item to std::cout terminating with new line
-    template <class A>
-    void print(const A& a) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << ENDL;
-    }
-
-    /// Print two items separated by spaces to std::cout terminating with new line
-    template <class A, class B>
-    void print(const A& a, const B& b) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << ENDL;
-    }
-
-    /// Print three items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C>
-    void print(const A& a, const B& b, const C& c) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << ENDL;
-    }
-
-    /// Print four items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D>
-    void print(const A& a, const B& b, const C& c, const D& d) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << ENDL;
-    }
-
-    /// Print five items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << ENDL;
-    }
-
-    /// Print six items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << ENDL;
-    }
-
-    /// Print seven items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << ENDL;
-    }
-
-    /// Print eight items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << ENDL;
-    }
-
-    /// Print nine items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << ENDL;
-    }
-
-    /// Print ten items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << ENDL;
-    }
-
-    /// Print eleven items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << ENDL;
-    }
-
-    /// Print twelve items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << ENDL;
-    }
-
-    /// Print thirteen items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L, class M>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l, const M& m) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << " " << m << ENDL;
-    }
-
-    /// Print fourteen items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L, class M, class N>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l, const M& m, const N& n) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << " " << m << " " << n << ENDL;
-    }
-
     /// Print a string justified on the left to start at the given column with optional underlining
     void print_justified(const char* s, int column=0, bool underline=true);
 
     /// Print a string centered at the given column with optional underlining
     void print_centered(const char* s, int column=40, bool underline=true);
+
+
+
+    // the "print" function and structs to help handle the variadic templates
+
+    /// Helper class to print an argument pack.
+
+    /// This is just a forward declaration for the compiler.
+    /// \tparam Ts The argument pack type of items to print.
+    template<typename... Ts>
+    struct print_helper;
+
+    /// Helper class to print an argument pack.
+
+    /// Recursively calls itself (with one less argument in the pack)
+    /// after printing the first argument in the pack.
+    /// \tparam T Type of the first item (the one that gets printed).
+    /// \tparam Ts Argument pack type for the remaining items.
+    template<typename T, typename... Ts>
+    struct print_helper<T, Ts...> {
+        /// \brief Print the first item from the argument pack; recursively
+        ///    pass the remaining items on.
+
+        /// \param[in] t The first item in the argument pack.
+        /// \param[in] ts The remaining items in the argument pack (they get
+        ///    recursively passed on).
+        static inline
+        void print_nomutex(const T& t, const Ts&... ts) {
+            std::cout << ' ' << t; // print the first item
+            print_helper<Ts...>::print_nomutex(ts...); // print the remaining items
+        }
+    };
+
+    /// Helper class to print an argument pack.
+
+    /// This is the base case (no arguments remaining); do nothing.
+    template<>
+    struct print_helper<> {
+        /// Print the... there aren't any arguments left. Do nothing.
+        static inline
+        void print_nomutex() {
+        }
+    };
+
+    /// \brief Print items to \c std::cout (items separated by spaces) and
+    ///    terminate with a new line
+
+    /// The first item is printed here so that it isn't preceded by a space.
+    /// \tparam T The type of the first item to print.
+    /// \tparam Ts Argument pack type for the remaining items.
+    template<typename T, typename... Ts>
+    void print(const T &t, const Ts&... ts) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
+        std::cout << t;
+        print_helper<Ts...>::print_nomutex(ts...);
+        std::cout << ENDL;
+    }
 
 }
 #endif // MADNESS_WORLD_PRINT_H__INCLUDED
