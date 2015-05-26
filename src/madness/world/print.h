@@ -119,60 +119,47 @@ namespace madness {
     void print_centered(const char* s, int column=40, bool underline=true);
 
 
+    // the "print" function and functions to help handle the variadic templates
 
-    // the "print" function and structs to help handle the variadic templates
+    /// Helper function for \c print. Base case.
 
-    /// Helper class to print an argument pack.
+    /// This gets called recursively when there are no items left to print.
+    /// \param[in,out] out Output stream.
+    /// \return The output stream (for chaining).
+    inline std::ostream& print_helper(std::ostream& out) {
+        return out;
+    }
 
-    /// This is just a forward declaration for the compiler.
-    /// \tparam Ts The argument pack type of items to print.
-    template<typename... Ts>
-    struct print_helper;
+    /// \brief Helper function for \c print. Prints the first item (\c t) and
+    ///    recursively passes on the other items.
 
-    /// Helper class to print an argument pack.
-
-    /// Recursively calls itself (with one less argument in the pack)
-    /// after printing the first argument in the pack.
-    /// \tparam T Type of the first item (the one that gets printed).
+    /// \tparam T Type of the item to print in this call.
     /// \tparam Ts Argument pack type for the remaining items.
-    template<typename T, typename... Ts>
-    struct print_helper<T, Ts...> {
-        /// \brief Print the first item from the argument pack; recursively
-        ///    pass the remaining items on.
-
-        /// \param[in] t The first item in the argument pack.
-        /// \param[in] ts The remaining items in the argument pack (they get
-        ///    recursively passed on).
-        static inline
-        void print_nomutex(const T& t, const Ts&... ts) {
-            std::cout << ' ' << t; // print the first item
-            print_helper<Ts...>::print_nomutex(ts...); // print the remaining items
-        }
-    };
-
-    /// Helper class to print an argument pack.
-
-    /// This is the base case (no arguments remaining); do nothing.
-    template<>
-    struct print_helper<> {
-        /// Print the... there aren't any arguments left. Do nothing.
-        static inline
-        void print_nomutex() {
-        }
-    };
+    /// \param[in,out] out Output stream.
+    /// \param[in] t The item to print in this call.
+    /// \param[in] ts The remaining items in the argument pack (they get
+    ///    recursively passed on).
+    /// \return The output stream (for chaining).
+    template <typename T, typename... Ts>
+    inline std::ostream& print_helper(std::ostream& out,
+                                      const T& t, const Ts&... ts) {
+        out << ' ' << t;
+        return print_helper(out, ts...);
+    }
 
     /// \brief Print items to \c std::cout (items separated by spaces) and
     ///    terminate with a new line
 
     /// The first item is printed here so that it isn't preceded by a space.
-    /// \tparam T The type of the first item to print.
-    /// \tparam Ts Argument pack type for the remaining items.
+    /// \tparam T Type of the first item to be printed.
+    /// \tparam Ts Argument pack type for the items to be printed.
+    /// \param[in] t The first item to be printed.
+    /// \param[in] ts The remaining items to be printed in the argument pack.
     template<typename T, typename... Ts>
-    void print(const T &t, const Ts&... ts) {
+    void print(const T& t, const Ts&... ts) {
         ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << t;
-        print_helper<Ts...>::print_nomutex(ts...);
-        std::cout << ENDL;
+        print_helper(std::cout, ts...) << ENDL;
     }
 
 }
