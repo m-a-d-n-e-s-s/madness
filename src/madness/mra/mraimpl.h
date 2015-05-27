@@ -2084,7 +2084,7 @@ namespace madness {
                     c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
                     x1[idx] = c[0];
                 }
-                Vector<double*,1> xvals = vec(x1);
+                Vector<double*,1> xvals {x1};
                 f(xvals, fvptr, npt);
                 delete [] x1;
             }
@@ -2100,7 +2100,7 @@ namespace madness {
                         x2[idx] = c[1];
                     }
                 }
-                Vector<double*,2> xvals = vec(x1, x2);
+                Vector<double*,2> xvals {x1, x2};
                 f(xvals, fvptr, npt*npt);
                 delete [] x1;
                 delete [] x2;
@@ -2122,7 +2122,7 @@ namespace madness {
                         }
                     }
                 }
-                Vector<double*,3> xvals = vec(x1, x2, x3);
+                Vector<double*,3> xvals {x1, x2, x3};
                 f(xvals, fvptr, npt*npt*npt);
                 delete [] x1;
                 delete [] x2;
@@ -2150,7 +2150,7 @@ namespace madness {
                         }
                     }
                 }
-                Vector<double*,4> xvals = vec(x1, x2, x3, x4);
+                Vector<double*,4> xvals {x1, x2, x3, x4};
                 f(xvals, fvptr, npt*npt*npt*npt);
                 delete [] x1;
                 delete [] x2;
@@ -2184,7 +2184,7 @@ namespace madness {
                         }
                     }
                 }
-                Vector<double*,5> xvals = vec(x1, x2, x3, x4, x5);
+                Vector<double*,5> xvals {x1, x2, x3, x4, x5};
                 f(xvals, fvptr, npt*npt*npt*npt*npt);
                 delete [] x1;
                 delete [] x2;
@@ -2224,7 +2224,7 @@ namespace madness {
                         }
                     }
                 }
-                Vector<double*,6> xvals = vec(x1, x2, x3, x4, x5, x6);
+                Vector<double*,6> xvals {x1, x2, x3, x4, x5, x6};
                 f(xvals, fvptr, npt*npt*npt*npt*npt*npt);
                 delete [] x1;
                 delete [] x2;

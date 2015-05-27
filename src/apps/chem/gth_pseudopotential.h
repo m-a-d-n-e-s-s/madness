@@ -192,9 +192,9 @@ public:
                         double x = (i == 0) ? c1[0] : c2[0];
                         double y = (j == 0) ? c1[1] : c2[1];
                         double z = (k == 0) ? c1[2] : c2[2];
-                        coord_3d rr = vec(x, y, z) - center;
+                        coord_3d rr = coord_3d{x, y, z} - center;
                         double rsq = rr[0]*rr[0]+rr[1]*rr[1]+rr[2]*rr[2];
-             //           print("current minr:  ", minr, "     point: ", vec(x,y,z), "     center: ", center, "     p: ", vec(x,y,z), "     rsq: ", rsq);
+             //           print("current minr:  ", minr, "     point: ", {x,y,z}, "     center: ", center, "     p: ", {x,y,z}, "     rsq: ", rsq);
                         if (minr > rsq) {
                             minr = rsq;
                             ii = i; jj = j; kk = k;
@@ -208,7 +208,7 @@ public:
             double x = (ii == 0) ? c1[0] : c2[0]; 
             double y = (jj == 0) ? c1[1] : c2[1]; 
             double z = (kk == 0) ? c1[2] : c2[2]; 
-            double fval = this->operator()(vec(x, y, z));
+            double fval = this->operator()({x, y, z});
             if (fabs(fval) < ftol) return true;
             else return false;
         }

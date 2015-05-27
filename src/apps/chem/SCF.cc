@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /// \file SCF.cc
@@ -959,20 +956,20 @@ namespace madness {
                                                                                       aobasis))).truncate_on_project();
                 functionT vlda=make_lda_potential(world, rhotmp);
                 functionT coul=apply(*coulop, rhotmp);
-                plot_line("vlocal.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vlocal);
-                plot_line("vcoul.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vcoul);    
-                plot_line("vlda.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vlda);
-                plot_line("dens.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), rhotmp);
+                plot_line("vlocal.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vlocal);
+                plot_line("vcoul.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vcoul);    
+                plot_line("vlda.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vlda);
+                plot_line("dens.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, rhotmp);
     
                 if (!param.pure_ae && !param.psp_calc){
                     real_function_3d vloc_ae;
                     vloc_ae = potentialmanager->vnuclear();
                     vloc_ae.reconstruct();
-                    plot_line("vlocal_ae.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vloc_ae);
+                    plot_line("vlocal_ae.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vloc_ae);
                     real_function_3d vloc_psp;
                     vloc_psp = gthpseudopotential->vlocalpot();
                     vloc_psp.reconstruct();
-                    plot_line("vlocal_psp.dat",npt, vec(0.0,0.0,-50.0), vec(0.0,0.0,50.0), vloc_psp);
+                    plot_line("vlocal_psp.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vloc_psp);
                 }
             }*/
 

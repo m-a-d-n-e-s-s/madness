@@ -566,10 +566,10 @@ public:
                 char vxc2_name[25]; sprintf(vxc2_name, "vxc2_%d.dat", iter);
                 char v_name[25]; sprintf(v_name, "v_%d.dat", iter);
                 int ppnts = 5001; 
-                plot_line(rho_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), rho); 
-                plot_line(vxc_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), vxc); 
-                plot_line(vxc2_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), vxc2); 
-                plot_line(v_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), v); 
+                plot_line(rho_name, ppnts, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, rho); 
+                plot_line(vxc_name, ppnts, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vxc); 
+                plot_line(vxc2_name, ppnts, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vxc2); 
+                plot_line(v_name, ppnts, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, v); 
             }*/
    
             auto ke_mat = kinetic_energy_matrix(world, psi);

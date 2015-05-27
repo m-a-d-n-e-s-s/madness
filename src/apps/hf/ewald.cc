@@ -43,7 +43,7 @@ public:
   GaussianFunctor(double coeff, double expnt)
         : coeff(coeff), expnt(expnt)
   {
-    specialpts.push_back(vec(0.0,0.0,0.0));
+    specialpts.push_back({0.0,0.0,0.0});
   }
 
     virtual std::vector<coordT> special_points() const
@@ -119,12 +119,12 @@ std::vector< Vector<double,3> > generate_R_vectors(World& world, double maxRlen 
         double rlen = t1*std::sqrt(ir1*ir1 + ir2*ir2 + ir3*ir3);
         if (rlen <= maxRlen)
         {
-          Vector<double,3> rvec = vec(t1*ir1, t1*ir2, t1*ir3);
+          Vector<double,3> rvec {t1*ir1, t1*ir2, t1*ir3};
           rvecs.push_back(rvec);
         }
         else if (rlen < maxRlen20)
         {
-          Vector<double,3> rvec = vec(t1*ir1, t1*ir2, t1*ir3);
+          Vector<double,3> rvec {t1*ir1, t1*ir2, t1*ir3};
           rvecs2.push_back(rvec);
         }
       }
@@ -183,7 +183,7 @@ std::vector< Vector<double,3> > generate_G_vectors(World& world, double maxGlen 
         double glen = t1*std::sqrt(ig1*ig1 + ig2*ig2 + ig3*ig3);
         if (glen <= maxGlen)
         {
-          Vector<double,3> gvec = vec(t1*ig1, t1*ig2, t1*ig3);
+          Vector<double,3> gvec {t1*ig1, t1*ig2, t1*ig3};
           gvecs.push_back(gvec);
         }
       }
@@ -310,9 +310,9 @@ public:
       for (unsigned int ia = 0; ia < natoms; ia++)
       {
         Atom iatom = mentity->get_atom(ia);
-        Vector<double,3> tvec = vec(1*(-iatom.x),
-                                    1*(-iatom.y),
-                                    1*(-iatom.z));
+        Vector<double,3> tvec {1*(-iatom.x),
+                               1*(-iatom.y),
+                               1*(-iatom.z)};
         double_complex t1 = std::exp(double_complex(0.0,gvec[0]*tvec[0] +
                                      gvec[1]*tvec[1] + gvec[2]*tvec[2]));
         rhon += iatom.q*t1;
@@ -375,7 +375,7 @@ public:
         Vector<double,3> gvec = gvecs[ig];
         double G2 = gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2];
         Atom iatom = mentity->get_atom(ia);
-        Vector<double,3> rr = vec(r[0]-iatom.x,r[1]-iatom.y,r[2]-iatom.z);
+        Vector<double,3> rr {r[0]-iatom.x,r[1]-iatom.y,r[2]-iatom.z};
         double_complex t1 = std::exp(double_complex(0.0,gvec[0]*rr[0]+gvec[1]*rr[1]+gvec[2]*rr[2]));
         s1 += iatom.q*t1*std::exp(-G2/4.0/alpha/alpha)/G2;
 //        print("ig: ", ig, "  g: ", gvec[0], gvec[1], gvec[2]);
@@ -404,9 +404,9 @@ public:
       for (unsigned int ir = 0; ir < rvecs.size(); ir++)
       {
         Vector<double,3> rvec = rvecs[ir];
-        Vector<double,3> tvec = vec(r[0]-iatom.x-rvec[0],
-                                    r[1]-iatom.y-rvec[1],
-                                    r[2]-iatom.z-rvec[2]);
+        Vector<double,3> tvec {r[0]-iatom.x-rvec[0],
+                               r[1]-iatom.y-rvec[1],
+                               r[2]-iatom.z-rvec[2]};
         double t2 = std::sqrt(tvec[0]*tvec[0] +
             tvec[1]*tvec[1] + tvec[2]*tvec[2]);
         s2 += iatom.q*(1-erf(alpha*t2))/t2;
@@ -468,13 +468,13 @@ public:
 //    for (unsigned int ia = 0; ia < mentity->natom(); ia++)
 //    {
 //      Atom iatom = mentity->get_atom(ia);
-//      Vector<double,3> tvec = vec(iatom.x, iatom.y, iatom.z);
+//      Vector<double,3> tvec {iatom.x, iatom.y, iatom.z};
 //      for (unsigned int ir = 0; ir < rvecs.size(); ir++)
 //      {
 //        Vector<double,3> rvec = rvecs[ir];
-//        Vector<double,3> tvec2 = vec(r[0]-tvec[0]-rvec[0],
-//                                     r[1]-tvec[1]-rvec[1],
-//                                     r[2]-tvec[1]-rvec[1]);
+//        Vector<double,3> tvec2 {r[0]-tvec[0]-rvec[0],
+//                                r[1]-tvec[1]-rvec[1],
+//                                r[2]-tvec[1]-rvec[1]};
 //        double t2 = std::sqrt(tvec2[0]*tvec2[0] +
 //            tvec2[1]*tvec2[1] + tvec2[2]*tvec2[2]);
 //        s2 += erfc(alpha*t2)/std::abs(t2);
@@ -532,7 +532,7 @@ public:
     }
     else
     {
-      rvecs.push_back(vec(0.0,0.0,0.0));
+      rvecs.push_back({0.0,0.0,0.0});
     }
     const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
     double hi = cell_width.normf(); // Diagonal width of cell
@@ -583,9 +583,9 @@ public:
 //        for (unsigned int ir = 0; ir < rvecs.size(); ir++)
 //        {
 //          Vector<double,3> rvec = rvecs[ir];
-//          Vector<double,3> tvec = vec(r[0]-iatom.x-rvec[0],
-//                                      r[1]-iatom.y-rvec[1],
-//                                      r[2]-iatom.z-rvec[2]);
+//          Vector<double,3> tvec {r[0]-iatom.x-rvec[0],
+//                                 r[1]-iatom.y-rvec[1],
+//                                 r[2]-iatom.z-rvec[2]};
 //          double T2 = tvec[0]*tvec[0] + tvec[1]*tvec[1] + tvec[2]*tvec[2];
 //          rval += std::exp(-expnt[mu]*T2);
 //        }
@@ -605,9 +605,9 @@ public:
       for (unsigned int ir = 0; ir < rvecs.size(); ir++)
       {
         Vector<double,3> rvec = rvecs[ir];
-        Vector<double,3> tvec = vec(r[0]-iatom.x-rvec[0],
-                                    r[1]-iatom.y-rvec[1],
-                                    r[2]-iatom.z-rvec[2]);
+        Vector<double,3> tvec {r[0]-iatom.x-rvec[0],
+                               r[1]-iatom.y-rvec[1],
+                               r[2]-iatom.z-rvec[2]};
         double t1 = std::sqrt(tvec[0]*tvec[0] + tvec[1]*tvec[1] + tvec[2]*tvec[2]);
         rval += -iatom.q*nuclear_potential(coeff,expnt,t1);
       }
@@ -844,9 +844,9 @@ void compute_madelung_energy_PWSCF(World& world, MolecularEntity mentity,
       for (unsigned int ia = 0; ia < natoms; ia++)
       {
         Atom iatom = mentity.get_atom(ia);
-        Vector<double,3> tvec = vec(1*(-iatom.x),
-                                    1*(-iatom.y),
-                                    1*(-iatom.z));
+        Vector<double,3> tvec {1*(-iatom.x),
+                               1*(-iatom.y),
+                               1*(-iatom.z)};
         double_complex t1 = std::exp(double_complex(0.0,gvec[0]*tvec[0] +
                                      gvec[1]*tvec[1] + gvec[2]*tvec[2]));
         rhon += iatom.q*t1;
@@ -873,12 +873,12 @@ void compute_madelung_energy_PWSCF(World& world, MolecularEntity mentity,
         {
           Atom iatom = mentity.get_atom(ia);
           Atom jatom = mentity.get_atom(ja);
-          Vector<double,3> dvec = vec(L*(iatom.x-jatom.x),
-                                      L*(iatom.y-jatom.y),
-                                      L*(iatom.z-jatom.z));
-          Vector<double,3> tvec = vec(dvec[0]+rvec[0],
-                                      dvec[1]+rvec[1],
-                                      dvec[2]+rvec[2]);
+          Vector<double,3> dvec {L*(iatom.x-jatom.x),
+                                 L*(iatom.y-jatom.y),
+                                 L*(iatom.z-jatom.z)};
+          Vector<double,3> tvec {dvec[0]+rvec[0],
+                                 dvec[1]+rvec[1],
+                                 dvec[2]+rvec[2]};
           double tnorm = std::sqrt(tvec[0]*tvec[0] + tvec[1]*tvec[1] +
                                    tvec[2]*tvec[2]);
 //              s2 += iatom.q*jatom.q*(1.0 - erf(alpha*tnorm))/tnorm;
@@ -941,9 +941,9 @@ void compute_madelung_energy(World& world, MolecularEntity mentity,
     for (unsigned int ia = 0; ia < natoms; ia++)
     {
       Atom iatom = mentity.get_atom(ia);
-      Vector<double,3> tvec = vec(1*(iatom.x),
-                                  1*(iatom.y),
-                                  1*(iatom.z));
+      Vector<double,3> tvec {1*(iatom.x),
+                             1*(iatom.y),
+                             1*(iatom.z)};
       double_complex t1 = std::exp(double_complex(0.0,gvec[0]*tvec[0] +
                                    gvec[1]*tvec[1] + gvec[2]*tvec[2]));
       rhon += iatom.q*t1;
@@ -974,12 +974,12 @@ void compute_madelung_energy(World& world, MolecularEntity mentity,
         {
           Atom iatom = mentity.get_atom(ia);
           Atom jatom = mentity.get_atom(ja);
-          Vector<double,3> dvec = vec(1*(iatom.x-jatom.x),
-                                      1*(iatom.y-jatom.y),
-                                      1*(iatom.z-jatom.z));
-          Vector<double,3> tvec = vec(dvec[0]+rvec[0],
-                                      dvec[1]+rvec[1],
-                                      dvec[2]+rvec[2]);
+          Vector<double,3> dvec {1*(iatom.x-jatom.x),
+                                 1*(iatom.y-jatom.y),
+                                 1*(iatom.z-jatom.z)};
+          Vector<double,3> tvec {dvec[0]+rvec[0],
+                                 dvec[1]+rvec[1],
+                                 dvec[2]+rvec[2]};
           double tnorm = std::sqrt(tvec[0]*tvec[0] + tvec[1]*tvec[1] +
                                    tvec[2]*tvec[2]);
 //              s2 += iatom.q*jatom.q*(1.0 - erf(alpha*tnorm))/tnorm;

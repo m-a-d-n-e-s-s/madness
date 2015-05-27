@@ -1390,7 +1390,7 @@ namespace madness {
                 kline.erase(0,7);
                 std::stringstream(kline) >>  nn >> l1 >> l2 >> l3;
                 //				kfile >> s >>  nn >> l1 >> l2 >> l3;
-                const Vector<Translation,3> ll=vec(l1,l2,l3);
+                const Vector<Translation,3> ll{ l1,l2,l3 };
                 Key<3> key(nn,ll);
 
                 // this is borrowed from fcube
@@ -1491,7 +1491,7 @@ namespace madness {
                 // line looks like: # key:      n      l1   l2   l3
                 gline.erase(0,7);
                 std::stringstream(gline) >>  nn >> l1 >> l2 >> l3;
-                const Vector<Translation,3> ll=vec(l1,l2,l3);
+                const Vector<Translation,3> ll{ l1,l2,l3 };
                 Key<3> key(nn,ll);
 
                 // this is borrowed from fcube

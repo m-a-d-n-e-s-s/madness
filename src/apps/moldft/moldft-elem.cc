@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /// \file moldft.cc
@@ -2869,8 +2866,8 @@ struct Calculation {
             arho += brho; // total density
             functionT c = copy(arho);
             c.unaryop(DensityIsosurfaceCharacteristic<3>(rho0,beta));
-            plot_line("density.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), arho);
-            plot_line("volume.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
+            plot_line("density.dat",1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, arho);
+            plot_line("volume.dat",1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, c);
 
             double volume = c.trace();
             double facvol = std::pow(constants::atomic_unit_of_length*1e10,3.0);
@@ -2879,7 +2876,7 @@ struct Calculation {
 
             c = copy(arho);
             c.unaryop(DensityIsosurfaceCharacteristicDerivative<3>(rho0,beta));
-            plot_line("surface.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
+            plot_line("surface.dat",1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, c);
 
             c = c*c*((*gradop[0])(arho).square() + (*gradop[1])(arho).square() + (*gradop[2])(arho).square());
             double area = c.trace();

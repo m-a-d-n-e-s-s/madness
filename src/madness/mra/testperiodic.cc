@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /// \file testperiodic.cc
@@ -257,7 +254,7 @@ int test_periodic_bsh(World& world)
   Function<double_complex,3> f = FunctionFactory<double_complex,3>(world).f(pw_rhs);
   f.truncate();
 
-//  Vector<double,3> args = vec(0.0,0.0,0.0);
+//  Vector<double,3> args {0.0,0.0,0.0};
   SeparatedConvolution<double,3> op = BSHOperator3D(world, mu, 1e-6, thresh);
   std::cout.precision(10);
 
