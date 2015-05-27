@@ -333,7 +333,7 @@ namespace madness {
         /// \return Description needed.
         T& get() {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
+            World::await([=] () { return probe(); });
             return *const_cast<T*>(&t);
         }
 
@@ -345,7 +345,7 @@ namespace madness {
         /// \return Description needed.
         const T& get() const {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
+            World::await([=] () { return probe(); });
             return *const_cast<const T*>(&t);
         }
 

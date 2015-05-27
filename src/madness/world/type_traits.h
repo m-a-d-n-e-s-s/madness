@@ -54,7 +54,7 @@ namespace madness {
     template <typename T>
     struct remove_fcvr {
         typedef typename remove_future<typename std::remove_cv<
-                                           typename std::remove_reference<T>::type>::type>::type type;
+                   typename std::remove_reference<T>::type>::type>::type type;
     };
 
     /// This defines stuff that is serialiable by default rules ... basically anything contiguous
@@ -62,71 +62,6 @@ namespace madness {
     struct is_serializable {
         static const bool value = std::is_fundamental<T>::value || std::is_member_function_pointer<T>::value || std::is_function<T>::value  || std::is_function<typename std::remove_pointer<T>::type>::value;
     };
-
-    /// Simple binder for member functions with no arguments
-    template <class T, typename resultT>
-    class BindNullaryMemFun {
-    private:
-        T* t_;
-        resultT(T::*op_)();
-    public:
-        BindNullaryMemFun(T* t, resultT(T::*op)()) : t_(t), op_(op) {}
-        resultT operator()() {
-            return (t_->*op_)();
-        }
-    };
-
-    /// Specialization of BindNullaryMemFun for void return
-    template <class T>
-    class BindNullaryMemFun<T,void> {
-    private:
-        T* t_;
-        void (T::*op_)();
-    public:
-        BindNullaryMemFun(T* t, void (T::*op)()) : t_(t), op_(op) {}
-        void operator()() {
-            (t_->*op_)();
-        }
-    };
-
-
-    /// Simple binder for const member functions with no arguments
-    template <class T, typename resultT>
-    class BindNullaryConstMemFun {
-    private:
-        const T* t_;
-        resultT(T::*op_)() const;
-    public:
-        BindNullaryConstMemFun(const T* t, resultT(T::*op)() const) : t_(t), op_(op) {}
-        resultT operator()() const {
-            return (t_->*op_)();
-        }
-    };
-
-    /// Specialization of BindNullaryConstMemFun for void return
-    template <class T>
-    class BindNullaryConstMemFun<T,void> {
-    private:
-        const T* t_;
-        void (T::*op_)() const;
-    public:
-        BindNullaryConstMemFun(const T* t, void (T::*op)() const) : t_(t), op_(op) {}
-        void operator()() const {
-            (t_->*op_)();
-        }
-    };
-
-    /// Factory function for BindNullaryMemFun
-    template <class T, typename resultT>
-    inline BindNullaryMemFun<T,resultT> bind_nullary_mem_fun(T* t, resultT(T::*op)()) {
-        return BindNullaryMemFun<T,resultT>(t,op);
-    }
-
-    /// Factory function for BindNullaryConstMemFun
-    template <class T, typename resultT>
-    inline BindNullaryConstMemFun<T,resultT> bind_nullary_mem_fun(const T* t, resultT(T::*op)() const) {
-        return BindNullaryConstMemFun<T,resultT>(t,op);
-    }
 
     /// Wrapper so that can return something even if returning void
     template <typename T>
