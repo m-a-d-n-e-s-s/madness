@@ -138,6 +138,23 @@ namespace madness {
             data_ = other.data_;
         }
 
+        /// List initialization constructor (deep copy because \c Vector is POD).
+
+        /// This constructor allows initialization using, e.g.,
+        /// \code
+        /// Vector<double, 3> v{ 1.5, 2.4, -1.9 };
+        /// \endcode
+        /// \throw MadnessException if the list does not contain exactly \c N
+        ///    elements.
+        /// \param[in] list The initializer list; elements are copied to the
+        ///    \c Vector.
+        Vector(const std::initializer_list<T>& list) :
+            data_()
+        {
+            MADNESS_ASSERT(list.size() == N);
+            std::copy(list.begin(), list.end(), data_.begin());
+        }
+
         /// Assignment is deep (because a \c Vector is POD).
 
         /// \param[in] other The \c Vector to copy.
@@ -169,6 +186,22 @@ namespace madness {
         Vector<T,N>& operator=(const std::vector<Q, A>& other) {
             MADNESS_ASSERT(other.size() >= N);
             std::copy(other.begin(), other.begin() + N, data_.begin());
+            return *this;
+        }
+
+        /// List initialization assignment (deep copy because \c Vector is POD).
+
+        /// This assignment operator allows initialization using, e.g.,
+        /// \code
+        /// v = { 1.5, 2.4, -1.9 };
+        /// \endcode
+        /// \throw MadnessException if the list does not contain exactly \c N
+        ///    elements.
+        /// \param[in] list The initializer list; elements are copied to the
+        ///    \c Vector.
+        Vector<T,N>& operator=(const std::initializer_list<T>& list) {
+            MADNESS_ASSERT(list.size() == N);
+            std::copy(list.begin(), list.end(), data_.begin());
             return *this;
         }
 
@@ -602,6 +635,20 @@ namespace madness {
     /// argument pack, creates a \c std::array of the appropriate size,
     /// forwards the arguments to the `std::array`'s constructor, and passes
     /// the \c std::array to \c madness::Vector.
+    ///
+    /// \deprecated This function has been replaced by the list-initialization
+    ///    constructor and assignment operator. Rather than
+    ///    \code
+    ///    Vector<double, 3> v = vec(1.4, 2.5, 4.0);
+    ///    \endcode
+    ///    use
+    ///    \code
+    ///    Vector<double, 3> v{ 1.4, 2.5, 4.0 };
+    ///    \endcode
+    ///    or
+    ///    \code
+    ///    Vector<double, 3> v = { 1.4, 2.5, 4.0 };
+    ///    \endcode
     ///
     /// \note The first argument is separated from the pack to prevent 0-size
     ///    arrays and also so that the caller doesn't have to explicitly
