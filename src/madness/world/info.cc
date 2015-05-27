@@ -42,7 +42,7 @@
 namespace madness {
     namespace info {
 
-        std::string git_commit() {
+        const char* git_commit() {
 #ifdef GITREVISION
             return GITREVISION;
 #else
@@ -50,7 +50,7 @@ namespace madness {
 #endif
         }
 
-        std::string version() {
+        const char* version() {
 #ifdef VERSION // from config.h
             return VERSION;
 #else

@@ -38,20 +38,18 @@
  \ingroup configuration
 */
 
-#include <string>
-
 namespace madness {
     namespace info {
 
         /// Get the git commit number for this version.
 
         /// \return The git commit number (as a \c std::string).
-        std::string git_commit();
+        const char* git_commit();
 
         /// Get the MADNESS version number.
 
         /// \return The MADNESS version number.
-        std::string version();
+        const char* version();
 
     } // namespace info
 } // namespace madness
