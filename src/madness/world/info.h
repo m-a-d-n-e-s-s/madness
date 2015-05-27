@@ -43,7 +43,7 @@ namespace madness {
 
         /// Get the git commit number for this version.
 
-        /// \return The git commit number (as a \c std::string).
+        /// \return The git commit number.
         const char* git_commit();
 
         /// Get the MADNESS version number.
