@@ -63,12 +63,6 @@ namespace madness {
         static const bool value = std::is_fundamental<T>::value || std::is_member_function_pointer<T>::value || std::is_function<T>::value  || std::is_function<typename std::remove_pointer<T>::type>::value;
     };
 
-    /// Wrapper so that can return something even if returning void
-    template <typename T>
-    struct ReturnWrapper {
-        typedef T type;
-    };
-
 
     template <typename T>
     struct has_result_type {
