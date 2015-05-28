@@ -419,7 +419,7 @@ public:
             // will change virtuals and invalidate V_aj_i
             vecfuncT newvirtuals=update_virtuals(i,j,V_baraj_i,V_barai_j,virtuals,virtuals_bar,
                     f_ii+f_jj,fmat_bar,amplitudes);
-            virtuals_bar=update_virtuals(i,j,V_aj_i,V_ai_j,virtuals_bar,virtuals,
+            virtuals_bar=update_virtuals(i,j,V_ai_j,V_aj_i,virtuals_bar,virtuals,
                     f_ii+f_jj,fmat,amplitudes);
             virtuals=newvirtuals;
 
