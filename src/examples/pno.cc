@@ -7,6 +7,7 @@ using namespace madness;
 
 namespace madness {
 
+
 class GaussianGuess : FunctionFunctorInterface<double,3> {
 public:
     GaussianGuess(const Atom& atom, const double e, const int i, const int j,
@@ -54,7 +55,7 @@ std::vector<GaussianGuess> make_guess(const Molecule& mol, int maxl, const doubl
 
 class QProjector {
 public:
-    QProjector(const vecfuncT& amo) : O(amo) {};
+    QProjector(World& world, const vecfuncT& amo) : world(world), O(amo) {};
     real_function_3d operator()(const real_function_3d& rhs) const {
         return (rhs-O(rhs));
     }
@@ -63,10 +64,12 @@ public:
         for (std::size_t i=0; i<rhs.size(); ++i) {
             result[i]=(rhs[i]-O(rhs[i])).truncate();
         }
+        truncate(world,result);
         return result;
     }
 
 private:
+    World& world;
     Projector<double,3> O;
 };
 
@@ -81,6 +84,7 @@ public:
     vecfuncT operator()(const vecfuncT& vket) const {
         vecfuncT result(vket.size());
         for (std::size_t i=0; i<vket.size(); ++i) result[i]=ncf->apply_U(vket[i]);
+        truncate(world,result);
         return result;
     }
 
@@ -143,10 +147,13 @@ public:
         vcoul=calc.make_coulomb_potential(density);
     }
     real_function_3d operator()(const real_function_3d& ket) const {
-        return vcoul*ket;
+        return (vcoul*ket).truncate();
     }
+
     vecfuncT operator()(const vecfuncT& vket) const {
-        return mul(world,vcoul,vket);
+        vecfuncT tmp=mul(world,vcoul,vket);
+        truncate(world,tmp);
+        return tmp;
     }
 
     double operator()(const real_function_3d& bra, const real_function_3d ket) const {
@@ -186,6 +193,7 @@ public:
     vecfuncT operator()(const vecfuncT& vket) const {
         vecfuncT result(vket.size());
         for (std::size_t i=0; i<vket.size(); ++i) result[i]=this->operator()(vket[i]);
+        truncate(world,result);
         return result;
     }
 
@@ -230,11 +238,14 @@ public:
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        double wtime=-wall_time(); double ctime=-cpu_time();
         Tensor<double> kmat=K(vbra,vket);
         Tensor<double> jmat=J(vbra,vket);
         Tensor<double> tmat=T(vbra,vket);
         Tensor<double> vmat=V(vbra,vket);
         Tensor<double> fock=tmat+jmat-kmat+vmat;
+        wtime+=wall_time(); ctime+=cpu_time();
+        if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", "fock matrix", wtime, ctime);
         return fock;
     }
 
@@ -252,6 +263,16 @@ private:
 class PNO {
 public:
     typedef std::shared_ptr<operatorT> poperatorT;
+
+    mutable double sss,ttt;
+    void START_TIMER(World& world) const {
+        world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+    }
+
+    void END_TIMER(World& world, const char* msg) const {
+        ttt=wall_time()-ttt; sss=cpu_time()-sss;
+        if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+    }
 
     /// POD for PNO keywords
     struct Parameters {
@@ -338,7 +359,7 @@ public:
         T(world,*nemo.get_calc()),
         V(world,nemo.nuclear_correlation),
         F(world,nemo),
-        Q(nemo.get_calc()->amo) {
+        Q(world,nemo.get_calc()->amo) {
 
         poisson = std::shared_ptr<real_convolution_3d>(
               CoulombOperatorPtr(world, nemo.get_calc()->param.lo,
@@ -361,7 +382,7 @@ public:
         if ((param.i >= 0) and (param.j>=0)) {
             energy+=solve_pair(param.i,param.j);
         } else {
-            for (std::size_t i=0; i<amo.size(); ++i) {
+            for (std::size_t i=param.freeze; i<amo.size(); ++i) {
                 for (std::size_t j=i; j<amo.size(); ++j) {
                     energy+=solve_pair(i,j);
                 }
@@ -396,7 +417,7 @@ public:
             Tensor<double> fmat_bar=F(virtuals_bar,virtuals_bar);
 
             // compute energy
-            Tensor<double> VBV=compute_hylleraas(i,j,V_ai_j,V_baraj_i,virtuals,virtuals_bar,
+            Tensor<double> VBV=compute_hylleraas(i,j,V_aj_i,V_baraj_i,virtuals,virtuals_bar,
                     fmat,fmat_bar,f_ii+f_jj,amplitudes);
             double energy=VBV.sum();
 
@@ -427,10 +448,10 @@ public:
 
         // compute the fock matrix of the virtuals
         vecfuncT V_baraj_i=compute_V_aj_i(amo[i],amo[j],virtuals_bar);
-        vecfuncT V_ai_j=compute_V_aj_i(amo[j],amo[i],virtuals);
+        vecfuncT V_aj_i=compute_V_aj_i(amo[i],amo[j],virtuals);
         Tensor<double> fmat=F(virtuals,virtuals);
         Tensor<double> fmat_bar=F(virtuals_bar,virtuals_bar);
-        Tensor<double> VBV=compute_hylleraas(i,j,V_ai_j,V_baraj_i,virtuals,virtuals_bar,
+        Tensor<double> VBV=compute_hylleraas(i,j,V_aj_i,V_baraj_i,virtuals,virtuals_bar,
                 fmat,fmat_bar,f_ii+f_jj,amplitudes);
         double energy=VBV.sum();
         return energy;
@@ -447,6 +468,7 @@ public:
 
         const int nvir=virtuals.size();
 
+        START_TIMER(world);
         // compute the inhomogeneous term
         vecfuncT V_baraj_i_scaled=copy(world,V_baraj_i);
         vecfuncT V_barai_j_scaled=copy(world,V_barai_j);
@@ -478,7 +500,7 @@ public:
         vecfuncT Va=V(virtuals);
         vecfuncT JKVa=add(world,sub(world,Ja,Ka),Va);
         truncate(world,JKVa);
-
+        END_TIMER(world,"prep update");
         vecfuncT Vpsi=sub(world,btilde,JKVa);
 //        if (i!=j) {
             vecfuncT coupling=compute_coupling_terms(virtuals,virtuals_bar,
@@ -486,6 +508,7 @@ public:
             Vpsi=add(world,Vpsi,coupling);
 //        }
 
+        START_TIMER(world);
         scale(world,Vpsi,2.0);
         vecfuncT GVpsi;
 
@@ -505,17 +528,23 @@ public:
             scale(world,tmp,0.5);
             GVpsi=add(world,GVpsi,tmp);
 //        }
+        END_TIMER(world,"BSH");
 
+
+        START_TIMER(world);
         // post-processing: project out occ space, orthogonalize
         GVpsi=Q(GVpsi);
         orthonormalize_cholesky(GVpsi);
         check_orthonormality(GVpsi);
+        END_TIMER(world,"post processing");
 
         return GVpsi;
     }
 
     vecfuncT compute_coupling_terms(const vecfuncT& virtuals,
             const vecfuncT& virtuals_bar, const Tensor<double>& amplitudes) const {
+        START_TIMER(world);
+
         Tensor<double> S_bbara=matrix_inner(world,virtuals,virtuals_bar);
         Tensor<double> F_bbara=F(virtuals,virtuals_bar);
 
@@ -544,6 +573,7 @@ public:
         vecfuncT result=add(world,barc,Fb);
         truncate(world,result);
         scale(world,result,0.5);
+        END_TIMER(world,"compute coupling");
 
         return result;
     }
@@ -609,7 +639,7 @@ public:
     /// @param[out] t the optimized amplitudes
     /// @return the energy contributions of each virtual
     Tensor<double> compute_hylleraas(const int i, const int j,
-            const vecfuncT& V_ai_j, const vecfuncT& V_baraj_i,
+            const vecfuncT& V_aj_i, const vecfuncT& V_baraj_i,
             const vecfuncT& virtuals, const vecfuncT& virtuals_bar,
             const Tensor<double>& f_aa, const Tensor<double>& f_barabara,
             const double e0, Tensor<double>& t) const {
@@ -629,7 +659,7 @@ public:
             const Tensor<double> S_abarb=matrix_inner(world,virtuals,virtuals_bar);
             const Tensor<double> S_barab=matrix_inner(world,virtuals_bar,virtuals);
             Tensor<double> V_abara=inner(world,virtuals,V_baraj_i);
-            Tensor<double> V_baraa=inner(world,virtuals_bar,V_ai_j);
+            Tensor<double> V_baraa=inner(world,virtuals_bar,V_aj_i);
             V=2.0*V_abara-V_baraa;
 
             for (std::size_t a=0; a<nvir; ++a) {
@@ -722,6 +752,7 @@ public:
         Tensor<double> Linv=inverse(L);
         Tensor<double> U=transpose(Linv);
         v=transform(world,v,U);
+        truncate(world,v);
     }
 
     void orthonormalize_fock(const Tensor<double>& fmat, vecfuncT& v) const {
