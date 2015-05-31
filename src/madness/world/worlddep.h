@@ -84,7 +84,7 @@ namespace madness {
         /// Returns true if ndepend == 0
         bool probe() const {return ndep() == 0;}
 
-        /// Invoked by callbacks to notifiy of dependencies being satisfied
+        /// Invoked by callbacks to notify of dependencies being satisfied
         void notify() {dec();}
 
         /// Registers a callback for when \c ndepend==0 , immediately invoked if \c ndepend==0
