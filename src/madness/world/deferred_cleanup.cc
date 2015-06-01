@@ -30,7 +30,7 @@
 */
 
 #include <madness/world/deferred_cleanup.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 
 namespace madness {
     namespace detail {

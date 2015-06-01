@@ -1,0 +1,155 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2015 Stony Brook University
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+*/
+
+/**
+  \file gstart_io.dox
+  \brief Getting started with MADNESS I/O.
+  \addtogroup gstart_io
+  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
+
+\par Moving functions to/from disk
+It takes at most a couple of lines of code to move a function to/from disk. The example program `trunk/src/examples/functionio.cc` shows how to do this, and the critical lines are
+\code
+ParallelOutputArchive out(world, filename); 
+out & f & g & h; 
+ParallelInputArchive in(world, filename); 
+in & f & g & h; 
+\endcode
+Here, `f`, `g`, and `h` are MADNESS functions of any type (they need not have the same type or dimension). 
+
+MADNESS has a generic mechanism for (de)serializing objects from directional streams, called archives, that avoids confusion with the STL stream concept. Anything can be written to and read from an archive, though user-defined types usually need a little additional code to enable this (see `trunk/src/madness/world/archive.h` for documentation). Most archives are sequential objects accessible only to a single process and it makes little sense to write a potentially large function that is distributed across the entire parallel computer to such an archive. For that reason, functions must be written to/from a parallel archive that performs efficient parallel I/O.
+
+Large amounts of data (more than a few gigabytes) will benefit from increasing the number of processors actually doing disk I/O (refer to the relevant parallel archive class for more info).
+
+
+\par Plotting
+
+MADNESS can presently generate uniform grids in formats suitable for several visualization software packages. The following are explicitly supported:
+- OpenDX (in a `*.dx` file)
+- Paraview (in a VTK file)
+- line plots in a text format suitable for nearly any tool (e.g., \ gnuplot or xmgrace).
+
+\note The program `mraplot` can be used to generate plots from functions stored on disk.
+
+<em>OpenDX</em>
+
+OpenDX is an open source visualization software based on IBM's Visualization Data Explorer (<a href="http://www.opendx.org/">www.opendx.org</a>). Please refer to the OpenDX manual for its use. An example configuration file (`vizit.cfg`) and a network file (`vizit.net`) can be found in the `trunk/src/apps/moldft/` directory. Here are some details on creating your own DX files.
+
+Given any MADNESS function `f`, you can write to disk a uniform grid over the entire simulation volume with
+\code
+plotdx(f, "f.dx");
+\endcode
+
+Additional arguments permit us to change the plot volume (default is the entire simulation volume), the number of points (default is 201) and binary/text format (default is binary). This is a collective operation.
+
+Visualizing this with OpenDX is straightforward, but depends on the number of dimensions. The easiest way is to start OpenDX, click "Import Data ...", enter your filename, and click "Visualize Data". However, you will want to learn how to build your own networks. To display an iso-surface of 3D data, start the visual editor and connect
+\verbatim
+file-selector --> import --> isosurface --> image
+\endverbatim
+
+Enter your name in the file-selector, and you should see the picture. You can adjust the isosurface value in the isosurface control or by connecting it to an interactor. Have fun!
+
+
+<em>VTK format and Paraview</em>
+
+MADNESS can export MADNESS functions to the serial vtkStructuredGrid (.vts) file format, which can be ready by several post-processing visualization packages such as Paraview. To write this data file, you must first define four
+quantities:
+-# a filename (`filename`),
+-# the lower (`plotlo`) bound of Cartesian coordinates in each dimension to plot,
+-# the corresponding upper (`plothi`) bound,
+-# the number of points (`npts`) in each dimension to evaluate.
+.
+
+\note At this time, MADNESS evaluates the functions at equally spaced points between `plotlo` and `plothi`.
+
+
+After the above four quantities have been defined, three functions must be called:
+- `plotvtk_begin`: Writes the VTK boilerplate header information.
+- `plotvtk_data`: Evaluates and writes the MADNESS function at `npts`.
+- `plotvtk_end`: Writes the VTK boilerplate footer information.
+.
+
+\note Currently, the function evaluation in `plotvtk_data` is done in serial.
+
+
+An example of code for plotting two two-dimensional functions `u` and `v` in a \f$[0,1]^{2}\f$ box with 101 points is as follows:
+\code
+char filename[100]; 
+sprintf(filename, output.vts); // Defines the filename 
+Vector<double, 2> plotlo, plothi; // Box dimensions 
+Vector<long, 2> npts; // Num points in each dim
+
+for(int i = 0; i < 2; ++i) 
+{ 
+  plotlo[i] = 0.0; 
+  plothi[i] = 1.0; 
+  npts[i] = 101; 
+} 
+
+plotvtk_begin(world, filename, plotlo, plothi, npts); 
+plotvtk_data(u, u, world, filename, plotlo, plothi, npts); 
+plotvtk_data(v, v, world, filename, plotlo, plothi, npts); 
+plotvtk_end<3>(world, filename); 
+\endcode
+
+\note
+- An arbitrary number of MADNESS files may be written to a single file. Two are shown above for demonstrative purposes; however, `plotvtk_data` may be called multiple times between `plotvtk_begin` and `plotvtk_end` function calls.
+
+- For time-dependent simulations, the above code can be included within the time step loop. The user should then consider appending the filename with the timestep number and create `Ntimestep` files, each containing one increment of time.
+.
+
+
+To visualize your functions, Paraview has been extensively tested, although other external visualization packages may also be compatible with the `vts` file format. Paraview is an open-source visualization application that is freely
+downloadable. For information about how to download, install and use Paraview, please consult their webpage at <a href="http://www.paraview.org">http://www.paraview.org</a>.
+
+
+<em>Line plots</em>
+
+With a single function call, up to three functions can be simultaneously evaluated at points along a line with the values printed to a file suitable for use by any standard 2D graphics or spreadsheet software. For example, to plot one 4D function (`f`) along a line between \f$(0,0,0,1)\f$ and \f$(0,1,0,2)\f$ with 101 points
+\code
+coord_3d lo, hi; 
+lo[3]=1.0; hi[1]=1.0; hi[2]=2.0; 
+plot_line("plot.txt", 101, lo, hi, f);
+\endcode
+
+To plot two functions (`f` and `g`) you would use instead
+\code
+plot_line("plot.txt", 101, lo, hi, f, g);
+\endcode
+
+With gnuplot, you can plot the data as follows
+\verbatim
+gnuplot -persist -e 'set style data lines; plot "plot.txt"'
+\endverbatim
+
+
+Previous: \ref gstart_functions; Next: \ref gstart_load_balance
+*/

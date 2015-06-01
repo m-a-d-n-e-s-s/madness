@@ -27,10 +27,7 @@
  email: harrisonrj@ornl.gov
  tel:   865-241-3937
  fax:   865-572-0680
-
-
- $Id$
- */
+*/
 
 #ifndef MADNESS_MRA_KEY_H__INCLUDED
 #define MADNESS_MRA_KEY_H__INCLUDED
@@ -40,8 +37,8 @@
 
 #include <vector>
 #include <madness/mra/power.h>
-#include <madness/world/array.h>
-#include <madness/world/binfsar.h>
+#include <madness/world/vector.h>
+#include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
 #include <stdint.h>
 

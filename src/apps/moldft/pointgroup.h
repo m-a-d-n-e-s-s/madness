@@ -37,7 +37,7 @@
 /// \brief Implements basic functionality for Abelian point groups (D2h and subgroups)
 
 #include <madness/tensor/tensor.h>
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <string>
 #include <ostream>
 #include <sstream>

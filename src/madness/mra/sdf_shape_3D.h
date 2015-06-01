@@ -330,7 +330,7 @@ namespace madness {
                         temp[1] = 0.0L;
                     }
                     else {
-                        temp[1] = fabs(temp[0])*sqrt(temp[1]);
+                        temp[1] = std::abs(temp[0])*sqrt(temp[1]);
                     }
 
                     if(n == 0) {
@@ -401,7 +401,7 @@ namespace madness {
 
             // calculate the region boundaries
             lower = 2.0L*(c+z);
-            upper = fabs(c - 2.0L*z);
+            upper = std::abs(c - 2.0L*z);
             hasregion2 = (upper >= 1.0e-10L);
 
             derivroot1 = (lower - upper) / (3.0L*c);
@@ -413,7 +413,7 @@ namespace madness {
 
             // if cubic(upper) < 0.0, there's no root in this region
             bound = eval_cubic(upper, c, d, z);
-            if(fabs(bound) < zero) {
+            if(std::abs(bound) < zero) {
                 // this is the root!
                 roots.push_back(upper);
                 hasregion2 = false;
@@ -426,7 +426,7 @@ namespace madness {
                 do {
                     lower = upper + temp;
                     bound = eval_cubic(lower, c, d, z);
-                    if(fabs(bound) < zero) {
+                    if(std::abs(bound) < zero) {
                         // found the root!
                         roots.push_back(lower);
                         foundroot = true;
@@ -468,7 +468,7 @@ namespace madness {
 
             // if cubic(upper) > 0.0, there's no root in this region
             bound = eval_cubic(lower, c, d, z);
-            if(fabs(bound) < zero) {
+            if(std::abs(bound) < zero) {
                 // this is the root!
                 roots.push_back(lower);
             }
@@ -480,7 +480,7 @@ namespace madness {
                 do {
                     upper = lower + temp;
                     bound = eval_cubic(upper, c, d, z);
-                    if(fabs(bound) < zero) {
+                    if(std::abs(bound) < zero) {
                         // found the root!
                         roots.push_back(upper);
                         foundroot = true;
@@ -527,7 +527,7 @@ namespace madness {
                 middle = 0.5L*(upper + lower);
                 value = eval_cubic(middle, c, d, z);
 
-                if(fabs(value) < zero)
+                if(std::abs(value) < zero)
                     return middle;
 
                 if(value < 0.0L) {
@@ -538,11 +538,11 @@ namespace madness {
                 }
                 else {
                     if(dir)
-                        upper = middle; 
+                        upper = middle;
                     else
                         lower = middle;
                 }
-            } while(fabs(upper-lower) > rootzero);
+            } while(std::abs(upper-lower) > rootzero);
 
             return middle;
         }

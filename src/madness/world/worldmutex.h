@@ -566,7 +566,7 @@ namespace madness {
 
     public:
         PthreadConditionVariable() {
-            pthread_cond_init(&cv, NULL);
+            pthread_cond_init(&cv, nullptr);
             pthread_mutex_init(&mutex, 0);
         }
 

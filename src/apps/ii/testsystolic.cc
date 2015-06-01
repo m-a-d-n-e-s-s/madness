@@ -32,7 +32,7 @@
 /* \file testsystolic2.cc
  * systolic example of eigen solver using one-sided Jacobi method.
  */
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <utility>
 #include <madness/tensor/tensor.h>
 #include <ii/systolic.h>

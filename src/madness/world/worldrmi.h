@@ -27,18 +27,18 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_WORLD_WORLDRMI_H__INCLUDED
 #define MADNESS_WORLD_WORLDRMI_H__INCLUDED
 
 #include <madness/world/safempi.h>
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <madness/world/worldtypes.h>
 #include <sstream>
 #include <utility>
 #include <list>
+#include <memory>
 
 /*
   There is just one server thread and it is the only one
@@ -173,17 +173,17 @@ namespace madness {
             const ProcessID rank;       // Rank of this process
             volatile bool finished;     // True if finished
 
-            ScopedArray<volatile counterT> send_counters;
-            ScopedArray<counterT> recv_counters;
+            std::unique_ptr<volatile counterT[]> send_counters;
+            std::unique_ptr<counterT[]> recv_counters;
             std::size_t max_msg_len_;
             std::size_t nrecv_;
             std::size_t maxq_;
-            ScopedArray<void*> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
-            ScopedArray<SafeMPI::Request> recv_req;
+            std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages /// \todo Are [] needed in the template?
+            std::unique_ptr<SafeMPI::Request[]> recv_req;
 
-            ScopedArray<SafeMPI::Status> status;
-            ScopedArray<int> ind;
-            ScopedArray<qmsg> q;
+            std::unique_ptr<SafeMPI::Status[]> status;
+            std::unique_ptr<int[]> ind;
+            std::unique_ptr<qmsg[]> q;
             int n_in_q;
 
             static inline bool is_ordered(attrT attr) { return attr & ATTR_ORDERED; }
@@ -203,7 +203,7 @@ namespace madness {
                 } else {
                     finished = false;
                 }
-                return NULL;
+                return nullptr;
             }
 #else
             void run() {
@@ -281,7 +281,7 @@ namespace madness {
               std::cerr <<
                   "!! MADNESS RMI error: Attempting to send a message when the RMI thread is not running\n"
                   "!! MADNESS RMI error: This typically occurs when an active message is sent or a remote task is spawned after calling madness::finalize()\n";
-              MADNESS_EXCEPTION("!! MADNESS error: The RMI thread is not running", (task_ptr != NULL));
+              MADNESS_EXCEPTION("!! MADNESS error: The RMI thread is not running", (task_ptr != nullptr));
             }
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
@@ -296,7 +296,7 @@ namespace madness {
                 if (testsome_backoff_us > 100) testsome_backoff_us = 100;
             }
 
-            MADNESS_ASSERT(task_ptr == NULL);
+            MADNESS_ASSERT(task_ptr == nullptr);
 #if HAVE_INTEL_TBB
             tbb_rmi_parent_task = new( tbb::task::allocate_root() ) tbb::empty_task;
             tbb_rmi_parent_task->set_ref_count(2);
@@ -316,7 +316,7 @@ namespace madness {
                 tbb_rmi_parent_task->wait_for_all();
                 tbb::task::destroy(*tbb_rmi_parent_task);
 #endif // HAVE_INTEL_TBB
-                task_ptr = NULL;
+                task_ptr = nullptr;
             }
         }
 

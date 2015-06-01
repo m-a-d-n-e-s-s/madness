@@ -27,19 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  $Id$
 */
+
 /*!
   \file helium_mp2.cc
   \brief Solves the Hartree-Fock and MP2 equations for the helium atom
   \defgroup examplehehf Hartree-Fock and MP2 for the helium atom
   \ingroup examples
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/helium_mp2.cc>here</a>.
-
-
 */
 
 
@@ -369,8 +363,8 @@ public:
 #if 0
         // break key into particles
         const Vector<Translation, 6> l=key.translation();
-        const Vector<Translation, 3> l1=Vector<Translation,3> (vec(l[0],l[1],l[2]));
-        const Vector<Translation, 3> l2=Vector<Translation,3> (vec(l[3],l[4],l[5]));
+        const Vector<Translation, 3> l1 {l[0],l[1],l[2]};
+        const Vector<Translation, 3> l2 {l[3],l[4],l[5]};
         const Key<3> key1(key.level(),l1);
         const Key<3> key2(key.level(),l2);
 

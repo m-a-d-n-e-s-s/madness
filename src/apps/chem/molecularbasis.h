@@ -441,7 +441,7 @@ public:
     }
 
     madness::Vector<double,3> get_coords_vec() const {
-        return madness::vec(xx, yy, zz);
+        return madness::Vector<double,3>{xx, yy, zz};
     }
 };
 

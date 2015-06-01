@@ -27,11 +27,7 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #ifndef MADNESS_WORLD_WORLDMPI_H__INCLUDED
 #define MADNESS_WORLD_WORLDMPI_H__INCLUDED
@@ -54,6 +50,7 @@
 #endif
 */
 
+#include <type_traits>
 #include <madness/world/safempi.h>
 #include <madness/world/worldtypes.h>
 #include <cstdlib>
@@ -134,7 +131,7 @@ namespace madness {
             ~WorldMpi() {
 #ifdef MADNESS_USE_BSEND_ACKS
                 // Unregister the acknowlegement buffer for RMI
-                void* buff = NULL;
+                void* buff = nullptr;
                 SafeMPI::Detach_buffer(buff);
 #endif // MADNESS_USE_BSEND_ACKS
 
@@ -199,10 +196,10 @@ namespace madness {
 
 #if defined(MVAPICH2_VERSION)
                 // Check that MVAPICH2 has has the correct thread affinity
-                char * mv2_string = NULL;
+                char * mv2_string = nullptr;
                 int mv2_affinity = 1; /* this is the default behavior of MVAPICH2 */
 
-                if ((mv2_string = getenv("MV2_ENABLE_AFFINITY")) != NULL) {
+                if ((mv2_string = getenv("MV2_ENABLE_AFFINITY")) != nullptr) {
                     mv2_affinity = atoi(mv2_string);
                 }
 
@@ -271,7 +268,7 @@ namespace madness {
         // !! Please ensure any additional routines follow this convention.
         /// Isend one element ... disabled for pointers to reduce accidental misuse.
         template <typename T>
-        typename madness::disable_if<std::is_pointer<T>, SafeMPI::Request>::type
+        typename std::enable_if<!std::is_pointer<T>::value, SafeMPI::Request>::type
         Isend(const T& datum, int dest, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
             return SafeMPI::Intracomm::Isend(&datum, sizeof(T), MPI_BYTE, dest, tag);
         }
@@ -286,7 +283,7 @@ namespace madness {
 
         /// Async receive datum from process dest with default tag=1
         template <typename T>
-        typename madness::disable_if<std::is_pointer<T>, SafeMPI::Request>::type
+        typename std::enable_if<!std::is_pointer<T>::value, SafeMPI::Request>::type
         Irecv(T& buf, int source, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
             return SafeMPI::Intracomm::Irecv(&buf, sizeof(T), MPI_BYTE, source, tag);
         }
@@ -303,7 +300,7 @@ namespace madness {
 
         /// Disabled for pointers to reduce accidental misuse.
         template <typename T>
-        typename madness::disable_if<std::is_pointer<T>, void>::type
+        typename std::enable_if<!std::is_pointer<T>::value, void>::type
         Send(const T& datum, int dest, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
             SafeMPI::Intracomm::Send((void*)&datum, sizeof(T), MPI_BYTE, dest, tag);
         }
@@ -324,7 +321,7 @@ namespace madness {
 
         /// Receive datum from process src
         template <typename T>
-        typename madness::disable_if<std::is_pointer<T>, void>::type
+        typename std::enable_if<!std::is_pointer<T>::value, void>::type
         Recv(T& buf, int src, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
             SafeMPI::Intracomm::Recv(&buf, sizeof(T), MPI_BYTE, src, tag);
         }
@@ -343,7 +340,7 @@ namespace madness {
 
         /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
         template <typename T>
-        typename madness::disable_if<std::is_pointer<T>, void>::type
+        typename std::enable_if<!std::is_pointer<T>::value, void>::type
         Bcast(T& buffer, int root) const {
             SafeMPI::Intracomm::Bcast(&buffer, sizeof(T), MPI_BYTE,root);
         }

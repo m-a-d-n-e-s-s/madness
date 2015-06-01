@@ -648,7 +648,7 @@ int main(int argc, char**argv) {
 
     initialize(argc,argv);
     World world(SafeMPI::COMM_WORLD);
-    srand(time(NULL));
+    srand(time(nullptr));
     startup(world,argc,argv);
 
     // the parameters

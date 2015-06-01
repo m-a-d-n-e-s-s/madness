@@ -757,7 +757,7 @@ int main(int argc, char**argv) {
 //    initialize(argc,argv);
 //    World world(MPI::COMM_WORLD);
 
-    srand(time(NULL));
+    srand(time(nullptr));
     std::cout << std::scientific;
 
     // the parameters

@@ -49,10 +49,4 @@ namespace madness {
         return out;
     }
 
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<Void>& f) {
-        out << "<Void>";
-        return out;
-    }
-
 } // namespace madness

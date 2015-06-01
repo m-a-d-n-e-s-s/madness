@@ -32,7 +32,7 @@
   fax:   865-572-0680
 */
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <utility>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/distributed_matrix.h>
@@ -406,7 +406,7 @@ namespace madness {
             do {
                 iteration(nthread);
                 done = tbb::parallel_reduce(tbb::blocked_range<int>(0,nthread), true,
-                    [=] (const tbb::blocked_range<int>& range, bool init) {
+                    [=] (const tbb::blocked_range<int>& range, bool init) -> bool {
                         for(int id = range.begin(); id < range.end(); ++id)
                             init = init &&
                                 this->converged(TaskThreadEnv(nthread, id));

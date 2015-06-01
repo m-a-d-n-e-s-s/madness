@@ -30,7 +30,7 @@
 */
 
 #include <madness/world/worldgop.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
 #include <gperftools/malloc_extension.h>
 #endif

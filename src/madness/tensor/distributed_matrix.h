@@ -37,7 +37,7 @@
 // REPLICATED TO DISTRIBUTED MATRIX ALGORITHMS, AND SUBSEQUENTLY
 // REFINE THE DESIGN AND INTERFACE TO 3RD PARTY PACKAGES.
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <utility>
 #include <madness/tensor/tensor.h>
 

@@ -27,13 +27,12 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 #define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <madness/constants.h>
 #include <limits.h>
 #include <madness/tensor/tensor.h>
@@ -353,7 +352,7 @@ namespace madness {
             const Translation  t_off=tx%2;
 
             // we cache translation and source offset
-            const Key<2> cache_key(n,Vector<Translation,2>(vec(lx,s_off)));
+            const Key<2> cache_key(n, Vector<Translation,2>{lx, s_off} );
             const ConvolutionData1D<Q>* p = mod_ns_cache.getptr(cache_key);
             if (p) return p;
 
@@ -671,7 +670,7 @@ namespace madness {
         // Returns range of Gaussian for periodic lattice sum in simulation coords
         static int maxR(bool periodic, double expnt) {
             if (periodic) {
-                return std::max(1,int(sqrt(16.0*2.3/expnt)));
+                return std::max(1,int(sqrt(16.0*2.3/expnt)+1));
             }
             else {
                 return 0;

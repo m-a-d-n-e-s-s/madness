@@ -6,7 +6,7 @@
 #include <sstream>
 #include <utility>
 #include <madness/world/madness_exception.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <xc.h>
 #include <xc_funcs.h>
 

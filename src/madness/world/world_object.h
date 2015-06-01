@@ -32,22 +32,18 @@
 /**
  \file world_object.h
  \brief Defines and implements \c WorldObject.
- \ingroup worldobj
+ \ingroup world_object
 */
 
 #ifndef MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 #define MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 
-#include <madness/world/worldthread.h>
+#include <type_traits>
+#include <madness/world/thread.h>
 #include <madness/world/world_task_queue.h>
 
-/**
- \addtogroup worldobj
-
- \todo An overview of the \c WorldObject class and the other concepts it works with.
-
- @{
-*/
+/// \addtogroup world_object
+/// @{
 
 namespace madness {
 
@@ -205,7 +201,7 @@ namespace madness {
         template <typename objT, typename memfnT, typename Enabler = void>
         struct WorldObjectTaskHelper {
             /// \todo Description needed.
-            typedef typename if_c<memfunc_traits<memfnT>::constness,
+            typedef typename std::conditional<memfunc_traits<memfnT>::constness,
                     const objT*, objT*>::type ptrT;
 
             /// \todo Description needed.
@@ -268,14 +264,14 @@ namespace madness {
         /// \tparam memfnT Verify: Signature of the member function in the derived class to be invoked for the task.
         template <typename objT, typename memfnT>
         struct WorldObjectTaskHelper<objT, memfnT,
-                typename enable_if< std::is_base_of<std::enable_shared_from_this<objT>, objT> >::type>
+                typename std::enable_if< std::is_base_of<std::enable_shared_from_this<objT>, objT>::value >::type>
         {
             /// \todo Description needed.
-            typedef typename if_c<memfunc_traits<memfnT>::constness,
+            typedef typename std::conditional<memfunc_traits<memfnT>::constness,
                     const objT*, objT*>::type ptrT;
 
             /// \todo Description needed.
-            typedef typename if_c<memfunc_traits<memfnT>::constness,
+            typedef typename std::conditional<memfunc_traits<memfnT>::constness,
                     std::shared_ptr<const objT>, std::shared_ptr<objT> >::type shared_ptrT;
 
             /// \todo Description needed.
@@ -1305,6 +1301,8 @@ namespace madness {
         /// \param a9 Argument 9.
         /// \param attr Description needed.
         /// \return Description needed.
+        ///
+        /// \todo Could we use variadic templates to eliminate a lot of this code duplication?
         template <typename memfnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T, typename a8T,
                 typename a9T>

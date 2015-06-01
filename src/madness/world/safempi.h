@@ -67,8 +67,6 @@
 
 #include <madness/world/worldmutex.h>
 #include <madness/world/type_traits.h>
-#include <madness/world/enable_if.h>
-#include <madness/world/scopedptr.h>
 #include <iostream>
 #include <cstring>
 #include <memory>
@@ -277,9 +275,9 @@ namespace SafeMPI {
         operator MPI_Request() const { return request_; }
 
         static bool Testany(int count, Request* requests, int& index, Status& status) {
-            MADNESS_ASSERT(requests != NULL);
+            MADNESS_ASSERT(requests != nullptr);
             int flag;
-            madness::ScopedArray<MPI_Request> mpi_requests(new MPI_Request[count]);
+            std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[count]);
 
             // Copy requests to an array that can be used by MPI
             for(int i = 0; i < count; ++i)
@@ -295,9 +293,9 @@ namespace SafeMPI {
         }
 
         static bool Testany(int count, Request* requests, int& index) {
-            MADNESS_ASSERT(requests != NULL);
+            MADNESS_ASSERT(requests != nullptr);
             int flag;
-            madness::ScopedArray<MPI_Request> mpi_requests(new MPI_Request[count]);
+            std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[count]);
 
             // Copy requests to an array that can be used by MPI
             for(int i = 0; i < count; ++i)
@@ -313,13 +311,13 @@ namespace SafeMPI {
         }
 
         static int Testsome(int incount, Request* requests, int* indices, Status* statuses) {
-            MADNESS_ASSERT(requests != NULL);
-            MADNESS_ASSERT(indices != NULL);
-            MADNESS_ASSERT(statuses != NULL);
+            MADNESS_ASSERT(requests != nullptr);
+            MADNESS_ASSERT(indices != nullptr);
+            MADNESS_ASSERT(statuses != nullptr);
 
             int outcount = 0;
-            madness::ScopedArray<MPI_Request> mpi_requests(new MPI_Request[incount]);
-            madness::ScopedArray<MPI_Status> mpi_statuses(new MPI_Status[incount]);
+            std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[incount]);
+            std::unique_ptr<MPI_Status[]> mpi_statuses(new MPI_Status[incount]);
             for(int i = 0; i < incount; ++i)
                 mpi_requests[i] = requests[i].request_;
             {
@@ -335,7 +333,7 @@ namespace SafeMPI {
 
         static int Testsome(int incount, Request* requests, int* indices) {
             int outcount = 0;
-            madness::ScopedArray<MPI_Request> mpi_requests(new MPI_Request[incount]);
+            std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[incount]);
             for(int i = 0; i < incount; ++i)
                 mpi_requests[i] = requests[i].request_;
             {
@@ -724,7 +722,7 @@ namespace SafeMPI {
     /// \return provided thread level
     inline int Init_thread(int requested) {
         int argc = 0;
-        char** argv = NULL;
+        char** argv = nullptr;
         return SafeMPI::Init_thread(argc, argv, requested);
     }
 
@@ -740,7 +738,7 @@ namespace SafeMPI {
     /// Analogous to MPI_Init
     inline void Init() {
         int argc = 0;
-        char** argv = NULL;
+        char** argv = nullptr;
         SafeMPI::Init(argc,argv);
     }
 

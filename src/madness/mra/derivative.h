@@ -33,7 +33,7 @@
 #define MADNESS_DERIVATIVE_H__INCLUDED
 
 #include <iostream>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/print.h>
 #include <madness/misc/misc.h>
@@ -103,7 +103,7 @@ namespace madness {
 
         virtual ~DerivativeBase() { }
 
-        Void forward_do_diff1(const implT* f, implT* df, const keyT& key,
+        void forward_do_diff1(const implT* f, implT* df, const keyT& key,
                               const argT& left,
                               const argT& center,
                               const argT& right)  const {
@@ -134,13 +134,12 @@ namespace madness {
                 }
             }
             else {
-	      df->task(owner, &madness::FunctionImpl<T,NDIM>::forward_do_diff1,
-		       this, f, key, left, center, right, TaskAttributes::hipri());
+                df->task(owner, &madness::FunctionImpl<T,NDIM>::forward_do_diff1,
+                        this, f, key, left, center, right, TaskAttributes::hipri());
             }
-            return None;
         }
 
-        Void do_diff1(const implT* f, implT* df, const keyT& key,
+        void do_diff1(const implT* f, implT* df, const keyT& key,
                       const argT& left,
                       const argT& center,
                       const argT& right) const {
@@ -165,15 +164,14 @@ namespace madness {
             else {
                 forward_do_diff1(f, df, key, left, center, right);
             }
-            return None;
         }
 
-        virtual Void do_diff2b(const implT* f, implT* df, const keyT& key,
+        virtual void do_diff2b(const implT* f, implT* df, const keyT& key,
                                const argT& left,
                                const argT& center,
                                const argT& right) const = 0;
 
-        virtual Void do_diff2i(const implT* f, implT* df, const keyT& key,
+        virtual void do_diff2i(const implT* f, implT* df, const keyT& key,
                                const argT& left,
                                const argT& center,
                                const argT& right) const = 0;
@@ -293,7 +291,7 @@ namespace madness {
         Tensor<double> right_r0t, right_rpt; ///< Blocks of the derivative for the right boundary
         Tensor<double> bv_left, bv_right ; ///< Blocks of the derivative operator for the boundary contribution
 
-        Void do_diff2b(const implT* f, implT* df, const keyT& key,
+        void do_diff2b(const implT* f, implT* df, const keyT& key,
                        const argT& left,
                        const argT& center,
                        const argT& right) const {
@@ -338,7 +336,7 @@ namespace madness {
                     found_argT = g1.get_impl()->find_me(key);
                 }
                 else {
-                    return None;
+                    return;
                 }
             }
             else { //right boundary
@@ -347,7 +345,7 @@ namespace madness {
                     found_argT = g2.get_impl()->find_me(key);
                 }
                 else {
-                    return None;
+                    return;
                 }
             }
             tensorT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key).full_tensor_copy();
@@ -380,11 +378,9 @@ namespace madness {
 
             bdry_t += d.full_tensor_copy();;
             df->get_coeffs().replace(key,nodeT(coeffT(bdry_t,df->get_thresh(),df->get_tensor_type()),false));
-
-            return None;
         }
 
-        Void do_diff2i(const implT* f, implT*df, const keyT& key,
+        void do_diff2i(const implT* f, implT*df, const keyT& key,
                        const argT& left,
                        const argT& center,
                        const argT& right) const
@@ -403,7 +399,6 @@ namespace madness {
 //            if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
 //            d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
 //            df->get_coeffs().replace(key,nodeT(d,false));
-//            return None;
 //
 //#else
             coeffT tensor_left=df->parent_to_child(left.second, left.first, this->neighbor(key,-1));
@@ -417,8 +412,6 @@ namespace madness {
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
             d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
-
-            return None;
 
 //#endif
 
@@ -635,7 +628,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const DerivativeBase<T,NDIM>*> {
             static void load(const Archive& ar, const DerivativeBase<T,NDIM>*& ptr) {
-                WorldObject< DerivativeBase<T,NDIM> >* p = NULL;
+                WorldObject< DerivativeBase<T,NDIM> >* p = nullptr;
                 ar & p;
                 ptr = static_cast< const DerivativeBase<T,NDIM>* >(p);
             }
