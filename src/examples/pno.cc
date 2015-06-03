@@ -14,9 +14,11 @@ public:
             const int k) : x(atom.x), y(atom.y), z(atom.z),
             exponent(e), i(i), j(j), k(k) {
     }
-    double x,y,z;
-    double exponent;
-    int i,j,k;  // cartesian exponents
+
+    double x,y,z;       ///< location of the guess
+    double exponent;    ///< exponent of the gues
+    int i,j,k;          ///< cartesian exponents
+
     double operator()(const coord_3d& xyz) const {
         double xx=x-xyz[0];
         double yy=y-xyz[1];
@@ -26,32 +28,31 @@ public:
     }
 };
 
-std::vector<GaussianGuess> make_guess(const Molecule& mol, int maxl, const double exponent) {
-    std::vector<GaussianGuess> gg;
-    for (int i=0; i<mol.natom(); ++i) {
-        print("atom ",i);
-        const Atom& atom=mol.get_atom(i);
-            print("l-quantum ",maxl);
-            const int maxlp1=maxl+1;
 
-            // loop over all cartesian components of l
-            for (int i=0; i<1000; ++i) {
-                std::vector<int> ijk(3);
-                ijk[0]=i%maxlp1;
-                ijk[1]=(i/maxlp1)%maxlp1;
-                ijk[2]=(i/maxlp1/maxlp1)%maxlp1;
-//                print("ijk");
-//                print(ijk[0],ijk[1],ijk[2]);
-                int current_l=ijk[0]+ijk[1]+ijk[2];
-                if (current_l==maxl) {
-                    gg.push_back(GaussianGuess(atom,exponent,ijk[0],ijk[1],ijk[2]));
-                }
-                if (ijk[0]+ijk[1]+ijk[2]==3*maxl) break;
-            }
+/// make a set of Cartesian Gaussian functions located on atom
+
+/// @param[in]  atom    where the Gaussian guess is located
+/// @param[in]  l       the l-quantum number
+/// @param[in]  exponent    exponent of the Gaussian function
+std::vector<GaussianGuess> make_guess(const Atom& atom, int l, const double exponent) {
+    std::vector<GaussianGuess> gg;
+    const int maxlp1=l+1;
+
+    // loop over all cartesian components of l
+    for (int i=0; i<1000; ++i) {
+        std::vector<int> ijk(3);
+        ijk[0]=i%maxlp1;
+        ijk[1]=(i/maxlp1)%maxlp1;
+        ijk[2]=(i/maxlp1/maxlp1)%maxlp1;
+        int current_l=ijk[0]+ijk[1]+ijk[2];
+        if (current_l==l) {
+            gg.push_back(GaussianGuess(atom,exponent,ijk[0],ijk[1],ijk[2]));
+        }
+        if (ijk[0]+ijk[1]+ijk[2]==3*l) break;
     }
-    print("size of GaussianGuess",gg.size());
     return gg;
 }
+
 
 class QProjector {
 public:
@@ -279,9 +280,8 @@ public:
         /// max l quantum number in the guess
         int lmax;
 
-        /// type of partial wave guess function, e.g. 3s2p1d
-        /// must be a single string
-        std::vector<int> pw_guess;
+        /// type of partial wave guess function, e.g. 3s2p1d for a specific atom
+        std::map<std::string,std::vector<int> > pw_guess;
 
         /// number of frozen orbitals; note the difference to the "pair" keyword where you
         /// request a specific orbital. Here you freeze lowest orbitals, i.e. if you find
@@ -308,22 +308,28 @@ public:
             std::ifstream f(input.c_str());
             position_stream(f, "pno");
             std::string s;
-            std::string str_pw_guess;
+            std::string str_pw_guess,symbol;
 
             while (f >> s) {
                 if (s == "end") break;
                 else if (s == "maxiter") f >> maxiter;
                 else if (s == "freeze") f >> freeze;
                 else if (s == "pair") f >> i >> j;
-                else if (s == "pw_guess") f >> str_pw_guess;
+                else if (s == "pw_guess") {
+                    if (f >> symbol >> str_pw_guess) {
+                        pw_guess[symbol]=convert_pw_guess(str_pw_guess);
+                    } else {
+                        print("line",symbol,str_pw_guess);
+                        MADNESS_EXCEPTION("failed to read partial wave guess",1);
+                    }
+                }
                 else continue;
             }
-            pw_guess=convert_pw_guess(str_pw_guess);
         }
 
         /// convert "11s8p2d" into a vector of ints
         std::vector<int> convert_pw_guess(const std::string& input) const {
-            std::vector<int> pw_guess(20);
+            std::vector<int> pw_guess(lmax);
 
             int ones=0;
             for (std::size_t i=0; i<input.size(); ++i) {
@@ -352,8 +358,8 @@ public:
 
     };
 
-    PNO(World& world, const Nemo& nemo, const std::string input) : world(world),
-        param(input), nemo(nemo),
+    PNO(World& world, const Nemo& nemo, const std::string input) : sss(), ttt(),
+        world(world), param(input), nemo(nemo),
         J(world,nemo.get_calc()->amo,*(nemo.get_calc()),nemo.nuclear_correlation->square()),
         K(world,nemo.get_calc()->amo,*(nemo.get_calc()),nemo.nuclear_correlation->square()),
         T(world,*nemo.get_calc()),
@@ -581,11 +587,27 @@ public:
     /// guess a set up virtual orbitals -- currently from the minimal AO basis
     vecfuncT guess_virtuals() const {
         vecfuncT virtuals;
-        for (int l=0; l<param.lmax; ++l) {
-            for (int i=0; i<param.pw_guess[l]; ++i) {
-                double e=double(param.pw_guess[l])/(double(i+1.0));
-                append(virtuals,guess_virtual_gaussian_shell(l,e));
-                print("l,e",l,e);
+        for (int i=0; i<nemo.molecule().natom(); ++i) {
+
+            // get the partial wave basis for the atom
+            const Atom& atom=nemo.molecule().get_atom(i);
+            const std::string symbol=atomic_number_to_symbol(atom.atomic_number);
+            std::vector<int> pw_guess;
+            if (param.pw_guess.find(symbol)!=param.pw_guess.end()) {
+                pw_guess=param.pw_guess.find(symbol)->second;
+            } else {
+                if (world.rank()==0) print("symbol",symbol);
+                MADNESS_EXCEPTION("could not find basis for atom",1);
+            }
+
+            print("working on atom",symbol);
+            print("pw_guess",pw_guess);
+            for (int l=0; l<param.lmax; ++l) {
+                for (int i=0; i<pw_guess[l]; ++i) {
+                    double e=double(pw_guess[l])/(double(i+1.0));
+                    append(virtuals,guess_virtual_gaussian_shell(atom,l,e));
+                    print("l,e",l,e);
+                }
             }
         }
         print("number of guess virtuals: ",virtuals.size());
@@ -594,9 +616,10 @@ public:
     }
 
     /// return a shell of l-quantum l and exponent e, including all cartesian components
-    vecfuncT guess_virtual_gaussian_shell(const int l, const double e) const {
+    vecfuncT guess_virtual_gaussian_shell(const Atom& atom, const int l,
+            const double e) const {
         vecfuncT virtuals;
-        std::vector<GaussianGuess> gg=make_guess(nemo.molecule(),l,e);
+        std::vector<GaussianGuess> gg=make_guess(atom,l,e);
         for (std::size_t m=0; m<gg.size(); ++m) {
             virtuals.push_back(real_factory_3d(world).functor2(gg[m]).truncate_on_project());
         }
