@@ -145,7 +145,7 @@ namespace madness {
                 , _back(_front-1) {}
 
         virtual ~DQueue() {
-            delete buf;
+            delete [] buf;
         }
 
         /// Insert value at front of queue
