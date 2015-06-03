@@ -567,16 +567,18 @@ public:
         std::vector<double> F_aa(virtuals_bar.size());
         for (std::size_t i=0; i<F_aa.size(); ++i) F_aa[i]=F_barabarb(i,i);
 
+        // terms \sum_b (J-K+V) |\bar b> S_{\bar b a}
         vecfuncT Jb=J(virtuals_bar);
         vecfuncT Kb=K(virtuals_bar);
         vecfuncT Vb=V(virtuals_bar);
-        vecfuncT Faab=copy(world,virtuals_bar);
-        scale(world,Faab,F_aa);
-        vecfuncT JKVa=sub(world,add(world,sub(world,Jb,Kb),Vb),Faab);
-
+        vecfuncT JKVa=add(world,sub(world,Jb,Kb),Vb);
         vecfuncT barc=transform(world,JKVa,S_bbara);
 
-        vecfuncT result=add(world,barc,Fb);
+        // term F_{\bar a \bar a} \sum_b |\bar b>S_{\bar b a}
+        vecfuncT Faab=transform(world,virtuals_bar,S_bbara);
+        scale(world,Faab,F_aa);
+
+        vecfuncT result=sub(world,add(world,barc,Fb),Faab);
         truncate(world,result);
         scale(world,result,0.5);
         END_TIMER(world,"compute coupling");
