@@ -1,12 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 
-GITREV="GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
-SVNREV="SVNREVISION=\"`svnversion $(top_srcdir)`\" "
-
-AM_CPPFLAGS += -D$(GITREV) -D$(SVNREV)
-
-noinst_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
+noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
@@ -20,6 +15,8 @@ thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
 AUTOMAKE_OPTIONS = subdir-objects
+
+pno_SOURCES = pno.cc 
 
 mp2_SOURCES = mp2.cc 
 

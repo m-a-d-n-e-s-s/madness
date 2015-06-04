@@ -184,6 +184,11 @@ unsigned int symbol_to_atomic_number(const std::string& symbol) {
     throw "unknown atom";
 }
 
+/// return the lower-case element symbol corresponding to the atomic number
+std::string atomic_number_to_symbol(const unsigned int atomic_number) {
+    return atomic_data[atomic_number].symbol_lowercase;
+}
+
 
 bool check_if_pseudo_atom(const std::string& symbol) {
     //check if pseudo-atom (i.e. starts with ps)

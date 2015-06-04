@@ -1,10 +1,12 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
+# specify the git commit version in the info functions
+GITREV="GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
 
 lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/madness/world
-thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
+thisinclude_HEADERS = info.h archive.h print.h worldam.h future.h worldmpi.h \
 	world_task_queue.h array_addons.h stack.h vector.h worldgop.h \
 	world_object.h buffer_archive.h \
 	nodefaults.h worlddep.h worldhash.h worldref.h worldtypes.h \
@@ -115,12 +117,13 @@ test_worldref_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 endif
 
 libMADworld_a_SOURCES = madness_exception.cc world.cc timers.cc future.cc \
-	redirectio.cc archive_type_names.cc \
+	redirectio.cc archive_type_names.cc info.cc \
 	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc thread.cc world_task_queue.cc \
 	worldgop.cc deferred_cleanup.cc worldmutex.cc binary_fstream_archive.cc \
 	text_fstream_archive.cc lookup3.c worldmpi.cc group.cc \
 	$(thisinclude_HEADERS)
+libMADworld_a_CPPFLAGS = $(AM_CPPFLAGS) -D$(GITREV)
 
 
 libraries:	$(lib_LIBRARIES)

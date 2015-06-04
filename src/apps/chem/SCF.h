@@ -813,7 +813,6 @@ public:
     distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
     distmatT kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const;
 
-
     vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true);
 
     double core_projector_derivative(World & world, const vecfuncT & mo,
@@ -827,7 +826,7 @@ public:
 
     functionT make_density(World & world, const tensorT & occ, const cvecfuncT & v);
 
-    std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals);
+    std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals) const;
 
     /// apply the HF exchange on a set of orbitals
 

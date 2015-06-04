@@ -975,7 +975,7 @@ private:
         }
         double operator()(const coord_6d& r) const {
         	const double rr=r12(r);
-        	const coord_3d vr12=vec(r[0]-r[3],r[1]-r[4],r[2]-r[5]);
+        	const coord_3d vr12{r[0]-r[3],r[1]-r[4],r[2]-r[5]};
         	const coord_3d N=unitvec(vr12);
         	if (gamma>0.0) return -0.5*exp(-gamma*rr)*N[axis];
         	MADNESS_EXCEPTION("no gamma in electronic corrfac::U1",1);
@@ -1202,7 +1202,7 @@ private:
 
         double operator()(const coord_6d& r) const {
         	const double rr=r12(r);
-        	const coord_3d vr12=vec(r[0]-r[3],r[1]-r[4],r[2]-r[5]);
+        	const coord_3d vr12{r[0]-r[3],r[1]-r[4],r[2]-r[5]};
         	const coord_3d N=unitvec(vr12);
         	// Taylor expansion for small r
         	double val;

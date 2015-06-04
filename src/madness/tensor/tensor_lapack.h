@@ -118,6 +118,10 @@ namespace madness {
     template <typename T>
     void cholesky(Tensor<T>& A);
 
+    /// \ingroup linalg
+    template <typename T>
+    Tensor<T> inverse(const Tensor<T>& A);
+
     /// QR decomposition
     template<typename T>
     void qr(Tensor<T>& A, Tensor<T>& R);

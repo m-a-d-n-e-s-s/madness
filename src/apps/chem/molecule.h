@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_CHEM_MOLECULE_H__INCLUDED
 #define MADNESS_CHEM_MOLECULE_H__INCLUDED
 
@@ -93,7 +92,7 @@ public:
 
 
     madness::Vector<double,3> get_coords() const {
-        return madness::vec(x, y, z);
+        return madness::Vector<double,3>{x, y, z};
     }
 
     template <typename Archive>

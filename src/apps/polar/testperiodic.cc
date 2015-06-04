@@ -222,7 +222,7 @@ vector_complex_function_3d update(World& world,
     // Append additional terms for periodic case to the potential
     // -ik.del + 1/2 k^2
     double ksq = kx*kx + ky*ky + kz*kz;
-    coord_3d k = vec(kx, ky, kz);
+    coord_3d k {kx, ky, kz};
     for (int i=0; i<nmo; i++) {
         for (int axis=0; axis<3; axis++) {
             complex_derivative_3d D(world, axis);

@@ -27,9 +27,7 @@
  email: harrisonrj@ornl.gov
  tel:   865-241-3937
  fax:   865-572-0680
-
- $Id$
- */
+*/
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
@@ -137,8 +135,8 @@ double Nemo::value(const Tensor<double>& x) {
     real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
     real_function_3d rhonemoz=Dz(rhonemo);
     std::string filename="plot_rhonemoz";
-    Vector<double,3> lo=vec<double>(0,0,-10);
-    Vector<double,3> hi=vec<double>(0,0,10);
+    Vector<double,3> lo{0,0,-10};
+    Vector<double,3> hi{0,0,10};
     plot_line(filename.c_str(),500, lo, hi, rhonemoz);
 
     filename="plot_rhonemo";

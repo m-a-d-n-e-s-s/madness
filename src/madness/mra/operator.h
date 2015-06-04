@@ -697,7 +697,7 @@ namespace madness {
                 Translation sx=source.translation()[d];                          // source translation
                 Translation tx=source.translation()[d]+disp.translation()[d];    // target translation
 
-                Key<2> op_key(n,Vector<Translation,2>(vec(sx,tx)));
+                Key<2> op_key(n,Vector<Translation,2>{sx,tx});
                 op.ops[d] = ops[mu].getop(d)->mod_nonstandard(op_key);
             }
 

@@ -83,7 +83,7 @@ std::vector<coord_3d> get_coeffs_pw(double maxKlen) {
         for (int ii2 = -maxI; ii2 <= maxI; ii2++) {
           double kvecLen = std::sqrt((double)(ii0*ii0 + ii1*ii1 + ii2*ii2))*2*pi/L;
           if (kvecLen < maxKlen) {
-              coeffs.push_back(vec((double)ii0, (double)ii1, (double)ii2));
+              coeffs.push_back({(double)ii0, (double)ii1, (double)ii2});
           }
         }
       }
@@ -98,14 +98,14 @@ real_tensor make_pw_matrix(const std::vector<coord_3d>& gvecs) {
   int ngvecs = gvecs.size();
   real_tensor Hcos(ngvecs,ngvecs);
   std::vector<coord_3d> qvecs(8);
-  qvecs[0] = vec( 1.0, 1.0, 1.0);
-  qvecs[1] = vec( 1.0, 1.0,-1.0);
-  qvecs[2] = vec( 1.0,-1.0, 1.0);
-  qvecs[3] = vec( 1.0,-1.0,-1.0);
-  qvecs[4] = vec(-1.0, 1.0, 1.0);
-  qvecs[5] = vec(-1.0, 1.0,-1.0);
-  qvecs[6] = vec(-1.0,-1.0, 1.0);
-  qvecs[7] = vec(-1.0,-1.0,-1.0);
+  qvecs[0] = { 1.0, 1.0, 1.0};
+  qvecs[1] = { 1.0, 1.0,-1.0};
+  qvecs[2] = { 1.0,-1.0, 1.0};
+  qvecs[3] = { 1.0,-1.0,-1.0};
+  qvecs[4] = {-1.0, 1.0, 1.0};
+  qvecs[5] = {-1.0, 1.0,-1.0};
+  qvecs[6] = {-1.0,-1.0, 1.0};
+  qvecs[7] = {-1.0,-1.0,-1.0};
   for (int ig1 = 0; ig1 < ngvecs; ig1++) {
     double s = (2*pi/L)*gvecs[ig1].normf();
     Hcos(ig1,ig1) = 0.5*s*s;
@@ -202,7 +202,7 @@ complex_function_3d apply_periodic_bsh(World& world, const complex_function_3d& 
   complex_function_3d phase_m = complex_factory_3d(world).functor(complex_functor_3d(
     new ExpFunctor3d<double_complex>(-I*kx,-I*ky,-I*kz))).truncate_mode(0).truncate_on_project();
   SeparatedConvolution<double_complex,3> op = 
-    PeriodicBSHOperator3D(world, vec(-kx*L, -ky*L, -kz*L), sqrt(-2.0*(energy)),  1e-4, FunctionDefaults<3>::get_thresh());
+    PeriodicBSHOperator3D(world, {-kx*L, -ky*L, -kz*L}, sqrt(-2.0*(energy)),  1e-4, FunctionDefaults<3>::get_thresh());
   complex_function_3d g = phase_m*apply(op, phase_p*f);
   return g;
 }
@@ -220,7 +220,7 @@ vector_complex_function_3d update(World& world,
     // Append additional terms for periodic case to the potential
     // -ik.del + 1/2 k^2
     double ksq = kx*kx + ky*ky + kz*kz;
-    coord_3d k = vec(kx, ky, kz);
+    coord_3d k {kx, ky, kz};
 
     // determine shift to make homo <=-0.1
     double shift = 0.0;

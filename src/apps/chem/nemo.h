@@ -58,6 +58,7 @@
 
 namespace madness {
 
+class PNO;
 
 // this class needs to be moved to vmra.h !!
 
@@ -138,7 +139,7 @@ struct allocator {
 /// The Nemo class
 class Nemo: public MolecularOptimizationTargetInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
-
+	friend class PNO;
 public:
 
 	/// ctor
@@ -169,8 +170,8 @@ public:
 	    return calc->molecule;
 	}
 
-    /// return a const reference to the molecule
-	const Molecule& molecule() const {
+    /// return a reference to the molecule
+    Molecule& molecule() const {
         return calc->molecule;
     }
 

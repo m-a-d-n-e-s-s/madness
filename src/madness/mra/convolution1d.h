@@ -352,7 +352,7 @@ namespace madness {
             const Translation  t_off=tx%2;
 
             // we cache translation and source offset
-            const Key<2> cache_key(n,Vector<Translation,2>(vec(lx,s_off)));
+            const Key<2> cache_key(n, Vector<Translation,2>{lx, s_off} );
             const ConvolutionData1D<Q>* p = mod_ns_cache.getptr(cache_key);
             if (p) return p;
 
