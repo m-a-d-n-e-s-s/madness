@@ -45,8 +45,8 @@
 //       \defgroup rmi Remote method invocation
 //       \ingroup parallel_runtime
 
-//       \defgroup mpi Interfaces from World to MPI
-//       \ingroup parallel_runtime
+///       \defgroup mpi Interfaces from World to MPI
+///       \ingroup parallel_runtime
 
 ///       \defgroup world_object Globally addressable objects (WorldObject)
 ///       \ingroup parallel_runtime

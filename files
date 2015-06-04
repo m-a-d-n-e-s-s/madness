@@ -455,8 +455,6 @@ worldhash.h
 worldhashmap.h
 worldmem.cc
 worldmem.h
-worldmpi.cc
-worldmpi.h
 worldmutex.cc
 worldmutex.h
 worldpapi.cc
