@@ -1,5 +1,5 @@
 /*
-/  This file is part of MADNESS.
+  This file is part of MADNESS.
 
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
@@ -48,36 +48,14 @@
 
 namespace madness {
     
-    // 
-    template <typename T, std::size_t NDIM>
-    DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution& d,
-                                      const std::vector< Function<T,NDIM> >& f,
-                                      const std::vector< Function<T,NDIM> >& g,
-                                      bool sym=false) 
-    {
-        PROFILE_FUNC;
-        DistributedMatrix<T> A(d);
-        const int64_t n = A.coldim();
-        const int64_t m = A.rowdim();
-        MADNESS_ASSERT(int64_t(f.size()) == n && int64_t(g.size()) == m);
-        
-        // Assume we can always create an ichunk*jchunk matrix locally
-        const int ichunk = 1000;
-        const int jchunk = 1000; // 1000*1000*8 = 8 MBytes
-        for (int64_t ilo=0; ilo<n; ilo+=ichunk) {
-            int64_t ihi = std::min(ilo + ichunk, n);
-            std::vector< Function<T,NDIM> > ivec(f.begin()+ilo, f.begin()+ihi);
-            for (int64_t jlo=0; jlo<m; jlo+=jchunk) {
-                int64_t jhi = std::min(jlo + jchunk, m);
-                std::vector< Function<T,NDIM> > jvec(g.begin()+jlo, g.begin()+jhi);
-                
-                Tensor<T> P = matrix_inner(A.get_world(),ivec,jvec);
-                A.copy_from_replicated_patch(ilo, ihi-1, jlo, jhi-1, P);
-            }
-        }
-        return A;
-    }
-    
+//    // moved to vmra.h
+//    template <typename T, std::size_t NDIM>
+//    DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution& d,
+//                                      const std::vector< Function<T,NDIM> >& f,
+//                                      const std::vector< Function<T,NDIM> >& g,
+//                                      bool sym=false)
+
+
   template <typename T, std::size_t NDIM>
   static void verify_tree(World& world, const std::vector< Function<T,NDIM> >& v) {
     for (unsigned int i=0; i<v.size(); i++) {

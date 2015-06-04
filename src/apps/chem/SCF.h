@@ -702,7 +702,6 @@ public:
     /// MRA projection of the minimal basis set
     vecfuncT ao;
 
-
     std::vector<int> at_to_bf, at_nbf;
 
     /// occupation numbers for alpha and beta orbitals
@@ -764,6 +763,20 @@ public:
             	FunctionDefaults<NDIM>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
         }
     }
+
+    /// getter for the molecular orbitals, alpha spin
+    const vecfuncT& get_amo() const {return amo;}
+
+    /// getter for the molecular orbitals, beta spin
+    const vecfuncT& get_bmo() const {return bmo;}
+
+    /// getter for the occupation numbers, alpha spin
+    const tensorT& get_aocc() const {return aocc;}
+
+    /// getter for the occupation numbers, alpha spin
+    const tensorT& get_bocc() const {return bocc;}
+
+    bool is_spin_restricted() const {return param.spin_restricted;}
 
     void save_mos(World& world);
 
