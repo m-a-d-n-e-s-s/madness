@@ -751,18 +751,6 @@ public:
         return true;
     }
 
-    void orthonormalize_gram_schmidt(vecfuncT& v) const {
-        print("Gram-Schmidt orthonormalization");
-        for (std::size_t i=0; i<v.size(); ++i) {
-            for (std::size_t j=0; j<i; ++j) {
-                double ovlp=inner(v[i],v[j]);
-                v[i]-=ovlp*v[j];
-            }
-            normalize(world,v);
-        }
-        normalize(world,v);
-    }
-
     void check_orthonormality(const vecfuncT& v) const {
         Tensor<double> ovlp=matrix_inner(world,v,v);
         for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
@@ -779,31 +767,6 @@ public:
         v=transform(world,v,U);
         truncate(world,v);
     }
-
-    void orthonormalize_fock(const Tensor<double>& fmat, vecfuncT& v) const {
-        Tensor<double> U, evals;
-        syev(fmat,U,evals);
-        v=transform(world,v,U);
-        normalize(world,v);
-    }
-
-    void orthonormalize_fock2(Tensor<double>& fmat,
-            const Tensor<double>& smat, vecfuncT& v) const {
-        Tensor<double> U, evals;
-        sygv(fmat,smat,1,U,evals);
-        vecfuncT vnew=transform(world,v,U);
-        normalize(world,vnew);
-        fmat=0.0;
-        for (int i=0; i<fmat.dim(0); ++i) fmat(i,i)=evals(i);
-        // fix phases
-        Tensor<double> ovlp=inner(world,vnew,v);
-        for (std::size_t i=0; i<v.size(); ++i) {
-            if (fabs(ovlp(i)-1.0)>1.e-4) print("faulty overlap",i,ovlp(i));
-            if (ovlp(i)<0.0) vnew[i].scale(-1.0);
-        }
-        v=vnew;
-    }
-
 
 private:
 
