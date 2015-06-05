@@ -217,6 +217,7 @@ nonlinschro.cc
 nonlinsol.h
 oep.cc
 ploterr.cc
+pno.cc
 sdf_shape_tester.cc
 sininteg.cc
 spectralprop.h
