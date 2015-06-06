@@ -30,13 +30,13 @@
 */
 
 /**
- \file worlddep.h
+ \file dependency_interface.h
  \brief Defines \c DependencyInterface and \c CallbackInterface.
  \ingroup world
 */
 
-#ifndef MADNESS_WORLD_WORLDDEP_H__INCLUDED
-#define MADNESS_WORLD_WORLDDEP_H__INCLUDED
+#ifndef MADNESS_WORLD_DEPENDENCY_INTERFACE_H__INCLUDED
+#define MADNESS_WORLD_DEPENDENCY_INTERFACE_H__INCLUDED
 
 #include <madness/world/stack.h>
 #include <madness/world/worldmutex.h>
@@ -149,4 +149,4 @@ namespace madness {
 
     };
 }
-#endif // MADNESS_WORLD_WORLDDEP_H__INCLUDED
+#endif // MADNESS_WORLD_DEPENDENCY_INTERFACE_H__INCLUDED

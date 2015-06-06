@@ -42,7 +42,7 @@
 #include <stack>
 #include <new>
 #include <madness/world/nodefaults.h>
-#include <madness/world/worlddep.h>
+#include <madness/world/dependency_interface.h>
 #include <madness/world/stack.h>
 #include <madness/world/worldref.h>
 #include <madness/world/world.h>

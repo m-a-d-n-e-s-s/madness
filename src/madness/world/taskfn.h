@@ -33,7 +33,7 @@
 #define MADNESS_WORLD_TASKFN_H__INCLUDED
 
 #include <type_traits>
-#include <madness/world/worlddep.h>
+#include <madness/world/dependency_interface.h>
 #include <madness/world/thread.h>
 #include <madness/world/future.h>
 

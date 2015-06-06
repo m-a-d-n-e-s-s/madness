@@ -9,7 +9,7 @@ thisincludedir = $(includedir)/madness/world
 thisinclude_HEADERS = info.h archive.h print.h worldam.h future.h worldmpi.h \
 	world_task_queue.h array_addons.h stack.h vector.h worldgop.h \
 	world_object.h buffer_archive.h \
-	nodefaults.h worlddep.h worldhash.h worldref.h worldtypes.h \
+	nodefaults.h dependency_interface.h worldhash.h worldref.h worldtypes.h \
 	dqueue.h parallel_archive.h vector_archive.h madness_exception.h \
 	worldmem.h thread.h worldrmi.h safempi.h worldpapi.h worldmutex.h \
 	print_seq.h worldhashmap.h worldrange.h atomicint.h posixmem.h worldptr.h \
