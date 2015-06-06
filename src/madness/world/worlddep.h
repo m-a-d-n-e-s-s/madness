@@ -29,11 +29,14 @@
   fax:   865-572-0680
 */
 
+/**
+ \file worlddep.h
+ \brief Defines \c DependencyInterface and \c CallbackInterface.
+ \ingroup world
+*/
+
 #ifndef MADNESS_WORLD_WORLDDEP_H__INCLUDED
 #define MADNESS_WORLD_WORLDDEP_H__INCLUDED
-
-/// \file worlddep.h
-/// \brief Defines DependencyInterface and CallbackInterface
 
 #include <madness/world/stack.h>
 #include <madness/world/worldmutex.h>
@@ -43,30 +46,35 @@
 
 namespace madness {
 
-    /// This class used for callbacks (e.g., for dependency tracking)
+    /// The class used for callbacks (e.g., dependency tracking).
     class CallbackInterface {
     public:
+        /// Invoked by the callback to notify when a dependency is satisfied.
         virtual void notify() = 0;
 
-        virtual ~CallbackInterface() {}
+        virtual ~CallbackInterface() = default;
     };
 
 
-    /// Provides interface for tracking dependencies
+    /// Provides an interface for tracking dependencies.
     class DependencyInterface : public CallbackInterface, private Spinlock {
     private:
         // Replaced atomic counter with critical section so that all
         // data (callbacks and counter) were being consistently managed.
-        volatile int ndepend;   ///< Counts dependencies
+        volatile int ndepend; ///< Counts dependencies.
 
-        static const int MAXCALLBACKS = 8;
-        typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
-        mutable volatile callbackT callbacks; ///< Called ONCE by dec() when ndepend==0
+        static const int MAXCALLBACKS = 8; ///< Maximum number of callbacks.
+        using callbackT = Stack<CallbackInterface*,MAXCALLBACKS>; ///< \todo Brief description needed.
+        mutable volatile callbackT callbacks; ///< Called ONCE by \c dec() when `ndepend==0`.
 
-        // Main design point is that since a callback might destroy
-        // this object, when callbacks are invoked we cannot be
-        // holding the lock and all necessary data must be on the
-        // stack (i.e., not from the object state).
+        /// \todo Brief description needed.
+
+        /// Main design point is that, because a callback might destroy this
+        /// object, when callbacks are invoked we cannot be holding the lock
+        /// and all necessary data must be on the stack (i.e., not from the
+        /// object state).
+        /// \todo Parameter description needed.
+        /// \param[in,out] cb Description needed.
         void do_callbacks(callbackT& cb) const {
             while (!cb.empty()) {
                 cb.front()->notify();
@@ -75,18 +83,28 @@ namespace madness {
         }
 
     public:
+        /// \todo Constructor that...
+
+        /// \param[in] ndep The number of unsatisfied dependencies.
         DependencyInterface(int ndep = 0) : ndepend(ndep) {}
 
-        /// Returns the number of unsatisfied dependencies
-        int ndep() const {return ndepend;}
+        /// Returns the number of unsatisfied dependencies.
 
-        /// Returns true if ndepend == 0
-        bool probe() const {return ndep() == 0;}
+        /// \return The number of unsatisfied dependencies.
+        int ndep() const { return ndepend; }
 
-        /// Invoked by callbacks to notify of dependencies being satisfied
-        void notify() {dec();}
+        /// Returns true if `ndepend == 0` (no unsatisfied dependencies).
 
-        /// Registers a callback for when \c ndepend==0 , immediately invoked if \c ndepend==0
+        /// \return True if there are no unsatisfied dependencies.
+        bool probe() const { return ndep() == 0; }
+
+        /// Invoked by callbacks to notify of dependencies being satisfied.
+        void notify() { dec(); }
+
+        /// \brief Registers a callback for when `ndepend==0`; immediately invoked
+        ///    if `ndepend==0`.
+
+        /// \param[in] callback The callback to use.
         void register_callback(CallbackInterface* callback) {
             callbackT cb;
             {
@@ -100,13 +118,13 @@ namespace madness {
             do_callbacks(cb);
         }
 
-        /// Increment the number of dependencies
+        /// Increment the number of dependencies.
         void inc() {
             ScopedMutex<Spinlock> obolus(this);
             ndepend++;
         }
 
-        /// Decrement the number of dependencies and invoke callback if ndepend=0
+        /// Decrement the number of dependencies and invoke the callback if `ndepend==0`.
         void dec() {
             callbackT cb;
             {
@@ -119,6 +137,7 @@ namespace madness {
             do_callbacks(cb);
         }
 
+        /// Destructor.
         virtual ~DependencyInterface() {
 #ifdef MADNESS_ASSERTIONS_THROW
             if(ndepend != 0)
