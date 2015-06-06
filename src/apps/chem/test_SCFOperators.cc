@@ -51,7 +51,7 @@ public:
     /// ctor
 
     /// @param[in]  origin  the origin of the Gauss function
-    /// @param[in]  e       the exponent exp(-alpha r^2)
+    /// @param[in]  alpha   the exponent exp(-alpha r^2)
     /// @param[in]  ijk     the monomial x^i y^j z^k exp(-alpha r^2) (for NDIM)
     GaussianGuess(const coordT& origin, const double alpha,
             const std::vector<int> ijk=std::vector<int>(NDIM))

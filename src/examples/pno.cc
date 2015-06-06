@@ -484,8 +484,8 @@ public:
     /// the virtuals are sorted according to their energy, so that some
     /// intermediates need to be resorted as well, in particular the V_aj_i
     /// intermediate and the Fock matrix. Its contents remain unchanged.
-    /// @param[in]  amo occupied orbitals
-    /// @param[inout]  virtuals    the optimal virtual orbitals; sorted upon exit
+    // @param[in]  amo occupied orbitals
+    /// @param[in,out]  virtuals    the optimal virtual orbitals; sorted upon exit
     /// @param[in]  e0  the zeroth-order energy (e_i + e_j)
     /// @param[out] t the optimized amplitudes
     /// @return the energy contributions of each virtual
