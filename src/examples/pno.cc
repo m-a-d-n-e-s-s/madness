@@ -2,6 +2,7 @@
 #include <madness.h>
 #include <chem/nemo.h>
 #include <chem/projector.h>
+#include <chem/SCFOperators.h>
 
 using namespace madness;
 
@@ -74,191 +75,9 @@ private:
     Projector<double,3> O;
 };
 
-class Nuclear {
-public:
-    Nuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf)
-        : world(world), ncf(ncf) {}
-
-    real_function_3d operator()(const real_function_3d& ket) const {
-        return ncf->apply_U(ket);
-    }
-    vecfuncT operator()(const vecfuncT& vket) const {
-        vecfuncT result(vket.size());
-        for (std::size_t i=0; i<vket.size(); ++i) result[i]=ncf->apply_U(vket[i]);
-        truncate(world,result);
-        return result;
-    }
-
-    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
-        return inner(bra,this->operator()(ket));
-    }
-
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        vecfuncT vVket;
-        for (std::size_t i=0; i<vket.size(); ++i) {
-            vVket.push_back(this->operator()(vket[i]));
-        }
-        return matrix_inner(world,vbra,vVket);
-    }
-
-private:
-    World& world;
-    std::shared_ptr<NuclearCorrelationFactor> ncf;
-};
-
-class Kinetic {
-public:
-    Kinetic(World& world, const SCF& scf) : world(world), scf(scf) {}
-
-    real_function_3d operator()(const real_function_3d ket) const {
-        MADNESS_EXCEPTION("do not apply the kinetic energy operator on a function!",1);
-        return ket;
-    }
-
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
-        double ke = 0.0;
-        for (int axis = 0; axis < 3; axis++) {
-            real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
-            const real_function_3d dket = D(ket);
-            const real_function_3d dbra = D(bra);
-            ke += 0.5 * (inner(dket, dbra));
-        }
-        return ke;
-    }
-
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        tensorT kinetic(vbra.size(),vket.size());
-        distmatT dkinetic = scf.kinetic_energy_matrix(world,vbra,vket);
-        dkinetic.copy_to_replicated(kinetic);
-        return kinetic;
-    }
-
-private:
-    World& world;
-    const SCF& scf;
-};
-
-class Coulomb {
-public:
-    Coulomb(World& world, const vecfuncT& amo, SCF& calc, const real_function_3d& R2 )
-        : world(world) {
-        real_function_3d density=calc.make_density(world,calc.aocc,calc.amo);
-        density.scale(2.0); // alpha + beta spin density
-        density=density*R2;
-        vcoul=calc.make_coulomb_potential(density);
-    }
-    real_function_3d operator()(const real_function_3d& ket) const {
-        return (vcoul*ket).truncate();
-    }
-
-    vecfuncT operator()(const vecfuncT& vket) const {
-        vecfuncT tmp=mul(world,vcoul,vket);
-        truncate(world,tmp);
-        return tmp;
-    }
-
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
-        return inner(bra,vcoul*ket);
-    }
-
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        vecfuncT vJket;
-        for (std::size_t i=0; i<vket.size(); ++i) {
-            vJket.push_back(this->operator()(vket[i]));
-        }
-        return matrix_inner(world,vbra,vJket);
-    }
-
-private:
-    real_function_3d vcoul; ///< the coulomb potential
-    World& world;
-};
-
-class Exchange {
-public:
-    Exchange(World& world, const vecfuncT& amo, SCF& calc, const real_function_3d& R2 )
-        : world(world), amo(amo), R2(R2) {
-        poisson = std::shared_ptr<real_convolution_3d>(
-                CoulombOperatorPtr(world, calc.param.lo, calc.param.econv));
-    }
-    real_function_3d operator()(const real_function_3d& ket) const {
-        real_function_3d result = real_factory_3d(world).compressed(true);
-        real_function_3d R2ket=R2*ket;
-        for (std::size_t k = 0; k < amo.size(); ++k) {
-            real_function_3d ik = amo[k] * R2ket;
-            result += amo[k] * (*poisson)(ik);
-        }
-        return result;
-    }
-
-    vecfuncT operator()(const vecfuncT& vket) const {
-        vecfuncT result(vket.size());
-        for (std::size_t i=0; i<vket.size(); ++i) result[i]=this->operator()(vket[i]);
-        truncate(world,result);
-        return result;
-    }
-
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
-        return inner(bra,this->operator()(ket));
-    }
-
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        vecfuncT vKket;
-        for (std::size_t i=0; i<vket.size(); ++i) {
-            vKket.push_back(this->operator()(vket[i]));
-        }
-        return matrix_inner(world,vbra,vKket);
-    }
-
-private:
-    World& world;
-    const vecfuncT amo;
-    const real_function_3d R2;
-    std::shared_ptr<real_convolution_3d> poisson;
-};
 
 
-class Fock {
-public:
-    Fock(World& world, const Nemo& nemo) : world(world), nemo(nemo),
-          J(world,nemo.get_calc()->amo,*(nemo.get_calc()),nemo.nuclear_correlation->square()),
-          K(world,nemo.get_calc()->amo,*(nemo.get_calc()),nemo.nuclear_correlation->square()),
-          T(world,*nemo.get_calc()),
-          V(world,nemo.nuclear_correlation) {
-    }
-    real_function_3d operator()(const real_function_3d& ket) const {
-        real_function_3d result;
-        return result;
-    }
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
-        double J_00 = J(bra,ket);
-        double K_00 = K(bra,ket);
-        double T_00 = T(bra,ket);
-        double V_00 = V(bra,ket);
-        return T_00 + J_00 - K_00 + V_00;
-    }
 
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        double wtime=-wall_time(); double ctime=-cpu_time();
-        Tensor<double> kmat=K(vbra,vket);
-        Tensor<double> jmat=J(vbra,vket);
-        Tensor<double> tmat=T(vbra,vket);
-        Tensor<double> vmat=V(vbra,vket);
-        Tensor<double> fock=tmat+jmat-kmat+vmat;
-        wtime+=wall_time(); ctime+=cpu_time();
-        if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", "fock matrix", wtime, ctime);
-        return fock;
-    }
-
-
-private:
-    World& world;
-    const Nemo& nemo;
-    Coulomb J;
-    Exchange K;
-    Kinetic T;
-    Nuclear V;
-};
 
 
 class PNO {
@@ -360,11 +179,12 @@ public:
 
     PNO(World& world, const Nemo& nemo, const std::string input) : sss(), ttt(),
         world(world), param(input), nemo(nemo),
-        J(world,nemo.get_calc()->amo,*(nemo.get_calc()),nemo.nuclear_correlation->square()),
-        K(world,nemo.get_calc()->amo,*(nemo.get_calc()),nemo.nuclear_correlation->square()),
-        T(world,*nemo.get_calc()),
+        J(world,nemo.get_calc().get()),
+        K(world,nemo.get_calc()->amo,nemo.get_calc()->get_aocc(),
+                nemo.get_calc().get(),nemo.nuclear_correlation->square()),
+        T(world),
         V(world,nemo.nuclear_correlation),
-        F(world,nemo),
+        F(world,nemo.get_calc().get(),nemo.nuclear_correlation),
         Q(world,nemo.get_calc()->amo) {
 
         poisson = std::shared_ptr<real_convolution_3d>(
@@ -614,6 +434,12 @@ public:
         }
         print("number of guess virtuals: ",virtuals.size());
         virtuals=Q(virtuals);
+        // plot guess
+        for (std::size_t i=0; i<virtuals.size(); ++i) {
+            std::string name="virtuals"+stringify(i);
+            plot_plane(world,virtuals[i],name);
+        }
+
         return virtuals;
     }
 
@@ -658,8 +484,8 @@ public:
     /// the virtuals are sorted according to their energy, so that some
     /// intermediates need to be resorted as well, in particular the V_aj_i
     /// intermediate and the Fock matrix. Its contents remain unchanged.
-    /// @param[in]  amo occupied orbitals
-    /// @param[inout]  virtuals    the optimal virtual orbitals; sorted upon exit
+    // @param[in]  amo occupied orbitals
+    /// @param[in,out]  virtuals    the optimal virtual orbitals; sorted upon exit
     /// @param[in]  e0  the zeroth-order energy (e_i + e_j)
     /// @param[out] t the optimized amplitudes
     /// @return the energy contributions of each virtual
@@ -775,7 +601,7 @@ private:
     Nemo nemo;
     Coulomb J;
     Exchange K;
-    Kinetic T;
+    Kinetic<double,3> T;
     Nuclear V;
     Fock F;
     QProjector Q;
@@ -803,7 +629,7 @@ int main(int argc, char** argv) {
     const vecfuncT nemos=nemo.get_calc()->amo;
     const vecfuncT R2nemos=mul(world,nemo.nuclear_correlation->square(),nemos);
 
-    Fock F(world,nemo);
+    Fock F(world,nemo.get_calc().get(),nemo.nuclear_correlation);
     Tensor<double> fmat=F(nemos,nemos);
     print("Fock matrix");
     print(fmat);

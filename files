@@ -1,6 +1,8 @@
 ./src/apps/chem:
 SCF.cc
 SCF.h
+SCFOperators.cc
+SCFOperators.h
 TDA.cc
 TDA.h
 TDA_XC.cc
@@ -31,6 +33,7 @@ potentialmanager.h
 projector.h
 tdhf_CIS.cc
 tdhf_CIS.h
+test_SCFOperators.cc
 testxc.cc
 xcfunctional.h
 xcfunctional_ldaonly.cc

@@ -22,6 +22,7 @@
 
 .cproject
 .project
+.settings
 Makefile.in
 config.h.in
 aclocal.m4
