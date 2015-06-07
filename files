@@ -414,9 +414,6 @@ hardware.h
 lookup3.c
 nodefaults.h
 posixmem.h
-print.cc
-print.h
-print_seq.h
 redirectio.cc
 safempi.cc
 safempi.h

@@ -32,8 +32,11 @@
 #ifndef MADNESS_WORLD_PRINT_H__INCLUDED
 #define MADNESS_WORLD_PRINT_H__INCLUDED
 
-/// \file print.h
-/// \brief Defines simple templates for printing to \c std::cout "a la Python".
+/**
+ \file print.h
+ \brief Defines simple templates for printing to \c std::cout "a la Python".
+ \ingroup libraries
+*/
 
 #include <type_traits>
 #include <iostream>
@@ -55,21 +58,40 @@
 
 namespace madness {
 
-    /// Easy printing of complex numbers
+    /// \addtogroup libraries
+    /// @{
+
+    /// Easy printing of complex numbers.
+
+    /// \tparam T The "real" type of the complex number.
+    /// \param[in,out] s The output stream.
+    /// \param[in] c The complex number.
+    /// \return The output stream (for chaining).
     template <typename T>
     std::ostream& operator<<(std::ostream& s, const std::complex<T>& c) {
         s << c.real() << "+" << c.imag() << "j";
         return s;
     }
 
-    /// Easy printing of pairs
+    /// Easy printing of pairs.
+
+    /// \tparam T Type 1 of the pair.
+    /// \tparam U Type 2 of the pair.
+    /// \param[in,out] s The output stream.
+    /// \param[in] p The pair.
+    /// \return The output stream (for chaining).
     template <typename T, typename U>
     std::ostream& operator<<(std::ostream& s, const std::pair<T,U>& p) {
         s << "(" << p.first << "," << p.second << ")";
         return s;
     }
 
-    /// Easy printing of lists
+    /// Easy printing of lists.
+
+    /// \tparam T Type stored in the list.
+    /// \param[in,out] s The output stream.
+    /// \param[in] c The list.
+    /// \return The output stream (for chaining).
     template <typename T>
     std::ostream& operator<<(std::ostream& s, const std::list<T>& c) {
         s << "[";
@@ -83,7 +105,12 @@ namespace madness {
         return s;
     }
 
-    /// Easy printing of vectors
+    /// Easy printing of vectors.
+
+    /// \tparam T Type stored in the vector.
+    /// \param[in,out] s The output stream.
+    /// \param[in] c The vector.
+    /// \return The output stream (for chaining).
     template <typename T>
     std::ostream& operator<<(std::ostream& s, const std::vector<T>& c) {
         s << "[";
@@ -97,9 +124,14 @@ namespace madness {
         return s;
     }
 
-    /// Easy printing of fixed dimension arrays
+    /// Easy printing of fixed dimension arrays.
 
-    /// STL I/O already does char.
+    /// STL I/O already does char (thus the \c enable_if business).
+    /// \tparam T Type of data in the array.
+    /// \tparam N Size of the array.
+    /// \param[in,out] s The output stream.
+    /// \param[in] v The array.
+    /// \return The output stream (for chaining).
     template <typename T, std::size_t N>
     typename std::enable_if<!std::is_same<T,char>::value, std::ostream&>::type
     operator<<(std::ostream& s, const T(&v)[N]) {
@@ -112,10 +144,10 @@ namespace madness {
         return s;
     }
 
-    /// Print a string justified on the left to start at the given column with optional underlining
+    /// Print a string justified on the left to start at the given column with optional underlining.
     void print_justified(const char* s, int column=0, bool underline=true);
 
-    /// Print a string centered at the given column with optional underlining
+    /// Print a string centered at the given column with optional underlining.
     void print_centered(const char* s, int column=40, bool underline=true);
 
 
@@ -161,6 +193,8 @@ namespace madness {
         std::cout << t;
         print_helper(std::cout, ts...) << ENDL;
     }
+
+    /// @}
 
 }
 #endif // MADNESS_WORLD_PRINT_H__INCLUDED

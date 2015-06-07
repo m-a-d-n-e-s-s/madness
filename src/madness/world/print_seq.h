@@ -32,11 +32,26 @@
 #ifndef MADNESS_WORLD_PRINT_SEQ_H__INCLUDED
 #define MADNESS_WORLD_PRINT_SEQ_H__INCLUDED
 
-/// \file print_seq.h
-/// \brief Implements print_seq ... included by MADworld.h
+/**
+ \file print_seq.h
+ \brief Implements \c print_seq.
+ \ingroup libraries
+ \todo Can these functions be replaced by a variadic template?
+*/
 
 namespace madness {
-    /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
+    /// Sequentially ordered printing of (serializable) data from every process.
+
+    /// Collective, no fence.
+    /// \tparam A Type of data 1.
+    /// \tparam B Type of data 2.
+    /// \tparam C Type of data 3.
+    /// \tparam D Type of data 4.
+    /// \param[in] world The \c World object.
+    /// \param[in] a Data 1.
+    /// \param[in] b Data 2.
+    /// \param[in] c Data 3.
+    /// \param[in] d Data 4.
     template <typename A, typename B, typename C, typename D>
     void print_seq(World& world, const A& a, const B& b, const C& c, const D& d) {
         if (world.rank() == 0) {
@@ -60,7 +75,16 @@ namespace madness {
         }
     }
 
-    /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
+    /// Sequentially ordered printing of (serializable) data from every process.
+
+    /// Collective, no fence.
+    /// \tparam A Type of data 1.
+    /// \tparam B Type of data 2.
+    /// \tparam C Type of data 3.
+    /// \param[in] world The \c World object.
+    /// \param[in] a Data 1.
+    /// \param[in] b Data 2.
+    /// \param[in] c Data 3.
     template <typename A, typename B, typename C>
     void print_seq(World& world, const A& a, const B& b, const C& c) {
         if (world.rank() == 0) {
@@ -83,7 +107,14 @@ namespace madness {
         }
     }
 
-    /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
+    /// Sequentially ordered printing of (serializable) data from every process.
+
+    /// Collective, no fence.
+    /// \tparam A Type of data 1.
+    /// \tparam B Type of data 2.
+    /// \param[in] world The \c World object.
+    /// \param[in] a Data 1.
+    /// \param[in] b Data 2.
     template <typename A, typename B>
     void print_seq(World& world, const A& a, const B& b) {
         if (world.rank() == 0) {
@@ -105,7 +136,12 @@ namespace madness {
         }
     }
 
-    /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
+    /// Sequentially ordered printing of (serializable) data from every process.
+
+    /// Collective, no fence.
+    /// \tparam A Type of data 1.
+    /// \param[in] world The \c World object.
+    /// \param[in] a Data 1.
     template <typename A>
     void print_seq(World& world, const A& a) {
         if (world.rank() == 0) {
