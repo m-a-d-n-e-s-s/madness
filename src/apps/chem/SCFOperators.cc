@@ -104,8 +104,7 @@ template class Kinetic<double,4>;
 template class Kinetic<double,5>;
 template class Kinetic<double,6>;
 
-Coulomb::Coulomb(World& world, const madness::SCF* calc) : world(world) {
-
+real_function_3d Coulomb::compute_potential(const madness::SCF* calc) const {
     real_function_3d density = calc->make_density(world, calc->get_aocc(),
             calc->get_amo());
     if (calc->is_spin_restricted()) {
@@ -115,7 +114,7 @@ Coulomb::Coulomb(World& world, const madness::SCF* calc) : world(world) {
                 calc->get_bmo());
         density+=brho;
     }
-    vcoul=calc->make_coulomb_potential(density);
+    return calc->make_coulomb_potential(density);
 }
 
 real_function_3d Coulomb::compute_potential(const real_function_3d& density,
@@ -124,10 +123,10 @@ real_function_3d Coulomb::compute_potential(const real_function_3d& density,
     return poisson(density);
 }
 
-
 real_function_3d Nuclear::operator()(const real_function_3d& ket) const {
     return ncf->apply_U(ket);
 }
+
 
 Exchange::Exchange(World& world, const vecfuncT& mo,
         const Tensor<double> occ, const SCF* calc,
@@ -136,6 +135,15 @@ Exchange::Exchange(World& world, const vecfuncT& mo,
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
 }
+
+void Exchange::set_parameters(const vecfuncT& mo1, const Tensor<double>& occ1,
+        const double lo, const double econv) {
+    mo=copy(world,mo1);
+    occ=copy(occ1);
+    poisson = std::shared_ptr<real_convolution_3d>(
+            CoulombOperatorPtr(world, lo, econv));
+}
+
 
 vecfuncT Exchange::operator()(const vecfuncT& vket) const {
     const bool same = (&mo == &vket);

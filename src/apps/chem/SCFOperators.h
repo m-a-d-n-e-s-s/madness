@@ -102,9 +102,13 @@ private:
 class Coulomb {
 public:
 
+    /// default empty ctor
     Coulomb(World& world) : world(world) {};
 
-    Coulomb(World& world, const SCF* calc);
+    /// ctor with an SCF calculation providing the MOs and density
+    Coulomb(World& world, const SCF* calc) : world(world) {
+        vcoul=compute_potential(calc);
+    }
 
     real_function_3d operator()(const real_function_3d& ket) const {
         return (vcoul*ket).truncate();
@@ -128,15 +132,27 @@ public:
         return matrix_inner(world,vbra,vJket);
     }
 
+    /// getter for the Coulomb potential
     const real_function_3d& potential() const {return vcoul;}
+
+    /// setter for the Coulomb potential
     real_function_3d& potential() {return vcoul;}
+
+    /// given a density compute the Coulomb potential
+
+    /// this function uses a newly constructed Poisson operator. Note that
+    /// the accuracy parameters must be consistent with the exchange operator.
     real_function_3d compute_potential(const real_function_3d& density,
             double lo=1.e-4, double econv=FunctionDefaults<3>::get_thresh()) const;
+
+    /// given a set of MOs in an SCF calculation, compute the Coulomb potential
+
+    /// this function uses the Poisson operator of the SCF calculation
     real_function_3d compute_potential(const SCF* calc) const;
 
 private:
-    real_function_3d vcoul; ///< the coulomb potential
     World& world;
+    real_function_3d vcoul; ///< the coulomb potential
 };
 
 
@@ -174,17 +190,21 @@ private:
 
 class Exchange {
 public:
+
+    /// default ctor
+    Exchange(World& world) : world(world), small_memory(true) {};
+
+    /// ctor with a full calculation
     Exchange(World& world, const vecfuncT& amo, const Tensor<double> occ,
             const SCF* calc, const real_function_3d& R2 );
 
+    void set_parameters(const vecfuncT& amo, const Tensor<double>& occ,
+            const double lo=1.e-4, const double econv=FunctionDefaults<3>::get_thresh());
+
     real_function_3d operator()(const real_function_3d& ket) const {
-        real_function_3d result = real_factory_3d(world).compressed(true);
-        real_function_3d R2ket=R2*ket;
-        for (std::size_t k = 0; k < mo.size(); ++k) {
-            real_function_3d ik = mo[k] * R2ket;
-            result += mo[k] * (*poisson)(ik);
-        }
-        return result;
+        vecfuncT vket(1,ket);
+        vecfuncT vKket=this->operator()(vket);
+        return vKket[0];
     }
 
     /// apply the exchange operator on a vector of functions
@@ -194,30 +214,29 @@ public:
     /// @return     a vector of orbitals  K| i>
     vecfuncT operator()(const vecfuncT& vket) const;
 
-//    vecfuncT operator()(const vecfuncT& vket) const {
-//        vecfuncT result(vket.size());
-//        for (std::size_t i=0; i<vket.size(); ++i) result[i]=this->operator()(vket[i]);
-//        truncate(world,result);
-//        return result;
-//    }
+    /// compute the matrix element <bra | K | ket>
 
+    /// @param[in]  bra    real_funtion_3d, the bra state
+    /// @param[in]  ket    real_funtion_3d, the ket state
     double operator()(const real_function_3d& bra, const real_function_3d ket) const {
         return inner(bra,this->operator()(ket));
     }
 
+    /// compute the matrix < vbra | K | vket >
+
+    /// @param[in]  vbra    vector of real_funtion_3d, the set of bra states
+    /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
+    /// @return K_ij
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        vecfuncT vKket;
-        for (std::size_t i=0; i<vket.size(); ++i) {
-            vKket.push_back(this->operator()(vket[i]));
-        }
+        vecfuncT vKket=this->operator()(vket);
         return matrix_inner(world,vbra,vKket);
     }
 
 private:
     World& world;
     bool small_memory;
-    const vecfuncT mo;
-    const Tensor<double> occ;
+    vecfuncT mo;
+    Tensor<double> occ;
     const real_function_3d R2;
     std::shared_ptr<real_convolution_3d> poisson;
 };
