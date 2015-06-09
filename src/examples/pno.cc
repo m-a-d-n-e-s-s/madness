@@ -179,9 +179,8 @@ public:
 
     PNO(World& world, const Nemo& nemo, const std::string input) : sss(), ttt(),
         world(world), param(input), nemo(nemo),
-        J(world,nemo.get_calc().get()),
-        K(world,nemo.get_calc()->amo,nemo.get_calc()->get_aocc(),
-                nemo.get_calc().get(),nemo.nuclear_correlation->square()),
+        J(world,&nemo),
+        K(world,&nemo,0),
         T(world),
         V(world,nemo.nuclear_correlation),
         F(world,nemo.get_calc().get(),nemo.nuclear_correlation),

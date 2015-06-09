@@ -44,6 +44,7 @@ namespace madness {
 
 // forward declaration
 class SCF;
+class Nemo;
 class NuclearCorrelationFactor;
 
 typedef std::vector<real_function_3d> vecfuncT;
@@ -65,15 +66,15 @@ public:
         return ket;
     }
 
+    vecfuncT operator()(const vecfuncT& vket) const {
+        MADNESS_EXCEPTION("do not apply the kinetic energy operator on a function!",1);
+        return vket;
+    }
+
     T operator()(const functionT& bra, const functionT ket) const {
-        T ke = 0.0;
-        for (std::size_t axis = 0; axis < NDIM; axis++) {
-            Derivative<T,NDIM> D = free_space_derivative<T,NDIM>(world,axis);
-            const functionT dket = D(ket);
-            const functionT dbra = D(bra);
-            ke += 0.5 * (inner(dket, dbra));
-        }
-        return ke;
+        vecfuncT vbra(1,bra), vket(1,ket);
+        Tensor<T> tmat=this->operator()(vbra,vket);
+        return tmat(0l,0l);
     }
 
     tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
@@ -90,7 +91,7 @@ public:
 
 private:
     World& world;
-    std::vector< std::shared_ptr<Derivative<T,NDIM>> > gradop;
+    std::vector< std::shared_ptr<Derivative<T,NDIM> > > gradop;
 
     distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
     distmatT kinetic_energy_matrix(World & world, const vecfuncT & vbra,
@@ -109,6 +110,9 @@ public:
     Coulomb(World& world, const SCF* calc) : world(world) {
         vcoul=compute_potential(calc);
     }
+
+    /// ctor with an SCF calculation providing the MOs and density
+    Coulomb(World& world, const Nemo* nemo);
 
     real_function_3d operator()(const real_function_3d& ket) const {
         return (vcoul*ket).truncate();
@@ -138,6 +142,8 @@ public:
     /// setter for the Coulomb potential
     real_function_3d& potential() {return vcoul;}
 
+    real_function_3d compute_density(const SCF* calc) const;
+
     /// given a density compute the Coulomb potential
 
     /// this function uses a newly constructed Poisson operator. Note that
@@ -150,41 +156,49 @@ public:
     /// this function uses the Poisson operator of the SCF calculation
     real_function_3d compute_potential(const SCF* calc) const;
 
+    /// given a set of MOs in an SCF calculation, compute the Coulomb potential
+
+    /// this function uses the Poisson operator of the SCF calculation
+    real_function_3d compute_potential(const Nemo* nemo) const;
+
 private:
     World& world;
     real_function_3d vcoul; ///< the coulomb potential
+    real_function_3d R_square;    ///< square of the nuclear correlation factor, if any
 };
 
 
 class Nuclear {
 public:
+
+    Nuclear(World& world, const SCF* calc);
+
+    Nuclear(World& world, const Nemo* nemo);
+
     Nuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf)
         : world(world), ncf(ncf) {}
 
-    real_function_3d operator()(const real_function_3d& ket) const;
 
-    vecfuncT operator()(const vecfuncT& vket) const {
-        vecfuncT result(vket.size());
-        for (std::size_t i=0; i<vket.size(); ++i) result[i]=this->operator()(vket[i]);
-        truncate(world,result);
-        return result;
+    real_function_3d operator()(const real_function_3d& ket) const {
+        vecfuncT vket(1,ket);
+        return this->operator()(vket)[0];
     }
+
+    vecfuncT operator()(const vecfuncT& vket) const;
 
     double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
         return inner(bra,this->operator()(ket));
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        vecfuncT vVket;
-        for (std::size_t i=0; i<vket.size(); ++i) {
-            vVket.push_back(this->operator()(vket[i]));
-        }
+        vecfuncT vVket=this->operator()(vket);
         return matrix_inner(world,vbra,vVket);
     }
 
 private:
     World& world;
     std::shared_ptr<NuclearCorrelationFactor> ncf;
+
 };
 
 
@@ -192,14 +206,17 @@ class Exchange {
 public:
 
     /// default ctor
-    Exchange(World& world) : world(world), small_memory(true) {};
+    Exchange(World& world) : world(world), small_memory_(true), same_(false) {};
 
-    /// ctor with a full calculation
-    Exchange(World& world, const vecfuncT& amo, const Tensor<double> occ,
-            const SCF* calc, const real_function_3d& R2 );
+    /// ctor with a conventional calculation
+    Exchange(World& world, const SCF* calc, const int ispin);
 
-    void set_parameters(const vecfuncT& amo, const Tensor<double>& occ,
-            const double lo=1.e-4, const double econv=FunctionDefaults<3>::get_thresh());
+    /// ctor with a nemo calculation
+    Exchange(World& world, const Nemo* nemo, const int ispin);
+
+    void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
+            const Tensor<double>& occ, const double lo=1.e-4,
+            const double econv=FunctionDefaults<3>::get_thresh());
 
     real_function_3d operator()(const real_function_3d& ket) const {
         vecfuncT vket(1,ket);
@@ -232,12 +249,27 @@ public:
         return matrix_inner(world,vbra,vKket);
     }
 
+    bool& small_memory() {return small_memory_;}
+    bool small_memory() const {return small_memory_;}
+    Exchange& small_memory(const bool flag) {
+        small_memory_=flag;
+        return *this;
+    }
+
+    bool& same() {return same_;}
+    bool same() const {return same_;}
+    Exchange& same(const bool flag) {
+        same_=flag;
+        return *this;
+    }
+
 private:
+
     World& world;
-    bool small_memory;
-    vecfuncT mo;
+    bool small_memory_;
+    bool same_;
+    vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     Tensor<double> occ;
-    const real_function_3d R2;
     std::shared_ptr<real_convolution_3d> poisson;
 };
 

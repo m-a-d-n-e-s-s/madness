@@ -193,6 +193,9 @@ public:
 	/// the inverse nuclear correlation factor
 	real_function_3d R_inverse;
 
+    /// the square of the nuclear correlation factor
+    real_function_3d R_square;
+
 private:
 
 	/// sum of square of coords at last solved geometry

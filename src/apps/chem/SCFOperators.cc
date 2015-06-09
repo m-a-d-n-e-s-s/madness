@@ -36,6 +36,7 @@
 
 #include <apps/chem/SCFOperators.h>
 #include <apps/chem/SCF.h>
+#include <apps/chem/nemo.h>
 #include <apps/chem/correlationfactor.h>
 
 
@@ -104,7 +105,13 @@ template class Kinetic<double,4>;
 template class Kinetic<double,5>;
 template class Kinetic<double,6>;
 
-real_function_3d Coulomb::compute_potential(const madness::SCF* calc) const {
+Coulomb::Coulomb(World& world, const Nemo* nemo) : world(world),
+        R_square(nemo->R_square) {
+    vcoul=compute_potential(nemo);
+}
+
+
+real_function_3d Coulomb::compute_density(const SCF* calc) const {
     real_function_3d density = calc->make_density(world, calc->get_aocc(),
             calc->get_amo());
     if (calc->is_spin_restricted()) {
@@ -114,31 +121,110 @@ real_function_3d Coulomb::compute_potential(const madness::SCF* calc) const {
                 calc->get_bmo());
         density+=brho;
     }
+    density.truncate();
+    return density;
+}
+
+real_function_3d Coulomb::compute_potential(const madness::SCF* calc) const {
+    real_function_3d density=compute_density(calc);
     return calc->make_coulomb_potential(density);
+}
+
+/// same as above, but with the additional factor R^2 in the density
+real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
+    real_function_3d density=compute_density(nemo->get_calc().get());
+    if (R_square.is_initialized()) density=(density*R_square).truncate();
+    return nemo->get_calc()->make_coulomb_potential(density);
 }
 
 real_function_3d Coulomb::compute_potential(const real_function_3d& density,
         double lo, double econv) const {
     real_convolution_3d poisson = CoulombOperator(world, lo, econv);
-    return poisson(density);
-}
-
-real_function_3d Nuclear::operator()(const real_function_3d& ket) const {
-    return ncf->apply_U(ket);
+    return poisson(density).truncate();
 }
 
 
-Exchange::Exchange(World& world, const vecfuncT& mo,
-        const Tensor<double> occ, const SCF* calc,
-        const real_function_3d& R2 ) : world(world), small_memory(true),
-                mo(mo), occ(occ), R2(R2) {
+Nuclear::Nuclear(World& world, const SCF* calc) : world(world) {
+    ncf=std::shared_ptr<NuclearCorrelationFactor>(
+            new PseudoNuclearCorrelationFactor(world,
+            calc->molecule,calc->potentialmanager,1.0));
+}
+
+Nuclear::Nuclear(World& world, const Nemo* nemo) : world(world) {
+    ncf=nemo->nuclear_correlation;
+}
+
+vecfuncT Nuclear::operator()(const vecfuncT& vket) const {
+
+    const static std::size_t NDIM=3;
+
+    // shortcut for local nuclear potential (i.e. no correlation factor)
+    if (ncf->type()==NuclearCorrelationFactor::None) {
+        vecfuncT result=mul(world,ncf->U2(),vket);
+        truncate(world,result);
+        return result;
+    }
+
+    std::vector< std::shared_ptr<Derivative<double,NDIM> > > gradop =
+            gradient_operator<double,NDIM>(world);
+    reconstruct(world, vket);
+    vecfuncT vresult=zero_functions_compressed<double,NDIM>(world,vket.size());
+
+    // memory-saving algorithm: outer loop over the dimensions
+    // apply the derivative operator on each function for each dimension
+    for (std::size_t i=0; i<NDIM; ++i) {
+        std::vector<Function<double,NDIM> > dv=apply(world, *(gradop[i]), vket, true);
+        real_function_3d U1=ncf->U1(i%3);
+        std::vector<Function<double,NDIM> > U1dv=mul(world,U1,dv);
+        vresult=add(world,vresult,U1dv);
+    }
+
+    real_function_3d U2=ncf->U2();
+    std::vector<Function<double,NDIM> > U2v=mul(world,U2,vket);
+    vresult=add(world,vresult,U2v);
+    truncate(world,vresult);
+    return vresult;
+}
+
+
+Exchange::Exchange(World& world, const SCF* calc, const int ispin)
+        : world(world), small_memory_(true), same_(false) {
+    if (ispin==0) { // alpha spin
+        mo_ket=calc->amo;
+        occ=calc->aocc;
+    } else if (ispin==1) {  // beta spin
+        mo_ket=calc->bmo;
+        occ=calc->bocc;
+    }
+    mo_bra=mo_ket;
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
 }
 
-void Exchange::set_parameters(const vecfuncT& mo1, const Tensor<double>& occ1,
-        const double lo, const double econv) {
-    mo=copy(world,mo1);
+Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
+    : world(world), small_memory_(true), same_(false) {
+
+    if (ispin==0) { // alpha spin
+        mo_ket=nemo->get_calc()->amo;
+        occ=nemo->get_calc()->aocc;
+    } else if (ispin==1) {  // beta spin
+        mo_ket=nemo->get_calc()->bmo;
+        occ=nemo->get_calc()->bocc;
+    }
+
+    mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
+    truncate(world,mo_bra);
+    poisson = std::shared_ptr<real_convolution_3d>(
+            CoulombOperatorPtr(world, nemo->get_calc()->param.lo,
+                    nemo->get_calc()->param.econv));
+
+}
+
+
+void Exchange::set_parameters(const vecfuncT& bra, const vecfuncT& ket,
+        const Tensor<double>& occ1, const double lo, const double econv) {
+    mo_bra=copy(world,bra);
+    mo_ket=copy(world,ket);
     occ=copy(occ1);
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, lo, econv));
@@ -146,26 +232,26 @@ void Exchange::set_parameters(const vecfuncT& mo1, const Tensor<double>& occ1,
 
 
 vecfuncT Exchange::operator()(const vecfuncT& vket) const {
-    const bool same = (&mo == &vket);
-    int nocc = mo.size();
+    const bool same = this->same();
+    int nocc = mo_bra.size();
     int nf = vket.size();
     double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
     vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
-    reconstruct(world, mo);
-    norm_tree(world, mo);
+    reconstruct(world, mo_bra);
+    norm_tree(world, mo_bra);
     if (!same) {
         reconstruct(world, vket);
         norm_tree(world, vket);
     }
 
-    if (small_memory) {     // Smaller memory algorithm ... possible 2x saving using i-j sym
+    if (small_memory_) {     // Smaller memory algorithm ... possible 2x saving using i-j sym
         for(int i=0; i<nocc; ++i){
             if(occ[i] > 0.0){
-                vecfuncT psif = mul_sparse(world, mo[i], vket, tol); /// was vtol
+                vecfuncT psif = mul_sparse(world, mo_bra[i], vket, tol); /// was vtol
                 truncate(world, psif);
                 psif = apply(world, *poisson.get(), psif);
                 truncate(world, psif);
-                psif = mul_sparse(world, mo[i], psif, tol); /// was vtol
+                psif = mul_sparse(world, mo_ket[i], psif, tol); /// was vtol
                 gaxpy(world, 1.0, Kf, occ[i], psif);
             }
         }
@@ -176,7 +262,7 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
             if (same)
                 jtop = i + 1;
             for (int j = 0; j < jtop; ++j) {
-                psif.push_back(mul_sparse(mo[i], vket[j], tol, false));
+                psif.push_back(mul_sparse(mo_bra[i], vket[j], tol, false));
             }
         }
 
@@ -193,9 +279,9 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
             if (same)
                 jtop = i + 1;
             for (int j = 0; j < jtop; ++j, ++ij) {
-                psipsif[i * nf + j] = mul_sparse(psif[ij], mo[i], false);
+                psipsif[i * nf + j] = mul_sparse(psif[ij], mo_ket[i], false);
                 if (same && i != j) {
-                    psipsif[j * nf + i] = mul_sparse(psif[ij], mo[j], false);
+                    psipsif[j * nf + i] = mul_sparse(psif[ij], mo_ket[j], false);
                 }
             }
         }
@@ -222,7 +308,7 @@ Fock::Fock(World& world, const SCF* calc,
         std::shared_ptr<NuclearCorrelationFactor> ncf )
     : world(world),
       J(world,calc),
-      K(world,calc->amo,calc->aocc,calc,ncf->square()),
+      K(world,calc,0),
       T(world),
       V(world,ncf) {
 }

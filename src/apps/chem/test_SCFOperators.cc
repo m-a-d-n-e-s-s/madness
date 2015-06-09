@@ -33,6 +33,8 @@
 #include <madness.h>
 #include <apps/chem/SCFOperators.h>
 #include <apps/chem/SCF.h>
+#include <apps/chem/nemo.h>
+#include <apps/chem/correlationfactor.h>
 
 using namespace madness;
 
@@ -64,7 +66,7 @@ public:
 
     double operator()(const coordT& xyz) const {
         double arg=0.0, prefac=1.0;
-        for (int i=0; i<NDIM;++i) {
+        for (std::size_t i=0; i<NDIM;++i) {
             arg+=(xyz[i]-origin[i])*(xyz[i]-origin[i]);
             prefac*=pow(xyz[i],ijk[i]);
         }
@@ -108,17 +110,22 @@ struct refpotfunctor {
 };
 
 
-/// write a test input for the construction of an SCF calculation
+/// will write a test input and remove it from disk upon destruction
 struct write_test_input {
+
+    double eprec=FunctionDefaults<3>::get_thresh()*0.1;
 
     std::string filename_;
     write_test_input() : filename_("test_input") {
         std::ofstream of(filename_);
         of << "dft\n";
-        of << "protocol 1.e-4 \n";
+        of << "xc hf\n";
+        of << "protocol 1.e-5 \n";
+        of << "nuclear_corrfac  slater 2.0\n";
         of << "end\n";
 
         of << "geometry\n";
+        of << "eprec " << eprec << std::endl;
         of << "Li  0.0    0.0 0.0\n";
         of << "H  1.4375 0.0 0.0\n";
         of << "end\n";
@@ -133,7 +140,20 @@ struct write_test_input {
 };
 
 
+bool check_err(double err, double thresh, std::string msg) {
+    if (fabs(err)>thresh) {
+        print("\nfailing test:",msg,"\n");
+        return true;
+    }
+    return false;
+}
 
+/// test the hermiticity of the operator op and its translational invariance
+
+/// @param[in]  world   the world
+/// @param[in]  op      the operator to be tested, must implement op(vecfuncT,vecfuncT)
+/// @param[in]  thresh  the accuracy threshold
+/// @return     0 if test passes, 1 if test fails
 template<typename opT, std::size_t NDIM>
 int test_hermiticity(World& world, const opT& op, double thresh) {
 
@@ -155,11 +175,17 @@ int test_hermiticity(World& world, const opT& op, double thresh) {
         Tensor<double> tmp=tmat-transpose(tmat);
         double err=tmp.normf()/tmp.size();
         print(err,tmat.normf());
-        if (err>thresh*2.0) return 1;           // tolerance 2
+        if (check_err(err,thresh*2.0,"hermiticity error")) return 1;  // tolerance 2
     }
     return 0;
 }
 
+/// test if the operator return correct matrix elements if bra!=ket
+
+/// @param[in]  world   the world
+/// @param[in]  op      the operator to be tested, must implement op(vecfuncT,vecfuncT)
+/// @param[in]  thresh  the accuracy threshold
+/// @return     0 if test passes, 1 if test fails
 template<typename opT, std::size_t NDIM>
 int test_asymmetric(World& world, const opT& op, double thresh) {
 
@@ -192,7 +218,7 @@ int test_asymmetric(World& world, const opT& op, double thresh) {
     Tensor<double> tmp=tmat1(_,Slice(0,1))-tmat;
     double err=tmp.normf()/tmp.size();
     print("a/symmetric algorithm error",err);
-    if (err>thresh) return 1;
+    if (check_err(err,thresh*2.0,"symmetry error")) return 1;
     return 0;
 
 }
@@ -229,7 +255,7 @@ int test_kinetic(World& world) {
     double T_amo=T(f,f);
     double err=fabs(ip_amo-T_amo);
     print("<Damo|Damo>",ip_amo,T_amo,err);
-    if (err>thresh) return 1;
+    if (check_err(err,thresh*2.0,"kinetic error")) return 1;
 
     // test hermiticity of the T operator
     int success=test_hermiticity<Kinetic<double,NDIM>,NDIM>(world, T, thresh);
@@ -274,7 +300,7 @@ int test_coulomb(World& world) {
     real_function_3d diffdensity=J.potential()-refpot;
     double err=diffdensity.norm2()/Jpotnorm;
     print("relative error in the densities: ",err);
-    if (err>thresh) return 1;       // some safety
+    if (check_err(err,thresh,"Coulomb density error")) return 1;
 
     // test matrix element
     real_function_3d g=real_factory_3d(world).truncate_on_project()
@@ -284,7 +310,7 @@ int test_coulomb(World& world) {
     double element=J(g,g);
     err=fabs(element-refelement);
     print("element, refelement, error",element,refelement,err);
-    if (err>thresh) return 1;
+    if (check_err(err,thresh,"Coulomb matrix element error"))  return 1;
 
 
     // test hermiticity of the T operator
@@ -297,6 +323,7 @@ int test_coulomb(World& world) {
     return 0;
 }
 
+/// anchor test for the exchange operator -- partially hardwired
 int exchange_anchor_test(World& world, Exchange& K, const double thresh) {
 
     const int nmo=2;
@@ -304,7 +331,6 @@ int exchange_anchor_test(World& world, Exchange& K, const double thresh) {
     alpha(0l)=1.0;
     alpha(1l)=2.0;
     Vector<double,3> origin(0.0);
-
 
     // construct two dummy orbitals
     vecfuncT amo(nmo);
@@ -344,7 +370,7 @@ int exchange_anchor_test(World& world, Exchange& K, const double thresh) {
 //    print(Kmat1);
     double err=(Kmat-Kmat1).normf()/Kmat.size();
     print("diff in Kmat compared to reference potential",err);
-    if (err>thresh) ierr++;
+    if (check_err(err,thresh,"Exchange potential error")) return 1;
 
     // hard-wire!
     Tensor<double> hardwire(2,2);
@@ -354,8 +380,8 @@ int exchange_anchor_test(World& world, Exchange& K, const double thresh) {
     hardwire(1,1)=2.36014231;
     err=(hardwire-Kmat1).normf()/Kmat.size();
     print("diff in Kmat compared to hardwired result ",err);
-    if (err>thresh) ierr++;
-    return ierr;
+    if (check_err(err,thresh,"Exchange matrix element error")) return 1;
+    return 0;
 }
 
 int test_exchange(World& world) {
@@ -383,7 +409,7 @@ int test_exchange(World& world) {
     Tensor<double> aocc(nmo);
     aocc.fill(1.0);
 
-    K.set_parameters(amo,aocc);
+    K.set_parameters(amo,amo,aocc);
 
     // compare the exchange operator to precomputed reference values
     int success=exchange_anchor_test(world, K, thresh);
@@ -400,12 +426,100 @@ int test_exchange(World& world) {
     return 0;
 }
 
-int test_SCF(World& world) {
-    // will write a test input and remove it from disk upon destruction
+int nuclear_anchor_test(World& world) {
+    double thresh=FunctionDefaults<3>::get_thresh();
     write_test_input test_input;
     SCF calc(world,test_input.filename().c_str());
-    MolecularEnergy E(world, calc);
-    E.value(calc.molecule.get_all_coords().flat()); // ugh!
+    calc.make_nuclear_potential(world);
+
+    // test ncf=none
+    std::shared_ptr<NuclearCorrelationFactor> ncf_none=
+            std::shared_ptr<NuclearCorrelationFactor>(
+                new PseudoNuclearCorrelationFactor(world,
+                calc.molecule,calc.potentialmanager,1.0));
+    ncf_none->initialize();
+
+    Nuclear Vnuc(world,ncf_none);
+
+    std::vector<int> ijk(3);
+    Vector<double,3> origin{0,0.1,1.0};
+
+    real_function_3d gaussian=FunctionFactory<double,3>(world)
+                    .functor2(GaussianGuess<3>(origin,2.0,ijk)).truncate_on_project();
+    real_function_3d gaussian2=copy(gaussian).square();
+
+    double V=Vnuc(gaussian,gaussian);
+    double Vref=inner(calc.potentialmanager->vnuclear(),gaussian2);
+    double err=fabs(V-Vref);
+    print("V,Vref",V,Vref,err);
+    if (check_err(err,thresh,"Nuclear matrix element error 1")) return 1;
+
+    // test ncf=slater
+    std::shared_ptr<NuclearCorrelationFactor> ncf=
+    create_nuclear_correlation_factor(world, calc);
+    ncf->initialize();
+
+    Nuclear Vnuc1(world,ncf);
+    Kinetic<double,3> T(world);
+    real_function_3d R2gaussian=(gaussian*ncf->square());
+    real_function_3d Rgaussian=(gaussian*ncf->function());
+    double V0=inner(copy(Rgaussian).square(),calc.potentialmanager->vnuclear());
+    double V1=Vnuc1(R2gaussian,gaussian);
+    double T1=T(R2gaussian,gaussian);
+    double V2=Vnuc(Rgaussian,Rgaussian);
+    double T2=T(Rgaussian,Rgaussian);
+
+    // < nemo | R (T + V) R | nemo > = < nemo | R^2 (T + U) | nemo >
+    err=fabs(T2+V2 - T1-V1);
+    print("T1,V1,T2,V2,err",T1,V1,T2,V2,err);
+    print("V0",V0);
+    if (check_err(err,thresh,"Nuclear matrix element error ncf")) return 1;
+
+    return 0;
+}
+
+
+int test_nuclear(World& world) {
+
+    FunctionDefaults<3>::set_thresh(1.e-5);
+    double thresh=FunctionDefaults<3>::get_thresh();
+    if (world.rank()==0) print("\nentering test_nuclear",thresh);
+    FunctionDefaults<3>::set_cubic_cell(-10, 10);
+
+    int ierr=0;
+    ierr+=nuclear_anchor_test(world);
+    return ierr;
+}
+
+
+int test_SCF(World& world) {
+    FunctionDefaults<3>::set_thresh(1.e-5);
+    double thresh=FunctionDefaults<3>::get_thresh();
+    if (world.rank()==0) print("\nentering test_SCF",thresh);
+
+    write_test_input test_input;
+    SCF calc(world,test_input.filename().c_str());
+    MolecularEnergy ME(world, calc);
+    double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
+    print("energy(LiH)",energy);
+    // hard-wire test
+    print("energy, hard-wire, diff",energy,7.703833,energy+7.703833e+00);
+    if (check_err(energy+7.703833e+00,thresh,"SCF error")) return 1;
+    return 0;
+}
+
+int test_nemo(World& world) {
+    FunctionDefaults<3>::set_thresh(1.e-5);
+    double thresh=FunctionDefaults<3>::get_thresh();
+    if (world.rank()==0) print("\nentering test_SCF",thresh);
+
+    write_test_input test_input;
+    std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));
+    Nemo nemo(world,calc_ptr);
+    double energy=nemo.value(calc_ptr->molecule.get_all_coords().flat()); // ugh!
+    print("energy(LiH)",energy);
+    // hard-wire test
+    if (check_err(energy+7.703832e+00,thresh,"nemo error")) return 1;
     return 0;
 }
 
@@ -417,15 +531,18 @@ int main(int argc, char** argv) {
     world.gop.fence();
     startup(world,argc,argv);
 
-
     int result=0;
+
     result+=test_kinetic<1>(world);
-//    result+=test_kinetic<2>(world);
-//    result+=test_kinetic<3>(world);
-//    result+=test_kinetic<4>(world);
+    result+=test_kinetic<2>(world);
+    result+=test_kinetic<3>(world);
+    result+=test_kinetic<4>(world);
 
     result+=test_coulomb(world);
     result+=test_exchange(world);
+    result+=test_nuclear(world);
+    result+=test_SCF(world);
+    result+=test_nemo(world);
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");
