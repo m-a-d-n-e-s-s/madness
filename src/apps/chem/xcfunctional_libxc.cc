@@ -232,11 +232,12 @@ XCfunctional::XCfunctional() : hf_coeff(0.0) {
     rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
 }
 
-void XCfunctional::initialize(const std::string& input_line, bool polarized, World& world)
-{
+void XCfunctional::initialize(const std::string& input_line, bool polarized,
+        World& world, const bool verbose) {
     rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
 
-    double factor;
+    bool printit=verbose and (world.rank()==0);
+    double factor;      // weight factor for the various functionals
     spin_polarized = polarized;
 
 
@@ -247,10 +248,10 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized, Wor
     hf_coeff = 0.0;
     funcs.clear();
 
-    if (world.rank() == 0) std::printf("Construct XC Functional from LIBXC Library");
+    if (printit) print("Construct XC Functional from LIBXC Library");
     while (line >> name) {
         std::transform(name.begin(), name.end(), name.begin(), ::toupper);
-        if (world.rank() == 0) std::cout <<"!NAME! "<< name << "pol " << polarized << std::endl;
+        if (printit) print("!NAME! ",name,"polarized ",polarized);
         if (name == "LDA") {
             //if (! (line >> factor)) factor = 1.0;
             funcs.push_back(std::make_pair(lookup_func("LDA_X",polarized),1.0));
@@ -283,9 +284,10 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized, Wor
         if (funcs[i].first->info->family == XC_FAMILY_HYB_GGA) nderiv = std::max(nderiv,1);
         if (funcs[i].first->info->family == XC_FAMILY_MGGA)nderiv = std::max(nderiv,2);
  //       if (funcs[i].first->info->family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
-        if (world.rank() == 0) std::cout << "factor " << i << "  " << funcs[i].second << std::endl;
+        if (printit) print("HF exchange factor ",i,funcs[i].second);
     }
-    if (world.rank() == 0) std::cout << "rhotol " << rhotol << " rhomin " << rhomin << " factor " <<factor << " hfcoeff " <<hf_coeff <<  " input line was " << input_line << std::endl;
+    if (printit) print("rhotol ",rhotol," rhomin ",rhomin," factor ",factor,
+            " hfcoeff ",hf_coeff,"\n input line was ",input_line);
 }
 
 XCfunctional::~XCfunctional() {

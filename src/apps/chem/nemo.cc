@@ -362,16 +362,31 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 
 	const double J = inner(world, psi, Jpsi).sum();
 	const double K = inner(world, psi, Kpsi).sum();
-	const double nucrep = calc->molecule.nuclear_repulsion_energy();
 
-	const double energy = ke + J - K + pe + nucrep;
+	int ispin=0;
+	double exc=0.0;
+	if (calc->xc.is_dft()) {
+	    XCOperator xcoperator(world,this,ispin);
+	    exc=xcoperator.compute_xc_energy();
+	}
+
+	const double nucrep = calc->molecule.nuclear_repulsion_energy();
+	double energy = ke + J + pe + nucrep;
+	if (is_dft()) energy+=exc;
+	else energy-=K;
+
 	if (world.rank() == 0) {
 		printf("\n              kinetic %16.8f\n", ke);
 		printf("   nuclear attraction %16.8f\n", pe);
 		printf("              coulomb %16.8f\n", J);
-		printf(" exchange-correlation %16.8f\n", -K);
+        if (is_dft()) {
+            printf(" exchange-correlation %16.8f\n", exc);
+        } else {
+            printf("             exchange %16.8f\n", -K);
+        }
 		printf("    nuclear-repulsion %16.8f\n", nucrep);
 		printf("                total %16.8f\n\n", energy);
+        printf("  buggy if hybrid functionals are used..");
 	}
 	return energy;
 }
@@ -438,12 +453,27 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 	END_TIMER(world, "compute Jnemo");
 
 	// compute the exchange potential
-	START_TIMER(world);
     int ispin=0;
-    Exchange K=Exchange(world,this,ispin).same(true).small_memory(false);
-    Knemo=K(nemo);
-	truncate(world, Knemo);
-	END_TIMER(world, "compute Knemo");
+    Knemo=zero_functions_compressed<double,3>(world,nemo.size());
+    if (calc->xc.hf_exchange_coefficient()>0.0) {
+        START_TIMER(world);
+        Exchange K=Exchange(world,this,ispin).same(true).small_memory(false);
+        Knemo=K(nemo);
+        scale(world,Knemo,calc->xc.hf_exchange_coefficient());
+        truncate(world, Knemo);
+        END_TIMER(world, "compute Knemo");
+    }
+
+	// compute the exchange-correlation potential
+    if (calc->xc.is_dft()) {
+        START_TIMER(world);
+        XCOperator xcoperator(world,this,ispin);
+        double exc=0.0;
+        if (ispin==0) exc=xcoperator.compute_xc_energy();
+        print("exc",exc);
+        Knemo=sub(world,Knemo,xcoperator(nemo));   // minus times minus gives plus
+        END_TIMER(world, "compute XCnemo");
+    }
 
 	START_TIMER(world);
 	const real_function_3d& Vnuc = calc->potentialmanager->vnuclear();
@@ -493,6 +523,13 @@ real_function_3d Nemo::get_coulomb_potential(const vecfuncT& psi) const {
 	MADNESS_ASSERT(calc->param.spin_restricted);
 	functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
 	return calc->make_coulomb_potential(rho);
+}
+
+real_function_3d Nemo::make_density(World& world, const Tensor<double>& occ,
+        const vecfuncT& nemo) const {
+    real_function_3d rho=calc->make_density(world,occ,nemo);
+    rho=(rho*R_square).truncate();;
+    return rho;
 }
 
 /// rotate the KAIN subspace (cf. SCF.cc)

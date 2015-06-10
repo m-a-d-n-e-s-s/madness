@@ -867,7 +867,7 @@ public:
     }
 
 	vecfuncT apply_potential(World & world, const tensorT & occ,
-			const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
+			const vecfuncT & amo,
 			const functionT & vlocal, double & exc, double & enl, int ispin);
 
     tensorT derivatives(World & world, const functionT& rho) const;

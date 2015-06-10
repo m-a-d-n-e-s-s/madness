@@ -216,7 +216,7 @@ namespace madness {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
         
-        xc.initialize(param.xc_data, !param.spin_restricted, world);
+        xc.initialize(param.xc_data, !param.spin_restricted, world,true);
         //xc.plot();
         
         FunctionDefaults < 3 > ::set_cubic_cell(-param.L, param.L);
@@ -1239,56 +1239,21 @@ namespace madness {
     }
     
     vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
-                                  const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
+                                  const vecfuncT & amo,
                                   const functionT & vlocal, double & exc, double & enl, int ispin) {
         PROFILE_MEMBER_FUNC(SCF);
         functionT vloc = vlocal;
         exc = 0.0;
         enl = 0.0;
-        
-        //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
+
+        // compute the local DFT potential for the MOs
         if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
-            
-            if (ispin == 0)
-                exc = make_dft_energy(world, vf, ispin);
             START_TIMER(world);
-            
-            // V_rho
-            vloc = vloc + make_dft_potential(world, vf, ispin, 0);
-            
-#ifdef MADNESS_HAS_LIBXC
-            //
-            // What = 0 : Vrho
-            // What = 1 : Vsigma_ss
-            // What = 2 : Vsigma_ab
-            //
-            // close shell
-            //       v_xc = vrho - Div( 2Vsig_aa * Grad(rho_a))
-            // open shell
-            //       v_xc = vrho - Div( 2*Vsig_aa*Grad(rho)+ Vsig_ab*Grad(rho_b) + Vsig_ba*Grad(rho_a) + 2*Vsig_bb*Grad(rho_b))
-            //
-            
-            if (xc.is_gga() ) {
-                // get Vsigma_aa (if it is the case and Vsigma_bb)
-                functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
-                functionT vsigab;
-		if (xc.is_spin_polarized() && param.nbeta != 0)// V_ab
-                    vsigab = make_dft_potential(world, vf, ispin, 2); //.truncate();
-                
-                for (int axis=0; axis<3; axis++) {
-                    functionT gradn = delrho[axis + 3*ispin];
-                    functionT ddel = vsigaa*gradn;
-	            if (xc.is_spin_polarized() && param.nbeta != 0) {
-                        functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
-                        ddel = ddel + vsab;
-                    }
-                    ddel.scale(xc.is_spin_polarized() ? 2.0 : 4.0);
-                    Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-                    functionT vxc2=D(ddel);
-                    vloc = vloc - vxc2;//.truncate();
-                }
-            } //is gga
-#endif
+
+            XCOperator xcoperator(world,this,ispin);
+            if (ispin==0) exc=xcoperator.compute_xc_energy();
+            vloc+=xcoperator.make_xc_potential();
+
             END_TIMER(world, "DFT potential");
         }
         
@@ -2302,65 +2267,12 @@ namespace madness {
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
-            
-            vecfuncT vf, delrho;
-            if (xc.is_dft()) {
-                START_TIMER(world);
-                arho.reconstruct();
-                if (param.nbeta != 0 && xc.is_spin_polarized())
-                    brho.reconstruct();
-                // brho.reconstruct();
-                
-                vf.push_back(arho);
-                
-                if (xc.is_spin_polarized())
-                    vf.push_back(brho);
-                
-                if (xc.is_gga()) {
-                    
-                    for (int axis = 0; axis < 3; ++axis)
-                        delrho.push_back((*gradop[axis])(arho, false)); // delrho
-			if (xc.is_spin_polarized() && param.nbeta != 0)
-                        for (int axis = 0; axis < 3; ++axis)
-                            delrho.push_back((*gradop[axis])(brho, false));
-                    
-                    world.gop.fence(); // NECESSARY
-                    
-                    vf.push_back(
-                                 delrho[0] * delrho[0] + delrho[1] * delrho[1]
-                                 + delrho[2] * delrho[2]);     // sigma_aa
-                    
-		    if (xc.is_spin_polarized() && param.nbeta != 0)
-                        vf.push_back(
-                                     delrho[0] * delrho[3] + delrho[1] * delrho[4]
-                                     + delrho[2] * delrho[5]); // sigma_ab
-	            if (xc.is_spin_polarized() && param.nbeta != 0)
-                        vf.push_back(
-                                     delrho[3] * delrho[3] + delrho[4] * delrho[4]
-                                     + delrho[5] * delrho[5]); // sigma_bb
-                    
-                    world.gop.fence(); // NECESSARY
-                }
-                if (vf.size()) {
-                    reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-                }
-            
-                // this is a nasty hack, just adding something so that make_libxc_args receives 5 arguments
-                // has to be here or refine_to_common_level(vf) above hangs, but we really need a better solution for when nbeta=0
-		if (xc.is_spin_polarized() && param.nbeta == 0 && xc.is_gga()){
-		        vf.push_back(brho);
-			vf.push_back(brho);}
-                END_TIMER(world, "DFT setup");
-            }
 
             double enla = 0.0, enlb = 0.0;
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal,
-                                             exca, enla, 0);
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, vlocal, exca, enla, 0);
             vecfuncT Vpsib;
             if (!param.spin_restricted && param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb,
-                                        enlb, 1);
+                Vpsib = apply_potential(world, bocc, bmo, vlocal, excb, enlb, 1);
             }
             else if (param.nbeta != 0) {
                 enlb = enla;

@@ -175,6 +175,10 @@ public:
         return calc->molecule;
     }
 
+    /// make the density (alpha or beta)
+    real_function_3d make_density(World& world, const Tensor<double>& occ,
+            const vecfuncT& nemo) const;
+
 private:
 
 	/// the world
@@ -241,6 +245,8 @@ private:
 
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;
+
+	bool is_dft() const {return calc->xc.is_dft();}
 
 	/// localize the nemo orbitals
 	vecfuncT localize(const vecfuncT& nemo) const;

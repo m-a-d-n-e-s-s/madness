@@ -46,6 +46,7 @@ namespace madness {
 class SCF;
 class Nemo;
 class NuclearCorrelationFactor;
+class XCfunctional;
 
 typedef std::vector<real_function_3d> vecfuncT;
 
@@ -274,6 +275,85 @@ private:
 };
 
 
+/// operator class for the handling of DFT exchange-correlation functionals
+class XCOperator {
+public:
+
+    /// default ctor without information about the XC functional
+    XCOperator(World& world) : world(world), nbeta(0), ispin(0) {}
+
+    /// ctor with an SCF calculation, will initialize the necessary intermediates
+    XCOperator(World& world, const SCF* scf, int ispin=0);
+
+    /// ctor with a Nemo calculation, will initialize the necessary intermediates
+    XCOperator(World& world, const Nemo* nemo, int ispin=0);
+
+    /// ctor with an SCF calculation, will initialize the necessary intermediates
+    XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
+            const real_function_3d& brho, int ispin=0);
+
+    /// apply the xc potential on a set of orbitals
+    vecfuncT operator()(const vecfuncT& vket) const;
+
+    /// compute the xc energy using the precomputed intermediates vf and delrho
+    double compute_xc_energy() const;
+
+    /// return the local xc potential using the precomputed intermediates vf and delrho
+    real_function_3d make_xc_potential() const;
+
+    /// return the xc kernel (currently not working, will throw)
+    real_function_3d make_xc_kernel() const;
+
+private:
+
+    /// the world
+    World& world;
+
+    /// interface to the actual XC functionals
+    std::shared_ptr<XCfunctional> xc;
+
+    /// number of beta orbitals
+    int nbeta;
+
+    /// the XC functionals depend on the spin of the orbitals they act on
+    int ispin;
+
+    /// Items in the vector argument \c vf are interpreted as follows
+    ///  - Spin un-polarized
+    ///    - \c vf[0] = \f$ \rho_{\alpha} \f$
+    ///    - \c vf[1] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
+    ///  - Spin polarized
+    ///    - \c vf[0] = \f$ \rho_{\alpha} \f$
+    ///    - \c vf[1] = \f$ \rho_{\beta} \f$
+    ///    - \c vf[2] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
+    ///    - \c vf[3] = \f$ \sigma_{\alpha\beta}  = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$ (GGA only)
+    ///    - \c vf[4] = \f$ \sigma_{\beta\beta}   = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$ (GGA only)
+    vecfuncT vf;
+
+    /// Items in the vector argument \c delrho are interpreted as follows
+    ///  - Spin un-polarized
+    ///    - \c delrho[0]   \f \partial/{\partial x} \rho_{\alpha}
+    ///    - \c delrho[1]   \f \partial/{\partial y} \rho_{\alpha}
+    ///    - \c delrho[2]   \f \partial/{\partial z} \rho_{\alpha}
+    ///  - Spin polarized
+    ///    - \c delrho[3]   \f \partial/{\partial x} \rho_{\beta}
+    ///    - \c delrho[4]   \f \partial/{\partial y} \rho_{\beta}
+    ///    - \c delrho[5]   \f \partial/{\partial z} \rho_{\beta}
+    vecfuncT delrho;
+
+    /// compute the intermediates for the XC functionals
+
+    /// @param[in]  arho    density of the alpha orbitals
+    /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
+    /// @param[out] vf      vector of intermediates as described above
+    /// @param[out] delrho  vector of derivatives of the densities as described above
+    /// @return vector of functions vf
+    void prep_xc_args(const real_function_3d& arho,
+            const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const;
+
+    /// check if the intermediates are initialized
+    bool is_initialized() const;
+};
 
 
 class Fock {
