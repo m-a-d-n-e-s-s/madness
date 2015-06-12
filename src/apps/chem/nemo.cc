@@ -52,9 +52,9 @@ void START_TIMER(World& world) {
     world.gop.fence(); ttt=wall_time(); sss=cpu_time();
 }
 
-void END_TIMER(World& world, const char* msg) {
+void END_TIMER(World& world, const std::string msg) {
     ttt=wall_time()-ttt; sss=cpu_time()-sss;
-    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), sss, ttt);
 }
 
 
@@ -472,19 +472,23 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
         if (ispin==0) exc=xcoperator.compute_xc_energy();
         print("exc",exc);
         Knemo=sub(world,Knemo,xcoperator(nemo));   // minus times minus gives plus
-        END_TIMER(world, "compute XCnemo");
+        truncate(world,Knemo);
+        double size=get_size(world,Knemo);
+        END_TIMER(world, "compute XCnemo "+stringify(size));
     }
 
 	START_TIMER(world);
 	const real_function_3d& Vnuc = calc->potentialmanager->vnuclear();
 	Vnemo = mul(world, Vnuc, nemo);
 	truncate(world, Vnemo);
-	END_TIMER(world, "compute Vnemo");
+    double size=get_size(world,Vnemo);
+	END_TIMER(world, "compute Vnemo "+stringify(size));
 
 	START_TIMER(world);
 	Nuclear Unuc(world,this->nuclear_correlation);
 	Unemo=Unuc(nemo);
-	END_TIMER(world, "compute Unemo");
+    size=get_size(world,Unemo);
+	END_TIMER(world, "compute Unemo "+stringify(size));
 
 }
 

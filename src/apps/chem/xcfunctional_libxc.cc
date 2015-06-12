@@ -212,6 +212,15 @@ static int lookup_name(const std::string& name) {
     return -1;
 }
 
+static std::string lookup_id(const int id) {
+    const xc_name_map* map = madness::map;
+    while (map->id > 0) {
+        if (id == map->id) return map->name;
+        map++;
+    }
+    return "Functional not found";
+}
+
 
 static xc_func_type* make_func(int id, bool polarized) {
     xc_func_type* func = new xc_func_type;
@@ -248,32 +257,40 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
     hf_coeff = 0.0;
     funcs.clear();
 
-    if (printit) print("Construct XC Functional from LIBXC Library");
+    if (printit) print("\nConstruct XC Functional from LIBXC Library");
     while (line >> name) {
         std::transform(name.begin(), name.end(), name.begin(), ::toupper);
-        if (printit) print("!NAME! ",name,"polarized ",polarized);
         if (name == "LDA") {
-            //if (! (line >> factor)) factor = 1.0;
+            // Slater exchange and VWN-5 correlation
             funcs.push_back(std::make_pair(lookup_func("LDA_X",polarized),1.0));
             funcs.push_back(std::make_pair(lookup_func("LDA_C_VWN",polarized),1.0));
-        }
-        else if (name == "RHOMIN") {
+        } else if ((name == "BP86") or (name=="BP")) {
+            // Becke exchange, VWN-3 correlation, Perdew correction
+            funcs.push_back(std::make_pair(lookup_func("GGA_X_B88",polarized),1.0));
+            funcs.push_back(std::make_pair(lookup_func("GGA_C_P86",polarized),1.0));
+        } else if (name == "PBE") {
+            funcs.push_back(std::make_pair(lookup_func("GGA_X_PBE",polarized),1.0));
+            funcs.push_back(std::make_pair(lookup_func("GGA_C_PBE",polarized),1.0));
+        } else if (name == "PBE0") {
+            funcs.push_back(std::make_pair(lookup_func("GGA_X_PBE",polarized),0.75));
+            funcs.push_back(std::make_pair(lookup_func("GGA_C_PBE",polarized),1.0));
+            hf_coeff=0.25;
+        } else if (name == "B3LYP") {
+            // VWN-3 correlation
+            funcs.push_back(std::make_pair(lookup_func("HYB_GGA_XC_B3LYP",polarized),1.0));
+            hf_coeff=0.2;
+        } else if (name == "RHOMIN") {
             line >> rhomin;
-        }
-        else if (name == "RHOTOL") {
+        } else if (name == "RHOTOL") {
             line >> rhotol;
-        }
-        else if (name == "SIGMIN") {
+        } else if (name == "SIGMIN") {
             line >> sigmin;
-        }
-        else if (name == "SIGTOL") {
+        } else if (name == "SIGTOL") {
             line >> sigtol;
-        }
-        else if (name == "HF" || name == "HF_X") {
+        } else if (name == "HF" || name == "HF_X") {
             if (! (line >> factor)) factor = 1.0;
             hf_coeff = factor;
-        }
-        else {
+        } else {
             if (! (line >> factor)) factor = 1.0;
             funcs.push_back(std::make_pair(lookup_func(name,polarized), factor));
         }
@@ -284,10 +301,21 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         if (funcs[i].first->info->family == XC_FAMILY_HYB_GGA) nderiv = std::max(nderiv,1);
         if (funcs[i].first->info->family == XC_FAMILY_MGGA)nderiv = std::max(nderiv,2);
  //       if (funcs[i].first->info->family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
-        if (printit) print("HF exchange factor ",i,funcs[i].second);
     }
-    if (printit) print("rhotol ",rhotol," rhomin ",rhomin," factor ",factor,
-            " hfcoeff ",hf_coeff,"\n input line was ",input_line);
+    if (printit) {
+        print("\ninput line was:",input_line);
+        for (std::size_t i=0; i<funcs.size(); ++i) {
+            int id=funcs[i].first->info->number;
+//            print(lookup_id(id),"with weight:",funcs[i].second);
+            printf(" %4.3f %s \n",funcs[i].second,lookup_id(id).c_str());
+        }
+        if (hf_coeff>0.0) printf(" %4.3f %s \n",hf_coeff,"HF exchange");
+        print("\nscreening parameters");
+        print(" rhotol, rhomin",rhotol,rhomin);
+        print(" sigtol, sigmin",sigtol,sigmin);
+        if (printit) print("polarized ",polarized,"\n");
+
+    }
 }
 
 XCfunctional::~XCfunctional() {
@@ -455,109 +483,110 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const
-{
+madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t,
+        const int ispin, const int what) const {
     madness::Tensor<double> rho, sigma;
     make_libxc_args(t, rho, sigma);
 
     const int np = t[0].size();
 
     int nvsig, nvrho;
-//rho[2*np],  sigma[3*np] 
-// vxc[2*np], vsigma[3*np]
+    //rho[2*np],  sigma[3*np]
+    // vxc[2*np], vsigma[3*np]
     if (spin_polarized) {
-    	nvrho = 2;
-    	nvsig = 3;
+        nvrho = 2;
+        nvsig = 3;
     }
     else {
-    	nvrho = 1;
-    	nvsig = 1;
+        nvrho = 1;
+        nvsig = 1;
     }
 
     madness::Tensor<double> result(3L, t[0].dims());
     double * restrict res = result.ptr();
     const double * restrict dens = rho.ptr();
-	for (long j=0; j<np; j++) 
-    			res[j] = 0.0;
+    for (long j=0; j<np; j++)
+        res[j] = 0.0;
 
     for (unsigned int i=0; i<funcs.size(); i++) {
-       	switch(funcs[i].first->info->family) {
-       	     case XC_FAMILY_LDA:
-                {
-                madness::Tensor<double> vrho(nvrho*np);
-    		double * restrict vr = vrho.ptr();
-    		xc_lda_vxc(funcs[i].first, np, dens, vr);
-             	if (what < 2) {
-                     for (long j=0; j<np; j++) {
-    			     	res[j] += vr[nvrho*j+ispin]*funcs[i].second;
-    			     	if (isnan_x(res[j])) throw "ouch";
-    			     }
-    			}
-    		}
+        switch(funcs[i].first->info->family) {
+        case XC_FAMILY_LDA:
+        {
+            madness::Tensor<double> vrho(nvrho*np);
+            double * restrict vr = vrho.ptr();
+            xc_lda_vxc(funcs[i].first, np, dens, vr);
+            if (what < 2) {
+                for (long j=0; j<np; j++) {
+                    res[j] += vr[nvrho*j+ispin]*funcs[i].second;
+                    if (isnan_x(res[j])) throw "ouch";
+                }
+            }
+        }
 
-		break;
+        break;
 
-             case XC_FAMILY_GGA:
-    		{
-//void xc_gga_vxc(xc_func_type *p, int np, double *rho, double *sigma, double double *vrho, double *vsigma)
-    	        madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
-                double * restrict vr = vrho.ptr();
-                double * restrict vs = vsig.ptr();
-    	        const double * restrict sig = sigma.ptr();
-	    	xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
-	    	if (spin_polarized) {
-        		if (what == 0) {
-        			for (long j=0; j<np; j++) {
-    					res[j] += vr[nvrho*j+ispin] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 1) {
-    			// Vaa
-    				for (long j=0; j<np; j++) {
-    					res[j] += vs[nvsig*j + 2*ispin] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 2) {
-    			// Vab
-    				for (long j=0; j<np; j++) {
-    					res[j] += vs[nvsig*j + 1] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else {
-    				throw "ouch";
-    			}
-    		}
-    		else {
-    			if (what == 0) {
-    				for (long j=0; j<np; j++) {
-    					res[j] += vr[j]*funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 1) {
-    			// Vaa
-    				for (long j=0; j<np; j++) {
-    					res[j] += vs[j]*funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else {
-    				throw "ouch";
-    			}
-    		}
-   		}
-    		break;
-     	case XC_FAMILY_HYB_GGA:
-    	{
-   		throw "ouch XC_FAMILY_HYB_GGA vxc disabled" ;
-    	}
-    	break;
-    	default:
-    	throw "UGH!";
-    	}
+        case XC_FAMILY_HYB_GGA:
+        case XC_FAMILY_GGA:
+        {
+            //void xc_gga_vxc(xc_func_type *p, int np, double *rho, double *sigma, double double *vrho, double *vsigma)
+            madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
+            double * restrict vr = vrho.ptr();
+            double * restrict vs = vsig.ptr();
+            const double * restrict sig = sigma.ptr();
+            xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
+            if (spin_polarized) {
+                if (what == 0) {
+                    for (long j=0; j<np; j++) {
+                        res[j] += vr[nvrho*j+ispin] * funcs[i].second;
+                        if (isnan_x(res[j])) throw "ouch";
+                    }
+                }
+                else if (what == 1) {
+                    // Vaa
+                    for (long j=0; j<np; j++) {
+                        res[j] += vs[nvsig*j + 2*ispin] * funcs[i].second;
+                        if (isnan_x(res[j])) throw "ouch";
+                    }
+                }
+                else if (what == 2) {
+                    // Vab
+                    for (long j=0; j<np; j++) {
+                        res[j] += vs[nvsig*j + 1] * funcs[i].second;
+                        if (isnan_x(res[j])) throw "ouch";
+                    }
+                }
+                else {
+                    throw "ouch";
+                }
+            }
+            else {
+                if (what == 0) {
+                    for (long j=0; j<np; j++) {
+                        res[j] += vr[j]*funcs[i].second;
+                        if (isnan_x(res[j])) throw "ouch";
+                    }
+                }
+                else if (what == 1) {
+                    // Vaa
+                    for (long j=0; j<np; j++) {
+                        res[j] += vs[j]*funcs[i].second;
+                        if (isnan_x(res[j])) throw "ouch";
+                    }
+                }
+                else {
+                    throw "ouch";
+                }
+            }
+        }
+        break;
+//        case XC_FAMILY_HYB_GGA:
+//        {
+//            throw "ouch XC_FAMILY_HYB_GGA vxc disabled" ;
+//        }
+//        break;
+        default:
+            throw "UGH!";
+        }
     }
     return result;
 }
