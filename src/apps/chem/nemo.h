@@ -186,6 +186,20 @@ private:
 
 	std::shared_ptr<SCF> calc;
 
+	mutable double ttt, sss;
+	void START_TIMER(World& world) const {
+	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+	}
+
+	void END_TIMER(World& world, const std::string msg) const {
+	    END_TIMER(world,msg.c_str());
+	}
+
+	void END_TIMER(World& world, const char* msg) const {
+	    ttt=wall_time()-ttt; sss=cpu_time()-sss;
+	    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+	}
+
 public:
 
 	/// the nuclear correlation factor
