@@ -182,8 +182,10 @@ vecfuncT Nuclear::operator()(const vecfuncT& vket) const {
     // apply the derivative operator on each function for each dimension
     for (std::size_t i=0; i<NDIM; ++i) {
         std::vector<Function<double,NDIM> > dv=apply(world, *(gradop[i]), vket, true);
+        truncate(world,dv);
         real_function_3d U1=ncf->U1(i%3);
         std::vector<Function<double,NDIM> > U1dv=mul(world,U1,dv);
+        truncate(world,U1dv);
         vresult=add(world,vresult,U1dv);
     }
 
