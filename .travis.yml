@@ -4,15 +4,36 @@ compiler:
   - gcc
   - clang
 env:
-  - GCC_VERSION=4.7
-  - GCC_VERSION=4.8
-  - GCC_VERSION=4.9
+  - GCC_VERSION=4.7 RUN_TEST=buildonly
+  - GCC_VERSION=4.7 RUN_TEST=world
+  - GCC_VERSION=4.7 RUN_TEST=tensor
+  - GCC_VERSION=4.7 RUN_TEST=mra
+  - GCC_VERSION=4.8 RUN_TEST=buildonly
+  - GCC_VERSION=4.8 RUN_TEST=world
+  - GCC_VERSION=4.8 RUN_TEST=tensor
+  - GCC_VERSION=4.8 RUN_TEST=mra
+  - GCC_VERSION=4.9 RUN_TEST=buildonly
+  - GCC_VERSION=4.9 RUN_TEST=world
+  - GCC_VERSION=4.9 RUN_TEST=tensor
+  - GCC_VERSION=4.9 RUN_TEST=mra
 matrix:
   exclude:
     - compiler: clang
-      env: GCC_VERSION=4.7
+      env: GCC_VERSION=4.7 RUN_TEST=buildonly
     - compiler: clang
-      env: GCC_VERSION=4.9
+      env: GCC_VERSION=4.7 RUN_TEST=world
+    - compiler: clang
+      env: GCC_VERSION=4.7 RUN_TEST=tensor
+    - compiler: clang
+      env: GCC_VERSION=4.7 RUN_TEST=mra
+    - compiler: clang
+      env: GCC_VERSION=4.9 RUN_TEST=buildonly
+    - compiler: clang
+      env: GCC_VERSION=4.9 RUN_TEST=world
+    - compiler: clang
+      env: GCC_VERSION=4.9 RUN_TEST=tensor
+    - compiler: clang
+      env: GCC_VERSION=4.9 RUN_TEST=mra
 #notifications:
 #  email:
 #    recipients:

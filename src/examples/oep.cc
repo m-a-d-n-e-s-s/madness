@@ -27,12 +27,9 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 
 /*!
   \file examples/oep.cc
@@ -338,7 +335,7 @@ void plot(const real_function_3d& f, const std::string filename, const long k) {
 
     for (int i=0; i<k; ++i) {
     	double z=0.001+double(i)*0.01;
-    	coord_3d r=vec(0.0,0.0,z);
+    	coord_3d r{0.0,0.0,z};
     	double c=f(r);
     	fprintf(file,"%lf %lf\n",z,c);
     }
@@ -350,7 +347,7 @@ void plot_radial_density(const real_function_3d& rho, const std::string filename
 	FILE* file = fopen(filename.c_str(),"w");
 	for (int i=0; i<grid.dim(0); ++i) {
 		double r=grid(i);
-		coord_3d xyz=vec(0.0,0.0,r);
+		coord_3d xyz{0.0,0.0,r};
 		double c=r*r*rho(xyz);
 		fprintf(file,"%lf %lf\n",r,c);
 	}
@@ -362,7 +359,7 @@ void plot_radial_function(const real_function_3d& rho, const std::string filenam
 	FILE* file = fopen(filename.c_str(),"w");
 	for (int i=0; i<grid.dim(0); ++i) {
 		double r=grid(i);
-		coord_3d xyz=vec(0.0,0.0,r);
+		coord_3d xyz{0.0,0.0,r};
 		double c=rho(xyz);
 		fprintf(file,"%lf %lf\n",r,c);
 	}

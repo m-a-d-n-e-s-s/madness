@@ -30,7 +30,7 @@
 */
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/world_object.h>
 #include <madness/world/worlddc.h>
 
@@ -74,9 +74,8 @@ class B {
     long b;
 public:
     B(long b=0) : b(b) {};
-    Void set(long value) {
+    void set(long value) {
         b=value;
-        return None;
     };
     long get() const {
         return b;
@@ -109,9 +108,8 @@ private:
 public:
     TTT() : state(0) {};
 
-    static Void fred() {
+    static void fred() {
         print("Oops-a-daisy!");
-        return None;
     };
 
     static int mary() {
@@ -519,16 +517,14 @@ void test8(World& world) {
     archive::VectorOutputArchive arout(v);
     arout & &world;
 
-    World* p = NULL;
+    World* p = nullptr;
     archive::VectorInputArchive arin(v);
     arin & p;
     MADNESS_ASSERT(p==&world);
     if (world.rank() == 0) print("test8 (serializing world pointer) OK");
 }
 
-Void null_func() {
-    return None;
-}
+void null_func() { }
 
 int val_func() {
     return 1;
@@ -601,17 +597,14 @@ private:
 public:
     Mary() : val(0) {}
 
-    Void inc() const {
+    void inc() const {
         val++;
-        return None;
-    };
-    Void add(int i) {
+    }
+    void add(int i) {
         val += i;
-        return None;
-    };
-    Void fred(int i, double j) {
+    }
+    void fred(int i, double j) {
         val += i*(int)j;
-        return None;
     };
 
     string cary0() {
@@ -656,10 +649,9 @@ public:
     }
 };
 
-Void pounder(const WorldContainer<int,Mary>& m, int ind) {
+void pounder(const WorldContainer<int,Mary>& m, int ind) {
     for (int i=0; i<1000; ++i)
         m.send(ind, &Mary::inc);
-    return None;
 }
 
 void test10(World& world) {
@@ -813,13 +805,13 @@ struct Node {
         dcT& d;
         double value;
         do_random_insert(dcT& d, double value)
-                : d(d), value(value) {};
+                : d(d), value(value) {}
         void operator()(const Key& key) const {
             d.task(key,&Node::random_insert,d, key, value);
-        };
+        }
     };
 
-    Void random_insert(const dcT& constd, const Key& keyin, double valin) {
+    void random_insert(const dcT& constd, const Key& keyin, double valin) {
         dcT& d = const_cast<dcT&>(constd);
         //print("inserting",keyin,valin);
         key = keyin;
@@ -831,8 +823,7 @@ struct Node {
             double ran = world.drand();
             key.foreach_child(do_random_insert(d,value*ran));
         }
-        return None;
-    };
+    }
 
     template <class Archive>
     void serialize(Archive& ar) {
@@ -841,16 +832,15 @@ struct Node {
 
     bool is_leaf() const {
         return isleaf;
-    };
+    }
 
     double get() const {
         return value;
-    };
+    }
 
-    Void set(double v) {
+    void set(double v) {
         value = v;
-        return None;
-    };
+    }
 };
 
 ostream& operator<<(ostream& s, const Node& node) {

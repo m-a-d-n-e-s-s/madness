@@ -1,0 +1,95 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2015 Stony Brook University
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+*/
+
+/**
+ \file futures.dox
+ \brief Overview of futures.
+ \addtogroup futures
+
+\todo Badly in need of a general description. There's a lot of jargon in the implementation's documentation -- a future is \em assigned, etc. -- that should be clarified. Just sayin'. There's some text in a comment (not doxygen) near the beginning of the \c Future class. Maybe move it here? Hell, I went ahead an copied (cut, really) it here, right here, just for you.
+\code
+  // This future object can exist in one of three states:
+  //   - f == NULL && value == NULL : Default initialized state
+  //        This state occurs when the future is constructed via
+  //        Future::default_initializer().
+  //   - f != NULL && value == NULL : FutureImpl object will hold the T object
+  //        This state occurs when a future is constructed without a value,
+  //        or from a remote reference.
+  //   - f == NULL $$ value != NULL : T object is held in buffer
+  //        This state occurs when a future is constructed with a value
+  //        or from an input archive.
+\endcode
+
+\par Gotchas
+
+\todo This is taken from some crude remarks that used to be in worldfut.h (now future.h). It needs to be edited/verified before this goes live. It could probably use a better section heading than "Gotchas", too...
+
+A common misconception is that STL containers initialize their
+contents by invoking the default constructor of each item in
+the container (since we are told that the items must be default
+constructable). But this is \em incorrect. The items are initialized
+by invoking the copy constructor for each element on a \em single
+object made with the default constructor. For futures this
+is a very bad problem. For instance,
+\code
+   vector< Future<double> > v(3);
+\endcode
+is equivalent to the following with an array of three elements
+\code
+   Future<double> junk;
+   Future<double> v[3] = {junk,junk,junk};
+\endcode
+Since the Future copy constructor is by necessity shallow, each
+element of \c v ends up referring to the future implementation that
+underlies \c junk. When you assign to an element of \c v, you'll also
+be assigning to junk. But since futures are single assignment
+variables, you can only do that once. Hence, when you assign a
+second element of \c v you'll get a runtime exception.
+
+The fix (other than using arrays) is to initialize STL vectors and
+other containers from the special element returned by
+\c Future<T>::default_initializer(), which if passed into the copy
+constructor will cause it to behave just like the default contructor.
+Thus, the following code is what you actually need to use an STL
+vector of futures
+\code
+   vector< Future<double> > v(3, Future<double>::default_initializer());
+\endcode
+which is laborious. Instead, we provide the factory function
+\code
+   template <typename T>
+   vector< Future<T> > future_vector_factory(std::size_t n);
+\endcode
+which enables you to write
+\code
+   vector< Future<double> > v = future_vector_factory<double>(3);
+\endcode
+*/

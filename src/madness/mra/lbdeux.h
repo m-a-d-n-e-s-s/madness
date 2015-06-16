@@ -147,14 +147,13 @@ namespace madness {
         }
 
         /// Accumulates cost into this node
-        Void add(double cost, bool got_kids) {
+        void add(double cost, bool got_kids) {
             total_cost = (my_cost += cost);
             gotkids = gotkids || got_kids;
-            return None;
         }
 
         /// Accumulates cost up the tree from children
-        Void sum(const treeT& tree, const keyT& child, double value) {
+        void sum(const treeT& tree, const keyT& child, double value) {
             child_cost[index(child)] = value;
             ++nsummed;
             if (nsummed == nchild) {
@@ -165,7 +164,6 @@ namespace madness {
                     const_cast<treeT&>(tree).task(parent, &nodeT::sum, tree, key, double(total_cost));
                 }
             }
-            return None;
         }
 
 
@@ -173,7 +171,7 @@ namespace madness {
 
         /// Cannot actually erase this node from the container since the send() handler
         /// is holding an accessor to it.
-        Void deleter(const treeT& tree, const keyT& key) {
+        void deleter(const treeT& tree, const keyT& key) {
             total_cost = my_cost = -1.0;
             if (has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
@@ -181,11 +179,10 @@ namespace madness {
                     const_cast<treeT&>(tree).task(child, &nodeT::deleter, tree, child);
                 }
             }
-            return None;
         }
 
         /// Descends tree deleting all except internal nodes and sub-tree parents
-        Void partition(const treeT& tree, const keyT& key, double avg) {
+        void partition(const treeT& tree, const keyT& key, double avg) {
             if (has_children()) {
                 // Sort children in descending cost order
                 keyT keys[nchild];
@@ -216,7 +213,6 @@ namespace madness {
                     }
                 }
             }
-            return None;
         }
 
         template <typename Archive>

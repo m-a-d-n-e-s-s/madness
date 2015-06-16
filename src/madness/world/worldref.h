@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 
@@ -248,8 +245,8 @@ namespace madness {
             template <typename T>
             static WorldPtr<implT> register_ptr_(World& w, const std::shared_ptr<T>& p) {
                 // Check for a null pointer
-                if(p.get() == NULL)
-                    return WorldPtr<implT>(w, NULL);
+                if(p.get() == nullptr)
+                    return WorldPtr<implT>(w, nullptr);
 
                 pimpl_mapT::accessor acc;
                 // Pointer is local and non-null
@@ -525,7 +522,7 @@ namespace madness {
         /// \throw MadnessException If the pointer is uninitialized
         /// \throw MadnessException If the pointer is not local
         referenceT operator*() const {
-            MADNESS_ASSERT(pointer_ != NULL);
+            MADNESS_ASSERT(pointer_ != nullptr);
             MADNESS_ASSERT(counter_.is_local());
             return *pointer_;
         }
@@ -536,7 +533,7 @@ namespace madness {
         /// \throw MadnessException If the pointer is uninitialized
         /// \throw MadnessException If the pointer is not local
         pointerT operator->() const {
-            MADNESS_ASSERT(pointer_ != NULL);
+            MADNESS_ASSERT(pointer_ != nullptr);
             MADNESS_ASSERT(counter_.is_local());
             return pointer_;
         }

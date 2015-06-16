@@ -1,0 +1,176 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2015 Stony Brook University
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+*/
+
+/**
+  \file gstart_basics.dox
+  \brief MADNESS basics.
+  \addtogroup gstart_basics
+  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
+
+Documentation and instructions exist in several places:
+- the <a href="http://www.doxygen.org/">`doxygen`</a> generated documentation (see also the `doc` directory), and
+- the <a href="\website">project wiki</a>.
+.
+For basic computing with MADNESS functions, the only header file that you should need to include is `<mra/mra.h>`. Advanced programs may need a few others. You should include the directory in the include path to avoid possible conflicts with similarly named files from other packages. In the following documentation `trunk` will denote the top-level directory of the MADNESS distribution.
+\todo Is it `mra.h` or should we be using `madness.h`?
+
+\par From math to C++ to numerical computation
+
+This section shows you how to use MADNESS and evaluate a simple mathematical expression, notably this one dimensional integral.
+\f[
+\int_{0}^{10} \sin (x) \mathit{dx} = 1 - \cos(10) \doteq 1.8390715
+\f]
+The corresponding code is in `trunk/src/examples/sininteg.cc`, and we will go through this first example in gory detail. The main steps will be
+-# translating the function from math to C++ to be called by MADNESS
+-# initializing the MADNESS parallel runtime
+-# initializing the MADNESS numerical environment
+-# generating a numerical representation from the C++ function
+-# computing the integral
+-# printing the result
+-# terminating the MADNESS parallel runtime
+-# compiling your program
+-# running your program
+.
+
+\par Step 1 -- translating from Math to C++
+
+MADNESS generates a numerical representation of a function (\f$ f(x) \f$) by projecting into its internal, orthonormal basis, \f$\{\phi _{li}^{n}(x)\}\f$, see \ref mra for more detail. This involves computing many integrals of the form 
+\f[
+s_{li}^{n} = \int \phi _{li}^{n}(x) f(x) \mathit{dx}
+\f]
+using adaptive numerical quadrature. Thus, MADNESS has to be able to evaluate your function at an arbitrary point, and so you must provide it with a C++ implementation of your function using a standard interface. MADNESS passes to your function the coordinates (an array of the appropriate dimension) and you return the value. For simple functions, a C++ function suffices whereas more complicated stuff might require a C++ class (see a subsequent example).
+
+For this example, we wish to evaluate the function \f$\sin(x)\f$ where \f$x\f$ is a 1-D coordinate. The example code looks like
+\code
+  double myf(const coord_1d& r) {
+    return std::sin(r[0]);
+  }
+\endcode
+If your function were in 3-D it would be passed a `coord_3d` that would have 3 elements (0, 1, and 2) that you might interpret as \f$(x, y, z)\f$ or \f$(r, \theta, \phi)\f$ or something else as defined by your problem. A very useful
+capability of both Maple and Mathematica is to generate C from expressions or functions, though the resulting code often requires a little cleanup. 
+
+\attention 
+- If your function contains discontinuities (in value or derivatives), noise, or singularities, special care is needed. This is discussed in more detail below, but the simple rule of thumb is your function should be accurate nearly to machine precision even if you only want to compute to much lower precision with MADNESS.
+
+- MADNESS will call your function from multiple threads in order to use multi-core processors efficiently, so the code for your function should be thread safe. It should not modify static (Fortran keyword `save`) or global (Fortran common blocks or modules) data; reading from such locations is fine. Note that this constraint applies to all code invoked by your function, including math, BLAS, and linear algebra libraries and for some machines/compilers it requires special options be used (the MADNESS makefiles look after this). If you suspect a thread problem, try running with the environment variable `MAD_NUM_THREADS` set to one.
+
+- If you are using the AMD math library ACML, do not set the environmental variable `OMP_NUM_THREADS` (or set it to one).
+.
+
+
+\par Steps 2, 3 and 7 -- initializing and finalizing the MADNESS environment
+
+MADNESS has its own parallel runtime environment that is fully compatible with the Message Passing Interface (MPI). Just as for MPI, the MADNESS runtime must be initialized at the start and cleaned up at the end. Here is the simplest
+parallel program using MADNESS.
+\code 
+  #include <madness/mra/mra.h>
+  using namespace madness;
+  
+  int main(int argc, char** argv) {
+      initialize(argc, argv);
+      World world(SafeMPI::COMM_WORLD);
+      startup(world, argc, argv);
+    
+      // Do something useful here!
+      
+      finalize();
+      return 0;
+  }
+\endcode
+The `World` object in MADNESS is similar to an MPI communicator (each `World` is associated with a communicator) but contains all of the information necessary to provide the rich functionality of the MADNESS runtime. Instead of calling `%MPI::Init()` and `%MPI::Finalize()`, a MADNESS program invokes `madness::initialize()` and `madness::finalize()` (call `madness::initialized()` to check that MADNESS had been initialized). The routine `madness::startup()` initializes the MADNESS numerical environment.
+
+\par Step 4 -- generating a numerical representation
+
+We implemented the C++ function above (`myf`) and the domain is specified by the problem as \f$x\in [0,10]\f$. Presently, all functions of a given dimension being used by a program are assumed to have the same, default domain. We will use the default precision (1e-6 in the L2-norm -- most errors in MADNESS use this norm).
+\code
+  FunctionDefaults<1>::set_cubic_cell(0, 10);
+  
+  real_function_1d f = real_factory_1d(world).f(myf);
+\endcode
+The first line sets the domain and the second makes a numerical representation of your function. The slightly unusual form of the constructor for a MADNESS function is called the "named parameter idiom." The first version of MADNESS was written in Python, which provides named parameters that can have default values. To override the default for some parameter only required specifying its name. However, C++ does not provide named parameters and the closest we can get to them is the above idiom. To make a `Function` what you are actually doing is making a `FunctionFactory` associated with a `World`, overriding defaults inside the factory, and then constructing a function from the factory. The default function is zero, so to make a zero 1D function we would just type
+\code
+  real_function_1d zero = real_factory_1d(world);
+\endcode
+
+In the second line, to generate a MADNESS `Function` from your C++ function we override the default with the desired function pointer.
+
+\par Step 5 -- computing the integral
+
+The integral of a function over the whole domain is computed with the `trace()`
+function, c.f.,
+\code
+  double integral = f.trace();
+\endcode
+
+\attention This is a collective parallel operation. If you are running in parallel, the numerical representation of your function is distributed across multiple processors, so adding up the result requires collective communication (the equivalent of MPI's `All_reduce()`). Therefore, every process associated with the `World` must execute this statement; otherwise your program will hang if it is running in parallel using MPI.
+
+
+\par Step 6 -- printing the result
+
+If you only want to run sequentially, just print your data in any of the myriad ways possible using C++. However, if you ever want to run in parallel across multiple nodes using MPI you should from the outset get in the habit of writing the following instead
+\code
+  if (world.rank() == 0) print("The result is ", integral);
+\endcode
+The critical ingredient is the if-test that ensures only one process actually does the printing (in this case process zero, but that choice is arbitrary). If you don't do this, your output will be unexpectedly verbose. The templated routine `print()` is just a convenience wrapper around `cout <<` that automatically inserts spaces between elements and a newline at the end.
+
+\attention We assigned the result of `f.trace()` to a variable because `trace` is a collective, but printing is serial. Anecdotally, at least 90\% of hanging parallel programs are due to getting this wrong.
+
+\par The complete program
+
+Your complete program, `trunk/src/apps/sininteg.cc`, looks like this
+\code
+    #include <madness/mra/mra.h>
+    using namespace madness;
+    
+    double myf(const coord_1d& r) {
+        return std::sin(r[0]);
+    }
+    
+    int main(int argc, char** argv) {
+        initialize(argc, argv);
+        World world(SafeMPI::COMM_WORLD);
+        startup(world,argc,argv);
+        FunctionDefaults<1>::set_cubic_cell(0,10);
+        
+        real_function_1d f = real_factory_1d(world).f(myf);
+        
+        doub  le integral = f.trace();
+        
+        if (world.rank() == 0) print("The result is", integral);
+
+        finalize();
+        return 0;
+    }
+\endcode
+Yes, this is rather verbose for integrating \f$\sin(x)\f$ in 1D, but you should already be able to see that most of it is boiler plate. You could be integrating a much more complicated function in 4-D with only little more personal effort (the computer might have to work a lot harder though).
+
+Previous: \ref getting_started; Next: \ref gstart_comp_run
+*/

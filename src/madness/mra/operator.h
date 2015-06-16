@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_OPERATOR_H__INCLUDED
 #define MADNESS_MRA_OPERATOR_H__INCLUDED
 
@@ -38,6 +37,7 @@
 
 /// \ingroup function
 
+#include <type_traits>
 #include <limits.h>
 #include <madness/mra/adquad.h>
 #include <madness/tensor/mtxmq.h>
@@ -52,7 +52,6 @@
 #include <madness/mra/gfit.h>
 
 namespace madness {
-
 
     /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
     /// Why is this here?? Why don't you just use ConvolutionND in SeparatedConvolutionData??
@@ -558,7 +557,7 @@ namespace madness {
         ///       ... WITHOUT FACTOR INCLUDED
         /// compute for 1 term, all dim, 1 disp, essentially for SeparatedConvolutionInternal
         double munorm2_ns(Level n, const ConvolutionData1D<Q>* ops[]) const {
-            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            //PROFILE_MEMBER_FUNC(SeparatedConvolution);
             
             double prodR=1.0, prodT=1.0;
             for (std::size_t d=0; d<NDIM; ++d) {
@@ -698,7 +697,7 @@ namespace madness {
                 Translation sx=source.translation()[d];                          // source translation
                 Translation tx=source.translation()[d]+disp.translation()[d];    // target translation
 
-                Key<2> op_key(n,Vector<Translation,2>(vec(sx,tx)));
+                Key<2> op_key(n,Vector<Translation,2>{sx,tx});
                 op.ops[d] = ops[mu].getop(d)->mod_nonstandard(op_key);
             }
 
@@ -1007,11 +1006,13 @@ namespace madness {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
 
             for (int mu=0; mu<rank; ++mu) {
+                double c = std::pow(sqrt(expnt(mu)/madness::constants::pi),static_cast<int>(NDIM)); // Normalization coeff
+                ops[mu].setfac(coeff(mu)/c);
                 for (std::size_t d=0; d<NDIM; ++d) {
-                  Q c = pow(coeff[mu],1.0/NDIM);
-                  std::shared_ptr<GaussianConvolution1D<Q> >
-                      gcptr(new GaussianConvolution1D<Q>(k, c*width[d], expnt(mu)*width[d]*width[d],
-                              0, isperiodicsum, args[d]));
+                  double c2 = sqrt(expnt[mu]*width[d]*width[d]/madness::constants::pi);
+                  std::shared_ptr<GaussianConvolution1D<double_complex> >
+                      gcptr(new GaussianConvolution1D<double_complex>(k, c2, 
+                            expnt(mu)*width[d]*width[d], 0, isperiodicsum, args[d]));
                   ops[mu].setop(d,gcptr);
                 }
             }
@@ -1056,7 +1057,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename disable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        typename std::enable_if<FDIM!=NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
             Key<NDIM> source;
             Key<FDIM-NDIM> dummykey;
@@ -1073,7 +1074,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename enable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        typename std::enable_if<FDIM==NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
         	return key;
         }
@@ -1573,6 +1574,32 @@ namespace madness {
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
 
+    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
+    static
+    inline
+    SeparatedConvolution<double_complex,3> PeriodicBSHOperator3D(World& world,
+                                                         Vector<double,3> args,
+                                                         double mu,
+                                                         double lo,
+                                                         double eps,
+                                                         const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                         int k=FunctionDefaults<3>::get_k())
+
+    {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+        return SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k);
+    }
+
     /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
     static inline SeparatedConvolution<double,3> SlaterF12Operator(World& world,
     		double mu, double lo, double eps,
@@ -1676,7 +1703,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void load(const Archive& ar, const SeparatedConvolution<T,NDIM>*& ptr) {
-                WorldObject< SeparatedConvolution<T,NDIM> >* p = NULL;
+                WorldObject< SeparatedConvolution<T,NDIM> >* p = nullptr;
                 ar & p;
                 ptr = static_cast< const SeparatedConvolution<T,NDIM>* >(p);
             }

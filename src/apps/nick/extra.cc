@@ -1,5 +1,5 @@
 #include "extra.h"
-#include <madness/world/parar.h>
+#include <madness/world/parallel_archive.h>
 //using namespace madness;
 std::ostream& operator<<(std::ostream& s, const InputParameters& p) {
     s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F << " " << p.omega <<
@@ -218,7 +218,7 @@ void compare1F1(World& world, double cutoff) {
         }
     }
     //make functor
-    const madness::Vector<double,3> kvec = vec(0.0, 0.0, 1.0);
+    const madness::Vector<double,3> kvec {0.0, 0.0, 1.0};
     PhiK phi_k =  PhiK(Z, kvec, cutoff);
     complexd ONE(1.0,0.0);
     complexd I(0.0,1.0);
@@ -412,7 +412,7 @@ void printBasis(World& world, double Z, double cutoff) {
         }
     }
     //make functions
-    Vector<double,3> kvec = vec(0.0, 0.0, k);
+    Vector<double,3> kvec {0.0, 0.0, k};
     PhiK phi_k(Z, kvec, cutoff);
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
     //    for(double r=0; r<sqrt(3)*phi_k.domain*phi_k.k; r+=1.0 ) {
@@ -425,7 +425,7 @@ void printBasis(World& world, double Z, double cutoff) {
         sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
-        Vector<double,3> rvec = vec(r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH);
+        Vector<double,3> rvec {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
         output = phi_k(rvec);
         PRINT(r);
         std::cout.precision(7);

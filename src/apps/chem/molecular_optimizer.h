@@ -409,6 +409,21 @@ public:
         hessian=inner(projector_ext,inner(hessian,projector_ext),0,0);
     }
 
+    /// compute the center of mass
+    Tensor<double> center_of_mass(const Molecule& molecule) const {
+        Tensor<double> com(3);
+        double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
+        for (int i=0; i<molecule.natom(); ++i) {
+            xx += molecule.get_atom(i).x*molecule.get_atom(i).mass;
+            yy += molecule.get_atom(i).y*molecule.get_atom(i).mass;
+            zz += molecule.get_atom(i).z*molecule.get_atom(i).mass;
+            qq += molecule.get_atom(i).mass;
+        }
+        com(0l)=xx/qq;
+        com(1l)=yy/qq;
+        com(2l)=zz/qq;
+        return com;
+    }
 
 
 };

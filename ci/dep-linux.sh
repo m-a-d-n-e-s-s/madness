@@ -35,4 +35,4 @@ autoreconf -i
 make -j2
 sudo make install
 
-sudo apt-get install -qq -y cmake libopenblas-dev liblapack-dev libgoogle-perftools-dev mpich2 libtbb-dev
+sudo apt-get install -qq -y cmake libblas-dev liblapack-dev libgoogle-perftools-dev mpich2 libtbb-dev

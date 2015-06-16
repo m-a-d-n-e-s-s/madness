@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <utility>
 #include <madness/mra/key.h>
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
@@ -59,8 +59,8 @@ protected:
     /// \f[
     /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
     ///   \begin{array}{ll}
-    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}} \\
-    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\
+    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}} 
+    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} 
     ///     x                                      & x_{\mathrm{max}} < x
     ///   \end{array}
     /// \right.
@@ -117,8 +117,8 @@ private:
 
     void munge2(double& rho, double& sigma) const {
         // original thresholding
-        if (rho < rhotol) rho=rhomin;
-        if (rho < rhotol || sigma < sigtol) sigma=sigmin;
+        // if (rho < rhotol) rho=rhomin;
+        // if (rho < rhotol || sigma < sigtol) sigma=sigmin;
 
         // no thresholding at all, just check to ensure rho and sigma don't go negative
         /*if (rho < 0.0 || sigma < 0.0){
@@ -127,6 +127,12 @@ private:
         }*/
 
         // new 'ratio' threshold' - still need to ensure rho and sigma don't go negative
+        if (rho < 0.0 || 
+            sigma < 0.0 || 
+            (rho<1e-2 && (sigma/(rho*rho)>10000.0))) {
+                rho = rhomin;
+                sigma = sigmin;
+        }
         /*if ( (0.5 * log10(sigma) - 2) > log10(rho) || rho < 0.0 || sigma < 0.0){
            //std::cout << "rho,sig " << rho << " " << sigma << " " << rhomin << " " << sigmin << std::endl;
            rho=rhomin;
@@ -138,13 +144,15 @@ private:
     }
 
     void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) const {
-        if (rhoa < rhotol || rhob < rhotol || sab < sigtol) sab=sigmin; // ??????????
+        // if (rhoa < rhotol || rhob < rhotol || sab < sigtol) sab=sigmin; // ??????????
+        // if (rhoa < rhotol) rhoa=rhomin;
+        // if (rhoa < rhotol || saa < sigtol) saa=sigmin;
+        // if (rhob < rhotol) rhob=rhomin;
+        // if (rhob < rhotol || sbb < sigtol) sbb=sigmin;
 
-        if (rhoa < rhotol) rhoa=rhomin;
-        if (rhoa < rhotol || saa < sigtol) saa=sigmin;
-
-        if (rhob < rhotol) rhob=rhomin;
-        if (rhob < rhotol || sbb < sigtol) sbb=sigmin;
+        munge2(rhoa, saa);
+        munge2(rhob, sbb);
+        if (rhoa==rhomin || rhob==rhomin) sab=sigmin;
     }
 
 public:
@@ -155,7 +163,8 @@ public:
 
     /// @param[in] input_line User input line (without beginning XC keyword)
     /// @param[in] polarized Boolean flag indicating if the calculation is spin-polarized
-    void initialize(const std::string& input_line, bool polarized, World& world);
+    void initialize(const std::string& input_line, bool polarized, World& world,
+            const bool verbose=false);
 
     /// Destructor
     ~XCfunctional();
@@ -291,8 +300,8 @@ struct xc_functional {
         : xc(&xc), ispin(ispin)
     {}
 
-    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
-    {
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         return xc->exc(t,ispin);
     }
@@ -308,8 +317,8 @@ struct xc_potential {
         : xc(&xc), what(what), ispin(ispin)
     {}
 
-    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
-    {
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         madness::Tensor<double> r = xc->vxc(t, ispin, what);
         return r;
@@ -326,8 +335,8 @@ struct xc_kernel {
         : xc(&xc), what(what), ispin(ispin)
     {}
 
-    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
-    {
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         madness::Tensor<double> r = xc->fxc(t, ispin, what);
         return r;

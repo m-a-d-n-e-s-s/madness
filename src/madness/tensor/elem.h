@@ -33,7 +33,7 @@
 
 #ifdef MADNESS_HAS_ELEMENTAL
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/tensor/distributed_matrix.h>

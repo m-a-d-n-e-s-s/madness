@@ -29,7 +29,7 @@
   fax:   865-572-0680
 */
 
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 #include <cmath>
 #include <cstdio>
 using namespace madness;

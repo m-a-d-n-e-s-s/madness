@@ -65,6 +65,14 @@ namespace madness {
     namespace Hash_private {
     }
 
+    /// Runtime details on the configuration and version of MADNESS.
+    namespace info {
+    }
+
+    /// \todo Description needed
+    namespace profiling {
+    }
+
     /// \todo Description needed
     namespace tr1 {
     }

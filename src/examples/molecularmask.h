@@ -117,7 +117,7 @@ public:
                     const double x = atomic_coords[i][0] + atomic_radii[i]*xx;
                     const double y = atomic_coords[i][1] + atomic_radii[i]*yy;
                     const double z = atomic_coords[i][2] + atomic_radii[i]*zz;
-                    v.push_back(madness::vec(x,y,z));
+                    v.push_back({x,y,z});
                 }
                 if (t==0 || t==npt) break;
             }

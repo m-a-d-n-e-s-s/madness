@@ -61,9 +61,6 @@ using namespace madness;
 
 namespace madness {
 
-    extern void START_TIMER(World& world);
-    extern void END_TIMER(World& world, const char* msg);
-
 	/// do some load-balancing
 
 	/// @param[in]	f		the function we want to distribute evenly
@@ -78,9 +75,9 @@ namespace madness {
 	}
 
 	/// ctor
-	MP2::MP2(World& world, const std::string& input) :
-			world(world), param(input.c_str()), corrfac(world), correlation_energy(
-					0.0), coords_sum(-1.0), Q12(world) {
+	MP2::MP2(World& world, const std::string& input) : world(world),
+	        param(input.c_str()), corrfac(world), correlation_energy(0.0),
+	        coords_sum(-1.0), Q12(world), ttt(0.0), sss(0.0) {
 
 		{
 			std::shared_ptr<SCF> calc = std::shared_ptr<SCF>(

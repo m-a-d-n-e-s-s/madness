@@ -1,19 +1,22 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
+# specify the git commit version in the info functions
+GITREV="GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
 
 lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/madness/world
-thisinclude_HEADERS = archive.h print.h worldam.h future.h worldmpi.h \
-	world_task_queue.h array.h worldgop.h world_object.h bufar.h nodefaults.h \
-	enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
-	dqueue.h parar.h vecar.h madness_exception.h worldmem.h worldser.h \
-	worldthread.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
-	worldhashmap.h worldrange.h atomicint.h posixmem.h worldptr.h \
-	deferred_cleanup.h parallel_runtime.h world.h uniqueid.h worldprofile.h \
-	timers.h binfsar.h mpiar.h textfsar.h worlddc.h mem_func_wrapper.h \
-	scopedptr.h taskfn.h group.h dist_cache.h \
-	dist_keys.h type_traits.h boost_checked_delete_bits.h \
+thisinclude_HEADERS = info.h archive.h print.h worldam.h future.h worldmpi.h \
+	world_task_queue.h array_addons.h stack.h vector.h worldgop.h \
+	world_object.h buffer_archive.h \
+	nodefaults.h worlddep.h worldhash.h worldref.h worldtypes.h \
+	dqueue.h parallel_archive.h vector_archive.h madness_exception.h \
+	worldmem.h thread.h worldrmi.h safempi.h worldpapi.h worldmutex.h \
+	print_seq.h worldhashmap.h worldrange.h atomicint.h posixmem.h worldptr.h \
+	deferred_cleanup.h MADworld.h world.h uniqueid.h worldprofile.h \
+	timers.h binary_fstream_archive.h mpi_archive.h text_fstream_archive.h \
+	worlddc.h mem_func_wrapper.h taskfn.h group.h dist_cache.h \
+	distributed_id.h type_traits.h \
 	function_traits.h stubmpi.h bgq_atomics.h binsorter.h
 
 
@@ -24,7 +27,7 @@ TESTS = test_prof.mpi test_ar.mpi test_hashdc.mpi test_hello.mpi test_atomicint.
 
 
 if MADNESS_HAS_GOOGLE_TEST
-TESTS += test_array.mpi test_worldptr.mpi test_worldref.mpi
+TESTS += test_vector.mpi test_worldptr.mpi test_worldref.mpi
 XFAIL_TESTS =  test_googletest.mpi
 endif
 
@@ -91,10 +94,10 @@ test_worldprofile_mpi_LDADD = libMADworld.a
 
 if MADNESS_HAS_GOOGLE_TEST
 
-test_array_mpi_SOURCES = test_array.cc
-test_array_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
-test_array_mpi_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
-test_array_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
+test_vector_mpi_SOURCES = test_vector.cc
+test_vector_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_vector_mpi_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_vector_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 
 #test_googletest_mpi_SOURCES = test_googletest.cc
 #test_googletest_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
@@ -114,12 +117,13 @@ test_worldref_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
 endif
 
 libMADworld_a_SOURCES = madness_exception.cc world.cc timers.cc future.cc \
-	redirectio.cc archive_type_names.cc \
+	redirectio.cc archive_type_names.cc info.cc \
 	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
-	worldref.cc worldam.cc worldprofile.cc worldthread.cc world_task_queue.cc \
-	worldgop.cc deferred_cleanup.cc worldmutex.cc binfsar.cc textfsar.cc \
-    lookup3.c worldmpi.cc group.cc \
+	worldref.cc worldam.cc worldprofile.cc thread.cc world_task_queue.cc \
+	worldgop.cc deferred_cleanup.cc worldmutex.cc binary_fstream_archive.cc \
+	text_fstream_archive.cc lookup3.c worldmpi.cc group.cc \
 	$(thisinclude_HEADERS)
+libMADworld_a_CPPFLAGS = $(AM_CPPFLAGS) -D$(GITREV)
 
 
 libraries:	$(lib_LIBRARIES)

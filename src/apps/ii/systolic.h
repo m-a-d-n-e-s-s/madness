@@ -31,7 +31,7 @@
 
 #ifndef MADNESS_SYSTOLIC_H
 #define MADNESS_SYSTOLIC_H
-#include <madness/world/parallel_runtime.h>
+#include <madness/world/MADworld.h>
 
 #include <utility>
 #include <madness/tensor/tensor.h>

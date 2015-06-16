@@ -30,7 +30,7 @@
 */
 
 #include <madness/world/world.h>
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <madness/world/worldhash.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/worldrange.h>

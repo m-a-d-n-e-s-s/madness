@@ -58,6 +58,7 @@
 
 namespace madness {
 
+class PNO;
 
 // this class needs to be moved to vmra.h !!
 
@@ -138,7 +139,7 @@ struct allocator {
 /// The Nemo class
 class Nemo: public MolecularOptimizationTargetInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
-
+	friend class PNO;
 public:
 
 	/// ctor
@@ -191,10 +192,14 @@ public:
 	/// return a reference to the molecule
 	Molecule& molecule() {return calc->molecule;}
 
-    /// return a const reference to the molecule
-	const Molecule& molecule() const {
+    /// return a reference to the molecule
+    Molecule& molecule() const {
         return calc->molecule;
     }
+
+    /// make the density (alpha or beta)
+    real_function_3d make_density(World& world, const Tensor<double>& occ,
+            const vecfuncT& nemo) const;
 
 private:
 
@@ -203,6 +208,20 @@ private:
 
 	std::shared_ptr<SCF> calc;
 
+	mutable double ttt, sss;
+	void START_TIMER(World& world) const {
+	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+	}
+
+	void END_TIMER(World& world, const std::string msg) const {
+	    END_TIMER(world,msg.c_str());
+	}
+
+	void END_TIMER(World& world, const char* msg) const {
+	    ttt=wall_time()-ttt; sss=cpu_time()-sss;
+	    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+	}
+
 public:
 
 	/// the nuclear correlation factor
@@ -210,6 +229,12 @@ public:
 
 	/// the nuclear correlation factor
 	real_function_3d R;
+
+	/// the inverse nuclear correlation factor
+	real_function_3d R_inverse;
+
+    /// the square of the nuclear correlation factor
+    real_function_3d R_square;
 
 private:
 
@@ -256,6 +281,8 @@ private:
 
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;
+
+	bool is_dft() const {return calc->xc.is_dft();}
 
 	/// localize the nemo orbitals
 	vecfuncT localize(const vecfuncT& nemo) const;

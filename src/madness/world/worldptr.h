@@ -94,7 +94,7 @@ namespace madness {
             ///     set, then -2.
             /// \note -2 is returned so it is not equal to the null value of -1.
             ProcessID local_rank() const {
-                return (world_ != NULL ? world_->rank() : -2);
+                return (world_ != nullptr ? world_->rank() : -2);
             }
 
         public:
@@ -112,10 +112,10 @@ namespace madness {
             /// set to -1.
             /// \todo Would it be worth adding a static constant \c ProcessID equal to -1 to signify an unowned pointer?
             WorldPtr() :
-                world_(NULL),
+                world_(nullptr),
                 worldid_(0),
                 rank_(-1),
-                pointer_(NULL)
+                pointer_(nullptr)
             { }
 
 
@@ -203,7 +203,7 @@ namespace madness {
 
             /// \return True if the pointer has a valid owner; false otherwise.
             bool has_owner() const {
-                return (rank_ != -1) && (world_ != NULL);
+                return (rank_ != -1) && (world_ != nullptr);
             }
 
 
@@ -230,7 +230,7 @@ namespace madness {
             ///     address, or if the pointer is \c NULL.
             reference operator*() const {
                 // It is not safe to access a NULL pointer with this operator.
-                MADNESS_ASSERT(pointer_ != NULL);
+                MADNESS_ASSERT(pointer_ != nullptr);
                 // It is not safe to access this pointer remotely.
                 MADNESS_ASSERT(is_local());
                 return *pointer_;
@@ -245,7 +245,7 @@ namespace madness {
             ///     address, or if the pointer is \c NULL.
             pointer operator->() const {
                 // It is not safe to access a NULL pointer with this operator.
-                MADNESS_ASSERT(pointer_ != NULL);
+                MADNESS_ASSERT(pointer_ != nullptr);
                 // It is not safe to access this pointer remotely.
                 MADNESS_ASSERT(is_local());
                 return pointer_;
@@ -316,7 +316,7 @@ namespace madness {
             /// \throw MadnessException When the pointer world has not been set
             ///     (i.e. when \c has_owner()==false).
             World& get_world() const {
-                MADNESS_ASSERT(world_ != NULL);
+                MADNESS_ASSERT(world_ != nullptr);
                 return *world_;
             }
 
@@ -361,7 +361,7 @@ namespace madness {
             template <class Archive>
             inline void load_internal_(const Archive& ar) {
                 ar & worldid_ & rank_ & archive::wrap_opaque(pointer_);
-                world_ = (worldid_ != 0 ? World::world_from_id(get_worldid()) : NULL);
+                world_ = (worldid_ != 0 ? World::world_from_id(get_worldid()) : nullptr);
             }
 
             /// Serialize the world pointer.

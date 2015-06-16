@@ -5,28 +5,10 @@
  *      Author: kottmanj
  */
 
-#include "TDA.h"
-
-#include "/usr/include/math.h"
-#include "../../madness/mra/derivative.h"
-#include "../../madness/mra/funcdefaults.h"
-#include "../../madness/mra/funcplot.h"
-#include "../../madness/mra/function_interface.h"
-#include "../../madness/mra/functypedefs.h"
-#include "../../madness/mra/vmra1.h"
-#include "../../madness/tensor/distributed_matrix.h"
-#include "../../madness/tensor/srconf.h"
-#include "../../madness/tensor/tensor.h"
-#include "../../madness/world/archive.h"
-#include "../../madness/world/parar.h"
-#include "../../madness/world/print.h"
-#include "../../madness/world/madness_exception.h"
-#include "../../madness/world/world.h"
-#include "../../madness/world/worldgop.h"
-#include "../../madness/world/timers.h"
-#include "molecule.h"
-#include "nemo.h"
-#include "potentialmanager.h"
+#include <chem/TDA.h>
+#include <madness/mra/mra.h>
+#include <apps/chem/SCFOperators.h>
+#include <chem/nemo.h>
 
 using namespace madness;
 
@@ -1072,7 +1054,9 @@ vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction) const{
 	real_function_3d vlocal = get_coulomb_potential();
 	vecfuncT J = mul(world,vlocal,xfunction.x);
 	truncate(world,J);
-	vecfuncT K = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, xfunction.x);
+//	vecfuncT K = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, xfunction.x);
+	Exchange KOp(world,&get_calc(),0);
+	vecfuncT K=KOp(xfunction.x);
 	truncate(world,K);
 	vecfuncT smooth_V0 = sub(world,J,K);
 	vecfuncT gamma = apply_gamma(xfunction);
@@ -1236,20 +1220,20 @@ vecfuncT TDA::apply_hartree_potential(const vecfuncT &x) const {
 
 vecfuncT TDA::get_V0(const vecfuncT& x) const {
 
-	real_function_3d rho = density_;
-
 	// the local potential V^0 of Eq. (4)
-	real_function_3d coulomb;
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
-							+ get_coulomb_potential();
+	        + get_coulomb_potential();
 
 	// make the potential for V0*xp
 	vecfuncT Vx = mul(world, vlocal, x);
 
 	// and the exchange potential is K xp
 	vecfuncT Kx;
-	if (not dft_)
-		Kx = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, x);
+	if (not dft_) {
+//		Kx = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, x);
+	    Exchange K(world,&get_calc(),0);
+	    Kx=K(x);
+	}
 	if (dft_) {
 		MADNESS_EXCEPTION("NO TDDFT AVAILABLE RIGHT NOW",1);
 		//real_function_3d vxc = xclib_interface_.get_unperturbed_vxc();

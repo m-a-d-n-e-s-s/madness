@@ -1,5 +1,5 @@
 /// \file mainpage.dox
-/// \brief MADNESS 
+/// \brief Top-level page for MADNESS documentation.
 
 /// \defgroup configuration MADNESS installation and configuration
 
@@ -8,7 +8,33 @@
 ///    \defgroup style MADNESS coding style
 ///    \ingroup contribution
 
+/// \defgroup getting_started Getting started with MADNESS
+
+///    \defgroup gstart_basics MADNESS basics
+///    \ingroup getting_started
+
+///    \defgroup gstart_comp_run Compiling and running MADNESS programs
+///    \ingroup getting_started
+
+///    \defgroup gstart_functions MADNESS functions
+///    \ingroup getting_started
+
+///    \defgroup gstart_io Input/Output
+///    \ingroup getting_started
+
+///    \defgroup gstart_load_balance Load and memory balancing
+///    \ingroup getting_started
+
+///    \defgroup gstart_think_madness Thinking in MADNESS
+///    \ingroup getting_started
+
+///    \defgroup gstart_env_var MADNESS environment variables
+///    \ingroup getting_started
+
 /// \defgroup libraries MADNESS libraries
+
+///    \defgroup containers Containers
+///    \ingroup libraries
 
 ///    \defgroup parallel_runtime Parallel programming environment
 ///    \ingroup libraries
@@ -22,7 +48,7 @@
 //       \defgroup mpi Interfaces from World to MPI
 //       \ingroup parallel_runtime
 
-///       \defgroup worldobj Globally addressable objects (WorldObject)
+///       \defgroup world_object Globally addressable objects (WorldObject)
 ///       \ingroup parallel_runtime
 
 //       \defgroup worlddc Distributed containers (WorldContainer)
@@ -31,8 +57,8 @@
 ///       \defgroup futures Futures
 ///       \ingroup parallel_runtime
 
-//       \defgroup serialization Serialization
-//       \ingroup parallel_runtime
+///       \defgroup serialization Serialization
+///       \ingroup parallel_runtime
 
 //       \defgroup hashing Hashing
 //       \ingroup parallel_runtime
@@ -43,11 +69,11 @@
 //          \defgroup mutexes Mutexes
 //          \ingroup threading
 
-//          \defgroup atomics Atomic operations
-//          \ingroup threading
+///          \defgroup atomics Atomic operations
+///          \ingroup threading
 
-//          \defgroup threads Threads
-//          \ingroup threading
+///          \defgroup threads Threads
+///          \ingroup threading
 
 //          \defgroup threadpool Thread pool
 //          \ingroup threading
@@ -58,7 +84,7 @@
 //          \defgroup conhash Concurrent hash table
 //          \ingroup threading
 
-//    \defgroup mra Multiresolution analaysis
+//    \defgroup mra Multiresolution analysis
 //    \ingroup libraries
 
 //       \defgroup funcplot Function plotting routines
@@ -173,5 +199,7 @@ Our deep gratitude to these other projects whose software we employ
   tel:   865-241-3937
   fax:   865-572-0680
 \endverbatim
+
+\todo Turn all of the doxygen modules into a PDF users' manual.
 
 */

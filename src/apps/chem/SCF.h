@@ -703,7 +703,6 @@ public:
     /// MRA projection of the minimal basis set
     vecfuncT ao;
 
-
     std::vector<int> at_to_bf, at_nbf;
 
     /// occupation numbers for alpha and beta orbitals
@@ -766,6 +765,20 @@ public:
         }
     }
 
+    /// getter for the molecular orbitals, alpha spin
+    const vecfuncT& get_amo() const {return amo;}
+
+    /// getter for the molecular orbitals, beta spin
+    const vecfuncT& get_bmo() const {return bmo;}
+
+    /// getter for the occupation numbers, alpha spin
+    const tensorT& get_aocc() const {return aocc;}
+
+    /// getter for the occupation numbers, alpha spin
+    const tensorT& get_bocc() const {return bocc;}
+
+    bool is_spin_restricted() const {return param.spin_restricted;}
+
     void save_mos(World& world);
 
     void load_mos(World& world);
@@ -814,7 +827,6 @@ public:
     distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
     distmatT kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const;
 
-
     vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true);
 
     double core_projector_derivative(World & world, const vecfuncT & mo,
@@ -828,7 +840,7 @@ public:
 
     functionT make_density(World & world, const tensorT & occ, const cvecfuncT & v);
 
-    std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals);
+    std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals) const;
 
     /// apply the HF exchange on a set of orbitals
 
@@ -856,7 +868,7 @@ public:
     }
 
 	vecfuncT apply_potential(World & world, const tensorT & occ,
-			const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
+			const vecfuncT & amo,
 			const functionT & vlocal, double & exc, double & enl, int ispin);
 
     tensorT derivatives(World & world, const functionT& rho) const;

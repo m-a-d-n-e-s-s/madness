@@ -73,7 +73,7 @@ namespace madness {
         /// Capturing the line/function/filename info is best done with the
         /// macros listed below.
         /// \param[in] m The error message.
-        /// \param[in] a String describing the assertion.
+        /// \param[in] a String describing the exception.
         /// \param[in] v Value associated with the exception.
         /// \param[in] l Line number where the exception occurred.
         /// \param[in] fn Function where the exception occurred.

@@ -291,7 +291,7 @@ std::string to_string(T t, std::ios_base & (*f)(std::ios_base&))
 
 string mpreal::to_string(size_t n, int b, mp_rnd_t mode) const
 {
-	char *s, *ns = NULL;	
+	char *s, *ns = nullptr;	
 	size_t slen, nslen;
 	mp_exp_t exp;
 	string out;
@@ -306,10 +306,10 @@ string mpreal::to_string(size_t n, int b, mp_rnd_t mode) const
 	if(mpfr_nan_p(mp))  return "@NaN@";
 
 		
-	s  = mpfr_get_str(NULL,&exp,b,0,mp,mode);
-	ns = mpfr_get_str(NULL,&exp,b,n,mp,mode);
+	s  = mpfr_get_str(nullptr,&exp,b,0,mp,mode);
+	ns = mpfr_get_str(nullptr,&exp,b,n,mp,mode);
 
-	if(s!=NULL && ns!=NULL)
+	if(s!=nullptr && ns!=nullptr)
 	{
 		slen  = strlen(s);
 		nslen = strlen(ns);

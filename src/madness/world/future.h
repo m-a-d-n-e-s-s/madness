@@ -43,7 +43,7 @@
 #include <new>
 #include <madness/world/nodefaults.h>
 #include <madness/world/worlddep.h>
-#include <madness/world/array.h>
+#include <madness/world/stack.h>
 #include <madness/world/worldref.h>
 #include <madness/world/world.h>
 
@@ -333,7 +333,7 @@ namespace madness {
         /// \return Description needed.
         T& get() {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
+            World::await([this] () -> bool { return this->probe(); });
             return *const_cast<T*>(&t);
         }
 
@@ -345,7 +345,7 @@ namespace madness {
         /// \return Description needed.
         const T& get() const {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
+            World::await([this] () -> bool { return this->probe(); });
             return *const_cast<const T*>(&t);
         }
 
@@ -429,7 +429,7 @@ namespace madness {
 
         /// \todo Description needed.
         /// \param[in] blah Description needed.
-        explicit Future(const dddd& blah) : f(), value(NULL) { }
+        explicit Future(const dddd& blah) : f(), value(nullptr) { }
 
     public:
         /// \todo Brief description needed.
@@ -437,7 +437,7 @@ namespace madness {
 
         /// Makes an unassigned future.
         Future() :
-            f(new FutureImpl<T>()), value(NULL)
+            f(new FutureImpl<T>()), value(nullptr)
         { }
 
         /// Makes an assigned future.
@@ -456,7 +456,7 @@ namespace madness {
                 f(remote_ref.is_local() ?
                         remote_ref.get_shared() :
                         std::shared_ptr<FutureImpl<T> >(new FutureImpl<T>(remote_ref))),
-                value(NULL)
+                value(nullptr)
         { }
 
 
@@ -477,7 +477,7 @@ namespace madness {
             f(other.f),
             value(other.value ?
                 new(static_cast<void*>(buffer)) T(* other.value) :
-                NULL)
+                nullptr)
         {
             if(other.is_default_initialized())
                 f.reset(new FutureImpl<T>()); // Other was default constructed so make a new f
@@ -694,13 +694,12 @@ namespace madness {
     }; // class Future
 
 
-    /// A future of a future is forbidden (by private constructor).
+    /// A future of a future is forbidden (by deleted constructor).
 
     /// \tparam T The type of future.
     template <typename T>
     class Future< Future<T> > {
-        /// \todo This can be replaced by `= delete` when C++11 is used.
-        Future() {}
+        Future() = delete;
     };
 
 
@@ -777,71 +776,6 @@ namespace madness {
         }
 
     }; // class Future<void>
-
-
-    /// \brief Specialization of \c FutureImpl<Void> for internal convenience.
-    ///     This does nothing useful!
-    template <>
-    class FutureImpl<Void> {};
-
-
-    /// \brief Specialization of \c Future<Void> for internal convenience.
-    ///     This does nothing useful!
-    template <>
-    class Future<Void> {
-    public:
-        /// \todo Brief description needed.
-        typedef RemoteReference< FutureImpl<Void> > remote_refT;
-
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \param[in,out] world Description needed.
-        /// \return Description needed.
-        remote_refT remote_ref(World& world) const {
-            return remote_refT();
-        }
-
-        Future() {}
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \param[in] ref Description needed.
-        Future(const RemoteReference< FutureImpl<Void> >& ref) {}
-
-
-        /// \brief Set the value from another future (does nothing in this
-        ///     \c Void specialization).
-
-        /// \param[in] f The other future.
-        inline void set(const Future<Void>& f) {}
-
-
-        /// Assignment operator.
-
-        /// \param[in] f The future to be copied.
-        /// \return This.
-        inline Future<Void>& operator=(const Future<Void>& f) {
-            return *this;
-        }
-
-
-        /// Set the value (does nothing in this \c Void specialization),
-
-        /// \param[in] f The other \c Void.
-        inline void set(const Void& f) {}
-
-
-        /// Check if this future is assigned.
-
-        /// \return True is this \c Void specialization.
-        static bool probe() {
-            return true;
-        }
-
-    }; // class Future<Void>
 
 
     /// Specialization of \c Future for a vector of `Future`s.
@@ -1012,33 +946,6 @@ namespace madness {
             { }
         };
 
-        /// Serialize an assigned future (\c Void specialization).
-
-        /// \tparam Archive Archive type.
-        template <class Archive>
-        struct ArchiveStoreImpl< Archive, Future<Void> > {
-
-            /// Store the assigned \c Void future in the archive (do nothing).
-
-            /// \param[in,out] ar The archive.
-            /// \param[in] f The \c Void future.
-            static inline void store(const Archive& ar, const Future<Void>& f) { }
-        };
-
-
-        /// Deserialize a future into an unassigned future (\c Void specialization).
-
-        /// \tparam Archive Archive type.
-        template <class Archive>
-        struct ArchiveLoadImpl< Archive, Future<Void> > {
-
-            /// Read into an unassigned \c Void future.
-
-            /// \param[in,out] ar The archive.
-            /// \param[out] f The \c Void future.
-            static inline void load(const Archive& ar, Future<Void>& f) { }
-        };
-
         /// Serialize a vector of assigned futures.
 
         /// \tparam Archive Archive type.
@@ -1111,14 +1018,6 @@ namespace madness {
     template <>
     std::ostream& operator<<(std::ostream& out, const Future<void>& f);
 
-
-    /// Stream output operator for a \c Void future.
-
-    /// \param[in,out] out The output stream.
-    /// \param[in] f The future.
-    /// \return The output stream.
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<Void>& f);
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
 

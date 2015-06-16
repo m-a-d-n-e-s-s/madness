@@ -29,14 +29,13 @@
   fax:   865-572-0680
 */
 
-
 #ifndef MADNESS_WORLD_WORLDDEP_H__INCLUDED
 #define MADNESS_WORLD_WORLDDEP_H__INCLUDED
 
 /// \file worlddep.h
 /// \brief Defines DependencyInterface and CallbackInterface
 
-#include <madness/world/array.h>
+#include <madness/world/stack.h>
 #include <madness/world/worldmutex.h>
 #include <madness/world/atomicint.h>
 #include <madness/world/world.h>
@@ -84,7 +83,7 @@ namespace madness {
         /// Returns true if ndepend == 0
         bool probe() const {return ndep() == 0;}
 
-        /// Invoked by callbacks to notifiy of dependencies being satisfied
+        /// Invoked by callbacks to notify of dependencies being satisfied
         void notify() {dec();}
 
         /// Registers a callback for when \c ndepend==0 , immediately invoked if \c ndepend==0
