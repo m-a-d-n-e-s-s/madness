@@ -339,7 +339,8 @@ bool XCfunctional::is_meta() const {
 }
 
 bool XCfunctional::is_dft() const {
-    return (is_lda() || is_gga() || is_meta());
+//    return (is_lda() || is_gga() || is_meta());
+    return (funcs.size()>0);
 }
 
 bool XCfunctional::has_fxc() const
