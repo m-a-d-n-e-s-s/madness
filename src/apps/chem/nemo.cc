@@ -239,6 +239,7 @@ double Nemo::solve() {
 		JKVpsi = mul(world, R, add(world, sub(world, Jnemo, Knemo), Vnemo));
 		fock = calc->make_fock_matrix(world, psi, JKVpsi, calc->aocc,
 				ekinetic);
+		JKVpsi.clear();
 
 		// report the off-diagonal fock matrix elements
 		tensorT fock_offdiag=copy(fock);
@@ -247,8 +248,8 @@ double Nemo::solve() {
 		if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
 
 		double oldenergy=energy;
-		energy = compute_energy(psi, mul(world, R, Jnemo),
-				mul(world, R, Knemo));
+//		energy = compute_energy(psi, mul(world, R, Jnemo),
+//				mul(world, R, Knemo));
         energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
 
 		// Diagonalize overlap to get the eigenvalues and eigenvectors
@@ -385,7 +386,7 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
         }
 		printf("    nuclear-repulsion %16.8f\n", nucrep);
 		printf("                total %16.8f\n\n", energy);
-        printf("  buggy if hybrid functionals are used..");
+        printf("  buggy if hybrid functionals are used..\n");
 	}
 	return energy;
 }
@@ -394,7 +395,8 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
 
-    const vecfuncT R2nemo=mul(world,R_square,nemo);
+    vecfuncT R2nemo=mul(world,R_square,nemo);
+    truncate(world,R2nemo);
 
     const tensorT U = inner(world, R2nemo, Unemo);
     const double pe = 2.0 * U.sum();  // closed shell
@@ -410,15 +412,31 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
 
     const double J = inner(world, R2nemo, Jnemo).sum();
     const double K = inner(world, R2nemo, Knemo).sum();
+
+    int ispin=0;
+    double exc=0.0;
+    if (calc->xc.is_dft()) {
+        XCOperator xcoperator(world,this,ispin);
+        exc=xcoperator.compute_xc_energy();
+    }
+
     const double nucrep = calc->molecule.nuclear_repulsion_energy();
 
-    const double energy = ke + J - K + pe + nucrep;
+    double energy = ke + J + pe + nucrep;
+    if (is_dft()) energy+=exc;
+    else energy-=K;
+
     if (world.rank() == 0) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
         printf("              coulomb %16.8f\n", J);
-        printf(" exchange-correlation %16.8f\n", -K);
+        if (is_dft()) {
+            printf(" exchange-correlation %16.8f\n", exc);
+        } else {
+            printf("             exchange %16.8f\n", -K);
+        }
         printf("    nuclear-repulsion %16.8f\n", nucrep);
         printf("   regularized energy %16.8f\n", energy);
+        printf("  buggy if hybrid functionals are used..\n");
     }
     return energy;
 }
