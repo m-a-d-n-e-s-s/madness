@@ -347,7 +347,6 @@ private:
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @param[out] vf      vector of intermediates as described above
     /// @param[out] delrho  vector of derivatives of the densities as described above
-    /// @return vector of functions vf
     void prep_xc_args(const real_function_3d& arho,
             const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const;
 
