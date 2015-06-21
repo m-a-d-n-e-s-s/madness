@@ -638,6 +638,7 @@ struct CalculationParameters {
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
         madness::print("    polynomial order ", k);
+        madness::print("       truncate mode ", FunctionDefaults<3>::get_truncate_mode());
         madness::print("  maximum iterations ", maxiter);
         if (conv_only_dens)
             madness::print(" Convergence criterion is only density delta.");
@@ -867,7 +868,7 @@ public:
     }
 
 	vecfuncT apply_potential(World & world, const tensorT & occ,
-			const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
+			const vecfuncT & amo,
 			const functionT & vlocal, double & exc, double & enl, int ispin);
 
     tensorT derivatives(World & world, const functionT& rho) const;

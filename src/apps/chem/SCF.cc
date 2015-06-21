@@ -38,6 +38,7 @@
 
 
 #include <chem/SCF.h>
+#include <chem/SCFOperators.h>
 
 #include <madness/tensor/elem.h>
 #include <madness/mra/lbdeux.h>
@@ -215,11 +216,12 @@ namespace madness {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
         
-        xc.initialize(param.xc_data, !param.spin_restricted, world);
+        xc.initialize(param.xc_data, !param.spin_restricted, world,true);
         //xc.plot();
         
         FunctionDefaults < 3 > ::set_cubic_cell(-param.L, param.L);
         set_protocol < 3 > (world, param.econv);
+        FunctionDefaults<3>::set_truncate_mode(1);
 
     }
     
@@ -1154,80 +1156,80 @@ namespace madness {
     /// @param[in]  psi     the orbitals in the exchange operator
     /// @param[in]  f       the orbitals |i> that the operator is applied on
     /// @return     a vector of orbitals  K| i>
-    vecfuncT SCF::apply_hf_exchange(World & world, const tensorT & occ,
-                                    const vecfuncT & psi, const vecfuncT & f) const {
-        PROFILE_MEMBER_FUNC(SCF);
-        const bool same = (&psi == &f);
-        int nocc = psi.size();
-        int nf = f.size();
-        double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
-        vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
-        reconstruct(world, psi);
-        norm_tree(world, psi);
-        if (!same) {
-            reconstruct(world, f);
-            norm_tree(world, f);
-        }
-        
-        //         // Smaller memory algorithm ... possible 2x saving using i-j sym
-        //         for(int i=0; i<nocc; ++i){
-        //             if(occ[i] > 0.0){
-        //                 vecfuncT psif = mul_sparse(world, psi[i], f, tol); /// was vtol
-        //                 truncate(world, psif);
-        //                 psif = apply(world, *coulop, psif);
-        //                 truncate(world, psif);
-        //                 psif = mul_sparse(world, psi[i], psif, tol); /// was vtol
-        //                 gaxpy(world, 1.0, Kf, occ[i], psif);
-        //             }
-        //         }
-        
-        // Larger memory algorithm ... use i-j sym if psi==f
-        vecfuncT psif;
-        for (int i = 0; i < nocc; ++i) {
-            int jtop = nf;
-            if (same)
-                jtop = i + 1;
-            for (int j = 0; j < jtop; ++j) {
-                psif.push_back(mul_sparse(psi[i], f[j], tol, false));
-            }
-        }
-        
-        world.gop.fence();
-        truncate(world, psif);
-        psif = apply(world, *coulop, psif);
-        truncate(world, psif, tol);
-        reconstruct(world, psif);
-        norm_tree(world, psif);
-        vecfuncT psipsif = zero_functions<double, 3>(world, nf * nocc);
-        int ij = 0;
-        for (int i = 0; i < nocc; ++i) {
-            int jtop = nf;
-            if (same)
-                jtop = i + 1;
-            for (int j = 0; j < jtop; ++j, ++ij) {
-                psipsif[i * nf + j] = mul_sparse(psif[ij], psi[i], false);
-                if (same && i != j) {
-                    psipsif[j * nf + i] = mul_sparse(psif[ij], psi[j], false);
-                }
-            }
-        }
-        world.gop.fence();
-        psif.clear();
-        world.gop.fence();
-        compress(world, psipsif);
-        for (int i = 0; i < nocc; ++i) {
-            for (int j = 0; j < nf; ++j) {
-                Kf[j].gaxpy(1.0, psipsif[i * nf + j], occ[i], false);
-            }
-        }
-        world.gop.fence();
-        psipsif.clear();
-        world.gop.fence();
-        
-        truncate(world, Kf, tol);
-        return Kf;
-    }
-    
+//    vecfuncT SCF::apply_hf_exchange(World & world, const tensorT & occ,
+//                                    const vecfuncT & psi, const vecfuncT & f) const {
+//        PROFILE_MEMBER_FUNC(SCF);
+//        const bool same = (&psi == &f);
+//        int nocc = psi.size();
+//        int nf = f.size();
+//        double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
+//        vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
+//        reconstruct(world, psi);
+//        norm_tree(world, psi);
+//        if (!same) {
+//            reconstruct(world, f);
+//            norm_tree(world, f);
+//        }
+//
+//        //         // Smaller memory algorithm ... possible 2x saving using i-j sym
+//        //         for(int i=0; i<nocc; ++i){
+//        //             if(occ[i] > 0.0){
+//        //                 vecfuncT psif = mul_sparse(world, psi[i], f, tol); /// was vtol
+//        //                 truncate(world, psif);
+//        //                 psif = apply(world, *coulop, psif);
+//        //                 truncate(world, psif);
+//        //                 psif = mul_sparse(world, psi[i], psif, tol); /// was vtol
+//        //                 gaxpy(world, 1.0, Kf, occ[i], psif);
+//        //             }
+//        //         }
+//
+//        // Larger memory algorithm ... use i-j sym if psi==f
+//        vecfuncT psif;
+//        for (int i = 0; i < nocc; ++i) {
+//            int jtop = nf;
+//            if (same)
+//                jtop = i + 1;
+//            for (int j = 0; j < jtop; ++j) {
+//                psif.push_back(mul_sparse(psi[i], f[j], tol, false));
+//            }
+//        }
+//
+//        world.gop.fence();
+//        truncate(world, psif);
+//        psif = apply(world, *coulop, psif);
+//        truncate(world, psif, tol);
+//        reconstruct(world, psif);
+//        norm_tree(world, psif);
+//        vecfuncT psipsif = zero_functions<double, 3>(world, nf * nocc);
+//        int ij = 0;
+//        for (int i = 0; i < nocc; ++i) {
+//            int jtop = nf;
+//            if (same)
+//                jtop = i + 1;
+//            for (int j = 0; j < jtop; ++j, ++ij) {
+//                psipsif[i * nf + j] = mul_sparse(psif[ij], psi[i], false);
+//                if (same && i != j) {
+//                    psipsif[j * nf + i] = mul_sparse(psif[ij], psi[j], false);
+//                }
+//            }
+//        }
+//        world.gop.fence();
+//        psif.clear();
+//        world.gop.fence();
+//        compress(world, psipsif);
+//        for (int i = 0; i < nocc; ++i) {
+//            for (int j = 0; j < nf; ++j) {
+//                Kf[j].gaxpy(1.0, psipsif[i * nf + j], occ[i], false);
+//            }
+//        }
+//        world.gop.fence();
+//        psipsif.clear();
+//        world.gop.fence();
+//
+//        truncate(world, Kf, tol);
+//        return Kf;
+//    }
+//
     // Used only for initial guess that is always spin-restricted LDA
     functionT SCF::make_lda_potential(World & world, const functionT & arho) {
         PROFILE_MEMBER_FUNC(SCF);
@@ -1238,56 +1240,21 @@ namespace madness {
     }
     
     vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
-                                  const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
+                                  const vecfuncT & amo,
                                   const functionT & vlocal, double & exc, double & enl, int ispin) {
         PROFILE_MEMBER_FUNC(SCF);
         functionT vloc = vlocal;
         exc = 0.0;
         enl = 0.0;
-        
-        //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
+
+        // compute the local DFT potential for the MOs
         if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
-            
-            if (ispin == 0)
-                exc = make_dft_energy(world, vf, ispin);
             START_TIMER(world);
-            
-            // V_rho
-            vloc = vloc + make_dft_potential(world, vf, ispin, 0);
-            
-#ifdef MADNESS_HAS_LIBXC
-            //
-            // What = 0 : Vrho
-            // What = 1 : Vsigma_ss
-            // What = 2 : Vsigma_ab
-            //
-            // close shell
-            //       v_xc = vrho - Div( 2Vsig_aa * Grad(rho_a))
-            // open shell
-            //       v_xc = vrho - Div( 2*Vsig_aa*Grad(rho)+ Vsig_ab*Grad(rho_b) + Vsig_ba*Grad(rho_a) + 2*Vsig_bb*Grad(rho_b))
-            //
-            
-            if (xc.is_gga() ) {
-                // get Vsigma_aa (if it is the case and Vsigma_bb)
-                functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
-                functionT vsigab;
-		if (xc.is_spin_polarized() && param.nbeta != 0)// V_ab
-                    vsigab = make_dft_potential(world, vf, ispin, 2); //.truncate();
-                
-                for (int axis=0; axis<3; axis++) {
-                    functionT gradn = delrho[axis + 3*ispin];
-                    functionT ddel = vsigaa*gradn;
-	            if (xc.is_spin_polarized() && param.nbeta != 0) {
-                        functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
-                        ddel = ddel + vsab;
-                    }
-                    ddel.scale(xc.is_spin_polarized() ? 2.0 : 4.0);
-                    Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-                    functionT vxc2=D(ddel);
-                    vloc = vloc - vxc2;//.truncate();
-                }
-            } //is gga
-#endif
+
+            XCOperator xcoperator(world,this,ispin);
+            if (ispin==0) exc=xcoperator.compute_xc_energy();
+            vloc+=xcoperator.make_xc_potential();
+
             END_TIMER(world, "DFT potential");
         }
         
@@ -1304,7 +1271,9 @@ namespace madness {
         print_meminfo(world.rank(), "V*psi");
         if (xc.hf_exchange_coefficient()) {
             START_TIMER(world);
-            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
+//            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
+            Exchange K=Exchange(world,this,ispin).small_memory(false).same(true);
+            vecfuncT Kamo=K(amo);
             tensorT excv = inner(world, Kamo, amo);
             double exchf = 0.0;
             for (unsigned long i = 0; i < amo.size(); ++i) {
@@ -2299,65 +2268,12 @@ namespace madness {
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
-            
-            vecfuncT vf, delrho;
-            if (xc.is_dft()) {
-                START_TIMER(world);
-                arho.reconstruct();
-                if (param.nbeta != 0 && xc.is_spin_polarized())
-                    brho.reconstruct();
-                // brho.reconstruct();
-                
-                vf.push_back(arho);
-                
-                if (xc.is_spin_polarized())
-                    vf.push_back(brho);
-                
-                if (xc.is_gga()) {
-                    
-                    for (int axis = 0; axis < 3; ++axis)
-                        delrho.push_back((*gradop[axis])(arho, false)); // delrho
-			if (xc.is_spin_polarized() && param.nbeta != 0)
-                        for (int axis = 0; axis < 3; ++axis)
-                            delrho.push_back((*gradop[axis])(brho, false));
-                    
-                    world.gop.fence(); // NECESSARY
-                    
-                    vf.push_back(
-                                 delrho[0] * delrho[0] + delrho[1] * delrho[1]
-                                 + delrho[2] * delrho[2]);     // sigma_aa
-                    
-		    if (xc.is_spin_polarized() && param.nbeta != 0)
-                        vf.push_back(
-                                     delrho[0] * delrho[3] + delrho[1] * delrho[4]
-                                     + delrho[2] * delrho[5]); // sigma_ab
-	            if (xc.is_spin_polarized() && param.nbeta != 0)
-                        vf.push_back(
-                                     delrho[3] * delrho[3] + delrho[4] * delrho[4]
-                                     + delrho[5] * delrho[5]); // sigma_bb
-                    
-                    world.gop.fence(); // NECESSARY
-                }
-                if (vf.size()) {
-                    reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-                }
-            
-                // this is a nasty hack, just adding something so that make_libxc_args receives 5 arguments
-                // has to be here or refine_to_common_level(vf) above hangs, but we really need a better solution for when nbeta=0
-		if (xc.is_spin_polarized() && param.nbeta == 0 && xc.is_gga()){
-		        vf.push_back(brho);
-			vf.push_back(brho);}
-                END_TIMER(world, "DFT setup");
-            }
 
             double enla = 0.0, enlb = 0.0;
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal,
-                                             exca, enla, 0);
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, vlocal, exca, enla, 0);
             vecfuncT Vpsib;
             if (!param.spin_restricted && param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb,
-                                        enlb, 1);
+                Vpsib = apply_potential(world, bocc, bmo, vlocal, excb, enlb, 1);
             }
             else if (param.nbeta != 0) {
                 enlb = enla;

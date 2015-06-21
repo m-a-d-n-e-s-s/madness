@@ -163,7 +163,8 @@ public:
 
     /// @param[in] input_line User input line (without beginning XC keyword)
     /// @param[in] polarized Boolean flag indicating if the calculation is spin-polarized
-    void initialize(const std::string& input_line, bool polarized, World& world);
+    void initialize(const std::string& input_line, bool polarized, World& world,
+            const bool verbose=false);
 
     /// Destructor
     ~XCfunctional();
@@ -299,8 +300,8 @@ struct xc_functional {
         : xc(&xc), ispin(ispin)
     {}
 
-    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
-    {
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         return xc->exc(t,ispin);
     }
@@ -316,8 +317,8 @@ struct xc_potential {
         : xc(&xc), what(what), ispin(ispin)
     {}
 
-    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
-    {
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         madness::Tensor<double> r = xc->vxc(t, ispin, what);
         return r;
@@ -334,8 +335,8 @@ struct xc_kernel {
         : xc(&xc), what(what), ispin(ispin)
     {}
 
-    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
-    {
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         madness::Tensor<double> r = xc->fxc(t, ispin, what);
         return r;

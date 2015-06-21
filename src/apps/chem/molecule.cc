@@ -335,6 +335,79 @@ double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     return sum;
 }
 
+Tensor<double> Molecule::nuclear_repulsion_hessian() const {
+
+    Tensor<double> hessian(3*natom(),3*natom());
+    for (int iatom=0; iatom<natom(); ++iatom) {
+        for (int jatom=0; jatom<natom(); ++jatom) {
+            for (int iaxis=0; iaxis<3; ++iaxis) {
+                for (int jaxis=0; jaxis<3; ++jaxis) {
+                    hessian(3*iatom+iaxis, 3*jatom+jaxis)=
+                            0.5*nuclear_repulsion_second_derivative(iatom,jatom,iaxis,jaxis);
+                }
+            }
+        }
+    }
+    return hessian;
+}
+
+
+/// compute the nuclear-nuclear contribution to the second derivatives
+
+/// @param[in]  iatom   the i-th atom (row of the hessian)
+/// @param[in]  jatom   the j-th atom (column of the hessian)
+/// @param[in]  iaxis   the xyz axis of the i-th atom
+/// @param[in]  jaxis   the xyz axis of the j-th atom
+/// return the (3*iatom + iaxis, 3*jatom + jaxis) matix element
+double Molecule::nuclear_repulsion_second_derivative(int iatom, int jatom,
+        int iaxis, int jaxis) const {
+
+    double sum = 0.0;
+    unsigned int ZA = atoms[iatom].atomic_number;
+    unsigned int ZB = atoms[jatom].atomic_number;
+
+    Tensor<double> RA(3), RB(3);
+    RA(0l)=atoms[iatom].x; RA(1)=atoms[iatom].y; RA(2)=atoms[iatom].z;
+    RB(0l)=atoms[jatom].x; RB(1)=atoms[jatom].y; RB(2)=atoms[jatom].z;
+
+    if (core_pot.is_defined(ZA)) MADNESS_EXCEPTION("no core potentials in the hessian",1);
+    if (core_pot.is_defined(ZB)) MADNESS_EXCEPTION("no core potentials in the hessian",1);
+
+    // first term is (for A\neq B, i.e. iatom/=jatom):
+    // \frac{\partial^2}{\partial X_A\partial Y_B}\frac{Z_AZ_B}{R_{AB}}
+    if (iatom != jatom) {
+        const double RAB = inter_atomic_distance(iatom,jatom);
+        if (iaxis==jaxis) {
+            sum+=(RAB*RAB - 3*std::pow(RA(iaxis)-RB(iaxis),2.0))/std::pow(RAB,5.0);
+        } else {
+            sum-=3*(RA(iaxis)-RB(iaxis))*(RA(jaxis)-RB(jaxis)) /std::pow(RAB,5.0);
+        }
+        sum*=ZA*ZB;
+    }
+
+    // second term is (for A==B, i.e. iatom==jatom):
+    // \sum_{C\neq A}\frac{\partial^2}{\partial X_A\partial X_B}Z_AZ_B\frac{Z_CZ_B}{R_{AC}}
+    if (iatom==jatom) {
+        for (unsigned int katom=0; katom<atoms.size(); ++katom) {
+            double RAC = inter_atomic_distance(iatom,katom);
+            Tensor<double> RC(3);
+            RC(0l)=atoms[katom].x; RC(1)=atoms[katom].y; RC(2)=atoms[katom].z;
+            const unsigned int ZC=atoms[katom].atomic_number;
+
+            if (katom != (unsigned int)(iatom)) {
+                if (iaxis==jaxis) {
+                    sum-=ZA*ZC*(RAC*RAC - 3.0*std::pow(RA(iaxis)-RC(iaxis),2.0))/std::pow(RAC,5.0);
+                } else {
+                    sum+=ZA*ZC*3.0*(RA(iaxis)-RC(iaxis))*(RA(jaxis)-RC(jaxis)) /std::pow(RAC,5.0);
+                }
+
+            }
+        }
+    }
+    return sum;
+}
+
+
 double Molecule::smallest_length_scale() const {
     double rcmax = 0.0;
     for (unsigned int i=0; i<atoms.size(); ++i) {
@@ -518,6 +591,21 @@ void Molecule::identify_point_group() {
     pointgroup_ = pointgroup;
 }
 
+/// compute the center of mass
+Tensor<double> Molecule::center_of_mass() const {
+    Tensor<double> com(3);
+    double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
+    for (unsigned int i=0; i<natom(); ++i) {
+        xx += get_atom(i).x*get_atom(i).mass;
+        yy += get_atom(i).y*get_atom(i).mass;
+        zz += get_atom(i).z*get_atom(i).mass;
+        qq += get_atom(i).mass;
+    }
+    com(0l)=xx/qq;
+    com(1l)=yy/qq;
+    com(2l)=zz/qq;
+    return com;
+}
 
 // Align molecule with axes of inertia
 Tensor<double> Molecule::moment_of_inertia() const {

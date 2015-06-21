@@ -5,7 +5,7 @@
 
 namespace madness{
 
-struct guess{
+struct polynomial_guess{
 public:
 static std::vector<std::string> make_predefined_guess_strings(const std::string what){
 	std::vector<std::string> exop_strings;

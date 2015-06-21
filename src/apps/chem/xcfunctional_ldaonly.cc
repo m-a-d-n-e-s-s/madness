@@ -19,8 +19,8 @@ XCfunctional::XCfunctional() : hf_coeff(0.0) {
     rhotol=1e-7; rhomin=1e-12; sigtol=0.0; sigmin=0.0; // default values
 }
 
-void XCfunctional::initialize(const std::string& input_line, bool polarized, World& world) 
-{
+void XCfunctional::initialize(const std::string& input_line, bool polarized,
+        World& world, bool verbose) {
     rhotol=1e-7; rhomin=1e-12; sigtol=0.0; sigmin=0.0; // default values
 
     spin_polarized = polarized;

@@ -160,20 +160,46 @@ public:
 
 	bool provides_gradient() const {return true;}
 
+	/// returns the molecular hessian matrix at structure x
+	Tensor<double> hessian(const Tensor<double>& x);
+
+	/// solve the CPHF equations for the nuclear displacements
+
+	/// @param[in]  iatom   the atom A to be moved
+	/// @param[in]  iaxis   the coordinate X of iatom to be moved
+	/// @return     \frac{\partial}{\partial X_A} \varphi
+	vecfuncT cphf(const int iatom, const int iaxis) const;
+
+	/// returns the vibrational frequencies
+
+	/// @param[in]  hessian the hessian matrix
+	/// @return the frequencies in atomic units
+	Tensor<double> compute_frequencies(const Tensor<double>& hessian) const;
+
+	/// compute the mass-weight the hessian matrix
+
+	/// @param[in]  hessian     the non-mass-weighted hessian
+	/// @param[in]  molecule    for getting access to the atomic masses
+	/// @return the mass-weighted hessian
+	Tensor<double> massweighted_hessian(const Tensor<double>& hessian,
+	        const Molecule& molecule) const;
+
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
 	/// compute the Fock matrix from scratch
 	tensorT compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const;
 
 	/// return a reference to the molecule
-	Molecule& molecule() {
-	    return calc->molecule;
-	}
+	Molecule& molecule() {return calc->molecule;}
 
     /// return a reference to the molecule
     Molecule& molecule() const {
         return calc->molecule;
     }
+
+    /// make the density (alpha or beta)
+    real_function_3d make_density(World& world, const Tensor<double>& occ,
+            const vecfuncT& nemo) const;
 
 private:
 
@@ -181,6 +207,20 @@ private:
 	World& world;
 
 	std::shared_ptr<SCF> calc;
+
+	mutable double ttt, sss;
+	void START_TIMER(World& world) const {
+	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+	}
+
+	void END_TIMER(World& world, const std::string msg) const {
+	    END_TIMER(world,msg.c_str());
+	}
+
+	void END_TIMER(World& world, const char* msg) const {
+	    ttt=wall_time()-ttt; sss=cpu_time()-sss;
+	    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+	}
 
 public:
 
@@ -192,6 +232,9 @@ public:
 
 	/// the inverse nuclear correlation factor
 	real_function_3d R_inverse;
+
+    /// the square of the nuclear correlation factor
+    real_function_3d R_square;
 
 private:
 
@@ -238,6 +281,8 @@ private:
 
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;
+
+	bool is_dft() const {return calc->xc.is_dft();}
 
 	/// localize the nemo orbitals
 	vecfuncT localize(const vecfuncT& nemo) const;

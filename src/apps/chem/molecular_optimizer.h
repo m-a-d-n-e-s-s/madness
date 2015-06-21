@@ -139,17 +139,18 @@ private:
 
             target->value_and_gradient(x, f, gradient);
             print("gopt: new energy",f);
-            gnorm = gradient.normf()/sqrt(gradient.size());
-            print("gopt: raw gradient norm ",gnorm);
+            const double rawgnorm = gradient.normf()/sqrt(gradient.size());
+            print("gopt: raw gradient norm ",rawgnorm);
 
             // remove external degrees of freedom (translation and rotation)
             Tensor<double> project_ext=projector_external_dof(target->molecule());
             gradient=inner(gradient,project_ext);
             gnorm = gradient.normf()/sqrt(gradient.size());
             print("gopt: projected gradient norm ",gnorm);
+            const double gradratio=rawgnorm/gnorm;
 
-
-            printf(" QuasiNewton iteration %2d value %.12e gradient %.2e\n",iter,f,gnorm);
+            printf(" QuasiNewton iteration %2d value %.12e gradient %.2e  %.2e\n",
+                    iter,f,gnorm,gradratio);
             if (converged()) break;
 
             if (iter == 1 && h_is_identity) {
@@ -170,6 +171,7 @@ private:
             remove_external_dof(h,target->molecule());
             syev(h, v, e);
             print("hessian eigenvalues",e);
+            print(h);
 
             // this will invert the hessian, multiply with the gradient and
             // return the displacements
@@ -303,7 +305,7 @@ private:
     /// I don't really understand the concept behind the projectors, but it
     /// seems to work, and it is not written down explicitly anywhere!
     /// All quantities are computed in non-mass-weighted coordinates.
-    Tensor<double> projector_external_dof(Molecule& mol) const {
+    static Tensor<double> projector_external_dof(Molecule& mol) {
 
         // compute the translation vectors
         Tensor<double> transx(3*mol.natom());
@@ -319,7 +321,7 @@ private:
 
         // move the molecule to its center of mass and compute
         // the moment of inertia tensor
-        Tensor<double> com=center_of_mass(mol);
+        Tensor<double> com=mol.center_of_mass();
         mol.translate(-1.0*com);
         Tensor<double> I=mol.moment_of_inertia();
         mol.translate(1.0*com);
@@ -394,11 +396,12 @@ private:
 
     }
 
+public:
     /// remove translational degrees of freedom from the hessian
-    void remove_external_dof(Tensor<double>& hessian,
-            Molecule& mol) const {
+    static void remove_external_dof(Tensor<double>& hessian,
+            Molecule& mol) {
 
-        print("projecting out translational degrees of freedom");
+        print("projecting out translational and rotational degrees of freedom");
         // compute the translation of the center of mass
         Tensor<double> projector_ext=projector_external_dof(mol);
 

@@ -222,6 +222,19 @@ public:
 
     double nuclear_repulsion_derivative(int i, int j) const;
 
+    /// compute the nuclear-nuclear contribution to the second derivatives
+
+    /// @param[in]  iatom   the i-th atom (row of the hessian)
+    /// @param[in]  jatom   the j-th atom (column of the hessian)
+    /// @param[in]  iaxis   the xyz axis of the i-th atom
+    /// @param[in]  jaxis   the xyz axis of the j-th atom
+    /// return the (3*iatom + iaxis, 3*jatom + jaxis) matix element of the hessian
+    double nuclear_repulsion_second_derivative(int iatom, int jatom,
+            int iaxis, int jaxis) const;
+
+    /// return the hessian matrix of the second derivatives 1/2 d^2/dxdy V
+    Tensor<double> nuclear_repulsion_hessian() const;
+
     double nuclear_dipole(int axis) const;
 
     double nuclear_charge_density(double x, double y, double z) const;
@@ -242,6 +255,8 @@ public:
 
     /// translate the molecule
     void translate(const Tensor<double>& translation);
+
+    Tensor<double> center_of_mass() const;
 
     Tensor<double> moment_of_inertia() const;
 
