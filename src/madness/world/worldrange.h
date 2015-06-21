@@ -35,32 +35,45 @@
 #include <type_traits>
 #include <iterator>
 
-/// \file worldrange.h
-/// \brief Implement Range class for parallel iteration
+/**
+ \file worldrange.h
+ \brief Implement the \c Range class for parallel iteration.
+ \ingroup parallel_runtime
+*/
 
 namespace madness {
 
-    /// Dummy class a la Intel TBB used to distinguish splitting constructor
+    /// \addtogroup parallel_runtime
+    /// @{
+
+    /// Dummy class, a la Intel TBB, used to distinguish splitting constructor.
 #ifdef HAVE_INTEL_TBB
     typedef tbb::split Split;
 #else
     class Split {};
-#endif /// HAVE_INTEL_TBB
+#endif // HAVE_INTEL_TBB
 
-    /// Range vaguely a la Intel TBB encapsulates random-access STL-like start and end iterators with chunksize
+    /// \brief Range, vaguely a la Intel TBB, to encapsulate a random-access,
+    ///    STL-like start and end iterator with chunksize.
+
+    /// \tparam iteratorT The iterator type.
     template <typename iteratorT>
     class Range {
-        long n;
-        iteratorT start;
-        iteratorT finish;
-        int chunksize;
-    public:
-        typedef iteratorT iterator;
+        long n; ///< Number of items to iterator over. \todo Could this be replaced by size_t?
+        iteratorT start; ///< First item for iteration.
+        iteratorT finish; ///< Last item for iteration (first past the end, conventionally).
+        int chunksize; ///< Number of items to give to each thread/process.
 
-        /// Makes the range [start,finish)
+    public:
+        using iterator = iteratorT; ///< Alias for the iterator type.
+
+        /// Makes the range [start, finish).
 
         /// The motivated reader should look at the Intel TBB range,
-        /// partitioner, split, concepts, etc..
+        /// partitioner, split, concepts, etc.
+        /// \param[in] start The first item to iterate over.
+        /// \param[in] finish The last item for iteration (one past the end).
+        /// \param[in] chunk The number of items to give to each thread/process.
         Range(const iterator& start, const iterator& finish, int chunk=1)
             : n(distance(start,finish))
             , start(start)
@@ -70,7 +83,10 @@ namespace madness {
             if (chunksize < 1) chunksize = 1;
         }
 
-        /// Copy constructor ... cost is O(1)
+        /// Copy constructor. Cost is O(1).
+
+        /// \todo Can we make this `= default`?
+        /// \param[in] r The \c Range to copy.
         Range(const Range& r)
                 : n(r.n)
                 , start(r.start)
@@ -78,7 +94,9 @@ namespace madness {
                 , chunksize(r.chunksize)
         {}
 
-        /// Splits range between new and old (r) objects ... cost is O(1)
+        /// Splits range between new and old (r) objects. Cost is O(1).
+
+        /// \param[in] left The range to be split.
         Range(Range& left, const Split& /*split*/)
                 : n(0)
                 , start(left.finish)
@@ -98,33 +116,79 @@ namespace madness {
             }
         }
 
-        /// Returns number of items in the range (cost is O(1))
+        /// Returns the number of items in the range (cost is O(1)).
+
+        /// \return The number of items in the range.
         size_t size() const { return n; }
 
-        /// Returns true if size=0
+        /// Returns true if `size == 0`.
+
+        /// \return True if `size == 0`.
         bool empty() const { return n==0; }
 
+        /// Access the beginning.
+
+        /// \return Iterator to the first element.
         const iterator& begin() const { return start; }
 
+        /// Access the end.
+
+        /// \return Iterator to the last element (one past the end).
         const iterator& end() const { return finish; }
 
+        /// \brief Return true if this iteration range can be divided; that is,
+        ///    there are more items than the chunk size.
+
+        /// \return True if this range can be divided.
         bool is_divisible() const { return n > chunksize; }
 
+        /// Access the chunk size.
+
+        /// \todo Should this return `long`, or `size_t`?
+        /// \return The chunk size.
         unsigned int get_chunksize() const { return chunksize; }
 
     private:
+        /// Advance by \c n elements in the range.
+
+        /// This version is for cases where the "iterator type" is integral.
+        /// \tparam integralT The integral iterator type.
+        /// \tparam distanceT The distance type.
+        /// \param[in,out] i The integral iterator.
+        /// \param[in] n The number of elements to advance.
         template<typename integralT, typename distanceT>
         inline static typename std::enable_if<std::is_integral<integralT>::value, void>::type
         advance(integralT& i, distanceT n) { i += n; }
 
+        /// Advance by \c n elements in the range.
+
+        /// This version is for cases where the "iterator type" is not integral.
+        /// \tparam iterT The non-integral iterator type.
+        /// \tparam distanceT The distance type.
+        /// \param[in,out] it The iterator.
+        /// \param[in] n The number of elements to advance.
         template<typename iterT, typename distanceT>
         inline static typename std::enable_if<!std::is_integral<iterT>::value, void>::type
         advance(iterT& it, distanceT n) { std::advance(it, n); }
 
+        /// Calculate the distance between two iterators.
+
+        /// This version is for cases where the "iterator type" is integral.
+        /// \tparam integralT The integral iterator type.
+        /// \param[in] first One iterator.
+        /// \param[in] last The other iterator.
+        /// \return The distance between the first and last iterators.
         template<class integralT>
         inline static typename std::enable_if<std::is_integral<integralT>::value, integralT>::type
         distance(integralT first, integralT last) { return last - first; }
 
+        /// Calculate the distance between two iterators.
+
+        /// This version is for cases where the "iterator type" is not integral.
+        /// \tparam iterT The non-integral iterator type.
+        /// \param[in] first One iterator.
+        /// \param[in] last The other iterator.
+        /// \return The distance between the first and last iterators.
         template<class iterT>
         inline static auto
         distance(iterT first, iterT last,
@@ -132,6 +196,8 @@ namespace madness {
             -> decltype(std::distance(first, last))
         { return std::distance(first, last); }
     };
+
+    /// @}
 
 } // namespace madness
 
