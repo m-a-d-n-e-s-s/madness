@@ -33,7 +33,7 @@
 #include <madness/world/thread.h>
 #include <madness/world/worldhash.h>
 #include <madness/world/worldhashmap.h>
-#include <madness/world/worldrange.h>
+#include <madness/world/range.h>
 #include <madness/world/timers.h>
 #include <madness/world/atomicint.h>
 #include <iostream>

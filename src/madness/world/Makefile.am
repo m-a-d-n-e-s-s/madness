@@ -12,7 +12,7 @@ thisinclude_HEADERS = info.h archive.h print.h worldam.h future.h worldmpi.h \
 	nodefaults.h dependency_interface.h worldhash.h worldref.h worldtypes.h \
 	dqueue.h parallel_archive.h vector_archive.h madness_exception.h \
 	worldmem.h thread.h worldrmi.h safempi.h worldpapi.h worldmutex.h \
-	print_seq.h worldhashmap.h worldrange.h atomicint.h posixmem.h worldptr.h \
+	print_seq.h worldhashmap.h range.h atomicint.h posixmem.h worldptr.h \
 	deferred_cleanup.h MADworld.h world.h uniqueid.h worldprofile.h \
 	timers.h binary_fstream_archive.h mpi_archive.h text_fstream_archive.h \
 	worlddc.h mem_func_wrapper.h taskfn.h group.h dist_cache.h \

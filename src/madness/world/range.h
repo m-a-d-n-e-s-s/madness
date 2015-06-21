@@ -29,14 +29,14 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_WORLD_WORLDRANGE_H__INCLUDED
-#define MADNESS_WORLD_WORLDRANGE_H__INCLUDED
+#ifndef MADNESS_WORLD_RANGE_H__INCLUDED
+#define MADNESS_WORLD_RANGE_H__INCLUDED
 
 #include <type_traits>
 #include <iterator>
 
 /**
- \file worldrange.h
+ \file range.h
  \brief Implement the \c Range class for parallel iteration.
  \ingroup parallel_runtime
 */
@@ -201,4 +201,4 @@ namespace madness {
 
 } // namespace madness
 
-#endif // MADNESS_WORLD_WORLDRANGE_H__INCLUDED
+#endif // MADNESS_WORLD_RANGE_H__INCLUDED
