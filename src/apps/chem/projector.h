@@ -88,10 +88,13 @@ namespace madness {
     };
 
 
+    template<typename T, std::size_t NDIM>
     class QProjector {
+        typedef std::vector<Function<T,NDIM> > vecfuncT;
+
     public:
         QProjector(World& world, const vecfuncT& amo) : world(world), O(amo) {};
-        real_function_3d operator()(const real_function_3d& rhs) const {
+        Function<T,NDIM> operator()(const Function<T,NDIM>& rhs) const {
             return (rhs-O(rhs));
         }
         vecfuncT operator()(const vecfuncT& rhs) const {
@@ -105,7 +108,7 @@ namespace madness {
 
     private:
         World& world;
-        Projector<double,3> O;
+        Projector<T,NDIM> O;
     };
 
     /// a SO projector class

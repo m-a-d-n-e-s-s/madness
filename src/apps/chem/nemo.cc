@@ -83,7 +83,9 @@ double Nemo::value(const Tensor<double>& x) {
 	// read converged wave function from disk if there is one
 	if (calc->param.no_compute) {
 		calc->load_mos(world);
-	    hessian(x);
+
+	    // compute the hessian
+	    if (calc->param.hessian) hessian(x);
 
 		return calc->current_energy;
 	}
@@ -127,6 +129,9 @@ double Nemo::value(const Tensor<double>& x) {
 	// compute the dipole moment
     functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
     calc->dipole(world,rho);
+
+    // compute the hessian
+    if (calc->param.hessian) hessian(x);
 
     // compute stuff
     functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
@@ -790,7 +795,7 @@ vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis) const {
     print("fock");
     print(fock);
 
-    QProjector Q(world,get_calc()->amo);
+    QProjector<double,3> Q(world,get_calc()->amo);
 
     // part of the rhs independent of xi
     real_function_3d Vp=real_factory_3d(world)

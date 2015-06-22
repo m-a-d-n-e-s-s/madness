@@ -584,7 +584,7 @@ private:
     Kinetic<double,3> T;
     Nuclear V;
     Fock F;
-    QProjector Q;
+    QProjector<double,3> Q;
     std::shared_ptr<real_convolution_3d> poisson;
     std::shared_ptr<real_convolution_3d> bsh;
 

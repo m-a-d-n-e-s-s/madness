@@ -334,8 +334,9 @@ struct CalculationParameters {
     bool gtest;                 ///< geometry tolerance
     double gval;                ///< value precision
     double gprec;               ///< gradient precision
-    int  gmaxiter;               ///< optimization maxiter
+    int  gmaxiter;              ///< optimization maxiter
     std::string algopt;         ///< algorithm used for optimization
+    bool hessian;               ///< compute the hessian matrix
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
@@ -349,7 +350,8 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & nuclear_corrfac & psp_calc & pure_ae;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop
+            & nuclear_corrfac & psp_calc & pure_ae & hessian;
     }
 
     CalculationParameters()
@@ -399,6 +401,7 @@ struct CalculationParameters {
         , gprec(1e-4)
         , gmaxiter(20)
         , algopt("BFGS")
+        , hessian(false)
         , tdksprop(false)
         , nuclear_corrfac("none")
         , pure_ae(true)
@@ -574,6 +577,9 @@ struct CalculationParameters {
 //                char buf[1024];
 //                f.getline(buf,sizeof(buf));
 //                algopt = buf;
+            }
+            else if (s == "hessian") {
+               hessian = true;
             }
             else if (s == "tdksprop") {
               tdksprop = true;
