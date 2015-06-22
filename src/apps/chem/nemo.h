@@ -148,7 +148,9 @@ public:
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
 			world(world1), calc(calc), coords_sum(-1.0) {
-
+	    Tensor<double> nuchessian= molecule().nuclear_repulsion_hessian();
+	    print("nuclear hessian");
+	    print(nuchessian);
 	}
 
 	double value() {return value(calc->molecule.get_all_coords());}
@@ -169,6 +171,18 @@ public:
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
 	/// @return     \frac{\partial}{\partial X_A} \varphi
 	vecfuncT cphf(const int iatom, const int iaxis) const;
+
+    /// solve the CPHF equations for the nuclear displacements
+
+	/// works if no nuclear correlation factor is employed
+    /// @param[in]  iatom   the atom A to be moved
+    /// @param[in]  iaxis   the coordinate X of iatom to be moved
+    /// @return     \frac{\partial}{\partial X_A} \varphi
+    vecfuncT cphf_no_ncf(const int iatom, const int iaxis) const;
+
+    /// compute the perturbed density for CPHF
+    real_function_3d compute_perturbed_density(const vecfuncT& mo,
+            const vecfuncT& xi) const;
 
 	/// returns the vibrational frequencies
 
@@ -296,6 +310,18 @@ private:
     /// save a function
     template<typename T, size_t NDIM>
     void save_function(const Function<T,NDIM>& f, const std::string name) const;
+
+    /// load a function
+    template<typename T, size_t NDIM>
+    void load_function(Function<T,NDIM>& f, const std::string name) const;
+
+    /// save a function
+    template<typename T, size_t NDIM>
+    void save_function(const std::vector<Function<T,NDIM> >& f, const std::string name) const;
+
+    /// load a function
+    template<typename T, size_t NDIM>
+    void load_function(std::vector<Function<T,NDIM> >& f, const std::string name) const;
 
 };
 

@@ -76,6 +76,7 @@ bool check_if_pseudo_atom(const std::string& symbol);
 double smoothing_parameter(double Z, double eprec);
 double smoothed_potential(double r);
 double dsmoothed_potential(double r);
+double d2smoothed_potential(double r);
 double smoothed_density(double r);
 }
 #endif

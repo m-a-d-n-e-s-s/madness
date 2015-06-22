@@ -50,7 +50,7 @@ static const unsigned int NUMBER_OF_ATOMS_IN_TABLE = 110;
 /// Negative masses refer to the longest-living isotope.
 /// Note that the masses refer to isotopic averaging, not to the specified isotope!
 static const AtomicData atomic_data[NUMBER_OF_ATOMS_IN_TABLE] = {
-    // symbol    number          nuclear_radius                    nuclear_gaussian_exponent mass
+    // symbol    number          nuclear_radius                    nuclear_gaussian_exponent mass in amu
     //     symbol      isotope                    nuclear_half_charge_radius       covalent_radius
     {"Bq",  "bq",   0  ,  0   ,  0.0               , 0.0           ,0.0             , 0.0   , 0.0},
     {"H",   "h",    1  ,  1   ,  2.6569547399e-05  , 1.32234e-05   ,2.1248239171e+09, 0.30  , 1.00794  },
@@ -439,6 +439,33 @@ double dsmoothed_potential(double r) {
 
     return result;
 }
+
+/// second derivative of the regularized 1/r potential
+
+/// invoke as d2smoothed_potential(r*rc) * rc*rc*rc
+/// with rc the reciprocal smoothing radius
+double d2smoothed_potential(double r) {
+    double rsq = r*r;
+    const double sqrtpi=sqrt(madness::constants::pi);
+    if (r > 7.0) {
+        return 2.0/(rsq*r);
+    }
+    else if (r > 1e-2) {
+        double er2=exp(-rsq);
+        double e4r2=exp(-4*rsq);
+        return -(4.* er2)*sqrtpi - (4.* er2)/(sqrtpi* rsq)
+                + (-2.* er2 + 4.* er2* rsq +
+                 16.* (-8.* e4r2 + 64.* e4r2*rsq))/(3*sqrtpi)
+                 + (2.* erf(r))/(r*rsq);
+    }
+    else {
+        return
+          -134./(3. *sqrtpi) + (2582 *rsq)/(5.* sqrtpi)
+          - (35905* rsq*rsq)/(21. *sqrtpi)
+          +(86051. *rsq*rsq*rsq)/(27.0*sqrtpi);
+    }
+}
+
 
 /// Charge density corresponding to smoothed 1/r potential
 

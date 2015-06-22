@@ -55,25 +55,6 @@ std::vector<GaussianGuess> make_guess(const Atom& atom, int l, const double expo
 }
 
 
-class QProjector {
-public:
-    QProjector(World& world, const vecfuncT& amo) : world(world), O(amo) {};
-    real_function_3d operator()(const real_function_3d& rhs) const {
-        return (rhs-O(rhs));
-    }
-    vecfuncT operator()(const vecfuncT& rhs) const {
-        vecfuncT result(rhs.size());
-        for (std::size_t i=0; i<rhs.size(); ++i) {
-            result[i]=(rhs[i]-O(rhs[i])).truncate();
-        }
-        truncate(world,result);
-        return result;
-    }
-
-private:
-    World& world;
-    Projector<double,3> O;
-};
 
 
 

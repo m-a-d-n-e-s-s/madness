@@ -95,6 +95,9 @@ public:
         return madness::Vector<double,3>{x, y, z};
     }
 
+    /// return the mass in atomic units (electron mass = 1 a.u.)
+    double get_mass_in_au() const {return constants::proton_electron_mass_ratio * mass;}
+
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & x & y & z & q & atomic_number & mass & pseudo_atom;
@@ -232,7 +235,9 @@ public:
     double nuclear_repulsion_second_derivative(int iatom, int jatom,
             int iaxis, int jaxis) const;
 
-    /// return the hessian matrix of the second derivatives 1/2 d^2/dxdy V
+    /// return the hessian matrix of the second derivatives d^2/dxdy V
+
+    /// no factor 0.5 included
     Tensor<double> nuclear_repulsion_hessian() const;
 
     double nuclear_dipole(int axis) const;
@@ -271,6 +276,9 @@ public:
     double core_potential_derivative(int atom, int axis, double x, double y, double z) const;
 
     double nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const;
+
+    double nuclear_attraction_potential_second_derivative(int atom, int iaxis,
+            int jaxis, double x, double y, double z) const;
 
     template <typename Archive>
     void serialize(Archive& ar) {

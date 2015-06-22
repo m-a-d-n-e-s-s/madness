@@ -175,6 +175,29 @@ public:
     }
 };
 
+class MolecularSecondDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+    const int atom;
+    const int iaxis, jaxis;
+
+public:
+    MolecularSecondDerivativeFunctor(const Molecule& molecule, int atom,
+            int iaxis, int jaxis)
+        : molecule(molecule), atom(atom),iaxis(iaxis), jaxis(jaxis)
+    {}
+
+    double operator()(const coordT& x) const {
+        return molecule.nuclear_attraction_potential_second_derivative(atom,
+                iaxis, jaxis, x[0], x[1], x[2]);
+    }
+
+    std::vector<coordT> special_points() const {
+        return std::vector<coordT>(1,molecule.get_atom(atom).get_coords());
+    }
+};
+
+
 class CorePotentialDerivativeFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
