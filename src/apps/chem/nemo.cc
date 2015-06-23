@@ -652,7 +652,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 }
 
 
-/// compute the nuclear gradients
+/// compute the nuclear hessian
 Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     START_TIMER(world);
 
@@ -660,20 +660,8 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     Tensor<double> hessian(3*natom,3*natom);
 
     // the perturbed MOs determined by the CPHF equations
-    std::vector<vecfuncT> xi(3*natom);
+    std::vector<vecfuncT> xi=compute_all_cphf();
     const vecfuncT& mo=this->get_calc()->amo;
-
-    // double loop over all nuclear displacements
-    for (int i=0, iatom=0; iatom<natom; ++iatom) {
-        for (int iaxis=0; iaxis<3; ++iaxis) {
-            xi[i]=cphf(iatom,iaxis);
-            save_function(xi[i],"xi_"+stringify(i));
-            load_function(xi[i],"xi_"+stringify(i));
-            ++i;
-        }
-    }
-    if (world.rank()==0) print("\nCPHF equations solved\n");
-
 
     // compute the derivative of the density d/dx rho
     real_function_3d dens=make_density(world,get_calc()->get_aocc(),mo);
@@ -757,9 +745,9 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 /// @param[in]  iatom   the atom A to be moved
 /// @param[in]  iaxis   the coordinate X of iatom to be moved
 /// @return     \frac{\partial}{\partial X_A} \varphi
-vecfuncT Nemo::cphf(const int iatom, const int iaxis) const {
+vecfuncT Nemo::cphf(const int iatom, const int iaxis, const vecfuncT& guess) const {
 
-    return cphf_no_ncf(iatom,iaxis);
+    return cphf_no_ncf(iatom,iaxis, guess);
 
     // use the product rule
     // \varphi_i^X = R^X F_i + R F_i^X
@@ -774,12 +762,53 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis) const {
     return mul(world,RX,calc->amo);
 }
 
+std::vector<vecfuncT> Nemo::compute_all_cphf() const {
+
+    const double thresh=FunctionDefaults<3>::get_thresh();
+    const int natom=molecule().natom();
+    std::vector<vecfuncT> xi(3*natom);
+
+    // read CPHF vectors from file if possible
+    if (get_calc()->param.read_hessian) {
+        for (std::size_t i=0; i<xi.size(); ++i) {
+            load_function(xi[i],"xi_"+stringify(i));
+        }
+        return xi;
+    }
+
+    // double loop over all nuclear displacements
+    for (int i=0, iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            FunctionDefaults<3>::set_thresh(1.e-4);
+            xi[i]=cphf(iatom,iaxis);
+            for (real_function_3d& xij : xi[i]) xij.set_thresh(thresh);
+            save_function(xi[i],"xi_"+stringify(i));
+            FunctionDefaults<3>::set_thresh(thresh);
+            ++i;
+        }
+    }
+    if (world.rank()==0) print("\nCPHF equations solved -- loose threshold",1.e-4,"\n");
+
+    // double loop over all nuclear displacements
+    for (int i=0, iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            load_function(xi[i],"xi_"+stringify(i));
+            xi[i]=cphf(iatom,iaxis,xi[i]);
+            save_function(xi[i],"xi_"+stringify(i));
+            ++i;
+        }
+    }
+    if (world.rank()==0) print("\nCPHF equations solved -- tighter threshold",thresh,"\n");
+    return xi;;
+
+}
+
 /// solve the CPHF equation for the nuclear displacements
 
 /// @param[in]  iatom   the atom A to be moved
 /// @param[in]  iaxis   the coordinate X of iatom to be moved
 /// @return     \frac{\partial}{\partial X_A} \varphi
-vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis) const {
+vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis, const vecfuncT& guess) const {
 
     print("\nsolving cphf equations for atom, axis",iatom,iaxis);
 
@@ -789,6 +818,10 @@ vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis) const {
     vecfuncT mo=calc->amo;
     vecfuncT xi=copy(world,calc->amo);
     scale(world,xi,0.5);
+    if (guess.size()>0) {
+        if (world.rank()==0) print("using guess for the CPHF vectors");
+        xi=copy(world,guess);
+    }
     const int nmo=mo.size();
 
     const Tensor<double> fock=this->compute_fock_matrix(mo,get_calc()->get_aocc());
@@ -804,7 +837,7 @@ vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis) const {
     vecfuncT Vpsi2b=mul(world,Vp,mo);
     truncate(world,Vpsi2b);
 
-    for (int iter=0; iter<10; ++iter) {
+    for (int iter=0; iter<25; ++iter) {
 
         // construct unperturbed operators
         Coulomb J(world,this);
@@ -862,6 +895,7 @@ vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis) const {
 
 //        normalize(tmp);
         xi=tmp;
+        if (rnorm<calc->param.dconv) break;
     }
     return xi;
 

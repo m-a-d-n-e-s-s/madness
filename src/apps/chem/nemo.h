@@ -170,7 +170,11 @@ public:
 	/// @param[in]  iatom   the atom A to be moved
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
 	/// @return     \frac{\partial}{\partial X_A} \varphi
-	vecfuncT cphf(const int iatom, const int iaxis) const;
+	vecfuncT cphf(const int iatom, const int iaxis,
+	        const vecfuncT& guess=vecfuncT()) const;
+
+	/// solve teh CPHF equation for all displacements
+	std::vector<vecfuncT> compute_all_cphf() const;
 
     /// solve the CPHF equations for the nuclear displacements
 
@@ -178,7 +182,8 @@ public:
     /// @param[in]  iatom   the atom A to be moved
     /// @param[in]  iaxis   the coordinate X of iatom to be moved
     /// @return     \frac{\partial}{\partial X_A} \varphi
-    vecfuncT cphf_no_ncf(const int iatom, const int iaxis) const;
+    vecfuncT cphf_no_ncf(const int iatom, const int iaxis,
+            const vecfuncT& guess=vecfuncT()) const;
 
     /// compute the perturbed density for CPHF
     real_function_3d compute_perturbed_density(const vecfuncT& mo,

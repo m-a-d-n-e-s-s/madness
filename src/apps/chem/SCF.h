@@ -337,6 +337,7 @@ struct CalculationParameters {
     int  gmaxiter;              ///< optimization maxiter
     std::string algopt;         ///< algorithm used for optimization
     bool hessian;               ///< compute the hessian matrix
+    bool read_hessian;          ///< read the hessian matrix from file
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
@@ -351,7 +352,7 @@ struct CalculationParameters {
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop
-            & nuclear_corrfac & psp_calc & pure_ae & hessian;
+            & nuclear_corrfac & psp_calc & pure_ae & hessian & read_hessian;
     }
 
     CalculationParameters()
@@ -402,6 +403,7 @@ struct CalculationParameters {
         , gmaxiter(20)
         , algopt("BFGS")
         , hessian(false)
+        , read_hessian(false)
         , tdksprop(false)
         , nuclear_corrfac("none")
         , pure_ae(true)
@@ -580,6 +582,9 @@ struct CalculationParameters {
             }
             else if (s == "hessian") {
                hessian = true;
+            }
+            else if (s == "read_hessian") {
+               read_hessian = true;
             }
             else if (s == "tdksprop") {
               tdksprop = true;
