@@ -52,7 +52,8 @@ namespace madness {
         /// Invoked by the callback to notify when a dependency is satisfied.
         virtual void notify() = 0;
 
-        virtual ~CallbackInterface() = default;
+//        virtual ~CallbackInterface() = default;
+        virtual ~CallbackInterface() {};
     };
 
 
