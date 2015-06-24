@@ -57,15 +57,26 @@ namespace madness {
             std::cerr << rank << ":RMI: about to call Waitsome with "
                       << n_in_q << " messages in the queue" << std::endl;
 
-        // If MPI is not safe for simultaneous entry by multiple threads we
-        // cannot call Waitsome ... have to poll via Testsome
-        int narrived = 0, iterations = 0;
+#if MADNESS_MPI_THREAD_LEVEL == MPI_THREAD_MULTIPLE
+        int mpi_is_reentrant = 1;
+#else
+        int mpi_is_reentrant = ( SafeMPI::Query_thread() == MPI_THREAD_MULTIPLE );
+#endif
 
+        int narrived = 0;
         MutexWaiter waiter;
-        while((narrived == 0) && (iterations < 1000)) {
-	  narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
-	  ++iterations;
-	  myusleep(RMI::testsome_backoff_us);
+        if (mpi_is_reentrant) {
+            narrived = SafeMPI::Request::Waitsome(maxq_, recv_req.get(), ind.get(), status.get());
+        } else {
+            // If MPI is not safe for simultaneous entry by multiple threads we
+            // cannot call Waitsome ... have to poll via Testsome
+            int iterations = 0;
+
+            while((narrived == 0) && (iterations < 1000)) {
+              narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
+              ++iterations;
+              myusleep(RMI::testsome_backoff_us);
+            }
         }
 
 #ifndef HAVE_CRAYXT
