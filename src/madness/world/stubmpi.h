@@ -139,6 +139,22 @@ inline int MPI_Testsome(int, MPI_Request*, int *outcount, int*, MPI_Status*) {
     return MPI_SUCCESS;
 }
 
+inline int MPI_Wait(MPI_Request *, int *flag, MPI_Status *) {
+    *flag = 0;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Waitany(int, MPI_Request[], int* index, int *flag, MPI_Status*) {
+    *index = MPI_UNDEFINED;
+    *flag = 0;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Waitsome(int, MPI_Request*, int *outcount, int*, MPI_Status*) {
+    *outcount = MPI_UNDEFINED;
+    return MPI_SUCCESS;
+}
+
 inline int MPI_Get_count(MPI_Status *, MPI_Datatype, int *count) {
     *count = 0;
     return MPI_SUCCESS;
