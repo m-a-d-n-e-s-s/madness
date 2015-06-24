@@ -310,6 +310,40 @@ namespace SafeMPI {
             return flag != 0;
         }
 
+        static void Waitany(int count, Request* requests, int& index, Status& status) {
+            MADNESS_ASSERT(requests != nullptr);
+            std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[count]);
+
+            // Copy requests to an array that can be used by MPI
+            for(int i = 0; i < count; ++i)
+                mpi_requests[i] = requests[i].request_;
+            {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MADNESS_MPI_TEST(MPI_Waitany(count, mpi_requests.get(), &index, status));
+            }
+            // Copy results from MPI back to the original array
+            for(int i = 0; i < count; ++i)
+                requests[i].request_ = mpi_requests[i];
+            return;
+        }
+
+        static void Waitany(int count, Request* requests, int& index) {
+            MADNESS_ASSERT(requests != nullptr);
+            std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[count]);
+
+            // Copy requests to an array that can be used by MPI
+            for(int i = 0; i < count; ++i)
+                mpi_requests[i] = requests[i].request_;
+            {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MADNESS_MPI_TEST(MPI_Waitany(count, mpi_requests.get(), &index, MPI_STATUS_IGNORE));
+            }
+            // Copy results from MPI back to the original array
+            for(int i = 0; i < count; ++i)
+                requests[i] = mpi_requests[i];
+            return;
+        }
+
         static int Testsome(int incount, Request* requests, int* indices, Status* statuses) {
             MADNESS_ASSERT(requests != nullptr);
             MADNESS_ASSERT(indices != nullptr);
@@ -332,6 +366,8 @@ namespace SafeMPI {
         }
 
         static int Testsome(int incount, Request* requests, int* indices) {
+            MADNESS_ASSERT(requests != nullptr);
+
             int outcount = 0;
             std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[incount]);
             for(int i = 0; i < incount; ++i)
@@ -345,6 +381,43 @@ namespace SafeMPI {
             return outcount;
         }
 
+        static int Waitsome(int incount, Request* requests, int* indices, Status* statuses) {
+            MADNESS_ASSERT(requests != nullptr);
+            MADNESS_ASSERT(indices != nullptr);
+            MADNESS_ASSERT(statuses != nullptr);
+
+            int outcount = 0;
+            std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[incount]);
+            std::unique_ptr<MPI_Status[]> mpi_statuses(new MPI_Status[incount]);
+            for(int i = 0; i < incount; ++i)
+                mpi_requests[i] = requests[i].request_;
+            {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MADNESS_MPI_TEST( MPI_Waitsome( incount, mpi_requests.get(), &outcount, indices, mpi_statuses.get()));
+            }
+            for(int i = 0; i < incount; ++i) {
+                requests[i] = mpi_requests[i];
+                statuses[i] = mpi_statuses[i];
+            }
+            return outcount;
+        }
+
+        static int Waitsome(int incount, Request* requests, int* indices) {
+            MADNESS_ASSERT(requests != nullptr);
+            MADNESS_ASSERT(indices != nullptr);
+
+            int outcount = 0;
+            std::unique_ptr<MPI_Request[]> mpi_requests(new MPI_Request[incount]);
+            for(int i = 0; i < incount; ++i)
+                mpi_requests[i] = requests[i].request_;
+            {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MADNESS_MPI_TEST( MPI_Waitsome( incount, mpi_requests.get(), &outcount, indices, MPI_STATUSES_IGNORE));
+            }
+            for(int i = 0; i < incount; ++i)
+                requests[i] = mpi_requests[i];
+            return outcount;
+        }
 
         bool Test_got_lock_already(MPI_Status& status) {
             int flag;
