@@ -45,10 +45,11 @@
 #include <chem/projector.h>
 #include <chem/molecular_optimizer.h>
 #include <chem/SCFOperators.h>
+#include <madness/constants.h>
+
+
 namespace madness {
 
-
-const static double au2invcm=219474.6313705;
 
 extern Tensor<double> Q3(const Tensor<double>& s);
 
@@ -140,15 +141,21 @@ double Nemo::value(const Tensor<double>& x) {
     real_function_3d rhoz=Dz(rho);
 
     std::string filename="plot_rhonemoz";
-    Vector<double,3> lo{0,0,-10};
-    Vector<double,3> hi{0,0,10};
+    Vector<double,3> lo{0,0,-10+molecule().get_atom(0).z};
+    Vector<double,3> hi{0,0,10+molecule().get_atom(0).z};
     plot_line(filename.c_str(),500, lo, hi, rhonemoz);
     filename="plot_rhoz";
     plot_line(filename.c_str(),500, lo, hi, rhoz);
     filename="plot_rhonemo";
     plot_line(filename.c_str(),500, lo, hi, rhonemo);
+    filename="plot_rhonemo_inv";
+    plot_line(filename.c_str(),500, hi, lo, rhonemo);
     filename="plot_rho";
     plot_line(filename.c_str(),500, lo, hi, rho);
+    filename="plot_R2";
+    plot_line(filename.c_str(),500, lo, hi, R_square);
+    filename="plot_R2_inv";
+    plot_line(filename.c_str(),500, hi, lo, R_square);
 
 	return energy;
 }
@@ -672,29 +679,121 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         drho[i]=D(dens).truncate();
     }
 
+    if (0) {
+        std::vector<Vector<double,6> > vv(3*natom);
+
+//        vv[0]  ={  0.7220804631,   0.0000000000, -0.0000000000,  -0.4062975703,  0.0000000000,  0.1982327019,  -0.1578914462,   0.1434173426,  -0.0991163510,  -0.1578914462, -0.1434173426, -0.0991163510};
+//        vv[1]  ={  0.0000000000,   0.7220804631,  0.0000000000,   0.0000000000, -0.0750894048,  0.0000000000,   0.1434173426,  -0.3234955289,   0.1716745557,  -0.1434173426, -0.3234955289, -0.1716745557};
+//        vv[2]  ={ -0.0000000000,   0.0000000000,  0.2834443629,   0.1383896970,  0.0000000000, -0.0944814541,  -0.0691948485,   0.1198489932,  -0.0944814541,  -0.0691948485, -0.1198489932, -0.0944814541};
+//        vv[3]  ={ -0.4062975703,   0.0000000000,  0.1383896970,   0.4400981849,  0.0000000000, -0.1579428202,  -0.0169003073,  -0.0027534314,   0.0097765616,  -0.0169003073,  0.0027534314,  0.0097765616};
+//        vv[4]  ={  0.0000000000,  -0.0750894048,  0.0000000000,   0.0000000000,  0.0679728354,  0.0000000000,   0.0381887522,   0.0035582848,  -0.0176168736,  -0.0381887522,  0.0035582848,  0.0176168736};
+//        vv[5]  ={  0.1982327019,   0.0000000000, -0.0944814541,  -0.1579428202,  0.0000000000,  0.0850867988,  -0.0201449409,  -0.0003416861,   0.0046973277,  -0.0201449409,  0.0003416861,  0.0046973277};
+//        vv[6]  ={ -0.1578914462,   0.1434173426, -0.0691948485,  -0.0169003073,  0.0381887522, -0.0201449409,   0.1610041727,  -0.1611350031,   0.0789714101,   0.0137875808, -0.0204710918,  0.0103683793};
+//        vv[7]  ={  0.1434173426,  -0.3234955289,  0.1198489932,  -0.0027534314,  0.0035582848, -0.0003416861,  -0.1611350031,   0.3470668475,  -0.1367824947,   0.0204710918, -0.0271296033,  0.0172751875};
+//        vv[8]  ={ -0.0991163510,   0.1716745557, -0.0944814541,   0.0097765616, -0.0176168736,  0.0046973277,   0.0789714101,  -0.1367824947,   0.0850867988,   0.0103683793, -0.0172751875,  0.0046973277};
+//        vv[9]  ={ -0.1578914462,  -0.1434173426, -0.0691948485,  -0.0169003073, -0.0381887522, -0.0201449409,   0.0137875808,   0.0204710918,   0.0103683793,   0.1610041727,  0.1611350031,  0.0789714101};
+//        vv[10] ={ -0.1434173426,  -0.3234955289, -0.1198489932,   0.0027534314,  0.0035582848,  0.0003416861,  -0.0204710918,  -0.0271296033,  -0.0172751875,   0.1611350031,  0.3470668475,  0.1367824947};
+//        vv[11] ={ -0.0991163510,  -0.1716745557, -0.0944814541,   0.0097765616,  0.0176168736,  0.0046973277,   0.0103683793,   0.0172751875,   0.0046973277,   0.0789714101,  0.1367824947,  0.0850867988};
+
+
+//        vv[0]={ 0.0430311207986755,  0.0000000000002436,  0.0000000000001942,-0.0215155603592946, -0.0000000000002563, -0.0000000000001715,  -0.0215155603587581 ,    0.0000000000000127 ,  -0.0000000000000227};
+//        vv[1]={ 0.0000000000002436,  0.6259437587203811, -0.0000000000003923,-0.0000000000002409, -0.3129718793526037, -0.2331646026728010,  -0.0000000000000027 ,   -0.3129718793523384 ,   0.2331646026732007};
+//        vv[2]={ 0.0000000000001942, -0.0000000000003923,  0.4719594723037192,-0.0000000000001690, -0.1736720313853752, -0.2359797361336341,  -0.0000000000000252 ,    0.1736720313857603 ,  -0.2359797361333968};
+//        vv[3]={-0.0215155603592946, -0.0000000000002409, -0.0000000000001690, 0.0192722337801424,  0.0000000000002404, 0.0000000000001662 ,  0.0022433265581110  ,   0.0000000000000000  ,  0.0000000000000028 };
+//        vv[4]={-0.0000000000002563, -0.3129718793526037, -0.1736720313853752, 0.0000000000002404,  0.3478264777215383, 0.2034183232879670 ,  0.0000000000000159  ,  -0.0348545983670053  , -0.0297462918925465 };
+//        vv[5]={-0.0000000000001715, -0.2331646026728010, -0.2359797361336341, 0.0000000000001662,  0.2034183232879670, 0.2197698673728164 ,  0.0000000000000053  ,   0.0297462794032645  ,  0.0162098687587031 };
+//        vv[6]={-0.0215155603587581, -0.0000000000000027, -0.0000000000000252, 0.0022433265581110,  0.0000000000000159, 0.0000000000000053 ,  0.0192722337796288  ,  -0.0000000000000132  ,  0.0000000000000199 };
+//        vv[7]={ 0.0000000000000127, -0.3129718793523384,  0.1736720313857603, 0.0000000000000000, -0.0348545983670053, 0.0297462794032645 , -0.0000000000000132  ,   0.3478264777212546  , -0.2034183107990876 };
+//        vv[8]={-0.0000000000000227,  0.2331646026732007, -0.2359797361333968, 0.0000000000000028, -0.0297462918925465, 0.0162098687587031 ,  0.0000000000000199  ,  -0.2034183107990876  ,  0.2197698673725850 };
+
+        vv[0]={  0.0038312073,  0.0000000000, -0.0000000000, -0.0038312073,  0.0000000000,  0.0000000000};
+        vv[1]={  0.0000000000,  0.0038312073,  0.0000000000,  0.0000000000, -0.0038312073, -0.0000000000};
+        vv[2]={ -0.0000000000,  0.0000000000,  0.3828509681,  0.0000000000, -0.0000000000, -0.3828509681};
+        vv[3]={ -0.0038312073,  0.0000000000,  0.0000000000,  0.0038312073,  0.0000000000, -0.0000000000};
+        vv[4]={  0.0000000000, -0.0038312073, -0.0000000000,  0.0000000000,  0.0038312073,  0.0000000000};
+        vv[5]={  0.0000000000, -0.0000000000, -0.3828509681, -0.0000000000,  0.0000000000,  0.3828509681};
+
+        for (int i=0; i<3*natom; ++i) {
+            for (int j=0; j<3*natom; ++j) {
+                hessian(i,j)=vv[i][j];
+            }
+        }
+    } else {
+
     // add the electronic contribution to the hessian
     int i=0;
     for (int iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
-
+            i=iatom*3 + iaxis;
             real_function_3d dens_pt=compute_perturbed_density(mo,xi[i]);
             dens_pt.scale(2.0);             // closed shell
+
             int j=0;
             for (int jatom=0; jatom<natom; ++jatom) {
                 for (int jaxis=0; jaxis<3; ++jaxis) {
+                    j=jatom*3 + jaxis;
+
+                    real_derivative_3d D = free_space_derivative<double, 3>(world,jaxis);
+                    real_function_3d ddens_pt=D(dens_pt);
 
                     MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
-                    double result=inner(dens_pt,mdf);
+//                    double result=inner(dens_pt,mdf);
+
+                    // integration by parts
+                    AtomicAttractionFunctor aaf(molecule(),jatom);
+                    double result=inner(ddens_pt,aaf);
+//
+//                    // flodbg
+//                    double thresh=FunctionDefaults<3>::get_thresh();
+//                    real_convolution_3d op=CoulombOperator(world,1.e-5,thresh);
+//                    real_function_3d opddens_pt=op(ddens_pt);
+//                    const Atom& atom=molecule().get_atom(jatom);
+//                    coord_3d atomic_coord=atom.get_coords();
+//                    double val=opddens_pt(atomic_coord)*atom.q;
+//                    print("iatom,jatom,iaxis,jaxis,",iatom,jatom,iaxis,jaxis);
+//                    print("atomic_coord",atomic_coord);
+//                    print("i,j, val",i,j,val);
+//                    hessian_tmp(i,j)=val;
+//                    // flodbg
 
                     // integration by parts
                     if (iatom==jatom) result+=inner(drho[iaxis],mdf);
 
+                    // skip diagonal elements because they are extremely noisy!
+                    // use translational symmtry to reconstruct them from other
+                    // hessian matrix elements (see below)
+                    if (i==j) result=0.0;
                     hessian(i,j)=result;
+//                    hessian(j,i)=result;
                     ++j;
                 }
             }
             ++i;
         }
+    }
+    }
+    if (world.rank() == 0) {
+        print("\n raw electronic Hessian (a.u.)\n");
+        print(hessian);
+    }
+
+    Tensor<double> asymmetric=0.5*(hessian-transpose(hessian));
+    if (world.rank() == 0) {
+        print("\n asymmetry in the electronic Hessian (a.u.)\n");
+        print(asymmetric);
+    }
+
+    // symmetrize hessian
+    hessian+=transpose(hessian);
+    hessian.scale(0.5);
+
+    // exploit translational symmetry to compute the diagonal elements:
+    // translating all atoms in the same direction will make no energy change,
+    // therefore the respective sum of hessian matrix elements will be zero:
+    for (int i=0; i<3*natom; ++i) {
+        double sum=0.0;
+        for (int j=0; j<3*natom; j+=3) sum+=hessian(i,j+(i%3));
+        hessian(i,i)=-sum;
     }
 
     if (world.rank() == 0) {
@@ -711,29 +810,22 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     }
     END_TIMER(world, "compute hessian");
 
-    Tensor<double> frequencies=compute_frequencies(hessian);
+//    Tensor<double> frequencies=compute_frequencies(hessian,false,true);
+//
+//    if (world.rank() == 0) {
+//        print("\n vibrational frequencies (a.u.)\n");
+//        print(frequencies);
+//        print("\n vibrational frequencies (cm-1)\n");
+//        print(constants::au2invcm*frequencies);
+//    }
 
-    if (world.rank() == 0) {
-        print("\n vibrational frequencies (a.u.)\n");
-        print(frequencies);
-        print("\n vibrational frequencies (cm-1)\n");
-        print(au2invcm*frequencies);
-    }
-
-    MolecularOptimizer::remove_external_dof(hessian,molecule());
-
-    if (world.rank() == 0) {
-        print("\n Hessian projected (a.u.)\n");
-        print(hessian);
-    }
-
-    frequencies=compute_frequencies(hessian);
+    Tensor<double> frequencies=compute_frequencies(hessian,true,true);
 
     if (world.rank() == 0) {
         print("\n vibrational frequencies projected (a.u.)\n");
         print(frequencies);
         print("\n vibrational frequencies projected (cm-1)\n");
-        print(au2invcm*frequencies);
+        print(constants::au2invcm*frequencies);
     }
 
     return hessian;
@@ -891,11 +983,12 @@ vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis, const vecfuncT& gue
         vecfuncT residual = sub(world, xi, tmp);
         const double norm = norm2(world,xi);
         const double rnorm = norm2(world, residual) / sqrt(double(nmo));
-        if (world.rank()==0) print("residual",rnorm,"\nnorm",norm);
+        if (world.rank()==0) print("residual",rnorm,"\nnorm",norm,
+                "\nrelative error",rnorm/norm);
 
 //        normalize(tmp);
         xi=tmp;
-        if (rnorm<calc->param.dconv) break;
+        if (rnorm/norm<calc->param.dconv) break;
     }
     return xi;
 
@@ -922,34 +1015,72 @@ real_function_3d Nemo::compute_perturbed_density(const vecfuncT& mo,
 /// returns the vibrational frequencies
 
 /// @param[in]  hessian the hessian matrix (not mass-weighted)
+/// @param[in]  project_tr whether to project out translation and rotation
+/// @param[in]  print_hessian   whether to print the hessian matrix
 /// @return the frequencies in atomic units
-Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian) const {
+Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian,
+        const bool project_tr=true, const bool print_hessian=false) const {
+
+    // compute mass-weighing matrices
+    Tensor<double> M=massweights(molecule());
+    Tensor<double> Minv(3*molecule().natom(),3*molecule().natom());
+    for (int i=0; i<3*molecule().natom(); ++i) Minv(i,i)=1.0/M(i,i);
 
     // mass-weight the hessian
-    Tensor<double> mwhessian=massweighted_hessian(hessian,molecule());
-    Tensor<double> freq(3*molecule().natom());
-    Tensor<double> U;
-    syev(mwhessian,U,freq);
-    for (std::size_t i=0; i<freq.size(); ++i) {
+    Tensor<double> mwhessian=inner(M,inner(hessian,M));
+
+    // remove translation and rotation
+    if (project_tr) MolecularOptimizer::remove_external_dof(mwhessian,molecule());
+
+    if (print_hessian) {
+        if (project_tr) {
+            print("mass-weighted hessian with translation and rotation projected out");
+        } else {
+            print("mass-weighted unprojected hessian");
+        }
+        Tensor<double> mmhessian=inner(Minv,inner(mwhessian,Minv));
+        print(mwhessian);
+        print("mass-weighted unprojected hessian; mass-weighing undone");
+        print(mmhessian);
+    }
+
+    Tensor<double> normalmodes,freq;
+    syev(mwhessian,normalmodes,freq);
+    for (long i=0; i<freq.size(); ++i) {
         if (freq(i)>0.0) freq(i)=sqrt(freq(i)); // real frequencies
         else freq(i)=-sqrt(-freq(i));           // imaginary frequencies
     }
+
+    // compute the reduced mass
+    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule());
+    Tensor<double> L=copy(normalmodes);
+    Tensor<double> DL=inner(D,L);
+    Tensor<double> MDL=inner(M,DL);
+
+    for (int i=0; i<3*molecule().natom(); ++i) {
+        double mu=0.0;
+        for (int j=0; j<3*molecule().natom(); ++j) {
+            mu+=MDL(j,i)*MDL(j,i);
+        }
+        mu=1.0/(mu*constants::atomic_mass_in_au);
+        print("reduced mass for mode in amu",i,mu);
+    }
+
+
     return freq;
 }
 
-/// compute the mass-weighted hessian
-Tensor<double> Nemo::massweighted_hessian(const Tensor<double>& hessian,
-        const Molecule& molecule) const {
+/// compute the mass-weighting matrix for the hessian
+Tensor<double> Nemo::massweights(const Molecule& molecule) const {
 
-    Tensor<double> masses(3*molecule.natom());
-    for (std::size_t i=0; i<molecule.natom();++i) {
+    Tensor<double> M(3*molecule.natom(),3*molecule.natom());
+    for (int i=0; i<molecule.natom(); i++) {
         const double sqrtmass=1.0/sqrt(molecule.get_atom(i).get_mass_in_au());
-        masses(3*i)=sqrtmass;
-        masses(3*i+1)=sqrtmass;
-        masses(3*i+2)=sqrtmass;
+        M(3*i  ,3*i  )=sqrtmass;
+        M(3*i+1,3*i+1)=sqrtmass;
+        M(3*i+2,3*i+2)=sqrtmass;
     }
-    Tensor<double> mass_weights=outer(masses,masses);
-    return copy(hessian).emul(mass_weights);
+    return M;
 }
 
 /// save a function

@@ -155,6 +155,29 @@ public:
     }
 };
 
+
+class AtomicAttractionFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+    const int iatom;
+
+public:
+    AtomicAttractionFunctor(const Molecule& molecule, int iatom)
+        : molecule(molecule), iatom(iatom) {}
+
+    double operator()(const coordT& x) const {
+        const Atom& atom=molecule.get_atom(iatom);
+        const coordT coord={atom.x,atom.y,atom.z};
+        double r = (x-coord).normf();
+        return -atom.q * smoothed_potential(r*molecule.get_rcut()[iatom])
+                *molecule.get_rcut()[iatom];
+    }
+
+    std::vector<coordT> special_points() const {
+        return std::vector<coordT>(1,molecule.get_atom(iatom).get_coords());
+    }
+};
+
 class MolecularDerivativeFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
@@ -778,7 +801,7 @@ public:
         	FunctionDefaults<NDIM>::set_k(param.k);
         }
         // don't forget to adapt the molecular smoothing parameter!!
-        molecule.set_eprec(std::min(thresh,molecule.get_eprec()));
+//        molecule.set_eprec(std::min(thresh,molecule.get_eprec()));
         FunctionDefaults<NDIM>::set_thresh(thresh);
         FunctionDefaults<NDIM>::set_refine(true);
         FunctionDefaults<NDIM>::set_initial_level(2);

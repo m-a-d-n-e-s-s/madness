@@ -147,11 +147,7 @@ public:
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
-			world(world1), calc(calc), coords_sum(-1.0) {
-	    Tensor<double> nuchessian= molecule().nuclear_repulsion_hessian();
-	    print("nuclear hessian");
-	    print(nuchessian);
-	}
+			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0) {}
 
 	double value() {return value(calc->molecule.get_all_coords());}
 
@@ -192,16 +188,18 @@ public:
 	/// returns the vibrational frequencies
 
 	/// @param[in]  hessian the hessian matrix
+    /// @param[in]  project whether to project out translation and rotation
+    /// @param[in]  print_hessian   whether to print the hessian matrix
 	/// @return the frequencies in atomic units
-	Tensor<double> compute_frequencies(const Tensor<double>& hessian) const;
+	Tensor<double> compute_frequencies(const Tensor<double>& hessian,
+	        const bool project, const bool print_hessian) const;
 
 	/// compute the mass-weight the hessian matrix
 
-	/// @param[in]  hessian     the non-mass-weighted hessian
+	/// use as: hessian.emul(massweights);
 	/// @param[in]  molecule    for getting access to the atomic masses
-	/// @return the mass-weighted hessian
-	Tensor<double> massweighted_hessian(const Tensor<double>& hessian,
-	        const Molecule& molecule) const;
+	/// @return the mass-weighting matrix for the hessian
+	Tensor<double> massweights(const Molecule& molecule) const;
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 

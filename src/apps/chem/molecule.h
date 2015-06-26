@@ -96,7 +96,7 @@ public:
     }
 
     /// return the mass in atomic units (electron mass = 1 a.u.)
-    double get_mass_in_au() const {return constants::proton_electron_mass_ratio * mass;}
+    double get_mass_in_au() const {return constants::atomic_mass_in_au * mass;}
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -200,6 +200,8 @@ public:
     void set_eprec(double value);
 
     void set_rcut(double value);
+
+    std::vector<double> get_rcut() const {return rcut;}
 
     void set_core_eprec(double value) {
         core_pot.set_eprec(value);

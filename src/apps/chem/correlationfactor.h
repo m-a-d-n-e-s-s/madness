@@ -241,6 +241,17 @@ private:
 
 public:
 
+	/// smoothed unit vector for the computation of the U1 potential
+	coord_3d smoothed_unitvec(const coord_3d& r, double smoothing=0.0) const {
+	    if (smoothing==0.0) smoothing=molecule.get_eprec();
+	    const double dist=r.normf();
+	    if (dist/smoothing<6.0) {
+	        return erf(dist/smoothing)/dist*r;
+	    } else {
+	        return 1.0/dist*r;
+	    }
+	}
+
 	class R_functor : public FunctionFunctorInterface<double,3> {
 		const NuclearCorrelationFactor* ncf;
 		int exponent;
@@ -465,7 +476,7 @@ private:
 
 		const double eA=exp(-Z*r);
 		const double gA=exp(-Z*Z*r*r);
-		coord_3d term=(2.0*gA*Z*Z*vr1A-Z*eA*unitvec(vr1A,1.e-8));
+		coord_3d term=(2.0*gA*Z*Z*vr1A-Z*eA*smoothed_unitvec(vr1A));
 		return term;
 	}
 
@@ -534,7 +545,7 @@ private:
         const double rho=Z*r;
         const double sqrtz=sqrt(Z);
         const double term=-exp(-rho)*sqrtz + 2.0*a*a*exp(-a*a*rho*rho)*Z*rho;
-        return term*unitvec(vr1A);
+        return term*smoothed_unitvec(vr1A);
     }
 
     /// second derivative of the nuclear correlation factor
@@ -616,7 +627,7 @@ private:
         const double bb= (2.*sqrt(a)+Z);
         const double term=2.*a*exp(-a*bb*r*r/Z)*r-exp(-bb *r)*Z;
 
-        return term*unitvec(vr1A);
+        return term*smoothed_unitvec(vr1A);
     }
 
     /// second derivative of the nuclear correlation factor
@@ -701,7 +712,7 @@ private:
 				vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
 
 		const double ebrz=exp(-b*r*Z);
-		const coord_3d term=Z*ebrz*(b*Z*(vr1A) - unitvec(vr1A));
+		const coord_3d term=Z*ebrz*(b*Z*(vr1A) - smoothed_unitvec(vr1A));
 		return term;
 	}
 
@@ -769,7 +780,7 @@ private:
     coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
     	const double a=a_param();
 		const double r=vr1A.normf();
-    	return -(a*exp(-a*Z*r)*Z)/(a-1.0)*unitvec(vr1A);
+    	return -(a*exp(-a*Z*r)*Z)/(a-1.0)*smoothed_unitvec(vr1A);
     }
 
     /// second derivative of the nuclear correlation factor
@@ -858,7 +869,7 @@ private:
     	const double b=Polynomial<N>::b_param(a);
 
     	if (rho<b) {
-    		return power<N>(-1.)*(1.+a)* Z* power<N-1>(-1.+rho/b)*unitvec(vr1A);
+    		return power<N>(-1.)*(1.+a)* Z* power<N-1>(-1.+rho/b)*smoothed_unitvec(vr1A);
     	}
     	return coord_3d(0.0);
     }
