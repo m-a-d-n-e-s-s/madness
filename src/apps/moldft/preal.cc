@@ -648,7 +648,6 @@ int main(int argc, char** argv) {
     Molecule molecule;
 
     //print("Env: MADNESS_HAS_LIBXC =      ", MADNESS_HAS_LIBXC);
-    //print("Env: MADNESS_HAS_MADXC =      ", MADNESS_HAS_MADXC);
 
     // Hydrogen atom
     // Also for hydrogen need to make changes to nmo (set to 1)
