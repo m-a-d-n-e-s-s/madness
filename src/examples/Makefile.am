@@ -41,19 +41,14 @@ nemo_SOURCES = nemo.cc
 newsolver_SOURCES = newsolver.cc
 
 hedft_SOURCES = hedft.cc 
+hedft_LDADD = $(LIBCHEM) $(MRALIBS)
+
 h2dft_SOURCES = h2dft.cc
+h2dft_LDADD = $(LIBCHEM) $(MRALIBS)
+
 if MADNESS_HAS_LIBXC
-hefxc_SOURCES = hefxc.cc  
-hefxc_SOURCES += ../apps/chem/xcfunctional_libxc.cc
-hedft_SOURCES += ../apps/chem/xcfunctional_libxc.cc
-h2dft_SOURCES += ../apps/chem/xcfunctional_libxc.cc
-endif
-if MADNESS_HAS_MADXC
-hedft_SOURCES += ../apps/DFcode/xcfunctional_madxc.cc 
-h2dft_SOURCES += ../apps/DFcode/xcfunctional_madxc.cc 
-else
-hedft_SOURCES += ../apps/chem/xcfunctional_ldaonly.cc 
-h2dft_SOURCES += ../apps/chem/xcfunctional_ldaonly.cc 
+hefxc_SOURCES = hefxc.cc 
+hefxc_LDADD = $(LIBCHEM) $(MRALIBS)
 endif
 
 sininteg_SOURCES = sininteg.cc
