@@ -4,7 +4,7 @@ ACLOCAL_AMFLAGS = -I ./config
 SUBDIRS = src config doc
 
 docs:
-	$(MAKE) -C doc doc
+	$(MAKE) -C doc docs
 
 
 .PHONY:
