@@ -14,8 +14,11 @@ dist_data_DATA = $(data_DATA)
 
 thisincludedir = $(includedir)/chem
 
-thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h corepotential.h atomutil.h SCF.h xcfunctional.h \
-                      nemo.h potentialmanager.h gth_pseudopotential.h molecular_optimizer.h projector.h
+thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
+                      corepotential.h atomutil.h SCF.h xcfunctional.h \
+                      mp2.h nemo.h potentialmanager.h gth_pseudopotential.h \
+                      molecular_optimizer.h projector.h TDA.h TDA_XC.h \
+                      TDA_guess.h TDA_exops.h
 
 
 testxc_SOURCES = testxc.cc xcfunctional.h xcfunctional_ldaonly.cc lda.cc
