@@ -366,6 +366,7 @@ AC_CONFIG_FILES([
     config/Makefile.sample
     config/MADNESS.pc
     config/madness-config.cmake
+    config/madness-project.cmake
     src/Makefile
       src/madness/Makefile
         src/madness/external/Makefile
