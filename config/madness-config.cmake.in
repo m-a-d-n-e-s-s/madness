@@ -20,7 +20,7 @@ set(Madness_VERSION "@PACKAGE_VERSION@")
 
 # Set compile and link flags, and remove optimization and debug flags
 string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_COMPILE_FLAGS "@CPPFLAGS@ @CXXFLAGS@")
-string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_LINKER_FLAGS "@CXXFLAGS@ @LDFLAGS@ @LIBS@")
+string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_LINKER_FLAGS "@CXXFLAGS@ @LDFLAGS@")
 
 # Set MADNESS component variables
 set(Madness_DEFAULT_COMPONENT_LIST MADchem MADmra MADtinyxml MADmuparser MADlinalg MADtensor MADmisc MADworld)
@@ -81,6 +81,8 @@ foreach(_comp ${Madness_DEFAULT_COMPONENT_LIST})
     endif()
 
 endforeach()
+
+list(APPEND Madness_LIBRARIES "@LIBS@")
 
 # Set Fortran 77 integer size used by MADNESS
 set(Madness_F77_INTEGER_SIZE @MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE@)

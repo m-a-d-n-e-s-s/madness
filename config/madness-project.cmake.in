@@ -41,7 +41,7 @@ set(Madness_LIBRARIES
     ${Madness_MADchem_LIBRARY} ${Madness_MADmra_LIBRARY}
     ${Madness_MADtinyxml_LIBRARY} ${Madness_MADmuparser_LIBRARY}
     ${Madness_MADlinalg_LIBRARY} ${Madness_MADtensor_LIBRARY}
-    ${Madness_MADmisc_LIBRARY} ${Madness_MADworld_LIBRARY})
+    ${Madness_MADmisc_LIBRARY} ${Madness_MADworld_LIBRARY} "@LIBS@")
 
 # Set Fortran 77 integer size used by MADNESS
 set(Madness_F77_INTEGER_SIZE @MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE@)
