@@ -36,13 +36,15 @@ lib_LIBRARIES = libMADmra.a
 
 
 data_DATA = autocorr coeffs gaussleg
+dist_data_DATA = $(data_DATA)
 
 thisincludedir = $(includedir)/madness/mra
 thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  vmra.h \
                       funcdefaults.h  key.h  mra.h  power.h  qmprop.h  twoscale.h \
                       lbdeux.h  mraimpl.h  funcplot.h  function_common_data.h \
                       function_factory.h function_interface.h gfit.h convolution1d.h \
-                      simplecache.h derivative.h displacements.h functypedefs.h
+                      simplecache.h derivative.h displacements.h functypedefs.h \
+                      sdf_shape_3D.h sdf_domainmask.h vmra1.h
 
 
 LDADD = libMADmra.a $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)

@@ -93,13 +93,13 @@ int main(int argc, char** argv) {
 
     MolecularEnergy E(world, *calc);
     double hf_energy =0;
-    if(calc -> param.nuclear_corrfac == "moldft"){
-    	std::cout << "\n\nNo Nuclear Correlation Factor determined, proceeding with std SCF\n\n";
+//    if(calc -> param.nuclear_corrfac == "moldft"){
+//    	std::cout << "\n\nNo Nuclear Correlation Factor determined, proceeding with std SCF\n\n";
     	hf_energy = E.value(calc -> molecule.get_all_coords().flat());
-    }else{
-    	std::cout << "\n\nNuclear Correlation Factor is\n ---> " << calc -> param.nuclear_corrfac << "\n\n";
-    	hf_energy=nemo.value();
-    }
+//    }else{
+//    	std::cout << "\n\nNuclear Correlation Factor is\n ---> " << calc -> param.nuclear_corrfac << "\n\n";
+//    	hf_energy=nemo.value();
+//    }
 
     if (world.rank()==0) {
         printf("final energy   %12.8f\n", hf_energy);

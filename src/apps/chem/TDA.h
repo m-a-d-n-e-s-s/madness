@@ -444,7 +444,9 @@ public:
 	void setup(const vecfuncT &mos,const std::string input){
 
 		// Check if nemo should be used
-		if(calc_ -> param.nuclear_corrfac == "moldft") use_nemo_ = false;
+		if(calc_ -> param.nuclear_corrfac == "none"){
+			use_nemo_ = false;
+		}
 		else use_nemo_ = true;
 
 		// so that the thresh can be changed from the outside
