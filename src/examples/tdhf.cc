@@ -91,33 +91,15 @@ int main(int argc, char** argv) {
         calc->param.print(world);
     }
 
-    // Solve the ground state energy
-
-//    // Come up with an initial OK data map
-//    if (world.size() > 1) {
-//      nemo.calc -> set_protocol<3>(world,calc -> param.econv);
-//      nemo.calc -> make_nuclear_potential(world);
-//      nemo.calc -> initial_load_bal(world);
-//    }
-////vama
-//    nemo.calc -> set_protocol<3>(world,calc -> param.protocol_data[0]);
-//
-//    MolecularEnergy E(world, calc);
-//    double hf_energy = E.value(calc -> molecule.get_all_coords().flat()); // ugh!
-//
-//    functionT rho = calc -> make_density(world, calc -> aocc, calc -> amo);
-//    functionT brho = rho;
-//    if (!calc -> param.spin_restricted)
-//        brho = calc -> make_density(world, calc -> bocc, calc -> bmo);
-//    rho.gaxpy(1.0, brho, 1.0);
-//
-//    if (calc -> param.derivatives) calc -> derivatives(world,rho);
-//    if (calc -> param.dipole) calc -> dipole(world,rho);
-
-	// end copy
     MolecularEnergy E(world, *calc);
-    double hf_energy = E.value(calc -> molecule.get_all_coords().flat());
-    //const double hf_energy=nemo.value();
+    double hf_energy =0;
+    if(calc -> param.nuclear_corrfac == "moldft"){
+    	std::cout << "\n\nNo Nuclear Correlation Factor determined, proceeding with std SCF\n\n";
+    	hf_energy = E.value(calc -> molecule.get_all_coords().flat());
+    }else{
+    	std::cout << "\n\nNuclear Correlation Factor is\n ---> " << calc -> param.nuclear_corrfac << "\n\n";
+    	hf_energy=nemo.value();
+    }
 
     if (world.rank()==0) {
         printf("final energy   %12.8f\n", hf_energy);

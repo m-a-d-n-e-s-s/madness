@@ -403,7 +403,7 @@ public:
 		world(world),
 		dft_(false),
 		calc_(calc),
-		use_nemo_(false),
+		use_nemo_(true),
 		nemo_(nemo),
 		mos_(mos),
 		active_mos_for_guess_calculation_(mos),
@@ -442,6 +442,10 @@ public:
 }
 	/// reads the input file and calculates needed functions
 	void setup(const vecfuncT &mos,const std::string input){
+
+		// Check if nemo should be used
+		if(calc_ -> param.nuclear_corrfac == "moldft") use_nemo_ = false;
+		else use_nemo_ = true;
 
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
@@ -546,6 +550,7 @@ public:
 			//std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
+			std::cout<< std::setw(40) << "use_nemo is " << use_nemo_ << std::endl;
 		}
 
 
