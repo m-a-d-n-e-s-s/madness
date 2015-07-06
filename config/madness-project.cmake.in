@@ -17,7 +17,7 @@ set(Madness_VERSION "@PACKAGE_VERSION@")
 # Set compile and link flags, and remove optimization and debug flags
 string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_COMPILE_FLAGS "@CPPFLAGS@ @CXXFLAGS@")
 string(STRIP "${Madness_COMPILE_FLAGS}" Madness_COMPILE_FLAGS)
-string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_LINKER_FLAGS "@CXXFLAGS@ @LDFLAGS@ @LIBS@")
+string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_LINKER_FLAGS "@CXXFLAGS@ @LDFLAGS@")
 string(STRIP "${Madness_LINKER_FLAGS}" Madness_LINKER_FLAGS)
 
 # Set the library variables
