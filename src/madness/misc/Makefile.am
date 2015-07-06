@@ -7,7 +7,7 @@ bin_PROGRAMS = interp3
 TESTS = interp3
 
 thisincludedir = $(includedir)/madness/misc
-thisinclude_HEADERS = misc.h ran.h phandler.h cfft.h
+thisinclude_HEADERS = misc.h ran.h phandler.h interpolation_1d.h cfft.h
 
 
 libMADmisc_a_SOURCES = checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc meminfo.cc\
