@@ -82,49 +82,47 @@ int main(int argc, char** argv) {
 
 	// First solve the ground state
 	const std::string input = "input";
-	SCF calc(world,input.c_str());
-	calc.molecule.print(); print("\n");
-	calc.param.print(world);
-
-	// solve the ground state energy; calc is a reference
-
-	//MolecularEnergy me(world,calc);
-	//double hf_energy=me.value(calc.molecule.get_all_coords());
-
-	// copied from moldft to search bug in hlrn
-    // Warm and fuzzy for the user
-    if (world.rank() == 0) {
-      print("CODE FROM MOLDFT TO DEBUG ----\n\n");
-      print(" MADNESS Hartree-Fock and Density Functional Theory Program");
-      print(" ----------------------------------------------------------\n");
-      print("\n");
-      calc.molecule.print();
-      print("\n");
-      calc.param.print(world);
+	//SCF calc(world,input.c_str());
+	std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
+	Nemo nemo(world,calc);
+    if (world.rank()==0) {
+        calc->molecule.print();
+        print("\n");
+        calc->param.print(world);
     }
 
-    // Come up with an initial OK data map
-    if (world.size() > 1) {
-      calc.set_protocol<3>(world,calc.param.econv);
-      calc.make_nuclear_potential(world);
-      calc.initial_load_bal(world);
-    }
-//vama
-    calc.set_protocol<3>(world,calc.param.protocol_data[0]);
+    // Solve the ground state energy
 
-    MolecularEnergy E(world, calc);
-    double hf_energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
-
-    functionT rho = calc.make_density(world, calc.aocc, calc.amo);
-    functionT brho = rho;
-    if (!calc.param.spin_restricted)
-        brho = calc.make_density(world, calc.bocc, calc.bmo);
-    rho.gaxpy(1.0, brho, 1.0);
-
-    if (calc.param.derivatives) calc.derivatives(world,rho);
-    if (calc.param.dipole) calc.dipole(world,rho);
+//    // Come up with an initial OK data map
+//    if (world.size() > 1) {
+//      nemo.calc -> set_protocol<3>(world,calc -> param.econv);
+//      nemo.calc -> make_nuclear_potential(world);
+//      nemo.calc -> initial_load_bal(world);
+//    }
+////vama
+//    nemo.calc -> set_protocol<3>(world,calc -> param.protocol_data[0]);
+//
+//    MolecularEnergy E(world, calc);
+//    double hf_energy = E.value(calc -> molecule.get_all_coords().flat()); // ugh!
+//
+//    functionT rho = calc -> make_density(world, calc -> aocc, calc -> amo);
+//    functionT brho = rho;
+//    if (!calc -> param.spin_restricted)
+//        brho = calc -> make_density(world, calc -> bocc, calc -> bmo);
+//    rho.gaxpy(1.0, brho, 1.0);
+//
+//    if (calc -> param.derivatives) calc -> derivatives(world,rho);
+//    if (calc -> param.dipole) calc -> dipole(world,rho);
 
 	// end copy
+    MolecularEnergy E(world, *calc);
+    double hf_energy = E.value(calc -> molecule.get_all_coords().flat());
+    //const double hf_energy=nemo.value();
+
+    if (world.rank()==0) {
+        printf("final energy   %12.8f\n", hf_energy);
+        printf("finished at time %.1f\n", wall_time());
+    }
 
 
 	// Set the threshold defaults
@@ -162,11 +160,11 @@ int main(int argc, char** argv) {
 	if (world.rank()==0) print("MRA hf energy", hf_energy);
 	if (world.rank()==0) {
 		printf("\n\n starting TDHF section at time %.1f\n",wall_time());
-		print("nuclear repulsion: ", calc.molecule.nuclear_repulsion_energy());
+		print("nuclear repulsion: ", calc -> molecule.nuclear_repulsion_energy());
 		print("hf energy:         ", hf_energy);
 		print("orbital energies:  ");
-		for (std::size_t i=0; i<calc.amo.size(); ++i)
-			print("     ",calc.aeps[i]);
+		for (std::size_t i=0; i<calc -> amo.size(); ++i)
+			print("     ",calc -> aeps[i]);
 		print("\n\n-----------------------------");
 		std::cout << "guess_thresh is:" << guess_thresh << std::endl;
 		std::cout << "solve_thresh is:" << solve_thresh << std::endl;
@@ -178,17 +176,17 @@ int main(int argc, char** argv) {
 	// Print the coordinates
 	if (world.rank()==0){
 		print("Coordinates after MolDFT:");
-		Tensor<double> Coord = calc.molecule.get_all_coords();
-		for(int i=0;i<calc.molecule.natom();i++){
-			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
+		Tensor<double> Coord = calc -> molecule.get_all_coords();
+		for(int i=0;i<calc -> molecule.natom();i++){
+			print(calc -> molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
 		}
 	}
 	// Check if center of charge is 0,0,0
-	Tensor<double> Coord = calc.molecule.get_all_coords();
+	Tensor<double> Coord = calc -> molecule.get_all_coords();
 	coord_3d cm(0.0);
 	for(size_t i=0;i<3;i++){
-		for(int j=0;j<calc.molecule.natom();j++){
-			cm[i] = calc.molecule.get_atom(j).atomic_number*Coord(i,j);
+		for(int j=0;j<calc -> molecule.natom();j++){
+			cm[i] = calc -> molecule.get_atom(j).atomic_number*Coord(i,j);
 		}
 	}
 	std::cout << "Center of Charge is " << cm << std::endl;
@@ -204,7 +202,7 @@ int main(int argc, char** argv) {
 	// Print the grid (for koala guess or other external applications)
 	if(print_grid){
 		if(world.rank()==0) std::cout << " Printing grid for external application ... then stop the calculation ... remeber to remove print_grid keyword" << std::endl;
-		real_function_3d density=calc.make_density(world,calc.aocc,calc.amo);
+		real_function_3d density=calc -> make_density(world,calc -> aocc,calc -> amo);
     	density.get_impl()->print_grid("grid");
     	if (world.rank() == 0) printf("\n\n-------------------------\nfinished at time %.1f\n", wall_time());
     	finalize();
@@ -215,7 +213,7 @@ int main(int argc, char** argv) {
 	if(no_compute){
 		MADNESS_EXCEPTION("Can not read xfunction currently due to strange crash in read_xfunctions",1);
 //		if(world.rank()==0) std::cout << "\n\n\n---no_compute keyword detected ... just read and analyze---\n\n\n " << std::endl;
-//		TDA cis(world,calc,calc.amo,input);
+//		TDA cis(world,calc,calc -> amo,input);
 //		xfunctionsT read_roots;
 //		cis.read_xfunctions(read_roots);
 //		xfunctionsT read_converged_roots = cis.get_converged_xfunctions();
@@ -246,11 +244,11 @@ int main(int argc, char** argv) {
 				<< FunctionDefaults<3>::get_thresh() << "\n\n"  << std::endl;
 
 		// Make deep copys of the ground state mos and reduce the thresh
-		guess_mos = copy(world,calc.amo);
+		guess_mos = copy(world,calc -> amo);
 		set_thresh(world,guess_mos,guess_thresh);
 
 		// Init. and solve the guess
-		TDA guess_cis(world,calc,guess_mos,input);
+		TDA guess_cis(world,calc,nemo,guess_mos,input);
 		guess_cis.solve_guess(guess_xfunctions);
 
 		// Get the pre-converged xfunctions for the next solve routine
@@ -267,11 +265,11 @@ int main(int argc, char** argv) {
 				<< FunctionDefaults<3>::get_thresh() << "\n\n"  << std::endl;
 
 		// Make deep copys of the ground state mos and reduce the thresh
-		solve_mos = copy(world,calc.amo);
+		solve_mos = copy(world,calc -> amo);
 		set_thresh(world,solve_mos,solve_thresh);
 
 		// iterate the solve_xfunctions
-		TDA solve_cis(world,calc,solve_mos,input);
+		TDA solve_cis(world,calc,nemo,solve_mos,input);
 		solve_cis.solve(solve_xfunctions);
 
 		// Get the converged xfunctions and prepare for the last sequential iterations with kain
@@ -289,11 +287,11 @@ int main(int argc, char** argv) {
 				<< FunctionDefaults<3>::get_thresh() << "\n\n"  << std::endl;
 
 		// Make deep copys of the ground state mos and reduce the thresh
-		solve_seq_mos = copy(world,calc.amo);
+		solve_seq_mos = copy(world,calc -> amo);
 		set_thresh(world,solve_seq_mos,solve_seq_thresh);
 
 		// make last iterations
-		TDA solve_seq_cis(world,calc,solve_seq_mos,input);
+		TDA solve_seq_cis(world,calc,nemo,solve_seq_mos,input);
 		solve_seq_cis.solve_sequential(solve_seq_xfunctions);
 		solve_seq_mos.clear();
 	}

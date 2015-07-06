@@ -12,6 +12,7 @@
 #include <chem/projector.h>
 //#include<examples/nonlinsol.h> not used anymore
 #include <chem/SCF.h>
+#include <chem/nemo.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -398,10 +399,12 @@ public:
 	/// @param[in] calc 	the SCF calcualtion
 	/// @param[in] mos		the occupied molecular orbitals from the scf calculation
 	/// @param[in] input	name of the input file
-	TDA(World &world,const SCF &calc,const vecfuncT &mos,const std::string input):
+	TDA(World &world,const std::shared_ptr<SCF> calc, const Nemo &nemo,const vecfuncT &mos,const std::string input):
 		world(world),
 		dft_(false),
 		calc_(calc),
+		use_nemo_(false),
+		nemo_(nemo),
 		mos_(mos),
 		active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
@@ -443,15 +446,15 @@ public:
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
 
-		size_t noct = calc_.aeps.size();
+		size_t noct = calc_ -> aeps.size();
 		// The highest possible excitation (-homo_energy)
-		double highest_excitation_default = -calc_.aeps(noct-1);
+		double highest_excitation_default = -calc_ -> aeps(noct-1);
 		highest_excitation_ = highest_excitation_default;
-		ipot_ = -calc_.aeps(noct-1)*2.0;
+		ipot_ = -calc_ -> aeps(noct-1)*2.0;
 
 
 		// The guessed lowest excitation (if no guess_omega_ is in the input)
-		double guess_omega_default = -0.9*calc_.aeps[noct-1];
+		double guess_omega_default = -0.9*calc_ -> aeps[noct-1];
 		guess_omega_ = guess_omega_default;
 
 		std::ifstream f(input.c_str());
@@ -518,7 +521,7 @@ public:
 			std::cout<< std::setw(60) <<"\n\n\n\n ======= TDA info =======\n\n\n" << std::endl;
 			if (nfreeze_==0) std::cout<< std::setw(40) <<"# frozen orbitals : "<<"none" << std::endl;
 			if (nfreeze_>0) std::cout<< std::setw(40) <<"# frozen orbitals : " <<  "0 to " << nfreeze_-1 << std::endl;
-			std::cout<< std::setw(40) <<"active orbitals : " << nfreeze_ << " to " << calc_.param.nalpha-1 << std::endl;
+			std::cout<< std::setw(40) <<"active orbitals : " << nfreeze_ << " to " << calc_ -> param.nalpha-1 << std::endl;
 			std::cout<< std::setw(40) << "guess from : " << guess_ << std::endl;
 			std::cout<< std::setw(40) << "Gram-Schmidt is used : " << !only_fock_ << std::endl;
 			std::cout<< std::setw(40) << "threshold 3D : " << FunctionDefaults<3>::get_thresh() << std::endl;
@@ -555,12 +558,12 @@ public:
 
 		// project the mos if demanded (default is true)
 		if(guess_mode_ != "numerical"){
-			active_mos_for_guess_calculation_ = project_to_ao_basis(active_mo_,calc_.ao);
+			active_mos_for_guess_calculation_ = project_to_ao_basis(active_mo_,calc_ -> ao);
 		}
 
 		/// Make transformation matrix from cannical to localized MOs
-		std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
-		distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
+		std::vector<int> set=calc_ -> group_orbital_sets(world,calc_ -> aeps,calc_ -> aocc,active_mo_.size());
+		distmatT dmo2lmo=calc_ -> localize_PM(world,active_mo_,set);
 		tensorT mo2lmo(active_mo_.size(),active_mo_.size());
 		dmo2lmo.copy_to_replicated(mo2lmo);
 		mo2lmo_ = mo2lmo;
@@ -627,7 +630,10 @@ public:
 	void solve_sequential(xfunctionsT &xfunctions);
 
 	/// Returns the MolDFT calulation
-	const SCF &get_calc() const {return calc_;}
+	const SCF get_calc() const {return *calc_;}
+
+	/// Return the Nemo based scf calculations
+	const Nemo & get_nemo() const {return nemo_;}
 
 	// Print out grid (e.g for Koala or other external program)
 	const bool print_grid_TDA() const {return print_grid_;}
@@ -648,7 +654,13 @@ private:
 	bool dft_;
 
 	/// The SCF calculation of MolDFT
-	const SCF &calc_;
+	const std::shared_ptr<SCF> &calc_;
+
+
+
+	/// The SCF calculation using NEMOs (MOs without Nuclear Cusp): MO = R*NEMO, R= Nuclear correlation factor
+	bool use_nemo_;
+	const Nemo & nemo_;
 
 	/// The molecular orbitals of moldft
 	/// extra member variable that the thresh can be changed without changing calc_

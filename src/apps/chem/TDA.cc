@@ -5,10 +5,27 @@
  *      Author: kottmanj
  */
 
-#include <chem/TDA.h>
-#include <madness/mra/mra.h>
-#include <apps/chem/SCFOperators.h>
-#include <chem/nemo.h>
+#include "TDA.h"
+
+//#include <chem/nemo.h>
+//#include <madness/mra/mra.h>
+#include "/usr/include/math.h"
+#include "../../madness/mra/derivative.h"
+#include "../../madness/mra/funcdefaults.h"
+#include "../../madness/mra/funcplot.h"
+#include "../../madness/mra/function_interface.h"
+#include "../../madness/mra/functypedefs.h"
+#include "../../madness/mra/vmra1.h"
+#include "../../madness/tensor/slice.h"
+#include "../../madness/tensor/srconf.h"
+#include "../../madness/tensor/tensor.h"
+#include "../../madness/tensor/tensor_lapack.h"
+#include "../../madness/world/madness_exception.h"
+#include "../../madness/world/print.h"
+#include "../../madness/world/timers.h"
+#include "../../madness/world/world.h"
+#include "../../madness/world/worldgop.h"
+#include "SCFOperators.h"
 
 using namespace madness;
 
@@ -129,7 +146,9 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 
 	// Failsafe for comming fock orthonormalization
 	for(size_t i=0;i<xfunctions.size();i++)xfunctions[i].smooth_potential.clear();
+
 	orthonormalize_fock(xfunctions);
+
 	size_t max = xfunctions.size();
 
 	print_status(xfunctions);
@@ -263,7 +282,19 @@ void TDA::initialize(xfunctionsT & xfunctions){
 	}
 	make_big_fock_guess(xfunctions);
 	normalize(xfunctions);
-	for(size_t i=0;i<xfunctions.size();i++) plot_vecfunction(xfunctions[i].x,"guess_excitation_" + stringify(i) + "_",true);
+	for(size_t i=0;i<xfunctions.size();i++){
+		project_out_occupied_space(xfunctions[i].x);
+		normalize(xfunctions[i]);
+		plot_vecfunction(xfunctions[i].x,"guess_excitation_" + stringify(i) + "_",true);
+		if(use_nemo_){
+			plot_vecfunction(mul(world,get_nemo().nuclear_correlation -> function(),xfunctions[i].x),"R_times_guess_function_"+stringify(i)+"_",true);
+			plot_plane(world,get_nemo().nuclear_correlation -> function(),"nuclear_correlation_factor");
+			plot_plane(world,get_calc().amo[0],"NEMO1");
+			plot_plane(world,get_calc().amo[0]*get_nemo().nuclear_correlation -> function(),"RNEMO1");
+			std::cout << "Overlap between reconstructed guess and reconstructed occupied space\n" << inner(world,mul(world,get_nemo().nuclear_correlation -> square(),xfunctions[i].x),get_calc().amo) << "\n";
+		}
+
+	}
 
 }
 
@@ -279,16 +310,21 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 		Tensor<double> overlap(xfunctions.size(), xfunctions.size());
 		for (size_t p = 0; p < xfunctions.size(); p++) {
 			for (size_t k = 0; k < xfunctions.size(); k++) {
-				Tensor<double> overlap_vec = inner(world, xfunctions[p].x,
-						xfunctions[k].x);
+				Tensor<double> overlap_vec;
+				if(use_nemo_){
+					overlap_vec = inner(world, mul(world,get_nemo().nuclear_correlation ->square(),xfunctions[p].x),xfunctions[k].x);
+				}else overlap_vec = inner(world, xfunctions[p].x,xfunctions[k].x);
 				overlap(p, k) = overlap_vec.sum();
 			}
 		}
 
 		Tensor<double> F = make_perturbed_fock_matrix(xfunctions);
+		if(debug_) std::cout<< "guess overlap matrix is\n" << overlap << "\n";
+		if(debug_) std::cout<<"guess pert. Fock Matrix is\n" << F << "\n";
 		Tensor<double> U, evals, dummy(xfunctions.size());
-		U = calc_.get_fock_transformation(world, overlap, F, evals, dummy,
+		U = calc_ -> get_fock_transformation(world, overlap, F, evals, dummy,
 				1.5 * econv_);
+		if(debug_) std::cout<<"Transformation Matrix is\n" << U << "\n";
 		std::vector<vecfuncT> old_x;
 		std::vector<std::string> old_exop_strings;
 		for (size_t i = 0; i < xfunctions.size(); i++) {
@@ -574,9 +610,14 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	if (not dft_ and shift_ != 0.0)
 		MADNESS_EXCEPTION("DFT is off but potential shift is not zero", 1);
 
+	vecfuncT Vpsi;
+	if(not use_nemo_){
 	real_function_3d vn = get_calc().potentialmanager -> vnuclear();
 	vn.truncate();
-	vecfuncT Vpsi=add(world,xfunction.smooth_potential,mul(world,vn,xfunction.x));
+	Vpsi=add(world,xfunction.smooth_potential,mul(world,vn,xfunction.x));
+	}else if(use_nemo_){
+		Vpsi = xfunction.smooth_potential;
+	}
 	double omega = xfunction.omega;
 	if(Vpsi.empty()) MADNESS_EXCEPTION("ERROR in iterate_one function: Applied potential of xfunction is empty",1);
 
@@ -602,14 +643,17 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	// Residual as error estimation
 	project_out_occupied_space(GVpsi);
 	vecfuncT residual = sub(world, xfunction.x, GVpsi);
-	Tensor<double> inner_tmp = inner(world, residual, residual);
+
+	vecfuncT residual_bra = residual;
+	if(use_nemo_) residual_bra = mul(world,get_nemo().nuclear_correlation -> square(),residual);
+	Tensor<double> inner_tmp = inner(world, residual_bra, residual);
 	if(debug_ and world.rank()==0) std::cout << "\n residual-self-overlaps \n" << inner_tmp << std::endl;
 	double error = sqrt(inner_tmp.sum());
 	xfunction.error.push_back(error);
 
 	// Calculate 2nd order update:
 	// Inner product of Vpsi and the residual (Vspi is scaled to -2.0 --> multiply later with 0.5)
-	Tensor<double> tmp = inner(world, Vpsi, residual);
+	Tensor<double> tmp = inner(world, Vpsi, residual_bra);
 
 	// Norm of GVpsi (Psi_tilde)
 	double tmp2 = 0.0;
@@ -656,10 +700,20 @@ void TDA::normalize(xfunctionsT & xfunctions)const {
 		normalize(xfunctions[i]);
 }
 void TDA::normalize(xfunction & xfunction)const {
-	const Tensor<double> self_overlaps = inner(world, xfunction.x, xfunction.x);
+	Tensor<double> self_overlaps;
+	if(use_nemo_){
+		vecfuncT RX = mul(world,get_nemo().nuclear_correlation -> function(),xfunction.x);
+		self_overlaps = inner(world,RX,RX);
+	}else self_overlaps = inner(world, xfunction.x, xfunction.x);
 	const double squared_norm = self_overlaps.sum();
 	const double norm = sqrt(squared_norm);
 	scale(world, xfunction.x, 1.0 / norm);
+
+	/// DEBUG
+	if(use_nemo_){
+	//std::cout << " Norm of regularized x-vector is " << sqrt(inner(world,xfunction.x,xfunction.x).sum()) <<"\n";
+	//std::cout << " Norm of reconstructed x-vector is" << sqrt(inner(world,mul(world,get_nemo().nuclear_correlation -> square(),xfunction.x),xfunction.x).sum()) << "\n";
+	}
 }
 
 void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions)const {
@@ -667,7 +721,10 @@ void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions)const {
 		compress(world,xfunctions[p].x);
 		for (size_t k = 0; k < converged_xfunctions_.size(); k++) {
 			compress(world,converged_xfunctions_[k].x);
-			Tensor<double> overlap = inner(world, xfunctions[p].x,
+			Tensor<double> overlap;
+			if(use_nemo_) overlap = inner(world, mul(world,get_nemo().nuclear_correlation -> square(),xfunctions[p].x),
+					converged_xfunctions_[k].x);
+			else overlap = inner(world, xfunctions[p].x,
 					converged_xfunctions_[k].x);
 			double c = overlap.sum();
 			for (size_t i = 0; i < xfunctions[p].x.size(); i++) {
@@ -716,8 +773,11 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 	Tensor<double> overlap(xfunctions.size(), xfunctions.size());
 	for (size_t p = 0; p < xfunctions.size(); p++) {
 		for (size_t k = 0; k < xfunctions.size(); k++) {
-			Tensor<double> overlap_vec = inner(world, xfunctions[p].x,
-					xfunctions[k].x);
+			Tensor<double> overlap_vec;
+			if(use_nemo_){
+				overlap_vec = inner(world,mul(world,get_nemo().nuclear_correlation->square(),xfunctions[k].x),xfunctions[p].x);
+			}
+			else overlap_vec = inner(world, xfunctions[p].x,xfunctions[k].x);
 			overlap(p, k) = overlap_vec.sum();
 		}
 	}
@@ -736,11 +796,14 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 	} else
 		F = make_perturbed_fock_matrix(xfunctions);
 
+	/// DEBUG
+	std::cout << "\n\nPerturbed Fock Matrix F is \n" << F << "\n\n";
+
 	// Diagonalize the perturbed Fock matrix
 	Tensor<double> U, evals;
 
 	madness::Tensor<double> dummy(xfunctions.size());
-	U = calc_.get_fock_transformation(world, overlap, F, evals, dummy,
+	U = calc_ -> get_fock_transformation(world, overlap, F, evals, dummy,
 			1.5 * econv_);
 	//}
 	print("\n\n");
@@ -829,8 +892,12 @@ void TDA::project_out_occupied_space(vecfuncT &x)const {
 				"ERROR IN PROJECTOR: Size of xfunctions and active orbitals is not equal",
 				1);
 	for (size_t p = 0; p < active_mo_.size(); ++p)
-		x[p] -= rho0(x[p]);
-}
+		if(use_nemo_){real_function_3d R2X = x[p]*get_nemo().nuclear_correlation -> square();
+		x[p] -= rho0(R2X);
+		}else{
+			x[p] -= rho0(x[p]);
+		}
+	}
 
 double TDA::perturbed_fock_matrix_element(const vecfuncT &xr,
 		const vecfuncT &Vxp, const vecfuncT &xp) const {
@@ -854,33 +921,37 @@ double TDA::perturbed_fock_matrix_element(const vecfuncT &xr,
 }
 
 double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potential)const {
-	Tensor<double> smooth_pot = inner(world, x.x, smooth_potential);
+	Tensor<double> smooth_pot;
+	if(use_nemo_) smooth_pot= inner(world, mul(world,get_nemo().nuclear_correlation -> square(),x.x), smooth_potential);
+	else smooth_pot= inner(world,x.x, smooth_potential);
 	double exp_smooth_v = smooth_pot.sum();
 
+	double expv = exp_smooth_v;
+
 	// The Vnuc part
+	if(not use_nemo_){
 	real_function_3d vnuc = get_calc().potentialmanager->vnuclear();
 	vecfuncT vnuci = mul(world,vnuc,x.x);
 	Tensor<double> vnuc_pot = inner(world, x.x, vnuci);
 	double exp_vnuc = vnuc_pot.sum();
-//	double exp_vnuc =0.0;
-//	for(size_t i=0;i<x.x.size();i++){
-//		real_function_3d vnuci = x.x[i] * get_calc().potentialmanager->vnuclear();
-//			for(size_t j=0;j<x.x.size();j++){
-//				exp_vnuc += vnuci.inner(x.x[j]);
-//			}
-//	}
-
-	double expv = exp_smooth_v + exp_vnuc;
+	expv += exp_vnuc;
+	}
 
 	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 	gradop = gradient_operator<double, 3>(world);
 	for (int axis = 0; axis < 3; axis++) {
 		const vecfuncT dx = apply(world, *(gradop[axis]), x.x);
-		Tensor<double> kin = inner(world, dx, dx);
+		vecfuncT bra_dx;
+		if(use_nemo_) bra_dx = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),x.x));
+		Tensor<double> kin;
+		if(use_nemo_) kin= inner(world, bra_dx, dx);
+		else kin= inner(world, dx, dx);
 		expv += 0.5 * kin.sum();
 	}
 	for (size_t i = 0; i < x.x.size(); i++) {
-		Tensor<double> overlap = inner(world, x.x, x.x);
+		Tensor<double> overlap;
+		if(use_nemo_) overlap = inner(world, x.x, x.x);
+		else overlap = inner(world, x.x, mul(world,get_nemo().nuclear_correlation -> square(),x.x));
 		expv -= (get_calc().aeps(nfreeze_ + i) + shift_) * overlap(i);
 	}
 	return expv;
@@ -895,18 +966,28 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 	//Tensor<double> F(xfunctions.size(),xfunctions.size());
 	Tensor<double> F(xfunctions.size(), xfunctions.size());
 
+/// NEMO: TO USE NEMO MAKE SHURE THE SMOOTH POTENTIAL IS THE TRANSFORMED NEMO POTENTIAL
 	//The smooth potential part
+
+	// The bra_element for nemos has to be multiplied with R^2 because of the changed metric
+
 	for (std::size_t p = 0; p < xfunctions.size(); p++) {
 		vecfuncT Vxp;
 		if(xfunctions[p].smooth_potential.empty()) Vxp = apply_smooth_potential(xfunctions[p]);
 		else Vxp = xfunctions[p].smooth_potential;
 		for (std::size_t k = 0; k < xfunctions.size(); k++) {
-			Tensor<double> fpk_i = inner(world, xfunctions[k].x, Vxp);
+			vecfuncT bra_x = xfunctions[k].x;
+			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[k].x);}
+			Tensor<double> fpk_i = inner(world, bra_x, Vxp);
 			F(p, k) = fpk_i.sum();
 		}
 	}
 
+	if(debug_) std::cout << "Fock Matrix: smooth potential part:\n" << F << "\n";
+
+/// NEMO: TURN THIS OF IF NEMO IS USED
 	// The nuclear potential part
+	if(not use_nemo_){
 	for(size_t i=0; i < xfunctions.size();i++){
 		real_function_3d vn = get_calc().potentialmanager->vnuclear();
 		vn.truncate();
@@ -916,6 +997,7 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 			Tensor<double> fij = inner(world, xfunctions[j].x, vnuci);
 			F(i,j) += fij.sum();
 		}
+	}
 	}
 
 	//The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
@@ -929,16 +1011,24 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 
 	for (int axis = 0; axis < 3; ++axis) {
 
-		std::vector<vecfuncT> dxp;
+		std::vector<vecfuncT> dxp, bra_dxp;
 		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
 
 			const vecfuncT& xp = xfunctions[iroot].x;
-			const vecfuncT d = apply(world, *(gradop[axis]), xp);
+			vecfuncT d = apply(world, *(gradop[axis]), xp);
+			vecfuncT bra_d;
+			if(use_nemo_){
+				bra_d = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),xp));
+			}
+			truncate(world,d);
 			dxp.push_back(d);
+			if(use_nemo_) bra_dxp.push_back(bra_d);
 		}
 		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
 			for (std::size_t jroot = 0; jroot < xfunctions.size(); ++jroot) {
-				Tensor<double> xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
+				Tensor<double> xpi_Txqi;
+				if(use_nemo_)xpi_Txqi = inner(world, bra_dxp[iroot], dxp[jroot]);
+				else xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
 				F(iroot, jroot) += 0.5 * xpi_Txqi.sum();
 			}
 		}
@@ -947,7 +1037,9 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 	// The epsilon part
 	for (std::size_t p = 0; p < xfunctions.size(); p++) {
 		for (std::size_t r = 0; r < xfunctions.size(); r++) {
-			Tensor<double> eij = inner(world, xfunctions[p].x, xfunctions[r].x);
+			vecfuncT bra_x = xfunctions[p].x;
+			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[p].x);}
+			Tensor<double> eij = inner(world, bra_x, xfunctions[r].x);
 			for (size_t ii = 0; ii < xfunctions[p].x.size(); ++ii) {
 				F(p, r) -= (get_calc().aeps[ii + nfreeze_] + shift_) * eij[ii];
 			}
@@ -1051,11 +1143,31 @@ MADNESS_EXCEPTION("perturbed fock matrix for guess functions is not used",1);
 }
 
 vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction) const{
+/// NEMO: MOVE nemo_ BOOL TO THE .h FILE
+	if(use_nemo_){
+		real_function_3d vlocal = get_coulomb_potential();
+		vecfuncT JX = mul(world,vlocal,xfunction.x);
+		truncate(world,JX);
+		Nuclear Uop(world,&get_nemo());
+		vecfuncT UX = Uop(xfunction.x);
+		truncate(world,UX);
+		Exchange KOp(world,&get_nemo(),0);
+		vecfuncT KX =KOp(xfunction.x);
+		truncate(world,KX);
+		vecfuncT TMP1 = sub(world,JX,KX);
+		vecfuncT smooth_V0 = add(world,TMP1,UX);
+		truncate(world,smooth_V0);
+		vecfuncT gamma = apply_gamma(xfunction);
+		truncate(world,gamma);
+		vecfuncT smooth_V = add(world,smooth_V0,gamma);
+		return smooth_V;
+	}
+	if(not use_nemo_){
 	real_function_3d vlocal = get_coulomb_potential();
 	vecfuncT J = mul(world,vlocal,xfunction.x);
 	truncate(world,J);
 //	vecfuncT K = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, xfunction.x);
-	Exchange KOp(world,&get_calc(),0);
+	Exchange KOp(world,&*calc_,0);
 	vecfuncT K=KOp(xfunction.x);
 	truncate(world,K);
 	vecfuncT smooth_V0 = sub(world,J,K);
@@ -1063,23 +1175,19 @@ vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction) const{
 	truncate(world,gamma);
 	vecfuncT smooth_V = add(world,smooth_V0,gamma);
 	return smooth_V;
+	}
+	MADNESS_EXCEPTION("ERROR in apply_smooth_potential... we should not reach the bottom",1);
 }
 
 vecfuncT TDA::apply_perturbed_potential(const xfunction & xfunction) const {
-//	vecfuncT Gamma;
-//	TDA_TIMER gammatimer(world, "make gamma...");
-//	if (not dft_)
-//		Gamma = apply_gamma(xfunction);
-//	if (dft_)
-//		Gamma = apply_gamma_dft(xfunction);
-//	gammatimer.info(debug_);
-//
-//	TDA_TIMER vxctimer(world, "apply the unperturbed potential...");
-//	vecfuncT V0 = get_V0(xfunction.x);
-//	vxctimer.info();
-//
-//	vecfuncT Vpsi = add(world, V0, Gamma);
 
+	// Take out the singularity in the nuclear potential with a nucleii correlation factor
+	bool use_nuclear_correlation_factor_=true;
+	if(use_nuclear_correlation_factor_){
+
+	}
+	else{
+	// The smooth potential is the unperturbed potential without the nuclear potential plus the perturbed potential
 	vecfuncT smooth_V  = apply_smooth_potential(xfunction);
 	real_function_3d vnuc = get_calc().potentialmanager->vnuclear();
 	vecfuncT vnucx = mul(world,vnuc,xfunction.x);
@@ -1091,7 +1199,7 @@ vecfuncT TDA::apply_perturbed_potential(const xfunction & xfunction) const {
 	if(world.rank()==0) std::cout << std::setw(40) << "Overall potential in GB: " << get_size(world,Vpsi) << std::endl;
 	if(world.rank()==0) std::cout << "\n\n"<<  std::setw(40) <<  std::endl;
 	return Vpsi;
-
+	}
 }
 
 vecfuncT TDA::apply_gamma(const xfunction &xfunction) const {
@@ -1105,31 +1213,33 @@ vecfuncT TDA::apply_gamma(const xfunction &xfunction) const {
 	TDA_TIMER exchange(world, the_message);\
 	// transform xfunction to lmo basis
 	if(localize_exchange_intermediate_){
-		std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
-		distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
-		tensorT mo2lmo(active_mo_.size(),active_mo_.size());
-		dmo2lmo.copy_to_replicated(mo2lmo);
-		vecfuncT lmo_x=madness::transform(world,xfunction.x,mo2lmo,true);
-		vecfuncT gamma_ex_lmo=zero_functions<double,3>(world,lmo_x.size());
-		for (std::size_t p = 0; p < xfunction.x.size(); p++) {
-
-			vecfuncT x_Ppi=zero_functions<double,3>(world,lmo_x.size());
-			norm_tree(world,lmo_x);
-			norm_tree(world,exchange_intermediate_[p]);
-			for(size_t i=0 ; i<x_Ppi.size();i++){
-				x_Ppi[i]=mul_sparse(lmo_x[i],exchange_intermediate_[p][i],FunctionDefaults<3>::get_thresh());
-			}
-			compress(world, x_Ppi);
-			for (std::size_t i = 0; i < lmo_x.size(); i++) {
-				gamma_ex_lmo[p] -= x_Ppi[i];
-			}
-
-			// Project out occupied space
-			gamma_ex_lmo[p] -= rho0(gamma[p]);
-		}
-		// Transform gamma to canonical basis
-		vecfuncT gamma_ex_canon=madness::transform(world,gamma_ex_lmo,transpose(mo2lmo),true);
-		gamma = add(world,gamma,gamma_ex_canon);
+		// not used and not consistent with nemo
+		MADNESS_EXCEPTION("Localization was demanded ... not consistent with nemo ... and does not work anyway right now",1);
+//		std::vector<int> set=calc_.group_orbital_sets(world,calc_.aeps,calc_.aocc,active_mo_.size());
+//		distmatT dmo2lmo=calc_.localize_PM(world,active_mo_,set);
+//		tensorT mo2lmo(active_mo_.size(),active_mo_.size());
+//		dmo2lmo.copy_to_replicated(mo2lmo);
+//		vecfuncT lmo_x=madness::transform(world,xfunction.x,mo2lmo,true);
+//		vecfuncT gamma_ex_lmo=zero_functions<double,3>(world,lmo_x.size());
+//		for (std::size_t p = 0; p < xfunction.x.size(); p++) {
+//
+//			vecfuncT x_Ppi=zero_functions<double,3>(world,lmo_x.size());
+//			norm_tree(world,lmo_x);
+//			norm_tree(world,exchange_intermediate_[p]);
+//			for(size_t i=0 ; i<x_Ppi.size();i++){
+//				x_Ppi[i]=mul_sparse(lmo_x[i],exchange_intermediate_[p][i],FunctionDefaults<3>::get_thresh());
+//			}
+//			compress(world, x_Ppi);
+//			for (std::size_t i = 0; i < lmo_x.size(); i++) {
+//				gamma_ex_lmo[p] -= x_Ppi[i];
+//			}
+//
+//			// Project out occupied space
+//			gamma_ex_lmo[p] -= rho0(gamma[p]);
+//		}
+//		// Transform gamma to canonical basis
+//		vecfuncT gamma_ex_canon=madness::transform(world,gamma_ex_lmo,transpose(mo2lmo),true);
+//		gamma = add(world,gamma,gamma_ex_canon);
 	}
 	else{
 		for (std::size_t p = 0; p < xfunction.x.size(); p++) {
@@ -1141,7 +1251,10 @@ vecfuncT TDA::apply_gamma(const xfunction &xfunction) const {
 			}
 
 			// Project out occupied space
-			gamma[p] -= rho0(gamma[p]);
+			if(use_nemo_){
+				real_function_3d R2gamma = get_nemo().nuclear_correlation -> square()*gamma[p];
+				gamma[p] -= rho0(R2gamma);
+			}else gamma[p] -= rho0(gamma[p]);
 		}
 	}
 
@@ -1204,13 +1317,15 @@ MADNESS_EXCEPTION("NO TDDFT AVAILABLE RIGHT NOW",1);
 }
 
 vecfuncT TDA::apply_hartree_potential(const vecfuncT &x) const {
-
 	// Make the perturbed density (Factor 2 is for closed shell)
 	real_function_3d perturbed_density = real_factory_3d(world);
 	for (size_t i = 0; i < x.size(); i++) {
 		perturbed_density += 2.0 * x[i] * active_mo_[i];
 	}
-
+	// if nemo is used we need the R2 metric so we just have to multiply the perturbed density with R2 before the coulomb operator is applied
+	if(use_nemo_){
+		perturbed_density= perturbed_density*get_nemo().nuclear_correlation->square();
+	}
 	real_convolution_3d J = CoulombOperator(world, lo, bsh_eps_);
 	real_function_3d Jrhoprime = J(perturbed_density);
 
@@ -1219,7 +1334,8 @@ vecfuncT TDA::apply_hartree_potential(const vecfuncT &x) const {
 }
 
 vecfuncT TDA::get_V0(const vecfuncT& x) const {
-
+	// This function is not consistent with nemo right now
+	MADNESS_EXCEPTION("get_V0 was called ... this should not happen anymore",1);
 	// the local potential V^0 of Eq. (4)
 	real_function_3d vlocal = get_calc().potentialmanager->vnuclear()
 	        + get_coulomb_potential();
@@ -1231,7 +1347,7 @@ vecfuncT TDA::get_V0(const vecfuncT& x) const {
 	vecfuncT Kx;
 	if (not dft_) {
 //		Kx = get_calc().apply_hf_exchange(world, get_calc().aocc, mos_, x);
-	    Exchange K(world,&get_calc(),0);
+	    Exchange K(world,&*calc_,0);
 	    Kx=K(x);
 	}
 	if (dft_) {
@@ -1259,6 +1375,7 @@ real_function_3d TDA::get_coulomb_potential() const {
 		return copy(coulomb_);
 	functionT rho = get_calc().make_density(world, get_calc().aocc, mos_).scale(
 			2.0); // here is the factor 2
+	if(use_nemo_) rho = rho*get_nemo().nuclear_correlation->square();
 	coulomb_ = get_calc().make_coulomb_potential(rho);
 	return copy(coulomb_);
 }
@@ -1273,8 +1390,11 @@ std::vector<vecfuncT> TDA::make_exchange_intermediate() const {
 	std::vector<vecfuncT> intermediate(amo.size());
 
 	for (std::size_t p = 0; p < active_mo.size(); ++p) {
-		intermediate[p] = apply(world, (*poisson),
-				mul(world, active_mo[p], amo));
+		// Integrant
+		vecfuncT Integrant = mul(world, active_mo[p], amo);
+		if(use_nemo_) Integrant = mul(world,get_nemo().nuclear_correlation->square(),Integrant);
+		truncate(world,Integrant);
+		intermediate[p] = apply(world, (*poisson),Integrant);
 	}
 	double immem=0.0;
 	for(size_t i=0;i<intermediate.size();i++){
