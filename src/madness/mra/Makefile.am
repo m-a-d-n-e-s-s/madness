@@ -36,6 +36,7 @@ lib_LIBRARIES = libMADmra.a
 
 
 data_DATA = autocorr coeffs gaussleg
+dist_data_DATA = $(data_DATA)
 
 thisincludedir = $(includedir)/madness/mra
 thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  vmra.h \

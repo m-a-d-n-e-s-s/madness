@@ -33,6 +33,7 @@ thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h 
                         tensortrain.h distributed_matrix.h \
                         tensor_lapack.h cblas.h clapack.h  lapack_functions.h \
                         solvers.cc solvers.h gmres.h elem.h
+EXTRA_DIST = tempspec.py
 
 if MADNESS_HAS_GOOGLE_TEST
 
