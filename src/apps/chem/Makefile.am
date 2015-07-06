@@ -8,7 +8,7 @@ noinst_PROGRAMS = testxc plotxc
 lib_LIBRARIES = libMADchem.a 
 
 data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
-
+dist_data_DATA = $(data_DATA)
 
 #TESTS = testxc
 
