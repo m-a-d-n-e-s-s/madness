@@ -13,7 +13,7 @@
 //#include<examples/nonlinsol.h> not used anymore
 #include <chem/SCF.h>
 #include <chem/nemo.h>
-#include <chem/CCoperators.h>
+#include <chem/CCOperators.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>

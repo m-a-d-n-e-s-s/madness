@@ -38,8 +38,12 @@ public:
 	}
 	// If other mos than the one in the nemo struct are needed (e.g. if lower thresh is demanded -> guess calculations)
 	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world), mo_ket_(mos){
-		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo, nemo.get_calc() ->param.econv));
+		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo,FunctionDefaults<3>::get_thresh()));
 		mo_bra_ = mul(world,nemo.nuclear_correlation -> square(),mo_ket_);
+		std::cout << "THRESH IS " << FunctionDefaults<3>::get_thresh() << "\n";
+		std::cout << "LO:" << nemo.get_calc() -> param.lo << "\n eps:" << nemo.get_calc() ->param.econv << "\n";
+		truncate(world,mo_ket_);
+		truncate(world,mo_bra_);
 		exchange_intermediate_ = make_exchange_intermediate();
 		if(mo_bra_.empty()) std::cout << "\n\n!!!!!WARNING: mo_bra_ vector is empty!!!!!\n\n";
 		if(mo_ket_.empty()) std::cout << "\n\n!!!!!WARNING: mo_ket_ vector is empty!!!!!\n\n";
@@ -85,9 +89,6 @@ public:
 		return add(world,fock_residue_closed_shell(x),add(world,S3CX,S3CC));
 	}
 
-	// Apply the nuclear potential or the U potential
-
-
 	// get the ground state density
 	real_function_3d make_density()const{
 		return make_density(mo_bra_,mo_ket_);
@@ -108,9 +109,12 @@ public:
 	// J_j = \sum_i <i|r12|i> |tau>
 	// K_j = \sum_i <i|r12|tau_j> |i>
 	vecfuncT fock_residue_closed_shell(const vecfuncT &tau)const{
+		START_TIMER();
 		vecfuncT J = mul(world,(*poisson)(make_density()),tau);
 		truncate(world,J);
 		scale(world,J,2.0);
+		END_TIMER("J");
+		START_TIMER();
 		vecfuncT K;
 		for(size_t j=0;j<tau.size();j++){
 			real_function_3d Kj = real_factory_3d(world);
@@ -121,6 +125,7 @@ public:
 		}
 		truncate(world,K);
 		scale(world,K,-1);
+		END_TIMER("K");
 		return add(world,J,K);
 	}
 
@@ -131,9 +136,11 @@ public:
 	//  \---/  = Q\sum_j(<j|g12|tau_j>)|i>
 	//  _\_/_
 	vecfuncT S3C_C(const vecfuncT &tau)const{
+		START_TIMER();
 		vecfuncT result = mul(world,(*poisson)(make_density(mo_bra_,tau)),mo_ket_);
 		Q(result);
 		truncate(world,result);
+		END_TIMER("S3C_C");
 		return result;
 	}
 
@@ -143,6 +150,7 @@ public:
 	//     / \
 	//    _\_/_
 	vecfuncT S3C_X(const vecfuncT &tau)const{
+		START_TIMER();
 		vecfuncT result;
 		for(size_t i=0;i<tau.size();i++){
 			real_function_3d tmp= real_factory_3d(world);
@@ -154,6 +162,7 @@ public:
 		Q(result);
 		truncate(world,result);
 		scale(world,result,-1.0);
+		END_TIMER("S3C_X");
 		return result;
 	}
 
@@ -168,6 +177,7 @@ public:
 	}
 
 private:
+	bool use_timer_=true;
 	World &world;
 	vecfuncT mo_bra_,mo_ket_;
 	std::vector<vecfuncT> exchange_intermediate_;
@@ -177,6 +187,23 @@ private:
 		std::cout << "\n\n\n !!!! ERROR IN CC_3D_OPERATOR CLASS:\n ERROR MESSAGE IS: " << msg <<"\n";
 		MADNESS_EXCEPTION("!!!!ERROR IN CC_3D_OPERATOR CLASS!!!!",1);
 	}
+	// Timer
+	mutable double ttt, sss;
+	void START_TIMER() const {
+		if(use_timer_)world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+	}
+
+	void END_TIMER(const std::string msg) const {
+		if(use_timer_)END_TIMER(msg.c_str());
+	}
+
+	void END_TIMER(const char* msg) const {
+		if(use_timer_){
+			ttt=wall_time()-ttt; sss=cpu_time()-sss;
+			if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+		}
+	}
+
 };
 
 
