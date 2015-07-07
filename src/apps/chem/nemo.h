@@ -310,6 +310,12 @@ private:
 	void rotate_subspace(World& world, const tensorT& U, solverT& solver,
 			int lo, int nfunc, double trantol) const;
 
+    tensorT Q2(const tensorT& s) const {
+        tensorT Q = -0.5*s;
+        for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
+        return Q;
+    }
+
     /// save a function
     template<typename T, size_t NDIM>
     void save_function(const Function<T,NDIM>& f, const std::string name) const;

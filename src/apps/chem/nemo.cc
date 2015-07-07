@@ -227,7 +227,6 @@ double Nemo::solve() {
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
 	const double trantol = 0.0;
 
-	normalize(nemo);
 
 	// apply all potentials (J, K, Vnuc) on the nemos
 	vecfuncT psi, Jnemo, Knemo, Vnemo, JKVpsi, Unemo;
@@ -235,6 +234,7 @@ double Nemo::solve() {
 
 	double energy = 0.0;
 	bool converged = false;
+	bool localized=calc->param.localize;
 
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
@@ -243,6 +243,8 @@ double Nemo::solve() {
 
 	// iterate the residual equations
 	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
+
+	    if (localized) nemo=localize(nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
 		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, Vnemo, Unemo);
@@ -255,36 +257,49 @@ double Nemo::solve() {
 		JKVpsi.clear();
 
 		// report the off-diagonal fock matrix elements
-		tensorT fock_offdiag=copy(fock);
-		for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
-		double max_fock_offidag=fock_offdiag.absmax();
-		if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
+		if (not localized) {
+            tensorT fock_offdiag=copy(fock);
+            for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
+            double max_fock_offidag=fock_offdiag.absmax();
+            if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
+		}
 
 		double oldenergy=energy;
 //		energy = compute_energy(psi, mul(world, R, Jnemo),
 //				mul(world, R, Knemo));
         energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
 
-		// Diagonalize overlap to get the eigenvalues and eigenvectors
-		tensorT overlap = matrix_inner(world, psi, psi, true);
-		const tensorT U=calc->get_fock_transformation(world,overlap,
-	    		fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
+        // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
+        tensorT U;
+        if (not localized) {
+            tensorT overlap = matrix_inner(world, psi, psi, true);
+            U=calc->get_fock_transformation(world,overlap,
+                    fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
 
-		START_TIMER(world);
-		nemo = transform(world, nemo, U, trantol, true);
-		rotate_subspace(world, U, solver, 0, nemo.size(), trantol);
+            START_TIMER(world);
+            nemo = transform(world, nemo, U, trantol, true);
+            rotate_subspace(world, U, solver, 0, nemo.size(), trantol);
 
-		truncate(world, nemo);
-		normalize(nemo);
-		END_TIMER(world, "transform orbitals");
+            truncate(world, nemo);
+            normalize(nemo);
+            END_TIMER(world, "transform orbitals");
+        }
 
 		// update the nemos
 
-		// construct the BSH operator
+		// construct the BSH operator and add off-diagonal elements
+		// (in case of non-canonical HF)
 		tensorT eps(nmo);
 		for (int i = 0; i < nmo; ++i) {
 			eps(i) = std::min(-0.05, fock(i, i));
+            fock(i, i) -= eps(i);
 		}
+        vecfuncT fnemo;
+        if (localized) fnemo= transform(world, nemo, fock, trantol, true);
+
+        // Undo the damage
+        for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
+
 		if (calc->param.orbitalshift>0.0) {
 			if (world.rank()==0) print("shifting orbitals by "
 					,calc->param.orbitalshift," to lower energies");
@@ -295,11 +310,12 @@ double Nemo::solve() {
 		// make the potential * nemos term; make sure it's in phase with nemo
 		START_TIMER(world);
 		vecfuncT Vpsi = add(world, sub(world, Jnemo, Knemo), Unemo);
+        if (localized) gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
 		truncate(world,Vpsi);
 		END_TIMER(world, "make Vpsi");
 
 		START_TIMER(world);
-		Vpsi = transform(world, Vpsi, U, trantol, true);
+		if (not localized) Vpsi = transform(world, Vpsi, U, trantol, true);
 		truncate(world,Vpsi);
 		END_TIMER(world, "transform Vpsi");
 
@@ -542,14 +558,36 @@ void Nemo::normalize(vecfuncT& nemo) const {
 
 /// @param[inout]	amo_new	the vectors to be orthonormalized
 void Nemo::orthonormalize(vecfuncT& nemo) const {
+    PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-	vecfuncT mos = mul(world, R, nemo);
-    double trantol = 0.0;
-    madness::normalize(world, mos);
-    nemo = transform(world, nemo, Q3(matrix_inner(world, mos, mos)), trantol, true);
-    truncate(world, nemo);
+    double trantol = calc->vtol / std::min(30.0, double(nemo.size()));
+    normalize(nemo);
+    double maxq;
+    do {
+        vecfuncT R2nemo=mul(world,R_square,nemo);
+        tensorT Q = Q2(matrix_inner(world, R2nemo, nemo));
+        maxq=0.0;
+        for (int i=0; i<Q.dim(0); ++i)
+            for (int j=0; j<i; ++j)
+                maxq = std::max(maxq,std::abs(Q(i,j)));
+
+        Q.screen(trantol); // ???? Is this really needed?
+        nemo = transform(world, nemo, Q, trantol, true);
+        truncate(world, nemo);
+        if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+
+    } while (maxq>0.01);
     normalize(nemo);
     END_TIMER(world, "Orthonormalize");
+//
+//    START_TIMER(world);
+//	vecfuncT mos = mul(world, R, nemo);
+//    double trantol = 0.0;
+//    madness::normalize(world, mos);
+//    nemo = transform(world, nemo, Q3(matrix_inner(world, mos, mos)), trantol, true);
+//    truncate(world, nemo);
+//    normalize(nemo);
+//    END_TIMER(world, "Orthonormalize");
 }
 
 /// return the Coulomb potential
