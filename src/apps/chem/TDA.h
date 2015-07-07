@@ -13,6 +13,7 @@
 //#include<examples/nonlinsol.h> not used anymore
 #include <chem/SCF.h>
 #include <chem/nemo.h>
+#include <chem/CCoperators.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -399,13 +400,13 @@ public:
 	/// @param[in] calc 	the SCF calcualtion
 	/// @param[in] mos		the occupied molecular orbitals from the scf calculation
 	/// @param[in] input	name of the input file
-	TDA(World &world,const std::shared_ptr<SCF> calc, const Nemo &nemo,const vecfuncT &mos,const std::string input):
+	TDA(World &world,const Nemo &nemo,const vecfuncT &mos,const std::string input):
 		world(world),
 		dft_(false),
-		calc_(calc),
 		use_nemo_(true),
 		nemo_(nemo),
 		mos_(mos),
+		CCOPS_(CC_3D_Operator(world,nemo,mos)),
 		active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
 		guess_("dipole+"),
@@ -435,32 +436,26 @@ public:
 		kain_(false),
 		kain_subspace_(3),
 		shift_(0.0),
-		triplet_(false),
-		localize_exchange_intermediate_(false)
+		orbital_energies_(nemo.get_calc()->aeps),
+		triplet_(false)
 {
 		setup(mos,input);
 }
 	/// reads the input file and calculates needed functions
 	void setup(const vecfuncT &mos,const std::string input){
 
-		// Check if nemo should be used
-		if(calc_ -> param.nuclear_corrfac == "none"){
-			use_nemo_ = false;
-		}
-		else use_nemo_ = true;
-
 		// so that the thresh can be changed from the outside
 		mos_ = mos;
 
-		size_t noct = calc_ -> aeps.size();
+		size_t noct = orbital_energies_.size();
 		// The highest possible excitation (-homo_energy)
-		double highest_excitation_default = -calc_ -> aeps(noct-1);
+		double highest_excitation_default = -orbital_energies_(noct-1);
 		highest_excitation_ = highest_excitation_default;
-		ipot_ = -calc_ -> aeps(noct-1)*2.0;
+		ipot_ = -orbital_energies_(noct-1)*2.0;
 
 
 		// The guessed lowest excitation (if no guess_omega_ is in the input)
-		double guess_omega_default = -0.9*calc_ -> aeps[noct-1];
+		double guess_omega_default = -0.9*orbital_energies_[noct-1];
 		guess_omega_ = guess_omega_default;
 
 		std::ifstream f(input.c_str());
@@ -500,7 +495,6 @@ public:
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
 			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "triplet") triplet_=true;
-			else if (tag == "localize_exchange_intermediate") localize_exchange_intermediate_ = true;
 			else continue;
 		}
 
@@ -512,7 +506,7 @@ public:
 		}
 
 		// make potential shift = -ipot - homo
-		if(dft_) shift_= -ipot_ - get_calc().aeps[noct-1];
+		if(dft_) shift_= -ipot_ - orbital_energies_[noct-1];
 		highest_excitation_=highest_excitation_-shift_;
 
 		if(guess_ =="koala"){
@@ -527,7 +521,7 @@ public:
 			std::cout<< std::setw(60) <<"\n\n\n\n ======= TDA info =======\n\n\n" << std::endl;
 			if (nfreeze_==0) std::cout<< std::setw(40) <<"# frozen orbitals : "<<"none" << std::endl;
 			if (nfreeze_>0) std::cout<< std::setw(40) <<"# frozen orbitals : " <<  "0 to " << nfreeze_-1 << std::endl;
-			std::cout<< std::setw(40) <<"active orbitals : " << nfreeze_ << " to " << calc_ -> param.nalpha-1 << std::endl;
+			std::cout<< std::setw(40) <<"active orbitals : " << nfreeze_ << " to " << mos_.size()-1 << std::endl;
 			std::cout<< std::setw(40) << "guess from : " << guess_ << std::endl;
 			std::cout<< std::setw(40) << "Gram-Schmidt is used : " << !only_fock_ << std::endl;
 			std::cout<< std::setw(40) << "threshold 3D : " << FunctionDefaults<3>::get_thresh() << std::endl;
@@ -557,7 +551,7 @@ public:
 
 
 
-		lo=get_calc().param.lo;
+		lo=get_nemo().get_calc() -> param.lo;
 		bsh_eps_ = FunctionDefaults<3>::get_thresh()*0.1;
 
 		// Make the active_mos_ vector
@@ -565,12 +559,12 @@ public:
 
 		// project the mos if demanded (default is true)
 		if(guess_mode_ != "numerical"){
-			active_mos_for_guess_calculation_ = project_to_ao_basis(active_mo_,calc_ -> ao);
+			active_mos_for_guess_calculation_ = project_to_ao_basis(active_mo_,get_nemo().get_calc() -> ao);
 		}
 
 		/// Make transformation matrix from cannical to localized MOs
-		std::vector<int> set=calc_ -> group_orbital_sets(world,calc_ -> aeps,calc_ -> aocc,active_mo_.size());
-		distmatT dmo2lmo=calc_ -> localize_PM(world,active_mo_,set);
+		std::vector<int> set=get_nemo().get_calc() -> group_orbital_sets(world,get_nemo().get_calc() -> aeps,get_nemo().get_calc() -> aocc,active_mo_.size());
+		distmatT dmo2lmo=get_nemo().get_calc() -> localize_PM(world,active_mo_,set);
 		tensorT mo2lmo(active_mo_.size(),active_mo_.size());
 		dmo2lmo.copy_to_replicated(mo2lmo);
 		mo2lmo_ = mo2lmo;
@@ -587,16 +581,6 @@ public:
 		for(size_t i=0;i<mos_.size();i++){density+=2.0*mos_[i]*mos_[i];}
 		density_=density;
 
-		// Initialize the exchange intermediate
-		if(not dft_) {
-			if(world.rank()==0)std::cout << std::setw(40) << "Make exchange intermediate" << " : locailzation is " << localize_exchange_intermediate_ << std::endl;
-			if(localize_exchange_intermediate_) exchange_intermediate_ = make_localized_exchange_intermediate();
-			else exchange_intermediate_ = make_exchange_intermediate();
-			if(world.rank()==0)std::cout << std::setw(40) << "CIS is used" << " : LIBXC Interface is not initialized" << std::endl;
-		}if(dft_){
-			lda_intermediate_ = make_lda_intermediate();
-		}
-
 		// Prevent misstakes:
 		if(shift_>0){MADNESS_EXCEPTION("Potential shift is positive",1);}
 		if(not dft_ and shift_ !=0.0){MADNESS_EXCEPTION("Non zero potential shift in TDHF calculation",1);}
@@ -609,19 +593,7 @@ public:
 
 		// Truncate the current mos
 		truncate(world,mos_);
-
 		if(world.rank()==0)std::cout << "setup of TDA class ended\n" << std::endl;
-
-		Tensor<double> ExImNorms(exchange_intermediate_.size(),exchange_intermediate_.size());
-		for(size_t i=0;i<exchange_intermediate_.size();i++){
-			for(size_t j=0;j<exchange_intermediate_[i].size();j++){
-				ExImNorms(i,j) = exchange_intermediate_[i][j].norm2();
-			}
-		}
-		if(world.rank()==0 and active_mo_.size()<6){
-			if(world.rank()==0)std::cout << " Norms of the exchange intermediate: " << std::endl;
-			if(world.rank()==0)std::cout << ExImNorms << std::endl;
-		}
 
 	}
 
@@ -637,7 +609,7 @@ public:
 	void solve_sequential(xfunctionsT &xfunctions);
 
 	/// Returns the MolDFT calulation
-	const SCF get_calc() const {return *calc_;}
+//	const SCF get_calc() const {return *calc_;}
 
 	/// Return the Nemo based scf calculations
 	const Nemo & get_nemo() const {return nemo_;}
@@ -648,6 +620,17 @@ public:
 	// returns a shallow copy the converged xfunctions
 	xfunctionsT get_converged_xfunctions(){return converged_xfunctions_;}
 
+	/// The orbital energies of the SCF calculation
+	Tensor<double> const orbital_energies_;
+
+	// returns the orbital energies of the SCF calculation
+	Tensor<double>get_orbital_energies()const{
+		return orbital_energies_;
+	}
+	// returns demanded orbital energy of the scf calculation with the right shift (the first unfrozen orbital is number 0)
+	double active_eps(const size_t & i)const{
+		return orbital_energies_(i+nfreeze_);
+	}
 private:
 
 	/// The World
@@ -661,7 +644,7 @@ private:
 	bool dft_;
 
 	/// The SCF calculation of MolDFT
-	const std::shared_ptr<SCF> &calc_;
+//	const std::shared_ptr<SCF> &calc_;
 
 
 
@@ -672,6 +655,9 @@ private:
 	/// The molecular orbitals of moldft
 	/// extra member variable that the thresh can be changed without changing calc_
 	vecfuncT mos_;
+
+	/// The Operators for the Potential, structure contains also an exchange intermediate
+	CC_3D_Operator CCOPS_;
 
 	/// The molecular orbitals that are used to calcualte the guess excitation vectors
 	/// Theese are either the projected numerical mos (projected to minimal AO basis) or just a reference to the numerical mos from moldft
@@ -773,19 +759,6 @@ private:
 	/// The potential shift for the unperturbed DFT potential when using TDDFT (shift = -ipot_ -homo)
 	double shift_;
 
-	/// The unperturbed dft potential;
-	real_function_3d unperturbed_vxc_;
-
-	/// The LDA intermediate (fxc*active_mo)
-	vecfuncT lda_intermediate_;
-
-	/// the intermediate is the same for all roots:
-	/// \[
-	///   int[p,i] = \int 1/r12 \phi_i(1) * \phi_p(1)
-	/// \]
-	/// with \f$ p \in noct, i \in nocc \f$
-	std::vector<vecfuncT> exchange_intermediate_;
-
 	/// the coulomb potential
 	mutable real_function_3d coulomb_;
 
@@ -794,9 +767,6 @@ private:
 
 	/// Calculate triplets
 	bool triplet_;
-
-	/// localize the exchange intermediate
-	bool localize_exchange_intermediate_;
 
 	/// Print the current xfunctions in a formated way
 	/// @param[in] xfunctions a vector of xfunction structures
@@ -864,9 +834,6 @@ private:
 	/// Project out the converged xfunctions
 	void project_out_converged_xfunctions(xfunctionsT & xfunctions)const;
 
-	/// Orthonormalize the exfunctions with Gram-Schmidt
-	void orthonormalize_GS(xfunctionsT &xfunctions)const;
-
 	/// Orthonormalize the xfunction with the perturbed Fock Matrix
 	// 1. Call make_perturbed_fock_matrix(xfunctions)
 	// 2. Diagonalize
@@ -896,43 +863,12 @@ private:
 	// 1. Calculate potential (V0 + Gamma) --> Call perturbed_potential(exfunctions)
 	// 2. Calculate Matrix Elements
 	Tensor<double> make_perturbed_fock_matrix(const xfunctionsT &xfunctions)const;
-	Tensor<double> make_perturbed_fock_matrix_for_guess_functions(const xfunctionsT &xfunctions)const;
 
+	/// The CIS or TDA Potential without the nuclear potential is applied to one xfunction
+	/// @param[in] one xfunction
 	vecfuncT apply_smooth_potential(const xfunction&xfunction) const;
 
-	/// Calculate the perturbed Potential (V0 + Gamma)
-	// 1. Call get_V0
-	// 2. Call apply_gamma or apply_gamma_dft
-	// 3. return V0 + Gamma
-	vecfuncT apply_perturbed_potential(const xfunction & xfunction)const;
-
-	/// Calculate the perturbed vector potential for CIS or TDA calculations
-	/// @param[in] xfunction a single xfunction structure which contains the response orbital vector x
-	/// @return the applied perturbed potential (applied on the unperturbed MOs) given back as vector function
-	vecfuncT apply_gamma(const xfunction &xfunction)const;
-	vecfuncT apply_gamma_dft(const xfunction &xfunction)const;
-
-	/// The perturbed Hartree potential is the same for TDA and CIS
-	/// @param[in] x vectorfunction of response orbitals
-	/// @return the applied perturbed hartree potential
-	/// the function will evaluate the perturbed density and then calculate the hartree potential
-	vecfuncT apply_hartree_potential(const vecfuncT &x)const;
-
-	/// Create the exchange intermediate
-	// This has to be done just one time because only the unperturbed orbitals are needed
-	std::vector<vecfuncT> make_exchange_intermediate()const;
-	std::vector<vecfuncT> make_localized_exchange_intermediate()const;
-
-	vecfuncT make_lda_intermediate()const;
-
-	/// Return the unperturbed fock potential as vector potential : V0*x_p
-	vecfuncT get_V0(const vecfuncT &x)const;
-
-	/// Return the coulomb potential of the moldft calculation
-	real_function_3d get_coulomb_potential() const;
-
-	/// Return the unperturbed exchange-correlation functional (for dft calculations)
-	real_function_3d get_vxc_potential()const;
+	vecfuncT apply_nuclear_potential(const xfunction &xfunction) const;
 
 	/// Plot vectorfunction (for convenience)
 	/// @param[in] x the vectorfunction to plot
@@ -984,6 +920,42 @@ public:
 	void analyze(xfunctionsT& roots) const;
 	/// Project a vecfuncT to the ao basis (used to create projected MOs for the guess calculation)
 	vecfuncT project_to_ao_basis(const vecfuncT & mos, const vecfuncT& ao_basis)const;
+
+	void output_section(const std::string &msg)const{
+		if(world.rank()==0){
+			std::cout << "\n\n------------------------------------------------\n";
+			std::cout << msg;
+			std::cout << "\n------------------------------------------------\n\n";
+		}
+	}
+
+	void output(const std::string &msg)const{
+		if(world.rank()==0){
+			std::cout << msg << std::endl;
+		}
+	}
+
+	// An inner product with the right metric
+	// <a|b> for no correlation factor
+	// <a|R^2|b> with correlation factor
+	double get_overlap(const vecfuncT &a, const vecfuncT &b)const{
+		vecfuncT bra_a = a;
+		if(get_nemo().get_calc()->param.nuclear_corrfac != "none"){
+			bra_a = mul(world,get_nemo().nuclear_correlation ->square(),a);
+		}
+		Tensor<double> inner_tmp = inner(world,bra_a,b);
+		return inner_tmp.sum();
+	}
+
+	// The same for functions
+	double get_overlap(const real_function_3d &a, const real_function_3d &b)const{
+		real_function_3d bra_a =a;
+		if(get_nemo().get_calc()->param.nuclear_corrfac != "none"){
+			bra_a = a*get_nemo().nuclear_correlation->square();
+		}
+		return bra_a.inner(b);
+	}
+
 };
 
 } /* namespace madness */

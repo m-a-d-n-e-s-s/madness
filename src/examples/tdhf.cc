@@ -91,14 +91,14 @@ int main(int argc, char** argv) {
         calc->param.print(world);
     }
 
-    MolecularEnergy E(world, *calc);
+    //MolecularEnergy E(world, *calc);
     double hf_energy =0;
 //    if(calc -> param.nuclear_corrfac == "moldft"){
 //    	std::cout << "\n\nNo Nuclear Correlation Factor determined, proceeding with std SCF\n\n";
-    	hf_energy = E.value(calc -> molecule.get_all_coords().flat());
+ //   	hf_energy = E.value(calc -> molecule.get_all_coords().flat());
 //    }else{
 //    	std::cout << "\n\nNuclear Correlation Factor is\n ---> " << calc -> param.nuclear_corrfac << "\n\n";
-//    	hf_energy=nemo.value();
+    	hf_energy=nemo.value();
 //    }
 
     if (world.rank()==0) {
@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
 		set_thresh(world,guess_mos,guess_thresh);
 
 		// Init. and solve the guess
-		TDA guess_cis(world,calc,nemo,guess_mos,input);
+		TDA guess_cis(world,nemo,guess_mos,input);
 		guess_cis.solve_guess(guess_xfunctions);
 
 		// Get the pre-converged xfunctions for the next solve routine
@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
 		set_thresh(world,solve_mos,solve_thresh);
 
 		// iterate the solve_xfunctions
-		TDA solve_cis(world,calc,nemo,solve_mos,input);
+		TDA solve_cis(world,nemo,solve_mos,input);
 		solve_cis.solve(solve_xfunctions);
 
 		// Get the converged xfunctions and prepare for the last sequential iterations with kain
@@ -273,7 +273,7 @@ int main(int argc, char** argv) {
 		set_thresh(world,solve_seq_mos,solve_seq_thresh);
 
 		// make last iterations
-		TDA solve_seq_cis(world,calc,nemo,solve_seq_mos,input);
+		TDA solve_seq_cis(world,nemo,solve_seq_mos,input);
 		solve_seq_cis.solve_sequential(solve_seq_xfunctions);
 		solve_seq_mos.clear();
 	}
