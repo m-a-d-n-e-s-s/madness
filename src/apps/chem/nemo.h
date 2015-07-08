@@ -309,9 +309,6 @@ private:
         return calc->vtol / std::min(30.0, double(get_calc()->amo.size()));
     }
 
-
-	vecfuncT apply_exchange(const vecfuncT& nemo, const vecfuncT& psi) const;
-
 	template<typename solverT>
 	void rotate_subspace(World& world, const tensorT& U, solverT& solver,
 			int lo, int nfunc) const;
