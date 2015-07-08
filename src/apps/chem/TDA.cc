@@ -831,80 +831,136 @@ double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potenti
 
 Tensor<double> TDA::make_perturbed_fock_matrix(
 		const xfunctionsT &xfunctions) const {
-	if (not dft_ and shift_ != 0.0)
-		MADNESS_EXCEPTION("No DFT calculation but shift is not zero", 1);
-	if(world.rank()==0) std::cout << std::setw(40) << "perturbed fock matrix dimension..." << " : " << xfunctions.size() << "x" << xfunctions.size() << std::endl;
-
-	//Tensor<double> F(xfunctions.size(),xfunctions.size());
-	Tensor<double> F(xfunctions.size(), xfunctions.size());
-
-	/// NEMO: TO USE NEMO MAKE SHURE THE SMOOTH POTENTIAL IS THE TRANSFORMED NEMO POTENTIAL
-	//The smooth potential part
-
-	// The bra_element for nemos has to be multiplied with R^2 because of the changed metric
-
-	for (std::size_t p = 0; p < xfunctions.size(); p++) {
-		vecfuncT Vxp;
-		if(xfunctions[p].smooth_potential.empty()) Vxp = apply_smooth_potential(xfunctions[p]);
-		else Vxp = add(world,xfunctions[p].smooth_potential,apply_nuclear_potential(xfunctions[p]));
-		for (std::size_t k = 0; k < xfunctions.size(); k++) {
-			vecfuncT bra_x = xfunctions[k].x;
-			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[k].x);}
-			Tensor<double> fpk_i = inner(world, bra_x, Vxp);
-			F(p, k) = fpk_i.sum();
-		}
-	}
-
-
-	//The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
-	for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-		const vecfuncT& xp = xfunctions[iroot].x;
-		reconstruct(world, xp);
-	}
-
-	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-	gradop = gradient_operator<double, 3>(world);
-
-	for (int axis = 0; axis < 3; ++axis) {
-
-		std::vector<vecfuncT> dxp, bra_dxp;
-		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-
-			const vecfuncT& xp = xfunctions[iroot].x;
-			vecfuncT d = apply(world, *(gradop[axis]), xp);
-			vecfuncT bra_d;
-			if(use_nemo_){
-				bra_d = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),xp));
-			}
-			truncate(world,d);
-			dxp.push_back(d);
-			if(use_nemo_) bra_dxp.push_back(bra_d);
-		}
-		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-			for (std::size_t jroot = 0; jroot < xfunctions.size(); ++jroot) {
-				Tensor<double> xpi_Txqi;
-				if(use_nemo_)xpi_Txqi = inner(world, bra_dxp[iroot], dxp[jroot]);
-				else xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
-				F(iroot, jroot) += 0.5 * xpi_Txqi.sum();
+	TDA_TIMER MAKE_FOCK_MATRIX_TIMER2(world,"Make new perturbed fock matrix");
+	output("Make Perturbed Fock Matrix new version");
+	TDA_TIMER VPART(world,"Potential Part");
+	Tensor<double> new_F(xfunctions.size(),xfunctions.size());
+	for(size_t q=0;q<xfunctions.size();q++){
+		vecfuncT Vxq;
+		if(xfunctions[q].smooth_potential.empty()){
+			output("smooth potential needs to be recalculated");
+			Vxq = add(world,apply_smooth_potential(xfunctions[q]),apply_nuclear_potential(xfunctions[q]));
+		}else Vxq = add(world,xfunctions[q].smooth_potential,apply_nuclear_potential(xfunctions[q]));
+		for(size_t p=0;p<xfunctions.size();p++){
+			new_F(p,q) = CCOPS_.make_inner_product(xfunctions[p].x,Vxq);
+		}}
+	VPART.info();
+	TDA_TIMER TPART(world,"Kinetic Part");
+	for(size_t q=0;q<xfunctions.size();q++){
+		for(size_t p=0;p<xfunctions.size();p++){
+			new_F(p,q) += CCOPS_.get_matrix_element_kinetic_energy(xfunctions[p].x,xfunctions[q].x);
+		}}
+	TPART.info();
+	TDA_TIMER EPART(world,"Orbital Energy Part");
+	for(size_t q=0;q<xfunctions.size();q++){
+		for(size_t p=0;p<xfunctions.size();p++){
+			// substract the weighted orbital energies
+			for(size_t i=0;i<xfunctions[p].x.size();i++){
+				new_F(p,q) -= active_eps(i)*CCOPS_.make_inner_product(xfunctions[p].x[i],xfunctions[q].x[i]);
 			}
 		}
 	}
-
-	// The epsilon part
-	for (std::size_t p = 0; p < xfunctions.size(); p++) {
-		for (std::size_t r = 0; r < xfunctions.size(); r++) {
-			vecfuncT bra_x = xfunctions[p].x;
-			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[p].x);}
-			Tensor<double> eij = inner(world, bra_x, xfunctions[r].x);
-			for (size_t ii = 0; ii < xfunctions[p].x.size(); ++ii) {
-				F(p, r) -= (orbital_energies_(ii) + shift_) * eij[ii];
-			}
-		}
-	}
-
-	return F;
+	EPART.info();
+	MAKE_FOCK_MATRIX_TIMER2.info();
+	return new_F;
+//	TDA_TIMER MAKE_FOCK_MATRIX_TIMER(world,"Make old perturbed fock matrix");
+//
+//	if(world.rank()==0) std::cout << std::setw(40) << "perturbed fock matrix dimension..." << " : " << xfunctions.size() << "x" << xfunctions.size() << std::endl;
+//	Tensor<double> F(xfunctions.size(), xfunctions.size());
+//
+//	// Part for the smoothed potential
+//	for (std::size_t p = 0; p < xfunctions.size(); p++) {
+//		vecfuncT Vxp;
+//		if(xfunctions[p].smooth_potential.empty()){
+//			output("smooth potential needs to be recalculated");
+//			Vxp = add(world,apply_smooth_potential(xfunctions[p]),apply_nuclear_potential(xfunctions[p]));
+//		}
+//		else Vxp = add(world,xfunctions[p].smooth_potential,apply_nuclear_potential(xfunctions[p]));
+//		for (std::size_t k = 0; k < xfunctions.size(); k++) {
+//			vecfuncT bra_x = xfunctions[k].x;
+//			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[k].x);}
+//			Tensor<double> fpk_i = inner(world, bra_x, Vxp);
+//			F(p, k) = fpk_i.sum();
+//		}
+//	}
+//
+//TDA_TIMER KINETIC1(world,"KINETIK 1 TIMER: ");
+//Tensor<double> DEBUG_TENSOR(xfunctions.size(),xfunctions.size());
+//for(size_t i=0;i<xfunctions.size();i++){
+//	for(size_t j=0;j<xfunctions.size();j++){
+//		DEBUG_TENSOR(i,j)=0.0;
+//	}
+//}
+//std::cout << "DEBUG TENSOR ZEROES:\n" << DEBUG_TENSOR<< std::endl;
+//	//The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
+//	for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+//		const vecfuncT& xp = xfunctions[iroot].x;
+//		reconstruct(world, xp);
+//	}
+//
+//	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+//	gradop = gradient_operator<double, 3>(world);
+//
+//	for (int axis = 0; axis < 3; ++axis) {
+//
+//		std::vector<vecfuncT> dxp, bra_dxp;
+//		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+//
+//			const vecfuncT& xp = xfunctions[iroot].x;
+//			TDA_TIMER ket(world,"kinetic ket");
+//			vecfuncT d = apply(world, *(gradop[axis]), xp);
+//			ket.info();
+//			vecfuncT bra_d;
+//			if(use_nemo_){
+//				TDA_TIMER bra(world,"kinetic bra");
+//				bra_d = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),xp));
+//				bra.info();
+//			}
+//			truncate(world,d);
+//			dxp.push_back(d);
+//			if(use_nemo_) bra_dxp.push_back(bra_d);
+//		}
+//		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+//			for (std::size_t jroot = 0; jroot < xfunctions.size(); ++jroot) {
+//				Tensor<double> xpi_Txqi;
+//				if(use_nemo_)xpi_Txqi = inner(world, bra_dxp[iroot], dxp[jroot]);
+//				else xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
+//				F(iroot, jroot) += 0.5 * xpi_Txqi.sum();
+//				DEBUG_TENSOR(iroot,jroot) += 0.5 * xpi_Txqi.sum();
+//			}
+//		}
+//	}
+//	std::cout << "KINETIC ENERGY MATRIX OLD WAY:\n" << DEBUG_TENSOR << std::endl;
+//	KINETIC1.info();
+//
+//	TDA_TIMER KINETIC2(world, "KINETIC 2 TIMER: ");
+//	Tensor<double> DEBUG_TENSOR2(xfunctions.size(),xfunctions.size());
+//	for(size_t i=0;i<xfunctions.size();i++){
+//		for(size_t j=0;j<xfunctions.size();j++){
+//			DEBUG_TENSOR2(i,j)=CCOPS_.get_matrix_element_kinetic_energy(xfunctions[i].x,xfunctions[j].x);
+//		}
+//	}
+//	std::cout << "KINETIC ENERGY MATRIX NEW WAY:\n" << DEBUG_TENSOR2 << std::endl;
+//	KINETIC2.info();
+//
+//	// The epsilon part
+//	for (std::size_t p = 0; p < xfunctions.size(); p++) {
+//		for (std::size_t r = 0; r < xfunctions.size(); r++) {
+//			vecfuncT bra_x = xfunctions[p].x;
+//			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[p].x);}
+//			Tensor<double> eij = inner(world, bra_x, xfunctions[r].x);
+//			for (size_t ii = 0; ii < xfunctions[p].x.size(); ++ii) {
+//				F(p, r) -= (orbital_energies_(ii) + shift_) * eij[ii];
+//			}
+//		}
+//	}
+//	std::cout << "New Perturbed Fock Matrix\n" << new_F << std::endl;
+//	std::cout << "Old Perturbed Fock Matrix\n" << F << std::endl;
+//	MAKE_FOCK_MATRIX_TIMER.info();
+//	return F;
 
 }
+
 
 
 // The smooth potential is the potential without the nuclear potential

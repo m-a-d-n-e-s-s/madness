@@ -40,6 +40,7 @@ public:
 	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world), mo_ket_(mos),R2(init_R2(nemo.nuclear_correlation -> square())){
 		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo,FunctionDefaults<3>::get_thresh()));
 		mo_bra_ = mul(world,nemo.nuclear_correlation -> square(),mo_ket_);
+		dR2 = get_gradient(R2);
 		set_thresh(world,mo_bra_,FunctionDefaults<3>::get_thresh());
 		set_thresh(world,mo_ket_,FunctionDefaults<3>::get_thresh());
 		truncate(world,mo_ket_);
@@ -55,6 +56,19 @@ public:
 		tmp.truncate();
 		tmp.verify();
 		return tmp;
+	}
+
+	// Make the derivative of R2
+	vecfuncT get_gradient(const real_function_3d &f)const{
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop=gradient_operator<double, 3>(world);
+		vecfuncT gradf;
+		for(size_t i=0;i<3;i++){
+			real_function_3d dfi = (*gradop[i])(f);
+			gradf.push_back(dfi);
+		}
+		set_thresh(world,gradf,FunctionDefaults<3>::get_thresh());
+		truncate(world,gradf);
+		return gradf;
 	}
 
 	void sanitycheck()const{
@@ -154,6 +168,23 @@ public:
 		return add(world,J,K);
 	}
 
+	// Kinetik energy
+	// -1/2 <x|R2Nabla2|x> = +1/2 <Nabla R2 x | Nabla x> = grad(R2x)*grad(x)
+	double get_matrix_element_kinetic_energy(const vecfuncT &ket, const vecfuncT &bra)const{
+		double value=0.0;
+		vecfuncT R2bra = mul(world,R2,bra);
+		truncate(world,R2bra);
+		std::vector<vecfuncT> dket, dbra;
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+		gradop = gradient_operator<double, 3>(world);
+		for(size_t axis=0;axis<3;axis++){
+			const vecfuncT gradbra = apply(world,*gradop[axis],R2bra);
+			const vecfuncT gradket = apply(world,*gradop[axis],ket);
+			value += 0.5*inner(world,gradbra,gradket).sum();
+		}
+		return value;
+	}
+
 	// Diagrammatic Potentials:
 
 	// The coulomb Term of the S3C diagram: Positive sign
@@ -218,8 +249,9 @@ private:
 	bool use_timer_=true;
 	World &world;
 	vecfuncT mo_bra_,mo_ket_;
-	/// The squared nuclear correlation factor;
+	/// The squared nuclear correlation factor and its derivative;
 	const real_function_3d R2;
+	vecfuncT dR2;
 	std::vector<vecfuncT> exchange_intermediate_;
 	std::shared_ptr<real_convolution_3d> poisson;
 //	Nuclear nuclear_potential_;
