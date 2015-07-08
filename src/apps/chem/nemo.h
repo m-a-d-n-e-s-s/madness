@@ -166,7 +166,7 @@ public:
 	/// @param[in]  iatom   the atom A to be moved
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
 	/// @return     \frac{\partial}{\partial X_A} \varphi
-	vecfuncT cphf(const int iatom, const int iaxis,
+	vecfuncT cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 	        const vecfuncT& guess=vecfuncT()) const;
 
 	/// solve teh CPHF equation for all displacements
@@ -179,7 +179,7 @@ public:
     /// @param[in]  iaxis   the coordinate X of iatom to be moved
     /// @return     \frac{\partial}{\partial X_A} \varphi
     vecfuncT cphf_no_ncf(const int iatom, const int iaxis,
-            const vecfuncT& guess=vecfuncT()) const;
+            const Tensor<double> fock, const vecfuncT& guess=vecfuncT()) const;
 
     /// compute the perturbed density for CPHF
     real_function_3d compute_perturbed_density(const vecfuncT& mo,
@@ -304,11 +304,17 @@ private:
 	/// localize the nemo orbitals
 	vecfuncT localize(const vecfuncT& nemo) const;
 
+	/// return the threshold for vanishing elements in orbital rotations
+    double trantol() const {
+        return calc->vtol / std::min(30.0, double(get_calc()->amo.size()));
+    }
+
+
 	vecfuncT apply_exchange(const vecfuncT& nemo, const vecfuncT& psi) const;
 
 	template<typename solverT>
 	void rotate_subspace(World& world, const tensorT& U, solverT& solver,
-			int lo, int nfunc, double trantol) const;
+			int lo, int nfunc) const;
 
     tensorT Q2(const tensorT& s) const {
         tensorT Q = -0.5*s;

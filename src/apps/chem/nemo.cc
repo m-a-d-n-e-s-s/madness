@@ -181,14 +181,13 @@ void Nemo::print_nuclear_corrfac() const {
 vecfuncT Nemo::localize(const vecfuncT& nemo) const {
 	DistributedMatrix<double> dUT;
 	const double tolloc = 1e-3;
-	double trantol = calc->vtol / std::min(30.0, double(nemo.size()));
 
 	std::vector<int> aset=calc->group_orbital_sets(world,calc->aeps,
 			calc->aocc, nemo.size());
 	// localize using the reconstructed orbitals
 	vecfuncT psi = mul(world, R, nemo);
 	dUT = calc->localize_PM(world, psi, aset, tolloc, 0.25, true, true);
-	dUT.data().screen(trantol);
+	dUT.data().screen(trantol());
 
 	tensorT UT(calc->amo.size(),calc->amo.size());
 	dUT.copy_to_replicated(UT); // for debugging
@@ -225,7 +224,6 @@ double Nemo::solve() {
 
 	// NOTE that nemos are somewhat sensitive to sparse operations (why??)
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
-	const double trantol = 0.0;
 
 
 	// apply all potentials (J, K, Vnuc) on the nemos
@@ -277,8 +275,8 @@ double Nemo::solve() {
                     fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
 
             START_TIMER(world);
-            nemo = transform(world, nemo, U, trantol, true);
-            rotate_subspace(world, U, solver, 0, nemo.size(), trantol);
+            nemo = transform(world, nemo, U, trantol(), true);
+            rotate_subspace(world, U, solver, 0, nemo.size());
 
             truncate(world, nemo);
             normalize(nemo);
@@ -295,7 +293,7 @@ double Nemo::solve() {
             fock(i, i) -= eps(i);
 		}
         vecfuncT fnemo;
-        if (localized) fnemo= transform(world, nemo, fock, trantol, true);
+        if (localized) fnemo= transform(world, nemo, fock, trantol(), true);
 
         // Undo the damage
         for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
@@ -315,7 +313,7 @@ double Nemo::solve() {
 		END_TIMER(world, "make Vpsi");
 
 		START_TIMER(world);
-		if (not localized) Vpsi = transform(world, Vpsi, U, trantol, true);
+		if (not localized) Vpsi = transform(world, Vpsi, U, trantol(), true);
 		truncate(world,Vpsi);
 		END_TIMER(world, "transform Vpsi");
 
@@ -560,7 +558,6 @@ void Nemo::normalize(vecfuncT& nemo) const {
 void Nemo::orthonormalize(vecfuncT& nemo) const {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-    double trantol = calc->vtol / std::min(30.0, double(nemo.size()));
     normalize(nemo);
     double maxq;
     do {
@@ -571,23 +568,14 @@ void Nemo::orthonormalize(vecfuncT& nemo) const {
             for (int j=0; j<i; ++j)
                 maxq = std::max(maxq,std::abs(Q(i,j)));
 
-        Q.screen(trantol); // ???? Is this really needed?
-        nemo = transform(world, nemo, Q, trantol, true);
+        Q.screen(trantol()); // ???? Is this really needed?
+        nemo = transform(world, nemo, Q, trantol(), true);
         truncate(world, nemo);
-        if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+        if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol());
 
     } while (maxq>0.01);
     normalize(nemo);
     END_TIMER(world, "Orthonormalize");
-//
-//    START_TIMER(world);
-//	vecfuncT mos = mul(world, R, nemo);
-//    double trantol = 0.0;
-//    madness::normalize(world, mos);
-//    nemo = transform(world, nemo, Q3(matrix_inner(world, mos, mos)), trantol, true);
-//    truncate(world, nemo);
-//    normalize(nemo);
-//    END_TIMER(world, "Orthonormalize");
 }
 
 /// return the Coulomb potential
@@ -607,16 +595,16 @@ real_function_3d Nemo::make_density(World& world, const Tensor<double>& occ,
 /// rotate the KAIN subspace (cf. SCF.cc)
 template<typename solverT>
 void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
-        int lo, int nfunc, double trantol) const {
+        int lo, int nfunc) const {
     std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
     std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
     for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
         vecfuncT& v = ulist[iter].x;
         vecfuncT& r = rlist[iter].x;
         vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
-                trantol, false);
+                trantol(), false);
         vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,
-                trantol, true);
+                trantol(), true);
 
         world.gop.fence();
         for (int i=0; i<nfunc; i++) {
@@ -717,46 +705,6 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         drho[i]=D(dens).truncate();
     }
 
-    if (0) {
-        std::vector<Vector<double,6> > vv(3*natom);
-
-//        vv[0]  ={  0.7220804631,   0.0000000000, -0.0000000000,  -0.4062975703,  0.0000000000,  0.1982327019,  -0.1578914462,   0.1434173426,  -0.0991163510,  -0.1578914462, -0.1434173426, -0.0991163510};
-//        vv[1]  ={  0.0000000000,   0.7220804631,  0.0000000000,   0.0000000000, -0.0750894048,  0.0000000000,   0.1434173426,  -0.3234955289,   0.1716745557,  -0.1434173426, -0.3234955289, -0.1716745557};
-//        vv[2]  ={ -0.0000000000,   0.0000000000,  0.2834443629,   0.1383896970,  0.0000000000, -0.0944814541,  -0.0691948485,   0.1198489932,  -0.0944814541,  -0.0691948485, -0.1198489932, -0.0944814541};
-//        vv[3]  ={ -0.4062975703,   0.0000000000,  0.1383896970,   0.4400981849,  0.0000000000, -0.1579428202,  -0.0169003073,  -0.0027534314,   0.0097765616,  -0.0169003073,  0.0027534314,  0.0097765616};
-//        vv[4]  ={  0.0000000000,  -0.0750894048,  0.0000000000,   0.0000000000,  0.0679728354,  0.0000000000,   0.0381887522,   0.0035582848,  -0.0176168736,  -0.0381887522,  0.0035582848,  0.0176168736};
-//        vv[5]  ={  0.1982327019,   0.0000000000, -0.0944814541,  -0.1579428202,  0.0000000000,  0.0850867988,  -0.0201449409,  -0.0003416861,   0.0046973277,  -0.0201449409,  0.0003416861,  0.0046973277};
-//        vv[6]  ={ -0.1578914462,   0.1434173426, -0.0691948485,  -0.0169003073,  0.0381887522, -0.0201449409,   0.1610041727,  -0.1611350031,   0.0789714101,   0.0137875808, -0.0204710918,  0.0103683793};
-//        vv[7]  ={  0.1434173426,  -0.3234955289,  0.1198489932,  -0.0027534314,  0.0035582848, -0.0003416861,  -0.1611350031,   0.3470668475,  -0.1367824947,   0.0204710918, -0.0271296033,  0.0172751875};
-//        vv[8]  ={ -0.0991163510,   0.1716745557, -0.0944814541,   0.0097765616, -0.0176168736,  0.0046973277,   0.0789714101,  -0.1367824947,   0.0850867988,   0.0103683793, -0.0172751875,  0.0046973277};
-//        vv[9]  ={ -0.1578914462,  -0.1434173426, -0.0691948485,  -0.0169003073, -0.0381887522, -0.0201449409,   0.0137875808,   0.0204710918,   0.0103683793,   0.1610041727,  0.1611350031,  0.0789714101};
-//        vv[10] ={ -0.1434173426,  -0.3234955289, -0.1198489932,   0.0027534314,  0.0035582848,  0.0003416861,  -0.0204710918,  -0.0271296033,  -0.0172751875,   0.1611350031,  0.3470668475,  0.1367824947};
-//        vv[11] ={ -0.0991163510,  -0.1716745557, -0.0944814541,   0.0097765616,  0.0176168736,  0.0046973277,   0.0103683793,   0.0172751875,   0.0046973277,   0.0789714101,  0.1367824947,  0.0850867988};
-
-
-//        vv[0]={ 0.0430311207986755,  0.0000000000002436,  0.0000000000001942,-0.0215155603592946, -0.0000000000002563, -0.0000000000001715,  -0.0215155603587581 ,    0.0000000000000127 ,  -0.0000000000000227};
-//        vv[1]={ 0.0000000000002436,  0.6259437587203811, -0.0000000000003923,-0.0000000000002409, -0.3129718793526037, -0.2331646026728010,  -0.0000000000000027 ,   -0.3129718793523384 ,   0.2331646026732007};
-//        vv[2]={ 0.0000000000001942, -0.0000000000003923,  0.4719594723037192,-0.0000000000001690, -0.1736720313853752, -0.2359797361336341,  -0.0000000000000252 ,    0.1736720313857603 ,  -0.2359797361333968};
-//        vv[3]={-0.0215155603592946, -0.0000000000002409, -0.0000000000001690, 0.0192722337801424,  0.0000000000002404, 0.0000000000001662 ,  0.0022433265581110  ,   0.0000000000000000  ,  0.0000000000000028 };
-//        vv[4]={-0.0000000000002563, -0.3129718793526037, -0.1736720313853752, 0.0000000000002404,  0.3478264777215383, 0.2034183232879670 ,  0.0000000000000159  ,  -0.0348545983670053  , -0.0297462918925465 };
-//        vv[5]={-0.0000000000001715, -0.2331646026728010, -0.2359797361336341, 0.0000000000001662,  0.2034183232879670, 0.2197698673728164 ,  0.0000000000000053  ,   0.0297462794032645  ,  0.0162098687587031 };
-//        vv[6]={-0.0215155603587581, -0.0000000000000027, -0.0000000000000252, 0.0022433265581110,  0.0000000000000159, 0.0000000000000053 ,  0.0192722337796288  ,  -0.0000000000000132  ,  0.0000000000000199 };
-//        vv[7]={ 0.0000000000000127, -0.3129718793523384,  0.1736720313857603, 0.0000000000000000, -0.0348545983670053, 0.0297462794032645 , -0.0000000000000132  ,   0.3478264777212546  , -0.2034183107990876 };
-//        vv[8]={-0.0000000000000227,  0.2331646026732007, -0.2359797361333968, 0.0000000000000028, -0.0297462918925465, 0.0162098687587031 ,  0.0000000000000199  ,  -0.2034183107990876  ,  0.2197698673725850 };
-
-        vv[0]={  0.0038312073,  0.0000000000, -0.0000000000, -0.0038312073,  0.0000000000,  0.0000000000};
-        vv[1]={  0.0000000000,  0.0038312073,  0.0000000000,  0.0000000000, -0.0038312073, -0.0000000000};
-        vv[2]={ -0.0000000000,  0.0000000000,  0.3828509681,  0.0000000000, -0.0000000000, -0.3828509681};
-        vv[3]={ -0.0038312073,  0.0000000000,  0.0000000000,  0.0038312073,  0.0000000000, -0.0000000000};
-        vv[4]={  0.0000000000, -0.0038312073, -0.0000000000,  0.0000000000,  0.0038312073,  0.0000000000};
-        vv[5]={  0.0000000000, -0.0000000000, -0.3828509681, -0.0000000000,  0.0000000000,  0.3828509681};
-
-        for (int i=0; i<3*natom; ++i) {
-            for (int j=0; j<3*natom; ++j) {
-                hessian(i,j)=vv[i][j];
-            }
-        }
-    } else {
 
     // add the electronic contribution to the hessian
     int i=0;
@@ -808,7 +756,6 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
             }
             ++i;
         }
-    }
     }
     if (world.rank() == 0) {
         print("\n raw electronic Hessian (a.u.)\n");
@@ -875,9 +822,10 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 /// @param[in]  iatom   the atom A to be moved
 /// @param[in]  iaxis   the coordinate X of iatom to be moved
 /// @return     \frac{\partial}{\partial X_A} \varphi
-vecfuncT Nemo::cphf(const int iatom, const int iaxis, const vecfuncT& guess) const {
+vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
+        const vecfuncT& guess) const {
 
-    return cphf_no_ncf(iatom,iaxis, guess);
+    return cphf_no_ncf(iatom,iaxis,fock,guess);
 
     // use the product rule
     // \varphi_i^X = R^X F_i + R F_i^X
@@ -893,6 +841,12 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const vecfuncT& guess) con
 }
 
 std::vector<vecfuncT> Nemo::compute_all_cphf() const {
+
+    const Tensor<double> fock=this->compute_fock_matrix(get_calc()->amo,
+            get_calc()->get_aocc());
+    print("fock");
+    print(fock);
+
 
     const double thresh=FunctionDefaults<3>::get_thresh();
     const int natom=molecule().natom();
@@ -910,7 +864,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() const {
     for (int i=0, iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             FunctionDefaults<3>::set_thresh(1.e-4);
-            xi[i]=cphf(iatom,iaxis);
+            xi[i]=cphf(iatom,iaxis,fock);
             for (real_function_3d& xij : xi[i]) xij.set_thresh(thresh);
             save_function(xi[i],"xi_"+stringify(i));
             FunctionDefaults<3>::set_thresh(thresh);
@@ -923,7 +877,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() const {
     for (int i=0, iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             load_function(xi[i],"xi_"+stringify(i));
-            xi[i]=cphf(iatom,iaxis,xi[i]);
+            xi[i]=cphf(iatom,iaxis,fock,xi[i]);
             save_function(xi[i],"xi_"+stringify(i));
             ++i;
         }
@@ -938,7 +892,8 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() const {
 /// @param[in]  iatom   the atom A to be moved
 /// @param[in]  iaxis   the coordinate X of iatom to be moved
 /// @return     \frac{\partial}{\partial X_A} \varphi
-vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis, const vecfuncT& guess) const {
+vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis,
+        const Tensor<double> fock, const vecfuncT& guess ) const {
 
     print("\nsolving cphf equations for atom, axis",iatom,iaxis);
 
@@ -953,10 +908,6 @@ vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis, const vecfuncT& gue
         xi=copy(world,guess);
     }
     const int nmo=mo.size();
-
-    const Tensor<double> fock=this->compute_fock_matrix(mo,get_calc()->get_aocc());
-    print("fock");
-    print(fock);
 
     QProjector<double,3> Q(world,get_calc()->amo);
 
@@ -1007,6 +958,14 @@ vecfuncT Nemo::cphf_no_ncf(const int iatom, const int iaxis, const vecfuncT& gue
         tensorT eps(nmo);
         for (int i = 0; i < nmo; ++i) eps(i) = std::min(-0.05, fock(i, i));
         std::vector<poperatorT> ops = calc->make_bsh_operators(world, eps);
+
+        // add the coupling elements in case of localized orbitals
+        if (get_calc()->param.localize) {
+            Tensor<double> fcopy=copy(fock);
+            for (int i = 0; i < nmo; ++i) fcopy(i, i) -= eps(i);
+            vecfuncT fnemo= transform(world, xi, fcopy, trantol(), true);
+            gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
+        }
 
         // apply the BSH operator on the wave function
         START_TIMER(world);
