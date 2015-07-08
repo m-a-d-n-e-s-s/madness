@@ -27,28 +27,53 @@ typedef std::vector<Function<double,3> > vecfuncT;
 // Coupled Cluster Operators that use and result in only 3D functions (so CCS and CIS)
 class CC_3D_Operator{
 public:
-	CC_3D_Operator(World&world, const Nemo &nemo): world(world), mo_ket_(nemo.get_calc() -> amo){
-		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo, nemo.get_calc() ->param.econv));
-		mo_bra_ = mul(world,nemo.nuclear_correlation -> square(),mo_ket_);
-		exchange_intermediate_ = make_exchange_intermediate();
-		if(mo_bra_.empty()) std::cout << "\n\n!!!!!WARNING: mo_bra_ vector is empty!!!!!\n\n";
-		if(mo_ket_.empty()) std::cout << "\n\n!!!!!WARNING: mo_ket_ vector is empty!!!!!\n\n";
-		//madness::Nuclear U(world,nemo);
-		//nuclear_potential_ =U;
-	}
+//	CC_3D_Operator(World&world, const Nemo &nemo): world(world), mo_ket_(nemo.get_calc() -> amo),R2(init_R2(nemo.nuclear_correlation -> square())){
+//		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo, nemo.get_calc() ->param.econv));
+//		mo_bra_ = mul(world,R2,mo_ket_);
+//		exchange_intermediate_ = make_exchange_intermediate();
+//		if(mo_bra_.empty()) std::cout << "\n\n!!!!!WARNING: mo_bra_ vector is empty!!!!!\n\n";
+//		if(mo_ket_.empty()) std::cout << "\n\n!!!!!WARNING: mo_ket_ vector is empty!!!!!\n\n";
+//		//madness::Nuclear U(world,nemo);
+//		//nuclear_potential_ =U;
+//	}
 	// If other mos than the one in the nemo struct are needed (e.g. if lower thresh is demanded -> guess calculations)
-	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world), mo_ket_(mos){
+	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world), mo_ket_(mos),R2(init_R2(nemo.nuclear_correlation -> square())){
 		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo,FunctionDefaults<3>::get_thresh()));
 		mo_bra_ = mul(world,nemo.nuclear_correlation -> square(),mo_ket_);
-		std::cout << "THRESH IS " << FunctionDefaults<3>::get_thresh() << "\n";
-		std::cout << "LO:" << nemo.get_calc() -> param.lo << "\n eps:" << nemo.get_calc() ->param.econv << "\n";
+		set_thresh(world,mo_bra_,FunctionDefaults<3>::get_thresh());
+		set_thresh(world,mo_ket_,FunctionDefaults<3>::get_thresh());
 		truncate(world,mo_ket_);
 		truncate(world,mo_bra_);
 		exchange_intermediate_ = make_exchange_intermediate();
-		if(mo_bra_.empty()) std::cout << "\n\n!!!!!WARNING: mo_bra_ vector is empty!!!!!\n\n";
-		if(mo_ket_.empty()) std::cout << "\n\n!!!!!WARNING: mo_ket_ vector is empty!!!!!\n\n";
-		//madness::Nuclear U(world,nemo);
-		//nuclear_potential_ =U;
+		sanitycheck();
+	}
+
+	/// Make shure that R2 gets the right thresh and is constant
+	real_function_3d init_R2(const real_function_3d nemo_input )const{
+		real_function_3d tmp = copy(nemo_input);
+		tmp.set_thresh(FunctionDefaults<3>::get_thresh());
+		tmp.truncate();
+		tmp.verify();
+		return tmp;
+	}
+
+	void sanitycheck()const{
+		if(mo_ket_.empty()) error("mo_ket_ is empty");
+		if(mo_bra_.empty()) error("mo_bra_ is empty");
+		if(exchange_intermediate_.empty()) error("exchange intermediate is empty");
+		for(auto x: mo_ket_){
+			if(x.thresh() != FunctionDefaults<3>::get_thresh()) error("Wrong thresh in mo_ket_ functions");
+		}
+		for(auto x: mo_bra_){
+			if(x.thresh() != FunctionDefaults<3>::get_thresh()) error("Wrong thresh in mo_bra_ functions");
+		}
+		for(auto tmp: exchange_intermediate_){
+			if(tmp.empty()) error("Exchange Intermediate contains empty vectors");
+			for(auto x: tmp){
+				if(x.thresh() != FunctionDefaults<3>::get_thresh()) error("Wrong thresh in Exchange Intermediate");
+			}
+		}
+		R2.verify();
 	}
 
 	void memory_information(const vecfuncT &v, const std::string &msg = "vectorfunction size is: ")const{
@@ -176,10 +201,25 @@ public:
 		}
 	}
 
+	// Make an inner product between vecfunctions
+	double make_inner_product(const vecfuncT &bra, const vecfuncT &ket)const{
+		return inner(world,mul(world,R2,bra),ket).sum();
+	}
+	// inner product between functions
+	double make_inner_product(const real_function_3d &bra, const real_function_3d &ket)const{
+		return (bra*R2).inner(ket);
+	}
+	// inner product between function and vecfunction
+	double make_inner_product(const real_function_3d &bra, const vecfuncT &ket)const{
+		return inner(world,bra*R2,ket).sum();
+	}
+
 private:
 	bool use_timer_=true;
 	World &world;
 	vecfuncT mo_bra_,mo_ket_;
+	/// The squared nuclear correlation factor;
+	const real_function_3d R2;
 	std::vector<vecfuncT> exchange_intermediate_;
 	std::shared_ptr<real_convolution_3d> poisson;
 //	Nuclear nuclear_potential_;

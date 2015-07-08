@@ -935,25 +935,12 @@ public:
 		}
 	}
 
-	// An inner product with the right metric
-	// <a|b> for no correlation factor
-	// <a|R^2|b> with correlation factor
-	double get_overlap(const vecfuncT &a, const vecfuncT &b)const{
-		vecfuncT bra_a = a;
-		if(get_nemo().get_calc()->param.nuclear_corrfac != "none"){
-			bra_a = mul(world,get_nemo().nuclear_correlation ->square(),a);
+	void sanitycheck(const xfunctionsT &xfunctions)const{
+		for(auto xf:xfunctions){
+			for(auto x:xf.x){
+				if(x.thresh()!=FunctionDefaults<3>::get_thresh()) MADNESS_EXCEPTION("ERROR: WRONG THRESH IN XFUNCTIONS DETECTED",1);
+			}
 		}
-		Tensor<double> inner_tmp = inner(world,bra_a,b);
-		return inner_tmp.sum();
-	}
-
-	// The same for functions
-	double get_overlap(const real_function_3d &a, const real_function_3d &b)const{
-		real_function_3d bra_a =a;
-		if(get_nemo().get_calc()->param.nuclear_corrfac != "none"){
-			bra_a = a*get_nemo().nuclear_correlation->square();
-		}
-		return bra_a.inner(b);
 	}
 
 };

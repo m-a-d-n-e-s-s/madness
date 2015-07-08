@@ -275,7 +275,7 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 		Tensor<double> overlap(xfunctions.size(), xfunctions.size());
 		for (size_t p = 0; p < xfunctions.size(); p++) {
 			for (size_t k = 0; k < xfunctions.size(); k++) {
-				overlap(p, k) = get_overlap(xfunctions[p].x,xfunctions[k].x);
+				overlap(p, k) = CCOPS_.make_inner_product(xfunctions[p].x,xfunctions[k].x);
 			}
 		}
 
@@ -594,16 +594,16 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	project_out_occupied_space(GVpsi);
 	vecfuncT residual = sub(world, xfunction.x, GVpsi);
 
-	double resinner = get_overlap(residual, residual);
+	double resinner = CCOPS_.make_inner_product(residual, residual);
 	double error = sqrt(resinner);
 	xfunction.error.push_back(error);
 
 	// Calculate 2nd order update:
 	// Inner product of Vpsi and the residual (Vspi is scaled to -2.0 --> multiply later with 0.5)
-	double tmp = get_overlap(residual,Vpsi);
+	double tmp = CCOPS_.make_inner_product(residual,Vpsi);
 
 	// squared norm of GVpsi (Psi_tilde)
-	double tmp2 = get_overlap(GVpsi,GVpsi);
+	double tmp2 = CCOPS_.make_inner_product(GVpsi,GVpsi);
 
 	// Factor 0.5 removes the factor 2 from the scaling before
 	xfunction.delta.push_back(0.5 * tmp / tmp2);
@@ -643,7 +643,7 @@ void TDA::normalize(xfunctionsT & xfunctions)const {
 		normalize(xfunctions[i]);
 }
 void TDA::normalize(xfunction & xfunction)const {
-	double self_overlap = get_overlap(xfunction.x, xfunction.x);
+	double self_overlap = CCOPS_.make_inner_product(xfunction.x, xfunction.x);
 	const double norm = sqrt(self_overlap);
 	scale(world, xfunction.x, 1.0 / norm);
 
@@ -654,7 +654,7 @@ void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions)const {
 		compress(world,xfunctions[p].x);
 		for (size_t k = 0; k < converged_xfunctions_.size(); k++) {
 			compress(world,converged_xfunctions_[k].x);
-			double overlap = get_overlap(xfunctions[p].x,converged_xfunctions_[k].x);
+			double overlap = CCOPS_.make_inner_product(xfunctions[p].x,converged_xfunctions_[k].x);
 			for (size_t i = 0; i < xfunctions[p].x.size(); i++) {
 				xfunctions[p].x[i] -= overlap * converged_xfunctions_[k].x[i];
 			}
@@ -673,7 +673,7 @@ bool TDA::orthonormalize_fock(xfunctionsT &xfunctions)const {
 	Tensor<double> overlap(xfunctions.size(), xfunctions.size());
 	for (size_t p = 0; p < xfunctions.size(); p++) {
 		for (size_t k = 0; k < xfunctions.size(); k++) {
-			overlap(p, k)  = get_overlap(xfunctions[p].x,xfunctions[k].x);
+			overlap(p, k)  = CCOPS_.make_inner_product(xfunctions[p].x,xfunctions[k].x);
 		}
 	}
 
@@ -799,13 +799,13 @@ double TDA::perturbed_fock_matrix_element(const vecfuncT &xr,
 
 double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potential)const {
 	// The part from the smooth potential
-	double expv = get_overlap(x.x, smooth_potential);
+	double expv = CCOPS_.make_inner_product(x.x, smooth_potential);
 
 	// The Nuclear part
 		real_function_3d vnuc = get_nemo().get_calc() -> potentialmanager->vnuclear();
 		vecfuncT vnuci = mul(world,vnuc,x.x);
 		Tensor<double> vnuc_pot = inner(world, x.x, vnuci);
-		double exp_vnuc = get_overlap(x.x,apply_nuclear_potential(x));
+		double exp_vnuc = CCOPS_.make_inner_product(x.x,apply_nuclear_potential(x));
 		expv += exp_vnuc;
 
 	// The kinetic part
@@ -823,7 +823,7 @@ double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potenti
 
 	// The epsilon part to get the excitation energy
 	for (size_t i = 0; i < x.x.size(); i++) {
-	double overlap = get_overlap(x.x[i],x.x[i]);
+	double overlap = CCOPS_.make_inner_product(x.x[i],x.x[i]);
 		expv -= active_eps(i)* overlap;
 	}
 	return expv;
