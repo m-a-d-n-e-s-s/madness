@@ -212,6 +212,7 @@ namespace madness {
             printf("current decoupled mp2 energy %12.8f\n", correlation_energy);
         }
 
+        correlation_energy=0.0;
         if (hf->get_calc().param.localize) {
             // solve the coupled MP1 equations
             correlation_energy=solve_coupled_equations(pairs,param.econv_*0.1,param.dconv_);
