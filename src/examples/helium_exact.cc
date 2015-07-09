@@ -51,6 +51,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/correlationfactor.h>
+#include <chem/electronic_correlation_factor.h>
 
 
 // switch the electronic interaction on or off

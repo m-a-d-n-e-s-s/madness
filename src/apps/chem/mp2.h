@@ -53,6 +53,7 @@
 #include <examples/nonlinsol.h>
 #include <chem/projector.h>
 #include <chem/correlationfactor.h>
+#include <chem/electronic_correlation_factor.h>
 #include <chem/nemo.h>
 
 #include <iostream>
