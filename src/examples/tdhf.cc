@@ -48,8 +48,8 @@
 //#include<examples/dft_solver.h>
 //
 #include <chem/TDA.h>
-#include<iomanip>
-#include<iostream>
+#include "../examples/GCNCF.h"
+
 
 using namespace madness;
 
@@ -91,11 +91,15 @@ int main(int argc, char** argv) {
         calc->param.print(world);
     }
 
+    //
     //MolecularEnergy E(world, *calc);
     double hf_energy =0;
+
+    GCNCF test_contraction(world);
+
 //    if(calc -> param.nuclear_corrfac == "moldft"){
 //    	std::cout << "\n\nNo Nuclear Correlation Factor determined, proceeding with std SCF\n\n";
- //   	hf_energy = E.value(calc -> molecule.get_all_coords().flat());
+   	//hf_energy = E.value(calc -> molecule.get_all_coords().flat());
 //    }else{
 //    	std::cout << "\n\nNuclear Correlation Factor is\n ---> " << calc -> param.nuclear_corrfac << "\n\n";
     	hf_energy=nemo.value();

@@ -74,7 +74,7 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 }
 
 void TDA::solve(xfunctionsT &xfunctions) {
-output_section("SOLVE START");
+	output_section("SOLVE START");
 
 	// Iterate till convergence is reached
 	for(size_t iter=0;iter<300;iter++){
@@ -227,7 +227,7 @@ void TDA::print_xfunction(const xfunction &x) const {
 	if(world.rank()==0){
 		std::cout << std::setw(5) << x.number;
 		std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-																															<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+																																	<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
 		std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
 	}
 }
@@ -393,7 +393,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 
 			// this is the file where the guess is on disk
 			const std::string valuefile="grid.koala.orbital"+stringify(i)
-	    																					+".excitation"+stringify(iroot);
+	    																							+".excitation"+stringify(iroot);
 			real_function_3d x_i=real_factory_3d(world).empty();
 			x_i.get_impl()->read_grid2<3>(valuefile,functorT());
 			root.x.push_back(x_i);
@@ -537,8 +537,8 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 				}
 			}
 			TDA_TIMER project_time(world,"Project out converged excitations and occupied space: ");
-			for(size_t i=0;i<xfunctions.size();i++) project_out_occupied_space(xfunctions[i].x);
 			project_out_converged_xfunctions(xfunctions);
+			for(size_t i=0;i<xfunctions.size();i++) project_out_occupied_space(xfunctions[i].x);
 			project_time.info();
 			print_status(xfunctions);
 
@@ -651,9 +651,7 @@ void TDA::normalize(xfunction & xfunction)const {
 
 void TDA::project_out_converged_xfunctions(xfunctionsT & xfunctions)const {
 	for (size_t p = 0; p < xfunctions.size(); p++) {
-		compress(world,xfunctions[p].x);
 		for (size_t k = 0; k < converged_xfunctions_.size(); k++) {
-			compress(world,converged_xfunctions_[k].x);
 			double overlap = CCOPS_.make_inner_product(xfunctions[p].x,converged_xfunctions_[k].x);
 			for (size_t i = 0; i < xfunctions[p].x.size(); i++) {
 				xfunctions[p].x[i] -= overlap * converged_xfunctions_[k].x[i];
@@ -774,6 +772,19 @@ std::vector<vecfuncT> TDA::transform_vecfunctions(
 
 void TDA::project_out_occupied_space(vecfuncT &x)const {
 	CCOPS_.Q(x);
+	/// DEBUG
+	std::cout << "DEBUG OUTPUT:\n";
+	std::cout << "overlap between xfunction and occupied space:\n";
+	size_t i=0;
+	for(auto mo:active_mo_){
+		double overlap = CCOPS_.make_inner_product(mo,x);
+		if(fabs(overlap)>FunctionDefaults<3>::get_thresh()) std::cout << "\n\n\n!!!!WARNING xfunction NOT pure virtual!!!!!\n\n\n";
+		std::cout << "MO" << i << ": ";
+		std::cout << CCOPS_.make_inner_product(mo,x);
+		std::cout << ", ";
+	}
+	std::cout << "\n";
+	/// DEBUG
 }
 
 double TDA::perturbed_fock_matrix_element(const vecfuncT &xr,
@@ -802,11 +813,11 @@ double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potenti
 	double expv = CCOPS_.make_inner_product(x.x, smooth_potential);
 
 	// The Nuclear part
-		real_function_3d vnuc = get_nemo().get_calc() -> potentialmanager->vnuclear();
-		vecfuncT vnuci = mul(world,vnuc,x.x);
-		Tensor<double> vnuc_pot = inner(world, x.x, vnuci);
-		double exp_vnuc = CCOPS_.make_inner_product(x.x,apply_nuclear_potential(x));
-		expv += exp_vnuc;
+	real_function_3d vnuc = get_nemo().get_calc() -> potentialmanager->vnuclear();
+	vecfuncT vnuci = mul(world,vnuc,x.x);
+	Tensor<double> vnuc_pot = inner(world, x.x, vnuci);
+	double exp_vnuc = CCOPS_.make_inner_product(x.x,apply_nuclear_potential(x));
+	expv += exp_vnuc;
 
 	// The kinetic part
 	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
@@ -823,7 +834,7 @@ double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potenti
 
 	// The epsilon part to get the excitation energy
 	for (size_t i = 0; i < x.x.size(); i++) {
-	double overlap = CCOPS_.make_inner_product(x.x[i],x.x[i]);
+		double overlap = CCOPS_.make_inner_product(x.x[i],x.x[i]);
 		expv -= active_eps(i)* overlap;
 	}
 	return expv;
@@ -862,102 +873,121 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 	}
 	EPART.info();
 	MAKE_FOCK_MATRIX_TIMER2.info();
+
+	/// DEBUG
+//	Tensor<double> Kinetic1(xfunctions.size(),xfunctions.size());
+//	Tensor<double> Kinetic2(xfunctions.size(),xfunctions.size());
+//	TDA_TIMER TPART1(world,"Kinetic1 Part");
+//	for(size_t q=0;q<xfunctions.size();q++){
+//		for(size_t p=0;p<xfunctions.size();p++){
+//			Kinetic1(p,q) = CCOPS_.get_matrix_element_kinetic_energy(xfunctions[p].x,xfunctions[q].x);
+//		}}
+//	TPART1.info();
+//	TDA_TIMER TPART2(world,"Kinetic2 Part");
+//	for(size_t q=0;q<xfunctions.size();q++){
+//		for(size_t p=0;p<xfunctions.size();p++){
+//			Kinetic2(p,q) = CCOPS_.get_matrix_element_kinetic_2(xfunctions[p].x,xfunctions[q].x);
+//		}}
+//	TPART2.info();
+//	std::cout << "Kinetic energy matrix 1 \n" << Kinetic1 << "\n and 2 \n" << Kinetic2 <<std::endl;
+//	/// DEBUG END
+
 	return new_F;
-//	TDA_TIMER MAKE_FOCK_MATRIX_TIMER(world,"Make old perturbed fock matrix");
-//
-//	if(world.rank()==0) std::cout << std::setw(40) << "perturbed fock matrix dimension..." << " : " << xfunctions.size() << "x" << xfunctions.size() << std::endl;
-//	Tensor<double> F(xfunctions.size(), xfunctions.size());
-//
-//	// Part for the smoothed potential
-//	for (std::size_t p = 0; p < xfunctions.size(); p++) {
-//		vecfuncT Vxp;
-//		if(xfunctions[p].smooth_potential.empty()){
-//			output("smooth potential needs to be recalculated");
-//			Vxp = add(world,apply_smooth_potential(xfunctions[p]),apply_nuclear_potential(xfunctions[p]));
-//		}
-//		else Vxp = add(world,xfunctions[p].smooth_potential,apply_nuclear_potential(xfunctions[p]));
-//		for (std::size_t k = 0; k < xfunctions.size(); k++) {
-//			vecfuncT bra_x = xfunctions[k].x;
-//			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[k].x);}
-//			Tensor<double> fpk_i = inner(world, bra_x, Vxp);
-//			F(p, k) = fpk_i.sum();
-//		}
-//	}
-//
-//TDA_TIMER KINETIC1(world,"KINETIK 1 TIMER: ");
-//Tensor<double> DEBUG_TENSOR(xfunctions.size(),xfunctions.size());
-//for(size_t i=0;i<xfunctions.size();i++){
-//	for(size_t j=0;j<xfunctions.size();j++){
-//		DEBUG_TENSOR(i,j)=0.0;
-//	}
-//}
-//std::cout << "DEBUG TENSOR ZEROES:\n" << DEBUG_TENSOR<< std::endl;
-//	//The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
-//	for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-//		const vecfuncT& xp = xfunctions[iroot].x;
-//		reconstruct(world, xp);
-//	}
-//
-//	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-//	gradop = gradient_operator<double, 3>(world);
-//
-//	for (int axis = 0; axis < 3; ++axis) {
-//
-//		std::vector<vecfuncT> dxp, bra_dxp;
-//		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-//
-//			const vecfuncT& xp = xfunctions[iroot].x;
-//			TDA_TIMER ket(world,"kinetic ket");
-//			vecfuncT d = apply(world, *(gradop[axis]), xp);
-//			ket.info();
-//			vecfuncT bra_d;
-//			if(use_nemo_){
-//				TDA_TIMER bra(world,"kinetic bra");
-//				bra_d = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),xp));
-//				bra.info();
-//			}
-//			truncate(world,d);
-//			dxp.push_back(d);
-//			if(use_nemo_) bra_dxp.push_back(bra_d);
-//		}
-//		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-//			for (std::size_t jroot = 0; jroot < xfunctions.size(); ++jroot) {
-//				Tensor<double> xpi_Txqi;
-//				if(use_nemo_)xpi_Txqi = inner(world, bra_dxp[iroot], dxp[jroot]);
-//				else xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
-//				F(iroot, jroot) += 0.5 * xpi_Txqi.sum();
-//				DEBUG_TENSOR(iroot,jroot) += 0.5 * xpi_Txqi.sum();
-//			}
-//		}
-//	}
-//	std::cout << "KINETIC ENERGY MATRIX OLD WAY:\n" << DEBUG_TENSOR << std::endl;
-//	KINETIC1.info();
-//
-//	TDA_TIMER KINETIC2(world, "KINETIC 2 TIMER: ");
-//	Tensor<double> DEBUG_TENSOR2(xfunctions.size(),xfunctions.size());
-//	for(size_t i=0;i<xfunctions.size();i++){
-//		for(size_t j=0;j<xfunctions.size();j++){
-//			DEBUG_TENSOR2(i,j)=CCOPS_.get_matrix_element_kinetic_energy(xfunctions[i].x,xfunctions[j].x);
-//		}
-//	}
-//	std::cout << "KINETIC ENERGY MATRIX NEW WAY:\n" << DEBUG_TENSOR2 << std::endl;
-//	KINETIC2.info();
-//
-//	// The epsilon part
-//	for (std::size_t p = 0; p < xfunctions.size(); p++) {
-//		for (std::size_t r = 0; r < xfunctions.size(); r++) {
-//			vecfuncT bra_x = xfunctions[p].x;
-//			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[p].x);}
-//			Tensor<double> eij = inner(world, bra_x, xfunctions[r].x);
-//			for (size_t ii = 0; ii < xfunctions[p].x.size(); ++ii) {
-//				F(p, r) -= (orbital_energies_(ii) + shift_) * eij[ii];
-//			}
-//		}
-//	}
-//	std::cout << "New Perturbed Fock Matrix\n" << new_F << std::endl;
-//	std::cout << "Old Perturbed Fock Matrix\n" << F << std::endl;
-//	MAKE_FOCK_MATRIX_TIMER.info();
-//	return F;
+	//	TDA_TIMER MAKE_FOCK_MATRIX_TIMER(world,"Make old perturbed fock matrix");
+	//
+	//	if(world.rank()==0) std::cout << std::setw(40) << "perturbed fock matrix dimension..." << " : " << xfunctions.size() << "x" << xfunctions.size() << std::endl;
+	//	Tensor<double> F(xfunctions.size(), xfunctions.size());
+	//
+	//	// Part for the smoothed potential
+	//	for (std::size_t p = 0; p < xfunctions.size(); p++) {
+	//		vecfuncT Vxp;
+	//		if(xfunctions[p].smooth_potential.empty()){
+	//			output("smooth potential needs to be recalculated");
+	//			Vxp = add(world,apply_smooth_potential(xfunctions[p]),apply_nuclear_potential(xfunctions[p]));
+	//		}
+	//		else Vxp = add(world,xfunctions[p].smooth_potential,apply_nuclear_potential(xfunctions[p]));
+	//		for (std::size_t k = 0; k < xfunctions.size(); k++) {
+	//			vecfuncT bra_x = xfunctions[k].x;
+	//			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[k].x);}
+	//			Tensor<double> fpk_i = inner(world, bra_x, Vxp);
+	//			F(p, k) = fpk_i.sum();
+	//		}
+	//	}
+	//
+	//TDA_TIMER KINETIC1(world,"KINETIK 1 TIMER: ");
+	//Tensor<double> DEBUG_TENSOR(xfunctions.size(),xfunctions.size());
+	//for(size_t i=0;i<xfunctions.size();i++){
+	//	for(size_t j=0;j<xfunctions.size();j++){
+	//		DEBUG_TENSOR(i,j)=0.0;
+	//	}
+	//}
+	//std::cout << "DEBUG TENSOR ZEROES:\n" << DEBUG_TENSOR<< std::endl;
+	//	//The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
+	//	for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+	//		const vecfuncT& xp = xfunctions[iroot].x;
+	//		reconstruct(world, xp);
+	//	}
+	//
+	//	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+	//	gradop = gradient_operator<double, 3>(world);
+	//
+	//	for (int axis = 0; axis < 3; ++axis) {
+	//
+	//		std::vector<vecfuncT> dxp, bra_dxp;
+	//		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+	//
+	//			const vecfuncT& xp = xfunctions[iroot].x;
+	//			TDA_TIMER ket(world,"kinetic ket");
+	//			vecfuncT d = apply(world, *(gradop[axis]), xp);
+	//			ket.info();
+	//			vecfuncT bra_d;
+	//			if(use_nemo_){
+	//				TDA_TIMER bra(world,"kinetic bra");
+	//				bra_d = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),xp));
+	//				bra.info();
+	//			}
+	//			truncate(world,d);
+	//			dxp.push_back(d);
+	//			if(use_nemo_) bra_dxp.push_back(bra_d);
+	//		}
+	//		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+	//			for (std::size_t jroot = 0; jroot < xfunctions.size(); ++jroot) {
+	//				Tensor<double> xpi_Txqi;
+	//				if(use_nemo_)xpi_Txqi = inner(world, bra_dxp[iroot], dxp[jroot]);
+	//				else xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
+	//				F(iroot, jroot) += 0.5 * xpi_Txqi.sum();
+	//				DEBUG_TENSOR(iroot,jroot) += 0.5 * xpi_Txqi.sum();
+	//			}
+	//		}
+	//	}
+	//	std::cout << "KINETIC ENERGY MATRIX OLD WAY:\n" << DEBUG_TENSOR << std::endl;
+	//	KINETIC1.info();
+	//
+	//	TDA_TIMER KINETIC2(world, "KINETIC 2 TIMER: ");
+	//	Tensor<double> DEBUG_TENSOR2(xfunctions.size(),xfunctions.size());
+	//	for(size_t i=0;i<xfunctions.size();i++){
+	//		for(size_t j=0;j<xfunctions.size();j++){
+	//			DEBUG_TENSOR2(i,j)=CCOPS_.get_matrix_element_kinetic_energy(xfunctions[i].x,xfunctions[j].x);
+	//		}
+	//	}
+	//	std::cout << "KINETIC ENERGY MATRIX NEW WAY:\n" << DEBUG_TENSOR2 << std::endl;
+	//	KINETIC2.info();
+	//
+	//	// The epsilon part
+	//	for (std::size_t p = 0; p < xfunctions.size(); p++) {
+	//		for (std::size_t r = 0; r < xfunctions.size(); r++) {
+	//			vecfuncT bra_x = xfunctions[p].x;
+	//			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[p].x);}
+	//			Tensor<double> eij = inner(world, bra_x, xfunctions[r].x);
+	//			for (size_t ii = 0; ii < xfunctions[p].x.size(); ++ii) {
+	//				F(p, r) -= (orbital_energies_(ii) + shift_) * eij[ii];
+	//			}
+	//		}
+	//	}
+	//	std::cout << "New Perturbed Fock Matrix\n" << new_F << std::endl;
+	//	std::cout << "Old Perturbed Fock Matrix\n" << F << std::endl;
+	//	MAKE_FOCK_MATRIX_TIMER.info();
+	//	return F;
 
 }
 
@@ -966,9 +996,9 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 // The smooth potential is the potential without the nuclear potential
 // The nuclear potential has to be calculated sepparately
 vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction) const{
-		vecfuncT smooth_potential = CCOPS_.get_CIS_potential_singlet(xfunction.x);
-		truncate(world,smooth_potential);
-		return smooth_potential;
+	vecfuncT smooth_potential = CCOPS_.get_CIS_potential_singlet(xfunction.x);
+	truncate(world,smooth_potential);
+	return smooth_potential;
 }
 
 vecfuncT TDA::apply_nuclear_potential(const xfunction &xfunction) const{

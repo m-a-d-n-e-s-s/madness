@@ -41,6 +41,7 @@ public:
 		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo,FunctionDefaults<3>::get_thresh()));
 		mo_bra_ = mul(world,nemo.nuclear_correlation -> square(),mo_ket_);
 		dR2 = get_gradient(R2);
+		plot_plane(world,dR2[0],"dxR2");
 		set_thresh(world,mo_bra_,FunctionDefaults<3>::get_thresh());
 		set_thresh(world,mo_ket_,FunctionDefaults<3>::get_thresh());
 		truncate(world,mo_ket_);
@@ -59,8 +60,9 @@ public:
 	}
 
 	// Make the derivative of R2
-	vecfuncT get_gradient(const real_function_3d &f)const{
+	vecfuncT get_gradient(const real_function_3d f)const{
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop=gradient_operator<double, 3>(world);
+		f.verify();
 		vecfuncT gradf;
 		for(size_t i=0;i<3;i++){
 			real_function_3d dfi = (*gradop[i])(f);
@@ -170,7 +172,10 @@ public:
 
 	// Kinetik energy
 	// -1/2 <x|R2Nabla2|x> = +1/2 <Nabla R2 x | Nabla x> = grad(R2x)*grad(x)
+	// grad(R2x) = GradR2*x + R2*gradx
+	// grad(R2x)*grad(y) = GradR2*x*Grady + R2*Gradx*Grady
 	double get_matrix_element_kinetic_energy(const vecfuncT &ket, const vecfuncT &bra)const{
+		//std::cout << " Making Kintic Energy Matrix Element 1:\n";
 		double value=0.0;
 		vecfuncT R2bra = mul(world,R2,bra);
 		truncate(world,R2bra);
@@ -178,11 +183,44 @@ public:
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 		gradop = gradient_operator<double, 3>(world);
 		for(size_t axis=0;axis<3;axis++){
+			//START_TIMER();
 			const vecfuncT gradbra = apply(world,*gradop[axis],R2bra);
+			//END_TIMER("Gradient of R2Bra");
+			//START_TIMER();
 			const vecfuncT gradket = apply(world,*gradop[axis],ket);
+			//END_TIMER("Gradient of Ket");
+			//START_TIMER();
 			value += 0.5*inner(world,gradbra,gradket).sum();
+			//END_TIMER("Inner Product");
 		}
 		return value;
+	}
+	double get_matrix_element_kinetic_2(const vecfuncT &bra,const vecfuncT &ket)const{
+		std::cout << "Making Kinetic 2 Element\n";
+		double value =0.0;
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop = gradient_operator<double, 3>(world);
+		for(size_t axis=0;axis<3;axis++){
+			START_TIMER();
+			vecfuncT gradbra = apply(world,*gradop[axis],bra);
+			truncate(world,gradbra);
+			END_TIMER("make gradbra");
+			START_TIMER();
+			vecfuncT gradket = apply(world,*gradop[axis],ket);
+			truncate(world,gradket);
+			END_TIMER("make gradket");
+			START_TIMER();
+			vecfuncT gradR2bra = mul(world,dR2[axis],bra);
+			truncate(world,gradR2bra);
+			END_TIMER("multiply dR2 and bra");
+			START_TIMER();
+			value += (inner(world,gradR2bra,gradket).sum());
+			END_TIMER("Inner product1");
+			START_TIMER();
+			value += make_inner_product(gradbra,gradket);
+			END_TIMER("Inner product2");
+
+		}
+		return 0.5*value;
 	}
 
 	// Diagrammatic Potentials:
