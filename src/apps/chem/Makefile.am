@@ -23,10 +23,10 @@ thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
 
 
 testxc_SOURCES = testxc.cc xcfunctional.h
-testxc_LDADD = libMADchem.la $(LIBMRA) $(LIBWORLD)
+testxc_LDADD = libMADchem.la $(MRALIBS)
 
 plotxc_SOURCES = plotxc.cc xcfunctional.h
-plotxc_LDADD = libMADchem.la $(LIBMRA) $(LIBWORLD)
+plotxc_LDADD = libMADchem.la $(MRALIBS)
 
 libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
                        corepotential.cc atomutil.cc lda.cc \
@@ -51,7 +51,3 @@ libraries:	$(lib_LTLIBRARIES)
 
 install-libraries: install-libLTLIBRARIES install-thisincludeHEADERS
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
-
-
-LDADD = $(LIBMRA) $(LIBTENSOR) $(LIBWORLD)
-	
