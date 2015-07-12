@@ -15,6 +15,10 @@ AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
 m4_pattern_allow([AM_PROG_AR])
 AM_PROG_AR
 
+# Initialize Libtools (for shared libraries)
+LT_INIT
+LT_LANG([C++])
+
 # We want #defines output into a header file
 AC_CONFIG_HEADERS([src/madness/config.h])
 
@@ -124,7 +128,6 @@ ACX_ENABLE_GENTENSOR
 ACX_ENABLE_TASK_PROFILER
 
 # Check for basic build functionality
-AC_PROG_RANLIB
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
@@ -357,6 +360,9 @@ AC_MSG_NOTICE([CFLAGS   = $CFLAGS])
 AC_MSG_NOTICE([CXXFLAGS = $CXXFLAGS])
 AC_MSG_NOTICE([LDFLAGS  = $LDFLAGS])
 AC_MSG_NOTICE([LIBS     = $LIBS])
+AC_MSG_NOTICE([build shared libraries: $enable_shared])
+AC_MSG_NOTICE([build static libraries: $enable_static])
+
 
 # These are the files that must be generated/preprocessed ... as you add files
 # please maintain the directory tree file order and indenting.

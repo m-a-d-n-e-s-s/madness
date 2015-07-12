@@ -11,15 +11,15 @@ LIBCHEMDIR=$(top_builddir)/src/apps/chem
 LIBTINYXMLDIR=$(top_builddir)/src/madness/external/tinyxml
 LIBMUPARSERDIR=$(top_builddir)/src/madness/external/muParser
 
-LIBGTEST=$(LIBGTESTDIR)/libMADgtest.a
-LIBWORLD=$(LIBWORLDDIR)/libMADworld.a
-LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.a
-LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.a
-LIBMISC=$(LIBMISCDIR)/libMADmisc.a
-LIBMRA=$(LIBMRADIR)/libMADmra.a
-LIBCHEM=$(LIBCHEMDIR)/libMADchem.a
-LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.a
-LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.a
+LIBGTEST=$(LIBGTESTDIR)/libMADgtest.la
+LIBWORLD=$(LIBWORLDDIR)/libMADworld.la
+LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.la
+LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.la
+LIBMISC=$(LIBMISCDIR)/libMADmisc.la
+LIBMRA=$(LIBMRADIR)/libMADmra.la
+LIBCHEM=$(LIBCHEMDIR)/libMADchem.la
+LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.la
+LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.la
 
 # Most scientific/numeric applications will link against these libraries
 MRALIBS=$(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
@@ -30,31 +30,31 @@ LIBGTEST_LIBS = $(GTEST_LDFLAGS) $(GTEST_LIBS)
 
 # External library targets
 $(LIBGTEST):
-	make -C $(LIBGTESTDIR) libMADgtest.a
+	make -C $(LIBGTESTDIR) libMADgtest.la
 
 $(LIBTINYXML):
-	make -C $(LIBTINYXMLDIR) libMADtinyxml.a
+	make -C $(LIBTINYXMLDIR) libMADtinyxml.la
 
 $(LIBMUPARSER):
-	make -C $(LIBMUPARSERDIR) libMADmuparser.a
+	make -C $(LIBMUPARSERDIR) libMADmuparser.la
 
 # MADNESS library targets
 $(LIBWORLD): 
-	make -C $(LIBWORLDDIR) libMADworld.a
+	make -C $(LIBWORLDDIR) libMADworld.la
 
 $(LIBMISC): $(LIBWORLD)
-	make -C $(LIBMISCDIR) libMADmisc.a
+	make -C $(LIBMISCDIR) libMADmisc.la
 
 $(LIBTENSOR): $(LIBMISC)
-	make -C $(LIBTENSORDIR) libMADtensor.a
+	make -C $(LIBTENSORDIR) libMADtensor.la
 
 $(LIBLINALG): $(LIBTENSOR)
-	make -C $(LIBTENSORDIR) libMADlinalg.a
+	make -C $(LIBTENSORDIR) libMADlinalg.la
 
 
 $(LIBMRA): $(LIBLINALG)
-	make -C $(LIBMRADIR) libMADmra.a
+	make -C $(LIBMRADIR) libMADmra.la
 
 $(LIBCHEM): $(LIBMRA)
-	make -C $(LIBCHEMDIR) libMADchem.a
+	make -C $(LIBCHEMDIR) libMADchem.la
 
