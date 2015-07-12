@@ -40,3 +40,9 @@ depcomp
 install-sh
 missing
 /Default/
+lt~obsolete.m4
+ltversion.m4
+ltsugar.m4
+ltoptions.m4
+ltmain.sh
+libtool.m4

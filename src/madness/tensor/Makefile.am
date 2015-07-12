@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
   
-lib_LIBRARIES = libMADtensor.a libMADlinalg.a
+lib_LTLIBRARIES = libMADtensor.la libMADlinalg.la
 
 TESTS = oldtest.seq test_mtxmq.seq test_Zmtxmq.seq jimkernel.seq \
         test_scott.seq test_linalg.seq test_solvers.seq \
@@ -40,79 +40,86 @@ if MADNESS_HAS_GOOGLE_TEST
 test_SOURCES = test.cc
 test_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
 test_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
-test_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+test_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADtensor.la $(LIBMISC) $(LIBWORLD) 
 
 test_gentensor_SOURCES = test_gentensor.cc
 test_gentensor_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
 test_gentensor_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
-test_gentensor_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADtensor.a libMADlinalg.a  $(LIBMISC) $(LIBWORLD)
+test_gentensor_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADtensor.la libMADlinalg.la  $(LIBMISC) $(LIBWORLD)
 
 endif
 
 oldtest_seq_SOURCES = oldtest.cc
-oldtest_seq_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+oldtest_seq_LDADD = libMADtensor.la $(LIBMISC) $(LIBWORLD) 
 
 test_scott_seq_SOURCES = test_scott.cc
-test_scott_seq_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+test_scott_seq_LDADD = libMADtensor.la $(LIBMISC) $(LIBWORLD) 
 
 test_mtxmq_seq_SOURCES = test_mtxmq.cc
-test_mtxmq_seq_LDADD = libMADtensor.a $(LIBWORLD)
+test_mtxmq_seq_LDADD = libMADtensor.la $(LIBWORLD)
 test_mtxmq_seq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
 jimkernel_seq_SOURCES = jimkernel.cc
-jimkernel_seq_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
+jimkernel_seq_LDADD = libMADtensor.la $(LIBMISC) $(LIBWORLD)
 
 test_linalg_seq_SOURCES = test_linalg.cc
-test_linalg_seq_LDADD = libMADlinalg.a libMADtensor.a $(LIBMISC) $(LIBWORLD)
+test_linalg_seq_LDADD = libMADlinalg.la libMADtensor.la $(LIBMISC) $(LIBWORLD)
 
 test_solvers_seq_SOURCES = test_solvers.cc
-test_solvers_seq_LDADD =  libMADlinalg.a libMADtensor.a $(LIBMISC) $(LIBWORLD)
+test_solvers_seq_LDADD =  libMADlinalg.la libMADtensor.la $(LIBMISC) $(LIBWORLD)
 
 test_elemental_mpi_SOURCES = test_elemental.cc
-test_elemental_mpi_LDADD =  libMADlinalg.a libMADtensor.a $(LIBMISC) $(LIBWORLD)
+test_elemental_mpi_LDADD =  libMADlinalg.la libMADtensor.la $(LIBMISC) $(LIBWORLD)
 
 test_distributed_matrix_mpi_SOURCES = test_distributed_matrix.cc
-test_distributed_matrix_mpi_LDADD =  libMADtensor.a $(LIBMISC) $(LIBWORLD)
+test_distributed_matrix_mpi_LDADD =  libMADtensor.la $(LIBMISC) $(LIBWORLD)
 
 test_Zmtxmq_seq_SOURCES = test_Zmtxmq.cc
-test_Zmtxmq_seq_LDADD = libMADtensor.a $(LIBWORLD)
+test_Zmtxmq_seq_LDADD = libMADtensor.la $(LIBWORLD)
 test_Zmtxmq_seq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
 test_systolic_mpi_SOURCES = test_systolic.cc
-test_systolic_mpi_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
+test_systolic_mpi_LDADD = libMADtensor.la $(LIBMISC) $(LIBWORLD)
 
 testseprep_seq_SOURCES = testseprep.cc
-testseprep_seq_LDADD = $(LIBMISC) $(LIBWORLD) libMADlinalg.a libMADtensor.a 
-
-
-libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc \
-                        aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
-                        basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
-                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h systolic.h gentensor.h srconf.h \
-                        distributed_matrix.h
-
-libMADlinalg_a_SOURCES = lapack.cc cblas.h \
-                         tensor_lapack.h clapack.h  lapack_functions.h \
-                         solvers.cc solvers.h elem.cc
-
+testseprep_seq_LDADD = $(LIBMISC) $(LIBWORLD) libMADlinalg.la libMADtensor.la 
 
 if USE_X86_64_ASM
-  libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
-mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ASFLAGS) $(AM_CPPFLAGS) -I. -DX86_64 -c -o $@ $<
+noinst_LTLIBRARIES = libmtxmq.la
+libmtxmq_la_SOURCES = mtxmq_asm.S mtxm_gen.h
+libmtxmq_la_CXXFLAGS = $(AM_CXXFLAGS) $(ASFLAGS) $(AM_CPPFLAGS) -DX86_64
+libmtxmq_la_LIBTOOLFLAGS = $(AM_LIBTOOLFLAGS) --tag=CXX
+libMADtensor_la_LIBADD = libmtxmq.la
+BUILT_SOURCES = mtxm_gen.h
 
 mtxm_gen.h:	genmtxm.py 
 	python $(srcdir)/genmtxm.py > $@
 endif
 
 if USE_X86_32_ASM
-  libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
-mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ASFLAGS) $(AM_CPPFLAGS) -I. -DX86_32 -c -o $@ $<
+noinst_LTLIBRARIES = libmtxmq.la
+libmtxmq_la_SOURCES = mtxmq_asm.S mtxm_gen.h
+libmtxmq_la_CXXFLAGS = $(AM_CXXFLAGS) $(ASFLAGS) $(AM_CPPFLAGS) -DX86_32
+libmtxmq_la_LIBTOOLFLAGS = $(AM_LIBTOOLFLAGS) --tag=CXX
+libMADtensor_la_LIBADD = libmtxmq.la
+BUILT_SOURCES = mtxm_gen.h
 
 mtxm_gen.h:	genmtxm.py 
 	python $(srcdir)/genmtxm.py > $@
 endif
+
+libMADtensor_la_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc \
+                        aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
+                        basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h systolic.h gentensor.h srconf.h \
+                        distributed_matrix.h
+libMADtensor_la_LDFLAGS = -version-info 0:0:0
+
+libMADlinalg_la_SOURCES = lapack.cc cblas.h \
+                         tensor_lapack.h clapack.h  lapack_functions.h \
+                         solvers.cc solvers.h elem.cc
+libMADlinalg_la_LDFLAGS = -version-info 0:0:0
+
 
 tensoriter_spec.h tensor_spec.h:	tempspec.py
 	python $(srcdir)/tempspec.py
@@ -126,7 +133,7 @@ tensoriter_spec.h tensor_spec.h:	tempspec.py
 #test_mtxmq:     test_mtxmq.o mtxmq.o mtxmq_asm.o
 #        $(CXX) -o $@  $^
 
-libraries:	$(lib_LIBRARIES)
+libraries:	$(lib_LTLIBRARIES)
 
-install-libraries: install-libLIBRARIES install-thisincludeHEADERS
+install-libraries: install-libLTLIBRARIES install-thisincludeHEADERS
 
