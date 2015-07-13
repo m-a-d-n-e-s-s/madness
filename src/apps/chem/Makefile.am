@@ -6,7 +6,6 @@ AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\"
 noinst_PROGRAMS = testxc plotxc test_SCFOperators
 
 lib_LTLIBRARIES = libMADchem.la
-noinst_LTLIBRARIES = libxcfunctional_ldaonly.la
 
 data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 dist_data_DATA = $(data_DATA)
@@ -34,17 +33,11 @@ plotxc_LDADD = libMADchem.la $(MRALIBS)
 libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
                        corepotential.cc atomutil.cc lda.cc \
                        distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc\
-                       SCFOperators.cc $(thisinclude_HEADERS)
+                       SCFOperators.cc xcfunctional_ldaonly.cc $(thisinclude_HEADERS)
 libMADchem_la_LDFLAGS = -version-info 0:0:0
-
-libxcfunctional_ldaonly_la_SOURCES = xcfunctional_ldaonly.cc
                        
 if MADNESS_HAS_LIBXC
-   testxc_LDADD += libxcfunctional_ldaonly.la
-   plotxc_LDADD += libxcfunctional_ldaonly.la
    libMADchem_la_SOURCES += xcfunctional_libxc.cc
-else
-   libMADchem_la_LIBADD = libxcfunctional_ldaonly.la 
 endif
 
 
