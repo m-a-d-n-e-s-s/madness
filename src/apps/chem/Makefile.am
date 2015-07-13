@@ -19,7 +19,8 @@ thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
                       corepotential.h atomutil.h SCF.h xcfunctional.h \
                       mp2.h nemo.h potentialmanager.h gth_pseudopotential.h \
                       molecular_optimizer.h projector.h TDA.h TDA_XC.h \
-                      TDA_guess.h TDA_exops.h SCFOperators.h CCOperators.h
+                      TDA_guess.h TDA_exops.h SCFOperators.h CCOperators.h \
+                      electronic_correlation_factor.h
 
 testxc_SOURCES = testxc.cc xcfunctional.h
 testxc_LDADD = libMADchem.la $(MRALIBS)
