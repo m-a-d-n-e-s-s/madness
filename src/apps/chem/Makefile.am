@@ -33,7 +33,8 @@ plotxc_LDADD = libMADchem.la $(MRALIBS)
 libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
                        corepotential.cc atomutil.cc lda.cc \
                        distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc\
-                       SCFOperators.cc xcfunctional_ldaonly.cc $(thisinclude_HEADERS)
+                       SCFOperators.cc xcfunctional_ldaonly.cc TDA.cc TDA_XC.cc \
+                       $(thisinclude_HEADERS)
 libMADchem_la_LDFLAGS = -version-info 0:0:0
                        
 if MADNESS_HAS_LIBXC
