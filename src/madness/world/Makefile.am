@@ -130,3 +130,5 @@ libMADworld_la_LDFLAGS = -version-info 0:0:0
 libraries:	$(lib_LTLIBRARIES)
 
 install-libraries: install-libLTLIBRARIES install-thisincludeHEADERS
+
+MOSTLYCLEANFILES = test.dat testme.ar

@@ -95,3 +95,4 @@ libraries:	$(lib_LIBRARIES)
 install-libraries: install-libLTLIBRARIES install-thisincludeHEADERS
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 
+MOSTLYCLEANFILES = fplot.dat opf.dat opfplot.dat testline1 testline2 testline3
