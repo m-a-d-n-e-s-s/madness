@@ -15,10 +15,6 @@ AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
 m4_pattern_allow([AM_PROG_AR])
 AM_PROG_AR
 
-# Initialize Libtools (for shared libraries)
-LT_INIT
-LT_LANG([C++])
-
 # We want #defines output into a header file
 AC_CONFIG_HEADERS([src/madness/config.h])
 
@@ -98,6 +94,10 @@ AC_LINK_IFELSE(
   [AC_MSG_RESULT([no])
    AC_MSG_ERROR(["Unable to link with $MPICXX])])
 AC_LANG_POP
+
+# Initialize Libtools (for shared libraries)
+LT_INIT
+LT_LANG([C++])
   
 ACX_DETECT_CXX
 # Check for C++11 support, and
