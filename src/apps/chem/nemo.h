@@ -149,6 +149,20 @@ public:
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
 			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0) {}
 
+	void construct_nuclear_correlation_factor(){
+		// construct the nuclear potential
+		// Make the nuclear potential, initial orbitals, etc.
+		calc->make_nuclear_potential(world);
+		calc->potentialmanager->vnuclear().print_size("vnuc");
+		calc->project_ao_basis(world);
+		save_function(calc->potentialmanager->vnuclear(),"vnuc");
+	    // construct the nuclear correlation factor:
+	    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+	    R = nuclear_correlation->function();
+	    R_inverse = nuclear_correlation->inverse();
+	    R_square = nuclear_correlation->square();
+	}
+
 	double value() {return value(calc->molecule.get_all_coords());}
 
 	double value(const Tensor<double>& x);

@@ -772,19 +772,6 @@ std::vector<vecfuncT> TDA::transform_vecfunctions(
 
 void TDA::project_out_occupied_space(vecfuncT &x)const {
 	CCOPS_.Q(x);
-	/// DEBUG
-	std::cout << "DEBUG OUTPUT:\n";
-	std::cout << "overlap between xfunction and occupied space:\n";
-	size_t i=0;
-	for(auto mo:active_mo_){
-		double overlap = CCOPS_.make_inner_product(mo,x);
-		if(fabs(overlap)>FunctionDefaults<3>::get_thresh()) std::cout << "\n\n\n!!!!WARNING xfunction NOT pure virtual!!!!!\n\n\n";
-		std::cout << "MO" << i << ": ";
-		std::cout << CCOPS_.make_inner_product(mo,x);
-		std::cout << ", ";
-	}
-	std::cout << "\n";
-	/// DEBUG
 }
 
 double TDA::perturbed_fock_matrix_element(const vecfuncT &xr,

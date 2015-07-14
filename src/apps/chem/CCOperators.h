@@ -37,9 +37,9 @@ public:
 //		//nuclear_potential_ =U;
 //	}
 	// If other mos than the one in the nemo struct are needed (e.g. if lower thresh is demanded -> guess calculations)
-	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world), mo_ket_(mos),R2(init_R2(nemo.nuclear_correlation -> square())){
+	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world), mo_ket_(mos),R2(init_R2(nemo)){
 		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo,FunctionDefaults<3>::get_thresh()));
-		mo_bra_ = mul(world,nemo.nuclear_correlation -> square(),mo_ket_);
+		mo_bra_ = mul(world,R2,mo_ket_);
 		dR2 = get_gradient(R2);
 		plot_plane(world,dR2[0],"dxR2");
 		set_thresh(world,mo_bra_,FunctionDefaults<3>::get_thresh());
@@ -51,12 +51,16 @@ public:
 	}
 
 	/// Make shure that R2 gets the right thresh and is constant
-	real_function_3d init_R2(const real_function_3d nemo_input )const{
-		real_function_3d tmp = copy(nemo_input);
+	real_function_3d init_R2(const Nemo &nemo )const{
+		if(nemo.nuclear_correlation){
+		real_function_3d tmp = copy(nemo.nuclear_correlation -> square());
 		tmp.set_thresh(FunctionDefaults<3>::get_thresh());
 		tmp.truncate();
 		tmp.verify();
 		return tmp;
+		}
+		real_function_3d constant = real_factory_3d(world);
+		return (constant +1.0);
 	}
 
 	// Make the derivative of R2
