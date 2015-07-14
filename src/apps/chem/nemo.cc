@@ -827,17 +827,6 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
     return cphf_no_ncf(iatom,iaxis,fock,guess);
 
-    // use the product rule
-    // \varphi_i^X = R^X F_i + R F_i^X
-
-    // compute R^X
-    const Atom& atom=molecule().get_atom(iatom);
-    NuclearCorrelationFactor::SX_div_S_functor
-            U1Xfunc(nuclear_correlation.get(),iaxis,atom);
-    const real_function_3d U1X=real_factory_3d(world).functor2(U1Xfunc);
-    const real_function_3d RX=U1X*R;
-
-    return mul(world,RX,calc->amo);
 }
 
 std::vector<vecfuncT> Nemo::compute_all_cphf() const {

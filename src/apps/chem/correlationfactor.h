@@ -31,9 +31,8 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
-
 /*!
-  \file examples/correlationfactor.h
+  \file apps/chem/correlationfactor.h
   \brief class for regularizing singular potentials in the molecular
   Hamilton operator
 
@@ -72,17 +71,17 @@
 */
 
 
-#ifndef MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H__INCLUDED
-#define MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H__INCLUDED
-
+#ifndef MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H_
+#define MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H_
 
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include <chem/molecule.h>
 #include <chem/potentialmanager.h>
 
+using namespace madness;
+
 namespace madness {
-class SCF;
 
 /// ABC for the nuclear correlation factors
 class NuclearCorrelationFactor {
@@ -239,18 +238,66 @@ private:
 	///				by the correlation factor minus the nuclear potential
 	virtual double Spp_div_S(const double& r, const double& Z) const = 0;
 
+	virtual double Sr_div_S(const double& r, const double& Z) const = 0;
+    virtual double Srr_div_S(const double& r, const double& Z) const = 0;
+    virtual double Srrr_div_S(const double& r, const double& Z) const = 0;
+    virtual double minus_Sr_div_rS_minus_Z_div_r(const double& r,
+            const double& Z) const = 0;
+
 public:
 
 	/// smoothed unit vector for the computation of the U1 potential
-	coord_3d smoothed_unitvec(const coord_3d& r, double smoothing=0.0) const {
+
+    /// \f[
+    /// \vec n = \left\{\frac{x \mathrm{erf}\left(\frac{r}{s}\right)}{r},
+    ///          \frac{y \mathrm{erf}\left(\frac{r}{s}\right)}{r},
+    ///          \frac{z \mathrm{erf}\left(\frac{r}{s}\right)}{r}\right\}
+    /// \f]
+	coord_3d smoothed_unitvec(const coord_3d& xyz, double smoothing=0.0) const {
 	    if (smoothing==0.0) smoothing=molecule.get_eprec();
-	    const double dist=r.normf();
-	    if (dist/smoothing<6.0) {
-	        return erf(dist/smoothing)/dist*r;
+	    const double r=xyz.normf();
+	    const double rs=r/smoothing;
+	    if (rs<6.0) {
+	        return erf(rs)/r*xyz;
 	    } else {
-	        return 1.0/dist*r;
+	        return 1.0/r*xyz;
 	    }
 	}
+
+	/// derivative of smoothed unit vector wrt the electronic coordinate
+
+	/// note the identity for exchanging nuclear and electronic coordinates
+	/// \f[
+	///     \frac{\partial \vec n}{\partial x}  = - \frac{\partial \vec n}{\partial X}
+	/// \f]
+	/// the derivative wrt x is given by
+	/// \f[
+	/// \frac{\partial\vec n}{\partial x} =
+	/// \left\{\frac{\left(r^2-x^2\right) \mathrm{erf}\left(\frac{r}{s}\right)}{r^3}
+	///    +\frac{2 x^2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s},
+	///  x y \left(\frac{2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s}
+	///    -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}\right),
+	///  x z \left(\frac{2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s}
+	///    -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}}\right)\right\}
+	/// \f]
+	coord_3d dsmoothed_unitvec(const coord_3d& xyz, const int axis,
+            double smoothing=0.0) const {
+        if (smoothing==0.0) smoothing=molecule.get_eprec();
+        coord_3d result;
+        const double r=xyz.normf();
+        const double rs=r/smoothing;
+        if (rs<6.0) {
+            const double erfrs=erf(rs);
+            const double term1=2.0*exp(-rs*rs)/(sqrt(constants::pi)*r*rs);
+            result=xyz*xyz[axis]*(term1-erfrs/(r*r*r));
+            result[axis]+=erfrs/r;
+        } else {
+            result=xyz*(-xyz[axis]/(r*r*r));
+            result[axis]+=1/r;
+        }
+        return result;
+    }
+
 
 	class R_functor : public FunctionFunctorInterface<double,3> {
 		const NuclearCorrelationFactor* ncf;
@@ -297,9 +344,11 @@ public:
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
-				result+=(ncf->Sp(vr1A,atom.q)[axis]/ncf->S(r,atom.q));
+				const double& Z=atom.q;
+//				result-=(ncf->Sp(vr1A,atom.q)[axis]/ncf->S(r,atom.q));
+				result-=ncf->Sr_div_S(r,Z)*ncf->smoothed_unitvec(vr1A)[axis];
 			}
-			return -1.0*result;
+			return result;
 		}
 		std::vector<coord_3d> special_points() const {
 			return ncf->molecule.get_all_coords_vec();
@@ -316,7 +365,10 @@ public:
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
-				result+=ncf->Spp_div_S(r,atom.q);
+				const double& Z=atom.q;
+//				result+=ncf->Spp_div_S(r,atom.q);
+				result+=ncf->minus_Sr_div_rS_minus_Z_div_r(r,Z)
+				        -0.5*ncf->Srr_div_S(r,Z);
 			}
 			return result;
 		}
@@ -335,7 +387,7 @@ public:
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
-				all_terms[i]=ncf->Sp(vr1A,atom.q)*(1.0/ncf->S(r,atom.q));
+				all_terms[i]=ncf->Sr_div_S(r,atom.q)*ncf->smoothed_unitvec(vr1A);
 			}
 
 			double result=0.0;
@@ -406,21 +458,30 @@ public:
         }
     };
 
-
-    class SX_div_S_functor : public FunctionFunctorInterface<double,3> {
+    /// compute the derivative of U1 wrt the displacement of atom A, coord axis
+    class U1X_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
         const Atom& thisatom;
         const int axis;
     public:
-        SX_div_S_functor(const NuclearCorrelationFactor* ncf,
+        U1X_functor(const NuclearCorrelationFactor* ncf,
                 const int axis, const Atom& atom1) : ncf(ncf), thisatom(atom1),
                 axis(axis) {}
 
         double operator()(const coord_3d& xyz) const {
             const coord_3d vr1A=xyz-thisatom.get_coords();
             const double r=vr1A.normf();
-            return ncf->Sp(vr1A,thisatom.q)[axis]/ncf->S(r,thisatom.q);
+            const double& Z=thisatom.q;
+            const double S1=ncf->Srr_div_S(r,Z);
+            const double S2=ncf->Sr_div_S(r,Z);
+
+            // note the sign change in front of dsmoothed_unitvec and drhodx due
+            // to the change in the derivative variable x: electronic -> nuclear
+            const double drhodx=-vr1A[axis]/r;
+            return drhodx*(S1-S2*S2*ncf->smoothed_unitvec(vr1A)[axis]
+                      +S2*(-ncf->dsmoothed_unitvec(vr1A,axis)[axis]));
         }
+
         std::vector<coord_3d> special_points() const {
             std::vector< madness::Vector<double,3> > c(1);
             c[0][0]=thisatom.x;
@@ -432,6 +493,8 @@ public:
 
 
 };
+
+#if 0
 
 /// A nuclear correlation factor class
 
@@ -738,7 +801,7 @@ private:
 	}
 };
 
-
+#endif
 
 /// A nuclear correlation factor class
 class Slater : public NuclearCorrelationFactor {
@@ -769,6 +832,57 @@ private:
 	double a_;
 
 	double a_param() const {return a_;}
+
+	/// first derivative of the correlation factor wrt (r-R_A)
+
+	/// \f[
+	///     Sr_div_S = \frac{1}{S(r)}\frac{\partial S(r)}{\partial r}
+	/// \f]
+	double Sr_div_S(const double& r, const double& Z) const {
+	    const double& a=a_param();
+	    return -a*Z/(1.0+(a-1.0)*exp(a*r*Z));
+	}
+
+    /// second derivative of the correlation factor wrt (r-R_A)
+
+    /// \f[
+    ///     result = \frac{1}{S(r)}\frac{\partial^2 S(r)}{\partial r^2}
+    /// \f]
+    double Srr_div_S(const double& r, const double& Z) const {
+        const double& a=a_param();
+        const double aZ=a*Z;
+        return aZ*aZ/(1.0+(a-1.0)*exp(r*aZ));
+    }
+
+    /// third derivative of the correlation factor wrt (r-R_A)
+
+    /// \f[
+    ///    result = \frac{1}{S(r)}\frac{\partial^3 S(r)}{\partial r^3}
+    /// \f]
+    double Srrr_div_S(const double& r, const double& Z) const {
+        const double& a=a_param();
+        const double aZ=a*Z;
+        return -aZ*aZ*aZ/(1.0+(a-1.0)*exp(r*aZ));
+    }
+
+    /// \f[
+    ///     result = -\frac{1}{r}\frac{1}{S(r)}\frac{\partial S(r)}{\partial r}-\frac{Z}{r}
+    /// \f]
+    double minus_Sr_div_rS_minus_Z_div_r(const double& r, const double& Z) const {
+        const double a=a_param();
+        if (r<1.e-4) {
+            const double ZZ=Z*Z;
+            const double aa=a_param()*a_param();
+            return -((-1. + a)*ZZ) + ((-2. + a)*(-1. + a)*r*ZZ*Z)*0.5 -
+               ((-1. + a)*(6. - 6.*a + aa)*r*r*ZZ*ZZ)/6. +
+               ((-1. + a)*(-24. + 36.*a - 14.*aa + aa*a)*r*r*r*ZZ*ZZ*Z)/24.;
+        } else {
+            const double earz=exp(-a*r*Z);
+            const double num=(a-1.0)*(-earz+1.0)*Z;
+            const double denom=(earz+a-1.0)*r;
+            return -num/denom;
+        }
+    }
 
     /// the nuclear correlation factor
     double S(const double& r, const double& Z) const {
@@ -802,6 +916,8 @@ private:
     }
 
 };
+
+#if 0
 
 /// A nuclear correlation factor class
 
@@ -907,7 +1023,7 @@ private:
 
 };
 
-
+#endif
 class PseudoNuclearCorrelationFactor : public NuclearCorrelationFactor {
 
 public:
@@ -959,6 +1075,13 @@ private:
     /// the factor of the correlation factor: R=fac;
 	const double fac;
 
+    double Sr_div_S(const double& r, const double& Z) const {return 0.0;}
+    double Srr_div_S(const double& r, const double& Z) const {return 0.0;}
+    double Srrr_div_S(const double& r, const double& Z) const {return 0.0;}
+    double minus_Sr_div_rS_minus_Z_div_r(const double& r, const double& Z) const {
+        return 0.0;
+    }
+
     /// the nuclear correlation factor
     double S(const double& r, const double& Z) const {
     	return fac;
@@ -977,457 +1100,12 @@ private:
     }
 };
 
+class SCF;
+
 std::shared_ptr<NuclearCorrelationFactor>
 create_nuclear_correlation_factor(World& world, const SCF& calc);
 
-/// a class holding the electronic correlation factor for R12 theory
-class CorrelationFactor {
-
-    World& world;
-    double _gamma;      ///< the correlation factor exp(-gamma r12)
-    double dcut;		///< the cutoff for the 1/r potential
-    double lo;			///< smallest length scale to be resolved
-
-public:
-
-    /// ctor, use negative gamma for linear correlation factor r12
-    CorrelationFactor(World& world) : world(world), _gamma(-1.0), dcut(1.e-10),
-    	lo(1.e-10) {
-    }
-
-    /// ctor, use negative gamma for linear correlation factor r12
-    CorrelationFactor(World& world, const double& gamma, const double dcut,
-    		const Molecule& molecule) : world(world), _gamma(gamma), dcut(dcut) {
-        lo = molecule.smallest_length_scale();
-        if (world.rank()==0) {
-
-        	if (gamma>0.0) print("constructed correlation factor with gamma=",gamma);
-            else if (gamma==0.0) print("constructed linear correlation factor");
-        }
-    }
-
-    /// copy ctor
-    CorrelationFactor(const CorrelationFactor& other) : world(other.world) {
-    	_gamma=other._gamma;
-    	dcut=other.dcut;
-    	lo=other.lo;
-    }
-
-    /// assignment; assume other's world is this world
-    CorrelationFactor& operator=(const CorrelationFactor& other) {
-    	_gamma=other._gamma;
-    	dcut=other.dcut;
-    	lo=other.lo;
-    	return *this;
-    }
-
-    /// return the exponent of this correlation factor
-    double gamma() const {return _gamma;}
-
-    /// return the value of the correlation factor
-    double operator()(const coord_6d& r) const {
-        const double rr=r12(r);
-        if (_gamma>0.0) return (1.0-exp(-_gamma*rr))/(2.0*_gamma);
-        return 0.5*rr;
-    }
-
-    /// apply Kutzelnigg's regularized potential to an orbital product
-    real_function_6d apply_U(const real_function_3d& phi_i, const real_function_3d& phi_j,
-    		const double eps) const {
-//        const double bsh_thresh=FunctionDefaults<6>::get_thresh*0.1;
-        const double bsh_thresh=1.e-7;
-
-        real_function_6d result=real_factory_6d(world);
-
-        real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), lo,bsh_thresh);
-        op_mod.modified()=true;
-
-        for (int axis=0; axis<3; ++axis) {
-            if (world.rank()==0) print("working on axis",axis);
-            real_derivative_3d D = free_space_derivative<double,3>(world, axis);
-            const real_function_3d Di=(D(phi_i)).truncate();
-            const real_function_3d Dj=(D(phi_j)).truncate();
-
-            const real_function_6d u=U1(axis);
-
-            real_function_6d tmp1=CompositeFactory<double,6,3>(world)
-                        .g12(u).particle1(copy(Di)).particle2(copy(phi_j));
-            tmp1.fill_tree(op_mod).truncate();
-            real_function_6d tmp2=CompositeFactory<double,6,3>(world)
-                        .g12(u).particle1(copy(phi_i)).particle2(copy(Dj));
-            tmp2.fill_tree(op_mod).truncate();
-            if (world.rank()==0) print("done with fill_tree");
-
-            result=result+(tmp1-tmp2).truncate();
-            tmp1.clear();
-            tmp2.clear();
-            world.gop.fence();
-            result.truncate().reduce_rank();
-
-            if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
-            result.print_size("result");
-        }
-
-//        load_balance(result,true);
-
-        // include the purely local potential that (partially) cancels 1/r12
-        if (_gamma>0.0) {
-            real_function_6d fg3=real_factory_6d(world).functor2(fg_(_gamma,dcut)).is_on_demand();
-            real_function_6d mul=CompositeFactory<double,6,3>(world)
-                                .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j));
-            mul.fill_tree(op_mod).truncate();
-            mul.print_size("mul");
-
-            result=(result+mul).truncate().reduce_rank();
-        }
-        result.print_size("U * |ij>");
-        return result;
-    }
-
-    /// return the U1 term of the correlation function
-    real_function_6d U1(const int axis) const {
-        const real_function_6d u1=real_factory_6d(world)
-        		.functor2(U(_gamma,axis,dcut)).is_on_demand();
-        return u1;
-    }
-
-    /// return the U1 term of the correlation function
-    real_function_6d U2() const {
-    	if (world.rank()==0) print("U2 for the electronic correlation factor");
-    	if (world.rank()==0) print("is expensive -- do you really need it??");
-    	MADNESS_EXCEPTION("U2() not implemented, since it might be expensive",1);
-    	return real_factory_6d(world);
-    }
-
-    /// return the correlation factor as on-demand function
-    real_function_6d f() const {
-//        real_function_6d tmp=real_factory_6d(world).functor2(*this).is_on_demand();
-    	double thresh=FunctionDefaults<3>::get_thresh();
-        real_function_6d tmp=TwoElectronFactory(world)
-        		.dcut(dcut).gamma(_gamma).f12().thresh(thresh);
-        return tmp;
-    }
-
-    /// return f^2 as on-demand function
-    real_function_6d f2() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(f2_(_gamma)).is_on_demand();
-        return tmp;
-    }
-
-    /// return fg+sth as on-demand function
-    real_function_6d fg() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(fg_(_gamma,dcut)).is_on_demand();
-        return tmp;
-    }
-
-    /// return f/r as on-demand function
-    real_function_6d f_over_r() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(f_over_r_(_gamma,dcut)).is_on_demand();
-        return tmp;
-    }
-
-    /// return (\nabla f)^2 as on-demand functions
-    real_function_6d nablaf2() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(nablaf2_(_gamma)).is_on_demand();
-        return tmp;
-    }
-
-private:
-    /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
-    struct fg_ {
-        double gamma;
-        double dcut;
-        fg_(double gamma, double dcut) : gamma(gamma), dcut(dcut) {
-        	MADNESS_ASSERT(gamma>0.0);
-        }
-        double operator()(const coord_6d& r) const {
-            const double rr=r12(r);
-            const double e=exp(-gamma*rr);
-            return (1.0-e)*u(rr,dcut) + 0.5*gamma*e;
-        }
-    };
-
-    /// functor for the local potential (1-f12)/r12
-    struct f_over_r_ {
-        double gamma;
-        double dcut;
-        f_over_r_(double gamma, double dcut) : gamma(gamma), dcut(dcut) {
-        	MADNESS_ASSERT(gamma>0.0);
-        }
-        double operator()(const coord_6d& r) const {
-            const double rr=r12(r);
-            const double e=exp(-gamma*rr);
-            return (1.0-e)*u(rr,dcut)/(2.0*gamma);
-        }
-    };
-
-    /// functor for the local part of the regularized potential: f12/r12*(r1-r2)(D1-D2)
-    struct U {
-        double gamma;
-        int axis;
-        double dcut;
-        U(double gamma, int axis, double dcut) : gamma(gamma), axis(axis),
-        	dcut(dcut) {
-            MADNESS_ASSERT(axis>=0 and axis<3);
-        }
-        double operator()(const coord_6d& r) const {
-        	const double rr=r12(r);
-        	const coord_3d vr12{r[0]-r[3],r[1]-r[4],r[2]-r[5]};
-        	const coord_3d N=unitvec(vr12);
-        	if (gamma>0.0) return -0.5*exp(-gamma*rr)*N[axis];
-        	MADNESS_EXCEPTION("no gamma in electronic corrfac::U1",1);
-//        	const double rr=r12(r);
-//            const double g12=u(rr,dcut);
-//            double a=0.5;
-//            if (gamma>0.0) a=0.5*exp(-gamma*rr);
-//            return -a*x12(r,axis) * g12;
-        }
-    };
-
-    /// functor for the local potential (1-f12)^2
-    struct f2_ {
-        double gamma;
-        f2_(double gamma) : gamma(gamma) {MADNESS_ASSERT(gamma>0.0);}
-        double operator()(const coord_6d& r) const {
-            const double rr=r12(r);
-            const double e=exp(-gamma*rr);
-            const double f=(1.0-e)/(2.0*gamma);
-            return f*f;
-        }
-    };
-
-    /// functor for the local potential (\nabla f)^2
-    struct nablaf2_ {
-        double gamma;
-        nablaf2_(double gamma) : gamma(gamma) {
-        	MADNESS_ASSERT(gamma>0.0);
-        	MADNESS_ASSERT(gamma==1.0);	
-        }
-        double operator()(const coord_6d& r) const {
-            const double rr=r12(r);
-            const double f=exp(-2.0*gamma*rr)/(4.0*gamma*gamma);
-            return f;
-        }
-    };
-
-    /// Smoothed 1/r potential (c is the smoothing distance)
-    static double u(double r, double c) {
-        r = r/c;
-        double r2 = r*r, pot;
-        if (r > 6.5){
-            pot = 1.0/r;
-        } else if (r > 1e-2) {
-            pot = erf(r)/r + exp(-r2)*0.56418958354775630;
-        } else{
-            pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
-        }
-        return pot/c;
-    }
-
-    static double r12(const coord_6d& r) {
-        const double x12=r[0]-r[3];
-        const double y12=r[1]-r[4];
-        const double z12=r[2]-r[5];
-        const double r12=sqrt(x12*x12 + y12*y12 + z12*z12);
-        return r12;
-    }
-    static double x12(const coord_6d& r, const int axis) {
-        return r[axis]-r[axis+3];
-    }
-
-
-};
-
-/// a class holding the electronic correlation factor for R12 theory
-class CorrelationFactor2 {
-
-    World& world;
-    double _gamma;      ///< the correlation factor exp(-gamma r12)
-	typedef std::shared_ptr< FunctionFunctorInterface<double,6> > functorT;
-
-public:
-
-    double dcut;		///< the cutoff for the 1/r potential
-    double lo;			///< smallest length scale to be resolved
-    double vtol;		///< initial projection threshold
-
-
-    /// ctor, use negative gamma for linear correlation factor r12
-    CorrelationFactor2(World& world) : world(world), _gamma(0.5), dcut(1.e-10),
-    	lo(1.e-10), vtol(FunctionDefaults<3>::get_thresh()*0.1) {
-    	MADNESS_ASSERT(_gamma==0.5);
-    }
-
-    /// return the exponent of this correlation factor
-    double gamma() const {return _gamma;}
-
-    real_function_6d function() const {
-    	functorT R=functorT(new R_functor(_gamma,1));
-    	return real_factory_6d(world).functor(R).is_on_demand();
-    }
-
-    real_function_6d square() const {
-    	functorT R2=functorT(new R_functor(_gamma,2));
-    	return real_factory_6d(world).functor(R2).is_on_demand();
-    }
-
-    real_function_6d inverse() const {
-    	functorT R=functorT(new R_functor(_gamma,-1));
-    	return real_factory_6d(world).functor(R).is_on_demand();
-    }
-
-    /// return the U1 term of the correlation function
-    real_function_6d U1(const int axis) const {
-		functorT U1f=functorT(new U1_functor(_gamma,axis));
-    	return real_factory_6d(world).functor(U1f).is_on_demand();
-    }
-
-    /// return the U2 term of the correlation function
-    real_function_6d U2() const {
-    	functorT U2f=functorT(new U2_functor(_gamma));
-    	return real_factory_6d(world).functor(U2f).is_on_demand();
-    }
-
-    /// apply Kutzelnigg's regularized potential to an orbital product
-    real_function_6d apply_U(const real_function_6d& psi, const double eps) const {
-    	const double bsh_thresh=1.e-7;
-
-    	real_function_6d result=real_factory_6d(world);
-
-    	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), lo,bsh_thresh);
-    	op_mod.modified()=true;
-
-    	for (int axis=0; axis<3; ++axis) {
-    		if (world.rank()==0) print("working on axis",axis);
-    		real_derivative_6d D1 = free_space_derivative<double,6>(world, axis);
-    		real_derivative_6d D2 = free_space_derivative<double,6>(world, axis+3);
-    		const real_function_6d Drhs1=D1(psi).truncate();
-    		const real_function_6d Drhs2=D2(psi).truncate();
-
-    		const real_function_6d u1=U1(axis);
-
-    		real_function_6d tmp1=CompositeFactory<double,6,3>(world)
-                        		 .g12(u1).ket(copy(Drhs1));
-    		tmp1.fill_tree(op_mod).truncate();
-
-    		real_function_6d tmp2=CompositeFactory<double,6,3>(world)
-                        		 .g12(u1).ket(copy(Drhs2));
-    		tmp2.fill_tree(op_mod).truncate();
-    		if (world.rank()==0) print("done with fill_tree");
-
-    		result=result+(tmp1-tmp2).truncate();
-    		tmp1.clear();
-    		tmp2.clear();
-    		world.gop.fence();
-    		result.truncate().reduce_rank();
-
-    		if (world.rank()==0)
-    			printf("done with multiplication with U at ime %.1f\n",wall_time());
-    		result.print_size("result");
-    	}
-
-    	real_function_6d u2=U2();
-    	real_function_6d r2=CompositeFactory<double,6,3>(world).ket(copy(psi))
-     								.g12(u2);
-    	r2.fill_tree(op_mod);
-    	result=(result+r2).truncate();
-    	return result;
-    }
-
-
-private:
-
-    /// functor for the correlation factor R
-    class R_functor : public FunctionFunctorInterface<double,6> {
-    	double gamma;
-    	int exponent;
-
-    public:
-    	R_functor(double gamma, int e=1) : gamma(gamma), exponent(e) {
-    		MADNESS_ASSERT(gamma==0.5);
-    	}
-
-        // only valid for gamma=1
-        double operator()(const coord_6d& r) const {
-            const double rr=r12(r);
-            double val=(1.0-0.5*exp(-gamma*rr));
-            if (exponent==1) return val;
-            else if (exponent==2) return val*val;
-            else if (exponent==-1) return 1.0/val;
-            else {
-            	MADNESS_EXCEPTION("fancy exponent in correlationfactor2",1);
-            }
-        }
-    };
-
-    /// functor for the U2 local potential
-    class U2_functor : public FunctionFunctorInterface<double,6> {
-    	double gamma;
-
-    public:
-    	U2_functor(double gamma) : gamma(gamma) {
-    		MADNESS_ASSERT(gamma==0.5);
-    	}
-
-        // only valid for gamma=1
-        double operator()(const coord_6d& r) const {
-        	const double rr=r12(r);
-        	// Taylor expansion for small r
-        	if (rr<1.e-4) {	// valid for gamma==0.5, otherwise singular
-        		return 5./4.0 - rr + (35.0* rr*rr)/48.0 - (101.0*rr*rr*rr)/192.0;
-        	}
-        	const double egr=exp(-gamma*rr);
-        	return -(-8.*egr + 8.0 + rr*egr)/(4.0 *rr*egr - 8 *rr);
-        }
-    };
-
-    /// functor for the U1 = -\frac{\vec\nabla_1 f_{12}}{f_{12}}  potential
-
-    /// the potential is given by
-    /// U1 = -\frac{\vec\nabla_1 f_{12}}{f_{12}}
-    ///    =  \frac{e^{-r12/2}{4-2e^{-r12/2}} \vec unitvec
-    /// the derivative operators are not included
-    class U1_functor : public FunctionFunctorInterface<double,6> {
-        double gamma;
-        int axis;
-
-    public:
-        U1_functor(double gamma, int axis) : gamma(gamma), axis(axis) {
-        	MADNESS_ASSERT(gamma==0.5);
-        	MADNESS_ASSERT(axis<3);
-        }
-
-        double operator()(const coord_6d& r) const {
-        	const double rr=r12(r);
-        	const coord_3d vr12{r[0]-r[3],r[1]-r[4],r[2]-r[5]};
-        	const coord_3d N=unitvec(vr12);
-        	// Taylor expansion for small r
-        	double val;
-        	if (rr<1.e-4) {	// valid for gamma==0.5, otherwise singular
-        		val = 0.5 - 0.5*rr + 0.125*(3.*rr*rr) - (13.* rr*rr*rr)/48.0;
-        	} else {
-            	const double egr=exp(-gamma*rr);
-        		val=egr/(4.0-2.0*egr);
-        	}
-        	// NOTE the sign
-        	return -val*N[axis];
-        }
-    };
-
-    /// helper function
-    static double r12(const coord_6d& r) {
-        const double x12=r[0]-r[3];
-        const double y12=r[1]-r[4];
-        const double z12=r[2]-r[5];
-        const double r12=sqrt(x12*x12 + y12*y12 + z12*z12);
-        return r12;
-    }
-
-};
-
-
 }
-
 #endif /* NUCLEARCORRELATIONFACTOR_H_ */
 
 
