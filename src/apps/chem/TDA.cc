@@ -879,6 +879,7 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 //	std::cout << "Kinetic energy matrix 1 \n" << Kinetic1 << "\n and 2 \n" << Kinetic2 <<std::endl;
 //	/// DEBUG END
 
+	if(debug_ and world.rank()==0) std::cout << "Debug-Output: Perturbed Fock Matrix\n" << new_F << std::endl;
 	return new_F;
 	//	TDA_TIMER MAKE_FOCK_MATRIX_TIMER(world,"Make old perturbed fock matrix");
 	//
