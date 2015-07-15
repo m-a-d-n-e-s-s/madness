@@ -71,7 +71,7 @@ namespace madness{
 //            return ncf_ptr(new GradientalGaussSlater(world, calc.molecule,a));
 //        } else if (corrfac == "u2smooth") {
 //            return ncf_ptr(new U2Smooth(world, calc.molecule,a));
-//        } else if (corrfac == "slater") {
+        if (corrfac == "slater") {
 			return ncf_ptr(new Slater(world, calc.molecule, a));
 //		} else if (corrfac == "polynomial4") {
 //			return ncf_ptr(new Polynomial<4>(world, calc.molecule, a ));
@@ -87,9 +87,9 @@ namespace madness{
 //			return ncf_ptr(new Polynomial<9>(world, calc.molecule, a));
 //		} else if (corrfac == "polynomial10") {
 //			return ncf_ptr(new Polynomial<10>(world, calc.molecule, a));
-//		} else if ((corrfac == "none") or (corrfac == "one")) {
-//			return ncf_ptr(new PseudoNuclearCorrelationFactor(world,
-//					calc.molecule,calc.potentialmanager,1.0));
+		} else if ((corrfac == "none") or (corrfac == "one")) {
+			return ncf_ptr(new PseudoNuclearCorrelationFactor(world,
+					calc.molecule,calc.potentialmanager,1.0));
 //		} else if (corrfac == "two") {
 //			return ncf_ptr(new PseudoNuclearCorrelationFactor(world,
 //					calc.molecule,calc.potentialmanager,2.0));
@@ -100,6 +100,6 @@ namespace madness{
 //			if (world.rank()==0) print(calc.param.nuclear_corrfac);
 //			MADNESS_EXCEPTION("unknown nuclear correlation factor", 1);
 //			return ncf_ptr();
-//		}
+		}
 	}
 }

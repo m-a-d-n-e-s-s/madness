@@ -77,6 +77,7 @@ public:
 		return gradf;
 	}
 
+
 	void sanitycheck()const{
 		if(mo_ket_.empty()) error("mo_ket_ is empty");
 		if(mo_bra_.empty()) error("mo_bra_ is empty");
@@ -187,15 +188,15 @@ public:
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 		gradop = gradient_operator<double, 3>(world);
 		for(size_t axis=0;axis<3;axis++){
-			//START_TIMER();
+			START_TIMER();
 			const vecfuncT gradbra = apply(world,*gradop[axis],R2bra);
-			//END_TIMER("Gradient of R2Bra");
-			//START_TIMER();
+			END_TIMER("Gradient of R2Bra");
+			START_TIMER();
 			const vecfuncT gradket = apply(world,*gradop[axis],ket);
-			//END_TIMER("Gradient of Ket");
-			//START_TIMER();
+			END_TIMER("Gradient of Ket");
+			START_TIMER();
 			value += 0.5*inner(world,gradbra,gradket).sum();
-			//END_TIMER("Inner Product");
+			END_TIMER("Inner Product");
 		}
 		return value;
 	}
@@ -225,6 +226,38 @@ public:
 
 		}
 		return 0.5*value;
+	}
+
+	// Kinetic part of the CIS perturbed fock matrix
+	Tensor<double> get_matrix_kinetic(const std::vector<vecfuncT> &x)const{
+		Tensor<double> result(x.size(),x.size());
+
+		// Check if the Gradient of R2 is zero -> constant R-factor -> means no R factor
+		bool use_nuc_corr = true;
+		if(inner(world,dR2,dR2).sum()<FunctionDefaults<3>::get_thresh()) use_nuc_corr = false;
+
+		// make the x,y and z parts of the matrix and add them
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop= gradient_operator<double, 3>(world);
+		for(size_t axis=0;axis<3;axis++){
+			// make all gradients
+			std::vector<vecfuncT> dx;
+			for(auto xi:x){
+				const vecfuncT dxi = apply(world, *(gradop[axis]), xi);
+				dx.push_back(dxi);
+			}
+			for(size_t i=0;i<x.size();i++){
+				for(size_t j=0;j<x.size();j++){
+					if(use_nuc_corr){
+						vecfuncT dR2xi = mul(world,dR2[axis],x[i]);
+						truncate(world,dR2xi);
+						result(i,j) += 0.5*inner(world,dR2xi,dx[j]).sum();
+					}
+					result(i,j) += 0.5*make_inner_product(dx[j],dx[i]);
+				}
+			}
+
+		}
+		return result;
 	}
 
 	// Diagrammatic Potentials:

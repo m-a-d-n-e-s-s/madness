@@ -844,10 +844,13 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 		}}
 	VPART.info();
 	TDA_TIMER TPART(world,"Kinetic Part");
-	for(size_t q=0;q<xfunctions.size();q++){
-		for(size_t p=0;p<xfunctions.size();p++){
-			new_F(p,q) += CCOPS_.get_matrix_element_kinetic_energy(xfunctions[p].x,xfunctions[q].x);
-		}}
+	std::vector<vecfuncT> XVEC;
+//	for(size_t q=0;q<xfunctions.size();q++){
+//		for(size_t p=0;p<xfunctions.size();p++){
+//			//new_F(p,q) += CCOPS_.get_matrix_element_kinetic_energy(xfunctions[p].x,xfunctions[q].x);
+//		}}
+	for(size_t i=0;i<xfunctions.size();i++) XVEC.push_back(xfunctions[i].x);
+	new_F += CCOPS_.get_matrix_kinetic(XVEC);
 	TPART.info();
 	TDA_TIMER EPART(world,"Orbital Energy Part");
 	for(size_t q=0;q<xfunctions.size();q++){
@@ -878,6 +881,55 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 //	TPART2.info();
 //	std::cout << "Kinetic energy matrix 1 \n" << Kinetic1 << "\n and 2 \n" << Kinetic2 <<std::endl;
 //	/// DEBUG END
+
+	/// DEBUG
+	if(debug_){
+		Tensor<double> F(xfunctions.size(),xfunctions.size());
+		F =0.0;
+		TDA_TIMER OLDKINETIK(world,"OLD KINETIK DEBUG CALCULATION");
+        //The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
+        for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+                const vecfuncT& xp = xfunctions[iroot].x;
+                reconstruct(world, xp);
+        }
+
+        std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+        gradop = gradient_operator<double, 3>(world);
+
+        for (int axis = 0; axis < 3; ++axis) {
+
+                std::vector<vecfuncT> dxp;
+                for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+
+                        const vecfuncT& xp = xfunctions[iroot].x;
+                        TDA_TIMER gradx(world,"DEBUG: GRADIENT OF X");
+                        const vecfuncT d = apply(world, *(gradop[axis]), xp);
+                        dxp.push_back(d);
+                        gradx.info();
+                }
+                for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
+                        for (std::size_t jroot = 0; jroot < xfunctions.size(); ++jroot) {
+                                Tensor<double> xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
+                                F(iroot, jroot) += 0.5 * xpi_Txqi.sum();
+                        }
+                }
+        }
+        OLDKINETIK.info();
+        TDA_TIMER OLDEPS(world,"DEBUG CALCULATION OLD EPS PART");
+    		// The epsilon part
+    		for (std::size_t p = 0; p < xfunctions.size(); p++) {
+    			for (std::size_t r = 0; r < xfunctions.size(); r++) {
+    				vecfuncT bra_x = xfunctions[p].x;
+    				if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[p].x);}
+    				Tensor<double> eij = inner(world, bra_x, xfunctions[r].x);
+    				for (size_t ii = 0; ii < xfunctions[p].x.size(); ++ii) {
+    					F(p, r) -= (orbital_energies_(ii) + shift_) * eij[ii];
+    				}
+    			}
+    		}
+        OLDEPS.info();
+	}
+	/// DEBUG END
 
 	if(debug_ and world.rank()==0) std::cout << "Debug-Output: Perturbed Fock Matrix\n" << new_F << std::endl;
 	return new_F;
