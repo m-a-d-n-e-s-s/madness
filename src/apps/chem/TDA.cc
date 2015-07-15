@@ -844,6 +844,7 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 		}}
 	VPART.info();
 	TDA_TIMER TPART(world,"Kinetic Part");
+	// pack the xfunctions in a vector
 	std::vector<vecfuncT> XVEC;
 //	for(size_t q=0;q<xfunctions.size();q++){
 //		for(size_t p=0;p<xfunctions.size();p++){

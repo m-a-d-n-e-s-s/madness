@@ -37,9 +37,14 @@ public:
 //		//nuclear_potential_ =U;
 //	}
 	// If other mos than the one in the nemo struct are needed (e.g. if lower thresh is demanded -> guess calculations)
-	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world), mo_ket_(mos),R2(init_R2(nemo)){
+	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world),use_nuclear_correlation_factor_(true), mo_ket_(mos),R2(init_R2(nemo)){
+		if(nemo.nuclear_correlation -> type() == NuclearCorrelationFactor::None){
+			std::cout << "No nuclear correlation factor used" << std::endl;
+			use_nuclear_correlation_factor_ = false;
+		}
 		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo,FunctionDefaults<3>::get_thresh()));
-		mo_bra_ = mul(world,R2,mo_ket_);
+		if(use_nuclear_correlation_factor_)mo_bra_ = mul(world,R2,mo_ket_);
+		else mo_bra_ = mo_ket_;
 		dR2 = get_gradient(R2);
 		plot_plane(world,dR2[0],"dxR2");
 		set_thresh(world,mo_bra_,FunctionDefaults<3>::get_thresh());
@@ -231,11 +236,7 @@ public:
 	// Kinetic part of the CIS perturbed fock matrix
 	Tensor<double> get_matrix_kinetic(const std::vector<vecfuncT> &x)const{
 		Tensor<double> result(x.size(),x.size());
-
-		// Check if the Gradient of R2 is zero -> constant R-factor -> means no R factor
-		bool use_nuc_corr = true;
-		if(inner(world,dR2,dR2).sum()<FunctionDefaults<3>::get_thresh()) use_nuc_corr = false;
-
+std::cout << "Makeing Kinetic Energy Matrix, nuclear correlation is " << use_nuclear_correlation_factor_ << std::endl;
 		// make the x,y and z parts of the matrix and add them
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop= gradient_operator<double, 3>(world);
 		for(size_t axis=0;axis<3;axis++){
@@ -247,7 +248,7 @@ public:
 			}
 			for(size_t i=0;i<x.size();i++){
 				for(size_t j=0;j<x.size();j++){
-					if(use_nuc_corr){
+					if(use_nuclear_correlation_factor_){
 						vecfuncT dR2xi = mul(world,dR2[axis],x[i]);
 						truncate(world,dR2xi);
 						result(i,j) += 0.5*inner(world,dR2xi,dx[j]).sum();
@@ -309,20 +310,24 @@ public:
 
 	// Make an inner product between vecfunctions
 	double make_inner_product(const vecfuncT &bra, const vecfuncT &ket)const{
-		return inner(world,mul(world,R2,bra),ket).sum();
+		if(use_nuclear_correlation_factor_)return inner(world,mul(world,R2,bra),ket).sum();
+		else return inner(world,bra,ket).sum();
 	}
 	// inner product between functions
 	double make_inner_product(const real_function_3d &bra, const real_function_3d &ket)const{
-		return (bra*R2).inner(ket);
+		if(use_nuclear_correlation_factor_)return (bra*R2).inner(ket);
+		else return bra.inner(ket);
 	}
 	// inner product between function and vecfunction
 	double make_inner_product(const real_function_3d &bra, const vecfuncT &ket)const{
-		return inner(world,bra*R2,ket).sum();
+		if(use_nuclear_correlation_factor_)return inner(world,bra*R2,ket).sum();
+		else return inner(world,bra,ket).sum();
 	}
 
 private:
 	bool use_timer_=true;
 	World &world;
+	bool use_nuclear_correlation_factor_;
 	vecfuncT mo_bra_,mo_ket_;
 	/// The squared nuclear correlation factor and its derivative;
 	const real_function_3d R2;
