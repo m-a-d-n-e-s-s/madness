@@ -37,10 +37,16 @@ public:
 //		//nuclear_potential_ =U;
 //	}
 	// If other mos than the one in the nemo struct are needed (e.g. if lower thresh is demanded -> guess calculations)
-	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world), mo_ket_(mos),R2(init_R2(nemo.nuclear_correlation -> square())){
+	CC_3D_Operator(World&world, const Nemo &nemo,const vecfuncT &mos): world(world),use_nuclear_correlation_factor_(true), mo_ket_(mos),R2(init_R2(nemo)){
+		if(nemo.nuclear_correlation -> type() == NuclearCorrelationFactor::None){
+			std::cout << "No nuclear correlation factor used" << std::endl;
+			use_nuclear_correlation_factor_ = false;
+		}
 		poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, nemo.get_calc() -> param.lo,FunctionDefaults<3>::get_thresh()));
-		mo_bra_ = mul(world,nemo.nuclear_correlation -> square(),mo_ket_);
+		if(use_nuclear_correlation_factor_)mo_bra_ = mul(world,R2,mo_ket_);
+		else mo_bra_ = mo_ket_;
 		dR2 = get_gradient(R2);
+		plot_plane(world,dR2[0],"dxR2");
 		set_thresh(world,mo_bra_,FunctionDefaults<3>::get_thresh());
 		set_thresh(world,mo_ket_,FunctionDefaults<3>::get_thresh());
 		truncate(world,mo_ket_);
@@ -50,17 +56,22 @@ public:
 	}
 
 	/// Make shure that R2 gets the right thresh and is constant
-	real_function_3d init_R2(const real_function_3d nemo_input )const{
-		real_function_3d tmp = copy(nemo_input);
+	real_function_3d init_R2(const Nemo &nemo )const{
+		if(nemo.nuclear_correlation){
+		real_function_3d tmp = copy(nemo.nuclear_correlation -> square());
 		tmp.set_thresh(FunctionDefaults<3>::get_thresh());
 		tmp.truncate();
 		tmp.verify();
 		return tmp;
+		}
+		real_function_3d constant = real_factory_3d(world);
+		return (constant +1.0);
 	}
 
 	// Make the derivative of R2
-	vecfuncT get_gradient(const real_function_3d &f)const{
+	vecfuncT get_gradient(const real_function_3d f)const{
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop=gradient_operator<double, 3>(world);
+		f.verify();
 		vecfuncT gradf;
 		for(size_t i=0;i<3;i++){
 			real_function_3d dfi = (*gradop[i])(f);
@@ -70,6 +81,7 @@ public:
 		truncate(world,gradf);
 		return gradf;
 	}
+
 
 	void sanitycheck()const{
 		if(mo_ket_.empty()) error("mo_ket_ is empty");
@@ -170,7 +182,10 @@ public:
 
 	// Kinetik energy
 	// -1/2 <x|R2Nabla2|x> = +1/2 <Nabla R2 x | Nabla x> = grad(R2x)*grad(x)
+	// grad(R2x) = GradR2*x + R2*gradx
+	// grad(R2x)*grad(y) = GradR2*x*Grady + R2*Gradx*Grady
 	double get_matrix_element_kinetic_energy(const vecfuncT &ket, const vecfuncT &bra)const{
+		//std::cout << " Making Kintic Energy Matrix Element 1:\n";
 		double value=0.0;
 		vecfuncT R2bra = mul(world,R2,bra);
 		truncate(world,R2bra);
@@ -178,11 +193,76 @@ public:
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 		gradop = gradient_operator<double, 3>(world);
 		for(size_t axis=0;axis<3;axis++){
+			START_TIMER();
 			const vecfuncT gradbra = apply(world,*gradop[axis],R2bra);
+			END_TIMER("Gradient of R2Bra");
+			START_TIMER();
 			const vecfuncT gradket = apply(world,*gradop[axis],ket);
+			END_TIMER("Gradient of Ket");
+			START_TIMER();
 			value += 0.5*inner(world,gradbra,gradket).sum();
+			END_TIMER("Inner Product");
 		}
 		return value;
+	}
+	double get_matrix_element_kinetic_2(const vecfuncT &bra,const vecfuncT &ket)const{
+		std::cout << "Making Kinetic 2 Element\n";
+		double value =0.0;
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop = gradient_operator<double, 3>(world);
+		for(size_t axis=0;axis<3;axis++){
+			START_TIMER();
+			vecfuncT gradbra = apply(world,*gradop[axis],bra);
+			truncate(world,gradbra);
+			END_TIMER("make gradbra");
+			START_TIMER();
+			vecfuncT gradket = apply(world,*gradop[axis],ket);
+			truncate(world,gradket);
+			END_TIMER("make gradket");
+			START_TIMER();
+			vecfuncT gradR2bra = mul(world,dR2[axis],bra);
+			truncate(world,gradR2bra);
+			END_TIMER("multiply dR2 and bra");
+			START_TIMER();
+			value += (inner(world,gradR2bra,gradket).sum());
+			END_TIMER("Inner product1");
+			START_TIMER();
+			value += make_inner_product(gradbra,gradket);
+			END_TIMER("Inner product2");
+
+		}
+		return 0.5*value;
+	}
+
+	// Kinetic part of the CIS perturbed fock matrix
+	Tensor<double> get_matrix_kinetic(const std::vector<vecfuncT> &x)const{
+		Tensor<double> result(x.size(),x.size());
+		// make the x,y and z parts of the matrix and add them
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop= gradient_operator<double, 3>(world);
+		for(size_t axis=0;axis<3;axis++){
+			// make all gradients
+			std::vector<vecfuncT> dx,dR2x;
+			for(auto xi:x){
+				const vecfuncT dxi = apply(world, *(gradop[axis]), xi);
+				dx.push_back(dxi);
+				if(use_nuclear_correlation_factor_){
+					const vecfuncT dR2xi = apply(world, *(gradop[axis]), mul(world,R2,xi));
+					dR2x.push_back(dR2xi);
+				}
+			}
+			for(size_t i=0;i<x.size();i++){
+				for(size_t j=0;j<x.size();j++){
+					if(use_nuclear_correlation_factor_){
+//						vecfuncT dR2xi = mul(world,dR2[axis],x[i]);
+//						truncate(world,dR2xi);
+//						result(i,j) += 0.5*inner(world,dR2xi,dx[j]).sum();
+						result(i,j) += 0.5*inner(world,dR2x[j],dx[i]).sum();
+					}
+					else result(i,j) += 0.5*inner(world,dx[j],dx[i]).sum();
+				}
+			}
+
+		}
+		return result;
 	}
 
 	// Diagrammatic Potentials:
@@ -234,20 +314,24 @@ public:
 
 	// Make an inner product between vecfunctions
 	double make_inner_product(const vecfuncT &bra, const vecfuncT &ket)const{
-		return inner(world,mul(world,R2,bra),ket).sum();
+		if(use_nuclear_correlation_factor_)return inner(world,mul(world,R2,bra),ket).sum();
+		else return inner(world,bra,ket).sum();
 	}
 	// inner product between functions
 	double make_inner_product(const real_function_3d &bra, const real_function_3d &ket)const{
-		return (bra*R2).inner(ket);
+		if(use_nuclear_correlation_factor_)return (bra*R2).inner(ket);
+		else return bra.inner(ket);
 	}
 	// inner product between function and vecfunction
 	double make_inner_product(const real_function_3d &bra, const vecfuncT &ket)const{
-		return inner(world,bra*R2,ket).sum();
+		if(use_nuclear_correlation_factor_)return inner(world,bra*R2,ket).sum();
+		else return inner(world,bra,ket).sum();
 	}
 
 private:
 	bool use_timer_=true;
 	World &world;
+	bool use_nuclear_correlation_factor_;
 	vecfuncT mo_bra_,mo_ket_;
 	/// The squared nuclear correlation factor and its derivative;
 	const real_function_3d R2;

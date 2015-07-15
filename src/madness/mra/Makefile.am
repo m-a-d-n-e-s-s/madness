@@ -32,7 +32,7 @@ AM_LOG_FLAGS =
 bin_PROGRAMS = mraplot
 noinst_PROGRAMS =  testperiodic.mpi testbc.mpi testproj.mpi testqm test6 \
                    testdiff1D.mpi testdiff2D.mpi testdiff3D.mpi $(TESTS)
-lib_LIBRARIES = libMADmra.a
+lib_LTLIBRARIES = libMADmra.la
 
 
 data_DATA = autocorr coeffs gaussleg
@@ -47,11 +47,12 @@ thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  v
                       sdf_shape_3D.h sdf_domainmask.h vmra1.h
 
 
-LDADD = libMADmra.a $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
+LDADD = libMADmra.la $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
 
-libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
+libMADmra_la_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
                       startup.cc legendre.cc twoscale.cc qmprop.cc \
                       $(thisinclude_HEADERS)
+libMADmra_la_LDFLAGS = -version-info 0:0:0
 
 
 testsuite_mpi_SOURCES = testsuite.cc test_sepop.cc
@@ -91,6 +92,7 @@ testgaxpyext_mpi_SOURCES = testgaxpyext.cc
 libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 
-install-libraries: install-libLIBRARIES install-thisincludeHEADERS
+install-libraries: install-libLTLIBRARIES install-thisincludeHEADERS
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 
+MOSTLYCLEANFILES = fplot.dat opf.dat opfplot.dat testline1 testline2 testline3

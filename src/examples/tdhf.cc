@@ -48,8 +48,6 @@
 //#include<examples/dft_solver.h>
 //
 #include <chem/TDA.h>
-#include<iomanip>
-#include<iostream>
 
 using namespace madness;
 
@@ -80,6 +78,24 @@ int main(int argc, char** argv) {
 
 	typedef std::vector<functionT> vecfuncT;
 
+	// Set the threshold defaults
+	double ground_state_thresh = FunctionDefaults<3>::get_thresh();
+	double guess_thresh = ground_state_thresh*50.0;
+	double solve_thresh = ground_state_thresh*10.0;
+	double solve_seq_thresh = ground_state_thresh*10.0;
+	bool print_grid=false;
+	bool no_compute=false;
+	bool only_sequential=false;
+	bool use_nemo=true;
+
+	for(size_t i=0;i<argc;i++){
+		if(strcmp(argv[i],"-tda_print_grid")==0) print_grid = true;
+		if(strcmp(argv[i],"-tda_no_compute")==0) no_compute = true;
+		if(strcmp(argv[i],"-tda_analyze")==0) no_compute = true;
+		if(strcmp(argv[i],"-tda_sequential")==0) only_sequential = true;
+		if(strcmp(argv[i],"-nonemo")==0) use_nemo = false;
+	}
+
 	// First solve the ground state
 	const std::string input = "input";
 	//SCF calc(world,input.c_str());
@@ -91,37 +107,27 @@ int main(int argc, char** argv) {
         calc->param.print(world);
     }
 
-    //MolecularEnergy E(world, *calc);
+    //
     double hf_energy =0;
-//    if(calc -> param.nuclear_corrfac == "moldft"){
-//    	std::cout << "\n\nNo Nuclear Correlation Factor determined, proceeding with std SCF\n\n";
- //   	hf_energy = E.value(calc -> molecule.get_all_coords().flat());
-//    }else{
-//    	std::cout << "\n\nNuclear Correlation Factor is\n ---> " << calc -> param.nuclear_corrfac << "\n\n";
+    if(not use_nemo){
+    	std::cout << "\n\n\n\n !!!!!!!!!! -- nonemo input parameter found ... using moldft ...  -- !!!!!!!!!!!!\n\n\n";
+    	if(nemo.get_calc()->param.nuclear_corrfac != "none"){
+    		std::cout << "WARNING NUCLEAR CORRELATION FACTOR IS SET TO: " << nemo.get_calc() -> param.nuclear_corrfac << "\n\n\n"<< std::endl;
+    	}
+    	// constructing the correlation factor as constant function
+    	nemo.construct_nuclear_correlation_factor();
+    	MolecularEnergy E(world, *nemo.get_calc());
+    	hf_energy = E.value(calc -> molecule.get_all_coords().flat());
+    }else{
+    	std::cout << "\nSTARTING GROUND STATE CALCULATION\n";
     	hf_energy=nemo.value();
-//    }
+    }
 
     if (world.rank()==0) {
         printf("final energy   %12.8f\n", hf_energy);
         printf("finished at time %.1f\n", wall_time());
     }
 
-
-	// Set the threshold defaults
-	double ground_state_thresh = FunctionDefaults<3>::get_thresh();
-	double guess_thresh = ground_state_thresh*50.0;
-	double solve_thresh = ground_state_thresh*10.0;
-	double solve_seq_thresh = ground_state_thresh*10.0;
-	bool print_grid=false;
-	bool no_compute=false;
-	bool only_sequential=false;
-
-	for(size_t i=0;i<argc;i++){
-		if(strcmp(argv[i],"-tda_print_grid")==0) print_grid = true;
-		if(strcmp(argv[i],"-tda_no_compute")==0) no_compute = true;
-		if(strcmp(argv[i],"-tda_analyze")==0) no_compute = true;
-		if(strcmp(argv[i],"-tda_sequential")==0) only_sequential = true;
-	}
 
 	// Get the custom thresholds from the input file
 	std::ifstream f(input.c_str());
