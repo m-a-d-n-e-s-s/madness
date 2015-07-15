@@ -286,7 +286,7 @@ public:
     ///           \left(\frac{S''' S - S'' S'}{S^2} - \frac{2}{\rho^2}\frac{S'}{S}
     ///           + \frac{2}{\rho} \frac{S''S - S'^2}{S^2} -  2\frac{Z_A}{\rho^2}\right)
     /// \f]
-    virtual double U2X_spherical(const double& r, const double& Z) const {
+    virtual double U2X_spherical(const double& r, const double& Z, const double& rcut) const {
         if (world.rank()==0) {
             print("you can't compute the Hessian matrix");
             print("U2X_spherical is not implemented for the nuclear correlation factor");
@@ -567,29 +567,32 @@ public:
     /// compute the derivative of U2 wrt the displacement of atom A
     class U2X_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
-        const Atom& thisatom;
+        const int iatom;
         const int axis;
     public:
-        U2X_functor(const NuclearCorrelationFactor* ncf, const Atom& atom1,
-                const int axis) : ncf(ncf), thisatom(atom1), axis(axis) {}
+        U2X_functor(const NuclearCorrelationFactor* ncf, const int& atom1,
+                const int axis) : ncf(ncf), iatom(atom1), axis(axis) {}
 
         double operator()(const coord_3d& xyz) const {
-            const coord_3d vr1A=xyz-thisatom.get_coords();
+            const Atom& atom=ncf->molecule.get_atom(iatom);
+            const coord_3d vr1A=xyz-atom.get_coords();
             const double r=vr1A.normf();
-            const double& Z=thisatom.q;
+            const double& Z=atom.q;
+            const double rcut=ncf->molecule.get_rcut()[iatom];
 
             // note two sign change due to the change in the derivative
             // variable x: electronic -> nuclear
             // occurs for both drho/dx, and for dS/dX
             const double drhodx=-ncf->smoothed_unitvec(vr1A)[axis];
-            return 0.5*drhodx*ncf->U2X_spherical(r,Z);
+            return 0.5*drhodx*ncf->U2X_spherical(r,Z,rcut);
         }
 
         std::vector<coord_3d> special_points() const {
             std::vector< madness::Vector<double,3> > c(1);
-            c[0][0]=thisatom.x;
-            c[0][1]=thisatom.y;
-            c[0][2]=thisatom.z;
+            const Atom& atom=ncf->molecule.get_atom(iatom);
+            c[0][0]=atom.x;
+            c[0][1]=atom.y;
+            c[0][2]=atom.z;
             return c;
         }
     };
@@ -757,8 +760,6 @@ private:
 
     }
 
-    double U2X_spherical(const double& r, const double& Z) const {throw;};
-
 };
 
 /// A nuclear correlation factor class
@@ -872,8 +873,6 @@ private:
         return -num/denom;
     }
 
-    double U2X_spherical(const double& r, const double& Z) const {throw;};
-
 };
 
 
@@ -970,8 +969,6 @@ private:
         const double earz=exp(-a*r*Z);
         return a*a*Z*Z*Z*earz*(a*r*Z-3.0)/(1.0-r*Z*earz);
     }
-
-    double U2X_spherical(const double& r, const double& Z) const {throw;};
 
 };
 
@@ -1083,7 +1080,7 @@ private:
     ///           \left(\frac{S''' S - S'' S'}{S^2} - \frac{2}{\rho^2}\frac{S'}{S}
     ///           + \frac{2}{\rho} \frac{S''S - S'^2}{S^2} -  2\frac{Z_A}{\rho^2}\right)
     /// \f]
-    double U2X_spherical(const double& r, const double& Z) const {
+    double U2X_spherical(const double& r, const double& Z, const double& rcut) const {
         const double a=a_param();
 
         if (r*Z<1.e-4) {
@@ -1259,8 +1256,6 @@ private:
         }
     }
 
-    double U2X_spherical(const double& r, const double& Z) const {throw;};
-
 };
 
 class PseudoNuclearCorrelationFactor : public NuclearCorrelationFactor {
@@ -1338,8 +1333,8 @@ private:
     	return 0.0;
     }
 
-    double U2X_spherical(const double& r, const double& Z) const {
-        MADNESS_EXCEPTION("no U2X_spherical in Pseudo-NCF",1);
+    double U2X_spherical(const double& r, const double& Z, const double& rcut) const {
+        return dsmoothed_potential(r * rcut) * (rcut * rcut);
     }
 
 };
