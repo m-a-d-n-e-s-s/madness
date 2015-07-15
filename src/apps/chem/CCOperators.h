@@ -236,24 +236,28 @@ public:
 	// Kinetic part of the CIS perturbed fock matrix
 	Tensor<double> get_matrix_kinetic(const std::vector<vecfuncT> &x)const{
 		Tensor<double> result(x.size(),x.size());
-std::cout << "Makeing Kinetic Energy Matrix, nuclear correlation is " << use_nuclear_correlation_factor_ << std::endl;
 		// make the x,y and z parts of the matrix and add them
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop= gradient_operator<double, 3>(world);
 		for(size_t axis=0;axis<3;axis++){
 			// make all gradients
-			std::vector<vecfuncT> dx;
+			std::vector<vecfuncT> dx,dR2x;
 			for(auto xi:x){
 				const vecfuncT dxi = apply(world, *(gradop[axis]), xi);
 				dx.push_back(dxi);
+				if(use_nuclear_correlation_factor_){
+					const vecfuncT dR2xi = apply(world, *(gradop[axis]), mul(world,R2,xi));
+					dR2x.push_back(dR2xi);
+				}
 			}
 			for(size_t i=0;i<x.size();i++){
 				for(size_t j=0;j<x.size();j++){
 					if(use_nuclear_correlation_factor_){
-						vecfuncT dR2xi = mul(world,dR2[axis],x[i]);
-						truncate(world,dR2xi);
-						result(i,j) += 0.5*inner(world,dR2xi,dx[j]).sum();
+//						vecfuncT dR2xi = mul(world,dR2[axis],x[i]);
+//						truncate(world,dR2xi);
+//						result(i,j) += 0.5*inner(world,dR2xi,dx[j]).sum();
+						result(i,j) += 0.5*inner(world,dR2x[j],dx[i]).sum();
 					}
-					result(i,j) += 0.5*make_inner_product(dx[j],dx[i]);
+					else result(i,j) += 0.5*inner(world,dx[j],dx[i]).sum();
 				}
 			}
 
