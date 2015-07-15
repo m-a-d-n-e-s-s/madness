@@ -113,7 +113,8 @@ struct refpotfunctor {
 /// will write a test input and remove it from disk upon destruction
 struct write_test_input {
 
-    double eprec=FunctionDefaults<3>::get_thresh()*0.1;
+//    double eprec=FunctionDefaults<3>::get_thresh()*0.1;
+    double eprec=1.e-3;
 
     std::string filename_;
     write_test_input() : filename_("test_input") {

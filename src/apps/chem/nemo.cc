@@ -63,21 +63,11 @@ double Nemo::value(const Tensor<double>& x) {
 	calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
-	// Make the nuclear potential, initial orbitals, etc.
-	calc->make_nuclear_potential(world);
-	calc->potentialmanager->vnuclear().print_size("vnuc");
-	calc->project_ao_basis(world);
-	save_function(calc->potentialmanager->vnuclear(),"vnuc");
+	construct_nuclear_correlation_factor();
 
     // construct the Poisson solver
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
-
-    // construct the nuclear correlation factor:
-    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
-    R = nuclear_correlation->function();
-    R_inverse = nuclear_correlation->inverse();
-    R_square = nuclear_correlation->square();
 
 	print_nuclear_corrfac();
 
@@ -105,18 +95,6 @@ double Nemo::value(const Tensor<double>& x) {
 	double energy = solve();
 
 	calc->current_energy=energy;
-
-	// localize the orbitals
-	if (calc->param.localize) {
-		calc->amo=localize(calc->amo);
-		tensorT fock=compute_fock_matrix(calc->amo,calc->aocc);
-		if (world.rank()==0) print("localized Fock matrix \n",fock);
-		for (std::size_t i=0; i<calc->amo.size(); ++i) {
-			calc->aeps(i)=fock(i,i);
-			if (world.rank()==0) print("orbital energy ",i,calc->aeps(i));
-		}
-	}
-
 	if (calc->param.save) calc->save_mos(world);
 
 	// save the converged orbitals and nemos

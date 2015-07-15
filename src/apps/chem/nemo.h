@@ -159,7 +159,6 @@ public:
 	    // construct the nuclear correlation factor:
 	    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
 	    R = nuclear_correlation->function();
-	    R_inverse = nuclear_correlation->inverse();
 	    R_square = nuclear_correlation->square();
 	}
 
@@ -260,9 +259,6 @@ public:
 
 	/// the nuclear correlation factor
 	real_function_3d R;
-
-	/// the inverse nuclear correlation factor
-	real_function_3d R_inverse;
 
     /// the square of the nuclear correlation factor
     real_function_3d R_square;

@@ -223,15 +223,17 @@ private:
 	/// @return		the nuclear correlation factor S_A(r_1A)
 	virtual double S(const double& r, const double& Z) const = 0;
 
-	/// the partial derivative of correlation factor S' wrt a given atom
+	/// the partial derivative of correlation factor S' wrt the cartesian coordinates
 
 	/// @param[in]	vr1A	the vector of the req'd coord to the nucleus
 	/// @param[in]	Z	the nuclear charge
 	/// @return		the gradient of the nuclear correlation factor S'_A(r_1A)
 	virtual coord_3d Sp(const coord_3d& vr1A, const double& Z) const = 0;
 
-	/// the regularized potential wrt a given atom
+	/// the regularized potential wrt a given atom wrt the cartesian coordinate
 
+	/// S" is the Cartesian Laplacian applied on the NCF. Note the difference
+	/// to Srr_div_S, which is the second derivative wrt the distance rho.
 	/// this is:  -S"/S - Z/r
 	/// @param[in]	r	the distance of the req'd coord to the nucleus
 	/// @param[in]	Z	the nuclear charge
@@ -239,17 +241,42 @@ private:
 	///				by the correlation factor minus the nuclear potential
 	virtual double Spp_div_S(const double& r, const double& Z) const = 0;
 
-	virtual double Sr_div_S(const double& r, const double& Z) const = 0;
-    virtual double Srr_div_S(const double& r, const double& Z) const = 0;
-    virtual double Srrr_div_S(const double& r, const double& Z) const = 0;
-    virtual double minus_Sr_div_rS_minus_Z_div_r(const double& r,
-            const double& Z) const = 0;
+public:
 
-    /// derivative of the U2 potential wrt X (spherical part)
+	/// first derivative of the NCF with respect to the relative distance rho
+	/// \f[
+	///     \frac{\partial S(\rho)}{\partial \rho} \frac{1}{S(\rho)}
+	/// \f]
+	/// where the distance of the electron to the nucleus A is given by
+	/// \f[
+	///    \rho = |\vec r - \vec R_A |
+	/// \f]
+	virtual double Sr_div_S(const double& r, const double& Z) const = 0;
+
+	/// second derivative of the NCF with respect to the relative distance rho
+    /// \f[
+    ///     \frac{\partial^2 S(\rho)}{\partial \rho^2} \frac{1}{S(\rho)}
+    /// \f]
+    /// where the distance of the electron to the nucleus A is given by
+    /// \f[
+    ///    \rho = |\vec r - \vec R_A |
+    /// \f]
+	virtual double Srr_div_S(const double& r, const double& Z) const = 0;
+
+    /// third derivative of the NCF with respect to the relative distance rho
+    /// \f[
+    ///     \frac{\partial^3 S(\rho)}{\partial \rho^3} \frac{1}{S(\rho)}
+    /// \f]
+    /// where the distance of the electron to the nucleus A is given by
+    /// \f[
+    ///    \rho = |\vec r - \vec R_A |
+    /// \f]
+	virtual double Srrr_div_S(const double& r, const double& Z) const = 0;
+
+    /// derivative of the U2 potential wrt nuclear coordinate X (spherical part)
 
     /// need to reimplement this for all derived classes due to the
-    /// range for r -> 0, where the singular terms cancel
-    /// with
+    /// range for r -> 0, where the singular terms cancel. With
     /// \f[
     ///   \rho = \left| \vec r- \vec R_A \right|
     /// \f]
@@ -259,7 +286,13 @@ private:
     ///           \left(\frac{S''' S - S'' S'}{S^2} - \frac{2}{\rho^2}\frac{S'}{S}
     ///           + \frac{2}{\rho} \frac{S''S - S'^2}{S^2} -  2\frac{Z_A}{\rho^2}\right)
     /// \f]
-    virtual double U2X_spherical(const double& r, const double& Z) const = 0;
+    virtual double U2X_spherical(const double& r, const double& Z) const {
+        if (world.rank()==0) {
+            print("you can't compute the Hessian matrix");
+            print("U2X_spherical is not implemented for the nuclear correlation factor");
+        }
+        MADNESS_EXCEPTION("do more implementation work",1);
+    }
 
 public:
 
@@ -385,7 +418,7 @@ public:
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
 				const double& Z=atom.q;
-				result-=(ncf->Sp(vr1A,atom.q)[axis]/ncf->S(r,atom.q));
+				result-=(ncf->Sp(vr1A,Z)[axis]/ncf->S(r,Z));
 //				result-=ncf->Sr_div_S(r,Z)*ncf->smoothed_unitvec(vr1A)[axis];
 			}
 			return result;
@@ -405,10 +438,7 @@ public:
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
-				const double& Z=atom.q;
 				result+=ncf->Spp_div_S(r,atom.q);
-//				result+=ncf->minus_Sr_div_rS_minus_Z_div_r(r,Z)
-//				        -0.5*ncf->Srr_div_S(r,Z);
 			}
 			return result;
 		}
@@ -653,6 +683,7 @@ public:
 			print("constructed nuclear correlation factor of the form");
 			print("  R   = Prod_A S_A");
 			print("  S_A = exp(-Z_A r_{1A}) + (1 - exp(-Z_A^2*r_{1A}^2))");
+			print("with eprec ",mol.get_eprec());
 			print("which is of Gaussian-Slater type\n");
 		}
 
@@ -698,11 +729,34 @@ private:
     	}
 	}
 
-    double Sr_div_S(const double& r, const double& Z) const {throw;}
-    double Srr_div_S(const double& r, const double& Z) const {throw;}
-    double Srrr_div_S(const double& r, const double& Z) const {throw;}
-    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
-            const double& Z) const {throw;};
+    double Sr_div_S(const double& r, const double& Z) const {
+        const double Zr=r*Z;
+        const double eA=exp(-Zr);
+        const double gA=exp(-Zr*Zr);
+        const double num=Z*(2.0*Zr*gA-eA);
+        const double denom=1.0+eA-gA;
+        return num/denom;
+    }
+
+    double Srr_div_S(const double& r, const double& Z) const {
+        const double Zr=r*Z;
+        const double eA=exp(-Zr);
+        const double gA=exp(-Zr*Zr);
+        const double num=Z*Z*(eA+gA*(2.0-4.0*Zr*Zr));
+        const double denom=1.0+eA-gA;
+        return num/denom;
+    }
+
+    double Srrr_div_S(const double& r, const double& Z) const {
+        const double Zr=r*Z;
+        const double eA=exp(-Zr);
+        const double gA=exp(-Zr*Zr);
+        const double num=Z*Z*Z*(-eA - 12.0*gA*Zr + 8.0*gA*Zr*Zr*Zr);
+        const double denom=1.0+eA-gA;
+        return num/denom;
+
+    }
+
     double U2X_spherical(const double& r, const double& Z) const {throw;};
 
 };
@@ -725,7 +779,9 @@ public:
         if (world.rank()==0) {
             print("constructed nuclear correlation factor of the form");
             print("  R   = Prod_A S_A");
-            print("  S_A = 1/sqrt{Z} exp(-Z_A r_{1A}) + (1 - exp(-Z_A^2*r_{1A}^2))");
+            print("  S_A = 1/sqrt{Z} exp(-Z_A r_{1A}) + (1 - exp(-a^2*Z_A^2*r_{1A}^2))");
+            print("  a   = ",a);
+            print("with eprec ",mol.get_eprec());
             print("which is of Gradiental Gaussian-Slater type\n");
         }
 
@@ -785,100 +841,37 @@ private:
         }
     }
 
-    double Sr_div_S(const double& r, const double& Z) const {throw;}
-    double Srr_div_S(const double& r, const double& Z) const {throw;}
-    double Srrr_div_S(const double& r, const double& Z) const {throw;}
-    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
-            const double& Z) const {throw;};
-    double U2X_spherical(const double& r, const double& Z) const {throw;};
-
-};
-
-
-/// A nuclear correlation factor class
-
-/// This factor is smooth for U2 at the cusp resulting in a
-/// smooth derivative of the factor wrt nuclear displacements
-class U2Smooth : public NuclearCorrelationFactor {
-public:
-    /// ctor
-
-    /// @param[in]  world   the world
-    /// @param[in]  mol molecule with the sites of the nuclei
-    U2Smooth(World& world, const Molecule& mol, const double a)
-        : NuclearCorrelationFactor(world,mol), a(a) {
-
-        if (world.rank()==0) {
-            print("constructed nuclear correlation factor of the form");
-            print("  R   = Prod_A S_A");
-            print("  S_A = 1/b exp(-b Z r_{1A}) + (1 - 1/b exp(- a b r_{1A}^2))");
-            print("  b=(2 sqrt(a) + Z)/Z");
-            print("  a=",a);
-            print("which is of U2smooth type\n");
-        }
-
-        initialize();
+    double Sr_div_S(const double& r, const double& Z) const {
+        const double rZ=r*Z;
+        const double e=exp(-rZ);
+        const double g=exp(-a*a*rZ*rZ);
+        const double sqrtz=sqrt(Z);
+        const double num=-sqrtz*e + 2.0*a*a*g*Z*rZ;
+        const double denom=1.0-g+e/sqrtz;
+        return num/denom;
     }
 
-    corrfactype type() const {return NuclearCorrelationFactor::U2Smooth;}
-
-private:
-
-    const double a;
-
-    /// the nuclear correlation factor
-    double S(const double& r, const double& Z) const {
-        const double bb=(2.*sqrt(a)+Z)/Z;
-        return 1. + (exp(-bb * r) - exp(-a * bb*r*r/Z) ) *Z/bb;
-
+    double Srr_div_S(const double& r, const double& Z) const {
+        const double rZ=r*Z;
+        const double e=exp(-rZ);
+        const double g=exp(-a*a*rZ*rZ);
+        const double sqrtz=sqrt(Z);
+        const double num=e*Z*sqrtz + g*(2.0*a*a - 4.0*power<4>(a)*rZ*rZ)*Z*Z;
+        const double denom=1.0-g+e/sqrtz;
+        return num/denom;
     }
 
-    /// radial part first derivative of the nuclear correlation factor
-    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
-
-        const double r=sqrt(vr1A[0]*vr1A[0] +
-                vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
-
-        const double bb= (2.*sqrt(a)+Z);
-        const double term=2.*a*exp(-a*bb*r*r/Z)*r-exp(-bb *r)*Z;
-
-        return term*smoothed_unitvec(vr1A);
+    double Srrr_div_S(const double& r, const double& Z) const {
+        const double rZ=r*Z;
+        const double e=exp(-rZ);
+        const double g=exp(-a*a*rZ*rZ);
+        const double sqrtz=sqrt(Z);
+        const double num=e*power<3>(Z) + (12.0*power<4>(a)*g*rZ
+                -8.0*power<6>(a)*g*power<3>(rZ))*sqrtz*power<3>(Z);
+        const double denom=e+sqrtz-g*sqrtz;
+        return -num/denom;
     }
 
-    /// second derivative of the nuclear correlation factor
-
-    /// -1/2 S"/S - Z/r
-    double Spp_div_S(const double& r, const double& Z) const {
-        const double rho=Z*r;
-        const double bb=(2.*sqrt(a)+Z)/Z;
-        const double ZZ=Z*Z;
-
-        if (rho<1.e-3) {
-            const double ZZZ=ZZ*Z;
-            const double rr=r*r;
-            const double aa=a*a;
-            const double sqrta=sqrt(a);
-            return (-6*ZZZ + 4*sqrta*a*rr*ZZ*(8 + 7*r*Z) +
-                         12*aa*sqrta*rr*(10 + 11*r*Z) + 6*aa*rr*Z*(16 + 17*r*Z) +
-                         sqrta*ZZ*(-36 + 2*rr*ZZ + rr*r*ZZZ) +
-                         4*a*Z*(-9 + 2*rr*ZZ + rr*r*ZZ*Z))/(12.*Z);
-        } else {
-
-            const double ebrZ=exp(-bb* r*Z);
-            const double eabr=exp(-a*bb*r*r);
-            const double num=-(6.0* a *bb* r)*eabr + (4 * a*a* bb*bb *r*r*r)*eabr
-                    + (2 *bb *Z)*ebrZ - (bb*bb* r* ZZ)*ebrZ;
-            const double denom=2* bb * r - (2* r)*eabr + (2* r)*ebrZ;
-
-            return -Z/r + num/denom;
-        }
-    }
-
-    double Sr_div_S(const double& r, const double& Z) const {throw;}
-    double Srr_div_S(const double& r, const double& Z) const {throw;}
-    double Srrr_div_S(const double& r, const double& Z) const {throw;}
-    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
-            const double& Z) const {throw;};
     double U2X_spherical(const double& r, const double& Z) const {throw;};
 
 };
@@ -905,6 +898,7 @@ public:
 			print("constructed nuclear correlation factor of the form");
 			print("  S_A = -Z_A r_{1A} exp(-Z_A r_{1A}) + 1");
 			print("    a = ",a_);
+            print("with eprec ",mol.get_eprec());
 			print("which is of linear Slater type\n");
 		}
 		initialize();
@@ -959,11 +953,24 @@ private:
     	}
 	}
 
-	double Sr_div_S(const double& r, const double& Z) const {throw;}
-    double Srr_div_S(const double& r, const double& Z) const {throw;}
-    double Srrr_div_S(const double& r, const double& Z) const {throw;}
-    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
-            const double& Z) const {throw;};
+	double Sr_div_S(const double& r, const double& Z) const {
+	    const double& a=a_param();
+	    const double earz=exp(-a*r*Z);
+	    return Z*earz*(a*r*Z-1.0)/(1.0-r*Z*earz);
+	}
+
+    double Srr_div_S(const double& r, const double& Z) const {
+        const double& a=a_param();
+        const double earz=exp(-a*r*Z);
+        return a*Z*Z*earz*(a*r*Z-2.0)/(-1.0+r*Z*earz);
+    }
+
+    double Srrr_div_S(const double& r, const double& Z) const {
+        const double& a=a_param();
+        const double earz=exp(-a*r*Z);
+        return a*a*Z*Z*Z*earz*(a*r*Z-3.0)/(1.0-r*Z*earz);
+    }
+
     double U2X_spherical(const double& r, const double& Z) const {throw;};
 
 };
@@ -985,6 +992,7 @@ public:
 			print("\nconstructed nuclear correlation factor of the form");
 			print("  S_A = 1/(a-1) exp(-a Z_A r_{1A}) + 1");
 			print("    a = ",a_);
+            print("with eprec ",mol.get_eprec());
 			print("which is of Slater type\n");
 		}
 		initialize();
@@ -1029,25 +1037,6 @@ private:
         const double& a=a_param();
         const double aZ=a*Z;
         return -aZ*aZ*aZ/(1.0+(a-1.0)*exp(r*aZ));
-    }
-
-    /// \f[
-    ///     result = -\frac{1}{r}\frac{1}{S(r)}\frac{\partial S(r)}{\partial r}-\frac{Z}{r}
-    /// \f]
-    double minus_Sr_div_rS_minus_Z_div_r(const double& r, const double& Z) const {
-        const double a=a_param();
-        if (r<1.e-4) {
-            const double ZZ=Z*Z;
-            const double aa=a_param()*a_param();
-            return -((-1. + a)*ZZ) + ((-2. + a)*(-1. + a)*r*ZZ*Z)*0.5 -
-               ((-1. + a)*(6. - 6.*a + aa)*r*r*ZZ*ZZ)/6. +
-               ((-1. + a)*(-24. + 36.*a - 14.*aa + aa*a)*r*r*r*ZZ*ZZ*Z)/24.;
-        } else {
-            const double earz=exp(-a*r*Z);
-            const double num=(a-1.0)*(-earz+1.0)*Z;
-            const double denom=(earz+a-1.0)*r;
-            return -num/denom;
-        }
     }
 
     /// the nuclear correlation factor
@@ -1147,6 +1136,7 @@ public:
 			print("  R   = Prod_A S_A");
 			print("  S_A = 1 + a (r/b -1)^N  if  r<b, with  b= (N*a)/((1+a) Z)");
 			print("      = 1                 else ");
+			print("with eprec ",mol.get_eprec());
 			print("which is of polynomial type with exponent N = ",N);
 		}
 		initialize();
@@ -1225,11 +1215,50 @@ private:
     	}
     }
 
-    double Sr_div_S(const double& r, const double& Z) const {throw;}
-    double Srr_div_S(const double& r, const double& Z) const {throw;}
-    double Srrr_div_S(const double& r, const double& Z) const {throw;}
-    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
-            const double& Z) const {throw;};
+    double Sr_div_S(const double& r, const double& Z) const {
+        const double rho=r*Z;
+        const double a=Polynomial<N>::a_param();
+        const double b=Polynomial<N>::b_param(a);
+
+        if (rho<b) {
+            const double negn= power<N>(-1.0);
+            const double num=(negn*(1 + a)*Z*power<N-1>(-1 + ((1 + a)*r*Z)/(a*N)));
+            const double denom=(1 + negn*a*power<N>(-1 + ((1 + a)*r*Z)/(a*N)));
+            return num/denom;
+        } else {
+            return 0.0;
+        }
+
+    }
+
+    double Srr_div_S(const double& r, const double& Z) const {
+        const double rho=r*Z;
+        const double a=Polynomial<N>::a_param();
+        const double b=Polynomial<N>::b_param(a);
+
+        if (rho<b) {
+            const double negn= power<N>(-1.0);
+            return (negn*power<2>(1 + a)*(-1 + N)*power<2>(Z)*power<N-2>(-1 + ((1 + a)*r*Z)/(a*N)))/
+                    (a*N*(1 + negn*a*power<N>(-1 + ((1 + a)*r*Z)/(a*N))));
+        } else {
+            return 0.0;
+        }
+    }
+
+    double Srrr_div_S(const double& r, const double& Z) const {
+        const double rho=r*Z;
+        const double a=Polynomial<N>::a_param();
+        const double b=Polynomial<N>::b_param(a);
+
+        if (rho<b) {
+            const double negn= power<N>(-1.0);
+            return (negn*power<3>(1 + a)*(-2 + N)*(-1 + N)*power<3>(Z)*power<N-3>(-1 + ((1 + a)*r*Z)/(a*N)))/
+                    (power<2>(a*N)*(1 + negn*a*power<N>(-1 + ((1 + a)*r*Z)/(a*N))));
+        } else {
+            return 0.0;
+        }
+    }
+
     double U2X_spherical(const double& r, const double& Z) const {throw;};
 
 };
@@ -1248,6 +1277,7 @@ public:
 		if (world.rank()==0) {
 			print("constructed nuclear correlation factor of the form");
 			print("    R   = ",fac);
+            print("with eprec ",mol.get_eprec());
 			print("which means it's (nearly) a conventional calculation\n");
 		}
 		initialize();
@@ -1286,11 +1316,10 @@ private:
 	const double fac;
 
     double Sr_div_S(const double& r, const double& Z) const {return 0.0;}
+
     double Srr_div_S(const double& r, const double& Z) const {return 0.0;}
+
     double Srrr_div_S(const double& r, const double& Z) const {return 0.0;}
-    double minus_Sr_div_rS_minus_Z_div_r(const double& r, const double& Z) const {
-        return 0.0;
-    }
 
     /// the nuclear correlation factor
     double S(const double& r, const double& Z) const {
