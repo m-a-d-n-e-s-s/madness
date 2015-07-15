@@ -26,7 +26,7 @@ set(Madness_BUILD_SHARED @enable_shared@)
 set(Madness_BUILD_STATIC @enable_static@)
 
 # Set variables for shared library paths
-if(MAD_BUILD_SHARED)
+if(Madness_BUILD_SHARED)
   set(Madness_MADworld_SHARED_LIBRARY 
       ${Madness_BUILD_DIR}/src/madness/world/.libs/${CMAKE_SHARED_LIBRARY_PREFIX}MADworld${CMAKE_SHARED_LIBRARY_SUFFIX})
   set(Madness_MADmisc_SHARED_LIBRARY 
@@ -67,7 +67,7 @@ endif()
 
 # Set default libraries
 foreach(_lib MADchem MADmra MADtinyxml MADmuparser MADlinalg MADtensor MADmisc MADworld)
-  if(MAD_BUILD_SHARED)
+  if(Madness_BUILD_SHARED)
     set(Madness_${_lib}_LIBRARY ${Madness_${_lib}_SHARED_LIBRARY})
   else()
     set(Madness_${_lib}_LIBRARY ${Madness_${_lib}_STATIC_LIBRARY})
