@@ -78,6 +78,7 @@
 #include <madness/mra/lbdeux.h>
 #include <chem/molecule.h>
 #include <chem/potentialmanager.h>
+#include <chem/atomutil.h>
 
 using namespace madness;
 
@@ -244,10 +245,31 @@ private:
     virtual double minus_Sr_div_rS_minus_Z_div_r(const double& r,
             const double& Z) const = 0;
 
+    /// derivative of the U2 potential wrt X (spherical part)
+
+    /// need to reimplement this for all derived classes due to the
+    /// range for r -> 0, where the singular terms cancel
+    /// with
+    /// \f[
+    ///   \rho = \left| \vec r- \vec R_A \right|
+    /// \f]
+    /// returns the term in the parenthesis without the the derivative of rho
+    /// \f[
+    /// \frac{\partial U_2}{\partial X_A} = -\frac{1}{2}\frac{\partial \rho}{\partial X}
+    ///           \left(\frac{S''' S - S'' S'}{S^2} - \frac{2}{\rho^2}\frac{S'}{S}
+    ///           + \frac{2}{\rho} \frac{S''S - S'^2}{S^2} -  2\frac{Z_A}{\rho^2}\right)
+    /// \f]
+    virtual double U2X_spherical(const double& r, const double& Z) const = 0;
+
 public:
 
 	/// smoothed unit vector for the computation of the U1 potential
 
+    /// note the identity for exchanging nuclear and electronic coordinates
+    /// (there is a sign change, unlike for the smoothed potential)
+    /// \f[
+    ///     \vec n  = \frac{\partial \rho}{\partial x} = -\frac{\partial \rho}{\partial X}
+    /// \f]
     /// \f[
     /// \vec n = \left\{\frac{x \mathrm{erf}\left(\frac{r}{s}\right)}{r},
     ///          \frac{y \mathrm{erf}\left(\frac{r}{s}\right)}{r},
@@ -257,7 +279,11 @@ public:
 	    if (smoothing==0.0) smoothing=molecule.get_eprec();
 	    const double r=xyz.normf();
 	    const double rs=r/smoothing;
-	    if (rs<6.0) {
+        if (r<1.e-4) {
+            const double sqrtpi=sqrt(constants::pi);
+            double erfrs_div_r=2.0/(smoothing*sqrtpi)-2.0/3.0*rs*rs/(sqrtpi*smoothing);
+            return erfrs_div_r*xyz;
+        } else if (r<6.0) {
 	        return erf(rs)/r*xyz;
 	    } else {
 	        return 1.0/r*xyz;
@@ -267,8 +293,9 @@ public:
 	/// derivative of smoothed unit vector wrt the electronic coordinate
 
 	/// note the identity for exchanging nuclear and electronic coordinates
+	/// (there is no sign change, unlike for the smoothed potential)
 	/// \f[
-	///     \frac{\partial \vec n}{\partial x}  = - \frac{\partial \vec n}{\partial X}
+	///     \frac{\partial \vec n}{\partial x}  = \frac{\partial \vec n}{\partial X}
 	/// \f]
 	/// the derivative wrt x is given by
 	/// \f[
@@ -282,15 +309,28 @@ public:
 	/// \f]
 	coord_3d dsmoothed_unitvec(const coord_3d& xyz, const int axis,
             double smoothing=0.0) const {
+
+        const static double sqrtpi=sqrt(constants::pi);
+
+	    const double r=xyz.normf();
         if (smoothing==0.0) smoothing=molecule.get_eprec();
+
         coord_3d result;
-        const double r=xyz.normf();
         const double rs=r/smoothing;
-        if (rs<6.0) {
-            const double erfrs=erf(rs);
-            const double term1=2.0*exp(-rs*rs)/(sqrt(constants::pi)*r*rs);
-            result=xyz*xyz[axis]*(term1-erfrs/(r*r*r));
-            result[axis]+=erfrs/r;
+        const double sqrtpis3=sqrtpi*smoothing*smoothing*smoothing;
+        if (r<1.e-4) {
+            // series expansion
+            double p=-4.0/(3.0*sqrtpis3) + 4.0*rs*rs/(5.0*sqrtpis3);
+
+            double erfrs_div_r=2.0/(smoothing*sqrtpi)-2.0/3.0*rs*rs/(sqrtpi*smoothing);
+            result=xyz*xyz[axis]*p;
+            result[axis]+=erfrs_div_r;
+
+        } else if (r<6.0) {
+            const double erfrs_div_r=erf(rs)/r;
+            const double term1=2.0*exp(-rs*rs)/(sqrtpi*r*r*smoothing);
+            result=xyz*xyz[axis]*(term1-erfrs_div_r/(r*r));
+            result[axis]+=erfrs_div_r;
         } else {
             result=xyz*(-xyz[axis]/(r*r*r));
             result[axis]+=1/r;
@@ -345,8 +385,8 @@ public:
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
 				const double& Z=atom.q;
-//				result-=(ncf->Sp(vr1A,atom.q)[axis]/ncf->S(r,atom.q));
-				result-=ncf->Sr_div_S(r,Z)*ncf->smoothed_unitvec(vr1A)[axis];
+				result-=(ncf->Sp(vr1A,atom.q)[axis]/ncf->S(r,atom.q));
+//				result-=ncf->Sr_div_S(r,Z)*ncf->smoothed_unitvec(vr1A)[axis];
 			}
 			return result;
 		}
@@ -366,9 +406,9 @@ public:
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
 				const double& Z=atom.q;
-//				result+=ncf->Spp_div_S(r,atom.q);
-				result+=ncf->minus_Sr_div_rS_minus_Z_div_r(r,Z)
-				        -0.5*ncf->Srr_div_S(r,Z);
+				result+=ncf->Spp_div_S(r,atom.q);
+//				result+=ncf->minus_Sr_div_rS_minus_Z_div_r(r,Z)
+//				        -0.5*ncf->Srr_div_S(r,Z);
 			}
 			return result;
 		}
@@ -387,7 +427,8 @@ public:
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
-				all_terms[i]=ncf->Sr_div_S(r,atom.q)*ncf->smoothed_unitvec(vr1A);
+				all_terms[i]=ncf->Sp(vr1A,atom.q)*(1.0/ncf->S(r,atom.q));
+//				all_terms[i]=ncf->Sr_div_S(r,atom.q)*ncf->smoothed_unitvec(vr1A);
 			}
 
 			double result=0.0;
@@ -462,24 +503,25 @@ public:
     class U1X_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
         const Atom& thisatom;
-        const int axis;
+        const int U1axis;           /// U1x/U1y/U1z potential?
+        const int derivativeaxis;   /// direction of the derivative operator
     public:
-        U1X_functor(const NuclearCorrelationFactor* ncf,
-                const int axis, const Atom& atom1) : ncf(ncf), thisatom(atom1),
-                axis(axis) {}
+        U1X_functor(const NuclearCorrelationFactor* ncf, const Atom& atom1,
+                const int U1axis, const int daxis) : ncf(ncf), thisatom(atom1),
+                U1axis(U1axis), derivativeaxis(daxis) {}
 
         double operator()(const coord_3d& xyz) const {
             const coord_3d vr1A=xyz-thisatom.get_coords();
             const double r=vr1A.normf();
             const double& Z=thisatom.q;
-            const double S1=ncf->Srr_div_S(r,Z);
-            const double S2=ncf->Sr_div_S(r,Z);
+            const double S1=ncf->Sr_div_S(r,Z);
+            const double S2=ncf->Srr_div_S(r,Z);
 
-            // note the sign change in front of dsmoothed_unitvec and drhodx due
-            // to the change in the derivative variable x: electronic -> nuclear
-            const double drhodx=-vr1A[axis]/r;
-            return drhodx*(S1-S2*S2*ncf->smoothed_unitvec(vr1A)[axis]
-                      +S2*(-ncf->dsmoothed_unitvec(vr1A,axis)[axis]));
+            // note the double sign change smoothed_unitvec due to the
+            // change in the derivative variable x: electronic -> nuclear
+            return ncf->smoothed_unitvec(vr1A)[derivativeaxis]
+                        *(S2-S1*S1)*ncf->smoothed_unitvec(vr1A)[U1axis]
+                      +S1*(ncf->dsmoothed_unitvec(vr1A,derivativeaxis)[U1axis]);
         }
 
         std::vector<coord_3d> special_points() const {
@@ -492,9 +534,105 @@ public:
     };
 
 
+    /// compute the derivative of U2 wrt the displacement of atom A
+    class U2X_functor : public FunctionFunctorInterface<double,3> {
+        const NuclearCorrelationFactor* ncf;
+        const Atom& thisatom;
+        const int axis;
+    public:
+        U2X_functor(const NuclearCorrelationFactor* ncf, const Atom& atom1,
+                const int axis) : ncf(ncf), thisatom(atom1), axis(axis) {}
+
+        double operator()(const coord_3d& xyz) const {
+            const coord_3d vr1A=xyz-thisatom.get_coords();
+            const double r=vr1A.normf();
+            const double& Z=thisatom.q;
+
+            // note two sign change due to the change in the derivative
+            // variable x: electronic -> nuclear
+            // occurs for both drho/dx, and for dS/dX
+            const double drhodx=-ncf->smoothed_unitvec(vr1A)[axis];
+            return 0.5*drhodx*ncf->U2X_spherical(r,Z);
+        }
+
+        std::vector<coord_3d> special_points() const {
+            std::vector< madness::Vector<double,3> > c(1);
+            c[0][0]=thisatom.x;
+            c[0][1]=thisatom.y;
+            c[0][2]=thisatom.z;
+            return c;
+        }
+    };
+
+
+    /// compute the derivative of U3 wrt the displacement of atom A, coord axis
+
+    /// \f[
+    /// U_3^{X_A} = -\sum_{B\neq A}\left(\frac{\vec S_A'}{S_A}\right)^X\cdot\left(\frac{\vec S_B'}{S_B}\right)
+    /// \f]
+    /// with
+    /// \f[
+    /// \left(\frac{\vec S_A'}{S_A}\right)^X =
+    ///     \frac{\partial \rho}{\partial X}\left(\frac{S''_A}{S_A}
+    ///          -\left(\frac{S'_A}{S_A}\right)^2\right)\vec n_{1A}
+    ///     + \left(\frac{S'_A}{S_A}\right)\frac{\partial \vec n_{1A}}{\partial X}
+    /// \f]
+    class U3X_functor : public FunctionFunctorInterface<double,3> {
+        const NuclearCorrelationFactor* ncf;
+        const int iatom;
+        const int axis;
+    public:
+        U3X_functor(const NuclearCorrelationFactor* ncf, const int iatom,
+                const int axis) : ncf(ncf), iatom(iatom), axis(axis) {}
+
+        double operator()(const coord_3d& xyz) const {
+            const Atom& atomA=ncf->molecule.get_atom(iatom);
+            const coord_3d vr1A=xyz-atomA.get_coords();
+            const double r1A=vr1A.normf();
+            const double& ZA=atomA.q;
+
+            double S1A=ncf->Sr_div_S(r1A,ZA);
+            double S2A=ncf->Srr_div_S(r1A,ZA);
+            double termA=S2A-S1A*S1A;
+
+            // \frac{\partial \rho}{\partial X}
+            const double drhodx=-vr1A[axis]/r1A;
+
+            double term=0.0;
+            for (int jatom=0; jatom<ncf->molecule.natom(); ++jatom) {
+                if (iatom==jatom) continue;
+
+                const Atom& atomB=ncf->molecule.get_atom(jatom);
+                const coord_3d vr1B=xyz-atomB.get_coords();
+                const double r1B=vr1B.normf();
+                const double& ZB=atomB.q;
+
+                double S1B=ncf->Sr_div_S(r1B,ZB);
+
+                double dot=0.0;     // n_A.n_B
+                double dotd=0.0;    // n'_A.n_B
+                for (int i=0; i<3; ++i) {
+                    dotd+=ncf->smoothed_unitvec(vr1B)[axis]
+                               *ncf->dsmoothed_unitvec(vr1A,axis)[axis];
+                    dot+=ncf->smoothed_unitvec(vr1B)[axis]
+                               *ncf->smoothed_unitvec(vr1A)[axis];
+                }
+                term+=drhodx*termA*S1B*dot + S1A*S1B*dotd;
+
+            }
+
+            // note the sign change in front of dsmoothed_unitvec and drhodx due
+            // to the change in the derivative variable x: electronic -> nuclear
+            return -term;
+        }
+
+        std::vector<coord_3d> special_points() const {
+            return ncf->molecule.get_all_coords_vec();
+        }
+    };
+
 };
 
-#if 0
 
 /// A nuclear correlation factor class
 
@@ -559,6 +697,13 @@ private:
 			return (term1+term2)/S_inv;
     	}
 	}
+
+    double Sr_div_S(const double& r, const double& Z) const {throw;}
+    double Srr_div_S(const double& r, const double& Z) const {throw;}
+    double Srrr_div_S(const double& r, const double& Z) const {throw;}
+    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
+            const double& Z) const {throw;};
+    double U2X_spherical(const double& r, const double& Z) const {throw;};
 
 };
 
@@ -639,6 +784,13 @@ private:
             return num/denom;
         }
     }
+
+    double Sr_div_S(const double& r, const double& Z) const {throw;}
+    double Srr_div_S(const double& r, const double& Z) const {throw;}
+    double Srrr_div_S(const double& r, const double& Z) const {throw;}
+    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
+            const double& Z) const {throw;};
+    double U2X_spherical(const double& r, const double& Z) const {throw;};
 
 };
 
@@ -722,6 +874,13 @@ private:
         }
     }
 
+    double Sr_div_S(const double& r, const double& Z) const {throw;}
+    double Srr_div_S(const double& r, const double& Z) const {throw;}
+    double Srrr_div_S(const double& r, const double& Z) const {throw;}
+    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
+            const double& Z) const {throw;};
+    double U2X_spherical(const double& r, const double& Z) const {throw;};
+
 };
 
 
@@ -799,9 +958,16 @@ private:
 			return -num/denom;
     	}
 	}
+
+	double Sr_div_S(const double& r, const double& Z) const {throw;}
+    double Srr_div_S(const double& r, const double& Z) const {throw;}
+    double Srrr_div_S(const double& r, const double& Z) const {throw;}
+    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
+            const double& Z) const {throw;};
+    double U2X_spherical(const double& r, const double& Z) const {throw;};
+
 };
 
-#endif
 
 /// A nuclear correlation factor class
 class Slater : public NuclearCorrelationFactor {
@@ -915,9 +1081,47 @@ private:
     	}
     }
 
+
+    /// derivative of the U2 potential wrt X (scalar part)
+
+    /// with
+    /// \f[
+    ///   \rho = \left| \vec r- \vec R_A \right|
+    /// \f]
+    /// returns the term in the parenthesis without the the derivative of rho
+    /// \f[
+    /// \frac{\partial U_2}{\partial X_A} = -\frac{1}{2}\frac{\partial \rho}{\partial X}
+    ///           \left(\frac{S''' S - S'' S'}{S^2} - \frac{2}{\rho^2}\frac{S'}{S}
+    ///           + \frac{2}{\rho} \frac{S''S - S'^2}{S^2} -  2\frac{Z_A}{\rho^2}\right)
+    /// \f]
+    double U2X_spherical(const double& r, const double& Z) const {
+        const double a=a_param();
+
+        if (r*Z<1.e-4) {
+            const double ZZ=Z*Z;
+            const double ZZZ=ZZ*Z;
+            const double a2=a*a;
+            const double a4=a2*a2;
+            const double r0=ZZZ*(1.0- 2.*a+ a2);
+            const double r1=ZZ*ZZ*(2.0- 5.*a + (23.0*a2)/6. -(5.0*a2*a)/6.);
+            const double r2=ZZZ*ZZ*(24.0 - 72.*a + 74.*a2 - 29.*a2*a + 3.*a4)/8.0;
+            const double r3=ZZZ*ZZZ*(240.0 - 840.*a+ 1080.*a2- 610.*a*a2
+                            +137.*a4 - 7.0*a4*a)/60.;
+            return -2.0*(r0 + r*r1 + r*r*r2 + r*r*r*r3);
+
+        } else {
+            const double S1=Sr_div_S(r,Z);
+            const double S2=Srr_div_S(r,Z);
+            const double S3=Srrr_div_S(r,Z);
+            const double term1=S3-S1*S2;
+            const double term2=2.0/(r*r)*(S1+Z);
+            const double term3=2.0/r*(S2-S1*S1);
+            return term1-term2+term3;
+        }
+    }
+
 };
 
-#if 0
 
 /// A nuclear correlation factor class
 
@@ -1021,9 +1225,15 @@ private:
     	}
     }
 
+    double Sr_div_S(const double& r, const double& Z) const {throw;}
+    double Srr_div_S(const double& r, const double& Z) const {throw;}
+    double Srrr_div_S(const double& r, const double& Z) const {throw;}
+    double minus_Sr_div_rS_minus_Z_div_r(const double& r,
+            const double& Z) const {throw;};
+    double U2X_spherical(const double& r, const double& Z) const {throw;};
+
 };
 
-#endif
 class PseudoNuclearCorrelationFactor : public NuclearCorrelationFactor {
 
 public:
@@ -1098,6 +1308,11 @@ private:
     double Spp_div_S(const double& r, const double& Z) const {
     	return 0.0;
     }
+
+    double U2X_spherical(const double& r, const double& Z) const {
+        MADNESS_EXCEPTION("no U2X_spherical in Pseudo-NCF",1);
+    }
+
 };
 
 class SCF;
