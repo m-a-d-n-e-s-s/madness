@@ -570,29 +570,6 @@ real_function_3d Nemo::make_density(World& world, const Tensor<double>& occ,
     return rho;
 }
 
-/// rotate the KAIN subspace (cf. SCF.cc)
-template<typename solverT>
-void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
-        int lo, int nfunc) const {
-    std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
-    std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
-    for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
-        vecfuncT& v = ulist[iter].x;
-        vecfuncT& r = rlist[iter].x;
-        vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
-                trantol(), false);
-        vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,
-                trantol(), true);
-
-        world.gop.fence();
-        for (int i=0; i<nfunc; i++) {
-            v[i] = vnew[i];
-            r[i] = rnew[i];
-        }
-    }
-    world.gop.fence();
-}
-
 /// compute the nuclear gradients
 Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     START_TIMER(world);
@@ -1046,35 +1023,5 @@ Tensor<double> Nemo::massweights(const Molecule& molecule) const {
     }
     return M;
 }
-
-/// save a function
-template<typename T, size_t NDIM>
-void Nemo::save_function(const Function<T,NDIM>& f, const std::string name) const {
-    if (world.rank()==0) print("saving function",name);
-    f.print_size(name);
-    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
-    ar & f;
-}
-
-/// save a function
-template<typename T, size_t NDIM>
-void Nemo::save_function(const std::vector<Function<T,NDIM> >& f, const std::string name) const {
-    if (world.rank()==0) print("saving vector of functions",name);
-    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
-    ar & f.size();
-    for (const Function<T,NDIM>& ff:f)  ar & ff;
-}
-
-/// save a function
-template<typename T, size_t NDIM>
-void Nemo::load_function(std::vector<Function<T,NDIM> >& f, const std::string name) const {
-    if (world.rank()==0) print("loading vector of functions",name);
-    archive::ParallelInputArchive ar(world, name.c_str(), 1);
-    std::size_t fsize=0;
-    ar & fsize;
-    f.resize(fsize);
-    for (std::size_t i=0; i<fsize; ++i) ar & f[i];
-}
-
 
 } // namespace madness
