@@ -197,6 +197,66 @@ vecfuncT Nuclear::operator()(const vecfuncT& vket) const {
 }
 
 
+DNuclear::DNuclear(World& world, const SCF* calc, const int iatom, const int iaxis)
+    : world(world), iatom(iatom), iaxis(iaxis) {
+    ncf=std::shared_ptr<NuclearCorrelationFactor>(
+            new PseudoNuclearCorrelationFactor(world,
+            calc->molecule,calc->potentialmanager,1.0));
+}
+
+DNuclear::DNuclear(World& world, const Nemo* nemo, const int iatom, const int iaxis)
+           : world(world), iatom(iatom), iaxis(iaxis) {
+    ncf=nemo->nuclear_correlation;
+}
+
+vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
+
+    const static std::size_t NDIM=3;
+
+    // compute the U2 potential/ the derivative nuclear potential
+    NuclearCorrelationFactor::U2X_functor u2x(ncf.get(),iatom,iaxis);
+    real_function_3d u2x_f=real_factory_3d(world).functor2(u2x).truncate_on_project();
+    vecfuncT result=mul(world,u2x_f,vket);
+    truncate(world,result);
+
+    // add U1 and U3 potentials if the nuclear correlation factor exists
+    if (ncf->type() != NuclearCorrelationFactor::None) {
+
+        std::vector< std::shared_ptr<Derivative<double,NDIM> > > gradop =
+                gradient_operator<double,NDIM>(world);
+        reconstruct(world, vket);
+
+        // memory-saving algorithm: outer loop over the dimensions
+        // apply the derivative operator on each function for each dimension
+        for (std::size_t i=0; i<NDIM; ++i) {
+            std::vector<Function<double,NDIM> > dv=apply(world, *(gradop[i]), vket, true);
+            truncate(world,dv);
+
+            // note the two different axis: U1axis (i) and the derivative axis (iaxis)
+            // \frac{\partial U1_i}{\partial R_{A,iaxis}}
+            // e.g. d/dYA U1x
+            NuclearCorrelationFactor::U1X_functor u1x(ncf.get(),iatom,i,iaxis);
+            real_function_3d U1=real_factory_3d(world).functor2(u1x).truncate_on_project();
+            std::vector<Function<double,NDIM> > U1dv=mul(world,U1,dv);
+            truncate(world,U1dv);
+//            result=add(world,result,U1dv);
+            result=sub(world,result,U1dv);
+            truncate(world,result);
+        }
+
+        // add the U3X potential
+        NuclearCorrelationFactor::U3X_functor u3x(ncf.get(),iatom,iaxis);
+        real_function_3d u3x_f=real_factory_3d(world).functor2(u3x).truncate_on_project();
+        std::vector<Function<double,NDIM> > U3v=mul(world,u3x_f,vket);
+        result=sub(world,result,U3v);
+//        result=add(world,result,U3v);
+        truncate(world,result);
+    }
+
+    return result;
+}
+
+
 Exchange::Exchange(World& world, const SCF* calc, const int ispin)
         : world(world), small_memory_(true), same_(false) {
     if (ispin==0) { // alpha spin

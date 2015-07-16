@@ -142,8 +142,7 @@ int main(int argc, char** argv) {
     }
 
     // load the function of interest
-    std::string restart_name;
-    bool restart=false;
+    std::vector<std::string> filenames;
 
     for(int i = 1; i < argc; i++) {
         const std::string arg=argv[i];
@@ -153,9 +152,8 @@ int main(int argc, char** argv) {
         std::string key=arg.substr(0,pos);
         std::string val=arg.substr(pos+1);
 
-        if (key=="restart") {                               // usage: restart=path/to/mo_file
-            restart_name=stringify(val);
-            restart=true;
+        if (key=="file") {                               // usage: restart=path/to/mo_file
+            filenames.push_back(stringify(val));
         }
     }
 
@@ -177,17 +175,15 @@ int main(int argc, char** argv) {
 
     try {
         static const size_t NDIM=3;
-        Function<double,NDIM> pair;
-		load_function(world,pair,restart_name);
-		plot_plane(world,pair,restart_name);
-		draw_line(world,pair,restart_name);
+        std::vector<Function<double,NDIM> > vf(filenames.size());
+        for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
+		plot_plane(world,vf,filenames[0]);
     } catch (...) {
         try {
             static const size_t NDIM=6;
-            Function<double,NDIM> pair;
-    		load_function(world,pair,restart_name);
-    		plot_plane(world,pair,restart_name);
-    		draw_line(world,pair,restart_name);
+            std::vector<Function<double,NDIM> > vf(filenames.size());
+            for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
+            plot_plane(world,vf,filenames[0]);
         } catch (...) {
 
         }

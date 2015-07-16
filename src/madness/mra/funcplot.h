@@ -512,6 +512,24 @@ namespace madness {
         world.gop.fence();
     }
 
+    template<size_t NDIM>
+    void plot_plane(World& world, const Function<double,NDIM>& function,
+            const std::string name) {
+        typedef std::vector<Function<double,NDIM> > vecfuncT;
+        plot_plane(world,vecfuncT(1,function),name);
+    }
+
+    template<size_t NDIM>
+    void plot_plane(World& world, const Function<double,NDIM>& function1,
+            const Function<double,NDIM>& function2,
+            const std::string name) {
+        typedef std::vector<Function<double,NDIM> > vecfuncT;
+        vecfuncT vf(2);
+        vf[0]=function1;
+        vf[1]=function2;
+        plot_plane(world,vf,name);
+    }
+
 
     /// plot a 2-d slice of a given function and the according MRA structure
     /// FIXME: doesn't work for more than 1 rank
@@ -528,7 +546,7 @@ namespace madness {
     /// @param[in]	function	the function to plot
     /// @param[in]	name		the output name
     template<size_t NDIM>
-    void plot_plane(World& world, const Function<double,NDIM>& function,
+    void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfunction,
     		const std::string name) {
 
 		if (world.size()>1) return;
@@ -606,8 +624,12 @@ namespace madness {
         			coord[cc2]=lo+origin[cc2]+i1*stepsize;
 
         			// other electron
-        			fprintf(f,"%12.6f %12.6f %12.20f\n",coord[cc1],coord[cc2],
-        					function(coord));
+//        			fprintf(f,"%12.6f %12.6f %12.20f\n",coord[cc1],coord[cc2],
+//        					function(coord));
+                    fprintf(f,"%12.6f %12.6f",coord[cc1],coord[cc2]);
+                    for (std::size_t ivec=0; ivec<vfunction.size(); ++ivec)
+                        fprintf(f,"  %12.20f",vfunction[ivec](coord));
+                    fprintf(f,"\n");
 
         		}
         		// additional blank line between blocks for gnuplot
@@ -617,9 +639,9 @@ namespace madness {
 
         }
 
-        // plot mra structure
-    	filename="mra_structure_"+c1+c2+"_"+name;
-    	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
+//        // plot mra structure
+//    	filename="mra_structure_"+c1+c2+"_"+name;
+//    	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
     }
 
     template<size_t NDIM>

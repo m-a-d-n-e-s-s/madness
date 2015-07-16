@@ -203,6 +203,43 @@ private:
 };
 
 
+/// derivative of the (regularized) nuclear potential wrt nuclear displacements
+class DNuclear {
+public:
+
+    DNuclear(World& world, const SCF* calc, const int iatom, const int iaxis);
+
+    DNuclear(World& world, const Nemo* nemo, const int iatom, const int iaxis);
+
+    DNuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf,
+            const int iatom, const int iaxis)
+        : world(world), ncf(ncf), iatom(iatom), iaxis(iaxis) {}
+
+
+    real_function_3d operator()(const real_function_3d& ket) const {
+        vecfuncT vket(1,ket);
+        return this->operator()(vket)[0];
+    }
+
+    vecfuncT operator()(const vecfuncT& vket) const;
+
+    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+        return inner(bra,this->operator()(ket));
+    }
+
+    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        vecfuncT vVket=this->operator()(vket);
+        return matrix_inner(world,vbra,vVket);
+    }
+
+private:
+    World& world;
+    std::shared_ptr<NuclearCorrelationFactor> ncf;
+    int iatom;  ///< index of the atom which is displaced
+    int iaxis;  ///< x,y,z component of the atom
+
+};
+
 class Exchange {
 public:
 

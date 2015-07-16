@@ -185,18 +185,25 @@ public:
 	/// solve teh CPHF equation for all displacements
 	std::vector<vecfuncT> compute_all_cphf() const;
 
-    /// solve the CPHF equations for the nuclear displacements
-
-	/// works if no nuclear correlation factor is employed
-    /// @param[in]  iatom   the atom A to be moved
-    /// @param[in]  iaxis   the coordinate X of iatom to be moved
-    /// @return     \frac{\partial}{\partial X_A} \varphi
-    vecfuncT cphf_no_ncf(const int iatom, const int iaxis,
-            const Tensor<double> fock, const vecfuncT& guess=vecfuncT()) const;
-
     /// compute the perturbed density for CPHF
     real_function_3d compute_perturbed_density(const vecfuncT& mo,
             const vecfuncT& xi) const;
+
+    vecfuncT parallel_CPHF(const vecfuncT& nemoX, const vecfuncT& nemo,
+            const int iatom, const int iaxis) const;
+
+    /// reconstruct the perturbed orbitals xi given perturbed nemos
+
+    /// \f[
+    ///     |\xi_i> = R^X |F_i> + R |F^X_i>
+    /// \f]
+    /// @param[in] nemo     the nemo orbitals |F>
+    /// @param[in] nemoX    the perturbed nemo orbitals |F^X>
+    /// @param[in] iatom    the atom displacement for the perturbation
+    /// @param[in] iaxis    the direction of the perturbation
+    /// @return the perturbed orbitals |xi> = |\phi^X>
+    vecfuncT reconstruct_xi(const vecfuncT& nemo, const vecfuncT& nemoX,
+            const int iatom, const int iaxis) const;
 
 	/// returns the vibrational frequencies
 
