@@ -113,8 +113,8 @@ struct refpotfunctor {
 /// will write a test input and remove it from disk upon destruction
 struct write_test_input {
 
-//    double eprec=FunctionDefaults<3>::get_thresh()*0.1;
-    double eprec=1.e-3;
+    double eprec=FunctionDefaults<3>::get_thresh()*0.1;
+//    double eprec=1.e-5;
 
     std::string filename_;
     write_test_input() : filename_("test_input") {
@@ -512,7 +512,7 @@ int test_SCF(World& world) {
 int test_nemo(World& world) {
     FunctionDefaults<3>::set_thresh(1.e-5);
     double thresh=FunctionDefaults<3>::get_thresh();
-    if (world.rank()==0) print("\nentering test_SCF",thresh);
+    if (world.rank()==0) print("\nentering test_nemo",thresh);
 
     write_test_input test_input;
     std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));

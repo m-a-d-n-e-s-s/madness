@@ -88,7 +88,7 @@ namespace madness {
 class NuclearCorrelationFactor {
 public:
 	enum corrfactype {None, GradientalGaussSlater, GaussSlater, LinearSlater,
-	    U2Smooth, Polynomial, Slater, Two};
+	    Polynomial, Slater, Two};
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 	/// ctor
@@ -310,6 +310,9 @@ public:
     /// \f]
 	coord_3d smoothed_unitvec(const coord_3d& xyz, double smoothing=0.0) const {
 	    if (smoothing==0.0) smoothing=molecule.get_eprec();
+	    // TODO:need to test this
+	    // reduce the smoothing for the unitvector
+	    if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
 	    const double r=xyz.normf();
 	    const double rs=r/smoothing;
         if (r<1.e-4) {
@@ -347,6 +350,9 @@ public:
 
 	    const double r=xyz.normf();
         if (smoothing==0.0) smoothing=molecule.get_eprec();
+        // TODO:need to test this
+        // reduce the smoothing for the unitvector
+        if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
 
         coord_3d result;
         const double rs=r/smoothing;
@@ -418,8 +424,8 @@ public:
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
 				const double& Z=atom.q;
-				result-=(ncf->Sp(vr1A,Z)[axis]/ncf->S(r,Z));
-//				result-=ncf->Sr_div_S(r,Z)*ncf->smoothed_unitvec(vr1A)[axis];
+//				result-=(ncf->Sp(vr1A,Z)[axis]/ncf->S(r,Z));
+				result-=ncf->Sr_div_S(r,Z)*ncf->smoothed_unitvec(vr1A)[axis];
 			}
 			return result;
 		}
