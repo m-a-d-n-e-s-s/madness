@@ -267,9 +267,9 @@ namespace madness {
             std::stringstream ss(mad_recv_buffs);
             ss >> nrecv_;
             // Check that the number of receive buffers is reasonable.
-            if(nrecv_ < (int)DEFAULT_NRECV) {
+            if(nrecv_ < 32) {
                 nrecv_ = DEFAULT_NRECV;
-                std::cerr << "!!! WARNING: MAD_RECV_BUFFERS must be at least " << DEFAULT_NRECV << ".\n"
+                std::cerr << "!!! WARNING: MAD_RECV_BUFFERS must be at least 32.\n"
                           << "!!! WARNING: Increasing MAD_RECV_BUFFERS to " << nrecv_ << ".\n";
             }
             maxq_ = nrecv_ + 1;

@@ -59,9 +59,9 @@ namespace madness {
             std::stringstream ss(mad_send_buffs);
             ss >> nsend;
             // Check that the number of send buffers is reasonable.
-            if(nsend < DEFAULT_NSEND) {
+            if(nsend < 32) {
                 nsend = DEFAULT_NSEND;
-                std::cerr << "!!! WARNING: MAD_SEND_BUFFERS must be at least " << DEFAULT_NSEND << ".\n"
+                std::cerr << "!!! WARNING: MAD_SEND_BUFFERS must be at least 32.\n"
                           << "!!! WARNING: Increasing MAD_SEND_BUFFERS to " << nsend << ".\n";
             }
         }
