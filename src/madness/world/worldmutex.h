@@ -35,6 +35,7 @@
 
 #include <madness/madness_config.h>
 #include <pthread.h>
+#include <cstdio>
 #ifdef ON_A_MAC
 #include <libkern/OSAtomic.h>
 typedef OSSpinLock pthread_spinlock_t;
