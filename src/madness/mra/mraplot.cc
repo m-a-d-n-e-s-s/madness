@@ -158,7 +158,7 @@ public:
     std::string read_to_end_of_line(std::istream& input) {
         std::string buf;
         while (1) {
-            int c = input.get();
+            char c = input.get();
             if (c == '\n') break;
             buf.append(1, c);
         }

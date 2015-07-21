@@ -87,7 +87,7 @@ struct Qfunc : public FunctionFunctorInterface<double,3> {
 template <typename T>
 int test_bsh(World& world) {
     double mu = 1.0;
-    std::vector<long> npt(3,201);
+    std::vector<long> npt(3,201l);
     typedef Vector<double,3> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,3> > functorT;
 

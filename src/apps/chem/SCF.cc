@@ -348,7 +348,7 @@ namespace madness {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         
-        std::vector<long> npt(3, param.npt_plot);
+        std::vector<long> npt(3, static_cast<long>(param.npt_plot));
         
         if (param.plot_cell.size() == 0)
             param.plot_cell = copy(FunctionDefaults < 3 > ::get_cell());
@@ -1049,7 +1049,7 @@ namespace madness {
     		const tensorT& occ, const int nmo) const {
         PROFILE_MEMBER_FUNC(SCF);
 
-    	std::vector<int> set = std::vector<int>(nmo, 0);
+    	std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
         for (int i = 1; i < nmo; ++i) {
             set[i] = set[i - 1];
             if (eps[i] - eps[i - 1] > 1.5 || occ[i] != 1.0) ++(set[i]);
@@ -1410,7 +1410,7 @@ namespace madness {
         tensorT mu(3);
 
         for (unsigned int axis = 0; axis < 3; ++axis) {
-            std::vector<int> x(3, 0);
+            std::vector<int> x(3ul, 0);
             x[axis] = true;
             functionT dipolefunc = factoryT(world)
                     .functor(functorT(new MomentFunctor(x)));
