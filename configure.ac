@@ -98,6 +98,8 @@ AC_LANG_POP
 # Initialize Libtools (for shared libraries)
 LT_INIT
 LT_LANG([C++])
+AC_SUBST(enable_shared)
+AC_SUBST(enable_static)
   
 ACX_DETECT_CXX
 # Check for C++11 support, and

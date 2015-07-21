@@ -96,7 +96,12 @@ namespace mu
       }
 
       virtual std::string do_grouping() const 
-      {
+      { 
+        // fix for issue 4: https://code.google.com/p/muparser/issues/detail?id=4
+        // courtesy of Jens Bartsch
+        // original code:
+        //        return std::string(1, (char)m_nGroup);
+        // new code:
         return std::string(1, (char)(m_cThousandsSep > 0 ? m_nGroup : std::numeric_limits<char>::max()));
       }
 
