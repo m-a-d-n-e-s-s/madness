@@ -28,6 +28,7 @@
 //--- Standard includes ------------------------------------------------------------------------
 #include <vector>
 #include <locale>
+#include <limits>
 
 //--- Parser includes --------------------------------------------------------------------------
 #include "muParserBase.h"
@@ -81,7 +82,7 @@ namespace mu
         ,m_cDecPoint(cDecSep)
         ,m_cThousandsSep(cThousandsSep)
       {}
-      
+
     protected:
       
       virtual char_type do_decimal_point() const
@@ -95,8 +96,8 @@ namespace mu
       }
 
       virtual std::string do_grouping() const 
-      { 
-        return std::string(1, m_nGroup); 
+      {
+        return std::string(1, (char)(m_cThousandsSep > 0 ? m_nGroup : std::numeric_limits<char>::max()));
       }
 
     private:
