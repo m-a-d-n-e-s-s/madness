@@ -341,7 +341,7 @@ public:
 	///  x y \left(\frac{2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s}
 	///    -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}\right),
 	///  x z \left(\frac{2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s}
-	///    -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}}\right)\right\}
+	///    -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}\right)\right\}
 	/// \f]
 	coord_3d dsmoothed_unitvec(const coord_3d& xyz, const int axis,
             double smoothing=0.0) const {
@@ -1352,5 +1352,3 @@ create_nuclear_correlation_factor(World& world, const SCF& calc);
 
 }
 #endif /* NUCLEARCORRELATIONFACTOR_H_ */
-
-
