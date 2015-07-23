@@ -162,23 +162,6 @@ screen.F
 timer.f
 yacobi.F
 
-./src/apps/moldft/fci/doc:
-bibstuff.tex
-commands.tex
-matrixelements.tex
-matrixelements.toc
-mspingraph.eps
-mspingraph.fig
-orbitalarcs.eps
-orbitalarcs.fig
-orbitalgraph.eps
-orbitalgraph.fig
-psfig.sty
-spinarcs.eps
-spinarcs.fig
-spingraph.eps
-spingraph.fig
-
 ./src/apps/tdse:
 tdse.cc
 tdse.confused.cc
