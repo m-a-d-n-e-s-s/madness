@@ -59,8 +59,8 @@ protected:
     /// \f[
     /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
     ///   \begin{array}{ll}
-    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}} 
-    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} 
+    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}} \\
+    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\
     ///     x                                      & x_{\mathrm{max}} < x
     ///   \end{array}
     /// \right.
@@ -127,8 +127,8 @@ private:
         }*/
 
         // new 'ratio' threshold' - still need to ensure rho and sigma don't go negative
-        if (rho < 0.0 || 
-            sigma < 0.0 || 
+        if (rho < 0.0 ||
+            sigma < 0.0 ||
             (rho<1e-2 && (sigma/(rho*rho)>10000.0))) {
                 rho = rhomin;
                 sigma = sigmin;
