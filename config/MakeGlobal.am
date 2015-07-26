@@ -30,31 +30,31 @@ LIBGTEST_LIBS = $(GTEST_LDFLAGS) $(GTEST_LIBS)
 
 # External library targets
 $(LIBGTEST):
-	make -C $(LIBGTESTDIR) libMADgtest.la
+	$(MAKE) -C $(LIBGTESTDIR) libMADgtest.la
 
 $(LIBTINYXML):
-	make -C $(LIBTINYXMLDIR) libMADtinyxml.la
+	$(MAKE) -C $(LIBTINYXMLDIR) libMADtinyxml.la
 
 $(LIBMUPARSER):
-	make -C $(LIBMUPARSERDIR) libMADmuparser.la
+	$(MAKE) -C $(LIBMUPARSERDIR) libMADmuparser.la
 
 # MADNESS library targets
 $(LIBWORLD): 
-	make -C $(LIBWORLDDIR) libMADworld.la
+	$(MAKE) -C $(LIBWORLDDIR) libMADworld.la
 
 $(LIBMISC): $(LIBWORLD)
-	make -C $(LIBMISCDIR) libMADmisc.la
+	$(MAKE) -C $(LIBMISCDIR) libMADmisc.la
 
 $(LIBTENSOR): $(LIBMISC)
-	make -C $(LIBTENSORDIR) libMADtensor.la
+	$(MAKE) -C $(LIBTENSORDIR) libMADtensor.la
 
 $(LIBLINALG): $(LIBTENSOR)
-	make -C $(LIBTENSORDIR) libMADlinalg.la
+	$(MAKE) -C $(LIBTENSORDIR) libMADlinalg.la
 
 
 $(LIBMRA): $(LIBLINALG)
-	make -C $(LIBMRADIR) libMADmra.la
+	$(MAKE) -C $(LIBMRADIR) libMADmra.la
 
 $(LIBCHEM): $(LIBMRA)
-	make -C $(LIBCHEMDIR) libMADchem.la
+	$(MAKE) -C $(LIBCHEMDIR) libMADchem.la
 
