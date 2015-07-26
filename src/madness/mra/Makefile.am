@@ -89,7 +89,7 @@ testgaxpyext_mpi_SOURCES = testgaxpyext.cc
 #testop2_SOURCES = testop2.cc
 
 
-libraries:	$(lib_LIBRARIES)
+libraries:	$(lib_LTLIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 
 install-libraries: install-libLTLIBRARIES install-thisincludeHEADERS
