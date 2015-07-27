@@ -563,6 +563,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	xfunction.iterations += 1;
 
+
 	// Add the nuclear potential
 	TDA_TIMER VNUC(world,"Adding nuclear potential to xfunction ");
 	vecfuncT Vpsi = add(world,apply_nuclear_potential(xfunction),xfunction.smooth_potential);
@@ -571,12 +572,21 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	double omega = xfunction.omega;
 	if(Vpsi.empty()) MADNESS_EXCEPTION("ERROR in iterate_one function: Applied potential of xfunction is empty",1);
 
+	if(not use_omega_for_bsh_){
+	truncate(world, Vpsi); // no fence
+	vecfuncT omegapsi = xfunction.x;
+	scale(world,omegapsi,-omega);
+	Vpsi = add(world,Vpsi,omegapsi);
+	}
 	truncate(world, Vpsi); // no fence
 	scale(world, Vpsi, -2.0);
 
+
+
 	std::vector<poperatorT> bsh(active_mo_.size());
 	for (size_t p = 0; p < active_mo_.size(); p++) {
-		double eps = active_eps(p) + omega;
+		double eps = active_eps(p);// + omega;
+		if(use_omega_for_bsh_) eps += omega;
 		if (eps > 0) {
 			if (world.rank() == 0)
 				print("bsh: warning: positive eigenvalue", p + nfreeze_, eps);
@@ -616,6 +626,7 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 
 std::string TDA::update_energy(xfunction &xfunction)const {
 	double thresh = FunctionDefaults<3>::get_thresh();
+	if(use_omega_for_bsh_){
 	//failsafe: make shure the delta and expectation values vectors are not empty to avoid segmentation faults
 	if(not xfunction.delta.empty() and not xfunction.expectation_value.empty() and not xfunction.error.empty()) {
 		if(xfunction.expectation_value.back() < highest_excitation_) {
@@ -636,6 +647,11 @@ std::string TDA::update_energy(xfunction &xfunction)const {
 		}
 
 	}else return "(no energies)";
+
+	}else{
+		xfunction.omega = xfunction.expectation_value.back();
+		return "(omega not used for BSH, no second order update possible -> use expectation value)";
+	}
 }
 
 void TDA::normalize(xfunctionsT & xfunctions)const {
@@ -1169,6 +1185,8 @@ double TDA::oscillator_strength_velocity(const xfunction& root) const {
 }
 
 void TDA::analyze(xfunctionsT& roots) const {
+
+	std::cout << "\n\n!!!!!WARNING: Analyze not correct if nuclear correlation factors are used!!!!!!\n\n" << std::endl;
 
 	const size_t noct=active_mo_.size();
 

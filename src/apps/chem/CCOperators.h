@@ -241,22 +241,19 @@ public:
 		for(size_t axis=0;axis<3;axis++){
 			// make all gradients
 			std::vector<vecfuncT> dx,dR2x;
+			size_t i=0;
 			for(auto xi:x){
 				const vecfuncT dxi = apply(world, *(gradop[axis]), xi);
 				dx.push_back(dxi);
 				if(use_nuclear_correlation_factor_){
 					const vecfuncT dR2xi = apply(world, *(gradop[axis]), mul(world,R2,xi));
+					plot_plane(world,dR2xi.back(),"R2xi"+stringify(i)+"_"+stringify(axis));
 					dR2x.push_back(dR2xi);
-				}
+				}i++;
 			}
 			for(size_t i=0;i<x.size();i++){
 				for(size_t j=0;j<x.size();j++){
-					if(use_nuclear_correlation_factor_){
-//						vecfuncT dR2xi = mul(world,dR2[axis],x[i]);
-//						truncate(world,dR2xi);
-//						result(i,j) += 0.5*inner(world,dR2xi,dx[j]).sum();
-						result(i,j) += 0.5*inner(world,dR2x[j],dx[i]).sum();
-					}
+					if(use_nuclear_correlation_factor_) result(i,j) += 0.5*inner(world,dR2x[j],dx[i]).sum();
 					else result(i,j) += 0.5*inner(world,dx[j],dx[i]).sum();
 				}
 			}

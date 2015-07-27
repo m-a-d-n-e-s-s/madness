@@ -437,7 +437,8 @@ public:
 		kain_subspace_(3),
 		shift_(0.0),
 		orbital_energies_(nemo.get_calc()->aeps),
-		triplet_(false)
+		triplet_(false),
+		use_omega_for_bsh_(true)
 {
 		setup(mos,input);
 }
@@ -767,6 +768,9 @@ private:
 
 	/// Calculate triplets
 	bool triplet_;
+
+	/// Use the excitation energy in the BSH operator (if not it is added to the potential)
+	bool use_omega_for_bsh_;
 
 	/// Print the current xfunctions in a formated way
 	/// @param[in] xfunctions a vector of xfunction structures
