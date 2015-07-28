@@ -58,7 +58,7 @@ AC_DEFUN([ACX_WITH_TBB], [
           CPPFLAGS="$CPPFLAGS -I$withval/include"
         fi
         if test "$acx_with_tbb_lib" == no; then
-          LIBS="$LIBS -L$withval/lib"
+          LIBS="$LIBS -L$withval/lib/intel64/gcc4.4 -L$withval/lib"
         fi
         acx_with_tbb="yes"
       esac
