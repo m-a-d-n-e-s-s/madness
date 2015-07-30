@@ -453,7 +453,7 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 
 	// make big fock diagonalization
 	orthonormalize_fock(all_xfunctions);
-
+	if(iterating_excitations_ > all_xfunctions.size()) iterating_excitations_=all_xfunctions.size();
 	std::sort(all_xfunctions.begin(),all_xfunctions.end());
 	print_status(all_xfunctions);
 	xfunctionsT xfunctions(all_xfunctions.begin(),all_xfunctions.begin()+iterating_excitations_);

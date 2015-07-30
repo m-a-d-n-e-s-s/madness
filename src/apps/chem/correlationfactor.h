@@ -312,7 +312,8 @@ public:
 	    if (smoothing==0.0) smoothing=molecule.get_eprec();
 	    // TODO:need to test this
 	    // reduce the smoothing for the unitvector
-	    if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
+	    //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
+	    smoothing=sqrt(smoothing);
 	    const double r=xyz.normf();
 	    const double rs=r/smoothing;
         if (r<1.e-4) {
@@ -351,7 +352,8 @@ public:
         if (smoothing==0.0) smoothing=molecule.get_eprec();
         // TODO:need to test this
         // reduce the smoothing for the unitvector
-        if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
+        //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
+        smoothing=sqrt(smoothing);
 
         coord_3d result;
         const double rs=r/smoothing;

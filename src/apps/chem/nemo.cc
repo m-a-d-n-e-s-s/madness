@@ -107,7 +107,7 @@ double Nemo::value(const Tensor<double>& x) {
     calc->dipole(world,rho);
 
     // compute the hessian
-    gradient(x);
+    //gradient(x);
     if (calc->param.hessian) hessian(x);
 
     // compute stuff
