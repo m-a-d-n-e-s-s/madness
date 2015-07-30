@@ -48,7 +48,7 @@ namespace madness {
 
                 // An unlikely case in MADNESS ...
 //                case EINVAL:
-//                    printf("!! MADNESS ERROR: Mutex error EINVAL\n"
+//                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EINVAL\n"
 //                           "!! MADNESS ERROR: The mutex was created with the "
 //                           "protocol attribute having the value PTHREAD_PRIO_PROTECT "
 //                           "and the calling thread's priority is higher than "
@@ -58,7 +58,7 @@ namespace madness {
                 // The pthread_mutex_trylock() function shall fail if:
 
                 case EBUSY:
-                    printf("!! MADNESS ERROR: Mutex error EBUSY\n"
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EBUSY\n"
                            "!! MADNESS ERROR: The mutex could not be acquired "
                            "because it was already locked.\n");
                     break;
@@ -67,13 +67,13 @@ namespace madness {
                 // pthread_mutex_unlock() functions may fail if:
 
                 case EINVAL:
-                    printf("!! MADNESS ERROR: Mutex error EINVAL\n"
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EINVAL\n"
                            "!! MADNESS ERROR: The value specified by mutex does"
                            " not refer to an initialized mutex object.\n");
                     break;
 
                 case EAGAIN:
-                    printf("!! MADNESS ERROR: Mutex error EAGAIN\n"
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EAGAIN\n"
                            "!! MADNESS ERROR: The mutex could not be acquired "
                            "because the maximum number of recursive locks for "
                            "mutex has been exceeded.\n");
@@ -82,19 +82,19 @@ namespace madness {
                 // The pthread_mutex_lock() function may fail if:
 
                 case EDEADLK:
-                    printf("!! MADNESS ERROR: Mutex error EDEADLK\n"
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EDEADLK\n"
                            "!! MADNESS ERROR: The current thread already owns the mutex.\n");
                     break;
 
                 // The pthread_mutex_unlock() function may fail if:
 
                 case EPERM:
-                    printf("!! MADNESS ERROR: Mutex error EPERM\n"
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EPERM\n"
                            "!! MADNESS ERROR: The current thread does not own the mutex.\n");
                     break;
 
                 default:
-                    printf("!! MADNESS ERROR: Mutex error UNKNOWN\n");
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error UNKNOWN\n");
                     break;
             }
         }

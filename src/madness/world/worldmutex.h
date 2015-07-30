@@ -125,7 +125,7 @@ namespace madness {
         void lock() const {
             const int result = pthread_mutex_lock(&mutex);
             if (result) {
-                printf("!! MADNESS ERROR: Mutex::lock() failed acquiring mutex\n");
+                fprintf(stderr, "!! MADNESS ERROR: Mutex::lock() failed acquiring mutex\n");
                 detail::print_mutex_error(result);
                 MADNESS_EXCEPTION("Mutex::lock() failed acquiring mutex", result);
             }
@@ -135,7 +135,7 @@ namespace madness {
         void unlock() const {
             const int result = pthread_mutex_unlock(&mutex);
             if (result) {
-                printf("!! MADNESS ERROR: Mutex::unlock() failed releasing mutex\n");
+                fprintf(stderr, "!! MADNESS ERROR: Mutex::unlock() failed releasing mutex\n");
                 detail::print_mutex_error(result);
                 MADNESS_EXCEPTION("Mutex::unlock() failed releasing mutex", result);
             }
@@ -175,7 +175,7 @@ namespace madness {
         void lock() const {
             int result = pthread_mutex_lock(&mutex);
             if (result) {
-                printf("!! MADNESS ERROR: RecursiveMutex::lock() failed acquiring mutex\n");
+                fprintf(stderr, "!! MADNESS ERROR: RecursiveMutex::lock() failed acquiring mutex\n");
                 detail::print_mutex_error(result);
                 MADNESS_EXCEPTION("RecursiveMutex::lock() failed acquiring mutex", result);
             }
@@ -185,7 +185,7 @@ namespace madness {
         void unlock() const {
             int result = pthread_mutex_unlock(&mutex);
             if (result) {
-                printf("!! MADNESS ERROR: RecursiveMutex::unlock() failed releasing mutex\n");
+                fprintf(stderr, "!! MADNESS ERROR: RecursiveMutex::unlock() failed releasing mutex\n");
                 detail::print_mutex_error(result);
                 MADNESS_EXCEPTION("RecursiveMutex::unlock() failed releasing mutex", result);
             }
@@ -247,7 +247,7 @@ namespace madness {
         void lock() const {
             int result = pthread_spin_lock(&spinlock);
             if (result) {
-                printf("!! MADNESS ERROR: Spinlock::lock() failed acquiring spinlock\n");
+                fprintf(stderr, "!! MADNESS ERROR: Spinlock::lock() failed acquiring spinlock\n");
                 detail::print_mutex_error(result);
                 MADNESS_EXCEPTION("Spinlock::lock() failed acquiring spinlock", result);
             }
@@ -257,7 +257,7 @@ namespace madness {
         void unlock() const {
             int result = pthread_spin_unlock(&spinlock);
             if (result) {
-                printf("!! MADNESS ERROR: Spinlock::unlock() failed releasing spinlock\n");
+                fprintf(stderr, "!! MADNESS ERROR: Spinlock::unlock() failed releasing spinlock\n");
                 detail::print_mutex_error(result);
                 MADNESS_EXCEPTION("Spinlock::unlock() failed releasing spinlock", result);
             }
@@ -606,7 +606,7 @@ namespace madness {
         void lock() const {
             int result = pthread_mutex_lock(&mutex);
             if (result) {
-                printf("!! MADNESS ERROR: PthreadConditionVariable::lock() failed acquiring mutex\n");
+                fprintf(stderr, "!! MADNESS ERROR: PthreadConditionVariable::lock() failed acquiring mutex\n");
                 detail::print_mutex_error(result);
                 MADNESS_EXCEPTION("PthreadConditionVariable::lock() failed acquiring mutex", result);
             }
@@ -615,7 +615,7 @@ namespace madness {
         void unlock() const {
             int result = pthread_mutex_unlock(&mutex);
             if (result) {
-                printf("!! MADNESS ERROR: PthreadConditionVariable::unlock() failed releasing mutex\n");
+                fprintf(stderr, "!! MADNESS ERROR: PthreadConditionVariable::unlock() failed releasing mutex\n");
                 detail::print_mutex_error(result);
                 MADNESS_EXCEPTION("PthreadConditionVariable::unlock() failed releasing mutex", result);
             }
