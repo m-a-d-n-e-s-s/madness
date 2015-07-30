@@ -433,12 +433,16 @@ public:
 		//on_the_fly_(true),
 		//xclib_interface_(world,calc),
 		ipot_(0.0),
+		orbital_energies_(nemo.get_calc()->aeps),
 		kain_(false),
 		kain_subspace_(3),
 		shift_(0.0),
-		orbital_energies_(nemo.get_calc()->aeps),
 		triplet_(false),
-		use_omega_for_bsh_(true)
+		use_omega_for_bsh_(true),
+		compute_virtuals_(false),
+		guess_thresh_(10.0*nemo.get_calc()->param.dconv),
+		solve_thresh_(nemo.get_calc()->param.dconv),
+		solve_sequential_thresh_(nemo.get_calc()->param.dconv)
 {
 		setup(mos,input);
 }
@@ -496,7 +500,18 @@ public:
 			else if (tag == "kain_subspace") ss>> kain_subspace_;
 			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "triplet") triplet_=true;
+			else if (tag == "compute_virtuals") compute_virtuals_ = true;
+			else if (tag == "solve_sequential_thresh") ss>>solve_sequential_thresh_;
+			else if (tag == "solve_thresh") ss >> solve_thresh_;
+			else if (tag == "guess_thresh") ss >> guess_thresh_;
 			else continue;
+		}
+		if(compute_virtuals_){
+			if(nfreeze_ != mos.size()-1){
+				if(world.rank()==0) std::cout << "Virtual orbital calculation demanded: Freeze Key is set to number_of_mos -1 which is " << mos.size()-1 << std::endl;
+				nfreeze_ = mos.size()-1;
+				guess_omega_ = -0.98*orbital_energies_[noct-1];
+			}
 		}
 
 		// this will be the case if guess_excitations are not assigned
@@ -596,6 +611,14 @@ public:
 		truncate(world,mos_);
 		if(world.rank()==0)std::cout << "setup of TDA class ended\n" << std::endl;
 
+		if(compute_virtuals_){
+			if(world.rank()==0){
+				std::cout << "\nCOMPUTE VIRTUAL ORBITALS\n";
+				if(active_mo_.size()!=1) std::cout << "\nWARNING: Active MOs are larger than one, for virtuals only one entry in the excitation vector is needed "
+						"-> save time and use the freeze keyword to freeze the rest\n";
+			}
+
+		}
 	}
 
 	//virtual ~TDA();
@@ -772,6 +795,14 @@ private:
 	/// Use the excitation energy in the BSH operator (if not it is added to the potential)
 	bool use_omega_for_bsh_;
 
+	/// Compute virtual orbitals, the freeze_ key should then be set to (all_mos)-1
+	bool compute_virtuals_;
+
+	/// The thresholds for the guess, solve and sequential calculation
+	double guess_thresh_;
+	double solve_thresh_;
+	double solve_sequential_thresh_;
+
 	/// Print the current xfunctions in a formated way
 	/// @param[in] xfunctions a vector of xfunction structures
 	void print_status(const xfunctionsT & xfunctions)const;
@@ -920,6 +951,10 @@ private:
 
 	void memory_information(const xfunctionsT &xfunctions)const;
 public:
+	/// get the threshholds
+	double get_guess_thresh(){return guess_thresh_;}
+	double get_solve_thresh(){return solve_thresh_;}
+	double get_solve_sequential_thresh(){return solve_sequential_thresh_;}
 	/// analyze the root: oscillator strength and contributions from occ
 	void analyze(xfunctionsT& roots) const;
 	/// Project a vecfuncT to the ao basis (used to create projected MOs for the guess calculation)

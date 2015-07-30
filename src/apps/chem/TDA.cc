@@ -213,6 +213,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 
 void TDA::print_status(const xfunctionsT & xfunctions) const {
 	if(world.rank()==0){
+		if(compute_virtuals_) std::cout << "\nVirtual orbitals: Energy is omega + epsilon\n";
 		std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
 		<< "error"<<std::setw(20)
 		<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
@@ -1053,7 +1054,13 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 // The smooth potential is the potential without the nuclear potential
 // The nuclear potential has to be calculated sepparately
 vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction) const{
-	vecfuncT smooth_potential = CCOPS_.get_CIS_potential_singlet(xfunction.x);
+	std::cout << "\nPotential for virtuals: J-K , Vnuc is added later\n";
+	vecfuncT smooth_potential;
+	if(compute_virtuals_){
+		smooth_potential=CCOPS_.fock_residue_closed_shell(xfunction.x);
+	}else{
+		smooth_potential = CCOPS_.get_CIS_potential_singlet(xfunction.x);
+	}
 	truncate(world,smooth_potential);
 	return smooth_potential;
 }

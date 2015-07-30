@@ -140,6 +140,7 @@ public:
 		return add(world,fock_residue_closed_shell(x),add(world,S3CX,S3CC));
 	}
 
+
 	// get the ground state density
 	real_function_3d make_density()const{
 		return make_density(mo_bra_,mo_ket_);
