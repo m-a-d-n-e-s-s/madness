@@ -212,12 +212,14 @@ DNuclear::DNuclear(World& world, const Nemo* nemo, const int iatom, const int ia
 vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
 
     const static std::size_t NDIM=3;
+    const double vthresh=FunctionDefaults<NDIM>::get_thresh()*0.1;
 
     // compute the U2 potential/ the derivative nuclear potential
     NuclearCorrelationFactor::U2X_functor u2x(ncf.get(),iatom,iaxis);
-    real_function_3d u2x_f=real_factory_3d(world).functor2(u2x).truncate_on_project();
+    real_function_3d u2x_f=real_factory_3d(world).functor2(u2x)
+            .thresh(vthresh).truncate_on_project();
     vecfuncT result=mul(world,u2x_f,vket);
-    truncate(world,result);
+    truncate(world,result,vthresh);
 
     // add U1 and U3 potentials if the nuclear correlation factor exists
     if (ncf->type() != NuclearCorrelationFactor::None) {
@@ -239,7 +241,6 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
             real_function_3d U1=real_factory_3d(world).functor2(u1x).truncate_on_project();
             std::vector<Function<double,NDIM> > U1dv=mul(world,U1,dv);
             truncate(world,U1dv);
-//            result=add(world,result,U1dv);
             result=sub(world,result,U1dv);
             truncate(world,result);
         }
@@ -249,9 +250,9 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
         real_function_3d u3x_f=real_factory_3d(world).functor2(u3x).truncate_on_project();
         std::vector<Function<double,NDIM> > U3v=mul(world,u3x_f,vket);
         result=sub(world,result,U3v);
-//        result=add(world,result,U3v);
         truncate(world,result);
     }
+    truncate(world,result);
 
     return result;
 }

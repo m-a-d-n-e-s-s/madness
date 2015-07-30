@@ -305,8 +305,8 @@ public:
 
     /// taken from http://www.gaussian.com/g_whitepap/vib.htm
     /// I don't really understand the concept behind the projectors, but it
-    /// seems to work, and it is not written down explicitly anywhere!
-    /// All quantities are computed in non-mass-weighted coordinates.
+    /// seems to work, and it is not written down explicitly anywhere.
+    /// NOTE THE ERROR IN THE FORMULAS ON THE WEBPAGE !
     static Tensor<double> projector_external_dof(Molecule& mol) {
 
         // compute the translation vectors

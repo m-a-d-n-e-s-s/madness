@@ -240,9 +240,9 @@ double Nemo::solve() {
 		}
 
 		double oldenergy=energy;
-//		energy = compute_energy(psi, mul(world, R, Jnemo),
-//				mul(world, R, Knemo));
-        energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
+		energy = compute_energy(psi, mul(world, R, Jnemo),
+				mul(world, R, Knemo));
+//        energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
 
         // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
         tensorT U;
