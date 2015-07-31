@@ -132,7 +132,7 @@ real_function_3d Coulomb::compute_potential(const madness::SCF* calc) const {
 
 /// same as above, but with the additional factor R^2 in the density
 real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
-    real_function_3d density=nemo->make_density(world,nemo->get_calc()->aocc,
+    real_function_3d density=nemo->make_density(nemo->get_calc()->aocc,
             nemo->get_calc()->amo);
     if (nemo->get_calc()->is_spin_restricted()) {
         density.scale(2.0);
@@ -141,6 +141,7 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
                 nemo->get_calc()->get_bocc(),nemo->get_calc()->get_bmo());
         density+=brho;
     }
+    density=density*R_square;
     density.truncate();
     return nemo->get_calc()->make_coulomb_potential(density);
 }
@@ -399,9 +400,11 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
 
     // compute the alpha and beta densities
     real_function_3d arho,brho;
-    arho=nemo->make_density(world,nemo->get_calc()->aocc,nemo->get_calc()->amo);
+    arho=nemo->make_density(nemo->get_calc()->aocc,nemo->get_calc()->amo);
+    arho=(arho*nemo->R_square).truncate();
     if (xc->is_spin_polarized() && nbeta != 0) {
-        brho=nemo->make_density(world,nemo->get_calc()->bocc,nemo->get_calc()->bmo);
+        brho=nemo->make_density(nemo->get_calc()->bocc,nemo->get_calc()->bmo);
+        brho=(brho*nemo->R_square).truncate();
     } else {
         brho=arho;
     }

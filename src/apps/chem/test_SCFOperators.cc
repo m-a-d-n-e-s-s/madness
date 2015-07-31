@@ -128,7 +128,7 @@ struct write_test_input {
         if (mol=="lih") {
             of << "geometry\n";
             of << "eprec " << eprec << std::endl;
-            of << "F  0.1    0.0 0.2\n";
+            of << "Li 0.0    0.0 0.0\n";
             of << "H  1.4375 0.0 0.0\n";
             of << "end\n";
         } else if (mol=="hf") {
@@ -687,17 +687,17 @@ int main(int argc, char** argv) {
 
     int result=0;
 
-//    result+=test_kinetic<1>(world);
-//    result+=test_kinetic<2>(world);
-//    result+=test_kinetic<3>(world);
-//    result+=test_kinetic<4>(world);
-//
-//    result+=test_coulomb(world);
-//    result+=test_exchange(world);
-//    result+=test_nuclear(world);
+    result+=test_kinetic<1>(world);
+    result+=test_kinetic<2>(world);
+    result+=test_kinetic<3>(world);
+    result+=test_kinetic<4>(world);
+
+    result+=test_coulomb(world);
+    result+=test_exchange(world);
+    result+=test_nuclear(world);
     result+=test_dnuclear(world);
-//    result+=test_SCF(world);
-//    result+=test_nemo(world);
+    result+=test_SCF(world);
+    result+=test_nemo(world);
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");

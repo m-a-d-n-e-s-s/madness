@@ -583,27 +583,29 @@ public:
         RX_functor(const NuclearCorrelationFactor* ncf, const Atom& atom1,
                 const int daxis, const int exponent) : ncf(ncf), thisatom(atom1),
                 derivativeaxis(daxis), exponent(exponent) {
-            MADNESS_ASSERT((exponent==1) or (exponent==2));
+            MADNESS_ASSERT((exponent==1) or (exponent==2) or (exponent==-1));
         }
 
         RX_functor(const NuclearCorrelationFactor* ncf, const int iatom,
                 const int daxis, const int exponent) : ncf(ncf),
                 thisatom(ncf->molecule.get_atom(iatom)),
                 derivativeaxis(daxis), exponent(exponent) {
-            MADNESS_ASSERT((exponent==1) or (exponent==2));
+            MADNESS_ASSERT((exponent==1) or (exponent==2) or (exponent==-1));
         }
 
         double operator()(const coord_3d& xyz) const {
 
             // compute the R term
             double result=1.0;
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
-                const Atom& atom=ncf->molecule.get_atom(i);
-                const coord_3d vr1A=xyz-atom.get_coords();
-                const double r=vr1A.normf();
-                result*=ncf->S(r,atom.q);
+            if ((exponent==1) or (exponent==2)) {
+                for (int i=0; i<ncf->molecule.natom(); ++i) {
+                    const Atom& atom=ncf->molecule.get_atom(i);
+                    const coord_3d vr1A=xyz-atom.get_coords();
+                    const double r=vr1A.normf();
+                    result*=ncf->S(r,atom.q);
+                }
+                if (exponent==2) result=result*result;
             }
-            if (exponent==2) result=result*result;
 
             // compute the derivative term
             {
@@ -620,6 +622,8 @@ public:
         std::vector<coord_3d> special_points() const {
             return ncf->molecule.get_all_coords_vec();
         }
+        virtual Level special_level() {return 12;}
+
     };
 
 

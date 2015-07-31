@@ -186,8 +186,13 @@ public:
 	std::vector<vecfuncT> compute_all_cphf() const;
 
     /// compute the perturbed density for CPHF
-    real_function_3d compute_perturbed_density(const vecfuncT& mo,
-            const vecfuncT& xi) const;
+
+	/// @param[in] nemo     MO or nemo
+	/// @param[in] xi       perturbed MOs or nemos (consistent with iatom/iaxis!)
+    /// @param[in] iatom    the atom displacement for the perturbation
+    /// @param[in] iaxis    the direction of the perturbation
+    real_function_3d compute_perturbed_density(const vecfuncT& nemo,
+            const vecfuncT& xi, const int iatom, const int iaxis) const;
 
     vecfuncT parallel_CPHF(const vecfuncT& nemoX, const vecfuncT& nemo,
             const int iatom, const int iaxis) const;
@@ -235,8 +240,11 @@ public:
     }
 
     /// make the density (alpha or beta)
-    real_function_3d make_density(World& world, const Tensor<double>& occ,
+    real_function_3d make_density(const Tensor<double>& occ,
             const vecfuncT& nemo) const;
+
+    real_function_3d make_density(const tensorT & occ,
+            const vecfuncT& bra, const vecfuncT& ket) const;
 
 private:
 

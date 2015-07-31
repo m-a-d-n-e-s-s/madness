@@ -1093,9 +1093,7 @@ namespace madness {
         functionT rho = factoryT(world);
         rho.compress();
         for (unsigned int i = 0; i < vsq.size(); ++i) {
-            if (occ[i])
-                rho.gaxpy(1.0, vsq[i], occ[i], false);
-            
+            if (occ[i]) rho.gaxpy(1.0, vsq[i], occ[i], false);
         }
         world.gop.fence();
         vsq.clear();
