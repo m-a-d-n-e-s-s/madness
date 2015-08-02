@@ -140,7 +140,7 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 
 
     /// Do nothing and especially do not touch memory.
-    
+
     /// \todo Can we provide some context for this function?
     inline void cpu_relax() {
 #if defined(X86_32) || defined(X86_64)
@@ -148,7 +148,8 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 #elif defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
         asm volatile ("nop\n");
 #else
-#error cpu_relax is not implemented!
+        /* Jeff: This may not be portable. */
+        asm volatile ("nop\n");
 #endif
     }
 
