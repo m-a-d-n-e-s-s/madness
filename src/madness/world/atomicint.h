@@ -97,6 +97,8 @@ namespace madness {
 #elif defined(MADATOMIC_USE_BGP)
         typedef _BGP_Atomic atomic_int;
 #elif defined(MADATOMIC_USE_BGQ)
+        /* It might be prudent to add the aligned/padding attribute
+         * here, for performance, similar to what _BGP_Atomic does. */
         typedef volatile int atomic_int;
 #else
         typedef volatile int atomic_int;
@@ -110,7 +112,7 @@ namespace madness {
         /// \return Description needed.
         inline int exchange_and_add(int i) {
 #if defined(MADATOMIC_USE_CXX)
-            return std::atomic_fetch_add_explicit(&value,i,std::memory_order_seq_cst);
+            return value.fetch_add(i,std::memory_order_seq_cst);
 #elif defined(MADATOMIC_USE_GCC)
             return __gnu_cxx::__exchange_and_add(&value,i);
 #elif defined(MADATOMIC_USE_X86_ASM)
@@ -267,6 +269,7 @@ namespace madness {
         /// \return The original value.
         inline int compare_and_swap(int compare, int newval) {
 #if defined(MADATOMIC_USE_CXX)
+#warning The C++11 implementation of compare-and-swap has never been tested.
             std::bool swapped = value.compare_exchange_strong_explicit(&compare, newval,
                                                                        std::memory_order_seq_cst,
                                                                        std::memory_order_seq_cst);
