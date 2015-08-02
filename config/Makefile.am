@@ -3,5 +3,5 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = MADNESS.pc
 
 # MADNESS CMake configuration file
-cmakeconfigdir = $(libdir)/CMake/Madness
+cmakeconfigdir = $(libdir)/cmake/Madness
 cmakeconfig_DATA = madness-config.cmake
