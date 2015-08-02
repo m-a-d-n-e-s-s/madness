@@ -44,7 +44,7 @@
 /// @{
 
 /* This needs to move into config.h and have an associated configure test. */
-#if (__cplusplus => 201103L)
+#if (__cplusplus >= 201103L)
 #  define HAVE_CXX_ATOMICS
 #endif
 
