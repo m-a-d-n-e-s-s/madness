@@ -19,6 +19,7 @@ AM_PROG_AR
 AC_CONFIG_HEADERS([src/madness/config.h])
 
 # Detect specific systems so can provide their whacky defaults
+acx_default_enable_all_static=no
 ACX_CRAYXT
 ACX_CRAYXE
 ACX_MAC
@@ -100,6 +101,25 @@ LT_INIT
 LT_LANG([C++])
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
+AC_ARG_ENABLE([all-static],
+    [AC_HELP_STRING([--enable-all-static@<:@=yes|no@:>@],
+      [Link with all static libraries.])],
+    [
+      case $enableval in
+      yes)
+        acx_enable_all_static="yes"
+      ;;
+      no)
+        acx_enable_all_static="no"
+      ;;
+      *)
+        AC_MSG_ERROR([Invalid argument '$enableval' given for --enable-all-static])
+      esac
+    ],
+    [acx_enable_all_static="$acx_default_enable_all_static"]
+  )
+
+AM_CONDITIONAL([LINK_ALL_STATIC], [test $acx_enable_all_static = yes])
   
 ACX_DETECT_CXX
 # Check for C++11 support, and
@@ -364,6 +384,7 @@ AC_MSG_NOTICE([LDFLAGS  = $LDFLAGS])
 AC_MSG_NOTICE([LIBS     = $LIBS])
 AC_MSG_NOTICE([build shared libraries: $enable_shared])
 AC_MSG_NOTICE([build static libraries: $enable_static])
+AC_MSG_NOTICE([link all static libraries: $acx_enable_all_static])
 
 
 # These are the files that must be generated/preprocessed ... as you add files
