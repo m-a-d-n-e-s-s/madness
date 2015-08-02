@@ -72,6 +72,12 @@
 #  define X86_64 1
 #  define MADNESS_HAVE_X86_64 1
 
+/* http://lists.cs.uiuc.edu/pipermail/cfe-commits/Week-of-Mon-20130819/086386.html */
+/* AVX-512 where F=foundational; ER, CD and PF extensions may also be useful some day. */
+#  if defined(__AVX512F__)
+#    define MADNESS_HAVE_AVX512 1
+#  endif
+
 #  if defined(__AVX2__)
 #    define MADNESS_HAVE_AVX2 1
 #  endif

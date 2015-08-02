@@ -318,6 +318,13 @@ namespace madness {
 #define TENSOR_ALIGNMENT 16
 #elif HAVE_IBMBGQ
 #define TENSOR_ALIGNMENT 32
+#elif MADNESS_HAVE_AVX2
+/* 32B alignment is best for performance according to
+ * http://www.nas.nasa.gov/hecc/support/kb/haswell-processors_492.html */
+#define TENSOR_ALIGNMENT 32
+#elif MADNESS_HAVE_AVX512
+/* One can infer from the AVX2 case that 64B alignment helps with 512b SIMD. */
+#define TENSOR_ALIGNMENT 64
 #else
 #define TENSOR_ALIGNMENT 16
 #endif
