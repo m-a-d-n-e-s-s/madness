@@ -43,9 +43,10 @@
 /// \addtogroup atomics
 /// @{
 
-/* TODO Add support for C++11 atomics and possibly TBB atomics, to increase portability. */
-
-#define HAVE_CXX_ATOMICS
+/* This needs to move into config.h and have an associated configure test. */
+#if (__cplusplus => 201103L)
+#  define HAVE_CXX_ATOMICS
+#endif
 
 #if defined(HAVE_CXX_ATOMICS)
 #  define MADATOMIC_USE_CXX
