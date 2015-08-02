@@ -148,7 +148,8 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 #elif defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
         asm volatile ("nop\n");
 #else
-        /* Jeff: This may not be portable. */
+        /* Jeff has no idea if this is actually portable.
+         * See https://en.wikipedia.org/wiki/NOP for details. */
         asm volatile ("nop\n");
 #endif
     }
