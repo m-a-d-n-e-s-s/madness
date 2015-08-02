@@ -123,12 +123,12 @@ namespace madness {
             __asm__ __volatile__ ("" : : : "memory");
             return result;
 #elif defined (MADATOMIC_USE_BGQ)
-	          int result = value;
+            int result = value;
             __asm__ __volatile__ ("" : : : "memory");
             return result;
 #else
-	          int result = value;
-	          // BARRIER to stop instructions migrating up
+            int result = value;
+            // BARRIER to stop instructions migrating up
             __asm__ __volatile__ ("" : : : "memory");
             return result;
 #endif
@@ -144,7 +144,7 @@ namespace madness {
             /* Jeff moved the memory barrier inside of the architecture-specific blocks
              * since it may be required to use a heavier hammer on some of them.        */
 #if defined(MADATOMIC_USE_BGP)
-	          // BARRIER to stop instructions migrating down
+            // BARRIER to stop instructions migrating down
             __asm__ __volatile__ ("" : : : "memory");
             value.atom = other;
 #elif defined (MADATOMIC_USE_BGQ)
@@ -226,9 +226,9 @@ namespace madness {
 #if defined(MADATOMIC_USE_GCC)
             return __sync_val_compare_and_swap(&value, compare, newval);
 #elif defined(MADATOMIC_USE_BGP)
-	    return _bgp_compare_and_swap(&value, compare, newval);
+            return _bgp_compare_and_swap(&value, compare, newval);
 #elif defined(MADATOMIC_USE_BGQ)
-	    return CompareAndSwapSigned32(&value, compare, newval);
+            return CompareAndSwapSigned32(&value, compare, newval);
 #else
 #error ... atomic exchange_and_add operator must be implemented for this platform;
 #endif
