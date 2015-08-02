@@ -80,24 +80,24 @@ namespace madness {
     static inline uint64_t cycle_count() {
         uint64_t x;
 #if defined(HAVE_IBMBGP)
-     unsigned int rx, ry, rz;
-     do
-     {
-         asm volatile ( "mftbu %0" : "=r"(rx) );
-         asm volatile ( "mftb %0" : "=r"(ry) );
-         asm volatile ( "mftbu %0" : "=r"(rz) );
-     }
-     while ( rx != rz );
-     x = rx;
-     x = (x << 32) | ry;
+        unsigned int rx, ry, rz;
+        do
+        {
+            asm volatile ( "mftbu %0" : "=r"(rx) );
+            asm volatile ( "mftb %0" : "=r"(ry) );
+            asm volatile ( "mftbu %0" : "=r"(rz) );
+        }
+        while ( rx != rz );
+        x = rx;
+        x = (x << 32) | ry;
 #elif defined(HAVE_IBMBGQ)
 /* Jeff could use the asm above but is pretending this is more portable */
-    x = GetTimeBase();
+        x = GetTimeBase();
 #elif defined(X86_32)
-__asm__ volatile(".byte 0x0f, 0x31" : "=A"(x));
+        __asm__ volatile(".byte 0x0f, 0x31" : "=A"(x));
 #elif defined(X86_64)
         unsigned int a,d;
-__asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
+        __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         x = ((uint64_t)a) | (((uint64_t)d)<<32);
 #else
         x = wall_time()*1e9;
