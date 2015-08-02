@@ -134,7 +134,7 @@ namespace madness {
             /* Jeff moved the memory barrier inside of the architecture-specific blocks
              * since it may be required to use a heavier hammer on some of them.        */
 #if defined(MADATOMIC_USE_CXX)
-            return std::atomic_load_explicit(&value,std::memory_order_seq_cst);
+            return value.load(std::memory_order_seq_cst);
 #elif defined(MADATOMIC_USE_BGP)
             int result = value.atom;
             __asm__ __volatile__ ("" : : : "memory");
@@ -161,7 +161,7 @@ namespace madness {
             /* Jeff moved the memory barrier inside of the architecture-specific blocks
              * since it may be required to use a heavier hammer on some of them.        */
 #if defined(MADATOMIC_USE_CXX)
-            std::atomic_store_explicit(&value,other,std::memory_order_seq_cst);
+            value.store(other,std::memory_order_seq_cst);
 #elif defined(MADATOMIC_USE_BGP)
             // BARRIER to stop instructions migrating down
             __asm__ __volatile__ ("" : : : "memory");
@@ -190,41 +190,65 @@ namespace madness {
 
         /// \return The original value.
         int operator--(int) {
+#if defined(MADATOMIC_USE_CXX)
+            return value--;
+#else
             return exchange_and_add(-1);
+#endif
         }
 
         /// Decrements the counter and returns the decremented value.
 
         /// \return The decremented value.
         int operator--() {
+#if defined(MADATOMIC_USE_CXX)
+            return --value;
+#else
             return exchange_and_add(-1) - 1;
+#endif
         }
 
         /// Increments the counter and returns the original value.
 
         /// \return The original value.
         int operator++(int) {
+#if defined(MADATOMIC_USE_CXX)
+            return value++;
+#else
             return exchange_and_add(1);
+#endif
         }
 
         /// Increments the counter and returns the incremented value.
 
         /// \return The incremented value.
         int operator++() {
+#if defined(MADATOMIC_USE_CXX)
+            return ++value;
+#else
             return exchange_and_add(1) + 1;
+#endif
         }
 
         /// Add \c value and return the new value.
 
-        /// \param[in] value The value to be added.
+        /// \param[in] inc The value to be added.
         /// \return The new value.
-        int operator+=(const int value) {
-            return exchange_and_add(value) + value;
+        int operator+=(const int inc) {
+#if defined(MADATOMIC_USE_CXX)
+            return (value.fetch_add(inc, std::memory_order_seq_cst) + inc);
+#else
+            return exchange_and_add(inc) + inc;
+#endif
         }
 
-        /// Subtract \c value and returns the new value
-        int operator-=(const int value) {
-            return exchange_and_add(-value) - value;
+        /// Subtract \c dec and return the new value
+        int operator-=(const int dec) {
+#if defined(MADATOMIC_USE_CXX)
+            return (value.fetch_sub(dec, std::memory_order_seq_cst) - dec);
+#else
+            return exchange_and_add(-dec) - dec;
+#endif
         }
 
         /// Decrements the counter and returns true if the new value is zero,
@@ -243,9 +267,9 @@ namespace madness {
         /// \return The original value.
         inline int compare_and_swap(int compare, int newval) {
 #if defined(MADATOMIC_USE_CXX)
-            std::bool swapped = std::atomic_compare_exchange_strong_explicit(&value, &compare, newval,
-                                                                             std::memory_order_seq_cst,
-                                                                             std::memory_order_seq_cst);
+            std::bool swapped = value.compare_exchange_strong_explicit(&compare, newval,
+                                                                       std::memory_order_seq_cst,
+                                                                       std::memory_order_seq_cst);
             /* We must return the original value, which is not the return argument above.
              * If swapped=true, then obj was expected before the call, so we return that.
              * If swapped=false, then obj is unchanged, so we can just return that. */
