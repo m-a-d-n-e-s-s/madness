@@ -243,10 +243,13 @@ namespace madness {
         /// \return The original value.
         inline int compare_and_swap(int compare, int newval) {
 #if defined(MADATOMIC_USE_CXX)
-#error C++11 compare-and-swap is not yet complete/correct.  FIXME
-            std::bool success = std::atomic_compare_exchange_strong_explicit(&value, &compare, newval,
+            std::bool swapped = std::atomic_compare_exchange_strong_explicit(&value, &compare, newval,
                                                                              std::memory_order_seq_cst,
                                                                              std::memory_order_seq_cst);
+            /* We must return the original value, which is not the return argument above.
+             * If swapped=true, then obj was expected before the call, so we return that.
+             * If swapped=false, then obj is unchanged, so we can just return that. */
+            return (swapped ? compare : value);
 #elif defined(MADATOMIC_USE_GCC)
             return __sync_val_compare_and_swap(&value, compare, newval);
 #elif defined(MADATOMIC_USE_BGP)
