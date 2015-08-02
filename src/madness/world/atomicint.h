@@ -48,6 +48,7 @@
 #define HAVE_CXX_ATOMICS
 
 #if defined(HAVE_CXX_ATOMICS)
+#warning C++11 atomics need to be tested...
 #  define MADATOMIC_USE_CXX
 /* Jeff: It is odd that MADATOMIC_USE_GCC is tested before it is defined,
  *       at least in this file.  Is this intentional? */
