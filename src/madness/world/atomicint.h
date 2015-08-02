@@ -43,7 +43,15 @@
 /// \addtogroup atomics
 /// @{
 
-#if defined(HAVE_IBMBGP) && !defined(MADATOMIC_USE_GCC)
+/* TODO Add support for C++11 atomics and possibly TBB atomics, to increase portability. */
+
+#define HAVE_CXX_ATOMICS
+
+#if defined(HAVE_CXX_ATOMICS)
+#  define MADATOMIC_USE_CXX
+/* Jeff: It is odd that MADATOMIC_USE_GCC is tested before it is defined,
+ *       at least in this file.  Is this intentional? */
+#elif defined(HAVE_IBMBGP) && !defined(MADATOMIC_USE_GCC)
 #  define MADATOMIC_USE_BGP
 #elif defined(HAVE_IBMBGQ)
 #  define MADATOMIC_USE_BGQ
@@ -53,7 +61,9 @@
 #  define MADATOMIC_USE_GCC
 #endif
 
-#if defined(MADATOMIC_USE_BGP)
+#if defined(MADATOMIC_USE_CXX)
+#  include <atomic>
+#elif defined(MADATOMIC_USE_BGP)
 #  include <bpcore/bgp_atomic_ops.h>
 #elif defined (MADATOMIC_USE_BGQ)
 #  include "bgq_atomics.h"
@@ -81,7 +91,9 @@ namespace madness {
     private:
 
         /// Storage type for the atomic integer.
-#if defined(MADATOMIC_USE_BGP)
+#if defined(MADATOMIC_USE_CXX)
+        typedef std::atomic_int atomic_int;
+#elif defined(MADATOMIC_USE_BGP)
         typedef _BGP_Atomic atomic_int;
 #elif defined(MADATOMIC_USE_BGQ)
         typedef volatile int atomic_int;
@@ -96,7 +108,9 @@ namespace madness {
         /// \param[in] i Description needed.
         /// \return Description needed.
         inline int exchange_and_add(int i) {
-#if defined(MADATOMIC_USE_GCC)
+#if defined(MADATOMIC_USE_CXX)
+            return std::atomic_fetch_add_explicit(&value,i,std::memory_order_seq_cst);
+#elif defined(MADATOMIC_USE_GCC)
             return __gnu_cxx::__exchange_and_add(&value,i);
 #elif defined(MADATOMIC_USE_X86_ASM)
             __asm__ __volatile__("lock; xaddl %0,%1" :"=r"(i) : "m"(value), "0"(i));
@@ -118,7 +132,9 @@ namespace madness {
         operator int() const volatile {
             /* Jeff moved the memory barrier inside of the architecture-specific blocks
              * since it may be required to use a heavier hammer on some of them.        */
-#if defined(MADATOMIC_USE_BGP)
+#if defined(MADATOMIC_USE_CXX)
+            return std::atomic_load_explicit(&value,std::memory_order_seq_cst);
+#elif defined(MADATOMIC_USE_BGP)
             int result = value.atom;
             __asm__ __volatile__ ("" : : : "memory");
             return result;
@@ -143,7 +159,9 @@ namespace madness {
         int operator=(int other) {
             /* Jeff moved the memory barrier inside of the architecture-specific blocks
              * since it may be required to use a heavier hammer on some of them.        */
-#if defined(MADATOMIC_USE_BGP)
+#if defined(MADATOMIC_USE_CXX)
+            std::atomic_store_explicit(&value,other,std::memory_order_seq_cst);
+#elif defined(MADATOMIC_USE_BGP)
             // BARRIER to stop instructions migrating down
             __asm__ __volatile__ ("" : : : "memory");
             value.atom = other;
@@ -223,7 +241,12 @@ namespace madness {
         /// \param[in] newval The new value if the comparison is true.
         /// \return The original value.
         inline int compare_and_swap(int compare, int newval) {
-#if defined(MADATOMIC_USE_GCC)
+#if defined(MADATOMIC_USE_CXX)
+#error C++11 compare-and-swap is not yet complete/correct.  FIXME
+            std::bool success = std::atomic_compare_exchange_strong_explicit(&value, &compare, newval,
+                                                                             std::memory_order_seq_cst,
+                                                                             std::memory_order_seq_cst);
+#elif defined(MADATOMIC_USE_GCC)
             return __sync_val_compare_and_swap(&value, compare, newval);
 #elif defined(MADATOMIC_USE_BGP)
             return _bgp_compare_and_swap(&value, compare, newval);
