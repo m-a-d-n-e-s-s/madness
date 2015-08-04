@@ -43,9 +43,44 @@
 /// \addtogroup atomics
 /// @{
 
-/* This needs to move into config.h and have an associated configure test. */
-#if (__cplusplus >= 201103L)
+/* Jeff: I suppose there is a cleaner way to do this with preprocess arithmetic,
+ *       but I do not think it matters.  This code is clear enough. */
+
+#if defined(__GNUC__) && defined(__GNUC_MINOR__)
+# if (__GNUC__ >= 5) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)
+#  define MADNESS_GCC_48_OR_HIGHER
+# endif
+#endif
+
+#if defined(__clang__) && defined(__clang_major__) && defined(__clang_minor__)
+# if (__clang_major__ >= 4) || (__clang_major__ == 3 && __clang_minor__ >= 3)
+#  define MADNESS_CLANG_33_OR_HIGHER
+# endif
+#endif
+
+#if defined(__INTEL_COMPILER) && (__INTEL_COMPILER >= 1300)
+#define MADNESS_ICC_130_OR_HIGHER
+#endif
+
+/* Jeff: This needs to move into config.h and have an associated configure test. */
+/* Jeff: Nick does not want this used on Blue Gene/Q, so we will not allow it
+ *       even if other tests indicate that it should work. */
+#if !defined(__bgq__) && (__cplusplus >= 201103L)
+# if defined(MADNESS_GCC_48_OR_HIGHER) || defined(MADNESS_GCC_48_OR_HIGHER) || defined(MADNESS_CLANG_33_OR_HIGHER)
 #  define HAVE_CXX_ATOMICS
+# endif
+#endif
+
+#ifdef MADNESS_GCC_48_OR_HIGHER
+#undef MADNESS_GCC_48_OR_HIGHER
+#endif
+
+#ifdef MADNESS_ICC_130_OR_HIGHER
+#undef MADNESS_ICC_130_OR_HIGHER
+#endif
+
+#ifdef MADNESS_CLANG_33_OR_HIGHER
+#undef MADNESS_CLANG_33_OR_HIGHER
 #endif
 
 #if defined(HAVE_CXX_ATOMICS)
