@@ -309,6 +309,8 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
     vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
     reconstruct(world, mo_bra);
     norm_tree(world, mo_bra);
+    reconstruct(world, mo_ket);
+    norm_tree(world, mo_ket);
     if (!same) {
         reconstruct(world, vket);
         norm_tree(world, vket);

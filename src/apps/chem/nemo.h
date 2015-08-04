@@ -149,13 +149,13 @@ public:
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
 			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0) {}
 
-	void construct_nuclear_correlation_factor(){
+	void construct_nuclear_correlation_factor() {
 		// construct the nuclear potential
 		// Make the nuclear potential, initial orbitals, etc.
 		calc->make_nuclear_potential(world);
 		calc->potentialmanager->vnuclear().print_size("vnuc");
 		calc->project_ao_basis(world);
-		save_function(calc->potentialmanager->vnuclear(),"vnuc");
+//		save_function(calc->potentialmanager->vnuclear(),"vnuc");
 	    // construct the nuclear correlation factor:
 	    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
 	    R = nuclear_correlation->function();
@@ -176,39 +176,48 @@ public:
 
 	/// solve the CPHF equations for the nuclear displacements
 
+	/// this function computes that part of the orbital response that is
+	/// orthogonal to the occupied space. If no NCF's are used this
+	/// corresponds to the normal response. If NCF's are used the part
+	/// parallel to the occupied space must be added!
+	/// \f[
+	///     F^X = F^\ortho + F^\parallel
+	/// \f]
+	/// cf parallel_CPHF()
 	/// @param[in]  iatom   the atom A to be moved
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
-	/// @return     \frac{\partial}{\partial X_A} \varphi
+	/// @return     \ket{i^X} or \ket{F^\ortho}
 	vecfuncT cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 	        const vecfuncT& guess=vecfuncT()) const;
 
-	/// solve teh CPHF equation for all displacements
-	std::vector<vecfuncT> compute_all_cphf() const;
+	/// solve the CPHF equation for all displacements
 
-    /// compute the perturbed density for CPHF
-
-	/// @param[in] nemo     MO or nemo
-	/// @param[in] xi       perturbed MOs or nemos (consistent with iatom/iaxis!)
-    /// @param[in] iatom    the atom displacement for the perturbation
-    /// @param[in] iaxis    the direction of the perturbation
-    real_function_3d compute_perturbed_density(const vecfuncT& nemo,
-            const vecfuncT& xi, const int iatom, const int iaxis) const;
-
-    vecfuncT parallel_CPHF(const vecfuncT& nemoX, const vecfuncT& nemo,
-            const int iatom, const int iaxis) const;
-
-    /// reconstruct the perturbed orbitals xi given perturbed nemos
-
+	/// this function computes the nemo response F^X
     /// \f[
-    ///     |\xi_i> = R^X |F_i> + R |F^X_i>
+    ///     F^X = F^\ortho + F^\parallel
     /// \f]
-    /// @param[in] nemo     the nemo orbitals |F>
-    /// @param[in] nemoX    the perturbed nemo orbitals |F^X>
-    /// @param[in] iatom    the atom displacement for the perturbation
-    /// @param[in] iaxis    the direction of the perturbation
-    /// @return the perturbed orbitals |xi> = |\phi^X>
-    vecfuncT reconstruct_xi(const vecfuncT& nemo, const vecfuncT& nemoX,
-            const int iatom, const int iaxis) const;
+	/// To reconstruct the unregularized orbital response (not recommended):
+	/// \f[
+	///   i^X   = R^X F + R F^X
+	/// \f]
+	/// The orbital response i^X constructed in this way is automatically
+	/// orthogonal to the occupied space because of the parallel term F^\parallel
+	/// @return a vector of the nemo response F^X for all displacements
+	std::vector<vecfuncT> compute_all_cphf();
+
+    /// this function computes that part of the orbital response that is
+    /// parallel to the occupied space.
+    /// \f[
+    ///     F^X = F^\ortho + F^\parallel
+    /// \f]
+    /// If no NCF's are used F^\parallel vanishes.
+    /// If NCF's are used this term does not vanish because the derivatives of
+    /// the NCF does not vanish, and it is given by
+    /// \f[
+    ///  F_i^\parallel = -\frac{1}{2}\sum_k|F_k ><F_k | (R^2)^X | F_i>
+    /// \f]
+    vecfuncT parallel_CPHF(const vecfuncT& nemo, const int iatom,
+            const int iaxis) const;
 
 	/// returns the vibrational frequencies
 
@@ -243,6 +252,10 @@ public:
     real_function_3d make_density(const Tensor<double>& occ,
             const vecfuncT& nemo) const;
 
+    /// make the density using different bra and ket vectors
+
+    /// e.g. for computing the perturbed density \sum_i \phi_i \phi_i^X
+    /// or when using nemos: \sum_i R2nemo_i nemo_i
     real_function_3d make_density(const tensorT & occ,
             const vecfuncT& bra, const vecfuncT& ket) const;
 
@@ -287,6 +300,24 @@ private:
 	std::shared_ptr<real_convolution_3d> poisson;
 
 	void print_nuclear_corrfac() const;
+
+	/// adapt the thresholds consistently to a common value
+    void set_protocol(const double thresh) {
+
+        calc->set_protocol<3>(world,thresh);
+
+        // (re) construct nuclear potential and correlation factors
+        construct_nuclear_correlation_factor();
+
+        // (re) construct the Poisson solver
+        poisson = std::shared_ptr<real_convolution_3d>(
+                CoulombOperatorPtr(world, calc->param.lo, FunctionDefaults<3>::get_thresh()));
+
+        // set thresholds for the MOs
+        set_thresh(world,calc->amo,thresh);
+        set_thresh(world,calc->bmo,thresh);
+
+    }
 
 	/// solve the HF equations
 	double solve();
