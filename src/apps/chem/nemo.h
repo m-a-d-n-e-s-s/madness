@@ -136,10 +136,64 @@ struct allocator {
 	}
 };
 
+
+
 /// The Nemo class
 class Nemo: public MolecularOptimizationTargetInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
+
+    /// struct for running a protocol of subsequently tightening precision
+    struct protocol {
+        protocol(const Nemo& nemo) : start_prec(1.e-4), current_prec(start_prec),
+            end_prec(nemo.get_calc()->param.econv), thresh(1.e-4), econv(1.e-4),
+            dconv(1.e-3) {
+            if (nemo.world.rank()==0) {
+                print("starting protocol");
+                print("thresh",thresh,"econv ",econv,"dconv",dconv);
+                print("start",start_prec,"end",end_prec);
+            }
+        }
+
+        double start_prec;   ///< starting precision, typically 1.e-4
+        double current_prec;   ///< current precision
+        double end_prec;     ///< final precision
+
+        double thresh;  ///< numerical precision of representing functions
+        double econv;   ///< energy convergence of SCF calculations
+        double dconv;   ///< density convergence of SCF calculations
+
+        bool finished() const {
+            return (current_prec<end_prec*0.9999);   // account for noise
+        }
+
+        /// go to the next level
+        protocol& operator++() {
+            // ending criterion
+            bool finish=(approx(current_prec,end_prec));
+            current_prec*=0.1;
+
+            if (not finish) {
+                if (current_prec<end_prec) current_prec=end_prec;
+                print("setting current_prec to", current_prec);
+                infer_thresholds(current_prec);
+            }
+            return *this;
+        }
+
+        /// infer thresholds starting from a target precision
+        void infer_thresholds(const double prec) {
+            econv=prec;
+            thresh=econv;
+            dconv=std::min(1.e-3,sqrt(econv)*0.1);
+        }
+
+        /// compare two positive doubles to be equal
+        bool approx(const double a, const double b) const {
+            return (std::abs(a/b-1.0)<1.e-12);
+        }
+    };
+
 public:
 
 	/// ctor
@@ -159,7 +213,9 @@ public:
 	    // construct the nuclear correlation factor:
 	    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
 	    R = nuclear_correlation->function();
+	    R.set_thresh(FunctionDefaults<3>::get_thresh());
 	    R_square = nuclear_correlation->square();
+	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
 	}
 
 	double value() {return value(calc->molecule.get_all_coords());}
@@ -188,7 +244,7 @@ public:
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
 	/// @return     \ket{i^X} or \ket{F^\ortho}
 	vecfuncT cphf(const int iatom, const int iaxis, const Tensor<double> fock,
-	        const vecfuncT& guess=vecfuncT()) const;
+	        const vecfuncT& guess, const protocol& p) const;
 
 	/// solve the CPHF equation for all displacements
 
@@ -320,7 +376,7 @@ private:
     }
 
 	/// solve the HF equations
-	double solve();
+	double solve(const protocol& proto);
 
 	/// given nemos, compute the HF energy
 	double compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,

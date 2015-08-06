@@ -52,7 +52,7 @@ namespace madness {
 
 double Nemo::value(const Tensor<double>& x) {
 
-	// fast return if the reference is already solved at this geometry
+    // fast return if the reference is already solved at this geometry
 	double xsq = x.sumsq();
 	if (xsq == coords_sum)
 		return calc->current_energy;
@@ -68,70 +68,49 @@ double Nemo::value(const Tensor<double>& x) {
 
 	print_nuclear_corrfac();
 
+	double energy=0.0;
+
 	// read converged wave function from disk if there is one
 	if (calc->param.no_compute) {
 		calc->load_mos(world);
 
-	    // compute the hessian
-	    if (calc->param.hessian) hessian(x);
-
-		return calc->current_energy;
-	}
-
-	if (calc->param.restart) {
-		calc->load_mos(world);
 	} else {
-		calc->initial_guess(world);
 
-		// guess: multiply the guess orbitals with the inverse R
-	    real_function_3d R_inverse = nuclear_correlation->inverse();
-		calc->amo = mul(world, R_inverse, calc->amo);
-//		calc->param.restart = true;
-	}
+        // guess: read from file or multiply the guess orbitals with the inverse R
+	    if (calc->param.restart) {
+	        calc->load_mos(world);
 
-	double energy = solve();
+	    } else {
 
-	calc->current_energy=energy;
-	if (calc->param.save) calc->save_mos(world);
+            calc->initial_guess(world);
+	        real_function_3d R_inverse = nuclear_correlation->inverse();
+	        calc->amo = mul(world, R_inverse, calc->amo);
+	    }
 
-	// save the converged orbitals and nemos
-	vecfuncT psi = mul(world, R, calc->amo);
-	truncate(world,psi);
-	for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
-		save_function(calc->amo[imo], "nemo" + stringify(imo));
-		save_function(psi[imo], "psi" + stringify(imo));
+	    for (protocol p(*this); not p.finished(); ++p) {
+	        set_protocol(p.current_prec);
+	        energy=solve(p);
+	    }
+	    set_protocol(get_calc()->param.econv);
+
+	    calc->current_energy=energy;
+	    if (calc->param.save) calc->save_mos(world);
+
+	    // save the converged orbitals and nemos
+	    vecfuncT psi = mul(world, R, calc->amo);
+	    truncate(world,psi);
+	    for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
+	        save_function(calc->amo[imo], "nemo" + stringify(imo));
+	        save_function(psi[imo], "psi" + stringify(imo));
+	    }
 	}
 
 	// compute the dipole moment
-    functionT rho = make_density(calc->aocc, psi).scale(2.0);
-    calc->dipole(world,rho);
+	functionT rho = 2.0*(R_square*make_density(calc->aocc, calc->amo)).truncate();
+	calc->dipole(world,rho);
 
-    // compute the hessian
-    //gradient(x);
-    if (calc->param.hessian) hessian(x);
-
-    // compute stuff
-    functionT rhonemo = make_density(calc->aocc, calc->amo).scale(2.0);
-    real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
-    real_function_3d rhonemoz=Dz(rhonemo);
-    real_function_3d rhoz=Dz(rho);
-
-    std::string filename="plot_rhonemoz";
-    Vector<double,3> lo{0,0,-10+molecule().get_atom(0).z};
-    Vector<double,3> hi{0,0,10+molecule().get_atom(0).z};
-    plot_line(filename.c_str(),500, lo, hi, rhonemoz);
-    filename="plot_rhoz";
-    plot_line(filename.c_str(),500, lo, hi, rhoz);
-    filename="plot_rhonemo";
-    plot_line(filename.c_str(),500, lo, hi, rhonemo);
-    filename="plot_rhonemo_inv";
-    plot_line(filename.c_str(),500, hi, lo, rhonemo);
-    filename="plot_rho";
-    plot_line(filename.c_str(),500, lo, hi, rho);
-    filename="plot_R2";
-    plot_line(filename.c_str(),500, lo, hi, R_square);
-    filename="plot_R2_inv";
-    plot_line(filename.c_str(),500, hi, lo, R_square);
+	// compute the hessian
+	if (calc->param.hessian) hessian(x);
 
 	return energy;
 }
@@ -146,12 +125,6 @@ void Nemo::print_nuclear_corrfac() const {
 	save_function(nuclear_correlation->U1(1),"U1y");
 	save_function(nuclear_correlation->U1(2),"U1z");
 
-	// FIXME: plot_plane doesn't work for more that 1 rank
-	if (world.size()==0) {
-		plot_plane(world,R,"R");
-		plot_plane(world,nuclear_correlation->U2(),"U2");
-		plot_plane(world,nuclear_correlation->U1(0),"U1x");
-	}
 }
 
 /// localize the nemo orbitals according to Pipek-Mezey
@@ -193,7 +166,7 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) cons
 }
 
 /// solve the HF equations
-double Nemo::solve() {
+double Nemo::solve(const protocol& proto) {
 
 	// guess has already been performed in value()
 	vecfuncT& nemo = calc->amo;
@@ -240,9 +213,9 @@ double Nemo::solve() {
 		}
 
 		double oldenergy=energy;
-		energy = compute_energy(psi, mul(world, R, Jnemo),
-				mul(world, R, Knemo));
-//        energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
+//		energy = compute_energy(psi, mul(world, R, Jnemo),
+//				mul(world, R, Knemo));
+        energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
 
         // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
         tensorT U;
@@ -318,21 +291,19 @@ double Nemo::solve() {
 		orthonormalize(nemo_new);
 		nemo=nemo_new;
 
-		if ((norm < calc->param.dconv) and
-				(fabs(energy-oldenergy)<calc->param.econv))
+		if ((norm < proto.dconv) and
+				(fabs(energy-oldenergy)<proto.econv))
 			converged = true;
 
 		if (calc->param.save) calc->save_mos(world);
 
 		if (world.rank() == 0) {
-			printf(
-				"finished iteration %2d at time %8.1fs with energy %12.8f\n",
+			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n",
 					iter, wall_time(), energy);
 			print("current residual norm  ", norm, "\n");
 		}
 
-		if (converged)
-			break;
+		if (converged) break;
 	}
 
 	if (converged) {
@@ -703,6 +674,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
             const real_function_3d RX_div_R=real_factory_3d(world).functor2(rxr_func).truncate_on_project();
             dens_pt=(dens_pt+2.0*RX_div_R*dens).truncate();
+            save_function(dens_pt,"dens_pt"+stringify(i));
 
             int j=0;
             for (int jatom=0; jatom<natom; ++jatom) {
@@ -716,7 +688,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
                     if (iatom==jatom) result+=inner(drho[iaxis],mdf);
 
                     // skip diagonal elements because they are extremely noisy!
-                    // use translational symmtry to reconstruct them from other
+                    // use translational symmetry to reconstruct them from other
                     // hessian matrix elements (see below)
                     if (i==j) result=0.0;
                     hessian(i,j)=result;
@@ -732,10 +704,13 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     }
 
     Tensor<double> asymmetric=0.5*(hessian-transpose(hessian));
+    const double max_asymmetric=asymmetric.absmax();
     if (world.rank() == 0) {
         print("\n asymmetry in the electronic Hessian (a.u.)\n");
         print(asymmetric);
+        print("max asymmetric element: ",max_asymmetric);
     }
+
 
     // symmetrize hessian
     hessian+=transpose(hessian);
@@ -792,7 +767,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 /// @param[in]  iaxis   the coordinate X of iatom to be moved
 /// @return     \frac{\partial}{\partial X_A} \varphi
 vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
-        const vecfuncT& guess) const {
+        const vecfuncT& guess, const protocol& proto) const {
 
     print("\nsolving nemo cphf equations for atom, axis",iatom,iaxis);
 
@@ -909,14 +884,17 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         truncate(world,tmp);
 
         vecfuncT residual = sub(world, xi, tmp);
-        const double norm = norm2(world,xi);
-        const double rnorm = norm2(world, residual) / sqrt(double(nmo));
-        if (world.rank()==0) print("residual",rnorm,"\nnorm",norm,
-                "\nrelative error",rnorm/norm);
 
+        std::vector<double> rnorm = norm2s(world, residual);
+        double rms, maxval;
+        calc->vector_stats(rnorm, rms, maxval);
+        if (world.rank() == 0)
+            print("CPHF BSH residual: rms", rms, "   max", maxval);
+
+        const double norm = norm2(world,xi);
         xi=tmp;
 
-        if (rnorm/norm<calc->param.dconv) break;
+        if (rms/norm<proto.dconv) break;
     }
     return xi;
 
@@ -929,59 +907,48 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     print("fock");
     print(fock);
 
-
-    const double thresh=FunctionDefaults<3>::get_thresh();
     const int natom=molecule().natom();
     std::vector<vecfuncT> xi(3*natom);
 
     // read CPHF vectors from file if possible
     if (get_calc()->param.read_cphf) {
+        xi.resize(3*natom);
         for (std::size_t i=0; i<xi.size(); ++i) {
             load_function(xi[i],"xi_"+stringify(i));
         }
         return xi;
     }
 
-    if (world.rank()==0) {
-        print("\nsolving CPHF equations -- loose threshold",1.e-4,"\n");
-        set_protocol(1.e-4);
-        printf("starting at time %8.1fs \n", wall_time());
-    }
+    for (protocol p(*this); not p.finished(); ++p) {
+        set_protocol(p.current_prec);
 
-    // double loop over all nuclear displacements
-    for (int i=0, iatom=0; iatom<natom; ++iatom) {
-        for (int iaxis=0; iaxis<3; ++iaxis) {
-            xi[i]=cphf(iatom,iaxis,fock);
-            for (real_function_3d& xij : xi[i]) xij.set_thresh(thresh);
-            save_function(xi[i],"xi_"+stringify(i));
-            ++i;
+        if (world.rank()==0) {
+            printf("\nstarting CPHF equations at time %8.1fs \n",wall_time());
         }
-    }
-
-    if (world.rank()==0) {
-        print("\nsolving CPHF equations -- tighter threshold",thresh,"\n");
-        set_protocol(thresh);
-        printf("starting at time %8.1fs \n", wall_time());
-    }
-
-    // double loop over all nuclear displacements
-    for (int i=0, iatom=0; iatom<natom; ++iatom) {
-        for (int iaxis=0; iaxis<3; ++iaxis) {
-            load_function(xi[i],"xi_"+stringify(i));
-            xi[i]=cphf(iatom,iaxis,fock,xi[i]);
-            save_function(xi[i],"xi_"+stringify(i));
-            ++i;
+        // double loop over all nuclear displacements
+        for (int i=0, iatom=0; iatom<natom; ++iatom) {
+            for (int iaxis=0; iaxis<3; ++iaxis) {
+                if (xi[i].size()>0) {
+                    for (real_function_3d& xij : xi[i]) xij.set_thresh(p.current_prec);
+                }
+                xi[i]=cphf(iatom,iaxis,fock,xi[i],p);
+                save_function(xi[i],"xi_"+stringify(i));
+                ++i;
+            }
         }
+        printf("\nfinished CPHF equations at time %8.1fs \n",wall_time());
     }
+
+    // reset the initial thresholds
+    set_protocol(get_calc()->param.econv);
 
     if (world.rank()==0) print("\nadding the inhomogeneous part to xi\n");
 
-    const vecfuncT nemo=calc->amo;
-
     // double loop over all nuclear displacements
     for (int i=0, iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
 
+            const vecfuncT& nemo=calc->amo;
             load_function(xi[i],"xi_"+stringify(i));
             const vecfuncT parallel=parallel_CPHF(nemo,iatom,iaxis);
             xi[i]=sub(world,xi[i],parallel);
