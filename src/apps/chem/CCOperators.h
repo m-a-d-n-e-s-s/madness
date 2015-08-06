@@ -9,17 +9,17 @@
 #define CCOPERATORS_H_
 
 // Operators for coupled cluster and CIS
-
+#include <chem/SCFOperators.h>
 namespace madness {
 
-//#include <chem/SCFOperators.h>
+
 
 // forward declaration
-class SCF;
-class Nemo;
-class NuclearCorrelationFactor;
-class XCfunctional;
-class Nuclear;
+//class SCF;
+//class Nemo;
+//class NuclearCorrelationFactor;
+//class XCfunctional;
+//class Nuclear;
 
 typedef std::vector<Function<double,3> > vecfuncT;
 
@@ -140,6 +140,11 @@ public:
 		return add(world,fock_residue_closed_shell(x),add(world,S3CX,S3CC));
 	}
 
+	// Closed Shell potential for Virtuals (or SCF MOs)
+	vecfuncT get_SCF_potential(const vecfuncT &x)const{
+		return fock_residue_closed_shell(x);
+	}
+
 
 	// get the ground state density
 	real_function_3d make_density()const{
@@ -179,6 +184,23 @@ public:
 		scale(world,K,-1);
 		END_TIMER("K");
 		return add(world,J,K);
+	}
+
+	// The same residue for the case that the Fock operator is the Kohn-Shan Operator
+	vecfuncT KS_residue_closed_shell (const std::shared_ptr<SCF> scf,const vecfuncT &tau)const{
+		START_TIMER();
+		vecfuncT J = mul(world,(*poisson)(make_density()),tau);
+		truncate(world,J);
+		scale(world,J,2.0);
+		END_TIMER("J");
+		START_TIMER();
+        XCOperator xcoperator(world,scf.get(),0);
+        real_function_3d vxc=xcoperator.make_xc_potential();
+		vxc.truncate();
+		vecfuncT applied_vxc = mul(world,vxc,tau);
+		truncate(world,applied_vxc);
+        END_TIMER("Vxc");
+        return add(world,J,applied_vxc);
 	}
 
 	// Kinetik energy
