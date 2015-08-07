@@ -84,9 +84,9 @@ namespace madness {
         /// Blue Gene always has a dedicated hw thread
         void yield(int us) {
 #if !defined(HAVE_IBMBGP) && !defined(HAVE_IBMBGQ)
-	        myusleep(us);
+            myusleep(us);
 #endif
-	    }
+        }
 
     public:
         MutexWaiter() : count(0) { }
