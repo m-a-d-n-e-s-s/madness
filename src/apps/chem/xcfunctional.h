@@ -264,10 +264,18 @@ public:
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] what Specifies which component of the potential is to be computed as described above
     /// @return The component specified by the \c what parameter
-
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
 
-    madness::Tensor<double> fxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
+    /// compute the second derivative of the XC energy
+    ///
+    /// @param[in] t The input densities and derivatives as required by the functional
+    /// @param[in] what Specifies which component of the kernel is to be computed as described above
+    /// @return The component specified by the \c what parameter
+    madness::Tensor<double> fxc(const std::vector< madness::Tensor<double> >& t,
+            const int ispin, const int what) const;
+
+    madness::Tensor<double> fxc_old(const std::vector< madness::Tensor<double> >& t,
+            const int ispin, const int what) const;
 
     /// Crude function to plot the energy and potential functionals
     void plot() const {

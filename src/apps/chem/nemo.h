@@ -237,12 +237,12 @@ public:
 	/// corresponds to the normal response. If NCF's are used the part
 	/// parallel to the occupied space must be added!
 	/// \f[
-	///     F^X = F^\ortho + F^\parallel
+	///     F^X = F^\perp + F^\parallel
 	/// \f]
 	/// cf parallel_CPHF()
 	/// @param[in]  iatom   the atom A to be moved
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
-	/// @return     \ket{i^X} or \ket{F^\ortho}
+	/// @return     \ket{i^X} or \ket{F^\perp}
 	vecfuncT cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 	        const vecfuncT& guess, const protocol& p) const;
 
@@ -250,7 +250,7 @@ public:
 
 	/// this function computes the nemo response F^X
     /// \f[
-    ///     F^X = F^\ortho + F^\parallel
+    ///     F^X = F^\perp + F^\parallel
     /// \f]
 	/// To reconstruct the unregularized orbital response (not recommended):
 	/// \f[
@@ -264,7 +264,7 @@ public:
     /// this function computes that part of the orbital response that is
     /// parallel to the occupied space.
     /// \f[
-    ///     F^X = F^\ortho + F^\parallel
+    ///     F^X = F^\perp + F^\parallel
     /// \f]
     /// If no NCF's are used F^\parallel vanishes.
     /// If NCF's are used this term does not vanish because the derivatives of

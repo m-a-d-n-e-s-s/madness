@@ -319,6 +319,10 @@ public:
     /// default ctor without information about the XC functional
     XCOperator(World& world) : world(world), nbeta(0), ispin(0) {}
 
+    /// custom ctor with information about the XC functional
+    XCOperator(World& world, std::string xc_data, const bool spin_polarized,
+            const real_function_3d& arho, const real_function_3d& brho);
+
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, int ispin=0);
 

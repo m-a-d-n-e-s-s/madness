@@ -375,6 +375,16 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
 
 }
 
+/// custom ctor with information about the XC functional
+XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polarized,
+        const real_function_3d& arho, const real_function_3d& brho)
+    : world(world), nbeta(0), ispin(0) {
+    xc=std::shared_ptr<XCfunctional> (new XCfunctional());
+    xc->initialize(xc_data, spin_polarized, world);
+    prep_xc_args(arho,brho,delrho,vf);
+
+}
+
 
 XCOperator::XCOperator(World& world, const SCF* calc, int ispin) : world(world),
         ispin(ispin) {
@@ -490,8 +500,16 @@ real_function_3d XCOperator::make_xc_potential() const {
 }
 
 real_function_3d XCOperator::make_xc_kernel() const {
-    MADNESS_EXCEPTION("no make_xc_kernel yet",1);
-    return multiop_values<double, xc_kernel, 3>(xc_kernel(*xc, ispin, 0), vf);
+    if (not is_initialized()) {
+        MADNESS_EXCEPTION("calling xc kernel without intermediates ",1);
+    }
+    if (xc->is_gga() ) MADNESS_EXCEPTION("no gga in xc_kernel",1);
+
+    // LDA part
+    real_function_3d dft_kernel=multiop_values<double, xc_kernel, 3>
+            (xc_kernel(*xc, ispin, 0), vf);
+    return dft_kernel;
+
 }
 
 void XCOperator::prep_xc_args(const real_function_3d& arho,
