@@ -288,7 +288,7 @@ namespace madness {
         ind.reset(new int[maxq_]);
         q.reset(new qmsg[maxq_]);
 
-        // Allocate recive buffers
+        // Allocate receive buffers
         if(nproc > 1) {
             for(int i = 0; i < (int)nrecv_; ++i) {
                 if(posix_memalign(&recv_buf[i], ALIGNMENT, max_msg_len_))

@@ -178,7 +178,7 @@ namespace madness {
             std::size_t max_msg_len_;
             std::size_t nrecv_;
             std::size_t maxq_;
-            std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages /// \todo Are [] needed in the template?
+            std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
             std::unique_ptr<SafeMPI::Request[]> recv_req;
 
             std::unique_ptr<SafeMPI::Status[]> status;
