@@ -29,6 +29,9 @@
   fax:   865-572-0680
 */
 
+#include <vector>
+#include <numeric>
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/MADworld.h>
 #include <madness/world/world_object.h>
@@ -310,11 +313,14 @@ void test_multi(World& world) {
 
 class Foo : public WorldObject<Foo> {
     int a;
+    std::vector<double> dbuf_;
 public:
     Foo(World& world, int a)
             : WorldObject<Foo>(world)
             , a(a) {
-        process_pending();
+      process_pending();
+      dbuf_.reserve((world.nproc() > 1 ? RMI::max_msg_len() : 1024)/sizeof(double)+5);
+      std::generate_n(std::back_inserter(dbuf_), dbuf_.capacity(), []() { return rand()/(double)RAND_MAX; } );
     }
 
     virtual ~Foo() { }
@@ -337,6 +343,9 @@ public:
     int get5(int a1, char a2, short a3, long a4, short a5) {
         return a+a1+a2+a3+a4+a5;
     }
+    double getbuf0(const std::vector<double>& buf) {
+        return (double)a + std::accumulate(buf.begin(), buf.end(), 0.0);
+    }
 
     int get0c() const {
         return a;
@@ -356,10 +365,15 @@ public:
     int get5c(int a1, char a2, short a3, long a4, short a5) const {
         return a+a1+a2+a3+a4+a5;
     }
+    double getbuf0c(const std::vector<double>& buf) const {
+        return (double)a + std::accumulate(buf.begin(), buf.end(), 0.0);
+    }
 
     Future<int> get0f() {
         return Future<int>(a);
     }
+
+    const std::vector<double>& dbuf() const { return dbuf_; }
 };
 
 void test6(World& world) {
@@ -367,6 +381,7 @@ void test6(World& world) {
     ProcessID me = world.rank();
     ProcessID nproc = world.nproc();
     Foo a(world, me*100);
+    const auto dbuf_sum = std::accumulate(a.dbuf().begin(), a.dbuf().end(), 0.0);
 
     if (me == 0) {
         print(a.id());
@@ -392,6 +407,8 @@ void test6(World& world) {
             MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
             MADNESS_ASSERT(a.task(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
 
+            MADNESS_ASSERT(a.task(p,&Foo::getbuf0,a.dbuf()).get() == p*100+dbuf_sum);
+
             MADNESS_ASSERT(a.send(p,&Foo::get0c).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0c).get() == p*100);
 
@@ -409,6 +426,8 @@ void test6(World& world) {
 
             MADNESS_ASSERT(a.send(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
             MADNESS_ASSERT(a.task(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
+
+            MADNESS_ASSERT(a.task(p,&Foo::getbuf0c,a.dbuf()).get() == p*100+dbuf_sum);
         }
     }
     world.gop.fence();
