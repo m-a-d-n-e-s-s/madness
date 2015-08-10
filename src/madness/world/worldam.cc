@@ -39,8 +39,7 @@ namespace madness {
 
 
     WorldAmInterface::WorldAmInterface(World& world)
-            : msg_len(RMI::max_msg_len() - sizeof(AmArg))
-            , nsend(DEFAULT_NSEND)
+            : nsend(DEFAULT_NSEND)
             , managed_send_buf(nullptr)
             , send_req(nullptr)
             , worldid(0) // worldid is initialized in the World constructor
