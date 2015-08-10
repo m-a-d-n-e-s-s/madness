@@ -121,6 +121,7 @@ struct write_test_input {
         of << "dft\n";
         of << "xc hf\n";
         of << "no_orient\n";
+        of << "k 8\n";
         of << "protocol 1.e-5 \n";
         of << "nuclear_corrfac  slater 2.0\n";
         of << "end\n";
