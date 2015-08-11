@@ -530,6 +530,18 @@ namespace madness {
         plot_plane(world,vf,name);
     }
 
+    template<size_t NDIM>
+    void plot_plane(World& world, const Function<double,NDIM>& function1,
+            const Function<double,NDIM>& function2,const Function<double,NDIM>& function3,
+            const std::string name) {
+        typedef std::vector<Function<double,NDIM> > vecfuncT;
+        vecfuncT vf(3);
+        vf[0]=function1;
+        vf[1]=function2;
+        vf[2]=function3;
+        plot_plane(world,vf,name);
+    }
+
 
     /// plot a 2-d slice of a given function and the according MRA structure
     /// FIXME: doesn't work for more than 1 rank

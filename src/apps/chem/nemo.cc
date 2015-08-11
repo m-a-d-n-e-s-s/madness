@@ -807,13 +807,18 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
     // part of the exchange operator with the derivative of the NCF
     // K <- \sum_k |F_k> \int dr' 1/|r-r'| 2R^XR F_k F_i
-    Exchange Kconst(world);
-    vecfuncT kbra=mul(world,RXR,nemo);
-    scale(world,kbra,2.0);
-    truncate(world,kbra);
-    Kconst.set_parameters(kbra,nemo,occ);
-    vecfuncT Kconstnemo=Kconst(nemo);
-    truncate(world,Kconstnemo);
+    // there is no constant term for DFT, since the potentials are not
+    // linear in the density
+    vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
+    if (not is_dft()) {
+        Exchange Kconst(world);
+        vecfuncT kbra=mul(world,RXR,nemo);
+        scale(world,kbra,2.0);
+        truncate(world,kbra);
+        Kconst.set_parameters(kbra,nemo,occ);
+        Kconstnemo=Kconst(nemo);
+        truncate(world,Kconstnemo);
+    }
 
     vecfuncT rhsconst=add(world,Vpsi2b,sub(world,Jconstnemo,Kconstnemo));
     truncate(world,rhsconst);
@@ -824,11 +829,27 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     // construct unperturbed operators
     const Coulomb J(world,this);
     const Exchange K(world,this,0);
+    const XCOperator xc(world,this,0);
     const Nuclear V(world,this);
 
     for (int iter=0; iter<25; ++iter) {
 
         const vecfuncT xi_complete=sub(world,xi,parallel);
+
+        // make the rhs
+        START_TIMER(world);
+        vecfuncT Kxi;
+        if (is_dft()) {
+            Kxi=xc(xi);
+            scale(world,Kxi,-1.0);
+        } else {
+            Kxi=K(xi);
+        }
+        vecfuncT Vpsi1=add(world,V(xi),sub(world,J(xi),Kxi));
+        truncate(world,Vpsi1);
+        END_TIMER(world, "CPHF: make rhs1");
+
+        START_TIMER(world);
 
         // construct perturbed operators
         Coulomb Jp(world);
@@ -836,21 +857,23 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         real_function_3d density_pert=4.0*make_density(occ,R2nemo,xi_complete);
         Jp.potential()=Jp.compute_potential(density_pert);
 
-        Exchange Kp1=Exchange(world).small_memory(false).same(true);
-        Kp1.set_parameters(R2nemo,xi_complete,occ);
-        vecfuncT R2xi=mul(world,R_square,xi_complete);
-        truncate(world,R2xi);
-        Exchange Kp2=Exchange(world).small_memory(false);
-        Kp2.set_parameters(R2xi,nemo,occ);
+        vecfuncT Kp;
+        if (is_dft()) {
+            // reconstruct the full perturbed density
+            real_function_3d full_dens_pt=density_pert + 2.0*RXR*rhonemo;
+            real_function_3d gamma=-1.0*xc.make_xc_kernel()*full_dens_pt;
+            Kp=mul(world,gamma,nemo);
+        } else {
+            Exchange Kp1=Exchange(world).small_memory(false).same(true);
+            Kp1.set_parameters(R2nemo,xi_complete,occ);
+            vecfuncT R2xi=mul(world,R_square,xi_complete);
+            truncate(world,R2xi);
+            Exchange Kp2=Exchange(world).small_memory(false);
+            Kp2.set_parameters(R2xi,nemo,occ);
 
-        // make the rhs
-        START_TIMER(world);
-        vecfuncT Vpsi1=add(world,V(xi),sub(world,J(xi),K(xi)));
-        truncate(world,Vpsi1);
-        END_TIMER(world, "CPHF: make rhs1");
-
-        START_TIMER(world);
-        vecfuncT Vpsi2a=sub(world,Jp(nemo),add(world,Kp1(nemo),Kp2(nemo)));
+            Kp=add(world,Kp1(nemo),Kp2(nemo));
+        }
+        vecfuncT Vpsi2a=sub(world,Jp(nemo),Kp);
         vecfuncT Vpsi2=add(world,Vpsi2a,rhsconst);
         truncate(world,Vpsi2);
         Vpsi2=Q(Vpsi2);

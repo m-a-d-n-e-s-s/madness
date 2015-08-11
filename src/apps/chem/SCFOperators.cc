@@ -375,6 +375,16 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
 
 }
 
+/// custom ctor with information about the XC functional
+XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polarized,
+        const real_function_3d& arho, const real_function_3d& brho)
+    : world(world), nbeta(0), ispin(0) {
+    xc=std::shared_ptr<XCfunctional> (new XCfunctional());
+    xc->initialize(xc_data, spin_polarized, world);
+    prep_xc_args(arho,brho,delrho,vf);
+
+}
+
 
 XCOperator::XCOperator(World& world, const SCF* calc, int ispin) : world(world),
         ispin(ispin) {
@@ -419,6 +429,15 @@ XCOperator::XCOperator(World& world, const SCF* calc, const real_function_3d& ar
         : world(world), nbeta(calc->param.nbeta), ispin(ispin) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(calc->param.xc_data, !calc->param.spin_restricted, world);
+    prep_xc_args(arho,brho,delrho,vf);
+}
+
+XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& arho,
+        const real_function_3d& brho, int ispin)
+        : world(world), nbeta(nemo->get_calc()->param.nbeta), ispin(ispin) {
+    xc=std::shared_ptr<XCfunctional> (new XCfunctional());
+    xc->initialize(nemo->get_calc()->param.xc_data,
+            not nemo->get_calc()->param.spin_restricted, world);
     prep_xc_args(arho,brho,delrho,vf);
 }
 
@@ -490,8 +509,16 @@ real_function_3d XCOperator::make_xc_potential() const {
 }
 
 real_function_3d XCOperator::make_xc_kernel() const {
-    MADNESS_EXCEPTION("no make_xc_kernel yet",1);
-    return multiop_values<double, xc_kernel, 3>(xc_kernel(*xc, ispin, 0), vf);
+    if (not is_initialized()) {
+        MADNESS_EXCEPTION("calling xc kernel without intermediates ",1);
+    }
+    if (xc->is_gga() ) MADNESS_EXCEPTION("no gga in xc_kernel",1);
+
+    // LDA part
+    real_function_3d dft_kernel=multiop_values<double, xc_kernel, 3>
+            (xc_kernel(*xc, ispin, 0), vf);
+    return dft_kernel;
+
 }
 
 void XCOperator::prep_xc_args(const real_function_3d& arho,

@@ -1053,14 +1053,15 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 
 // The smooth potential is the potential without the nuclear potential
 // The nuclear potential has to be calculated sepparately
-vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction) const{
+vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction)const{
 	std::cout << "\nPotential for virtuals: J-K , Vnuc is added later\n";
 	vecfuncT smooth_potential;
 	if(compute_virtuals_){
 		if(dft_) smooth_potential = CCOPS_.KS_residue_closed_shell(get_nemo().get_calc(),xfunction.x);
 		else smooth_potential=CCOPS_.fock_residue_closed_shell(xfunction.x);
 	}else{
-		smooth_potential = CCOPS_.get_CIS_potential_singlet(xfunction.x);
+		// for now
+		smooth_potential = CCOPS_.get_CIS_potential_singlet(xfunction.x,nemo_);
 	}
 	truncate(world,smooth_potential);
 	return smooth_potential;

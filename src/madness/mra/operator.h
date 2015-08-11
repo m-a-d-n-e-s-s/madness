@@ -1646,6 +1646,26 @@ namespace madness {
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
     }
 
+    /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
+    static inline SeparatedConvolution<double,3>* SlaterF12OperatorPtr(World& world,
+    		double mu, double lo, double eps,
+    		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+    		int k=FunctionDefaults<3>::get_k()) {
+
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+    }
+
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     static

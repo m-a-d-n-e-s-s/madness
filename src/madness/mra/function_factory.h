@@ -416,6 +416,12 @@ namespace madness {
             return self();
         }
         
+        /// return the BSH operator
+        TwoElectronFactory& BSH3D() {
+            type_=bsh_;
+            return self();
+        }
+
         // access to the functor *only* via this
         InterfacePtr get_functor() const {
             
@@ -439,6 +445,11 @@ namespace madness {
                 const_cast<InterfacePtr& >(this->interface_)=
                     InterfacePtr(new SlaterFunctionInterface(
                                                              gamma_,dcut_,_thresh,bc_,_k));
+            } else if (type_==bsh_){
+            	const_cast<InterfacePtr& >(this->interface_)=
+            			InterfacePtr(new BSHFunctionInterface(
+            												 gamma_,dcut_,_thresh,bc_,_k));
+
             } else {
                 MADNESS_EXCEPTION("unimplemented integral kernel",1);
             }

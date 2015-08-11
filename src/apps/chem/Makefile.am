@@ -3,14 +3,14 @@ include $(top_srcdir)/config/MakeGlobal.am
 # default location for basis sets etc
 AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\"
 
-noinst_PROGRAMS = testxc plotxc test_SCFOperators
+noinst_PROGRAMS = testxc plotxc test_SCFOperators test_dft
 
 lib_LTLIBRARIES = libMADchem.la
 
 data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 dist_data_DATA = $(data_DATA)
 
-TESTS = test_SCFOperators # testxc 
+TESTS = test_SCFOperators test_dft # testxc 
 
 thisincludedir = $(includedir)/chem
 
@@ -23,6 +23,9 @@ thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
 
 testxc_SOURCES = testxc.cc xcfunctional.h
 testxc_LDADD = libMADchem.la $(MRALIBS)
+
+test_dft_SOURCES = test_dft.cc xcfunctional.h
+test_dft_LDADD = libMADchem.la $(MRALIBS)
 
 test_SCFOperators_SOURCES = test_SCFOperators.cc 
 test_SCFOperators_LDADD = libMADchem.la $(MRALIBS)
