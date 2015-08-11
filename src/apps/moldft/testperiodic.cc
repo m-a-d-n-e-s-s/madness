@@ -27,9 +27,9 @@ static const double L = 3.8; // Unit cell size in au for LiF
 //static const double L = 8.0;
 //static const double L = 10.26085381075144364474; // Unit cell size in au for Si
 
-static const int maxR = 2; // periodic sums from -R to +R inclusive
-static const double thresh = 1e-6;
-static const double kwavelet = 12;
+static const int maxR = 6; // periodic sums from -R to +R inclusive
+static const double thresh = 1e-4;
+static const double kwavelet = 8;
 static const int truncate_mode = 0;
 
 static Molecule molecule;
@@ -38,6 +38,17 @@ static AtomicBasisSet aobasis;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef SeparatedConvolution<double_complex,3> coperatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
+typedef std::shared_ptr<coperatorT> pcoperatorT;
+
+
+static double ttt, sss;
+static void START_TIMER(World& world) {
+    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+}
+
+static void END_TIMER(World& world, const char* msg) {
+    ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+}
 
 template <typename Q>
 class ExpFunctor: public FunctionFunctorInterface<Q,3> {
@@ -148,76 +159,14 @@ public:
     }
 
     double operator()(const coord_3d& x) const {
-        return aofunc(x[0] + offx*R, x[1] + offy*R, x[2] + offz*R);
+        if ((offx+offy+offz)*R < 3*aofunc.rangesq()) {
+          return aofunc(x[0] + offx*R, x[1] + offy*R, x[2] + offz*R);
+        }
+        return 0.0;
     }
 
     std::vector<coord_3d> special_points() const {return specialpt;}
 };
-
-//#define NTRANS 8
-//class AtomicBasisFunctor : public FunctionFunctorInterface<double_complex,3> {
-//private:
-//    const AtomicBasisFunction aofunc;
-//    const double kx;
-//    const double ky;
-//    const double kz;
-//    const double R;
-//    const double rangesq;
-//    coord_3d r;
-//    std::vector<coord_3d> specialpt;
-//    Vector<std::complex<double>,2*NTRANS+1> tx; 
-//    Vector<std::complex<double>,2*NTRANS+1> ty; 
-//    Vector<std::complex<double>,2*NTRANS+1> tz; 
-//
-//public:
-//    AtomicBasisFunctor(const AtomicBasisFunction& aofunc, const Vector<double,3>& kpt, 
-//                       double R)
-//        : aofunc(aofunc), kx(kpt[0]), ky(kpt[1]), kz(kpt[2]), R(R), rangesq(aofunc.rangesq()*2)
-//    {
-//    	double x, y, z;
-//        aofunc.get_coords(x,y,z);
-//        r[0]=x; r[1]=y; r[2]=z;
-//        specialpt=std::vector<coord_3d>(1,r);
-//        for (int ir = -NTRANS; ir <= NTRANS; ir += 1)
-//        {
-//          tx[ir+NTRANS] = exp(std::complex<double>(0.0, twopi*kx*ir * R));
-//          ty[ir+NTRANS] = exp(std::complex<double>(0.0, twopi*ky*ir * R));
-//          tz[ir+NTRANS] = exp(std::complex<double>(0.0, twopi*kz*ir * R));
-//        }
-//    }
-//
-//    double_complex operator()(const coord_3d& x) const {
-//        double_complex sum = 0.0;
-//        for (int i=-NTRANS; i<=+NTRANS; i++) {
-//            const double xx = x[0]+i*R;
-//            const double xxR = xx-r[0];
-//            const double xxRsq = xxR*xxR;
-//            if (xxRsq < rangesq) {
-//                for (int j=-NTRANS; j<=+NTRANS; j++) {
-//                    const double yy = x[1]+j*R;
-//                    const double yyR = yy-r[1];
-//                    const double yyRsq = yyR*yyR; 
-//                    if (xxRsq+yyRsq < rangesq) { 
-//                        for (int k=-NTRANS; k<=+NTRANS; k++) {
-//                            const double zz = x[2]+k*R;
-//                            const double zzR = zz-r[2];
-//                            const double zzRsq = zzR*zzR;
-//                            if (xxRsq+yyRsq+zzRsq < rangesq) {
-//                                double ao = aofunc(xx, yy, zz);
-//                                if (std::abs(ao) > 1e-8) {
-//                                    sum += tx[xx+NTRANS]*ty[yy+NTRANS]*tz[zz+NTRANS]*ao;
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//        return sum*std::exp(-I*(kx*r[0]+ky*r[1]+kz*r[2]));
-//    }
-//
-//    std::vector<coord_3d> special_points() const {return specialpt;}
-//};
 
 class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
@@ -259,7 +208,48 @@ public:
 
 };
 
-vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,3> >& kpoints) {
+class KPeriodicBSHOperator {
+private:
+    double kx, ky, kz;
+    double L;
+    complex_function_3d phase_p;
+    complex_function_3d phase_m;
+
+public:
+    KPeriodicBSHOperator(World& world, const double& kx, const double& ky, const double& kz, const double& L)
+     : kx(kx), ky(ky), kz(kz), L(L) {
+        phase_p = complex_factory_3d(world).functor(complex_functor_3d(
+          new ExpFunctor3d<double_complex>(I*kx,I*ky,I*kz))).truncate_mode(0).truncate_on_project();
+        phase_m = complex_factory_3d(world).functor(complex_functor_3d(
+          new ExpFunctor3d<double_complex>(-I*kx,-I*ky,-I*kz))).truncate_mode(0).truncate_on_project();
+    }
+
+    KPeriodicBSHOperator(World& world, const Vector<double,3>& kpt, const double& L)
+     : kx(kpt[0]), ky(kpt[1]), kz(kpt[2]), L(L) {
+        phase_p = complex_factory_3d(world).functor(complex_functor_3d(
+          new ExpFunctor3d<double_complex>(I*kx,I*ky,I*kz))).truncate_mode(0).truncate_on_project();
+        phase_m = complex_factory_3d(world).functor(complex_functor_3d(
+          new ExpFunctor3d<double_complex>(-I*kx,-I*ky,-I*kz))).truncate_mode(0).truncate_on_project();
+    }
+
+    vector_complex_function_3d apply(World& world, const vector_complex_function_3d& v, const tensor_real& evals, double shift = 0.0) {
+        START_TIMER(world);
+        int nmo = evals.dim(0);
+        vector<pcoperatorT> ops(nmo);
+        for(int i = 0;i < nmo; ++i){
+            double eps = evals(i) + shift;
+            ops[i] = pcoperatorT(PeriodicBSHOperatorPtr3D(world, vec(-kx*L, -ky*L, -kz*L), sqrt(-2.0*eps),  1e-4, FunctionDefaults<3>::get_thresh()));
+        }
+        vector_complex_function_3d t1 = mul(world,phase_p,v);
+        truncate(world,t1);
+        vector_complex_function_3d t2 = ::apply(world,ops,t1);
+        vector_complex_function_3d t3 = mul(world,phase_m,t2);
+        return t3;
+        END_TIMER(world, "apply periodic bsh");
+    }
+};
+
+vector_complex_function_3d makeao_slow(World& world, const std::vector<Vector<double,3> >& kpoints) {
     int nkpt = kpoints.size();
     int nbf = aobasis.nbf(molecule);
     vector_complex_function_3d ao(nkpt*nbf);
@@ -280,30 +270,8 @@ vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,
     return ao;
 }
 
-//void makeao2(World& world, const std::vector<Vector<double,3> >& kpoints) {
-//    int nkpt = kpoints.size();
-//    int nbf = aobasis.nbf(molecule);
-//    vector_real_function_3d aos(nbf*(2*maxR+1)*(2*maxR+1)*(2*maxR+1));
-//    print("nbf:  ", nbf);
-//    auto idx = 0;
-//    for (int ibf = 0; ibf < nbf; ibf++) {
-//        print("\n\nibf: ", ibf);
-//        for (int i = -maxR; i <= maxR; i++) {
-//            for (int j = -maxR; j <= maxR; j++) {
-//                for (int k = -maxR; k <= maxR; k++) {
-//                    print(idx,ibf,i,j,k);
-//                    real_functor_3d aofunc(
-//                       new AtomicOrbitalFunctor(
-//                       aobasis.get_atomic_basis_function(molecule, ibf), L, i, j, k));
-//                    real_function_3d ao = real_factory_3d(world).functor(aofunc).truncate_on_project().nofence().truncate_mode(0);
-//                    aos[idx++] = ao;
-//                }
-//            }
-//        }
-//    }
-//}
-
-vector_complex_function_3d makeao2(World& world, const std::vector<Vector<double,3> >& kpts, double R) {
+vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,3> >& kpts, double R) {
+    START_TIMER(world);
     int nkpt = kpts.size();
     int nbf = aobasis.nbf(molecule);
     double t1 = 1./std::sqrt((double)nbf);
@@ -336,10 +304,12 @@ vector_complex_function_3d makeao2(World& world, const std::vector<Vector<double
             aos[ik*nbf+ibf] = aos[ik*nbf+ibf]*phase_m;
         }
     }
+    END_TIMER(world, "makeao");
     return aos;
 }
 
 tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3d& v, const Vector<double,3>& kpt) {
+    START_TIMER(world);
     double kx = kpt[0]; double ky = kpt[1]; double kz = kpt[2];
     complex_derivative_3d Dx(world, 0);
     complex_derivative_3d Dy(world, 1);
@@ -362,14 +332,17 @@ tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3
         (-I*kz)*matrix_inner(world, v, dvz, false);
 
     auto f3 = (0.5 * (kx*kx + ky*ky + kz*kz)) * matrix_inner(world, v, v, true);
+    END_TIMER(world, "kinetic energy");
 
     return f1 + f2 + f3;
 }
 
 vector_complex_function_3d apply_potential(World& world, const real_function_3d& potential, const vector_complex_function_3d& psi)
 {
+    START_TIMER(world);
     auto vpsi = mul(world, potential, psi, false);
     world.gop.fence();
+    END_TIMER(world, "apply potential");
     return vpsi;
 }
 
@@ -443,15 +416,19 @@ std::pair<vector_complex_function_3d, tensor_real> diag_and_transform(World& wor
  
 real_function_3d make_lda_potential(World& world, const real_function_3d &rho)
 {
+    START_TIMER(world);
     auto vlda = copy(rho);
     vlda.reconstruct();
     vlda.unaryop(xc_lda_potential());
+    END_TIMER(world, "lda potential");
     return vlda;
 }
 
 real_function_3d make_coulomb_potential(World& world, const real_function_3d& rho)
 {
+    START_TIMER(world);
     real_convolution_3d op = CoulombOperator(world, 1e-4, thresh);
+    END_TIMER(world, "hartree potential");
     return op(rho);
 }
 
@@ -467,6 +444,7 @@ vector<poperatorT> make_bsh_operators(World & world, const tensor_real& evals, d
 }
 
 void orthogonalize(World& world, vector_complex_function_3d& psi) {
+    START_TIMER(world);
     compress(world, psi);
     for (unsigned int i = 0; i<psi.size(); i++) {
         complex_function_3d& psi_i = psi[i];
@@ -478,6 +456,7 @@ void orthogonalize(World& world, vector_complex_function_3d& psi) {
             psi_i.scale(1.0/psi_i.norm2());
         }
     }
+    END_TIMER(world, "orthogonalize");
 }
 
 // function to apply BSH with twisted PBC
@@ -528,15 +507,17 @@ vector_complex_function_3d update(World& world,
     scale(world, vpsi, -2.0);
     truncate(world, vpsi);
     
-    vector_complex_function_3d new_psi(nmo);
-    
-    for (int iorb = 0; iorb < nmo; iorb++) {
-      new_psi[iorb] = apply_periodic_bsh(world, vpsi[iorb], kx, ky, kz, e[iorb]+shift, L);
-    }
+    //vector_complex_function_3d new_psi(nmo);
+    //for (int iorb = 0; iorb < nmo; iorb++) {
+    //  new_psi[iorb] = apply_periodic_bsh(world, vpsi[iorb], kx, ky, kz, e[iorb]+shift, L);
+    //}
+   
+    KPeriodicBSHOperator kop(world, kx, ky, kz, L);
+    vector_complex_function_3d new_psi = kop.apply(world, vpsi, e, shift);
 
     // Step restriction
-    double damp = 0.05;
-    if (world.rank() == 0) print("  shift", shift, "damp", damp, "\n");
+    double damp = 0.15;
+    //if (world.rank() == 0) print("  shift", shift, "damp", damp, "\n");
 
     if (world.rank() == 0) printf("kpoint:  %10.5f    %10.5f    %10.5f\n",kpt[0],kpt[1],kpt[2]);
     if (world.rank() == 0) printf("      eigenvalue    residual\n");
@@ -567,29 +548,22 @@ vector_complex_function_3d update(World& world,
 }
 
 real_function_3d make_density(World& world, const vector_complex_function_3d& v, double weight) {
+    START_TIMER(world);
     real_function_3d rho(world);
     for (unsigned int i=0; i<v.size(); i++) {
         rho = rho + weight*abssq(v[i]);
     }
     rho.scale(2.0); // total closed-shell density
+    END_TIMER(world, "make density");
     return rho;
 }
 
 // Return all orbitals for all kpoints
 // Modifies the density rho
 vector_complex_function_3d initial_guess(World& world, const real_function_3d& vnuc, real_function_3d& rho, const std::vector<Vector<double,3> >& kpoints, int nst) {
-    print("gonna makeao2 now");
-    auto psi0 = makeao2(world, kpoints, L);
-    print("done makeao2");
-
-    //print("gonna makeao now");
-    //auto psi0 = makeao(world, kpoints);
-    //print("done makeao");
-    
+    auto psi0 = makeao(world, kpoints, L);
     auto v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
-    print("done making potential");
     auto vpsi = apply_potential(world, v, psi0);
-    print("done applying potential");
 
     int nkpt = kpoints.size();
     int nsize = psi0.size();
@@ -639,7 +613,6 @@ vector_complex_function_3d initial_guess(World& world, const real_function_3d& v
             psi.push_back(psik[ist]);    
         }
     }
-    print("HERE!!");
 
 //    /////// BEGIN DEBUG CODE
 //    vpsi = apply_potential(world, v, psi);
@@ -683,25 +656,25 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_truncate_mode(truncate_mode);
 
     //// kpoint list
-    //int nkpt = 4;
-    //std::vector<Vector<double,3> > kpoints(nkpt);
-    //kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
-    //kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
-    //kpoints[2] = vec(0.0*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
-    //kpoints[3] = vec(0.0*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
-    //double weight = 1.0/(double)nkpt;
-    
-    int nkpt = 8;
+    int nkpt = 4;
     std::vector<Vector<double,3> > kpoints(nkpt);
     kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
     kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
     kpoints[2] = vec(0.0*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
     kpoints[3] = vec(0.0*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
-    kpoints[4] = vec(0.5*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
-    kpoints[5] = vec(0.5*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
-    kpoints[6] = vec(0.5*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
-    kpoints[7] = vec(0.5*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
     double weight = 1.0/(double)nkpt;
+    
+    //int nkpt = 8;
+    //std::vector<Vector<double,3> > kpoints(nkpt);
+    //kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
+    //kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
+    //kpoints[2] = vec(0.0*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
+    //kpoints[3] = vec(0.0*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
+    //kpoints[4] = vec(0.5*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
+    //kpoints[5] = vec(0.5*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
+    //kpoints[6] = vec(0.5*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
+    //kpoints[7] = vec(0.5*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
+    //double weight = 1.0/(double)nkpt;
 
     //int nkpt = 2;
     //std::vector<Vector<double,3> > kpoints(nkpt);
@@ -723,12 +696,12 @@ int main(int argc, char** argv) {
 
     // Cubic cell for LiF
     molecule.add_atom(  0,  0,  0, 9.0, 9);
-    //molecule.add_atom(L/2,L/2,  0, 9.0, 9);
-    //molecule.add_atom(L/2,  0,L/2, 9.0, 9);
-    //molecule.add_atom(  0,L/2,L/2, 9.0, 9);
-    //molecule.add_atom(L/2,  0,  0, 3.0, 3);
-    //molecule.add_atom(  0,L/2,  0, 3.0, 3);
-    //molecule.add_atom(  0,  0,L/2, 3.0, 3);
+    molecule.add_atom(L/2,L/2,  0, 9.0, 9);
+    molecule.add_atom(L/2,  0,L/2, 9.0, 9);
+    molecule.add_atom(  0,L/2,L/2, 9.0, 9);
+    molecule.add_atom(L/2,  0,  0, 3.0, 3);
+    molecule.add_atom(  0,L/2,  0, 3.0, 3);
+    molecule.add_atom(  0,  0,L/2, 3.0, 3);
     molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
 
     // Cubic cell for Si
@@ -809,9 +782,10 @@ int main(int argc, char** argv) {
         print(nkpt,nst,psi.size());
         MADNESS_ASSERT(nkpt*nst == (int) psi.size());
 
-        if (iter == 20) {
+        if (iter == 12) {
           print("reprojecting ..");
             vnuc = madness::project(vnuc, kwavelet+2, thresh*1e-2, true); 
+            rho = madness::project(rho, kwavelet+2, thresh*1e-2, true); 
           for (unsigned int i = 0; i < psi.size(); i++) {
             FunctionDefaults<3>::set_k(kwavelet+2);
             FunctionDefaults<3>::set_thresh(thresh*1e-2);
@@ -819,9 +793,10 @@ int main(int argc, char** argv) {
           }
           print("done reprojecting ..");
         }
-        if (iter == 26) {
+        if (iter == 18) {
           print("reprojecting ..");
             vnuc = madness::project(vnuc, kwavelet+4, thresh*1e-4, true); 
+            rho = madness::project(rho, kwavelet+4, thresh*1e-4, true); 
           for (unsigned int i = 0; i < psi.size(); i++) {
             FunctionDefaults<3>::set_k(kwavelet+4);
             FunctionDefaults<3>::set_thresh(thresh*1e-4);
@@ -829,9 +804,24 @@ int main(int argc, char** argv) {
           }
           print("done reprojecting ..");
         }
+        if (iter == 24) {
+          print("reprojecting ..");
+            vnuc = madness::project(vnuc, kwavelet+6, thresh*1e-6, true); 
+            rho = madness::project(rho, kwavelet+6, thresh*1e-6, true); 
+          for (unsigned int i = 0; i < psi.size(); i++) {
+            FunctionDefaults<3>::set_k(kwavelet+6);
+            FunctionDefaults<3>::set_thresh(thresh*1e-6);
+            psi[i] = madness::project(psi[i], kwavelet+6, thresh*1e-6, true); 
+          }
+          print("done reprojecting ..");
+        }
 
 
-        rho = make_density(world, psi, weight);
+        auto rho_new = make_density(world, psi, weight);
+        double rdiff = (rho-rho_new).norm2();
+        double s = 0.3;
+        rho = s*rho + (1.0-s)*rho_new;
+        if (world.rank() == 0) printf("electron density difference:  %15.8e\n\n", rdiff);
     }
     return 0;
 }
