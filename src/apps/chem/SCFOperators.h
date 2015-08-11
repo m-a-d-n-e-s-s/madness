@@ -333,6 +333,10 @@ public:
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
             const real_function_3d& brho, int ispin=0);
 
+    /// ctor with an Nemo calculation, will initialize the necessary intermediates
+    XCOperator(World& world, const Nemo* scf, const real_function_3d& arho,
+            const real_function_3d& brho, int ispin=0);
+
     /// apply the xc potential on a set of orbitals
     vecfuncT operator()(const vecfuncT& vket) const;
 

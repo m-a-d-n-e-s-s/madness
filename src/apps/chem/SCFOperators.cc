@@ -432,6 +432,15 @@ XCOperator::XCOperator(World& world, const SCF* calc, const real_function_3d& ar
     prep_xc_args(arho,brho,delrho,vf);
 }
 
+XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& arho,
+        const real_function_3d& brho, int ispin)
+        : world(world), nbeta(nemo->get_calc()->param.nbeta), ispin(ispin) {
+    xc=std::shared_ptr<XCfunctional> (new XCfunctional());
+    xc->initialize(nemo->get_calc()->param.xc_data,
+            not nemo->get_calc()->param.spin_restricted, world);
+    prep_xc_args(arho,brho,delrho,vf);
+}
+
 vecfuncT XCOperator::operator()(const vecfuncT& vket) const {
     real_function_3d xc_pot=make_xc_potential();
     double vtol = FunctionDefaults<3>::get_thresh() * 0.1;  // safety
