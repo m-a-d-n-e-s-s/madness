@@ -901,7 +901,7 @@ private:
 
 	/// The CIS or TDA Potential without the nuclear potential is applied to one xfunction
 	/// @param[in] one xfunction
-	vecfuncT apply_smooth_potential(const xfunction&xfunction) const;
+	vecfuncT apply_smooth_potential(const xfunction&xfunction)const;
 
 	vecfuncT apply_nuclear_potential(const xfunction &xfunction) const;
 
