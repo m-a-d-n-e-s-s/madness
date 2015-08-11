@@ -443,6 +443,10 @@ public:
     madness::Vector<double,3> get_coords_vec() const {
         return madness::Vector<double,3>{xx, yy, zz};
     }
+
+    double rangesq() const {
+        return shell.rangesq();
+    }
 };
 
 /// Contracted Gaussian basis
