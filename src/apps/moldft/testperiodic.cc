@@ -17,6 +17,8 @@ using namespace madness;
 #include <chem/molecularbasis.h>
 #include <chem/xcfunctional.h>
 
+#include "subspace.h"
+
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;
 
@@ -28,18 +30,19 @@ static const double L = 3.8; // Unit cell size in au for LiF
 //static const double L = 10.26085381075144364474; // Unit cell size in au for Si
 
 static const int maxR = 6; // periodic sums from -R to +R inclusive
-static const double thresh = 1e-4;
+static const double thresh = 1e-6;
 static const double kwavelet = 8;
 static const int truncate_mode = 0;
 
 static Molecule molecule;
 static AtomicBasisSet aobasis;
+static Subspace* subspace;
 
 typedef SeparatedConvolution<double,3> operatorT;
 typedef SeparatedConvolution<double_complex,3> coperatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
 typedef std::shared_ptr<coperatorT> pcoperatorT;
-
+typedef std::pair<vector_complex_function_3d,vector_complex_function_3d> vcpairT;
 
 static double ttt, sss;
 static void START_TIMER(World& world) {
@@ -486,12 +489,13 @@ complex_function_3d apply_periodic_bsh(World& world, const complex_function_3d& 
 }
 
 // DESTROYS VPSI
-vector_complex_function_3d update(World& world,
-                                  const vector_complex_function_3d& psi,
-                                  vector_complex_function_3d& vpsi,
-                                  const Vector<double,3>& kpt,
-                                  const real_function_3d& v,
-                                  const tensor_real& e)
+vcpairT update(World& world,
+               int ik,
+               const vector_complex_function_3d& psi,
+               vector_complex_function_3d& vpsi,
+               const Vector<double,3>& kpt,
+               const real_function_3d& v,
+               const tensor_real& e)
 {
     int nmo = psi.size();
     double kx = kpt[0]; double ky = kpt[1]; double kz = kpt[2];
@@ -514,37 +518,16 @@ vector_complex_function_3d update(World& world,
    
     KPeriodicBSHOperator kop(world, kx, ky, kz, L);
     vector_complex_function_3d new_psi = kop.apply(world, vpsi, e, shift);
-
-    // Step restriction
-    double damp = 0.15;
-    //if (world.rank() == 0) print("  shift", shift, "damp", damp, "\n");
+    vector_complex_function_3d rm = sub(world, psi, new_psi);
+    truncate(world,rm);
 
     if (world.rank() == 0) printf("kpoint:  %10.5f    %10.5f    %10.5f\n",kpt[0],kpt[1],kpt[2]);
     if (world.rank() == 0) printf("      eigenvalue    residual\n");
     for (int i=0; i<nmo; i++) {
-        double rnorm = (psi[i]-new_psi[i]).norm2();
+        double rnorm = rm[i].norm2();
         if (world.rank() == 0) printf("%4d  %10.6f  %10.1e\n", i, e[i], rnorm);
-        new_psi[i] = damp*psi[i] + (1.0-damp)*new_psi[i];
     }
-    truncate(world,new_psi);
-    normalize(world, new_psi);
-    orthogonalize(world, new_psi);
-    truncate(world,new_psi);
-    normalize(world, new_psi);
-
-//    // normalize(world, new_psi);
-//    //new_psi.insert(new_psi.end(), psi.begin(), psi.end());    
-//    new_psi = orth(world, new_psi);
-//
-//    auto result = diag_and_transform(world, kpt, v, new_psi, nmo);
-//    tensor_real eigs = result.second;
-//
-//    for (int i=0; i<nmo; i++) {
-//        double rnorm = (psi[i]-new_psi[i]).norm2();
-//        if (world.rank() == 0) printf("%4d  %10.6f  %10.1e\n", i, eigs[i], rnorm);
-//    }
-    
-    return new_psi;
+    return vcpairT(new_psi,rm);
 }
 
 real_function_3d make_density(World& world, const vector_complex_function_3d& v, double weight) {
@@ -607,41 +590,135 @@ vector_complex_function_3d initial_guess(World& world, const real_function_3d& v
     
         psik = transform(world, psik, c);
         vpsik = transform(world, vpsik, c);
-        //psik = update(world, psik, vpsik, kpoints[ik], v, e);
         for (int ist = 0; ist < nst; ist++) {
             print("pushing back ist = ", ist);
             psi.push_back(psik[ist]);    
         }
     }
 
-//    /////// BEGIN DEBUG CODE
-//    vpsi = apply_potential(world, v, psi);
-//    for (int ik = 0; ik < nkpt; ++ik) {
-//        auto ke_mat = make_kinetic_matrix(world, psi, kpoints[ik]);
-//        auto pe_mat = matrix_inner(world, psik, vpsi, true);
-//        auto ov_mat = matrix_inner(world, psik, psi, true);
-//        auto fock = ke_mat + pe_mat;
-//        // eliminate small off-diagonal elements and lift diagonal
-//        // degeneracies to reduce random mixing
-//        for (unsigned int i=0; i<psik.size(); i++) {
-//            fock(i,i) += i*thresh*1e-2;
-//            for (unsigned int j=0; j<i; j++) {
-//                if (std::abs(fock(i,j)) < thresh*1e-1 || std::abs(ov_mat(i,j)) < thresh*1e-1) {
-//                    fock(i,j) = fock(j,i) = 0.0;
-//                    ov_mat(i,j) = ov_mat(j,i) = 0.0;
-//                }
-//            }
-//        }
-//        tensor_complex c;
-//        tensor_real e;
-//        sygv(fock, ov_mat, 1, c, e);
-//    }
-//    /////// END DEBUG CODE
-
     // compute new density
     double weights = 1.0/(double)kpoints.size();
     rho = make_density(world,psi,weights);
     return psi;
+}
+
+tensor_complex matrix_exponential(const tensor_complex& A) {
+    const double tol = 1e-13;
+    MADNESS_ASSERT(A.dim(0) == A.dim(1));
+
+    // Scale A by a power of 2 until it is "small"
+    double anorm = A.normf();
+    int n = 0;
+    double scale = 1.0;
+    while (anorm*scale > 0.1)
+    {
+        n++;
+        scale *= 0.5;
+    }
+    tensor_complex B = scale*A;    // B = A*2^-n
+
+    // Compute exp(B) using Taylor series
+    tensor_complex expB = tensor_complex(2, B.dims());
+    for (int i = 0; i < expB.dim(0); i++) expB(i,i) = double_complex(1.0,0.0);
+
+    int k = 1;
+    tensor_complex term = B;
+    while (term.normf() > tol)
+    {
+        expB += term;
+        term = inner(term,B);
+        k++;
+        term.scale(1.0/k);
+    }
+
+    // Repeatedly square to recover exp(A)
+    while (n--)
+    {
+        expB = inner(expB,expB);
+    }
+
+    return expB;
+}
+
+void fixphases(tensor_real& e, tensor_complex& U) {
+    int nmo = U.dim(0);
+    long imax;
+    for (long j = 0; j < nmo; j++)
+    {
+        // Get index of largest value in column
+        U(_,j).absmax(&imax);
+        double_complex ang = arg(U(imax,j));
+        double_complex phase = std::exp(-ang*I);
+        // Loop through the rest of the column and divide by the phase
+        for (long i = 0; i < nmo; i++)
+        {
+            U(i,j) *= phase;
+        }
+    }
+
+    //// Within blocks with the same occupation number attempt to
+    //// keep orbitals in the same order (to avoid confusing the
+    //// non-linear solver).  Have to run the reordering multiple
+    //// times to handle multiple degeneracies.
+    //int maxpass = 5;
+    //for (int pass = 0; pass < maxpass; pass++)
+    //{
+    //    long j;
+    //    for (long i = 0; i < nmo; i++)
+    //    {
+    //        U(_, i).absmax(&j);
+    //        if (i != j)
+    //        {
+    //          tensor_complex tmp = copy(U(_, i));
+    //          U(_, i) = U(_, j);
+    //          U(_, j) = tmp;
+    //          //swap(e[i], e[j]);
+    //          double ti = e[i];
+    //          double tj = e[j];
+    //          e[i] = tj; e[j] = ti;
+    //        }
+    //    }
+    //}
+
+    // Rotations between effectively degenerate states confound
+    // the non-linear equation solver ... undo these rotations
+    long ilo = 0; // first element of cluster
+    while (ilo < nmo-1) {
+        long ihi = ilo;
+        while (fabs(e[ilo]-e[ihi+1]) < thresh*10.0*std::max(fabs(e[ilo]),1.0)) {
+            ihi++;
+            if (ihi == nmo-1) break;
+        }
+        long nclus = ihi - ilo + 1;
+        if (nclus > 1) {
+            //if (world.rank() == 0) print("   found cluster", ilo, ihi);
+            tensor_complex q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
+            //print(q);
+            // Special code just for nclus=2
+            // double c = 0.5*(q(0,0) + q(1,1));
+            // double s = 0.5*(q(0,1) - q(1,0));
+            // double r = sqrt(c*c + s*s);
+            // c /= r;
+            // s /= r;
+            // q(0,0) = q(1,1) = c;
+            // q(0,1) = -s;
+            // q(1,0) = s;
+
+            // Iteratively construct unitary rotation by
+            // exponentiating the antisymmetric part of the matrix
+            // ... is quadratically convergent so just do 3
+            // iterations
+            tensor_complex rot = matrix_exponential(-0.5*(q - conj_transpose(q)));
+            q = inner(q,rot);
+            tensor_complex rot2 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+            q = inner(q,rot2);
+            tensor_complex rot3 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+            q = inner(rot,inner(rot2,rot3));
+            U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
+        }
+        ilo = ihi+1;
+    }
+
 }
 
 int main(int argc, char** argv) {
@@ -656,13 +733,13 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_truncate_mode(truncate_mode);
 
     //// kpoint list
-    int nkpt = 4;
-    std::vector<Vector<double,3> > kpoints(nkpt);
-    kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
-    kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
-    kpoints[2] = vec(0.0*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
-    kpoints[3] = vec(0.0*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
-    double weight = 1.0/(double)nkpt;
+    //int nkpt = 4;
+    //std::vector<Vector<double,3> > kpoints(nkpt);
+    //kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
+    //kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
+    //kpoints[2] = vec(0.0*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
+    //kpoints[3] = vec(0.0*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
+    //double weight = 1.0/(double)nkpt;
     
     //int nkpt = 8;
     //std::vector<Vector<double,3> > kpoints(nkpt);
@@ -682,12 +759,15 @@ int main(int argc, char** argv) {
     //kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
     //double weight = 1.0/(double)nkpt;
     
-    //int nkpt = 1;
-    //std::vector<Vector<double,3> > kpoints(nkpt);
+    int nkpt = 1;
+    std::vector<Vector<double,3> > kpoints(nkpt);
     //kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
-    ////kpoints[0] = vec(0.5*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
-    //double weight = 1.0/(double)nkpt;
+    kpoints[0] = vec(0.5*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
+    double weight = 1.0/(double)nkpt;
     
+    // initialize subspace
+    subspace = new Subspace[nkpt];
+
     // // FCC unit cell for ne
     //molecule.add_atom(  0,  0,  0, 10.0, 10);
     // molecule.add_atom(L/2,L/2,  0, 10.0, 10);
@@ -742,6 +822,8 @@ int main(int argc, char** argv) {
         auto v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
         auto vpsi = apply_potential(world, v, psi);
 
+        vector_complex_function_3d new_psi(nst*nkpt);
+        vector_complex_function_3d rm(nst*nkpt);
         for (int ik = 0; ik < nkpt; ++ik) {
             vector_complex_function_3d psik(psi.begin()+ik*nst, psi.begin()+(ik+1)*nst);
             vector_complex_function_3d vpsik(vpsi.begin()+ik*nst, vpsi.begin()+(ik+1)*nst);
@@ -771,18 +853,25 @@ int main(int argc, char** argv) {
     
             psik = transform(world, psik, c);
             vpsik = transform(world, vpsik, c);
-            psik = update(world, psik, vpsik, kpoints[ik], v, e);
+            vcpairT pair_update = update(world, ik, psik, vpsik, kpoints[ik], v, e);
+            vector_complex_function_3d new_psik = pair_update.first; 
+            vector_complex_function_3d rmk = pair_update.second;
+
+            //subspace[ik].update_subspace(world, new_psik, psik, rmk);
+            auto damp = 0.3;
+            gaxpy(world,damp,psik,(1.0-damp),new_psik);
+            orthogonalize(world,psik);
+            truncate(world,psik);
 
             for (int ist = 0; ist < nst; ist++) {
                 psi[ik*nst+ist] = psik[ist];
-                vpsi[ik*nst+ist] = vpsik[ist];
             }
         }
 
         print(nkpt,nst,psi.size());
         MADNESS_ASSERT(nkpt*nst == (int) psi.size());
 
-        if (iter == 12) {
+        if (iter == 30) {
           print("reprojecting ..");
             vnuc = madness::project(vnuc, kwavelet+2, thresh*1e-2, true); 
             rho = madness::project(rho, kwavelet+2, thresh*1e-2, true); 
@@ -793,7 +882,7 @@ int main(int argc, char** argv) {
           }
           print("done reprojecting ..");
         }
-        if (iter == 18) {
+        if (iter == 35) {
           print("reprojecting ..");
             vnuc = madness::project(vnuc, kwavelet+4, thresh*1e-4, true); 
             rho = madness::project(rho, kwavelet+4, thresh*1e-4, true); 
@@ -804,7 +893,7 @@ int main(int argc, char** argv) {
           }
           print("done reprojecting ..");
         }
-        if (iter == 24) {
+        if (iter == 40) {
           print("reprojecting ..");
             vnuc = madness::project(vnuc, kwavelet+6, thresh*1e-6, true); 
             rho = madness::project(rho, kwavelet+6, thresh*1e-6, true); 
