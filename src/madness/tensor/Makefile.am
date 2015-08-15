@@ -7,7 +7,7 @@ TESTS = oldtest.seq test_mtxmq.seq test_Zmtxmq.seq jimkernel.seq \
         test_elemental.mpi testseprep.seq test_distributed_matrix.mpi
 
 if MADNESS_HAS_GOOGLE_TEST
-TESTS += test test_gentensor
+TESTS += test_tensor test_gentensor
 endif
 
 TEST_EXTENSIONS = .mpi .seq
@@ -37,10 +37,10 @@ EXTRA_DIST = genmtxm.py tempspec.py
 
 if MADNESS_HAS_GOOGLE_TEST
 
-test_SOURCES = test.cc
-test_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
-test_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
-test_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADtensor.la $(LIBMISC) $(LIBWORLD) 
+test_tensor_SOURCES = test_tensor.cc
+test_tensor_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_tensor_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_tensor_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADtensor.la $(LIBMISC) $(LIBWORLD) 
 
 test_gentensor_SOURCES = test_gentensor.cc
 test_gentensor_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
