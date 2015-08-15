@@ -2,7 +2,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 
 lib_LTLIBRARIES = libMADmisc.la
 
-bin_PROGRAMS = interp3
+noinst_PROGRAMS = interp3
 
 TESTS = interp3
 
