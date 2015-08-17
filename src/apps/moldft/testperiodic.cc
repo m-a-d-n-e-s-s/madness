@@ -53,6 +53,13 @@ static void END_TIMER(World& world, const char* msg) {
     ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 }
 
+class SplitterFunctor: public FunctionFunctorInterface<double,3> {
+public:
+    double operator()(const coord_3d& r) const {
+        return 2.0*r[2]*r[2] + r[0]*r[0];
+    }
+};
+
 template <typename Q>
 class ExpFunctor: public FunctionFunctorInterface<Q,3> {
 private:
@@ -150,6 +157,7 @@ private:
     double R;
     int offx, offy, offz;
     std::vector<coord_3d> specialpt;
+    double rangesq;
 public:
     AtomicOrbitalFunctor(const AtomicBasisFunction& aofunc, double R, int offx, int offy, int offz)
         : aofunc(aofunc), R(R), offx(offx), offy(offy), offz(offz)
@@ -159,13 +167,11 @@ public:
         coord_3d r;
         r[0]=x+offx*R; r[1]=y+offy*R; r[2]=z+offz*R;
         specialpt=std::vector<coord_3d>(1,r);
+        rangesq = 3.0*aofunc.rangesq();
     }
 
     double operator()(const coord_3d& x) const {
-        if ((offx+offy+offz)*R < 3*aofunc.rangesq()) {
-          return aofunc(x[0] + offx*R, x[1] + offy*R, x[2] + offz*R);
-        }
-        return 0.0;
+        return aofunc(x[0] + offx*R, x[1] + offy*R, x[2] + offz*R);
     }
 
     std::vector<coord_3d> special_points() const {return specialpt;}
@@ -285,15 +291,19 @@ vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,
         for (int i = -maxR; i <= maxR; i++) {
             for (int j = -maxR; j <= maxR; j++) {
                 for (int k = -maxR; k <= maxR; k++) {
-                    real_functor_3d aofunc(
-                       new AtomicOrbitalFunctor(
-                       aobasis.get_atomic_basis_function(molecule, ibf), L, i, j, k));
-                    real_function_3d ao = real_factory_3d(world).functor(aofunc).truncate_on_project().truncate_mode(0);
-                    ao.compress();
-                    for (int ik = 0; ik < nkpt; ik++) {
-                        Vector<double,3> kpt = kpts[ik];
-                        complex_function_3d t2 = t1*std::exp(double_complex(0.0,(i*kpt[0]+j*kpt[1]+k*kpt[2])*R))*ao;
-                        aos[ik*nbf+ibf].gaxpy(1.0,t2,1.0);
+                    AtomicBasisFunction abf = aobasis.get_atomic_basis_function(molecule, ibf); 
+                    //if ((i*i+j*j+k*k)*L*L < 3.0*abf.rangesq()) {
+                    if (true) {
+                        real_functor_3d aofunc(
+                           new AtomicOrbitalFunctor(
+                           aobasis.get_atomic_basis_function(molecule, ibf), L, i, j, k));
+                        real_function_3d ao = real_factory_3d(world).functor(aofunc).truncate_on_project().truncate_mode(0);
+                        ao.compress();
+                        for (int ik = 0; ik < nkpt; ik++) {
+                            Vector<double,3> kpt = kpts[ik];
+                            complex_function_3d t2 = t1*std::exp(double_complex(0.0,(i*kpt[0]+j*kpt[1]+k*kpt[2])*R))*ao;
+                            aos[ik*nbf+ibf].gaxpy(1.0,t2,1.0);
+                        }
                     }
                 }
             }
@@ -640,7 +650,87 @@ tensor_complex matrix_exponential(const tensor_complex& A) {
     return expB;
 }
 
-void fixphases(tensor_real& e, tensor_complex& U) {
+void fixphases(World& world, tensor_real& e, tensor_complex& U) {
+    int nmo = U.dim(0);
+    long imax;
+    for (long j = 0; j < nmo; j++)
+    {
+        // Get index of largest value in column
+        U(_,j).absmax(&imax);
+        double_complex ang = arg(U(imax,j));
+        double_complex phase = std::exp(-ang*I);
+        // Loop through the rest of the column and divide by the phase
+        for (long i = 0; i < nmo; i++)
+        {
+            U(i,j) *= phase;
+        }
+    }
+
+    // Within blocks with the same occupation number attempt to
+    // keep orbitals in the same order (to avoid confusing the
+    // non-linear solver).  Have to run the reordering multiple
+    // times to handle multiple degeneracies.
+    int maxpass = 15;
+    for (int pass = 0; pass < maxpass; pass++)
+    {
+        long j;
+        for (long i = 0; i < nmo; i++)
+        {
+            U(_, i).absmax(&j);
+            if (i != j)
+            {
+              tensor_complex tmp = copy(U(_, i));
+              U(_, i) = U(_, j);
+              U(_, j) = tmp;
+              //swap(e[i], e[j]);
+              double ti = e[i];
+              double tj = e[j];
+              e[i] = tj; e[j] = ti;
+            }
+        }
+    }
+
+    // Rotations between effectively degenerate states confound
+    // the non-linear equation solver ... undo these rotations
+    long ilo = 0; // first element of cluster
+    while (ilo < nmo-1) {
+        long ihi = ilo;
+        while (fabs(e[ilo]-e[ihi+1]) < thresh*700.0*std::max(fabs(e[ilo]),1.0)) {
+            ihi++;
+            if (ihi == nmo-1) break;
+        }
+        long nclus = ihi - ilo + 1;
+        if (nclus > 1) {
+            if (world.rank() == 0) print("   found cluster", ilo, ihi, e[ilo]);
+            tensor_complex q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
+            //print(q);
+            // Special code just for nclus=2
+            // double c = 0.5*(q(0,0) + q(1,1));
+            // double s = 0.5*(q(0,1) - q(1,0));
+            // double r = sqrt(c*c + s*s);
+            // c /= r;
+            // s /= r;
+            // q(0,0) = q(1,1) = c;
+            // q(0,1) = -s;
+            // q(1,0) = s;
+
+            // Iteratively construct unitary rotation by
+            // exponentiating the antisymmetric part of the matrix
+            // ... is quadratically convergent so just do 3
+            // iterations
+            tensor_complex rot = matrix_exponential(-0.5*(q - conj_transpose(q)));
+            q = inner(q,rot);
+            tensor_complex rot2 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+            q = inner(q,rot2);
+            tensor_complex rot3 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+            q = inner(rot,inner(rot2,rot3));
+            U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
+        }
+        ilo = ihi+1;
+    }
+
+}
+void fixphases(World& world, tensor_real& e, tensor_complex& U, vector_complex_function_3d& psik) {
     int nmo = U.dim(0);
     long imax;
     for (long j = 0; j < nmo; j++)
@@ -690,31 +780,50 @@ void fixphases(tensor_real& e, tensor_complex& U) {
             if (ihi == nmo-1) break;
         }
         long nclus = ihi - ilo + 1;
+//        if (nclus > 1) {
+//            //if (world.rank() == 0) print("   found cluster", ilo, ihi);
+//            tensor_complex q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
+//            //print(q);
+//            // Special code just for nclus=2
+//            // double c = 0.5*(q(0,0) + q(1,1));
+//            // double s = 0.5*(q(0,1) - q(1,0));
+//            // double r = sqrt(c*c + s*s);
+//            // c /= r;
+//            // s /= r;
+//            // q(0,0) = q(1,1) = c;
+//            // q(0,1) = -s;
+//            // q(1,0) = s;
+//
+//            // Iteratively construct unitary rotation by
+//            // exponentiating the antisymmetric part of the matrix
+//            // ... is quadratically convergent so just do 3
+//            // iterations
+//            tensor_complex rot = matrix_exponential(-0.5*(q - conj_transpose(q)));
+//            q = inner(q,rot);
+//            tensor_complex rot2 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+//            q = inner(q,rot2);
+//            tensor_complex rot3 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+//            q = inner(rot,inner(rot2,rot3));
+//            U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
+//        }
         if (nclus > 1) {
-            //if (world.rank() == 0) print("   found cluster", ilo, ihi);
-            tensor_complex q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
-            //print(q);
-            // Special code just for nclus=2
-            // double c = 0.5*(q(0,0) + q(1,1));
-            // double s = 0.5*(q(0,1) - q(1,0));
-            // double r = sqrt(c*c + s*s);
-            // c /= r;
-            // s /= r;
-            // q(0,0) = q(1,1) = c;
-            // q(0,1) = -s;
-            // q(1,0) = s;
-
-            // Iteratively construct unitary rotation by
-            // exponentiating the antisymmetric part of the matrix
-            // ... is quadratically convergent so just do 3
-            // iterations
-            tensor_complex rot = matrix_exponential(-0.5*(q - conj_transpose(q)));
-            q = inner(q,rot);
-            tensor_complex rot2 = matrix_exponential(-0.5*(q - conj_transpose(q)));
-            q = inner(q,rot2);
-            tensor_complex rot3 = matrix_exponential(-0.5*(q - conj_transpose(q)));
-            q = inner(rot,inner(rot2,rot3));
-            U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
+            real_function_3d splitter = real_factory_3d(world).functor(real_functor_3d(
+              new SplitterFunctor())).truncate_mode(0).truncate_on_project();
+            vector_complex_function_3d psik_cluster(psik.begin()+ilo, psik.begin()+ihi+1);
+            vector_complex_function_3d sfuncs = mul(world,splitter,psik_cluster);
+            tensor_complex Mcluster = matrix_inner(world,psik_cluster,sfuncs);
+            tensor_real eigs; tensor_complex uvecs;
+            syev(Mcluster, uvecs, eigs);
+            if (world.rank() == 0) {
+                print("Found cluster of size: ", nclus, "with energy = ", e[ilo]);
+                print("cluster matrix:"); print(Mcluster);
+                print("cluster eigs:"); print(eigs);
+                print("cluster eigenvectors:"); print(uvecs);
+            }
+            psik_cluster = transform(world, psik_cluster, uvecs);
+            for (int ist = 0; ist < nclus; ist++) {
+                psik[ilo+ist] = psik_cluster[ist];
+            }
         }
         ilo = ihi+1;
     }
@@ -850,7 +959,16 @@ int main(int argc, char** argv) {
             sygv(fock, ov_mat, 1, c, e);
             print("main() ik = ", ik);
             print(e);
-    
+  
+            if (world.rank() == 0) print("fock: "); 
+            if (world.rank() == 0) print(fock);
+            if (world.rank() == 0) print("overlap: "); 
+            if (world.rank() == 0) print(ov_mat);
+            if (world.rank() == 0) print("eigenvectors: "); 
+            if (world.rank() == 0) print(real(c));
+            if (world.rank() == 0) print(imag(c));
+            fixphases(world, e, c); 
+
             psik = transform(world, psik, c);
             vpsik = transform(world, vpsik, c);
             vcpairT pair_update = update(world, ik, psik, vpsik, kpoints[ik], v, e);
