@@ -432,7 +432,7 @@ namespace madness {
         }
         
         /// return the BSH operator
-        TwoElectronFactory& BSH3D() {
+        TwoElectronFactory& BSH() {
             type_=bsh_;
             return self();
         }
@@ -475,7 +475,7 @@ namespace madness {
         
     protected:
         
-        enum operatortype {coulomb_, slater_, f12_, bsh_, fg_};
+        enum operatortype {coulomb_, slater_, f12_, bsh_};
         
         operatortype type_;
         
@@ -615,63 +615,65 @@ namespace madness {
         
     };
 #endif
+
     
-    /// Factory to set up an ElectronRepulsion Function
-    template<typename T, std::size_t NDIM>
-    class FGFactory : public FunctionFactory<T, NDIM> {
-        
-    private:
-        std::shared_ptr<FGInterface> _fg;
-        
-    public:
-        
-        /// cutoff radius for 1/r12, aka regularization
-        double _dcut;
-        double _gamma;
-        BoundaryConditions<NDIM> _bc;
-        
-    public:
-        FGFactory(World& world, double gamma)
-            : FunctionFactory<T,NDIM>(world)
-            , _fg()
-            , _dcut(FunctionDefaults<NDIM>::get_thresh())
-            , _gamma(gamma)
-            , _bc(FunctionDefaults<NDIM>::get_bc())
-        {
-            this->_is_on_demand=true;
-            MADNESS_ASSERT(NDIM==6);
-        }
-        
-        FGFactory&
-        thresh(double thresh) {
-            this->_thresh = thresh;
-            return *this;
-        }
-        
-        FGFactory&
-        dcut(double dcut) {
-            this->_dcut = dcut;
-            return *this;
-        }
-        
-        // access to the functor *only* via this
-        std::shared_ptr<FunctionFunctorInterface<T, NDIM> > get_functor() const {
-            
-            // return if we already have a valid eri
-            if (this->_fg) return this->_fg;
-            
-            //                  if (this->_world.rank()==0) print("set dcut in ERIFactory to ", _dcut);
-            
-            // construction of the functor is const in spirit, but non-const in sad reality..
-            const_cast< std::shared_ptr<FGInterface>& >(this->_fg)=
-                std::shared_ptr<FGInterface>(
-                                             new FGInterface(this->_world,_dcut,this->_thresh,
-                                                             _gamma,_bc,this->_k));
-            
-            return this->_fg;
-        }
-        
-    };
+/// Does not work
+//    /// Factory to set up an ElectronRepulsion Function
+//    template<typename T, std::size_t NDIM>
+//    class FGFactory : public FunctionFactory<T, NDIM> {
+//
+//    private:
+//        std::shared_ptr<FGInterface> _fg;
+//
+//    public:
+//
+//        /// cutoff radius for 1/r12, aka regularization
+//        double _dcut;
+//        double _gamma;
+//        BoundaryConditions<NDIM> _bc;
+//
+//    public:
+//        FGFactory(World& world, double gamma)
+//            : FunctionFactory<T,NDIM>(world)
+//            , _fg()
+//            , _dcut(FunctionDefaults<NDIM>::get_thresh())
+//            , _gamma(gamma)
+//            , _bc(FunctionDefaults<NDIM>::get_bc())
+//        {
+//            this->_is_on_demand=true;
+//            MADNESS_ASSERT(NDIM==6);
+//        }
+//
+//        FGFactory&
+//        thresh(double thresh) {
+//            this->_thresh = thresh;
+//            return *this;
+//        }
+//
+//        FGFactory&
+//        dcut(double dcut) {
+//            this->_dcut = dcut;
+//            return *this;
+//        }
+//
+//        // access to the functor *only* via this
+//        std::shared_ptr<FunctionFunctorInterface<T, NDIM> > get_functor() const {
+//
+//            // return if we already have a valid eri
+//            if (this->_fg) return this->_fg;
+//
+//            //                  if (this->_world.rank()==0) print("set dcut in ERIFactory to ", _dcut);
+//
+//            // construction of the functor is const in spirit, but non-const in sad reality..
+//            const_cast< std::shared_ptr<FGInterface>& >(this->_fg)=
+//                std::shared_ptr<FGInterface>(
+//                                             new FGInterface(this->_world,_dcut,this->_thresh,
+//                                                             _gamma,_bc,this->_k));
+//
+//            return this->_fg;
+//        }
+//
+//    };
     
 }
 

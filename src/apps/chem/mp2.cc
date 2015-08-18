@@ -771,7 +771,9 @@ namespace madness {
 		real_function_6d r12nemo = CompositeFactory<double, 6, 3>(world).g12(
 		        corrfac.f()).particle1(copy(hf->nemo(i))).particle2(
 		                copy(hf->nemo(j)));
+		std::cout << "\n\n!!!!!! Here is the part !!!!!\n\n";
 		r12nemo.fill_tree().truncate().reduce_rank();
+		std::cout << "\n\n!!!!!! Fill Tree Ended !!!!!\n\n";
 		r12nemo.print_size("r12nemo");
 		//                save_function(r12nemo,"r12nemo");
 
@@ -1082,7 +1084,7 @@ namespace madness {
 			printf("V2: <phi^0 | J-K        | psi^1>  %12.8f\n", a11);
 
 		// this will be the bra space
-		real_function_6d eri = TwoElectronFactory(world).dcut(dcut);
+	real_function_6d eri = TwoElectronFactory(world).dcut(dcut);
 		real_function_6d ij_g =
 				CompositeFactory<double, 6, 3>(world).particle1(
 						copy(hf->R2orbital(pair.i))).particle2(

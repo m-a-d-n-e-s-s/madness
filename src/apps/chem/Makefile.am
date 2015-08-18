@@ -18,7 +18,7 @@ thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
                       corepotential.h atomutil.h SCF.h xcfunctional.h \
                       mp2.h nemo.h potentialmanager.h gth_pseudopotential.h \
                       molecular_optimizer.h projector.h TDA.h TDA_XC.h \
-                      TDA_guess.h TDA_exops.h SCFOperators.h CCOperators.h \
+                      TDA_guess.h TDA_exops.h SCFOperators.h CCOperators.h CC2.h \
                       electronic_correlation_factor.h
 
 testxc_SOURCES = testxc.cc xcfunctional.h
@@ -36,7 +36,7 @@ plotxc_LDADD = libMADchem.la $(MRALIBS)
 libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
                        corepotential.cc atomutil.cc lda.cc \
                        distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc\
-                       SCFOperators.cc xcfunctional_ldaonly.cc TDA.cc TDA_XC.cc \
+                       SCFOperators.cc xcfunctional_ldaonly.cc TDA.cc TDA_XC.cc CC2.cc \
                        $(thisinclude_HEADERS)
 libMADchem_la_LDFLAGS = -version-info 0:0:0
                        

@@ -518,31 +518,32 @@ namespace madness {
 		}
 	};
 
-	/// a function like f(x) = (1 - exp(-mu x))/x
-	class FGInterface : public TwoElectronInterface<double,6> {
-	public:
-
-		/// constructor: cf the Coulomb kernel
-
-		/// @param[in]	mu		the exponent of the Slater function
-		/// @param[in]	lo		the smallest length scale to be resolved
-		/// @param[in]	eps		the accuracy threshold
-		FGInterface(double mu, double lo, double eps,
-				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
-				int kk=FunctionDefaults<6>::get_k())
-		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
-
-			initialize(eps);
-		}
-
-	private:
-
-		double mu;
-
-		GFit<double,3> fit(const double eps) const {
-			return GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-		}
-	};
+// Not right
+//	/// a function like f(x) = (1 - exp(-mu x))/x
+//	class FGInterface : public TwoElectronInterface<double,6> {
+//	public:
+//
+//		/// constructor: cf the Coulomb kernel
+//
+//		/// @param[in]	mu		the exponent of the Slater function
+//		/// @param[in]	lo		the smallest length scale to be resolved
+//		/// @param[in]	eps		the accuracy threshold
+//		FGInterface(double mu, double lo, double eps,
+//				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
+//				int kk=FunctionDefaults<6>::get_k())
+//		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
+//
+//			initialize(eps);
+//		}
+//
+//	private:
+//
+//		double mu;
+//
+//		GFit<double,3> fit(const double eps) const {
+//			return GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+//		}
+//	};
 
 
 #if 0
