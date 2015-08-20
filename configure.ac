@@ -347,7 +347,6 @@ AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_NAME],["$PACKAGE_NAME"],[The full name of th
 AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_VERSION],["$PACKAGE_VERSION"],[The version of this package])
 AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_URL],["$PACKAGE_URL"],[The URL of the home page of this package])
 AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_BUGREPORT],["$PACKAGE_BUGREPORT"],[The address where to send bug reports for this package])
-AH_BOTTOM([#include <madness/config_pp.h])
 
 # Not yet enabled the user to configure this stuff but probably should
 AC_ARG_ENABLE([bsend-ack],
