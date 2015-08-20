@@ -51,8 +51,8 @@ namespace madness {
         }
 
         const char* version() {
-#ifdef VERSION // from config.h
-            return VERSION;
+#ifdef MADNESS_VERSION // from config.h
+            return MADNESS_VERSION;
 #else
             return "unavailable";
 #endif

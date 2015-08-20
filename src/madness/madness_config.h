@@ -47,6 +47,7 @@
 #undef PACKAGE_TARNAME
 #undef PACKAGE_URL
 #undef PACKAGE_VERSION
+#undef VERSION
 
 /* System check */
 #if defined(__CRAYXT)
