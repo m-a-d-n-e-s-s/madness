@@ -248,10 +248,10 @@ extern "C" {
             const integer*);
     double F77_DDOT(const integer*, const double *, const integer*,
             const double *, const integer*);
-    void F77_CDOTU(const integer*, const complex_real4*, const integer*,
-            const complex_real4*, const integer*, complex_real4*);
-    void F77_ZDOTU(const integer*, const complex_real8*, const integer*,
-            const complex_real8*, const integer*, complex_real8*);
+    void F77_CDOTU(complex_real4*, const integer*, const complex_real4*, const integer*,
+            const complex_real4*, const integer*);
+    void F77_ZDOTU(complex_real8*, const integer*, const complex_real8*, const integer*,
+            const complex_real8*, const integer*);
     //
     // BLAS _AXPY declarations (INTEGER n, NUMERICAL alpha, NUMERICAL x, INTEGER incx, NUMERICAL y, INTEGER incy )
     void F77_SAXPY(const integer*, const float*, const float*, const integer*,
@@ -461,7 +461,7 @@ namespace cblas {
         const integer incx, const complex_real4* y, const integer incy)
     {
         complex_real4 result(0.0, 0.0);
-        F77_CDOTU(&n, x, &incx, y, &incy, &result);
+        F77_CDOTU(&result, &n, x, &incx, y, &incy);
         return result;
     }
 
@@ -469,7 +469,7 @@ namespace cblas {
         const integer incx, const complex_real8* y, const integer incy)
     {
         complex_real8 result(0.0, 0.0);
-        F77_ZDOTU(&n, x, &incx, y, &incy, &result);
+        F77_ZDOTU(&result, &n, x, &incx, y, &incy);
         return result;
     }
     ///@}
