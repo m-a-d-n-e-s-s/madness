@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 # specify the git commit version in the info functions
-GITREV="GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
+GITREV="MADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
 
 lib_LTLIBRARIES = libMADworld.la
 

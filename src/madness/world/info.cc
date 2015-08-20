@@ -43,8 +43,8 @@ namespace madness {
     namespace info {
 
         const char* git_commit() {
-#ifdef GITREVISION
-            return GITREVISION;
+#ifdef MADNESS_GITREVISION
+            return MADNESS_GITREVISION;
 #else
             return "unavailable";
 #endif

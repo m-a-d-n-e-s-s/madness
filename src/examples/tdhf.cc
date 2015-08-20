@@ -68,8 +68,8 @@ int main(int argc, char** argv) {
 	FunctionDefaults<3>::set_truncate_mode(1);
 	print("Truncate mode set to ",FunctionDefaults<3>::get_truncate_mode());
 
-#ifdef GITREVISION
-	const  char* gitrev =  GITREVISION;
+#ifdef MADNESS_GITREVISION
+	const  char* gitrev =  MADNESS_GITREVISION;
 	const std::string gitrevision(gitrev);
 	if (world.rank()==0) {
 		print("           git revision ...",gitrevision);
