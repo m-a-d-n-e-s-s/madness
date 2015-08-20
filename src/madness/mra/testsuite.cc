@@ -1291,7 +1291,7 @@ int main(int argc, char**argv) {
         if (world.rank() == 0) {
             print("");
             print("--------------------------------------------");
-            print("   MADNESS",PACKAGE_VERSION, "multiresolution testsuite");
+            print("   MADNESS",MADNESS_PACKAGE_VERSION, "multiresolution testsuite");
             print("--------------------------------------------");
             print("");
             print("   number of processors ...", world.size());
