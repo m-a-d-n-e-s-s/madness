@@ -341,6 +341,14 @@ AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_CXX], ["$CXX"],[Configured C++ compile
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_CXXFLAGS], ["$CXXFLAGS"],[Configured C++ compiler flags])
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_HOST], ["$HOSTNAME"],[Configured on this machine])
 
+# Pass additional configuration information to be used in source 
+# ALSO: undefine the standard definitions that every autoheader-using package will define and thus clash
+AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_NAME],["$PACKAGE_NAME"],[The full name of this package])
+AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_VERSION],["$PACKAGE_VERSION"],[The version of this package])
+AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_URL],["$PACKAGE_URL"],[The URL of the home page of this package])
+AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_BUGREPORT],["$PACKAGE_BUGREPORT"],[The address where to send bug reports for this package])
+AH_BOTTOM([#include <madness/config_pp.h])
+
 # Not yet enabled the user to configure this stuff but probably should
 AC_ARG_ENABLE([bsend-ack],
             [AC_HELP_STRING([--disable-bsend-ack], [Use MPI Send instead of MPI Bsend for huge message acknowledgements.])],

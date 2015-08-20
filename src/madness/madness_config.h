@@ -39,6 +39,14 @@
 #define MADNESS_MADNESS_CONFIG_H__INCLUDED
 
 #include <madness/config.h>
+/* undefine what every autoheader package defines to avoid clashes */
+#undef PACKAGE
+#undef PACKAGE_NAME
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_URL
+#undef PACKAGE_VERSION
 
 /* System check */
 #if defined(__CRAYXT)
