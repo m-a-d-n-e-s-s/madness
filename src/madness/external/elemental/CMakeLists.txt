@@ -7,7 +7,7 @@
 #  which can be found in the LICENSE file in the root directory, or at 
 #  http://opensource.org/licenses/BSD-2-Clause
 #
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 2.8.12)
 include(CheckCSourceCompiles)
 include(CheckCXXSourceCompiles)
 include(CheckFunctionExists)
@@ -221,7 +221,8 @@ add_subdirectory(external/pmrrr)
 configure_file(${PROJECT_SOURCE_DIR}/cmake/config.h.cmake
                ${PROJECT_BINARY_DIR}/include/elemental/config.h)
 install(FILES ${PROJECT_BINARY_DIR}/include/elemental/config.h 
-        DESTINATION include/elemental)
+        DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/elemental/"
+        COMPONENT elemental)
 
 # Create a file which can be included in Makefile's.
 # This is meant to be analogous to PETSc's 'conf/petscvariables' file
@@ -256,7 +257,8 @@ endforeach()
 set(QT5_LIBSTRING "-L${Qt5_LIBDIR} -lQt5Widgets -lQt5Gui -lQt5Core")
 configure_file(${PROJECT_SOURCE_DIR}/cmake/ElemVars.cmake
                ${PROJECT_BINARY_DIR}/conf/ElemVars @ONLY)
-install(FILES ${PROJECT_BINARY_DIR}/conf/ElemVars DESTINATION conf)
+install(FILES ${PROJECT_BINARY_DIR}/conf/ElemVars DESTINATION conf
+        COMPONENT elemental)
 
 # Grab all of the .c, .cpp, .h, and .hpp Elemental files
 file(GLOB_RECURSE ELEM_CPP RELATIVE ${PROJECT_SOURCE_DIR} "src/*.c" "src/*.cpp")
@@ -278,7 +280,10 @@ elseif(MPI_CXX_LINK_FLAGS)
 elseif(MPI_C_LINK_FLAGS)
   set(MPI_LINK_FLAGS "${MPI_C_LINK_FLAGS}")
 endif()
-install(TARGETS elemental DESTINATION lib)
+install(TARGETS elemental EXPORT madness 
+    DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/"
+    COMPONENT elemental)
 
 # Define the header-file preparation rules
 set(PREPARED_HEADERS)
@@ -290,7 +295,10 @@ foreach(HEADER ${ELEM_HEADERS})
   list(APPEND PREPARED_HEADERS ${PROJECT_BINARY_DIR}/${HEADER})
 
   get_filename_component(HEADER_PATH ${HEADER} PATH)
-  install(FILES ${PROJECT_BINARY_DIR}/${HEADER} DESTINATION ${HEADER_PATH})
+  string(REGEX REPLACE "include/?(.*)" "\\1" HEADER_PATH "${HEADER_PATH}")
+  install(FILES ${PROJECT_BINARY_DIR}/${HEADER} 
+      DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/${HEADER_PATH}/"
+      COMPONENT elemental)
 endforeach()
 add_custom_target(prepare_elemental_headers DEPENDS ${PREPARED_HEADERS})
 add_dependencies(elemental prepare_elemental_headers)
@@ -321,7 +329,8 @@ if(ELEM_TESTS)
         set_target_properties(tests-${TYPE}-${TESTNAME} PROPERTIES
           LINK_FLAGS ${MPI_LINK_FLAGS})
       endif()
-      install(TARGETS tests-${TYPE}-${TESTNAME} DESTINATION bin/tests/${TYPE})
+      install(TARGETS tests-${TYPE}-${TESTNAME} DESTINATION bin/tests/${TYPE}
+          COMPONENT elemental)
     endforeach()
   endforeach()
 endif()
@@ -348,7 +357,8 @@ if(ELEM_EXAMPLES)
           LINK_FLAGS ${MPI_LINK_FLAGS})
       endif()
       install(TARGETS examples-${TYPE}-${EXNAME} 
-        DESTINATION bin/examples/${TYPE})
+          DESTINATION bin/examples/${TYPE}
+          COMPONENT elemental)
     endforeach()
   endforeach()
 endif()
@@ -372,7 +382,8 @@ if(ELEM_EXPERIMENTAL)
       set_target_properties(experimental-g3d-${EXPER} PROPERTIES
         LINK_FLAGS ${MPI_LINK_FLAGS})
     endif()
-    install(TARGETS experimental-g3d-${EXPER} DESTINATION bin/experimental/g3d)
+    install(TARGETS experimental-g3d-${EXPER} DESTINATION bin/experimental/g3d
+        COMPONENT elemental)
   endforeach()
 endif()
 
