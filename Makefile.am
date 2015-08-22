@@ -24,11 +24,11 @@ muparser:
 misc: world
 	$(MAKE) -C src/madness/misc libraries
 	
-tensor: misc
+tensor linalg: misc
 	$(MAKE) -C src/madness/tensor libraries
 
-mra:
-	$(MAKE) -C src libraries
+mra: linalg muparser
+	$(MAKE) -C src/madness/mra libraries
 	
 chem: mra
 	$(MAKE) -C src/apps/chem libraries
