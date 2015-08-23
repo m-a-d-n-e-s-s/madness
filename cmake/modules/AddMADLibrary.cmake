@@ -6,8 +6,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   set_target_properties(MAD${_name} PROPERTIES PUBLIC_HEADER "${${_header_files}}")
   
   # Add target dependencies
-  add_custom_target(${_name})
-  add_dependencies(${_name} MAD${_name})
+  add_library(${_name} ALIAS MAD${_name})
   add_dependencies(libraries MAD${_name})
   
   # Add library to the list of installed components
