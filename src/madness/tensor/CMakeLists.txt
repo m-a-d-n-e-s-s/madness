@@ -24,22 +24,23 @@ endif()
 set(MADTENSOR_HEADERS 
     aligned.h mxm.h tensorexcept.h tensoriter_spec.h type_data.h basetensor.h
     tensor.h tensor_macros.h vector_factory.h mtxmq.h slice.h tensoriter.h
-    tensor_spec.h vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h)
+    tensor_spec.h vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h
+    tensortrain.h)
 set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc)
 if(USE_X86_64_ASM OR USE_X86_32_ASM)
   list(APPEND MADTENSOR_SOURCES mtxmq_asm.S)
 endif()
   
 # Source lists for MADlinalg
-set(MADLINALG_HEADERS tensor_lapack.h clapack.h  lapack_functions.h solvers.h)
-set(MADLINALG_SOURCES lapack.cc cblas.h solvers.cc)
+set(MADLINALG_HEADERS cblas.h tensor_lapack.h clapack.h  lapack_functions.h solvers.h)
+set(MADLINALG_SOURCES lapack.cc solvers.cc)
 if(ELEMENTAL_FOUND)
   list(APPEND MADLINALG_SOURCE  elem.cc)
 endif()
 
 # Create MADtensor and MADlinalg libraries
-add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor/")
-add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor/")
+add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor")
+add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
 target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES})
 if(USE_X86_64_ASM)
   target_compile_definitions(MADtensor-obj PRIVATE -DX86_64)
