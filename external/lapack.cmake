@@ -44,12 +44,6 @@ if(NOT LAPACK_LIBRARIES)
 
 endif()
 
-if(LAPACK_FOUND)
-  message(STATUS "Found LAPACK: ${LAPACK_LIBRARIES}")
-else()
-  message(FATAL_ERROR "LAPACK libraries not found")
-endif()
-
 cmake_push_check_state()
 
 set(CMAKE_REQUIRED_LIBRARIES ${LAPACK_LIBRARIES} ${CMAKE_REQUIRED_LIBRARIES} 
@@ -72,6 +66,9 @@ if(LAPACK_WORKS)
 else()
   message(FATAL_ERROR "Uable to link against LAPACK function. Specify the LAPACK library in LAPACK_LIBRARIES.")
 endif()
+
+set(LAPACK_FOUND TRUE)
+message(STATUS "Found LAPACK: ${LAPACK_LIBRARIES}")
 
 cmake_pop_check_state()
 
