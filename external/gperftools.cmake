@@ -5,7 +5,7 @@ if(WITH_GPERFTOOLS)
     else()
       find_package(Gperftools)
     endif()
-  end()
+  endif()
 
   if(GPERFTOOLS_FOUND)
     if(GPERFTOOLS_tcmalloc_minimal_FOUND AND NOT GPERFTOOLS_tcmalloc_FOUND)
