@@ -11,10 +11,11 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   
   # Add library to the list of installed components
   install(TARGETS MAD${_name} EXPORT madness
+      COMPONENT ${_name}
       PUBLIC_HEADER DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/${_include_dir}"
       LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
       ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-      COMPONENT ${_name})
+      INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
   
   # Create a target to install the component
   add_custom_target(install-${_name}
@@ -33,8 +34,6 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   endforeach()
   
   # Add compile and linker flags to library
-  target_compile_options(MAD${_name}-obj PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:${CXX11_COMPILE_FLAG}>")
-  target_compile_options(MAD${_name} PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:${CXX11_COMPILE_FLAG}>")
   if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     target_link_libraries(MAD${_name} PUBLIC "-Wl,-no_pie")
   endif()
