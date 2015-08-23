@@ -30,7 +30,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     endif()
     if(TARGET ${_dep})
       target_link_libraries(MAD${_name} PUBLIC ${_dep})
-      copy_target_properties(${_dep} MAD${_name}-obj 
+      append_target_properties(${_dep} MAD${_name}-obj 
           "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
     endif()
   endforeach()

@@ -9,3 +9,15 @@ macro(copy_target_properties _intarget _outtarget _props)
   endforeach()
 
 endmacro()
+
+macro(append_target_properties _intarget _outtarget _props)
+
+  foreach(_prop ${_props})
+    get_property(_prop_set TARGET ${_intarget} PROPERTY ${_prop} SET)
+    if(_prop_set)
+      get_target_property(_value ${_intarget} ${_prop})
+      set_property(TARGET ${_outtarget} APPEND PROPERTY ${_prop} "${_value}")
+    endif()
+  endforeach()
+
+endmacro()
