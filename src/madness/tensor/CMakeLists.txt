@@ -20,6 +20,19 @@ elseif(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mtxm_gen.h
   message(FATAL_ERROR "PYTHON executable is not available to generate required source files")
 endif()
 
+
+if(HAVE_IBMBGQ)
+    add_custom_target(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a
+      COMMAND TARGET=BGQ ${CMAKE_MAKE_PROGRAM} 
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests
+      COMMENT "Building libMADMTXM.a")
+elseif(HAVE_IBMBGP)
+  add_custom_target(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a
+      COMMAND TARGET=BGP ${CMAKE_MAKE_PROGRAM} 
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests
+      COMMENT "Building libMADMTXM.a")
+endif()
+
 # Source lists for MADtensor
 set(MADTENSOR_HEADERS 
     aligned.h mxm.h tensorexcept.h tensoriter_spec.h type_data.h basetensor.h
