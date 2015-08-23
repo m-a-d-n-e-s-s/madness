@@ -280,10 +280,10 @@ elseif(MPI_CXX_LINK_FLAGS)
 elseif(MPI_C_LINK_FLAGS)
   set(MPI_LINK_FLAGS "${MPI_C_LINK_FLAGS}")
 endif()
-install(TARGETS elemental EXPORT madness 
+install(TARGETS elemental EXPORT madness
+    COMPONENT elemental
     DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/"
-    COMPONENT elemental)
+    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/")
 
 # Define the header-file preparation rules
 set(PREPARED_HEADERS)
@@ -329,7 +329,8 @@ if(ELEM_TESTS)
         set_target_properties(tests-${TYPE}-${TESTNAME} PROPERTIES
           LINK_FLAGS ${MPI_LINK_FLAGS})
       endif()
-      install(TARGETS tests-${TYPE}-${TESTNAME} DESTINATION bin/tests/${TYPE}
+      install(TARGETS tests-${TYPE}-${TESTNAME}
+          RUNTIME DESTINATION bin/tests/${TYPE}
           COMPONENT elemental)
     endforeach()
   endforeach()
@@ -357,7 +358,7 @@ if(ELEM_EXAMPLES)
           LINK_FLAGS ${MPI_LINK_FLAGS})
       endif()
       install(TARGETS examples-${TYPE}-${EXNAME} 
-          DESTINATION bin/examples/${TYPE}
+          RUNTIME DESTINATION bin/examples/${TYPE}
           COMPONENT elemental)
     endforeach()
   endforeach()
@@ -382,7 +383,8 @@ if(ELEM_EXPERIMENTAL)
       set_target_properties(experimental-g3d-${EXPER} PROPERTIES
         LINK_FLAGS ${MPI_LINK_FLAGS})
     endif()
-    install(TARGETS experimental-g3d-${EXPER} DESTINATION bin/experimental/g3d
+    install(TARGETS experimental-g3d-${EXPER} 
+        RUNTIME DESTINATION bin/experimental/g3d
         COMPONENT elemental)
   endforeach()
 endif()

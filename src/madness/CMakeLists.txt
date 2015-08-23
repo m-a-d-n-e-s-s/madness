@@ -65,8 +65,9 @@ endif()
 
 # Add common header files and madness library to the install list
 install(TARGETS madness EXPORT madness
+    COMPONENT madness
     LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    COMPONENT madness)
+    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
 install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINARY_DIR}/config.h
     DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/"
     COMPONENT common)
