@@ -22,7 +22,4 @@ if(WITH_MPI)
     message(FATAL_ERROR "No suitable MPI compiler was not found.")
   endif()
 
-  # Create the mpi library
-  append_flags(MPI_COMPILE_FLAGS "-DMPICH_SKIP_MPICXX=1 -DOMPI_SKIP_MPICXX=1")
-
 endif()

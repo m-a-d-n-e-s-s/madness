@@ -42,7 +42,8 @@ if(TBB_FOUND)
 endif()
 if(MPI_FOUND)
   target_include_directories(MADworld-obj PUBLIC ${MPI_INCLUDE_PATH})
-  target_compile_options(MADworld-obj PUBLIC "${MPI_COMPILE_FLAGS}")
+  target_compile_definitions(MADworld-obj PUBLIC -DMPICH_SKIP_MPICXX=1 -DOMPI_SKIP_MPICXX=1)
+  target_compile_options(MADworld-obj PUBLIC ${MPI_COMPILE_FLAGS})
   target_link_libraries(MADworld PUBLIC ${MPI_LINK_FLAGS})
   target_link_libraries(MADworld PUBLIC ${MPI_LIBRARIES})
 endif()
@@ -57,7 +58,7 @@ if(LIBUNWIND_FOUND)
 endif()
 
 copy_target_properties(MADworld-obj MADworld 
-    "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS")
+    "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
 
 if(ENABLE_UNITTESTS)
 
