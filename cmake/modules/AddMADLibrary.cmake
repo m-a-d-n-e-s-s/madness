@@ -28,12 +28,19 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     if(TARGET install-${_dep})
       add_dependencies(install-${_name} install-${_dep})
     endif()
-    if(TARGET ${_dep})
+    if(TARGET MAD${_dep})
+      target_link_libraries(MAD${_name} PUBLIC MAD${_dep})
+      append_target_properties(MAD${_dep} MAD${_name} 
+          "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
+    elseif(TARGET ${_dep})
       target_link_libraries(MAD${_name} PUBLIC ${_dep})
-      append_target_properties(${_dep} MAD${_name}-obj 
+      append_target_properties(${_dep} MAD${_name}
           "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
     endif()
   endforeach()
+  
+  append_target_properties(MAD${_name} MAD${_name}-obj 
+      "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
   
   # Add compile and linker flags to library
   if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
