@@ -21,12 +21,6 @@ add_library(madness
     $<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>)
 
 # Set the dependencies for the MADworld library
-if(CXX11_COMPILE_FLAG)
-  target_compile_options(madness PUBLIC "${CXX11_COMPILE_FLAG}")
-endif()
-if(CXX11_LINKER_FLAG)
-  target_link_libraries(madness PUBLIC "${CXX11_LINKER_FLAG}")
-endif()
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   target_link_libraries(madness PUBLIC "-Wl,-no_pie")
 endif()
