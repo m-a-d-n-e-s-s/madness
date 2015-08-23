@@ -1,5 +1,11 @@
 if(WITH_GPERFTOOLS)
-  find_package(Gperftools)
+  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+    if(NOT LIBUNWIND_FOUND OR (LIBUNWIND_FOUND AND LIBUNWIND_VERION LESS 0.99))
+      message(STATUS "Gperftools disabled because libunwind 0.99 or higher was not found") 
+    else()
+      find_package(Gperftools)
+    endif()
+  end()
 
   if(GPERFTOOLS_FOUND)
     if(GPERFTOOLS_tcmalloc_minimal_FOUND AND NOT GPERFTOOLS_tcmalloc_FOUND)

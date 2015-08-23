@@ -1,16 +1,10 @@
 if(WITH_TASK_PROFILER OR WITH_GPERFTOOLS)
 
-  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-    if(WITH_GPERFTOOLS)
-      # Libunwind 0.99 is required when using gperftools on Linux 
-      find_package(Libunwind 0.99 REQUIRED)
-    else()
-      # Libunwind is optional if we are only using the task profiler
-      find_package(Libunwind)
-    endif()
-  else()
+  if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     # libunwind is not supported on OS X or Windows
     set(LIBUNWIND_FOUND FALSE)
+  else()
+    find_package(Libunwind)
   endif()
     
   # Set the output variables
