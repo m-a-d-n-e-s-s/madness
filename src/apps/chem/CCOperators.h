@@ -17,6 +17,8 @@
 #include <chem/electronic_correlation_factor.h>
 namespace madness {
 
+static double testfunction(const coord_6d &r) {return exp(-(r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + r[3]*r[3] + r[4]*r[4]) + r[5]*r[5]);}
+
 struct CC_Parameters{
 	// default constructor
 	CC_Parameters():
@@ -161,6 +163,12 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "nfreeze :"           << nfreeze << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "iter_max_3D :"           << iter_max_3D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "iter_max_6D :"           << iter_max_6D << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "truncation mode 3D :" << FunctionDefaults<3>::get_truncate_mode()  <<std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "truncation mode 6D :" << FunctionDefaults<6>::get_truncate_mode()  <<std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "tensor type: " << FunctionDefaults<6>::get_tensor_type()  <<std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "facReduce:" << GenTensor<double>::fac_reduce()  <<std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "max. displacement:" << Displacements<6>::bmax_default()  <<std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "apply randomize:" << FunctionDefaults<6>::get_apply_randomize()  <<std::endl;
 		}
 	}
 };
@@ -1470,6 +1478,26 @@ public:
 		double bsh_prefactor = 4.0 * constants::pi;
 		double prefactor = 1.0/(2.0*corrfac.gamma());
 		return prefactor*((*poisson)(f) - bsh_prefactor*(*fBSH)(f)).truncate();
+	}
+
+	real_function_6d test_fill_tree()const{
+		if(world.rank()==0) std::cout << "\n\n Testing fill_tree with CompositeFactory\n";
+		// make a simple 6d function -> but has to be on demand
+		real_function_6d f = real_factory_6d(world).f(testfunction).is_on_demand();
+
+		// Make a composite factory
+		real_function_6d g = CompositeFactory<double,6,3>(world).g12(f).particle1(mo_ket_[0]).particle2(mo_ket_[0]);
+
+		// make the screening operator
+		real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * get_epsilon(0,0)),
+						1.e-4, 1.e-4);
+		op_mod.modified() = true;
+
+		// make fill_tree operation
+		g.fill_tree(op_mod).truncate();
+
+		if(world.rank()==0) std::cout << "\n\n Testing fill_tree with CompositeFactory ended ... it seems to work\n";
+		return g;
 	}
 
 private:

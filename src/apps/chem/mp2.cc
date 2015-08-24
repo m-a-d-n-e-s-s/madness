@@ -54,7 +54,7 @@
 #include <iostream>
 
 static const double dcut = 1.e-7;
-static const double lo = 1.e-6;
+static const double lo =  1.e-6;
 static const double bsh_eps = 1.e-7;
 
 using namespace madness;
@@ -124,7 +124,10 @@ namespace madness {
 			// for each geometric structure
 			corrfac = CorrelationFactor(world, 1.0, dcut, calc->molecule);
 
+
 		}
+
+
 
 		// print some output for the user
 		if (world.rank() == 0) {
@@ -150,6 +153,8 @@ namespace madness {
 	/// return the molecular correlation energy energy (without the HF energy)
 	double MP2::value() {
 		hf->value();		// make sure the reference is converged
+		std::cout << "\n\nTEST FILL TREE\n\n";
+		test_fill_tree();
 		return value(hf->get_calc().molecule.get_all_coords());
 	}
 

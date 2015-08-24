@@ -2172,8 +2172,13 @@ namespace madness {
         long nd = left.ndim() + right.ndim() - 2;
         TENSOR_ASSERT(nd!=0, "result is a scalar but cannot return one ... use dot",
                       nd, &left);
+        ///DEBUG
+        if(left.dim(k0) != right.dim(k1)){
+        	std::cout << "k0=" << k0 << "left.dim(k0)=" << left.dim(k0) << " k1=" << k1 << " right.dim(k1)=" << right.dim(k1) << std::endl;
+        }
+
         TENSOR_ASSERT(left.dim(k0) == right.dim(k1),"common index must be same length",
-                      right.dim(k1), &left);
+                	right.dim(k1), &left);
 
         TENSOR_ASSERT(nd > 0 && nd <= TENSOR_MAXDIM,
                       "invalid number of dimensions in the result", nd,0);
