@@ -49,17 +49,6 @@ if(MPI_FOUND)
   target_link_libraries(MADworld PUBLIC ${MPI_LIBRARIES})
 endif()
 target_link_libraries(MADworld PUBLIC ${CMAKE_THREAD_LIBS_INIT})
-if(GPERFTOOLS_FOUND)
-  target_include_directories(MADworld PUBLIC ${GPERFTOOLS_INCLUDE_DIRS})
-  target_link_libraries(MADworld PUBLIC ${GPERFTOOLS_LIBRARIES})
-endif()
-if(LIBUNWIND_FOUND)
-  target_include_directories(MADworld PUBLIC ${LIBUNWIND_INCLUDE_DIRS})
-  target_link_libraries(MADworld PUBLIC ${LIBUNWIND_LIBRARIES})
-endif()
-
-copy_target_properties(MADworld MADworld-obj 
-    "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
 
 if(ENABLE_UNITTESTS)
 

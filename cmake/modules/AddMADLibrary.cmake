@@ -1,9 +1,17 @@
 macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_dir)
 
-  # Create the MADNESS library
+  # Create the MADNESS library and object library
   add_library(MAD${_name}-obj OBJECT ${${_source_files}} ${${_header_files}})
   add_library(MAD${_name} $<TARGET_OBJECTS:MAD${_name}-obj>)
   set_target_properties(MAD${_name} PROPERTIES PUBLIC_HEADER "${${_header_files}}")
+  
+  # Pass the private MAD${_name} compile flags to MAD${_name}-obj  
+  target_compile_definitions(MAD${_name}-obj PRIVATE 
+      $<TARGET_PROPERTY:MAD${_name},COMPILE_DEFINITIONS>)
+  target_include_directories(MAD${_name}-obj PRIVATE 
+      $<TARGET_PROPERTY:MAD${_name},INCLUDE_DIRECTORIES>)
+  target_compile_options(MAD${_name}-obj PRIVATE 
+      $<TARGET_PROPERTY:MAD${_name},COMPILE_OPTIONS>)
   
   # Add target dependencies
   add_library(${_name} ALIAS MAD${_name})
@@ -28,23 +36,31 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     if(TARGET install-${_dep})
       add_dependencies(install-${_name} install-${_dep})
     endif()
-    if(TARGET MAD${_dep})
-      target_link_libraries(MAD${_name} PUBLIC MAD${_dep})
-      append_target_properties(MAD${_dep} MAD${_name} 
-          "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
-    elseif(TARGET ${_dep})
+    if(TARGET ${_dep})
+      target_compile_definitions(MAD${_name} PUBLIC 
+          $<TARGET_PROPERTY:${_dep},INTERFACE_COMPILE_DEFINITIONS>)
+      target_include_directories(MAD${_name} PUBLIC 
+          $<TARGET_PROPERTY:${_dep},INTERFACE_INCLUDE_DIRECTORIES>)
+      target_compile_options(MAD${_name} PUBLIC 
+          $<TARGET_PROPERTY:${_dep},INTERFACE_COMPILE_OPTIONS>)
       target_link_libraries(MAD${_name} PUBLIC ${_dep})
-      append_target_properties(${_dep} MAD${_name}
-          "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
     endif()
   endforeach()
   
-  append_target_properties(MAD${_name} MAD${_name}-obj 
-      "INTERFACE_INCLUDE_DIRECTORIES;INTERFACE_COMPILE_DEFINITIONS;INTERFACE_COMPILE_OPTIONS")
-  
   # Add compile and linker flags to library
+  if(CXX11_COMPILE_FLAG)
+    target_compile_options(MAD${_name} INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
+  endif()
   if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     target_link_libraries(MAD${_name} PUBLIC "-Wl,-no_pie")
+  endif()
+  if(GPERFTOOLS_FOUND)
+    target_include_directories(MAD${_name} PUBLIC ${GPERFTOOLS_INCLUDE_DIRS})
+    target_link_libraries(MAD${_name} PUBLIC ${GPERFTOOLS_LIBRARIES})
+  endif()
+  if(LIBUNWIND_FOUND)
+    target_include_directories(MAD${_name} PUBLIC ${LIBUNWIND_INCLUDE_DIRS})
+    target_link_libraries(MAD${_name} PUBLIC ${LIBUNWIND_LIBRARIES})
   endif()
   
 endmacro()
