@@ -65,5 +65,6 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     target_include_directories(MAD${_name} PUBLIC ${LIBUNWIND_INCLUDE_DIRS})
     target_link_libraries(MAD${_name} PUBLIC ${LIBUNWIND_LIBRARIES})
   endif()
-  
+  target_link_libraries(MAD${_name} PUBLIC ${CMAKE_THREAD_LIBS_INIT})
+
 endmacro()

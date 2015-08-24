@@ -48,7 +48,6 @@ if(MPI_FOUND)
   target_link_libraries(MADworld PUBLIC ${MPI_LINK_FLAGS})
   target_link_libraries(MADworld PUBLIC ${MPI_LIBRARIES})
 endif()
-target_link_libraries(MADworld PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 
 if(ENABLE_UNITTESTS)
 
