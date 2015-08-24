@@ -3,6 +3,9 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   # Create the MADNESS library and object library
   add_library(MAD${_name}-obj OBJECT ${${_source_files}} ${${_header_files}})
   add_library(MAD${_name} $<TARGET_OBJECTS:MAD${_name}-obj>)
+  if(BUILD_SHARED_LIBS)
+    set_target_properties(MAD${_name}-obj PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+  endif()
   set_target_properties(MAD${_name} PROPERTIES PUBLIC_HEADER "${${_header_files}}")
   
   # Pass the private MAD${_name} compile flags to MAD${_name}-obj  
