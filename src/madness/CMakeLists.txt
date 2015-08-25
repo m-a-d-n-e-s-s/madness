@@ -53,6 +53,7 @@ endif()
 if(HAVE_IBMBGQ OR HAVE_IBMBGP)
   target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
 endif()
+target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
 if(GPERFTOOLS_FOUND)
   target_include_directories(madness PUBLIC ${GPERFTOOLS_INCLUDE_DIRS})
   target_link_libraries(madness PUBLIC ${GPERFTOOLS_LIBRARIES})
@@ -61,7 +62,7 @@ if(LIBUNWIND_FOUND)
   target_include_directories(madness PUBLIC ${LIBUNWIND_INCLUDE_DIRS})
   target_link_libraries(madness PUBLIC ${LIBUNWIND_LIBRARIES})
 endif()
-target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(madness PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 
 # Add common header files and madness library to the install list
 install(TARGETS madness EXPORT madness
