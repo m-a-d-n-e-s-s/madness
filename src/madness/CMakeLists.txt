@@ -22,7 +22,7 @@ add_library(madness
 
 # Set the dependencies for the MADworld library
 if(CXX11_COMPILE_FLAG)
-  target_compile_options(MAD${_name} INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
+  target_compile_options(madness INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
 endif()
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   target_link_libraries(madness PUBLIC "-Wl,-no_pie")
