@@ -91,8 +91,11 @@ namespace madness {
         if(rank() == 0) {
             _id = idbase++;
         }
-        gop.broadcast(_id);
-        gop.barrier();
+        // Use MPI for broadcast as incoming messages may try to access an
+        // uninitialized world.
+        mpi.Bcast(_id, 0);
+//        gop.broadcast(_id);
+//        gop.barrier();
         am.worldid = _id;
 
         //std::cout << "JUST MADE WORLD " << id() << " with "
