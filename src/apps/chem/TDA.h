@@ -13,7 +13,7 @@
 //#include<examples/nonlinsol.h> not used anymore
 #include <chem/SCF.h>
 #include <chem/nemo.h>
-#include <chem/CCOperators.h>
+#include <chem/CISOperators.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -406,7 +406,7 @@ public:
 		use_nemo_(true),
 		nemo_(nemo),
 		mos_(mos),
-		CCOPS_(CC_3D_Operator(world,nemo,mos)),
+		CCOPS_(CIS_Operators(world,nemo,mos)),
 		active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
 		guess_("dipole+"),
@@ -681,7 +681,7 @@ private:
 	vecfuncT mos_;
 
 	/// The Operators for the Potential, structure contains also an exchange intermediate
-	CC_3D_Operator CCOPS_;
+	CIS_Operators CCOPS_;
 
 	/// The molecular orbitals that are used to calcualte the guess excitation vectors
 	/// Theese are either the projected numerical mos (projected to minimal AO basis) or just a reference to the numerical mos from moldft

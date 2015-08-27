@@ -153,8 +153,8 @@ namespace madness {
 	/// return the molecular correlation energy energy (without the HF energy)
 	double MP2::value() {
 		hf->value();		// make sure the reference is converged
-		std::cout << "\n\nTEST FILL TREE\n\n";
-		test_fill_tree();
+		//std::cout << "\n\nTEST FILL TREE\n\n";
+		//test_fill_tree();
 		return value(hf->get_calc().molecule.get_all_coords());
 	}
 
@@ -654,6 +654,7 @@ namespace madness {
 		// orbitals i and j
 		//  [T,f]
 		const double eps = this->zeroth_order_energy(i, j);
+		std::cout << "eps=" << eps <<std::endl;
 		Uphi0 = corrfac.apply_U(hf->nemo(i), hf->nemo(j), eps);
 		{
 		    real_function_6d tmp =
@@ -665,6 +666,7 @@ namespace madness {
 		    if (world.rank() == 0)
 		        print("< nemo | R2 U | nemo>", a);
 		}
+		Uphi0.print_size("Uphi0");
 		asymmetry(Uphi0, "Uphi w/o R");
 
 		// apply the mixed commutator of the kinetic energy and the
@@ -758,9 +760,9 @@ namespace madness {
 			printf("< phi0 | U_R   | phi0 >  %12.8f\n", a);
 			printf("< phi0 | 1/r12 | phi0 >  %12.8f\n", aa);
 			if (error > FunctionDefaults<6>::get_thresh())
-				print("WARNING : Kutzelnigg's potential inaccurate");
+				print("WARNING : Kutzelnigg's potential inaccurate (box size, thresh ?)");
 			if (error > FunctionDefaults<6>::get_thresh() * 10.0)
-				MADNESS_EXCEPTION("Kutzelnigg's potential plain wrong", 1);
+				MADNESS_EXCEPTION("Kutzelnigg's potential plain wrong (box size, thresh ?)", 1);
 		}
 		Uphi0.print_size("Uphi0");
 		return Uphi0;
@@ -776,9 +778,7 @@ namespace madness {
 		real_function_6d r12nemo = CompositeFactory<double, 6, 3>(world).g12(
 		        corrfac.f()).particle1(copy(hf->nemo(i))).particle2(
 		                copy(hf->nemo(j)));
-		std::cout << "\n\n!!!!!! Here is the part !!!!!\n\n";
 		r12nemo.fill_tree().truncate().reduce_rank();
-		std::cout << "\n\n!!!!!! Fill Tree Ended !!!!!\n\n";
 		r12nemo.print_size("r12nemo");
 		//                save_function(r12nemo,"r12nemo");
 

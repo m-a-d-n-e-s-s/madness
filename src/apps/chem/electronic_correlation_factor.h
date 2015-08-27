@@ -32,7 +32,7 @@ public:
     /// ctor, use negative gamma for linear correlation factor r12
     CorrelationFactor(World& world, const double& gamma, const double dcut,
             const Molecule& molecule) : world(world), _gamma(gamma), dcut(dcut) {
-        lo = molecule.smallest_length_scale();
+        lo=1.e-6;//lo = molecule.smallest_length_scale();
         if (world.rank()==0) {
 
             if (gamma>0.0) print("constructed correlation factor with gamma=",gamma);
@@ -71,6 +71,16 @@ public:
 //        const double bsh_thresh=FunctionDefaults<6>::get_thresh*0.1;
         const double bsh_thresh=1.e-7;
 
+        if(world.rank()==0){
+        	std::cout << "apply_U debug output:\n"
+        			<< "lo is " << lo <<"\ndcut is " << dcut <<"\nbsh_thresh is " << bsh_thresh
+        			<< "\ngamma is " << _gamma
+        			<< "\n3D thresh in FunctionDefaults is " << FunctionDefaults<3>::get_thresh()
+        			<< "\n6D thresh in FunctionDefaults is " << FunctionDefaults<6>::get_thresh()
+        			<< "\neps is " << eps << "\nnorm of phi_i is " << phi_i.norm2() << "\nnorm of phi_j is " << phi_j.norm2()
+        			<< std::endl;
+        }
+
         real_function_6d result=real_factory_6d(world);
 
         real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), lo,bsh_thresh);
@@ -84,6 +94,14 @@ public:
 
             const real_function_6d u=U1(axis);
 
+            if(world.rank()==0){
+            	std::cout << "apply_U debug output:\n"
+            			<< "Norm of Di " << Di.norm2()
+            			<< "\nNorm of Dj " << Dj.norm2()
+            			<< "\nNorm if u " << u.norm2()
+            			<< std::endl;
+            }
+
             real_function_6d tmp1=CompositeFactory<double,6,3>(world)
                         .g12(u).particle1(copy(Di)).particle2(copy(phi_j));
             tmp1.fill_tree(op_mod).truncate();
@@ -92,11 +110,34 @@ public:
             tmp2.fill_tree(op_mod).truncate();
             if (world.rank()==0) print("done with fill_tree");
 
+            plot_plane(world,tmp1,"tmp1");
+            plot_plane(world,tmp2,"tmp2");
+
+            if(world.rank()==0){
+            	std::cout << "apply_U debug output:\n"
+            			<< "Norm of tmp1 " << tmp1.norm2()
+            			<< "\nNorm of tmp2"<< tmp2.norm2()
+            			<< std::endl;
+            }
+
             result=result+(tmp1-tmp2).truncate();
+
+            if(world.rank()==0){
+            	std::cout << "apply_U debug output:\n"
+            			<< "Norm of result + tmp1 - tmp2 " << result.norm2()
+            			<< std::endl;
+            }
+
             tmp1.clear();
             tmp2.clear();
             world.gop.fence();
             result.truncate().reduce_rank();
+
+            if(world.rank()==0){
+            	std::cout << "apply_U debug output:\n"
+            			<< "Norm if result after truncate " << result.norm2()
+            			<< std::endl;
+            }
 
             if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
             result.print_size("result");

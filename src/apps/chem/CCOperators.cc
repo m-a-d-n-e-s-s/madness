@@ -9,13 +9,6 @@
 
 namespace madness {
 
-CCOperators::CCOperators() {
-	// TODO Auto-generated constructor stub
 
-}
 
-CCOperators::~CCOperators() {
-	// TODO Auto-generated destructor stub
-}
-
-} /* namespace madness */
+}// madness namespace ends here
