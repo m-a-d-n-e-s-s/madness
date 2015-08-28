@@ -1241,7 +1241,7 @@ namespace madness {
                                   const vecfuncT & amo,
                                   const functionT & vlocal, double & exc, double & enl, int ispin) {
         PROFILE_MEMBER_FUNC(SCF);
-        functionT vloc = vlocal;
+        functionT vloc = copy(vlocal);
         exc = 0.0;
         enl = 0.0;
 
