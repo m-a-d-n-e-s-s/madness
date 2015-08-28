@@ -128,16 +128,32 @@ namespace madness {
             _compressed(false),
             _pmap(FunctionDefaults<NDIM>::get_pmap()), _functor() {
         }
+
         virtual ~FunctionFactory() {};
+
         FunctionFactory&
-        functor(
-                const std::shared_ptr<FunctionFunctorInterface<T, NDIM> >& f) {
+        functor(const std::shared_ptr<FunctionFunctorInterface<T, NDIM> >& f) {
             _functor = f;
             return self();
         }
+
+        /// pass in a functor that is derived from FunctionFunctorInterface
+
+        /// similar to the first version of functor, but easy-to-use
+        /// FunctionFunctorInterface must be a public base of opT
         template<typename opT>
-        FunctionFactory&
-        functor2(const opT& op) {
+        typename std::enable_if<std::is_base_of<FunctionFunctorInterface<T, NDIM>,opT>::value,
+        FunctionFactory& >::type functor(const opT& op) {
+            _functor=std::shared_ptr<FunctionFunctorInterface<T,NDIM> >(new opT(op));
+            return self();
+        }
+
+        /// pass in a functor that is *not* derived from FunctionFunctorInterface
+
+        /// similar to the first version of functor, but easy-to-use
+        template<typename opT>
+        typename std::enable_if<not std::is_base_of<FunctionFunctorInterface<T, NDIM>,opT>::value,
+        FunctionFactory& >::type functor(const opT& op) {
             _functor=std::shared_ptr<FunctionInterface<T,NDIM,opT> >
                 (new FunctionInterface<T,NDIM,opT>(op));
             return self();
@@ -154,9 +170,8 @@ namespace madness {
             return self();
         }
         FunctionFactory&
-        f(T
-          (*f)(const coordT&)) {
-            functor(std::shared_ptr<ElementaryInterface<T, NDIM> > (
+        f(T (*f)(const coordT&)) {
+            functor(std::shared_ptr<FunctionFunctorInterface<T, NDIM> > (
                                                                     new ElementaryInterface<T,NDIM>(f)));
             return self();
         }

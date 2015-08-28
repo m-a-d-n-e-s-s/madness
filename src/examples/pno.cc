@@ -9,7 +9,7 @@ using namespace madness;
 namespace madness {
 
 
-class GaussianGuess : FunctionFunctorInterface<double,3> {
+class GaussianGuess : public FunctionFunctorInterface<double,3> {
 public:
     GaussianGuess(const Atom& atom, const double e, const int i, const int j,
             const int k) : x(atom.x), y(atom.y), z(atom.z),
@@ -429,7 +429,7 @@ public:
         vecfuncT virtuals;
         std::vector<GaussianGuess> gg=make_guess(atom,l,e);
         for (std::size_t m=0; m<gg.size(); ++m) {
-            virtuals.push_back(real_factory_3d(world).functor2(gg[m]).truncate_on_project());
+            virtuals.push_back(real_factory_3d(world).functor(gg[m]).truncate_on_project());
         }
         normalize(world,virtuals);
         return virtuals;

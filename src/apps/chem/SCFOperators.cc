@@ -217,7 +217,7 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
 
     // compute the U2 potential/ the derivative nuclear potential
     NuclearCorrelationFactor::U2X_functor u2x(ncf.get(),iatom,iaxis);
-    real_function_3d u2x_f=real_factory_3d(world).functor2(u2x)
+    real_function_3d u2x_f=real_factory_3d(world).functor(u2x)
             .thresh(vthresh).truncate_on_project();
     vecfuncT result=mul(world,u2x_f,vket);
     truncate(world,result,vthresh);
@@ -239,7 +239,7 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
             // \frac{\partial U1_i}{\partial R_{A,iaxis}}
             // e.g. d/dYA U1x
             NuclearCorrelationFactor::U1X_functor u1x(ncf.get(),iatom,i,iaxis);
-            real_function_3d U1=real_factory_3d(world).functor2(u1x).truncate_on_project();
+            real_function_3d U1=real_factory_3d(world).functor(u1x).truncate_on_project();
             std::vector<Function<double,NDIM> > U1dv=mul(world,U1,dv);
             truncate(world,U1dv);
             result=sub(world,result,U1dv);
@@ -248,7 +248,7 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
 
         // add the U3X potential
         NuclearCorrelationFactor::U3X_functor u3x(ncf.get(),iatom,iaxis);
-        real_function_3d u3x_f=real_factory_3d(world).functor2(u3x).truncate_on_project();
+        real_function_3d u3x_f=real_factory_3d(world).functor(u3x).truncate_on_project();
         std::vector<Function<double,NDIM> > U3v=mul(world,u3x_f,vket);
         result=sub(world,result,U3v);
         truncate(world,result);

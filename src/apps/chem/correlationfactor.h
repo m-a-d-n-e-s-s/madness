@@ -159,8 +159,9 @@ public:
 
 	/// return the square of the nuclear correlation factor
 	virtual real_function_3d square() const {
+	    R_functor r(this,2);
 		real_function_3d R2=real_factory_3d(world).thresh(vtol)
-				.functor2(R_functor(this,2)).truncate_on_project();
+				.functor(r).truncate_on_project();
 		return R2;
 	}
 
@@ -169,9 +170,10 @@ public:
 
 	/// @return R^2 * Z_A/r_{1A}
     virtual real_function_3d square_times_V(const Atom& atom) const {
-        real_function_3d R2=real_factory_3d(world).thresh(vtol)
-                .functor2(square_times_V_functor(this,atom)).truncate_on_project();
-        return R2;
+        square_times_V_functor func(this,atom);
+        real_function_3d R2v=real_factory_3d(world).thresh(vtol)
+                .functor(func).truncate_on_project();
+        return R2v;
     }
 
     /// return the square of the nuclear correlation factor multiplied with
@@ -179,15 +181,17 @@ public:
 
     /// @return R^2 * \frac{\partial Z_A/r_{1A}}{\partial X_A}
     virtual real_function_3d square_times_V_derivative(const int iatom, const int axis) const {
+        square_times_V_derivative_functor func(this,molecule,iatom,axis);
         real_function_3d R2=real_factory_3d(world).thresh(vtol)
-                .functor2(square_times_V_derivative_functor(this,molecule,iatom,axis)).truncate_on_project();
+                .functor(func).truncate_on_project();
         return R2;
     }
 
 	/// return the inverse nuclear correlation factor
 	virtual real_function_3d inverse() const {
+	    R_functor r(this,-1);
 		real_function_3d R_inverse=real_factory_3d(world).thresh(vtol)
-				.functor2(R_functor(this,-1)).truncate_on_project();
+				.functor(r).truncate_on_project();
 		return R_inverse;
 	}
 
@@ -622,7 +626,6 @@ public:
         std::vector<coord_3d> special_points() const {
             return ncf->molecule.get_all_coords_vec();
         }
-        virtual Level special_level() {return 12;}
 
     };
 
@@ -636,12 +639,18 @@ public:
     public:
         U1X_functor(const NuclearCorrelationFactor* ncf, const Atom& atom1,
                 const int U1axis, const int daxis) : ncf(ncf), thisatom(atom1),
-                U1axis(U1axis), derivativeaxis(daxis) {}
+                U1axis(U1axis), derivativeaxis(daxis) {
+            double lo=1.0/thisatom.q;
+            set_length_scale(lo);
+        }
 
         U1X_functor(const NuclearCorrelationFactor* ncf, const int iatom,
                 const int U1axis, const int daxis) : ncf(ncf),
                 thisatom(ncf->molecule.get_atom(iatom)),
-                U1axis(U1axis), derivativeaxis(daxis) {}
+                U1axis(U1axis), derivativeaxis(daxis) {
+            double lo=1.0/thisatom.q;
+            set_length_scale(lo);
+        }
 
         double operator()(const coord_3d& xyz) const {
             const coord_3d vr1A=xyz-thisatom.get_coords();
@@ -664,6 +673,7 @@ public:
             c[0][2]=thisatom.z;
             return c;
         }
+
     };
 
 
@@ -674,7 +684,11 @@ public:
         const int axis;
     public:
         U2X_functor(const NuclearCorrelationFactor* ncf, const int& atom1,
-                const int axis) : ncf(ncf), iatom(atom1), axis(axis) {}
+                const int axis) : ncf(ncf), iatom(atom1), axis(axis) {
+            const Atom& atom=ncf->molecule.get_atom(iatom);
+            double lo=1.0/atom.q;
+            set_length_scale(lo);
+        }
 
         double operator()(const coord_3d& xyz) const {
             const Atom& atom=ncf->molecule.get_atom(iatom);

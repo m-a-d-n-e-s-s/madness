@@ -228,7 +228,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
 
     real_function_3d phi=real_factory_3d(world).f(gauss_3d);
     real_function_3d phisq=phi*phi;
-    real_function_6d f12=real_factory_6d(world).functor2(&slater_6d).is_on_demand();
+    real_function_6d f12=real_factory_6d(world).functor(&slater_6d).is_on_demand();
 
     real_function_6d fii=CompositeFactory<double,6,3>(world)
     	    	.particle1(copy(phi))
@@ -250,7 +250,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
     	load_function(world,fiii,"fiii");
     }
     fii.print_size("f12 |phi phi>");
-    fiii=real_factory_6d(world).functor2(&slateriii_6d);
+    fiii=real_factory_6d(world).functor(&slateriii_6d);
     fiii.print_size("f12 |phi^2 phi>");
 	save_function(world,fiii,"fiii2");
 

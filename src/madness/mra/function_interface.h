@@ -62,6 +62,17 @@ namespace madness {
 	    typedef Key<NDIM> keyT;
 	    typedef T value_type;
 
+	    Level special_level_;
+
+	    FunctionFunctorInterface() : special_level_(6) {}
+
+	    /// adapt the special level to resolve the smallest length scale
+	    void set_length_scale(double lo) {
+	        double Lmax=FunctionDefaults<NDIM>::get_cell_width().max();
+	        double lo_sim=lo/Lmax;  // lo in simulation coordinates;
+	        special_level_=Level(-log2(lo_sim));
+	    }
+
 	    /// Can we screen this function based on the bounding box information?
 	    virtual bool screened(const Vector<double,NDIM>& c1, const Vector<double,NDIM>& c2) const {
 	        return false;
@@ -103,7 +114,7 @@ namespace madness {
 	    }
 
 	    /// Override this change level refinement for special points (default is 6)
-	    virtual Level special_level() {return 6;}
+	    virtual Level special_level() {return special_level_;}
 
 	    virtual ~FunctionFunctorInterface() {}
 

@@ -119,11 +119,11 @@ double Nemo::value(const Tensor<double>& x) {
 void Nemo::print_nuclear_corrfac() const {
 
 	// the nuclear correlation function
-	save_function(R,"R");
-	save_function(nuclear_correlation->U2(),"U2");
-	save_function(nuclear_correlation->U1(0),"U1x");
-	save_function(nuclear_correlation->U1(1),"U1y");
-	save_function(nuclear_correlation->U1(2),"U1z");
+//	save_function(R,"R");
+//	save_function(nuclear_correlation->U2(),"U2");
+//	save_function(nuclear_correlation->U1(0),"U1x");
+//	save_function(nuclear_correlation->U1(1),"U1y");
+//	save_function(nuclear_correlation->U1(2),"U1z");
 
 }
 
@@ -672,7 +672,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
             // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
             real_function_3d dens_pt=4.0*make_density(calc->get_aocc(),R2nemo,xi[i]);
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
-            const real_function_3d RX_div_R=real_factory_3d(world).functor2(rxr_func).truncate_on_project();
+            const real_function_3d RX_div_R=real_factory_3d(world).functor(rxr_func).truncate_on_project();
             dens_pt=(dens_pt+2.0*RX_div_R*dens).truncate();
             save_function(dens_pt,"dens_pt"+stringify(i));
 
@@ -789,7 +789,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     const Tensor<double> occ=get_calc()->get_aocc();
     const real_function_3d rhonemo=2.0*make_density(occ,nemo); // closed shell
     NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
-    const real_function_3d RXR=real_factory_3d(world).functor2(rxr_func).truncate_on_project();
+    const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
 
     // construct quantities that are independent of xi
 
@@ -993,7 +993,7 @@ vecfuncT Nemo::parallel_CPHF(const vecfuncT& nemo, const int iatom,
         const int iaxis) const {
 
     NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
-    const real_function_3d RXR=real_factory_3d(world).functor2(rxr_func).truncate_on_project();
+    const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
     vecfuncT RXRnemo=mul(world,RXR,nemo);   // skipping factor 2
     truncate(world,RXRnemo);
 

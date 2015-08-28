@@ -106,7 +106,8 @@ public:
 
         // include the purely local potential that (partially) cancels 1/r12
         if (_gamma>0.0) {
-            real_function_6d fg3=real_factory_6d(world).functor2(fg_(_gamma,dcut)).is_on_demand();
+            fg_ func(_gamma,dcut);
+            real_function_6d fg3=real_factory_6d(world).functor(func).is_on_demand();
             real_function_6d mul=CompositeFactory<double,6,3>(world)
                                 .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j));
             mul.fill_tree(op_mod).truncate();
@@ -120,8 +121,9 @@ public:
 
     /// return the U1 term of the correlation function
     real_function_6d U1(const int axis) const {
+        U func(_gamma,axis,dcut);
         const real_function_6d u1=real_factory_6d(world)
-                .functor2(U(_gamma,axis,dcut)).is_on_demand();
+                .functor(func).is_on_demand();
         return u1;
     }
 
@@ -144,31 +146,35 @@ public:
 
     /// return f^2 as on-demand function
     real_function_6d f2() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(f2_(_gamma)).is_on_demand();
+        f2_ func(_gamma);
+        real_function_6d tmp=real_factory_6d(world).functor(func).is_on_demand();
         return tmp;
     }
 
     /// return fg+sth as on-demand function
     real_function_6d fg() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(fg_(_gamma,dcut)).is_on_demand();
+        fg_ func(_gamma,dcut);
+        real_function_6d tmp=real_factory_6d(world).functor(func).is_on_demand();
         return tmp;
     }
 
     /// return f/r as on-demand function
     real_function_6d f_over_r() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(f_over_r_(_gamma,dcut)).is_on_demand();
+        f_over_r_ func(_gamma,dcut);
+        real_function_6d tmp=real_factory_6d(world).functor(func).is_on_demand();
         return tmp;
     }
 
     /// return (\nabla f)^2 as on-demand functions
     real_function_6d nablaf2() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(nablaf2_(_gamma)).is_on_demand();
+        nablaf2_ func(_gamma);
+        real_function_6d tmp=real_factory_6d(world).functor(func).is_on_demand();
         return tmp;
     }
 
 private:
     /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
-    struct fg_ {
+    struct fg_ : FunctionFunctorInterface<double,6> {
         double gamma;
         double dcut;
         fg_(double gamma, double dcut) : gamma(gamma), dcut(dcut) {
@@ -182,7 +188,7 @@ private:
     };
 
     /// functor for the local potential (1-f12)/r12
-    struct f_over_r_ {
+    struct f_over_r_ : FunctionFunctorInterface<double,6>  {
         double gamma;
         double dcut;
         f_over_r_(double gamma, double dcut) : gamma(gamma), dcut(dcut) {
@@ -196,7 +202,7 @@ private:
     };
 
     /// functor for the local part of the regularized potential: f12/r12*(r1-r2)(D1-D2)
-    struct U {
+    struct U : FunctionFunctorInterface<double,6>  {
         double gamma;
         int axis;
         double dcut;
@@ -219,7 +225,7 @@ private:
     };
 
     /// functor for the local potential (1-f12)^2
-    struct f2_ {
+    struct f2_ : FunctionFunctorInterface<double,6>  {
         double gamma;
         f2_(double gamma) : gamma(gamma) {MADNESS_ASSERT(gamma>0.0);}
         double operator()(const coord_6d& r) const {
@@ -231,7 +237,7 @@ private:
     };
 
     /// functor for the local potential (\nabla f)^2
-    struct nablaf2_ {
+    struct nablaf2_ : FunctionFunctorInterface<double,6>  {
         double gamma;
         nablaf2_(double gamma) : gamma(gamma) {
             MADNESS_ASSERT(gamma>0.0);

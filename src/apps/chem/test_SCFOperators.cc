@@ -45,7 +45,7 @@ using namespace madness;
 /// f(r) = x^i y^j .. z^k exp(-alpha r^2)
 /// \]
 template<std::size_t NDIM>
-class GaussianGuess : FunctionFunctorInterface<double,NDIM> {
+class GaussianGuess : public FunctionFunctorInterface<double,NDIM> {
     typedef Vector<double,NDIM> coordT;
 
 public:
@@ -177,9 +177,9 @@ int test_hermiticity(World& world, const opT& op, double thresh) {
         // test hermiticity of the T operator
         std::vector<Function<double,NDIM> > amo(2);
         amo[0]=FunctionFactory<double,NDIM>(world)
-                .functor2(GaussianGuess<NDIM>(origin,1.0,ijk)).truncate_on_project();
+                .functor(GaussianGuess<NDIM>(origin,1.0,ijk)).truncate_on_project();
         amo[1]=FunctionFactory<double,NDIM>(world)
-                .functor2(GaussianGuess<NDIM>(origin,2.0,ijk)).truncate_on_project();
+                .functor(GaussianGuess<NDIM>(origin,2.0,ijk)).truncate_on_project();
 
         Tensor<double> tmat;
         tmat=op(amo,amo);
@@ -209,19 +209,19 @@ int test_asymmetric(World& world, const opT& op, double thresh) {
 
     std::vector<Function<double,NDIM> > amo(2);
     amo[0]=FunctionFactory<double,NDIM>(world)
-            .functor2(GaussianGuess<NDIM>(origin,1.0,ijk)).truncate_on_project();
+            .functor(GaussianGuess<NDIM>(origin,1.0,ijk)).truncate_on_project();
     amo[1]=FunctionFactory<double,NDIM>(world)
-            .functor2(GaussianGuess<NDIM>(origin,2.0,ijk)).truncate_on_project();
+            .functor(GaussianGuess<NDIM>(origin,2.0,ijk)).truncate_on_project();
 
     // test asymmetric T operator
     std::vector<Function<double,NDIM> > bmo(5);
     bmo[0]=copy(amo[0]);
     bmo[1]=copy(amo[1]);
-    bmo[2]=FunctionFactory<double,NDIM>(world).functor2(GaussianGuess<NDIM>(origin,1.0,ijk_p))
+    bmo[2]=FunctionFactory<double,NDIM>(world).functor(GaussianGuess<NDIM>(origin,1.0,ijk_p))
                 .truncate_on_project();
-    bmo[3]=FunctionFactory<double,NDIM>(world).functor2(GaussianGuess<NDIM>(origin,1.0,ijk_d))
+    bmo[3]=FunctionFactory<double,NDIM>(world).functor(GaussianGuess<NDIM>(origin,1.0,ijk_d))
                 .truncate_on_project();
-    bmo[4]=FunctionFactory<double,NDIM>(world).functor2(GaussianGuess<NDIM>(origin,0.5,ijk))
+    bmo[4]=FunctionFactory<double,NDIM>(world).functor(GaussianGuess<NDIM>(origin,0.5,ijk))
                 .truncate_on_project();
 
     Tensor<double> tmat=op(amo,amo);
@@ -253,13 +253,13 @@ int test_kinetic(World& world) {
     // compare T operator with integration by parts
     double expo=2.0;
     Function<double,NDIM> f=FunctionFactory<double,NDIM>(world)
-            .functor2(GaussianGuess<NDIM>(origin,expo,ijk)).truncate_on_project();
+            .functor(GaussianGuess<NDIM>(origin,expo,ijk)).truncate_on_project();
     double ip_amo=0.0;
     for (std::size_t i=0; i<NDIM; ++i) {
         std::vector<int> dijk(NDIM);
         dijk[i]=1;
         Function<double,NDIM> df=FunctionFactory<double,NDIM>(world).truncate_on_project()
-                .functor2(GaussianGuess<NDIM>(origin,expo,dijk));
+                .functor(GaussianGuess<NDIM>(origin,expo,dijk));
         df.scale(2.0*expo);
         ip_amo+=0.5*inner(df,df);
     }
@@ -295,9 +295,9 @@ int test_coulomb(World& world) {
 
     // compute a trial density and the reference potential
     real_function_3d density=real_factory_3d(world).truncate_on_project()
-                .functor2(GaussianGuess<3>(origin,alpha)).thresh(thresh*0.1);
+                .functor(GaussianGuess<3>(origin,alpha)).thresh(thresh*0.1);
     real_function_3d refpot=real_factory_3d(world).truncate_on_project()
-            .functor2(refpotfunctor(alpha)).thresh(thresh*0.1);
+            .functor(refpotfunctor(alpha)).thresh(thresh*0.1);
     double refpotnorm=refpot.norm2();
     print("refpotnorm",refpotnorm);
 
@@ -315,7 +315,7 @@ int test_coulomb(World& world) {
 
     // test matrix element
     real_function_3d g=real_factory_3d(world).truncate_on_project()
-                    .functor2(GaussianGuess<3>(origin,3.0));
+                    .functor(GaussianGuess<3>(origin,3.0));
     real_function_3d g2=copy(g).square();
     double refelement=inner(g2,refpot);
     double element=J(g,g);
@@ -347,7 +347,7 @@ int exchange_anchor_test(World& world, Exchange& K, const double thresh) {
     vecfuncT amo(nmo);
     for (int i=0; i<nmo; ++i) {
         amo[i]=real_factory_3d(world).truncate_on_project()
-                .functor2(GaussianGuess<3>(origin,alpha(i))).thresh(thresh*0.1);
+                .functor(GaussianGuess<3>(origin,alpha(i))).thresh(thresh*0.1);
     }
     Tensor<double> aocc(nmo);
     aocc.fill(1.0);
@@ -358,7 +358,7 @@ int exchange_anchor_test(World& world, Exchange& K, const double thresh) {
         for (int k=0; k<nmo; ++k) {
             const double sum_alpha=alpha(i)+alpha(k);
             real_function_3d refpot=real_factory_3d(world).truncate_on_project()
-                    .functor2(refpotfunctor(sum_alpha)).thresh(thresh*0.1);
+                    .functor(refpotfunctor(sum_alpha)).thresh(thresh*0.1);
             Kamo[i]+=amo[k]*refpot;
         }
     }
@@ -415,7 +415,7 @@ int test_exchange(World& world) {
     vecfuncT amo(nmo);
     for (int i=0; i<nmo; ++i) {
         amo[i]=real_factory_3d(world).truncate_on_project()
-                .functor2(GaussianGuess<3>(origin,alpha(i))).thresh(thresh*0.1);
+                .functor(GaussianGuess<3>(origin,alpha(i))).thresh(thresh*0.1);
     }
     Tensor<double> aocc(nmo);
     aocc.fill(1.0);
@@ -456,7 +456,7 @@ int nuclear_anchor_test(World& world) {
     Vector<double,3> origin{0,0.1,1.0};
 
     real_function_3d gaussian=FunctionFactory<double,3>(world)
-                    .functor2(GaussianGuess<3>(origin,2.0,ijk)).truncate_on_project();
+                    .functor(GaussianGuess<3>(origin,2.0,ijk)).truncate_on_project();
     real_function_3d gaussian2=copy(gaussian).square();
 
     double V=Vnuc(gaussian,gaussian);
@@ -515,7 +515,7 @@ int dnuclear_anchor_test(World& world) {
     Vector<double,3> origin{0.7,0.2,0.0};
 
     const real_function_3d gaussian=FunctionFactory<double,3>(world)
-                    .functor2(GaussianGuess<3>(origin,2.0,ijk)).truncate_on_project();
+                    .functor(GaussianGuess<3>(origin,2.0,ijk)).truncate_on_project();
     const real_function_3d gaussian2=copy(gaussian).square();
 
     // test ncf=none

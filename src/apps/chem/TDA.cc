@@ -1171,7 +1171,7 @@ void TDA::truncate_xfunctions(xfunctionsT &xfunctions)const {
 double TDA::oscillator_strength_length(const xfunction& xfunction) const {
 	Tensor<double> mu_if(3);
 	for (int idim=0; idim<3; idim++) {
-		real_function_3d ri = real_factory_3d(world).functor2(xyz(idim));
+		real_function_3d ri = real_factory_3d(world).functor(xyz(idim));
 		vecfuncT amo_times_x=mul(world,ri,active_mo_);
 		Tensor<double> a=inner(world,amo_times_x,xfunction.x);
 		mu_if(idim)=a.sum();
