@@ -15,9 +15,11 @@
 // Operators for coupled cluster and CIS
 #include <chem/SCFOperators.h>
 #include <chem/electronic_correlation_factor.h>
-namespace madness {
 
-static double testfunction(const coord_6d &r) {return exp(-(r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + r[3]*r[3] + r[4]*r[4]) + r[5]*r[5]);}
+// Debug
+#include <chem/test_correlation_factor.h>
+// debug end
+namespace madness {
 
 // Timer Structure
 struct CC_Timer{
@@ -103,23 +105,29 @@ struct CC_Parameters{
             if (s == "end") break;
             else if (s == "lo") f >> lo;
             else if (s == "econv") f >> econv;
+
             else if (s == "dconv"){
             	double tmp = 0.0;
             	f >> tmp;
             	dconv_3D = tmp; dconv_6D=tmp;
             }
-            else if (s == "dconv_3D") f >> dconv_3D;
-            else if (s == "dconv_6D") f >> dconv_6D;
+            else if (s == "dconv_3D"){
+            	f >> dconv_3D;
+            }
+            else if (s == "dconv_6D"){
+            	f >> dconv_6D;
+            }
             else if (s == "thresh"){
             	double tmp = 0.0;
             	f >> tmp;
             	double opthresh = tmp*0.1;
+            	double opthresh_3D = tmp*0.01;
             	if(opthresh > minopthresh) opthresh = minopthresh;
-            	thresh_3D 		  = tmp;
+            	thresh_3D 		  = 0.01*tmp;
             	thresh_6D 		  = tmp;
-            	thresh_poisson_3D = opthresh;
+            	thresh_poisson_3D = opthresh_3D;
             	thresh_poisson_6D = opthresh;
-            	thresh_bsh_3D     = opthresh;
+            	thresh_bsh_3D     = opthresh_3D;
             	thresh_bsh_6D     = opthresh;
             	thresh_f12        = opthresh;
             	thresh_Ue		  = opthresh;
@@ -241,7 +249,46 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "facReduce:" << GenTensor<double>::fac_reduce()  <<std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "max. displacement:" << Displacements<6>::bmax_default()  <<std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "apply randomize:" << FunctionDefaults<6>::get_apply_randomize()  <<std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "Cell min width (3D, 6D) :" << FunctionDefaults<6>::get_cell_min_width() << ", " << FunctionDefaults<3>::get_cell_min_width()  <<std::endl;
+			//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (3D) :" << FunctionDefaults<3>::get_cell_width()  <<std::endl;
+			//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (6D) :" << FunctionDefaults<6>::get_cell_width()  <<std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "Autorefine (3D, 6D) :" << FunctionDefaults<6>::get_autorefine() << ", " << FunctionDefaults<3>::get_autorefine()  <<std::endl;
 		}
+	}
+
+	void sanity_check(World &world)const{
+		if(world.rank()==0) std::cout << "\n-----------------CC_PARAMETERS SANITY CHECK--------------------" << std::endl;
+		size_t warnings = 0;
+		if(FunctionDefaults<3>::get_thresh() > 0.01*FunctionDefaults<6>::get_thresh()) warning(world,"3D Thresh is too low, should be 0.01*6D_thresh");
+		if(FunctionDefaults<3>::get_thresh() > 0.1*FunctionDefaults<6>::get_thresh()) error(world,"3D Thresh is way too low, should be 0.01*6D_thresh");
+		if(FunctionDefaults<3>::get_cell_min_width() != FunctionDefaults<6>::get_cell_min_width()) error(world,"3D and 6D Cell sizes differ");
+		if(FunctionDefaults<3>::get_k() != FunctionDefaults<6>::get_k()) error(world, "k-values of 3D and 6D differ ");
+		if(FunctionDefaults<3>::get_truncate_mode()!=3) warnings+=warning(world,"3D Truncate mode is not 3");
+		if(FunctionDefaults<6>::get_truncate_mode()!=3) warnings+=warning(world,"6D Truncate mode is not 3");
+		if(dconv_3D < FunctionDefaults<3>::get_thresh()) error(world,"Demanded higher convergence than threshold for 3D");
+		if(dconv_6D < FunctionDefaults<6>::get_thresh()) error(world,"Demanded higher convergence than threshold for 6D");
+		if(thresh_3D != FunctionDefaults<3>::get_thresh()) error(world,"3D thresh set unequal 3D thresh demanded");
+		if(thresh_6D != FunctionDefaults<6>::get_thresh()) error(world,"6D thresh set unequal 6D thresh demanded");
+		if(econv < FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 3D");
+		if(econv < FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 6D");
+		if(econv < 0.1*FunctionDefaults<3>::get_thresh()) warning(world,"Demanded higher energy convergence than threshold for 3D (more than factor 10 difference)");
+		if(econv < 0.1*FunctionDefaults<6>::get_thresh()) warning(world,"Demanded higher energy convergence than threshold for 6D (more than factor 10 difference)");
+		if(warnings >0){
+			if(world.rank()==0) std::cout << "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" <<
+					"\n-----------------CC_PARAMETERS SANITY CHECK ENDED with " << warnings << " WARNINGS!--------------------\n"
+					<<"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"<< std::endl;
+		}else{
+			if(world.rank()==0) std::cout << "\n-----------------CC_PARAMETERS SANITY CHECK ENDED--------------------" << std::endl;
+		}
+	}
+
+	void error(World& world,const std::string &msg)const{
+		if(world.rank()==0) std::cout << "\n\n\n\n\n!!!!!!!!!\n\nERROR IN CC_PARAMETERS:\n    ERROR MESSAGE IS: " << msg << "\n\n\n!!!!!!!!" << std::endl;
+		MADNESS_EXCEPTION("ERROR IN CC_PARAMETERS",1);
+	}
+	size_t warning(World& world,const std::string &msg)const{
+		if(world.rank()==0) std::cout << "\nWARNING IN CC_PARAMETERS!: " << msg << std::endl;
+		return 1;
 	}
 };
 
@@ -271,18 +318,18 @@ struct Pairs {
 };
 
 /// enhanced POD for the pair functions
-class ElectronPair: public archive::ParallelSerializableObject {
+class CC_Pair: public archive::ParallelSerializableObject {
 
 public:
 	/// default ctor; initialize energies with a large number
-	ElectronPair() :
+	CC_Pair() :
 			i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
 					uninitialized()), ij_gQf_ij(uninitialized()), ji_gQf_ij(
 					uninitialized()), iteration(0), converged(false) {
 	}
 
 	/// ctor; initialize energies with a large number
-	ElectronPair(const int i, const int j) :
+	CC_Pair(const int i, const int j) :
 			i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 					uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
 					false) {
@@ -304,8 +351,6 @@ public:
 			std::cout <<std::setw(20) << std::setfill(' ') << " *e_triplet " << e_triplet << " " <<std::setw(20) << std::setfill(' ') << std::endl;
 			std::cout <<std::setw(20) << std::setfill(' ') << " *ij_gQf_ij " << ij_gQf_ij << " " <<std::setw(20) << std::setfill(' ') << std::endl;
 			std::cout <<std::setw(20) << std::setfill(' ') << " *ji_gQf_ij " << ji_gQf_ij << " " <<std::setw(20) << std::setfill(' ') << std::endl;
-			std::cout <<std::setw(20) << std::setfill(' ') << " *||U|| "     << function.norm2() << " " <<std::setw(20) << std::setfill(' ') << std::endl;
-			std::cout <<std::setw(20) << std::setfill(' ') << " *||ConstTerm|| " << constant_term.norm2() << " " <<std::setw(20) << std::setfill(' ') <<"\n"<< std::endl;
 		}
 	}
 
@@ -326,7 +371,7 @@ public:
 	int iteration;					///< current iteration for restart
 	bool converged;					///< is the pair function converged
 
-	/// serialize this ElectronPair
+	/// serialize this CC_Pair
 
 	/// store the function only if it has been initialized
 	/// load the function only if there is one
@@ -710,30 +755,27 @@ public:
 		return result;
 	}
 
-	real_function_6d get_CC2_doubles_potential(const vecfuncT &singles, const ElectronPair &u)const{
+	real_function_6d get_CC2_doubles_potential(const vecfuncT &singles, const CC_Pair &u)const{
 	MADNESS_EXCEPTION("CC2 doubles potential not yet implemented",1);
 	return real_factory_6d(world);
 	}
 
-	real_function_6d get_MP2_potential_constant_part(ElectronPair &u)const{
+	real_function_6d get_MP2_potential_constant_part(CC_Pair &u)const{
 		CC_Timer timer_U(world,"Ue(R)|ij>");
 		real_function_6d UePart = apply_transformed_Ue(mo_ket_[u.i],mo_ket_[u.j],u.i,u.j,u);
-		if(world.rank()==0) std::cout << "||Ue(R)|ij>|| = " << UePart.norm2();
+		UePart.print_size("Ue|"+stringify(u.i)+stringify(u.j)+">");
 		timer_U.info();
-		CC_Timer timer_Kf(world,"Kf|ij>");
-		real_function_6d KfPart = apply_Kf(mo_ket_[u.i],mo_ket_[u.j], u.i==u.j);
-		if(world.rank()==0) std::cout << "||Kf|ij>|| = " << KfPart.norm2();
-		timer_Kf.info();
-		CC_Timer timer_fK(world,"fK|ij>");
-		real_function_6d fKPart = apply_fK(mo_ket_[u.i],mo_ket_[u.j], "occupied",u.i,u.j);
-		if(world.rank()==0) std::cout << "||fK|ij>|| = " << fKPart.norm2();
-		timer_fK.info();
 
-		real_function_6d unprojected_result = (UePart - KfPart + fKPart).truncate();
-		if(world.rank()==0) std::cout << "||ConstPart|| = " << unprojected_result.norm2();
+		CC_Timer timer_KffK(world,"Kf|ij>");
+		real_function_6d KffKPart = apply_exchange_commutator(mo_ket_[u.i],mo_ket_[u.j],"occupied",u.i,u.j);
+		KffKPart.print_size("[K,f]|"+stringify(u.i)+stringify(u.j)+">");
+		timer_KffK.info();
+
+		real_function_6d unprojected_result = (UePart - KffKPart).truncate();
+		unprojected_result.print_size("Ue - [K,f]|"+stringify(u.i)+stringify(u.j)+">");
 		CC_Timer timer_Q(world,"Apply Q12");
 		real_function_6d result = Q12(unprojected_result);
-		if(world.rank()==0) std::cout << "||QConstPart|| = " << result.norm2();
+		result.print_size("Q12(Ue - [K,f]|"+stringify(u.i)+stringify(u.j)+">)");
 		timer_Q.info();
 		return result;
 
@@ -741,7 +783,7 @@ public:
 
 	/// returns the non constant part of the MP2 potential which is
 	/// (2J-K+Un)|uij>
-	real_function_6d get_MP2_potential_residue(const ElectronPair &u)const{
+	real_function_6d get_MP2_potential_residue(const CC_Pair &u)const{
 		START_TIMER();
 		real_function_6d result = fock_residue_6d(u);
 		END_TIMER("(2J-K(R)+Un)|uij>");
@@ -749,7 +791,7 @@ public:
 	}
 
 	// right now this is all copied from mp2.cc
-	double compute_mp2_pair_energy(ElectronPair &pair)const{
+	double compute_mp2_pair_energy(CC_Pair &pair)const{
 
 	    START_TIMER();
 		// this will be the bra space
@@ -1247,7 +1289,7 @@ public:
 	// Uen|ij> = R12{-1}*U_e*R12 |ij>
 
 	/// The 6D Fock residue on the cusp free pair function u_{ij}(1,2) is: (2J - Kn - Un)|u_{ij}>
-	real_function_6d fock_residue_6d(const ElectronPair &u) const {
+	real_function_6d fock_residue_6d(const CC_Pair &u) const {
 		const double eps = get_epsilon(u.i, u.j);
 		// make the coulomb and local Un part with the composite factory
 		real_function_3d local_part = (2.0
@@ -1302,6 +1344,29 @@ public:
 		vphi -= K(u.function, u.i == u.j);
 		return vphi.truncate();
 
+	}
+
+	/// Echange Operator on 3D function
+	/// !!!!Prefactor (-1) is not included
+	real_function_3d K(const real_function_3d &f,const size_t &i, const bool hc=false)const{
+		real_function_3d result = real_factory_3d(world);
+
+		// multiply rhs with R2orbitals (the bra space)
+		vecfuncT R2rhs = mul(world, f, mo_bra_);
+
+		// apply the poisson kernel and sum up
+		for (std::size_t k = 0; k < mo_ket_.size(); ++k) {
+			result += mo_ket_[k] * (*poisson)(R2rhs[k]);
+		}
+
+		// sanity check
+		real_function_3d result2 = real_factory_3d(world);
+		for (std::size_t k = 0; k < mo_ket_.size(); ++k) {
+			result += mo_ket_[k]*intermediates_.get_exchange_intermediate()[i][k];
+		}
+		if(world.rank()==0) std::cout << "K sanity check (costly) -> result should be 0 and it is " << (result-result2).norm2();
+
+		return result;
 	}
 
 	/// Exchange Operator on Pair function: -(K(1)+K(2))u(1,2)
@@ -1361,23 +1426,11 @@ public:
 	/// @param[in] j the second index of the current pair function
 	/// @param[out]  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
 	real_function_6d apply_transformed_Ue(const real_function_3d x,
-			const real_function_3d y, const size_t &i, const size_t &j, ElectronPair &u) const {
+			const real_function_3d y, const size_t &i, const size_t &j, CC_Pair &u) const {
 		real_function_6d Uxy = real_factory_6d(world);
 		// Apply the untransformed U Potential
 		const double eps = get_epsilon(i, j);
 		Uxy = corrfac.apply_U(x, y, eps);
-		Uxy.print_size("U|xy>");
-
-		plot_plane(world,Uxy,"Uxy");
-
-		real_function_3d test1 = mo_ket_[i] - x;
-		real_function_3d test2 = mo_ket_[j] - y;
-		std::cout << "test1 norm " << test1.norm2() << " test2 norm " << test2.norm2() << " mo_ket_i norm " << sqrt(mo_bra_[i].inner(mo_ket_[i])) <<  std::endl;
-
-
-		double asd= make_ij_gQf_ij(i,j,u);
-		std::cout << "asd energy " << asd <<std::endl;
-		u.info();
 
 		// Get the 6D BSH operator in modified-NS form for screening
 		real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps),
@@ -1447,10 +1500,65 @@ public:
 		return Uxy;
 	}
 
+	/// Apply the Exchange Commutator [K,f]|xy>
+	real_function_6d apply_exchange_commutator(const real_function_3d &x, const real_function_3d &y,const std::string &type, const size_t &i, const size_t &j)const{
+		MADNESS_ASSERT(
+				type == "occupied" or type == "mixed" or type == "virtual");
+
+		// for sanity check
+		real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
+				copy(mo_bra_[i])).particle2(copy(mo_bra_[j]));
+
+		// make first part of commutator
+		real_function_6d Kfxy = apply_Kf(x,y,type,i,j).truncate();
+
+		// for sanity check:
+		double expv_first_part = inner(Kfxy,tmp);
+
+		// make the second part of the commutator
+		real_function_6d fKxy = apply_fK(x,y,type,i,j).truncate();
+
+		// fot the sanity check
+		double expv_second_part = inner(fKxy,tmp);
+
+		if(type=="occupied"){
+		if(world.rank()==0){
+			std::cout << "Apply [K,f]|x,y> sanity check:";
+			std::cout <<  "\n<ij|Kf|ij> =" << expv_first_part;
+			std::cout <<  "\n<ij|fK|ij> =" << expv_second_part;
+		}
+		}
+
+		real_function_6d result = (Kfxy - fKxy);
+
+		if(type=="occupied"){
+		// sanity check: The Expectation value of the Kommutator must vanish (symmetry)
+		// <0|[A,B]|0> = <0|AB|0> - <0|BA|0> since A=f and B=K -> both are hermitian
+		const double a = inner(result, tmp);
+		if (world.rank() == 0) {
+			printf("< nemo0 | R^2 R-1 [K,f] R | nemo0 >  %12.8f\n", a);
+			if (std::fabs(a) > FunctionDefaults<6>::get_thresh())
+				print("WARNING : exchange commutator inaccurate");
+			if (std::fabs(a) > FunctionDefaults<6>::get_thresh() * 10.0)
+				MADNESS_EXCEPTION("exchange commutator plain wrong", 1);
+		}
+		}
+
+		return result;
+	}
+
 	/// Apply the Exchange operator on a tensor product multiplied with f12
 	/// !!! Prefactor of (-1) is not inclued in K here !!!!
 	real_function_6d apply_Kf(const real_function_3d &x,
-			const real_function_3d &y, const bool &symmetric) const {
+			const real_function_3d &y, const std::string &type, const size_t &i, const size_t &j) const {
+		MADNESS_ASSERT(
+				type == "occupied" or type == "mixed" or type == "virtual");
+
+		bool symmetric = false;
+		if(type == "occupied" and i==j) symmetric = true;
+		if(type == "virtual" and i==j) symmetric = true;
+		if(type == "mixed") symmetric = false;
+
 		START_TIMER();
 		// First make the 6D function f12|x,y>
 		real_function_6d f12xy = CompositeFactory<double, 6, 3>(world).g12(
@@ -1472,52 +1580,24 @@ public:
 	real_function_6d apply_fK(const real_function_3d &x,
 			const real_function_3d &y, const std::string &type, const size_t &i,
 			const size_t &j) const {
-		MADNESS_ASSERT(
-				type == "occupied" or type == "mixed" or type == "virtual");
-		//Particle 1
-		real_function_3d K1x = real_factory_3d(world);
-		if (type == "occupied") {
-			vecfuncT tmp = mul(world,
-					intermediates_.get_exchange_intermediate()[i], mo_ket_);
-			for (auto x : tmp)
-				K1x -= x;
-		}
-		if (type == "virtual" or type == "mixed") {
-			vecfuncT tmp = mul(world,
-					intermediates_.get_perturbed_exchange_intermediate()[i],
-					mo_ket_);
-			for (auto x : tmp)
-				K1x -= x;
-		}
-		K1x.truncate();
-		real_function_6d fK1xy = CompositeFactory<double, 6, 3>(world).g12(
-				corrfac.f()).particle1(copy(K1x)).particle2(copy(y));
-		fK1xy.fill_tree().truncate();
-		// Particle 2
-		real_function_3d K2y;
-		if (type != "mixed" and i == j)
-			K2y = K1x;
-		else {
-			if (type == "occupied" or type == "mixed") {
-				vecfuncT tmp = mul(world,
-						intermediates_.get_exchange_intermediate()[j], mo_ket_);
-				for (auto x : tmp)
-					K2y -= x;
-			}
-			if (type == "virtual") {
-				vecfuncT tmp = mul(world,
-						intermediates_.get_perturbed_exchange_intermediate()[j],
-						mo_ket_);
-				for (auto x : tmp)
-					K2y -= x;
-			}
-		}
-		K2y.truncate();
-		real_function_6d fK2xy = CompositeFactory<double, 6, 3>(world).g12(
-				corrfac.f()).particle1(copy(x)).particle2(copy(K2y));
-		fK2xy.fill_tree().truncate();
+		MADNESS_ASSERT(type == "occupied" or type == "mixed" or type == "virtual");
 
-		return (fK1xy + fK2xy).truncate();
+		const real_function_3d& phi_i = x;
+		const real_function_3d& phi_j = y;
+
+		const real_function_3d Kphi_i = K(phi_i,i,false);
+		const real_function_3d Kphi_j = K(phi_j,j,false);
+
+		real_function_6d fKphi0a = CompositeFactory<double, 6, 3>(world).g12(
+				corrfac.f()).particle1(copy(phi_i)).particle2(copy(Kphi_j));
+		fKphi0a.fill_tree().truncate();
+		real_function_6d fKphi0b = CompositeFactory<double, 6, 3>(world).g12(
+				corrfac.f()).particle1(copy(Kphi_i)).particle2(copy(phi_j));
+		fKphi0b.fill_tree().truncate();
+
+		real_function_6d fKphi0 = (fKphi0a + fKphi0b).truncate();
+		return fKphi0;
+
 	}
 
 	// gives back \epsilon_{ij} = \epsilon_i + \epsilon_j
@@ -1552,7 +1632,7 @@ public:
 		MADNESS_EXCEPTION("get_cc2_correlation_energy not implemented yet",1);
 		return 0.0;
 	}
-	double get_CC2_pair_energy(const ElectronPair &u,
+	double get_CC2_pair_energy(const CC_Pair &u,
 			const real_function_3d &taui, const real_function_3d &tauj) const {
 		double omega = 0.0;
 		const size_t i = u.i;
@@ -1595,7 +1675,7 @@ public:
 	/// Calculate the integral <bra1,bra2|gQf|ket1,ket2>
 	// the bra elements are always the R2orbitals
 	// the ket elements can be \tau_i , or orbitals dependet n the type given
-	double make_ij_gQf_ij(const size_t &i, const size_t &j,ElectronPair &u)const{
+	double make_ij_gQf_ij(const size_t &i, const size_t &j,CC_Pair &u)const{
 		double result=0.0;
 		double exchange_result = 0.0;
 		real_function_3d ii = (mo_bra_[i]*mo_ket_[i]).truncate();
@@ -1670,23 +1750,7 @@ public:
 	}
 
 	real_function_6d test_fill_tree()const{
-		if(world.rank()==0) std::cout << "\n\n Testing fill_tree with CompositeFactory\n";
-		// make a simple 6d function -> but has to be on demand
-		real_function_6d f = real_factory_6d(world).f(testfunction).is_on_demand();
-
-		// Make a composite factory
-		real_function_6d g = CompositeFactory<double,6,3>(world).g12(f).particle1(mo_ket_[0]).particle2(mo_ket_[0]);
-
-		// make the screening operator
-		real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * get_epsilon(0,0)),
-						1.e-4, 1.e-4);
-		op_mod.modified() = true;
-
-		// make fill_tree operation
-		g.fill_tree(op_mod).truncate();
-
-		if(world.rank()==0) std::cout << "\n\n Testing fill_tree with CompositeFactory ended ... it seems to work\n";
-		return g;
+		return real_factory_6d(world);
 	}
 
 private:

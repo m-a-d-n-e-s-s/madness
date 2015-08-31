@@ -58,12 +58,9 @@
 
 #include <iostream>
 
-
 using namespace madness;
 
 namespace madness {
-
-static double testfunction(const coord_6d &r) {return exp(-(r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + r[3]*r[3] + r[4]*r[4]) + r[5]*r[5]);}
 
     struct LBCost {
         double leaf_value;
@@ -465,26 +462,6 @@ static double testfunction(const coord_6d &r) {return exp(-(r[0]*r[0] + r[1]*r[1
 
         /// ctor
         MP2(World& world, const std::string& input);
-
-    	real_function_6d test_fill_tree()const{
-    		if(world.rank()==0) std::cout << "\n\n Testing fill_tree with CompositeFactory\n";
-    		// make a simple 6d function
-    		real_function_6d f = real_factory_6d(world).f(testfunction).is_on_demand();
-
-    		// Make a composite factory
-    		real_function_6d g = CompositeFactory<double,6,3>(world).g12(f).particle1(hf->orbital(0)).particle2(hf->orbital(0));
-
-    		// make the screening operator
-    		real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * zeroth_order_energy(0,0)),
-    						1.e-4, 1.e-4);
-    		op_mod.modified() = true;
-
-    		// make fill_tree operation
-    		g.fill_tree(op_mod).truncate();
-
-    		if(world.rank()==0) std::cout << "\n\n Testing fill_tree with CompositeFactory ended ... it seems to work\n";
-    		return g;
-    	}
 
         /// return a checksum for the geometry
         double coord_chksum() const {return coords_sum;}

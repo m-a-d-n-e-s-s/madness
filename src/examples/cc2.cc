@@ -49,7 +49,6 @@
   /trunk/src/apps/examples/tdhf.cc>here</a>.
 
  */
-
 #include <chem/CC2.h>
 
 using namespace madness;

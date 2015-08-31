@@ -14,10 +14,10 @@ double CC2::solve()const{
 	// Initialize the Pair functions (uij, i>=j)
 	output_section("Initialize Electron Pairs: First guess will be the constant Term of MP2");
 	CC_Timer timer_init(world,"Initialization of all pairs");
-	Pairs<ElectronPair> pairs;
+	Pairs<CC_Pair> pairs;
 	for(size_t i=0;i<active_mo.size();i++){
 		for(size_t j=i;j<active_mo.size();j++){
-			ElectronPair u(i,j);
+			CC_Pair u(i,j);
 			initialize_electron_pair(u);
 			pairs.insert(i,j,u);
 		}
@@ -33,7 +33,7 @@ double CC2::solve()const{
 	return correlation_energy_mp2;
 }
 
-double CC2::solve_uncoupled_mp2(Pairs<ElectronPair> &pairs)const{
+double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 	// Loop over all Pair functions uij (i=<j)
 	for(size_t i=0;i<active_mo.size();i++){
 		for(size_t j=i;j<active_mo.size();j++){
@@ -87,13 +87,13 @@ double CC2::solve_uncoupled_mp2(Pairs<ElectronPair> &pairs)const{
 }
 
 // Unnecessary function
-double CC2::compute_mp2_pair_energy(ElectronPair &u)const{
+double CC2::compute_mp2_pair_energy(CC_Pair &u)const{
 	return CCOPS.compute_mp2_pair_energy(u);
 }
 
 /// Initialize an electron pair
 /// Calculate the constant Term, and the <ij|gQf|ij> etc terms
-void CC2::initialize_electron_pair(ElectronPair &u)const{
+void CC2::initialize_electron_pair(CC_Pair &u)const{
 	output("Initialize Electron Pair |u" + stringify(u.i) + stringify(u.j)+">");
 	CC_Timer timer_integrals(world,"Make constant energy Integrals");
 	double tmp = CCOPS.make_ij_gQf_ij(u.i,u.j,u);

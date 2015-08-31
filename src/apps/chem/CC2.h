@@ -37,6 +37,12 @@ public:
 {
 		output_section("CC2 Class has been initialized with the following parameters");
 		// set the threshholds
+		// Set Protocoll
+		output("Set Protocol 3D");
+		nemo_.get_calc() -> set_protocol<3>(world,parameters.thresh_3D);
+		output("Set Protocol 6D");
+		nemo_.get_calc() -> set_protocol<6>(world,parameters.thresh_6D);
+
 		FunctionDefaults<3>::set_thresh(parameters.thresh_3D);
 		FunctionDefaults<6>::set_thresh(parameters.thresh_6D);
 		// Make shure that k is the same in 3d and 6d functions
@@ -45,9 +51,11 @@ public:
 		FunctionDefaults<3>::set_truncate_mode(3);
         FunctionDefaults<6>::set_truncate_mode(3);
         parameters.information(world);
-        output_section("Testing Section in Constructor");
-        CCOPS.test_fill_tree();
+        parameters.sanity_check(world);
+        //output_section("Testing Section in Constructor");
+        //CCOPS.test_fill_tree();
 }
+
 
 	/// The World
 	World &world;
@@ -65,12 +73,12 @@ public:
 	/// solve the CC2 ground state equations, returns the correlation energy
 	double solve()const;
 	/// solve the MP2 equations (uncoupled -> Canonical Orbitals)
-	double solve_uncoupled_mp2(Pairs<ElectronPair> &u)const;
+	double solve_uncoupled_mp2(Pairs<CC_Pair> &u)const;
 	/// Compute the pair correlation energy of an electron pair function at mp2/CCD level (no singles contributions)
-	double compute_mp2_pair_energy(ElectronPair &u)const;
+	double compute_mp2_pair_energy(CC_Pair &u)const;
 	/// Initialize an electron pair
 	/// Calculate the constant Term, and the <ij|gQf|ij> etc terms
-	void initialize_electron_pair(ElectronPair &u)const;
+	void initialize_electron_pair(CC_Pair &u)const;
 	/// Calculate the current CC2 correlation energy
 	double compute_correlation_energy(const vecfuncT &singles, const Pairs<real_function_6d> &doubles)const;
 	/// Iterates the CC2 singles equations
