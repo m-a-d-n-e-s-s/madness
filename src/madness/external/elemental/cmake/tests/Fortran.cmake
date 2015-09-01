@@ -31,7 +31,8 @@ if(FORTRAN_WORKS)
         ${CMAKE_CURRENT_BINARY_DIR}/include/elemental/FCMangle.h 
         MACRO_NAMESPACE "FC_")
       install(FILES ${PROJECT_BINARY_DIR}/include/elemental/FCMangle.h
-              DESTINATION include/elemental/)
+              DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/elemental/"
+              COMPONENT elemental)
     endif()
   else()
     message(STATUS "${CMAKE_Fortran_COMPILER} does not appear to support F90")

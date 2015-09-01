@@ -20,9 +20,9 @@ if(NOT HAVE_MPI_QUERY_THREAD)
 endif()
 
 # Add in the preprocessor definitions and fortran name-mangling
-set(C_BASE_FLAGS "${ELEM_BLAS_DEFS} ${ELEM_LAPACK_DEFS}")
+add_definitions(${ELEM_BLAS_DEFS} ${ELEM_LAPACK_DEFS})
 if(NOT HAVE_SPINLOCKS)
-  set(C_BASE_FLAGS "${C_BASE_FLAGS} -DNOSPINLOCKS")
+  add_definitions(-DNOSPINLOCKS=1)
 endif()
 
 # Ensure that an MPI C compiler was found
@@ -52,7 +52,12 @@ set(PMRRR_SRC "${PMRRR_C};${PMRRR_H}")
 add_library(pmrrr ${LIBRARY_TYPE} ${PMRRR_SRC})
 target_link_libraries(pmrrr 
   ${MPI_C_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${MATH_LIBS})
-install(TARGETS pmrrr DESTINATION lib)
+install(TARGETS pmrrr EXPORT madness
+    COMPONENT elemental
+    LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+    ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/")
+
 set(CMAKE_THREAD_LIBS_INIT ${CMAKE_THREAD_LIBS_INIT} PARENT_SCOPE)
 
 # Define the header-preparation rules
@@ -66,7 +71,8 @@ foreach(HEADER ${PMRRR_H})
 
   get_filename_component(HEADER_PATH ${HEADER} PATH)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${HEADER} 
-          DESTINATION ${HEADER_PATH})
+      DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/"
+      COMPONENT elemental)
 endforeach()
 add_custom_target(prepare_pmrrr_headers DEPENDS ${PREPARED_HEADERS})
 add_dependencies(pmrrr prepare_pmrrr_headers)
