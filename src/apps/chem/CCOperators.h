@@ -16,9 +16,12 @@
 #include <chem/SCFOperators.h>
 #include <chem/electronic_correlation_factor.h>
 
-// Debug
-#include <chem/test_correlation_factor.h>
-// debug end
+#include <algorithm> // tolower function for strings
+//#include <string>
+
+// to debug
+#include<chem/mp2.h>
+
 namespace madness {
 
 // Timer Structure
@@ -69,7 +72,9 @@ struct CC_Parameters{
 	iter_max_3D(30),
 	iter_max_6D(30),
 	restart(false),
-	corrfac_gamma(2.0)
+	corrfac_gamma(2.0),
+	output_prec(8),
+	debug(false)
 	{}
 
 	// read parameters from input
@@ -91,7 +96,11 @@ struct CC_Parameters{
 		iter_max_3D(30),
 		iter_max_6D(30),
 		restart(false),
-		corrfac_gamma(2.0)
+		corrfac_gamma(2.0),
+		output_prec(8),
+		debug(false),
+		kain(false),
+		kain_subspace(3)
 	{
 		// get the parameters from the input file
         std::ifstream f(input.c_str());
@@ -102,19 +111,23 @@ struct CC_Parameters{
         double minopthresh = 1.e-4;
 
         while (f >> s) {
+        	std::transform(s.begin(),s.end(),s.begin(), ::tolower);
             if (s == "end") break;
+            else if (s == "debug") debug=true;
             else if (s == "lo") f >> lo;
-            else if (s == "econv") f >> econv;
+            else if (s == "econv"){
+            	f >> econv;
+            }
 
             else if (s == "dconv"){
             	double tmp = 0.0;
             	f >> tmp;
             	dconv_3D = tmp; dconv_6D=tmp;
             }
-            else if (s == "dconv_3D"){
+            else if (s == "dconv_3d"){
             	f >> dconv_3D;
             }
-            else if (s == "dconv_6D"){
+            else if (s == "dconv_6d"){
             	f >> dconv_6D;
             }
             else if (s == "thresh"){
@@ -132,7 +145,7 @@ struct CC_Parameters{
             	thresh_f12        = opthresh;
             	thresh_Ue		  = opthresh;
             }
-            else if (s == "thresh_operators"){
+            else if (s == "thresh_operators" or s == "thresh_operator"){
             	double tmp =0.0;
             	f >> tmp;
             	if(tmp>minopthresh) tmp = minopthresh;
@@ -143,14 +156,14 @@ struct CC_Parameters{
             	thresh_f12        = tmp;
             	thresh_Ue		  = tmp;
             }
-            else if (s == "thresh_operators_3D"){
+            else if (s == "thresh_operators_3d" or s == "thresh_operator_3d"){
             	double tmp =0.0;
             	f >> tmp;
             	if(tmp>minopthresh) tmp = minopthresh;
             	thresh_poisson_3D = tmp;
             	thresh_bsh_3D     = tmp;
             }
-            else if (s == "thresh_operators_6D"){
+            else if (s == "thresh_operators_6d" or s == "thresh_operator_3d"){
             	double tmp =0.0;
             	f >> tmp;
             	if(tmp>minopthresh) tmp = minopthresh;
@@ -159,12 +172,12 @@ struct CC_Parameters{
             	thresh_f12        = tmp;
             	thresh_Ue		  = tmp;
             }
-            else if (s == "thresh_3D") f >> thresh_3D;
-            else if (s == "thresh_6D") f >> thresh_6D;
-            else if (s == "thresh_bsh_3D") f >> thresh_bsh_3D;
-            else if (s == "thresh_bsh_6D") f >> thresh_bsh_6D;
-            else if (s == "thresh_poisson_3D") f >> thresh_poisson_3D;
-            else if (s == "thresh_poisson_6D") f >> thresh_poisson_6D;
+            else if (s == "thresh_3d") f >> thresh_3D;
+            else if (s == "thresh_6d") f >> thresh_6D;
+            else if (s == "thresh_bsh_3d") f >> thresh_bsh_3D;
+            else if (s == "thresh_bsh_6d") f >> thresh_bsh_6D;
+            else if (s == "thresh_poisson_3d") f >> thresh_poisson_3D;
+            else if (s == "thresh_poisson_6d") f >> thresh_poisson_6D;
             else if (s == "thresh_f12") f >> thresh_f12;
             else if (s == "thresh_Ue") f >> thresh_Ue;
             else if (s == "freeze" or s=="nfreeze") f >> nfreeze;
@@ -172,18 +185,28 @@ struct CC_Parameters{
             	f >> iter_max_3D;
             	iter_max_6D = iter_max_3D;
             }
-            else if (s == "iter_max_3D") f >> iter_max_3D;
-            else if (s == "iter_max_6D") f >> iter_max_6D;
+            else if (s == "iter_max_3d") f >> iter_max_3D;
+            else if (s == "iter_max_6d") f >> iter_max_6D;
             else if (s == "restart") restart=true;
             else if (s == "corrfac_gamma" or "gamma") f>>corrfac_gamma;
+            else if (s == "kain") kain=true;
+            else if (s == "kain_subspace") f>>kain_subspace;
             else continue;
         }
 
         thresh_6D_tight = thresh_6D*0.1;
 
+        if(not kain) kain_subspace = 0;
+
         // set the thresholds
         FunctionDefaults<3>::set_thresh(thresh_3D);
         FunctionDefaults<6>::set_thresh(thresh_6D);
+        if(econv < 1.e-1) output_prec = 2;
+        if(econv < 1.e-2) output_prec = 3;
+        if(econv < 1.e-3) output_prec = 4;
+        if(econv < 1.e-4) output_prec = 5;
+        if(econv < 1.e-5) output_prec = 6;
+        if(econv < 1.e-6) output_prec = 7;
 	}
 
 	double lo;
@@ -218,6 +241,13 @@ struct CC_Parameters{
 	bool restart;
 	// Exponent for the correlation factor
 	double corrfac_gamma;
+	// for formated output
+	size_t output_prec;
+	// debug mode
+	bool debug;
+	// use kain or not
+	bool kain;
+	size_t kain_subspace;
 
 	// print out the parameters
 	void information(World &world)const{
@@ -232,9 +262,9 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D demanded :"         << thresh_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D set :"         << FunctionDefaults<6>::get_thresh() << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_3D :"     << thresh_bsh_3D << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D :"     << thresh_bsh_3D << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D :"     << thresh_bsh_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson_3D :" << thresh_poisson_3D << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson_6D :" << thresh_poisson_3D << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson_6D :" << thresh_poisson_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_f12 :"        << thresh_f12 << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_Ue :"        << thresh_Ue << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "econv :"             << econv << std::endl;
@@ -253,11 +283,14 @@ struct CC_Parameters{
 			//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (3D) :" << FunctionDefaults<3>::get_cell_width()  <<std::endl;
 			//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (6D) :" << FunctionDefaults<6>::get_cell_width()  <<std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "Autorefine (3D, 6D) :" << FunctionDefaults<6>::get_autorefine() << ", " << FunctionDefaults<3>::get_autorefine()  <<std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "debug mode is: " << debug  <<std::endl;
+			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain is used with subspace " << kain_subspace <<std::endl;
+			else std::cout << std::setw(20) << std::setfill(' ') << "Kain is not used" << debug  <<std::endl;
+
 		}
 	}
 
 	void sanity_check(World &world)const{
-		if(world.rank()==0) std::cout << "\n-----------------CC_PARAMETERS SANITY CHECK--------------------" << std::endl;
 		size_t warnings = 0;
 		if(FunctionDefaults<3>::get_thresh() > 0.01*FunctionDefaults<6>::get_thresh()) warning(world,"3D Thresh is too low, should be 0.01*6D_thresh");
 		if(FunctionDefaults<3>::get_thresh() > 0.1*FunctionDefaults<6>::get_thresh()) error(world,"3D Thresh is way too low, should be 0.01*6D_thresh");
@@ -273,12 +306,16 @@ struct CC_Parameters{
 		if(econv < FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 6D");
 		if(econv < 0.1*FunctionDefaults<3>::get_thresh()) warning(world,"Demanded higher energy convergence than threshold for 3D (more than factor 10 difference)");
 		if(econv < 0.1*FunctionDefaults<6>::get_thresh()) warning(world,"Demanded higher energy convergence than threshold for 6D (more than factor 10 difference)");
+		// Check if the 6D thresholds are not too high
+		if(thresh_6D < 1.e-3) warnings+=warning(world,"thresh_6D is smaller than 1.e-3");
+		if(thresh_Ue < 1.e-4) warnings+=warning(world,"thresh_Ue is smaller than 1.e-4");
+		if(thresh_3D > 0.01*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
+		if(thresh_3D > 0.1*thresh_6D) error(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
+		if(kain and kain_subspace !=0) warnings+=warning(world,"Demanded Kain solver but the size of the iterative subspace is set to zero");
 		if(warnings >0){
-			if(world.rank()==0) std::cout << "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" <<
-					"\n-----------------CC_PARAMETERS SANITY CHECK ENDED with " << warnings << " WARNINGS!--------------------\n"
-					<<"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"<< std::endl;
+			if(world.rank()==0) std::cout << warnings <<"Warnings in parameters sanity check!\n\n";
 		}else{
-			if(world.rank()==0) std::cout << "\n-----------------CC_PARAMETERS SANITY CHECK ENDED--------------------" << std::endl;
+			if(world.rank()==0) std::cout << "Sanity check for parameters passed\n\n" << std::endl;
 		}
 	}
 
@@ -287,7 +324,7 @@ struct CC_Parameters{
 		MADNESS_EXCEPTION("ERROR IN CC_PARAMETERS",1);
 	}
 	size_t warning(World& world,const std::string &msg)const{
-		if(world.rank()==0) std::cout << "\nWARNING IN CC_PARAMETERS!: " << msg << std::endl;
+		if(world.rank()==0) std::cout << "WARNING IN CC_PARAMETERS!: " << msg << std::endl;
 		return 1;
 	}
 };
@@ -346,11 +383,12 @@ public:
 	// print information
 	void info()const{
 		if(function.world().rank()==0){
-			std::cout <<std::setw(20) << std::setfill(' ') << " *Information about Electron Pair " << i << j << " " <<std::setw(20) << std::setfill(' ') << std::endl;
-			std::cout <<std::setw(20) << std::setfill(' ') << " *e_singlet " << e_singlet << " " <<std::setw(20) << std::setfill(' ') << std::endl;
-			std::cout <<std::setw(20) << std::setfill(' ') << " *e_triplet " << e_triplet << " " <<std::setw(20) << std::setfill(' ') << std::endl;
-			std::cout <<std::setw(20) << std::setfill(' ') << " *ij_gQf_ij " << ij_gQf_ij << " " <<std::setw(20) << std::setfill(' ') << std::endl;
-			std::cout <<std::setw(20) << std::setfill(' ') << " *ji_gQf_ij " << ji_gQf_ij << " " <<std::setw(20) << std::setfill(' ') << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " Current Information about Electron Pair |u" << i << j << ">"  << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " corelation energy: " << e_singlet + e_triplet << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " e_singlet: " << e_singlet << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " e_triplet: " << e_triplet << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ij_gQf_ij: " << ij_gQf_ij << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ji_gQf_ij: " << ji_gQf_ij << std::endl;
 		}
 	}
 
@@ -787,7 +825,87 @@ public:
 		START_TIMER();
 		real_function_6d result = fock_residue_6d(u);
 		END_TIMER("(2J-K(R)+Un)|uij>");
+		START_TIMER();
+
+		if(parameters.debug){
+		// DEBUG
+		real_function_6d debug_result=multiply_with_0th_order_Hamiltonian(u.function,u.i,u.j);
+		real_function_6d diff = debug_result - result;
+		std::cout << "\n\nMP2/CC2 DEBUG: DIFFERENCE BETWEEN MP2 and CC2 IMPLEMENTATION OF MP2 RESIDUE is: "
+				<< diff.norm2() << "\n\n" << std::endl;
+		// DEBUG END
+		END_TIMER("MP2 Potential Debug");
+		}
 		return result;
+	}
+
+	real_function_6d multiply_with_0th_order_Hamiltonian(
+			const real_function_6d& f, const int i, const int j) const {
+
+		real_function_6d vphi;
+
+		START_TIMER();
+			// the purely local part: Coulomb and U2
+			real_function_3d v_local = 2.0*intermediates_.get_hartree_potential()
+										+ nemo.nuclear_correlation->U2();
+
+			v_local.print_size("vlocal");
+			f.print_size("u");
+
+			// screen the construction of Vphi: do only what is needed to
+			// get an accurate result of the BSH operator
+			const double eps = get_epsilon(i, j);
+			real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps), parameters.lo,
+					parameters.thresh_bsh_6D);
+			op_mod.modified() = true;
+			vphi = CompositeFactory<double, 6, 3>(world).ket(copy(f)).V_for_particle1(
+					copy(v_local)).V_for_particle2(copy(v_local));
+			vphi.fill_tree(op_mod);
+
+			vphi.print_size("vphi: local parts");
+
+			// the part with the derivative operators: U1
+			for (int axis = 0; axis < 6; ++axis) {
+				real_derivative_6d D = free_space_derivative<double, 6>(world,
+						axis);
+				const real_function_6d Drhs = D(f).truncate();
+
+				// note integer arithmetic
+				if (world.rank() == 0)
+					print("axis, axis^%3, axis/3+1", axis, axis % 3, axis / 3 + 1);
+				const real_function_3d U1_axis =
+						nemo.nuclear_correlation->U1(axis % 3);
+				//                    real_function_6d x=multiply(copy(Drhs),copy(U1_axis),axis/3+1).truncate();
+
+				double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);
+				real_function_6d x;
+				if (axis / 3 + 1 == 1) {
+					x =CompositeFactory<double, 6, 3>(world).ket(Drhs)
+												.V_for_particle1(copy(U1_axis))
+												.thresh(tight_thresh);
+
+				} else if (axis / 3 + 1 == 2) {
+					x =CompositeFactory<double, 6, 3>(world).ket(Drhs)
+												.V_for_particle2(copy(U1_axis))
+												.thresh(tight_thresh);
+				}
+				x.fill_tree(op_mod);
+				x.set_thresh(FunctionDefaults<6>::get_thresh());
+				vphi += x;
+				vphi.truncate().reduce_rank();
+
+			}
+			vphi.print_size("(U_nuc + J) |ket>:  made V tree");
+
+		END_TIMER("apply (U + J) |ket>");
+
+		// and the exchange
+		START_TIMER();
+		vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
+		vphi.print_size("(U_nuc + J - K) |ket>:  made V tree");
+		END_TIMER("apply K |ket>");
+
+		return vphi;
 	}
 
 	// right now this is all copied from mp2.cc
@@ -1294,11 +1412,14 @@ public:
 		// make the coulomb and local Un part with the composite factory
 		real_function_3d local_part = (2.0
 				* intermediates_.get_hartree_potential()
-				+ nemo.nuclear_correlation->U2()).truncate();
+				+ nemo.nuclear_correlation->U2());
+		local_part.print_size("vlocal");
+		u.function.print_size("u");
+
 		// Contruct the BSH operator in order to screen
 
 		real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps),
-				nemo.get_calc()->param.lo, parameters.thresh_bsh_6D);
+				parameters.lo, parameters.thresh_bsh_6D);
 		// apparently the modified_NS form is necessary for the screening procedure
 		op_mod.modified() = true;
 		// Make the CompositeFactory
@@ -1307,6 +1428,8 @@ public:
 						copy(local_part)).V_for_particle2(copy(local_part));
 		// Screening procedure
 		vphi.fill_tree(op_mod);
+
+		vphi.print_size("vlocal|u>");
 
 		// the part with the derivative operators: U1
 		for (int axis = 0; axis < 6; ++axis) {
@@ -1321,8 +1444,7 @@ public:
 			const real_function_3d U1_axis = nemo.nuclear_correlation->U1(
 					axis % 3);
 
-			double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(),
-					1.e-4);
+			double tight_thresh = parameters.thresh_Ue;
 			real_function_6d x;
 			if (axis / 3 + 1 == 1) {
 				x =
@@ -1340,9 +1462,14 @@ public:
 			vphi.truncate().reduce_rank();
 		}
 
+		vphi.print_size("(Un + J1 + J2)|u>");
+
 		// Exchange Part
-		vphi -= K(u.function, u.i == u.j);
-		return vphi.truncate();
+		vphi = (vphi - K(u.function, u.i == u.j)).truncate().reduce_rank();
+		vphi.print_size("(Un + J1 + J2 - K1 - K2)|U>");
+		vphi.truncate();
+		vphi.print_size("truncated: (Un + J1 + J2 - K1 - K2)|U>");
+		return vphi;
 
 	}
 
@@ -1350,21 +1477,27 @@ public:
 	/// !!!!Prefactor (-1) is not included
 	real_function_3d K(const real_function_3d &f,const size_t &i, const bool hc=false)const{
 		real_function_3d result = real_factory_3d(world);
+		if(hc==true) MADNESS_EXCEPTION("ERROR in K, hc=true not implemented",1);
 
-		// multiply rhs with R2orbitals (the bra space)
-		vecfuncT R2rhs = mul(world, f, mo_bra_);
-
-		// apply the poisson kernel and sum up
-		for (std::size_t k = 0; k < mo_ket_.size(); ++k) {
-			result += mo_ket_[k] * (*poisson)(R2rhs[k]);
-		}
-
-		// sanity check
-		real_function_3d result2 = real_factory_3d(world);
 		for (std::size_t k = 0; k < mo_ket_.size(); ++k) {
 			result += mo_ket_[k]*intermediates_.get_exchange_intermediate()[i][k];
 		}
-		if(world.rank()==0) std::cout << "K sanity check (costly) -> result should be 0 and it is " << (result-result2).norm2();
+
+		// Sanity Check (expensive when not helium)
+		if(mo_ket_.size()<3){
+			real_function_3d result2 = real_factory_3d(world);
+			// multiply rhs with R2orbitals (the bra space)
+			vecfuncT R2rhs = mul(world, f, mo_bra_);
+			for (std::size_t k = 0; k < mo_ket_.size(); ++k) {
+				result2 += mo_ket_[k] * (*poisson)(R2rhs[k]);
+			}
+			double sanity = (result-result2).norm2();
+			if(sanity < FunctionDefaults<3>::get_thresh()){
+				if(world.rank()==0) std::cout << "Sanity Check of K passed\n";
+			}else{
+				if(world.rank()==0) std::cout << "Sanity Check of K NOT passed\n";
+			}
+		}
 
 		return result;
 	}
@@ -1505,21 +1638,29 @@ public:
 		MADNESS_ASSERT(
 				type == "occupied" or type == "mixed" or type == "virtual");
 
-		// for sanity check
-		real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
-				copy(mo_bra_[i])).particle2(copy(mo_bra_[j]));
 
 		// make first part of commutator
 		real_function_6d Kfxy = apply_Kf(x,y,type,i,j).truncate();
 
 		// for sanity check:
-		double expv_first_part = inner(Kfxy,tmp);
+		double expv_first_part = 0.0;
+		double expv_second_part = 0.0;
+		if(type=="occupied"){
+			real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
+					copy(mo_bra_[i])).particle2(copy(mo_bra_[j]));
+			expv_first_part = inner(Kfxy,tmp);
+		}
+
 
 		// make the second part of the commutator
 		real_function_6d fKxy = apply_fK(x,y,type,i,j).truncate();
 
 		// fot the sanity check
-		double expv_second_part = inner(fKxy,tmp);
+		if(type=="occupied"){
+			real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
+					copy(mo_bra_[i])).particle2(copy(mo_bra_[j]));
+			expv_second_part = inner(fKxy,tmp);
+		}
 
 		if(type=="occupied"){
 		if(world.rank()==0){
@@ -1534,6 +1675,8 @@ public:
 		if(type=="occupied"){
 		// sanity check: The Expectation value of the Kommutator must vanish (symmetry)
 		// <0|[A,B]|0> = <0|AB|0> - <0|BA|0> since A=f and B=K -> both are hermitian
+			real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
+					copy(mo_bra_[i])).particle2(copy(mo_bra_[j]));
 		const double a = inner(result, tmp);
 		if (world.rank() == 0) {
 			printf("< nemo0 | R^2 R-1 [K,f] R | nemo0 >  %12.8f\n", a);
@@ -1686,8 +1829,8 @@ public:
 		// the pure part
 		real_function_3d tmp = apply_gf(ii);
 		real_function_3d tmp_ex = apply_gf(ij);
-		result += 2.0*tmp.inner(jj);
-		exchange_result -= tmp_ex.inner(ji);
+		result += tmp.inner(jj);
+		exchange_result += tmp_ex.inner(ji);
 
 		// the O1 part: \sum_k<ij|g|k><k|f|ij> and exchange part <ij|g|k><k|f|ji>
 		for(size_t k=0;k<mo_ket_.size();k++){
@@ -1696,8 +1839,8 @@ public:
 			real_function_3d kfj = (*f12op)((mo_bra_[k]*mo_ket_[j]).truncate());
 			real_function_3d igkkfi = (igk*kfi).truncate();
 			real_function_3d igkkfj = (igk*kfj).truncate();
-			result -= 2.0*igkkfi.inner(jj);
-			exchange_result += igkkfj.inner(ji);
+			result -= igkkfi.inner(jj);
+			exchange_result -= igkkfj.inner(ji);
 		}
 		// the O2 part: (can be speed up by using kfi and kfj from the O1 part)
 		for(size_t k=0;k<mo_ket_.size();k++){
@@ -1706,8 +1849,8 @@ public:
 			real_function_3d kfi = (*f12op)((mo_bra_[k]*mo_ket_[i]).truncate());
 			real_function_3d jgkkfj = (jgk*kfj).truncate();
 			real_function_3d jgkkfi = (jgk*kfi).truncate();
-			result -= 2.0*jgkkfj.inner(ii);
-			exchange_result += jgkkfi.inner(ij);
+			result -= jgkkfj.inner(ii);
+			exchange_result -= jgkkfi.inner(ij);
 		}
 		// the O12 part (may include O1 and O2 parts in the first loop and avoid recalulating of kfj and kfi
 		// and also the mo_bra_[k]*i etc products
@@ -1723,8 +1866,8 @@ public:
 				real_function_3d kfj = (*f12op)((mo_bra_[k]*mo_ket_[j]).truncate());
 				double klfji = kfj.inner(mo_bra_[l]*mo_ket_[i]);
 				// Get result
-				result += 2.0*(ijgkl*klfij);
-				exchange_result -= (ijgkl*klfji);
+				result += (ijgkl*klfij);
+				exchange_result += (ijgkl*klfji);
 			}
 		}
 		if(world.rank()==0) std::cout << "\nCalculated: 2.0 <" << stringify(i) << stringify(j) << "|gQf|" << stringify(i) << stringify(j) << "> = " << result ;

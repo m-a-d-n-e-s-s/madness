@@ -345,6 +345,17 @@ namespace madness {
             archive::ParallelOutputArchive ar(world, name.c_str(), 1);
         	ar & *this;
         }
+
+    	// print information
+    	void info(World &world)const{
+    		if(world.rank()==0){
+    			std::cout <<std::setw(20) << std::setfill(' ') << " *Information about Electron Pair " << i << j << " " <<std::setw(20) << std::setfill(' ') << std::endl;
+    			std::cout <<std::setw(20) << std::setfill(' ') << " *e_singlet " << e_singlet << " " <<std::setw(20) << std::setfill(' ') << std::endl;
+    			std::cout <<std::setw(20) << std::setfill(' ') << " *e_triplet " << e_triplet << " " <<std::setw(20) << std::setfill(' ') << std::endl;
+    			std::cout <<std::setw(20) << std::setfill(' ') << " *ij_gQf_ij " << ij_gQf_ij << " " <<std::setw(20) << std::setfill(' ') << std::endl;
+    			std::cout <<std::setw(20) << std::setfill(' ') << " *ji_gQf_ij " << ji_gQf_ij << " " <<std::setw(20) << std::setfill(' ') << std::endl;
+    		}
+    	}
     };
 
 
@@ -534,6 +545,10 @@ namespace madness {
         void print_options(const std::string option, const T val) const {
             std::cout << std::setfill (' ') << std::setw(30);
             std::cout << option << "  " << val << std::endl;
+        }
+
+        real_function_6d debug_cc2(const real_function_6d &f, const size_t &i, const size_t &j) const{
+        	return  multiply_with_0th_order_Hamiltonian(f,i,j);
         }
 
     private:

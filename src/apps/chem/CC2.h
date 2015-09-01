@@ -19,6 +19,7 @@
 #include <madness/misc/ran.h>
 #include <chem/CCOperators.h>
 
+#include <examples/nonlinsol.h>
 namespace madness {
 
 

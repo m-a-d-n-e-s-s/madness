@@ -302,15 +302,20 @@ void MP2::solve_residual_equations(ElectronPair& result,
 	if (world.rank()==0) print("eps in green:  ", eps);
 	real_convolution_6d green = BSHOperator<6>(world, sqrt(-2 * eps), lo,
 			bsh_eps);
+	if(world.rank() == 0) std::cout << "Constructed Green Operator is destructive ? :" << green.destructive() << std::endl;
 
 	NonlinearSolverND<6> solver(param.maxsub);
 	solver.do_print = (world.rank() == 0);
 	// increment iteration counter upon entry
 	for (++result.iteration; result.iteration <= param.maxiter; ++result.iteration) {
 
+		result.function.print_size("psi");
+
 		// apply the convolution
 		real_function_6d vphi = multiply_with_0th_order_Hamiltonian(
 				result.function, i, j);
+
+		vphi.print_size("Vpsi");
 
 		vphi.scale(-2.0).truncate();
 		load_balance(vphi, false);
@@ -320,7 +325,11 @@ void MP2::solve_residual_equations(ElectronPair& result,
 
 		// we have to solve this equation:
 		// psi1 = psi0 + GVpsi1 <=> psi0 + GVpsi1 - psi1 = r =0
-		tmp = (Q12(result.constant_term + tmp)).truncate();
+		real_function_6d tmp1 = (result.constant_term + tmp).truncate();
+		tmp1.print_size("const + GVpsi");
+		tmp = Q12(tmp1);
+		tmp.print_size("Q12(const + GVpsi)");
+		//tmp = (Q12(result.constant_term + tmp)).truncate();
 
 		real_function_6d residual = result.function - tmp;
 		result.function = Q12(solver.update(tmp, residual));
@@ -910,6 +919,24 @@ void MP2::guess_mp1_3(ElectronPair& pair) const {
 	real_function_6d Uphi0 = make_Uphi0(pair);
 	real_function_6d KffKphi0 = make_KffKphi0(pair);
 
+//	{
+//		//DEBUG
+//		real_function_6d tmp = Uphi0 - KffKphi0;
+//		tmp.print_size("DEBUG: Uphi0 - KffKphi0");
+//		tmp = Q12(tmp);
+//		tmp.print_size("DEBUG: Q(Uphi0 - KffKphi0)");
+//		real_function_6d GVPhi = green(-2.0*tmp);
+//		GVPhi.print_size("DEBUG: GVPhi");
+//		real_function_6d QGVPhi = Q12(GVPhi);
+//		QGVPhi.print_size("DEBUG: QGVPhi");
+//		pair.constant_term = QGVPhi;
+//		pair.function = QGVPhi;
+//		double tmp_energy = compute_energy(pair);
+//		if(world.rank()==0) std::cout << "DEBUG OUPUT: Init energy is: " << tmp_energy << std::endl;
+//		pair.info(world);
+//		//DEBUG END
+//	}
+
 	// these are the terms that come from the single projectors: (O1 + O2) (U+[K,f])|phi^0>
 	std::vector<real_function_3d> phi_k_UK_phi0;
 	std::vector<real_function_3d> phi_l_UK_phi0;
@@ -1388,6 +1415,9 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
 		real_function_3d v_local = hf->get_coulomb_potential()
 									+ hf->nemo_calc.nuclear_correlation->U2();
 
+		v_local.print_size("vlocal");
+		f.print_size("u");
+
 		// screen the construction of Vphi: do only what is needed to
 		// get an accurate result of the BSH operator
 		const double eps = zeroth_order_energy(i, j);
@@ -1398,8 +1428,7 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
 				copy(v_local)).V_for_particle2(copy(v_local));
 		vphi.fill_tree(op_mod);
 		asymmetry(vphi, "Vphi");
-		double n = vphi.norm2();
-		if (world.rank() == 0) print("norm of Vphi ", n);
+		vphi.print_size("vphi: local parts");
 
 		// the part with the derivative operators: U1
 		for (int axis = 0; axis < 6; ++axis) {

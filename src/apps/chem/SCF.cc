@@ -37,15 +37,38 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
-#include <chem/SCF.h>
-#include <chem/SCFOperators.h>
+#include "SCF.h"
 
-#include <madness/tensor/elem.h>
-#include <madness/mra/lbdeux.h>
-#include <madness/mra/qmprop.h>
-#include <madness/misc/misc.h>
-#include <madness/misc/ran.h>
-#include <madness/tensor/distributed_matrix.h>
+//#include <madness/tensor/distributed_matrix.h>
+#include "/usr/include/math.h"
+#include "../../madness/constants.h"
+#include "../../madness/misc/misc.h"
+#include "../../madness/misc/ran.h"
+#include "../../madness/mra/convolution1d.h"
+#include "../../madness/mra/derivative.h"
+#include "../../madness/mra/funcdefaults.h"
+#include "../../madness/mra/funcplot.h"
+#include "../../madness/mra/function_factory.h"
+#include "../../madness/mra/functypedefs.h"
+#include "../../madness/mra/key.h"
+#include "../../madness/mra/lbdeux.h"
+#include "../../madness/mra/operator.h"
+#include "../../madness/mra/qmprop.h"
+#include "../../madness/mra/vmra.h"
+#include "../../madness/tensor/elem.h"
+#include "../../madness/tensor/slice.h"
+#include "../../madness/tensor/srconf.h"
+#include "../../madness/tensor/tensor.h"
+#include "../../madness/tensor/tensor_macros.h"
+#include "../../madness/world/parallel_archive.h"
+#include "../../madness/world/print.h"
+#include "../../madness/world/timers.h"
+#include "../../madness/world/world.h"
+#include "../../madness/world/worldgop.h"
+#include "../../madness/world/worldprofile.h"
+#include "nemo.h"
+#include "SCFOperators.h"
+#include "TDA.h"
 
 namespace madness {
     
