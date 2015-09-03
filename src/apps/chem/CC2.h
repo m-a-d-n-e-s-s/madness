@@ -94,17 +94,17 @@ public:
 	/// Create formated output, New programm section
 	void output_section(const std::string&msg)const{
 		if(world.rank()==0){
-			std::cout << std::setw(100) << std::setfill('*') << std::endl;
+			std::cout << std::setw(100) << std::setfill('#') << std::endl;
 			std::cout << "\n" << msg << "\n";
-			std::cout << std::setw(100) << std::setfill('*') << "\n" << std::endl;
+			std::cout << std::setw(100) << std::setfill('#') << "\n" << std::endl;
 		}
 	}
 	/// Create formated output, New programm subsection
 	void output_subsection(const std::string&msg)const{
 		if(world.rank()==0){
-			std::cout << std::setw(20) << std::setfill(' ') << std::setw(60) << std::setfill('*') << std::setw(20) << std::setfill(' ') << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "\n" << msg << "\n";
-			std::cout << std::setw(20) << std::setfill(' ') << std::setw(60) << std::setfill('*') << std::setw(20) << std::setfill(' ') << std::endl;
+			std::cout << std::setw(50) << std::setfill('*') << std::endl;
+			std::cout << "\n" << msg << "\n";
+			std::cout << std::setw(50) << std::setfill('*') << "\n" << std::endl;
 		}
 	}
 

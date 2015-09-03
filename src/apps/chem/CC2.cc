@@ -54,7 +54,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 
 			// Beginn the iterations
 			for(size_t iter=0;iter<30;iter++){
-			CC_Timer timer_iteration(world,"\n\nIteration "+ stringify(iter)+"\n\n");
+			CC_Timer timer_iteration(world,"Iteration "+ stringify(iter));
 			double current_energy=(pairs(i,j).e_singlet + pairs(i,j).e_triplet);
 			double current_error=99.9;
 			// Compute the non constant part of the MP2 equations which is the regularized 6D Fock Residue
@@ -147,7 +147,7 @@ void CC2::initialize_electron_pair(CC_Pair &u)const{
 		return;
 	}else{
 	output("...No saved pair found... recalculate\n\n");
-	CC_Timer timer_integrals(world,"\n\nMake constant energy Integrals\n\n");
+	CC_Timer timer_integrals(world,"Make constant energy Integrals");
 	double tmp = CCOPS.make_ij_gQf_ij(u.i,u.j,u);
 	timer_integrals.info();
 	output("\n<"+stringify(u.i)+stringify(u.j)+"|gQf|(2.0| "+stringify(u.i)+stringify(u.j) + "> - |" +stringify(u.i)+stringify(u.j)+">) = " + stringify(tmp) + "\n");
@@ -156,7 +156,7 @@ void CC2::initialize_electron_pair(CC_Pair &u)const{
 	real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * epsij), parameters.lo, parameters.thresh_bsh_6D);
 
 	output_subsection("Calculation of constant MP2 potential");
-	CC_Timer timer_const(world,"\n\nCalculation of constant MP2 part\n\n");
+	CC_Timer timer_const(world,"Calculation of constant MP2 part");
 	real_function_6d mp2_constant_part = CCOPS.get_MP2_potential_constant_part(u).truncate();
 	timer_const.info();
 
