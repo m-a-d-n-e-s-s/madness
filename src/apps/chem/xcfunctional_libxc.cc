@@ -361,12 +361,14 @@ bool XCfunctional::has_kxc() const
 ///  - Spin un-polarized
 ///    - \c t[0] = \f$ \rho_{\alpha} \f$
 ///    - \c t[1] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
+///    - \c t[2] = \f$ \tilde \rho \f$ (the (perturbed) density for xc_kernel_apply)
 ///  - Spin polarized
 ///    - \c t[0] = \f$ \rho_{\alpha} \f$
 ///    - \c t[1] = \f$ \rho_{\beta} \f$
 ///    - \c t[2] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
 ///    - \c t[3] = \f$ \sigma_{\alpha\beta}  = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$ (GGA only)
 ///    - \c t[4] = \f$ \sigma_{\beta\beta}   = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$ (GGA only)
+///    - \c t[5] = \f$ \tilde \rho \f$ (the (perturbed) density for xc_kernel_apply)
 ///
 /// output
 ///  - if spin-unpolarized:
@@ -709,6 +711,96 @@ Tensor<double> XCfunctional::fxc(const std::vector<Tensor<double> >& t,
 
 }
 
+
+#if 0
+/// compute the derivative of the XC potential (2nd derivative of the XC energy)
+
+/// @param[in]  t   vector of Tensors holding rho and sigma
+/// @param[in]  ispin   the current spin (0=alpha, 1=beta)
+Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
+        const int ispin) const {
+
+    MADNESS_ASSERT(!spin_polarized);    // for now
+
+    // copy quantities from t to rho and sigma
+    Tensor<double> rho,sigma;   // rho=2rho_alpha, sigma=4sigma_alpha
+    make_libxc_args(t, rho, sigma);
+    const double * restrict dens = rho.ptr();
+
+    // number of grid points
+    const int np = t[0].size();
+
+    // spin dimensions of the tensors
+    const int nspin=(spin_polarized ? 2 : 1);   // rhf: 1; uhf: 2
+    const int nspin2=nspin*(nspin+1)/2;         // rhf: 1; uhf: 3
+    const int nspin3=nspin2*(nspin2+1)/2;       // rhf: 1; uhf: 6
+
+    // result tensors
+    Tensor<double> v2rho2(nspin2*np);       // lda, gga
+
+    Tensor<double> result(3L, t[0].dims());
+    double * restrict res = result.ptr();
+
+    for (unsigned int i=0; i<funcs.size(); i++) {
+        switch(funcs[i].first->info->family) {
+        case XC_FAMILY_LDA: {
+            double * restrict vr = v2rho2.ptr();
+            xc_lda_fxc(funcs[i].first, np, dens, vr);
+            if (what < 2) {
+                for (long j=0; j<np; j++) {
+                    // 0,2,4,.. or 1,3,5,.. // works for both rhf and uhf
+                    res[j] += vr[nspin*j+ispin]*funcs[i].second;
+                }
+            }
+        }
+        break;
+
+        case XC_FAMILY_HYB_GGA:
+        case XC_FAMILY_GGA:
+        {
+            Tensor<double> v2rhosigma(nspin3*np);   // gga
+            Tensor<double> v2sigma2(nspin3*np);     // gga
+            double * restrict vrr = v2rho2.ptr();
+            double * restrict vrs = v2rhosigma.ptr();
+            double * restrict vss = v2sigma2.ptr();
+            const double * restrict sig = sigma.ptr();
+            // in: funcs[i].first
+            // in: np      number of points
+            // in: dens    the density [a,b], or 2*\rho_alpha
+            // in: sig     contracted density gradients \nabla \rho . \nabla \rho [aa,ab,bb]
+            // out: vrr     \del^2 e/\del \rho^2_alpha [a,b]
+            // out: vrs     \del^2 e/\del \sigma_alpha\rho [aa,ab,bb]
+            // out: vss     \del^2 e/\del \sigma^2_alpha [aa,ab,bb]
+            xc_gga_fxc(funcs[i].first, np, dens, sig, vrr, vrs, vss);
+
+            // if (spin_polarized) ..
+            MADNESS_ASSERT(!spin_polarized);    // for now
+
+            if (what == 0) {    // v2rho2
+                result+=v2rho2*funcs[i].second;
+            } else if (what == 1) {    // v2rhosigma
+                result+=v2rhosigma*funcs[i].second;
+            } else if (what == 2) {    // v2sigma2
+                result+=v2sigma2*funcs[i].second;
+            } else {
+                print("what ",what);
+                MADNESS_EXCEPTION("unknown what in xcfunctional::fxc",1);
+            }
+
+        }
+        break;
+        default:
+            MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::fxc",1);
+        }
+    }
+
+    // check for NaNs
+    for (long j=0; j<np; j++) if (isnan_x(res[j])) throw "ouch";
+
+
+}
+
+#endif
 
 madness::Tensor<double> XCfunctional::fxc_old(const std::vector< madness::Tensor<double> >& t,
         const int ispin, const int what) const {

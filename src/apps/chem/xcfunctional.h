@@ -47,6 +47,7 @@ protected:
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
+
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
                          madness::Tensor<double>& sigma) const;
@@ -266,13 +267,21 @@ public:
     /// @return The component specified by the \c what parameter
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
 
-    /// compute the second derivative of the XC energy
-    ///
+    /// compute the second derivative of the XC energy wrt the density
+
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] what Specifies which component of the kernel is to be computed as described above
     /// @return The component specified by the \c what parameter
     madness::Tensor<double> fxc(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const int what) const;
+
+    /// compute the second derivative of the XC energy wrt the density and apply
+
+    /// apply the kernel on the fly on the provided (response) density
+    /// @param[in] t The input densities and derivatives as required by the functional
+    /// @return The component specified by the \c what parameter
+    madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,
+            const int ispin) const;
 
     madness::Tensor<double> fxc_old(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const int what) const;
@@ -347,6 +356,23 @@ struct xc_kernel {
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         madness::Tensor<double> r = xc->fxc(t, ispin, what);
+        return r;
+    }
+};
+
+
+/// Class to compute terms of the kernel
+struct xc_kernel_apply {
+    const XCfunctional* xc;
+    const int ispin;
+
+    xc_kernel_apply(const XCfunctional& xc, int ispin,int what)
+        : xc(&xc), ispin(ispin) {}
+
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
+        MADNESS_ASSERT(xc);
+        madness::Tensor<double> r = xc->fxc_apply(t, ispin);
         return r;
     }
 };

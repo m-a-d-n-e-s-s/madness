@@ -1355,25 +1355,30 @@ namespace madness {
             return r;
         }
 
-        /// Refine vector of functions down to common finest level (reconstructs as necessary, optional fence)
-        void refine_to_common_level(std::vector< Function<T,NDIM> >& vf, bool fence=true) {
-            Key<NDIM> key0(0, Vector<Translation, NDIM> (0));
-            std::vector< Tensor<T> > c(vf.size());
-            std::vector<implT*> v(vf.size());
-            bool mustfence = false;
-            for (unsigned int i=0; i<v.size(); ++i) {
-                if (vf[i].is_compressed()) {
-                    vf[i].reconstruct(false);
-                    mustfence = true;
-                }
-                v[i] = vf[i].get_impl().get();
-            }
-            vf[0].impl->refine_to_common_level(v, c, key0);
-            if (mustfence) vf[0].world().gop.fence();
-            if (fence) vf[0].world().gop.fence();
-            if (VERIFY_TREE)
-	      for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
-        }
+//        /// Refine vector of functions down to common finest level (reconstructs as necessary, optional fence)
+//        void refine_to_common_level(std::vector< Function<T,NDIM> >& vf, bool fence=true) {
+//            Key<NDIM> key0(0, Vector<Translation, NDIM> (0));
+////            std::vector< Tensor<T> > c(vf.size());
+////            std::vector<implT*> v(vf.size());
+//            std::vector<implT*> v;
+//            bool mustfence = false;
+//            for (unsigned int i=0; i<vf.size(); ++i) {
+//                if (vf[i].is_compressed()) {
+//                    vf[i].reconstruct(false);
+//                    mustfence = true;
+//                }
+////                v[i] = vf[i].get_impl().get();
+//                if (vf[i].is_initialized()) v.push_back(vf[i].get_impl().get());
+//            }
+////            vf[0].impl->refine_to_common_level(v, c, key0);
+//            std::vector< Tensor<T> > c(v.size());
+//            print("vf.size(), v.size()",vf.size(),v.size());
+//            v[0]->refine_to_common_level(v, c, key0);
+//            if (mustfence) v[0]->world.gop.fence();
+//            if (fence) v[0]->world.gop.fence();
+//            if (VERIFY_TREE)
+//	      for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
+//        }
 
         /// This is replaced with op(vector of functions) ... private
         template <typename opT>

@@ -346,8 +346,15 @@ public:
     /// return the local xc potential using the precomputed intermediates vf and delrho
     real_function_3d make_xc_potential() const;
 
-    /// return the xc kernel (currently not working, will throw)
+    /// return the xc kernel (currently working only for LDA)
     real_function_3d make_xc_kernel() const;
+
+    /// construct the xc kernel and apply it directly on the (response) density
+
+    /// the xc kernel is the second derivative of the xc functions wrt the density
+    /// @param[in]  density the (response) density on which the kernel is applied
+    /// @return     kernal * density
+    real_function_3d apply_xc_kernel(const real_function_3d& density) const;
 
 private:
 

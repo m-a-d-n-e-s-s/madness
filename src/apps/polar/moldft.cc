@@ -3662,7 +3662,8 @@ struct Calculation {
                 }
                 if (vf.size()) {
                     reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                    refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
                 }
             }
 
@@ -4821,7 +4822,8 @@ struct Calculation {
             }
             if (vf.size()) {
                 reconstruct(world, vf);
-                arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//                arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
             }
 
             // this is a nasty hack, just adding something so that make_libxc_args receives 5 arguments

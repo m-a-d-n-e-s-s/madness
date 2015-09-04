@@ -163,6 +163,29 @@ namespace madness {
     }
 
 
+    /// refine all functions to a common (finest) level
+
+    /// if functions are not initialized (impl==NULL) they are ignored
+    template <typename T, std::size_t NDIM>
+    void refine_to_common_level(World& world, std::vector<Function<T,NDIM> >& vf,
+            bool fence=true) {
+
+        reconstruct(world,vf);
+        Key<NDIM> key0(0, Vector<Translation, NDIM> (0));
+        std::vector<FunctionImpl<T,NDIM>*> v_ptr;
+
+        // push initialized function pointers into the vector v_ptr
+        for (unsigned int i=0; i<vf.size(); ++i) {
+            if (vf[i].is_initialized()) v_ptr.push_back(vf[i].get_impl().get());
+        }
+
+        std::vector< Tensor<T> > c(v_ptr.size());
+        v_ptr[0]->refine_to_common_level(v_ptr, c, key0);
+        if (fence) v_ptr[0]->world.gop.fence();
+        if (VERIFY_TREE)
+            for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
+    }
+
     /// Generates non-standard form of a vector of functions
     template <typename T, std::size_t NDIM>
     void nonstandard(World& world,

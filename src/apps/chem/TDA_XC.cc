@@ -42,7 +42,7 @@ real_function_3d TDA_DFT::convolution_with_kernel(real_function_3d &perturbed_de
 	densities.push_back(rho_);
 	densities.push_back(perturbed_density);
 	reconstruct(world, densities);
-	perturbed_density.refine_to_common_level(densities);
+	refine_to_common_level(world,densities);
 	real_function_3d vxc = multiop_values<double,perturbed_vxc,3>(perturbed_vxc(xcfunctional_,0,0),densities);
 	return vxc;
 	}
@@ -80,7 +80,7 @@ real_function_3d TDA_DFT::convolution_with_kernel(real_function_3d &perturbed_de
 		densities.push_back(sigma_prime);
 		densities.push_back(perturbed_density);
 		reconstruct(world,densities);
-		perturbed_density.refine_to_common_level(densities);
+		refine_to_common_level(world,densities);
 
 		// Make the first part of yanais formula (13)
 		// d2fdrho2*rhoprime + 2*d2f/drhodsigma*sigmaprime
@@ -143,7 +143,8 @@ vecfuncT TDA_DFT::multiply_with_kernel(vecfuncT &active_mo)const{
 			carrier.push_back(rho_);
 			carrier.push_back(active_mo[i]);
 			reconstruct(world,carrier);
-			active_mo[i].refine_to_common_level(carrier);
+//            active_mo[i].refine_to_common_level(carrier);
+			refine_to_common_level(world,carrier);
 			real_function_3d tmp = multiop_values<double,perturbed_vxc,3>(perturbed_vxc(xcfunctional_,0,0),carrier);
 			result.push_back(tmp);
 		}
@@ -175,7 +176,8 @@ vecfuncT TDA_DFT::apply_kernel(const vecfuncT & x) const{
 	densities.push_back(perturbed_density);
 	densities.push_back(calc.amo[i]);
 	reconstruct(world, densities);
-	perturbed_density.refine_to_common_level(densities);
+//    perturbed_density.refine_to_common_level(densities);
+	refine_to_common_level(world,densities);
 	real_function_3d tmp = multiop_values<double,apply_kernel_functor,3>(apply_kernel_functor(xcfunctional_,0,0),densities);
 	applied_kernel.push_back(tmp);
 	}
@@ -190,7 +192,8 @@ real_function_3d TDA_DFT::make_unperturbed_vxc(const real_function_3d &rho)const
 	if(xcfunctional_.is_gga()) density.push_back(sigma_);
 
 	reconstruct(world,density);
-	density[0].refine_to_common_level(density);
+//    density[0].refine_to_common_level(density);
+	refine_to_common_level(world,density);
 	real_function_3d vxc = multiop_values<double,unperturbed_vxc,3>(unperturbed_vxc(xcfunctional_,0,0),density);
 
 	return vxc;
@@ -201,7 +204,8 @@ real_function_3d TDA_DFT::make_lda_kernel(const real_function_3d &rho)const{
 	std::vector<real_function_3d> density;
 	density.push_back(rho);
 	reconstruct(world,density);
-	density[0].refine_to_common_level(density);
+//    density[0].refine_to_common_level(world,density);
+	refine_to_common_level(world,density);
 	real_function_3d fxc = multiop_values<double,make_fxc,3>(make_fxc(xcfunctional_,0,0),density);
 
 	return fxc;

@@ -521,6 +521,12 @@ real_function_3d XCOperator::make_xc_kernel() const {
 
 }
 
+real_function_3d XCOperator::apply_xc_kernel(const real_function_3d& density) const {
+    real_function_3d result;
+
+    return result;
+}
+
 void XCOperator::prep_xc_args(const real_function_3d& arho,
         const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const {
 
@@ -560,7 +566,7 @@ void XCOperator::prep_xc_args(const real_function_3d& arho,
     }
     if (vf.size()) {
         reconstruct(world, vf);
-        vf[0].refine_to_common_level(vf); // Ugly but temporary (I hope!)
+        refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
     }
 
     // this is a nasty hack, just adding something so that make_libxc_args
