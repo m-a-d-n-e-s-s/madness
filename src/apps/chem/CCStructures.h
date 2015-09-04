@@ -14,6 +14,10 @@
 #include <chem/electronic_correlation_factor.h>
 #include <algorithm> // tolower function for strings
 
+namespace madness{
+
+
+
 typedef std::vector<Function<double, 3> > vecfuncT;
 
 // Timer Structure
@@ -103,9 +107,9 @@ struct CC_Parameters{
         double minopthresh = 1.e-4;
 
         while (f >> s) {
-        	std::cout << "input tag is: " << s << std::endl;
+        	//std::cout << "input tag is: " << s << std::endl;
         	std::transform(s.begin(),s.end(),s.begin(), ::tolower);
-        	std::cout << "transformed input tag is: " << s << std::endl;
+        	//std::cout << "transformed input tag is: " << s << std::endl;
             if (s == "end") break;
             else if (s == "debug") debug=true;
             else if (s == "lo") f >> lo;
@@ -182,7 +186,7 @@ struct CC_Parameters{
             else if (s == "iter_max_3d") f >> iter_max_3D;
             else if (s == "iter_max_6d") f >> iter_max_6D;
             else if (s == "restart") restart=true;
-            //else if (s == "corrfac_gamma" or "gamma") f>>corrfac_gamma;
+            else if ((s == "corrfac_gamma") or (s== "gamma")) f>>corrfac_gamma;
             else if (s == "kain") kain=true;
             else if (s == "kain_subspace") f>>kain_subspace;
             else continue;
@@ -472,6 +476,6 @@ private:
 
 typedef  std::vector<CC_Single> CC_Singles;
 
-
+}
 
 #endif /* CCSTRUCTURES_H_ */

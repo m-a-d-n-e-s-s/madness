@@ -8,12 +8,14 @@
 #ifndef SRC_APPS_CHEM_ELECTRONIC_CORRELATION_FACTOR_H_
 #define SRC_APPS_CHEM_ELECTRONIC_CORRELATION_FACTOR_H_
 
-namespace madness {
+
 
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include <apps/chem/molecule.h>
+#include <iomanip>
 
+namespace madness {
 /// a class holding the electronic correlation factor for R12 theory
 class CorrelationFactor {
 

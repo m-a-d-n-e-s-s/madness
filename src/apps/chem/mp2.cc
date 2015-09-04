@@ -205,6 +205,19 @@ double MP2::value(const Tensor<double>& x) {
 		return correlation_energy;
 	}
 
+	// DEBUG: INTEGRAL TEST
+	for (int i = param.freeze; i < hf->nocc(); ++i) {
+		for (int j = i; j < hf->nocc(); ++j) {
+			ElectronPair test = make_pair(i,j);
+			if(world.rank()==0){
+				std::cout << "\n-----------------------------------------\n";
+				std::cout << "<" << i << j << "|gQf|" << i << j << "> =" << test.ij_gQf_ij << std::endl;
+				std::cout << "<" << j << i << "|gQf|" << i << j << "> =" << test.ji_gQf_ij << std::endl;
+			}
+		}
+	}
+	// DEBUG END
+
 	// compute the 0th order term and do some coarse pre-iterations
 	for (int i = param.freeze; i < hf->nocc(); ++i) {
 		for (int j = i; j < hf->nocc(); ++j) {
