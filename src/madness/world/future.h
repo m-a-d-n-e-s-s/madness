@@ -134,13 +134,11 @@ namespace madness {
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
     private:
-        /// \todo Brief description needed.
+        /// The static stack size used for callbacks and future assignment used
+        /// for small stack size optimizations
         static const int MAXCALLBACKS = 4;
 
-        /// \todo Brief description needed.
-        typedef std::stack<CallbackInterface*, std::vector<CallbackInterface*> > callbackT;
-
-        /// \todo Brief description needed.
+        typedef Stack<CallbackInterface*, MAXCALLBACKS> callbackT;
         typedef Stack<std::shared_ptr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
 
         /// \todo Brief description needed.
@@ -217,7 +215,7 @@ namespace madness {
             callbackT& cb = const_cast<callbackT&>(callbacks);
 
             while (!as.empty()) {
-                MADNESS_ASSERT(as.front());
+                MADNESS_ASSERT(as.top());
                 as.top()->set(value);
                 as.pop();
             }
@@ -227,6 +225,9 @@ namespace madness {
                 cb.top()->notify();
                 cb.pop();
             }
+
+            as.reset();
+            cb.reset();
         }
 
         /// Pass by value with implied copy to manage lifetime of \c f.

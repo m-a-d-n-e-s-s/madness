@@ -78,7 +78,7 @@ namespace madness {
         /// \param[in,out] cb Description needed.
         void do_callbacks(callbackT& cb) const {
             while (!cb.empty()) {
-                cb.front()->notify();
+                cb.top()->notify();
                 cb.pop();
             }
         }
@@ -110,10 +110,9 @@ namespace madness {
             callbackT cb;
             {
                 ScopedMutex<Spinlock> obolus(this);
-                const_cast<callbackT&>(this->callbacks).push(callback);
+                const_cast<callbackT&>(callbacks).push(callback);
                 if (probe()) {
-                    cb = const_cast<callbackT&>(callbacks);
-                    const_cast<callbackT&>(callbacks).clear();
+                    cb = std::move(const_cast<callbackT&>(callbacks));
                 }
             }
             do_callbacks(cb);
@@ -131,8 +130,7 @@ namespace madness {
             {
                 ScopedMutex<Spinlock> obolus(this);
                 if (--ndepend == 0) {
-                    cb = const_cast<callbackT&>(callbacks);
-                    const_cast<callbackT&>(callbacks).clear();
+                    cb = std::move(const_cast<callbackT&>(callbacks));
                 }
             }
             do_callbacks(cb);
