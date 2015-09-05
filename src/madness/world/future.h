@@ -139,22 +139,17 @@ namespace madness {
         static const int MAXCALLBACKS = 4;
 
         typedef Stack<CallbackInterface*, MAXCALLBACKS> callbackT;
-        typedef Stack<std::shared_ptr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
+        typedef Stack<std::shared_ptr<FutureImpl<T> >,MAXCALLBACKS> assignmentT;
 
-        /// \todo Brief description needed.
-        volatile callbackT callbacks;
-
-        /// \todo Brief description needed.
-        volatile mutable assignmentT assignments;
-
-        /// \todo Brief description needed.
-        volatile bool assigned;
-
-        /// \todo Brief description needed.
-        RemoteReference< FutureImpl<T> > remote_ref;
-
-        /// \todo Brief description needed.
-        volatile T t;
+        volatile callbackT callbacks; ///< A stack that stores callbacks that
+                            ///< are invoked once the future has been assigned
+        volatile mutable assignmentT assignments; ///< A stack that stores
+                            ///< future objects that are set to the same value
+                            ///< as this future, once it has been set
+        volatile bool assigned; ///< A flag indicating if the future has been set
+        RemoteReference< FutureImpl<T> > remote_ref; ///< Reference to a remote
+                            ///< future pimpl
+        volatile T t; ///< The future data
 
         /// AM handler for remote set operations.
 
