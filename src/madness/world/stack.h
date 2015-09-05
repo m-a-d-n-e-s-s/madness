@@ -39,7 +39,11 @@
 */
 
 #include <madness/world/madness_exception.h>
+#include <cstring>
 #include <cstdlib>
+#include <algorithm>
+#include <memory>
+#include <new>
 #include <type_traits>
 
 namespace madness {
@@ -89,7 +93,7 @@ namespace madness {
             /// \param dest The pointer to the uninitialized memory range
             static void uninitialized_move(T* first, T* last, T* dest) {
                 for (; first != last; ++first, ++dest) {
-                    ::new (dest) T(::std::move(*first));
+                    ::new (dest) T(std::move(*first));
                     destroy(first);
                 }
             }
@@ -130,7 +134,7 @@ namespace madness {
             /// \param dest The beginning of the destination range
             static void copy(const T* first, const T* last, T* dest) {
                 if (first != last)
-                    memcpy(dest, first, (last - first) * sizeof(T));
+                    std::memcpy(dest, first, (last - first) * sizeof(T));
             }
 
             /// Move a range of pod objects to an uninitialized buffer
@@ -187,7 +191,7 @@ namespace madness {
         /// Allocate an uninitialized buffer
         /// \param n The size of the new buffer
         T* allocate(unsigned int n) {
-            void* const buffer = malloc(n * sizeof(T));
+            void* const buffer = std::malloc(n * sizeof(T));
             if(! buffer)
                 throw std::bad_alloc();
 
@@ -200,7 +204,7 @@ namespace madness {
         /// Destroy the pointer if it is a dynamically allocated buffer,
         /// otherwise do nothing.
         /// \param ptr The pointer to be destroyed
-        void deallocate() { if(! is_small()) free(data_); }
+        void deallocate() { if(! is_small()) std::free(data_); }
 
     public:
         /// Construct an empty stack.
@@ -316,7 +320,7 @@ namespace madness {
             }
 
             // Add value to the top of the stack
-            new (data_ + size_) T(value);
+            ::new (data_ + size_) T(value);
             ++size_;
         }
 
