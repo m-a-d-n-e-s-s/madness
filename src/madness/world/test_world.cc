@@ -438,7 +438,7 @@ void test6(World& world) {
     world.gop.fence();
 
     // stress the large message protocol ... off by default
-    {
+    if (0) {
       const auto dbuf_sum_long = std::accumulate(a.dbuf_long().begin(), a.dbuf_long().end(), 0.0);
       const auto dbuf_sum_short = std::accumulate(a.dbuf_short().begin(), a.dbuf_short().end(), 0.0);
 #if 0 // uncomment to STRESS the large msg protocol
