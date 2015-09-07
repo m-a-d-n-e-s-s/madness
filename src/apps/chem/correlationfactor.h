@@ -196,12 +196,12 @@ public:
 	}
 
 	/// return the U1 term of the correlation function
-	virtual real_function_3d U1(const int axis) const {
+	virtual const real_function_3d U1(const int axis) const {
 		return U1_function[axis];
 	}
 
 	/// return the U2 term of the correlation function
-	virtual real_function_3d U2() const  {return U2_function;}
+	virtual const real_function_3d U2() const  {return U2_function;}
 
 private:
 
@@ -471,6 +471,38 @@ public:
             c[0][1]=atom.y;
             c[0][2]=atom.z;
             return c;
+        }
+    };
+
+
+    /// functor for a local U1 dot U1 potential
+
+    /// the unit vector dotted with itself vanishes, so what's left is
+    /// \f[
+    ///  U1\dot\U1 = \frac{\left(S^r\right)^2}{S^2}
+    /// \f]
+    /// with positive sign!
+    class U1_dot_U1_functor : public FunctionFunctorInterface<double,3> {
+
+        const NuclearCorrelationFactor* ncf;
+
+    public:
+        U1_dot_U1_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
+
+        double operator()(const coord_3d& xyz) const {
+            double result=0.0;
+            for (int i=0; i<ncf->molecule.natom(); ++i) {
+                const Atom& atom=ncf->molecule.get_atom(i);
+                const coord_3d vr1A=xyz-atom.get_coords();
+                const double r=vr1A.normf();
+                const double& Z=atom.q;
+                const double tmp=ncf->Sr_div_S(r,Z);
+                result+=tmp*tmp;
+            }
+            return result;
+        }
+        std::vector<coord_3d> special_points() const {
+            return ncf->molecule.get_all_coords_vec();
         }
     };
 
@@ -1435,7 +1467,7 @@ public:
 
 	/// overloading to avoid inconsistent state of U2, which needs the
 	/// nuclear potential
-	real_function_3d U2() const {
+	const real_function_3d U2() const {
 
 //		if (not U2_function.is_initialized()) {
 			MADNESS_ASSERT(potentialmanager->vnuclear().is_initialized());

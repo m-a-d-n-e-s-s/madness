@@ -461,9 +461,11 @@ int test_XCOperator(World& world) {
     MADNESS_ASSERT(v[1].tree_size()==v[2].tree_size()); // should be identical
     MADNESS_ASSERT(v[0].tree_size()==0);    // no change here
 
-    for (const real_function_3d& vv : v) {
-        vv.print_tree_graphviz(std::cout);
-    }
+    /// custom ctor with information about the XC functional
+    real_function_3d arho=copy(f1);
+    XCOperator xc(world,"pbe",false,arho,arho);
+    xc.apply_xc_kernel(arho);
+
     return 0;
 }
 
@@ -726,10 +728,10 @@ int main(int argc, char** argv) {
 //    result+=test_coulomb(world);
 //    result+=test_exchange(world);
     result+=test_XCOperator(world);
-//    result+=test_nuclear(world);
-//    result+=test_dnuclear(world);
-//    result+=test_SCF(world);
-//    result+=test_nemo(world);
+    result+=test_nuclear(world);
+    result+=test_dnuclear(world);
+    result+=test_SCF(world);
+    result+=test_nemo(world);
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");

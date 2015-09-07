@@ -100,8 +100,8 @@ double Nemo::value(const Tensor<double>& x) {
 	    vecfuncT psi = mul(world, R, calc->amo);
 	    truncate(world,psi);
 	    for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
-	        save_function(calc->amo[imo], "nemo" + stringify(imo));
-	        save_function(psi[imo], "psi" + stringify(imo));
+	        save(calc->amo[imo], "nemo" + stringify(imo));
+	        save(psi[imo], "psi" + stringify(imo));
 	    }
 	}
 
@@ -550,6 +550,65 @@ real_function_3d Nemo::make_density(const tensorT & occ,
     return rho.truncate();
 }
 
+
+real_function_3d Nemo::make_ddensity(const real_function_3d& rhonemo,
+        const int axis) const {
+
+    // 2 RXR * rhonemo
+    NuclearCorrelationFactor::U1_functor U1_func(nuclear_correlation.get(),axis);
+    real_function_3d RXR=real_factory_3d(world).functor(U1_func).truncate_on_project();
+    real_function_3d term1=2.0*RXR*rhonemo;
+
+    // R^2 * \nabla \rho
+    real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
+    real_function_3d Drhonemo=D(rhonemo);
+    real_function_3d term2=(R_square*Drhonemo).truncate();
+
+    return (term1+term2).truncate();
+}
+
+
+real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) const {
+
+    // U1^2 operator
+    NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(nuclear_correlation.get());
+    const real_function_3d U1dot=real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
+
+    real_function_3d result=(2.0*U1dot*rhonemo).truncate();
+
+    // U2 operator
+    const Nuclear U_op(world,this->nuclear_correlation);
+    const Nuclear V_op(world,this->get_calc().get());
+
+    const real_function_3d Vrho=V_op(rhonemo);  // eprec is important here!
+    const real_function_3d Urho=U_op(rhonemo);
+
+    real_function_3d term2=4.0*(Urho-Vrho).truncate();
+    result-=term2;
+
+    // derivative contribution: R2 \Delta rhonemo
+    real_function_3d laplace_rhonemo=real_factory_3d(world).compressed();
+    real_function_3d rhonemo_refined=copy(rhonemo).refine();
+    for (int axis=0; axis<3; ++axis) {
+        real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
+        real_function_3d drhonemo=D(rhonemo_refined).refine();
+        smoothen(drhonemo);
+        real_function_3d d2rhonemo=D(drhonemo);
+        laplace_rhonemo+=d2rhonemo;
+    }
+
+    result+=(laplace_rhonemo).truncate();
+    result=(R_square*result).truncate();
+
+//    // double check result: recompute the density from its laplacian
+//    real_function_3d rho_rec=-1./(4.*constants::pi)*(*poisson)(result);
+//    save(rho_rec,"rho_reconstructed");
+
+    return result;
+}
+
+
+
 /// compute the nuclear gradients
 Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     START_TIMER(world);
@@ -674,7 +733,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
             const real_function_3d RX_div_R=real_factory_3d(world).functor(rxr_func).truncate_on_project();
             dens_pt=(dens_pt+2.0*RX_div_R*dens).truncate();
-            save_function(dens_pt,"dens_pt"+stringify(i));
+            save(dens_pt,"dens_pt"+stringify(i));
 
             int j=0;
             for (int jatom=0; jatom<natom; ++jatom) {

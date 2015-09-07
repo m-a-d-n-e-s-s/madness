@@ -40,6 +40,31 @@ struct xc_lda_potential {
 
 /// Simplified interface to XC functionals
 class XCfunctional {
+public:
+    /// the ordering of the intermediates is fixed, but the code can handle
+    /// non-initialized functions, so if e.g. no GGA is requested, all the
+    /// corresponding vector components may be left empty.
+    /// - \c xc_args[ 0]  \f$ \rho_\alpha \f$
+    /// - \c xc_args[ 1]  \f$ \rho_\beta \f$
+    /// - \c xc_args[ 2]  \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
+    /// - \c xc_args[ 3]  \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
+    /// - \c xc_args[ 4]  \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
+    /// - \c xc_args[ 5]  \f$ \partial/{\partial x} \rho_{\alpha} \f$
+    /// - \c xc_args[ 6]  \f$ \partial/{\partial y} \rho_{\alpha} \f$
+    /// - \c xc_args[ 7]  \f$ \partial/{\partial z} \rho_{\alpha} \f$
+    /// - \c xc_args[ 8]  \f$ \partial/{\partial x} \rho_{\beta} \f$
+    /// - \c xc_args[ 9]  \f$ \partial/{\partial y} \rho_{\beta} \f$
+    /// - \c xc_args[10]  \f$ \partial/{\partial z} \rho_{\beta} \f$
+    /// - \c xc_args[11]  \f$ \rho_{\alpha,pt} \f$
+    /// - \c xc_args[12]  \f$ \rho_{\beta,pt} \f$
+    enum xc_arg {
+        enum_rhoa=0, enum_rhob=1,
+        enum_saa=2, enum_sab=3, enum_sbb=4,
+        enum_drhoa_x=5, enum_drhoa_y=6, enum_drhoa_z=7,
+        enum_drhob_x=8, enum_drhob_y=9, enum_drhob_z=10,
+        enum_rho_pta=11, enum_rho_ptb=12
+    };
+
 protected:
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
@@ -51,6 +76,10 @@ protected:
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
                          madness::Tensor<double>& sigma) const;
+    void make_libxc_args_old(const std::vector< madness::Tensor<double> >& t,
+                         madness::Tensor<double>& rho,
+                         madness::Tensor<double>& sigma) const;
+
     int nderiv;
 #endif
 
@@ -60,8 +89,8 @@ protected:
     /// \f[
     /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
     ///   \begin{array}{ll}
-    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}} \\
-    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\
+    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}
+    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}}
     ///     x                                      & x_{\mathrm{max}} < x
     ///   \end{array}
     /// \right.
@@ -116,7 +145,16 @@ private:
         return rho;
     }
 
+    // similar to the Laura's ratio thresholding, but might be more robust
+    void munge_rho(double& rho, double& sigma) const {
+        if (sigma<0.0) sigma=sigmin;
+        if (rho < rhotol) rho=rhomin;                   // 1.e-8 or so
+        if (rho < 1.e-2) sigma=10.0*rho*rho;
+    }
+
     void munge2(double& rho, double& sigma) const {
+        munge_rho(rho,sigma);
+        return;
         // original thresholding
         // if (rho < rhotol) rho=rhomin;
         // if (rho < rhotol || sigma < sigtol) sigma=sigmin;
@@ -219,7 +257,7 @@ public:
     ///
     /// @param t The input densities and derivatives as required by the functional
     /// @return The exchange-correlation energy functional
-    madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t , const int ispin) const;
+    madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t) const;
 
     /// Computes components of the potential (derivative of the energy functional) at np points
 
@@ -296,10 +334,12 @@ public:
             rho[i] = lo;
             lo *= s;
         }
-        std::vector< madness::Tensor<double> > t;
-        t.push_back(rho);
-        if (is_spin_polarized()) t.push_back(rho);
-        madness::Tensor<double> f  = exc(t,0); //pending UGHHHHH
+        std::vector< madness::Tensor<double> > t(13);
+        t[enum_rhoa]=(rho);
+        if (is_spin_polarized()) t[enum_rhob]=(rho);
+//        if (is_gga()) t[enum_saa]=madness::Tensor<double>(npt); // sigma_aa=0
+        if (is_gga()) t[enum_saa]=0.5*rho; // sigma_aa=0
+        madness::Tensor<double> f  = exc(t); //pending UGHHHHH
         madness::Tensor<double> va = vxc(t,0,0);
         madness::Tensor<double> vb = vxc(t,0,1);
         for (long i=0; i<npt; i++) {
@@ -311,16 +351,13 @@ public:
 /// Class to compute the energy functional
 struct xc_functional {
     const XCfunctional* xc;
-    const int ispin;
 
-    xc_functional(const XCfunctional& xc, int ispin)
-        : xc(&xc), ispin(ispin)
-    {}
+    xc_functional(const XCfunctional& xc) : xc(&xc) {}
 
     madness::Tensor<double> operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        return xc->exc(t,ispin);
+        return xc->exc(t);
     }
 };
 

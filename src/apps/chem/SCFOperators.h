@@ -393,13 +393,40 @@ private:
     ///    - \c delrho[5]   \f \partial/{\partial z} \rho_{\beta}
     vecfuncT delrho;
 
+    /// union of vf and delrho
+
+    /// the ordering of the intermediates is fixed, but the code can handle
+    /// non-initialized functions, so if e.g. no GGA is requested, all the
+    /// corresponding vector components may be left empty.
+    /// - \c xc_args[ 0]  \f$ \rho_\alpha \f$
+    /// - \c xc_args[ 1]  \f$ \rho_\beta \f$
+    /// - \c xc_args[ 2]  \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
+    /// - \c xc_args[ 3]  \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
+    /// - \c xc_args[ 4]  \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
+    /// - \c xc_args[ 5]  \f$ \partial/{\partial x} \rho_{\alpha} \f$
+    /// - \c xc_args[ 6]  \f$ \partial/{\partial y} \rho_{\alpha} \f$
+    /// - \c xc_args[ 7]  \f$ \partial/{\partial z} \rho_{\alpha} \f$
+    /// - \c xc_args[ 8]  \f$ \partial/{\partial x} \rho_{\beta} \f$
+    /// - \c xc_args[ 9]  \f$ \partial/{\partial y} \rho_{\beta} \f$
+    /// - \c xc_args[10]  \f$ \partial/{\partial z} \rho_{\beta} \f$
+    /// - \c xc_args[11]  \f$ \rho_{\alpha,pt} \f$
+    /// - \c xc_args[12]  \f$ \rho_{\beta,pt} \f$
+    vecfuncT xc_args;
+
+    /// compute the intermediates for the XC functionals
+
+    /// @param[in]  arho    density of the alpha orbitals
+    /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
+    /// @param[out] xc_args vector of intermediates as described above
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
+
     /// compute the intermediates for the XC functionals
 
     /// @param[in]  arho    density of the alpha orbitals
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @param[out] vf      vector of intermediates as described above
     /// @param[out] delrho  vector of derivatives of the densities as described above
-    void prep_xc_args(const real_function_3d& arho,
+    void prep_xc_args_old(const real_function_3d& arho,
             const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const;
 
     /// check if the intermediates are initialized

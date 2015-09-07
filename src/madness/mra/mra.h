@@ -728,11 +728,12 @@ namespace madness {
         ///
         /// Since reconstruction/compression do not discard information we define them
         /// as const ... "logical constness" not "bitwise constness".
-        void reconstruct(bool fence = true) const {
+        const Function<T,NDIM>& reconstruct(bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (!impl || !is_compressed()) return;
+            if (!impl || !is_compressed()) return *this;
             const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+            return *this;
         }
 
 
@@ -765,8 +766,11 @@ namespace madness {
         };
 
         /// Inplace autorefines the function using same test as for squaring.
-        void refine(bool fence = true) {
+
+        /// return this for chaining
+        Function<T,NDIM>& refine(bool fence = true) {
             refine_general(autorefine_square_op(), fence);
+            return *this;
         }
 
         /// Inplace broadens support in scaling function basis
@@ -1355,37 +1359,12 @@ namespace madness {
             return r;
         }
 
-//        /// Refine vector of functions down to common finest level (reconstructs as necessary, optional fence)
-//        void refine_to_common_level(std::vector< Function<T,NDIM> >& vf, bool fence=true) {
-//            Key<NDIM> key0(0, Vector<Translation, NDIM> (0));
-////            std::vector< Tensor<T> > c(vf.size());
-////            std::vector<implT*> v(vf.size());
-//            std::vector<implT*> v;
-//            bool mustfence = false;
-//            for (unsigned int i=0; i<vf.size(); ++i) {
-//                if (vf[i].is_compressed()) {
-//                    vf[i].reconstruct(false);
-//                    mustfence = true;
-//                }
-////                v[i] = vf[i].get_impl().get();
-//                if (vf[i].is_initialized()) v.push_back(vf[i].get_impl().get());
-//            }
-////            vf[0].impl->refine_to_common_level(v, c, key0);
-//            std::vector< Tensor<T> > c(v.size());
-//            print("vf.size(), v.size()",vf.size(),v.size());
-//            v[0]->refine_to_common_level(v, c, key0);
-//            if (mustfence) v[0]->world.gop.fence();
-//            if (fence) v[0]->world.gop.fence();
-//            if (VERIFY_TREE)
-//	      for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
-//        }
-
         /// This is replaced with op(vector of functions) ... private
         template <typename opT>
         Function<T,NDIM>& multiop_values(const opT& op, const std::vector< Function<T,NDIM> >& vf) {
-            std::vector<implT*> v(vf.size());
+            std::vector<implT*> v(vf.size(),NULL);
             for (unsigned int i=0; i<v.size(); ++i) {
-                v[i] = vf[i].get_impl().get();
+                if (vf[i].is_initialized()) v[i] = vf[i].get_impl().get();
             }
             impl->multiop_values(op, v);
             world().gop.fence();
@@ -2297,6 +2276,17 @@ namespace madness {
         };
     }
 
+    template <class T, std::size_t NDIM>
+    void save(const Function<T,NDIM>& f, const std::string name) {
+        archive::ParallelOutputArchive ar2(f.world(), name.c_str(), 1);
+        ar2 & f;
+    }
+
+    template <class T, std::size_t NDIM>
+    void load(Function<T,NDIM>& f, const std::string name) {
+        archive::ParallelInputArchive ar2(f.world(), name.c_str(), 1);
+        ar2 & f;
+    }
 
 }
 /* @} */

@@ -179,6 +179,12 @@ namespace madness {
             if (vf[i].is_initialized()) v_ptr.push_back(vf[i].get_impl().get());
         }
 
+        // sort and remove duplicates to not confuse the refining function
+        std::sort(v_ptr.begin(),v_ptr.end());
+        typename std::vector<FunctionImpl<T, NDIM>*>::iterator it;
+        it = std::unique(v_ptr.begin(), v_ptr.end());
+        v_ptr.resize( std::distance(v_ptr.begin(),it) );
+
         std::vector< Tensor<T> > c(v_ptr.size());
         v_ptr[0]->refine_to_common_level(v_ptr, c, key0);
         if (fence) v_ptr[0]->world.gop.fence();

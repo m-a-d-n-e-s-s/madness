@@ -315,6 +315,52 @@ public:
     real_function_3d make_density(const tensorT & occ,
             const vecfuncT& bra, const vecfuncT& ket) const;
 
+    /// make the derivative of the density
+
+    /// \f$ \nabla\rho = 2R^X R \rho_R + R^2\nabla \rho_R \f$
+    /// @param[in]  rhonemo    the regularized density
+    /// @param[in]  axis       the component of the nabla operator
+    /// @return     the gradient of the *reconstructed* density
+    real_function_3d make_ddensity(const real_function_3d& rhonemo,
+            const int axis) const;
+
+
+    /// the Laplacian of the density
+
+    /// The Laplacian should currently only be used for subsequent convolution
+    /// with a Green's function (which is reasonably stable), but not on its own!
+    ///
+    /// The Laplacian of the cuspy density is numerically fairly unstable:
+    ///  - a singular term may be rewritten using the nuclear potential (see below)
+    ///  - the Laplacian of the regularized density is still very noisy
+    ///
+    /// It may be computed as
+    /// \f[
+    ///   \Delta \rho = \Delta (R^2 \rho_R)
+    ///          = \Delta (R^2) \rho_R + 2\nabla R \nabla \rho_R + R^2 \Delta \rho_R
+    ///          = 2 R^2 U1^2 \rho_R -4 R^2 ( U-V ) \rho_R + R^2 \Delta\rho_R
+    /// \f]
+    /// where we can use the identity
+    /// \f[
+    ///   U=V + R^{-1}[T,R]
+    ///   -2 R (U-V) = \Delta R + 2\nabla R\dot \nabla
+    /// \f]
+    /// first term comes from the definition of the U potential as the commutator
+    /// over the kinetic energy (aka the Laplacian)
+    /// @param[in]  rhonemo    the regularized density \rho_R
+    /// @return     the laplacian of the reconstructed density \Delta (R^2\rho_R)
+    real_function_3d make_laplacian_density(const real_function_3d& rhonemo) const;
+
+    /// smooth a function by projecting it onto k-1 and then average with k
+
+    /// kept it here for further testing
+    static void smoothen(real_function_3d& f) {
+        int k=f.get_impl()->get_k();
+        real_function_3d fproj=project(f,k-1);
+        real_function_3d freproj=project(fproj,k);
+        f=0.5*(f+freproj);
+    }
+
 private:
 
 	/// the world
@@ -433,14 +479,6 @@ private:
 
     /// save a function
     template<typename T, size_t NDIM>
-    void save_function(const Function<T,NDIM>& f, const std::string name) const;
-
-    /// load a function
-    template<typename T, size_t NDIM>
-    void load_function(Function<T,NDIM>& f, const std::string name) const;
-
-    /// save a function
-    template<typename T, size_t NDIM>
     void save_function(const std::vector<Function<T,NDIM> >& f, const std::string name) const;
 
     /// load a function
@@ -470,15 +508,6 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
         }
     }
     world.gop.fence();
-}
-
-/// save a function
-template<typename T, size_t NDIM>
-void Nemo::save_function(const Function<T,NDIM>& f, const std::string name) const {
-    if (world.rank()==0) print("saving function",name);
-    f.print_size(name);
-    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
-    ar & f;
 }
 
 /// save a function

@@ -58,7 +58,7 @@ functionT make_dft_potential(World & world, XCfunctional& xc, const vecfuncT& vf
 
 double make_dft_energy(World & world, XCfunctional& xc, const vecfuncT& vf, int ispin)
 {
-	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc, ispin), vf);
+	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
 	return vlda.trace();
 }
 

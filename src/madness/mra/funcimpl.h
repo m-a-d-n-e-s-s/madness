@@ -2383,7 +2383,10 @@ namespace madness {
         void multiop_values_doit(const keyT& key, const opT& op, const std::vector<implT*>& v) {
             std::vector<tensorT> c(v.size());
             for (unsigned int i=0; i<v.size(); i++) {
-                c[i] = coeffs2values(key, v[i]->coeffs.find(key).get()->second.coeff().full_tensor_copy()); // !!!!! gack
+                if (v[i]) {
+                    coeffT cc = coeffs2values(key, v[i]->coeffs.find(key).get()->second.coeff());
+                    c[i]=cc.full_tensor();
+                }
             }
             tensorT r = op(key, c);
             coeffs.replace(key, nodeT(coeffT(values2coeffs(key, r),targs),false));
@@ -2395,6 +2398,12 @@ namespace madness {
         /// @param[in] v the vector of function impl's on which to be operated
         template <typename opT>
         void multiop_values(const opT& op, const std::vector<implT*>& v) {
+            // rough check on refinement level (ignore non-initialized functions
+            for (std::size_t i=1; i<v.size(); ++i) {
+                if (v[i] and v[i-1]) {
+                    MADNESS_ASSERT(v[i]->coeffs.size()==v[i-1]->coeffs.size());
+                }
+            }
             typename dcT::iterator end = v[0]->coeffs.end();
             for (typename dcT::iterator it=v[0]->coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;

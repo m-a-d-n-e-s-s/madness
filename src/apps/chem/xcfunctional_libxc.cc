@@ -378,7 +378,7 @@ bool XCfunctional::has_kxc() const
 ///    - rho[2*npt] = rho[a,b]
 ///    - sigma[3*npt] = sigma[aa,ab,bb]
 ///    leading dimension is [a,b] and [aa,ab,bb], respectively (why??!)
-void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& t,
+void XCfunctional::make_libxc_args_old(const std::vector< madness::Tensor<double> >& t,
            madness::Tensor<double>& rho, madness::Tensor<double>& sigma) const {
     const int np = t[0].size();
     if (spin_polarized) {
@@ -402,6 +402,14 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const double * restrict sigab = t[3].ptr();
             const double * restrict sigbb = t[4].ptr();
 
+            // might happen if there are no beta electrons
+            madness::Tensor<double> dummy;
+            if ((rhob==NULL) or (sigab==NULL) or (sigbb==NULL)) {
+                dummy=madness::Tensor<double>(np);
+            }
+            if (rhob==NULL) rhob=dummy.ptr();
+            if (sigab==NULL) sigab=dummy.ptr();
+            if (sigbb==NULL) sigbb=dummy.ptr();
 
             rho   = madness::Tensor<double>(np*2L);
             sigma = madness::Tensor<double>(np*3L);
@@ -458,8 +466,92 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 }
 
 
-madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t, const int ispin) const
-{
+void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& xc_args,
+           madness::Tensor<double>& rho, madness::Tensor<double>& sigma) const {
+    const int np = xc_args[0].size();
+
+
+    if (not spin_polarized) {
+        if (is_lda()) {
+            rho  = madness::Tensor<double>(np);
+            const double * restrict rhoa = xc_args[enum_rhoa].ptr();
+            double * restrict dens = rho.ptr();
+            for (long i=0; i<np; i++) {
+                dens[i] = munge(2.0*rhoa[i]);
+            }
+        }
+        else if (is_gga()) {
+            const double * restrict rhoa = xc_args[enum_rhoa].ptr();
+            const double * restrict sigaa = xc_args[enum_saa].ptr();
+            rho  = madness::Tensor<double>(np);
+            sigma  = madness::Tensor<double>(np);
+            double * restrict dens = rho.ptr();
+            double * restrict sig = sigma.ptr();
+            for (long i=0; i<np; i++) {
+                double ra=2.0*rhoa[i], saa=4.0*sigaa[i];
+                munge2(ra, saa);
+                dens[i] = ra;
+                sig[i] = saa;
+            }
+        }
+        else {
+            MADNESS_EXCEPTION("only LDA and GGA available in xcfunctional",1);
+        }
+
+    } else if (spin_polarized) {
+        if (is_lda()) {
+            const double * restrict rhoa = xc_args[enum_rhoa].ptr();
+            const double * restrict rhob = xc_args[enum_rhob].ptr();
+            rho  = madness::Tensor<double>(np*2L);
+            double * restrict dens = rho.ptr();
+            for (long i=0; i<np; i++) {
+                dens[2*i  ] = munge(rhoa[i]);
+                dens[2*i+1] = munge(rhob[i]);
+            }
+        }
+        else if (is_gga()) {
+            const double * restrict rhoa  = xc_args[enum_rhoa].ptr();
+            const double * restrict rhob  = xc_args[enum_rhob].ptr();
+
+            const double * restrict sigaa = xc_args[enum_saa].ptr();
+            const double * restrict sigab = xc_args[enum_sab].ptr();
+            const double * restrict sigbb = xc_args[enum_sbb].ptr();
+
+            // might happen if there are no beta electrons
+            madness::Tensor<double> dummy;
+            if ((rhob==NULL) or (sigab==NULL) or (sigbb==NULL)) {
+                dummy=madness::Tensor<double>(np);
+            }
+            if (rhob==NULL) rhob=dummy.ptr();
+            if (sigab==NULL) sigab=dummy.ptr();
+            if (sigbb==NULL) sigbb=dummy.ptr();
+
+            rho   = madness::Tensor<double>(np*2L);
+            sigma = madness::Tensor<double>(np*3L);
+
+            double * restrict dens = rho.ptr();
+            double * restrict sig  = sigma.ptr();
+            for (long i=0; i<np; i++) {
+                double ra=rhoa[i], rb=rhob[i], saa=sigaa[i], sab=sigab[i], sbb=sigbb[i];
+
+                munge5(ra, rb, saa, sab, sbb);
+                dens[2*i  ] = ra;
+                dens[2*i+1] = rb;
+
+                sig[3*i  ] = saa;
+                sig[3*i+1] = sab;
+                sig[3*i+2] = sbb;
+
+            }
+        }
+        else {
+            MADNESS_EXCEPTION("only LDA and GGA available in xcfunctional",1);
+        }
+    }
+}
+
+
+madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const {
     madness::Tensor<double> rho, sigma;
     make_libxc_args(t, rho, sigma);
 

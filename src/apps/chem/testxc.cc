@@ -239,7 +239,7 @@ void test_xcfunctional(World& world)
 
     Tensor<double> vr;
     if( what == 3){
-    vr = xcfunc.exc(xc_args,ispin);
+    vr = xcfunc.exc(xc_args);
     }
     else {
     vr = xcfunc.vxc(xc_args,ispin, what);
