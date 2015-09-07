@@ -23,7 +23,7 @@ thisinclude_HEADERS = info.h archive.h print.h worldam.h future.h worldmpi.h \
                       
 TESTS = test_prof.mpi test_ar.mpi test_hashdc.mpi test_hello.mpi test_atomicint.mpi test_future.mpi \
         test_future2.mpi test_future3.mpi test_dc.mpi test_hashthreaded.mpi test_queue.mpi test_world.mpi \
-        test_worldprofile.mpi test_binsorter.mpi
+        test_worldprofile.mpi test_binsorter.mpi test_stack.seq
 
 
 if MADNESS_HAS_GOOGLE_TEST
@@ -113,6 +113,11 @@ test_worldref_mpi_SOURCES = test_worldref.cc
 test_worldref_mpi_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
 test_worldref_mpi_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
 test_worldref_mpi_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.la
+
+test_stack_seq_SOURCES = test_stack.cc
+test_stack_seq_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_stack_seq_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_stack_seq_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.la
 
 endif
 

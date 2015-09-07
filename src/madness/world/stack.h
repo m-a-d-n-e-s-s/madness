@@ -79,15 +79,6 @@ namespace madness {
 
             /// Copy a range of pod objects
 
-            /// \param first The beginning of the range to be copied
-            /// \param last The end of the range to be copied
-            /// \param dest The beginning of the destination range
-            static void copy(const T* first, const T* last, T* dest) {
-                std::copy(first, last, dest);
-            }
-
-            /// Copy a range of pod objects
-
             /// \param first The beginning of the range to be moved
             /// \param last The end of the range to be moved
             /// \param dest The pointer to the uninitialized memory range
@@ -126,17 +117,6 @@ namespace madness {
             /// \throw nothing
             static void destroy(T*, T*) { }
 
-            /// Copy a range of pod objects
-
-            /// Pod object copy uses memcpy explicitly
-            /// \param first The beginning of the range to be copied
-            /// \param last The end of the range to be copied
-            /// \param dest The beginning of the destination range
-            static void copy(const T* first, const T* last, T* dest) {
-                if (first != last)
-                    std::memcpy(dest, first, (last - first) * sizeof(T));
-            }
-
             /// Move a range of pod objects to an uninitialized buffer
 
             /// \param first The beginning of the range to be moved
@@ -144,7 +124,8 @@ namespace madness {
             /// \param dest The pointer to the uninitialized memory buffer
             static void uninitialized_move(T* first, T* last, T* dest) {
                 // Use simple copy for pods
-                copy(first, last, dest);
+                if (first != last)
+                    std::memcpy(dest, first, (last - first) * sizeof(T));
             }
 
             /// Move a range of pod objects to an uninitialized buffer
@@ -153,7 +134,9 @@ namespace madness {
             /// \param last The end of the range to be copied
             /// \param dest The pointer to the uninitialized memory buffer
             static void uninitialized_copy(T* first, T* last, T* dest) {
-                copy(first, last, dest);
+                // Use simple copy for pods
+                if (first != last)
+                    std::memcpy(dest, first, (last - first) * sizeof(T));
             }
 
         }; // class StackBase<T, true>
@@ -169,17 +152,22 @@ namespace madness {
     /// \tparam T The type of data stored in the stack.
     /// \tparam N The fixed size of the stack.
     template <typename T, unsigned int N>
-    class Stack : public detail::StackBase<T, std::is_pod<T>::value>{
+    class Stack : public detail::StackBase<T, std::is_pod<T>::value> {
+    public:
+        typedef T value_type; ///< Type of the stack elements
+        typedef T& reference; ///< Element reference type
+        typedef const T& const_reference; ///< Element constant reference type
+        typedef unsigned int size_type; ///< An unsigned integral type
+
     private:
         T* data_; ///< Pointer to the stack data
-        unsigned int size_; ///< Number of elements on the stack
-        unsigned int capacity_; ///< The maximum size, in elements, of the \c data_ buffer
+        size_type size_; ///< Number of elements on the stack
+        size_type capacity_; ///< The maximum size, in elements, of the \c data_ buffer
         char buffer_[sizeof(T) * N]; ///< Static buffer for storing a small number of elements
 
         typedef detail::StackBase<T, std::is_pod<T>::value> StackBase_;
 
         using StackBase_::destroy;
-        using StackBase_::copy;
         using StackBase_::uninitialized_move;
         using StackBase_::uninitialized_copy;
 
@@ -190,7 +178,7 @@ namespace madness {
 
         /// Allocate an uninitialized buffer
         /// \param n The size of the new buffer
-        T* allocate(unsigned int n) {
+        T* allocate(const size_type n) {
             void* const buffer = std::malloc(n * sizeof(T));
             if(! buffer)
                 throw std::bad_alloc();
@@ -198,6 +186,26 @@ namespace madness {
             return reinterpret_cast<T*>(buffer);
         }
 
+        void move(Stack<T,N>& other) {
+            // Move the stack data from other to this object
+            if(other.is_small()) {
+                // Other is using the static buffer space, so the data must
+                // be moved to this object's static buffer.
+                data_ = reinterpret_cast<T*>(buffer_);
+                uninitialized_move(other.data_, other.data_ + other.size_, data_);
+                capacity_ = N;
+            } else {
+                // Other is using an allocated buffer, so move the pointer
+                // to the data
+                data_ = other.data_;
+                capacity_ = other.capacity_;
+
+                other.data_ = reinterpret_cast<T*>(other.buffer_);
+                other.capacity_ = N;
+            }
+            size_ = other.size_;
+            other.size_ = 0u;
+        }
 
         /// Deallocate memory
 
@@ -207,46 +215,58 @@ namespace madness {
         void deallocate() { if(! is_small()) std::free(data_); }
 
     public:
-        /// Construct an empty stack.
+        /// Construct an empty stack
+
+        /// The capacity of the stack is \c N.
         Stack() :
-            data_(reinterpret_cast<T*>(buffer_)), size_(0u), capacity_(N)
+            data_(reinterpret_cast<T*>(buffer_)),
+            size_(0u), capacity_(N)
         { }
 
-        Stack(const Stack<T,N>& other) :
-            data_(nullptr), size_(other.size_), capacity_(other.size_)
-        {
-            if(other.size() <= N) {
+        /// Copy constructor
+
+        /// If the size of \c other is less than or equal to \c N, then this
+        /// object will use the small buffer. Otherwise, it will allocate memory
+        /// and copy the data of \c other. The capacity of the object will be
+        /// equal to <tt>max(N, other.size())</tt>.
+        /// \param other The stack to be copied
+        Stack(const Stack<T,N>& other) {
+            if(other.size_ > N) {
+                data_ = allocate(other.size_);
+                capacity_ = other.size_;
+            } else {
                 data_ = reinterpret_cast<T*>(buffer_);
                 capacity_ = N;
-            } else {
-                data_ = allocate(other.size_);
             }
+            size_ = other.size_;
             uninitialized_copy(other.data_, other.data_ + other.size_, data_);
         }
 
-        Stack(Stack<T, N>&& other) :
-            data_(other.is_small() ? reinterpret_cast<T*>(buffer_) : other.data_),
-            size_(other.size_), capacity_(other.capacity_)
-        {
-            uninitialized_move(other.data_, other.data_ + other.size_, data_);
-            other.data_ = reinterpret_cast<T*>(other.buffer_);
-            other.size_ = 0u;
-            other.capacity_ = N;
-        }
+        /// Move constructor
+
+        /// Move the data from \c other to this object. If
+        Stack(Stack<T, N>&& other) { move(other); }
 
         Stack<T,N>& operator=(const Stack<T,N>& other) {
             if(this != &other) { // avoid self assignment
-                deallocate();
 
-                // Set the data buffer and size information
-                data_ = (other.is_small() ?
-                        reinterpret_cast<T*>(buffer_) :
-                        other.data_);
+                if(capacity_ < other.size_) {
+                    // Allocate a larger buffer
+                    T* const buffer = allocate(other.size_);
+                    uninitialized_copy(other.data_, other.data_ + other.size_, buffer);
+
+                    // Destroy the existing buffer
+                    destroy(data_, data_ + size_);
+                    deallocate();
+
+                    data_ = buffer;
+                    capacity_ = other.size_;
+                } else {
+                    destroy(data_, data_ + size_);
+                    uninitialized_copy(other.data_, other.data_ + other.size_, data_);
+                }
+
                 size_ = other.size_;
-                capacity_ = other.capacity_;
-
-                // Copy the stack data from other
-                copy(other.data_, other.data_ + other.size_, data_);
             }
 
             return *this;
@@ -263,28 +283,9 @@ namespace madness {
         /// continue to be used.
         Stack<T,N>& operator=(Stack<T,N>&& other) {
             if(this != &other) { // avoid self assignment
+                destroy(data_, data_ + size_);
                 deallocate();
-
-                // Move the stack data from other to this object
-                if(other.is_small()) {
-                    // Other is using the static buffer space, so the data must
-                    // be moved to this object's static buffer.
-                    data_ = reinterpret_cast<T*>(buffer_);
-                    uninitialized_move(other.data_, other.data_ + other.size_, data_);
-                    capacity_ = N;
-                } else {
-                    // Other is using an allocated buffer, so move the pointer
-                    // to the data
-                    data_ = other.data_;
-                    capacity_ = other.capacity_;
-                }
-                size_ = other.size_;
-
-
-                // Reset member variables for other
-                other.data_ = reinterpret_cast<T*>(other.buffer_);
-                other.size_ = 0u;
-                other.capacity_ = N;
+                move(other);
             }
 
             return *this;
@@ -300,10 +301,10 @@ namespace madness {
         /// Push an item onto the top of the stack. If the stack size is equal
         /// to the capacity, resize the stack (double).
         /// \param[in] value The item to be pushed onto the stack
-        void push(const T& value) {
+        void push(const_reference value) {
             // Grow the buffer if there is no more free space on the stack
             if(size_ == capacity_) {
-                const unsigned int n = (size_ << 1u) + 1u;
+                const size_type n = (size_ << 1u) + 1u;
 
                 // Allocate new storage
                 T* const new_data = allocate(n);
@@ -338,7 +339,7 @@ namespace madness {
 
         /// \return A reference to the top of the stack
         /// \throw MadnessException When the stack is empty
-        T& top() {
+        reference top() {
             MADNESS_ASSERT(size_);
             return data_[size_ - 1];
         }
@@ -347,7 +348,7 @@ namespace madness {
 
         /// \return A const reference to the top of the stack
         /// \throw MadnessException When the stack is empty
-        const T& top() const {
+        const_reference top() const {
             MADNESS_ASSERT(size_);
             return data_[size_ - 1];
         }
@@ -355,9 +356,12 @@ namespace madness {
         /// Size accessor
 
         /// \return The number of items pushed to the stack
-        unsigned int size() const {
-            return size_;
-        }
+        size_type size() const { return size_; }
+
+        /// Capacity accessor
+
+        /// \return The size of allocated storage capacity
+        size_type capacity() const { return capacity_; }
 
         /// Check if the stack is empty
 
@@ -385,6 +389,16 @@ namespace madness {
             size_ = 0u;
             capacity_ = N;
         }
+
+        /// Data accessor
+
+        /// \return A const pointer to the stack data
+        const T* data() const { return data_; }
+
+        /// Data accessor
+
+        /// \return A pointer to the stack data
+        T* data() { return data_; }
 
     }; // class Stack
 

@@ -56,7 +56,7 @@ if(ENABLE_UNITTESTS)
       test_atomicint.cc test_future.cc test_future2.cc test_future3.cc 
       test_dc.cc test_hashthreaded.cc test_queue.cc test_world.cc 
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
-      test_worldref.cc test_googletest.cc)
+      test_worldref.cc test_stack.cc test_googletest.cc)
 
 
   add_unittests(world WORLD_TEST_SOURCES "MADworld;MADgtest")
