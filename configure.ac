@@ -393,6 +393,24 @@ AC_MSG_NOTICE([build shared libraries: $enable_shared])
 AC_MSG_NOTICE([build static libraries: $enable_static])
 AC_MSG_NOTICE([link all static libraries: $acx_enable_all_static])
 
+# Set the library suffix used whe generating config/Makefile.sample
+if test $enable_shared = yes; then
+
+if test $ON_A_MAC = yes; then
+# OS X library suffix
+AC_SUBST(LIB_SUFFIX,.dylib)
+else
+# Linux library suffix
+AC_SUBST(LIB_SUFFIX,.so)
+fi
+
+else
+
+# Set the static library file suffix (same on Linux and OS X)
+AC_SUBST(LIB_SUFFIX,.a)
+
+fi
+
 
 # These are the files that must be generated/preprocessed ... as you add files
 # please maintain the directory tree file order and indenting.
