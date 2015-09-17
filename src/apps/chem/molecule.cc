@@ -60,6 +60,29 @@ static inline double distance_sq(double x1, double y1, double z1, double x2, dou
     return xx*xx + yy*yy + zz*zz;
 }
 
+
+/// read molecule from the input file and return part of the header for
+/// a Gaussian cube file.
+/// @param[in]  filename input file name (usually "input")
+std::vector<std::string> cubefile_header(std::string filename) {
+    Molecule molecule;
+    molecule.read_file(filename);
+    molecule.orient();
+    std::vector<std::string> molecular_info;
+    for (unsigned int i=0; i<molecule.natom(); ++i) {
+        std::stringstream ss;
+        const int charge=molecule.get_atom(i).get_atomic_number();
+        ss << charge << " " << charge << " ";
+        ss << std::fixed;
+        ss.precision(8);
+        const Vector<double,3> coord=molecule.get_atom(i).get_coords();
+        ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
+        molecular_info.push_back(ss.str());
+    }
+    return molecular_info;
+}
+
+
 std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     s << "Atom([" << atom.x << ", " << atom.y << ", " << atom.z << "], " << atom.q << "," << atom.atomic_number << ")";
     return s;

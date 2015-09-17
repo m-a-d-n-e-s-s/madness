@@ -49,11 +49,13 @@
 #include <madness/mra/funcplot.h>
 #include <madness/mra/lbdeux.h>
 
-
 #include <iostream>
 
 using namespace madness;
 
+namespace madness{
+extern std::vector<std::string> cubefile_header(std::string filename="input");
+}
 template<size_t NDIM>
 void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0)  print("loading function ", name);
@@ -109,6 +111,7 @@ void draw_circle(World& world, Function<double,NDIM>& pair, const std::string re
 	plot_along<NDIM>(world,circ,pair,filename);
 
 }
+
 
 
 int main(int argc, char** argv) {
@@ -178,6 +181,12 @@ int main(int argc, char** argv) {
         std::vector<Function<double,NDIM> > vf(filenames.size());
         for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
 		plot_plane(world,vf,filenames[0]);
+
+		// plot the Gaussian cube file
+		std::vector<std::string> molecular_info=cubefile_header("input");
+		std::string filename=filenames[0]+".cube";
+		plot_cubefile<3>(world,vf[0],filename,molecular_info);
+
     } catch (...) {
         try {
             static const size_t NDIM=6;

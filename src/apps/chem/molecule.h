@@ -90,6 +90,7 @@ public:
     /// Default construct makes a zero charge ghost atom at origin
     Atom() : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0), pseudo_atom(false) {}
 
+   int get_atomic_number() const {return atomic_number;}
 
     madness::Vector<double,3> get_coords() const {
         return madness::Vector<double,3>{x, y, z};
