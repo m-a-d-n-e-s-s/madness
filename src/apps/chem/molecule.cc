@@ -339,6 +339,13 @@ double Molecule::nuclear_dipole(int axis) const {
     return sum;
 }
 
+Tensor<double> Molecule::nuclear_dipole_derivative(const int atom, const int axis) const{
+    Tensor<double> mu_x(3);
+    mu_x(axis)=atoms[atom].q;
+    return mu_x;
+}
+
+
 double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     double sum = 0.0;
     unsigned int z1 = atoms[i].atomic_number;

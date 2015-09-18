@@ -699,7 +699,8 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 
 /// compute the nuclear hessian
 Tensor<double> Nemo::hessian(const Tensor<double>& x) {
-    START_TIMER(world);
+
+    const bool hessdebug=(true and (world.rank()==0));
 
     const int natom=molecule().natom();
     const vecfuncT& nemo=get_calc()->amo;
@@ -711,6 +712,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     // the perturbed MOs determined by the CPHF equations
     std::vector<vecfuncT> xi=compute_all_cphf();
 
+    START_TIMER(world);
 
     // compute the derivative of the density d/dx rho; 2: closed shell
     const real_function_3d dens=2.0*make_density(get_calc()->get_aocc(),nemo,R2nemo);
@@ -720,28 +722,32 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         drho[i]=D(dens).truncate();
     }
 
-
-    // add the electronic contribution to the hessian
-    int i=0;
+    // compute the perturbed densities
+    // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
+    vecfuncT dens_pt(3*natom);
     for (int iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
-            i=iatom*3 + iaxis;
+            int i=iatom*3 + iaxis;
 
-            // compute the full perturbed density
-            // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
-            real_function_3d dens_pt=4.0*make_density(calc->get_aocc(),R2nemo,xi[i]);
+            dens_pt[i]=4.0*make_density(calc->get_aocc(),R2nemo,xi[i]);
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
             const real_function_3d RX_div_R=real_factory_3d(world).functor(rxr_func).truncate_on_project();
-            dens_pt=(dens_pt+2.0*RX_div_R*dens).truncate();
-            save(dens_pt,"dens_pt"+stringify(i));
+            dens_pt[i]=(dens_pt[i]+2.0*RX_div_R*dens).truncate();
+            save(dens_pt[i],"dens_pt"+stringify(i));
+        }
+    }
 
-            int j=0;
+    // add the electronic contribution to the hessian
+    for (int iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            int i=iatom*3 + iaxis;
+
             for (int jatom=0; jatom<natom; ++jatom) {
                 for (int jaxis=0; jaxis<3; ++jaxis) {
-                    j=jatom*3 + jaxis;
+                    int j=jatom*3 + jaxis;
 
                     MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
-                    double result=inner(dens_pt,mdf);
+                    double result=inner(dens_pt[i],mdf);
 
                     // integration by parts
                     if (iatom==jatom) result+=inner(drho[iaxis],mdf);
@@ -751,25 +757,22 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
                     // hessian matrix elements (see below)
                     if (i==j) result=0.0;
                     hessian(i,j)=result;
-                    ++j;
                 }
             }
-            ++i;
         }
     }
-    if (world.rank() == 0) {
+    if (hessdebug) {
         print("\n raw electronic Hessian (a.u.)\n");
         print(hessian);
     }
 
     Tensor<double> asymmetric=0.5*(hessian-transpose(hessian));
     const double max_asymmetric=asymmetric.absmax();
-    if (world.rank() == 0) {
+    if (hessdebug) {
         print("\n asymmetry in the electronic Hessian (a.u.)\n");
         print(asymmetric);
-        print("max asymmetric element: ",max_asymmetric);
     }
-
+    if (world.rank()==0) print("max asymmetric element in the Hessian matrix: ",max_asymmetric);
 
     // symmetrize hessian
     hessian+=transpose(hessian);
@@ -784,7 +787,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         hessian(i,i)=-sum;
     }
 
-    if (world.rank() == 0) {
+    if (hessdebug) {
         print("\n electronic Hessian (a.u.)\n");
         print(hessian);
     }
@@ -792,28 +795,43 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     // add the nuclear-nuclear contribution
     hessian+=molecule().nuclear_repulsion_hessian();
 
-    if (world.rank() == 0) {
+    if (hessdebug) {
         print("\n Hessian (a.u.)\n");
         print(hessian);
     }
     END_TIMER(world, "compute hessian");
 
-    Tensor<double> frequencies=compute_frequencies(hessian,false,true);
+    Tensor<double> normalmodes;
+    Tensor<double> frequencies=compute_frequencies(hessian,normalmodes,false,hessdebug);
 
-    if (world.rank() == 0) {
-        print("\n vibrational frequencies (a.u.)\n");
+    if (hessdebug) {
+        print("\n vibrational frequencies (unprojected) (a.u.)\n");
         print(frequencies);
-        print("\n vibrational frequencies (cm-1)\n");
+        print("\n vibrational frequencies (unprojected) (cm-1)\n");
         print(constants::au2invcm*frequencies);
     }
 
-    frequencies=compute_frequencies(hessian,true,true);
+    frequencies=compute_frequencies(hessian,normalmodes,true,hessdebug);
+    Tensor<double> intensities=compute_IR_intensities(normalmodes,dens_pt);
+    Tensor<double> reducedmass=compute_reduced_mass(normalmodes);
 
     if (world.rank() == 0) {
-        print("\n vibrational frequencies projected (a.u.)\n");
-        print(frequencies);
-        print("\n vibrational frequencies projected (cm-1)\n");
-        print(constants::au2invcm*frequencies);
+        print("\nprojected vibrational frequencies (cm-1)\n");
+        printf("frequency in cm-1   ");
+        for (int i=0; i<frequencies.size(); ++i) {
+            printf("%10.3f",constants::au2invcm*frequencies(i));
+        }
+        printf("\n");
+        printf("intensity in km/mol ");
+        for (int i=0; i<intensities.size(); ++i) {
+            printf("%10.3f",intensities(i));
+        }
+        printf("\n");
+        printf("reduced mass in amu ");
+        for (int i=0; i<intensities.size(); ++i) {
+            printf("%10.3f",reducedmass(i));
+        }
+        printf("\n\n");
     }
 
     return hessian;
@@ -982,15 +1000,16 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
 }
 
+
 std::vector<vecfuncT> Nemo::compute_all_cphf() {
+
+    const int natom=molecule().natom();
+    std::vector<vecfuncT> xi(3*natom);
 
     const Tensor<double> fock=this->compute_fock_matrix(get_calc()->amo,
             get_calc()->get_aocc());
     print("fock");
     print(fock);
-
-    const int natom=molecule().natom();
-    std::vector<vecfuncT> xi(3*natom);
 
     // read CPHF vectors from file if possible
     if (get_calc()->param.read_cphf) {
@@ -1048,6 +1067,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 
 }
 
+
 vecfuncT Nemo::parallel_CPHF(const vecfuncT& nemo, const int iatom,
         const int iaxis) const {
 
@@ -1070,7 +1090,7 @@ vecfuncT Nemo::parallel_CPHF(const vecfuncT& nemo, const int iatom,
 /// @param[in]  print_hessian   whether to print the hessian matrix
 /// @return the frequencies in atomic units
 Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian,
-        const bool project_tr=true, const bool print_hessian=false) const {
+        Tensor<double>& normalmodes, const bool project_tr=true, const bool print_hessian=false) const {
 
     // compute mass-weighing matrices
     Tensor<double> M=massweights(molecule());
@@ -1095,31 +1115,83 @@ Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian,
         print(mmhessian);
     }
 
-    Tensor<double> normalmodes,freq;
+    Tensor<double> freq;
     syev(mwhessian,normalmodes,freq);
     for (long i=0; i<freq.size(); ++i) {
         if (freq(i)>0.0) freq(i)=sqrt(freq(i)); // real frequencies
         else freq(i)=-sqrt(-freq(i));           // imaginary frequencies
     }
+    return freq;
+}
 
-    // compute the reduced mass
+Tensor<double> Nemo::compute_reduced_mass(const Tensor<double>& normalmodes) const {
+
+    Tensor<double> M=massweights(molecule());
     Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule());
     Tensor<double> L=copy(normalmodes);
     Tensor<double> DL=inner(D,L);
     Tensor<double> MDL=inner(M,DL);
+    Tensor<double> mu(3*molecule().natom());
 
     for (int i=0; i<3*molecule().natom(); ++i) {
-        double mu=0.0;
-        for (int j=0; j<3*molecule().natom(); ++j) {
-            mu+=MDL(j,i)*MDL(j,i);
+        double mu1=0.0;
+        for (int j=0; j<3*molecule().natom(); ++j) mu1+=MDL(j,i)*MDL(j,i);
+        if (mu1>1.e-14) mu(i)=1.0/(mu1*constants::atomic_mass_in_au);
+    }
+    return mu;
+}
+
+
+Tensor<double> Nemo::compute_IR_intensities(const Tensor<double>& normalmodes,
+        const vecfuncT& dens_pt) const {
+
+    // compute the matrix of the normal modes: x -> q
+    Tensor<double> M=massweights(molecule());
+    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule());
+    Tensor<double> DL=inner(D,normalmodes);
+    Tensor<double> nm=inner(M,DL);
+
+    // square of the dipole derivative wrt the normal modes Q
+    Tensor<double> mu_Qxyz2(dens_pt.size());
+
+    // compute the derivative of the dipole moment wrt nuclear displacements X
+    for (std::size_t component=0; component<3; ++component) {
+        // electronic and nuclear dipole derivative wrt nucl. displacements X
+        Tensor<double> mu_X(dens_pt.size()), mu_X_nuc(dens_pt.size());
+
+        for (int iatom=0; iatom<molecule().natom(); ++iatom) {
+            for (int iaxis=0; iaxis<3; ++iaxis) {
+                int i=iatom*3 + iaxis;
+                mu_X(i)=-inner(dens_pt[i],DipoleFunctor(component));
+                Tensor<double> dnucdipole=molecule().nuclear_dipole_derivative(iatom,iaxis);
+                mu_X_nuc(i)=dnucdipole(component);
+            }
         }
-        mu=1.0/(mu*constants::atomic_mass_in_au);
-        print("reduced mass for mode in amu",i,mu);
+        Tensor<double> mu_X_total=mu_X+mu_X_nuc;
+        Tensor<double> mu_Q=inner(nm,mu_X_total,0,0);
+        mu_Qxyz2+=mu_Q.emul(mu_Q);
     }
 
-
-    return freq;
+    // have fun with constants
+    // unit of the dipole moment:
+    const double mu_au_to_SI=constants::atomic_unit_of_electric_dipole_moment;
+    // unit of the dipole derivative
+    const double dmu_au_to_SI=mu_au_to_SI/constants::atomic_unit_of_length;
+    // unit of the mass-weighted dipole derivative
+    const double dmuq_au_to_SI=dmu_au_to_SI*sqrt(constants::atomic_mass_in_au/
+            constants::atomic_mass_constant);
+    // some more fundamental constants
+    const double pi=constants::pi;
+    const double N=constants::Avogadro_constant;
+    const double e=constants::dielectric_constant;
+    const double c=constants::speed_of_light_in_vacuum;
+    // final conversion: Eqs (13) and (14) of
+    // J. Neugebauer, M. Reiher, C. Kind, and B. A. Hess,
+    // J. Comp. Chem., vol. 23, no. 9, pp. 895–910, Apr. 2002.
+    const double conversion=pi*N*dmuq_au_to_SI*dmuq_au_to_SI/(3.0*4.0*pi*e*c*c)/1.e3;
+    return mu_Qxyz2.scale(conversion);
 }
+
 
 /// compute the mass-weighting matrix for the hessian
 Tensor<double> Nemo::massweights(const Molecule& molecule) const {

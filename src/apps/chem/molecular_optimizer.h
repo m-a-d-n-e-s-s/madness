@@ -334,10 +334,10 @@ public:
         syev(I, v, e);  // v being the "X" tensor on the web site
         v=transpose(v);
 
-        Tensor<double> B(e.size());
-        for (long i=0; i<e.size(); ++i) B(i)=1.0/(2.0*e(i));
-        print("rotational constants in cm-1");
-        print(constants::au2invcm*B);
+//        Tensor<double> B(e.size());
+//        for (long i=0; i<e.size(); ++i) B(i)=1.0/(2.0*e(i));
+//        print("rotational constants in cm-1");
+//        print(constants::au2invcm*B);
 
         // rotation vectors
         Tensor<double> rotx(3*mol.natom());
@@ -438,7 +438,6 @@ public:
     static void remove_external_dof(Tensor<double>& hessian,
             Molecule& mol) {
 
-        print("projecting out translational and rotational degrees of freedom");
         // compute the translation of the center of mass
         Tensor<double> projector_ext=projector_external_dof(mol);
 

@@ -243,7 +243,17 @@ public:
     /// no factor 0.5 included
     Tensor<double> nuclear_repulsion_hessian() const;
 
+    /// compute the dipole moment of the nuclei
+
+    ///  @param[in] the axis (x, y, z)
     double nuclear_dipole(int axis) const;
+
+    /// compute the derivative of the nuclear dipole wrt a nuclear displacement
+
+    /// @param[in]  atom    the atom which will be displaced
+    /// @param[in]  axis    the axis where the atom will be displaced
+    /// @return     a vector which all 3 components of the dipole derivative
+    Tensor<double> nuclear_dipole_derivative(const int atom, const int axis) const;
 
     double nuclear_charge_density(double x, double y, double z) const;
 

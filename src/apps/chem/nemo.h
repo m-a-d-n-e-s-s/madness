@@ -281,8 +281,20 @@ public:
     /// @param[in]  project whether to project out translation and rotation
     /// @param[in]  print_hessian   whether to print the hessian matrix
 	/// @return the frequencies in atomic units
-	Tensor<double> compute_frequencies(const Tensor<double>& hessian,
+    Tensor<double> compute_frequencies(const Tensor<double>& hessian,
+            Tensor<double>& normalmodes,
 	        const bool project, const bool print_hessian) const;
+
+    /// compute the reduces masses for the normal vibrations
+    Tensor<double> compute_reduced_mass(const Tensor<double>& normalmodes) const;
+
+    /// compute the IR intensities in the double harmonic approximation
+
+    /// use the projected normal modes; units are km/mol
+    /// @param[in]  hessian the hessian matrix
+    /// @param[in]  dens_pt the perturbed densities for each nuclear displacement
+    Tensor<double> compute_IR_intensities(const Tensor<double>& normalmodes,
+            const vecfuncT& dens_pt) const;
 
 	/// compute the mass-weight the hessian matrix
 
