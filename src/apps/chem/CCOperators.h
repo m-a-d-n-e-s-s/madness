@@ -140,6 +140,9 @@ private:
 				"\n\n!!!!ERROR IN CC_INTERMEDIATES!!!!\n\n\n\n\n\n\n\n\n\n\n\n",
 				1);
 	}
+	void warning(const std::string &msg) const {
+		std::cout << "\n\n\nWARNING IN CC_INTERMEDIATES:\n" << msg << "\n\n\n!!!";
+	}
 
 public:
 	/// Make the exchange intermediate: EX[j][i] <bra[i](r2)|1/r12|ket[j](r2)>
@@ -179,6 +182,16 @@ public:
 		Q12.set_spaces(mo_bra_,mo_ket_,mo_bra_,mo_ket_);
 	}
 
+	void error(const std::string &msg) const {
+		std::cout << "\n\n\nERROR IN CC_OPERATORS:\n" << msg << "\n\n\n!!!";
+		MADNESS_EXCEPTION(
+				"\n\n!!!!ERROR IN CC_OPERATORS!!!!\n\n\n\n\n\n\n\n\n\n\n\n",
+				1);
+	}
+	void warning(const std::string &msg) const {
+		std::cout << "\n\n\nWARNING IN CC_OPERATORS:\n" << msg << "\n\n\n!!!";
+	}
+
 	void update_intermediates(const CC_Singles &singles)const{
 		CC_Timer update(world,"Update Intermediates");
 		vecfuncT tmp=vectorize_singles(singles);
@@ -212,6 +225,17 @@ public:
 		return add(world, result, fock_residue_closed_shell(singles));
 	}
 
+	/// makes the t intermediate which is defined as: |t_i> = |\tau_i> + |i>
+	vecfuncT make_t_intermediate(const CC_Singles &tau)const{
+		vecfuncT result(tau.size());
+		vecfuncT mos = mo_ket_;
+		for(size_t i=0;i<tau.size();i++){
+			result[i] = tau[i].function() + mos[i];
+		}
+		truncate(world,result);
+		return result;
+	}
+
 	vecfuncT get_CC2_singles_potential(const CC_Singles &singles, const Pairs<CC_Pair> &doubles)const{
 		vecfuncT result = zero_functions<double,3>(world,mo_ket_.size());
 		{CC_Timer timer_FR(world,"Singles Potential: Fock Residue");
@@ -239,7 +263,7 @@ public:
 		result =add(world, S6(singles),result);
 		timer_S6.info();}
 		{CC_Timer timer_S2b(world,"Singles Potential: S2b+X");
-		result =add(world, S2b(doubles),result);
+		result =add(world, S2b(doubles,singles),result);
 		timer_S2b.info();}
 		{CC_Timer timer_S2c(world,"Singles Potential: S2c+X");
 		result =add(world, S2c(doubles),result);
@@ -260,9 +284,16 @@ public:
 
 	// only get the part of the singles that is produced exclusively by the doulbes in order to make a first guess for the singles
 	vecfuncT get_CC2_singles_initial_potential(const Pairs<CC_Pair> &doubles)const{
+		CC_Singles singles;
+		// make_zero guess
+		real_function_3d zeroguess = real_factory_3d(world);
+		for(size_t i=0;i<mo_ket_.size();i++){
+			CC_Single tmp(i,zeroguess);
+			singles.push_back(tmp);
+		}
 		vecfuncT result = zero_functions<double,3>(world,mo_ket_.size());
 		{CC_Timer timer_S2b(world,"Singles Potential: S2b+X");
-		result =S2b(doubles);
+		result =S2b(doubles,singles);
 		for(size_t i=0;i<result.size();i++) result[i].print_size("S2b_"+stringify(i));
 		timer_S2b.info();}
 		{CC_Timer timer_S2c(world,"Singles Potential: S2c+X");
@@ -407,7 +438,7 @@ public:
 	/// = int d2 [ int d3[ \delta(1-3) g32 ] x(1,2) ]
 	/// = \int d3[\delta(1-3) \int d2 [ g32 x(1,2 ] ]
 	/// = \int d3[\delta(1-3) h(1,3)] with h(1,3) = \int d2 g23 x(1,2)
-	vecfuncT S2b(const Pairs<CC_Pair> u) const;
+	vecfuncT S2b(const Pairs<CC_Pair> u, const CC_Singles &singles) const;
 
 	/// S2c + X Term
 	// [Q]   [i]
@@ -541,6 +572,8 @@ public:
 	double make_ijgxy(const size_t &i, const size_t &j, const real_function_3d &x, const real_function_3d &y)const;
 	/// Make two electron integral with the pair function
 	double make_ijgu(const size_t &i, const size_t &j, const CC_Pair &u)const;
+	/// Make two electron integral with BSH operator
+	double make_ijGu(const size_t &i, const size_t &j, const CC_Pair &u)const;
 	/// apply the operator gf = 1/(2\gamma)*(Coulomb - 4\pi*BSH_\gamma)
 	/// works only if f = (1-exp(-\gamma*r12))/(2\gamma)
 	real_function_3d apply_gf(const real_function_3d &f)const;

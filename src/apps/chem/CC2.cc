@@ -49,24 +49,7 @@ bool CC2::test()const{
 	sanity = integrals_sane;
 	if(integrals_sane) output("Integrals are sane");
 
-	output_subsection("Testing S2b Potential");
-	if(active_mo.size()==1){
-	// make a pair with function |xy> then compare <0|s2b> with <00|gf|xy> -> only one active orbital
-	real_function_6d test_function = CompositeFactory<double, 6, 3>(world).particle1(active_mo[0]).particle2(active_mo[0]);
-	CC_Pair test_pair(0,0);
-	test_pair.function = test_function;
-	Pairs<CC_Pair> test_pairs;
-	test_pairs.insert(0,0,test_pair);
-	vecfuncT s2b = CCOPS.S2b(test_pairs);
-	double tmp1 = CCOPS.mo_bra(0).inner(s2b[0]);
-	double tmp2 = CCOPS.make_ijgfxy(0,0,active_mo[0],active_mo[0]);
-	output("Testing S2b result:\n");
-	if(world.rank()==0) std::cout << "<0|S2b> = " << tmp1 << "\n<00|gf|00> = " << tmp2 << std::endl;
-	if(fabs(tmp1-tmp2)>FunctionDefaults<6>::get_thresh()){
-		output("S2b not consistent");
-		sanity=false;
-	}
-	}else output("S2b Test not possible with more than one active orbital");
+
 	return sanity;
 }
 
@@ -390,15 +373,16 @@ void CC2::initialize_electron_pair(CC_Pair &u)const{
 
 /// Calculate the current CC2 correlation energy
 double CC2::compute_correlation_energy(const vecfuncT &singles, const Pairs<real_function_6d> &doubles)const{
-
+	MADNESS_EXCEPTION("CC2::compute_correlation_energy Not Yet Implemented",1);
+return 0.0;
 }
 /// Iterates the CC2 singles equations
 void CC2::iterate_singles(vecfuncT &singles, const Pairs<real_function_6d> &doubles)const{
-
+	MADNESS_EXCEPTION("CC2::iterate_singles Not Yet Implemented",1);
 }
 /// Iterates the CC2 doubles equations
 void CC2::iterate_doubles(const vecfuncT &singles, Pairs<real_function_6d> &doubles)const{
-
+	MADNESS_EXCEPTION("CC2::iterate_doubles Not Yet Implemented",1);
 }
 
 } /* namespace madness */
