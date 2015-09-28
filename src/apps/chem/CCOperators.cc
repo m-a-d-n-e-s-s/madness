@@ -347,29 +347,29 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) 
 	for(size_t i=0;i<singles.size();i++){
 		real_function_3d resulti = real_factory_3d(world);
 		for(size_t k=0;k<singles.size();k++){
-			// The Part which operates on the doubles
-			real_function_3d debug1,debug2;
-			{
-				CC_Timer S2b1(world,"<k|g|u> over Composite factory");
-				real_function_6d g  = TwoElectronFactory(world).dcut(parameters.lo);
-				real_function_6d gu = CompositeFactory<double,6,3>(world).ket(copy(u(i,k).function)).g12(g);
-				// project out k
-				real_function_3d kgu = gu.project_out(mo_bra_[k],1); debug1 = kgu; // here 1 is particle 2
-				// Exchange Part
-				real_function_6d gx  = TwoElectronFactory(world).dcut(parameters.lo);
-				real_function_6d gux = CompositeFactory<double,6,3>(world).ket(copy(u(k,i).function)).g12(gx);
-				// project out k
-				real_function_3d kgux = gux.project_out(mo_bra_[k],1); // here 1 is particle 2
-				resulti += 2.0*kgu - kgux;
-				S2b1.info();
-
-				if(parameters.debug){
-					double debug = make_ijgu(i,k,u(i,k));
-					double debug2= kgu.inner(mo_bra_[i]);
-					if(fabs(debug-debug2)>FunctionDefaults<6>::get_thresh()) warning("S2a potential: Different result for |u> part " + stringify(debug) + " , " + stringify(debug2));
-				}
-
-			}
+			// The Part which operates on the doubles -> dont think that works because of g12
+//			real_function_3d debug1,debug2;
+//			{
+//				CC_Timer S2b1(world,"<k|g|u> over Composite factory");
+//				real_function_6d g  = TwoElectronFactory(world).dcut(parameters.lo);
+//				real_function_6d gu = CompositeFactory<double,6,3>(world).ket(copy(u(i,k).function)).g12(g);
+//				// project out k
+//				real_function_3d kgu = gu.project_out(mo_bra_[k],1); debug1 = kgu; // here 1 is particle 2
+//				// Exchange Part
+//				real_function_6d gx  = TwoElectronFactory(world).dcut(parameters.lo);
+//				real_function_6d gux = CompositeFactory<double,6,3>(world).ket(copy(u(k,i).function)).g12(gx);
+//				// project out k
+//				real_function_3d kgux = gux.project_out(mo_bra_[k],1); // here 1 is particle 2
+//				resulti += 2.0*kgu - kgux;
+//				S2b1.info();
+//
+//				if(parameters.debug){
+//					double debug = make_ijgu(i,k,u(i,k));
+//					double debug2= kgu.inner(mo_bra_[i]);
+//					if(fabs(debug-debug2)>FunctionDefaults<6>::get_thresh()) warning("S2a potential: Different result for |u> part " + stringify(debug) + " , " + stringify(debug2));
+//				}
+//
+//			}
 			// Alternative way: do 6d poisson and project out unitfunction
 			{
 				CC_Timer S2b2(world,"<k|g|u> over unitfunction projection");
@@ -379,10 +379,14 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) 
 				(*poisson).particle() = 2;
 				real_function_6d result = (*poisson)(tmp);
 				real_function_6d resultx= (*poisson)(tmpx);
-				real_function_3d r = result.project_out(unit,1); debug2 =r; // here 1 is particle 2
+				real_function_3d r = result.project_out(unit,1);// here 1 is particle 2
 				real_function_3d rx = resultx.project_out(unit,1); // here 1 is particle 2
 				S2b2.info();
-				if((debug1-debug2).norm2()>FunctionDefaults<6>::get_thresh()) warning("S2b, different results for 6d part");
+				if(parameters.debug){
+					double debug = make_ijgu(i,k,u(i,k));
+					double debug2= r.inner(mo_bra_[i]);
+					if(fabs(debug-debug2)>FunctionDefaults<6>::get_thresh()) warning("S2a potential: Different result for |u> part " + stringify(debug) + " , " + stringify(debug2));
+				}
 
 			}
 		}
