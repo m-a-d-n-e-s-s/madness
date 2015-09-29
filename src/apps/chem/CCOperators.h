@@ -183,13 +183,13 @@ public:
 	}
 
 	void error(const std::string &msg) const {
-		std::cout << "\n\n\nERROR IN CC_OPERATORS:\n" << msg << "\n\n\n!!!";
+		std::cout << "\n\n\nERROR IN CC_OPERATORS:\n" << msg << "!!!\n\n\n";
 		MADNESS_EXCEPTION(
 				"\n\n!!!!ERROR IN CC_OPERATORS!!!!\n\n\n\n\n\n\n\n\n\n\n\n",
 				1);
 	}
 	void warning(const std::string &msg) const {
-		std::cout << "\n\n\nWARNING IN CC_OPERATORS:\n" << msg << "\n\n\n!!!";
+		std::cout << "\n\n\nWARNING IN CC_OPERATORS:\n" << msg << "!!!\n\n\n";
 	}
 
 	void update_intermediates(const CC_Singles &singles)const{
@@ -236,6 +236,37 @@ public:
 		return result;
 	}
 
+	vecfuncT get_CCS_potential(const CC_Singles &singles)const{
+		vecfuncT result = zero_functions<double,3>(world,mo_ket_.size());
+		{CC_Timer timer_FR(world,"Singles Potential: Fock Residue");
+		result = fock_residue_closed_shell(singles);
+		timer_FR.info();}
+		{CC_Timer timer_S3c(world,"Singles Potential: S3c");
+		result =add(world, S3c(singles),result);
+		timer_S3c.info();}
+		{CC_Timer timer_S3CX(world,"Singles Potential: S3cX");
+		result =add(world, S3c_X(singles),result);
+		timer_S3CX.info();}
+		{CC_Timer timer_S5b(world,"Singles Potential: S5b");
+		result =add(world, S5b(singles),result);
+		timer_S5b.info();}
+		{CC_Timer timer_S5bx(world,"Singles Potential: S5bX");
+		result =add(world, S5b_X(singles),result);
+		timer_S5bx.info();}
+		{CC_Timer timer_S5c(world,"Singles Potential: S5c");
+		result =add(world, S5c(singles),result);
+		timer_S5c.info();}
+		{CC_Timer timer_S5cx(world,"Singles Potential: S5cX");
+		result =add(world, S5c_X(singles),result);
+		timer_S5cx.info();}
+		{CC_Timer timer_S6(world,"Singles Potential: S6");
+		result =add(world, S6(singles),result);
+		timer_S6.info();}
+		Q(result);
+		truncate(world,result);
+		return result;
+	}
+
 	vecfuncT get_CC2_singles_potential(const CC_Singles &singles, const Pairs<CC_Pair> &doubles)const{
 		vecfuncT result = zero_functions<double,3>(world,mo_ket_.size());
 		{CC_Timer timer_FR(world,"Singles Potential: Fock Residue");
@@ -266,7 +297,7 @@ public:
 		result =add(world, S2b(doubles,singles),result);
 		timer_S2b.info();}
 		{CC_Timer timer_S2c(world,"Singles Potential: S2c+X");
-		result =add(world, S2c(doubles),result);
+		result =add(world, S2c(doubles,singles),result);
 		timer_S2c.info();}
 		{CC_Timer timer_S4a(world,"Singles Potential: S4a+X");
 		result =add(world, S4a(doubles,singles),result);
@@ -297,7 +328,7 @@ public:
 		for(size_t i=0;i<result.size();i++) result[i].print_size("S2b_"+stringify(i));
 		timer_S2b.info();}
 		{CC_Timer timer_S2c(world,"Singles Potential: S2c+X");
-		vecfuncT s2c = S2c(doubles);
+		vecfuncT s2c = S2c(doubles,singles);
 		for(size_t i=0;i<result.size();i++) s2c[i].print_size("S2c_"+stringify(i));
 		result = add(world,s2c,result);
 		timer_S2c.info();}
@@ -432,12 +463,10 @@ public:
 	//  \    /....
 	//   \  /    /\
 	//  __\/_____\/__
-	/// Current procedure:
-	/// use g12 = \int \delta(1-3) g32 d3
-	/// <k(2)|g12|u(1,2)> = \int d2[ g12x(1,2 ] with x(1,2) = k(2)u(1,2)
-	/// = int d2 [ int d3[ \delta(1-3) g32 ] x(1,2) ]
-	/// = \int d3[\delta(1-3) \int d2 [ g32 x(1,2 ] ]
-	/// = \int d3[\delta(1-3) h(1,3)] with h(1,3) = \int d2 g23 x(1,2)
+	/// @param[in] Structure which holds all current CC pair functions
+	/// @param[in] Structure which holds all current CC single excitations
+	/// @param[out] -Q\sum_k \left( 2<k|g|u_ik> - <k|g|u_ki> + 2<k|gQf|t_it_k> - <k|gQf|t_kt_i> \right), with t_i = i + \tau_i
+	/// notation: <k|g|u_ik> = <k(2)|g12|u_ik(1,2)> (Integration over second particle)
 	vecfuncT S2b(const Pairs<CC_Pair> u, const CC_Singles &singles) const;
 
 	/// S2c + X Term
@@ -445,10 +474,13 @@ public:
 	//  \    /....
 	//   \  /    /\
 	//  __\/_____\/__
-	/// = \sum <k(3)l(4)|g34 f31| u_{lk}(1,3) i(4)> = \sum <k(3)|f13| X_{lk,li}(1,3) > with X_{lk,li}(1,3) = u_lk(1,3) * (<l(4)|g34>|i(4)>_4)(3)
-	/// = \sum \int d5 \delta(5-1) \int d3 f53 k(3)*X_{lk,li}(5,3)
-	vecfuncT S2c(const Pairs<CC_Pair> u) const;
-
+	/// = -Q\sum_{kl}\left( 2<k|lgi|ulk> - <l|kgi|u_{lk}> + 2<k|lgi|t_k>*|t_l> - 2<l|kgi|t_k>*|t_l? \right)
+	/// Notation: 6D Integration over second particle, intermediates: lgi = <l|g|i> is the exchange intermediate
+	/// Notation: t are the t-intermediates: |t_i> = |i> + |\tau_i>
+	/// @param[in] All the current coupled cluster Pairs
+	/// @param[in] The coupled cluster singles
+	/// @param[out] the S2c+X Potential
+	vecfuncT S2c(const Pairs<CC_Pair> &u, const CC_Singles &singles) const;
 	/// The S4a + X diagram
 	//[Q]       [i]
 	// \    ..../.....
@@ -560,6 +592,7 @@ public:
 	// \omega = \sum_{ij} 2<ij|g|\tau_{ij}> - <ij|g|\tau_{ji}> + 2 <ij|g|\tau_i\tau_j> - <ij|g|\tau_j\tau_i>
 	// with \tau_{ij} = u_{ij} + Q12f12|ij> + Q12f12|\tau_i,j> + Q12f12|i,\tau_j> + Q12f12|\tau_i\tau_j>
 	double get_CC2_correlation_energy() const;
+	double compute_ccs_correlation_energy(const CC_Single &taui, const CC_Single &tauj)const;
 	double compute_cc2_pair_energy(const CC_Pair &u,
 			const real_function_3d &taui, const real_function_3d &tauj) const;
 	/// Calculate the integral <bra1,bra2|gQf|ket1,ket2>
@@ -579,6 +612,16 @@ public:
 	real_function_3d apply_gf(const real_function_3d &f)const;
 	real_function_6d apply_gf(const real_function_6d &f,const size_t &particle)const;
 
+	/// @param[in] x: Function which is convoluted with
+	/// @param[in] y: function over which is not integrated
+	/// @param[in] z: function which is correlated with y over Q12f12
+	/// @param[out] <x(2)|Q12f12|y(1)z(2)>_2
+	/// Calculation is done in 4 steps over: Q12 = 1 - O1 - O2 + O12
+	/// 1. <x|f12|z>*|y>
+	/// 2. -\sum_m <x|m> <m|f12|z>*|y>
+	/// 3. -\sum_n <nx|f12|zy> * |n>
+	/// 4. +\sum_{mn} <g|n> <mn|f12|yz> * |m>
+	real_function_3d convolute_x_gQf_yz(const real_function_3d &x, const real_function_3d &y, const real_function_3d &z)const;
 	real_function_6d test_fill_tree()const{
 		return real_factory_6d(world);
 	}

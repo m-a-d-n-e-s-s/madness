@@ -74,6 +74,7 @@ public:
 
 	/// solve the CC2 ground state equations, returns the correlation energy
 	double solve()const;
+	bool solve_CCS()const;
 	/// solve the MP2 equations (uncoupled -> Canonical Orbitals)
 	double solve_uncoupled_mp2(Pairs<CC_Pair> &u)const;
 	/// solve the coupled CC2 equations

@@ -118,6 +118,15 @@ double CC_Operators::compute_mp2_pair_energy(CC_Pair &pair)const{
 	if (world.rank() == 0)
 		printf("<ij | g12       | psi^1>  %12.8f\n", ij_g_uij);
 
+	if(parameters.debug){
+		if(world.rank()==0){
+			std::cout << "Debugging make_ijgu function with mp2 pair energy\n";
+		}
+		const double ijguij = make_ijgu(pair.i,pair.j,pair);
+		if(fabs(ijguij-ij_g_uij)>FunctionDefaults<6>::get_thresh()) warning("make_ijgu and mp2 pair energy function give not the same value "+ stringify(ijguij) + " vs " + stringify(ij_g_uij));
+		else if(world.rank()==0) std::cout << "make_ijgu function seems to be fine values are: " << ijguij << " and " << ij_g_uij << std::endl;
+	}
+
 	// compute < ji | g12 | psi > if (i/=j)
 	const double ji_g_uij = (pair.i == pair.j) ? 0 : inner(pair.function, ji_g);
 	if (world.rank() == 0)
@@ -129,7 +138,7 @@ double CC_Operators::compute_mp2_pair_energy(CC_Pair &pair)const{
 		pair.e_triplet = 0.0;
 	} else {
 		pair.e_singlet = (ij_g_uij + pair.ij_gQf_ij)
-														+ (ji_g_uij + pair.ji_gQf_ij);
+																		+ (ji_g_uij + pair.ji_gQf_ij);
 		pair.e_triplet = 3.0
 				* ((ij_g_uij - ji_g_uij) + (pair.ij_gQf_ij - pair.ji_gQf_ij));
 	}
@@ -347,45 +356,27 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) 
 	for(size_t i=0;i<singles.size();i++){
 		real_function_3d resulti = real_factory_3d(world);
 		for(size_t k=0;k<singles.size();k++){
-			// The Part which operates on the doubles -> dont think that works because of g12
-//			real_function_3d debug1,debug2;
-//			{
-//				CC_Timer S2b1(world,"<k|g|u> over Composite factory");
-//				real_function_6d g  = TwoElectronFactory(world).dcut(parameters.lo);
-//				real_function_6d gu = CompositeFactory<double,6,3>(world).ket(copy(u(i,k).function)).g12(g);
-//				// project out k
-//				real_function_3d kgu = gu.project_out(mo_bra_[k],1); debug1 = kgu; // here 1 is particle 2
-//				// Exchange Part
-//				real_function_6d gx  = TwoElectronFactory(world).dcut(parameters.lo);
-//				real_function_6d gux = CompositeFactory<double,6,3>(world).ket(copy(u(k,i).function)).g12(gx);
-//				// project out k
-//				real_function_3d kgux = gux.project_out(mo_bra_[k],1); // here 1 is particle 2
-//				resulti += 2.0*kgu - kgux;
-//				S2b1.info();
-//
-//				if(parameters.debug){
-//					double debug = make_ijgu(i,k,u(i,k));
-//					double debug2= kgu.inner(mo_bra_[i]);
-//					if(fabs(debug-debug2)>FunctionDefaults<6>::get_thresh()) warning("S2a potential: Different result for |u> part " + stringify(debug) + " , " + stringify(debug2));
-//				}
-//
-//			}
-			// Alternative way: do 6d poisson and project out unitfunction
 			{
 				CC_Timer S2b2(world,"<k|g|u> over unitfunction projection");
 				real_function_3d unit = real_factory_3d(world).f(unitfunction);
+
 				real_function_6d tmp = multiply(copy(u(i,k).function),copy(mo_bra_[k]),2);
-				real_function_6d tmpx = multiply(copy(u(i,k).function),copy(mo_bra_[k]),1);
 				(*poisson).particle() = 2;
 				real_function_6d result = (*poisson)(tmp);
-				real_function_6d resultx= (*poisson)(tmpx);
 				real_function_3d r = result.project_out(unit,1);// here 1 is particle 2
-				real_function_3d rx = resultx.project_out(unit,1); // here 1 is particle 2
+
+				// Exchange Part
+				real_function_6d tmpx = multiply(copy(u(i,k).function),copy(mo_bra_[k]),1);
+				(*poisson).particle() = 1;
+				real_function_6d resultx= (*poisson)(tmpx);
+				real_function_3d rx = resultx.project_out(unit,0); // here 0 is particle 1
+
 				S2b2.info();
 				if(parameters.debug){
 					double debug = make_ijgu(i,k,u(i,k));
 					double debug2= r.inner(mo_bra_[i]);
-					if(fabs(debug-debug2)>FunctionDefaults<6>::get_thresh()) warning("S2a potential: Different result for |u> part " + stringify(debug) + " , " + stringify(debug2));
+					if(fabs(debug-debug2)>FunctionDefaults<6>::get_thresh()) warning("S2b potential: Different result for |u> part " + stringify(debug) + " , " + stringify(debug2));
+					else if(world.rank()==0) std::cout << "6d part of S2b potential seems to be fine (debug integrals are:" << debug << " and " << debug2 << std::endl;
 				}
 
 			}
@@ -449,6 +440,7 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) 
 				for(size_t k=0;k<mo_bra_.size();k++) debug += make_ijgQfxy(i,k,t[i],t[k]);
 				double debug2 = t1part.inner(mo_bra_[i]);
 				if(fabs(debug-debug2)>FunctionDefaults<3>::get_thresh()) warning("S2a potential: Different result for t1 part " + stringify(debug) + " , " + stringify(debug2));
+				else if(world.rank()==0) std::cout << "3d part of S2a potential seems to be fine (debug integrals are:" << debug << " and " << debug2 << std::endl;
 			}
 
 
@@ -469,57 +461,60 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) 
 //  \    /....
 //   \  /    /\
 //  __\/_____\/__
-/// = \sum_kl 2<k(3)l(4)|g34|t_kl(3,1) i(4)> - <k(3)l(4)|g34|t_kl(4,1) i(3)>
-// current procedure:
-// make t_kl = f12*u(12) with the composite factory
-// make intermediate: lgi(3) = <l|g|i> and kgi(4) = <k|g|i>
-// process intermediate: klgi = k*lgi and lkgi = l*kgi
-// Project out the intermediate from the t_kl function  <klgi|t_kl>_1 and <lkgi|t_kl>_1
-// return 2.0*<klgi|t_kl>_1 - <lkgi|t_kl>_1
+/// = -Q\sum_{kl}\left( 2<k|lgi|ulk> - <l|kgi|u_{lk}> + 2<k|lgiQ12f12|t_lt_k> - <l|kgiQ12f12|t_lt_k> \right)
+/// Notation: 6D Integration over second particle, intermediates: lgi = <l|g|i> is the exchange intermediate
+/// Notation: t are the t-intermediates: |t_i> = |i> + |\tau_i>
+/// @param[in] All the current coupled cluster Pairs
+/// @param[in] The coupled cluster singles
+/// @param[out] the S2c+X Potential
 
-vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> u) const {
-	u(0,0).function.print_size("\t Doubles which enter S2c Function");
-	vecfuncT result;
-	for(size_t i=0;i<mo_ket_.size();i++){
+vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_Singles &singles) const {
+	vecfuncT result(singles.size());
+	vecfuncT t = make_t_intermediate(singles);
+	for(size_t i=0;i<singles.size();i++){
 		real_function_3d resulti = real_factory_3d(world);
-		for(size_t k=0;k<mo_ket_.size();k++){
-			for(size_t l=0;l<mo_ket_.size();l++){
-				// make pair function t_kl
-				CC_Timer make_tau(world,"Creating cuspy pair: f12*u(1,2)");
-				real_function_6d tkl =  CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).ket(copy(u(k,l).function));
-				tkl.fill_tree().truncate().reduce_rank();
-				make_tau.info();
-				tkl.print_size("f12*u(12)");
-				// make the exchange intermediates
-				real_function_3d klgi = (mo_bra_[k]*intermediates_.get_exchange_intermediate()[i][l]).truncate();
-				real_function_3d lkgi = (mo_bra_[l]*intermediates_.get_exchange_intermediate()[i][k]).truncate();
-				// Project out
-
-				// test for debug
-				real_function_6d test = copy(tkl);
-				real_function_3d klgitkl = tkl.project_out(klgi,0);
-				// better check if t_kl changes during the procedure
-				{
-					if(world.rank()==0) std::cout << "S2c potential debug output:\n";
-					tkl.print_size("pair function after");
-					test.print_size("pair function before (should be the same");
+		// The 6D Part
+		real_function_3d resulti_6d = real_factory_3d(world);
+		{
+			for(size_t k=0;k<mo_bra_.size();k++){
+				for(size_t l=0;l<mo_bra_.size();l++){
+					real_function_3d klgi = (mo_bra_[k]*intermediates_.get_exchange_intermediate()[i][l]).truncate();
+					real_function_3d lkgi = (mo_bra_[l]*intermediates_.get_exchange_intermediate()[i][k]).truncate();
+					real_function_3d tmp = u(k,l).function.project_out(klgi,1); // 1 means second particle
+					real_function_3d tmpx= u(k,l).function.project_out(lkgi,1); // 1 means second particle
+					resulti_6d += 2.0*tmp - tmpx;
 				}
-				real_function_3d lkgitkl = tkl.project_out(lkgi,0); // 0 means first particle coordinates are intergrated
-				{
-					if(world.rank()==0) std::cout << "S2c potential debug output:\n";
-					tkl.print_size("pair function after");
-					test.print_size("pair function before (should be the same");
-				}
-				resulti += (2.0*klgitkl - lkgitkl).truncate();
-				Q(resulti);
 			}
 		}
-		resulti.print_size("S2c_"+stringify(i)+" potential");
-		result.push_back(resulti);
+		// The 3D Part (maybe merge this later with 6D part to avoid recalculating of  mo_bra_[k]*exchange_intermediate[i][l]
+		real_function_3d resulti_3d = real_factory_3d(world);
+		{
+			for(size_t k=0;k<mo_bra_.size();k++){
+				for(size_t l=0;l<mo_bra_.size();l++){
+					real_function_3d klgi = (mo_bra_[k]*intermediates_.get_exchange_intermediate()[i][l]).truncate();
+					real_function_3d lkgi = (mo_bra_[l]*intermediates_.get_exchange_intermediate()[i][k]).truncate();
+					real_function_3d k_lgi_Q12f12_tltk = convolute_x_gQf_yz(klgi,t[l],t[k]);
+					real_function_3d l_kgi_Q12f12_tltk = convolute_x_gQf_yz(lkgi,t[l],t[k]);
+					if(parameters.debug){
+						double debug = make_ijgQfxy(i,k,t[l],t[k]);
+						double debug2 = mo_bra_[i].inner(k_lgi_Q12f12_tltk);
+						if(fabs(debug-debug2)>FunctionDefaults<3>::get_thresh()) warning("S2c potential: Different result for t1 part " + stringify(debug) + " , " + stringify(debug2));
+						else if(world.rank()==0) std::cout << "3d part of S2c potential seems to be fine (debug integrals are:" << debug << " and " << debug2 << std::endl;
+					}
+					resulti_3d += 2.0*k_lgi_Q12f12_tltk - l_kgi_Q12f12_tltk;
+				}
+			}
+		}
+		resulti = (resulti_6d + resulti_3d).truncate();
+		result[i]=resulti;
 	}
-	u(0,0).function.print_size("\t Doubles which leave S2c Function");
+	scale(world,result,-1.0);
+	truncate(world,result);
+	Q(result);
 	return result;
 }
+
+
 /// The S4a + X diagram
 //[Q]       [i]
 // \    ..../.....
@@ -581,6 +576,8 @@ vecfuncT CC_Operators::S4b(const Pairs<CC_Pair> u, const CC_Singles & tau) const
 	vecfuncT result;
 	for(size_t i=0;i<mo_ket_.size();i++){
 		real_function_3d resulti = real_factory_3d(world);
+		vecfuncT mobra_taui = mul(world,tau[i].function(),mo_bra_);
+		vecfuncT mobra_gi = apply(world,*poisson,mobra_taui);
 		for(size_t k=0;k<mo_ket_.size();k++){
 			for(size_t l=0;l<mo_ket_.size();l++){
 				// make the cuspy pair
@@ -591,8 +588,10 @@ vecfuncT CC_Operators::S4b(const Pairs<CC_Pair> u, const CC_Singles & tau) const
 				tkl.print_size("f12*u(12)");
 
 				// make intermediates
-				real_function_3d lkgi = (mo_bra_[l]*intermediates_.get_perturbed_exchange_intermediate()[i][k]).truncate();
-				real_function_3d klgi = (mo_bra_[k]*intermediates_.get_perturbed_exchange_intermediate()[i][l]).truncate();
+				real_function_3d kgi = mobra_gi[k];//(*poisson)(mo_bra_[k]*tau[i]);
+				real_function_3d lgi = mobra_gi[l];//(*poisson)(mo_bra_[k]*tau[i]);
+				real_function_3d lkgi = (mo_bra_[l]*kgi).truncate();
+				real_function_3d klgi = (mo_bra_[k]*lgi).truncate();
 
 				// project out (1 is particle 2 and 0 is particle 1)
 				real_function_3d lkgitkl = tkl.project_out(lkgi,1);
@@ -1022,6 +1021,15 @@ double CC_Operators::get_CC2_correlation_energy() const {
 	MADNESS_EXCEPTION("get_cc2_correlation_energy not implemented yet",1);
 	return 0.0;
 }
+
+double CC_Operators::compute_ccs_correlation_energy(const CC_Single &taui, const CC_Single &tauj)const{
+	double omega = 0.0;
+	//omega += 2.0*intermediates_.get_integrals_t1()(u.i,u.j,u.i,u.j); //<ij|g|\taui\tauj>
+	omega += 2.0*make_ijgxy(taui.i,tauj.i,taui.function(),tauj.function());
+	//omega -= intermediates_.get_integrals_t1()(u.i,u.j,u.j,u.i);     //<ij|g|\tauj\taui>
+	omega -= make_ijgxy(taui.i,tauj.i,tauj.function(),taui.function());
+	return omega;
+}
 double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
 		const real_function_3d &taui, const real_function_3d &tauj) const {
 	double omega = 0.0;
@@ -1167,6 +1175,53 @@ real_function_6d CC_Operators::apply_gf(const real_function_6d &f,const size_t &
 	double bsh_prefactor = 4.0 * constants::pi;
 	double prefactor = 1.0/(2.0*corrfac.gamma());
 	return prefactor*((*poisson)(f) - bsh_prefactor*(*fBSH)(f)).truncate();
+}
+
+/// Calculation is done in 4 steps over: Q12 = 1 - O1 - O2 + O12
+/// 1. <x|f12|z>*|y>
+/// 2. -\sum_m <x|m> <m|f12|z>*|y> = -(\sum_m <x|m> <m|f12|z>) *|y>
+/// 3. -\sum_n <nx|f12|zy> * |n>
+/// 4. +\sum_{mn} <x|n> <mn|f12|yz> * |m>
+/// Metric from nuclear cusp is not taken into account -> give the right bra elements to the function
+real_function_3d CC_Operators::convolute_x_gQf_yz(const real_function_3d &x, const real_function_3d &y, const real_function_3d &z)const{
+	// make intermediates
+	vecfuncT moz = mul(world,z,mo_bra_);
+	vecfuncT moy = mul(world,y,mo_bra_);
+	// Do <x|f12|z>*|y>
+	real_function_3d part1 = (*f12op)(x*z);
+	// Do -\sum_m <x|m> <m|f12|z>*|y>
+	real_function_3d part2 = real_factory_3d(world);
+	{
+		Tensor<double> xm = inner(world,x,mo_ket_);
+		vecfuncT f12mz = apply(world,*f12op,moz);
+		real_function_3d tmp = real_factory_3d(world);
+		for(size_t m=0;m<mo_bra_.size();m++) tmp += xm[m]*f12mz[m];
+		part2 = tmp*y;
+	}
+	// Do -\sum_n <nx|f12|zy> * |n> |  <nx|f12|zy> = <n| xf12y |z>
+	real_function_3d part3 = real_factory_3d(world);
+	{
+		real_function_3d xf12y = (*f12op)((x*y).truncate());
+		for(size_t n=0;n<mo_bra_.size();n++){
+			double nxfzy = xf12y.inner(mo_bra_[n]*z);
+			part3 += nxfzy*mo_ket_[n];
+		}
+	}
+	// Do +\sum_{mn} <x|n> <mn|f12|yz> * |m>
+	real_function_3d part4 = real_factory_3d(world);
+	{
+		Tensor<double> xn = inner(world,x,mo_ket_);
+		vecfuncT nf12z = apply(world,*f12op,moz);
+		Tensor<double> mnfyz = inner(world,moy,nf12z);
+		for(size_t m=0;m<mo_bra_.size();m++){
+			for(size_t n=0;n<mo_ket_.size();n++){
+				part4 += xn(n)*mnfyz(m,n)*mo_ket_[m];
+			}
+		}
+	}
+	real_function_3d result = part1 - part2 - part3 + part4;
+	result.truncate();
+	return result;
 }
 
 

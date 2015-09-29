@@ -463,7 +463,9 @@ public:
 	CC_Single(const CC_Single &other): i(other.i), converged(other.converged),iterations(other.iterations), function_(other.function()){}
 
 	real_function_3d function()const{return function_;}
-
+	void update(const real_function_3d &fresh_function){
+		function_ = fresh_function;
+	}
 	size_t i;
 	mutable bool converged;
 	mutable size_t iterations;

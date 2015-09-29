@@ -55,6 +55,8 @@ bool CC2::test()const{
 
 /// solve the CC2 ground state equations, returns the correlation energy
 double CC2::solve()const{
+	// Check if HF is converged
+	if(parameters.debug) solve_CCS();
 	//if(parameters.debug) test();
 	// Initialize the Pair functions (uij, i>=j)
 	if(parameters.restart) output_section("Initialize Electron Pairs: Loading Stored Pairs");
@@ -102,6 +104,69 @@ double CC2::solve()const{
 	if(world.rank()==0) std::cout << "MP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << correlation_energy_mp2 << "\nCC2 Correlation Energy is: " << correlation_energy_cc2 << std::endl;
 	output_section("Nothing more Implemented right now");
 	return correlation_energy_cc2;
+}
+
+// Solve the CCS equations for the ground state (debug potential and check HF convergence)
+bool CC2::solve_CCS()const{
+	output_section("SOLVE CCS");
+	// since the symmetry should not change use the projected aos from moldft as guess
+	CC_Singles singles;
+	real_function_3d guessi = real_factory_3d(world);
+	for(size_t i=0;i<nemo.get_calc()->ao.size();i++) guessi += nemo.get_calc()->ao[i];
+	CCOPS.Q(guessi);
+	for(size_t i=0;i<active_mo.size();i++){
+		CC_Single tmp(i,guessi);
+		singles.push_back(tmp);
+	}
+
+	for(size_t iter=0;iter<30;iter++){
+		output_subsection("Iterate CCS: Iteration "+stringify(iter+1));
+		CCOPS.update_intermediates(singles);
+		CC_Timer timer_potential(world,"CCS Potential");
+		vecfuncT potential = CCOPS.get_CCS_potential(singles);
+		timer_potential.info();
+
+		output_subsection("Apply the Green's Operator");
+		CC_Timer timer_G(world,"Apply the Green's Operator");
+		vecfuncT G_potential = zero_functions<double,3>(world,potential.size());
+		scale(world,potential,-2.0);
+		for(size_t i=0;i<potential.size();i++){
+			double epsi = CCOPS.get_orbital_energies()[i];
+			real_convolution_3d G = BSHOperator<3>(world, sqrt(-2.0 * epsi), parameters.lo, parameters.thresh_bsh_3D);
+			real_function_3d tmp = (G(potential[i])).truncate();
+			CCOPS.Q(tmp);
+			G_potential[i] = tmp;
+		}
+		timer_G.info();
+
+		std::vector<double> errors;
+		bool converged = true;
+		std::vector<double> omega;
+		for(size_t i=0;i<potential.size();i++){
+			if(world.rank()==0) std::cout << "|| |tau" + stringify(i)+">|| =" << G_potential[i].norm2() << std::endl;
+			real_function_3d residue = singles[i].function() - G_potential[i];
+			double error = residue.norm2();
+			errors.push_back(error);
+			if(world.rank()==0) std::cout << "|| residue" + stringify(i)+">|| =" << error << std::endl;
+			CCOPS.Q(G_potential[i]);
+			singles[i].update(G_potential[i]);
+			singles[i].iterations ++;
+			if(fabs(error) > parameters.dconv_3D) converged = false;
+			omega.push_back(CCOPS.compute_ccs_correlation_energy(singles[i],singles[i]));
+		}
+		// print out the norms
+		output("Current CCS Correlation energies (Diagonal Part)");
+		if(world.rank()==0) std::cout << omega << std::endl;
+		output("CCS Norms");
+		for(size_t i=0;i<singles.size();i++){
+			double norm = singles[i].function().norm2();
+			if(world.rank()==0) std::cout << norm << std::endl;
+		}
+		if(converged) break;
+
+	}
+
+
 }
 
 double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
@@ -276,8 +341,6 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_Singles &singles
 	}
 	timer_G.info();
 
-
-	output_section("Initialized CC2 Singles");
 	std::vector<double> errors;
 	bool converged = true;
 	for(size_t i=0;i<potential.size();i++){
@@ -286,7 +349,8 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_Singles &singles
 		double error = residue.norm2();
 		errors.push_back(error);
 		if(world.rank()==0) std::cout << "|| residue" + stringify(i)+">|| =" << error << std::endl;
-		singles[i].function() = G_potential[i];
+		CCOPS.Q(G_potential[i]);
+		singles[i].update(G_potential[i]);
 		singles[i].iterations ++;
 		if(fabs(error) > parameters.dconv_3D) converged = false;
 	}
