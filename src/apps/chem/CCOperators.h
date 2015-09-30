@@ -22,6 +22,10 @@ namespace madness {
 
 typedef std::vector<Function<double, 3> > vecfuncT;
 
+static double dipole_x(const coord_3d &r){return r[0];}
+static double dipole_y(const coord_3d &r){return r[1];}
+static double dipole_z(const coord_3d &r){return r[2];}
+static double dipole_r(const coord_3d &r){return sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);}
 
 
 /// Structure that holds the CC intermediates and is able to refresh them
@@ -626,6 +630,62 @@ public:
 		return real_factory_6d(world);
 	}
 
+	std::pair<std::vector<double>,vecfuncT> decompose_u(const CC_Pair &u)const{
+		std::vector<double> cresult;
+		vecfuncT gi = get_higher_moments(mo_ket_[u.i]);
+		vecfuncT gj = get_higher_moments(mo_ket_[u.j]);
+		Q(gi);
+		Q(gj);
+		for(size_t i=0;i<gi.size();i++){
+			real_function_3d xu1 = u.function.project_out(gi[i],0);
+			const double xxu1 = xu1.inner(gj[i]);
+			real_function_3d diff = xxu1*xu1 - gj[i];
+			if(world.rank()==0) std::cout << "Difference between residue and second function=" << diff.norm2() << std::endl;
+			real_function_3d xu2 = u.function.project_out(gj[i],1);
+			const double xxu2 = xu2.inner(gi[i]);
+			if(world.rank()==0) std::cout << "Decomposition of u" << u.i << u.j << " for moment " << i << " gives " << xxu1 << " and " << xxu2 << std::endl;
+			cresult.push_back(xxu1);
+		}
+		std::pair<std::vector<double>,vecfuncT> result(cresult,gi);
+		return result;
+	}
+
+	vecfuncT get_higher_moments(const real_function_3d &f)const{
+		vecfuncT result;
+		real_function_3d fx = real_factory_3d(world).f(dipole_x);
+		real_function_3d fy = real_factory_3d(world).f(dipole_y);
+		real_function_3d fz = real_factory_3d(world).f(dipole_z);
+		real_function_3d fr = real_factory_3d(world).f(dipole_r);
+		result.push_back(fx*f);
+		result.push_back(fy*f);
+		result.push_back(fz*f);
+		result.push_back(fr*f);
+
+		result.push_back(fx*fx*f);
+		result.push_back(fx*fy*f);
+		result.push_back(fx*fz*f);
+		result.push_back(fx*fr*f);
+
+		//result.push_back(fy*fx*f);
+		result.push_back(fy*fy*f);
+		result.push_back(fy*fz*f);
+		result.push_back(fy*fr*f);
+
+		//result.push_back(fz*fx*f);
+		//result.push_back(fz*fy*f);
+		result.push_back(fz*fz*f);
+		result.push_back(fz*fr*f);
+
+		//result.push_back(fr*fx*f);
+		//result.push_back(fr*fy*f);
+		//result.push_back(fr*fz*f);
+		result.push_back(fr*fr*f);
+
+		for(auto x:result) x.scale(1.0/(x.norm2()));
+
+		return result;
+
+	}
 
 private:
 	/// The World

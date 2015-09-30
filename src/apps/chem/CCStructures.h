@@ -469,6 +469,8 @@ public:
 	size_t i;
 	mutable bool converged;
 	mutable size_t iterations;
+
+
 private:
 	real_function_3d function_;
 	static size_t uninitialized(){return 999;}

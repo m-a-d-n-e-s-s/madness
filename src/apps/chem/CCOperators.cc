@@ -350,6 +350,71 @@ vecfuncT CC_Operators::S6(const CC_Singles &tau) const {
 /// notation: <k|g|u_ik> = <k(2)|g12|u_ik(1,2)> (Integration over second particle)
 
 vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) const {
+
+	/// DEBUG
+	{
+
+		std::pair<std::vector<double>,vecfuncT> decomposed_u = decompose_u(u(0,0));
+		double decomposed_norm=0.0;
+		for(size_t k=0;k<decomposed_u.first.size();k++){
+			for(size_t l=0;l<decomposed_u.first.size();l++){
+				double tmp = decomposed_u.first[k]*decomposed_u.first[l]*decomposed_u.second[k].inner(decomposed_u.second[l]);
+				if(world.rank()==0) std::cout << "norm contribution from " << k << l << " =" << tmp << std::endl;
+				decomposed_norm += tmp;
+			}
+		}
+		if(world.rank()==0) std::cout << "decomposed norm=" << decomposed_norm << " full norm=" << u(0,0).function.norm2() << std::endl;
+
+		if(world.rank()==0)std::cout << "\n\nS2b Debug section\n";
+		if(world.rank()==0)std::cout << "Test with |u> = |00>\n";
+
+		real_function_3d unit = real_factory_3d(world).f(unitfunction);
+
+		real_function_6d u00 = CompositeFactory<double,6,3>(world).particle1(copy(mo_ket_.front())).particle2(copy(mo_ket_.front()));
+		u00.fill_tree().truncate().reduce_rank();
+
+		if(world.rank()==0)std::cout << "|| |00> ||=" << u00.norm2() << std::endl;
+		if(world.rank()==0)std::cout << "<0|0>=" << mo_ket_.front().inner(mo_ket_.front()) << std::endl;
+
+
+		real_function_6d u000 = multiply(copy(u00),copy(mo_bra_.front()),2);
+		u000.print_size("|0>*|00>");
+
+		(*poisson).particle()=2;
+		real_function_6d gu000 = ((*poisson)(u000)).truncate();
+		gu000.print_size("<0|g|00> 6D");
+		if(world.rank()==0)std::cout << "||<0|g|0>(x)|0>|| 6D=" << gu000.norm2() << std::endl;
+
+
+		real_function_3d kgk = (*poisson)(mo_bra_.front()*mo_ket_.front());
+		double inner_kgk = kgk.inner(kgk);
+		double inner_0 = mo_ket_.front().inner(mo_ket_.front());
+		if(world.rank()==0)std::cout << "||<0|g|0>(x)|0>|| 3D=" << sqrt(inner_kgk * inner_0);
+
+
+		real_function_3d result1 = gu000.project_out(unit,1);
+		result1.print_size("<0|g|00> from 6D projection");
+		real_function_3d result2 = kgk*mo_ket_.front();
+		result2.print_size("<0|g|00> from 3D multiplication");
+
+		real_function_3d diff = result1 - result2;
+		diff.print_size(" <0|g|00> - (<0|g|)>)|0> ");
+		if(world.rank()==0)std::cout << "||<0|g|00>||=" << result1.norm2() << std::endl;
+		if(world.rank()==0)std::cout << "||<0|g|0>*|0>||=" << result2.norm2() << std::endl;
+
+		if(world.rank()==0)std::cout << "Testing unitfunction projection\n";
+		real_function_3d test1 = u00.project_out(unit,1);
+		real_function_3d test2 = mo_ket_.front()*mo_ket_.front();
+		if(world.rank()==0)std::cout << "|| <unit|00> ||" << test1.norm2() << std::endl;
+		if(world.rank()==0)std::cout << "|| |0>*|0> ||" << test2.norm2() << std::endl;
+
+
+		if(world.rank()==0)std::cout << "\n\nEnd S2b Debug section\n";
+
+
+	}
+	/// DEBUG END
+
 	vecfuncT t = make_t_intermediate(singles);
 	real_function_3d tdensity = intermediates_.make_density(mo_bra_,t);
 	vecfuncT result(singles.size());
@@ -1223,6 +1288,8 @@ real_function_3d CC_Operators::convolute_x_gQf_yz(const real_function_3d &x, con
 	result.truncate();
 	return result;
 }
+
+
 
 
 

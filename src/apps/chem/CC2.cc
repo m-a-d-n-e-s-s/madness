@@ -56,7 +56,7 @@ bool CC2::test()const{
 /// solve the CC2 ground state equations, returns the correlation energy
 double CC2::solve()const{
 	// Check if HF is converged
-	if(parameters.debug) solve_CCS();
+	//if(parameters.debug) solve_CCS();
 	//if(parameters.debug) test();
 	// Initialize the Pair functions (uij, i>=j)
 	if(parameters.restart) output_section("Initialize Electron Pairs: Loading Stored Pairs");
