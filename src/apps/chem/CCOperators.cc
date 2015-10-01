@@ -368,8 +368,6 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) 
 		if(world.rank()==0)std::cout << "\n\nS2b Debug section\n";
 		if(world.rank()==0)std::cout << "Test with |u> = |00>\n";
 
-		real_function_3d unit = real_factory_3d(world).f(unitfunction);
-
 		real_function_6d u00 = CompositeFactory<double,6,3>(world).particle1(copy(mo_ket_.front())).particle2(copy(mo_ket_.front()));
 		u00.fill_tree().truncate().reduce_rank();
 
@@ -392,7 +390,11 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) 
 		if(world.rank()==0)std::cout << "||<0|g|0>(x)|0>|| 3D=" << sqrt(inner_kgk * inner_0);
 
 
-		real_function_3d result1 = gu000.project_out(unit,1);
+		real_function_3d result1;
+		{
+			dirac_convolution delta_op(result1,u000);
+			unary_op_node(delta_op);
+		}
 		result1.print_size("<0|g|00> from 6D projection");
 		real_function_3d result2 = kgk*mo_ket_.front();
 		result2.print_size("<0|g|00> from 3D multiplication");
@@ -402,10 +404,13 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles ) 
 		if(world.rank()==0)std::cout << "||<0|g|00>||=" << result1.norm2() << std::endl;
 		if(world.rank()==0)std::cout << "||<0|g|0>*|0>||=" << result2.norm2() << std::endl;
 
-		if(world.rank()==0)std::cout << "Testing unitfunction projection\n";
-		real_function_3d test1 = u00.project_out(unit,1);
+		if(world.rank()==0)std::cout << "Testing delta projection\n";
+		real_function_3d delta_result;
+		dirac_convolution delta_op(delta_result,u00);
+		unary_op_node(delta_op);
+
 		real_function_3d test2 = mo_ket_.front()*mo_ket_.front();
-		if(world.rank()==0)std::cout << "|| <unit|00> ||" << test1.norm2() << std::endl;
+		if(world.rank()==0)std::cout << "|| <delta|00> ||" << delta_result.norm2() << std::endl;
 		if(world.rank()==0)std::cout << "|| |0>*|0> ||" << test2.norm2() << std::endl;
 
 

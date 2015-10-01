@@ -1961,6 +1961,63 @@ namespace madness {
                 world.gop.fence();
         }
 
+        /// Integrate over one particle of a two particle function and get a one particle function
+        /// bsp \int g(1,2) \delta(2-1) d2 = f(1)
+        /// The overall dimension of g should be even
+        struct dirac_convolution_op{
+        	/// ctor and copy ctor
+        	dirac_convolution_op(implT * f, implT *g) : f(f),g(g) {}
+        	dirac_convolution_op(const dirac_convolution_op &other): f(other.f), g(other.g){}
+
+        	/// the 3D result function
+        	implT* f;
+        	/// the 6D function
+        	implT* g;
+
+        	/// The operator
+        	void operator()(const keyT &key, nodeT &node){
+        		// fast return if the node has children (not a leaf node)
+        		if(node.has_children()) return;
+
+        		// break the 6D key into two 3D keys (may also work for every even dimension)
+        		keyT key1, key2;
+        		key.break_apart(key1,key2);
+
+        		// get the coefficients of the 6D function g
+        		coeffT & g_coeff = node.coeff();
+
+				// get the values of the 6D function g
+        		coeffT g_values = g->coeffs2values(key,g_coeff);
+
+        		// Determine rank and k
+                const long rank=g_values.rank();
+                const long maxk=f->get_k();
+                MADNESS_ASSERT(maxk==g_coeff.dim(0));
+
+                // get tensors for particle 1 and 2 (U and V in SVD)
+                tensorT vec1=copy(g_values.config().ref_vector(0).reshape(rank,maxk,maxk,maxk));
+                tensorT vec2=g_values.config().ref_vector(1).reshape(rank,maxk,maxk,maxk);
+                tensorT result(maxk,maxk,maxk);  // should give zero tensor
+                // Multiply the values of each U and V vector
+                for (long i=0; i<rank; ++i) {
+                    tensorT c1=vec1(Slice(i,i),_,_,_); // shallow copy (!)
+                    tensorT c2=vec2(Slice(i,i),_,_,_);
+                    c1.emul(c2); // this changes vec1 because of shallow copy, but not the g function because of the deep copy made above
+                    result += c1;
+                }
+
+                // replace coefficients
+                nodeT node_f(coeffT(result,f->get_tensor_args()));
+                f->get_coeffs().replace(key1,node_f);
+
+                return;
+        	}
+
+
+        };
+
+
+
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
         /// @param[in] op the unary operator for the coefficients
         template <typename opT>
