@@ -609,6 +609,7 @@ public:
 	double make_ijgxy(const size_t &i, const size_t &j, const real_function_3d &x, const real_function_3d &y)const;
 	/// Make two electron integral with the pair function
 	double make_ijgu(const size_t &i, const size_t &j, const CC_Pair &u)const;
+	double make_ijgu(const size_t &i, const size_t &j, const real_function_6d &u)const;
 	/// Make two electron integral with BSH operator
 	double make_ijGu(const size_t &i, const size_t &j, const CC_Pair &u)const;
 	/// apply the operator gf = 1/(2\gamma)*(Coulomb - 4\pi*BSH_\gamma)

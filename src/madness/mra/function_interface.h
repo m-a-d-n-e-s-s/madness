@@ -463,7 +463,6 @@ namespace madness {
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
 		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
-
 			initialize(eps);
 		}
 

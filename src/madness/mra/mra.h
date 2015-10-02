@@ -872,6 +872,8 @@ namespace madness {
         }
 
 
+
+
         static void doconj(const Key<NDIM>, Tensor<T>& t) {
             PROFILE_MEMBER_FUNC(Function);
             t.conj();
@@ -1291,6 +1293,15 @@ namespace madness {
             return result;
         }
 
+        template<std::size_t LDIM>
+        Function<T,LDIM> dirac_convolution(const bool fence=true) const {
+//        	// this will be the result function
+        	FunctionFactory<T,LDIM> factory=FunctionFactory<T,LDIM>(world()).k(this->k());
+        	Function<T,LDIM> f = factory;
+        	if(this->is_compressed()) this->reconstruct();
+        	this->get_impl()->do_dirac_convolution(f.get_impl().get(),fence);
+        	return f;
+        }
 
         /// Replaces this function with one loaded from an archive using the default processor map
 
@@ -2074,6 +2085,7 @@ namespace madness {
 
         return result;
     }
+
 
 
     /// multiply a high-dimensional function with a low-dimensional function
