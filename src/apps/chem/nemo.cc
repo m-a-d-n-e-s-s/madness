@@ -108,7 +108,8 @@ double Nemo::value(const Tensor<double>& x) {
 	// compute the dipole moment
 	functionT rho = 2.0*(R_square*make_density(calc->aocc, calc->amo)).truncate();
 	calc->dipole(world,rho);
-
+	real_function_3d rhonemo=make_density(calc->aocc, calc->amo);
+	//make_laplacian_density(rhonemo);
 	// compute the hessian
 	if (calc->param.hessian) hessian(x);
 
@@ -599,10 +600,11 @@ real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) c
 
     result+=(laplace_rhonemo).truncate();
     result=(R_square*result).truncate();
+    save(result,"d2rho");
 
-//    // double check result: recompute the density from its laplacian
-//    real_function_3d rho_rec=-1./(4.*constants::pi)*(*poisson)(result);
-//    save(rho_rec,"rho_reconstructed");
+    // double check result: recompute the density from its laplacian
+    real_function_3d rho_rec=-1./(4.*constants::pi)*(*poisson)(result);
+    save(rho_rec,"rho_reconstructed");
 
     return result;
 }

@@ -16,7 +16,7 @@
 
 namespace madness{
 
-
+enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
 
 typedef std::vector<Function<double, 3> > vecfuncT;
 
@@ -41,10 +41,22 @@ public:
 	void info(bool debug = true){
 		if(debug==true){
 			update_time();
-			if(world.rank()==0) std::cout<< std::setw(40) << std::setfill(' ') << "Timer: " << operation << " : " << std::scientific << std::setprecision(1)
+			if(world.rank()==0) std::cout<< std::setw(20) << std::setfill(' ') << std::setw(60) << "Timer:"+operation+" : "<< std::setfill(' ') << std::scientific << std::setprecision(1)
 			<< end_wall << "s (wall) "<< end_cpu << "s (cpu)" << std::endl;
 		}
 	}
+
+	std::pair<double,double> current_time(bool debug=true){
+		update_time();
+		info(debug);
+		return std::make_pair(end_wall,end_cpu);
+	}
+
+	void print(const std::pair<double,double> &times)const{
+		if(world.rank()==0) std::cout<< std::setw(20) << std::setfill(' ')  << "Timer: " << std::setw(60)<< operation+" : "<< std::setfill(' ') << std::scientific << std::setprecision(1)
+		<< times.first << "s (wall) "<< times.second << "s (cpu)" << std::endl;
+	}
+
 
 };
 
@@ -70,7 +82,9 @@ struct CC_Parameters{
 	restart(false),
 	corrfac_gamma(2.0),
 	output_prec(8),
-	debug(false)
+	debug(false),
+	mp2(false),
+	mp2_only(false)
 	{}
 
 	// read parameters from input
@@ -96,7 +110,9 @@ struct CC_Parameters{
 		output_prec(8),
 		debug(false),
 		kain(false),
-		kain_subspace(3)
+		kain_subspace(3),
+		mp2(false),
+		mp2_only(false)
 	{
 		// get the parameters from the input file
         std::ifstream f(input.c_str());
@@ -189,6 +205,8 @@ struct CC_Parameters{
             else if ((s == "corrfac_gamma") or (s== "gamma")) f>>corrfac_gamma;
             else if (s == "kain") kain=true;
             else if (s == "kain_subspace") f>>kain_subspace;
+            else if (s == "mp2_only" ) {mp2_only=true; mp2=true;}
+            else if (s == "mp2") mp2=true;
             else continue;
         }
 
@@ -243,6 +261,10 @@ struct CC_Parameters{
 	size_t output_prec;
 	// debug mode
 	bool debug;
+	// do only mp2 calculation and no cc2
+	bool mp2_only;
+	// do mp2 calculation as guess calculation for cc2
+	bool mp2;
 	// use kain or not
 	bool kain;
 	size_t kain_subspace;
@@ -259,6 +281,7 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_3D set :"         << FunctionDefaults<3>::get_thresh() << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D demanded :"         << thresh_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D set :"         << FunctionDefaults<6>::get_thresh() << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D_tight :"     << thresh_6D_tight << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_3D :"     << thresh_bsh_3D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D :"     << thresh_bsh_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson_3D :" << thresh_poisson_3D << std::endl;
@@ -283,7 +306,10 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "Autorefine (3D, 6D) :" << FunctionDefaults<6>::get_autorefine() << ", " << FunctionDefaults<3>::get_autorefine()  <<std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "debug mode is: " << debug  <<std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "Kain is: " << kain << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "MP2 is: " << mp2 << std::endl;
 			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
+			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
+			if(mp2) std::cout << std::setw(20) << std::setfill(' ') << "MP2 Guess demanded" << std::endl;
 
 
 
@@ -312,6 +338,7 @@ struct CC_Parameters{
 		if(thresh_3D > 0.01*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
 		if(thresh_3D > 0.1*thresh_6D) error(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
 		if(kain and kain_subspace !=0) warnings+=warning(world,"Demanded Kain solver but the size of the iterative subspace is set to zero");
+		if(restart and mp2_only) warnings+=warning(world,"Demanded mp2_only and restart ... does not work right now");
 		if(warnings >0){
 			if(world.rank()==0) std::cout << warnings <<"Warnings in parameters sanity check!\n\n";
 		}else{
@@ -368,6 +395,12 @@ public:
 	/// ctor; initialize energies with a large number
 	CC_Pair(const int i, const int j) :
 			i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
+					uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
+					false) {
+	}
+	/// ctor; initialize energies with a large number
+	CC_Pair(const real_function_6d &f,const int i, const int j) :
+			function(f),i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 					uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
 					false) {
 	}
@@ -469,6 +502,7 @@ public:
 	size_t i;
 	mutable bool converged;
 	mutable size_t iterations;
+	functype type = PARTICLE;
 
 
 private:
@@ -480,6 +514,21 @@ private:
 
 typedef  std::vector<CC_Single> CC_Singles;
 
+// structure for a CC Function 3D which holds an index and a type
+struct CC_3D_function{
+	CC_3D_function(): i(99), type(UNDEFINED){}
+	CC_3D_function(const real_function_3d &f): function(f), i(99),type(UNDEFINED){}
+	CC_3D_function(const real_function_3d &f, const size_t &ii): function(f), i(ii), type(UNDEFINED){}
+	CC_3D_function(const real_function_3d &f, const size_t &ii, const functype &type_): function(f), i(ii), type(type_){}
+	CC_3D_function(const CC_3D_function &other): function(other.function), i(other.i), type(other.type){}
+	real_function_3d function;
+	size_t i;
+	functype type;
+	void info(World &world,const std::string &msg = "unspecified")const{
+		if(world.rank()==0) std::cout <<"Information about 3D function: " << msg << " i=" << i << " type=" << type << std::endl;
+		function.print_size(msg);
+	}
+};
 }
 
 #endif /* CCSTRUCTURES_H_ */

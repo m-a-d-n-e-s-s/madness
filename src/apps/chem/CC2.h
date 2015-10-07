@@ -56,7 +56,28 @@ public:
         //output_section("Testing Section in Constructor");
         //CCOPS.test_fill_tree();
 }
-
+	void plot(const real_function_3d &f, const std::string &msg = "unspecified function")const{
+		plot_plane(world,f,msg);
+		output("Plotted " + msg);
+	}
+	/// Check energy convergence: Creates the difference between two vectors and compares against given thresh in parameters
+	bool check_energy_convergence(const std::vector<double> &current, const std::vector<double> &updated)const{
+		if(current.size()!=updated.size())MADNESS_EXCEPTION("error in energy convergence check: different sizes in vectors",1);
+		bool conv = true;
+		std::vector<double> diff(current.size(),0.0);
+		for(size_t i=0;i<current.size();i++){
+			double diffi = updated[i] - current[i];
+			diff[i] = diffi;
+			if(diffi > parameters.econv) conv=false;
+		}
+		if(world.rank()==0){
+			std::cout << "\n\n";
+			std::cout << "Pair Correlation Energies: New, Old, Diff\n";
+			for(size_t i=0;i<current.size();i++) std::cout << updated[i] << ", " << current[i] << ", " << diff[i] << std::endl;
+			std::cout << "\n\n";
+		}
+		return conv;
+	}
 	/// make consistency tests
 	bool test()const;
 	/// The World
