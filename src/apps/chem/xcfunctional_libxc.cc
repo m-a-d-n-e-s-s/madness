@@ -804,20 +804,20 @@ Tensor<double> XCfunctional::fxc(const std::vector<Tensor<double> >& t,
 }
 
 
-#if 0
 /// compute the derivative of the XC potential (2nd derivative of the XC energy)
 
 /// @param[in]  t   vector of Tensors holding rho and sigma
 /// @param[in]  ispin   the current spin (0=alpha, 1=beta)
+/// @param[in]  xc_contrib    which term to compute
 Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
-        const int ispin) const {
+        const int ispin, const xc_contribution xc_contrib) const {
 
     MADNESS_ASSERT(!spin_polarized);    // for now
+    MADNESS_ASSERT(ispin==0);           // for now
 
     // copy quantities from t to rho and sigma
     Tensor<double> rho,sigma;   // rho=2rho_alpha, sigma=4sigma_alpha
     make_libxc_args(t, rho, sigma);
-    const double * restrict dens = rho.ptr();
 
     // number of grid points
     const int np = t[0].size();
@@ -827,72 +827,95 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
     const int nspin2=nspin*(nspin+1)/2;         // rhf: 1; uhf: 3
     const int nspin3=nspin2*(nspin2+1)/2;       // rhf: 1; uhf: 6
 
-    // result tensors
+    // intermediate tensors: partial derivatives of f_xc wrt rho/sigma
     Tensor<double> v2rho2(nspin2*np);       // lda, gga
+    Tensor<double> v2rhosigma(nspin3*np);   // gga
+    Tensor<double> v2sigma2(nspin3*np);     // gga
+    Tensor<double> vrho(nspin*np);          // gga
+    Tensor<double> vsigma(nspin2*np);       // gga
 
+    // result tensor
     Tensor<double> result(3L, t[0].dims());
-    double * restrict res = result.ptr();
 
     for (unsigned int i=0; i<funcs.size(); i++) {
         switch(funcs[i].first->info->family) {
         case XC_FAMILY_LDA: {
             double * restrict vr = v2rho2.ptr();
+            const double * restrict dens = rho.ptr();
             xc_lda_fxc(funcs[i].first, np, dens, vr);
-            if (what < 2) {
-                for (long j=0; j<np; j++) {
-                    // 0,2,4,.. or 1,3,5,.. // works for both rhf and uhf
-                    res[j] += vr[nspin*j+ispin]*funcs[i].second;
-                }
-            }
         }
         break;
 
         case XC_FAMILY_HYB_GGA:
         case XC_FAMILY_GGA:
         {
-            Tensor<double> v2rhosigma(nspin3*np);   // gga
-            Tensor<double> v2sigma2(nspin3*np);     // gga
-            double * restrict vrr = v2rho2.ptr();
-            double * restrict vrs = v2rhosigma.ptr();
-            double * restrict vss = v2sigma2.ptr();
-            const double * restrict sig = sigma.ptr();
-            // in: funcs[i].first
-            // in: np      number of points
-            // in: dens    the density [a,b], or 2*\rho_alpha
-            // in: sig     contracted density gradients \nabla \rho . \nabla \rho [aa,ab,bb]
-            // out: vrr     \del^2 e/\del \rho^2_alpha [a,b]
-            // out: vrs     \del^2 e/\del \sigma_alpha\rho [aa,ab,bb]
-            // out: vss     \del^2 e/\del \sigma^2_alpha [aa,ab,bb]
-            xc_gga_fxc(funcs[i].first, np, dens, sig, vrr, vrs, vss);
+            if ((xc_contrib == XCfunctional::kernel_second_semilocal) or
+                    (xc_contrib== XCfunctional::kernel_second_local)) {   // partial second derivatives
+                double * restrict vrr = v2rho2.ptr();
+                double * restrict vrs = v2rhosigma.ptr();
+                double * restrict vss = v2sigma2.ptr();
+                const double * restrict sig = sigma.ptr();
+                const double * restrict dens = rho.ptr();
 
-            // if (spin_polarized) ..
-            MADNESS_ASSERT(!spin_polarized);    // for now
+                // in: funcs[i].first
+                // in: np      number of points
+                // in: dens    the density [a,b], or 2*\rho_alpha
+                // in: sig     contracted density gradients \nabla \rho . \nabla \rho [aa,ab,bb]
+                // out: vrr     \del^2 e/\del \rho^2_alpha [a,b]
+                // out: vrs     \del^2 e/\del \sigma_alpha\rho [aa,ab,bb]
+                // out: vss     \del^2 e/\del \sigma^2_alpha [aa,ab,bb]
+                xc_gga_fxc(funcs[i].first, np, dens, sig, vrr, vrs, vss);
 
-            if (what == 0) {    // v2rho2
-                result+=v2rho2*funcs[i].second;
-            } else if (what == 1) {    // v2rhosigma
-                result+=v2rhosigma*funcs[i].second;
-            } else if (what == 2) {    // v2sigma2
-                result+=v2sigma2*funcs[i].second;
-            } else {
-                print("what ",what);
-                MADNESS_EXCEPTION("unknown what in xcfunctional::fxc",1);
+            } else if (xc_contrib == XCfunctional::kernel_first_semilocal) {   // partial first derivatives
+                double * restrict vr = vrho.ptr();
+                double * restrict vs = vsigma.ptr();
+                const double * restrict sig = sigma.ptr();
+                const double * restrict dens = rho.ptr();
+
+                // in: funcs[i].first
+                // in: np      number of points
+                // in: dens    the density [a,b]
+                // in: sig     contracted density gradients \nabla \rho . \nabla \rho [aa,ab,bb]
+                // out: vr     \del e/\del \rho_alpha [a,b]
+                // out: vs     \del e/\del sigma_alpha [aa,ab,bb]
+                xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
+
             }
-
         }
         break;
         default:
             MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::fxc",1);
         }
+
+        Tensor<double> result1;
+
+        // multiply the kernel with the various densities
+        if (xc_contrib== XCfunctional::kernel_second_local) {  // local terms, second derivative
+            const Tensor<double>& dens_pt=t[enum_rho_pt];
+            const Tensor<double>& sigma_pt=2.0*t[enum_sigma_pta];   // factor 2 for closed shell
+            result1=v2rho2.emul(dens_pt);
+            if (is_gga()) result1+= 2.0*v2rhosigma.emul(sigma_pt);
+
+        } else if (xc_contrib== XCfunctional::kernel_second_semilocal) {   // semilocal terms, second derivative
+            const Tensor<double>& dens_pt=t[enum_rho_pt];
+            const Tensor<double>& sigma_pt=2.0*t[enum_sigma_pta];       // factor 2 for closed shell
+            result1=2.0*v2rhosigma.emul(dens_pt) + 4.0*v2sigma2.emul(sigma_pt);
+
+        } else if (xc_contrib== XCfunctional::kernel_first_semilocal) {   // semilocal terms, first derivative
+            result1=2.0*vsigma;
+        }
+
+        // accumulate into result tensor with proper weighting
+        result+=result1*funcs[i].second;
+
     }
 
     // check for NaNs
+    double * restrict res = result.ptr();
     for (long j=0; j<np; j++) if (isnan_x(res[j])) throw "ouch";
-
-
+    return result;
 }
 
-#endif
 
 madness::Tensor<double> XCfunctional::fxc_old(const std::vector< madness::Tensor<double> >& t,
         const int ispin, const int what) const {

@@ -109,6 +109,15 @@ double Nemo::value(const Tensor<double>& x) {
 	functionT rho = 2.0*(R_square*make_density(calc->aocc, calc->amo)).truncate();
 	calc->dipole(world,rho);
 
+	functionT rhonemo=make_density(calc->aocc,calc->amo);
+	functionT ddens0=make_ddensity(rhonemo,0);
+    functionT ddens1=make_ddensity(rhonemo,1);
+    functionT ddens2=make_ddensity(rhonemo,2);
+    save(ddens0,"ddens0_U1");
+    save(ddens1,"ddens1_U1");
+    save(ddens2,"ddens2_U1");
+//    throw;
+
 	// compute the hessian
 	if (calc->param.hessian) hessian(x);
 
@@ -700,7 +709,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 /// compute the nuclear hessian
 Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 
-    const bool hessdebug=(true and (world.rank()==0));
+    const bool hessdebug=(false and (world.rank()==0));
 
     const int natom=molecule().natom();
     const vecfuncT& nemo=get_calc()->amo;
@@ -930,15 +939,16 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
         // construct perturbed operators
         Coulomb Jp(world);
-        // 2: closed shell, 2: cphf
+        // factor 4 from: closed shell (2) and cphf (2)
         real_function_3d density_pert=4.0*make_density(occ,R2nemo,xi_complete);
         Jp.potential()=Jp.compute_potential(density_pert);
-
         vecfuncT Kp;
         if (is_dft()) {
             // reconstruct the full perturbed density
-            real_function_3d full_dens_pt=density_pert + 2.0*RXR*rhonemo;
-            real_function_3d gamma=-1.0*xc.make_xc_kernel()*full_dens_pt;
+            const real_function_3d full_dens_pt=(density_pert + 2.0*RXR*rhonemo).truncate();
+            save(full_dens_pt,"full_dens_pt");
+            const XCOperator xc1(world,this,0);
+            real_function_3d gamma=-1.0*xc1.apply_xc_kernel(full_dens_pt);
             Kp=mul(world,gamma,nemo);
         } else {
             Exchange Kp1=Exchange(world).small_memory(false).same(true);
@@ -1006,11 +1016,6 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     const int natom=molecule().natom();
     std::vector<vecfuncT> xi(3*natom);
 
-    const Tensor<double> fock=this->compute_fock_matrix(get_calc()->amo,
-            get_calc()->get_aocc());
-    print("fock");
-    print(fock);
-
     // read CPHF vectors from file if possible
     if (get_calc()->param.read_cphf) {
         xi.resize(3*natom);
@@ -1019,6 +1024,12 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
         }
         return xi;
     }
+
+    const Tensor<double> fock=this->compute_fock_matrix(get_calc()->amo,
+            get_calc()->get_aocc());
+    print("fock");
+    print(fock);
+
 
     for (protocol p(*this); not p.finished(); ++p) {
         set_protocol(p.current_prec);

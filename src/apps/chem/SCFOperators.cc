@@ -453,8 +453,10 @@ double XCOperator::compute_xc_energy() const {
         MADNESS_EXCEPTION("calling xc energy without intermediates ",1);
     }
 
+    refine_to_common_level(world,xc_args);
     real_function_3d vlda=multiop_values<double, xc_functional, 3>
             (xc_functional(*xc), xc_args);
+    truncate(world,xc_args);
 
     return vlda.trace();
 }
@@ -465,10 +467,12 @@ real_function_3d XCOperator::make_xc_potential() const {
     if (not is_initialized()) {
         MADNESS_EXCEPTION("calling xc potential without intermediates ",1);
     }
+
+    refine_to_common_level(world,xc_args);
+
     // LDA part
     real_function_3d dft_pot=multiop_values<double, xc_potential, 3>
                 (xc_potential(*xc, ispin, 0), xc_args);
-//    save(dft_pot,"lda_rho");
 
     // GGA part
     //
@@ -489,7 +493,6 @@ real_function_3d XCOperator::make_xc_potential() const {
         // get Vsigma_aa (if it is the case and Vsigma_bb)
         functionT vsigaa = multiop_values<double, xc_potential, 3>
             (xc_potential(*xc, ispin, 1), xc_args); //.truncate();
-//        save(vsigaa,"vsigaa");
 
         functionT vsigab;
         if (xc->is_spin_polarized() && nbeta != 0)// V_ab
@@ -510,11 +513,11 @@ real_function_3d XCOperator::make_xc_potential() const {
             functionT vxc2=D(ddel);
             gga_pot-=vxc2;//.truncate();
         }
-//        save(gga_pot,"gga_pot");
 
         dft_pot+=gga_pot;
     } //is gga
-//    save(dft_pot,"dft_pot");
+
+    truncate(world,xc_args);
 
     return dft_pot.truncate();
 }
@@ -526,35 +529,107 @@ real_function_3d XCOperator::make_xc_kernel() const {
     if (xc->is_gga() ) MADNESS_EXCEPTION("no gga in xc_kernel",1);
 
     // LDA part
+    refine_to_common_level(world,xc_args);
     real_function_3d dft_kernel=multiop_values<double, xc_kernel, 3>
             (xc_kernel(*xc, ispin, 0), xc_args);
     return dft_kernel;
 
 }
 
-real_function_3d XCOperator::apply_xc_kernel(const real_function_3d& density) const {
-    real_function_3d result;
+/// apply the xc kernel on a perturbed density
 
-    return result;
+/// cf Eq. (13) of T. Yanai, R. J. Harrison, and N. Handy,
+/// “Multiresolution quantum chemistry in multiwavelet bases: time-dependent
+/// density functional theory with asymptotically corrected potentials in
+/// local density and generalized gradient approximations,”
+/// Mol. Phys., vol. 103, no. 2, pp. 413–424, 2005.
+///
+/// the application of the xc kernel is (RHF only)
+/// \f[
+///   \frac{\partial^2E_{xc}}{\partial \rho_\alpha^2}\circ\tilde\rho
+///      = second_{local} + second_{semilocal} + first_{semilocal}
+/// \f]
+/// where the second partial derivatives are
+/// \f[
+///        second_{local} = \frac{\partial^2 f_{xc}}{\partial \rho_\alpha^2}\tilde \rho
+///        + 2\frac{\partial^2 f_{xc}}{\partial \rho_\alpha\sigma_{\alpha\alpha}}
+///            \left(\vec\nabla \rho_a\cdot \vec \nabla\tilde\rho\right)
+/// \f]
+//  the second partial derivatives that need to be multiplied with the density gradients
+/// \f[
+///      second_{semilocal} = -\vec\nabla\cdot\left((\vec\nabla\rho)
+///             \left[2\frac{\partial^2 f_{xc}}{\partial\rho_\alpha\partial\sigma_{\alpha\alpha}}\tilde\rho
+///             + 4\frac{\partial^2 f_{xc}}{\partial\sigma_{\alpha\alpha}^2}
+///                \left(\vec\nabla\rho_\alpha\cdot\vec\nabla\tilde\rho\right)\right]\right)
+/// \f]
+/// and the first derivatives that need to be multiplied with the density gradients
+/// \f[
+///      first_{semilocal} =
+///        -\vec\nabla\cdot\left(2\frac{\partial f_{xc}}{\partial\sigma_{\alpha\alpha}}\vec\nabla\tilde\rho\right)
+/// \f]
+real_function_3d XCOperator::apply_xc_kernel(const real_function_3d& dens_pt) const {
+
+    MADNESS_ASSERT(not xc->is_spin_polarized());    // for now
+    MADNESS_ASSERT(ispin==0);           // for now
+
+    if (not is_initialized()) {
+        MADNESS_EXCEPTION("calling apply_xc_kernel without intermediates ",1);
+    }
+
+    vecfuncT ddens_pt;
+    prep_xc_args_response(dens_pt, xc_args, ddens_pt);
+    refine_to_common_level(world,xc_args);
+
+    // compute the various terms from the xc kernel
+
+    // compute the local terms: second_{local}
+    real_function_3d result=multiop_values<double, xc_kernel_apply, 3>
+            (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_second_local), xc_args);
+
+    if (xc->is_gga()) {
+        // compute the semilocal terms, second partial derivatives
+        real_function_3d semilocal2=multiop_values<double, xc_kernel_apply, 3>
+                (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_second_semilocal), xc_args);
+
+        for (int idim=0; idim<3; ++idim) {
+            real_function_3d ddens = xc_args[XCfunctional::enum_drhoa_x+idim];
+            real_function_3d ddel = 2.0*semilocal2*ddens;
+            Derivative<double,3> D = free_space_derivative<double,3>(world, idim);
+            real_function_3d vxc2=D(ddel);
+            result-=vxc2;
+        }
+
+        // compute the semilocal terms, first partial derivative
+        real_function_3d semilocal1=multiop_values<double, xc_kernel_apply, 3>
+                (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_first_semilocal), xc_args);
+        for (int idim=0; idim<3; ++idim) {
+            real_function_3d ddel = semilocal1*ddens_pt[idim];
+            Derivative<double,3> D = free_space_derivative<double,3>(world, idim);
+            real_function_3d vxc2=D(ddel);
+            result-=vxc2;
+        }
+    }
+
+    truncate(world,xc_args);
+    return result.truncate();
 }
 
 /// prepare xc args
 vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
         const real_function_3d& brho) const {
 
-    vecfuncT xcargs(13);
+    World& world=arho.world();
+    vecfuncT xcargs(XCfunctional::number_xc_args);
     const bool have_beta=(xc->is_spin_polarized()) and (nbeta>0);
 
     // assign the densities (alpha, beta)
-    xcargs[XCfunctional::enum_rhoa]=copy(arho);                   // alpha density
     arho.reconstruct();
-    xcargs[XCfunctional::enum_rhoa].reconstruct();
+    xcargs[XCfunctional::enum_rhoa]=copy(arho);      // alpha density
     if (have_beta) {
+        brho.reconstruct();
         xcargs[XCfunctional::enum_rhob]=copy(brho);  // beta density
-    	brho.reconstruct();
-        xcargs[XCfunctional::enum_rhob].reconstruct();
     }
-    arho.world().gop.fence();
+    world.gop.fence();
 
     if (xc->is_gga()) {
         // compute the gradients of the densities
@@ -571,7 +646,7 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
             xcargs[XCfunctional::enum_drhob_y]=(*gradop[1])(brho, false);
             xcargs[XCfunctional::enum_drhob_z]=(*gradop[2])(brho, false);
         }
-        arho.world().gop.fence();
+        world.gop.fence();
 
         // autorefine before squaring
         real_function_3d drhoa_x=copy(xcargs[XCfunctional::enum_drhoa_x]).refine();
@@ -593,25 +668,74 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
             xcargs[XCfunctional::enum_sbb]=    // sigma_bb
                     (drhob_x * drhob_x + drhob_y * drhob_y + drhob_z * drhob_z).truncate();
         }
-        arho.world().gop.fence();
-
-        save(xcargs[XCfunctional::enum_drhoa_x],"drhoa_x");
-        save(xcargs[XCfunctional::enum_drhoa_y],"drhoa_y");
-        save(xcargs[XCfunctional::enum_drhoa_z],"drhoa_z");
-        save(xcargs[XCfunctional::enum_saa],"sigma_aa");
+        world.gop.fence();
 
     }
 
-    // response densities (e.g. CIS, CPHF)
-    xcargs[11];
-    xcargs[12];
-    arho.world().gop.fence();
-
+    world.gop.fence();
     truncate(world,xcargs);
-    refine_to_common_level(world,xcargs);
 
     return xcargs;
 }
+
+/// add intermediates for the response kernels to xc_args
+void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
+        vecfuncT& xc_args, vecfuncT& ddens_pt) const {
+
+    const bool have_beta=(xc->is_spin_polarized()) and (nbeta>0);
+    World& world=dens_pt.world();
+
+    const real_function_3d& arho=xc_args[XCfunctional::enum_rhoa];
+    const real_function_3d& brho=xc_args[XCfunctional::enum_rhob];
+    ddens_pt=vecfuncT(3);
+
+    // assign the perturbed density (spin-free ??)
+    xc_args[XCfunctional::enum_rho_pt]=dens_pt;
+    world.gop.fence();
+
+    // assign the reduced density gradients with the perturbed density for GGA
+    // \sigma_pt_a = \nabla \rho_\alpha \cdot \nabla\tilde\rho
+    // \sigma_pt_b = \nabla \rho_\beta \cdot \nabla\tilde\rho
+    if (xc->is_gga()) {
+
+        std::vector< std::shared_ptr<Derivative<double,3> > > gradop =
+                gradient_operator<double,3>(world);
+        arho.reconstruct(false);
+        brho.reconstruct(false);
+        dens_pt.reconstruct(false);
+        world.gop.fence();
+
+        std::vector<real_function_3d> ddensa(3),ddensb(3);
+        for (std::size_t i=0; i<3; ++i) {
+            ddensa[i]=(*gradop[i])(arho, false);
+            if (have_beta) ddensb[i]=(*gradop[i])(brho, false);
+            ddens_pt[i]=(*gradop[i])(dens_pt, false);
+        }
+        world.gop.fence();
+
+        // autorefine before squaring
+        for (std::size_t i=0; i<3; ++i) {
+            ddensa[i].refine(false);
+            if (have_beta) ddensb[i].refine(false);
+            ddens_pt[i].refine(false);
+        }
+        world.gop.fence();
+
+        xc_args[XCfunctional::enum_sigma_pta]=    // sigma_a
+                (ddensa[0] * ddens_pt[0] + ddensa[1] * ddens_pt[1] + ddensa[2] * ddens_pt[2]).truncate();
+
+        if (have_beta) {
+            xc_args[XCfunctional::enum_sigma_ptb]=    // sigma_b
+                    (ddensb[0] * ddens_pt[0] + ddensb[1] * ddens_pt[1] + ddensb[2] * ddens_pt[2]).truncate();
+        }
+        world.gop.fence();
+        truncate(world,ddens_pt);
+    }
+    world.gop.fence();
+
+    truncate(world,xc_args);
+}
+
 
 void XCOperator::prep_xc_args_old(const real_function_3d& arho,
         const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const {
