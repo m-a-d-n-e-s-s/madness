@@ -90,7 +90,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     madness::Tensor<double> result(3L, t[0].dims(), false);
     double* f = result.ptr();
     if (spin_polarized) {
-        MADNESS_ASSERT(t.size() == 2);
+//        MADNESS_ASSERT(t.size() == 2);
         const double* brho = t[1].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
             double ra = munge(arho[i]);
@@ -105,7 +105,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         }
     }
     else {
-        MADNESS_ASSERT(t.size() == 1);
+//        MADNESS_ASSERT(t.size() == 1);
         double q1, q2, dq;
         for (unsigned int i=0; i<result.size(); i++) {
             double r = munge(2.0 * arho[i]);
@@ -126,7 +126,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     double* f = result.ptr();
 
     if (spin_polarized) {
-        MADNESS_ASSERT(t.size() == 2);
+//        MADNESS_ASSERT(t.size() == 2);
         const double* brho = t[1].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
             double ra = munge(arho[i]);
@@ -141,7 +141,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
         }
     }
     else {
-        MADNESS_ASSERT(t.size() == 1);
+//        MADNESS_ASSERT(t.size() == 1);
         const double* arho = t[0].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
             double r = munge(2.0 * arho[i]);
