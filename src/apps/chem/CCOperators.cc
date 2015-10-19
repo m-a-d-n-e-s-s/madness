@@ -694,8 +694,6 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 	MADNESS_ASSERT(u.j == tauj.i);
 	const size_t i=taui.i;
 	const size_t j=tauj.i;
-	const CC_3D_function ti(taui.function() + mo_ket_[i],i,MIXED);
-	const CC_3D_function tj(tauj.function() + mo_ket_[j],j,MIXED);
 
 	// DEBUG
 	if(parameters.debug){
@@ -880,6 +878,9 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 	// this is expensive !!!!
 	if(parameters.debug){
 		output("Expensive Debug Calculation");
+
+		const CC_3D_function ti(taui.function() + mo_ket_[i],i,MIXED);
+		const CC_3D_function tj(tauj.function() + mo_ket_[j],j,MIXED);
 
 		real_function_6d GQUK_test = (-2.0)*(G_UeK_parts) + u.constant_term;
 		 GQUK_test.print_size("Ue and [K,f] + mp2_residue");

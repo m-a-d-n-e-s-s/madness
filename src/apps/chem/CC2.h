@@ -31,7 +31,7 @@ public:
 		world(world_),
 		parameters(inputFileName, nemo_.get_calc() -> param.lo),
 		nemo(nemo_),
-		active_mo(nemo_.get_calc()->amo),
+		mo(nemo_.get_calc()->amo),
 		//correlationfactor(world,parameters.corrfac_gamma,parameters.thresh_f12,nemo.get_calc()->molecule),
 		correlationfactor(world,1.0,1.e-7,nemo.get_calc()->molecule),
 		CCOPS(world,nemo,correlationfactor,parameters)
@@ -56,6 +56,24 @@ public:
         //output_section("Testing Section in Constructor");
         //CCOPS.test_fill_tree();
 }
+	vecfuncT make_active_mo(){
+		if(mo.empty()) MADNESS_EXCEPTION("Tried to init. active MOs, but MO vector is empty",1);
+		if(parameters.freeze != 0){
+			output("Make Active MOs from " + stringify(parameters.freeze) + " to " + stringify(mo.size()));
+			vecfuncT tmp;
+			for(size_t i=parameters.freeze; i<mo.size();i++){
+				tmp.push_back(mo[i]);
+			}
+			if (tmp.size() != CCOPS.mo_ket().size()) CCOPS.error("active_mo of CC2 class and mo_ket_ of CC_Operators have not the same size");
+			if (tmp.size() != CCOPS.mo_bra().size()) CCOPS.error("active_mo of CC2 class and mo_bra_ of CC_Operators have not the same size");
+			output("Active molecular orbitals have been created...");
+			if(world.rank()==0) std::cout << mo.size() << " MOs\n " << active_mo.size() << " Active MOs\n" << parameters.freeze << "frozen MOs\n";
+			return tmp;
+		}else{
+			output("No freezing demanded, active_mo = mo");
+			return mo;
+		}
+	}
 	void plot(const real_function_3d &f, const std::string &msg = "unspecified function")const{
 		plot_plane(world,f,msg);
 		output("Plotted " + msg);
@@ -86,8 +104,10 @@ public:
 	const CC_Parameters parameters;
 	/// The SCF Calculation
 	const Nemo &nemo;
+	/// Molecular orbitals (all of them, NEMOS!!! )
+	const vecfuncT mo;
 	/// Active MO
-	const vecfuncT &active_mo;
+	const vecfuncT active_mo;
 	/// The electronic Correlation Factor
 	CorrelationFactor correlationfactor;
 	/// The CC Operator Class

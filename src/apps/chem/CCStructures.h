@@ -83,8 +83,9 @@ struct CC_Parameters{
 	corrfac_gamma(2.0),
 	output_prec(8),
 	debug(false),
+	mp2_only(false),
 	mp2(false),
-	mp2_only(false)
+	freeze(0)
 	{}
 
 	// read parameters from input
@@ -111,8 +112,9 @@ struct CC_Parameters{
 		debug(false),
 		kain(false),
 		kain_subspace(3),
+		mp2_only(false),
 		mp2(false),
-		mp2_only(false)
+		freeze(0)
 	{
 		// get the parameters from the input file
         std::ifstream f(input.c_str());
@@ -207,6 +209,7 @@ struct CC_Parameters{
             else if (s == "kain_subspace") f>>kain_subspace;
             else if (s == "mp2_only" ) {mp2_only=true; mp2=true;}
             else if (s == "mp2") mp2=true;
+            else if (s == "freeze") f>>freeze;
             else continue;
         }
 
@@ -268,11 +271,14 @@ struct CC_Parameters{
 	// use kain or not
 	bool kain;
 	size_t kain_subspace;
+	// freeze MOs
+	size_t freeze;
 
 	// print out the parameters
 	void information(World &world)const{
 		if(world.rank()==0){
 			//std::cout << "CC2 Parameters:\n";
+			std::cout << std::setw(20) << std::setfill(' ') << "freeze :"           << freeze << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "restart :"           << restart << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "lo :"                << lo << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "k (3D) :"                << FunctionDefaults<3>::get_k() << std::endl;
@@ -310,6 +316,7 @@ struct CC_Parameters{
 			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
 			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
 			if(mp2) std::cout << std::setw(20) << std::setfill(' ') << "MP2 Guess demanded" << std::endl;
+
 
 
 

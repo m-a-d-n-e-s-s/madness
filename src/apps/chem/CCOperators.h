@@ -259,9 +259,11 @@ public:
 	real_function_3d mo_ket(const size_t &i)const{
 		return mo_ket_[i];
 	}
+	vecfuncT mo_ket()const{return mo_ket_;}
 	real_function_3d mo_bra(const size_t &i)const{
 		return mo_bra_[i];
 	}
+	vecfuncT mo_bra()const{return mo_bra_;}
 
 	vecfuncT get_CIS_potential(const vecfuncT &tau) {
 		CC_Singles singles(tau.size());
@@ -1298,16 +1300,32 @@ private:
 	}
 	/// Helper function to initialize the const mo_bra and ket elements
 	vecfuncT make_mo_bra(const Nemo &nemo) const {
-		CC_Timer init_bra(world,"Initialized molecular orbital bra_elements");
 		vecfuncT tmp = mul(world, nemo.nuclear_correlation->square(),
 				nemo.get_calc()->amo);
-		return tmp;
-		init_bra.info();
+		set_thresh(world,tmp,parameters.thresh_3D);
+		if (parameters.freeze ==0) return tmp;
+		else{
+			vecfuncT tmp2;
+			for(size_t i=parameters.freeze;i<tmp.size();i++){
+				tmp2.push_back(tmp[i]);
+			}
+			set_thresh(world,tmp2,parameters.thresh_3D);
+			return tmp2;
+		}
 	}
 
 	vecfuncT make_mo_ket(const Nemo&nemo)const{
 		vecfuncT tmp = nemo.get_calc()->amo;
-		return tmp;
+		set_thresh(world,tmp,parameters.thresh_3D);
+		if(parameters.freeze ==0 )return tmp;
+		else{
+			vecfuncT tmp2;
+			for(size_t i=parameters.freeze;i<tmp.size();i++){
+				tmp2.push_back(tmp[i]);
+			}
+			set_thresh(world,tmp2,parameters.thresh_3D);
+			return tmp2;
+		}
 	}
 	/// The poisson operator (Coulomb Operator)
 	std::shared_ptr<real_convolution_3d> poisson = std::shared_ptr
