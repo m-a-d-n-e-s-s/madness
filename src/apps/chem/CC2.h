@@ -32,6 +32,7 @@ public:
 		parameters(inputFileName, nemo_.get_calc() -> param.lo),
 		nemo(nemo_),
 		mo(nemo_.get_calc()->amo),
+		active_mo(make_active_mo()),
 		//correlationfactor(world,parameters.corrfac_gamma,parameters.thresh_f12,nemo.get_calc()->molecule),
 		correlationfactor(world,1.0,1.e-7,nemo.get_calc()->molecule),
 		CCOPS(world,nemo,correlationfactor,parameters)
@@ -119,19 +120,19 @@ public:
 	/// solve the MP2 equations (uncoupled -> Canonical Orbitals)
 	double solve_uncoupled_mp2(Pairs<CC_Pair> &u)const;
 	/// solve the coupled CC2 equations
-	double solve_cc2(Pairs<CC_Pair> &u, CC_Singles &tau)const;
-	bool iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_Singles &singles)const;
-	bool iterate_cc2_doubles( Pairs<CC_Pair> &doubles, const CC_Singles &singles)const;
+	double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau)const;
+	bool iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles)const;
+	bool iterate_cc2_doubles( Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
 	/// Compute the pair correlation energy of an electron pair function at mp2/CCD level (no singles contributions)
 	double compute_mp2_pair_energy(CC_Pair &u)const;
-	CC_Singles initialize_cc2_singles(const Pairs<CC_Pair> &doubles)const;
+	CC_vecfunction initialize_cc2_singles(const Pairs<CC_Pair> &doubles)const;
 	/// Initialize an electron pair
 	/// Calculate the constant Term, and the <ij|gQf|ij> etc terms
 	void initialize_electron_pair(CC_Pair &u)const;
 	/// Calculate the current CC2 correlation energy
 	double compute_correlation_energy(const vecfuncT &singles, const Pairs<real_function_6d> &doubles)const;
 	/// update the pair energies of cc2
-	std::vector<double> update_cc2_pair_energies(const Pairs<CC_Pair> &doubles, const CC_Singles &singles)const;
+	std::vector<double> update_cc2_pair_energies(const Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
 	/// Iterates the CC2 singles equations
 	void iterate_singles(vecfuncT &singles, const Pairs<real_function_6d> &doubles)const;
 	/// Iterates the CC2 doubles equations

@@ -46,9 +46,9 @@ public:
 		}
 	}
 
-	std::pair<double,double> current_time(bool debug=true){
+	std::pair<double,double> current_time(bool printout = false){
 		update_time();
-		info(debug);
+		info(printout);
 		return std::make_pair(end_wall,end_cpu);
 	}
 
@@ -179,7 +179,7 @@ struct CC_Parameters{
             	thresh_poisson_3D = tmp;
             	thresh_bsh_3D     = tmp;
             }
-            else if (s == "thresh_operators_6d" or s == "thresh_operator_3d"){
+            else if (s == "thresh_operators_6d" or s == "thresh_operator_6d"){
             	double tmp =0.0;
             	f >> tmp;
             	if(tmp>minopthresh) tmp = minopthresh;
@@ -388,6 +388,8 @@ struct Pairs {
 	}
 };
 
+typedef Pairs<real_function_3d> intermediateT;
+
 /// enhanced POD for the pair functions
 class CC_Pair: public archive::ParallelSerializableObject {
 
@@ -407,7 +409,7 @@ public:
 	}
 	/// ctor; initialize energies with a large number
 	CC_Pair(const real_function_6d &f,const int i, const int j) :
-			function(f),i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
+			i(i), j(j),function(f), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 					uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
 					false) {
 	}
@@ -494,48 +496,232 @@ public:
 	}
 };
 
-class CC_Single{
-public:
-	// Constructors
-	CC_Single() : converged(false),iterations(0){}
-	CC_Single(const size_t ii): i(ii), converged(false),iterations(0) {}
-	CC_Single(const size_t i, const real_function_3d &f): i(i), converged(false),iterations(0), function_(f){}
-	CC_Single(const CC_Single &other): i(other.i), converged(other.converged),iterations(other.iterations), function_(other.function()){}
-
-	real_function_3d function()const{return function_;}
-	void update(const real_function_3d &fresh_function){
-		function_ = fresh_function;
-	}
-	size_t i;
-	mutable bool converged;
-	mutable size_t iterations;
-	functype type = PARTICLE;
-
-
-private:
-	real_function_3d function_;
-	static size_t uninitialized(){return 999;}
-
+struct asd{
 
 };
 
-typedef  std::vector<CC_Single> CC_Singles;
-
 // structure for a CC Function 3D which holds an index and a type
-struct CC_3D_function{
-	CC_3D_function(): i(99), type(UNDEFINED){}
-	CC_3D_function(const real_function_3d &f): function(f), i(99),type(UNDEFINED){}
-	CC_3D_function(const real_function_3d &f, const size_t &ii): function(f), i(ii), type(UNDEFINED){}
-	CC_3D_function(const real_function_3d &f, const size_t &ii, const functype &type_): function(f), i(ii), type(type_){}
-	CC_3D_function(const CC_3D_function &other): function(other.function), i(other.i), type(other.type){}
+struct CC_function{
+	CC_function(): i(99), type(UNDEFINED){};
+	CC_function(const real_function_3d &f): function(f), i(99),type(UNDEFINED){};
+	CC_function(const real_function_3d &f, const size_t &ii): function(f), i(ii), type(UNDEFINED){};
+	CC_function(const real_function_3d &f, const size_t &ii, const functype &type_): function(f), i(ii), type(type_){};
+	CC_function(const CC_function &other): function(other.function), i(other.i), type(other.type){};
 	real_function_3d function;
+	real_function_3d get()const{return function;}
+	real_function_3d f()const{return function;}
+	void set(const real_function_3d &other){function=other;}
 	size_t i;
 	functype type;
 	void info(World &world,const std::string &msg = "unspecified")const{
 		if(world.rank()==0) std::cout <<"Information about 3D function: " << msg << " i=" << i << " type=" << type << std::endl;
 		function.print_size(msg);
 	}
+
+	void operator =(const CC_function &other){
+		type = other.type;
+		i = other.i;
+		function = other.function;
+	}
+	void operator =(const real_function_3d &other){
+		function = other;
+	}
+	CC_function operator*(const CC_function &other)const{
+		real_function_3d tmp = (function*other.function).truncate();
+		return CC_function(tmp,99,UNDEFINED);
+	}
+
+
+	CC_function operator*(const real_function_3d &other)const{
+		real_function_3d tmp = (function*other).truncate();
+		return CC_function(tmp,99,UNDEFINED);
+	}
+	CC_function operator+(const CC_function &other)const{
+		real_function_3d tmp = function + other.function;
+		functype new_type = UNDEFINED;
+		if(type == other.type) new_type = type;
+		size_t new_i = 99;
+		if(i == other.i) new_i=i;
+		return CC_function(tmp,new_i,new_type);
+	}
+	CC_function operator+(const real_function_3d &other)const{
+		real_function_3d tmp = function + other;
+		return CC_function(tmp,i,UNDEFINED);
+	}
+	CC_function operator-(const real_function_3d &other)const{
+		real_function_3d tmp = function - other;
+		return CC_function(tmp,i,UNDEFINED);
+	}
+	CC_function operator-(const CC_function &other)const{
+		real_function_3d tmp = function - other.function;
+		functype new_type = UNDEFINED;
+		if(type == other.type) new_type = type;
+		size_t new_i = 99;
+		if(i == other.i) new_i=i;
+		return CC_function(tmp,new_i,new_type);
+	}
+	CC_function operator*(const double &a)const{
+		return CC_function(a*function,i,type);
+	}
+	void operator+=(const CC_function &other){
+		function += other.function;
+		if(i!=other.i) i=999;
+		if(type!=other.type) type=UNDEFINED;
+	}
+	void operator-=(const CC_function &other){
+		function += other.function;
+		if(i!=other.i) i=999;
+		if(type!=other.type) type=UNDEFINED;
+	}
 };
-}
+
+
+// structure for CC Vectorfunction
+struct CC_vecfunction{
+
+	CC_vecfunction(){}
+	CC_vecfunction(const vecfuncT &v): functions(make_vector(v)) {}
+	CC_vecfunction(const vecfuncT &v, const functype &type) : functions(make_vector(v,type)) {}
+	CC_vecfunction(const vecfuncT &v, const functype &type, const size_t &start, const size_t &end) : functions(make_vector(v,type,start,end)) {}
+	CC_vecfunction(const CC_vecfunction &other) : functions(other.functions) {}
+	CC_vecfunction(const std::vector<CC_function> &vec) : functions(vec) {}
+
+	std::vector<CC_function> functions;
+
+	std::vector<CC_function> get()const{return functions;}
+	void set(const std::vector<CC_function> &other){functions = other;}
+	std::vector<CC_function> operator()(){return functions;}
+	std::vector<CC_function> operator()()const{return functions;}
+	CC_function operator()(const size_t &i){return functions[i];}
+	CC_function operator()(const size_t &i)const{return functions[i];}
+
+	vecfuncT vec()const{
+		vecfuncT tmp;
+		for(auto x:functions) tmp.push_back(x.function);
+		return tmp;
+	}
+
+	std::vector<CC_function> make_vector(const vecfuncT &vf)const {return make_vector(vf,UNDEFINED,0,vf.size());}
+	std::vector<CC_function> make_vector(const vecfuncT &vf,const functype &type)const {return make_vector(vf,type,0,vf.size());}
+	std::vector<CC_function> make_vector(const vecfuncT &vf,const functype &type,const size_t &start,const size_t &end)const{
+		MADNESS_ASSERT(end>start);
+		MADNESS_ASSERT(end<=vf.size());
+		MADNESS_ASSERT(start>=0);
+		std::vector<CC_function> result(end-start);
+		for(size_t i=start;i<end;i++) result[i]=CC_function(vf[i],i,type);
+		return result;
+	}
+
+	void set_type(const functype &type){
+		for(auto x:functions) x.type = type;
+	}
+
+	std::size_t size()const{return functions.size();}
+	bool empty()const{return functions.empty();}
+	CC_function front()const{return functions.front();}
+
+	// make operators to interface vmra.h
+
+};
+
+// data structure which contains information about performances of a functions
+struct CC_data{
+	CC_data(): name("UNDEFINED"), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
+	CC_data(const std::string &name_):name(name_), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
+	CC_data(const CC_data &other) : name(other.name), time(other.time), result_size(other.result_size), result_norm(other.result_norm), warnings(other.warnings) {}
+	const std::string name;
+	std::pair<double,double> time; // overall time
+	double result_size;
+	double result_norm;
+	std::vector<std::string> warnings;
+
+	void info(World & world)const{
+		if(world.rank()==0) info();
+	}
+	void info(const bool &x)const{
+		if(x) info();
+		else return;
+	}
+	void info()const{
+		std::cout << std::setw(6) <<name << std::setfill(' ') << ", ||f||=" << result_norm << ", (" << result_size << ") GB, " << time.first << "s (Wall), " << time.second << "s (CPU)\n";
+		if(not warnings.empty()){
+			std::cout << "!!!Problems were detected in " << name <<"!!!\n";
+			std::cout << warnings << std::endl;
+		}
+	}
+};
+
+// structure which holds all CC_data structures sorted by name of the function and iteration
+struct CC_performance{
+
+	CC_performance():current_iteration(999){}
+
+	typedef std::map<std::pair<std::string, std::size_t>, CC_data> datamapT;
+	datamapT data;
+
+	/// getter
+	const CC_data& operator()(const std::string &name, const size_t &iter) const {
+		return data.find(std::make_pair(name, iter))->second;
+	}
+
+	/// getter
+	const CC_data& operator()(const std::string &name) const {
+		return data.find(std::make_pair(name, current_iteration))->second;
+	}
+
+
+	/// getter
+	CC_data& operator()(const std::string &name, const std::size_t &iter) {
+		return data[std::make_pair(name, iter)];
+	}
+
+	/// getter
+	CC_data& operator()(const std::string &name) {
+		return data[std::make_pair(name, current_iteration)];
+	}
+
+	/// setter
+	void insert(const std::string &name, const CC_data &new_data) {
+		std::pair<std::string, std::size_t> key = std::make_pair(name, current_iteration);
+		data.insert(std::make_pair(key, new_data));
+	}
+
+	mutable std::size_t current_iteration;
+
+	void info()const{
+		std::cout << "CC2 Performance information: Iteration \n";
+		for(auto x:data) x.second.info();
+	}
+
+	void info(const std::size_t &iter)const{
+		std::cout << "CC2 Performance information: Iteration" << iter << "\n";
+		for(auto x:data){
+			if(x.first.second == iter) x.second.info();
+		}
+	}
+
+	void info_last_iter()const {
+		if(current_iteration !=0)info(current_iteration -1);
+		else info(0);
+	}
+
+	std::pair<double,double> get_average_time(const std::string &name)const{
+		double overall_time_cpu = 0.0;
+		double overall_time_wall = 0.0;
+		size_t iterations = 0;
+		for(auto x:data){
+			if(x.first.first == name){
+				overall_time_wall += x.second.time.first;
+				overall_time_cpu += x.second.time.second;
+				iterations++;
+			}
+		}
+		if(iterations==0) return std::make_pair(0.0,0.0);
+		double iter = (double) iterations;
+		return std::make_pair(overall_time_wall/iter,overall_time_cpu/iter);
+	}
+};
+
+}//namespace madness
 
 #endif /* CCSTRUCTURES_H_ */

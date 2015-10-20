@@ -925,5 +925,14 @@ namespace madness {
 
     }
 
+    // gives back the size in GB
+    template <typename T, std::size_t NDIM>
+    double get_size(Function<T,NDIM> & f){
+    	const double d=sizeof(T);
+        const double fac=1024*1024*1024;
+        double size=f.size();
+        return size/fac*d;
+    }
+
 }
 #endif // MADNESS_MRA_VMRA_H__INCLUDED

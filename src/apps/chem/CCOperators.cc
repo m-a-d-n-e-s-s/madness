@@ -9,40 +9,53 @@
 
 namespace madness{
 
+/// save a function
+template<typename T, size_t NDIM>
+void CC_Operators::save_function(const Function<T, NDIM>& f,
+		const std::string name) const {
+	if (world.rank() == 0)
+		print("saving function", name);
+	f.print_size(name);
+	archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+	ar & f;
+}
+
 real_function_3d CC_Intermediates::make_density(const vecfuncT &bra,
-		const vecfuncT &ket) const {
-	if (bra.size() != ket.size())
-		error(
-				"error in make density: unequal sizes ("
-				+ stringify(bra.size()) + " and "
-				+ stringify(ket.size()) + ")");
-	if (bra.empty())
-		error("error in make_density: bra_element is empty");
+		const CC_vecfunction &ket) const {
+	if (bra.empty()) error("error in make_density: bra_element is empty");
+	if (ket.empty()) error("error in make_density: bra_element is empty");
 	// make the density
 	real_function_3d density = real_factory_3d(world);
-	for (size_t i = 0; i < bra.size(); i++)
-		density += bra[i] * ket[i];
+	for (auto x:ket.functions) density += (bra[x.i] * x.function).truncate();
 	density.truncate();
 	return density;
 }
 
-std::vector<vecfuncT> CC_Intermediates::make_exchange_intermediate(const vecfuncT &bra,
-		const vecfuncT &ket) const {
-	if (bra.size() != ket.size() or bra.empty())
-		error(
-				"in make_exchange_intermediate, bra and ket empty or unequal sizes:\n bra_size: "
-				+ stringify(bra.size()) + ", ket_size: "
-				+ stringify(ket.size()));
-	std::vector<vecfuncT> EX;
-	EX.resize(bra.size());
-	for (size_t i = 0; i < bra.size(); i++) {
-		EX[i].resize(ket.size());
-		for (size_t j = 0; j < ket.size(); j++) {
-			EX[i][j] = (*poisson)(bra[j] * ket[i]);
+intermediateT CC_Intermediates::make_exchange_intermediate(const vecfuncT &bra,
+		const CC_vecfunction &ket) const {
+//	if (bra.size() != ket.size() or bra.empty())
+//		error("in make_exchange_intermediate, bra and ket empty or unequal sizes:\n bra_size: "
+//				+ stringify(bra.size()) + ", ket_size: "
+//				+ stringify(ket.size()));
+//	std::vector<vecfuncT> EX;
+//	EX.resize(bra.size());
+//	for (size_t i = 0; i < bra.size(); i++) {
+//		EX[i].resize(ket.size());
+//		for (size_t j = 0; j < ket.size(); j++) {
+//			EX[i][j] = (*poisson)(bra[j] * ket[i]);
+//		}
+//		truncate(world, EX[i]);
+//	}
+//	return EX;
+	intermediateT xim;
+	for(size_t k=0;k<bra.size();k++){
+		for(auto l:ket.functions){
+			real_function_3d kl = (bra[k]*l.function).truncate();
+			real_function_3d result = ((*poisson)(kl)).truncate();
+			xim.insert(k,l.i,result);
 		}
-		truncate(world, EX[i]);
 	}
-	return EX;
+	return xim;
 }
 
 /// Calculates two electron integrals
@@ -50,16 +63,6 @@ std::vector<vecfuncT> CC_Intermediates::make_exchange_intermediate(const vecfunc
 Tensor<double> CC_Intermediates::make_two_electron_integrals_hf() const {
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), mo_ket_.size(),
 			mo_ket_.size());
-	for (size_t i = 0; i < mo_bra_.size(); i++) {
-		for (size_t j = 0; j < mo_bra_.size(); j++) {
-			for (size_t k = 0; k < mo_ket_.size(); k++) {
-				for (size_t l = 0; l < mo_ket_.size(); l++) {
-					result(i, j, k, l) = (mo_bra_[i] * mo_ket_[k]).inner(
-							exchange_intermediate_[l][j]);
-				}
-			}
-		}
-	}
 	return result;
 }
 /// <ij|g|k\tau_l>
@@ -67,32 +70,12 @@ Tensor<double> CC_Intermediates::make_two_electron_integrals_mixed_t1(
 		const vecfuncT &tau) const {
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), mo_ket_.size(),
 			tau.size());
-	for (size_t i = 0; i < mo_bra_.size(); i++) {
-		for (size_t j = 0; j < mo_bra_.size(); j++) {
-			for (size_t k = 0; k < mo_ket_.size(); k++) {
-				for (size_t l = 0; l < tau.size(); l++) {
-					result(i, j, k, l) = (mo_bra_[i] * mo_ket_[k]).inner(
-							perturbed_exchange_intermediate_[l][j]);
-				}
-			}
-		}
-	}
 	return result;
 }
 // <ij|g|\tau_k \tau_l>
 Tensor<double> CC_Intermediates::make_two_electron_integrals_t1(const vecfuncT &tau) const {
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), tau.size(),
 			tau.size());
-	for (size_t i = 0; i < mo_bra_.size(); i++) {
-		for (size_t j = 0; j < mo_bra_.size(); j++) {
-			for (size_t k = 0; k < tau.size(); k++) {
-				for (size_t l = 0; l < tau.size(); l++) {
-					result(i, j, k, l) = (mo_bra_[i] * tau[k]).inner(
-							perturbed_exchange_intermediate_[l][j]);
-				}
-			}
-		}
-	}
 	return result;
 }
 
@@ -153,68 +136,72 @@ double CC_Operators::compute_mp2_pair_energy(CC_Pair &pair)const{
 // the fock residue R= 2J-K for closed shell is computed here
 // J_i = \sum_k <k|r12|k> |tau_i>
 // K_i = \sum_k <k|r12|tau_i> |k>
-vecfuncT CC_Operators::fock_residue_closed_shell(const CC_Singles &singles) const {
-	vecfuncT tau(singles.size());
-	for(size_t x=0;x<tau.size();x++) tau[x]=singles[x].function();
+vecfuncT CC_Operators::fock_residue_closed_shell(const CC_vecfunction &singles) const {
+	vecfuncT tau = singles.vec();
 	CC_Timer timer_J(world,"J");
 	vecfuncT J = mul(world, intermediates_.get_hartree_potential(), tau);
 	truncate(world, J);
 	scale(world, J, 2.0);
 	timer_J.info();
 	CC_Timer timer_K(world,"K");
-	vecfuncT K;
-	for (size_t i = 0; i < tau.size(); i++) {
-		real_function_3d tmp = real_factory_3d(world);
-		vecfuncT vectmp = mul(world,
-				intermediates_.get_perturbed_exchange_intermediate()[i],
-				mo_ket_);
-		for (size_t j = 0; j < tau.size(); j++)
-			tmp += vectmp[j];
-		tmp.truncate();
-		K.push_back(tmp);
+	vecfuncT vK;
+	for(auto i:singles.functions){
+		real_function_3d Ki = K(i.function);
+		vK.push_back(Ki);
 	}
-	truncate(world, K);
-	scale(world, K, -1);
+	truncate(world, vK);
+	scale(world, vK, -1);
 	timer_K.info();
-	return add(world, J, K);
+	return add(world, J, vK);
 }
 
 // The coulomb Term of the S3C diagram: Positive sign
 // \     /
 //  \---/  = 2Q\sum_j(<j|g12|tau_j>)|i>
 //  _\_/_
-vecfuncT CC_Operators::S3c(const CC_Singles &singles, const std::string &msg) const {
-	vecfuncT tau(singles.size());
-	for(size_t x=0;x<tau.size();x++) tau[x]=singles[x].function();
-	vecfuncT result = mul(world,
-			intermediates_.get_perturbed_hartree_potential(), mo_ket_);
+vecfuncT CC_Operators::S3c(const CC_vecfunction &singles, const std::string &msg) const {
+	MADNESS_ASSERT(active_mo_.size()==singles.size());
+	CC_Timer timer(world,"time");
+	CC_data data("S3c");
+	vecfuncT result;
+	for(auto i:singles.functions){
+		real_function_3d tmp = (intermediates_.get_perturbed_hartree_potential()*mo_ket_[i.i]).truncate();
+		result.push_back(tmp);
+	}
 	Q(result);
 	truncate(world, result);
 	scale(world, result, 2.0);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
 // The Exchange Term of the S3C diagram: Negative sign
 // \  /
-//  \/...   = -Q\sum_j(<j|g12|i>|tau_j>)
+//  \/...   = -Q\sum_k(<k|g12|i>|tau_k>)
 //     / \
 //    _\_/_
-vecfuncT CC_Operators::S3c_X(const CC_Singles &singles, const std::string &msg) const {
+vecfuncT CC_Operators::S3c_X(const CC_vecfunction &singles, const std::string &msg) const {
+	MADNESS_ASSERT(active_mo_.size()==singles.size());
+	CC_Timer timer(world,"time");
+	CC_data data("S3c_X");
 	vecfuncT result;
-	vecfuncT tau(singles.size());
-	for(size_t x=0;x<tau.size();x++) tau[x]=singles[x].function();
-	for (size_t i = 0; i < tau.size(); i++) {
-		real_function_3d tmp = real_factory_3d(world);
-		vecfuncT vectmp = mul(world,
-				intermediates_.get_exchange_intermediate()[i], tau);
-		for (size_t j = 0; j < tau.size(); j++)
-			tmp += vectmp[j];
-		tmp.truncate();
-		result.push_back(tmp);
+	for(auto i:singles.functions){
+		real_function_3d resulti = real_factory_3d(world);
+	for(auto k:singles.functions){
+		resulti += (intermediates_.get_EX(i.i,k.i)*k.function).truncate();
+	}
+	result.push_back(resulti);
 	}
 	Q(result);
 	truncate(world, result);
 	scale(world, result, -1.0);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -225,13 +212,18 @@ vecfuncT CC_Operators::S3c_X(const CC_Singles &singles, const std::string &msg) 
 //  _\_/_  _\_/_
 // 2\sum_k <k|g|\tau_k> |\tau_i>
 // No Q is applied yet !
-vecfuncT CC_Operators::S5b(const CC_Singles &singles, const std::string &msg) const {
-	vecfuncT tau(singles.size());
-	for(size_t x=0;x<tau.size();x++) tau[x]=singles[x].function();
+vecfuncT CC_Operators::S5b(const CC_vecfunction &singles, const std::string &msg) const {
+	MADNESS_ASSERT(active_mo_.size()==singles.size());
+	CC_Timer timer(world,"time");
+	CC_data data("S5b");
 	vecfuncT result = mul(world,
-			intermediates_.get_perturbed_hartree_potential(), mo_ket_);
+			intermediates_.get_perturbed_hartree_potential(), active_mo_);
 	truncate(world, result);
 	scale(world, result, 2.0);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -242,22 +234,24 @@ vecfuncT CC_Operators::S5b(const CC_Singles &singles, const std::string &msg) co
 //  _\_/  \_/_
 // -\sum_k <k|g|\tau_i> |\tau_k>
 // No Q is applied yet !
-vecfuncT CC_Operators::S5b_X(const CC_Singles &singles, const std::string &msg) const {
-	vecfuncT tmp;
-	vecfuncT tau(singles.size());
-	for(size_t x=0;x<tau.size();x++) tau[x]=singles[x].function();
-	vecfuncT result = zero_functions_compressed<double, 3>(world,
-			(tau.size()));
-	for (size_t i = 0; i < tau.size(); i++) {
-		tmp = mul(world,
-				intermediates_.get_perturbed_exchange_intermediate()[i],
-				tau);
-		for (size_t k = 0; k < tau.size(); k++) {
-			result[i] += tmp[k];
+vecfuncT CC_Operators::S5b_X(const CC_vecfunction &singles, const std::string &msg) const {
+	vecfuncT result;
+	CC_Timer timer(world,"time");
+	CC_data data("S5b_X");
+	for(auto i:singles.functions){
+		real_function_3d resulti = real_factory_3d(world);
+		for(auto k:singles.functions){
+			resulti += (intermediates_.get_pEX(k.i,i.i)*k.function).truncate();
 		}
+		result.push_back(resulti);
 	}
+
 	truncate(world, result);
 	scale(world, result, -1);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -269,19 +263,27 @@ vecfuncT CC_Operators::S5b_X(const CC_Singles &singles, const std::string &msg) 
 // -2\sum_kl <kl|g|i\tau_l> |\tau_k>
 // No Q is applied yet !
 // May use alteriative algorithm with perturbed density intermediate
-vecfuncT CC_Operators::S5c(const CC_Singles&tau, const std::string &msg) const {
-	vecfuncT result = zero_functions_compressed<double, 3>(world,
-			tau.size());
-	for (size_t i = 0; i < mo_bra_.size(); i++) {
-		for (size_t k = 0; k < mo_bra_.size(); k++) {
-			for (size_t l = 0; l < mo_bra_.size(); l++) {
-				result[i] += intermediates_.get_integrals_mixed_t1()(k, l,
-						i, l) * tau[k].function();
+vecfuncT CC_Operators::S5c(const CC_vecfunction&singles, const std::string &msg) const {
+	vecfuncT result;
+	CC_Timer timer(world,"time");
+	CC_data data("S5c");
+	for(auto i:singles.functions){
+		real_function_3d resulti = real_factory_3d(world);
+		for(auto k:singles.functions){
+			for(auto l:singles.functions){
+				real_function_3d tmp = (intermediates_.get_EX(k.i,i.i)*l.function).truncate();
+				double integral = mo_bra_[l.i].inner(tmp);
+				resulti += integral*k.function;
 			}
 		}
+		result.push_back(resulti);
 	}
 	truncate(world, result);
 	scale(world, result, -2.0);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -292,19 +294,27 @@ vecfuncT CC_Operators::S5c(const CC_Singles&tau, const std::string &msg) const {
 //  _\_/  \_/_
 // -\sum_kl <lk|g|i\tau_l> |\tau_k>
 // No Q is applied yet !
-vecfuncT CC_Operators::S5c_X(const CC_Singles &tau, const std::string &msg) const {
-	vecfuncT result = zero_functions_compressed<double, 3>(world,
-			tau.size());
-	for (size_t i = 0; i < mo_bra_.size(); i++) {
-		for (size_t k = 0; k < mo_bra_.size(); k++) {
-			for (size_t l = 0; l < mo_bra_.size(); l++) {
-				result[i] += intermediates_.get_integrals_mixed_t1()(l, k,
-						i, l) * tau[k].function();
+vecfuncT CC_Operators::S5c_X(const CC_vecfunction &singles, const std::string &msg) const {
+	vecfuncT result;
+	CC_Timer timer(world,"time");
+	CC_data data("S5c_X");
+	for(auto i:singles.functions){
+		real_function_3d resulti = real_factory_3d(world);
+		for(auto k:singles.functions){
+			for(auto l:singles.functions){
+				real_function_3d tmp = (intermediates_.get_EX(l.i,i.i)*l.function).truncate();
+				double integral = mo_bra_[k.i].inner(tmp);
+				resulti += integral*k.function;
 			}
 		}
+		result.push_back(resulti);
 	}
 	truncate(world, result);
 	scale(world, result, -1.0);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -312,22 +322,32 @@ vecfuncT CC_Operators::S5c_X(const CC_Singles &tau, const std::string &msg) cons
 // \    /\    /...
 //  \  /  \  /   /\
 //  _\/_  _\/_  _\/_
-// -Q \sum_kl 2<kl|g|\tau_k\tau_i> |\tau_l> - \sum_kl <kl|g|\taui\tau_k> |\tau_l>
+// -Q (\sum_kl 2<kl|g|\tau_k\tau_i> |\tau_l> - \sum_kl <kl|g|\taui\tau_k> |\tau_l>)
 // Q is not applied yet!
-vecfuncT CC_Operators::S6(const CC_Singles &tau, const std::string &msg) const {
-	vecfuncT result = zero_functions_compressed<double, 3>(world,
-			tau.size());
-	for (size_t i = 0; i < tau.size(); i++) {
-		for (size_t k = 0; k < mo_bra_.size(); k++) {
-			for (size_t l = 0; l < mo_bra_.size(); l++) {
-				result[i] += (-2
-						* intermediates_.get_integrals_t1()(k, l, k, i)
-						- intermediates_.get_integrals_t1()(k, l, i, k))
-						* tau[l].function();
+vecfuncT CC_Operators::S6(const CC_vecfunction &singles, const std::string &msg) const {
+	vecfuncT result;
+	CC_Timer timer(world,"time");
+	CC_data data("S6");
+	for(auto i:singles.functions){
+		real_function_3d resulti = real_factory_3d(world);
+		for(auto k:singles.functions){
+			for(auto l:singles.functions){
+				real_function_3d tmp_J = (intermediates_.get_pEX(k.i,k.i)*i.function).truncate();
+				real_function_3d tmp_K = (intermediates_.get_pEX(k.i,i.i)*k.function).truncate();
+				double integral_J = l.function.inner(tmp_J);
+				double integral_K = l.function.inner(tmp_K);
+				resulti += (2.0*integral_J - integral_K)*l.function;
 			}
 		}
+		result.push_back(resulti);
 	}
 	truncate(world, result);
+	scale(world,result,-1.0);
+	Q(result);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -345,22 +365,24 @@ vecfuncT CC_Operators::S6(const CC_Singles &tau, const std::string &msg) const {
 /// @param[out] -Q\sum_k \left( 2<k|g|u_ik> - <k|g|u_ki> + 2<k|gQf|t_it_k> - <k|gQf|t_kt_i> \right), with t_i = i + \tau_i
 /// notation: <k|g|u_ik> = <k(2)|g12|u_ik(1,2)> (Integration over second particle)
 
-vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles , const std::string &msg) const {
-	vecfuncT t = make_t_intermediate(singles);
+vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_vecfunction & singles , const std::string &msg) const {
+	CC_Timer timer(world,"time");
+	CC_data data("S2b");
+	CC_vecfunction t = make_t_intermediate(singles);
 	real_function_3d tdensity = intermediates_.make_density(mo_bra_,t);
-	vecfuncT result(singles.size());
-	for(size_t i=0;i<singles.size();i++){
+	vecfuncT result;
+	for(auto i:t.functions){
 		real_function_3d resulti = real_factory_3d(world);
-		for(size_t k=0;k<singles.size();k++){
+		for(auto k:singles.functions){
 			{
 				CC_Timer S2b2(world,msg+"<k|g|u> with dirac convolution");
-				real_function_6d tmp = multiply(copy(u(i,k).function),copy(mo_bra_[k]),2);
+				real_function_6d tmp = multiply(copy(u(i.i,k.i).function),copy(mo_bra_[k.i]),2);
 				poisson -> particle() = 2;
 				real_function_6d result = (*poisson)(tmp);
 				real_function_3d r = result.dirac_convolution<3>();
 
 				// Exchange Part
-				real_function_6d tmpx = multiply(copy(u(i,k).function),copy(mo_bra_[k]),1);
+				real_function_6d tmpx = multiply(copy(u(i.i,k.i).function),copy(mo_bra_[k.i]),1);
 				poisson -> particle() = 1;
 				real_function_6d resultx= (*poisson)(tmpx);
 				real_function_3d rx = resultx.dirac_convolution<3>();
@@ -370,9 +392,9 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles , 
 				S2b2.info();
 				if(parameters.debug){
 					CC_Timer s2b_debug_time(world,msg+"s2b-debug-6D-part");
-					double debug = make_ijgu(i,k,u(i,k));
-					double debug2= r.inner(mo_bra_[i]);
-					if(fabs(debug-debug2)>FunctionDefaults<6>::get_thresh()) warning("S2b potential: Different result for |u> part " + stringify(debug) + " , " + stringify(debug2));
+					double debug = make_ijgu(i.i,k.i,u(i.i,k.i));
+					double debug2= r.inner(mo_bra_[i.i]);
+					if(fabs(debug-debug2)>FunctionDefaults<6>::get_thresh()) warning("S2b potential: Different result for |u> part " + stringify(debug) + " , " + stringify(debug2),data);
 					else if(world.rank()==0) std::cout << "6d part of S2b potential seems to be fine (debug integrals are:" << std::setprecision(parameters.output_prec) << debug << " and " << debug2 << std::endl;
 					s2b_debug_time.info();
 				}
@@ -383,48 +405,60 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles , 
 		real_function_3d t1part;
 		real_function_3d t1partx;
 		{
-			real_function_3d unitpart = (apply_gf(tdensity)*t[i]).truncate();
+
+			// 2<k|gf|t_it_k> - <k|gf|t_kt_i> // factors are added in the end
+			real_function_3d unitpart = (apply_gf(tdensity)*i.function).truncate();
 			real_function_3d unitpartx = real_factory_3d(world);
-			for(size_t k=0;k<singles.size();k++) unitpartx = (apply_gf(mo_bra_[k]*t[i])*t[k]).truncate();
+			for(auto k:t.functions) unitpartx = (apply_gf(mo_bra_[k.i]*i.function)*k.function).truncate();
 
 			// make intermediates
-			vecfuncT nfti(mo_bra_.size());
-			for(size_t n=0;n<mo_bra_.size();n++) nfti[n] = (*f12op)((mo_bra_[n]*t[i]).truncate());
+			// <n|f|ti>
+			vecfuncT nfti;
+			for(auto mo:mo_bra_) nfti.push_back( (*f12op)((mo*i.function).truncate()) );
 
 
+			// 2 \sum_n <k(2)|g12|n(1)><n(1)|f12|ti(1)tk(2)> = <k(2)|g12 nfti(2)|n(1)tk(2)> = poisson(k*nfti*tk)*n
+			//   \sum_n <k(2)|g12|n(1)><n(1)|f12|tk(1)ti(2)> = <k(2)|g12 nftk(2)|n(1)ti(2)> = poisson(k*nftk*ti)*n
+			// The sum over n also goes over the frozen orbitals
 			real_function_3d O1part = real_factory_3d(world);
 			real_function_3d O1partx = real_factory_3d(world);
-			for(size_t k=0;k<t.size();k++){
-				for(size_t n=0;n<t.size();n++){
-					O1part += ((*poisson)(mo_bra_[k]*t[k]*nfti[n])*mo_ket_[n]).truncate();
-					O1partx+= ((*poisson)(mo_bra_[k]*t[i]*((*f12op)(mo_bra_[n]*t[k])))*mo_ket_[n]).truncate();
+			for(auto k:t.functions){
+				for(size_t n=0;n<mo_ket_.size();n++){
+					O1part += ((*poisson)(mo_bra_[k.i]*k.function*nfti[n])*mo_ket_[n]).truncate();
+					real_function_3d nftk = ((*f12op)(mo_bra_[n]*k.function)).truncate();
+					real_function_3d poisson_integrant = (mo_bra_[k.i]*i.function*nftk).truncate();
+					O1partx+= ((*poisson)(poisson_integrant)*mo_ket_[n]).truncate();
 				}
 			}
 
+			// 2 \sum_n <k(2)|g12|n(2)><n(2)|f12|ti(1)tk(2)> = <k(2)|g12 nftk(1) |ti(1)n(2)> = poisson(k*n)*(nftk*ti)
+			//   \sum_n <k(2)|g12|n(2)><n(2)|f12|tk(1)ti(2)> = <k(2)|g12 nfti(1) |tk(1)n(2)> = poisson(k,n)*(nfti*tk)
 			real_function_3d O2part = real_factory_3d(world);
 			real_function_3d O2partx = real_factory_3d(world);
-			for(size_t k=0;k<t.size();k++){
-				for(size_t n=0;n<t.size();n++){
-					real_function_3d kgn = intermediates_.get_exchange_intermediate()[n][k];
-					real_function_3d nftk = (*f12op)(mo_bra_[n]*t[k]);
-					real_function_3d nfti = (*f12op)(mo_bra_[n]*t[i]);
-					O2part   += (kgn*nftk*t[i]).truncate();
-					O2partx  += (kgn*nfti*t[k]).truncate();
+			for(auto k:t.functions){
+				for(size_t n=0;n<mo_ket_.size();n++){
+					real_function_3d kgn = intermediates_.get_EX(k.i,n);
+					real_function_3d nftk = (*f12op)(mo_bra_[n]*k.function);
+					real_function_3d nfti = (*f12op)(mo_bra_[n]*i.function);
+					O2part   += (kgn*nftk*i.function).truncate();
+					O2partx  += (kgn*nfti*k.function).truncate();
 				}
 			}
 
+			// 2 \sum_nm <k(2)|g12|mn><mn|f12|ti(1)tk(2)> = <k|g|n>(1)|m(1)> *<mn|f|titk>
+			//   \sum_nm <k(2)|g12|mn><mn|f12|tk(1)ti(2)> = <k|g|n>(1)|m(1)> *<mn|f|tkti>
 			real_function_3d O12part = real_factory_3d(world);
 			real_function_3d O12partx = real_factory_3d(world);
-			for(size_t k=0;k<t.size();k++){
-				for(size_t n=0;n<t.size();n++){
-					for(size_t m=0;m<t.size();m++){
-						real_function_3d kgn = intermediates_.get_exchange_intermediate()[n][k];
-						real_function_3d nftk = (*f12op)(mo_bra_[n]*t[k]);
-						real_function_3d nfti = (*f12op)(mo_bra_[n]*t[i]);
-						double f = nftk.inner(mo_bra_[m]*t[i]);
-						double fx= nfti.inner(mo_bra_[m]*t[k]);
-						O12part += f*kgn*mo_ket_[m];
-						O12partx += fx*kgn*mo_ket_[m];
+			for(auto k:t.functions){
+				for(size_t n=0;n<mo_bra_.size();n++){
+					for(size_t m=0;m<mo_ket_.size();m++){
+						real_function_3d kgn = intermediates_.get_EX(k.i,n);
+						real_function_3d nftk = (*f12op)(mo_bra_[n]*k.function);
+						real_function_3d nfti = (*f12op)(mo_bra_[n]*i.function);
+						double f = nftk.inner(mo_bra_[m]*i.function);
+						double fx= nfti.inner(mo_bra_[m]*k.function);
+						O12part += (f*kgn*mo_ket_[m]).truncate();
+						O12partx +=(fx*kgn*mo_ket_[m]).truncate();
 					}
 				}
 			}
@@ -436,9 +470,9 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles , 
 				CC_Timer s2b_debug_time(world,msg+"s2b-debug-3D-part");
 				// make \sum_k <ik|g12|titk> and compare
 				double debug = 0.0;
-				for(size_t k=0;k<mo_bra_.size();k++) debug += make_ijgQfxy(i,k,t[i],t[k]);
-				double debug2 = t1part.inner(mo_bra_[i]);
-				if(fabs(debug-debug2)>FunctionDefaults<3>::get_thresh()) warning("S2b potential: Different result for t1 part " + stringify(debug) + " , " + stringify(debug2));
+				for(auto k:t.functions) debug += make_ijgQfxy(i.i,k.i,i.function,k.function);
+				double debug2 = t1part.inner(mo_bra_[i.i]);
+				if(fabs(debug-debug2)>FunctionDefaults<3>::get_thresh()) warning("S2b potential: Different result for t1 part " + stringify(debug) + " , " + stringify(debug2),data);
 				else if(world.rank()==0) std::cout << "3d part of S2b potential seems to be fine (debug integrals are:" << debug << " and " << debug2 << std::endl;
 				s2b_debug_time.info();
 			}
@@ -448,11 +482,15 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles , 
 		}
 
 		resulti += 2.0*t1part-t1partx;
-		result[i]=resulti;
+		result.push_back(resulti);
 	}
 	scale(world,result,-1.0);
 	truncate(world,result);
 	Q(result);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -468,30 +506,32 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_Singles & singles , 
 /// @param[in] The coupled cluster singles
 /// @param[out] the S2c+X Potential
 
-vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_Singles &singles, const std::string &msg) const {
-	vecfuncT result(singles.size());
-	vecfuncT t = make_t_intermediate(singles);
-	for(size_t i=0;i<singles.size();i++){
+vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_vecfunction &singles, const std::string &msg) const {
+	vecfuncT result;
+	CC_Timer timer(world,"time");
+	CC_data data("S2c");
+	CC_vecfunction t = make_t_intermediate(singles);
+	for(auto i:t.functions){
 		real_function_3d resulti = real_factory_3d(world);
 		// The 6D Part
 		real_function_3d resulti_6d = real_factory_3d(world);
 		CC_Timer s2c_6d_timer(world,msg+"s2c-6D-part");
 		{
-			for(size_t k=0;k<mo_bra_.size();k++){
-				for(size_t l=0;l<mo_bra_.size();l++){
-					real_function_3d klgi = (mo_bra_[k]*intermediates_.get_exchange_intermediate()[i][l]).truncate();
-					real_function_3d lkgi = (mo_bra_[l]*intermediates_.get_exchange_intermediate()[i][k]).truncate();
-					real_function_3d tmp = u(k,l).function.project_out(klgi,1); // 1 means second particle
-					real_function_3d tmpx= u(k,l).function.project_out(lkgi,1); // 1 means second particle
+			for(auto k:singles.functions){
+				for(auto l:singles.functions){
+					real_function_3d klgi = (mo_bra_[k.i]*intermediates_.get_EX(l.i,i.i)).truncate();
+					real_function_3d lkgi = (mo_bra_[l.i]*intermediates_.get_EX(k.i,i.i)).truncate();
+					real_function_3d tmp = u(k.i,l.i).function.project_out(klgi,1); // 1 means second particle
+					real_function_3d tmpx= u(k.i,l.i).function.project_out(lkgi,1); // 1 means second particle
 					resulti_6d += 2.0*tmp - tmpx;
 
 					if(parameters.debug){
 						CC_Timer s2c_6d_debug(world,msg+"s2c-6D-debug");
-						real_function_6d test = multiply(copy(u(k,l).function),copy(intermediates_.get_exchange_intermediate()[i][l]),2);
-						real_function_3d test_tmp = test.project_out(mo_bra_[k],1);
+						real_function_6d test = multiply(copy(u(k.i,l.i).function),copy(intermediates_.get_EX(l.i,i.i)),2);
+						real_function_3d test_tmp = test.project_out(mo_bra_[k.i],1);
 						double test_norm = (test_tmp - tmp).norm2();
 						if(world.rank()==0) std::cout << "s2c-6d-debug: ||method1 - method2 ||=" << test_norm << " ... should be 0"<< std::endl;
-						if(test_norm > FunctionDefaults<6>::get_thresh()) warning("S2c-6D-Test-failed!");
+						if(test_norm > FunctionDefaults<6>::get_thresh()) warning("S2c-6D-Test-failed!",data);
 						s2c_6d_debug.info();
 					}
 				}
@@ -502,22 +542,22 @@ vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_Singles &singles, c
 		real_function_3d resulti_3d = real_factory_3d(world);
 		CC_Timer s2c_3d_timer(world,msg+"s2c_3D_part");
 		{
-			for(size_t k=0;k<mo_bra_.size();k++){
-				for(size_t l=0;l<mo_bra_.size();l++){
-					real_function_3d klgi = (mo_bra_[k]*intermediates_.get_exchange_intermediate()[i][l]).truncate();
-					real_function_3d lkgi = (mo_bra_[l]*intermediates_.get_exchange_intermediate()[i][k]).truncate();
-					real_function_3d k_lgi_Q12f12_tltk = convolute_x_gQf_yz(klgi,t[l],t[k]);
-					real_function_3d l_kgi_Q12f12_tltk = convolute_x_gQf_yz(lkgi,t[l],t[k]);
+			for(auto k:t.functions){
+				for(auto l:t.functions){
+					real_function_3d klgi = (mo_bra_[k.i]*intermediates_.get_EX(l.i,i.i)).truncate();
+					real_function_3d lkgi = (mo_bra_[l.i]*intermediates_.get_EX(k.i,i.i)).truncate();
+					real_function_3d k_lgi_Q12f12_tltk = convolute_x_gQf_yz(klgi,l.function,k.function);
+					real_function_3d l_kgi_Q12f12_tltk = convolute_x_gQf_yz(lkgi,l.function,k.function);
 					if(parameters.debug){
 						// cant think of any inexpensive test right now
 						CC_Timer s2c_debug_3d(world,msg+"S2c-3D-debug");
-						real_function_6d test = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(t[k])).particle2(copy(t[l]));
+						real_function_6d test = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(k.function)).particle2(copy(l.function));
 						test.fill_tree().truncate().reduce_rank();
 						test = Q12(test);
 						real_function_3d check = test.project_out(klgi,0); // 0 means particle 1
 						real_function_3d diff = k_lgi_Q12f12_tltk - check;
 						double diffn = diff.norm2();
-						if(diffn > FunctionDefaults<6>::get_thresh()) warning("S2c-3D-Test failed with difference: " + stringify(diffn));
+						if(diffn > FunctionDefaults<6>::get_thresh()) warning("S2c-3D-Test failed with difference: " + stringify(diffn),data);
 						else if(world.rank()==0) std::cout << "S2c-3D-Test passed: seems to be fine, difference is: " << diffn << std::endl;
 						s2c_debug_3d.info();
 					}
@@ -527,11 +567,15 @@ vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_Singles &singles, c
 		}
 		s2c_3d_timer.info();
 		resulti = (resulti_6d + resulti_3d).truncate();
-		result[i]=resulti;
+		result.push_back(resulti);
 	}
 	scale(world,result,-1.0);
 	truncate(world,result);
 	Q(result);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -542,42 +586,40 @@ vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_Singles &singles, c
 //  \  /\  /     /\
 //  _\/_ \/______\/_
 /// -Q\sum (2<kl|g|\tau_il>|\tau_k> - <kl|g|\tau_ik>|\tau_l>)  : <kl|g|\tau_il>|\tau_k> = <k>
-vecfuncT CC_Operators::S4a(const Pairs<CC_Pair> u, const CC_Singles & tau, const std::string &msg) const {
-	vecfuncT result(mo_ket_.size());
+vecfuncT CC_Operators::S4a(const Pairs<CC_Pair> u, const CC_vecfunction & singles, const std::string &msg) const {
+	vecfuncT result;
+	CC_Timer timer(world,"time");
+	CC_data data("S4a");
 	double prefactor = 1.0/(2.0*corrfac.gamma());
-	for (size_t i = 0; i < mo_ket_.size(); i++) {
+	for (auto i:singles.functions) {
 		real_function_3d resulti = real_factory_3d(world);
-		for (size_t k = 0; k < mo_ket_.size(); k++) {
-			for (size_t l = 0; l < mo_ket_.size(); l++) {
-				double debug_u = 0.0;
-				double debug_tau = 0.0;
-				if(parameters.debug) debug_u = u(k,l).function.norm2();
-				if(parameters.debug) debug_tau = tau[i].function().norm2();
+		for(auto k:singles.functions){
+			for(auto l:singles.functions){
 				// Coulomb Part of f12g12 = g12 - BSH
 				{
-					double a  =  make_ijgu(k,l,u(i,l));
-					double ax =  make_ijgu(k,l,u(i,k));
-					resulti -= (2.0 * a * tau[k].function() - ax * tau[l].function());
+					double a  =  make_ijgu(k.i,l.i,u(i.i,l.i));
+					double ax =  make_ijgu(k.i,l.i,u(i.i,k.i));
+					resulti -= (2.0 * a * k.function - ax * l.function);
 					resulti.truncate();
 				}
 				// BSH part of f12g12
 				{
-					double b  = make_ijGu(k,l,u(i,l));
-					double bx = make_ijGu(k,l,u(i,k));
-					resulti -= (2.0 * b * tau[k].function()- bx * tau[l].function());
+					double b  = make_ijGu(k.i,l.i,u(i.i,l.i));
+					double bx = make_ijGu(k.i,l.i,u(i.i,k.i));
+					resulti -= (2.0 * b * k.function- bx * l.function);
 					resulti.truncate();
-				}
-				if(parameters.debug){
-					if((tau[i].function().norm2()-debug_tau)> FunctionDefaults<3>::get_thresh()) warning("Singles changed during S4a potential calculation");
-					if((u(k,l).function.norm2()-debug_u)> FunctionDefaults<6>::get_thresh()) warning("Doubles changed during S4a potential calculation");
 				}
 			}
 		}
 		resulti.scale(prefactor);
-		resulti.print_size("S4a_"+stringify(i)+" potential");
-		result[i] = resulti;
+		resulti.print_size("S4a_"+stringify(i.i)+" potential");
+		result.push_back(resulti);
 	}
 	Q(result);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -593,26 +635,26 @@ vecfuncT CC_Operators::S4a(const Pairs<CC_Pair> u, const CC_Singles & tau, const
 // process intermedaites: lkgi = l*<k|g|tau_i> amd klgi = k*<l|g|\tau_i> (k and l are from the bra space)
 // Project out:  <lkgi|tkl>_2 and <klgi|tkl>_1
 // return -2.0*Q(<lkgi|tkl>_2) + Q(<klgi|tkl>_1)
-vecfuncT CC_Operators::S4b(const Pairs<CC_Pair> u, const CC_Singles & tau, const std::string &msg) const {
+vecfuncT CC_Operators::S4b(const Pairs<CC_Pair> u, const CC_vecfunction & singles, const std::string &msg) const {
 	vecfuncT result;
-	for(size_t i=0;i<mo_ket_.size();i++){
+	CC_Timer timer(world,"time");
+	CC_data data("S4b");
+	for(auto i:singles.functions){
 		real_function_3d resulti = real_factory_3d(world);
-		vecfuncT mobra_taui = mul(world,tau[i].function(),mo_bra_);
-		vecfuncT mobra_gi = apply(world,*poisson,mobra_taui);
-		for(size_t k=0;k<mo_ket_.size();k++){
-			for(size_t l=0;l<mo_ket_.size();l++){
+		for(auto k:singles.functions){
+			for(auto l:singles.functions){ // index l is also pair function index therefore it runs only over non frozen orbs
 				// make the cuspy pair
 				CC_Timer make_tau(world,msg+"Creating cuspy pair: f12*u(1,2)");
-				real_function_6d tkl =  CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).ket(copy(u(k,l).function));
+				real_function_6d tkl =  CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).ket(copy(u(k.i,l.i).function));
 				tkl.fill_tree().truncate().reduce_rank();
 				make_tau.info();
 				tkl.print_size("f12*u(12)");
 
 				// make intermediates
-				real_function_3d kgi = mobra_gi[k];//(*poisson)(mo_bra_[k]*tau[i]);
-				real_function_3d lgi = mobra_gi[l];//(*poisson)(mo_bra_[k]*tau[i]);
-				real_function_3d lkgi = (mo_bra_[l]*kgi).truncate();
-				real_function_3d klgi = (mo_bra_[k]*lgi).truncate();
+				real_function_3d kgi = intermediates_.get_pEX(k.i,i.i);//(*poisson)(mo_bra_[k]*tau[i]);
+				real_function_3d lgi = intermediates_.get_pEX(l.i,i.i);//(*poisson)(mo_bra_[k]*tau[i]);
+				real_function_3d lkgi = (mo_bra_[l.i]*kgi).truncate();
+				real_function_3d klgi = (mo_bra_[k.i]*lgi).truncate();
 
 				// project out (1 is particle 2 and 0 is particle 1)
 				real_function_3d lkgitkl = tkl.project_out(lkgi,1);
@@ -622,10 +664,14 @@ vecfuncT CC_Operators::S4b(const Pairs<CC_Pair> u, const CC_Singles & tau, const
 				Q(resulti);
 			}
 		}
-		resulti.print_size("S4b_"+stringify(i)+" potential");
+		resulti.print_size("S4b_"+stringify(i.i)+" potential");
 		result.push_back(resulti);
 	}
 	Q(result);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -646,22 +692,24 @@ vecfuncT CC_Operators::S4b(const Pairs<CC_Pair> u, const CC_Singles & tau, const
 // 3rd term: <lkgk|til>_1
 // 4th term: <klgk|til>_1
 
-vecfuncT CC_Operators::S4c(const Pairs<CC_Pair> u, const CC_Singles & tau, const std::string &msg) const {
+vecfuncT CC_Operators::S4c(const Pairs<CC_Pair> u, const CC_vecfunction & singles, const std::string &msg) const {
 	vecfuncT result;
-	for(size_t i=0;i<mo_ket_.size();i++){
+	CC_Timer timer(world,"time");
+	CC_data data("S4c");
+	for(auto i:singles.functions){
 		real_function_3d resulti = real_factory_3d(world);
-		for(size_t k=0;k<mo_ket_.size();k++){
-			for(size_t l=0;l<mo_ket_.size();l++){
+		for(auto k:singles.functions){	// maybe loop over all pairs
+			for(auto l:singles.functions){
 				// make the cuspy pair
 				CC_Timer make_tau(world,msg+"Creating cuspy pair: f12*u(1,2)");
-				real_function_6d til =  CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).ket(copy(u(i,l).function));
+				real_function_6d til =  CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).ket(copy(u(i.i,l.i).function));
 				til.fill_tree().truncate().reduce_rank();
 				make_tau.info();
 				til.print_size("f12*u(12)");
 
 				// get intermediates
-				real_function_3d lkgk = (mo_bra_[l]*intermediates_.get_perturbed_exchange_intermediate()[k][k]).truncate();
-				real_function_3d klgk = (mo_bra_[l]*intermediates_.get_perturbed_exchange_intermediate()[k][l]).truncate();
+				real_function_3d lkgk = (mo_bra_[l.i]*intermediates_.get_pEX(k.i,k.i)).truncate();
+				real_function_3d klgk = (mo_bra_[l.i]*intermediates_.get_pEX(k.i,l.i)).truncate();
 
 				// project out
 				real_function_3d term1 = til.project_out(lkgk,1);
@@ -673,10 +721,14 @@ vecfuncT CC_Operators::S4c(const Pairs<CC_Pair> u, const CC_Singles & tau, const
 				Q(resulti);
 			}
 		}
-		resulti.print_size("S4c_"+stringify(i)+" potential");
+		resulti.print_size("S4c_"+stringify(i.i)+" potential");
 		result.push_back(resulti);
 	}
 	Q(result);
+	data.result_size=get_size(world,result);
+	data.result_norm=norm2(world,result);
+	data.time = timer.current_time();
+	performance_S.insert(data.name,data);
 	return result;
 }
 
@@ -687,7 +739,7 @@ vecfuncT CC_Operators::S4c(const Pairs<CC_Pair> u, const CC_Singles & tau, const
 /// @param[out] Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\taui>+|i>
 /// Right now Calculated in the decomposed form: |titj> = |i,j> + |\taui,\tauj> + |i,\tauj> + |\taui,j>
 /// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
-real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_Single &tauj, const CC_Pair &u)const{
+real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const CC_function &tauj, const CC_Pair &u)const{
 	output("Now doing the CC2-Regularization-Residue");
 	// make intermediates
 	MADNESS_ASSERT(u.i == taui.i);
@@ -698,7 +750,7 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 	// DEBUG
 	if(parameters.debug){
 		if(world.rank()==0) std::cout << "FOCK OPERATOR CONSISTENCY CHECK\n";
-		real_function_3d Fi = apply_F(mo_ket_.front(),0,HOLE);
+		real_function_3d Fi = apply_F(CC_function(mo_ket_.front(),0,HOLE));
 		real_function_3d ei = get_orbital_energies()[0]*mo_ket_[0];
 		real_function_3d diff = Fi - ei;
 		double ndiff = diff.norm2();
@@ -714,17 +766,17 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 
 	// this intermediates we need for all the blocks
 	CC_Timer Ftaui_time(world,"(F-ei)|\tau"+stringify(taui.i)+">");
-	real_function_3d Ftaui = apply_F(taui.function(),i,PARTICLE);
+	real_function_3d Ftaui = apply_F(taui);
 	Ftaui -= get_orbital_energies()[i]*Ftaui;
 	Ftaui_time.info();
 
 	if(parameters.debug){
-		plot(taui.function(),"taui");
+		plot(taui.function,"tau"+stringify(i));
 		plot(Ftaui,"Ftaui");
 	}
 
 	CC_Timer Ftauj_time(world,"(F-ej)|\tau"+stringify(tauj.i)+">");
-	real_function_3d Ftauj = apply_F(tauj.function(),j,PARTICLE);
+	real_function_3d Ftauj = apply_F(tauj);
 	Ftauj -= get_orbital_energies()[j]*Ftauj;
 	Ftauj_time.info();
 	real_function_6d part1,part2,part3;
@@ -789,13 +841,10 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 
 	// Ue and KffK Parts
 	// pack some CC_3D_functions which hold all necessary informations
-	CC_3D_function CC_taui(taui.function(),i,PARTICLE);
-	CC_3D_function CC_tauj(tauj.function(),j,PARTICLE);
-	CC_3D_function CC_moi(mo_ket_[i],i,HOLE);
-	CC_3D_function CC_moj(mo_ket_[j],j,HOLE);
-	CC_taui.info(world,"taui"); CC_tauj.info(world,"tauj"), CC_moi.info(world,"moi"); CC_moj.info(world,"moj");
-	taui.function().print_size("original taui");
-	tauj.function().print_size("original tauj");
+	CC_function moi(mo_ket_[i],i,HOLE);
+	CC_function moj(mo_ket_[j],j,HOLE);
+	taui.function.print_size("original taui");
+	tauj.function.print_size("original tauj");
 	// |ij> part is already there (constant part of MP2)
 
 	// |taui,j> part
@@ -803,13 +852,13 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 	{
 		output("QUe|taui,j>");
 		CC_Timer Ue_time(world,"GQUe|taui,j>");
-		real_function_6d Uef = apply_transformed_Ue(taui.function(),mo_ket_[j],i,j);
+		real_function_6d Uef = apply_transformed_Ue(taui.function,mo_ket_[j],i,j);
 		//apply_Q12(QUef,"Ue|taui,j>");
 		//GQ_Ue_taui_j = G(QUef);
 		Ue_time.info();
 		output("Q[K,f]|taui,j>");
 		CC_Timer KffK_time(world,"GQ[K,f]|taui,j>");
-		real_function_6d KffK_tmp = apply_exchange_commutator(CC_taui,CC_moj);
+		real_function_6d KffK_tmp = apply_exchange_commutator(taui,moj);
 		//apply_Q12(KffK_tmp,"[K,f]|taui,j>");
 		KffK_time.info();
 		taui_j_part = Uef - KffK_tmp;
@@ -825,11 +874,11 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 	if(i!=j or parameters.debug){
 		output("QUe|i,tauj>");
 		CC_Timer Ue_time(world,"GQUe|i,tauj>");
-		real_function_6d Uef = apply_transformed_Ue(mo_ket_[i],tauj.function(),i,j);
+		real_function_6d Uef = apply_transformed_Ue(mo_ket_[i],tauj.function,i,j);
 		Ue_time.info();
 
 		CC_Timer KffK_time(world,"GQ[K,f]|taui,j>");
-		real_function_6d KffK_tmp = apply_exchange_commutator(CC_moi,CC_tauj);
+		real_function_6d KffK_tmp = apply_exchange_commutator(moi,tauj);
 		KffK_time.info();
 
 		if(i!=j)i_tauj_part = Uef - KffK_tmp;
@@ -846,11 +895,11 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 	{
 		output("Ue|taui,tauj>");
 		CC_Timer Ue_time(world,"QUe|taui,tauj>");
-		real_function_6d Uef = apply_transformed_Ue(taui.function(),tauj.function(),i,j);
+		real_function_6d Uef = apply_transformed_Ue(taui.function,tauj.function,i,j);
 		Ue_time.info();
 		output("[K,f]|taui,tauj>");
 		CC_Timer KffK_time(world,"[K,f]|taui,tauj>");
-		real_function_6d KffK_tmp = apply_exchange_commutator(CC_taui,CC_tauj);
+		real_function_6d KffK_tmp = apply_exchange_commutator(taui,tauj);
 		KffK_time.info();
 
 		taui_tauj_part = Uef - KffK_tmp;
@@ -879,8 +928,8 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_Single &taui, const CC_
 	if(parameters.debug){
 		output("Expensive Debug Calculation");
 
-		const CC_3D_function ti(taui.function() + mo_ket_[i],i,MIXED);
-		const CC_3D_function tj(tauj.function() + mo_ket_[j],j,MIXED);
+		const CC_function ti(taui.function + mo_ket_[i],i,MIXED);
+		const CC_function tj(tauj.function + mo_ket_[j],j,MIXED);
 
 		real_function_6d GQUK_test = (-2.0)*(G_UeK_parts) + u.constant_term;
 		 GQUK_test.print_size("Ue and [K,f] + mp2_residue");
@@ -1064,12 +1113,9 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 
 /// Echange Operator on 3D function
 /// !!!!Prefactor (-1) is not included
-real_function_3d CC_Operators::K(const CC_3D_function &x)const{
+real_function_3d CC_Operators::K(const CC_function &x)const{
 	const real_function_3d &f = x.function;
-	const size_t i=x.i;
-	real_function_3d result = real_factory_3d(world);
-	vecfuncT exV = make_exchange_potential(x);
-	for (std::size_t k = 0; k < mo_ket_.size(); ++k) result += mo_ket_[k]*exV[k];
+	real_function_3d result = apply_K(x);
 
 	// Sanity Check (expensive when not helium)
 	if(mo_ket_.size()<3){
@@ -1222,7 +1268,7 @@ real_function_6d CC_Operators::apply_transformed_Ue(const real_function_3d x,
 }
 
 /// Apply the Exchange Commutator [K,f]|xy>
-real_function_6d CC_Operators::apply_exchange_commutator(const CC_3D_function &x, const CC_3D_function &y)const{
+real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, const CC_function &y)const{
 	// make first part of commutator
 	CC_Timer part1_time(world,"Kf");
 	real_function_6d Kfxy = apply_Kf(x,y).truncate();
@@ -1272,7 +1318,9 @@ real_function_6d CC_Operators::apply_exchange_commutator(const CC_3D_function &x
 						warning("Exchange commutator inaccurate");
 					if (std::fabs(a) > FunctionDefaults<6>::get_thresh() * 10.0)
 						if(parameters.debug) warning("exchange commutator plain wrong");
-						else MADNESS_EXCEPTION("exchange commutator plain wrong", 1);
+						else{
+							MADNESS_EXCEPTION("exchange commutator plain wrong", 1);
+						}
 				}
 			}
 		}
@@ -1288,7 +1336,7 @@ real_function_6d CC_Operators::apply_exchange_commutator(const CC_3D_function &x
 
 /// Apply the Exchange operator on a tensor product multiplied with f12
 /// !!! Prefactor of (-1) is not inclued in K here !!!!
-real_function_6d CC_Operators::apply_Kf(const CC_3D_function &x, const CC_3D_function &y) const {
+real_function_6d CC_Operators::apply_Kf(const CC_function &x, const CC_function &y) const {
 	bool symmetric = false;
 	if((x.type == y.type) and (x.i == y.i)) symmetric = true;
 
@@ -1307,11 +1355,9 @@ real_function_6d CC_Operators::apply_Kf(const CC_3D_function &x, const CC_3D_fun
 /// fK|xy> = fK_1|xy> + fK_2|xy>
 /// @param[in] x, the first 3D function in |xy>, structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
 /// @param[in] y, the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
-real_function_6d CC_Operators::apply_fK(const CC_3D_function &x, const CC_3D_function &y) const {
+real_function_6d CC_Operators::apply_fK(const CC_function &x, const CC_function &y) const {
 	const real_function_3d& phi_i = x.function;
 	const real_function_3d& phi_j = y.function;
-	const size_t i=x.i;
-	const size_t j=y.i;
 
 	const real_function_3d Kphi_i = K(x.function);
 	const real_function_3d Kphi_j = K(y.function);
@@ -1354,12 +1400,12 @@ double CC_Operators::get_CC2_correlation_energy() const {
 	return 0.0;
 }
 
-double CC_Operators::compute_ccs_correlation_energy(const CC_Single &taui, const CC_Single &tauj)const{
+double CC_Operators::compute_ccs_correlation_energy(const CC_function &taui, const CC_function &tauj)const{
 	double omega = 0.0;
 	//omega += 2.0*intermediates_.get_integrals_t1()(u.i,u.j,u.i,u.j); //<ij|g|\taui\tauj>
-	omega += 2.0*make_ijgxy(taui.i,tauj.i,taui.function(),tauj.function());
+	omega += 2.0*make_ijgxy(taui.i,tauj.i,taui.function,tauj.function);
 	//omega -= intermediates_.get_integrals_t1()(u.i,u.j,u.j,u.i);     //<ij|g|\tauj\taui>
-	omega -= make_ijgxy(taui.i,tauj.i,tauj.function(),taui.function());
+	omega -= make_ijgxy(taui.i,tauj.i,tauj.function,taui.function);
 	return omega;
 }
 double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
@@ -1420,7 +1466,7 @@ double CC_Operators::make_ijgQfxy(const size_t &i, const size_t &j, const real_f
 	// O1 Part
 	double ijgO1fxy =0.0;
 	for(size_t k=0;k<mo_ket_.size();k++){
-		real_function_3d igk = intermediates_.get_exchange_intermediate()[k][i];
+		real_function_3d igk = intermediates_.get_EX(i,k);
 		real_function_3d kfx = (*f12op)(mo_bra_[k]*x);
 		real_function_3d igkkfx = (igk*kfx).truncate();
 		ijgO1fxy += jy.inner(igkkfx);
@@ -1428,7 +1474,7 @@ double CC_Operators::make_ijgQfxy(const size_t &i, const size_t &j, const real_f
 	// O2 Part
 	double ijgO2fxy =0.0;
 	for(size_t k=0;k<mo_ket_.size();k++){
-		real_function_3d jgk = intermediates_.get_exchange_intermediate()[k][j];
+		real_function_3d jgk = intermediates_.get_EX(j,k);
 		real_function_3d kfy = (*f12op)(mo_bra_[k]*y);
 		real_function_3d jgkkfy = (jgk*kfy).truncate();
 		ijgO2fxy += ix.inner(jgkkfy);
@@ -1436,7 +1482,7 @@ double CC_Operators::make_ijgQfxy(const size_t &i, const size_t &j, const real_f
 	// O12 Part
 	double ijgO12fxy = 0.0;
 	for(size_t k=0;k<mo_ket_.size();k++){
-		real_function_3d igk = intermediates_.get_exchange_intermediate()[k][i];
+		real_function_3d igk = intermediates_.get_EX(i,k);
 		real_function_3d kfx = (*f12op)(mo_bra_[k]*x);
 		for(size_t l=0;l<mo_ket_.size();l++){
 			double ijgkl = igk.inner(mo_bra_[j]*mo_ket_[l]);

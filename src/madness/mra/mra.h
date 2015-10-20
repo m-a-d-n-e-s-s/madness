@@ -513,6 +513,8 @@ namespace madness {
             return impl->size();
         }
 
+        /// Retunrs
+
 
         /// Returns value of autorefine flag.  No communication.
         bool autorefine() const {
