@@ -17,6 +17,22 @@
 namespace madness{
 
 enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
+enum potentialtype_s {_reF_, _S3c_, _S5b_, _S5c_, _S6_, _S2b_, _S2c_, _S4a_, _S4b_, _S4c_};
+static std::string assign_name(const potentialtype_s &inp){
+	switch(inp){
+	case _reF_ : return "Fock-Residue";
+	case _S3c_ : return "S3c";
+	case _S5b_ : return "S5b";
+	case _S5c_ : return "S5c";
+	case _S6_  : return "S6";
+	case _S2b_ : return "S2b";
+	case _S2c_ : return "S2c";
+	case _S4a_ : return "S4a";
+	case _S4b_ : return "S4b";
+	case _S4c_ : return "S4c";
+	}
+	return "undefined";
+}
 
 typedef std::vector<Function<double, 3> > vecfuncT;
 
@@ -63,34 +79,34 @@ public:
 struct CC_Parameters{
 	// default constructor
 	CC_Parameters():
-	lo(FunctionDefaults<3>::get_thresh()),
-	thresh_3D(FunctionDefaults<3>::get_thresh()),
-	thresh_6D(FunctionDefaults<6>::get_thresh()),
-	thresh_6D_tight(thresh_6D*0.1),
-	thresh_bsh_3D(FunctionDefaults<3>::get_thresh()),
-	thresh_bsh_6D(FunctionDefaults<6>::get_thresh()),
-	thresh_poisson_3D(FunctionDefaults<3>::get_thresh()),
-	thresh_poisson_6D(FunctionDefaults<6>::get_thresh()),
-	thresh_f12(FunctionDefaults<6>::get_thresh()),
-	thresh_Ue(FunctionDefaults<6>::get_thresh()),
-	econv(1.e-4),
-	dconv_3D(1.e-2),
-	dconv_6D(1.e-2),
-	nfreeze(0),
-	iter_max_3D(30),
-	iter_max_6D(30),
-	restart(false),
-	corrfac_gamma(2.0),
-	output_prec(8),
-	debug(false),
-	mp2_only(false),
-	mp2(false),
-	freeze(0)
+		lo(FunctionDefaults<3>::get_thresh()),
+		thresh_3D(FunctionDefaults<3>::get_thresh()),
+		thresh_6D(FunctionDefaults<6>::get_thresh()),
+		thresh_6D_tight(thresh_6D*0.1),
+		thresh_bsh_3D(FunctionDefaults<3>::get_thresh()),
+		thresh_bsh_6D(FunctionDefaults<6>::get_thresh()),
+		thresh_poisson_3D(FunctionDefaults<3>::get_thresh()),
+		thresh_poisson_6D(FunctionDefaults<6>::get_thresh()),
+		thresh_f12(FunctionDefaults<6>::get_thresh()),
+		thresh_Ue(FunctionDefaults<6>::get_thresh()),
+		econv(1.e-4),
+		dconv_3D(1.e-2),
+		dconv_6D(1.e-2),
+		nfreeze(0),
+		iter_max_3D(30),
+		iter_max_6D(30),
+		restart(false),
+		corrfac_gamma(-99.0),
+		output_prec(8),
+		debug(false),
+		mp2_only(false),
+		mp2(false),
+		freeze(0)
 	{}
 
 	// read parameters from input
 	/// ctor reading out the input file
-	CC_Parameters(const std::string& input,const double &low) :
+	CC_Parameters(const std::string& input,const double &low,const double &corrfac_gamma_) :
 		lo(1.e-6),
 		thresh_3D(FunctionDefaults<3>::get_thresh()),
 		thresh_6D(FunctionDefaults<6>::get_thresh()),
@@ -107,7 +123,7 @@ struct CC_Parameters{
 		iter_max_3D(30),
 		iter_max_6D(30),
 		restart(false),
-		corrfac_gamma(2.0),
+		corrfac_gamma(corrfac_gamma_),
 		output_prec(8),
 		debug(false),
 		kain(false),
@@ -117,115 +133,115 @@ struct CC_Parameters{
 		freeze(0)
 	{
 		// get the parameters from the input file
-        std::ifstream f(input.c_str());
-        position_stream(f, "cc2");
-        std::string s;
+		std::ifstream f(input.c_str());
+		position_stream(f, "cc2");
+		std::string s;
 
-        // minimum operator thresh
-        double minopthresh = 1.e-4;
+		// minimum operator thresh
+		double minopthresh = 1.e-4;
 
-        while (f >> s) {
-        	//std::cout << "input tag is: " << s << std::endl;
-        	std::transform(s.begin(),s.end(),s.begin(), ::tolower);
-        	//std::cout << "transformed input tag is: " << s << std::endl;
-            if (s == "end") break;
-            else if (s == "debug") debug=true;
-            else if (s == "lo") f >> lo;
-            else if (s == "econv"){
-            	f >> econv;
-            }
+		while (f >> s) {
+			//std::cout << "input tag is: " << s << std::endl;
+			std::transform(s.begin(),s.end(),s.begin(), ::tolower);
+			//std::cout << "transformed input tag is: " << s << std::endl;
+			if (s == "end") break;
+			else if (s == "debug") debug=true;
+			else if (s == "lo") f >> lo;
+			else if (s == "econv"){
+				f >> econv;
+			}
 
-            else if (s == "dconv"){
-            	double tmp = 0.0;
-            	f >> tmp;
-            	dconv_3D = tmp; dconv_6D=tmp;
-            }
-            else if (s == "dconv_3d"){
-            	f >> dconv_3D;
-            }
-            else if (s == "dconv_6d"){
-            	f >> dconv_6D;
-            }
-            else if (s == "thresh"){
-            	double tmp = 0.0;
-            	f >> tmp;
-            	double opthresh = tmp*0.1;
-            	double opthresh_3D = tmp*0.01;
-            	if(opthresh > minopthresh) opthresh = minopthresh;
-            	thresh_3D 		  = 0.01*tmp;
-            	thresh_6D 		  = tmp;
-            	thresh_poisson_3D = opthresh_3D;
-            	thresh_poisson_6D = opthresh;
-            	thresh_bsh_3D     = opthresh_3D;
-            	thresh_bsh_6D     = opthresh;
-            	thresh_f12        = opthresh;
-            	thresh_Ue		  = opthresh;
-            }
-            else if (s == "thresh_operators" or s == "thresh_operator"){
-            	double tmp =0.0;
-            	f >> tmp;
-            	if(tmp>minopthresh) tmp = minopthresh;
-            	thresh_poisson_3D = tmp;
-            	thresh_poisson_6D = tmp;
-            	thresh_bsh_3D     = tmp;
-            	thresh_bsh_6D     = tmp;
-            	thresh_f12        = tmp;
-            	thresh_Ue		  = tmp;
-            }
-            else if (s == "thresh_operators_3d" or s == "thresh_operator_3d"){
-            	double tmp =0.0;
-            	f >> tmp;
-            	if(tmp>minopthresh) tmp = minopthresh;
-            	thresh_poisson_3D = tmp;
-            	thresh_bsh_3D     = tmp;
-            }
-            else if (s == "thresh_operators_6d" or s == "thresh_operator_6d"){
-            	double tmp =0.0;
-            	f >> tmp;
-            	if(tmp>minopthresh) tmp = minopthresh;
-            	thresh_poisson_6D = tmp;
-            	thresh_bsh_6D     = tmp;
-            	thresh_f12        = tmp;
-            	thresh_Ue		  = tmp;
-            }
-            else if (s == "thresh_3d") f >> thresh_3D;
-            else if (s == "thresh_6d") f >> thresh_6D;
-            else if (s == "thresh_bsh_3d") f >> thresh_bsh_3D;
-            else if (s == "thresh_bsh_6d") f >> thresh_bsh_6D;
-            else if (s == "thresh_poisson_3d") f >> thresh_poisson_3D;
-            else if (s == "thresh_poisson_6d") f >> thresh_poisson_6D;
-            else if (s == "thresh_f12") f >> thresh_f12;
-            else if (s == "thresh_Ue") f >> thresh_Ue;
-            else if (s == "freeze" or s=="nfreeze") f >> nfreeze;
-            else if (s == "iter_max"){
-            	f >> iter_max_3D;
-            	iter_max_6D = iter_max_3D;
-            }
-            else if (s == "iter_max_3d") f >> iter_max_3D;
-            else if (s == "iter_max_6d") f >> iter_max_6D;
-            else if (s == "restart") restart=true;
-            else if ((s == "corrfac_gamma") or (s== "gamma")) f>>corrfac_gamma;
-            else if (s == "kain") kain=true;
-            else if (s == "kain_subspace") f>>kain_subspace;
-            else if (s == "mp2_only" ) {mp2_only=true; mp2=true;}
-            else if (s == "mp2") mp2=true;
-            else if (s == "freeze") f>>freeze;
-            else continue;
-        }
+			else if (s == "dconv"){
+				double tmp = 0.0;
+				f >> tmp;
+				dconv_3D = tmp; dconv_6D=tmp;
+			}
+			else if (s == "dconv_3d"){
+				f >> dconv_3D;
+			}
+			else if (s == "dconv_6d"){
+				f >> dconv_6D;
+			}
+			else if (s == "thresh"){
+				double tmp = 0.0;
+				f >> tmp;
+				double opthresh = tmp*0.1;
+				double opthresh_3D = tmp*0.01;
+				if(opthresh > minopthresh) opthresh = minopthresh;
+				thresh_3D 		  = 0.01*tmp;
+				thresh_6D 		  = tmp;
+				thresh_poisson_3D = opthresh_3D;
+				thresh_poisson_6D = opthresh;
+				thresh_bsh_3D     = opthresh_3D;
+				thresh_bsh_6D     = opthresh;
+				thresh_f12        = opthresh;
+				thresh_Ue		  = opthresh;
+			}
+			else if (s == "thresh_operators" or s == "thresh_operator"){
+				double tmp =0.0;
+				f >> tmp;
+				if(tmp>minopthresh) tmp = minopthresh;
+				thresh_poisson_3D = tmp;
+				thresh_poisson_6D = tmp;
+				thresh_bsh_3D     = tmp;
+				thresh_bsh_6D     = tmp;
+				thresh_f12        = tmp;
+				thresh_Ue		  = tmp;
+			}
+			else if (s == "thresh_operators_3d" or s == "thresh_operator_3d"){
+				double tmp =0.0;
+				f >> tmp;
+				if(tmp>minopthresh) tmp = minopthresh;
+				thresh_poisson_3D = tmp;
+				thresh_bsh_3D     = tmp;
+			}
+			else if (s == "thresh_operators_6d" or s == "thresh_operator_6d"){
+				double tmp =0.0;
+				f >> tmp;
+				if(tmp>minopthresh) tmp = minopthresh;
+				thresh_poisson_6D = tmp;
+				thresh_bsh_6D     = tmp;
+				thresh_f12        = tmp;
+				thresh_Ue		  = tmp;
+			}
+			else if (s == "thresh_3d") f >> thresh_3D;
+			else if (s == "thresh_6d") f >> thresh_6D;
+			else if (s == "thresh_bsh_3d") f >> thresh_bsh_3D;
+			else if (s == "thresh_bsh_6d") f >> thresh_bsh_6D;
+			else if (s == "thresh_poisson_3d") f >> thresh_poisson_3D;
+			else if (s == "thresh_poisson_6d") f >> thresh_poisson_6D;
+			else if (s == "thresh_f12") f >> thresh_f12;
+			else if (s == "thresh_Ue") f >> thresh_Ue;
+			else if (s == "freeze" or s=="nfreeze") f >> nfreeze;
+			else if (s == "iter_max"){
+				f >> iter_max_3D;
+				iter_max_6D = iter_max_3D;
+			}
+			else if (s == "iter_max_3d") f >> iter_max_3D;
+			else if (s == "iter_max_6d") f >> iter_max_6D;
+			else if (s == "restart") restart=true;
+			else if ((s == "corrfac_gamma") or (s== "gamma")) f>>corrfac_gamma;
+			else if (s == "kain") kain=true;
+			else if (s == "kain_subspace") f>>kain_subspace;
+			else if (s == "mp2_only" ) {mp2_only=true; mp2=true;}
+			else if (s == "mp2") mp2=true;
+			else if (s == "freeze") f>>freeze;
+			else continue;
+		}
 
-        thresh_6D_tight = thresh_6D*0.1;
+		thresh_6D_tight = thresh_6D*0.1;
 
-        if(not kain) kain_subspace = 0;
+		if(not kain) kain_subspace = 0;
 
-        // set the thresholds
-        FunctionDefaults<3>::set_thresh(thresh_3D);
-        FunctionDefaults<6>::set_thresh(thresh_6D);
-        if(econv < 1.e-1) output_prec = 2;
-        if(econv < 1.e-2) output_prec = 3;
-        if(econv < 1.e-3) output_prec = 4;
-        if(econv < 1.e-4) output_prec = 5;
-        if(econv < 1.e-5) output_prec = 6;
-        if(econv < 1.e-6) output_prec = 7;
+		// set the thresholds
+		FunctionDefaults<3>::set_thresh(thresh_3D);
+		FunctionDefaults<6>::set_thresh(thresh_6D);
+		if(econv < 1.e-1) output_prec = 2;
+		if(econv < 1.e-2) output_prec = 3;
+		if(econv < 1.e-3) output_prec = 4;
+		if(econv < 1.e-4) output_prec = 5;
+		if(econv < 1.e-5) output_prec = 6;
+		if(econv < 1.e-6) output_prec = 7;
 	}
 
 	double lo;
@@ -273,6 +289,11 @@ struct CC_Parameters{
 	size_t kain_subspace;
 	// freeze MOs
 	size_t freeze;
+	// Gamma of the correlation factor
+	double gamma()const{
+		if(corrfac_gamma<0) MADNESS_EXCEPTION("ERROR in CC_PARAMETERS: CORRFAC_GAMMA WAS NOT INITIALIZED",1);
+		return corrfac_gamma;
+	}
 
 	// print out the parameters
 	void information(World &world)const{
@@ -396,22 +417,22 @@ class CC_Pair: public archive::ParallelSerializableObject {
 public:
 	/// default ctor; initialize energies with a large number
 	CC_Pair() :
-			i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
-					uninitialized()), ij_gQf_ij(uninitialized()), ji_gQf_ij(
-					uninitialized()), iteration(0), converged(false) {
+		i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
+				uninitialized()), ij_gQf_ij(uninitialized()), ji_gQf_ij(
+						uninitialized()), iteration(0), converged(false) {
 	}
 
 	/// ctor; initialize energies with a large number
 	CC_Pair(const int i, const int j) :
-			i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
-					uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
-					false) {
+		i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
+				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
+						false) {
 	}
 	/// ctor; initialize energies with a large number
 	CC_Pair(const real_function_6d &f,const int i, const int j) :
-			i(i), j(j),function(f), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
-					uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
-					false) {
+		i(i), j(j),function(f), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
+				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
+						false) {
 	}
 
 	/// print the pair's energy
@@ -460,7 +481,7 @@ public:
 		bool fexist = function.is_initialized();
 		bool cexist = constant_term.is_initialized();
 		ar & ij_gQf_ij & ji_gQf_ij & e_singlet & e_triplet & converged
-				& iteration & fexist & cexist;
+		& iteration & fexist & cexist;
 		if (fexist)
 			ar & function;
 		if (cexist)
@@ -628,6 +649,7 @@ struct CC_vecfunction{
 struct CC_data{
 	CC_data(): name("UNDEFINED"), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
 	CC_data(const std::string &name_):name(name_), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
+	CC_data(const potentialtype_s &name_):name(assign_name(name_)), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
 	CC_data(const CC_data &other) : name(other.name), time(other.time), result_size(other.result_size), result_norm(other.result_norm), warnings(other.warnings) {}
 	const std::string name;
 	std::pair<double,double> time; // overall time

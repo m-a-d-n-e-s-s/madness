@@ -29,12 +29,12 @@ class CC2 {
 public:
 	CC2(World &world_,const std::string &inputFileName, const Nemo &nemo_):
 		world(world_),
-		parameters(inputFileName, nemo_.get_calc() -> param.lo),
+		correlationfactor(world,1.0,1.e-7,nemo.get_calc()->molecule),
+		parameters(inputFileName, nemo_.get_calc() -> param.lo, correlationfactor.gamma()),
 		nemo(nemo_),
 		mo(nemo_.get_calc()->amo),
 		active_mo(make_active_mo()),
 		//correlationfactor(world,parameters.corrfac_gamma,parameters.thresh_f12,nemo.get_calc()->molecule),
-		correlationfactor(world,1.0,1.e-7,nemo.get_calc()->molecule),
 		CCOPS(world,nemo,correlationfactor,parameters)
 {
 		output_section("CC2 Class has been initialized with the following parameters");
@@ -101,6 +101,8 @@ public:
 	bool test()const;
 	/// The World
 	World &world;
+	/// The electronic Correlation Factor, has to be initialized before parameters so that parameters has the right gamma value
+	CorrelationFactor correlationfactor;
 	/// Structure holds all the parameters used in the CC2 calculation
 	const CC_Parameters parameters;
 	/// The SCF Calculation
@@ -109,8 +111,6 @@ public:
 	const vecfuncT mo;
 	/// Active MO
 	const vecfuncT active_mo;
-	/// The electronic Correlation Factor
-	CorrelationFactor correlationfactor;
 	/// The CC Operator Class
 	CC_Operators CCOPS;
 
