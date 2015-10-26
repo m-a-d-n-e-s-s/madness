@@ -852,7 +852,7 @@ namespace madness {
                             lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
                 lb.add_tree(rho, lbcost<double, 3>(1.0, 8.0), true);
                 
-                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
                 END_TIMER(world, "guess loadbal");
             }
             
@@ -906,7 +906,7 @@ namespace madness {
                 for (unsigned int i = 0; i < ao.size(); ++i) {
                     lb.add_tree(ao[i], lbcost<double, 3>(1.0, 8.0), false);
                 }
-                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
                 END_TIMER(world, "guess loadbal");
             }
             START_TIMER(world);
@@ -1082,7 +1082,7 @@ namespace madness {
             vnuc = vnuc + gthpseudopotential->vlocalpot();}     
         lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0));
         
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
     }
     
     functionT SCF::make_density(World & world, const tensorT & occ,
@@ -1511,7 +1511,7 @@ namespace madness {
         }
         world.gop.fence();
         std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmap = FunctionDefaults<3>::get_pmap();
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(2.0)); // 6.0 needs retuning after vnucextra 
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts)); // 6.0 needs retuning after vnucextra 
         END_TIMER(world, "KE redist");*/
         START_TIMER(world);
         tensorT ke(psi.size(),psi.size());
@@ -1764,7 +1764,7 @@ namespace madness {
         }
         world.gop.fence();
         
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0)); // 6.0 needs retuning after vnucextra
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts)); // 6.0 needs retuning after vnucextra
     }
     
     void SCF::rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
@@ -2165,7 +2165,7 @@ namespace madness {
         const double dconv = std::max(FunctionDefaults < 3 > ::get_thresh(),
                                       param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
-        const double tolloc = 1e-3;
+        const double tolloc = 1e-6;
         double update_residual = 0.0, bsh_residual = 0.0;
         subspaceT subspace;
         tensorT Q;

@@ -774,6 +774,7 @@ public:
     //double esol;//etot;
     //double vacuo_energy;
     static const int vnucextra = 12; // load balance parameter for nuclear pot.
+    static const int loadbalparts = 2.0; // was 6.0
 
     SCF(World & world, const char *filename);
 
