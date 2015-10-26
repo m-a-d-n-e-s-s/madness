@@ -50,40 +50,40 @@ public:
 
 	void sanity_check()const{
 		if(parameters.debug){
-		if(world.rank()==0) std::cout << "\n\nCC INTERMEDIATES SANITY CHECK\n\n";
-		real_function_3d test_J = real_factory_3d(world);
-		real_function_3d test_rho = real_factory_3d(world);
-		for(size_t i=0;i<mo_ket_.size();i++){
-			test_rho += (mo_bra_[i]*mo_ket_[i]).truncate();
-		}
-		test_J = ((*poisson)(test_rho)).truncate();
-		double diff_J = (hartree_potential_ - test_J).norm2();
-		if(diff_J > FunctionDefaults<3>::get_thresh()){
-			warning("Hartree Potential Inaccurate " + stringify(diff_J));
-			hartree_potential_.print_size("hartree_potential stored");
-			test_J.print_size("hartree_potential recalc");
-		}else if(world.rank()==0) std::cout << "Hartree Potantial is sane\n";
+			if(world.rank()==0) std::cout << "\n\nCC INTERMEDIATES SANITY CHECK\n\n";
+			real_function_3d test_J = real_factory_3d(world);
+			real_function_3d test_rho = real_factory_3d(world);
+			for(size_t i=0;i<mo_ket_.size();i++){
+				test_rho += (mo_bra_[i]*mo_ket_[i]).truncate();
+			}
+			test_J = ((*poisson)(test_rho)).truncate();
+			double diff_J = (hartree_potential_ - test_J).norm2();
+			if(diff_J > FunctionDefaults<3>::get_thresh()){
+				warning("Hartree Potential Inaccurate " + stringify(diff_J));
+				hartree_potential_.print_size("hartree_potential stored");
+				test_J.print_size("hartree_potential recalc");
+			}else if(world.rank()==0) std::cout << "Hartree Potantial is sane\n";
 
 
-		real_function_3d tmp00 = (mo_ket_[0]*mo_bra_[0]).truncate();
-		real_function_3d testK00 = ((*poisson)(tmp00)).truncate();
-		double diff_K00 = (get_EX(0,0) - testK00).norm2();
-		if(diff_K00 > FunctionDefaults<3>::get_thresh()){
-			warning("Exchange Potential Inaccurate <0|g|0> " + stringify(diff_K00));
-		}else if(world.rank()==0) std::cout << "<0|g|0> is sane \n";
+			real_function_3d tmp00 = (mo_ket_[0]*mo_bra_[0]).truncate();
+			real_function_3d testK00 = ((*poisson)(tmp00)).truncate();
+			double diff_K00 = (get_EX(0,0) - testK00).norm2();
+			if(diff_K00 > FunctionDefaults<3>::get_thresh()){
+				warning("Exchange Potential Inaccurate <0|g|0> " + stringify(diff_K00));
+			}else if(world.rank()==0) std::cout << "<0|g|0> is sane \n";
 
-		if(mo_ket_.size()>1){
-			size_t x=mo_ket_.size()-1;
-			real_function_3d tmp0x = (mo_bra_[0]*mo_ket_[x]).truncate();
-			real_function_3d testK0x = ((*poisson)(tmp0x));
-			double diff_K0x = (get_EX(0,x) - testK0x).norm2();
-			if(diff_K0x > FunctionDefaults<3>::get_thresh()){
-				warning("Exchange Potential Inaccurate <0|g|"+ stringify(x) +"> " +stringify(diff_K0x));
-			}else if(world.rank()==0) std::cout << "<0|g|" << x << "> is sane\n";
-		}
+			if(mo_ket_.size()>1){
+				size_t x=mo_ket_.size()-1;
+				real_function_3d tmp0x = (mo_bra_[0]*mo_ket_[x]).truncate();
+				real_function_3d testK0x = ((*poisson)(tmp0x));
+				double diff_K0x = (get_EX(0,x) - testK0x).norm2();
+				if(diff_K0x > FunctionDefaults<3>::get_thresh()){
+					warning("Exchange Potential Inaccurate <0|g|"+ stringify(x) +"> " +stringify(diff_K0x));
+				}else if(world.rank()==0) std::cout << "<0|g|" << x << "> is sane\n";
+			}
 
 
-		if(world.rank()==0) std::cout << "\n\nCC INTERMEDIATES SANITY CHECK ENDED\n\n";
+			if(world.rank()==0) std::cout << "\n\nCC INTERMEDIATES SANITY CHECK ENDED\n\n";
 		}
 	}
 
@@ -109,6 +109,7 @@ public:
 	intermediateT get_EX()const {
 		return exchange_intermediate_;
 	}
+
 	/// returns <k|g|l>
 	real_function_3d get_EX(const size_t &k,const size_t &l)const{return exchange_intermediate_(k,l);}
 	real_function_3d get_fEX(const size_t &k,const size_t &l)const{return f12_exchange_intermediate_(k,l);}
@@ -261,9 +262,9 @@ public:
 	// collect all the warnings that are put out over a calculation
 	mutable std::vector<std::string> warnings;
 
-    /// save a function
-    template<typename T, size_t NDIM>
-    void save_function(const Function<T,NDIM>& f, const std::string name) const;
+	/// save a function
+	template<typename T, size_t NDIM>
+	void save_function(const Function<T,NDIM>& f, const std::string name) const;
 
 	void plot(const real_function_3d &f, const std::string &msg)const{
 		CC_Timer plot_time(world,"plotting " + msg);
@@ -324,33 +325,22 @@ public:
 	}
 
 	vecfuncT get_CCS_potential(const CC_vecfunction &singles)const{
-		vecfuncT result = zero_functions<double,3>(world,mo_ket_.size());
-		{CC_Timer timer_FR(world,"Singles Potential: Fock Residue");
-		result = fock_residue_closed_shell(singles);
-		timer_FR.info();}
-		{CC_Timer timer_S3c(world,"Singles Potential: S3c");
-		result =add(world, S3c(singles),result);
-		timer_S3c.info();}
-		{CC_Timer timer_S3CX(world,"Singles Potential: S3cX");
-		result =add(world, S3c_X(singles),result);
-		timer_S3CX.info();}
-		{CC_Timer timer_S5b(world,"Singles Potential: S5b");
-		result =add(world, S5b(singles),result);
-		timer_S5b.info();}
-		{CC_Timer timer_S5bx(world,"Singles Potential: S5bX");
-		result =add(world, S5b_X(singles),result);
-		timer_S5bx.info();}
-		{CC_Timer timer_S5c(world,"Singles Potential: S5c");
-		result =add(world, S5c(singles),result);
-		timer_S5c.info();}
-		{CC_Timer timer_S5cx(world,"Singles Potential: S5cX");
-		result =add(world, S5c_X(singles),result);
-		timer_S5cx.info();}
-		{CC_Timer timer_S6(world,"Singles Potential: S6");
-		result =add(world, S6(singles),result);
-		timer_S6.info();}
+
+		// make a dummy doubles with no content
+		Pairs<CC_Pair> doubles;
+
+		vecfuncT result = potential_singles(doubles,singles,_reF_);
+
+		result = add(world,result,potential_singles(doubles,singles,_S1_));  // brillouin term
+		result = add(world,result,potential_singles(doubles,singles,_S5a_)); // brillouin term
+		result = add(world,result,potential_singles(doubles,singles,_S3c_));
+		result = add(world,result,potential_singles(doubles,singles,_S5b_));
+		result = add(world,result,potential_singles(doubles,singles,_S5c_));
+		result = add(world,result,potential_singles(doubles,singles,_S6_));
+
 		Q(result);
 		truncate(world,result);
+		performance_S.current_iteration++;
 		return result;
 	}
 
@@ -367,45 +357,6 @@ public:
 		result = add(world,result,potential_singles(doubles,singles,_S4b_));
 		result = add(world,result,potential_singles(doubles,singles,_S4c_));
 
-//		{CC_Timer timer_FR(world,"Singles Potential: Fock Residue");
-//		result = fock_residue_closed_shell(singles);
-//		timer_FR.info();}
-//		{CC_Timer timer_S3c(world,output_buffer+"S3c  :");
-//		result =add(world, S3c(singles,output_buffer+"S3c  :"),result);
-//		timer_S3c.info();}
-//		{CC_Timer timer_S3CX(world,output_buffer+"S3cX :");
-//		result =add(world, S3c_X(singles,output_buffer+"S3cX :"),result);
-//		timer_S3CX.info();}
-//		{CC_Timer timer_S5b(world,output_buffer+"S5b  :");
-//		result =add(world, S5b(singles,output_buffer+"S5b  :"),result);
-//		timer_S5b.info();}
-//		{CC_Timer timer_S5bx(world,output_buffer+"S5bX :");
-//		result =add(world, S5b_X(singles,output_buffer+"S5bX :"),result);
-//		timer_S5bx.info();}
-//		{CC_Timer timer_S5c(world,output_buffer+"S5c  :");
-//		result =add(world, S5c(singles,output_buffer+"S5c  :"),result);
-//		timer_S5c.info();}
-//		{CC_Timer timer_S5cx(world,output_buffer+"S5cX :");
-//		result =add(world, S5c_X(singles,output_buffer+"S5cX :"),result);
-//		timer_S5cx.info();}
-//		{CC_Timer timer_S6(world,output_buffer+"S6   :");
-//		result =add(world, S6(singles,output_buffer+"S6   :"),result);
-//		timer_S6.info();}
-//		{CC_Timer timer_S2b(world,output_buffer+"S2b+X:");
-//		result =add(world, S2b(doubles,singles,output_buffer+"S2b+X:"),result);
-//		timer_S2b.info();}
-//		{CC_Timer timer_S2c(world,output_buffer+"S2c+X:");
-//		result =add(world, S2c(doubles,singles,output_buffer+"S2c+X:"),result);
-//		timer_S2c.info();}
-//		{CC_Timer timer_S4a(world,output_buffer+"S4a+X:");
-//		result =add(world, S4a(doubles,singles,output_buffer+"S4a+X:"),result);
-//		timer_S4a.info();}
-//		{CC_Timer timer_S4b(world,output_buffer+"S4b+X:");
-//		result =add(world, S4b(doubles,singles,output_buffer+"S4b+X:"),result);
-//		timer_S4b.info();}
-//		{CC_Timer timer_S4c(world,output_buffer+"S4c+X:");
-//		result =add(world, S4c(doubles,singles,output_buffer+"S4c+X:"),result);
-//		timer_S4c.info();}
 		Q(result);
 		truncate(world,result);
 		performance_S.current_iteration++;
@@ -521,6 +472,7 @@ public:
 			Q(f[i]);
 	}
 	// 3D on single function
+	// use the projector class, like in Q12
 	void Q(real_function_3d &f) const {
 		for (size_t i = 0; i < mo_ket_.size(); i++) {
 			f -= mo_bra_[i].inner(f) * mo_ket_[i];
@@ -566,9 +518,21 @@ public:
 		case _S4c_ :
 			result = add(world,S4c_3D_part(u,singles,data),S4c_6D_part(u,singles,data));
 			break;
+		case _S1_ :
+			result = S1(singles);
+			break;
+		case _S5a_ :
+			result = S5a(singles);
+			break;
 		}
 		truncate(world,result);
 		Q(result);
+		size_t num=0;
+		if(world.rank()==0) std::cout << "result for singles potential " << assign_name(name) << std::endl;
+		for(auto i:result){
+			if(world.rank()==0) std::cout << "||tau" << num << "||=" << i.norm2() << std::endl;
+			num++;
+		}
 		data.result_size=get_size(world,result);
 		data.result_norm=norm2(world,result);
 		data.time = timer.current_time();
@@ -640,6 +604,35 @@ public:
 	// -Q \sum_kl 2<kl|g|\tau_k\tau_i> |\tau_l> - \sum_kl <kl|g|\taui\tau_k> |\tau_l>
 	// Q is not applied yet!
 	vecfuncT S6(const CC_vecfunction  &tau) const;
+
+
+	// The two brillouin terms S1 and S5a of the singles potential
+	vecfuncT S1(const CC_vecfunction &tau)const{
+		vecfuncT result;
+		for(auto i:tau.functions){
+			real_function_3d resulti = real_factory_3d(world);
+			resulti = apply_F(mo_ket_[i.i]);
+			Q(resulti);
+			result.push_back(resulti);
+		}
+		return result;
+	}
+
+	vecfuncT S5a(const CC_vecfunction &tau)const{
+		vecfuncT result;
+		for(auto i:tau.functions){
+			real_function_3d resulti = real_factory_3d(world);
+			for(auto k:tau.functions){
+				real_function_3d tmp = apply_F(i.function);
+				const double a = mo_bra_[k.i].inner(tmp);
+				resulti += a*k.function;
+			}
+			result.push_back(resulti);
+		}
+		Q(result);
+		return result;
+	}
+
 
 	/// CC2 singles diagrams with 6d functions as input
 	/// Use GFInterface in function_interface.h as kernel (f*g) and do not reconstruct \tau = f12u(1,2) if possible
@@ -946,19 +939,21 @@ public:
 
 
 	real_function_3d apply_F(const CC_function &x)const{
+		real_function_3d refined_x = copy(x.function).refine();
 		// kinetic part
 		CC_Timer T_time(world,"apply_T");
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 		gradop = gradient_operator<double, 3>(world);
 		vecfuncT gradx, laplacex;
 		for(size_t axis=0;axis<3;axis++){
-			real_function_3d gradxi = (*gradop[axis])(x.function);
+			real_function_3d gradxi = (*gradop[axis])(refined_x);
+			gradxi.refine();
 			gradx.push_back(gradxi);
 			real_function_3d grad2xi = (*gradop[axis])(gradxi);
 			laplacex.push_back(grad2xi);
 		}
 		real_function_3d laplace_x = laplacex[0]+laplacex[1]+laplacex[2];
-		real_function_3d Tx = laplace_x.scale(-0.5);
+		real_function_3d Tx = laplace_x.scale(-0.5).truncate();
 		T_time.info();
 
 		CC_Timer J_time(world,"apply_J");
@@ -1165,6 +1160,8 @@ public:
 			Q(kgj_i);
 			Q(kgi_j);
 			CC_Timer seppG_time(world,"G(D4b)_k in decomposed form");
+			screening(kgj_i,k.function);
+			screening(k.function,kgi_j);
 			real_function_6d appliedG = apply<real_convolution_6d,double,3>(G,kgj_i,k.function);
 			real_function_6d appliedGx= apply<real_convolution_6d,double,3>(G,k.function,kgi_j);
 			real_function_6d result_k = appliedG + appliedGx;
@@ -1218,6 +1215,7 @@ public:
 					double tmp = mo_bra_[j].inner(kgi_j);
 					integral = tmp;
 				}
+				screening(k.function,l.function);
 				real_function_6d tmp = apply<real_convolution_6d,double,3>(G,k.function,l.function);
 				tmp.truncate();
 				tmp.scale(integral);
@@ -1257,12 +1255,20 @@ public:
 			Q(kgtaui_j);
 			Q(kgtauj_i);
 
-			real_function_6d part1 = (apply<real_convolution_6d,double,3>(G,k.function,kgi_tauj)).truncate();
-			real_function_6d part2 = (apply<real_convolution_6d,double,3>(G,kgj_taui,k.function)).truncate();
-			real_function_6d part3 = (apply<real_convolution_6d,double,3>(G,kgtauj_i,k.function)).truncate();
-			real_function_6d part4 = (apply<real_convolution_6d,double,3>(G,kgtaui_j,k.function)).truncate();
+			screening(k.function,kgi_tauj);
+			screening(kgj_taui,k.function);
+
+			real_function_6d part1 = (apply<real_convolution_6d,double,3>(G,k.function,kgi_tauj)); // G(k.function,kgi_tauj)
+			real_function_6d part2 = (apply<real_convolution_6d,double,3>(G,kgj_taui,k.function));
+			real_function_6d part3 = (apply<real_convolution_6d,double,3>(G,kgtauj_i,k.function));
+			real_function_6d part4 = (apply<real_convolution_6d,double,3>(G,kgtaui_j,k.function));
 			real_function_6d result_k = part1 - part2 + part3 - part4;
 			result += result_k;
+			output("D6c details:\n");
+			part1.print_size("part1");
+			part2.print_size("part2");
+			part3.print_size("part3");
+			part4.print_size("part4");
 		}
 		result.truncate();
 		result.scale(-1.0);
@@ -1292,12 +1298,22 @@ public:
 			Q(kgtauj_taui);
 			Q(kgtaui_tauj);
 
+			// screenin_
+			screening(kgtauj_taui,k.function);
+			screening(kgtaui_tauj,k.function);
+
+
+			// end screening
+
 			real_function_6d part1 = (apply<real_convolution_6d,double,3>(G,kgtauj_taui,k.function)).truncate();
 			real_function_6d part2 = (apply<real_convolution_6d,double,3>(G,kgtaui_tauj,k.function)).truncate();
 			real_function_6d part3 = (apply<real_convolution_6d,double,3>(G,k.function,kgtaui_tauj)).truncate();
 			real_function_6d part4 = (apply<real_convolution_6d,double,3>(G,k.function,kgtauj_taui)).truncate();
 			real_function_6d result_k = 2.0*part1 - part2 + 2.0*part3 - part4;
 			result += result_k;
+
+			// set back the threshold
+			FunctionDefaults<6>::set_thresh(parameters.thresh_6D);
 
 			if(parameters.debug){
 				real_function_6d test13 = swap_particles(part1);
@@ -1307,7 +1323,27 @@ public:
 				double norm13 = diff13.norm2();
 				double norm24 = diff24.norm2();
 				if(world.rank()==0) std::cout << "DEBUG:D8a, testing particle swap exploitation, differences are " << norm13 <<" and " << norm24 << std::endl;
+
+				kgtauj_taui.print_size("<k|tauj>*|taui>");
+				k.function.print_size("|tauk>");
+				real_function_6d part1_test = CompositeFactory<double,6,3>(world).particle1(copy(kgtauj_taui)).particle2(copy(k.function));
+				if(world.rank()==0) std::cout << "G is detructive ? " << G.destructive() << std::endl;
+				part1_test.fill_tree(G);
+				part1_test.print_size("6D test function after fill_tree and before G application");
+				real_function_6d G_part1_test = G(part1_test);
+				double diff1 =( part1 - G_part1_test).norm2();
+				if(diff1 > FunctionDefaults<6>::get_thresh()) warning("ERROR in part1 of G_D8a, diff="+stringify(diff1));
+
+				kgtauj_taui.print_size("<k|tauj>*|taui>");
+				k.function.print_size("|tauk>");
+				real_function_6d part4_test = CompositeFactory<double,6,3>(world).particle1(copy(k.function)).particle2(copy(kgtauj_taui));
+				part4_test.fill_tree(G);
+				part1_test.print_size("6D test function after fill_tree and before G application");
+				real_function_6d G_part4_test = G(part4_test);
+				double diff4 =( part4 - G_part4_test).norm2();
+				if(diff4 > FunctionDefaults<6>::get_thresh()) warning("ERROR in part4 of G_D8a, diff="+stringify(diff4));
 			}
+
 		}
 
 
@@ -1337,6 +1373,8 @@ public:
 				double klgitj = mo_bra_[l.i].inner(kgi_tauj);
 				double klgtij = mo_bra_[k.i].inner(lgj_taui);
 
+				screening(k.function,l.function);
+
 				real_function_6d tmp = (apply<real_convolution_6d,double,3>(G,k.function,l.function)).truncate();
 				result += (klgitj + klgtij)*tmp;
 			}
@@ -1365,6 +1403,9 @@ public:
 			for(auto l:singles.functions){
 				real_function_3d kgtaui_tauj = (intermediates_.get_pEX(k.i,i)*singles(j).function).truncate();
 				double integral = mo_bra_[l.i].inner(kgtaui_tauj);
+
+				screening(k.function,l.function);
+
 				real_function_6d tmp = (apply<real_convolution_6d,double,3>(G,k.function,l.function)).truncate();
 				result += integral*tmp;
 			}
@@ -1503,82 +1544,113 @@ private:
 
 
 public:
+
+	//	// Screen Potential
+	//	screeningtype screen_potential(const CC_vecfunction &singles,const CC_function &ti, const CC_function &tj, const potentialtype_d &name)const{
+	//		size_t i = ti.i;
+	//		size_t j = tj.j;
+	//		CC_function moi(mo_ket_[i],i,HOLE);
+	//		CC_function moj(mo_ket_[j],j,HOLE);
+	//		double estimate=0.0;
+	//
+	//		switch(name);
+	//		{
+	//		case _D6b_ :
+	//			for(auto k:singles.functions){
+	//				for(auto l:singles.functions){
+	//					estimate += fabs(intermediates_.get_integral(mo_ket_[k.i],mo_ket_[l.i],moi,moj))*k.function.norm2()*l.function.norm2();
+	//				}
+	//			}
+	//		case _D6c_:
+	//			for(auto k:singles.functions){
+	//				estimate +=  (intermediates_.get_EX(k.i,i).norm2()*k.function.norm2()*tj.function.norm2()
+	//		                     +intermediates_.get_EX(k.i,j).norm2()*k.function.norm2()*ti.function.norm2()
+	//							 +intermediates_.get_pEX(k.i,i).norm2()*k.function.norm2()*mo_ket_[i].norm2()
+	//							 +intermediates_.get_pEX(k.i,j).norm2()*k.function.norm2()*mo_ket_[j].norm2());
+	//			}
+	//		case _D8a_:
+	//
+	//		case _D8b_:
+	//
+	//		case _D9_:
+	//
+	//		}
+	//		estimate = fabs(estimate);
+	//		if(estimate>thresh_6D) return _calculate_;
+	//		else if(estimate>thresh_6D_tight) return _refine_;
+	//		else return _neglect_;
+	//	}
+
+	void screening(const real_function_3d &x, const real_function_3d &y)const{
+		double normx = x.norm2();
+		double normy = y.norm2();
+		double norm_xy = normx*normy;
+		if(world.rank()==0) std::cout << "Screening |xy> 6D function, norm is: " << norm_xy << std::endl;
+		//return norm_xy;
+	}
+
 	// Debug function, content changes from time to time
 	void test_potentials()const{
 		CC_data data;
 		double thresh_3D = FunctionDefaults<3>::get_thresh();
-		double thresh_6D = FunctionDefaults<3>::get_thresh();
+		double thresh_6D = FunctionDefaults<6>::get_thresh();
 		if(mo_ket_.size()>1){
 			warning("more than one mo, test will not be valid\n");
 			return;
 		}
 
-		// 6D Part with u=f12|00>
-		real_function_6d pairfunction = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(mo_ket_[0])).particle2(copy(mo_ket_[0]));
+		// 6D Part with u=f12|xx>, x = r(1)*mo[0]
+		real_function_3d fx = real_factory_3d(world).f(dipole_x);
+		real_function_3d testtau = (fx*mo_ket_[0]).truncate();
+		real_function_6d pairfunction = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(testtau)).particle2(copy(testtau));
 		pairfunction.fill_tree().truncate().reduce_rank();
 		CC_Pair testpair(pairfunction,0,0);
 		Pairs<CC_Pair> pairs;
 		pairs.insert(0,0,testpair);
 
 		// 3D part, test with mos as tau
-		CC_function x(mo_ket_[0],0,PARTICLE);
+		CC_function x(testtau,0,PARTICLE);
 		std::vector<CC_function> vec(1,x);
 		CC_vecfunction tau(vec);
 
 		// we need the right intermediates for the "tau states" which are mos here
 		intermediates_.update(tau);
 
-		// testing S4a potential 3D
+		//		// testing delta projection
+		//		{
+		//			output("Testing S2b...\n");
+		//			vecfuncT s2b_test = S2b_6D_part(pairs,tau,data);
+		//			plot_plane(world,s2b_test.front(),"s2b_xmo");
+		//
+		//			output("Testing S2c...\n");
+		//			vecfuncT s2c_test = S2c_6D_part(pairs,tau,data);
+		//			plot_plane(world,s2b_test.front(),"s2b_xmo");
+		//		}
+		// testing D6c
 		{
+			output("Screening D6c potential");
+			double norm_tau = testtau.norm2();
+			double norm_ex = intermediates_.get_EX(0,0).norm2();
+			double norm_pex= intermediates_.get_pEX(0,0).norm2();
+			double norm_i = mo_ket_[0].norm2();
+			double norm_extau = (intermediates_.get_EX(0,0)*testtau).norm2();
+			double norm_pexi  = (intermediates_.get_pEX(0,0)*mo_ket_[0]).norm2();
 
-			vecfuncT test = S4a_3D_part(tau,data);
-			real_function_3d test2 = (make_ijgQfxy(0,0,mo_ket_[0],mo_ket_[0]))*mo_ket_[0];
-			test2.scale(4.0);
-			double diff = (test[0]-test2).norm2();
-			if(diff>thresh_3D) warning("S4a_3D not sane diff="+stringify(diff));
-			else output("S4a_3D seems to be sane diff="+stringify(diff));
-		}
-		// S4a 6D
-		{
-			vecfuncT test6d_1 = S4a_6D_part(pairs,tau,data);
-			double integral1 = make_ijgu(0,0,testpair);
-			double integral2 = make_ijgfxy(0,0,mo_ket_[0],mo_ket_[0]);
-			double integral_diff = fabs(integral1 - integral2);
-			if(integral_diff > thresh_6D) warning("make_ijgu and make_ijgfxy with error, see testing of S4a_6D part diff="+stringify(integral_diff));
-			real_function_3d test6d_2 = integral1 * mo_ket_[0];
-			double diff_6d = (test6d_1[0] - test6d_2).norm2();
-			if(diff_6d > thresh_6D) warning("S4a_6D part not sane diff=" +stringify(diff_6d));
-			else output("S4a_6D seems to be sane diff="+stringify(diff_6d));
-		}
-		// testing S4b 3D
-		{
-			vecfuncT test = S4b_3D_part(pairs,tau,data);
-			real_function_6d Q12pair = copy(pairfunction);
-			apply_Q12(Q12pair);
-			real_function_3d O_OgO = (mo_bra_[0]*intermediates_.get_EX(0,0)).truncate();
-			real_function_3d test2 = Q12pair.project_out(O_OgO,0);
-			test2.scale(4.0);
-			double diff = (test[0] - test2).norm2();
-			if(diff>thresh_6D) warning("S4b_6D not sane diff="+stringify(diff));
-			else output("S4b_6D seems to be sane diff="+stringify(diff));
-		}
-		// testing S4b 6D
-		{
-			vecfuncT test = S4b_6D_part(pairs,tau,data);
-			real_function_3d O_OgO_O = (mo_bra_[0]*intermediates_.get_EX(0,0)*mo_ket_[0]).truncate();
-			real_function_3d test2 = (*f12op)(O_OgO_O)*mo_ket_[0];
-			double diff = (test[0] - test2).norm2();
-			if(diff>thresh_6D) warning("S4b_6D not sane diff="+stringify(diff));
-			else output("S4b_6D seems to be sane diff="+stringify(diff));
-		}
-		// testing S4c 3D
-		{
+			output("Norm comparison\n");
+			if(world.rank()==0) std::cout << "||f||*||g||=" << norm_ex*norm_tau << ", ||f2||*||g2||=" << norm_pex*norm_i << std::endl;
+			if(world.rank()==0) std::cout << "||f*g||    =" << norm_extau      << ", ||f2*g2||    =" << norm_pexi       << std::endl;
 
-		}
-		// testing S4c 6D
-		{
 
+			double norm_tt = norm_ex*norm_tau*norm_tau;
+			double norm_ti = norm_pex*norm_i*norm_tau;
+			output("Screening Predictions\n");
+			if(world.rank()==0) std::cout << "||D6c||=" << 2.0*(norm_tt*norm_ti) << std::endl;
+			if(world.rank()==0) std::cout << "||D6c||=" << 2.0*(norm_extau*norm_tau + norm_pexi*norm_tau) << std::endl;
+
+			real_function_6d d6c_test = G_D6c(tau,testpair);
+			d6c_test.print_size("D6c_test");
 		}
+
 	}
 };
 

@@ -598,7 +598,7 @@ vecfuncT CC_Operators::S2c_6D_part(const Pairs<CC_Pair> &u, const CC_vecfunction
 // \    ..../.....
 //  \  /\  /     /\
 //  _\/_ \/______\/_
-/// -Q\sum (2<kl|g|\tau_il>|\tau_k> - <kl|g|\tau_ik>|\tau_l>)
+/// -Q\sum (2<kl|g|\tau_il>|\tau_k> - <lk|g|\tau_il>|\tau_k>)
 /// 6D Part -Q\sum_k ( 2<kl|g|uil> - <lk|g|uil> ) tau_k
 /// 3D Part t1 intermediate integras: <kl|g|uil> --> <kl|gQf|titl>
 /// 3D Part decomposed integrals <kl|g|uil> --> <kl|gQf|xy> , |xy> = |il> + |ti,l> + |i,tl> + |ti,tl>
@@ -628,13 +628,32 @@ vecfuncT CC_Operators::S4a_3D_part(const CC_vecfunction & singles,  CC_data &dat
 				double integralx= int_ijx + int_tijx + int_itjx + int_titjx;
 				double a = 2.0*integral - integralx;
 				if(k.i==l.i and (integral-integralx)>FunctionDefaults<3>::get_thresh()) warning("Warnings in S4a_3D_part: J and K integral differ for k==l :" + stringify(integral) + " and " + stringify(integralx));
-				resulti += a*k.function;
+				real_function_3d tmp_result =a*k.function;
+				resulti += tmp_result;
+
+				if(parameters.debug){
+					CC_Timer intij(world,"S4a_3D_part: Debug");
+					real_function_3d ti = (mo_ket_[i.i]+i.function);
+					real_function_3d tl = (mo_ket_[l.i]+l.function);
+					double int_t = make_ijgQfxy(k.i,l.i,ti,tl);
+					double int_tx= make_ijgQfxy(l.i,k.i,ti,tl);
+					if(world.rank()==0) std::cout << "int_ij  =" << int_ij   <<", int_ijx  ="    << int_ijx << std::endl;
+					if(world.rank()==0) std::cout << "int_tij =" << int_tij  <<", int_tijx ="    << int_tijx << std::endl;
+					if(world.rank()==0) std::cout << "int_itj =" << int_itj  <<", int_itjx ="    << int_itjx << std::endl;
+					if(world.rank()==0) std::cout << "int_titj=" << int_titj <<", int_titjx="    << int_titjx << std::endl;
+					if(world.rank()==0) std::cout << "int_t=  =" << int_t    <<", int_tx   ="    << int_tx << std::endl;
+					real_function_3d test = (2.0*int_t - int_tx)*k.function;
+					double diff = (test - tmp_result).norm2();
+					if(diff>FunctionDefaults<3>::get_thresh()) warning("ERROR in S4a_3D_part, t-intermediate test failed, diff="+stringify(diff));
+					else output("S4a_3D_part seems to be fine , diff="+stringify(diff));
+					intij.info();
+				}
 			}
 		}
 		result.push_back(resulti);
 	}
 	truncate(world,result);
-	Q(result);
+	//Q(result);
 	scale(world,result,-1.0);
 	return result;
 }
@@ -653,7 +672,7 @@ vecfuncT CC_Operators::S4a_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 		result.push_back(resulti);
 	}
 	truncate(world,result);
-	Q(result);
+	//Q(result);
 	scale(world,result,-1.0);
 	return result;
 }
@@ -708,7 +727,7 @@ vecfuncT CC_Operators::S4b_3D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 		result.push_back(resulti);
 	}
 	truncate(world,result);
-	Q(result);
+	//Q(result);
 	return result;
 }
 /// for explanation see above
@@ -728,7 +747,7 @@ vecfuncT CC_Operators::S4b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 		resulti.print_size("S4b_"+stringify(i.i)+" potential");
 		result.push_back(resulti);
 	}
-	Q(result);
+	//Q(result);
 	return result;
 }
 
@@ -792,7 +811,7 @@ vecfuncT CC_Operators::S4c_3D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 		result.push_back(resulti);
 	}
 	truncate(world,result);
-	Q(result);
+	//Q(result);
 	return result;
 }
 vecfuncT CC_Operators::S4c_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction & singles, CC_data &data) const {
@@ -816,7 +835,7 @@ vecfuncT CC_Operators::S4c_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 		result.push_back(resulti);
 	}
 	truncate(world,result);
-	Q(result);
+	//Q(result);
 	return result;
 }
 

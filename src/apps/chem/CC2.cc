@@ -56,6 +56,9 @@ bool CC2::test()const{
 /// solve the CC2 ground state equations, returns the correlation energy
 double CC2::solve()const{
 
+	// Check if HF is converged
+	if(parameters.debug) solve_CCS();
+
 	output_section("Little Debug and Testing Session");
 	if(parameters.debug){
 		if(world.rank()==0) std::cout << "FOCK OPERATOR CONSISTENCY CHECK\n";
@@ -83,8 +86,6 @@ double CC2::solve()const{
 
 	}
 
-	// Check if HF is converged
-	//if(parameters.debug) solve_CCS();
 	//if(parameters.debug) test();
 	// Initialize the Pair functions (uij, i>=j)
 	if(parameters.restart) output_section("Initialize Electron Pairs: Loading Stored Pairs");
@@ -182,6 +183,13 @@ bool CC2::solve_CCS()const{
 			omega.push_back(CCOPS.compute_ccs_correlation_energy(singles(i),singles(i)));
 		}
 		// print out the norms
+		output("Performance Overview of Iteration " + stringify(iter));
+		if(world.rank()==0)CCOPS.performance_S.info_last_iter();
+		if(world.rank()==0)CCOPS.performance_D.info_last_iter();
+		output("\nNorm of Singles\n");
+		for(auto x:singles.functions) x.function.print_size("|tau_"+stringify(x.i)+">");
+		output("End performance Overview\n");
+
 		output("Current CCS Correlation energies (Diagonal Part)");
 		if(world.rank()==0) std::cout << omega << std::endl;
 		output("CCS Norms");
@@ -297,6 +305,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles)const{
 	output_section("Little Debug and Testing Session");
 	if(parameters.debug){
+		CCOPS.test_potentials();
 		if(world.rank()==0) std::cout << "FOCK OPERATOR CONSISTENCY CHECK\n";
 		real_function_3d Fi = CCOPS.apply_F(CC_function(active_mo.front(),0,HOLE));
 		Fi.truncate();

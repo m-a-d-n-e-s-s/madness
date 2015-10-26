@@ -17,7 +17,9 @@
 namespace madness{
 
 enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
-enum potentialtype_s {_reF_, _S3c_, _S5b_, _S5c_, _S6_, _S2b_, _S2c_, _S4a_, _S4b_, _S4c_};
+enum potentialtype_s {_reF_, _S3c_, _S5b_, _S5c_, _S6_, _S2b_, _S2c_, _S4a_, _S4b_, _S4c_, _S1_, _S5a_};
+//enum potentialtype_d {_reF_, _D6b_, _D6c_, _D8a_, _D8b_, _D9_, _reC_};
+enum screening_result{_neglect_,_refine_,_calculate_};
 static std::string assign_name(const potentialtype_s &inp){
 	switch(inp){
 	case _reF_ : return "Fock-Residue";
@@ -30,6 +32,8 @@ static std::string assign_name(const potentialtype_s &inp){
 	case _S4a_ : return "S4a";
 	case _S4b_ : return "S4b";
 	case _S4c_ : return "S4c";
+	case _S1_ : return "S1";
+	case _S5a_ : return "S5a";
 	}
 	return "undefined";
 }
@@ -647,14 +651,15 @@ struct CC_vecfunction{
 
 // data structure which contains information about performances of a functions
 struct CC_data{
-	CC_data(): name("UNDEFINED"), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
-	CC_data(const std::string &name_):name(name_), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
-	CC_data(const potentialtype_s &name_):name(assign_name(name_)), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
-	CC_data(const CC_data &other) : name(other.name), time(other.time), result_size(other.result_size), result_norm(other.result_norm), warnings(other.warnings) {}
+	CC_data(): name("UNDEFINED"), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999),correlation_energy(999.999){}
+	CC_data(const std::string &name_):name(name_), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999),correlation_energy(999.999){}
+	CC_data(const potentialtype_s &name_):name(assign_name(name_)), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999),correlation_energy(999.999){}
+	CC_data(const CC_data &other) : name(other.name), time(other.time), result_size(other.result_size), result_norm(other.result_norm), warnings(other.warnings),correlation_energy(other.correlation_energy){}
 	const std::string name;
 	std::pair<double,double> time; // overall time
 	double result_size;
 	double result_norm;
+	double correlation_energy;
 	std::vector<std::string> warnings;
 
 	void info(World & world)const{
