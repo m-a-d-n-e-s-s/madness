@@ -639,7 +639,7 @@ public:
 	const Nemo & get_nemo() const {return nemo_;}
 
 	// Print out grid (e.g for Koala or other external program)
-	const bool print_grid_TDA() const {return print_grid_;}
+	bool print_grid_TDA() const {return print_grid_;}
 
 	// returns a shallow copy the converged xfunctions
 	xfunctionsT get_converged_xfunctions(){return converged_xfunctions_;}
