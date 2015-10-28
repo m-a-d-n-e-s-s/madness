@@ -858,12 +858,19 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	if(parameters.debug){
 		if(world.rank()==0) std::cout << "FOCK OPERATOR CONSISTENCY CHECK\n";
 		real_function_3d Fi = apply_F(CC_function(mo_ket_.front(),0,HOLE));
+		real_function_3d Fi2 = apply_F(CC_function(mo_ket_.front(),0,UNDEFINED));
 		real_function_3d ei = get_orbital_energies()[0]*mo_ket_[0];
 		real_function_3d diff = Fi - ei;
 		double ndiff = diff.norm2();
-		if(ndiff < FunctionDefaults<3>::get_thresh()) std::cout << "... Passed";
-		else std::cout << "... Failed";
-		std::cout << " ||F|i>-ei|i>||=" << ndiff << std::endl;
+		if(world.rank()==0)std::cout << " ||F|i>-ei|i>||=" << ndiff << std::endl;
+		if(world.rank()==0)std::cout << " ||F|i>(explicit) - F|i>||=" << (Fi2 - Fi).norm2() << std::endl;
+		if(world.rank()==0)std::cout << "<i|F|i>(explicit) - <i|F|i>=" << mo_ket_[0].inner((Fi2 - Fi)) << std::endl;
+
+		real_function_3d Fti  = apply_F(taui);
+		real_function_3d Fti2 = apply_F(CC_function(taui.function,taui.i,UNDEFINED));
+		if(world.rank()==0) std::cout << "||F|taui>(explicit) - F|taui>||=" << (Fti2-Fti).norm2() << std::endl;
+		if(world.rank()==0) std::cout << "<taui|F|taui>(explicit) - <taui|F|taui>=" << taui.function.inner((Fti2-Fti)) << std::endl;
+
 	}
 	// DEBUG END
 
@@ -944,6 +951,28 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	part3.print_size("GQf(F-eij)|taui,tauj>:");
 	GQf_parts.print_size("GQf(F-eij)|xy>       :");
 	if(world.rank()==0) std::cout << "\n\n" << std::endl;
+
+	if(parameters.debug){
+		CC_Timer Debug_time(world,"Fock operator t-Form debug calculation");
+		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_function_3d ti_tmp = mo_ket_[taui.i] + taui.function;
+		CC_function ti(ti_tmp,taui.i,MIXED);
+		real_function_3d tj_tmp = mo_ket_[tauj.i] + tauj.function;
+		CC_function tj(tj_tmp,tauj.i,MIXED);
+
+		real_function_3d Fi = apply_F(ti);
+		real_function_3d Fj = apply_F(tj);
+		real_function_6d Qf_Fi_Fj = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(Fi)).particle2(copy(Fj));
+		Qf_Fi_Fj.fill_tree(screenG).reduce_rank().truncate();
+		apply_Q12(Qf_Fi_Fj);
+		real_function_6d tmp = G(Qf_Fi_Fj);
+		double diff = (GQf_parts-tmp).norm2();
+		Qf_Fi_Fj.print_size("GQf|Fti,Ftj>");
+		GQf_parts.print_size("decomposed_form");
+		if(world.rank()==0)std::cout << "GQf|Fti,Ftj> - decomposed form=" << diff << std::endl;
+		if(fabs(diff)>FunctionDefaults<6>::get_thresh()) warning("Error in Fock operator application, ti form and decomposed form lead to different results");
+		Debug_time.info();
+	}
 
 
 	// Ue and KffK Parts
@@ -1508,12 +1537,17 @@ double CC_Operators::get_CC2_correlation_energy() const {
 }
 
 double CC_Operators::compute_ccs_correlation_energy(const CC_function &taui, const CC_function &tauj)const{
+	if(taui.i!=tauj.i)warning("ccs energy fock parts only defined for one orbital molecules");
 	double omega = 0.0;
+	// fock operator parts (zero when HF converged)
+	double omega_f = 2.0*mo_bra_[taui.i].inner(apply_F(CC_function(taui.function,taui.i,UNDEFINED)));
+	output("CCS Energy Fock part: 2.0*<i|F|taui>="+stringify(omega_f));
 	//omega += 2.0*intermediates_.get_integrals_t1()(u.i,u.j,u.i,u.j); //<ij|g|\taui\tauj>
 	omega += 2.0*make_ijgxy(taui.i,tauj.i,taui.function,tauj.function);
 	//omega -= intermediates_.get_integrals_t1()(u.i,u.j,u.j,u.i);     //<ij|g|\tauj\taui>
 	omega -= make_ijgxy(taui.i,tauj.i,tauj.function,taui.function);
-	return omega;
+	output("CCS Energy Coulomb part: 2.0<ij|g|\taui\tauj> - <ji|g|\taui\tauj>="+stringify(omega));
+	return omega+omega_f;
 }
 double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
 		const real_function_3d &taui, const real_function_3d &tauj) const {

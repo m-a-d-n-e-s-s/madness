@@ -20,6 +20,7 @@
 #include <chem/CCOperators.h>
 
 #include <examples/nonlinsol.h>
+
 namespace madness {
 
 
@@ -29,7 +30,7 @@ class CC2 {
 public:
 	CC2(World &world_,const std::string &inputFileName, const Nemo &nemo_):
 		world(world_),
-		correlationfactor(world,1.0,1.e-7,nemo.get_calc()->molecule),
+		correlationfactor(world,1.0,1.e-7,nemo_.get_calc()->molecule),
 		parameters(inputFileName, nemo_.get_calc() -> param.lo, correlationfactor.gamma()),
 		nemo(nemo_),
 		mo(nemo_.get_calc()->amo),
@@ -115,13 +116,13 @@ public:
 	CC_Operators CCOPS;
 
 	/// solve the CC2 ground state equations, returns the correlation energy
-	double solve()const;
-	bool solve_CCS()const;
+	double solve();
+	bool solve_CCS();
 	/// solve the MP2 equations (uncoupled -> Canonical Orbitals)
 	double solve_uncoupled_mp2(Pairs<CC_Pair> &u)const;
 	/// solve the coupled CC2 equations
-	double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau)const;
-	bool iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles)const;
+	double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau);
+	bool iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles);
 	bool iterate_cc2_doubles( Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
 	/// Compute the pair correlation energy of an electron pair function at mp2/CCD level (no singles contributions)
 	double compute_mp2_pair_energy(CC_Pair &u)const;

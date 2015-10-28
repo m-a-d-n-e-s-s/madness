@@ -10,19 +10,19 @@
 #ifndef CCSTRUCTURES_H_
 #define CCSTRUCTURES_H_
 
-#include <chem/SCFOperators.h>
+//#include <chem/SCFOperators.h>
 #include <chem/electronic_correlation_factor.h>
 #include <algorithm> // tolower function for strings
 
 namespace madness{
 
 enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
-enum potentialtype_s {_reF_, _S3c_, _S5b_, _S5c_, _S6_, _S2b_, _S2c_, _S4a_, _S4b_, _S4c_, _S1_, _S5a_};
-//enum potentialtype_d {_reF_, _D6b_, _D6c_, _D8a_, _D8b_, _D9_, _reC_};
+enum potentialtype_s {_reF3D_, _S3c_, _S5b_, _S5c_, _S6_, _S2b_, _S2c_, _S4a_, _S4b_, _S4c_, _S1_, _S5a_};
+enum potentialtype_d {_reF6D_, _D4b_ ,_D6b_, _D6c_, _D8a_, _D8b_, _D9_, _reCC2_,_D6b_D8b_D9_, _D4b_D6c_D8a_};
 enum screening_result{_neglect_,_refine_,_calculate_};
 static std::string assign_name(const potentialtype_s &inp){
 	switch(inp){
-	case _reF_ : return "Fock-Residue";
+	case _reF3D_ : return "Fock-Residue-3D";
 	case _S3c_ : return "S3c";
 	case _S5b_ : return "S5b";
 	case _S5c_ : return "S5c";
@@ -38,6 +38,22 @@ static std::string assign_name(const potentialtype_s &inp){
 	return "undefined";
 }
 
+static std::string assign_name(const potentialtype_d &inp){
+	switch(inp){
+	case _reF6D_ : return "Fock-Residue-6D";
+	case _reCC2_ : return "CC2-Residue";
+	case _D4b_ : return "D4b";
+	case _D6b_ : return "D6b";
+	case _D6c_ : return "D6c";
+	case _D8a_  : return "D8a";
+	case _D8b_ : return "D8b";
+	case _D9_ : return "D9";
+	case _D6b_D8b_D9_ : return "combined(D6b+D8b+D9)";
+	case _D4b_D6c_D8a_ : return "combined(D4b+D6c+D8a)";
+	}
+	return "undefined";
+}
+
 typedef std::vector<Function<double, 3> > vecfuncT;
 
 // Timer Structure
@@ -45,7 +61,7 @@ struct CC_Timer{
 	/// TDA_TIMER contructor
 	/// @param[in] world the world
 	/// @param[in] msg	a string that contains the desired printout when info function is called
-	CC_Timer(World &world,std::string msg) : world(world),start_wall(wall_time()),start_cpu(cpu_time()),operation(msg) {}
+	CC_Timer(World &world,std::string msg) : world(world),start_wall(wall_time()),start_cpu(cpu_time()),operation(msg),end_wall(0.0), end_cpu(0.0) {}
 	World & world;
 	const double start_wall;
 	const double start_cpu;
@@ -105,6 +121,7 @@ struct CC_Parameters{
 		debug(false),
 		mp2_only(false),
 		mp2(false),
+		kain(false),
 		freeze(0)
 	{}
 
@@ -130,10 +147,10 @@ struct CC_Parameters{
 		corrfac_gamma(corrfac_gamma_),
 		output_prec(8),
 		debug(false),
-		kain(false),
-		kain_subspace(3),
 		mp2_only(false),
 		mp2(false),
+		kain(false),
+		kain_subspace(3),
 		freeze(0)
 	{
 		// get the parameters from the input file
@@ -614,10 +631,12 @@ struct CC_vecfunction{
 	std::vector<CC_function> functions;
 
 	std::vector<CC_function> get()const{return functions;}
+	void set(size_t &i, CC_function &new_function){
+		functions[i]=new_function;
+	}
 	void set(const std::vector<CC_function> &other){functions = other;}
-	std::vector<CC_function> operator()(){return functions;}
+	// get and protect
 	std::vector<CC_function> operator()()const{return functions;}
-	CC_function operator()(const size_t &i){return functions[i];}
 	CC_function operator()(const size_t &i)const{return functions[i];}
 
 	vecfuncT vec()const{
@@ -651,15 +670,14 @@ struct CC_vecfunction{
 
 // data structure which contains information about performances of a functions
 struct CC_data{
-	CC_data(): name("UNDEFINED"), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999),correlation_energy(999.999){}
-	CC_data(const std::string &name_):name(name_), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999),correlation_energy(999.999){}
-	CC_data(const potentialtype_s &name_):name(assign_name(name_)), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999),correlation_energy(999.999){}
-	CC_data(const CC_data &other) : name(other.name), time(other.time), result_size(other.result_size), result_norm(other.result_norm), warnings(other.warnings),correlation_energy(other.correlation_energy){}
+	CC_data(): name("UNDEFINED"), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
+	CC_data(const std::string &name_):name(name_), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
+	CC_data(const potentialtype_s &name_):name(assign_name(name_)), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
+	CC_data(const CC_data &other) : name(other.name), time(other.time), result_size(other.result_size), result_norm(other.result_norm), warnings(other.warnings){}
 	const std::string name;
 	std::pair<double,double> time; // overall time
 	double result_size;
 	double result_norm;
-	double correlation_energy;
 	std::vector<std::string> warnings;
 
 	void info(World & world)const{

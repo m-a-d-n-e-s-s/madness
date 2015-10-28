@@ -54,7 +54,7 @@ bool CC2::test()const{
 }
 
 /// solve the CC2 ground state equations, returns the correlation energy
-double CC2::solve()const{
+double CC2::solve(){
 
 	// Check if HF is converged
 	if(parameters.debug) solve_CCS();
@@ -65,15 +65,17 @@ double CC2::solve()const{
 		const double old_thresh = FunctionDefaults<3>::get_thresh();
 		FunctionDefaults<3>::set_thresh(old_thresh*0.1);
 		real_function_3d Fi = CCOPS.apply_F(CC_function(active_mo.front(),0,HOLE));
+		real_function_3d Fi2 = CCOPS.apply_F(CC_function(active_mo.front(),0,UNDEFINED));
 		Fi.truncate();
 		real_function_3d ei = CCOPS.get_orbital_energies()[0]*active_mo.front();
 		real_function_3d diff = (Fi - ei);
+		double diff2 = (Fi2 - ei).norm2();
 		double ei2 = Fi.inner(CCOPS.mo_bra(0));
 		double ndiff = diff.norm2();
 		if(ndiff < FunctionDefaults<3>::get_thresh()) std::cout << "... Passed\n";
 		else std::cout << "... Failed\n";
 		std::cout << std::setprecision(parameters.output_prec) << "||F|i>-ei|i>||=" << ndiff << "  (ei-<i|F|i>)=" << CCOPS.get_orbital_energies()[0] - ei2
-				<<  "\ne_i=" << CCOPS.get_orbital_energies()[0] << " <i|F|i>=" << ei2 << std::endl;
+				<<  "\ne_i=" << CCOPS.get_orbital_energies()[0] << " <i|F|i>=" << ei2 << " , diff2= "<<diff2 << std::endl;
 		active_mo.front().print_size("|i>");
 		ei.print_size("ei|i>");
 		Fi.print_size("F|i>");
@@ -138,16 +140,28 @@ double CC2::solve()const{
 }
 
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
-bool CC2::solve_CCS()const{
+bool CC2::solve_CCS(){
 	output_section("SOLVE CCS");
 	// since the symmetry should not change use the projected aos from moldft as guess
-
+	// calculate HF energy = sum_i 2.0*\epsilon_i + \sum_ij 2.0*<ij|g|ij> - <ij|g|ji>
+	double HF_energy = nemo.get_calc() -> molecule.nuclear_repulsion_energy();
+	if(world.rank()==0) std::cout << "Nuclear repulsion is " << HF_energy << std::endl;
+	double Corr_energy = 0.0;
+	for(size_t i=0;i<active_mo.size();i++){
+		HF_energy += 2.0*CCOPS.get_orbital_energies()[i];
+		for(size_t j=0;j<active_mo.size();j++){
+			HF_energy -= 2.0*CCOPS.make_integral(i,j,CC_function(active_mo[i],i,HOLE),CC_function(active_mo[j],j,HOLE));
+			HF_energy += CCOPS.make_integral(j,i,CC_function(active_mo[i],i,HOLE),CC_function(active_mo[j],j,HOLE));
+		}
+	}
+	if(world.rank()==0) std::cout << "HARTREE-FOCK ENERGY IS: " << HF_energy << std::endl;
 	real_function_3d guessi = real_factory_3d(world);
-	for(size_t i=0;i<nemo.get_calc()->ao.size();i++) guessi += nemo.get_calc()->ao[i];
-	CCOPS.Q(guessi);
+	//for(size_t i=0;i<nemo.get_calc()->ao.size();i++) guessi += nemo.get_calc()->ao[i];
+	//CCOPS.Q(guessi);
 	vecfuncT guess(active_mo.size(),guessi);
 	CC_vecfunction singles(guess,PARTICLE);
 
+	std::vector<double> omega;
 	for(size_t iter=0;iter<30;iter++){
 		output_subsection("Iterate CCS: Iteration "+stringify(iter+1));
 		CCOPS.update_intermediates(singles);
@@ -170,7 +184,6 @@ bool CC2::solve_CCS()const{
 
 		std::vector<double> errors;
 		bool converged = true;
-		std::vector<double> omega;
 		for(size_t i=0;i<potential.size();i++){
 			if(world.rank()==0) std::cout << "|| |tau" + stringify(i)+">|| =" << G_potential[i].norm2() << std::endl;
 			real_function_3d residue = singles(i).function - G_potential[i];
@@ -178,7 +191,14 @@ bool CC2::solve_CCS()const{
 			errors.push_back(error);
 			if(world.rank()==0) std::cout << "|| residue" + stringify(i)+">|| =" << error << std::endl;
 			CCOPS.Q(G_potential[i]);
-			singles(i).set(G_potential[i]);
+			real_function_3d tau_before = singles(i).function;
+			CC_function new_single_i(G_potential[i],singles(i).i,PARTICLE);
+			singles.set(i,new_single_i);
+			real_function_3d tau_after = singles(i).function;
+			double difference = (tau_before - tau_after).norm2();
+			double difference2 = (tau_after - G_potential[i]).norm2();
+			if(world.rank()==0) std::cout << "tau replacement debug (difference should be NOT zero): difference=" << difference << std::endl;
+			if(world.rank()==0) std::cout << "tau replacement debug (difference should be zero): difference=" << difference2 << std::endl;
 			if(fabs(error) > parameters.dconv_3D) converged = false;
 			omega.push_back(CCOPS.compute_ccs_correlation_energy(singles(i),singles(i)));
 		}
@@ -200,7 +220,9 @@ bool CC2::solve_CCS()const{
 		if(converged) break;
 
 	}
-
+	Corr_energy = omega.back();
+	if(world.rank()==0) std::cout << "Correlation Energy Convergence:\n" << omega << std::endl;
+	if(world.rank()==0) std::cout << "CCS finished\n" << "Hartree_Fock energy is " << HF_energy <<"\nCorrelation Energy is " << Corr_energy << "\nTotel Energy is " << HF_energy + Corr_energy << std::endl;
 
 }
 
@@ -302,7 +324,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 	return correlation_energy;
 }
 
-double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles)const{
+double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 	output_section("Little Debug and Testing Session");
 	if(parameters.debug){
 		CCOPS.test_potentials();
@@ -396,7 +418,7 @@ std::vector<double> CC2::update_cc2_pair_energies(const Pairs<CC_Pair> &doubles,
 	return omegas;
 }
 
-bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles)const{
+bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 	output_subsection("Iterate CC2 Singles");
 	CC_Timer timer_potential(world,"CC2 Singles Potential");
 	doubles(0,0).function.print_size("doubles 5");
@@ -425,7 +447,8 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &sin
 		errors.push_back(error);
 		if(world.rank()==0) std::cout << "|| residue" + stringify(i)+">|| =" << error << std::endl;
 		CCOPS.Q(G_potential[i]);
-		singles(i).set(G_potential[i]);
+		CC_function new_single(G_potential[i],singles(i).i,PARTICLE);
+		singles.set(i,new_single);
 		if(fabs(error) > parameters.dconv_3D) converged = false;
 	}
 	return converged;
@@ -447,7 +470,7 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			make_BSH_time.info();
 
 			CC_Timer rest_potential(world,"Doubles Potential from Singles");
-			real_function_6d G_dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles,doubles(i,j));
+			real_function_6d G_dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(i-parameters.freeze),singles(j-parameters.freeze),singles);
 			G_dopo.scale(-2.0);
 			rest_potential.info();
 
