@@ -112,7 +112,6 @@ struct CC_Parameters{
 		econv(1.e-4),
 		dconv_3D(1.e-2),
 		dconv_6D(1.e-2),
-		nfreeze(0),
 		iter_max_3D(30),
 		iter_max_6D(30),
 		restart(false),
@@ -140,7 +139,6 @@ struct CC_Parameters{
 		econv(1.e-4),
 		dconv_3D(1.e-2),
 		dconv_6D(1.e-2),
-		nfreeze(0),
 		iter_max_3D(30),
 		iter_max_6D(30),
 		restart(false),
@@ -233,7 +231,7 @@ struct CC_Parameters{
 			else if (s == "thresh_poisson_6d") f >> thresh_poisson_6D;
 			else if (s == "thresh_f12") f >> thresh_f12;
 			else if (s == "thresh_Ue") f >> thresh_Ue;
-			else if (s == "freeze" or s=="nfreeze") f >> nfreeze;
+			else if (s == "freeze") f >> freeze;
 			else if (s == "iter_max"){
 				f >> iter_max_3D;
 				iter_max_6D = iter_max_3D;
@@ -288,8 +286,6 @@ struct CC_Parameters{
 	double dconv_3D;
 	// Convergence for CC-Doubles
 	double dconv_6D;
-	// Number of frozen Orbitals
-	size_t nfreeze;
 	// iterations
 	size_t iter_max_3D;
 	size_t iter_max_6D;
@@ -339,7 +335,7 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "econv :"             << econv << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "dconv_3D :"          << dconv_3D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "dconv_6D :"          << dconv_6D << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "nfreeze :"           << nfreeze << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "freeze :"           << freeze << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "iter_max_3D :"           << iter_max_3D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "iter_max_6D :"           << iter_max_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "truncation mode 3D :" << FunctionDefaults<3>::get_truncate_mode()  <<std::endl;
@@ -651,8 +647,8 @@ struct CC_vecfunction{
 		MADNESS_ASSERT(end>start);
 		MADNESS_ASSERT(end<=vf.size());
 		MADNESS_ASSERT(start>=0);
-		std::vector<CC_function> result(end-start);
-		for(size_t i=start;i<end;i++) result[i]=CC_function(vf[i],i,type);
+		std::vector<CC_function> result;
+		for(size_t i=start;i<end;i++) result.push_back(CC_function(vf[i],i,type));
 		return result;
 	}
 

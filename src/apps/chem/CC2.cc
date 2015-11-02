@@ -357,9 +357,7 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 
 	// Calculate pair energies with the initialized singles
 	CC_Timer timer_cc2_energies(world,"Update CC2 Pair Energies");
-	doubles(0,0).function.print_size("doubles 2");
 	std::vector<double> initial_energies = update_cc2_pair_energies(doubles,singles);
-	doubles(0,0).function.print_size("doubles 3");
 	timer_cc2_energies.info();
 
 	output_section("Beginn the CC2 Iterations");
@@ -386,9 +384,20 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		if(world.rank()==0)CCOPS.performance_S.info_last_iter();
 		if(world.rank()==0)CCOPS.performance_D.info_last_iter();
 		output("\nNorm of Singles\n");
-		for(auto x:singles.functions) x.function.print_size("|tau_"+stringify(x.i)+">");
+		for(auto x:singles.functions){
+			x.function.print_size("|tau_"+stringify(x.i)+">");
+			(x.function*nemo.nuclear_correlation->function()).print_size("|tau_"+stringify(x.i)+">");
+		}
 		output("\nNorm of Doubles\n");
-		for(auto x:doubles.allpairs) x.second.function.print_size("\tau_"+stringify(x.second.i)+stringify(x.second.j)+">");
+		for(auto x:doubles.allpairs){
+			x.second.function.print_size("\tau_"+stringify(x.second.i)+stringify(x.second.j)+">");
+			real_function_6d full_pair = CompositeFactory<double,6,3>(world).g12(correlationfactor.f()).ket(copy(x.second.function)).V_for_particle1(nemo.nuclear_correlation->function()).V_for_particle2(nemo.nuclear_correlation->function());
+			full_pair.fill_tree();
+			full_pair.print_size("f12R12\tau_"+stringify(x.second.i)+stringify(x.second.j)+">");
+		}
+		output("\nPair Energies");
+		if(world.rank()==0) std::cout << std::setprecision(parameters.output_prec) << current_energies << std::endl;
+
 		output("End performance Overview\n");
 
 		if(singles_converged and doubles_converged and energy_converged){
@@ -398,16 +407,22 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		}
 		timer_iter_all.info();
 
+		// save converged functions
+
+		// make analyze function
+
 	}
 
-	return 0.0;
+	double correlation_energy = 0.0;
+	for(auto x:current_energies) correlation_energy +=x;
+	return correlation_energy;
 }
 
 std::vector<double> CC2::update_cc2_pair_energies(const Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const{
 	std::vector<double> omegas;
-	for(size_t i=0;i<active_mo.size();i++){
-		for(size_t j=0;j<active_mo.size();j++){
-			double tmp = CCOPS.compute_cc2_pair_energy(doubles(i,j), singles(i).function, singles(j).function);
+	for(size_t i=parameters.freeze;i<mo.size();i++){
+		for(size_t j=i;j<mo.size();j++){
+			double tmp = CCOPS.compute_cc2_pair_energy(doubles(i,j), singles(i-parameters.freeze), singles(j-parameters.freeze));
 			omegas.push_back(tmp);
 		}
 	}
@@ -421,7 +436,6 @@ std::vector<double> CC2::update_cc2_pair_energies(const Pairs<CC_Pair> &doubles,
 bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 	output_subsection("Iterate CC2 Singles");
 	CC_Timer timer_potential(world,"CC2 Singles Potential");
-	doubles(0,0).function.print_size("doubles 5");
 	vecfuncT potential = CCOPS.get_CC2_singles_potential(singles,doubles);
 	timer_potential.info();
 
@@ -457,12 +471,9 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &sin
 bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const{
 	output_subsection("Iterate CC2 Doubles");
 
-	// if this is carried out the calculation is aborted after that
-	//CCOPS.testing_mp2_const_part(doubles(0,0),singles);
-
 	bool converged = true;
-	for(size_t i=0;i<active_mo.size();i++){
-		for(size_t j=i;j<active_mo.size();j++){
+	for(size_t i=parameters.freeze;i<mo.size();i++){
+		for(size_t j=i;j<mo.size();j++){
 			CC_Timer whole_potential(world,"whole doubles potential");
 
 			CC_Timer make_BSH_time(world,"Make BSH Operator");
@@ -476,7 +487,7 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 
 			// note that the Greens function is already applied
 			CC_Timer cc2_residue_time(world,"CC2_residue|titj>");
-			real_function_6d G_cc2_residue_titj = CCOPS.make_cc2_residue(singles(i),singles(j),doubles(i,j));
+			real_function_6d G_cc2_residue_titj = CCOPS.make_cc2_residue(singles(i-parameters.freeze),singles(j-parameters.freeze),doubles(i,j));
 			G_cc2_residue_titj.scale(-2.0);
 			cc2_residue_time.info();
 
@@ -522,24 +533,26 @@ CC_vecfunction CC2::initialize_cc2_singles(const Pairs<CC_Pair> &doubles)const{
 	vecfuncT guess_potential = CCOPS.get_CC2_singles_initial_potential(doubles);
 	timer_guess_potential.info();
 
-	output_subsection("Apply the Green's Operator");
-	CC_Timer timer_G(world,"Apply the Green's Operator");
-	vecfuncT G_guess_potential = zero_functions<double,3>(world,guess_potential.size());
-	scale(world,guess_potential,-2.0);
-	for(size_t i=0;i<guess_potential.size();i++){
-		double epsi = CCOPS.get_orbital_energies()[i];
-		real_convolution_3d G = BSHOperator<3>(world, sqrt(-2.0 * epsi), parameters.lo, parameters.thresh_bsh_3D);
-		real_function_3d tmp = (G(guess_potential[i])).truncate();
-		CCOPS.Q(tmp);
-		G_guess_potential[i] = tmp;
-	}
-	timer_G.info();
+//	output_subsection("Apply the Green's Operator");
+//	CC_Timer timer_G(world,"Apply the Green's Operator");
+//	vecfuncT G_guess_potential = zero_functions<double,3>(world,guess_potential.size());
+//	scale(world,guess_potential,-2.0);
+//	for(size_t i=0;i<guess_potential.size();i++){
+//		double epsi = CCOPS.get_orbital_energies()[i];
+//		real_convolution_3d G = BSHOperator<3>(world, sqrt(-2.0 * epsi), parameters.lo, parameters.thresh_bsh_3D);
+//		real_function_3d tmp = (G(guess_potential[i])).truncate();
+//		CCOPS.Q(tmp);
+//		G_guess_potential[i] = tmp;
+//	}
+//	timer_G.info();
+
+	vecfuncT G_guess_potential = guess_potential; // init as zero functions ... G0 = 0
 
 	output_section("Initialized CC2 Singles");
 	std::vector<CC_function> tmp;
-	for(size_t i=0;i<guess_potential.size();i++){
+	for(size_t i=0;i<G_guess_potential.size();i++){
 		if(world.rank()==0) std::cout << "|| |tau" + stringify(i)+">|| =" << G_guess_potential[i].norm2() << std::endl;
-		CC_function taui(G_guess_potential[i],i,PARTICLE);
+		CC_function taui(G_guess_potential[i],i+parameters.freeze,PARTICLE);
 		tmp.push_back(taui);
 	}
 
@@ -558,8 +571,8 @@ void CC2::initialize_electron_pair(CC_Pair &u)const{
 
 		output("...No saved pair found... recalculate\n\n");
 		CC_Timer timer_integrals(world,"Make constant energy Integrals");
-		u.ij_gQf_ij = CCOPS.make_ijgQfxy(u.i,u.j,active_mo[u.i],active_mo[u.j]);
-		u.ji_gQf_ij = CCOPS.make_ijgQfxy(u.i,u.j,active_mo[u.j],active_mo[u.i]);
+		u.ij_gQf_ij = CCOPS.make_ijgQfxy(u.i,u.j,mo[u.i],mo[u.j]); // the u.i u.j have the right numbers (noo freeze problems should occur)
+		u.ji_gQf_ij = CCOPS.make_ijgQfxy(u.i,u.j,mo[u.j],mo[u.i]);
 		timer_integrals.info();
 
 		double epsij = CCOPS.get_epsilon(u.i,u.j);

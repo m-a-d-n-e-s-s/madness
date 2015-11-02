@@ -55,6 +55,11 @@ public:
         FunctionDefaults<6>::set_truncate_mode(3);
         parameters.information(world);
         parameters.sanity_check(world);
+        // sanity checks
+		if (active_mo.size()+parameters.freeze != CCOPS.mo_ket().size()) CCOPS.error("active_mo + freeze of CC2 class and mo_ket_ of CC_Operators have not the same size");
+		if (active_mo.size()+parameters.freeze != CCOPS.mo_bra().size()) CCOPS.error("active_mo + freeze of CC2 class and mo_bra_ of CC_Operators have not the same size");
+		output("Active molecular orbitals have been created...");
+		if(world.rank()==0) std::cout << mo.size() << " MOs\n " << active_mo.size() << " Active MOs\n" << parameters.freeze << "frozen MOs\n";
         //output_section("Testing Section in Constructor");
         //CCOPS.test_fill_tree();
 }
@@ -66,10 +71,6 @@ public:
 			for(size_t i=parameters.freeze; i<mo.size();i++){
 				tmp.push_back(mo[i]);
 			}
-			if (tmp.size() != CCOPS.mo_ket().size()) CCOPS.error("active_mo of CC2 class and mo_ket_ of CC_Operators have not the same size");
-			if (tmp.size() != CCOPS.mo_bra().size()) CCOPS.error("active_mo of CC2 class and mo_bra_ of CC_Operators have not the same size");
-			output("Active molecular orbitals have been created...");
-			if(world.rank()==0) std::cout << mo.size() << " MOs\n " << active_mo.size() << " Active MOs\n" << parameters.freeze << "frozen MOs\n";
 			return tmp;
 		}else{
 			output("No freezing demanded, active_mo = mo");

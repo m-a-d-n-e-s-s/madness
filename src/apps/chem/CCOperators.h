@@ -373,21 +373,21 @@ public:
 	vecfuncT get_CC2_singles_initial_potential(const Pairs<CC_Pair> &doubles)const{
 
 		// make_zero guess
-		real_function_3d zeroguess = real_factory_3d(world);
-		vecfuncT tmp(mo_ket_.size(),zeroguess);
-		CC_vecfunction singles(tmp,PARTICLE,parameters.freeze,tmp.size());
-		MADNESS_ASSERT(singles.size()==mo_ket_.size()-parameters.freeze);
+//		real_function_3d zeroguess = real_factory_3d(world);
+//		vecfuncT tmp(mo_ket_.size(),zeroguess);
+//		CC_vecfunction singles(tmp,PARTICLE,parameters.freeze,tmp.size());
+//		MADNESS_ASSERT(singles.size()==mo_ket_.size()-parameters.freeze);
 
-		vecfuncT result = zero_functions<double,3>(world,mo_ket_.size());
-		{CC_Timer timer_S2b(world,"Singles Potential: S2b+X");
-		result =potential_singles(doubles,singles,_S2b_);
-		for(size_t i=0;i<result.size();i++) result[i].print_size("S2b_"+stringify(i));
-		timer_S2b.info();}
-		{CC_Timer timer_S2c(world,"Singles Potential: S2c+X");
-		vecfuncT s2c = potential_singles(doubles,singles,_S2c_);
-		for(size_t i=0;i<result.size();i++) s2c[i].print_size("S2c_"+stringify(i));
-		result = add(world,s2c,result);
-		timer_S2c.info();}
+		vecfuncT result = zero_functions<double,3>(world,mo_ket_.size()-parameters.freeze);
+//		{CC_Timer timer_S2b(world,"Singles Potential: S2b+X");
+//		result =potential_singles(doubles,singles,_S2b_);
+//		for(size_t i=0;i<result.size();i++) result[i].print_size("S2b_"+stringify(i));
+//		timer_S2b.info();}
+//		{CC_Timer timer_S2c(world,"Singles Potential: S2c+X");
+//		vecfuncT s2c = potential_singles(doubles,singles,_S2c_);
+//		for(size_t i=0;i<result.size();i++) s2c[i].print_size("S2c_"+stringify(i));
+//		result = add(world,s2c,result);
+//		timer_S2c.info();}
 		return result;
 	}
 
@@ -463,9 +463,14 @@ public:
 	/// returns the non constant part of the MP2 potential which is
 	/// (2J-K+Un)|uij>
 	real_function_6d get_MP2_potential_residue(const CC_Pair &u)const{
-		CC_Timer timer_mp2res(world,"(2J-K(R)+Un)|uij>");
+		CC_Timer timer(world,"(2J-K(R)+Un)|uij>");
+		CC_data data("mp2_residue");
 		real_function_6d result = fock_residue_6d(u);
-		timer_mp2res.info();
+		data.result_size=get_size(result);
+		data.result_norm=result.norm2();
+		data.time = timer.current_time();
+		performance_D.insert(data.name,data);
+		timer.info();
 		return result;
 	}
 
@@ -1082,7 +1087,7 @@ public:
 	double get_CC2_correlation_energy() const;
 	double compute_ccs_correlation_energy(const CC_function &taui, const CC_function &tauj)const;
 	double compute_cc2_pair_energy(const CC_Pair &u,
-			const real_function_3d &taui, const real_function_3d &tauj) const;
+			const CC_function &taui, const CC_function &tauj) const;
 	/// Calculate the integral <bra1,bra2|gQf|ket1,ket2>
 	// the bra elements are always the R2orbitals
 	// the ket elements can be \tau_i , or orbitals dependet n the type given
@@ -1299,17 +1304,17 @@ public:
 		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		CC_function moi(mo_ket_[i],i,HOLE);
 		CC_function moj(mo_ket_[j],j,HOLE);
-		CC_function ti(mo_ket_[i]+singles(i+parameters.nfreeze).function,i,MIXED);
-		CC_function tj(mo_ket_[j]+singles(j+parameters.nfreeze).function,j,MIXED);
+		CC_function ti(mo_ket_[i]+singles(i-parameters.freeze).function,i,MIXED);
+		CC_function tj(mo_ket_[j]+singles(j-parameters.freeze).function,j,MIXED);
 		real_function_6d result = real_factory_6d(world);
 		result.set_thresh(parameters.thresh_Ue);
 		for(auto k:singles.functions){
 			for(auto l:singles.functions){
 				CC_Timer integral_time_1(world,"Integrals decomposed");
 				double integral_D6b  = make_integral(k.i,l.i,moi,moj);
-				double integral_D8b  = make_integral(k.i,l.i,moi,singles(j-parameters.nfreeze));
-				       integral_D8b += make_integral(k.i,l.i,singles(i-parameters.nfreeze),moj);
-				double integral_D9   = make_integral(k.i,l.i,singles(i-parameters.nfreeze),singles(j-parameters.nfreeze));
+				double integral_D8b  = make_integral(k.i,l.i,moi,singles(j-parameters.freeze));
+				       integral_D8b += make_integral(k.i,l.i,singles(i-parameters.freeze),moj);
+				double integral_D9   = make_integral(k.i,l.i,singles(i-parameters.freeze),singles(j-parameters.freeze));
 				double integral1 = integral_D6b + integral_D8b + integral_D9;
 				integral_time_1.info();
 				CC_Timer integral_time_2(world,"Integrals with t-intermediates");

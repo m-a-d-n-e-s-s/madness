@@ -848,6 +848,8 @@ vecfuncT CC_Operators::S4c_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 /// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
 real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const CC_function &tauj, const CC_Pair &u)const{
 	output("Now doing the CC2-Regularization-Residue");
+	CC_data data("cc2_residue");
+	CC_Timer timer(world,"cc2_residue");
 	// make intermediates
 	MADNESS_ASSERT(u.i == taui.i);
 	MADNESS_ASSERT(u.j == tauj.i);
@@ -1097,6 +1099,10 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 
 	output("CC2-Regularization-Residue finished");
 	result.print_size("result");
+	data.result_size=get_size(result);
+	data.result_norm=result.norm2();
+	data.time = timer.current_time();
+	performance_D.insert(data.name,data);
 	return result;
 }
 
@@ -1550,32 +1556,35 @@ double CC_Operators::compute_ccs_correlation_energy(const CC_function &taui, con
 	return omega+omega_f;
 }
 double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
-		const real_function_3d &taui, const real_function_3d &tauj) const {
+		const CC_function &taui, const CC_function &tauj) const {
 	double omega = 0.0;
 	const size_t i = u.i;
 	const size_t j = u.j;
+	MADNESS_ASSERT(i==taui.i);
+	MADNESS_ASSERT(j==tauj.i);
+	double tight_thresh = parameters.thresh_Ue;
 	// Contribution from u itself, we will calculate <uij|g|ij> instead of <ij|g|uij> and then just make the inner product (see also mp2.cc)
 	{
-		real_function_6d coulomb = TwoElectronFactory(world).dcut(
-				FunctionDefaults<6>::get_thresh());
+		real_function_6d coulomb = TwoElectronFactory(world).dcut(tight_thresh);
 		real_function_6d g_ij =
 				CompositeFactory<double, 6, 3>(world).particle1(
 						copy(mo_bra_[i])).particle2(copy(mo_bra_[j])).g12(
-								coulomb);
+								coulomb).thresh(tight_thresh);
+
 		real_function_6d g_ji =
 				CompositeFactory<double, 6, 3>(world).particle1(
 						copy(mo_bra_[j])).particle2(copy(mo_bra_[i])).g12(
-								coulomb);
+								coulomb).thresh(tight_thresh);
 		const double uij_g_ij = inner(u.function, g_ij);
 		const double uij_g_ji = inner(u.function, g_ji); // =uji_g_ij
 		omega += 2.0 * uij_g_ij - uij_g_ji;
 	}
 	// Contribution from the mixed f12(|\tau_i,j>+|i,\tau_j>) part
 	{
-		omega += 2.0*make_ijgQfxy(u.i,u.j,mo_ket_[i],tauj);
-		omega += 2.0*make_ijgQfxy(u.i,u.j,taui,mo_ket_[j]);
-		omega -= make_ijgQfxy(u.j,u.i,mo_ket_[i],tauj);
-		omega -= make_ijgQfxy(u.j,u.i,taui,mo_ket_[j]);
+		omega += 2.0*make_ijgQfxy(u.i,u.j,mo_ket_[i],tauj.function);
+		omega += 2.0*make_ijgQfxy(u.i,u.j,taui.function,mo_ket_[j]);
+		omega -= make_ijgQfxy(u.j,u.i,mo_ket_[i],tauj.function);
+		omega -= make_ijgQfxy(u.j,u.i,taui.function,mo_ket_[j]);
 	}
 	// Contribution from the f12|ij> part, this should be calculated in the beginning
 	{
@@ -1583,16 +1592,16 @@ double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
 	}
 	// Contribution from the f12|\tau_i\tau_j> part
 	{
-		omega += 2.0*make_ijgQfxy(u.i,u.j,taui,tauj);
-		omega -= make_ijgQfxy(u.i,u.j,tauj,taui);
+		omega += 2.0*make_ijgQfxy(u.i,u.j,taui.function,tauj.function);
+		omega -= make_ijgQfxy(u.i,u.j,tauj.function,taui.function);
 	}
 	// Singles Contribution
 	{
 		// I should use intermediates later because the t1 integrals are also needed for the CC2 potential
 		//omega += 2.0*intermediates_.get_integrals_t1()(u.i,u.j,u.i,u.j); //<ij|g|\taui\tauj>
-		omega += 2.0*make_ijgxy(u.i,u.j,taui,tauj);
+		omega += 2.0*make_ijgxy(u.i,u.j,taui.function,tauj.function);
 		//omega -= intermediates_.get_integrals_t1()(u.i,u.j,u.j,u.i);     //<ij|g|\tauj\taui>
-		omega -= make_ijgxy(u.i,u.j,tauj,taui);
+		omega -= make_ijgxy(u.i,u.j,tauj.function,taui.function);
 	}
 	return omega;
 }
