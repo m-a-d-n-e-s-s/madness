@@ -534,9 +534,7 @@ public:
 	}
 };
 
-struct asd{
 
-};
 
 // structure for a CC Function 3D which holds an index and a type
 struct CC_function{
@@ -618,49 +616,50 @@ struct CC_function{
 struct CC_vecfunction{
 
 	CC_vecfunction(){}
-	CC_vecfunction(const vecfuncT &v): functions(make_vector(v)) {}
-	CC_vecfunction(const vecfuncT &v, const functype &type) : functions(make_vector(v,type)) {}
-	CC_vecfunction(const vecfuncT &v, const functype &type, const size_t &start, const size_t &end) : functions(make_vector(v,type,start,end)) {}
-	CC_vecfunction(const CC_vecfunction &other) : functions(other.functions) {}
-	CC_vecfunction(const std::vector<CC_function> &vec) : functions(vec) {}
-
-	std::vector<CC_function> functions;
-
-	std::vector<CC_function> get()const{return functions;}
-	void set(size_t &i, CC_function &new_function){
-		functions[i]=new_function;
+	CC_vecfunction(const vecfuncT &v,const functype &type,const size_t &freeze){
+		for(size_t i=0;i<v.size();i++){
+			CC_function tmp(v[i],freeze+i,type);
+			functions.insert(std::make_pair(freeze+i,tmp));
+		}
 	}
-	void set(const std::vector<CC_function> &other){functions = other;}
-	// get and protect
-	std::vector<CC_function> operator()()const{return functions;}
-	CC_function operator()(const size_t &i)const{return functions[i];}
+	CC_vecfunction(const std::vector<CC_function> &v){
+		for(auto x:v){
+			functions.insert(std::make_pair(x.i,x));
+		}
+	}
+	CC_vecfunction(const CC_vecfunction &other) : functions(other.functions) {}
 
-	vecfuncT vec()const{
+	typedef std::map<std::size_t, CC_function> CC_functionmap;
+	CC_functionmap functions;
+
+	/// getter
+	const CC_function& operator()(const size_t &i) const {
+		return functions.find(i)->second;
+	}
+
+	/// getter
+	CC_function& operator()(const size_t &i) {
+		return functions[i];
+	}
+
+	/// setter
+	void insert(const size_t &i, const CC_function &f) {
+		functions.insert(std::make_pair(i, f));
+	}
+
+	vecfuncT get_vecfunction()const{
 		vecfuncT tmp;
-		for(auto x:functions) tmp.push_back(x.function);
+		for(auto x:functions) tmp.push_back(x.second.function);
 		return tmp;
 	}
 
-	std::vector<CC_function> make_vector(const vecfuncT &vf)const {return make_vector(vf,UNDEFINED,0,vf.size());}
-	std::vector<CC_function> make_vector(const vecfuncT &vf,const functype &type)const {return make_vector(vf,type,0,vf.size());}
-	std::vector<CC_function> make_vector(const vecfuncT &vf,const functype &type,const size_t &start,const size_t &end)const{
-		MADNESS_ASSERT(end>start);
-		MADNESS_ASSERT(end<=vf.size());
-		MADNESS_ASSERT(start>=0);
-		std::vector<CC_function> result;
-		for(size_t i=start;i<end;i++) result.push_back(CC_function(vf[i],i,type));
-		return result;
-	}
-
-	void set_type(const functype &type){
-		for(auto x:functions) x.type = type;
-	}
+	// propably not needed and possibly dangerous
+//	void set_type(const functype &type){
+//		for(auto x:functions.second) x.type = type;
+//	}
 
 	std::size_t size()const{return functions.size();}
 	bool empty()const{return functions.empty();}
-	CC_function front()const{return functions.front();}
-
-	// make operators to interface vmra.h
 
 };
 

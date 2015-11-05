@@ -159,7 +159,7 @@ bool CC2::solve_CCS(){
 	//for(size_t i=0;i<nemo.get_calc()->ao.size();i++) guessi += nemo.get_calc()->ao[i];
 	//CCOPS.Q(guessi);
 	vecfuncT guess(active_mo.size(),guessi);
-	CC_vecfunction singles(guess,PARTICLE);
+	CC_vecfunction singles(guess,PARTICLE,parameters.freeze);
 
 	std::vector<double> omega;
 	for(size_t iter=0;iter<30;iter++){
@@ -193,7 +193,7 @@ bool CC2::solve_CCS(){
 			CCOPS.Q(G_potential[i]);
 			real_function_3d tau_before = singles(i).function;
 			CC_function new_single_i(G_potential[i],singles(i).i,PARTICLE);
-			singles.set(i,new_single_i);
+			singles(i)=new_single_i;
 			real_function_3d tau_after = singles(i).function;
 			double difference = (tau_before - tau_after).norm2();
 			double difference2 = (tau_after - G_potential[i]).norm2();
@@ -207,7 +207,7 @@ bool CC2::solve_CCS(){
 		if(world.rank()==0)CCOPS.performance_S.info_last_iter();
 		if(world.rank()==0)CCOPS.performance_D.info_last_iter();
 		output("\nNorm of Singles\n");
-		for(auto x:singles.functions) x.function.print_size("|tau_"+stringify(x.i)+">");
+		for(auto x:singles.functions) x.second.function.print_size("|tau_"+stringify(x.first)+">");
 		output("End performance Overview\n");
 
 		output("Current CCS Correlation energies (Diagonal Part)");
@@ -385,8 +385,8 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		if(world.rank()==0)CCOPS.performance_D.info_last_iter();
 		output("\nNorm of Singles\n");
 		for(auto x:singles.functions){
-			x.function.print_size("|tau_"+stringify(x.i)+">");
-			(x.function*nemo.nuclear_correlation->function()).print_size("|tau_"+stringify(x.i)+">");
+			x.second.function.print_size("|tau_"+stringify(x.first)+">");
+			(x.second.function*nemo.nuclear_correlation->function()).print_size("|tau_"+stringify(x.first)+">");
 		}
 		output("\nNorm of Doubles\n");
 		for(auto x:doubles.allpairs){
@@ -462,7 +462,7 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &sin
 		if(world.rank()==0) std::cout << "|| residue" + stringify(i)+">|| =" << error << std::endl;
 		CCOPS.Q(G_potential[i]);
 		CC_function new_single(G_potential[i],singles(i).i,PARTICLE);
-		singles.set(i,new_single);
+		singles(i) = new_single;
 		if(fabs(error) > parameters.dconv_3D) converged = false;
 	}
 	return converged;
@@ -508,6 +508,7 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			updated_pair.print_size("Q12(updated_pair)");
 			real_function_6d BSH_residue = updated_pair - doubles(i,j).function;
 			double error = BSH_residue.norm2();
+			CCOPS.performance_D.current_iteration++;
 
 			if(error > parameters.dconv_6D) converged = false;
 			if(world.rank()==0){
