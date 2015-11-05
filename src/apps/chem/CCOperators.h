@@ -947,7 +947,7 @@ public:
 	/// if i==j in uij then the symmetry will be exploited
 	/// !!!!Prefactor (-1) is not included here!!!!
 	real_function_6d K(const real_function_6d &u,
-			const bool symmetric = false) const;
+			const bool symmetric = false,const double & thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	/// Exchange Operator on Pair function: -(K(1)+K(2))u(1,2)
 	/// K(1)u(1,2) = \sum_k <k(3)|g13|u(3,2)> |k(1)>
@@ -956,7 +956,7 @@ public:
 	/// 3. result = Y(1,2)*ket_k(1)
 	/// !!!!Prefactor (-1) is not included here!!!!
 	real_function_6d apply_K(const real_function_6d &u,
-			const size_t &particle) const;
+			const size_t &particle,const double & thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	/// returns \sum_k (<k|g|f> *|k>).truncate()
 	real_function_3d apply_K(const CC_function &f)const{
@@ -990,17 +990,17 @@ public:
 			const real_function_3d y, const size_t &i, const size_t &j) const;
 
 	/// Apply the Exchange Commutator [K,f]|xy>
-	real_function_6d apply_exchange_commutator(const CC_function &x, const CC_function &y)const;
+	real_function_6d apply_exchange_commutator(const CC_function &x, const CC_function &y,  const double & thresh = FunctionDefaults<6>::get_thresh())const;
 
 	/// Apply the Exchange operator on a tensor product multiplied with f12
 	/// !!! Prefactor of (-1) is not inclued in K here !!!!
-	real_function_6d apply_Kf(const CC_function &x, const CC_function &y) const;
+	real_function_6d apply_Kf(const CC_function &x, const CC_function &y,const double & thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	/// Apply fK on a tensor product of two 3D functions
 	/// fK|xy> = fK_1|xy> + fK_2|xy>
 	/// @param[in] x, the first 3D function in |xy>, structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
 	/// @param[in] y, the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
-	real_function_6d apply_fK(const CC_function &x, const CC_function &y) const;
+	real_function_6d apply_fK(const CC_function &x, const CC_function &y,const double & thresh = FunctionDefaults<6>::get_thresh()) const;
 
 
 	real_function_3d apply_F(const CC_function &x)const{

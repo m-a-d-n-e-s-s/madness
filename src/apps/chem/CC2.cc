@@ -386,14 +386,16 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		output("\nNorm of Singles\n");
 		for(auto x:singles.functions){
 			x.second.function.print_size("|tau_"+stringify(x.first)+">");
-			(x.second.function*nemo.nuclear_correlation->function()).print_size("|tau_"+stringify(x.first)+">");
+			(x.second.function*nemo.nuclear_correlation->function()).print_size("R|tau_"+stringify(x.first)+">");
 		}
 		output("\nNorm of Doubles\n");
 		for(auto x:doubles.allpairs){
-			x.second.function.print_size("\tau_"+stringify(x.second.i)+stringify(x.second.j)+">");
-			real_function_6d full_pair = CompositeFactory<double,6,3>(world).g12(correlationfactor.f()).ket(copy(x.second.function)).V_for_particle1(nemo.nuclear_correlation->function()).V_for_particle2(nemo.nuclear_correlation->function());
-			full_pair.fill_tree();
-			full_pair.print_size("f12R12\tau_"+stringify(x.second.i)+stringify(x.second.j)+">");
+			x.second.function.print_size("u_"+stringify(x.second.i)+stringify(x.second.j)+">");
+			real_function_6d full_pair = CCOPS.make_full_pair_function(x.second,singles(x.second.i),singles(x.second.j));
+			full_pair.print_size("\tau_"+stringify(x.second.i)+stringify(x.second.j));
+			real_function_6d R2_full_pair = CompositeFactory<double,6,3>(world).ket(copy(full_pair)).V_for_particle1(nemo.nuclear_correlation->function()).V_for_particle2(nemo.nuclear_correlation->function());
+			R2_full_pair.fill_tree().truncate().reduce_rank();
+			R2_full_pair.print_size("R1R2\tau_"+stringify(x.second.i)+stringify(x.second.j));
 		}
 		output("\nPair Energies");
 		if(world.rank()==0) std::cout << std::setprecision(parameters.output_prec) << current_energies << std::endl;

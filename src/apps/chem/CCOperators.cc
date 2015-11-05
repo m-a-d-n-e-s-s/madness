@@ -890,30 +890,15 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	MADNESS_ASSERT(u.j == tauj.i);
 	const size_t i=taui.i;
 	const size_t j=tauj.i;
-
-	// DEBUG
-	if(parameters.debug){
-		if(world.rank()==0) std::cout << "FOCK OPERATOR CONSISTENCY CHECK\n";
-		real_function_3d Fi = apply_F(CC_function(mo_ket_.front(),0,HOLE));
-		real_function_3d Fi2 = apply_F(CC_function(mo_ket_.front(),0,UNDEFINED));
-		real_function_3d ei = get_orbital_energies()[0]*mo_ket_[0];
-		real_function_3d diff = Fi - ei;
-		double ndiff = diff.norm2();
-		if(world.rank()==0)std::cout << " ||F|i>-ei|i>||=" << ndiff << std::endl;
-		if(world.rank()==0)std::cout << " ||F|i>(explicit) - F|i>||=" << (Fi2 - Fi).norm2() << std::endl;
-		if(world.rank()==0)std::cout << "<i|F|i>(explicit) - <i|F|i>=" << mo_ket_[0].inner((Fi2 - Fi)) << std::endl;
-
-		real_function_3d Fti  = apply_F(taui);
-		real_function_3d Fti2 = apply_F(CC_function(taui.function,taui.i,UNDEFINED));
-		if(world.rank()==0) std::cout << "||F|taui>(explicit) - F|taui>||=" << (Fti2-Fti).norm2() << std::endl;
-		if(world.rank()==0) std::cout << "<taui|F|taui>(explicit) - <taui|F|taui>=" << taui.function.inner((Fti2-Fti)) << std::endl;
-
-	}
-	// DEBUG END
+	double tight_thresh = parameters.thresh_Ue;
+	output("Qfxy parts of CC2 residue with tight thresh = "+stringify(tight_thresh));
 
 	// f12 parts first
-	real_function_6d GQf_parts = real_function_6d(world);
+	real_function_6d f_parts = real_factory_6d(world);
+	f_parts.set_thresh(tight_thresh);
+
 	real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+
 
 	// this intermediates we need for all the blocks
 	CC_Timer Ftaui_time(world,"(F-ei)|\tau"+stringify(taui.i)+">");
@@ -936,60 +921,64 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 		// Qf(F -eij)|ij> is zero
 
 		// Qf(F -eij)|\taui,j> = Qf(F1 - ei)|\taui,j> = Qf( |(F1-ei)\taui>(x)|j>
-		output("Qf(F1-ei)|taui,j>");
-		CC_Timer GQfFtaui_time(world,"GQf(F-ei)|\tau"+stringify(taui.i)+">");
-		real_function_6d Qfxj = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(Ftaui)).particle2(copy(mo_ket_[j]));
+		output("f(F1-ei)|taui,j>");
+		CC_Timer fFtaui_time(world,"f(F-ei)|\tau"+stringify(taui.i)+">");
+		real_function_6d fxj = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(Ftaui)).particle2(copy(mo_ket_[j]));
+		fxj.set_thresh(tight_thresh);
+
 		CC_Timer fill_tree_1(world,"fill_tree(G):f|Fx,j>");
 		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		screenG.modified() = true;
-		Qfxj.fill_tree(screenG).truncate().reduce_rank();
+		fxj.fill_tree(screenG).truncate().reduce_rank();
 		fill_tree_1.info();
-		apply_Q12(Qfxj,"f|Fx,j>");
-		real_function_6d tmp = G(Qfxj);
-		GQf_parts += tmp;
-		part1 = tmp;
-		GQfFtaui_time.info();
+		//apply_Q12(Qfxj,"f|Fx,j>");
+		//real_function_6d tmp = G(Qfxj);
+		f_parts += fxj;
+		part1 = fxj;
+		fFtaui_time.info();
 	}{
 		// Qf(F-eij)|i\tauj> = Qf(F2-ej)|i\tauj>
-		output("Qf(F2-ej)|i,tauj>");
-		CC_Timer GQfFtauj_time(world,"GQf(F-ej)|\tau"+stringify(tauj.i)+">");
-		real_function_6d Qfix = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(mo_ket_[i])).particle2(copy(Ftauj));
+		output("f(F2-ej)|i,tauj>");
+		CC_Timer fFtauj_time(world,"f(F-ej)|\tau"+stringify(tauj.i)+">");
+		real_function_6d fix = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(mo_ket_[i])).particle2(copy(Ftauj));
+		fix.set_thresh(tight_thresh);
 		CC_Timer fill_tree_2(world,"fill_tree(G):f|i,Fx>");
 		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		screenG.modified() = true;
-		Qfix.fill_tree(screenG).truncate().reduce_rank();
+		fix.fill_tree(screenG).truncate().reduce_rank();
 		fill_tree_2.info();
-		apply_Q12(Qfix,"f|i,Fx>");
-		real_function_6d tmp = G(Qfix);
-		GQf_parts += tmp;
-		part2 = tmp;
-		GQfFtauj_time.info();
+		//apply_Q12(Qfix,"f|i,Fx>");
+		//real_function_6d tmp = G(Qfix);
+		f_parts += fix;
+		part2 = fix;
+		fFtauj_time.info();
 	}{
 		// Qf(F-eij)|\taui\tauj> = Qf(|(F1-ei)\taui>(x)|(F2-ej)|\tauj>)
-		output("Qf(F-eij)|taui,tauj>");
-		CC_Timer GQfFxFy_time(world,"GQf(F-eij)|\tau"+stringify(taui.i)+"\tau" + stringify(j) + ">");
-		real_function_6d Qfxy = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(Ftaui)).particle2(copy(Ftauj));
+		output("f(F-eij)|taui,tauj>");
+		CC_Timer fFxFy_time(world,"f(F-eij)|\tau"+stringify(taui.i)+"\tau" + stringify(j) + ">");
+		real_function_6d fxy = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(Ftaui)).particle2(copy(Ftauj));
+		fxy.set_thresh(tight_thresh);
 		CC_Timer fill_tree_3(world,"fill_tree(G):f|Fx,Fy>");
 		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		screenG.modified()=true;
-		Qfxy.fill_tree(screenG).truncate().reduce_rank();
+		fxy.fill_tree(screenG).truncate().reduce_rank();
 		fill_tree_3.info();
-		apply_Q12(Qfxy,"f|Fx,Fy>");
-		real_function_6d tmp =  G(Qfxy);
-		GQf_parts += tmp;
-		part3 = tmp;
-		GQfFxFy_time.info();
+		//apply_Q12(Qfxy,"f|Fx,Fy>");
+		//real_function_6d tmp =  G(Qfxy);
+		f_parts += fxy;
+		part3 =fxy;
+		fFxFy_time.info();
 	}
 
 
 	if(world.rank()==0)std::cout << "\n\nFinished with GQf(F-eij)|xy> Parts:\n";
-	part1.print_size("GQf(F1-ei)|taui,j>   :");
-	part2.print_size("GQf(F2-ej)|i,tauj>   :");
-	part3.print_size("GQf(F-eij)|taui,tauj>:");
-	GQf_parts.print_size("GQf(F-eij)|xy>       :");
+	part1.print_size("f(F1-ei)|taui,j>   :");
+	part2.print_size("f(F2-ej)|i,tauj>   :");
+	part3.print_size("f(F-eij)|taui,tauj>:");
+	f_parts.print_size("f(F-eij)|xy>       :");
 	if(world.rank()==0) std::cout << "\n\n" << std::endl;
 
-	if(parameters.debug){
+	if(true){
 		CC_Timer Debug_time(world,"Fock operator t-Form debug calculation");
 		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_3d ti_tmp = mo_ket_[taui.i] + taui.function;
@@ -999,14 +988,15 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 
 		real_function_3d Fi = apply_F(ti);
 		real_function_3d Fj = apply_F(tj);
-		real_function_6d Qf_Fi_Fj = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(Fi)).particle2(copy(Fj));
-		Qf_Fi_Fj.fill_tree(screenG).reduce_rank().truncate();
-		apply_Q12(Qf_Fi_Fj);
-		real_function_6d tmp = G(Qf_Fi_Fj);
-		double diff = (GQf_parts-tmp).norm2();
-		Qf_Fi_Fj.print_size("GQf|Fti,Ftj>");
-		GQf_parts.print_size("decomposed_form");
-		if(world.rank()==0)std::cout << "GQf|Fti,Ftj> - decomposed form=" << diff << std::endl;
+		real_function_6d f_Fi_Fj = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(Fi)).particle2(copy(Fj));
+		f_Fi_Fj.set_thresh(tight_thresh);
+		f_Fi_Fj.fill_tree(screenG).reduce_rank().truncate();
+		//apply_Q12(Qf_Fi_Fj);
+		//real_function_6d tmp = G(Qf_Fi_Fj);
+		double diff = (f_parts-f_Fi_Fj).norm2();
+		f_Fi_Fj.print_size("f|Fti,Ftj>");
+		f_parts.print_size("decomposed_form");
+		if(world.rank()==0)std::cout << "f|Fti,Ftj> - decomposed form=" << diff << std::endl;
 		if(fabs(diff)>FunctionDefaults<6>::get_thresh()) warning("Error in Fock operator application, ti form and decomposed form lead to different results");
 		Debug_time.info();
 	}
@@ -1022,15 +1012,16 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 
 	// |taui,j> part
 	real_function_6d taui_j_part = real_factory_6d(world);
+	taui_j_part.set_thresh(tight_thresh);
 	{
-		output("QUe|taui,j>");
-		CC_Timer Ue_time(world,"GQUe|taui,j>");
+		output("Ue|taui,j>");
+		CC_Timer Ue_time(world,"Ue|taui,j>");
 		real_function_6d Uef = apply_transformed_Ue(taui.function,mo_ket_[j],i,j);
 		//apply_Q12(QUef,"Ue|taui,j>");
 		//GQ_Ue_taui_j = G(QUef);
 		Ue_time.info();
 		output("Q[K,f]|taui,j>");
-		CC_Timer KffK_time(world,"GQ[K,f]|taui,j>");
+		CC_Timer KffK_time(world,"[K,f]|taui,j>");
 		real_function_6d KffK_tmp = apply_exchange_commutator(taui,moj);
 		//apply_Q12(KffK_tmp,"[K,f]|taui,j>");
 		KffK_time.info();
@@ -1038,99 +1029,97 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	}
 	// |i,tauj> part
 	real_function_6d i_tauj_part = real_factory_6d(world);
+	i_tauj_part.set_thresh(tight_thresh);
 	if(i==j){
 		if(world.rank()==0) std::cout << "Exploit Symmetry: P(1,2)|taui,j> = |j,taui> for i=j case\n";
 		CC_Timer symex_timer(world,"GQUe|i,tauj> (i=j, symmetry exploit)");
 		i_tauj_part = swap_particles(taui_j_part);
 		symex_timer.info();
-	}
-	if(i!=j or parameters.debug){
-		output("QUe|i,tauj>");
-		CC_Timer Ue_time(world,"GQUe|i,tauj>");
+	}else{
+		output("Ue|i,tauj>");
+		CC_Timer Ue_time(world,"Ue|i,tauj>");
 		real_function_6d Uef = apply_transformed_Ue(mo_ket_[i],tauj.function,i,j);
+		//apply_Q12(QUef,"Ue|taui,j>");
+		//GQ_Ue_taui_j = G(QUef);
 		Ue_time.info();
-
-		CC_Timer KffK_time(world,"GQ[K,f]|taui,j>");
-		real_function_6d KffK_tmp = apply_exchange_commutator(moi,tauj);
+		output("[K,f]|i,tauj>");
+		CC_Timer KffK_time(world,"[K,f]|i,tauj>");
+		real_function_6d KffK_tmp = apply_exchange_commutator(moi,tauj,tight_thresh);
+		//apply_Q12(KffK_tmp,"[K,f]|taui,j>");
 		KffK_time.info();
-
-		if(i!=j)i_tauj_part = Uef - KffK_tmp;
-		else if(parameters.debug){
-			real_function_6d diff = (Uef - KffK_tmp)-i_tauj_part;
-			diff.print_size("DEBUG: U-KffK difference, calc and swap");
-			if(diff.norm2()>FunctionDefaults<6>::get_thresh()) warning("ERROR in comparison between swapped and calced particles");
-		}
+		i_tauj_part = (Uef - KffK_tmp);
 	}
 
-	// |taui,tauj> part
-	// ADD SCREENING HERE (for small tau) or/and flexible thresh
 	real_function_6d taui_tauj_part = real_factory_6d(world);
+	taui_tauj_part.set_thresh(tight_thresh);
 	{
 		output("Ue|taui,tauj>");
-		CC_Timer Ue_time(world,"QUe|taui,tauj>");
+		CC_Timer Ue_time(world,"Ue|taui,tauj>");
 		real_function_6d Uef = apply_transformed_Ue(taui.function,tauj.function,i,j);
 		Ue_time.info();
 		output("[K,f]|taui,tauj>");
 		CC_Timer KffK_time(world,"[K,f]|taui,tauj>");
-		real_function_6d KffK_tmp = apply_exchange_commutator(taui,tauj);
+		real_function_6d KffK_tmp = apply_exchange_commutator(taui,tauj,tight_thresh);
 		KffK_time.info();
 
 		taui_tauj_part = Uef - KffK_tmp;
 	}
 
-	real_function_6d UeK_parts = (taui_j_part + i_tauj_part + taui_tauj_part);
-	apply_Q12(UeK_parts,"UeK_Parts");
-	real_function_6d G_UeK_parts = apply_G(UeK_parts,i,j);
+	real_function_6d UeK_parts = taui_j_part + i_tauj_part + taui_tauj_part;
+	UeK_parts.set_thresh(tight_thresh);
+	real_function_6d all_parts = (UeK_parts + f_parts);
+	all_parts.set_thresh(tight_thresh);
+	all_parts.print_size("CC2_residue before G and Q");
+	apply_Q12(all_parts,"CC2_residue before G");
+	all_parts.print_size("CC2_residue before G after Q");
 
 
 
 	// make the result;
-	real_function_6d result = GQf_parts + G_UeK_parts;
-	result.truncate();
+	real_function_6d result = G(all_parts);
+	result.print_size("CC2_residue after G");
 
 	output("Finished with QUe|xy> and Q[K,f]|xy> Parts:");
 	taui_tauj_part.print_size("Q12(Ue-[K,f])|taui,tauj>");
 	i_tauj_part.print_size("Q12(Ue-[K,f])|i,tauj>   ");
 	taui_j_part.print_size("Q12(Ue-[K,f])|taui,j>   ");
-	G_UeK_parts.print_size("G(UeKffKparts)");
-	GQf_parts.print_size("GQf(F-e)|titj>_parts");
 	output("\n\n");
 
 
-	// this is expensive !!!!
-	if(parameters.debug){
-		output("Expensive Debug Calculation");
-
-		const CC_function ti(taui.function + mo_ket_[i],i,MIXED);
-		const CC_function tj(tauj.function + mo_ket_[j],j,MIXED);
-
-		real_function_6d GQUK_test = (-2.0)*(G_UeK_parts) + u.constant_term;
-		GQUK_test.print_size("Ue and [K,f] + mp2_residue");
-		apply_Q12(GQUK_test,"GQUK_test");
-		GQUK_test.print_size("Q12(Ue and [K,f] + mp2_residue)");
-
-		CC_Timer Ue_time(world,"GQUe|titj>");
-		real_function_6d QUe_titj = apply_transformed_Ue(ti.function,tj.function,i,j);
-		apply_Q12(QUe_titj,"Uetitj");
-		real_function_6d GQUe_titj = G(QUe_titj);
-		Ue_time.info();
-
-		CC_Timer KffK_time(world,"GQ[K,f]|titj>");
-		real_function_6d QKffK_titj = apply_exchange_commutator(ti,tj);
-		apply_Q12(QKffK_titj,"Uetitj");
-		real_function_6d GQKffK_titj = G(QKffK_titj);
-		KffK_time.info();
-
-		real_function_6d test = (GQUe_titj - GQKffK_titj).truncate();
-		test.scale(-2.0);
-		apply_Q12(test,"test");
-		real_function_6d diff = test - GQUK_test;
-		diff.print_size("difference between sepparated + constantMP2 and titj interemdiates");
-		double norm = diff.norm2();
-		if(norm>FunctionDefaults<6>::get_thresh()) warning("ERROR in CC2 residue at the end, different results for ti intermediate calculations");
-		else output("\n\n |titj> and decomposed+constant_part methods are the same!\n\n");
-		output("Debug Calculation ended");
-	}
+//	// this is expensive !!!!
+//	if(parameters.debug){
+//		output("Expensive Debug Calculation");
+//
+//		const CC_function ti(taui.function + mo_ket_[i],i,MIXED);
+//		const CC_function tj(tauj.function + mo_ket_[j],j,MIXED);
+//
+//		real_function_6d GQUK_test = (-2.0)*(G_UeK_parts) + u.constant_term;
+//		GQUK_test.print_size("Ue and [K,f] + mp2_residue");
+//		apply_Q12(GQUK_test,"GQUK_test");
+//		GQUK_test.print_size("Q12(Ue and [K,f] + mp2_residue)");
+//
+//		CC_Timer Ue_time(world,"GQUe|titj>");
+//		real_function_6d QUe_titj = apply_transformed_Ue(ti.function,tj.function,i,j);
+//		apply_Q12(QUe_titj,"Uetitj");
+//		real_function_6d GQUe_titj = G(QUe_titj);
+//		Ue_time.info();
+//
+//		CC_Timer KffK_time(world,"GQ[K,f]|titj>");
+//		real_function_6d QKffK_titj = apply_exchange_commutator(ti,tj);
+//		apply_Q12(QKffK_titj,"Uetitj");
+//		real_function_6d GQKffK_titj = G(QKffK_titj);
+//		KffK_time.info();
+//
+//		real_function_6d test = (GQUe_titj - GQKffK_titj).truncate();
+//		test.scale(-2.0);
+//		apply_Q12(test,"test");
+//		real_function_6d diff = test - GQUK_test;
+//		diff.print_size("difference between sepparated + constantMP2 and titj interemdiates");
+//		double norm = diff.norm2();
+//		if(norm>FunctionDefaults<6>::get_thresh()) warning("ERROR in CC2 residue at the end, different results for ti intermediate calculations");
+//		else output("\n\n |titj> and decomposed+constant_part methods are the same!\n\n");
+//		output("Debug Calculation ended");
+//	}
 
 	output("CC2-Regularization-Residue finished");
 	result.print_size("result");
@@ -1323,20 +1312,15 @@ real_function_3d CC_Operators::K(const CC_function &x)const{
 /// if i==j in uij then the symmetry will be exploited
 /// !!!!Prefactor (-1) is not included here!!!!
 real_function_6d CC_Operators::K(const real_function_6d &u,
-		const bool symmetric) const {
-	/// DEBUG
-	if(world.rank()==0)std::cout << "Entering K" << std::endl;
-	/// DEBUG END
-
-	/// TEST IF THIS WILL WORK FOR THE += Operator
+		const bool symmetric, const double &thresh) const {
 	real_function_6d result = real_factory_6d(world).compressed();
 	// K(1) Part
-	result += apply_K(u, 1);
+	result += apply_K(u, 1, thresh);
 	// K(2) Part
 	if (symmetric)
 		result += swap_particles(result);
 	else
-		result += apply_K(u, 2);
+		result += apply_K(u, 2,thresh);
 
 	return (result.truncate());
 }
@@ -1348,16 +1332,14 @@ real_function_6d CC_Operators::K(const real_function_6d &u,
 /// 3. result = Y(1,2)*ket_k(1)
 /// !!!!Prefactor (-1) is not included here!!!!
 real_function_6d CC_Operators::apply_K(const real_function_6d &u,
-		const size_t &particle) const {
-	/// DEBUG
-	if(world.rank()==0)std::cout << "Entering apply_K" << std::endl;
-	/// DEBUG END
+		const size_t &particle, const double &thresh) const {
 	MADNESS_ASSERT(particle == 1 or particle == 2);
 	poisson->particle() = particle;
-	/// WARNING: CHECK IF THIS WORKS -> bc of the += operator later
 	real_function_6d result = real_factory_6d(world).compressed();
+	result.set_thresh(thresh);
 	for (size_t k = 0; k < mo_ket_.size(); k++) {
 		real_function_6d X = (multiply(copy(u), copy(mo_bra_[k]), particle)).truncate();
+		X.set_thresh(thresh);
 		real_function_6d Y = (*poisson)(X);
 		result += multiply(copy(Y), copy(mo_ket_[k]), particle).truncate();
 	}
@@ -1377,19 +1359,25 @@ real_function_6d CC_Operators::apply_K(const real_function_6d &u,
 /// @param[out]  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
 real_function_6d CC_Operators::apply_transformed_Ue(const real_function_3d x,
 		const real_function_3d y, const size_t &i, const size_t &j) const {
+
+	// make shure the thresh is high enough
+	double tight_thresh = parameters.thresh_Ue;
+	output("Applying transformed Ue with 6D thresh = " +stringify(tight_thresh));
+
 	real_function_6d Uxy = real_factory_6d(world);
+	Uxy.set_thresh(tight_thresh);
 	// Apply the untransformed U Potential
 	const double eps = get_epsilon(i, j);
 	Uxy = corrfac.apply_U(x, y, eps);
+	Uxy.set_thresh(tight_thresh);
 
 	// Get the 6D BSH operator in modified-NS form for screening
 	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps),
 			parameters.lo,
-			parameters.thresh_Ue);
+			parameters.thresh_bsh_6D);
 	op_mod.modified() = true;
 
-	// make shure the thresh is high enough
-	double tight_thresh = parameters.thresh_Ue;
+
 
 	// Apply the double commutator R^{-1}[[T,f,R]
 	for (size_t axis = 0; axis < 3; axis++) {
@@ -1445,20 +1433,24 @@ real_function_6d CC_Operators::apply_transformed_Ue(const real_function_3d x,
 		//if (error > FunctionDefaults<6>::get_thresh() * 10.0)
 		//	MADNESS_EXCEPTION("Kutzelnigg's potential plain wrong (box size, thresh ?)", 1);
 	}
-	Uxy.print_size("Uphi0");
-
+	Uxy.print_size("Result of applying Ue");
 	return Uxy;
 }
 
 /// Apply the Exchange Commutator [K,f]|xy>
-real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, const CC_function &y)const{
+real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, const CC_function &y,const double &thresh)const{
+
+	output("Applying [K,f] with 6D thresh = " +stringify(thresh));
+
 	// make first part of commutator
 	CC_Timer part1_time(world,"Kf");
-	real_function_6d Kfxy = apply_Kf(x,y).truncate();
+	real_function_6d Kfxy = apply_Kf(x,y,thresh);
+	Kfxy.set_thresh(thresh);
 	part1_time.info();
 	// make the second part of the commutator
 	CC_Timer part2_time(world,"fK");
-	real_function_6d fKxy = apply_fK(x,y).truncate();
+	real_function_6d fKxy = apply_fK(x,y,thresh).truncate();
+	fKxy.set_thresh(thresh);
 	part2_time.info();
 	real_function_6d result = (Kfxy - fKxy);
 
@@ -1510,35 +1502,33 @@ real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, c
 
 	}
 	sanity_time.info();
-
-
-
-
+	result.print_size("result of applying [K,f]");
 	return result;
 }
 
 /// Apply the Exchange operator on a tensor product multiplied with f12
 /// !!! Prefactor of (-1) is not inclued in K here !!!!
-real_function_6d CC_Operators::apply_Kf(const CC_function &x, const CC_function &y) const {
+real_function_6d CC_Operators::apply_Kf(const CC_function &x, const CC_function &y, const double &thresh) const {
 	bool symmetric = false;
 	if((x.type == y.type) and (x.i == y.i)) symmetric = true;
 
 	CC_Timer timer_f12xy(world,"Constructed f12|xy>");
 	// First make the 6D function f12|x,y>
 	real_function_6d f12xy = CompositeFactory<double, 6, 3>(world).g12(
-			corrfac.f()).particle1(copy(x.function)).particle2(copy(y.function));
+			corrfac.f()).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
 	f12xy.fill_tree().truncate().reduce_rank();
 	timer_f12xy.info();
 	// Apply the Exchange Operator
 	real_function_6d result = K(f12xy, symmetric);
-	return result.truncate();
+	result.set_thresh(thresh);
+	return result;
 }
 
 /// Apply fK on a tensor product of two 3D functions
 /// fK|xy> = fK_1|xy> + fK_2|xy>
 /// @param[in] x, the first 3D function in |xy>, structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
 /// @param[in] y, the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
-real_function_6d CC_Operators::apply_fK(const CC_function &x, const CC_function &y) const {
+real_function_6d CC_Operators::apply_fK(const CC_function &x, const CC_function &y, const double &thresh) const {
 	const real_function_3d& phi_i = x.function;
 	const real_function_3d& phi_j = y.function;
 
@@ -1546,13 +1536,14 @@ real_function_6d CC_Operators::apply_fK(const CC_function &x, const CC_function 
 	const real_function_3d Kphi_j = K(y.function);
 
 	real_function_6d fKphi0a = CompositeFactory<double, 6, 3>(world).g12(
-			corrfac.f()).particle1(copy(phi_i)).particle2(copy(Kphi_j));
+			corrfac.f()).particle1(copy(phi_i)).particle2(copy(Kphi_j)).thresh(thresh);
 	fKphi0a.fill_tree().truncate();
 	real_function_6d fKphi0b = CompositeFactory<double, 6, 3>(world).g12(
-			corrfac.f()).particle1(copy(Kphi_i)).particle2(copy(phi_j));
+			corrfac.f()).particle1(copy(Kphi_i)).particle2(copy(phi_j)).thresh(thresh);
 	fKphi0b.fill_tree().truncate();
 
-	real_function_6d fKphi0 = (fKphi0a + fKphi0b).truncate();
+	real_function_6d fKphi0 = (fKphi0a + fKphi0b);
+	fKphi0.set_thresh(thresh);
 	return fKphi0;
 
 }
