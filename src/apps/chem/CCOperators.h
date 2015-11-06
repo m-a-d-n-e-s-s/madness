@@ -807,7 +807,12 @@ public:
 	/// The 6D Fock residue on the cusp free pair function u_{ij}(1,2) is: (2J - Kn - Un)|u_{ij}>
 	real_function_6d fock_residue_6d(const CC_Pair &u) const;
 
-	real_function_6d G_fock_residue_xy(const real_function_3d &x, const real_function_3d &y, const size_t &i, const size_t &j)const{
+	real_function_6d G_fock_residue_xy(const CC_function &taui, const CC_function &tauj)const{
+		error("G_fock_residue_xy .... this function should not be used, if so check it");
+		const size_t i=taui.i;
+		const size_t j=tauj.i;
+		const real_function_3d & x = taui.function;
+		const real_function_3d & y = tauj.function;
 		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		CC_Timer local_time(world,"Fock-residue-xy-local-part");
 		// make x2 = (2.0*J + U2)x, and the same for y
@@ -818,14 +823,8 @@ public:
 		// G(|x2y> + |xy2>)
 		real_function_6d local_part;
 		{
-			real_function_6d x2y = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x2)).particle2(copy(y));
-			real_function_6d xy2 = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x)).particle2(copy(y2));
-			CC_Timer fill_tree_timer_1(world,"fill_tree_1");
-			x2y.fill_tree(G).truncate().reduce_rank();
-			fill_tree_timer_1.info();
-			CC_Timer fill_tree_timer_2(world,"fill_tree_2");
-			xy2.fill_tree(G).truncate().reduce_rank();
-			fill_tree_timer_2.info();
+			real_function_6d x2y = make_f_xy(CC_function(x2,i,UNDEFINED),tauj); //CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x2)).particle2(copy(y));
+			real_function_6d xy2 = make_f_xy(taui,CC_function(y2,j,UNDEFINED)); //CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x)).particle2(copy(y2));
 			apply_Q12(x2y,"x2y");
 			apply_Q12(xy2,"xy2");
 			real_function_6d Gx2y = G(x2y);
@@ -990,17 +989,17 @@ public:
 			const real_function_3d y, const size_t &i, const size_t &j) const;
 
 	/// Apply the Exchange Commutator [K,f]|xy>
-	real_function_6d apply_exchange_commutator(const CC_function &x, const CC_function &y,  const double & thresh = FunctionDefaults<6>::get_thresh())const;
+	real_function_6d apply_exchange_commutator(const CC_function &x, const CC_function &y)const;
 
 	/// Apply the Exchange operator on a tensor product multiplied with f12
 	/// !!! Prefactor of (-1) is not inclued in K here !!!!
-	real_function_6d apply_Kf(const CC_function &x, const CC_function &y,const double & thresh = FunctionDefaults<6>::get_thresh()) const;
+	real_function_6d apply_Kf(const CC_function &x, const CC_function &y) const;
 
 	/// Apply fK on a tensor product of two 3D functions
 	/// fK|xy> = fK_1|xy> + fK_2|xy>
 	/// @param[in] x, the first 3D function in |xy>, structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
 	/// @param[in] y, the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
-	real_function_6d apply_fK(const CC_function &x, const CC_function &y,const double & thresh = FunctionDefaults<6>::get_thresh()) const;
+	real_function_6d apply_fK(const CC_function &x, const CC_function &y) const;
 
 
 	real_function_3d apply_F(const CC_function &x)const{
@@ -1258,7 +1257,7 @@ public:
 	real_function_6d G_D4b_D6c_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
-		output("6D thresh for all new functions = " +stringify(parameters.thresh_Ue));
+		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
 		// make t intermediate: ti = taui + moi
 		real_function_3d ti = taui.function + mo_ket_[i];
 		real_function_3d tj = tauj.function + mo_ket_[j];
@@ -1276,8 +1275,8 @@ public:
 			screening(tmp1,k.function);
 			screening(k.function,tmp2);
 
-			real_function_6d ik = make_screened_hartree_product(tmp1,k.function,G);
-			real_function_6d kj = make_screened_hartree_product(k.function,tmp2,G);
+			real_function_6d ik = make_xy(CC_function(tmp1,99,UNDEFINED),k);
+			real_function_6d kj = make_xy(k,CC_function(tmp2,99,UNDEFINED));
 
 			result += (ik + kj);
 
@@ -1292,14 +1291,14 @@ public:
 
 	/// the doubles diagramms of the form:  integral * |\tauk,\taul> together (D9,D6b,D8b)
 	real_function_6d G_D6b_D8b_D9(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
-		output("6D thresh for all new functions = " +stringify(parameters.thresh_Ue));
+		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
 		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		CC_function moi(mo_ket_[i],i,HOLE);
 		CC_function moj(mo_ket_[j],j,HOLE);
-		CC_function ti(mo_ket_[i]+singles(i-parameters.freeze).function,i,MIXED);
-		CC_function tj(mo_ket_[j]+singles(j-parameters.freeze).function,j,MIXED);
+		CC_function ti(mo_ket_[i]+taui.function,i,MIXED);
+		CC_function tj(mo_ket_[j]+tauj.function,j,MIXED);
 		real_function_6d result = real_factory_6d(world);
 		result.set_thresh(parameters.thresh_Ue);
 		for(auto tmpk:singles.functions){
@@ -1308,9 +1307,9 @@ public:
 				CC_function& l=tmpl.second;
 				CC_Timer integral_time_1(world,"Integrals decomposed");
 				double integral_D6b  = make_integral(k.i,l.i,moi,moj);
-				double integral_D8b  = make_integral(k.i,l.i,moi,singles(j-parameters.freeze));
-				       integral_D8b += make_integral(k.i,l.i,singles(i-parameters.freeze),moj);
-				double integral_D9   = make_integral(k.i,l.i,singles(i-parameters.freeze),singles(j-parameters.freeze));
+				double integral_D8b  = make_integral(k.i,l.i,moi,tauj);
+				       integral_D8b += make_integral(k.i,l.i,taui,moj);
+				double integral_D9   = make_integral(k.i,l.i,taui,tauj);
 				double integral1 = integral_D6b + integral_D8b + integral_D9;
 				integral_time_1.info();
 				CC_Timer integral_time_2(world,"Integrals with t-intermediates");
@@ -1319,12 +1318,12 @@ public:
 				if(world.rank()==0){
 					std::cout << "Integrals of D6b, D8b and D9 are:\n"
 							  << integral_D6b << ", " << integral_D8b <<", " << integral_D9 << "\n"
-							  << "Together they give:\n" << integral1
-							  << "Integral from t-intermediate:\n" << integral2 << std::endl;
+							  << "Together they give:\n" << integral1 << "\n"
+							  << "Integral from t-intermediate is:" << integral2 << std::endl;
 				}
 				if(fabs(integral1-integral2)>FunctionDefaults<3>::get_thresh())warning("Integrals from t-intermediate has different size than decompose form, diff="+stringify(integral1-integral2));
 				// Greens Function on |\tauk,\taul>
-				real_function_6d tmp = make_screened_hartree_product(k.function,l.function,G);
+				real_function_6d tmp = make_xy(k,l);
 //				real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 //				real_function_6d tmp= G(k.function,l.function);
 				result += integral1*tmp;
@@ -1604,22 +1603,55 @@ public:
 		return result;
 	}
 
-	real_function_6d make_screened_hartree_product(const real_function_3d &x, const real_function_3d &y, real_convolution_6d &screening_op,const std::string &msg = "")const{
-		// since the CompositeFactory is destructive to its arguments make copys
-		output("Making screened Hartree Product with increased thresh = " + stringify(parameters.thresh_Ue));
-		const real_function_3d f1 = copy(x);
-		const real_function_3d f2 = copy(y);
-		// since the operator might be needed again make shure it is not detroyed in the fill tree process
-		screening_op.destructive() = false;
-		if(screening_op.destructive())error("Screening Operator is Destructive but needed later!!!!");
-		CC_Timer construction_time(world,"Fill_Tree "+stringify(msg));
-		real_function_6d result = CompositeFactory<double,6,3>(world).particle1(f1).particle2(f2);
-		result.set_thresh(parameters.thresh_Ue);
-		result.fill_tree(screening_op).reduce_rank();
-		construction_time.info(parameters.debug);
-		if(parameters.debug) result.print_size("Fill_Tree "+stringify(msg)+" result");
-		return result;
+
+	real_function_6d make_xy(const CC_function &x, const CC_function &y)const{
+		double thresh = guess_thresh(x,y);
+		output("Making |"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+		CC_Timer timer(world,"Making |"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+		real_function_6d xy = CompositeFactory<double,6,3>(world).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
+		xy.fill_tree().truncate().reduce_rank();
+		timer.info();
+		return xy;
 	}
+
+
+//	real_function_6d make_screened_hartree_product(const CC_function &x, const CC_function &y)const{
+//		double thresh = guess_thresh(x,y);
+//		output("Making screened |"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+//		CC_Timer timer(world,"Making screened |"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+//		real_convolution_6d screen_G = BSHOperator<6>(world, sqrt(-2*get_epsilon(x.i,y.i)),parameters.lo, parameters.thresh_bsh_6D);
+//		screen_G.modified()=true;
+//		screen_G.destructive()=true;
+//		real_function_6d xy = CompositeFactory<double,6,3>(world).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
+//		xy.fill_tree(screen_G).truncate().reduce_rank();
+//		timer.info();
+//		return xy;
+//	}
+
+	real_function_6d make_f_xy(const CC_function &x, const CC_function &y)const{
+		double thresh = guess_thresh(x,y);
+		CC_Timer timer(world,"Making f|"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+		output("Making f|"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+		real_function_6d fxy = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
+		fxy.fill_tree().truncate().reduce_rank();
+		timer.info();
+		return fxy;
+	}
+
+//	real_function_6d make_screened_f_xy(const CC_function &x, const CC_function &y)const{
+//		double thresh = guess_thresh(x,y);
+//		CC_Timer timer(world,"Making screened f|"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+//		output("Making screened f|"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+//		real_convolution_6d screen_G = BSHOperator<6>(world, sqrt(-2*get_epsilon(x.i,y.i)),parameters.lo, parameters.thresh_bsh_6D);
+//		screen_G.modified()=true;
+//		screen_G.destructive()=true;
+//		real_function_6d fxy = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
+//		fxy.fill_tree(screen_G).truncate().reduce_rank();
+//		timer.info();
+//		return fxy;
+//	}
+
+
 
 	real_function_6d apply_G(const real_function_6d &f, const size_t &i, const size_t &j)const{
 		const double eps = get_epsilon(i,j);
@@ -1789,6 +1821,22 @@ public:
 		double norm_xy = normx*normy;
 		if(world.rank()==0) std::cout << "Screening |xy> 6D function, norm is: " << norm_xy << std::endl;
 		//return norm_xy;
+	}
+
+	double guess_thresh(const CC_function &x, const CC_function &y)const{
+		double norm = x.function.norm2() * y.function.norm2();
+		double thresh = parameters.thresh_6D;
+		if(norm > parameters.thresh_6D) thresh= parameters.thresh_6D;
+		else if(norm > 0.5*parameters.thresh_6D) thresh= 0.5*parameters.thresh_6D;
+		else if(norm > 0.1*parameters.thresh_6D) thresh= 0.1*parameters.thresh_6D;
+		else if(norm > 0.05*parameters.thresh_6D) thresh= 0.05*parameters.thresh_6D;
+		else if(norm > 0.01*parameters.thresh_6D) thresh= 0.01*parameters.thresh_6D;
+		else{
+			if(world.rank()==0) std::cout << "Norm of 6D function from 3D function will be " << norm << "... far under the given accuracy ... trying with most precise thresh " << 0.01*parameters.thresh_6D << std::endl;
+			return 0.01*parameters.thresh_6D;
+		}
+		if(world.rank()==0) std::cout << "6D thresh of " << thresh << " is needed to make |xy> with estimated norm of |||xy>||=" << norm << std::endl;
+		return thresh;
 	}
 
 	// Debug function, content changes from time to time

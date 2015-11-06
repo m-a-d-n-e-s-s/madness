@@ -553,61 +553,16 @@ struct CC_function{
 		if(world.rank()==0) std::cout <<"Information about 3D function: " << msg << " i=" << i << " type=" << type << std::endl;
 		function.print_size(msg);
 	}
-
-	void operator =(const CC_function &other){
-		type = other.type;
-		i = other.i;
-		function = other.function;
-	}
-	void operator =(const real_function_3d &other){
-		function = other;
-	}
-	CC_function operator*(const CC_function &other)const{
-		real_function_3d tmp = (function*other.function).truncate();
-		return CC_function(tmp,99,UNDEFINED);
-	}
-
-
-	CC_function operator*(const real_function_3d &other)const{
-		real_function_3d tmp = (function*other).truncate();
-		return CC_function(tmp,99,UNDEFINED);
-	}
-	CC_function operator+(const CC_function &other)const{
-		real_function_3d tmp = function + other.function;
-		functype new_type = UNDEFINED;
-		if(type == other.type) new_type = type;
-		size_t new_i = 99;
-		if(i == other.i) new_i=i;
-		return CC_function(tmp,new_i,new_type);
-	}
-	CC_function operator+(const real_function_3d &other)const{
-		real_function_3d tmp = function + other;
-		return CC_function(tmp,i,UNDEFINED);
-	}
-	CC_function operator-(const real_function_3d &other)const{
-		real_function_3d tmp = function - other;
-		return CC_function(tmp,i,UNDEFINED);
-	}
-	CC_function operator-(const CC_function &other)const{
-		real_function_3d tmp = function - other.function;
-		functype new_type = UNDEFINED;
-		if(type == other.type) new_type = type;
-		size_t new_i = 99;
-		if(i == other.i) new_i=i;
-		return CC_function(tmp,new_i,new_type);
-	}
-	CC_function operator*(const double &a)const{
-		return CC_function(a*function,i,type);
-	}
-	void operator+=(const CC_function &other){
-		function += other.function;
-		if(i!=other.i) i=999;
-		if(type!=other.type) type=UNDEFINED;
-	}
-	void operator-=(const CC_function &other){
-		function += other.function;
-		if(i!=other.i) i=999;
-		if(type!=other.type) type=UNDEFINED;
+	std::string name()const{
+		if(type==HOLE){
+			return "phi_"+stringify(i);
+		}else if(type==PARTICLE){
+			return "tau_"+stringify(i);
+		}else if(type==MIXED){
+			return "t_"+stringify(i);
+		}else{
+			return "function_"+stringify(i);
+		}
 	}
 };
 
