@@ -995,8 +995,10 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 
 	// make the result;
 	output_section("Apply G on CC2 regularization residue");
+	CC_Timer G_time(world,"applying G on CC2 reg_residue");
 	real_function_6d result = G(all_parts);
 	result.print_size("CC2_residue after G");
+	G_time.info();
 
 	output("Finished with QUe|xy> and Q[K,f]|xy> Parts:");
 	taui_tauj_part.print_size("Q12(Ue-[K,f])|taui,tauj>");

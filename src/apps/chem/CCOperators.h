@@ -1016,7 +1016,7 @@ public:
 			return (get_orbital_energies()[x.i]*x.function - singles_potential);
 		}else if(x.type == MIXED){
 			real_function_3d singles_potential = current_singles_potential[x.i-parameters.freeze];
-			return (2.0*get_orbital_energies()[x.i]*x.function - singles_potential);
+			return (get_orbital_energies()[x.i]*x.function - singles_potential); // for mixed: eps(i)*x.i = epsi*(moi + taui)
 		}else if(x.type == UNDEFINED){
 		real_function_3d refined_x = copy(x.function).refine();
 		// kinetic part
