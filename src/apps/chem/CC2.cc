@@ -520,15 +520,30 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 
 			// add up and apply G
 			CC_Timer G_time(world,"Add up and apply G to Doubles potential");
-			real_function_6d doubles_potential = dopo + cc2_residue_titj + fock_residue_uij;
+
+			// add up with higher thresh
+			real_function_6d doubles_potential;
+			doubles_potential.set_thresh(parameters.thresh_Ue);
+			dopo.set_thresh(parameters.thresh_Ue);
+			cc2_residue_titj.set_thresh(parameters.thresh_Ue);
+			fock_residue_uij.set_thresh(parameters.thresh_Ue);
+			doubles_potential = dopo + cc2_residue_titj + fock_residue_uij;
 			doubles_potential.scale(-2.0);
+
 			if(world.rank()==0) std::cout << "Doubles potential thresh " << doubles_potential.thresh() << std::endl;
 			doubles_potential.print_size("Doubles Potential before Truncate");
 			doubles_potential.set_thresh(parameters.thresh_6D);
 			doubles_potential.truncate();
 			doubles_potential.print_size("Doubles Potential after Truncate");
-			real_function_6d updated_pair = G(doubles_potential);
-			updated_pair.print_size("-2.0*G(doubles_potential)");
+			real_function_6d G_doubles_potential = G(doubles_potential);
+
+			// add the constant term
+			output("Add constant MP2 Term");
+			real_function_6d updated_pair = doubles(i,j).constant_term + G_doubles_potential;
+			G_doubles_potential.print_size("-2.0*G(doubles_potential)");
+			updated_pair.print_size("updated_pair before truncate");
+			updated_pair.truncate();
+			updated_pair.print_size("updated_pair after truncate");
 			G_time.info();
 
 			updated_pair.print_size("updated_pair");
