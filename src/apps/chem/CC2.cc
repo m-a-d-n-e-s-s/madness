@@ -57,34 +57,52 @@ bool CC2::test()const{
 double CC2::solve(){
 
 	// Check if HF is converged
-	if(parameters.debug) solve_CCS();
+	//if(parameters.debug) solve_CCS();
 
 	output_section("Little Debug and Testing Session");
 	if(parameters.debug){
-		if(world.rank()==0) std::cout << "FOCK OPERATOR CONSISTENCY CHECK\n";
-		const double old_thresh = FunctionDefaults<3>::get_thresh();
-		FunctionDefaults<3>::set_thresh(old_thresh*0.1);
-		real_function_3d Fi = CCOPS.apply_F(CC_function(active_mo.front(),0,HOLE));
-		real_function_3d Fi2 = CCOPS.apply_F(CC_function(active_mo.front(),0,UNDEFINED));
-		Fi.truncate();
-		real_function_3d ei = CCOPS.get_orbital_energies()[0]*active_mo.front();
-		real_function_3d diff = (Fi - ei);
-		double diff2 = (Fi2 - ei).norm2();
-		double ei2 = Fi.inner(CCOPS.mo_bra(0));
-		double ndiff = diff.norm2();
-		if(ndiff < FunctionDefaults<3>::get_thresh()) std::cout << "... Passed\n";
-		else std::cout << "... Failed\n";
-		std::cout << std::setprecision(parameters.output_prec) << "||F|i>-ei|i>||=" << ndiff << "  (ei-<i|F|i>)=" << CCOPS.get_orbital_energies()[0] - ei2
-				<<  "\ne_i=" << CCOPS.get_orbital_energies()[0] << " <i|F|i>=" << ei2 << " , diff2= "<<diff2 << std::endl;
-		active_mo.front().print_size("|i>");
-		ei.print_size("ei|i>");
-		Fi.print_size("F|i>");
-		diff.print_size("(F-ei)|i>");
-		output("Make some plots");
-		plot(diff,"diff");
-		plot(Fi,"Fi");
-		plot(ei,"ei");
-		FunctionDefaults<3>::set_thresh(old_thresh);
+		if(world.rank()==0) std::cout<< "Testing Laplace operator\n";
+		real_function_3d gauss = real_factory_3d(world).f(f_gauss);
+		real_function_3d gauss_dx = real_factory_3d(world).f(f_gauss_dx);
+		real_function_3d gauss_d2x = real_factory_3d(world).f(f_gauss_d2x);
+		plot_plane(world,gauss,"gauss");
+		plot_plane(world,gauss_dx,"gauss_dx");
+		plot_plane(world,gauss_d2x,"gauss_d2x");
+
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+		gradop = gradient_operator<double, 3>(world);
+
+		real_function_3d gauss_dx_numerical = (*gradop[0])(gauss);
+		real_function_3d gauss_d2x_numerical = (*gradop[0])(gauss_dx_numerical);
+
+		plot_plane(world,gauss_dx_numerical,"gauss_dx_numerical");
+		plot_plane(world,gauss_d2x_numerical,"gauss_d2x_numerical");
+
+		double diff_dx = (gauss_dx - gauss_dx_numerical).norm2();
+		double diff_d2x = (gauss_d2x - gauss_d2x_numerical).norm2();
+
+		// now make T(gauss) and see if GT(gauss) is gauss
+		real_function_3d laplace_gauss = real_factory_3d(world);
+		for(size_t i=0;i<3;i++){
+			real_function_3d tmp = (*gradop[i])(gauss);
+			real_function_3d tmp2 = (*gradop[i])(tmp);
+			laplace_gauss += tmp2;
+		}
+		real_convolution_3d G = BSHOperator<3>(world, 0.0, parameters.lo, parameters.thresh_bsh_3D); // BSH with eps = 0.0 is inverse to laplace
+		real_function_3d gauss_2 = -1.0*G(laplace_gauss);
+
+		plot_plane(world,gauss_2,"gauss_2");
+		double diff3 = (gauss-gauss_2).norm2();
+
+		if(world.rank()==0){
+			std::cout << "Results of Testing Laplace operator on a gauss function:\n";
+			std::cout << "||d/dx(gauss) - d/dx(gauss)_numerical    ||=" << diff_dx << "\n";
+			std::cout << "||d2/dx2(gauss) - d2/dx2(gauss)_numerical||=" << diff_d2x << "\n";
+			std::cout << "||G(laplace_gauss)-gauss||                 =" << diff3 << "\n\n\n";
+
+		}
+
+
 
 	}
 
@@ -239,7 +257,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 
 			output_subsection("Setup the BSH Operator");
 			CC_Timer timer_bsh_setup(world,"Setup the BSH-Operator for the pair function");
-			real_convolution_6d G = BSHOperator<6>(world, sqrt(-2 * CCOPS.get_epsilon(i,j)),
+			real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * CCOPS.get_epsilon(i,j)),
 					parameters.lo, parameters.thresh_bsh_6D);
 			G.destructive_ = true;
 			output("Constructed Green Operator is destructive ? : " + stringify(G.destructive()));
@@ -479,7 +497,7 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			CC_Timer whole_potential(world,"whole doubles potential");
 
 			CC_Timer make_BSH_time(world,"Make BSH Operator");
-			real_convolution_6d G = BSHOperator<6>(world, sqrt(-2 * CCOPS.get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+			real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * CCOPS.get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 			make_BSH_time.info();
 
 			CC_Timer rest_potential(world,"Doubles Potential from Singles");

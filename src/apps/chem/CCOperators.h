@@ -289,11 +289,16 @@ public:
 		warnings.push_back(msg);
 	}
 
+	void output_section(const std::string&msg)const{
+		if(world.rank()==0){
+			std::cout << "\n\n--------------\n";
+			std::cout << msg << std::endl;
+			std::cout << "\n";
+		}
+	}
 	void output(const std::string &msg)const{
 		if(world.rank()==0){
-			std::cout << "\n\n" << std::endl;
-			std::cout << std::setw(50) << std::setfill('-') << std::endl;
-			std::cout << std::setw(10) << std::setfill(' ') << "CC-OPERATORS:" << msg << std::endl;
+			std::cout << msg << std::endl;
 		}
 	}
 
@@ -813,7 +818,7 @@ public:
 		const size_t j=tauj.i;
 		const real_function_3d & x = taui.function;
 		const real_function_3d & y = tauj.function;
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		CC_Timer local_time(world,"Fock-residue-xy-local-part");
 		// make x2 = (2.0*J + U2)x, and the same for y
 		real_function_3d x2 = ((2.0*intermediates_.get_hartree_potential() + nemo.nuclear_correlation->U2())*x).truncate();
@@ -1008,10 +1013,10 @@ public:
 			return get_orbital_energies()[x.i]*x.function;
 		}else if(x.type == PARTICLE){
 			real_function_3d singles_potential = current_singles_potential[x.i-parameters.freeze];
-			return (singles_potential + get_orbital_energies()[x.i]*x.function);
+			return (get_orbital_energies()[x.i]*x.function - singles_potential);
 		}else if(x.type == MIXED){
 			real_function_3d singles_potential = current_singles_potential[x.i-parameters.freeze];
-			return (singles_potential + 2.0*get_orbital_energies()[x.i]*x.function);
+			return (2.0*get_orbital_energies()[x.i]*x.function - singles_potential);
 		}else if(x.type == UNDEFINED){
 		real_function_3d refined_x = copy(x.function).refine();
 		// kinetic part
@@ -1255,13 +1260,14 @@ public:
 
 	/// the doubles diagramms of the form:  <i|g|x>*|y\tauj> which are D4b, D6c and D8a
 	real_function_6d G_D4b_D6c_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
+		output_section("Now doing G_D4b_D6c_D8a");
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
 		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
 		// make t intermediate: ti = taui + moi
 		real_function_3d ti = taui.function + mo_ket_[i];
 		real_function_3d tj = tauj.function + mo_ket_[j];
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 		result.set_thresh(parameters.thresh_Ue);
 		for(auto tmpk:singles.functions){
@@ -1291,10 +1297,11 @@ public:
 
 	/// the doubles diagramms of the form:  integral * |\tauk,\taul> together (D9,D6b,D8b)
 	real_function_6d G_D6b_D8b_D9(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
+		output_section("Now doing G_D6b_D8b_D9");
 		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		CC_function moi(mo_ket_[i],i,HOLE);
 		CC_function moj(mo_ket_[j],j,HOLE);
 		CC_function ti(mo_ket_[i]+taui.function,i,MIXED);
@@ -1324,7 +1331,7 @@ public:
 				if(fabs(integral1-integral2)>FunctionDefaults<3>::get_thresh())warning("Integrals from t-intermediate has different size than decompose form, diff="+stringify(integral1-integral2));
 				// Greens Function on |\tauk,\taul>
 				real_function_6d tmp = make_xy(k,l);
-//				real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+//				real_convolution_6d G = Operator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 //				real_function_6d tmp= G(k.function,l.function);
 				result += integral1*tmp;
 			}
@@ -1339,7 +1346,7 @@ public:
 	real_function_6d G_D4b_explicit(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 		for(auto tmpk:singles.functions){
 			CC_function& k=tmpk.second;
@@ -1365,7 +1372,7 @@ public:
 	real_function_6d G_D4b_decomposed(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 		for(auto tmpk:singles.functions){
 			CC_function& k=tmpk.second;
@@ -1389,7 +1396,7 @@ public:
 	real_function_6d G_D6b_explicit(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 		// integrals can also be stored in intermediates (depend only on hole states)
 		for(auto tmpk:singles.functions){
@@ -1417,7 +1424,7 @@ public:
 	real_function_6d G_D6b_decomposed(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 		// integrals can also be stored in intermediates (depend only on hole states)
 		for(auto tmpk:singles.functions){
@@ -1447,7 +1454,7 @@ public:
 	real_function_6d G_D6c(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 
 		for(auto tmpk:singles.functions){
@@ -1488,7 +1495,7 @@ public:
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
 		output("Now Doing G_D8a, particle swap may be exploited in the future\n\n");
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 
 		for(auto tmpk:singles.functions){
@@ -1556,7 +1563,7 @@ public:
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
 		output("Now Doing G_D8b\n\n");
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 		for(auto tmpk:singles.functions){
 			CC_function& k=tmpk.second;
@@ -1583,7 +1590,7 @@ public:
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
 		output("Now Doing G_D9\n\n");
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 		for(auto tmpk:singles.functions){
 			CC_function& k=tmpk.second;

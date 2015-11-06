@@ -882,7 +882,7 @@ vecfuncT CC_Operators::S4c_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 /// Right now Calculated in the decomposed form: |titj> = |i,j> + |\taui,\tauj> + |i,\tauj> + |\taui,j>
 /// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
 real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const CC_function &tauj, const CC_Pair &u)const{
-	output("Now doing the CC2-Regularization-Residue");
+	output_section("Now doing the CC2-Regularization-Residue");
 	CC_data data("cc2_residue");
 	CC_Timer timer(world,"cc2_residue");
 	// make intermediates
@@ -897,13 +897,14 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	double epsi = get_orbital_energies()[i];
 	double epsj = get_orbital_energies()[j];
 	double epsij = epsi + epsj;
-	real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+	real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 	double tight_thresh = parameters.thresh_Ue;
 	output("Qfxy parts of CC2 residue with tight thresh = "+stringify(tight_thresh));
 
 	// f12 parts first
 	real_function_6d fF_parts;
 	// The fF part
+	output_section("fF|titj> part of CC2 regularization residue");
 	{
 		// with ti = taui + moi
 		// f12(F1 + F2 - ei - ej)|titj> = |Fti,tj> + |ti,Ftj> - (ei+ej)|ti,tj>
@@ -913,8 +914,14 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 		{//debug
 		CC_function Ftaui(apply_F(taui),i,UNDEFINED);
 		CC_function Ftauj(apply_F(tauj),j,UNDEFINED);
+		CC_function Fi(apply_F(moi),i,HOLE);
+		real_function_3d Ftaui_explicit = apply_F(CC_function(taui.function,taui.i,UNDEFINED));
+		double diffx = (Ftaui.function - Ftaui_explicit).norm2();
+		double diff1 = (Fi.function - epsi*moi.function).norm2();
 		double diffi = (Fti.function - Ftaui.function - epsi*mo_ket_[i]).norm2();
 		double diffj = (Ftj.function - Ftauj.function - epsj*mo_ket_[i]).norm2();
+		if(diffx > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffx="+stringify(diffx));
+		if(diff1 > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diff1="+stringify(diff1));
 		if(diffi > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffi="+stringify(diffi));
 		if(diffj > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffj="+stringify(diffj));
 		}//debug end
@@ -926,7 +933,7 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	// Ue and KffK Parts
 	// pack some CC_3D_functions which hold all necessary informations
 	// |ij> part is already there (constant part of MP2)
-
+	output_section("Ue and [K,f] part of CC2 regularization residue");
 	// |taui,j> part
 	real_function_6d taui_j_part = real_factory_6d(world);
 	taui_j_part.set_thresh(tight_thresh);
@@ -987,6 +994,7 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 
 
 	// make the result;
+	output_section("Apply G on CC2 regularization residue");
 	real_function_6d result = G(all_parts);
 	result.print_size("CC2_residue after G");
 
@@ -1048,7 +1056,7 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 real_function_6d CC_Operators::make_GQfT_xy(const real_function_3d &x, const real_function_3d &y, const size_t &i, const size_t &j)const{
 	error("make_GQfT should not be used");
 	// construct the greens operator
-	real_convolution_6d G = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+	real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 
 	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 	gradop = gradient_operator<double, 3>(world);
@@ -1076,11 +1084,11 @@ real_function_6d CC_Operators::make_GQfT_xy(const real_function_3d &x, const rea
 	if(world.rank()==0) std::cout << "Constructing fTxy with G as screening operator\n";
 	CC_Timer fTxy_construction_time(world,"Screened 6D construction of fTxy");
 	{
-		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		screenG.modified()=true;
 		fTxy.fill_tree(screenG).truncate().reduce_rank();
 	}{
-		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+		real_convolution_6d screenG = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		screenG.modified()=true;
 		fxTy.fill_tree(screenG).truncate().reduce_rank();
 	}
@@ -1135,7 +1143,7 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 
 	// Contruct the BSH operator in order to screen
 
-	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps),
+	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2.0 * eps),
 			parameters.lo, parameters.thresh_bsh_6D);
 	// apparently the modified_NS form is necessary for the screening procedure
 	op_mod.modified() = true;
@@ -1272,7 +1280,11 @@ real_function_6d CC_Operators::apply_transformed_Ue(const real_function_3d x,
 		const real_function_3d y, const size_t &i, const size_t &j) const {
 
 	// make shure the thresh is high enough
-	double tight_thresh = parameters.thresh_Ue;
+	double tight_thresh = guess_thresh(CC_function(x,i,UNDEFINED),CC_function(y,j,UNDEFINED));
+	if(tight_thresh > parameters.thresh_Ue){
+		tight_thresh = parameters.thresh_Ue;
+		output("Thresh to low for Ue setting it back to "+stringify(tight_thresh));
+	}
 	output("Applying transformed Ue with 6D thresh = " +stringify(tight_thresh));
 
 	real_function_6d Uxy = real_factory_6d(world);
@@ -1283,7 +1295,7 @@ real_function_6d CC_Operators::apply_transformed_Ue(const real_function_3d x,
 	Uxy.set_thresh(tight_thresh);
 
 	// Get the 6D BSH operator in modified-NS form for screening
-	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps),
+	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2.0 * eps),
 			parameters.lo,
 			parameters.thresh_bsh_6D);
 	op_mod.modified() = true;
