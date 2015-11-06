@@ -878,7 +878,7 @@ vecfuncT CC_Operators::S4c_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 /// @param[in] \tau_i which will create the |t_i> = |\tau_i>+|i> intermediate
 /// @param[in] \tau_j
 /// @param[in] u, the uij pair structure which holds the consant part of MP2
-/// @param[out] G(Q12f12(F-eij)|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\taui>+|i>)
+/// @param[out] Q12f12(F-eij)|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\taui>+|i>
 /// Right now Calculated in the decomposed form: |titj> = |i,j> + |\taui,\tauj> + |i,\tauj> + |\taui,j>
 /// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
 real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const CC_function &tauj, const CC_Pair &u)const{
@@ -897,7 +897,6 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	double epsi = get_orbital_energies()[i];
 	double epsj = get_orbital_energies()[j];
 	double epsij = epsi + epsj;
-	real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 	double tight_thresh = parameters.thresh_Ue;
 	output("Qfxy parts of CC2 residue with tight thresh = "+stringify(tight_thresh));
 
@@ -920,7 +919,19 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 		double diff1 = (Fi.function - epsi*moi.function).norm2();
 		double diffi = (Fti.function - Ftaui.function - epsi*mo_ket_[i]).norm2();
 		double diffj = (Ftj.function - Ftauj.function - epsj*mo_ket_[i]).norm2();
-		if(diffx > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffx="+stringify(diffx));
+		if(diffx > FunctionDefaults<3>::get_thresh()){
+			warning("Fock operator seems inconsistent, diffx="+stringify(diffx));
+			// integration check
+			double check1 = taui.function.inner(Ftaui.function);
+			double check2 = taui.function.inner(Ftaui_explicit);
+			double diff = fabs(check1 - check2);
+			if(world.rank()==0){
+				std::cout << "but difference in integration with <taui| is " << diff << std::endl;
+				if(fabs(diff)>FunctionDefaults<3>::get_thresh()) std::cout << "... which is also not good\n";
+				else std::cout << "... which seems to be ok\n";
+			}
+
+		}
 		if(diff1 > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diff1="+stringify(diff1));
 		if(diffi > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffi="+stringify(diffi));
 		if(diffj > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffj="+stringify(diffj));
@@ -985,20 +996,12 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 
 	real_function_6d UeK_parts = taui_j_part + i_tauj_part + taui_tauj_part;
 	UeK_parts.set_thresh(tight_thresh);
-	real_function_6d all_parts = (UeK_parts + fF_parts);
-	all_parts.set_thresh(tight_thresh);
-	all_parts.print_size("CC2_residue before G and Q");
-	apply_Q12(all_parts,"CC2_residue before G");
-	all_parts.print_size("CC2_residue before G after Q");
+	real_function_6d result = (UeK_parts + fF_parts);
+	result.set_thresh(tight_thresh);
+	result.print_size("CC2_residue before G and Q");
+	apply_Q12(result,"CC2_residue before G");
+	result.print_size("CC2_residue before G after Q");
 
-
-
-	// make the result;
-	output_section("Apply G on CC2 regularization residue");
-	CC_Timer G_time(world,"applying G on CC2 reg_residue");
-	real_function_6d result = G(all_parts);
-	result.print_size("CC2_residue after G");
-	G_time.info();
 
 	output("Finished with QUe|xy> and Q[K,f]|xy> Parts:");
 	taui_tauj_part.print_size("Q12(Ue-[K,f])|taui,tauj>");
@@ -1280,7 +1283,7 @@ real_function_6d CC_Operators::apply_K(const real_function_6d &u,
 /// @param[out]  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
 real_function_6d CC_Operators::apply_transformed_Ue(const real_function_3d x,
 		const real_function_3d y, const size_t &i, const size_t &j) const {
-
+	output_section("Now applying the transformed Ue operator");
 	// make shure the thresh is high enough
 	double tight_thresh = guess_thresh(CC_function(x,i,UNDEFINED),CC_function(y,j,UNDEFINED));
 	if(tight_thresh > parameters.thresh_Ue){
@@ -1365,7 +1368,7 @@ real_function_6d CC_Operators::apply_transformed_Ue(const real_function_3d x,
 /// Apply the Exchange Commutator [K,f]|xy>
 real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, const CC_function &y)const{
 
-	output("Applying [K,f]");
+	output_section("Now applying [K,f]");
 
 	// make first part of commutator
 	CC_Timer part1_time(world,"Kf");
@@ -1415,7 +1418,9 @@ real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, c
 					if (std::fabs(a) > FunctionDefaults<6>::get_thresh())
 						warning("Exchange commutator inaccurate");
 					if (std::fabs(a) > FunctionDefaults<6>::get_thresh() * 10.0)
-						if(parameters.debug) warning("exchange commutator plain wrong");
+						if(parameters.debug){
+							warning("exchange commutator plain wrong");
+						}
 						else{
 							MADNESS_EXCEPTION("exchange commutator plain wrong", 1);
 						}

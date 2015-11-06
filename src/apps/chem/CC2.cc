@@ -371,6 +371,9 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 	output_section("Initialize CC2 Singles from the MP2 Doubles");
 	CC_Timer init_singles(world,"Initialize CC2 Singles");
 	singles = initialize_cc2_singles(doubles);
+	// make first iteration
+	CCOPS.update_intermediates(singles);
+	iterate_cc2_singles(doubles,singles);
 	init_singles.info();
 
 	// Calculate pair energies with the initialized singles
@@ -389,6 +392,7 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		CC_Timer timer_iter_singles(world,"Iteration " + stringify(iter) + " Singles");
 		singles_converged=iterate_cc2_singles(doubles,singles);
 		timer_iter_singles.info();
+		CCOPS.update_intermediates(singles);
 		CC_Timer timer_iter_doubles(world,"Iteration " + stringify(iter) + " Doubles");
 		doubles_converged = iterate_cc2_doubles(doubles,singles);
 		std::vector<double> updated_energies = update_cc2_pair_energies(doubles,singles);
@@ -501,14 +505,12 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			make_BSH_time.info();
 
 			CC_Timer rest_potential(world,"Doubles Potential from Singles");
-			real_function_6d G_dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(i-parameters.freeze),singles(j-parameters.freeze),singles);
-			G_dopo.scale(-2.0);
+			real_function_6d dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(i-parameters.freeze),singles(j-parameters.freeze),singles);
 			rest_potential.info();
 
 			// note that the Greens function is already applied
 			CC_Timer cc2_residue_time(world,"CC2_residue|titj>");
-			real_function_6d G_cc2_residue_titj = CCOPS.make_cc2_residue(singles(i-parameters.freeze),singles(j-parameters.freeze),doubles(i,j));
-			G_cc2_residue_titj.scale(-2.0);
+			real_function_6d cc2_residue_titj = CCOPS.make_cc2_residue(singles(i-parameters.freeze),singles(j-parameters.freeze),doubles(i,j));
 			cc2_residue_time.info();
 
 			// the fock residue is (2J-K+Un)|uij>
@@ -516,13 +518,19 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			real_function_6d fock_residue_uij = (CCOPS.fock_residue_6d(doubles(i,j))).truncate();
 			fock_residue_time.info();
 
-			CC_Timer G_residue_time(world,"Make the MP2 Residue G(2J-K+Un)|uij>");
-			real_function_6d G_mp2_residue = G(fock_residue_uij);
-			G_mp2_residue.truncate();
-			G_mp2_residue.scale(-2.0);
-			G_residue_time.info();
+			// add up and apply G
+			CC_Timer G_time(world,"Add up and apply G to Doubles potential");
+			real_function_6d doubles_potential = dopo + cc2_residue_titj + fock_residue_uij;
+			doubles_potential.scale(-2.0);
+			if(world.rank()==0) std::cout << "Doubles potential thresh " << doubles_potential.thresh() << std::endl;
+			doubles_potential.print_size("Doubles Potential before Truncate");
+			doubles_potential.set_thresh(parameters.thresh_6D);
+			doubles_potential.truncate();
+			doubles_potential.print_size("Doubles Potential after Truncate");
+			real_function_6d updated_pair = G(doubles_potential);
+			updated_pair.print_size("-2.0*G(doubles_potential)");
+			G_time.info();
 
-			real_function_6d updated_pair = (G_mp2_residue + G_cc2_residue_titj + doubles(i,j).constant_term + G_dopo).truncate();
 			updated_pair.print_size("updated_pair");
 			CCOPS.apply_Q12(updated_pair,"updated_pair");
 			updated_pair.print_size("Q12(updated_pair)");

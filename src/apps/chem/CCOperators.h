@@ -377,7 +377,6 @@ public:
 
 	// only get the part of the singles that is produced exclusively by the doulbes in order to make a first guess for the singles
 	vecfuncT get_CC2_singles_initial_potential(const Pairs<CC_Pair> &doubles)const{
-
 		// make_zero guess
 //		real_function_3d zeroguess = real_factory_3d(world);
 //		vecfuncT tmp(mo_ket_.size(),zeroguess);
@@ -576,10 +575,10 @@ public:
 			result = G_D9(taui,tauj,singles);
 			break;
 		case _D6b_D8b_D9_ :
-			result = G_D6b_D8b_D9(taui,tauj,singles);
+			result = D6b_D8b_D9(taui,tauj,singles);
 			break;
 		case _D4b_D6c_D8a_ :
-			result = G_D4b_D6c_D8a(taui,tauj,singles);
+			result = D4b_D6c_D8a(taui,tauj,singles);
 			break;
 
 		case _reF6D_ :
@@ -1259,7 +1258,7 @@ public:
 	/// need to apply G to every single term in order to avoid entangelment
 
 	/// the doubles diagramms of the form:  <i|g|x>*|y\tauj> which are D4b, D6c and D8a
-	real_function_6d G_D4b_D6c_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
+	real_function_6d D4b_D6c_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		output_section("Now doing G_D4b_D6c_D8a");
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
@@ -1267,7 +1266,6 @@ public:
 		// make t intermediate: ti = taui + moi
 		real_function_3d ti = taui.function + mo_ket_[i];
 		real_function_3d tj = tauj.function + mo_ket_[j];
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		real_function_6d result = real_factory_6d(world);
 		result.set_thresh(parameters.thresh_Ue);
 		for(auto tmpk:singles.functions){
@@ -1287,21 +1285,19 @@ public:
 			result += (ik + kj);
 
 		}
-		real_function_6d G_result = G(result);
-		G_result.scale(-1.0);
+		result.scale(-1.0);
 		output("6D thresh for all new functions = " +stringify(parameters.thresh_6D));
-		G_result.set_thresh(parameters.thresh_6D);
-		return G_result;
+		result.set_thresh(parameters.thresh_6D);
+		return result;
 	}
 
 
 	/// the doubles diagramms of the form:  integral * |\tauk,\taul> together (D9,D6b,D8b)
-	real_function_6d G_D6b_D8b_D9(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
+	real_function_6d D6b_D8b_D9(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		output_section("Now doing G_D6b_D8b_D9");
 		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
-		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 		CC_function moi(mo_ket_[i],i,HOLE);
 		CC_function moj(mo_ket_[j],j,HOLE);
 		CC_function ti(mo_ket_[i]+taui.function,i,MIXED);
@@ -1336,7 +1332,6 @@ public:
 				result += integral1*tmp;
 			}
 		}
-		real_function_6d G_result = G(result);
 		// no truncate, we will add up small fractions
 		output("6D thresh for all new functions = " +stringify(parameters.thresh_6D));
 		result.set_thresh(parameters.thresh_6D);
