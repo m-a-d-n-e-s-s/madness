@@ -87,14 +87,12 @@ AC_LINK_IFELSE(
 AC_LANG_POP
 
 # Check that the MPICXX Compiler can link correctly.
-AC_LANG_PUSH([C++])
 AC_MSG_CHECKING([that the $MPICXX linker works])
 AC_LINK_IFELSE(
   [AC_LANG_PROGRAM([[]], [[]])],
   [AC_MSG_RESULT([yes])],
   [AC_MSG_RESULT([no])
    AC_MSG_ERROR(["Unable to link with $MPICXX])])
-AC_LANG_POP
 
 # Initialize Libtools (for shared libraries)
 LT_INIT
@@ -192,7 +190,6 @@ AC_TYPE_PID_T
 AC_C_RESTRICT
 ACX_CHECK_TLS
 AC_TYPE_SIZE_T
-AC_HEADER_TIME
 #AC_TYPE_UINT64_T
 #AC_TYPE_INT64_T
 AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t, long long])
