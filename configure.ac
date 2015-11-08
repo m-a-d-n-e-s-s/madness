@@ -181,9 +181,13 @@ AC_HEADER_TIME
 AC_HEADER_STDC
 AC_CHECK_HEADERS([limits.h stddef.h stdint.h stdlib.h string.h sys/param.h sys/time.h unistd.h])
 AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
-# Check c++11 headers
-AC_CHECK_HEADERS([array type_traits tuple initializer_list])
 AC_HEADER_STDBOOL
+# Check c++11 headers
+# MUST include CXXFLAGS into CPPFLAGS to choose proper C++ standard switch
+ac_save_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $CXXFLAGS"
+AC_CHECK_HEADERS([array type_traits tuple initializer_list])
+CPPFLAGS="$ac_save_CPPFLAGS"
 
 # Types
 AC_TYPE_PID_T
