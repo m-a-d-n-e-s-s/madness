@@ -908,6 +908,12 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 		// with ti = taui + moi
 		// f12(F1 + F2 - ei - ej)|titj> = |Fti,tj> + |ti,Ftj> - (ei+ej)|ti,tj>
 		CC_function Fti(apply_F(ti),i,UNDEFINED);
+		// debug
+		{
+			real_function_3d Fti_2 = get_orbital_energies()[i]*mo_ket_[i]+apply_F(CC_function(taui.function,taui.i,UNDEFINED));
+			double diff = (Fti.function - Fti_2).norm2();
+			if(world.rank()==0) std::cout << "||Fti - F(i+taui)||=" << diff << std::endl;
+		}
 		CC_function Ftj(apply_F(tj),j,UNDEFINED);
 
 		{//debug

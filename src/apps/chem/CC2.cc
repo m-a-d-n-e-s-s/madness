@@ -55,63 +55,26 @@ bool CC2::test()const{
 
 /// solve the CC2 ground state equations, returns the correlation energy
 double CC2::solve(){
+if(parameters.debug){
+	CCOPS.test_potentials(5,1.e-5,true);
+	CCOPS.test_potentials(6,1.e-5,true);
+	CCOPS.test_potentials(7,1.e-5,true);
+	CCOPS.test_potentials(8,1.e-5,true);
 
+	CCOPS.test_potentials(5,1.e-6,true);
+	CCOPS.test_potentials(6,1.e-6,true);
+	CCOPS.test_potentials(7,1.e-6,true);
+	CCOPS.test_potentials(8,1.e-6,true);
+}
 	// Check if HF is converged
-	//if(parameters.debug) solve_CCS();
-
-	output_section("Little Debug and Testing Session");
-	if(parameters.debug){
-		if(world.rank()==0) std::cout<< "Testing Laplace operator\n";
-		real_function_3d gauss = real_factory_3d(world).f(f_gauss);
-		real_function_3d gauss_dx = real_factory_3d(world).f(f_gauss_dx);
-		real_function_3d gauss_d2x = real_factory_3d(world).f(f_gauss_d2x);
-		plot_plane(world,gauss,"gauss");
-		plot_plane(world,gauss_dx,"gauss_dx");
-		plot_plane(world,gauss_d2x,"gauss_d2x");
-
-		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-		gradop = gradient_operator<double, 3>(world);
-
-		real_function_3d gauss_dx_numerical = (*gradop[0])(gauss);
-		real_function_3d gauss_d2x_numerical = (*gradop[0])(gauss_dx_numerical);
-
-		plot_plane(world,gauss_dx_numerical,"gauss_dx_numerical");
-		plot_plane(world,gauss_d2x_numerical,"gauss_d2x_numerical");
-
-		double diff_dx = (gauss_dx - gauss_dx_numerical).norm2();
-		double diff_d2x = (gauss_d2x - gauss_d2x_numerical).norm2();
-
-		// now make T(gauss) and see if GT(gauss) is gauss
-		real_function_3d laplace_gauss = real_factory_3d(world);
-		for(size_t i=0;i<3;i++){
-			real_function_3d tmp = (*gradop[i])(gauss);
-			real_function_3d tmp2 = (*gradop[i])(tmp);
-			laplace_gauss += tmp2;
-		}
-		real_convolution_3d G = BSHOperator<3>(world, 0.0, parameters.lo, parameters.thresh_bsh_3D); // BSH with eps = 0.0 is inverse to laplace
-		real_function_3d gauss_2 = -1.0*G(laplace_gauss);
-
-		plot_plane(world,gauss_2,"gauss_2");
-		double diff3 = (gauss-gauss_2).norm2();
-
-		if(world.rank()==0){
-			std::cout << "Results of Testing Laplace operator on a gauss function:\n";
-			std::cout << "||d/dx(gauss) - d/dx(gauss)_numerical    ||=" << diff_dx << "\n";
-			std::cout << "||d2/dx2(gauss) - d2/dx2(gauss)_numerical||=" << diff_d2x << "\n";
-			std::cout << "||G(laplace_gauss)-gauss||                 =" << diff3 << "\n\n\n";
-
-		}
-
-
-
-	}
-
+	if(parameters.ccs) solve_CCS();
 	//if(parameters.debug) test();
 	// Initialize the Pair functions (uij, i>=j)
 	if(parameters.restart) output_section("Initialize Electron Pairs: Loading Stored Pairs");
 	else output_section("Initialize Electron Pairs: First guess will be the constant Term of MP2");
 	CC_Timer timer_init(world,"Initialization of all pairs");
 	Pairs<CC_Pair> pairs;
+	double mp2_energy = 0.0;
 	for(size_t i=parameters.freeze;i<mo.size();i++){
 		for(size_t j=i;j<mo.size();j++){
 			CC_Pair u(i,j);
@@ -120,7 +83,7 @@ double CC2::solve(){
 					u.function.print_size("loaded pair u"+stringify(i)+stringify(j));
 					output("...Found saved pair\n\n");
 					u.info();
-					double mp2_energy = CCOPS.compute_mp2_pair_energy(u);
+					mp2_energy = CCOPS.compute_mp2_pair_energy(u);
 					output("Current MP2 Energy of the Pair is: " + stringify(mp2_energy));
 				}else MADNESS_EXCEPTION(("No Restartdata found for pair " + stringify(i)+stringify(j)).c_str(),1);
 			}else initialize_electron_pair(u);
@@ -345,7 +308,6 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 	output_section("Little Debug and Testing Session");
 	if(parameters.debug){
-		CCOPS.test_potentials();
 		if(world.rank()==0) std::cout << "FOCK OPERATOR CONSISTENCY CHECK\n";
 		real_function_3d Fi = CCOPS.apply_F(CC_function(active_mo.front(),0,HOLE));
 		Fi.truncate();

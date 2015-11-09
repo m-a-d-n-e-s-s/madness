@@ -21,6 +21,26 @@
 
 namespace madness {
 
+// functors for gauss function
+static double f_gauss(const coord_3d &r){
+	return exp(-((r[0])*(r[0])+(r[1])*(r[1])+(r[2])*(r[2])));
+}
+static double f_gauss_dx(const coord_3d &r){
+	return -2.0*r[0]*f_gauss(r);
+}
+static double f_gauss_d2x(const coord_3d &r){
+	return -2.0*f_gauss(r)+4.0*r[0]*r[0]*f_gauss(r);
+}
+static double f_gauss_d2(const coord_3d &r, const size_t &i){
+	return -2.0*f_gauss(r)+4.0*r[i]*r[i]*f_gauss(r);
+}
+static double f_r2(const coord_3d &r){
+	return (r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
+}
+static double f_laplace_gauss(const coord_3d&r){
+	return -6.0*f_gauss(r)+4.0*f_r2(r)*f_gauss(r);
+}
+
 typedef std::vector<Function<double, 3> > vecfuncT;
 
 static double dipole_x(const coord_3d &r){return r[0];}
@@ -1006,6 +1026,46 @@ public:
 	real_function_6d apply_fK(const CC_function &x, const CC_function &y) const;
 
 
+
+	real_function_3d apply_laplacian(const real_function_3d &x)const{
+		// make gradient operator for new k and with new thresh
+		size_t high_k = 8;
+		size_t high_thresh = 1.e-6;
+        std::vector< std::shared_ptr< Derivative<double,3> > > gradop(3);
+        for (std::size_t d=0; d<3; ++d) {
+        	gradop[d].reset(new Derivative<double,3>(world,d,FunctionDefaults<3>::get_bc(),Function<double,3>(),Function<double,3>(),high_k));
+        }
+
+        // project the function to higher k grid
+        real_function_3d f = project(x,high_k);
+        f.set_thresh(high_thresh);
+        f.refine();
+
+        // apply laplacian
+        real_function_3d laplace_f = real_factory_3d(world);
+        laplace_f.set_thresh(high_thresh);
+        for(size_t i=0;i<gradop.size();i++){
+        	real_function_3d tmp = (*gradop[i])(f);
+        	real_function_3d tmp2 = (*gradop[i])(tmp);
+        	laplace_f += tmp2;
+        }
+
+        // project laplace_f back to the normal grid
+        real_function_3d result = project(laplace_f,FunctionDefaults<3>::get_k());
+        result.set_thresh(FunctionDefaults<3>::get_thresh());
+
+        // debug and failsafe: make inverse of laplacian and apply
+        real_convolution_3d G = BSHOperator<3>(world,0.0,parameters.lo,parameters.thresh_bsh_3D);
+        real_function_3d Gresult = -1.0*G(result);
+        real_function_3d difference = x-Gresult;
+        double diff = difference.norm2();
+        plot_plane(world,difference,"Laplacian_error_iteration_"+stringify(performance_D.current_iteration));
+        if(world.rank()==0) std::cout << "Apply Laplace:\n" << "||x - G(Laplace(x))||=" << diff << std::endl;
+        if(diff > FunctionDefaults<6>::get_thresh()) warning("Laplacian Error above 6D thresh");
+
+        return result;
+	}
+
 	real_function_3d apply_F(const CC_function &x)const{
 
 		if(x.type == HOLE){
@@ -1022,15 +1082,7 @@ public:
 		CC_Timer T_time(world,"apply_T");
 		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 		gradop = gradient_operator<double, 3>(world);
-		vecfuncT gradx, laplacex;
-		for(size_t axis=0;axis<3;axis++){
-			real_function_3d gradxi = (*gradop[axis])(refined_x);
-			gradxi.refine();
-			gradx.push_back(gradxi);
-			real_function_3d grad2xi = (*gradop[axis])(gradxi);
-			laplacex.push_back(grad2xi);
-		}
-		real_function_3d laplace_x = laplacex[0]+laplacex[1]+laplacex[2];
+		real_function_3d laplace_x = apply_laplacian(x.function);
 		real_function_3d Tx = laplace_x.scale(-0.5).truncate();
 		T_time.info();
 
@@ -1046,7 +1098,7 @@ public:
 		real_function_3d U1x = real_factory_3d(world);
 		for(size_t axis=0;axis<3;axis++){
 			const real_function_3d U1_axis = nemo.nuclear_correlation->U1(axis);
-			const real_function_3d dx = gradx[axis];
+			const real_function_3d dx = (*gradop[axis])(x.function);
 			U1x += (U1_axis*dx).truncate();
 		}
 		U_time.info();
@@ -1842,8 +1894,65 @@ public:
 	}
 
 	// Debug function, content changes from time to time
-	void test_potentials()const{
+	void test_potentials(const int k, const double thresh = FunctionDefaults<3>::get_thresh(), const bool refine=true)const{
+		output_section("Little Debug and Testing Session");
+		// testing laplace operator with different thresholds
+		const size_t old_k = FunctionDefaults<3>::get_k();
+		{
+			CC_Timer time(world,"time");
+			FunctionDefaults<3>::set_thresh(thresh);
+			FunctionDefaults<3>::set_k(k);
+			std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+			gradop = gradient_operator<double, 3>(world);
+			std::string name = "_"+stringify(k) + "_" + stringify(thresh);
+			if(world.rank()==0) std::cout<< "Testing Laplace operator with threshold  "+stringify(FunctionDefaults<3>::get_thresh()) + " and k=" + stringify(FunctionDefaults<3>::get_k())
+					+" and refinement=" + stringify(refine)+"\n";
 
+			real_function_3d gauss = real_factory_3d(world).f(f_gauss);
+			real_function_3d laplace_gauss_analytical = real_factory_3d(world).f(f_laplace_gauss);
+			real_function_3d laplace_gauss_analytical_old_k = project(laplace_gauss_analytical,old_k);
+			plot_plane(world,gauss,"gauss"+name);
+			plot_plane(world,laplace_gauss_analytical,"laplace_gauss_analytical_old_k"+name);
+
+			real_function_3d laplace_gauss_numerical = real_factory_3d(world);
+			for(size_t i=0;i<3;i++){
+				real_function_3d tmp = (*gradop[i])(gauss);
+				real_function_3d tmp2 = (*gradop[i])(tmp);
+				laplace_gauss_numerical += tmp2;
+			}
+
+
+			real_function_3d laplace_gauss_diff = laplace_gauss_analytical - laplace_gauss_numerical;
+			plot_plane(world,laplace_gauss_diff,"laplace_gauss_diff"+name);
+			laplace_gauss_diff.print_size("||laplace on gauss num and ana      ||");
+
+			real_function_3d projected_numerical = project(laplace_gauss_numerical,old_k);
+			real_function_3d laplace_gauss_diff2 = laplace_gauss_analytical_old_k - projected_numerical;
+			plot_plane(world,laplace_gauss_diff2,"laplace_gauss_diff_old_k"+name);
+			laplace_gauss_diff.print_size("||laplace on gauss num and ana old k||");
+
+			FunctionDefaults<3>::set_thresh(parameters.thresh_3D);
+			FunctionDefaults<3>::set_k(old_k);
+			world.gop.fence();
+			time.info();
+		}
+	}
+
+	real_function_3d smooth_function(const real_function_3d &f,const size_t mode)const{
+		size_t k = f.get_impl()->get_k();
+        real_function_3d fproj=project(f,k-1);
+        real_function_3d freproj=project(fproj,k);
+        real_function_3d smoothed2 = 0.5*(f+freproj);
+       // double diff = (freproj - f).norm2();
+       // double diff2 = (smoothed2 - f).norm2();
+       // if(world.rank()==0) std::cout << "||f - f_smoothed|| =" << diff << std::endl;
+       // if(world.rank()==0) std::cout << "||f - f_smoothed2||=" << diff2 << std::endl;
+        if(mode==1)return freproj;
+        else if(mode==2)return smoothed2;
+        else{
+        	std::cout << "Unknown smoothing mode, returning unsmoothed function" << std::endl;
+        	return f;
+        }
 	}
 };
 

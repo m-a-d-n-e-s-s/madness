@@ -120,6 +120,7 @@ struct CC_Parameters{
 		debug(false),
 		mp2_only(false),
 		mp2(false),
+		ccs(false),
 		kain(false),
 		freeze(0)
 	{}
@@ -147,6 +148,7 @@ struct CC_Parameters{
 		debug(false),
 		mp2_only(false),
 		mp2(false),
+		ccs(false),
 		kain(false),
 		kain_subspace(3),
 		freeze(0)
@@ -244,6 +246,7 @@ struct CC_Parameters{
 			else if (s == "kain_subspace") f>>kain_subspace;
 			else if (s == "mp2_only" ) {mp2_only=true; mp2=true;}
 			else if (s == "mp2") mp2=true;
+			else if (s == "cc2") ccs=true;
 			else if (s == "freeze") f>>freeze;
 			else continue;
 		}
@@ -301,6 +304,8 @@ struct CC_Parameters{
 	bool mp2_only;
 	// do mp2 calculation as guess calculation for cc2
 	bool mp2;
+	// do CCS calculation in the beginning
+	bool ccs;
 	// use kain or not
 	bool kain;
 	size_t kain_subspace;
@@ -351,6 +356,7 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "debug mode is: " << debug  <<std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "Kain is: " << kain << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "MP2 is: " << mp2 << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "CCS is: " << ccs << std::endl;
 			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
 			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
 			if(mp2) std::cout << std::setw(20) << std::setfill(' ') << "MP2 Guess demanded" << std::endl;

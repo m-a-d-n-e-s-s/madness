@@ -24,16 +24,7 @@
 namespace madness {
 
 
-// functors for gauss function
-static double f_gauss(const coord_3d &r){
-	return exp(-((r[0])*(r[0])+(r[1])*(r[1])+(r[2])*(r[2])));
-}
-static double f_gauss_dx(const coord_3d &r){
-	return -2.0*r[0]*f_gauss(r);
-}
-static double f_gauss_d2x(const coord_3d &r){
-	return -2.0*f_gauss(r)+4.0*r[0]*r[0]*f_gauss(r);
-}
+
 
 class CC2 {
 public:
