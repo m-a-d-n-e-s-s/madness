@@ -157,7 +157,7 @@ struct CC_Parameters{
 		std::string s;
 
 		// minimum operator thresh
-		double minopthresh = 1.e-4;
+		double minopthresh = 1.e-2;
 
 		while (f >> s) {
 			//std::cout << "input tag is: " << s << std::endl;

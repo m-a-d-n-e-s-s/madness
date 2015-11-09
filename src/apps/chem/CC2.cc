@@ -506,16 +506,19 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 
 			CC_Timer rest_potential(world,"Doubles Potential from Singles");
 			real_function_6d dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(i-parameters.freeze),singles(j-parameters.freeze),singles);
+			dopo.print_size("Doubles Potential from Singles");
 			rest_potential.info();
 
 			// note that the Greens function is already applied
 			CC_Timer cc2_residue_time(world,"CC2_residue|titj>");
 			real_function_6d cc2_residue_titj = CCOPS.make_cc2_residue(singles(i-parameters.freeze),singles(j-parameters.freeze),doubles(i,j));
+			cc2_residue_titj.print_size("CC2-Residue");
 			cc2_residue_time.info();
 
 			// the fock residue is (2J-K+Un)|uij>
 			CC_Timer fock_residue_time(world,"(2J-K+Un)|uij>");
-			real_function_6d fock_residue_uij = (CCOPS.fock_residue_6d(doubles(i,j))).truncate();
+			real_function_6d fock_residue_uij = CCOPS.fock_residue_6d(doubles(i,j));
+			fock_residue_uij.print_size("F-Residue");
 			fock_residue_time.info();
 
 			// add up and apply G
@@ -523,11 +526,11 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 
 			// add up with higher thresh
 			real_function_6d doubles_potential;
-			doubles_potential.set_thresh(parameters.thresh_Ue);
 			dopo.set_thresh(parameters.thresh_Ue);
 			cc2_residue_titj.set_thresh(parameters.thresh_Ue);
 			fock_residue_uij.set_thresh(parameters.thresh_Ue);
 			doubles_potential = dopo + cc2_residue_titj + fock_residue_uij;
+			doubles_potential.set_thresh(parameters.thresh_Ue); // not needed
 			doubles_potential.scale(-2.0);
 
 			if(world.rank()==0) std::cout << "Doubles potential thresh " << doubles_potential.thresh() << std::endl;

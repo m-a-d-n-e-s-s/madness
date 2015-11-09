@@ -399,7 +399,7 @@ public:
 	real_function_6d get_CC2_doubles_from_singles_potential(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		real_function_6d result = real_factory_6d(world);
 		const std::string output = "DoPo:";
-		result += potential_doubles(taui,tauj,singles,_D6b_D8b_D9_);
+		result = potential_doubles(taui,tauj,singles,_D6b_D8b_D9_);
 		result += potential_doubles(taui,tauj,singles,_D4b_D6c_D8a_);
 		if(world.rank()==0) performance_D.info(performance_D.current_iteration);
 		return result;
