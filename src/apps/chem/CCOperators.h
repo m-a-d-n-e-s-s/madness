@@ -328,7 +328,7 @@ public:
 		update.info();
 	}
 
-	StrongOrthogonalityProjector<double,3> Q12;
+
 
 	real_function_3d mo_ket(const size_t &i)const{
 		return mo_ket_[i];
@@ -447,7 +447,7 @@ public:
 		unprojected_result.print_size("Ue - [K,f]|"+stringify(u.i)+stringify(u.j)+">");
 		CC_Timer timer_Q(world,"Apply Q12");
 		real_function_6d result = Q12(unprojected_result);
-		result.print_size("Q12(Ue - [K,f]|"+stringify(u.i)+stringify(u.j)+">)");
+		result.print_size("Q12(Ue - [K,f]"+u.name());
 		timer_Q.info();
 		return result;
 
@@ -970,7 +970,7 @@ public:
 	/// if i==j in uij then the symmetry will be exploited
 	/// !!!!Prefactor (-1) is not included here!!!!
 	real_function_6d K(const real_function_6d &u,
-			const bool symmetric = false,const double & thresh = FunctionDefaults<6>::get_thresh()) const;
+			const bool symmetric = false) const;
 
 	/// Exchange Operator on Pair function: -(K(1)+K(2))u(1,2)
 	/// K(1)u(1,2) = \sum_k <k(3)|g13|u(3,2)> |k(1)>
@@ -979,7 +979,7 @@ public:
 	/// 3. result = Y(1,2)*ket_k(1)
 	/// !!!!Prefactor (-1) is not included here!!!!
 	real_function_6d apply_K(const real_function_6d &u,
-			const size_t &particle,const double & thresh = FunctionDefaults<6>::get_thresh()) const;
+			const size_t &particle) const;
 
 	/// returns \sum_k (<k|g|f> *|k>).truncate()
 	real_function_3d apply_K(const CC_function &f)const{
@@ -1030,7 +1030,7 @@ public:
 	real_function_3d apply_laplacian(const real_function_3d &x)const{
 		// make gradient operator for new k and with new thresh
 		size_t high_k = 8;
-		size_t high_thresh = 1.e-6;
+		double high_thresh = 1.e-6;
         std::vector< std::shared_ptr< Derivative<double,3> > > gradop(3);
         for (std::size_t d=0; d<3; ++d) {
         	gradop[d].reset(new Derivative<double,3>(world,d,FunctionDefaults<3>::get_bc(),Function<double,3>(),Function<double,3>(),high_k));
@@ -1827,7 +1827,7 @@ private:
 	CC_Intermediates intermediates_;
 	/// The current singles potential (Q\sum singles_diagrams) , needed for application of the fock opeerator on a singles function
 	vecfuncT current_singles_potential;
-
+	StrongOrthogonalityProjector<double,3> Q12;
 
 
 

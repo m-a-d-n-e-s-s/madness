@@ -14,6 +14,8 @@
 #include <chem/electronic_correlation_factor.h>
 #include <algorithm> // tolower function for strings
 
+#include "mp2.h" // to debug electronpair
+
 namespace madness{
 
 enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
@@ -53,6 +55,7 @@ static std::string assign_name(const potentialtype_d &inp){
 	}
 	return "undefined";
 }
+
 
 typedef std::vector<Function<double, 3> > vecfuncT;
 
@@ -320,7 +323,10 @@ struct CC_Parameters{
 	// print out the parameters
 	void information(World &world)const{
 		if(world.rank()==0){
-			//std::cout << "CC2 Parameters:\n";
+			std::cout << "Defaults for 6D and 3D Functions:\n";
+			FunctionDefaults<3>::print();
+			FunctionDefaults<6>::print();
+			std::cout << "\n\nCC2 Parameters:\n";
 			std::cout << std::setw(20) << std::setfill(' ') << "freeze :"           << freeze << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "restart :"           << restart << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "lo :"                << lo << std::endl;
@@ -360,10 +366,6 @@ struct CC_Parameters{
 			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
 			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
 			if(mp2) std::cout << std::setw(20) << std::setfill(' ') << "MP2 Guess demanded" << std::endl;
-
-
-
-
 		}
 	}
 
@@ -438,6 +440,16 @@ typedef Pairs<real_function_3d> intermediateT;
 class CC_Pair: public archive::ParallelSerializableObject {
 
 public:
+
+	ElectronPair epair()const{
+		ElectronPair tmp(i,j);
+		tmp.function = copy(function);
+		tmp.constant_term = copy(constant_term);
+		tmp.i = i;
+		tmp.j = j;
+		return tmp;
+	}
+
 	/// default ctor; initialize energies with a large number
 	CC_Pair() :
 		i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
@@ -475,7 +487,13 @@ public:
 			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " e_triplet: " << e_triplet << std::endl;
 			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ij_gQf_ij: " << ij_gQf_ij << std::endl;
 			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ji_gQf_ij: " << ji_gQf_ij << std::endl;
+			if(function.impl_initialized()) function.print_size(name());
+			if(constant_term.impl_initialized()) constant_term.print_size(name()+"_constant_term");
 		}
+	}
+
+	std::string name()const{
+		return "|u"+stringify(i)+stringify(j)+">";
 	}
 
 	static double uninitialized() {

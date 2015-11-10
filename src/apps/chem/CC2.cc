@@ -6,7 +6,7 @@
  */
 
 #include "CC2.h"
-
+#include "mp2.h"
 namespace madness {
 
 bool CC2::test()const{
@@ -55,17 +55,7 @@ bool CC2::test()const{
 
 /// solve the CC2 ground state equations, returns the correlation energy
 double CC2::solve(){
-if(parameters.debug){
-	CCOPS.test_potentials(5,1.e-5,true);
-	CCOPS.test_potentials(6,1.e-5,true);
-	CCOPS.test_potentials(7,1.e-5,true);
-	CCOPS.test_potentials(8,1.e-5,true);
 
-	CCOPS.test_potentials(5,1.e-6,true);
-	CCOPS.test_potentials(6,1.e-6,true);
-	CCOPS.test_potentials(7,1.e-6,true);
-	CCOPS.test_potentials(8,1.e-6,true);
-}
 	// Check if HF is converged
 	if(parameters.ccs) solve_CCS();
 	//if(parameters.debug) test();
@@ -208,10 +198,50 @@ bool CC2::solve_CCS(){
 }
 
 double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
+
+	// for debug purpose
+	MP2 mp2(world,"input");
+	mp2.set_stuff();
+	{
+		real_function_6d const_mp2;
+		real_function_6d const_cc2 = copy(pairs(0,0).constant_term);
+		mp2.load_function(const_mp2,"const_mp2");
+		real_function_6d diff_const = const_mp2 - const_cc2;
+		diff_const.print_size("Difference between the const functions --> should be zero");
+
+		CC_Pair u_mp2(0,0);
+		u_mp2.function = copy(const_mp2);
+		u_mp2.constant_term = copy(const_mp2);
+
+		// make const integrals
+		double ij_gQf_ij_cc2 = CCOPS.make_ijgQfxy(0,0,active_mo[0],active_mo[0]);
+		double ij_gQf_ij_mp2 = mp2.compute_gQf_cc2interface(0,0,pairs(0,0).function);
+		double ij_gQf_ij_mp2_2 = mp2.compute_gQf_cc2interface(0,0,u_mp2.function);
+		double diff_mp2 = ij_gQf_ij_mp2 - ij_gQf_ij_mp2_2;
+		std::cout << "Difference between ijgQfxy integral routines in mp2 with both constant terms as input: " << diff_mp2 << std::endl;
+		double diff_mp2_2 = ij_gQf_ij_mp2 - ij_gQf_ij_cc2;
+		std::cout << "Difference between ijgQfxy integral routines in mp2 and CCOPS: " << diff_mp2_2 << std::endl;
+
+		u_mp2.ij_gQf_ij = ij_gQf_ij_mp2;
+		u_mp2.ji_gQf_ij = ij_gQf_ij_mp2;
+
+		double corr_mp2 = CCOPS.compute_mp2_pair_energy(u_mp2);
+		double corr_cc2 = CCOPS.compute_mp2_pair_energy(pairs(0,0));
+		std::cout << "Difference between initial pair energies: " << corr_mp2 - corr_cc2 << std::endl;
+
+		std::cout << "Using the loaded const function from mp2 as const term for this calculation -> only works here for a molecule with 2 electrons\n";
+		pairs(0,0) = u_mp2;
+		pairs(0,0).info();
+
+
+	}
+
+
+
 	// Loop over all Pair functions uij (i=<j)
 	std::vector<double> pair_energies;
-	for(size_t i=0;i<active_mo.size();i++){
-		for(size_t j=i;j<active_mo.size();j++){
+	for(size_t i=parameters.freeze;i<mo.size();i++){
+		for(size_t j=i;j<mo.size();j++){
 
 			output_subsection("Solving uncoupled MP2 equations for pair |u" + stringify(i) + stringify(j) + ">");
 
@@ -222,8 +252,9 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 			CC_Timer timer_bsh_setup(world,"Setup the BSH-Operator for the pair function");
 			real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * CCOPS.get_epsilon(i,j)),
 					parameters.lo, parameters.thresh_bsh_6D);
-			G.destructive_ = true;
+			G.destructive_ = false;
 			output("Constructed Green Operator is destructive ? : " + stringify(G.destructive()));
+			output("eps in Green's Operator is " +stringify(CCOPS.get_epsilon(i,j)));
 			timer_bsh_setup.info();
 
 			// Beginn the iterations
@@ -233,7 +264,10 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 				double current_error=99.9;
 				// Compute the non constant part of the MP2 equations which is the regularized 6D Fock Residue
 				//and apply the G Operator G[(2J-K(R)+Un)|uij>]
-				{
+
+					// debug for control later
+					real_function_6d start_function = copy(pairs(0,0).function);
+
 					output_subsection("Calculate MP2 Residue");
 					CC_Timer timer_mp2_residue(world,"\n\nCalculate MP2 Residue (2J-K(R)+Un)|uij>\n\n");
 					real_function_6d mp2_residue = CCOPS.get_MP2_potential_residue(pairs(i,j)).truncate();
@@ -253,7 +287,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 					CC_Timer timer_addition(world,"\n\nAdd the constant_term and the MP2 Residue\n\n");
 					real_function_6d unew = (pairs(i,j).constant_term + Gresidue).truncate();
 					unew.print_size("unew");
-					unew = CCOPS.Q12(unew);
+					CCOPS.apply_Q12(unew);
 					unew.print_size("Q12(unew)");
 					timer_addition.info();
 					// Get the error
@@ -262,9 +296,18 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 					timer_make_bsh_residue.info();
 					current_error = bsh_residue.norm2();
 					// update the pair function
-					if(parameters.kain) pairs(i,j).function = CCOPS.Q12(solver.update(unew, bsh_residue));
-					else pairs(i,j).function = unew;
-				}
+					if(parameters.kain) unew = solver.update(unew, bsh_residue);
+					CCOPS.apply_Q12(unew);
+					pairs(i,j).function = unew;
+
+					// debug
+					MP2 mp2(world,"input");
+					mp2.set_stuff();
+					real_function_6d end_function = mp2.iterate(start_function);
+
+					real_function_6d diff_ = end_function - unew;
+					diff_.print_size("Difference between the iteration in cc2 code and mp2 code of FAB");
+
 				// evaluate the current mp2 energy
 				double new_energy = compute_mp2_pair_energy(pairs(i,j));
 				double delta = new_energy - current_energy;
@@ -298,6 +341,13 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 	output("Converged Pair Energies are:");
 	if(world.rank()==0){
 		for(auto x:pair_energies) std::cout << std::setprecision(parameters.output_prec) << std::fixed << x << std::endl;
+		for(size_t i=parameters.freeze;i<mo.size();i++){
+			for(size_t j=i;j<mo.size();j++){
+				output("Saving pair " + pairs(i,j).name());
+				pairs(i,j).store_pair
+						(world);
+			}
+		}
 	}
 	double correlation_energy=0.0;
 	for(auto x:pair_energies) correlation_energy += x;
@@ -466,16 +516,16 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * CCOPS.get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 			make_BSH_time.info();
 
-			CC_Timer rest_potential(world,"Doubles Potential from Singles");
-			real_function_6d dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(i-parameters.freeze),singles(j-parameters.freeze),singles);
-			dopo.print_size("Doubles Potential from Singles");
-			rest_potential.info();
-
 			// note that the Greens function is already applied
 			CC_Timer cc2_residue_time(world,"CC2_residue|titj>");
 			real_function_6d cc2_residue_titj = CCOPS.make_cc2_residue(singles(i-parameters.freeze),singles(j-parameters.freeze),doubles(i,j));
 			cc2_residue_titj.print_size("CC2-Residue");
 			cc2_residue_time.info();
+
+			CC_Timer rest_potential(world,"Doubles Potential from Singles");
+			real_function_6d dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(i-parameters.freeze),singles(j-parameters.freeze),singles);
+			dopo.print_size("Doubles Potential from Singles");
+			rest_potential.info();
 
 			// the fock residue is (2J-K+Un)|uij>
 			CC_Timer fock_residue_time(world,"(2J-K+Un)|uij>");
@@ -597,12 +647,14 @@ void CC2::initialize_electron_pair(CC_Pair &u)const{
 		CC_Timer timer_Gconst(world,"Apply BSH to constant MP2 part");
 		real_function_6d GVPhi = G(-2.0*mp2_constant_part).truncate();
 		GVPhi.print_size("G(-2.0*Q(ConstantTerm))");
-		u.constant_term = CCOPS.Q12(GVPhi);
+		real_function_6d unprojected_GVPhi = copy(GVPhi);
+		CCOPS.apply_Q12(GVPhi);
+		u.constant_term = copy(GVPhi);
 		u.constant_term.print_size("Q(G(-2.0*Q(ConstantTerm)))");
 		timer_Gconst.info();
 
 		// Make the first guess for the mp2 pair function
-		u.function = copy(u.constant_term);
+		u.function = copy(GVPhi);
 
 		// Calculate the pair energy
 		double test_energy = compute_mp2_pair_energy(u);

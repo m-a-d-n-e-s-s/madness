@@ -28,6 +28,9 @@ namespace madness {
 
 class CC2 {
 public:
+
+
+
 	CC2(World &world_,const std::string &inputFileName, const Nemo &nemo_):
 		world(world_),
 		correlationfactor(world,1.0,1.e-7,nemo_.get_calc()->molecule),
@@ -60,6 +63,18 @@ public:
 		if (active_mo.size()+parameters.freeze != CCOPS.mo_bra().size()) CCOPS.error("active_mo + freeze of CC2 class and mo_bra_ of CC_Operators have not the same size");
 		output("Active molecular orbitals have been created...");
 		if(world.rank()==0) std::cout << mo.size() << " MOs\n " << active_mo.size() << " Active MOs\n" << parameters.freeze << "frozen MOs\n";
+
+
+		std::string nuc = "???";
+		if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::None) nuc="None";
+		else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::GaussSlater) nuc="GaussSlater";
+		else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::GradientalGaussSlater) nuc="GradientalGaussSlater";
+		else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::LinearSlater) nuc="LinearSlater";
+		else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::Polynomial) nuc="Polynomial";
+		else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::Slater) nuc="Slater";
+		else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::Two) nuc="Two";
+		if(world.rank()==0) std::cout << "Nuclear Correlation Factor is " << nuc << std::endl;
+
         //output_section("Testing Section in Constructor");
         //CCOPS.test_fill_tree();
 }

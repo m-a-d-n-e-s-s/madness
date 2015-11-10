@@ -127,6 +127,10 @@ namespace madness {
         std::shared_ptr< FunctionImpl<T,NDIM> > impl;
 
     public:
+        bool impl_initialized()const{
+        	if(impl==NULL) return false;
+        	else return true;
+        }
         typedef FunctionImpl<T,NDIM> implT;
         typedef FunctionNode<T,NDIM> nodeT;
         typedef FunctionFactory<T,NDIM> factoryT;

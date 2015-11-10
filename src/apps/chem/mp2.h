@@ -470,7 +470,9 @@ namespace madness {
         std::shared_ptr<real_convolution_3d> poisson;
 
     public:
-
+        void apply_Q12(real_function_6d &f)const{
+        	f = Q12(f);
+        }
         /// ctor
         MP2(World& world, const std::string& input);
 
@@ -499,6 +501,15 @@ namespace madness {
         /// @param[in]  pair    electron pair to solve
         /// @param[in]  econv   energy convergence criterion (for a single pair)
         /// @param[in]  dconv   density convergence criterion (for a single pair)
+        real_function_6d iterate(const real_function_6d &f)const{
+        	ElectronPair tmp(0,0);
+        	tmp.function = copy(f);
+        	tmp.constant_term = copy(f);
+        	tmp.ij_gQf_ij = compute_gQf(0,0,tmp);
+        	tmp.ji_gQf_ij = tmp.ij_gQf_ij;
+        	solve_residual_equations(tmp,10.0,10.0);
+        	return tmp.function;
+        }
         void solve_residual_equations(ElectronPair& pair,
                 const double econv, const double dconv) const;
 
@@ -536,6 +547,12 @@ namespace madness {
         /// setting Q12 = (1 - O1)(1 - O2) = 1- O1(1 - 0.5 O2) - O2 (1 - 0.5 O1)
         /// as for the formulas cf the article mra_molecule
         /// @return 	the energy <ij | g Q f | kl>
+        double compute_gQf_cc2interface(const int i, const int j, const real_function_6d &f)const{
+        	ElectronPair tmp(0,0);
+        	tmp.function = copy(f);
+        	tmp.constant_term = copy(f);
+        	return compute_gQf(i,j,tmp);
+        }
         double compute_gQf(const int i, const int j, ElectronPair& pair) const;
 
         /// pretty print the options
@@ -551,7 +568,7 @@ namespace madness {
         	return  multiply_with_0th_order_Hamiltonian(f,i,j);
         }
 
-    private:
+    public:
 
         /// save a function
         template<typename T, size_t NDIM>
@@ -563,15 +580,78 @@ namespace madness {
 
         /// return the function Uphi0; load from disk if available
         real_function_6d make_Uphi0(ElectronPair& pair) const;
-
+    public:
+        void set_stuff(){
+        	hf->value();		// make sure the reference is converged
+        	nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
+        	// set all orbitals spaces
+        	// When a nuclear correlation factor is used the residual equations
+        	// are similarity transformed. Therefore the orbitals in the
+        	// projection operator must be set accordingly.
+        	if (nuclear_corrfac->type() == NuclearCorrelationFactor::None) {
+        		Q12.set_spaces(hf->get_calc().amo);
+        	} else {
+        		// only valid for closed shell
+        		MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
+        		const std::vector<real_function_3d>& nemos = hf->nemos();
+        		const std::vector<real_function_3d>& R2amo = hf->R2orbitals();
+        		Q12.set_spaces(R2amo, nemos, R2amo, nemos);
+        		if (world.rank() == 0) {
+        			print("set orbital spaces for the SO projector");
+        			print("Q12,R = (1-|nemo><nemo|R2) (1-|nemo><nemo|R2)");
+        		}
+        	}
+        }
+        real_function_6d get_Ue(const size_t i, const size_t j)const{
+        	ElectronPair pair(i,j);
+        	return make_Uphi0(pair);
+        }
+    private:
         /// return the function [K,f] phi0; load from disk if available
         real_function_6d make_KffKphi0(const ElectronPair& pair) const;
+
+    public:
+        real_function_6d get_kffk(const size_t i, const size_t j)const{
+        	ElectronPair pair(i,j);
+        	return make_KffKphi0(pair);
+        }
+    private:
 
         /// compute some matrix elements that don't change during the SCF
         ElectronPair make_pair(const int i, const int j) const;
 
         /// compute the first iteration of the residual equations and all intermediates
         void guess_mp1_3(ElectronPair& pair) const;
+        // for cc2 debugging
+
+    public:
+        real_function_6d get_constant_term(){
+        	hf->value();		// make sure the reference is converged
+        	nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
+        	// set all orbitals spaces
+        	// When a nuclear correlation factor is used the residual equations
+        	// are similarity transformed. Therefore the orbitals in the
+        	// projection operator must be set accordingly.
+        	if (nuclear_corrfac->type() == NuclearCorrelationFactor::None) {
+        		Q12.set_spaces(hf->get_calc().amo);
+        	} else {
+        		// only valid for closed shell
+        		MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
+        		const std::vector<real_function_3d>& nemos = hf->nemos();
+        		const std::vector<real_function_3d>& R2amo = hf->R2orbitals();
+        		Q12.set_spaces(R2amo, nemos, R2amo, nemos);
+        		if (world.rank() == 0) {
+        			print("set orbital spaces for the SO projector");
+        			print("Q12,R = (1-|nemo><nemo|R2) (1-|nemo><nemo|R2)");
+        		}
+        	}
+
+        	ElectronPair pair(0,0);
+        	guess_mp1_3(pair);
+        	return pair.constant_term;
+        }
+
+    private:
 
         /// compute the singlet and triplet energy for a given electron pair
 
@@ -670,6 +750,33 @@ namespace madness {
         real_function_6d multiply_with_0th_order_Hamiltonian(const real_function_6d& f,
         		const int i, const int j) const;
 
+        // need this for CC2 debug
+    public:
+        real_function_6d get_residue(const real_function_6d& f,
+		const int i, const int j){
+        	hf->value();		// make sure the reference is converged
+        	nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
+        	// set all orbitals spaces
+        	// When a nuclear correlation factor is used the residual equations
+        	// are similarity transformed. Therefore the orbitals in the
+        	// projection operator must be set accordingly.
+        	if (nuclear_corrfac->type() == NuclearCorrelationFactor::None) {
+        		Q12.set_spaces(hf->get_calc().amo);
+        	} else {
+        		// only valid for closed shell
+        		MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
+        		const std::vector<real_function_3d>& nemos = hf->nemos();
+        		const std::vector<real_function_3d>& R2amo = hf->R2orbitals();
+        		Q12.set_spaces(R2amo, nemos, R2amo, nemos);
+        		if (world.rank() == 0) {
+        			print("set orbital spaces for the SO projector");
+        			print("Q12,R = (1-|nemo><nemo|R2) (1-|nemo><nemo|R2)");
+        		}
+        	}
+
+			return multiply_with_0th_order_Hamiltonian(f,i,j);
+		}
+    private:
 		// compute some intermediates
         Tensor<double> get_fock_matrix() const {
         	if (fock.has_data()) return copy(fock);

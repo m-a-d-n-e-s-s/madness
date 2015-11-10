@@ -102,6 +102,7 @@ if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF 
 		<<"\n current wall-time: " << wall_time()
 		<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";
 
+
 // Make CC2
 CC2 cc2(world,input,nemo);
 

@@ -3308,6 +3308,25 @@ namespace madness {
         pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new madness::LevelPmap< Key<NDIM> >(world));
         //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new SimplePmap< Key<NDIM> >(world));
     }
+    template <std::size_t NDIM>
+    void FunctionDefaults<NDIM>::print(){
+    		std::cout << "Function Defaults:" << std::endl;
+    		std::cout << "                      Dimension " <<  ": " <<  NDIM << std::endl;
+    		std::cout << "                               k" <<  ": " << k << std::endl;
+    		std::cout << "                          thresh" <<  ": " << thresh << std::endl;
+    		std::cout << "                   initial_level" <<  ": " << initial_level << std::endl;
+    		std::cout << "                max_refine_level" <<  ": " << max_refine_level << std::endl;
+    		std::cout << "                   truncate_mode" <<  ": " << truncate_mode << std::endl;
+    		std::cout << "                          refine" <<  ": " << refine << std::endl;
+    		std::cout << "                      autorefine" <<  ": " << autorefine << std::endl;
+    		std::cout << "                           debug" <<  ": " << debug << std::endl;
+    		std::cout << "             truncate_on_project" <<  ": " << truncate_on_project << std::endl;
+    		std::cout << "                 apply_randomize" <<  ": " << apply_randomize << std::endl;
+    		std::cout << "               project_randomize" <<  ": " << project_randomize << std::endl;
+    		std::cout << "                              bc" <<  ": " << bc << std::endl;
+    		std::cout << "                              tt" <<  ": " << tt << std::endl;
+    		std::cout << "                            cell" <<  ": " << cell << std::endl;
+    }
 
     template <typename T, std::size_t NDIM>
     const FunctionCommonData<T,NDIM>* FunctionCommonData<T,NDIM>::data[MAXK] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
