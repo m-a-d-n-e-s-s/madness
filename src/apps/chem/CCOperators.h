@@ -1042,7 +1042,8 @@ public:
         f.refine();
 
         // apply laplacian
-        real_function_3d laplace_f = real_factory_3d(world);
+        real_function_3d empty = real_factory_3d(world);
+        real_function_3d laplace_f = project(empty,high_k);
         laplace_f.set_thresh(high_thresh);
         for(size_t i=0;i<gradop.size();i++){
         	real_function_3d tmp = (*gradop[i])(f);

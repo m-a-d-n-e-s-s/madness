@@ -326,7 +326,6 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		plot(diff,"diff");
 		plot(Fi,"Fi");
 		plot(ei,"ei");
-
 	}
 
 	output_section("Initialize CC2 Singles from the MP2 Doubles");
