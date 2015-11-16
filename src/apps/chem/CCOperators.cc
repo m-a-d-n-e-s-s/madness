@@ -1152,16 +1152,16 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 
 	// Contruct the BSH operator in order to screen
 
-	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2.0 * eps),
-			parameters.lo, parameters.thresh_bsh_6D);
-	// apparently the modified_NS form is necessary for the screening procedure
-	op_mod.modified() = true;
+//	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2.0 * eps),
+//			parameters.lo, parameters.thresh_bsh_6D);
+//	// apparently the modified_NS form is necessary for the screening procedure
+//	op_mod.modified() = true;
 	// Make the CompositeFactory
 	real_function_6d vphi =
 			CompositeFactory<double, 6, 3>(world).ket(copy(u.function)).V_for_particle1(
 					copy(local_part)).V_for_particle2(copy(local_part));
 	// Screening procedure
-	vphi.fill_tree(op_mod);
+	vphi.fill_tree();
 
 	vphi.print_size("vlocal|u>");
 
@@ -1190,10 +1190,9 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 					CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle2(
 							copy(U1_axis)).thresh(tight_thresh);
 		}
-		x.fill_tree(op_mod);
+		x.fill_tree();
 		x.set_thresh(FunctionDefaults<6>::get_thresh());
 		vphi += x;
-		vphi.truncate().reduce_rank();
 	}
 
 	vphi.print_size("(Un + J1 + J2)|u>");
@@ -1201,8 +1200,6 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 	// Exchange Part
 	vphi = (vphi - K(u.function, u.i == u.j)).truncate().reduce_rank();
 	vphi.print_size("(Un + J1 + J2 - K1 - K2)|U>");
-	vphi.truncate();
-	vphi.print_size("truncated: (Un + J1 + J2 - K1 - K2)|U>");
 	data.time = timer.current_time();
 	data.result_norm=vphi.norm2();
 	data.result_size=get_size(vphi);

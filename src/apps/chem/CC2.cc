@@ -6,7 +6,6 @@
  */
 
 #include "CC2.h"
-#include "mp2.h"
 namespace madness {
 
 bool CC2::test()const{
@@ -198,46 +197,6 @@ bool CC2::solve_CCS(){
 }
 
 double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
-
-	// for debug purpose
-	MP2 mp2(world,"input");
-	mp2.set_stuff();
-	{
-		real_function_6d const_mp2;
-		real_function_6d const_cc2 = copy(pairs(0,0).constant_term);
-		mp2.load_function(const_mp2,"const_mp2");
-		real_function_6d diff_const = const_mp2 - const_cc2;
-		diff_const.print_size("Difference between the const functions --> should be zero");
-
-		CC_Pair u_mp2(0,0);
-		u_mp2.function = copy(const_mp2);
-		u_mp2.constant_term = copy(const_mp2);
-
-		// make const integrals
-		double ij_gQf_ij_cc2 = CCOPS.make_ijgQfxy(0,0,active_mo[0],active_mo[0]);
-		double ij_gQf_ij_mp2 = mp2.compute_gQf_cc2interface(0,0,pairs(0,0).function);
-		double ij_gQf_ij_mp2_2 = mp2.compute_gQf_cc2interface(0,0,u_mp2.function);
-		double diff_mp2 = ij_gQf_ij_mp2 - ij_gQf_ij_mp2_2;
-		std::cout << "Difference between ijgQfxy integral routines in mp2 with both constant terms as input: " << diff_mp2 << std::endl;
-		double diff_mp2_2 = ij_gQf_ij_mp2 - ij_gQf_ij_cc2;
-		std::cout << "Difference between ijgQfxy integral routines in mp2 and CCOPS: " << diff_mp2_2 << std::endl;
-
-		u_mp2.ij_gQf_ij = ij_gQf_ij_mp2;
-		u_mp2.ji_gQf_ij = ij_gQf_ij_mp2;
-
-		double corr_mp2 = CCOPS.compute_mp2_pair_energy(u_mp2);
-		double corr_cc2 = CCOPS.compute_mp2_pair_energy(pairs(0,0));
-		std::cout << "Difference between initial pair energies: " << corr_mp2 - corr_cc2 << std::endl;
-
-		std::cout << "Using the loaded const function from mp2 as const term for this calculation -> only works here for a molecule with 2 electrons\n";
-		pairs(0,0) = u_mp2;
-		pairs(0,0).info();
-
-
-	}
-
-
-
 	// Loop over all Pair functions uij (i=<j)
 	std::vector<double> pair_energies;
 	for(size_t i=parameters.freeze;i<mo.size();i++){
@@ -285,7 +244,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 					// |u_new> = (constant_part + Gresidue)
 					output_subsection("Add the Constant Term");
 					CC_Timer timer_addition(world,"\n\nAdd the constant_term and the MP2 Residue\n\n");
-					real_function_6d unew = (pairs(i,j).constant_term + Gresidue).truncate();
+					real_function_6d unew = (pairs(i,j).constant_term + Gresidue);
 					unew.print_size("unew");
 					CCOPS.apply_Q12(unew);
 					unew.print_size("Q12(unew)");
@@ -298,15 +257,8 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 					// update the pair function
 					if(parameters.kain) unew = solver.update(unew, bsh_residue);
 					CCOPS.apply_Q12(unew);
+					unew.truncate();
 					pairs(i,j).function = unew;
-
-					// debug
-					MP2 mp2(world,"input");
-					mp2.set_stuff();
-					real_function_6d end_function = mp2.iterate(start_function);
-
-					real_function_6d diff_ = end_function - unew;
-					diff_.print_size("Difference between the iteration in cc2 code and mp2 code of FAB");
 
 				// evaluate the current mp2 energy
 				double new_energy = compute_mp2_pair_energy(pairs(i,j));
@@ -317,7 +269,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 
 				output_subsection("End of Iteration " + stringify(iter));
 				if(world.rank()==0){
-					std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) <<    "current correlation energy:"  << new_energy << std::endl;
+					std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) <<    "current correlation energy:"   << std::fixed << std::setprecision(parameters.output_prec) << new_energy << std::endl;
 					std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) <<    "previous correlation energy:"  << current_energy << std::endl;
 					std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) <<    "correlation energy difference:"  << delta << std::endl;
 					std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) <<    "current wavefunction error:"  << current_error << std::endl;

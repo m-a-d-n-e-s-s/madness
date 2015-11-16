@@ -345,7 +345,7 @@ void MP2::solve_residual_equations(ElectronPair& result,
 		//tmp = (Q12(result.constant_term + tmp)).truncate();
 
 		real_function_6d residual = result.function - tmp;
-		result.function = tmp; //Q12(solver.update(tmp, residual));
+		result.function = Q12(solver.update(tmp, residual));
 		const double rnorm = residual.norm2();
 		const double fnorm = result.function.norm2();
 		if (world.rank() == 0)

@@ -105,7 +105,7 @@ struct CC_Parameters{
 		lo(FunctionDefaults<3>::get_thresh()),
 		thresh_3D(FunctionDefaults<3>::get_thresh()),
 		thresh_6D(FunctionDefaults<6>::get_thresh()),
-		thresh_6D_tight(thresh_6D*0.1),
+		//thresh_6D_tight(thresh_6D*0.1),
 		thresh_bsh_3D(FunctionDefaults<3>::get_thresh()),
 		thresh_bsh_6D(FunctionDefaults<6>::get_thresh()),
 		thresh_poisson_3D(FunctionDefaults<3>::get_thresh()),
@@ -134,7 +134,7 @@ struct CC_Parameters{
 		lo(1.e-6),
 		thresh_3D(FunctionDefaults<3>::get_thresh()),
 		thresh_6D(FunctionDefaults<6>::get_thresh()),
-		thresh_6D_tight(thresh_6D*0.1),
+		//thresh_6D_tight(thresh_6D*0.1),
 		thresh_bsh_3D(FunctionDefaults<3>::get_thresh()*0.1),
 		thresh_bsh_6D(FunctionDefaults<6>::get_thresh()*0.1),
 		thresh_poisson_3D(FunctionDefaults<3>::get_thresh()*0.1),
@@ -153,16 +153,13 @@ struct CC_Parameters{
 		mp2(false),
 		ccs(false),
 		kain(false),
-		kain_subspace(3),
+		kain_subspace(2),
 		freeze(0)
 	{
 		// get the parameters from the input file
 		std::ifstream f(input.c_str());
 		position_stream(f, "cc2");
 		std::string s;
-
-		// minimum operator thresh
-		double minopthresh = 1.e-2;
 
 		while (f >> s) {
 			//std::cout << "input tag is: " << s << std::endl;
@@ -191,7 +188,6 @@ struct CC_Parameters{
 				f >> tmp;
 				double opthresh = tmp*0.1;
 				double opthresh_3D = tmp*0.01;
-				if(opthresh > minopthresh) opthresh = minopthresh;
 				thresh_3D 		  = 0.01*tmp;
 				thresh_6D 		  = tmp;
 				thresh_poisson_3D = opthresh_3D;
@@ -204,29 +200,24 @@ struct CC_Parameters{
 			else if (s == "thresh_operators" or s == "thresh_operator"){
 				double tmp =0.0;
 				f >> tmp;
-				if(tmp>minopthresh) tmp = minopthresh;
 				thresh_poisson_3D = tmp;
 				thresh_poisson_6D = tmp;
 				thresh_bsh_3D     = tmp;
 				thresh_bsh_6D     = tmp;
 				thresh_f12        = tmp;
-				thresh_Ue		  = tmp;
 			}
 			else if (s == "thresh_operators_3d" or s == "thresh_operator_3d"){
 				double tmp =0.0;
 				f >> tmp;
-				if(tmp>minopthresh) tmp = minopthresh;
 				thresh_poisson_3D = tmp;
 				thresh_bsh_3D     = tmp;
 			}
 			else if (s == "thresh_operators_6d" or s == "thresh_operator_6d"){
 				double tmp =0.0;
 				f >> tmp;
-				if(tmp>minopthresh) tmp = minopthresh;
 				thresh_poisson_6D = tmp;
 				thresh_bsh_6D     = tmp;
 				thresh_f12        = tmp;
-				thresh_Ue		  = tmp;
 			}
 			else if (s == "thresh_3d") f >> thresh_3D;
 			else if (s == "thresh_6d") f >> thresh_6D;
@@ -254,7 +245,7 @@ struct CC_Parameters{
 			else continue;
 		}
 
-		thresh_6D_tight = thresh_6D*0.1;
+		//thresh_6D_tight = thresh_6D*0.1;
 
 		if(not kain) kain_subspace = 0;
 
@@ -274,8 +265,8 @@ struct CC_Parameters{
 	double thresh_3D;
 	// function thresh 6D
 	double thresh_6D;
-	// tight thresh for 6D functions (for addition)
-	double thresh_6D_tight;
+//	// tight thresh for 6D functions (for addition)
+//	double thresh_6D_tight;
 	// BSH thresh
 	double thresh_bsh_3D;
 	double thresh_bsh_6D;
@@ -336,7 +327,7 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_3D set :"         << FunctionDefaults<3>::get_thresh() << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D demanded :"         << thresh_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D set :"         << FunctionDefaults<6>::get_thresh() << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D_tight :"     << thresh_6D_tight << std::endl;
+			//std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D_tight :"     << thresh_6D_tight << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_3D :"     << thresh_bsh_3D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D :"     << thresh_bsh_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson_3D :" << thresh_poisson_3D << std::endl;
@@ -388,9 +379,10 @@ struct CC_Parameters{
 		// Check if the 6D thresholds are not too high
 		if(thresh_6D < 1.e-3) warnings+=warning(world,"thresh_6D is smaller than 1.e-3");
 		if(thresh_Ue < 1.e-4) warnings+=warning(world,"thresh_Ue is smaller than 1.e-4");
+		if(thresh_Ue > 1.e-4) warnings+=warning(world,"thresh_Ue is larger than 1.e-4");
 		if(thresh_3D > 0.01*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
 		if(thresh_3D > 0.1*thresh_6D) error(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
-		if(kain and kain_subspace !=0) warnings+=warning(world,"Demanded Kain solver but the size of the iterative subspace is set to zero");
+		if(kain and kain_subspace ==0) warnings+=warning(world,"Demanded Kain solver but the size of the iterative subspace is set to zero");
 		if(restart and mp2_only) warnings+=warning(world,"Demanded mp2_only and restart ... does not work right now");
 		if(warnings >0){
 			if(world.rank()==0) std::cout << warnings <<"Warnings in parameters sanity check!\n\n";
