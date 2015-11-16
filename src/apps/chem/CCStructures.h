@@ -226,7 +226,7 @@ struct CC_Parameters{
 			else if (s == "thresh_poisson_3d") f >> thresh_poisson_3D;
 			else if (s == "thresh_poisson_6d") f >> thresh_poisson_6D;
 			else if (s == "thresh_f12") f >> thresh_f12;
-			else if (s == "thresh_Ue") f >> thresh_Ue;
+			else if (s == "thresh_ue") f >> thresh_Ue;
 			else if (s == "freeze") f >> freeze;
 			else if (s == "iter_max"){
 				f >> iter_max_3D;
