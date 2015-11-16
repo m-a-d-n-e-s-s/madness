@@ -578,78 +578,20 @@ namespace madness {
         template<typename T, size_t NDIM>
         void load_function(Function<T,NDIM>& f, const std::string name) const;
 
+    private:
         /// return the function Uphi0; load from disk if available
         real_function_6d make_Uphi0(ElectronPair& pair) const;
-    public:
-        void set_stuff(){
-        	hf->value();		// make sure the reference is converged
-        	nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
-        	// set all orbitals spaces
-        	// When a nuclear correlation factor is used the residual equations
-        	// are similarity transformed. Therefore the orbitals in the
-        	// projection operator must be set accordingly.
-        	if (nuclear_corrfac->type() == NuclearCorrelationFactor::None) {
-        		Q12.set_spaces(hf->get_calc().amo);
-        	} else {
-        		// only valid for closed shell
-        		MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
-        		const std::vector<real_function_3d>& nemos = hf->nemos();
-        		const std::vector<real_function_3d>& R2amo = hf->R2orbitals();
-        		Q12.set_spaces(R2amo, nemos, R2amo, nemos);
-        		if (world.rank() == 0) {
-        			print("set orbital spaces for the SO projector");
-        			print("Q12,R = (1-|nemo><nemo|R2) (1-|nemo><nemo|R2)");
-        		}
-        	}
-        }
-        real_function_6d get_Ue(const size_t i, const size_t j)const{
-        	ElectronPair pair(i,j);
-        	return make_Uphi0(pair);
-        }
-    private:
+
         /// return the function [K,f] phi0; load from disk if available
         real_function_6d make_KffKphi0(const ElectronPair& pair) const;
 
-    public:
-        real_function_6d get_kffk(const size_t i, const size_t j)const{
-        	ElectronPair pair(i,j);
-        	return make_KffKphi0(pair);
-        }
-    private:
+
 
         /// compute some matrix elements that don't change during the SCF
         ElectronPair make_pair(const int i, const int j) const;
 
         /// compute the first iteration of the residual equations and all intermediates
         void guess_mp1_3(ElectronPair& pair) const;
-        // for cc2 debugging
-
-    public:
-        real_function_6d get_constant_term(){
-        	hf->value();		// make sure the reference is converged
-        	nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
-        	// set all orbitals spaces
-        	// When a nuclear correlation factor is used the residual equations
-        	// are similarity transformed. Therefore the orbitals in the
-        	// projection operator must be set accordingly.
-        	if (nuclear_corrfac->type() == NuclearCorrelationFactor::None) {
-        		Q12.set_spaces(hf->get_calc().amo);
-        	} else {
-        		// only valid for closed shell
-        		MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
-        		const std::vector<real_function_3d>& nemos = hf->nemos();
-        		const std::vector<real_function_3d>& R2amo = hf->R2orbitals();
-        		Q12.set_spaces(R2amo, nemos, R2amo, nemos);
-        		if (world.rank() == 0) {
-        			print("set orbital spaces for the SO projector");
-        			print("Q12,R = (1-|nemo><nemo|R2) (1-|nemo><nemo|R2)");
-        		}
-        	}
-
-        	ElectronPair pair(0,0);
-        	guess_mp1_3(pair);
-        	return pair.constant_term;
-        }
 
     private:
 
