@@ -76,6 +76,7 @@ double CC2::solve(){
 					output("Current MP2 Energy of the Pair is: " + stringify(mp2_energy));
 				}else MADNESS_EXCEPTION(("No Restartdata found for pair " + stringify(i)+stringify(j)).c_str(),1);
 			}else initialize_electron_pair(u);
+			if(parameters.kain) u.initialize_kain(parameters.kain_subspace);
 			pairs.insert(i,j,u);
 		}
 	}
@@ -204,8 +205,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 
 			output_subsection("Solving uncoupled MP2 equations for pair |u" + stringify(i) + stringify(j) + ">");
 
-			NonlinearSolverND<6> solver(parameters.kain_subspace);
-			solver.do_print = (world.rank() == 0);
+			pairs(i,j).initialize_kain(parameters.kain_subspace);
 
 			output_subsection("Setup the BSH Operator");
 			CC_Timer timer_bsh_setup(world,"Setup the BSH-Operator for the pair function");
@@ -255,11 +255,8 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 					timer_make_bsh_residue.info();
 					current_error = bsh_residue.norm2();
 					// update the pair function
-					if(parameters.kain) unew = solver.update(unew, bsh_residue);
-					CCOPS.apply_Q12(unew);
-					unew.truncate();
-					pairs(i,j).function = unew;
-
+					pairs(i,j).update_function(world,unew,bsh_residue,parameters.kain);
+					pairs(i,j).function.truncate();
 				// evaluate the current mp2 energy
 				double new_energy = compute_mp2_pair_energy(pairs(i,j));
 				double delta = new_energy - current_energy;
@@ -504,19 +501,17 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			doubles_potential.print_size("Doubles Potential after Truncate");
 			real_function_6d G_doubles_potential = G(doubles_potential);
 
-			// add the constant term
-			output("Add constant MP2 Term");
-			real_function_6d updated_pair = doubles(i,j).constant_term + G_doubles_potential;
-			G_doubles_potential.print_size("-2.0*G(doubles_potential)");
-			updated_pair.print_size("updated_pair before truncate");
-			updated_pair.truncate();
-			updated_pair.print_size("updated_pair after truncate");
 			G_time.info();
 
-			updated_pair.print_size("updated_pair");
-			CCOPS.apply_Q12(updated_pair,"updated_pair");
-			updated_pair.print_size("Q12(updated_pair)");
-			real_function_6d BSH_residue = updated_pair - doubles(i,j).function;
+			// add the constant term
+			output("Add constant MP2 Term");
+			real_function_6d u_new = doubles(i,j).constant_term + G_doubles_potential;
+			G_doubles_potential.print_size("-2.0*G(doubles_potential)");
+
+			u_new.print_size("u_new");
+			CCOPS.apply_Q12(u_new,"u_new");
+			u_new.print_size("Q12(u_New)");
+			real_function_6d BSH_residue = u_new - doubles(i,j).function;
 			double error = BSH_residue.norm2();
 			CCOPS.performance_D.current_iteration++;
 
@@ -526,9 +521,9 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 				if(converged) std::cout << "Pair converged!" << std::endl;
 			}
 
-			doubles(i,j).function = updated_pair;
+			doubles(i,j).update_function(world,u_new,BSH_residue,parameters.kain);
+			doubles(i,j).function.truncate();
 			whole_potential.info();
-
 		}
 	}
 

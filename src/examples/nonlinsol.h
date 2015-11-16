@@ -89,11 +89,19 @@ namespace madness {
     /// \ingroup nonlinearsolve
 	template<size_t NDIM>
 	class NonlinearSolverND {
-		const unsigned int maxsub; ///< Maximum size of subspace dimension
+		unsigned int maxsub; ///< Maximum size of subspace dimension
+
 		std::vector<Function<double,NDIM> > ulist, rlist;
 		real_tensor Q;
 
 	public:
+		void set_maxsub(const unsigned int &new_maxsub){
+			maxsub = new_maxsub;
+		}
+		const unsigned int get_maxsub()const{
+			const unsigned int tmp = maxsub;
+			return tmp;
+		}
 		bool do_print;
 
 		NonlinearSolverND(unsigned int maxsub = 10) : maxsub(maxsub), do_print(false) {}
