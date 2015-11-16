@@ -546,10 +546,12 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
     const bool have_beta=(xc->is_spin_polarized()) and (nbeta>0);
 
     // assign the densities (alpha, beta)
-    xcargs[XCfunctional::enum_rhoa]=arho;                   // alpha density
+    xcargs[XCfunctional::enum_rhoa]=copy(arho);                   // alpha density
+    arho.reconstruct();
     xcargs[XCfunctional::enum_rhoa].reconstruct();
     if (have_beta) {
-        xcargs[XCfunctional::enum_rhob]=brho;  // beta density
+        xcargs[XCfunctional::enum_rhob]=copy(brho);  // beta density
+    	brho.reconstruct();
         xcargs[XCfunctional::enum_rhob].reconstruct();
     }
     arho.world().gop.fence();

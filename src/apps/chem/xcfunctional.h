@@ -145,16 +145,16 @@ private:
         return rho;
     }
 
-    // similar to the Laura's ratio thresholding, but might be more robust
-    void munge_rho(double& rho, double& sigma) const {
-        if (sigma<0.0) sigma=sigmin;
-        if (rho < rhotol) rho=rhomin;                   // 1.e-8 or so
-        if (rho < 1.e-2) sigma=10.0*rho*rho;
-    }
+//    // similar to the Laura's ratio thresholding, but might be more robust
+//    void munge_rho(double& rho, double& sigma) const {
+//        if (sigma<0.0) sigma=sigmin;
+//        if (rho < rhotol) rho=rhomin;                   // 1.e-8 or so
+//        if (rho < 1.e-2) sigma=10.0*rho*rho;
+//    }
 
     void munge2(double& rho, double& sigma) const {
-        munge_rho(rho,sigma);
-        return;
+//        munge_rho(rho,sigma);
+//        return;
         // original thresholding
         // if (rho < rhotol) rho=rhomin;
         // if (rho < rhotol || sigma < sigtol) sigma=sigmin;
