@@ -532,8 +532,8 @@ public:
 		return exists;
 	}
 
-	void store_pair(World& world) {
-		std::string name = "pair_" + stringify(i) + stringify(j);
+	void store_pair(World& world, const std::string &msg = "pair_") {
+		std::string name = msg + stringify(i) + stringify(j);
 		if (world.rank() == 0)
 			printf("storing matrix elements %s\n", name.c_str());
 		archive::ParallelOutputArchive ar(world, name.c_str(), 1);

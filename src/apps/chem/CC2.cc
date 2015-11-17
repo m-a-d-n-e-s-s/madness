@@ -218,6 +218,7 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 					if(parameters.kain) solver.update(unew,bsh_residue);
 					pairs(i,j).function = updated_function;
 					pairs(i,j).function.truncate();
+					pairs(i,j).store_pair(world);
 				// evaluate the current mp2 energy
 				double new_energy = compute_mp2_pair_energy(pairs(i,j));
 				double delta = new_energy - current_energy;
@@ -239,8 +240,9 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 				if(current_error < parameters.dconv_6D){
 					output("Wavefunction convergence fullfilled");
 					if(fabs(delta) < parameters.econv){
-						output("Energy connverged");
+						output("Energy converged");
 						pair_energies.push_back(current_energy);
+						pairs(i,j).store_pair(world,"converged_mp2_");
 						break;
 					}
 				}
@@ -492,6 +494,7 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			doubles(i,j).current_error = error;
 			BSH_residue.print_size("Residue");
 			doubles(i,j).function.truncate();
+			doubles(i,j).store_pair(world);
 			whole_potential.info();
 		}
 	}
@@ -576,7 +579,7 @@ void CC2::initialize_electron_pair(CC_Pair &u)const{
 		double test_energy = compute_mp2_pair_energy(u);
 		output("Initialized Electron Pair: |u" + stringify(u.i) + stringify(u.j) + "> with pair energy: " + stringify(test_energy) + "\n");
 		u.info();
-		u.store_pair(world);
+		u.store_pair(world,"const_");
 
 }
 
