@@ -43,9 +43,9 @@
 namespace madness {
 
     std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
-        out << "MadnessException : ";
-        if (e.msg) out << "msg=" << e.msg << " : ";
-        if (e.assertion) out << "assertion=" << e.assertion << " : ";
+        out << "\nMadnessException : \n\n";
+        if (e.msg) out << "msg=" << e.msg << " :\n ";
+        if (e.assertion) out << "assertion=" << e.assertion << " :\n ";
         out << "value=" << e.value << " : ";
         if (e.line) out << "line=" << e.line << " : ";
         if (e.function) out << "function=" << e.function << " : ";

@@ -58,11 +58,19 @@ public:
     /// - \c xc_args[11]  \f$ \rho_{\alpha,pt} \f$
     /// - \c xc_args[12]  \f$ \rho_{\beta,pt} \f$
     enum xc_arg {
-        enum_rhoa=0, enum_rhob=1,
-        enum_saa=2, enum_sab=3, enum_sbb=4,
+        enum_rhoa=0, enum_rhob=1, enum_rho_pt=2,
+        enum_saa=10, enum_sab=11, enum_sbb=12, enum_sigma_pta=13, enum_sigma_ptb=14,
         enum_drhoa_x=5, enum_drhoa_y=6, enum_drhoa_z=7,
-        enum_drhob_x=8, enum_drhob_y=9, enum_drhob_z=10,
-        enum_rho_pta=11, enum_rho_ptb=12
+        enum_drhob_x=8, enum_drhob_y=9, enum_drhob_z=10
+    };
+    const static int number_xc_args=14;
+
+
+    /// which contribution is requested from the XCfunctional
+    enum xc_contribution {
+        kernel_second_local=0,
+        kernel_second_semilocal=1,
+        kernel_first_semilocal=2
     };
 
 protected:
@@ -145,12 +153,12 @@ private:
         return rho;
     }
 
-//    // similar to the Laura's ratio thresholding, but might be more robust
-//    void munge_rho(double& rho, double& sigma) const {
-//        if (sigma<0.0) sigma=sigmin;
-//        if (rho < rhotol) rho=rhomin;                   // 1.e-8 or so
-//        if (rho < 1.e-2) sigma=10.0*rho*rho;
-//    }
+    // similar to the Laura's ratio thresholding, but might be more robust
+    void munge_rho(double& rho, double& sigma) const {
+        if (sigma<0.0) sigma=sigmin;
+        if (rho < rhotol) rho=rhomin;                   // 1.e-8 or so
+        if (rho < 1.e-2) sigma=10.0*rho*rho;
+    }
 
     void munge2(double& rho, double& sigma) const {
 //        munge_rho(rho,sigma);
@@ -303,7 +311,8 @@ public:
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] what Specifies which component of the potential is to be computed as described above
     /// @return The component specified by the \c what parameter
-    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
+    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t,
+            const int ispin, const int what) const;
 
     /// compute the second derivative of the XC energy wrt the density
 
@@ -319,7 +328,7 @@ public:
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @return The component specified by the \c what parameter
     madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,
-            const int ispin) const;
+            const int ispin, const xc_contribution xc_contrib) const;
 
     madness::Tensor<double> fxc_old(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const int what) const;
@@ -402,14 +411,16 @@ struct xc_kernel {
 struct xc_kernel_apply {
     const XCfunctional* xc;
     const int ispin;
+    const XCfunctional::xc_contribution xc_contrib;
 
-    xc_kernel_apply(const XCfunctional& xc, int ispin,int what)
-        : xc(&xc), ispin(ispin) {}
+    xc_kernel_apply(const XCfunctional& xc, int ispin,
+            const XCfunctional::xc_contribution xc_contrib)
+        : xc(&xc), ispin(ispin), xc_contrib(xc_contrib) {}
 
     madness::Tensor<double> operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->fxc_apply(t, ispin);
+        madness::Tensor<double> r = xc->fxc_apply(t, ispin, xc_contrib);
         return r;
     }
 };

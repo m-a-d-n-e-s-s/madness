@@ -411,7 +411,7 @@ private:
     /// - \c xc_args[10]  \f$ \partial/{\partial z} \rho_{\beta} \f$
     /// - \c xc_args[11]  \f$ \rho_{\alpha,pt} \f$
     /// - \c xc_args[12]  \f$ \rho_{\beta,pt} \f$
-    vecfuncT xc_args;
+    mutable vecfuncT xc_args;
 
     /// compute the intermediates for the XC functionals
 
@@ -419,6 +419,14 @@ private:
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @param[out] xc_args vector of intermediates as described above
     vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
+
+    /// compute the intermediates for the XC functionals
+
+    /// @param[in]  dens_pt     perturbed densities from CPHF or TDDFT equations
+    /// @param[inout] xc_args   vector of intermediates as described above
+    /// @param[out] ddens_pt    xyz-derivatives of dens_pt
+    void prep_xc_args_response(const real_function_3d& dens_pt,
+            vecfuncT& xc_args, vecfuncT& ddens_pt) const;
 
     /// compute the intermediates for the XC functionals
 
