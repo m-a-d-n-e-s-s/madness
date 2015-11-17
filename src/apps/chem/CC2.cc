@@ -329,14 +329,16 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		output("Performance Overview of Iteration " + stringify(iter));
 		if(world.rank()==0)CCOPS.performance_S.info_last_iter();
 		if(world.rank()==0)CCOPS.performance_D.info_last_iter();
+
+
 		output("\nNorm of Singles\n");
 		for(auto x:singles.functions){
-			x.second.function.print_size("|tau_"+stringify(x.first)+">");
-			(x.second.function*nemo.nuclear_correlation->function()).print_size("R|tau_"+stringify(x.first)+">");
+			x.second.info(world);
+			(x.second.function*nemo.nuclear_correlation->function()).print_size("R*"+x.second.name());
 		}
 		output("\nNorm of Doubles\n");
 		for(auto x:doubles.allpairs){
-			x.second.function.print_size("u_"+stringify(x.second.i)+stringify(x.second.j)+">");
+			x.second.info();
 			real_function_6d full_pair = CCOPS.make_full_pair_function(x.second,singles(x.second.i),singles(x.second.j));
 			full_pair.print_size("\tau_"+stringify(x.second.i)+stringify(x.second.j));
 			real_function_6d R2_full_pair = CompositeFactory<double,6,3>(world).ket(copy(full_pair)).V_for_particle1(nemo.nuclear_correlation->function()).V_for_particle2(nemo.nuclear_correlation->function());
@@ -347,6 +349,7 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		if(world.rank()==0) std::cout << std::setprecision(parameters.output_prec) << current_energies << std::endl;
 
 		output("End performance Overview\n");
+
 
 		if(singles_converged and doubles_converged and energy_converged){
 			output("Singles and Doubles Converged (!)");
@@ -410,6 +413,7 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &sin
 		if(world.rank()==0) std::cout << "|| residue" + stringify(i)+">|| =" << error << std::endl;
 		CCOPS.Q(G_potential[i]);
 		CC_function new_single(G_potential[i],singles(i).i,PARTICLE);
+		new_single.current_error = error;
 		singles(i) = new_single;
 		if(fabs(error) > parameters.dconv_3D) converged = false;
 	}
@@ -485,6 +489,7 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			}
 			real_function_6d updated_function = u_new;
 			doubles(i,j).function = updated_function;
+			doubles(i,j).current_error = error;
 			BSH_residue.print_size("Residue");
 			doubles(i,j).function.truncate();
 			whole_potential.info();

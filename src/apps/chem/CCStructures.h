@@ -437,20 +437,20 @@ public:
 	CC_Pair() :
 		i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
 				uninitialized()), ij_gQf_ij(uninitialized()), ji_gQf_ij(
-						uninitialized()), iteration(0), converged(false) {
+						uninitialized()), iteration(0), converged(false), current_error(uninitialized()) {
 	}
 
 	/// ctor; initialize energies with a large number
 	CC_Pair(const int i, const int j) :
 		i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
-						false) {
+						false), current_error(uninitialized()) {
 	}
 	/// ctor; initialize energies with a large number
 	CC_Pair(const real_function_6d &f,const int i, const int j) :
 		i(i), j(j),function(f), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
-						false) {
+						false), current_error(uninitialized()) {
 	}
 
 	/// print the pair's energy
@@ -464,14 +464,12 @@ public:
 	// print information
 	void info()const{
 		if(function.world().rank()==0){
-			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " Current Information about Electron Pair |u" << i << j << ">"  << std::endl;
-			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " corelation energy: " << e_singlet + e_triplet << std::endl;
-			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " e_singlet: " << e_singlet << std::endl;
-			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " e_triplet: " << e_triplet << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " Current Information about Electron Pair " << name() << std::endl;
 			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ij_gQf_ij: " << ij_gQf_ij << std::endl;
 			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ji_gQf_ij: " << ji_gQf_ij << std::endl;
-			if(function.impl_initialized()) function.print_size(name());
-			if(constant_term.impl_initialized()) constant_term.print_size(name()+"_constant_term");
+			if(function.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||u||    : " << function.norm2() << std::endl;
+			if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " << constant_term.norm2() << std::endl;
+			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|  : " << current_error << std::endl;
 		}
 	}
 
@@ -495,6 +493,8 @@ public:
 
 	int iteration;					///< current iteration for restart
 	bool converged;					///< is the pair function converged
+
+	double current_error;			///< error of the last iteration: ||function_old - function||_L2
 
 	/// serialize this CC_Pair
 
@@ -546,20 +546,24 @@ public:
 
 // structure for a CC Function 3D which holds an index and a type
 struct CC_function{
-	CC_function(): i(99), type(UNDEFINED){};
-	CC_function(const real_function_3d &f): function(f), i(99),type(UNDEFINED){};
-	CC_function(const real_function_3d &f, const size_t &ii): function(f), i(ii), type(UNDEFINED){};
-	CC_function(const real_function_3d &f, const size_t &ii, const functype &type_): function(f), i(ii), type(type_){};
-	CC_function(const CC_function &other): function(other.function), i(other.i), type(other.type){};
+	CC_function(): current_error(99),i(99), type(UNDEFINED){};
+	CC_function(const real_function_3d &f): current_error(99),function(f), i(99),type(UNDEFINED){};
+	CC_function(const real_function_3d &f,const size_t &ii): current_error(99), function(f), i(ii), type(UNDEFINED){};
+	CC_function(const real_function_3d &f,const size_t &ii, const functype &type_): current_error(99),function(f), i(ii), type(type_){};
+	CC_function(const CC_function &other): current_error(other.current_error),function(other.function), i(other.i), type(other.type){};
+	double current_error;
 	real_function_3d function;
 	real_function_3d get()const{return function;}
 	real_function_3d f()const{return function;}
 	void set(const real_function_3d &other){function=other;}
 	size_t i;
 	functype type;
-	void info(World &world,const std::string &msg = "unspecified")const{
-		if(world.rank()==0) std::cout <<"Information about 3D function: " << msg << " i=" << i << " type=" << type << std::endl;
-		function.print_size(msg);
+	void info(World &world,const std::string &msg = " ")const{
+		if(world.rank()==0){
+			std::cout <<"Information about 3D function: " << name() << " " << msg << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |f|    : " << function.norm2() << std::endl;
+			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|: " << current_error << std::endl;
+		}
 	}
 	std::string name()const{
 		if(type==HOLE){
@@ -646,7 +650,7 @@ struct CC_data{
 		else return;
 	}
 	void info()const{
-		std::cout << std::setw(6) <<name << std::setfill(' ') << ", ||f||=" << result_norm << ", (" << result_size << ") GB, " << time.first << "s (Wall), " << time.second << "s (CPU)\n";
+		std::cout << std::setw(25) <<name << std::setfill(' ') << ", ||f||=" << result_norm << ", (" << result_size << ") GB, " << time.first << "s (Wall), " << time.second << "s (CPU)\n";
 		if(not warnings.empty()){
 			std::cout << "!!!Problems were detected in " << name <<"!!!\n";
 			std::cout << warnings << std::endl;
@@ -657,7 +661,7 @@ struct CC_data{
 // structure which holds all CC_data structures sorted by name of the function and iteration
 struct CC_performance{
 
-	CC_performance():current_iteration(999){}
+	CC_performance():current_iteration(0){}
 
 	typedef std::map<std::pair<std::string, std::size_t>, CC_data> datamapT;
 	datamapT data;
