@@ -8,49 +8,7 @@
 #include "CC2.h"
 namespace madness {
 
-bool CC2::test()const{
-	bool sanity = true;
-	output_section("CC2 CONSISTENCY CHECK");
 
-	output_subsection("Testing Integal Routines:");
-
-	bool integrals_sane = true;
-	for(size_t i=0;i<active_mo.size();i++){
-		for(size_t j=i;j<active_mo.size();j++){
-			// make empty electron pair
-			CC_Pair u(i,j);
-
-			// test the integral routine
-			double ij_gQf_ij = CCOPS.make_ijgQfxy(u.i,u.j,CCOPS.mo_ket(i),CCOPS.mo_ket(j));
-			double ij_gQf_ji = CCOPS.make_ijgQfxy(u.i,u.j,CCOPS.mo_ket(j),CCOPS.mo_ket(i));
-			double ji_gQf_ij = CCOPS.make_ijgQfxy(u.j,u.i,CCOPS.mo_ket(i),CCOPS.mo_ket(j));
-			double ji_gQf_ji = CCOPS.make_ijgQfxy(u.j,u.i,CCOPS.mo_ket(j),CCOPS.mo_ket(i));
-			output("------------------------------------");
-			if(world.rank()==0){
-				std::cout << "<" << i << j << "|gQf|" << i << j <<  "> = " << ij_gQf_ij << std::endl;
-				std::cout << "<" << j << i << "|gQf|" << j << i <<  "> = " << ji_gQf_ji << std::endl;
-				std::cout << "<" << i << j << "|gQf|" << j << i <<  "> = " << ij_gQf_ji << std::endl;
-				std::cout << "<" << j << i << "|gQf|" << i << j <<  "> = " << ji_gQf_ij << std::endl;
-			}
-			double diff1 = fabs(ij_gQf_ij - ji_gQf_ji);
-			double diff2 = fabs(ij_gQf_ji - ji_gQf_ij);
-			if(diff1 > FunctionDefaults<3>::get_thresh()){
-				output("Error in Integrals ij = " +stringify(i) + stringify(j));
-				integrals_sane = false;
-			}
-			if(diff2 > FunctionDefaults<3>::get_thresh()){
-				output("Error in Exchange Integrals ij = " +stringify(i) + stringify(j));
-				integrals_sane = false;
-			}
-
-		}
-	}
-	sanity = integrals_sane;
-	if(integrals_sane) output("Integrals are sane");
-
-
-	return sanity;
-}
 
 /// solve the CC2 ground state equations, returns the correlation energy
 double CC2::solve(){
@@ -76,7 +34,6 @@ double CC2::solve(){
 					output("Current MP2 Energy of the Pair is: " + stringify(mp2_energy));
 				}else MADNESS_EXCEPTION(("No Restartdata found for pair " + stringify(i)+stringify(j)).c_str(),1);
 			}else initialize_electron_pair(u);
-			if(parameters.kain) u.initialize_kain(parameters.kain_subspace);
 			pairs.insert(i,j,u);
 		}
 	}
@@ -205,7 +162,6 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 
 			output_subsection("Solving uncoupled MP2 equations for pair |u" + stringify(i) + stringify(j) + ">");
 
-			pairs(i,j).initialize_kain(parameters.kain_subspace);
 
 			output_subsection("Setup the BSH Operator");
 			CC_Timer timer_bsh_setup(world,"Setup the BSH-Operator for the pair function");
@@ -215,6 +171,9 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 			output("Constructed Green Operator is destructive ? : " + stringify(G.destructive()));
 			output("eps in Green's Operator is " +stringify(CCOPS.get_epsilon(i,j)));
 			timer_bsh_setup.info();
+
+			NonlinearSolverND<6> solver(parameters.kain_subspace);
+			solver.do_print = (world.rank() == 0);
 
 			// Beginn the iterations
 			for(size_t iter=0;iter<30;iter++){
@@ -255,7 +214,9 @@ double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{
 					timer_make_bsh_residue.info();
 					current_error = bsh_residue.norm2();
 					// update the pair function
-					pairs(i,j).update_function(world,unew,bsh_residue,parameters.kain);
+					real_function_6d updated_function = unew;
+					if(parameters.kain) solver.update(unew,bsh_residue);
+					pairs(i,j).function = updated_function;
 					pairs(i,j).function.truncate();
 				// evaluate the current mp2 energy
 				double new_energy = compute_mp2_pair_energy(pairs(i,j));
@@ -349,9 +310,12 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		CC_Timer timer_iter_all(world,"Iteration " + stringify(iter));
 		CCOPS.update_intermediates(singles);
 		output_subsection("Iteration "+stringify(iter));
-		CC_Timer timer_iter_singles(world,"Iteration " + stringify(iter) + " Singles");
-		singles_converged=iterate_cc2_singles(doubles,singles);
-		timer_iter_singles.info();
+		for(size_t mis=0;mis<3;mis++){
+			CC_Timer timer_iter_singles(world,"Iteration " + stringify(iter) + " Singles" + " Microiteration #" + stringify(mis));
+			singles_converged=iterate_cc2_singles(doubles,singles);
+			timer_iter_singles.info();
+			if(singles_converged == true) break;
+		}
 		CCOPS.update_intermediates(singles);
 		CC_Timer timer_iter_doubles(world,"Iteration " + stringify(iter) + " Doubles");
 		doubles_converged = iterate_cc2_doubles(doubles,singles);
@@ -519,8 +483,8 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 				std::cout << "Iteration of pair |u" << i << j << "> completed, current error is:" << error << std::endl;
 				if(converged) std::cout << "Pair converged!" << std::endl;
 			}
-
-			doubles(i,j).update_function(world,u_new,BSH_residue,parameters.kain);
+			real_function_6d updated_function = u_new;
+			doubles(i,j).function = updated_function;
 			BSH_residue.print_size("Residue");
 			doubles(i,j).function.truncate();
 			whole_potential.info();

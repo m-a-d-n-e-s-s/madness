@@ -437,20 +437,20 @@ public:
 	CC_Pair() :
 		i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
 				uninitialized()), ij_gQf_ij(uninitialized()), ji_gQf_ij(
-						uninitialized()), iteration(0), converged(false), kain_solver_(1) {
+						uninitialized()), iteration(0), converged(false) {
 	}
 
 	/// ctor; initialize energies with a large number
 	CC_Pair(const int i, const int j) :
 		i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
-						false), kain_solver_(1) {
+						false) {
 	}
 	/// ctor; initialize energies with a large number
 	CC_Pair(const real_function_6d &f,const int i, const int j) :
 		i(i), j(j),function(f), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
-						false), kain_solver_(1) {
+						false) {
 	}
 
 	/// print the pair's energy
@@ -472,7 +472,6 @@ public:
 			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ji_gQf_ij: " << ji_gQf_ij << std::endl;
 			if(function.impl_initialized()) function.print_size(name());
 			if(constant_term.impl_initialized()) constant_term.print_size(name()+"_constant_term");
-			std::cout << "Kain subspace is set to " << kain_solver_.get_maxsub() << std::endl;
 		}
 	}
 
@@ -541,27 +540,6 @@ public:
 		ar & *this;
 	}
 
-	void initialize_kain(const size_t &i){
-		NonlinearSolverND<6> new_kain(i);
-		kain_solver_ = new_kain;
-	}
-	void update_function(World &world,const real_function_6d & unew, const real_function_6d &residue, const bool &kain){
-		if(kain){
-			if(world.rank()==0) std::cout << "Update Pair function with Kain\n";
-			kain_solver_.do_print=(world.rank()==0);
-			function.print_size("old_u");
-			function = kain_solver_.update(unew,residue);
-			function.print_size("new_u");
-		}else{
-			if(world.rank()==0) std::cout << "Update Pair function without Kain\n";
-			function.print_size("old_u");
-			function = unew;
-			function.print_size("new_u");
-		}
-	}
-
-private:
-	NonlinearSolverND<6> kain_solver_;
 };
 
 
