@@ -362,26 +362,26 @@ struct CC_Parameters{
 
 	void sanity_check(World &world)const{
 		size_t warnings = 0;
-		if(FunctionDefaults<3>::get_thresh() > 0.01*FunctionDefaults<6>::get_thresh()) warning(world,"3D Thresh is too low, should be 0.01*6D_thresh");
-		if(FunctionDefaults<3>::get_thresh() > 0.1*FunctionDefaults<6>::get_thresh()) error(world,"3D Thresh is way too low, should be 0.01*6D_thresh");
-		if(FunctionDefaults<3>::get_cell_min_width() != FunctionDefaults<6>::get_cell_min_width()) error(world,"3D and 6D Cell sizes differ");
-		if(FunctionDefaults<3>::get_k() != FunctionDefaults<6>::get_k()) error(world, "k-values of 3D and 6D differ ");
+		if(FunctionDefaults<3>::get_thresh() > 0.01*FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"3D Thresh is too low, should be 0.01*6D_thresh");
+		if(FunctionDefaults<3>::get_thresh() > 0.1*FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"3D Thresh is way too low, should be 0.01*6D_thresh");
+		if(FunctionDefaults<3>::get_cell_min_width() != FunctionDefaults<6>::get_cell_min_width()) warnings+=warning(world,"3D and 6D Cell sizes differ");
+		if(FunctionDefaults<3>::get_k() != FunctionDefaults<6>::get_k()) warnings+=warning(world, "k-values of 3D and 6D differ ");
 		if(FunctionDefaults<3>::get_truncate_mode()!=3) warnings+=warning(world,"3D Truncate mode is not 3");
 		if(FunctionDefaults<6>::get_truncate_mode()!=3) warnings+=warning(world,"6D Truncate mode is not 3");
-		if(dconv_3D < FunctionDefaults<3>::get_thresh()) error(world,"Demanded higher convergence than threshold for 3D");
-		if(dconv_6D < FunctionDefaults<6>::get_thresh()) error(world,"Demanded higher convergence than threshold for 6D");
-		if(thresh_3D != FunctionDefaults<3>::get_thresh()) error(world,"3D thresh set unequal 3D thresh demanded");
-		if(thresh_6D != FunctionDefaults<6>::get_thresh()) error(world,"6D thresh set unequal 6D thresh demanded");
+		if(dconv_3D < FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"Demanded higher convergence than threshold for 3D");
+		if(dconv_6D < FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher convergence than threshold for 6D");
+		if(thresh_3D != FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"3D thresh set unequal 3D thresh demanded");
+		if(thresh_6D != FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"6D thresh set unequal 6D thresh demanded");
 		if(econv < FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 3D");
 		if(econv < FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 6D");
-		if(econv < 0.1*FunctionDefaults<3>::get_thresh()) warning(world,"Demanded higher energy convergence than threshold for 3D (more than factor 10 difference)");
-		if(econv < 0.1*FunctionDefaults<6>::get_thresh()) warning(world,"Demanded higher energy convergence than threshold for 6D (more than factor 10 difference)");
+		if(econv < 0.1*FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 3D (more than factor 10 difference)");
+		if(econv < 0.1*FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 6D (more than factor 10 difference)");
 		// Check if the 6D thresholds are not too high
 		if(thresh_6D < 1.e-3) warnings+=warning(world,"thresh_6D is smaller than 1.e-3");
 		if(thresh_Ue < 1.e-4) warnings+=warning(world,"thresh_Ue is smaller than 1.e-4");
 		if(thresh_Ue > 1.e-4) warnings+=warning(world,"thresh_Ue is larger than 1.e-4");
 		if(thresh_3D > 0.01*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
-		if(thresh_3D > 0.1*thresh_6D) error(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
+		if(thresh_3D > 0.1*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
 		if(kain and kain_subspace ==0) warnings+=warning(world,"Demanded Kain solver but the size of the iterative subspace is set to zero");
 		if(restart and mp2_only) warnings+=warning(world,"Demanded mp2_only and restart ... does not work right now");
 		if(warnings >0){

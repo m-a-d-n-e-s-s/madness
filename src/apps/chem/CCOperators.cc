@@ -1140,9 +1140,10 @@ real_function_6d CC_Operators::make_GQfT_xy(const real_function_3d &x, const rea
 
 /// The 6D Fock residue on the cusp free pair function u_{ij}(1,2) is: (2J - Kn - Un)|u_{ij}>
 real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
+	output_section("Now doing 6D Fock Residue");
 	CC_data data("Fock-Residue");
 	CC_Timer timer(world,"Fock-Residue");
-	const double eps = get_epsilon(u.i, u.j);
+	//const double eps = get_epsilon(u.i, u.j);
 	// make the coulomb and local Un part with the composite factory
 	real_function_3d local_part = (2.0
 			* intermediates_.get_hartree_potential()
@@ -1167,8 +1168,7 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 
 	// the part with the derivative operators: U1
 	for (int axis = 0; axis < 6; ++axis) {
-		real_derivative_6d D = free_space_derivative<double, 6>(world,
-				axis);
+		real_derivative_6d D = free_space_derivative<double, 6>(world,axis);
 		// Partial derivative of the pari function
 		const real_function_6d Du = D(u.function).truncate();
 

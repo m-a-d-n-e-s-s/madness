@@ -510,7 +510,7 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			u_new.print_size("u_new");
 			CCOPS.apply_Q12(u_new,"u_new");
 			u_new.print_size("Q12(u_New)");
-			real_function_6d BSH_residue = u_new - doubles(i,j).function;
+			real_function_6d BSH_residue = doubles(i,j).function - u_new;
 			double error = BSH_residue.norm2();
 			CCOPS.performance_D.current_iteration++;
 
@@ -521,6 +521,7 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 			}
 
 			doubles(i,j).update_function(world,u_new,BSH_residue,parameters.kain);
+			BSH_residue.print_size("Residue");
 			doubles(i,j).function.truncate();
 			whole_potential.info();
 		}
