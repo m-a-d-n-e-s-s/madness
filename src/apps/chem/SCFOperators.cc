@@ -470,15 +470,15 @@ real_function_3d XCOperator::make_xc_potential() const {
 
     refine_to_common_level(world,xc_args);
 
-    // LDA part
+    // LDA/GGA local part
     real_function_3d dft_pot=multiop_values<double, xc_potential, 3>
-                (xc_potential(*xc, ispin, 0), xc_args);
+                (xc_potential(*xc, ispin, XCfunctional::potential_rho), xc_args);
 
     // GGA part
     //
-    // What = 0 : Vrho
-    // What = 1 : Vsigma_ss
-    // What = 2 : Vsigma_ab
+    // What = potential_rho : Vrho
+    // What = potential_same_spin : Vsigma_ss
+    // What = potential_mixed_spin : Vsigma_ab
     //
     // close shell
     //       v_xc = vrho - Div( 2Vsig_aa * Grad(rho_a))
@@ -492,12 +492,12 @@ real_function_3d XCOperator::make_xc_potential() const {
         real_function_3d gga_pot=real_factory_3d(world).compressed();
         // get Vsigma_aa (if it is the case and Vsigma_bb)
         functionT vsigaa = multiop_values<double, xc_potential, 3>
-            (xc_potential(*xc, ispin, 1), xc_args); //.truncate();
+            (xc_potential(*xc, ispin, XCfunctional::potential_same_spin), xc_args); //.truncate();
 
         functionT vsigab;
         if (xc->is_spin_polarized() && nbeta != 0)// V_ab
             vsigab = multiop_values<double, xc_potential, 3>
-                    (xc_potential(*xc, ispin, 2), xc_args); //.truncate();
+                    (xc_potential(*xc, ispin, XCfunctional::potential_mixed_spin), xc_args); //.truncate();
 
         for (int axis=0; axis<3; axis++) {
             functionT gradn_alpha = xc_args[XCfunctional::enum_drhoa_x+axis];
@@ -531,7 +531,7 @@ real_function_3d XCOperator::make_xc_kernel() const {
     // LDA part
     refine_to_common_level(world,xc_args);
     real_function_3d dft_kernel=multiop_values<double, xc_kernel, 3>
-            (xc_kernel(*xc, ispin, 0), xc_args);
+            (xc_kernel(*xc, ispin, XCfunctional::kernel_second_local), xc_args);
     return dft_kernel;
 
 }

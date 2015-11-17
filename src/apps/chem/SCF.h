@@ -914,10 +914,10 @@ public:
     functionT make_lda_potential(World & world, const functionT & arho);
 
 
-    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
-    {
-        return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
-    }
+//    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
+//    {
+//        return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
+//    }
 
     double make_dft_energy(World & world, const vecfuncT& vf, int ispin)
     {

@@ -238,7 +238,9 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 //XCfunctional::XCfunctional() {}
 //XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
 XCfunctional::XCfunctional() : hf_coeff(0.0) {
-    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
+    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10;
+    nderiv=0;
+    spin_polarized=false;
 }
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized,
@@ -379,7 +381,8 @@ bool XCfunctional::has_kxc() const
 ///    - sigma[3*npt] = sigma[aa,ab,bb]
 ///    leading dimension is [a,b] and [aa,ab,bb], respectively (why??!)
 void XCfunctional::make_libxc_args_old(const std::vector< madness::Tensor<double> >& t,
-           madness::Tensor<double>& rho, madness::Tensor<double>& sigma) const {
+           madness::Tensor<double>& rho, madness::Tensor<double>& sigma,
+           const munging_type& munging) const {
     const int np = t[0].size();
     if (spin_polarized) {
         if (is_lda()) {
@@ -419,7 +422,7 @@ void XCfunctional::make_libxc_args_old(const std::vector< madness::Tensor<double
             for (long i=0; i<np; i++) {
                 double ra=rhoa[i], rb=rhob[i], saa=sigaa[i], sab=sigab[i], sbb=sigbb[i];
 
-                munge5(ra, rb, saa, sab, sbb);
+                munge5(ra, rb, saa, sab, sbb, munging);
                 dens[2*i  ] = ra;
                 dens[2*i+1] = rb;
 
@@ -454,7 +457,7 @@ void XCfunctional::make_libxc_args_old(const std::vector< madness::Tensor<double
             for (long i=0; i<np; i++) {
                 double ra=2.0*rhoa[i], saa=4.0*sigaa[i];
                 //double ra=rhoa[i], saa=sigaa[i];
-                munge2(ra, saa);
+                munge2(ra, saa, munging);
                 dens[i] = ra;
                 sig[i] = saa;
             }
@@ -467,7 +470,8 @@ void XCfunctional::make_libxc_args_old(const std::vector< madness::Tensor<double
 
 
 void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& xc_args,
-           madness::Tensor<double>& rho, madness::Tensor<double>& sigma) const {
+           madness::Tensor<double>& rho, madness::Tensor<double>& sigma,
+           const munging_type& munging) const {
     const int np = xc_args[0].size();
 
 
@@ -489,7 +493,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             double * restrict sig = sigma.ptr();
             for (long i=0; i<np; i++) {
                 double ra=2.0*rhoa[i], saa=4.0*sigaa[i];
-                munge2(ra, saa);
+                munge2(ra, saa, munging);
                 dens[i] = ra;
                 sig[i] = saa;
             }
@@ -534,7 +538,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             for (long i=0; i<np; i++) {
                 double ra=rhoa[i], rb=rhob[i], saa=sigaa[i], sab=sigab[i], sbb=sigbb[i];
 
-                munge5(ra, rb, saa, sab, sbb);
+                munge5(ra, rb, saa, sab, sbb, munging);
                 dens[2*i  ] = ra;
                 dens[2*i+1] = rb;
 
@@ -553,7 +557,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 
 madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const {
     madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma);
+    make_libxc_args(t, rho, sigma, xc_potential);
 
     const int np = t[0].size();
     const double * restrict dens = rho.ptr();
@@ -599,30 +603,26 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t,
-        const int ispin, const int what) const {
-    madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma);
 
+madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t,
+        const int ispin, const xc_contribution xc_contrib) const {
+    madness::Tensor<double> rho, sigma;
+    make_libxc_args(t, rho, sigma, xc_potential);
+
+    // number of grid points
     const int np = t[0].size();
 
-    int nvsig, nvrho;
-    //rho[2*np],  sigma[3*np]
-    // vxc[2*np], vsigma[3*np]
+    // number of intermediates depends on the spin
+    int nvsig=1, nvrho=1;
     if (spin_polarized) {
         nvrho = 2;
         nvsig = 3;
-    }
-    else {
-        nvrho = 1;
-        nvsig = 1;
     }
 
     madness::Tensor<double> result(3L, t[0].dims());
     double * restrict res = result.ptr();
     const double * restrict dens = rho.ptr();
-    for (long j=0; j<np; j++)
-        res[j] = 0.0;
+    for (long j=0; j<np; j++) res[j] = 0.0;
 
     for (unsigned int i=0; i<funcs.size(); i++) {
         switch(funcs[i].first->info->family) {
@@ -631,12 +631,8 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             madness::Tensor<double> vrho(nvrho*np);
             double * restrict vr = vrho.ptr();
             xc_lda_vxc(funcs[i].first, np, dens, vr);
-            if (what < 2) {
-                for (long j=0; j<np; j++) {
-                    res[j] += vr[nvrho*j+ispin]*funcs[i].second;
-                    if (isnan_x(res[j])) throw "ouch";
-                }
-            }
+
+            for (long j=0; j<np; j++) res[j] += vr[nvrho*j+ispin]*funcs[i].second;
         }
 
         break;
@@ -644,8 +640,6 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
         case XC_FAMILY_HYB_GGA:
         case XC_FAMILY_GGA:
         {
-//            void xc_gga_vxc(xc_func_type *p, int np, double *rho, double *sigma,
-//            double double *vrho, double *vsigma)
             madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
             double * restrict vr = vrho.ptr();
             double * restrict vs = vsig.ptr();
@@ -657,25 +651,21 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             // out: vr     \del e/\del \rho_alpha [a,b]
             // out: vs     \del e/\del sigma_alpha [aa,ab,bb]
             xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
+
             if (spin_polarized) {
-                if (what == 0) {
-                    for (long j=0; j<np; j++) {
+                if (xc_contrib == potential_rho) {
+                    for (long j=0; j<np; j++) {                 // Vrhoa
                         res[j] += vr[nvrho*j+ispin] * funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
-                else if (what == 1) {
-                    // Vaa
+                else if (xc_contrib == potential_same_spin) {   // Vsigaa/Vsigbb
                     for (long j=0; j<np; j++) {
                         res[j] += vs[nvsig*j + 2*ispin] * funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
-                else if (what == 2) {
-                    // Vab
+                else if (xc_contrib == potential_mixed_spin) {  // Vsigab
                     for (long j=0; j<np; j++) {
                         res[j] += vs[nvsig*j + 1] * funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
                 else {
@@ -683,17 +673,14 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                 }
             }
             else {
-                if (what == 0) {
-                    for (long j=0; j<np; j++) {
+                if (xc_contrib == potential_rho) {
+                    for (long j=0; j<np; j++) {                 // Vrhoa
                         res[j] += vr[j]*funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
-                else if (what == 1) {
-                    // Vaa
+                else if (xc_contrib == potential_same_spin) {   // Vsigaa
                     for (long j=0; j<np; j++) {
                         res[j] += vs[j]*funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
                 else {
@@ -702,15 +689,14 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             }
         }
         break;
-//        case XC_FAMILY_HYB_GGA:
-//        {
-//            throw "ouch XC_FAMILY_HYB_GGA vxc disabled" ;
-//        }
-//        break;
         default:
-            throw "UGH!";
+            MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::vxc",1);
         }
     }
+    for (long j=0; j<np; j++) {
+        if (isnan_x(res[j])) MADNESS_EXCEPTION("NaN in xcfunctional::vxc",1);
+    }
+
     return result;
 }
 
@@ -720,86 +706,87 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
 /// @param[in]  ispin   the current spin (0=alpha, 1=beta)
 /// @param[in]  what 0: v2rho2, 1: v2rhosigma, 2:v2sigma2
 Tensor<double> XCfunctional::fxc(const std::vector<Tensor<double> >& t,
-        const int ispin, const int what) const {
-
-    MADNESS_ASSERT(!spin_polarized);    // for now
-
-    // copy quantities from t to rho and sigma
-    Tensor<double> rho,sigma;   // rho=2rho_alpha, sigma=4sigma_alpha
-    make_libxc_args(t, rho, sigma);
-    const double * restrict dens = rho.ptr();
-
-    // number of grid points
-    const int np = t[0].size();
-
-    // spin dimensions of the tensors
-    const int nspin=(spin_polarized ? 2 : 1);   // rhf: 1; uhf: 2
-    const int nspin2=nspin*(nspin+1)/2;         // rhf: 1; uhf: 3
-    const int nspin3=nspin2*(nspin2+1)/2;       // rhf: 1; uhf: 6
-
-    // result tensors
-    Tensor<double> v2rho2(nspin2*np);       // lda, gga
-
-    Tensor<double> result(3L, t[0].dims());
-    double * restrict res = result.ptr();
-
-    for (unsigned int i=0; i<funcs.size(); i++) {
-        switch(funcs[i].first->info->family) {
-        case XC_FAMILY_LDA: {
-            double * restrict vr = v2rho2.ptr();
-            xc_lda_fxc(funcs[i].first, np, dens, vr);
-            if (what < 2) {
-                for (long j=0; j<np; j++) {
-                    // 0,2,4,.. or 1,3,5,.. // works for both rhf and uhf
-                    res[j] += vr[nspin*j+ispin]*funcs[i].second;
-                }
-            }
-        }
-        break;
-
-        case XC_FAMILY_HYB_GGA:
-        case XC_FAMILY_GGA:
-        {
-            Tensor<double> v2rhosigma(nspin3*np);   // gga
-            Tensor<double> v2sigma2(nspin3*np);     // gga
-            double * restrict vrr = v2rho2.ptr();
-            double * restrict vrs = v2rhosigma.ptr();
-            double * restrict vss = v2sigma2.ptr();
-            const double * restrict sig = sigma.ptr();
-            // in: funcs[i].first
-            // in: np      number of points
-            // in: dens    the density [a,b], or 2*\rho_alpha
-            // in: sig     contracted density gradients \nabla \rho . \nabla \rho [aa,ab,bb]
-            // out: vrr     \del^2 e/\del \rho^2_alpha [a,b]
-            // out: vrs     \del^2 e/\del \sigma_alpha\rho [aa,ab,bb]
-            // out: vss     \del^2 e/\del \sigma^2_alpha [aa,ab,bb]
-            xc_gga_fxc(funcs[i].first, np, dens, sig, vrr, vrs, vss);
-
-            // if (spin_polarized) ..
-            MADNESS_ASSERT(!spin_polarized);    // for now
-
-            if (what == 0) {    // v2rho2
-                result+=v2rho2*funcs[i].second;
-            } else if (what == 1) {    // v2rhosigma
-                result+=v2rhosigma*funcs[i].second;
-            } else if (what == 2) {    // v2sigma2
-                result+=v2sigma2*funcs[i].second;
-            } else {
-                print("what ",what);
-                MADNESS_EXCEPTION("unknown what in xcfunctional::fxc",1);
-            }
-
-        }
-        break;
-        default:
-            MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::fxc",1);
-        }
-    }
-
-    // check for NaNs
-    for (long j=0; j<np; j++) if (isnan_x(res[j])) throw "ouch";
-
-    return result;
+        const int ispin, const int xc_contrib) const {
+    MADNESS_EXCEPTION("no fxc in XCfunctional -- use fxc_apply",1);
+//
+//    MADNESS_ASSERT(!spin_polarized);    // for now
+//
+//    // copy quantities from t to rho and sigma
+//    Tensor<double> rho,sigma;   // rho=2rho_alpha, sigma=4sigma_alpha
+//    make_libxc_args(t, rho, sigma, xc_kernel);
+//    const double * restrict dens = rho.ptr();
+//
+//    // number of grid points
+//    const int np = t[0].size();
+//
+//    // spin dimensions of the tensors
+//    const int nspin=(spin_polarized ? 2 : 1);   // rhf: 1; uhf: 2
+//    const int nspin2=nspin*(nspin+1)/2;         // rhf: 1; uhf: 3
+//    const int nspin3=nspin2*(nspin2+1)/2;       // rhf: 1; uhf: 6
+//
+//    // result tensors
+//    Tensor<double> v2rho2(nspin2*np);       // lda, gga
+//
+//    Tensor<double> result(3L, t[0].dims());
+//    double * restrict res = result.ptr();
+//
+//    for (unsigned int i=0; i<funcs.size(); i++) {
+//        switch(funcs[i].first->info->family) {
+//        case XC_FAMILY_LDA: {
+//            double * restrict vr = v2rho2.ptr();
+//            xc_lda_fxc(funcs[i].first, np, dens, vr);
+//            if (xc_contrib < 2) {
+//                for (long j=0; j<np; j++) {
+//                    // 0,2,4,.. or 1,3,5,.. // works for both rhf and uhf
+//                    res[j] += vr[nspin*j+ispin]*funcs[i].second;
+//                }
+//            }
+//        }
+//        break;
+//
+//        case XC_FAMILY_HYB_GGA:
+//        case XC_FAMILY_GGA:
+//        {
+//            Tensor<double> v2rhosigma(nspin3*np);   // gga
+//            Tensor<double> v2sigma2(nspin3*np);     // gga
+//            double * restrict vrr = v2rho2.ptr();
+//            double * restrict vrs = v2rhosigma.ptr();
+//            double * restrict vss = v2sigma2.ptr();
+//            const double * restrict sig = sigma.ptr();
+//            // in: funcs[i].first
+//            // in: np      number of points
+//            // in: dens    the density [a,b], or 2*\rho_alpha
+//            // in: sig     contracted density gradients \nabla \rho . \nabla \rho [aa,ab,bb]
+//            // out: vrr     \del^2 e/\del \rho^2_alpha [a,b]
+//            // out: vrs     \del^2 e/\del \sigma_alpha\rho [aa,ab,bb]
+//            // out: vss     \del^2 e/\del \sigma^2_alpha [aa,ab,bb]
+//            xc_gga_fxc(funcs[i].first, np, dens, sig, vrr, vrs, vss);
+//
+//            // if (spin_polarized) ..
+//            MADNESS_ASSERT(!spin_polarized);    // for now
+//
+//            if (xc_contrib == 0) {    // v2rho2
+//                result+=v2rho2*funcs[i].second;
+//            } else if (xc_contrib == 1) {    // v2rhosigma
+//                result+=v2rhosigma*funcs[i].second;
+//            } else if (xc_contrib == 2) {    // v2sigma2
+//                result+=v2sigma2*funcs[i].second;
+//            } else {
+//                print("what ",xc_contrib);
+//                MADNESS_EXCEPTION("unknown what in xcfunctional::fxc",1);
+//            }
+//
+//        }
+//        break;
+//        default:
+//            MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::fxc",1);
+//        }
+//    }
+//
+//    // check for NaNs
+//    for (long j=0; j<np; j++) if (isnan_x(res[j])) throw "ouch";
+//
+//    return result;
 
 }
 
@@ -817,7 +804,7 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
 
     // copy quantities from t to rho and sigma
     Tensor<double> rho,sigma;   // rho=2rho_alpha, sigma=4sigma_alpha
-    make_libxc_args(t, rho, sigma);
+    make_libxc_args(t, rho, sigma, xc_kernel);
 
     // number of grid points
     const int np = t[0].size();
@@ -912,13 +899,14 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
 
     // check for NaNs
     double * restrict res = result.ptr();
-    for (long j=0; j<np; j++) if (isnan_x(res[j])) throw "ouch";
+    for (long j=0; j<np; j++) if (isnan_x(res[j]))
+        MADNESS_EXCEPTION("NaN in xcfunctional::fxc_apply",1);
     return result;
 }
 
 
 madness::Tensor<double> XCfunctional::fxc_old(const std::vector< madness::Tensor<double> >& t,
-        const int ispin, const int what) const {
+        const int ispin, const xc_contribution what) const {
 /* Some useful formulas:
    sigma_st = grad rho_s . grad rho_t
    zk = energy density per unit particle
@@ -937,7 +925,7 @@ if nspin == 2
    v2sigma2(6) = (uu_uu, uu_ud, uu_dd, ud_ud, ud_dd, dd_dd)
 */
     madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma);
+    make_libxc_args(t, rho, sigma, xc_kernel);
 
     const int np = t[0].size();
 

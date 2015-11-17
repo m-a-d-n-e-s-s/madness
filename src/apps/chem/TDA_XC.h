@@ -42,7 +42,7 @@ struct unperturbed_vxc{
     madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
     {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->vxc(t, ispin, what);
+        madness::Tensor<double> r; // debug = xc->vxc(t, ispin, what);
         return r;
     }
 };
@@ -58,7 +58,7 @@ struct make_fxc{
     madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
     {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->fxc(t, ispin, what);
+        madness::Tensor<double> r; // debug = xc->fxc(t, ispin, what);
         return r;
     }
 };
@@ -76,19 +76,20 @@ struct get_derivatives{
 	    	MADNESS_ASSERT(xc);
 	    	madness::Tensor<double> result;
 
-	    	if(what == 0){
-	    		// gives back d2fdrho2
-	    		result=xc->fxc(t,ispin,0);
-	    	}
-	    	else if(what == 1){
-	    		// gives back d2fdrhodsigma
-	    		result=xc->fxc(t,ispin,1);
-	    	}
-	    	else if(what == 2){
-	    		// gives back d2fdsigma2
-	    		result=xc->fxc(t,ispin,2);
-	    	}
-	    	else MADNESS_EXCEPTION("what can only be in the range of 0-2",1);
+// debug
+//	    	if(what == 0){
+//	    		// gives back d2fdrho2
+//	    		result=xc->fxc(t,ispin,0);
+//	    	}
+//	    	else if(what == 1){
+//	    		// gives back d2fdrhodsigma
+//	    		result=xc->fxc(t,ispin,1);
+//	    	}
+//	    	else if(what == 2){
+//	    		// gives back d2fdsigma2
+//	    		result=xc->fxc(t,ispin,2);
+//	    	}
+//	    	else MADNESS_EXCEPTION("what can only be in the range of 0-2",1);
 
 	    	return result;
 	        }
@@ -110,7 +111,7 @@ struct perturbed_vxc{
         if(xc->is_lda()){
         	std::vector< madness::Tensor<double> > rho;
         	rho.push_back(t[0]);
-        	madness::Tensor<double> fxc = xc->fxc(rho, ispin, 0);
+        	madness::Tensor<double> fxc; // debug = xc->fxc(rho, ispin, 0);
 
 
 
@@ -135,39 +136,41 @@ struct perturbed_vxc{
         	rho_and_sigma.push_back(t[0]);
         	rho_and_sigma.push_back(t[1]);
 
-        	if(what==0){
-        		// Create the first term of yanais formula (13) for closed shells
-        		// d2f/drho2*rhoprime + 2*d2f/drhodsigma*(grad_rho*grad_rhoprime)
-        		d2fdrho2 = xc->fxc(rho_and_sigma,ispin,0);
-        		d2fdrhodsigma = xc->fxc(rho_and_sigma,ispin,1);
-
-        		result = d2fdrho2;
-        		result.emul(t[3]);
-        		d2fdrhodsigma.emul(t[2]);
-        		result.gaxpy(1.0,d2fdrhodsigma,2.0);
-
-        	}
-        	else if(what==1){
-        		// Create part of the second term of yanais formula (13) for closed shell
-        		// 2*d2fdrhodsigma * rhoprime + 4*d2fdisgma2(grad_rho*grad_rhoprime);
-        		// This has to be multiplied with grad_rho and the divergence should be taken afterwards
-        		d2fdrhodsigma = xc->fxc(rho_and_sigma,ispin,1);
-        		d2fdsigma2 = xc->fxc(rho_and_sigma,ispin,2);
-
-        		result = d2fdrhodsigma;
-        		result.emul(t[3]);
-        		d2fdsigma2.emul(t[2]);
-        		result.gaxpy(2.0,d2fdsigma2,4.0);
-
-        	}
-        	else if(what==2){
-        		// Create the last part of yanais formula (13) for closed shell
-        		// df/dsigma
-        		// This has to be multiplied with 2, contracted with grad_rhoprime and the divergence taken afterwards
-        		result = xc->vxc(rho_and_sigma,ispin,1);
-
-        	}
-        	else MADNESS_EXCEPTION("What parameter of convolute_with_kernel was not from 0-2",1);
+// debug
+//        	if(what==0){
+//        		// Create the first term of yanais formula (13) for closed shells
+//        		// d2f/drho2*rhoprime + 2*d2f/drhodsigma*(grad_rho*grad_rhoprime)
+//        		d2fdrho2 = xc->fxc(rho_and_sigma,ispin,0);
+//        		d2fdrhodsigma = xc->fxc(rho_and_sigma,ispin,1);
+//
+//        		result = d2fdrho2;
+//        		result.emul(t[3]);
+//        		d2fdrhodsigma.emul(t[2]);
+//        		result.gaxpy(1.0,d2fdrhodsigma,2.0);
+//
+//        	}
+//        	else if(what==1){
+//        		// Create part of the second term of yanais formula (13) for closed shell
+//        		// 2*d2fdrhodsigma * rhoprime + 4*d2fdisgma2(grad_rho*grad_rhoprime);
+//        		// This has to be multiplied with grad_rho and the divergence should be taken afterwards
+//        		d2fdrhodsigma = xc->fxc(rho_and_sigma,ispin,1);
+//        		d2fdsigma2 = xc->fxc(rho_and_sigma,ispin,2);
+//
+//        		result = d2fdrhodsigma;
+//        		result.emul(t[3]);
+//        		d2fdsigma2.emul(t[2]);
+//        		result.gaxpy(2.0,d2fdsigma2,4.0);
+//
+//        	}
+//        	else if(what==2){
+//        		// Create the last part of yanais formula (13) for closed shell
+//        		// df/dsigma
+//        		// This has to be multiplied with 2, contracted with grad_rhoprime and the divergence taken afterwards
+//        		result = xc->vxc(rho_and_sigma,ispin,1);
+//
+//        	} else {
+//        	    MADNESS_EXCEPTION("What parameter of convolute_with_kernel was not from 0-2",1);
+//        	}
 
 
 
@@ -189,7 +192,7 @@ struct apply_kernel_functor{
 		std::vector<madness::Tensor<double> > rho;
 		rho.push_back(t[0]);
 		if(xc->is_gga()) rho.push_back(t[1]);
-		madness::Tensor<double> fxc = xc->fxc(rho, ispin, what);
+		madness::Tensor<double> fxc; // debug = xc->fxc(rho, ispin, what);
 		// multiply the kernel with the density and the active mo (product is the last entry of t)
 		fxc.emul(t[1]);
 		fxc.emul(t[2]);
