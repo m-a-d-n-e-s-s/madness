@@ -905,41 +905,41 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	{
 		// with ti = taui + moi
 		// f12(F1 + F2 - ei - ej)|titj> = |Fti,tj> + |ti,Ftj> - (ei+ej)|ti,tj>
-		CC_function Fti(apply_F(ti),i,UNDEFINED);
+		CC_function Fti(apply_F(ti),i,MIXED);
 		// debug
 		{
-			real_function_3d Fti_2 = get_orbital_energies()[i]*mo_ket_[i]+apply_F(CC_function(taui.function,taui.i,UNDEFINED));
+			real_function_3d Fti_2 = get_orbital_energies()[i]*mo_ket_[i]+apply_F(CC_function(taui.function,taui.i,PARTICLE));
 			double diff = (Fti.function - Fti_2).norm2();
 			if(world.rank()==0) std::cout << "||Fti - F(i+taui)||=" << diff << std::endl;
 		}
-		CC_function Ftj(apply_F(tj),j,UNDEFINED);
+		CC_function Ftj(apply_F(tj),j,MIXED);
 
-		{//debug
-			CC_function Ftaui(apply_F(taui),i,UNDEFINED);
-			CC_function Ftauj(apply_F(tauj),j,UNDEFINED);
-			CC_function Fi(apply_F(moi),i,HOLE);
-			real_function_3d Ftaui_explicit = apply_F(CC_function(taui.function,taui.i,UNDEFINED));
-			double diffx = (Ftaui.function - Ftaui_explicit).norm2();
-			double diff1 = (Fi.function - epsi*moi.function).norm2();
-			double diffi = (Fti.function - Ftaui.function - epsi*mo_ket_[i]).norm2();
-			double diffj = (Ftj.function - Ftauj.function - epsj*mo_ket_[i]).norm2();
-			if(diffx > FunctionDefaults<3>::get_thresh()){
-				warning("Fock operator seems inconsistent, diffx="+stringify(diffx));
-				// integration check
-				double check1 = taui.function.inner(Ftaui.function);
-				double check2 = taui.function.inner(Ftaui_explicit);
-				double diff = fabs(check1 - check2);
-				if(world.rank()==0){
-					std::cout << "but difference in integration with <taui| is " << diff << std::endl;
-					if(fabs(diff)>FunctionDefaults<3>::get_thresh()) std::cout << "... which is also not good\n";
-					else std::cout << "... which seems to be ok\n";
-				}
-
-			}
-			if(diff1 > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diff1="+stringify(diff1));
-			if(diffi > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffi="+stringify(diffi));
-			if(diffj > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffj="+stringify(diffj));
-		}//debug end
+//		{//debug
+//			CC_function Ftaui(apply_F(taui),i,UNDEFINED);
+//			CC_function Ftauj(apply_F(tauj),j,UNDEFINED);
+//			CC_function Fi(apply_F(moi),i,HOLE);
+//			real_function_3d Ftaui_explicit = apply_F(CC_function(taui.function,taui.i,UNDEFINED));
+//			double diffx = (Ftaui.function - Ftaui_explicit).norm2();
+//			double diff1 = (Fi.function - epsi*moi.function).norm2();
+//			double diffi = (Fti.function - Ftaui.function - epsi*mo_ket_[i]).norm2();
+//			double diffj = (Ftj.function - Ftauj.function - epsj*mo_ket_[i]).norm2();
+//			if(diffx > FunctionDefaults<3>::get_thresh()){
+//				warning("Fock operator seems inconsistent, diffx="+stringify(diffx));
+//				// integration check
+//				double check1 = taui.function.inner(Ftaui.function);
+//				double check2 = taui.function.inner(Ftaui_explicit);
+//				double diff = fabs(check1 - check2);
+//				if(world.rank()==0){
+//					std::cout << "but difference in integration with <taui| is " << diff << std::endl;
+//					if(fabs(diff)>FunctionDefaults<3>::get_thresh()) std::cout << "... which is also not good\n";
+//					else std::cout << "... which seems to be ok\n";
+//				}
+//
+//			}
+//			if(diff1 > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diff1="+stringify(diff1));
+//			if(diffi > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffi="+stringify(diffi));
+//			if(diffj > FunctionDefaults<3>::get_thresh()) warning("Fock operator seems inconsistent, diffj="+stringify(diffj));
+//		}//debug end
 
 		real_function_6d fFtitj = make_f_xy(Fti,tj) + make_f_xy(ti,Ftj) - epsij*make_f_xy(ti,tj);
 		fF_parts = fFtitj;
