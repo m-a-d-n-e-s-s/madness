@@ -918,10 +918,7 @@ namespace madness {
 
         double size=0.0;
         for(unsigned int i=0;i<v.size();i++){
-            if (v[i].is_initialized()) {
-                v[i].print_size("v["+std::to_string(i)+"]");
-                size+=v[i].size();
-            }
+            if (v[i].is_initialized()) size+=v[i].size();
         }
 
         return size/fac*d;
