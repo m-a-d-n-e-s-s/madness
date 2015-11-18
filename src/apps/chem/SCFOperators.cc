@@ -489,29 +489,48 @@ real_function_3d XCOperator::make_xc_potential() const {
 
     if (xc->is_gga() ) {
 
-        real_function_3d gga_pot=real_factory_3d(world).compressed();
-        // get Vsigma_aa (if it is the case and Vsigma_bb)
-        functionT vsigaa = multiop_values<double, xc_potential, 3>
-            (xc_potential(*xc, ispin, XCfunctional::potential_same_spin), xc_args); //.truncate();
+        bool have_beta=xc->is_spin_polarized() && nbeta != 0;
 
-        functionT vsigab;
-        if (xc->is_spin_polarized() && nbeta != 0)// V_ab
-            vsigab = multiop_values<double, xc_potential, 3>
+        real_function_3d gga_pot=real_factory_3d(world).compressed();
+
+        if (not xc->is_spin_polarized()) {      // RHF case
+            MADNESS_ASSERT(ispin==0);
+            // get Vsigma_aa
+            functionT vsigaa = multiop_values<double, xc_potential, 3>
+                (xc_potential(*xc, ispin, XCfunctional::potential_same_spin), xc_args); //.truncate();
+
+            for (int axis=0; axis<3; axis++) {
+                functionT gradn_alpha = xc_args[XCfunctional::enum_drhoa_x+axis];
+                functionT ddel = 4.0*vsigaa*gradn_alpha;    // fac 2 for formula, fac 2 to rho=2rho_\alpha
+                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+                functionT vxc2=D(ddel);
+                gga_pot-=vxc2;//.truncate();
+            }
+
+        } else if (have_beta) {                                // UHF case
+
+            // get Vsigma_aa or Vsigma_bb
+            functionT vsigaa = multiop_values<double, xc_potential, 3>
+                    (xc_potential(*xc, ispin, XCfunctional::potential_same_spin), xc_args); //.truncate();
+            // get Vsigma_ab
+            functionT vsigab= multiop_values<double, xc_potential, 3>
                     (xc_potential(*xc, ispin, XCfunctional::potential_mixed_spin), xc_args); //.truncate();
 
-        for (int axis=0; axis<3; axis++) {
-            functionT gradn_alpha = xc_args[XCfunctional::enum_drhoa_x+axis];
-            functionT ddel = vsigaa*gradn_alpha;
-            if (xc->is_spin_polarized() && nbeta != 0) {
-                functionT gradn_beta = xc_args[XCfunctional::enum_drhob_x+axis ];
+            for (int axis=0; axis<3; axis++) {
+                real_function_3d drho_same_spin, drho_other_spin;
+                if (ispin==0) {
+                    drho_same_spin=xc_args[XCfunctional::enum_drhoa_x+axis];
+                    drho_other_spin=xc_args[XCfunctional::enum_drhob_x+axis];
+                } else {
+                    drho_same_spin=xc_args[XCfunctional::enum_drhob_x+axis];
+                    drho_other_spin=xc_args[XCfunctional::enum_drhoa_x+axis];
+                }
 
-                functionT vsab = vsigab*gradn_beta;
-                ddel = ddel + vsab;
+                functionT ddel = 2.0* vsigaa*drho_same_spin + vsigab*drho_other_spin;
+                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+                functionT vxc2=D(ddel);
+                gga_pot-=vxc2;//.truncate();
             }
-            ddel.scale(xc->is_spin_polarized() ? 2.0 : 4.0);
-            Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-            functionT vxc2=D(ddel);
-            gga_pot-=vxc2;//.truncate();
         }
 
         dft_pot+=gga_pot;
@@ -522,19 +541,6 @@ real_function_3d XCOperator::make_xc_potential() const {
     return dft_pot.truncate();
 }
 
-real_function_3d XCOperator::make_xc_kernel() const {
-    if (not is_initialized()) {
-        MADNESS_EXCEPTION("calling xc kernel without intermediates ",1);
-    }
-    if (xc->is_gga() ) MADNESS_EXCEPTION("no gga in xc_kernel",1);
-
-    // LDA part
-    refine_to_common_level(world,xc_args);
-    real_function_3d dft_kernel=multiop_values<double, xc_kernel, 3>
-            (xc_kernel(*xc, ispin, XCfunctional::kernel_second_local), xc_args);
-    return dft_kernel;
-
-}
 
 /// apply the xc kernel on a perturbed density
 
@@ -667,6 +673,10 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
                     (drhoa_x * drhob_x + drhoa_y * drhob_y + drhoa_z * drhob_z).truncate();
             xcargs[XCfunctional::enum_sbb]=    // sigma_bb
                     (drhob_x * drhob_x + drhob_y * drhob_y + drhob_z * drhob_z).truncate();
+
+            // this is needed for proper munging of sigma_ab
+            xcargs[XCfunctional::enum_sigtot]=    // sigma_total
+                    xcargs[XCfunctional::enum_saa]+2.0*xcargs[XCfunctional::enum_sab]+xcargs[XCfunctional::enum_sbb];
         }
         world.gop.fence();
 
@@ -795,9 +805,6 @@ void XCOperator::prep_xc_args_old(const real_function_3d& arho,
 
 bool XCOperator::is_initialized() const {
     return (xc_args.size()>0);
-    bool cond=(vf.size()>0);
-    if (not xc->is_lda()) cond=(cond and (delrho.size()>0));
-    return cond;
 }
 
 

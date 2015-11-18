@@ -58,10 +58,11 @@ public:
         enum_saa=10,            ///< \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
         enum_sab=11,            ///< \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
         enum_sbb=12,            ///< \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
-        enum_sigma_pta=13,      ///< \f$ \nabla_\rho_{\alpha}.\nabla\rho_{pt} \f$
-        enum_sigma_ptb=14       ///< \f$ \nabla_\rho_{\beta}.\nabla\rho_{pt} \f$
+        enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho_ \f$
+        enum_sigma_pta=14,      ///< \f$ \nabla_\rho_{\alpha}.\nabla\rho_{pt} \f$
+        enum_sigma_ptb=15       ///< \f$ \nabla_\rho_{\beta}.\nabla\rho_{pt} \f$
     };
-    const static int number_xc_args=15;     ///< max number of intermediates
+    const static int number_xc_args=16;     ///< max number of intermediates
 
 
     /// which contribution is requested from the XCfunctional
@@ -71,9 +72,9 @@ public:
     /// those that are first/second derivatives of the kernel and of which the
     /// derivative will be taken later on (-> semi-local)
     enum xc_contribution {
-        potential_rho,              // potential
-        potential_same_spin,        // potential
-        potential_mixed_spin,       // potential
+        potential_rho,              // potential df/drho
+        potential_same_spin,        // potential df/dsigma_aa
+        potential_mixed_spin,       // potential df/dsigma_ab
         kernel_second_local,        // kernel (2nd derivative)
         kernel_second_semilocal,    // kernel (2nd derivative)
         kernel_first_semilocal      // kernel (2nd derivative)
@@ -160,7 +161,7 @@ public:
 
 private:
 
-    ///
+    /// simple munging for the density only (LDA)
     double munge(double rho) const {
         if (rho <= rhotol) rho=rhomin;
         return rho;
@@ -193,24 +194,11 @@ private:
         }
         return;
 
-        // original thresholding
-        // if (rho < rhotol) rho=rhomin;
-        // if (rho < rhotol || sigma < sigtol) sigma=sigmin;
-
-        // no thresholding at all, just check to ensure rho and sigma don't go negative
-        /*if (rho < 0.0 || sigma < 0.0){
-           rho=rhomin;
-           sigma=sigmin;
-        }*/
-
         /*if ( (0.5 * log10(sigma) - 2) > log10(rho) || rho < 0.0 || sigma < 0.0){
            //std::cout << "rho,sig " << rho << " " << sigma << " " << rhomin << " " << sigmin << std::endl;
            rho=rhomin;
            sigma=sigmin;
-        }
-        //else{
-        //    std::cout << "rho,sig " << rho << " " << sigma << std::endl;
-        //}*/
+        }*/
     }
 
     void munge5(double& rhoa, double& rhob, double& saa, double& sab,
@@ -218,6 +206,34 @@ private:
         munge2(rhoa, saa, munging);
         munge2(rhob, sbb, munging);
         if (rhoa==rhomin || rhob==rhomin) sab=sigmin;
+    }
+
+    /// munge rho and sigma to physical values
+
+    /// since we use ratio thresholding we need the ratio of the density
+    /// to the reducued density gradient sigma. There is no such thing
+    /// for the mixed-spin sigma, therefore we use the identity
+    /// \f[
+    ///   \sigma_{total} = \nabla rho . \nabla \rho
+    ///                  = \sigma_{aa} + 2\sigma_{ab} + \sigma_{bb}
+    /// \f]
+    /// so we can reconstruct sigma_ab from the spin densities (and density
+    /// gradients) and the total densities (and density gradients)
+    /// @param[inout]  rhoa alpha spin density
+    /// @param[inout]  rhob beta spin density
+    /// @param[inout]  rho  total density
+    /// @param[inout]  saa  alpha spin reduced density gradient
+    /// @param[inout]  sab  mixed spin reduced density gradient
+    /// @param[inout]  sbb  beta spin reduced density gradient
+    /// @param[inout]  stot total reduced density gradient
+    /// @param[in]  munging munging type
+    void munge7(double& rhoa, double& rhob, double& rho,
+            double& saa, double& sab, double& sbb, double stot,
+            const munging_type munging) const {
+        munge2(rhoa, saa, munging);
+        munge2(rhob, sbb, munging);
+        munge2(rho, stot, munging);
+        sab=std::max(sigmin,0.5*(stot-saa-sbb));
     }
 
 public:
@@ -309,14 +325,6 @@ public:
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
-    /// compute the second derivative of the XC energy wrt the density
-
-    /// @param[in] t The input densities and derivatives as required by the functional
-    /// @param[in] what Specifies which component of the kernel is to be computed as described above
-    /// @return The component specified by the \c what parameter
-    madness::Tensor<double> fxc(const std::vector< madness::Tensor<double> >& t,
-            const int ispin, const int xc_contrib) const;
-
     /// compute the second derivative of the XC energy wrt the density and apply
 
     /// apply the kernel on the fly on the provided (response) density
@@ -379,24 +387,6 @@ struct xc_potential {
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         madness::Tensor<double> r = xc->vxc(t, ispin, what);
-        return r;
-    }
-};
-
-/// Class to compute terms of the kernel
-struct xc_kernel {
-    const XCfunctional* xc;
-    const XCfunctional::xc_contribution what;
-    const int ispin;
-
-    xc_kernel(const XCfunctional& xc, int ispin, XCfunctional::xc_contribution what)
-        : xc(&xc), what(what), ispin(ispin)
-    {}
-
-    madness::Tensor<double> operator()(const madness::Key<3> & key,
-            const std::vector< madness::Tensor<double> >& t) const {
-        MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->fxc(t, ispin, what);
         return r;
     }
 };

@@ -94,8 +94,7 @@ int test_slater_exchange(World& world) {
     double err=std::abs(ratio-1.0);
     if (check_err(err,thresh,"dft potential error")) return 1;
 
-    const real_function_3d kernel=xc.make_xc_kernel();
-    const real_function_3d vphiphi=kernel*dens;
+    const real_function_3d vphiphi=xc.apply_xc_kernel(dens);
     double energy3=inner(dens,vphiphi);
     energy3=energy3*4.0/(4./3.)/(1./3.);// 2 fac 2 for closed shell
     print("xc energy via kernel:",energy3);

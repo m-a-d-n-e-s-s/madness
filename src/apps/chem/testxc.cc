@@ -136,7 +136,7 @@ void test_xcfunctional(World& world)
 
     int ispin = 0; //alpha=0 beta=1
 
-    int what = 0 ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
+    XCfunctional::xc_contribution what = XCfunctional::potential_rho ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
 
     int istr = 0;
 

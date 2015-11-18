@@ -139,7 +139,7 @@ void test_xcfunctional(World& world)
 
     int ispin = 0; //alpha=0 beta=1
 
-    int what = 0 ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
+    XCfunctional::xc_contribution what = XCfunctional::potential_rho ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
 
     //int istr = 0; // 0-7
 for (int istr=2;istr<3;istr++){
@@ -247,12 +247,12 @@ for (int istr=2;istr<3;istr++){
       vr = xcfunc.exc(xc_args);
     }
     else {
-      vr = xcfunc.vxc(xc_args,ispin,what);
+      vr = xcfunc.vxc(xc_args,ispin,XCfunctional::potential_rho);
     }
 
     Tensor<double> vs;
     if(xcfunc.is_gga()){
-      vs = xcfunc.vxc(xc_args,ispin,1);
+      vs = xcfunc.vxc(xc_args,ispin,XCfunctional::potential_same_spin);
     }
     else{
       vs=vr;
@@ -307,25 +307,25 @@ for (int istr=2;istr<3;istr++){
     FILE *f=0;
     f = fopen((df_repo_functionals[istr]+".dat").c_str(), "w");
 
-    if(what == 0) {
-      //if(xcfunc.is_gga()){
+    if(what == XCfunctional::potential_rho) {
+        //if(xcfunc.is_gga()){
         if (xcfunc.is_spin_polarized())
         {
-          fprintf(f,"%25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa","sigmaab","sigmabb","vrhoa","vsigmaaa");
-          for (unsigned int idp = 0; idp < dps.size(); idp++)
-          {
-            fprintf(f,"%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
-                rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],vr[idp], vs[idp]);
-          }
+            fprintf(f,"%25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa","sigmaab","sigmabb","vrhoa","vsigmaaa");
+            for (unsigned int idp = 0; idp < dps.size(); idp++)
+            {
+                fprintf(f,"%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
+                        rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],vr[idp], vs[idp]);
+            }
         }
         else
         {
-          fprintf(f,"%25s %25s %25s %25s\n","#rho","sigma","vrho","vsigma");
-          for (unsigned int idp = 0; idp < dps.size(); idp++)
-          {
-            fprintf(f,"%25.12e %25.12e %25.12e %25.12e\n",
-                rhoa_t[idp], sigmaaa_t[idp], vr[idp], vs[idp]);
-          }
+            fprintf(f,"%25s %25s %25s %25s\n","#rho","sigma","vrho","vsigma");
+            for (unsigned int idp = 0; idp < dps.size(); idp++)
+            {
+                fprintf(f,"%25.12e %25.12e %25.12e %25.12e\n",
+                        rhoa_t[idp], sigmaaa_t[idp], vr[idp], vs[idp]);
+            }
         }
         fprintf(f,"\n\n");
       /*}

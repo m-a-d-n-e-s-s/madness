@@ -370,47 +370,12 @@ private:
     /// the XC functionals depend on the spin of the orbitals they act on
     int ispin;
 
-    /// Items in the vector argument \c vf are interpreted as follows
-    ///  - Spin un-polarized
-    ///    - \c vf[0] = \f$ \rho_{\alpha} \f$
-    ///    - \c vf[1] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
-    ///  - Spin polarized
-    ///    - \c vf[0] = \f$ \rho_{\alpha} \f$
-    ///    - \c vf[1] = \f$ \rho_{\beta} \f$
-    ///    - \c vf[2] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
-    ///    - \c vf[3] = \f$ \sigma_{\alpha\beta}  = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$ (GGA only)
-    ///    - \c vf[4] = \f$ \sigma_{\beta\beta}   = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$ (GGA only)
-    vecfuncT vf;
-
-    /// Items in the vector argument \c delrho are interpreted as follows
-    ///  - Spin un-polarized
-    ///    - \c delrho[0]   \f \partial/{\partial x} \rho_{\alpha}
-    ///    - \c delrho[1]   \f \partial/{\partial y} \rho_{\alpha}
-    ///    - \c delrho[2]   \f \partial/{\partial z} \rho_{\alpha}
-    ///  - Spin polarized
-    ///    - \c delrho[3]   \f \partial/{\partial x} \rho_{\beta}
-    ///    - \c delrho[4]   \f \partial/{\partial y} \rho_{\beta}
-    ///    - \c delrho[5]   \f \partial/{\partial z} \rho_{\beta}
-    vecfuncT delrho;
-
-    /// union of vf and delrho
+    /// functions that are need for the computation of the XC operator
 
     /// the ordering of the intermediates is fixed, but the code can handle
     /// non-initialized functions, so if e.g. no GGA is requested, all the
     /// corresponding vector components may be left empty.
-    /// - \c xc_args[ 0]  \f$ \rho_\alpha \f$
-    /// - \c xc_args[ 1]  \f$ \rho_\beta \f$
-    /// - \c xc_args[ 2]  \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
-    /// - \c xc_args[ 3]  \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
-    /// - \c xc_args[ 4]  \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
-    /// - \c xc_args[ 5]  \f$ \partial/{\partial x} \rho_{\alpha} \f$
-    /// - \c xc_args[ 6]  \f$ \partial/{\partial y} \rho_{\alpha} \f$
-    /// - \c xc_args[ 7]  \f$ \partial/{\partial z} \rho_{\alpha} \f$
-    /// - \c xc_args[ 8]  \f$ \partial/{\partial x} \rho_{\beta} \f$
-    /// - \c xc_args[ 9]  \f$ \partial/{\partial y} \rho_{\beta} \f$
-    /// - \c xc_args[10]  \f$ \partial/{\partial z} \rho_{\beta} \f$
-    /// - \c xc_args[11]  \f$ \rho_{\alpha,pt} \f$
-    /// - \c xc_args[12]  \f$ \rho_{\beta,pt} \f$
+    /// For the ordering of the intermediates see xcfunctional::xc_arg
     mutable vecfuncT xc_args;
 
     /// compute the intermediates for the XC functionals

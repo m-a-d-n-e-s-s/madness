@@ -59,7 +59,8 @@ double make_dft_energy(World & world, const vecfuncT& vf, int ispin)
 	return vlda.trace();
 }
 
-functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
+functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin,
+        XCfunctional::xc_contribution what)
 {
 	return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
 }
@@ -172,7 +173,6 @@ int main(int argc, char** argv) {
 	            //saa.truncate();
 	            //saa.reconstruct();
 
-//	            vf.push_back(saa); // sigma_aa
 	            vf[XCfunctional::enum_saa]=saa;
 
 	            reconstruct(world, vf);
@@ -181,12 +181,12 @@ int main(int argc, char** argv) {
 	        //double exc = make_dft_energy(world, vf, 0);
 	        //print("exc=",exc );
 
-	        real_function_3d vxc =  make_dft_potential(world, vf, 0, 0);
+	        real_function_3d vxc =  make_dft_potential(world, vf, 0, XCfunctional::potential_rho);
 
 
 	        functionT vsigaa;
 	        if (xc.is_gga()) {
-	            vsigaa = make_dft_potential(world, vf, 0, 1).truncate();
+	            vsigaa = make_dft_potential(world, vf, 0, XCfunctional::potential_same_spin).truncate();
 
 	            for (int axis=0; axis<3; axis++) {
 	                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
