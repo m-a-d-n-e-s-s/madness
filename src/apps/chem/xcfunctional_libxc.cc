@@ -239,6 +239,7 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 //XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
 XCfunctional::XCfunctional() : hf_coeff(0.0) {
     rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10;
+    munge_ratio=10.0;
     nderiv=0;
     spin_polarized=false;
 }
@@ -289,6 +290,8 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
             line >> sigmin;
         } else if (name == "SIGTOL") {
             line >> sigtol;
+        } else if (name == "MUNGERATIO") {
+            line >> munge_ratio;
         } else if (name == "HF" || name == "HF_X") {
             if (! (line >> factor)) factor = 1.0;
             hf_coeff = factor;
@@ -315,6 +318,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         print("\nscreening parameters");
         print(" rhotol, rhomin",rhotol,rhomin);
         print(" sigtol, sigmin",sigtol,sigmin);
+        print("    munge_ratio",munge_ratio);
         if (printit) print("polarized ",polarized,"\n");
 
     }

@@ -88,6 +88,7 @@ protected:
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
     double rhomin, rhotol, sigmin, sigtol; // See initialize and munge*
+    double munge_ratio; // See initialize and munge*
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
@@ -171,7 +172,7 @@ private:
     void munge_xc_kernel(double& rho, double& sigma) const {
         if (sigma<0.0) sigma=sigmin;
         if (rho < rhotol) rho=rhomin;                   // 1.e-8 or so
-        if (rho < 1.e-2) sigma=10.0*rho*rho;
+        if (rho < 1.e-2) sigma=munge_ratio*rho*rho;
     }
 
     /// new 'ratio' threshold'
