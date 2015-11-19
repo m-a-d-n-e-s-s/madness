@@ -373,8 +373,8 @@ public:
 	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
 		vecfuncT fock_residue = potential_singles(doubles,singles,_reF3D_);
 
-		//if(parameters.debug){
-		{
+		if(parameters.debug){
+
 
 
 			const double t6d = FunctionDefaults<6>::get_thresh();
