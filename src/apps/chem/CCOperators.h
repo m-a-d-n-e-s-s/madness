@@ -261,12 +261,11 @@ public:
 	CC_Operators(World& world, const Nemo &nemo,
 			const CorrelationFactor &correlationfactor, const CC_Parameters &param) : Q12(world),
 			world(world), nemo(nemo), corrfac(correlationfactor),parameters(param), mo_bra_(
-					make_mo_bra(nemo)), mo_ket_(make_mo_ket(nemo)),active_mo_(make_active_mo()),orbital_energies(init_orbital_energies(nemo)), intermediates_(
+					make_mo_bra(nemo)), mo_ket_(make_mo_ket(nemo)),orbital_energies(init_orbital_energies(nemo)), intermediates_(
 							world, mo_bra_, mo_ket_, nemo, param){
 		// make operators
 
 		// make the active mo vector (ket nemos, bra is not needed for that)
-		MADNESS_ASSERT(active_mo_.size()==mo_ket_.size()-parameters.freeze);
 		MADNESS_ASSERT(mo_ket_.size()==mo_bra_.size());
 		// initialize the Q12 projector
 		Q12.set_spaces(mo_bra_,mo_ket_,mo_bra_,mo_ket_);
@@ -374,6 +373,140 @@ public:
 	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
 		vecfuncT fock_residue = potential_singles(doubles,singles,_reF3D_);
 
+		//if(parameters.debug){
+		{
+
+
+			const double t6d = FunctionDefaults<6>::get_thresh();
+			const double t3d = FunctionDefaults<3>::get_thresh();
+			double diff_s2b_s5b_gf = 99.99;
+			double diff_s2b_s5b = 99.99;
+			double diff_s2c_s5c = 99.99;
+			double diff_s4a_s6  = 99.99;
+			double diff_3D6D_s2b = 99.99;
+			double diff_3D6D_s2c = 99.99;
+			double diff_3D6D_s4a = 99.99;
+			double diff_3D6D_s4b = 99.99;
+			double diff_3D6D_s4c = 99.99;
+			CC_data dat(_S2b_); // dummy data
+			output_section("Testing Singles Potential with |tau0,tau0> function");
+			// make tests with: u00 = |t0t0>
+			Pairs<CC_Pair> f00_wrapper;
+			real_function_6d f00 = make_xy(singles(0).function,singles(0).function);
+			CC_Pair f00_pair(f00,0,0);
+			f00_wrapper.insert(0,0,f00_pair);
+
+			// S2b_6D should now be equal to S5b
+			{
+				output("Testing if S2b_6D_part = S5b for u=|tau0,tau0>");
+				vecfuncT s2b_6D_00 = S2b_6D_part(f00_wrapper,singles,dat);
+				vecfuncT s5b = add(world,S5b(singles),S5b_X(singles));
+				real_function_3d tmp = copy(s5b.front());
+				Q(s5b);
+				std::cout << "Difference after QS5b is " << (tmp-s5b.front()).norm2() << std::endl;
+				diff_s2b_s5b = (s2b_6D_00.front()-s5b.front()).norm2();
+				std::cout << "Difference between S2b and S5b is " << diff_s2b_s5b << std::endl;
+				if(diff_s2b_s5b > t6d) warning("Difference is above the 6D thresh");
+				if(diff_s2b_s5b > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
+			}
+			// S2c_6D should now be equal to S5c
+			{
+				output("Testing if S2c_6D_part = S5c for u=|tau0,tau0>");
+				vecfuncT s2c_6D_00 = S2c_6D_part(f00_wrapper,singles,dat);
+				vecfuncT s5c = add(world,S5c(singles),S5c_X(singles));
+				Q(s5c);
+				diff_s2c_s5c = (s2c_6D_00.front()-s5c.front()).norm2();
+				std::cout << "Difference between S2b and S5b is " << diff_s2c_s5c << std::endl;
+				if(diff_s2c_s5c > t6d) warning("Difference is above the 6D thresh");
+				if(diff_s2c_s5c > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
+			}
+			// S4a_6D should now be equal to S6
+			{
+				output("Testing if S4a_6D_part = S6 for u=|tau0,tau0>");
+				vecfuncT s4a_6D_00 = S4a_6D_part(f00_wrapper,singles,dat);
+				vecfuncT s6 = S6(singles);
+				diff_s4a_s6 = (s4a_6D_00.front()-s6.front()).norm2();
+				std::cout << "Difference between S4a and S6 is " << diff_s4a_s6 << std::endl;
+				if(diff_s4a_s6 > t6d) warning("Difference is above the 6D thresh");
+				if(diff_s4a_s6 > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
+			}
+
+			// now testing the 3D parts
+			// the 3D parts should result in the same result as the 6D parts for u = Q12f12|titj> with ti = taui + i
+			real_function_3d t0_function = singles(0).function + mo_ket_[0];
+			CC_function t0(t0_function,0,MIXED);
+			real_function_6d Qft0t0 = make_f_xy(t0,t0);
+			real_function_6d ft0t0 = copy(Qft0t0);
+			apply_Q12(Qft0t0);
+			CC_Pair pair_3D(Qft0t0,0,0);
+			CC_Pair pair_3D_withoutQ(ft0t0,0,0);
+			Pairs<CC_Pair> wrapper_3D;
+			wrapper_3D.insert(0,0,pair_3D);
+			Pairs<CC_Pair> wrapper_withoutQ;
+			wrapper_withoutQ.insert(0,0,pair_3D_withoutQ);
+			{
+				{
+					output("Testing apply_gf function");
+					real_function_3d gf_0t0 = apply_gf(t0_function*mo_bra_[0]);
+					real_function_3d k_gf_t0t0_from3D = t0_function * gf_0t0;
+					Q(k_gf_t0t0_from3D);
+					real_function_3d k_gf_t0t0_from6D = (S2b_6D_part(wrapper_withoutQ,singles,dat)).front();
+					Q(k_gf_t0t0_from6D);
+					diff_s2b_s5b_gf = (k_gf_t0t0_from3D - k_gf_t0t0_from6D).norm2();
+					std::cout << "Difference between 3D and 6D part of gf : "<< diff_s2b_s5b_gf << std::endl;
+
+				}{
+					output("Testing 3D Part of S2b function");
+					vecfuncT s2b_3D_6D = S2b_6D_part(wrapper_3D,singles,dat);
+					vecfuncT s2b_3D_3D = S2b_3D_part(wrapper_3D,singles,dat);
+					diff_3D6D_s2b = (s2b_3D_6D.front()-s2b_3D_3D.front()).norm2();
+					std::cout << "Difference between 3D and 6D part of s2b: " << diff_3D6D_s2b << std::endl;
+				}{
+					output("Testing 3D Part of S2c function");
+					vecfuncT s2c_3D_6D = S2c_6D_part(wrapper_3D,singles,dat);
+					vecfuncT s2c_3D_3D = S2c_3D_part(wrapper_3D,singles,dat);
+					diff_3D6D_s2c = (s2c_3D_6D.front()-s2c_3D_3D.front()).norm2();
+					std::cout << "Difference between 3D and 6D part of s2c: " << diff_3D6D_s2c << std::endl;
+				}{
+					output("Testing 3D Part of S4a function");
+					vecfuncT s4a_3D_6D = S4a_6D_part(wrapper_3D,singles,dat);
+					vecfuncT s4a_3D_3D = S4a_3D_part(singles,dat);
+					diff_3D6D_s4a = (s4a_3D_6D.front()-s4a_3D_3D.front()).norm2();
+					std::cout << "Difference between 3D and 6D part of s4a: " << diff_3D6D_s4a << std::endl;
+				}{
+					output("Testing 3D Part of S4b function");
+					vecfuncT s4b_3D_6D = S4b_6D_part(wrapper_3D,singles,dat);
+					vecfuncT s4b_3D_3D = S4b_3D_part(wrapper_3D,singles,dat);
+					diff_3D6D_s4b = (s4b_3D_6D.front()-s4b_3D_3D.front()).norm2();
+					std::cout << "Difference between 3D and 6D part of s4b: " << diff_3D6D_s4b << std::endl;
+				}{
+					output("Testing 3D Part of S4c function");
+					vecfuncT s4c_3D_6D = S4c_6D_part(wrapper_3D,singles,dat);
+					vecfuncT s4c_3D_3D = S4c_3D_part(wrapper_3D,singles,dat);
+					diff_3D6D_s4c = (s4c_3D_6D.front()-s4c_3D_3D.front()).norm2();
+					std::cout << "Difference between 3D and 6D part of s4c: " << diff_3D6D_s4c << std::endl;
+				}
+			}
+
+
+			// all together
+			std::cout << "\n\n\nResults of Singles Test:\n";
+			std::cout << "Difference between S2b and S5b is " << diff_s2b_s5b << std::endl;
+			std::cout << "Difference between S2c and S5c is " << diff_s2c_s5c << std::endl;
+			std::cout << "Difference between S4a and S6  is " << diff_s4a_s6 << std::endl;
+			std::cout << "---- Test of 3D Parts -----" << std::endl;
+			std::cout << "Difference between 3D and 6D part of gf : "<< diff_s2b_s5b_gf << std::endl;
+			std::cout << "Difference between 3D and 6D part of s2b: " << diff_3D6D_s2b << std::endl;
+			std::cout << "Difference between 3D and 6D part of s2c: " << diff_3D6D_s2c << std::endl;
+			std::cout << "Difference between 3D and 6D part of s4a: " << diff_3D6D_s4a << std::endl;
+			std::cout << "Difference between 3D and 6D part of s4b: " << diff_3D6D_s4b << std::endl;
+			std::cout << "Difference between 3D and 6D part of s4c: " << diff_3D6D_s4c << std::endl;
+
+			std::cout << "\n\n\n";
+			output_section("Now Continue with Singles Potential");
+
+		}
+
 		vecfuncT result = potential_singles(doubles,singles,_S3c_);
 		result = add(world,result,potential_singles(doubles,singles,_S5b_));
 		result = add(world,result,potential_singles(doubles,singles,_S5c_));
@@ -398,21 +531,21 @@ public:
 	// only get the part of the singles that is produced exclusively by the doulbes in order to make a first guess for the singles
 	vecfuncT get_CC2_singles_initial_potential(const Pairs<CC_Pair> &doubles)const{
 		// make_zero guess
-//		real_function_3d zeroguess = real_factory_3d(world);
-//		vecfuncT tmp(mo_ket_.size(),zeroguess);
-//		CC_vecfunction singles(tmp,PARTICLE,parameters.freeze,tmp.size());
-//		MADNESS_ASSERT(singles.size()==mo_ket_.size()-parameters.freeze);
+		//		real_function_3d zeroguess = real_factory_3d(world);
+		//		vecfuncT tmp(mo_ket_.size(),zeroguess);
+		//		CC_vecfunction singles(tmp,PARTICLE,parameters.freeze,tmp.size());
+		//		MADNESS_ASSERT(singles.size()==mo_ket_.size()-parameters.freeze);
 
 		vecfuncT result = zero_functions<double,3>(world,mo_ket_.size()-parameters.freeze);
-//		{CC_Timer timer_S2b(world,"Singles Potential: S2b+X");
-//		result =potential_singles(doubles,singles,_S2b_);
-//		for(size_t i=0;i<result.size();i++) result[i].print_size("S2b_"+stringify(i));
-//		timer_S2b.info();}
-//		{CC_Timer timer_S2c(world,"Singles Potential: S2c+X");
-//		vecfuncT s2c = potential_singles(doubles,singles,_S2c_);
-//		for(size_t i=0;i<result.size();i++) s2c[i].print_size("S2c_"+stringify(i));
-//		result = add(world,s2c,result);
-//		timer_S2c.info();}
+		//		{CC_Timer timer_S2b(world,"Singles Potential: S2b+X");
+		//		result =potential_singles(doubles,singles,_S2b_);
+		//		for(size_t i=0;i<result.size();i++) result[i].print_size("S2b_"+stringify(i));
+		//		timer_S2b.info();}
+		//		{CC_Timer timer_S2c(world,"Singles Potential: S2c+X");
+		//		vecfuncT s2c = potential_singles(doubles,singles,_S2c_);
+		//		for(size_t i=0;i<result.size();i++) s2c[i].print_size("S2c_"+stringify(i));
+		//		result = add(world,s2c,result);
+		//		timer_S2c.info();}
 		return result;
 	}
 
@@ -535,7 +668,7 @@ public:
 			result = add(world,S2b_3D_part(u,singles,data),S2b_6D_part(u,singles,data));
 			break;
 		case _S2c_ :
-			result = add(world,S2b_3D_part(u,singles,data),S2b_6D_part(u,singles,data));
+			result = add(world,S2c_3D_part(u,singles,data),S2c_6D_part(u,singles,data));
 			break;
 		case _S4a_ :
 			result = add(world,S4a_3D_part(singles,data),S4a_6D_part(u,singles,data));
@@ -1031,40 +1164,40 @@ public:
 		// make gradient operator for new k and with new thresh
 		size_t high_k = 8;
 		double high_thresh = 1.e-6;
-        std::vector< std::shared_ptr< Derivative<double,3> > > gradop(3);
-        for (std::size_t d=0; d<3; ++d) {
-        	gradop[d].reset(new Derivative<double,3>(world,d,FunctionDefaults<3>::get_bc(),Function<double,3>(),Function<double,3>(),high_k));
-        }
+		std::vector< std::shared_ptr< Derivative<double,3> > > gradop(3);
+		for (std::size_t d=0; d<3; ++d) {
+			gradop[d].reset(new Derivative<double,3>(world,d,FunctionDefaults<3>::get_bc(),Function<double,3>(),Function<double,3>(),high_k));
+		}
 
-        // project the function to higher k grid
-        real_function_3d f = project(x,high_k);
-        f.set_thresh(high_thresh);
-        f.refine();
+		// project the function to higher k grid
+		real_function_3d f = project(x,high_k);
+		f.set_thresh(high_thresh);
+		f.refine();
 
-        // apply laplacian
-        real_function_3d empty = real_factory_3d(world);
-        real_function_3d laplace_f = project(empty,high_k);
-        laplace_f.set_thresh(high_thresh);
-        for(size_t i=0;i<gradop.size();i++){
-        	real_function_3d tmp = (*gradop[i])(f);
-        	real_function_3d tmp2 = (*gradop[i])(tmp);
-        	laplace_f += tmp2;
-        }
+		// apply laplacian
+		real_function_3d empty = real_factory_3d(world);
+		real_function_3d laplace_f = project(empty,high_k);
+		laplace_f.set_thresh(high_thresh);
+		for(size_t i=0;i<gradop.size();i++){
+			real_function_3d tmp = (*gradop[i])(f);
+			real_function_3d tmp2 = (*gradop[i])(tmp);
+			laplace_f += tmp2;
+		}
 
-        // project laplace_f back to the normal grid
-        real_function_3d result = project(laplace_f,FunctionDefaults<3>::get_k());
-        result.set_thresh(FunctionDefaults<3>::get_thresh());
+		// project laplace_f back to the normal grid
+		real_function_3d result = project(laplace_f,FunctionDefaults<3>::get_k());
+		result.set_thresh(FunctionDefaults<3>::get_thresh());
 
-        // debug and failsafe: make inverse of laplacian and apply
-        real_convolution_3d G = BSHOperator<3>(world,0.0,parameters.lo,parameters.thresh_bsh_3D);
-        real_function_3d Gresult = -1.0*G(result);
-        real_function_3d difference = x-Gresult;
-        double diff = difference.norm2();
-        plot_plane(world,difference,"Laplacian_error_iteration_"+stringify(performance_D.current_iteration));
-        if(world.rank()==0) std::cout << "Apply Laplace:\n" << "||x - G(Laplace(x))||=" << diff << std::endl;
-        if(diff > FunctionDefaults<6>::get_thresh()) warning("Laplacian Error above 6D thresh");
+		// debug and failsafe: make inverse of laplacian and apply
+		real_convolution_3d G = BSHOperator<3>(world,0.0,parameters.lo,parameters.thresh_bsh_3D);
+		real_function_3d Gresult = -1.0*G(result);
+		real_function_3d difference = x-Gresult;
+		double diff = difference.norm2();
+		plot_plane(world,difference,"Laplacian_error_iteration_"+stringify(performance_D.current_iteration));
+		if(world.rank()==0) std::cout << "Apply Laplace:\n" << "||x - G(Laplace(x))||=" << diff << std::endl;
+		if(diff > FunctionDefaults<6>::get_thresh()) warning("Laplacian Error above 6D thresh");
 
-        return result;
+		return result;
 	}
 
 	real_function_3d apply_F(const CC_function &x)const{
@@ -1078,33 +1211,33 @@ public:
 			real_function_3d singles_potential = current_singles_potential[x.i-parameters.freeze];
 			return (get_orbital_energies()[x.i]*x.function - singles_potential); // for mixed: eps(i)*x.i = epsi*(moi + taui)
 		}else if(x.type == UNDEFINED){
-		real_function_3d refined_x = copy(x.function).refine();
-		// kinetic part
-		CC_Timer T_time(world,"apply_T");
-		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-		gradop = gradient_operator<double, 3>(world);
-		real_function_3d laplace_x = apply_laplacian(x.function);
-		real_function_3d Tx = laplace_x.scale(-0.5).truncate();
-		T_time.info();
+			real_function_3d refined_x = copy(x.function).refine();
+			// kinetic part
+			CC_Timer T_time(world,"apply_T");
+			std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+			gradop = gradient_operator<double, 3>(world);
+			real_function_3d laplace_x = apply_laplacian(x.function);
+			real_function_3d Tx = laplace_x.scale(-0.5).truncate();
+			T_time.info();
 
-		CC_Timer J_time(world,"apply_J");
-		real_function_3d Jx = (intermediates_.get_hartree_potential()*x.function).truncate();
-		J_time.info();
+			CC_Timer J_time(world,"apply_J");
+			real_function_3d Jx = (intermediates_.get_hartree_potential()*x.function).truncate();
+			J_time.info();
 
-		CC_Timer K_time(world,"apply_K");
-		real_function_3d Kx = K(x);
+			CC_Timer K_time(world,"apply_K");
+			real_function_3d Kx = K(x);
 
-		CC_Timer U_time(world,"apply_U");
-		real_function_3d U2x = (nemo.nuclear_correlation->U2()*x.function).truncate();
-		real_function_3d U1x = real_factory_3d(world);
-		for(size_t axis=0;axis<3;axis++){
-			const real_function_3d U1_axis = nemo.nuclear_correlation->U1(axis);
-			const real_function_3d dx = (*gradop[axis])(x.function);
-			U1x += (U1_axis*dx).truncate();
-		}
-		U_time.info();
+			CC_Timer U_time(world,"apply_U");
+			real_function_3d U2x = (nemo.nuclear_correlation->U2()*x.function).truncate();
+			real_function_3d U1x = real_factory_3d(world);
+			for(size_t axis=0;axis<3;axis++){
+				const real_function_3d U1_axis = nemo.nuclear_correlation->U1(axis);
+				const real_function_3d dx = (*gradop[axis])(x.function);
+				U1x += (U1_axis*dx).truncate();
+			}
+			U_time.info();
 
-		return (Tx + 2.0*Jx - Kx + U2x + U1x);
+			return (Tx + 2.0*Jx - Kx + U2x + U1x);
 		}
 		error("apply_F: should not end up here");
 		return real_factory_3d(world);
@@ -1147,8 +1280,8 @@ public:
 	double make_ijgxy(const size_t &i, const size_t &j, const real_function_3d &x, const real_function_3d &y)const;
 	double make_integral(const size_t &i, const size_t &j, const CC_function &x, const CC_function&y)const{
 		if(x.type == HOLE){
-				real_function_3d igx_y = (intermediates_.get_EX(i,x.i)*y.function).truncate();
-				return mo_bra_[j].inner(igx_y);
+			real_function_3d igx_y = (intermediates_.get_EX(i,x.i)*y.function).truncate();
+			return mo_bra_[j].inner(igx_y);
 		}else if(x.type == PARTICLE){
 			if(y.type == HOLE){
 				real_function_3d jgy_x = (intermediates_.get_EX(j,y.i)*x.function).truncate();
@@ -1364,7 +1497,7 @@ public:
 				CC_Timer integral_time_1(world,"Integrals decomposed");
 				double integral_D6b  = make_integral(k.i,l.i,moi,moj);
 				double integral_D8b  = make_integral(k.i,l.i,moi,tauj);
-				       integral_D8b += make_integral(k.i,l.i,taui,moj);
+				integral_D8b += make_integral(k.i,l.i,taui,moj);
 				double integral_D9   = make_integral(k.i,l.i,taui,tauj);
 				double integral1 = integral_D6b + integral_D8b + integral_D9;
 				integral_time_1.info();
@@ -1373,15 +1506,15 @@ public:
 				integral_time_2.info();
 				if(world.rank()==0){
 					std::cout << "Integrals of D6b, D8b and D9 are:\n"
-							  << integral_D6b << ", " << integral_D8b <<", " << integral_D9 << "\n"
-							  << "Together they give:\n" << integral1 << "\n"
-							  << "Integral from t-intermediate is:" << integral2 << std::endl;
+							<< integral_D6b << ", " << integral_D8b <<", " << integral_D9 << "\n"
+							<< "Together they give:\n" << integral1 << "\n"
+							<< "Integral from t-intermediate is:" << integral2 << std::endl;
 				}
 				if(fabs(integral1-integral2)>FunctionDefaults<3>::get_thresh())warning("Integrals from t-intermediate has different size than decompose form, diff="+stringify(integral1-integral2));
 				// Greens Function on |\tauk,\taul>
 				real_function_6d tmp = make_xy(k,l);
-//				real_convolution_6d G = Operator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
-//				real_function_6d tmp= G(k.function,l.function);
+				//				real_convolution_6d G = Operator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
+				//				real_function_6d tmp= G(k.function,l.function);
 				result += integral1*tmp;
 			}
 		}
@@ -1670,18 +1803,18 @@ public:
 	}
 
 
-//	real_function_6d make_screened_hartree_product(const CC_function &x, const CC_function &y)const{
-//		double thresh = guess_thresh(x,y);
-//		output("Making screened |"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
-//		CC_Timer timer(world,"Making screened |"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
-//		real_convolution_6d screen_G = BSHOperator<6>(world, sqrt(-2*get_epsilon(x.i,y.i)),parameters.lo, parameters.thresh_bsh_6D);
-//		screen_G.modified()=true;
-//		screen_G.destructive()=true;
-//		real_function_6d xy = CompositeFactory<double,6,3>(world).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
-//		xy.fill_tree(screen_G).truncate().reduce_rank();
-//		timer.info();
-//		return xy;
-//	}
+	//	real_function_6d make_screened_hartree_product(const CC_function &x, const CC_function &y)const{
+	//		double thresh = guess_thresh(x,y);
+	//		output("Making screened |"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+	//		CC_Timer timer(world,"Making screened |"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+	//		real_convolution_6d screen_G = BSHOperator<6>(world, sqrt(-2*get_epsilon(x.i,y.i)),parameters.lo, parameters.thresh_bsh_6D);
+	//		screen_G.modified()=true;
+	//		screen_G.destructive()=true;
+	//		real_function_6d xy = CompositeFactory<double,6,3>(world).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
+	//		xy.fill_tree(screen_G).truncate().reduce_rank();
+	//		timer.info();
+	//		return xy;
+	//	}
 
 	real_function_6d make_f_xy(const CC_function &x, const CC_function &y)const{
 		double thresh = guess_thresh(x,y);
@@ -1693,18 +1826,18 @@ public:
 		return fxy;
 	}
 
-//	real_function_6d make_screened_f_xy(const CC_function &x, const CC_function &y)const{
-//		double thresh = guess_thresh(x,y);
-//		CC_Timer timer(world,"Making screened f|"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
-//		output("Making screened f|"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
-//		real_convolution_6d screen_G = BSHOperator<6>(world, sqrt(-2*get_epsilon(x.i,y.i)),parameters.lo, parameters.thresh_bsh_6D);
-//		screen_G.modified()=true;
-//		screen_G.destructive()=true;
-//		real_function_6d fxy = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
-//		fxy.fill_tree(screen_G).truncate().reduce_rank();
-//		timer.info();
-//		return fxy;
-//	}
+	//	real_function_6d make_screened_f_xy(const CC_function &x, const CC_function &y)const{
+	//		double thresh = guess_thresh(x,y);
+	//		CC_Timer timer(world,"Making screened f|"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+	//		output("Making screened f|"+x.name()+","+y.name()+"> with 6D thresh="+stringify(thresh));
+	//		real_convolution_6d screen_G = BSHOperator<6>(world, sqrt(-2*get_epsilon(x.i,y.i)),parameters.lo, parameters.thresh_bsh_6D);
+	//		screen_G.modified()=true;
+	//		screen_G.destructive()=true;
+	//		real_function_6d fxy = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
+	//		fxy.fill_tree(screen_G).truncate().reduce_rank();
+	//		timer.info();
+	//		return fxy;
+	//	}
 
 
 
@@ -1772,7 +1905,6 @@ private:
 	/// if a  nuclear correlation factor is used the bra elements are the MOs multiplied by the squared nuclear correlation factor (done in the constructor)
 	const vecfuncT mo_bra_;
 	const vecfuncT mo_ket_;
-	const vecfuncT active_mo_;
 	/// The orbital energies
 	const std::vector<double> orbital_energies;
 	std::vector<double> init_orbital_energies(const Nemo &nemo)const{
@@ -1795,15 +1927,6 @@ private:
 
 	vecfuncT make_mo_ket(const Nemo&nemo)const{
 		vecfuncT tmp = nemo.get_calc()->amo;
-		set_thresh(world,tmp,parameters.thresh_3D);
-		return tmp;
-	}
-	vecfuncT make_active_mo()const{
-		MADNESS_ASSERT(not mo_ket_.empty());
-		vecfuncT tmp;
-		for(size_t i=parameters.freeze;i<mo_ket_.size();i++){
-			tmp.push_back(mo_ket_[i]);
-		}
 		set_thresh(world,tmp,parameters.thresh_3D);
 		return tmp;
 	}
@@ -1907,7 +2030,7 @@ public:
 			gradop = gradient_operator<double, 3>(world);
 			std::string name = "_"+stringify(k) + "_" + stringify(thresh);
 			if(world.rank()==0) std::cout<< "Testing Laplace operator with threshold  "+stringify(FunctionDefaults<3>::get_thresh()) + " and k=" + stringify(FunctionDefaults<3>::get_k())
-					+" and refinement=" + stringify(refine)+"\n";
+							+" and refinement=" + stringify(refine)+"\n";
 
 			real_function_3d gauss = real_factory_3d(world).f(f_gauss);
 			real_function_3d laplace_gauss_analytical = real_factory_3d(world).f(f_laplace_gauss);
@@ -1941,19 +2064,19 @@ public:
 
 	real_function_3d smooth_function(const real_function_3d &f,const size_t mode)const{
 		size_t k = f.get_impl()->get_k();
-        real_function_3d fproj=project(f,k-1);
-        real_function_3d freproj=project(fproj,k);
-        real_function_3d smoothed2 = 0.5*(f+freproj);
-       // double diff = (freproj - f).norm2();
-       // double diff2 = (smoothed2 - f).norm2();
-       // if(world.rank()==0) std::cout << "||f - f_smoothed|| =" << diff << std::endl;
-       // if(world.rank()==0) std::cout << "||f - f_smoothed2||=" << diff2 << std::endl;
-        if(mode==1)return freproj;
-        else if(mode==2)return smoothed2;
-        else{
-        	std::cout << "Unknown smoothing mode, returning unsmoothed function" << std::endl;
-        	return f;
-        }
+		real_function_3d fproj=project(f,k-1);
+		real_function_3d freproj=project(fproj,k);
+		real_function_3d smoothed2 = 0.5*(f+freproj);
+		// double diff = (freproj - f).norm2();
+		// double diff2 = (smoothed2 - f).norm2();
+		// if(world.rank()==0) std::cout << "||f - f_smoothed|| =" << diff << std::endl;
+		// if(world.rank()==0) std::cout << "||f - f_smoothed2||=" << diff2 << std::endl;
+		if(mode==1)return freproj;
+		else if(mode==2)return smoothed2;
+		else{
+			std::cout << "Unknown smoothing mode, returning unsmoothed function" << std::endl;
+			return f;
+		}
 	}
 };
 
