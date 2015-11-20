@@ -907,6 +907,19 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+    template <typename T, std::size_t NDIM>
+    void print_size(World &world, const std::vector<Function<T,NDIM> > &v, const std::string &msg = "vectorfunction" ){
+    	if(v.empty()){
+    		if(world.rank()==0) std::cout << "print_size: " << msg << " is empty" << std::endl;
+    	}else if(v.size()==1){
+    		v.front().print_size(msg);
+    	}else{
+    		for(auto x:v){
+    			x.print_size(msg);
+    		}
+    	}
+    }
+
     // gives back the size in GB
     template <typename T, std::size_t NDIM>
     double get_size(World& world, const std::vector< Function<T,NDIM> >& v){

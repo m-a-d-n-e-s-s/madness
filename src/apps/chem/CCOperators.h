@@ -373,9 +373,29 @@ public:
 	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
 		vecfuncT fock_residue = potential_singles(doubles,singles,_reF3D_);
 
-		if(parameters.debug){
+		//if(parameters.debug){
+			{
+			// test poisson operator
+			real_function_3d test_poisson_1 = intermediates_.get_EX(0,0);
+			real_function_3d test_poisson_2 = (*poisson)(mo_bra_[0]*mo_ket_[0]);
+			double diff_poisson = (test_poisson_1 - test_poisson_2).norm2();
+			std::cout << "Poisson Test Result: Diff=" << diff_poisson << std::endl;
+			double omega_diff = 99.99;
+			double omega_from_disc = 99.99;
+			double omega_from_full = 99.99;
+			{
+				// test energy
+				output("Test Energy Function");
+				real_function_6d tau00 = make_full_pair_function(doubles(0,0),singles(0),singles(0));
+				omega_from_full = make_ijgu(0,0,tau00);
+				omega_from_disc = compute_cc2_pair_energy(doubles(0,0),singles(0),singles(0));
+				omega_diff = omega_from_full - omega_from_disc;
+				std::cout << "omega from full pair = " << omega_from_full << std::endl;
+				std::cout << "omega from disc pair = " << omega_from_disc << std::endl;
+				std::cout << "omega difference     = " << omega_diff << std::endl;
 
 
+			}
 
 			const double t6d = FunctionDefaults<6>::get_thresh();
 			const double t3d = FunctionDefaults<3>::get_thresh();
@@ -395,6 +415,9 @@ public:
 			real_function_6d f00 = make_xy(singles(0).function,singles(0).function);
 			CC_Pair f00_pair(f00,0,0);
 			f00_wrapper.insert(0,0,f00_pair);
+
+
+
 
 			// S2b_6D should now be equal to S5b
 			{
@@ -459,12 +482,16 @@ public:
 					output("Testing 3D Part of S2b function");
 					vecfuncT s2b_3D_6D = S2b_6D_part(wrapper_3D,singles,dat);
 					vecfuncT s2b_3D_3D = S2b_3D_part(wrapper_3D,singles,dat);
+					print_size(world,s2b_3D_6D,"s2b_3D with 6D");
+					print_size(world,s2b_3D_3D,"s2b_3D with 3D");
 					diff_3D6D_s2b = (s2b_3D_6D.front()-s2b_3D_3D.front()).norm2();
 					std::cout << "Difference between 3D and 6D part of s2b: " << diff_3D6D_s2b << std::endl;
 				}{
 					output("Testing 3D Part of S2c function");
 					vecfuncT s2c_3D_6D = S2c_6D_part(wrapper_3D,singles,dat);
 					vecfuncT s2c_3D_3D = S2c_3D_part(wrapper_3D,singles,dat);
+					print_size(world,s2c_3D_6D,"s2c_3D with 6D");
+					print_size(world,s2c_3D_3D,"s2c_3D with 3D");
 					diff_3D6D_s2c = (s2c_3D_6D.front()-s2c_3D_3D.front()).norm2();
 					std::cout << "Difference between 3D and 6D part of s2c: " << diff_3D6D_s2c << std::endl;
 				}{
@@ -501,6 +528,10 @@ public:
 			std::cout << "Difference between 3D and 6D part of s4a: " << diff_3D6D_s4a << std::endl;
 			std::cout << "Difference between 3D and 6D part of s4b: " << diff_3D6D_s4b << std::endl;
 			std::cout << "Difference between 3D and 6D part of s4c: " << diff_3D6D_s4c << std::endl;
+			std::cout << "---- Test of omega -----" << std::endl;;
+			std::cout << "omega from full pair = " << omega_from_full << std::endl;
+			std::cout << "omega from disc pair = " << omega_from_disc << std::endl;
+			std::cout << "omega difference     = " << omega_diff << std::endl;
 
 			std::cout << "\n\n\n";
 			output_section("Now Continue with Singles Potential");
@@ -644,6 +675,7 @@ public:
 
 	/// Genereal function which evaluates a CC_singles potential
 	vecfuncT potential_singles(const Pairs<CC_Pair> u, const CC_vecfunction & singles , const potentialtype_s &name) const {
+		output_section("Now doing Singles Potential " + assign_name(name));
 		CC_Timer timer(world,assign_name(name));
 		CC_data data(name);
 		vecfuncT result;
@@ -689,9 +721,8 @@ public:
 		truncate(world,result);
 		Q(result);
 		size_t num=0;
-		if(world.rank()==0) std::cout << "result for singles potential " << assign_name(name) << std::endl;
 		for(auto i:result){
-			if(world.rank()==0) std::cout << "||tau" << num << "||=" << i.norm2() << std::endl;
+			if(world.rank()==0) std::cout << "||" << assign_name(name) << "_" << num << "||=" << i.norm2() << std::endl;
 			num++;
 		}
 		data.result_size=get_size(world,result);
@@ -1327,7 +1358,6 @@ public:
 	/// 2. -\sum_m <x|m> <m|f12|z>*|y>
 	/// 3. -\sum_n <nx|f12|zy> * |n>
 	/// 4. +\sum_{mn} <g|n> <mn|f12|yz> * |m>
-	real_function_3d convolute_x_gQf_yz(const real_function_3d &x, const real_function_3d &y, const real_function_3d &z)const;
 	/// Description: Similar to convolute x_gQf_yz just without coulomb operator
 	real_function_3d convolute_x_Qf_yz(const CC_function &x, const CC_function &y, const CC_function &z)const{
 

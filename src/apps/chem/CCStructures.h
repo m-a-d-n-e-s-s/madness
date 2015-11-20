@@ -265,8 +265,8 @@ struct CC_Parameters{
 	double thresh_3D;
 	// function thresh 6D
 	double thresh_6D;
-//	// tight thresh for 6D functions (for addition)
-//	double thresh_6D_tight;
+	//	// tight thresh for 6D functions (for addition)
+	//	double thresh_6D_tight;
 	// BSH thresh
 	double thresh_bsh_3D;
 	double thresh_bsh_6D;
@@ -620,13 +620,23 @@ struct CC_vecfunction{
 		return tmp;
 	}
 
-	// propably not needed and possibly dangerous
-//	void set_type(const functype &type){
-//		for(auto x:functions.second) x.type = type;
-//	}
+	size_t size()const{
+		return functions.size();
+	}
 
-	std::size_t size()const{return functions.size();}
-	bool empty()const{return functions.empty();}
+
+	void print_size(const std::string &msg="!?not assigned!?")const{
+		if(functions.size()==0){
+			std::cout << "CC_vecfunction " << msg << " is empty\n";
+		}else{
+			std::string msg2;
+			if(msg=="!?not assigned!?") msg2 = "";
+			else msg2 = "_("+msg+")";
+			for(auto x:functions){
+				x.second.function.print_size(x.second.name()+msg2);
+			}
+		}
+	}
 
 };
 
