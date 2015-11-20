@@ -90,7 +90,6 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     madness::Tensor<double> result(3L, t[0].dims(), false);
     double* f = result.ptr();
     if (spin_polarized) {
-//        MADNESS_ASSERT(t.size() == 2);
         const double* brho = t[1].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
             double ra = munge(arho[i]);
@@ -105,7 +104,6 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         }
     }
     else {
-//        MADNESS_ASSERT(t.size() == 1);
         double q1, q2, dq;
         for (unsigned int i=0; i<result.size(); i++) {
             double r = munge(2.0 * arho[i]);
@@ -118,7 +116,8 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const
+madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t,
+        const int ispin, const XCfunctional::xc_contrib what) const
 {
     //MADNESS_ASSERT(what == 0);
     const double* arho = t[0].ptr();
@@ -126,7 +125,6 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     double* f = result.ptr();
 
     if (spin_polarized) {
-//        MADNESS_ASSERT(t.size() == 2);
         const double* brho = t[1].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
             double ra = munge(arho[i]);
@@ -136,12 +134,12 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             x_uks_s__(&ra, &rb, &xf, xdfdr, xdfdr+1);
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
 
-            f[i] = xdfdr[what] + cdfdr[what];
+//            f[i] = xdfdr[what] + cdfdr[what];
+            f[i] = xdfdr[ispin] + cdfdr[ispin];
             if (std::isnan(f[i])) throw "numerical error in lda functional";
         }
     }
     else {
-//        MADNESS_ASSERT(t.size() == 1);
         const double* arho = t[0].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
             double r = munge(2.0 * arho[i]);
@@ -155,13 +153,9 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::fxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const
-{
-	MADNESS_EXCEPTION("fxc not implemented in xcfunctional_ldaonly.cc... use libxc",1);
-}
 madness::Tensor<double> XCfunctional::fxc_apply(const std::vector< madness::Tensor<double> >& t,
         const int ispin, const xc_contribution xc_contrib) const{
-	MADNESS_EXCEPTION("fxc not implemented in xcfunctional_ldaonly.cc... use libxc",1);
+	MADNESS_EXCEPTION("fxc_apply not implemented in xcfunctional_ldaonly.cc... use libxc",1);
 }
 
 }
