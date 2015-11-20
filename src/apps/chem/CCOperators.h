@@ -371,182 +371,236 @@ public:
 	}
 
 	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
-		vecfuncT fock_residue = potential_singles(doubles,singles,_reF3D_);
-
-		//if(parameters.debug){
-			{
-			// test poisson operator
-			real_function_3d test_poisson_1 = intermediates_.get_EX(0,0);
-			real_function_3d test_poisson_2 = (*poisson)(mo_bra_[0]*mo_ket_[0]);
-			double diff_poisson = (test_poisson_1 - test_poisson_2).norm2();
-			std::cout << "Poisson Test Result: Diff=" << diff_poisson << std::endl;
-			double omega_diff = 99.99;
-			double omega_from_disc = 99.99;
-			double omega_from_full = 99.99;
-			{
-				// test energy
-				output("Test Energy Function");
-				real_function_6d tau00 = make_full_pair_function(doubles(0,0),singles(0),singles(0));
-				omega_from_full = make_ijgu(0,0,tau00);
-				omega_from_disc = compute_cc2_pair_energy(doubles(0,0),singles(0),singles(0));
-				omega_diff = omega_from_full - omega_from_disc;
-				std::cout << "omega from full pair = " << omega_from_full << std::endl;
-				std::cout << "omega from disc pair = " << omega_from_disc << std::endl;
-				std::cout << "omega difference     = " << omega_diff << std::endl;
 
 
-			}
+		//		//if(parameters.debug){
+		//			{
+		//			// test poisson operator
+		//			real_function_3d test_poisson_1 = intermediates_.get_EX(0,0);
+		//			real_function_3d momo = (mo_bra_[0]*mo_ket_[0]).truncate();
+		//			real_function_3d test_poisson_2 = (*poisson)(momo);
+		//			test_poisson_2.truncate();
+		//			double diff_poisson = (test_poisson_1 - test_poisson_2).norm2();
+		//			std::cout << "Poisson Test Result: Diff=" << diff_poisson << std::endl;
+		//			double omega_diff = 99.99;
+		//			double omega_from_disc = 99.99;
+		//			double omega_from_full = 99.99;
+		//			{
+		//				// test energy
+		//				output("Test Energy Function");
+		//				real_function_6d tau00 = make_full_pair_function(doubles(0,0),singles(0),singles(0));
+		//				omega_from_full = make_ijgu(0,0,tau00);
+		//				omega_from_disc = compute_cc2_pair_energy(doubles(0,0),singles(0),singles(0));
+		//				omega_diff = omega_from_full - omega_from_disc;
+		//				std::cout << "omega from full pair = " << omega_from_full << std::endl;
+		//				std::cout << "omega from disc pair = " << omega_from_disc << std::endl;
+		//				std::cout << "omega difference     = " << omega_diff << std::endl;
+		//
+		//
+		//			}
+		//
+		//			const double t6d = FunctionDefaults<6>::get_thresh();
+		//			const double t3d = FunctionDefaults<3>::get_thresh();
+		//			double diff_s2b_s5b_gf = 99.99;
+		//			double diff_s2b_s5b = 99.99;
+		//			double diff_s2c_s5c = 99.99;
+		//			double diff_s4a_s6  = 99.99;
+		//			double diff_3D6D_s2b = 99.99;
+		//			double diff_3D6D_s2c = 99.99;
+		//			double diff_3D6D_s4a = 99.99;
+		//			double diff_3D6D_s4b = 99.99;
+		//			double diff_3D6D_s4c = 99.99;
+		//			CC_data dat(_S2b_); // dummy data
+		//			output_section("Testing Singles Potential with |tau0,tau0> function");
+		//			// make tests with: u00 = |t0t0>
+		//			Pairs<CC_Pair> f00_wrapper;
+		//			real_function_6d f00 = make_xy(singles(0).function,singles(0).function);
+		//			CC_Pair f00_pair(f00,0,0);
+		//			f00_wrapper.insert(0,0,f00_pair);
+		//
+		//
+		//
+		//
+		//			// S2b_6D should now be equal to S5b
+		//			{
+		//				output("Testing if S2b_6D_part = S5b for u=|tau0,tau0>");
+		//				vecfuncT s2b_6D_00 = S2b_6D_part(f00_wrapper,singles,dat);
+		//				vecfuncT s5b = add(world,S5b(singles),S5b_X(singles));
+		//				real_function_3d tmp = copy(s5b.front());
+		//				Q(s5b);
+		//				std::cout << "Difference after QS5b is " << (tmp-s5b.front()).norm2() << std::endl;
+		//				diff_s2b_s5b = (s2b_6D_00.front()-s5b.front()).norm2();
+		//				std::cout << "Difference between S2b and S5b is " << diff_s2b_s5b << std::endl;
+		//				if(diff_s2b_s5b > t6d) warning("Difference is above the 6D thresh");
+		//				if(diff_s2b_s5b > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
+		//			}
+		//			// S2c_6D should now be equal to S5c
+		//			{
+		//				output("Testing if S2c_6D_part = S5c for u=|tau0,tau0>");
+		//				vecfuncT s2c_6D_00 = S2c_6D_part(f00_wrapper,singles,dat);
+		//				vecfuncT s5c = add(world,S5c(singles),S5c_X(singles));
+		//				Q(s5c);
+		//				diff_s2c_s5c = (s2c_6D_00.front()-s5c.front()).norm2();
+		//				std::cout << "Difference between S2b and S5b is " << diff_s2c_s5c << std::endl;
+		//				if(diff_s2c_s5c > t6d) warning("Difference is above the 6D thresh");
+		//				if(diff_s2c_s5c > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
+		//			}
+		//			// S4a_6D should now be equal to S6
+		//			{
+		//				output("Testing if S4a_6D_part = S6 for u=|tau0,tau0>");
+		//				vecfuncT s4a_6D_00 = S4a_6D_part(f00_wrapper,singles,dat);
+		//				vecfuncT s6 = S6(singles);
+		//				diff_s4a_s6 = (s4a_6D_00.front()-s6.front()).norm2();
+		//				std::cout << "Difference between S4a and S6 is " << diff_s4a_s6 << std::endl;
+		//				if(diff_s4a_s6 > t6d) warning("Difference is above the 6D thresh");
+		//				if(diff_s4a_s6 > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
+		//			}
+		//
+		//			// now testing the 3D parts
+		//			// the 3D parts should result in the same result as the 6D parts for u = Q12f12|titj> with ti = taui + i
+		//			real_function_3d t0_function = singles(0).function + mo_ket_[0];
+		//			CC_function t0(t0_function,0,MIXED);
+		//			real_function_6d Qft0t0 = make_f_xy(t0,t0);
+		//			real_function_6d ft0t0 = copy(Qft0t0);
+		//			apply_Q12(Qft0t0);
+		//			CC_Pair pair_3D(Qft0t0,0,0);
+		//			CC_Pair pair_3D_withoutQ(ft0t0,0,0);
+		//			Pairs<CC_Pair> wrapper_3D;
+		//			wrapper_3D.insert(0,0,pair_3D);
+		//			Pairs<CC_Pair> wrapper_withoutQ;
+		//			wrapper_withoutQ.insert(0,0,pair_3D_withoutQ);
+		//			{
+		//				{
+		//					output("Testing apply_gf function");
+		//					real_function_3d gf_0t0 = apply_gf(t0_function*mo_bra_[0]);
+		//					real_function_3d k_gf_t0t0_from3D = t0_function * gf_0t0;
+		//					Q(k_gf_t0t0_from3D);
+		//					real_function_3d k_gf_t0t0_from6D = (S2b_6D_part(wrapper_withoutQ,singles,dat)).front();
+		//					Q(k_gf_t0t0_from6D);
+		//					diff_s2b_s5b_gf = (k_gf_t0t0_from3D - k_gf_t0t0_from6D).norm2();
+		//					std::cout << "Difference between 3D and 6D part of gf : "<< diff_s2b_s5b_gf << std::endl;
+		//
+		//				}{
+		//					output("Testing 3D Part of S2b function");
+		//					vecfuncT s2b_3D_6D = S2b_6D_part(wrapper_3D,singles,dat);
+		//					vecfuncT s2b_3D_3D = S2b_3D_part(wrapper_3D,singles,dat);
+		//					print_size(world,s2b_3D_6D,"s2b_3D with 6D");
+		//					print_size(world,s2b_3D_3D,"s2b_3D with 3D");
+		//					diff_3D6D_s2b = (s2b_3D_6D.front()-s2b_3D_3D.front()).norm2();
+		//					std::cout << "Difference between 3D and 6D part of s2b: " << diff_3D6D_s2b << std::endl;
+		//				}{
+		//					output("Testing 3D Part of S2c function");
+		//					vecfuncT s2c_3D_6D = S2c_6D_part(wrapper_3D,singles,dat);
+		//					vecfuncT s2c_3D_3D = S2c_3D_part(wrapper_3D,singles,dat);
+		//					print_size(world,s2c_3D_6D,"s2c_3D with 6D");
+		//					print_size(world,s2c_3D_3D,"s2c_3D with 3D");
+		//					diff_3D6D_s2c = (s2c_3D_6D.front()-s2c_3D_3D.front()).norm2();
+		//					std::cout << "Difference between 3D and 6D part of s2c: " << diff_3D6D_s2c << std::endl;
+		//				}{
+		//					output("Testing 3D Part of S4a function");
+		//					vecfuncT s4a_3D_6D = S4a_6D_part(wrapper_3D,singles,dat);
+		//					vecfuncT s4a_3D_3D = S4a_3D_part(singles,dat);
+		//					diff_3D6D_s4a = (s4a_3D_6D.front()-s4a_3D_3D.front()).norm2();
+		//					std::cout << "Difference between 3D and 6D part of s4a: " << diff_3D6D_s4a << std::endl;
+		//				}{
+		//					output("Testing 3D Part of S4b function");
+		//					vecfuncT s4b_3D_6D = S4b_6D_part(wrapper_3D,singles,dat);
+		//					vecfuncT s4b_3D_3D = S4b_3D_part(wrapper_3D,singles,dat);
+		//					diff_3D6D_s4b = (s4b_3D_6D.front()-s4b_3D_3D.front()).norm2();
+		//					std::cout << "Difference between 3D and 6D part of s4b: " << diff_3D6D_s4b << std::endl;
+		//				}{
+		//					output("Testing 3D Part of S4c function");
+		//					vecfuncT s4c_3D_6D = S4c_6D_part(wrapper_3D,singles,dat);
+		//					vecfuncT s4c_3D_3D = S4c_3D_part(wrapper_3D,singles,dat);
+		//					diff_3D6D_s4c = (s4c_3D_6D.front()-s4c_3D_3D.front()).norm2();
+		//					std::cout << "Difference between 3D and 6D part of s4c: " << diff_3D6D_s4c << std::endl;
+		//				}
+		//			}
+		//
+		//
+		//			// all together
+		//			std::cout << "\n\n\nResults of Singles Test:\n";
+		//			std::cout << "Difference between S2b and S5b is " << diff_s2b_s5b << std::endl;
+		//			std::cout << "Difference between S2c and S5c is " << diff_s2c_s5c << std::endl;
+		//			std::cout << "Difference between S4a and S6  is " << diff_s4a_s6 << std::endl;
+		//			std::cout << "---- Test of 3D Parts -----" << std::endl;
+		//			std::cout << "Difference between 3D and 6D part of gf : "<< diff_s2b_s5b_gf << std::endl;
+		//			std::cout << "Difference between 3D and 6D part of s2b: " << diff_3D6D_s2b << std::endl;
+		//			std::cout << "Difference between 3D and 6D part of s2c: " << diff_3D6D_s2c << std::endl;
+		//			std::cout << "Difference between 3D and 6D part of s4a: " << diff_3D6D_s4a << std::endl;
+		//			std::cout << "Difference between 3D and 6D part of s4b: " << diff_3D6D_s4b << std::endl;
+		//			std::cout << "Difference between 3D and 6D part of s4c: " << diff_3D6D_s4c << std::endl;
+		//			std::cout << "---- Test of omega -----" << std::endl;;
+		//			std::cout << "omega from full pair = " << omega_from_full << std::endl;
+		//			std::cout << "omega from disc pair = " << omega_from_disc << std::endl;
+		//			std::cout << "omega difference     = " << omega_diff << std::endl;
+		//
+		//			std::cout << "\n\n\n";
+		//			output_section("Now Continue with Singles Potential");
+		//
+		//		}
 
-			const double t6d = FunctionDefaults<6>::get_thresh();
-			const double t3d = FunctionDefaults<3>::get_thresh();
-			double diff_s2b_s5b_gf = 99.99;
-			double diff_s2b_s5b = 99.99;
-			double diff_s2c_s5c = 99.99;
-			double diff_s4a_s6  = 99.99;
-			double diff_3D6D_s2b = 99.99;
-			double diff_3D6D_s2c = 99.99;
-			double diff_3D6D_s4a = 99.99;
-			double diff_3D6D_s4b = 99.99;
-			double diff_3D6D_s4c = 99.99;
-			CC_data dat(_S2b_); // dummy data
-			output_section("Testing Singles Potential with |tau0,tau0> function");
-			// make tests with: u00 = |t0t0>
-			Pairs<CC_Pair> f00_wrapper;
-			real_function_6d f00 = make_xy(singles(0).function,singles(0).function);
-			CC_Pair f00_pair(f00,0,0);
-			f00_wrapper.insert(0,0,f00_pair);
+
+		//		vecfuncT fock_residue = potential_singles(doubles,singles,_reF3D_);
+		//		vecfuncT result = potential_singles(doubles,singles,_S3c_);
+		//		result = add(world,result,potential_singles(doubles,singles,_S5b_));
+		//		result = add(world,result,potential_singles(doubles,singles,_S5c_));
+		//		result = add(world,result,potential_singles(doubles,singles,_S6_));
+		//		result = add(world,result,potential_singles(doubles,singles,_S2b_));
+		//		result = add(world,result,potential_singles(doubles,singles,_S2c_));
+		//		result = add(world,result,potential_singles(doubles,singles,_S4a_));
+		//		result = add(world,result,potential_singles(doubles,singles,_S4b_));
+		//		result = add(world,result,potential_singles(doubles,singles,_S4c_));
 
 
-
-
-			// S2b_6D should now be equal to S5b
-			{
-				output("Testing if S2b_6D_part = S5b for u=|tau0,tau0>");
-				vecfuncT s2b_6D_00 = S2b_6D_part(f00_wrapper,singles,dat);
-				vecfuncT s5b = add(world,S5b(singles),S5b_X(singles));
-				real_function_3d tmp = copy(s5b.front());
-				Q(s5b);
-				std::cout << "Difference after QS5b is " << (tmp-s5b.front()).norm2() << std::endl;
-				diff_s2b_s5b = (s2b_6D_00.front()-s5b.front()).norm2();
-				std::cout << "Difference between S2b and S5b is " << diff_s2b_s5b << std::endl;
-				if(diff_s2b_s5b > t6d) warning("Difference is above the 6D thresh");
-				if(diff_s2b_s5b > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
-			}
-			// S2c_6D should now be equal to S5c
-			{
-				output("Testing if S2c_6D_part = S5c for u=|tau0,tau0>");
-				vecfuncT s2c_6D_00 = S2c_6D_part(f00_wrapper,singles,dat);
-				vecfuncT s5c = add(world,S5c(singles),S5c_X(singles));
-				Q(s5c);
-				diff_s2c_s5c = (s2c_6D_00.front()-s5c.front()).norm2();
-				std::cout << "Difference between S2b and S5b is " << diff_s2c_s5c << std::endl;
-				if(diff_s2c_s5c > t6d) warning("Difference is above the 6D thresh");
-				if(diff_s2c_s5c > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
-			}
-			// S4a_6D should now be equal to S6
-			{
-				output("Testing if S4a_6D_part = S6 for u=|tau0,tau0>");
-				vecfuncT s4a_6D_00 = S4a_6D_part(f00_wrapper,singles,dat);
-				vecfuncT s6 = S6(singles);
-				diff_s4a_s6 = (s4a_6D_00.front()-s6.front()).norm2();
-				std::cout << "Difference between S4a and S6 is " << diff_s4a_s6 << std::endl;
-				if(diff_s4a_s6 > t6d) warning("Difference is above the 6D thresh");
-				if(diff_s4a_s6 > t3d) std::cout << "Above the 3D thresh ... but this was expected\n";
-			}
-
-			// now testing the 3D parts
-			// the 3D parts should result in the same result as the 6D parts for u = Q12f12|titj> with ti = taui + i
-			real_function_3d t0_function = singles(0).function + mo_ket_[0];
-			CC_function t0(t0_function,0,MIXED);
-			real_function_6d Qft0t0 = make_f_xy(t0,t0);
-			real_function_6d ft0t0 = copy(Qft0t0);
-			apply_Q12(Qft0t0);
-			CC_Pair pair_3D(Qft0t0,0,0);
-			CC_Pair pair_3D_withoutQ(ft0t0,0,0);
-			Pairs<CC_Pair> wrapper_3D;
-			wrapper_3D.insert(0,0,pair_3D);
-			Pairs<CC_Pair> wrapper_withoutQ;
-			wrapper_withoutQ.insert(0,0,pair_3D_withoutQ);
-			{
-				{
-					output("Testing apply_gf function");
-					real_function_3d gf_0t0 = apply_gf(t0_function*mo_bra_[0]);
-					real_function_3d k_gf_t0t0_from3D = t0_function * gf_0t0;
-					Q(k_gf_t0t0_from3D);
-					real_function_3d k_gf_t0t0_from6D = (S2b_6D_part(wrapper_withoutQ,singles,dat)).front();
-					Q(k_gf_t0t0_from6D);
-					diff_s2b_s5b_gf = (k_gf_t0t0_from3D - k_gf_t0t0_from6D).norm2();
-					std::cout << "Difference between 3D and 6D part of gf : "<< diff_s2b_s5b_gf << std::endl;
-
-				}{
-					output("Testing 3D Part of S2b function");
-					vecfuncT s2b_3D_6D = S2b_6D_part(wrapper_3D,singles,dat);
-					vecfuncT s2b_3D_3D = S2b_3D_part(wrapper_3D,singles,dat);
-					print_size(world,s2b_3D_6D,"s2b_3D with 6D");
-					print_size(world,s2b_3D_3D,"s2b_3D with 3D");
-					diff_3D6D_s2b = (s2b_3D_6D.front()-s2b_3D_3D.front()).norm2();
-					std::cout << "Difference between 3D and 6D part of s2b: " << diff_3D6D_s2b << std::endl;
-				}{
-					output("Testing 3D Part of S2c function");
-					vecfuncT s2c_3D_6D = S2c_6D_part(wrapper_3D,singles,dat);
-					vecfuncT s2c_3D_3D = S2c_3D_part(wrapper_3D,singles,dat);
-					print_size(world,s2c_3D_6D,"s2c_3D with 6D");
-					print_size(world,s2c_3D_3D,"s2c_3D with 3D");
-					diff_3D6D_s2c = (s2c_3D_6D.front()-s2c_3D_3D.front()).norm2();
-					std::cout << "Difference between 3D and 6D part of s2c: " << diff_3D6D_s2c << std::endl;
-				}{
-					output("Testing 3D Part of S4a function");
-					vecfuncT s4a_3D_6D = S4a_6D_part(wrapper_3D,singles,dat);
-					vecfuncT s4a_3D_3D = S4a_3D_part(singles,dat);
-					diff_3D6D_s4a = (s4a_3D_6D.front()-s4a_3D_3D.front()).norm2();
-					std::cout << "Difference between 3D and 6D part of s4a: " << diff_3D6D_s4a << std::endl;
-				}{
-					output("Testing 3D Part of S4b function");
-					vecfuncT s4b_3D_6D = S4b_6D_part(wrapper_3D,singles,dat);
-					vecfuncT s4b_3D_3D = S4b_3D_part(wrapper_3D,singles,dat);
-					diff_3D6D_s4b = (s4b_3D_6D.front()-s4b_3D_3D.front()).norm2();
-					std::cout << "Difference between 3D and 6D part of s4b: " << diff_3D6D_s4b << std::endl;
-				}{
-					output("Testing 3D Part of S4c function");
-					vecfuncT s4c_3D_6D = S4c_6D_part(wrapper_3D,singles,dat);
-					vecfuncT s4c_3D_3D = S4c_3D_part(wrapper_3D,singles,dat);
-					diff_3D6D_s4c = (s4c_3D_6D.front()-s4c_3D_3D.front()).norm2();
-					std::cout << "Difference between 3D and 6D part of s4c: " << diff_3D6D_s4c << std::endl;
-				}
-			}
-
-
-			// all together
-			std::cout << "\n\n\nResults of Singles Test:\n";
-			std::cout << "Difference between S2b and S5b is " << diff_s2b_s5b << std::endl;
-			std::cout << "Difference between S2c and S5c is " << diff_s2c_s5c << std::endl;
-			std::cout << "Difference between S4a and S6  is " << diff_s4a_s6 << std::endl;
-			std::cout << "---- Test of 3D Parts -----" << std::endl;
-			std::cout << "Difference between 3D and 6D part of gf : "<< diff_s2b_s5b_gf << std::endl;
-			std::cout << "Difference between 3D and 6D part of s2b: " << diff_3D6D_s2b << std::endl;
-			std::cout << "Difference between 3D and 6D part of s2c: " << diff_3D6D_s2c << std::endl;
-			std::cout << "Difference between 3D and 6D part of s4a: " << diff_3D6D_s4a << std::endl;
-			std::cout << "Difference between 3D and 6D part of s4b: " << diff_3D6D_s4b << std::endl;
-			std::cout << "Difference between 3D and 6D part of s4c: " << diff_3D6D_s4c << std::endl;
-			std::cout << "---- Test of omega -----" << std::endl;;
-			std::cout << "omega from full pair = " << omega_from_full << std::endl;
-			std::cout << "omega from disc pair = " << omega_from_disc << std::endl;
-			std::cout << "omega difference     = " << omega_diff << std::endl;
-
-			std::cout << "\n\n\n";
-			output_section("Now Continue with Singles Potential");
-
+		// MAKE FULL PAIR HERE:
+		output("Making Full Pair for Singles Potential (TEST)");
+		if(mo_ket_.size()>1) error("Does not work for more than one orbital right now");
+		CC_Timer full_pair_time(world,"made full pair");
+		real_function_6d full_pair_00 = make_full_pair_function(doubles(0,0),singles(0),singles(0));
+		CC_Pair pair_dummy(full_pair_00,0,0);
+		Pairs<CC_Pair> doubles_wrapper;
+		doubles_wrapper.insert(0,0,pair_dummy);
+		full_pair_time.info();
+		{
+		real_function_6d QfHH = make_f_xy(CC_function(mo_ket_[0],0,HOLE),CC_function(mo_ket_[0],0,HOLE));
+		apply_Q12(QfHH);
+		real_function_6d QfHP = make_f_xy(CC_function(mo_ket_[0],0,HOLE),singles(0));
+		apply_Q12(QfHP);
+		real_function_6d QfPH = make_f_xy(singles(0),CC_function(mo_ket_[0],0,HOLE));
+		apply_Q12(QfPH);
+		real_function_6d QfPP = make_f_xy(singles(0),singles(0));
+		apply_Q12(QfPP);
+		double omega = make_ijgu(0,0,full_pair_00);
+		double omega_u = make_ijgu(0,0,doubles(0,0).function);
+		double omega_QfHH = make_ijgu(0,0,QfHH);
+		double omega_QfHP = make_ijgu(0,0,QfHP);
+		double omega_QfPH = make_ijgu(0,0,QfPH);
+		double omega_QfPP = make_ijgu(0,0,QfPP);
+		if(world.rank()==0) std::cout << "Correlation Energy of the full pair is (no direct singles contribution): " << std::fixed << std::setprecision(parameters.output_prec)<< omega << std::endl;
+		if(world.rank()==0){
+			std::cout << " u-part   =" << omega_u << std::endl;
+			std::cout << " QfHH-part=" << omega_QfHH <<std::endl;
+			std::cout << " QfHP-part=" << omega_QfHP <<std::endl;
+			std::cout << " QfPH-part=" << omega_QfPH <<std::endl;
+			std::cout << " QfPP-part=" << omega_QfPP <<std::endl;
+		}
 		}
 
-		vecfuncT result = potential_singles(doubles,singles,_S3c_);
-		result = add(world,result,potential_singles(doubles,singles,_S5b_));
-		result = add(world,result,potential_singles(doubles,singles,_S5c_));
-		result = add(world,result,potential_singles(doubles,singles,_S6_));
-		result = add(world,result,potential_singles(doubles,singles,_S2b_));
-		result = add(world,result,potential_singles(doubles,singles,_S2c_));
-		result = add(world,result,potential_singles(doubles,singles,_S4a_));
-		result = add(world,result,potential_singles(doubles,singles,_S4b_));
-		result = add(world,result,potential_singles(doubles,singles,_S4c_));
+
+		vecfuncT fock_residue = potential_singles(doubles_wrapper,singles,_reF3D_);
+		vecfuncT result = potential_singles(doubles_wrapper,singles,_S3c_);
+		result = add(world,result,potential_singles(doubles_wrapper,singles,_S5b_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,_S5c_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,_S6_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,_S2b_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,_S2c_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,_S4a_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,_S4b_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,_S4c_));
+
+		// END THIS TEST (REMEBER TO CHANGE ALSO IN potential_singles function (include 3D parts again)
+
 
 		Q(result);
 		truncate(world,result);
@@ -679,37 +733,48 @@ public:
 		CC_Timer timer(world,assign_name(name));
 		CC_data data(name);
 		vecfuncT result;
+		bool minus_sign = false;
 
 		switch(name){
 		case _reF3D_ :
 			result =fock_residue_closed_shell(singles);
+			minus_sign = false;
 			break;
 		case _S3c_ :
 			result = add(world,S3c(singles),S3c_X(singles));
+			minus_sign = false;
 			break;
 		case _S5b_ :
 			result = add(world,S5b(singles),S5b_X(singles));
+			minus_sign = false;
 			break;
 		case _S5c_ :
 			result = add(world,S5c(singles),S5c_X(singles));
+			minus_sign = true;
 			break;
 		case _S6_  :
 			result = add(world,S6(singles),S6(singles));
+			minus_sign = true;
 			break;
 		case _S2b_ :
-			result = add(world,S2b_3D_part(u,singles,data),S2b_6D_part(u,singles,data));
+			result = S2b_6D_part(u,singles,data);//add(world,S2b_3D_part(u,singles,data),S2b_6D_part(u,singles,data));
+			minus_sign = true;
 			break;
 		case _S2c_ :
-			result = add(world,S2c_3D_part(u,singles,data),S2c_6D_part(u,singles,data));
+			result = S2c_6D_part(u,singles,data);//add(world,S2c_3D_part(u,singles,data),S2c_6D_part(u,singles,data));
+			minus_sign = true;
 			break;
 		case _S4a_ :
-			result = add(world,S4a_3D_part(singles,data),S4a_6D_part(u,singles,data));
+			result = S4a_6D_part(u,singles,data);//add(world,S4a_3D_part(singles,data),S4a_6D_part(u,singles,data));
+			minus_sign = true;
 			break;
 		case _S4b_ :
-			result = add(world,S4b_3D_part(u,singles,data),S4b_6D_part(u,singles,data));
+			result = S4b_6D_part(u,singles,data);//add(world,S4b_3D_part(u,singles,data),S4b_6D_part(u,singles,data));
+			minus_sign = true;
 			break;
 		case _S4c_ :
-			result = add(world,S4c_3D_part(u,singles,data),S4c_6D_part(u,singles,data));
+			result = S4c_6D_part(u,singles,data);//add(world,S4c_3D_part(u,singles,data),S4c_6D_part(u,singles,data));
+			minus_sign = false;
 			break;
 		case _S1_ :
 			result = S1(singles);
@@ -722,13 +787,14 @@ public:
 		Q(result);
 		size_t num=0;
 		for(auto i:result){
-			if(world.rank()==0) std::cout << "||" << assign_name(name) << "_" << num << "||=" << i.norm2() << std::endl;
+			if(world.rank()==0) std::cout << "||" << assign_name(name) << "_" << num << "||=" << i.norm2() << " , minus_sign: " << minus_sign << std::endl;
 			num++;
 		}
 		data.result_size=get_size(world,result);
 		data.result_norm=norm2(world,result);
 		data.time = timer.current_time();
 		performance_S.insert(data.name,data);
+		if(not minus_sign) scale(world,result,-1.0);
 		return result;
 	}
 
@@ -2060,7 +2126,7 @@ public:
 			gradop = gradient_operator<double, 3>(world);
 			std::string name = "_"+stringify(k) + "_" + stringify(thresh);
 			if(world.rank()==0) std::cout<< "Testing Laplace operator with threshold  "+stringify(FunctionDefaults<3>::get_thresh()) + " and k=" + stringify(FunctionDefaults<3>::get_k())
-							+" and refinement=" + stringify(refine)+"\n";
+									+" and refinement=" + stringify(refine)+"\n";
 
 			real_function_3d gauss = real_factory_3d(world).f(f_gauss);
 			real_function_3d laplace_gauss_analytical = real_factory_3d(world).f(f_laplace_gauss);

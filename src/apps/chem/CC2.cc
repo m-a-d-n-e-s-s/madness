@@ -312,7 +312,7 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		CC_Timer timer_iter_all(world,"Iteration " + stringify(iter));
 		CCOPS.update_intermediates(singles);
 		output_subsection("Iteration "+stringify(iter));
-		for(size_t mis=0;mis<3;mis++){
+		for(size_t mis=0;mis<1;mis++){
 			CC_Timer timer_iter_singles(world,"Iteration " + stringify(iter) + " Singles" + " Microiteration #" + stringify(mis));
 			singles_converged=iterate_cc2_singles(doubles,singles);
 			timer_iter_singles.info();
