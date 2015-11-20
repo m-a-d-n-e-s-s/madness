@@ -117,7 +117,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
 }
 
 madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t,
-        const int ispin, const XCfunctional::xc_contrib what) const
+        const int ispin, const XCfunctional::xc_contribution what) const
 {
     //MADNESS_ASSERT(what == 0);
     const double* arho = t[0].ptr();
