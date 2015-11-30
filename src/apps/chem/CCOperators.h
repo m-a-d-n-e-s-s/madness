@@ -794,7 +794,7 @@ public:
 		data.result_norm=norm2(world,result);
 		data.time = timer.current_time();
 		performance_S.insert(data.name,data);
-		if(not minus_sign) scale(world,result,-1.0);
+		if(minus_sign) scale(world,result,-1.0);
 		return result;
 	}
 

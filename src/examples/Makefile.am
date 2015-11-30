@@ -5,7 +5,7 @@ noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf cc2 nemo helium_exact 
+ tdhf cc2 nemo helium_exact density_smoothing
  
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
@@ -39,6 +39,8 @@ tdhf_SOURCES = tdhf.cc
 cc2_SOURCES = cc2.cc
 
 nemo_SOURCES = nemo.cc 
+
+density_smoothing_SOURCES = density_smoothing.cc
 
 newsolver_SOURCES = newsolver.cc
 
