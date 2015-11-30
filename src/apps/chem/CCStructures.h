@@ -22,6 +22,8 @@ enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
 enum potentialtype_s {_reF3D_, _S3c_, _S5b_, _S5c_, _S6_, _S2b_, _S2c_, _S4a_, _S4b_, _S4c_, _S1_, _S5a_};
 enum potentialtype_d {_reF6D_, _D4b_ ,_D6b_, _D6c_, _D8a_, _D8b_, _D9_, _reCC2_,_D6b_D8b_D9_, _D4b_D6c_D8a_};
 enum screening_result{_neglect_,_refine_,_calculate_};
+// The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
+enum pair_function_form{DECOMPOSED, FULL};
 static std::string assign_name(const potentialtype_s &inp){
 	switch(inp){
 	case _reF3D_ : return "Fock-Residue-3D";
@@ -125,7 +127,8 @@ struct CC_Parameters{
 		mp2(false),
 		ccs(false),
 		kain(false),
-		freeze(0)
+		freeze(0),
+		pair_function_in_singles_potential(DECOMPOSED)
 	{}
 
 	// read parameters from input
@@ -154,7 +157,8 @@ struct CC_Parameters{
 		ccs(false),
 		kain(false),
 		kain_subspace(2),
-		freeze(0)
+		freeze(0),
+		pair_function_in_singles_potential(DECOMPOSED)
 	{
 		// get the parameters from the input file
 		std::ifstream f(input.c_str());
@@ -242,6 +246,17 @@ struct CC_Parameters{
 			else if (s == "mp2") mp2=true;
 			else if (s == "cc2") ccs=true;
 			else if (s == "freeze") f>>freeze;
+			else if (s == "pair_function_in_singles_potential" or s == "pair_function"){
+				std::string tmp;
+				f>>tmp;
+				if(tmp=="full") pair_function_in_singles_potential=FULL;
+				else if(tmp=="decomposed")pair_function_in_singles_potential=DECOMPOSED;
+				else{
+					MADNESS_EXCEPTION(("UNKNOWN KEYWORD: " + s+" = "+tmp).c_str(),1);
+				}
+			}
+			else if (s == "full_pair_function") pair_function_in_singles_potential=FULL;
+			else if (s == "decomposed_pair_function") pair_function_in_singles_potential=DECOMPOSED;
 			else continue;
 		}
 
@@ -310,6 +325,7 @@ struct CC_Parameters{
 		if(corrfac_gamma<0) MADNESS_EXCEPTION("ERROR in CC_PARAMETERS: CORRFAC_GAMMA WAS NOT INITIALIZED",1);
 		return corrfac_gamma;
 	}
+	pair_function_form pair_function_in_singles_potential; // possible choices are FULL and DECOMPOSED
 
 	// print out the parameters
 	void information(World &world)const{
@@ -357,6 +373,7 @@ struct CC_Parameters{
 			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
 			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
 			if(mp2) std::cout << std::setw(20) << std::setfill(' ') << "MP2 Guess demanded" << std::endl;
+			std::cout << "pair_function_in_singles_potential " << pair_function_in_singles_potential << std::endl;
 		}
 	}
 

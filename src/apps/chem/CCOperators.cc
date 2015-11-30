@@ -328,6 +328,16 @@ vecfuncT CC_Operators::S6(const CC_vecfunction &singles) const {
 /// @param[in] Structure which holds all current CC single excitations
 /// @param[out] Q\sum_k \left( 2<k|g|u_ik> - <k|g|u_ki> + 2<k|gQf|t_it_k> - <k|gQf|t_kt_i> \right), with t_i = i + \tau_i
 /// notation: <k|g|u_ik> = <k(2)|g12|u_ik(1,2)> (Integration over second particle)
+vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_vecfunction & singles , CC_data &data) const {
+	if(parameters.pair_function_in_singles_potential==FULL){
+		return S2b_6D_part(u,singles,data);
+	}else if(parameters.pair_function_in_singles_potential==DECOMPOSED){
+		return add(world,S2b_6D_part(u,singles,data),S2b_3D_part(singles,data));
+	}else{
+		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+		return vecfuncT();
+	}
+}
 vecfuncT CC_Operators::S2b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction & singles , CC_data &data) const {
 	vecfuncT result;
 	for(auto tmpi:singles.functions){
@@ -357,7 +367,7 @@ vecfuncT CC_Operators::S2b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 	Q(result);
 	return result;
 }
-vecfuncT CC_Operators::S2b_3D_part(const Pairs<CC_Pair> u, const CC_vecfunction & singles , CC_data & data) const {
+vecfuncT CC_Operators::S2b_3D_part(const CC_vecfunction & singles , CC_data & data) const {
 //	output("Expensive 6D Version of the S2b_3D Part! Works only for one_orbital molecules");
 //	if(mo_ket_.size()>1) error("S2b_3D_part works currently not or multiple orbitals --> too expensive");
 //
@@ -572,7 +582,16 @@ vecfuncT CC_Operators::S2b_3D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 /// @param[in] All the current coupled cluster Pairs
 /// @param[in] The coupled cluster singles
 /// @param[out] the S2c+X Potential
-vecfuncT CC_Operators::S2c_3D_part(const Pairs<CC_Pair> &u, const CC_vecfunction &singles, CC_data &data) const {
+vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_vecfunction &singles,CC_data &data) const {
+	if(parameters.pair_function_in_singles_potential==FULL){
+		return S2c_6D_part(u,singles,data);
+	}else if(parameters.pair_function_in_singles_potential==DECOMPOSED){
+		return add(world,S2c_6D_part(u,singles,data),S2c_3D_part(singles,data));
+	}else{
+		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+	}
+}
+vecfuncT CC_Operators::S2c_3D_part(const CC_vecfunction &singles, CC_data &data) const {
 	vecfuncT result;
 	CC_vecfunction t = make_t_intermediate(singles);
 	for(auto tmpi:singles.functions){
@@ -647,6 +666,15 @@ vecfuncT CC_Operators::S2c_6D_part(const Pairs<CC_Pair> &u, const CC_vecfunction
 /// 6D Part -Q\sum_k ( 2<kl|g|uil> - <lk|g|uil> ) tau_k
 /// 3D Part t1 intermediate integras: <kl|g|uil> --> <kl|gQf|titl>
 /// 3D Part decomposed integrals <kl|g|uil> --> <kl|gQf|xy> , |xy> = |il> + |ti,l> + |i,tl> + |ti,tl>
+vecfuncT CC_Operators::S4a(const Pairs<CC_Pair> u, const CC_vecfunction & singles , CC_data &data) const {
+	if(parameters.pair_function_in_singles_potential==FULL){
+		return S4a_6D_part(u,singles,data);
+	}else if(parameters.pair_function_in_singles_potential==DECOMPOSED){
+		return add(world,S4a_6D_part(u,singles,data),S4a_3D_part(singles,data));
+	}else{
+		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+	}
+}
 vecfuncT CC_Operators::S4a_3D_part(const CC_vecfunction & singles,  CC_data &data) const {
 	vecfuncT result;
 	for (auto tmpi:singles.functions) {
@@ -738,7 +766,16 @@ vecfuncT CC_Operators::S4a_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 /// do the same for exchange part  <k_lgtaui(3)|taukl(3,1)>
 /// procedure for 3D part:
 /// make intermediate
-vecfuncT CC_Operators::S4b_3D_part(const Pairs<CC_Pair> u, const CC_vecfunction & singles,  CC_data &data) const {
+vecfuncT CC_Operators::S4b(const Pairs<CC_Pair> u, const CC_vecfunction & singles , CC_data &data) const {
+	if(parameters.pair_function_in_singles_potential==FULL){
+		return S4b_6D_part(u,singles,data);
+	}else if(parameters.pair_function_in_singles_potential==DECOMPOSED){
+		return add(world,S4b_6D_part(u,singles,data),S4b_3D_part(singles,data));
+	}else{
+		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+	}
+}
+vecfuncT CC_Operators::S4b_3D_part(const CC_vecfunction & singles,  CC_data &data) const {
 	vecfuncT result;
 	for (auto tmpi:singles.functions){ CC_function& i=tmpi.second;
 	real_function_3d resulti = real_factory_3d(world);
@@ -809,7 +846,16 @@ vecfuncT CC_Operators::S4b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 
 /// 3D part <l*kgtk(2)|Q12f12|xi(1)yl(2)> would be the 4.0* part
 /// Similar than S4b
-vecfuncT CC_Operators::S4c_3D_part(const Pairs<CC_Pair> u, const CC_vecfunction & singles,  CC_data &data) const {
+vecfuncT CC_Operators::S4c(const Pairs<CC_Pair> u, const CC_vecfunction & singles , CC_data &data) const {
+	if(parameters.pair_function_in_singles_potential==FULL){
+		return S4c_6D_part(u,singles,data);
+	}else if(parameters.pair_function_in_singles_potential==DECOMPOSED){
+		return add(world,S4c_6D_part(u,singles,data),S4c_3D_part(singles,data));
+	}else{
+		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+	}
+}
+vecfuncT CC_Operators::S4c_3D_part(const CC_vecfunction & singles,  CC_data &data) const {
 	vecfuncT result;
 	for(auto tmpi:singles.functions){ CC_function& i=tmpi.second;
 	real_function_3d resulti = real_factory_3d(world);
