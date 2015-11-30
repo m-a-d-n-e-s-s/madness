@@ -54,13 +54,11 @@ option(WITH_PAPI "Enables use of PAPI" OFF)
 
 # Configure options ============================================================
 
-option(ENABLE_GENTENSOR "Enable gentensor C and C++ compilers." OFF)
+option(ENABLE_GENTENSOR "Enable generic tensor support" OFF)
 if(ENABLE_GENTENSOR)
   add_definitions(-DUSE_GENTENSOR)
 endif()
-
-option(ENABLE_MEM_STATS "Enable generic tensors" OFF)
-set(WORLD_GATHER_MEM_STATS ${ENABLE_MEM_STATS} CACHE BOOL "Enable generic tensors")
+set(TENSOR_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL "Enable generic tensors")
 
 option(ENABLE_TASK_PROFILER
     "Enable task profiler that collects per-task start and stop times." OFF)
@@ -71,8 +69,8 @@ option(ENABLE_WORLD_PROFILE "Enables profiling" OFF)
 set(WORLD_PROFILE_ENABLE ${ENABLE_WORLD_PROFILE} CACHE BOOL 
     "Enables world profiling")
 
-option(ENABLE_MEMSTATS "Gather memory statistics (expensive)" OFF)
-set(WORLD_GATHER_MEM_STATS ${WORLD_GATHER_MEM_STATS})
+option(ENABLE_MEM_STATS "Gather memory statistics (expensive)" OFF)
+set(WORLD_GATHER_MEM_STATS ${ENABLE_MEM_STATS} CACHE BOOL "Gather memory statistics (expensive)")
 
 option(ENABLE_TENSOR_BOUNDS_CHECKING
     "Enable checking of bounds in tensors ... slow but useful for debugging" OFF)
