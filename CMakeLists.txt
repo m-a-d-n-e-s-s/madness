@@ -152,6 +152,9 @@ set(CMAKE_SKIP_BUILD_RPATH  FALSE)
 
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set(ON_A_MAC 1)
+  # look for frameworks and appbundles last
+  set(CMAKE_FIND_FRAMEWORK LAST)
+  set(CMAKE_FIND_APPBUNDLE LAST)
 endif()
 
 if($ENV{USERNAME})
