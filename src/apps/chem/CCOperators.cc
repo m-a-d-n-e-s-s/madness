@@ -671,8 +671,8 @@ vecfuncT CC_Operators::S4a_3D_part(const CC_vecfunction & singles,  CC_data &dat
 				//				double integral = int_ij +  int_tij +  int_itj +  int_titj;
 				//				double integralx= int_ijx + int_tijx + int_itjx + int_titjx;
 				//				double a = 2.0*integral - integralx;
-				double a = 2.0*make_ijgQfxy(k.i,l.i,i,l) - make_ijgQfxy(l.i,k.i,i,l)
-								real_function_3d tmp_result =a*k.function;
+				double a = 2.0*make_ijgQfxy(k.i,l.i,i.function,l.function) - make_ijgQfxy(l.i,k.i,i.function,l.function);
+				real_function_3d tmp_result =a*k.function;
 				resulti += tmp_result;
 			}
 		}
@@ -808,8 +808,8 @@ vecfuncT CC_Operators::S4c_3D_part(const CC_vecfunction & singles,  CC_data &dat
 	real_function_3d resulti = real_factory_3d(world);
 	for(auto tmpk:singles.functions){ CC_function& k=tmpk.second;
 	for(auto tmpl:t.functions){ CC_function& l=tmpl.second;
-		CC_function l_kgtk(mo_bra_[l]*intermediates_.get_pEX(k.i,k.i),99,UNDEFINED);
-		CC_function k_lgtk(mo_bra_[k]*intermediates_.get_pEX(l.i,k.i),99,UNDEFINED);
+		CC_function l_kgtk(mo_bra_[l.i]*intermediates_.get_pEX(k.i,k.i));
+		CC_function k_lgtk(mo_bra_[k.i]*intermediates_.get_pEX(l.i,k.i));
 
 		real_function_3d part1 = convolute_x_Qf_yz(l_kgtk,i,l);
 		real_function_3d part2 = convolute_x_Qf_yz(k_lgtk,i,l);
