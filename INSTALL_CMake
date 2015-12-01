@@ -45,7 +45,7 @@ flags, and linker flags.
 * MPI_CXX_COMPILER --- MPI C++ compiler wrapper (required if WITH_MPI=ON) 
       [default=search]
       
-You can spcify compile flags with the following variables. These cache variables
+You can specify compile flags with the following variables. These cache variables
 are optional, and it is typically not necessary to specify these variables.
 
 * CMAKE_C_FLAGS --- Compile flags passed to the C compiler
@@ -60,11 +60,12 @@ are optional, and it is typically not necessary to specify these variables.
 The following CMake cache variables turn MADNESS features on and off.
 
 * ENABLE_ELEMENTAL --- Enable Elemental [default=OFF]
-* ENABLE_MEM_STATS --- Enable generic tensors [default=OFF]
+* ENABLE_GENTENSOR --- Enable generic tensors; only useful if need
+                       compressed 6-d tensors, e.g. in MP2 [default=OFF]
 * ENABLE_TASK_PROFILER - Enable task profiler that collects per-task start and 
       stop times. [default=OFF]
 * ENABLE_WORLD_PROFILE --- Enables world profiling [default=OFF]
-* ENABLE_MEMSTATS --- Gather memory statistics (expensive) (defalut=OFF)
+* ENABLE_MEM_STATS --- Gather memory statistics (expensive) (default=OFF)
 * ENABLE_TENSOR_BOUNDS_CHECKING --- Enable checking of bounds in tensors ... 
       slow but useful for debugging [default=OFF]
 * ENABLE_TENSOR_INSTANCE_COUNT --- Enable counting of allocated tensors for 
@@ -101,7 +102,7 @@ not found.
 
 In the following section, each optional library privides four variables that
 the user can use to enable cmake to find the correct dependencies: 
-  * WIHT_<LIB> --- Enable the library feathres (ON|OFF)
+  * WITH_<LIB> --- Enable the library feathres (ON|OFF)
   * <LIB>_ROOT_DIR --- Prefix path used to search for the external library.
   * <LIB>_INCLUDE_DIR --- The external library include path. By default the
         include path is ${<LIB>_ROOT_DIR}/include, if <LIB>_ROOT_DIR is

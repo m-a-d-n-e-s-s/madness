@@ -7,11 +7,12 @@ set(MADCHEM_HEADERS
     correlationfactor.h molecule.h molecularbasis.h corepotential.h atomutil.h
     SCF.h xcfunctional.h mp2.h nemo.h potentialmanager.h gth_pseudopotential.h
     molecular_optimizer.h projector.h TDA.h TDA_XC.h TDA_guess.h TDA_exops.h
-    SCFOperators.h CCOperators.h electronic_correlation_factor.h)
+    SCFOperators.h CCOperators.h CCStructures.h CC2.h CISOperators.h
+    electronic_correlation_factor.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc corepotential.cc
     atomutil.cc lda.cc distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc
-    SCFOperators.cc TDA.cc TDA_XC.cc)
+    SCFOperators.cc TDA.cc TDA_XC.cc CC2.cc CCOperators.cc CISOperators.cc)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()
