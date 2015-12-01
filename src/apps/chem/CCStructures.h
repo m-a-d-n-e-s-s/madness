@@ -19,41 +19,40 @@
 namespace madness{
 
 enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
-enum potentialtype_s {_reF3D_, _S3c_, _S5b_, _S5c_, _S6_, _S2b_, _S2c_, _S4a_, _S4b_, _S4c_, _S1_, _S5a_};
-enum potentialtype_d {_reF6D_, _D4b_ ,_D6b_, _D6c_, _D8a_, _D8b_, _D9_, _reCC2_,_D6b_D8b_D9_, _D4b_D6c_D8a_};
-enum screening_result{_neglect_,_refine_,_calculate_};
+enum potentialtype_s {pot_F3D_, pot_S3c_, pot_S5b_, pot_S5c_, pot_S6_, pot_S2b_, pot_S2c_, pot_S4a_, pot_S4b_, pot_S4c_, pot_S1_, pot_S5a_};
+enum potentialtype_d {pot_F6D_, pot_D4b_ ,pot_D6b_, pot_D6c_, pot_D8a_, pot_D8b_, pot_D9_, pot_CC2_,pot_D6b_D8b_D9_, pot_D4b_D6c_D8a_};
 // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
 enum pair_function_form{DECOMPOSED, FULL};
 static std::string assign_name(const potentialtype_s &inp){
 	switch(inp){
-	case _reF3D_ : return "Fock-Residue-3D";
-	case _S3c_ : return "S3c";
-	case _S5b_ : return "S5b";
-	case _S5c_ : return "S5c";
-	case _S6_  : return "S6";
-	case _S2b_ : return "S2b";
-	case _S2c_ : return "S2c";
-	case _S4a_ : return "S4a";
-	case _S4b_ : return "S4b";
-	case _S4c_ : return "S4c";
-	case _S1_ : return "S1";
-	case _S5a_ : return "S5a";
+	case pot_F3D_ : return "Fock-Residue-3D";
+	case pot_S3c_ : return "S3c";
+	case pot_S5b_ : return "S5b";
+	case pot_S5c_ : return "S5c";
+	case pot_S6_  : return "S6";
+	case pot_S2b_ : return "S2b";
+	case pot_S2c_ : return "S2c";
+	case pot_S4a_ : return "S4a";
+	case pot_S4b_ : return "S4b";
+	case pot_S4c_ : return "S4c";
+	case pot_S1_ : return "S1";
+	case pot_S5a_ : return "S5a";
 	}
 	return "undefined";
 }
 
 static std::string assign_name(const potentialtype_d &inp){
 	switch(inp){
-	case _reF6D_ : return "Fock-Residue-6D";
-	case _reCC2_ : return "CC2-Residue";
-	case _D4b_ : return "D4b";
-	case _D6b_ : return "D6b";
-	case _D6c_ : return "D6c";
-	case _D8a_  : return "D8a";
-	case _D8b_ : return "D8b";
-	case _D9_ : return "D9";
-	case _D6b_D8b_D9_ : return "combined(D6b+D8b+D9)";
-	case _D4b_D6c_D8a_ : return "combined(D4b+D6c+D8a)";
+	case pot_F6D_ : return "Fock-Residue-6D";
+	case pot_CC2_ : return "CC2-Residue";
+	case pot_D4b_ : return "D4b";
+	case pot_D6b_ : return "D6b";
+	case pot_D6c_ : return "D6c";
+	case pot_D8a_  : return "D8a";
+	case pot_D8b_ : return "D8b";
+	case pot_D9_ : return "D9";
+	case pot_D6b_D8b_D9_ : return "combined(D6b+D8b+D9)";
+	case pot_D4b_D6c_D8a_ : return "combined(D4b+D6c+D8a)";
 	}
 	return "undefined";
 }

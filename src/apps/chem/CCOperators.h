@@ -355,14 +355,14 @@ public:
 		// make a dummy doubles with no content
 		Pairs<CC_Pair> doubles;
 
-		vecfuncT result = potential_singles(doubles,singles,_reF3D_);
+		vecfuncT result = potential_singles(doubles,singles,pot_F3D_);
 
-		result = add(world,result,potential_singles(doubles,singles,_S1_));  // brillouin term
-		result = add(world,result,potential_singles(doubles,singles,_S5a_)); // brillouin term
-		result = add(world,result,potential_singles(doubles,singles,_S3c_));
-		result = add(world,result,potential_singles(doubles,singles,_S5b_));
-		result = add(world,result,potential_singles(doubles,singles,_S5c_));
-		result = add(world,result,potential_singles(doubles,singles,_S6_));
+		result = add(world,result,potential_singles(doubles,singles,pot_S1_));  // brillouin term
+		result = add(world,result,potential_singles(doubles,singles,pot_S5a_)); // brillouin term
+		result = add(world,result,potential_singles(doubles,singles,pot_S3c_));
+		result = add(world,result,potential_singles(doubles,singles,pot_S5b_));
+		result = add(world,result,potential_singles(doubles,singles,pot_S5c_));
+		result = add(world,result,potential_singles(doubles,singles,pot_S6_));
 
 		Q(result);
 		truncate(world,result);
@@ -370,11 +370,30 @@ public:
 		return result;
 	}
 
-	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
-
-		// DEBUG
-		CC_data dummy;
+	void test_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles)const{
+		CC_Timer make_full_pairs_time(world,"Make Full Pairs");
 		Pairs<CC_Pair> debug_full_pairs = make_full_pairs(doubles,singles);
+		make_full_pairs_time.info();
+		CC_data dummy;
+		output("Testing Delta Function");
+		{
+			// make <0|f12|00> via:  <0|f12|0>*|0> and with f12|00> as 6D function and with project out, and with f12|00>*|0> as 6D function and project out
+			real_function_6d f1200 = make_f_xy(CC_function(mo_ket_[0],0,HOLE),CC_function(mo_ket_[0],0,HOLE));
+			f1200.print_size("f12|00>");
+			real_function_6d f12000 = multiply(copy(f1200),copy(mo_ket_[0]),2);
+			real_function_3d result_delta = f12000.dirac_convolution<3>();
+			real_function_3d result_project = f1200.project_out(mo_ket_[0],1); // 1 means 2
+			real_function_3d result_3d = intermediates_.get_fEX(0,0)*mo_ket_[0];
+			double diff_delta = (result_delta-result_3d).norm2();
+			double diff_project = (result_delta - result_project).norm2();
+			double diff_diff = (result_project - result_3d).norm2();
+			if(world.rank()==0){
+				std::cout << " ||<delta|(f12|00>*|0>) - <0|f12|0>*|0>|| =" << diff_delta << std::endl;
+				std::cout << " ||<delta|(f12|00>*|0>) - <0|f1200>)||    =" << diff_project << std::endl;
+				std::cout << " ||<0|f1200> - <0|f12|0>*|0> ||           =" << diff_diff << std::endl;
+			}
+		}
+
 		output("Testing S2b potential");
 		vecfuncT s2b_decomposed = add(world,S2b_3D_part(singles,dummy),S2b_6D_part(doubles,singles,dummy));
 		vecfuncT s2b_full = S2b_6D_part(debug_full_pairs,singles,dummy);
@@ -410,6 +429,11 @@ public:
 			std::cout << "||s4c_decomposed - s4c_full||_" << i << " = " << (s4c_decomposed[i]-s4c_full[i]).norm2() << std::endl;
 		}
 		// DEBUG END
+	}
+
+	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
+
+		if(parameters.debug) test_singles_potential(singles,doubles);
 
 		Pairs<CC_Pair> doubles_wrapper;
 		if(parameters.pair_function_in_singles_potential==FULL){
@@ -418,16 +442,16 @@ public:
 			doubles_wrapper = doubles;
 		}
 
-		vecfuncT fock_residue = potential_singles(doubles_wrapper,singles,_reF3D_);
-		vecfuncT result = potential_singles(doubles_wrapper,singles,_S3c_);
-		result = add(world,result,potential_singles(doubles_wrapper,singles,_S5b_));
-		result = add(world,result,potential_singles(doubles_wrapper,singles,_S5c_));
-		result = add(world,result,potential_singles(doubles_wrapper,singles,_S6_));
-		result = add(world,result,potential_singles(doubles_wrapper,singles,_S2b_));
-		result = add(world,result,potential_singles(doubles_wrapper,singles,_S2c_));
-		result = add(world,result,potential_singles(doubles_wrapper,singles,_S4a_));
-		result = add(world,result,potential_singles(doubles_wrapper,singles,_S4b_));
-		result = add(world,result,potential_singles(doubles_wrapper,singles,_S4c_));
+		vecfuncT fock_residue = potential_singles(doubles_wrapper,singles,pot_F3D_);
+		vecfuncT result = potential_singles(doubles_wrapper,singles,pot_S3c_);
+		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S5b_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S5c_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S6_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S2b_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S2c_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S4a_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S4b_));
+		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S4c_));
 
 		// END THIS TEST (REMEBER TO CHANGE ALSO IN potential_singles function (include 3D parts again)
 
@@ -468,8 +492,8 @@ public:
 	real_function_6d get_CC2_doubles_from_singles_potential(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		real_function_6d result = real_factory_6d(world);
 		const std::string output = "DoPo:";
-		result = potential_doubles(taui,tauj,singles,_D6b_D8b_D9_);
-		result += potential_doubles(taui,tauj,singles,_D4b_D6c_D8a_);
+		result = potential_doubles(taui,tauj,singles,pot_D6b_D8b_D9_);
+		result += potential_doubles(taui,tauj,singles,pot_D4b_D6c_D8a_);
 		if(world.rank()==0) performance_D.info(performance_D.current_iteration);
 		return result;
 	}
@@ -581,50 +605,50 @@ public:
 		bool minus_sign = false;
 
 		switch(name){
-		case _reF3D_ :
+		case pot_F3D_ :
 			result =fock_residue_closed_shell(singles);
 			minus_sign = false;
 			break;
-		case _S3c_ :
+		case pot_S3c_ :
 			result = add(world,S3c(singles),S3c_X(singles));
 			minus_sign = false;
 			break;
-		case _S5b_ :
+		case pot_S5b_ :
 			result = add(world,S5b(singles),S5b_X(singles));
 			minus_sign = false;
 			break;
-		case _S5c_ :
+		case pot_S5c_ :
 			result = add(world,S5c(singles),S5c_X(singles));
 			minus_sign = true;
 			break;
-		case _S6_  :
+		case pot_S6_  :
 			result = add(world,S6(singles),S6(singles));
 			minus_sign = true;
 			break;
-		case _S2b_ :
+		case pot_S2b_ :
 			result = S2b(u,singles,data);
 			minus_sign = true;
 			break;
-		case _S2c_ :
+		case pot_S2c_ :
 			result = S2c(u,singles,data);
 			minus_sign = true;
 			break;
-		case _S4a_ :
+		case pot_S4a_ :
 			result = S4a(u,singles,data);
 			minus_sign = true;
 			break;
-		case _S4b_ :
+		case pot_S4b_ :
 			result = S4b(u,singles,data);
 			minus_sign = true;
 			break;
-		case _S4c_ :
+		case pot_S4c_ :
 			result = S4c(u,singles,data);
 			minus_sign = false;
 			break;
-		case _S1_ :
+		case pot_S1_ :
 			result = S1(singles);
 			break;
-		case _S5a_ :
+		case pot_S5a_ :
 			result = S5a(singles);
 			break;
 		}
@@ -633,6 +657,7 @@ public:
 		data.result_size=get_size(world,result);
 		data.result_norm=norm2(world,result);
 		data.time = timer.current_time();
+		data.info();
 		performance_S.insert(data.name,data);
 		if(minus_sign) scale(world,result,-1.0);
 		return result;
@@ -646,35 +671,35 @@ public:
 		real_function_6d result = real_factory_6d(world);
 
 		switch(name){
-		case _D4b_ :
+		case pot_D4b_ :
 			result = G_D4b_decomposed(taui,tauj,singles);
 			break;
-		case _D6b_ :
+		case pot_D6b_ :
 			result = G_D6b_decomposed(taui,tauj,singles);
 			break;
-		case _D6c_ :
+		case pot_D6c_ :
 			result = G_D6c(taui,tauj,singles);
 			break;
-		case _D8a_ :
+		case pot_D8a_ :
 			result = G_D8a(taui,tauj,singles);
 			break;
-		case _D8b_ :
+		case pot_D8b_ :
 			result = G_D8b(taui,tauj,singles);
 			break;
-		case _D9_  :
+		case pot_D9_  :
 			result = G_D9(taui,tauj,singles);
 			break;
-		case _D6b_D8b_D9_ :
+		case pot_D6b_D8b_D9_ :
 			result = D6b_D8b_D9(taui,tauj,singles);
 			break;
-		case _D4b_D6c_D8a_ :
+		case pot_D4b_D6c_D8a_ :
 			result = D4b_D6c_D8a(taui,tauj,singles);
 			break;
 
-		case _reF6D_ :
+		case pot_F6D_ :
 			error("reF6D not yet supported by general doubles potential function");
 			break;
-		case _reCC2_ :
+		case pot_CC2_ :
 			error("reCC2 not yet supported by general doubles potential function");
 			break;
 		}
@@ -1381,7 +1406,7 @@ public:
 
 	/// the doubles diagramms of the form:  <i|g|x>*|y\tauj> which are D4b, D6c and D8a
 	real_function_6d D4b_D6c_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
-		output_section("Now doing G_D4b_D6c_D8a");
+		output_section("Now doing combined_D4b_D6c_D8a");
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
 		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
@@ -1416,7 +1441,7 @@ public:
 
 	/// the doubles diagramms of the form:  integral * |\tauk,\taul> together (D9,D6b,D8b)
 	real_function_6d D6b_D8b_D9(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
-		output_section("Now doing G_D6b_D8b_D9");
+		output_section("Now doing D6b_D8b_D9");
 		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
 		const size_t i=taui.i;
 		const size_t j=tauj.i;

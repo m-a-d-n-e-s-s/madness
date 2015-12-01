@@ -220,6 +220,8 @@ public:
 
     const Atom& get_atom(unsigned int i) const;
 
+    const std::vector<Atom> & get_atoms()const{return atoms;}
+
     void print() const;
 
     double inter_atomic_distance(unsigned int i,unsigned int j) const;

@@ -407,7 +407,7 @@ struct xc_kernel_apply {
     madness::Tensor<double> operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->fxc_apply(t, ispin, xc_contrib);
+        madness::Tensor<double> r = xc->fxc_apply(t, key, ispin, xc_contrib);
         return r;
     }
 };
