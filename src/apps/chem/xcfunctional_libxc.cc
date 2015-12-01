@@ -712,7 +712,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
 /// @param[in]  t   vector of Tensors holding rho and sigma
 /// @param[in]  ispin   the current spin (0=alpha, 1=beta)
 /// @param[in]  xc_contrib    which term to compute
-Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
+Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,const madness::Key<3> & key,
         const int ispin, const xc_contribution xc_contrib) const {
 
     MADNESS_ASSERT(!spin_polarized);    // for now

@@ -14,6 +14,7 @@
 #include <madness/mra/funcplot.h>
 #include <cmath>
 #include <chem/SCFOperators.h>
+#include <madness/mra/function_common_data.h>
 
 double estimate_area(double x) {
 	double thresh =FunctionDefaults<3>::get_thresh();
@@ -159,7 +160,30 @@ static double analytical_slater_functor(double rho){
 	return prefactor*tmp;
 }
 
+struct apply_kernel_helper{
 
+	madness::Tensor<double> slater_apply(const std::vector< madness::Tensor<double> >& t,const madness::Key<3> & key,const FunctionCommonData<double,3> cdata) const{
+	madness::Tensor<double> rho = t.front();
+	const size_t& n = key.level();
+	const Vector<Translation,3>& l= key.translation();
+	const Tensor<double>& quad_x = cdata.quad_x;
+	const Tensor<double>& quad_w = cdata.quad_w;
+	}
+};
+
+struct slater_kernel_apply {
+
+    const FunctionCommonData<double,3>& cdata;
+
+    const apply_kernel_helper *xc;
+    slater_kernel_apply(const apply_kernel_helper &xc_) : cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())), xc(&xc_) {}
+
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
+        madness::Tensor<double> r = xc->slater_apply(t,key,cdata);
+        return r;
+    }
+};
 
 class smooth{
 public:
@@ -187,6 +211,14 @@ public:
 		real_function_3d d = dm+dm2;
 		double diff = (d-rho_).norm2();
 		std::cout << "Mask test: diff =" << diff << std::endl;
+	}
+
+	void apply_smooth_slater_kernel()const{
+		vecfuncT arguments;
+		arguments.push_back(rho_);
+		apply_kernel_helper xc;
+		real_function_3d result=multiop_values<double, slater_kernel_apply, 3>
+		            (slater_kernel_apply(xc), arguments);
 	}
 
 	void estimate_diffuseness(const real_function_3d &f, const std::string & msg="function")const{
@@ -265,7 +297,7 @@ public:
 		// make gradient with nemo_density:  dx(density) = dx(R2*nemo_density) = dx(R2)*nemo_density + R2*dx(nemo_density)
 	}
 
-	void make_smooth_slater_kernel()const{
+	void make_smooth_slater_kernel_old()const{
 		real_function_3d r2f = real_factory_3d(world).f(r2);
 		real_function_3d pt_rho = r2f*rho_;
 		asymptotic_slater_kernel asymptotic_slater_functor(asymptotic_density_functor);

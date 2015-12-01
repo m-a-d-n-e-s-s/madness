@@ -13,6 +13,7 @@
 #include <utility>
 #include <madness/mra/key.h>
 #include <madness/world/MADworld.h>
+#include <madness/mra/function_common_data.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
@@ -332,7 +333,7 @@ public:
     /// apply the kernel on the fly on the provided (response) density
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @return The component specified by the \c what parameter
-    madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,
+    madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,const madness::Key<3> & key,
             const int ispin, const xc_contribution xc_contrib) const;
 
     madness::Tensor<double> fxc_old(const std::vector< madness::Tensor<double> >& t,
@@ -399,15 +400,16 @@ struct xc_kernel_apply {
     const XCfunctional* xc;
     const int ispin;
     const XCfunctional::xc_contribution xc_contrib;
+    const FunctionCommonData<double,3>& cdata;
 
     xc_kernel_apply(const XCfunctional& xc, int ispin,
             const XCfunctional::xc_contribution xc_contrib)
-        : xc(&xc), ispin(ispin), xc_contrib(xc_contrib) {}
+        : xc(&xc), ispin(ispin), xc_contrib(xc_contrib), cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())) {}
 
     madness::Tensor<double> operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->fxc_apply(t, ispin, xc_contrib);
+        madness::Tensor<double> r = xc->fxc_apply(t,key, ispin, xc_contrib);
         return r;
     }
 };

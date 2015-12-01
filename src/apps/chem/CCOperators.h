@@ -374,15 +374,24 @@ public:
 		CC_Timer make_full_pairs_time(world,"Make Full Pairs");
 		Pairs<CC_Pair> debug_full_pairs = make_full_pairs(doubles,singles);
 		make_full_pairs_time.info();
+
+		// make 6D reg residue
+		real_function_3d t0 = mo_ket_[0] + singles(0).function;
+		real_function_6d Q12f12t0t0 = make_f_xy(t0,t0);
+		apply_Q12(Q12f12t0t0);
+		CC_Pair tmp_reg_res(Q12f12t0t0,0,0);
+		Pairs<CC_Pair> debug_reg_res;
+		debug_reg_res.insert(0,0,tmp_reg_res);
+
 		CC_data dummy;
 		output("Testing Delta Function");
 		{
 			// make <0|f12|00> via:  <0|f12|0>*|0> and with f12|00> as 6D function and with project out, and with f12|00>*|0> as 6D function and project out
 			real_function_6d f1200 = make_f_xy(CC_function(mo_ket_[0],0,HOLE),CC_function(mo_ket_[0],0,HOLE));
 			f1200.print_size("f12|00>");
-			real_function_6d f12000 = multiply(copy(f1200),copy(mo_ket_[0]),2);
+			real_function_6d f12000 = multiply(copy(f1200),copy(mo_bra_[0]),2);
 			real_function_3d result_delta = f12000.dirac_convolution<3>();
-			real_function_3d result_project = f1200.project_out(mo_ket_[0],1); // 1 means 2
+			real_function_3d result_project = f1200.project_out(mo_bra_[0],1); // 1 means 2
 			real_function_3d result_3d = intermediates_.get_fEX(0,0)*mo_ket_[0];
 			double diff_delta = (result_delta-result_3d).norm2();
 			double diff_project = (result_delta - result_project).norm2();
@@ -395,11 +404,14 @@ public:
 		}
 
 		output("Testing S2b potential");
-		vecfuncT s2b_decomposed = add(world,S2b_3D_part(singles,dummy),S2b_6D_part(doubles,singles,dummy));
+		vecfuncT s2b_3D = S2b_3D_part(singles,dummy);
+		vecfuncT s2b_decomposed = add(world,s2b_3D,S2b_6D_part(doubles,singles,dummy));
 		vecfuncT s2b_full = S2b_6D_part(debug_full_pairs,singles,dummy);
+		vecfuncT s2b_3D_with_6D = S2b_6D_part(debug_reg_res,singles,dummy);
 		for(size_t i=0;i<s2b_full.size();i++){
-			std::cout << "||s2b_decomposed - s2c_full||_" << i << " = " << (s2b_decomposed[i]-s2b_full[i]).norm2() << std::endl;
+			std::cout << "||s2b_decomposed - s2b_full||_" << i << " = " << (s2b_decomposed[i]-s2b_full[i]).norm2() << std::endl;
 		}
+		std::cout << "|| s2b_3D - s2b_3D_with_6D ||_0"  << " = " << (s2b_3D[0] - s2b_3D_with_6D[0]).norm2() << std::endl;
 
 		output("Testing S2c potential");
 		vecfuncT s2c_decomposed = add(world,S2c_3D_part(singles,dummy),S2c_6D_part(doubles,singles,dummy));
@@ -552,10 +564,7 @@ public:
 		MADNESS_ASSERT(j==tauj.i);
 		real_function_3d ti = mo_ket_[i] + taui.function;
 		real_function_3d tj = mo_ket_[j] + tauj.function;
-
-		real_function_6d Q12f12titj = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(ti)).particle2(copy(tj));
-		Q12f12titj.fill_tree().truncate().reduce_rank();
-		apply_Q12(Q12f12titj);
+		real_function_6d Q12f12titj = make_f_xy(ti,tj);
 
 		real_function_6d result = u.function + Q12f12titj;
 		return result;

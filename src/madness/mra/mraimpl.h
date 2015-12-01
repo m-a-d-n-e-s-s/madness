@@ -88,8 +88,8 @@ namespace madness {
     void FunctionCommonData<T,NDIM>::_init_quadrature
     (int k, int npt, Tensor<double>& quad_x, Tensor<double>& quad_w,
      Tensor<double>& quad_phi, Tensor<double>& quad_phiw, Tensor<double>& quad_phit) {
-        quad_x = Tensor<double>(npt);
-        quad_w = Tensor<double>(npt);
+        quad_x = Tensor<double>(npt); // point
+        quad_w = Tensor<double>(npt); // wheight
         quad_phi = Tensor<double>(npt,k);
         quad_phiw = Tensor<double>(npt,k);
 

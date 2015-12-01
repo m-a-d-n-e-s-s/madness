@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
 		//smoothing.test();
 		//smoothing.make_smooth_gradient();
 		//smoothing.make_smooth_XC_kernel(nemo.get_calc()->param.xc_data);
-		smoothing.make_smooth_slater_kernel();
+		smoothing.apply_smooth_slater_kernel();
 
 
 
