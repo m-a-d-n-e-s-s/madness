@@ -32,13 +32,16 @@ install(FILES autocorr coeffs gaussleg
 if(ENABLE_UNITTESTS)
 
   # The list of unit test source files
-  add_library(libtest_sepop EXCLUDE_FROM_ALL OBJECT test_sepop.cc)
-  set(MRA_TEST_SOURCES "testsuite.cc $<TARGET_OBJECTS:libtest_sepop>" 
-      "testper.cc $<TARGET_OBJECTS:libtest_sepop>"  testbsh.cc testproj.cc 
+  add_library(libtest_sepop EXCLUDE_FROM_ALL test_sepop.cc)
+  target_link_libraries(libtest_sepop MADmra)
+  
+  set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
       testgaxpyext.cc testvmra.cc)
-  
   add_unittests(mra MRA_TEST_SOURCES "MADmra;MADgtest")
+  set(MRA_SEPOP_TEST_SOURCES testsuite.cc
+      testper.cc)
+  add_unittests(mra_sepop MRA_SEPOP_TEST_SOURCES "libtest_sepop;MADmra;MADgtest")
   
   # Test executables that are not run with unit tests
   set(MRA_OTHER_TESTS testperiodic testbc testqm test6
