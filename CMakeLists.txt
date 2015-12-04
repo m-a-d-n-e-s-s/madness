@@ -442,6 +442,7 @@ if(ENABLE_UNITTESTS)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target(unittests)
+  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}) # to be GNU compatible
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
