@@ -53,6 +53,7 @@ namespace madness {
     Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double,NDIM>&), const Tensor<double>&);
 
 
+
 	/// Abstract base class interface required for functors used as input to Functions
 	template<typename T, std::size_t NDIM>
 	class FunctionFunctorInterface {
@@ -135,6 +136,12 @@ namespace madness {
 
 	};
 
+
+
+	///forward declaration
+	template <typename T, std::size_t NDIM>
+	//    void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
+	void fcube(const Key<NDIM>& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, Tensor<T>& fval);
 
 	/// CompositeFunctorInterface implements a wrapper of holding several functions and functors
 

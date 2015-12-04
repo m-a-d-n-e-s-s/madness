@@ -16,6 +16,17 @@
 #include <chem/SCFOperators.h>
 #include <madness/mra/function_common_data.h>
 
+static double RHOMIN = 1.e-15;
+
+double make_log(double x){
+	if(x<0.0) return log(RHOMIN);
+	return log(x);
+}
+
+double make_exp(double x){
+	return exp(x);
+}
+
 double estimate_area(double x) {
 	double thresh =FunctionDefaults<3>::get_thresh();
 	if(fabs(x)<thresh) return 0.0;
@@ -39,15 +50,22 @@ static double slater_functor(const coord_3d &x){
 	return exp(-r);
 }
 
-static double mask_factor = 0.75;
-static double mask_functor(const coord_3d &x){
+static double mask_factor = 5.0;
+static double cutoff_radius = 5.0;
+//static double mask_functor(const coord_3d &x){
+//	double r = sqrt(r2(x));
+//	//return 1-erf(mask_factor*r);
+//	return 0.5*(1.0 - tanh(mask_factor*(r-cutoff_radius)));
+//}
+static double mask_functor_box(const coord_3d &x){
 	double r = sqrt(r2(x));
-	return 1-erf(mask_factor*r);
+	//return 1-erf(mask_factor*r);
+	return 0.5*(1.0 - tanh(1.0*(r-15)));
 }
-static double inv_mask_functor(const coord_3d &x){
-	double r = sqrt(r2(x));
-	return erf(mask_factor*r);
-}
+//static double inv_mask_functor(const coord_3d &x){
+//	double r = sqrt(r2(x));
+//	return 0.5*(1.0 + tanh(mask_factor*(r-cutoff_radius)));
+//}
 
 struct merging_operator {
 	merging_operator() : thresh_(FunctionDefaults<3>::get_thresh()) {}
@@ -160,15 +178,77 @@ static double analytical_slater_functor(double rho){
 	return prefactor*tmp;
 }
 
+struct asymptotic_slater : public FunctionFunctorInterface<double,3>{
+public:
+	asymptotic_slater(const double &ipot_): ipot(ipot_){}
+	const double ipot;
+	const double prefactor = 1.0/M_PI;
+
+	double operator()(const coord_3d &x)const{
+		const double r = sqrt((x[0]*x[0]+x[1]*x[1]+x[2]*x[2]));
+		const double kernel = prefactor*exp(2.0/3.0*2.0*sqrt(2.0*fabs(ipot))*r);
+		return kernel;
+	}
+};
+
 struct apply_kernel_helper{
+
+public:
+	apply_kernel_helper(const double &ipot_): ipot(ipot_), asl(ipot_){}
+
+	struct slater_kernel{
+		double operator()(const double & rho)const{
+			double tmp = rho;
+			if(tmp<0.0) tmp=1.e-10;
+			return prefactor*pow(tmp,-2.0/3.0);
+		}
+		const double prefactor = 1.0/M_PI;
+	};
+
+
 
 	madness::Tensor<double> slater_apply(const std::vector< madness::Tensor<double> >& t,const madness::Key<3> & key,const FunctionCommonData<double,3> cdata) const{
 	madness::Tensor<double> rho = t.front();
-	const size_t& n = key.level();
-	const Vector<Translation,3>& l= key.translation();
+	madness::Tensor<double> pt_rho = t.back();
+    const long & k = FunctionDefaults<3>::get_k();
 	const Tensor<double>& quad_x = cdata.quad_x;
-	const Tensor<double>& quad_w = cdata.quad_w;
+
+	// if all points of the perturbed density are below the threshold: Set the result to zero
+	bool pt_zero = true;
+	if(pt_rho.absmax()>safety_thresh_ptrho) pt_zero = false;
+
+	// fast return if pt_rho is zero
+	if(pt_zero){
+		std::vector<long> kdims(3,k);
+		Tensor<double> zero_result(kdims,true);
+		return zero_result;
 	}
+
+	// if all points of the unperturbed density are below the threshold: Use asymptotical density
+	bool rho_ana = true;
+	//if(rho.absmax()>safety_thresh_rho) rho_ana = false;
+
+	// analytical kernel based on asymptotical density
+	Tensor<double> kernel_val(k,k,k);
+	if(rho_ana){
+		madness::fcube<double,3>(key, asl, quad_x,kernel_val);
+	}else{
+		kernel_val = copy(rho);
+		slater_kernel slater_tmp;
+		kernel_val.unaryop<slater_kernel>(slater_tmp);
+	}
+
+	// multiply kernel values with pt_rho values
+	Tensor<double> result = kernel_val.emul(pt_rho);
+	return result;
+
+	}
+
+	const double prefactor = 1.0/M_PI;
+	const double ipot;
+	asymptotic_slater asl;
+	const double safety_thresh_rho = FunctionDefaults<3>::get_thresh()*0.01;
+	const double safety_thresh_ptrho = FunctionDefaults<3>::get_thresh()*0.01;
 };
 
 struct slater_kernel_apply {
@@ -185,46 +265,143 @@ struct slater_kernel_apply {
     }
 };
 
+
+template<std::size_t NDIM>
+static double make_radius(const Vector<double,NDIM> &x){
+	double r2=0.0;
+	for(double xi:x) r2+=xi*xi;
+	return sqrt(r2);
+}
+template<std::size_t NDIM>
+static double mask_munging(const double x){
+	if(fabs(x)<0.1*FunctionDefaults<NDIM>::get_thresh()) return 0.0;
+	else return x;
+}
+template<std::size_t NDIM>
+static double unitfunctor(const Vector<double,NDIM> &x){
+	return 1.0;
+}
+
+template<typename T, std::size_t NDIM>
 class smooth{
 public:
-	smooth(World &world,const Nemo &nemo): world(world), asymptotic_density_functor(make_asymtotic_density_functor(nemo)) {
-		const vecfuncT nemos = nemo.get_calc()->amo;
-		ionization_energy_ = nemo.get_calc()->aeps(nemos.size()-1);
-		real_function_3d nemo_rho = real_factory_3d(world);
-		R_ = nemo.nuclear_correlation -> function();
-		R2_= nemo.nuclear_correlation -> square();
-		for(auto nemo:nemos){
-			nemo_rho = nemo*nemo;
+	smooth(World&world):
+		world(world),
+		box_mask_(make_mask(1.0,0.75*FunctionDefaults<NDIM>::get_cell_min_width())),
+		mask_(make_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())),
+		inv_mask_(make_inv_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())){}
+	smooth(World&world, const double &box_mask_factor, const double box_mask_cutoff):
+		world(world),
+		box_mask_(make_mask(box_mask_factor,box_mask_cutoff)),
+		mask_(make_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())),
+		inv_mask_(make_inv_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())){}
+
+	struct mask_functor{
+	public:
+		mask_functor(const double &factor, const double &cutoff): factor_(factor), cutoff_radius_(cutoff), shift_(0.0){}
+		mask_functor(const double &factor, const double &cutoff, const Vector<double,NDIM> shift): factor_(factor), cutoff_radius_(cutoff), shift_(shift){std::cout << "shift is " << shift_ << std::endl;}
+		double operator()(const Vector<double,NDIM> &x)const{
+			const Vector<double,3> shifted_x = x-shift_;
+			const double r = make_radius<NDIM>(shifted_x);
+			return (1.0-tanh(r));
 		}
-		nemo_rho.truncate();
-		nemo_rho_ = copy(nemo_rho);
-		rho_ = R2_*nemo_rho;
-		plot_plane(world,rho_,"density");
-		plot_plane(world,nemo_rho_,"nemo_density");
-		mask_ = real_factory_3d(world).f(mask_functor);
-		inv_mask_ = real_factory_3d(world).f(inv_mask_functor);
-		make_plots(mask_,"mask");
-		make_plots(inv_mask_,"inv_mask");
-		//test
-		real_function_3d dm = rho_*mask_;
-		real_function_3d dm2= rho_*inv_mask_;
-		real_function_3d d = dm+dm2;
-		double diff = (d-rho_).norm2();
-		std::cout << "Mask test: diff =" << diff << std::endl;
+	private:
+		const double factor_;
+		const double cutoff_radius_;
+		const Vector<double,NDIM> shift_;
+	};
+	struct inv_mask_functor{
+	public:
+		inv_mask_functor(const double &factor, const double &cutoff): factor_(factor), cutoff_radius_(cutoff), shift_(0.0){}
+		inv_mask_functor(const double &factor, const double &cutoff, const Vector<double,NDIM> shift): factor_(factor), cutoff_radius_(cutoff), shift_(shift){}
+		double operator()(const Vector<double,NDIM> &x)const{
+			const Vector<double,3> shifted_x = x-shift_;
+			const double r = make_radius<NDIM>(shifted_x);
+			return 0.5*(1.0 + tanh(factor_*(r-cutoff_radius_)));
+		}
+	private:
+		const double factor_;
+		const double cutoff_radius_;
+		const Vector<double,NDIM> shift_;
+	};
+
+	Function<T,NDIM> make_mask(const double &factor, const double &cutoff)const{
+		Vector<double,NDIM> coord(0.0);
+		return make_mask(factor,cutoff,coord);
+	}
+	Function<T,NDIM> make_inv_mask(const double &factor, const double &cutoff)const{
+		Vector<double,NDIM> coord(0.0);
+		return make_inv_mask(factor,cutoff,coord);
+	}
+	Function<T,NDIM> make_mask(const double &factor, const double &cutoff,const Vector<double,3> &shift)const{
+		mask_functor mask_functor_object(factor,cutoff,shift);
+		Function<T,NDIM> mask = FunctionFactory<T,NDIM>(world).functor(mask_functor_object);
+		// set values below the threshold to zero
+		mask.unaryop(mask_munging<NDIM>);
+		return mask;
 	}
 
-	void apply_smooth_slater_kernel()const{
-		vecfuncT arguments;
-		arguments.push_back(rho_);
-		apply_kernel_helper xc;
-		real_function_3d result=multiop_values<double, slater_kernel_apply, 3>
-		            (slater_kernel_apply(xc), arguments);
+	Function<T,NDIM> make_inv_mask(const double &factor, const double &cutoff, const Vector<double,3> &shift)const{
+		//inv_mask_functor inv_mask_functor_object(factor,cutoff,shift);
+		//Function<T,NDIM> inv_mask = FunctionFactory<T,NDIM>(world).functor(inv_mask_functor_object);
+		//return inv_mask;
+		Function<T,NDIM> unit = FunctionFactory<T,NDIM>(world).f(unitfunctor);
+		return unit-mask_;
 	}
 
-	void estimate_diffuseness(const real_function_3d &f, const std::string & msg="function")const{
-		real_function_3d range_of_f = copy(f);
+	void set_simple_mask(const double &factor, const double &cutoff){
+		mask_ = make_mask(factor,cutoff);
+		inv_mask_ = make_inv_mask(factor,cutoff);
+	}
+
+	// place a simple mask on every atom center
+	void set_molecule_mask(const double &factor, const double &cutoff, const std::vector<Atom> &atoms){
+		if(world.rank()==0) std::cout << "Making Mask for " << atoms.size() << "-atomic molecule with exponent=" << factor << " and cutoff radius =" << cutoff << "\n";
+		if(NDIM != 3) MADNESS_EXCEPTION("set_molecule_mask of smooth class only works for 3D functions",1);
+		Function<T,NDIM> mask = FunctionFactory<T,NDIM>(world);
+		Function<T,NDIM> inv_mask = FunctionFactory<T,NDIM>(world);
+		for(Atom a:atoms){
+			const Vector<double,3> shift = a.get_coords();
+			std::cout << "ashift is " << shift << std::endl;
+			Function<T,NDIM> simple_mask_on_a = make_mask(factor,cutoff,shift);
+			make_plots(simple_mask_on_a,"mask_on_atom");
+			mask += simple_mask_on_a;
+//			Function<T,NDIM> simple_inv_mask_on_a = make_inv_mask(factor,cutoff);
+//			inv_mask += simple_inv_mask_on_a;
+		}
+		make_plots(mask,"molecule_mask");
+		make_plots(inv_mask,"molecule_inv_mask");
+		mask_ = mask;
+		inv_mask_ = make_inv_mask(0.0,0.0);
+	}
+
+	Function<T,NDIM> make_explog(const Function<T,NDIM> &f, const std::string & msg="function")const{
+		// make logf
+		Function<T,NDIM> logf = copy(f);
+		logf.unaryop(make_log);
+
+		// smooth logf
+		Function<T,NDIM> smoothed_logf = gaussian_smoothing(logf,0.5);
+
+		// reconstruct f via f=exp^(log(f));
+		Function<T,NDIM> explogf = copy(smoothed_logf);
+		explogf.unaryop(make_exp);
+
+		// apply the box_mask to eliminate weird boundary effects
+		explogf = box_mask_*explogf;
+
+		// make some plots
+		make_plots(f,msg);
+		make_plots(smoothed_logf,"smoothed_log"+msg);
+		make_plots(logf,"log"+msg);
+		make_plots(explogf,"explog_"+msg);
+		return explogf;
+	}
+
+	void estimate_diffuseness(const Function<T,NDIM> &f, const std::string & msg="function")const{
+		Function<T,NDIM> range_of_f = copy(f);
 		range_of_f.unaryop(estimate_area);
-		dirac_smoothing(range_of_f,0.04,msg);
+		gaussian_smoothing(range_of_f,0.04,msg);
 		make_plots(range_of_f,msg);
 		double box_width = FunctionDefaults<3>::get_cell_min_width();
 		double box_volume = box_width*3.0;
@@ -232,46 +409,38 @@ public:
 		if(world.rank()==0) std::cout << "range_of_" << msg << " compared to full box = " << range_of_f.norm2()/box_volume << std::endl;
 	}
 
-	real_function_3d dirac_smoothing(const real_function_3d &f, const double &eps=0.04,const std::string &name="function")const{
-		output("\nSmoothing " + name + " with eps " + stringify(eps));
+	Function<T,NDIM> gaussian_smoothing(const Function<T,NDIM> &f, const double &eps=0.04,const std::string &name="nooutput")const{
+		if(name!="noputput") output("\nSmoothing " + name + " with eps " + stringify(eps));
 		double exponent = 1.0/(2.0*eps);
 		Tensor<double> coeffs(1), exponents(1);
 	    exponents(0L) =  exponent;
 	    coeffs(0L) = gauss_norm(exponent);
-	    SeparatedConvolution<double,3> op(world, coeffs, exponents);
-	    real_function_3d smoothed_f = apply(op,f);
-	    double diff = (f-smoothed_f).norm2();
-	    output("||" + name + " - smoothed_" + name + "||="+stringify(diff));
-	    if(diff>10.0*FunctionDefaults<3>::get_thresh()) output("Smoothing Difference far above the accuracy threshold\n");
-	    else if(diff>FunctionDefaults<3>::get_thresh()) output("Smoothing Difference above the accuracy threshold\n");
-	    else output("Smoothing did not affect accuracy\n");
-	    make_plots(f,name);
-	    smoothed_f = binary_op(smoothed_f, smoothed_f, munging_operator(FunctionDefaults<3>::get_thresh()));
+	    SeparatedConvolution<T,NDIM> op(world, coeffs, exponents);
+	    Function<T,NDIM> smoothed_f = apply(op,f);
 	    make_plots(smoothed_f,"smoothed_"+name);
-	    real_function_3d merged = merge_functions(f,smoothed_f,name);
-	    make_plots(merged,"merged_"+name);
+	    Function<T,NDIM> merged = merge_functions(f,smoothed_f,name);
+	    make_plots(merged,"smoothed_and_merged_"+name);
+
+	    double diff_smoothed = (f-smoothed_f).norm2();
+	    double diff_merged = (f-merged).norm2();
+	    if(world.rank()==0 and name!="noputput"){
+	    	std::cout << "||f-smoothed_f||=" << diff_smoothed << std::endl;
+	    	std::cout << "||f-merged_f||  =" << diff_merged << std::endl;
+	    }
 	    return merged;
 
 	}
 
-	real_function_3d merge_functions(const real_function_3d &f, const real_function_3d &sf,const std::string &name="f")const{
-//		real_function_3d result =  binary_op(f, sf, merging_operator(FunctionDefaults<3>::get_thresh()));
-//		output("||f-munged_f||="+stringify(diff));
-
-		real_function_3d part1 = mask_*f;
-		real_function_3d part2 = inv_mask_*sf;
-		real_function_3d result = part1 + part2;
-
+	Function<T,NDIM> merge_functions(const Function<T,NDIM> &f, const Function<T,NDIM> &sf,const std::string &name="f")const{
+		Function<T,NDIM> part1 = mask_*f;
+		Function<T,NDIM> part2 = inv_mask_*sf;
+		Function<T,NDIM> result = part1 + part2;
 		make_plots(part1,"masked_"+name);
 		make_plots(part2,"masked_s"+name);
-
-		double diff = (f-result).norm2();
-		if(diff>FunctionDefaults<3>::get_thresh()) output("Munging Error is above the accuracy threshold!\n");
-
 		return result;
 	}
 
-	void make_plots(const real_function_3d &f,const std::string &name="function")const{
+	void make_plots(const Function<T,NDIM> &f,const std::string &name="function")const{
 		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
 		plot_plane(world,f,name);
 		coord_3d start(0.0); start[0]=-width;
@@ -279,81 +448,6 @@ public:
 		plot_line(("line_"+name).c_str(),1000,start,end,f);
 	}
 
-	void make_smooth_gradient()const{
-		double eps =0.1;
-		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-		gradop = gradient_operator<double, 3>(world);
-		vecfuncT result;
-		// make gradient with density
-		real_function_3d smooth_density = dirac_smoothing(rho_,eps,"density");
-		real_function_3d dx_sd = (*gradop[0])(smooth_density);
-		make_plots(dx_sd,"dx_smoothed_density");
-		real_function_3d dx_d = (*gradop[0])(rho_);
-		make_plots(dx_d,"dx_density");
-		real_function_3d s_dx_sd = dirac_smoothing(dx_sd,eps,"s_dx_density");
-		make_plots(s_dx_sd,"smoothed_dx_smoothed_density");
-		real_function_3d s_dx_d = dirac_smoothing(dx_d,eps,"smoothed_dx_density");
-
-		// make gradient with nemo_density:  dx(density) = dx(R2*nemo_density) = dx(R2)*nemo_density + R2*dx(nemo_density)
-	}
-
-	void make_smooth_slater_kernel_old()const{
-		real_function_3d r2f = real_factory_3d(world).f(r2);
-		real_function_3d pt_rho = r2f*rho_;
-		asymptotic_slater_kernel asymptotic_slater_functor(asymptotic_density_functor);
-		real_function_3d asymptotic_slater_kernel = real_factory_3d(world).functor(asymptotic_slater_functor);
-		asymptotic_slater_kernel = asymptotic_slater_kernel*r2f;
-		make_plots(asymptotic_slater_kernel,"asymptotic_slater_kernel");
-
-		real_function_3d analytical_slater_kernel = copy(rho_);
-		analytical_slater_kernel.unaryop(analytical_slater_functor);
-		analytical_slater_kernel = analytical_slater_kernel*r2f;
-		make_plots(analytical_slater_kernel,"analytical_slater_kernel");
-
-		real_function_3d numerical_slater_kernel = binary_op(rho_, pt_rho, slater_kernel(FunctionDefaults<3>::get_thresh()));
-		make_plots(numerical_slater_kernel,"numerical_slater_kernel");
-	}
-
-	void make_smooth_XC_kernel(const std::string &xc_data)const{
-		double homo = ionization_energy_;
-		asymptotic_density tmp(homo);
-		real_function_3d asymptotic_rho = real_factory_3d(world).functor(tmp);
-		make_plots(rho_,"rho");
-		make_plots(asymptotic_rho,"asymptotic_rho");
-
-		real_function_3d ana_rho = real_factory_3d(world).f(slater_functor);
-		double norm = ana_rho.norm2();
-		ana_rho.scale(1.0/norm);
-		ana_rho = (ana_rho*ana_rho);
-
-		estimate_diffuseness(ana_rho,"range_of_ana_rho");
-		estimate_diffuseness(rho_,"range_of_rho");
-
-		real_function_3d x = real_factory_3d(world).f(r2);
-		real_function_3d pt_rho = x*ana_rho;
-		// make XCOperator with std density and smoothed_density
-		double eps = 0.04;
-		real_function_3d smooth_rho = ana_rho;// dirac_smoothing(ana_rho,eps,"rho");
-		pt_rho = dirac_smoothing(pt_rho,eps,"pt_rho");
-		XCOperator xcop(world,xc_data,false,smooth_rho,smooth_rho);
-		real_function_3d xc_ptrho = xcop.apply_xc_kernel(pt_rho);
-		real_function_3d s_xc_ptrho = dirac_smoothing(xc_ptrho,eps,"xc_ptrho");
-	}
-
-	void test()const{
-		output("Smoothing Nemo_Density");
-		double eps = 0.1;
-		for(size_t i=0;i<10;i++){
-		dirac_smoothing(nemo_rho_,eps,"nemo_density_"+stringify(eps));
-		eps -= 0.01;
-		}
-		output("Smoothing Density");
-		eps = 0.1;
-		for(size_t i=0;i<10;i++){
-		dirac_smoothing(rho_,eps,"density_"+stringify(eps));
-		eps -= 0.01;
-		}
-	}
 
 	void test_1d()const{
 		FunctionDefaults<1>::set_thresh(1.e-5);
@@ -383,31 +477,9 @@ public:
 
 private:
 	World &world;
-	real_function_3d rho_;
-	real_function_3d nemo_rho_;
-	real_function_3d R_;
-	real_function_3d R2_;
-	real_function_3d mask_;
-	real_function_3d inv_mask_;
-	double ionization_energy_;
-	const asymptotic_density asymptotic_density_functor;
-	asymptotic_density make_asymtotic_density_functor(const Nemo &nemo)const{
-		size_t nocc = nemo.get_calc()->amo.size();
-		double ehomo = nemo.get_calc()->aeps(nocc-1);
-		const std::vector<Atom>& atoms = nemo.get_calc()->molecule.get_atoms();
-		double total_nuclear_charge = 0.0;
-		coord_3d mx(0.0);
-		for(auto x:atoms){
-			total_nuclear_charge += x.q;
-			mx[0] += x.q*x.x;
-			mx[1] += x.q*x.y;
-			mx[2] += x.q*x.z;
-		}
-		mx *= 1.0/total_nuclear_charge;
-		std::cout << "Center of Charge is\n" << mx[0] << ", " << mx[1] << ", " << mx[2] << std::endl;
-		asymptotic_density tmp(ehomo,mx);
-		return tmp;
-	}
+	const Function<T,NDIM> box_mask_;
+	Function<T,NDIM> mask_;
+	Function<T,NDIM> inv_mask_;
 };
 
 

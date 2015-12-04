@@ -333,7 +333,7 @@ public:
     /// apply the kernel on the fly on the provided (response) density
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @return The component specified by the \c what parameter
-    madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,const madness::Key<3> & key,
+    madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
     madness::Tensor<double> fxc_old(const std::vector< madness::Tensor<double> >& t,
@@ -409,7 +409,7 @@ struct xc_kernel_apply {
     madness::Tensor<double> operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->fxc_apply(t,key, ispin, xc_contrib);
+        madness::Tensor<double> r = xc->fxc_apply(t, ispin, xc_contrib);
         return r;
     }
 };

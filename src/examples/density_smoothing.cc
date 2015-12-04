@@ -97,12 +97,9 @@ int main(int argc, char** argv) {
 			std::cout << "\n\n";
 		}
 
-		smooth smoothing(world,nemo);
-		//smoothing.test_1d();
-		//smoothing.test();
-		//smoothing.make_smooth_gradient();
-		//smoothing.make_smooth_XC_kernel(nemo.get_calc()->param.xc_data);
-		smoothing.apply_smooth_slater_kernel();
+		smooth<double,3> smoothing(world);
+		smoothing.set_molecule_mask(1.0,1.0,nemo.get_calc()->molecule.get_atoms());
+
 
 
 

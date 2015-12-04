@@ -64,6 +64,9 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double,NDIM>&), const Tensor<double>&);
     
+    template <typename T, std::size_t NDIM>
+    Tensor<T> fcube(const Key<NDIM>& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx);
+
     /// FunctionFactory implements the named-parameter idiom for Function
     
     /// C++ does not provide named arguments (as does, e.g., Python).
