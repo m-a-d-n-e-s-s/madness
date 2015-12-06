@@ -535,14 +535,14 @@ int main(int argc, char** argv) {
 
 		} else {
 			recpot pot_functor("grid.txt","Be_recpot_num_dzp.txt","Be_startpot.txt",4);
-			potential=real_factory_3d(world).functor2(pot_functor).truncate_on_project();
+			potential=real_factory_3d(world).functor(pot_functor).truncate_on_project();
 			potential+=hf.get_calc().potentialmanager->vnuclear();
 			potential.truncate(thresh*0.1);
 			save_function(world,potential,"be_recpot+startpot");
 
 
 			recpot pot_dens("grid.txt","Be_numdens_num.txt");
-			refdens=real_factory_3d(world).functor2(pot_dens).truncate_on_project();
+			refdens=real_factory_3d(world).functor(pot_dens).truncate_on_project();
 			save_function(world,refdens,"be_refdens");
 
 		}

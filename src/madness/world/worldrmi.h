@@ -178,7 +178,7 @@ namespace madness {
             std::size_t max_msg_len_;
             std::size_t nrecv_;
             std::size_t maxq_;
-            std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages /// \todo Are [] needed in the template?
+            std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
             std::unique_ptr<SafeMPI::Request[]> recv_req;
 
             std::unique_ptr<SafeMPI::Status[]> status;
@@ -246,8 +246,8 @@ namespace madness {
         static RMIStats stats;
         static volatile bool debugging;    // True if debugging
 
-        static const size_t DEFAULT_MAX_MSG_LEN = 3*512*1024;
-        static const int DEFAULT_NRECV = 128;
+        static const size_t DEFAULT_MAX_MSG_LEN = 3*512*1024;  //!< the default size of recv buffers, in bytes; the actual size can be configured by the user via envvar MAD_BUFFER_SIZE
+        static const int DEFAULT_NRECV = 128;  //!< the default # of recv buffers; the actual number can be configured by the user via envvar MAD_RECV_BUFFERS
 
         // Not allowed
         RMI(const RMI&);
@@ -255,13 +255,25 @@ namespace madness {
 
     public:
 
+        /// Returns the size of recv buffers, in bytes
+
+        /// @return The size of recv buffers, in bytes
+        /// @note The default value is given by RMI::DEFAULT_MAX_MSG_LEN, can be overridden at runtime by the user via environment variable MAD_BUFFER_SIZE.
+        /// @warning Cannot be smaller than 1024 bytes.
         static std::size_t max_msg_len() {
-            return (task_ptr ? task_ptr->max_msg_len_ : DEFAULT_MAX_MSG_LEN);
+            MADNESS_ASSERT(task_ptr);
+            return task_ptr->max_msg_len_;
         }
         static std::size_t maxq() {
             MADNESS_ASSERT(task_ptr);
             return task_ptr->maxq_;
         }
+
+        /// Returns the number of recv buffers
+
+        /// @return The number of recv buffers
+        /// @note The default value is given by RMI::DEFAULT_NRECV, can be overridden at runtime by the user via environment variable MAD_RECV_BUFFERS
+        /// @warning Cannot be smaller than 32.
         static std::size_t nrecv() {
             MADNESS_ASSERT(task_ptr);
             return task_ptr->nrecv_;

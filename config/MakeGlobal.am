@@ -1,6 +1,10 @@
 # Define paths for includes (note convention #include <dir/file.h>)
 AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_builddir)/src -I$(top_srcdir)/src/apps
 
+if LINK_ALL_STATIC
+AM_LDFLAGS = -all-static
+endif
+
 # Define directories holding libraries and variables for corresponding libraries
 LIBGTESTDIR=$(top_builddir)/src/madness/external/gtest
 LIBWORLDDIR=$(top_builddir)/src/madness/world
@@ -11,15 +15,15 @@ LIBCHEMDIR=$(top_builddir)/src/apps/chem
 LIBTINYXMLDIR=$(top_builddir)/src/madness/external/tinyxml
 LIBMUPARSERDIR=$(top_builddir)/src/madness/external/muParser
 
-LIBGTEST=$(LIBGTESTDIR)/libMADgtest.a
-LIBWORLD=$(LIBWORLDDIR)/libMADworld.a
-LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.a
-LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.a
-LIBMISC=$(LIBMISCDIR)/libMADmisc.a
-LIBMRA=$(LIBMRADIR)/libMADmra.a
-LIBCHEM=$(LIBCHEMDIR)/libMADchem.a
-LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.a
-LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.a
+LIBGTEST=$(LIBGTESTDIR)/libMADgtest.la
+LIBWORLD=$(LIBWORLDDIR)/libMADworld.la
+LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.la
+LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.la
+LIBMISC=$(LIBMISCDIR)/libMADmisc.la
+LIBMRA=$(LIBMRADIR)/libMADmra.la
+LIBCHEM=$(LIBCHEMDIR)/libMADchem.la
+LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.la
+LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.la
 
 # Most scientific/numeric applications will link against these libraries
 MRALIBS=$(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
@@ -30,31 +34,31 @@ LIBGTEST_LIBS = $(GTEST_LDFLAGS) $(GTEST_LIBS)
 
 # External library targets
 $(LIBGTEST):
-	make -C $(LIBGTESTDIR) libMADgtest.a
+	$(MAKE) -C $(LIBGTESTDIR) libMADgtest.la
 
 $(LIBTINYXML):
-	make -C $(LIBTINYXMLDIR) libMADtinyxml.a
+	$(MAKE) -C $(LIBTINYXMLDIR) libMADtinyxml.la
 
 $(LIBMUPARSER):
-	make -C $(LIBMUPARSERDIR) libMADmuparser.a
+	$(MAKE) -C $(LIBMUPARSERDIR) libMADmuparser.la
 
 # MADNESS library targets
 $(LIBWORLD): 
-	make -C $(LIBWORLDDIR) libMADworld.a
+	$(MAKE) -C $(LIBWORLDDIR) libMADworld.la
 
 $(LIBMISC): $(LIBWORLD)
-	make -C $(LIBMISCDIR) libMADmisc.a
+	$(MAKE) -C $(LIBMISCDIR) libMADmisc.la
 
 $(LIBTENSOR): $(LIBMISC)
-	make -C $(LIBTENSORDIR) libMADtensor.a
+	$(MAKE) -C $(LIBTENSORDIR) libMADtensor.la
 
 $(LIBLINALG): $(LIBTENSOR)
-	make -C $(LIBTENSORDIR) libMADlinalg.a
+	$(MAKE) -C $(LIBTENSORDIR) libMADlinalg.la
 
 
 $(LIBMRA): $(LIBLINALG)
-	make -C $(LIBMRADIR) libMADmra.a
+	$(MAKE) -C $(LIBMRADIR) libMADmra.la
 
 $(LIBCHEM): $(LIBMRA)
-	make -C $(LIBCHEMDIR) libMADchem.a
+	$(MAKE) -C $(LIBCHEMDIR) libMADchem.la
 

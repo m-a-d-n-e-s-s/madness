@@ -1961,6 +1961,83 @@ namespace madness {
                 world.gop.fence();
         }
 
+        /// Integrate over one particle of a two particle function and get a one particle function
+        /// bsp \int g(1,2) \delta(2-1) d2 = f(1)
+        /// The overall dimension of g should be even
+
+		/// The operator
+        template<std::size_t LDIM>
+		void dirac_convolution_op(const keyT &key, const nodeT &node, FunctionImpl<T,LDIM>* f) const {
+			// fast return if the node has children (not a leaf node)
+			if(node.has_children()) return;
+
+			const implT* g=this;
+
+			// break the 6D key into two 3D keys (may also work for every even dimension)
+			Key<LDIM> key1, key2;
+			key.break_apart(key1,key2);
+
+			// get the coefficients of the 6D function g
+			const coeffT& g_coeff = node.coeff();
+
+			// get the values of the 6D function g
+			coeffT g_values = g->coeffs2values(key,g_coeff);
+
+			// Determine rank and k
+			const long rank=g_values.rank();
+			const long maxk=f->get_k();
+			MADNESS_ASSERT(maxk==g_coeff.dim(0));
+
+			// get tensors for particle 1 and 2 (U and V in SVD)
+			tensorT vec1=copy(g_values.config().ref_vector(0).reshape(rank,maxk,maxk,maxk));
+			tensorT vec2=g_values.config().ref_vector(1).reshape(rank,maxk,maxk,maxk);
+			tensorT result(maxk,maxk,maxk);  // should give zero tensor
+			// Multiply the values of each U and V vector
+			for (long i=0; i<rank; ++i) {
+				tensorT c1=vec1(Slice(i,i),_,_,_); // shallow copy (!)
+				tensorT c2=vec2(Slice(i,i),_,_,_);
+				c1.emul(c2); // this changes vec1 because of shallow copy, but not the g function because of the deep copy made above
+				double singular_value_i = g_values.config().weights(i);
+				result += (singular_value_i*c1);
+			}
+
+			// accumulate coefficients (since only diagonal boxes are used the coefficients get just replaced, but accumulate is needed to create the right tree structure
+			tensorT f_coeff = f->values2coeffs(key1,result);
+			f->coeffs.task(key1, &FunctionNode<T,LDIM>::accumulate2, f_coeff, f->coeffs, key1, TaskAttributes::hipri());
+//             coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
+
+
+			return;
+		}
+
+
+        template<std::size_t LDIM>
+        void do_dirac_convolution(FunctionImpl<T,LDIM>* f, bool fence) const {
+            typename dcT::const_iterator end = this->coeffs.end();
+            for (typename dcT::const_iterator it=this->coeffs.begin(); it!=end; ++it) {
+                // looping through all the leaf(!) coefficients in the NDIM function ("this")
+                const keyT& key = it->first;
+                const FunctionNode<T,NDIM>& node = it->second;
+                if (node.is_leaf()) {
+                	// only process the diagonal boxes
+        			Key<LDIM> key1, key2;
+        			key.break_apart(key1,key2);
+        			if(key1 == key2){
+                        ProcessID p = coeffs.owner(key);
+                        woT::task(p, &implT:: template dirac_convolution_op<LDIM>, key, node, f);
+        			}
+        		}
+            }
+            world.gop.fence(); // fence is necessary if trickle down is used afterwards
+            // trickle down and undo redundand shouldnt change anything if only the diagonal elements are considered above -> check this
+            f->trickle_down(true); // fence must be true otherwise undo_redundant will have trouble
+            f->undo_redundant(true);
+            f->verify_tree();
+            //if (fence) world.gop.fence(); // unnecessary, fence is activated in undo_redundant
+
+        }
+
+
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
         /// @param[in] op the unary operator for the coefficients
         template <typename opT>
@@ -1968,8 +2045,7 @@ namespace madness {
             typedef Range<typename dcT::iterator> rangeT;
             typedef do_unary_op_value_inplace<opT> xopT;
             world.taskq.for_each<rangeT,opT>(rangeT(coeffs.begin(), coeffs.end()), op);
-            if (fence)
-                world.gop.fence();
+            if (fence) world.gop.fence();
         }
 
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
@@ -2383,7 +2459,10 @@ namespace madness {
         void multiop_values_doit(const keyT& key, const opT& op, const std::vector<implT*>& v) {
             std::vector<tensorT> c(v.size());
             for (unsigned int i=0; i<v.size(); i++) {
-                c[i] = coeffs2values(key, v[i]->coeffs.find(key).get()->second.coeff().full_tensor_copy()); // !!!!! gack
+                if (v[i]) {
+                    coeffT cc = coeffs2values(key, v[i]->coeffs.find(key).get()->second.coeff());
+                    c[i]=cc.full_tensor();
+                }
             }
             tensorT r = op(key, c);
             coeffs.replace(key, nodeT(coeffT(values2coeffs(key, r),targs),false));
@@ -2395,6 +2474,12 @@ namespace madness {
         /// @param[in] v the vector of function impl's on which to be operated
         template <typename opT>
         void multiop_values(const opT& op, const std::vector<implT*>& v) {
+            // rough check on refinement level (ignore non-initialized functions
+            for (std::size_t i=1; i<v.size(); ++i) {
+                if (v[i] and v[i-1]) {
+                    MADNESS_ASSERT(v[i]->coeffs.size()==v[i-1]->coeffs.size());
+                }
+            }
             typename dcT::iterator end = v[0]->coeffs.end();
             for (typename dcT::iterator it=v[0]->coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
@@ -4249,6 +4334,8 @@ namespace madness {
             this->redundant=false;
 
         }
+
+
 
         /// apply an operator on the coeffs c (at node key)
 

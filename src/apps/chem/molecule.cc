@@ -60,6 +60,29 @@ static inline double distance_sq(double x1, double y1, double z1, double x2, dou
     return xx*xx + yy*yy + zz*zz;
 }
 
+
+/// read molecule from the input file and return part of the header for
+/// a Gaussian cube file.
+/// @param[in]  filename input file name (usually "input")
+std::vector<std::string> cubefile_header(std::string filename) {
+    Molecule molecule;
+    molecule.read_file(filename);
+    molecule.orient();
+    std::vector<std::string> molecular_info;
+    for (unsigned int i=0; i<molecule.natom(); ++i) {
+        std::stringstream ss;
+        const int charge=molecule.get_atom(i).get_atomic_number();
+        ss << charge << " " << charge << " ";
+        ss << std::fixed;
+        ss.precision(8);
+        const Vector<double,3> coord=molecule.get_atom(i).get_coords();
+        ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
+        molecular_info.push_back(ss.str());
+    }
+    return molecular_info;
+}
+
+
 std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     s << "Atom([" << atom.x << ", " << atom.y << ", " << atom.z << "], " << atom.q << "," << atom.atomic_number << ")";
     return s;
@@ -316,6 +339,13 @@ double Molecule::nuclear_dipole(int axis) const {
     return sum;
 }
 
+Tensor<double> Molecule::nuclear_dipole_derivative(const int atom, const int axis) const{
+    Tensor<double> mu_x(3);
+    mu_x(axis)=atoms[atom].q;
+    return mu_x;
+}
+
+
 double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     double sum = 0.0;
     unsigned int z1 = atoms[i].atomic_number;
@@ -335,15 +365,16 @@ double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     return sum;
 }
 
+/// compute the nuclear-nuclear contribution to the molecular hessian
 Tensor<double> Molecule::nuclear_repulsion_hessian() const {
 
     Tensor<double> hessian(3*natom(),3*natom());
     for (int iatom=0; iatom<natom(); ++iatom) {
-        for (int jatom=0; jatom<natom(); ++jatom) {
-            for (int iaxis=0; iaxis<3; ++iaxis) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            for (int jatom=0; jatom<natom(); ++jatom) {
                 for (int jaxis=0; jaxis<3; ++jaxis) {
                     hessian(3*iatom+iaxis, 3*jatom+jaxis)=
-                            0.5*nuclear_repulsion_second_derivative(iatom,jatom,iaxis,jaxis);
+                            nuclear_repulsion_second_derivative(iatom,jatom,iaxis,jaxis);
                 }
             }
         }
@@ -613,7 +644,7 @@ Tensor<double> Molecule::moment_of_inertia() const {
     for (unsigned int i=0; i<atoms.size(); ++i) {
         double q = atoms[i].mass, x[3] = {atoms[i].x, atoms[i].y, atoms[i].z};
         for (int j=0; j<3; ++j) {
-            I(j,j)=q*(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+            I(j,j)+=q*(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
             for (int k=0; k<3; ++k)
                 I(j,k) -= q*x[j]*x[k];
         }
@@ -761,6 +792,40 @@ double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, dou
     double df = field[axis];
     return dv + df;
 }
+
+/// the second derivative of the (smoothed) nuclear potential Z/r
+
+/// \f[
+/// V(R,r_{el}) -V(r) =\frac{Z}{|R-r_{el}|} \approx Z u(r) \f]
+/// with
+/// \f[
+/// \frac{\partial^2 V}{\partial X_i\partial X_j}
+///   =  Z \left(\frac{\partial^2 u(r)}{\partial r^2} \frac{\partial r}{\partial X_i}
+///      \frac{\partial r}{\partial X_j} + \frac{\partial u}{\partial r}
+///      \frac{\partial^2 r}{\partial X_i \partial X_j}\right)
+/// \f]
+double Molecule::nuclear_attraction_potential_second_derivative(int atom,
+        int iaxis, int jaxis, double x, double y, double z) const {
+
+    const Vector<double,3> rr={x-atoms[atom].x,y-atoms[atom].y,z-atoms[atom].y};
+    double r = rr.normf();
+    double rinv=1./r;
+    double r2 = r*r;
+    double r3inv = 1/(r2*r);
+    double rc = rcut[atom];
+
+    double di=rr[iaxis]*rinv;
+    double dj=rr[jaxis]*rinv;
+    double term1=2.0*r3inv*di*dj;
+
+    double term2=-di*dj*r3inv;
+    if (iaxis==jaxis) term2+=rinv;
+
+    double du=dsmoothed_potential(r * rc) * (rc * rc);
+    double d2u=d2smoothed_potential(r * rc) * (rc * rc * rc);
+    return term1*d2u + term2*du;
+}
+
 
 double Molecule::nuclear_charge_density(double x, double y, double z) const {
   // Only one atom will contribute due to the short range of the nuclear charge density

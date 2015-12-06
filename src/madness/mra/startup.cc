@@ -120,7 +120,7 @@ namespace madness {
         if (world.rank() == 0) {
             print("");
             print("--------------------------------------------");
-            print("   MADNESS",PACKAGE_VERSION, "multiresolution suite");
+            print("   MADNESS",MADNESS_PACKAGE_VERSION, "multiresolution suite");
             print("--------------------------------------------");
             print("");
             print("   number of processors ...", world.size());

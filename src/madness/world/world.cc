@@ -91,8 +91,11 @@ namespace madness {
         if(rank() == 0) {
             _id = idbase++;
         }
-        gop.broadcast(_id);
-        gop.barrier();
+        // Use MPI for broadcast as incoming messages may try to access an
+        // uninitialized world.
+        mpi.Bcast(_id, 0);
+//        gop.broadcast(_id);
+//        gop.barrier();
         am.worldid = _id;
 
         //std::cout << "JUST MADE WORLD " << id() << " with "
@@ -160,28 +163,32 @@ namespace madness {
         ThreadBase::set_affinity(0);         // The main thread is logical thread 0
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
-	// HPM Profiler
-	// Convention for thread IDs is a bit odd, but reflects their 
-	// internal labeling in the code.
-	// HPM_THREAD_ID = -10, all threads and aggregates
-	// HPM_THREAD_ID =  -2, main thread
-	// HPM_THREAD_ID =  -1, threads not in pool, i.e. communication
-	// HPM_THREAD_ID = 0..MAD_NUM_THREADS - 2, threads in the pool
-	int hpm_thread_id;
-	char *chpm_thread_id = getenv("HPM_THREAD_ID");
-	if (chpm_thread_id) {
-	  int result = sscanf(chpm_thread_id, "%d", &hpm_thread_id);
-	  if (result != 1)
-	    MADNESS_EXCEPTION("HPM_THREAD_ID is not an integer", result);
-	}
-	ThreadBase::set_hpm_thread_env(hpm_thread_id);
+        // HPM Profiler
+        // Convention for thread IDs is a bit odd, but reflects their
+        // internal labeling in the code.
+        // HPM_THREAD_ID = -10, all threads and aggregates
+        // HPM_THREAD_ID =  -2, main thread
+        // HPM_THREAD_ID =  -1, threads not in pool, i.e. communication
+        // HPM_THREAD_ID = 0..MAD_NUM_THREADS - 2, threads in the pool
+        int hpm_thread_id;
+        char *chpm_thread_id = getenv("HPM_THREAD_ID");
+        if (chpm_thread_id) {
+            int result = sscanf(chpm_thread_id, "%d", &hpm_thread_id);
+            if (result != 1)
+                MADNESS_EXCEPTION("HPM_THREAD_ID is not an integer", result);
+        }
+        ThreadBase::set_hpm_thread_env(hpm_thread_id);
 #endif
         detail::WorldMpi::initialize(argc, argv, MADNESS_MPI_THREAD_LEVEL);
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
         ThreadPool::begin();        // Must have thread pool before any AM arrives
-        if(SafeMPI::COMM_WORLD.Get_size() > 1)
+        if(SafeMPI::COMM_WORLD.Get_size() > 1) {
             RMI::begin();           // Must have RMI while still running single threaded
+            // N.B. sync everyone up before messages start flying
+            // this is needed to avoid hangs with some MPIs, e.g. Intel MPI on commodity hardware
+            comm.Barrier();
+        }
 
 #ifdef HAVE_PAPI
         begin_papi_measurement();

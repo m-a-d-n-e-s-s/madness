@@ -205,8 +205,6 @@ namespace madness {
     class WorldAmInterface : private SCALABLE_MUTEX_TYPE {
         friend class WorldGopInterface;
         friend class World;
-    public:
-        const int msg_len;                  ///< Max length of user payload in message
     private:
 
 #ifdef HAVE_CRAYXT

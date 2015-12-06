@@ -31,7 +31,7 @@ wget -O libxc-2.2.1.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=
 tar -xzf libxc-2.2.1.tar.gz
 cd libxc-2.2.1
 autoreconf -i
-./configure --prefix=/usr/local CFLAGS="-mno-avx" FCFLAGS="-mno-avx"
+./configure --prefix=/usr/local --enable-shared --disable-static CFLAGS="-mno-avx" FCFLAGS="-mno-avx"
 make -j2
 sudo make install
 

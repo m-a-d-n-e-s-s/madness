@@ -203,6 +203,43 @@ private:
 };
 
 
+/// derivative of the (regularized) nuclear potential wrt nuclear displacements
+class DNuclear {
+public:
+
+    DNuclear(World& world, const SCF* calc, const int iatom, const int iaxis);
+
+    DNuclear(World& world, const Nemo* nemo, const int iatom, const int iaxis);
+
+    DNuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf,
+            const int iatom, const int iaxis)
+        : world(world), ncf(ncf), iatom(iatom), iaxis(iaxis) {}
+
+
+    real_function_3d operator()(const real_function_3d& ket) const {
+        vecfuncT vket(1,ket);
+        return this->operator()(vket)[0];
+    }
+
+    vecfuncT operator()(const vecfuncT& vket) const;
+
+    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+        return inner(bra,this->operator()(ket));
+    }
+
+    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        vecfuncT vVket=this->operator()(vket);
+        return matrix_inner(world,vbra,vVket);
+    }
+
+private:
+    World& world;
+    std::shared_ptr<NuclearCorrelationFactor> ncf;
+    int iatom;  ///< index of the atom which is displaced
+    int iaxis;  ///< x,y,z component of the atom
+
+};
+
 class Exchange {
 public:
 
@@ -282,6 +319,10 @@ public:
     /// default ctor without information about the XC functional
     XCOperator(World& world) : world(world), nbeta(0), ispin(0) {}
 
+    /// custom ctor with information about the XC functional
+    XCOperator(World& world, std::string xc_data, const bool spin_polarized,
+            const real_function_3d& arho, const real_function_3d& brho);
+
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, int ispin=0);
 
@@ -290,6 +331,10 @@ public:
 
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
+            const real_function_3d& brho, int ispin=0);
+
+    /// ctor with an Nemo calculation, will initialize the necessary intermediates
+    XCOperator(World& world, const Nemo* scf, const real_function_3d& arho,
             const real_function_3d& brho, int ispin=0);
 
     /// apply the xc potential on a set of orbitals
@@ -301,8 +346,15 @@ public:
     /// return the local xc potential using the precomputed intermediates vf and delrho
     real_function_3d make_xc_potential() const;
 
-    /// return the xc kernel (currently not working, will throw)
+    /// return the xc kernel (currently working only for LDA)
     real_function_3d make_xc_kernel() const;
+
+    /// construct the xc kernel and apply it directly on the (response) density
+
+    /// the xc kernel is the second derivative of the xc functions wrt the density
+    /// @param[in]  density the (response) density on which the kernel is applied
+    /// @return     kernal * density
+    real_function_3d apply_xc_kernel(const real_function_3d& density) const;
 
 private:
 
@@ -318,28 +370,28 @@ private:
     /// the XC functionals depend on the spin of the orbitals they act on
     int ispin;
 
-    /// Items in the vector argument \c vf are interpreted as follows
-    ///  - Spin un-polarized
-    ///    - \c vf[0] = \f$ \rho_{\alpha} \f$
-    ///    - \c vf[1] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
-    ///  - Spin polarized
-    ///    - \c vf[0] = \f$ \rho_{\alpha} \f$
-    ///    - \c vf[1] = \f$ \rho_{\beta} \f$
-    ///    - \c vf[2] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
-    ///    - \c vf[3] = \f$ \sigma_{\alpha\beta}  = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$ (GGA only)
-    ///    - \c vf[4] = \f$ \sigma_{\beta\beta}   = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$ (GGA only)
-    vecfuncT vf;
+    /// functions that are need for the computation of the XC operator
 
-    /// Items in the vector argument \c delrho are interpreted as follows
-    ///  - Spin un-polarized
-    ///    - \c delrho[0]   \f \partial/{\partial x} \rho_{\alpha}
-    ///    - \c delrho[1]   \f \partial/{\partial y} \rho_{\alpha}
-    ///    - \c delrho[2]   \f \partial/{\partial z} \rho_{\alpha}
-    ///  - Spin polarized
-    ///    - \c delrho[3]   \f \partial/{\partial x} \rho_{\beta}
-    ///    - \c delrho[4]   \f \partial/{\partial y} \rho_{\beta}
-    ///    - \c delrho[5]   \f \partial/{\partial z} \rho_{\beta}
-    vecfuncT delrho;
+    /// the ordering of the intermediates is fixed, but the code can handle
+    /// non-initialized functions, so if e.g. no GGA is requested, all the
+    /// corresponding vector components may be left empty.
+    /// For the ordering of the intermediates see xcfunctional::xc_arg
+    mutable vecfuncT xc_args;
+
+    /// compute the intermediates for the XC functionals
+
+    /// @param[in]  arho    density of the alpha orbitals
+    /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
+    /// @param[out] xc_args vector of intermediates as described above
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
+
+    /// compute the intermediates for the XC functionals
+
+    /// @param[in]  dens_pt     perturbed densities from CPHF or TDDFT equations
+    /// @param[inout] xc_args   vector of intermediates as described above
+    /// @param[out] ddens_pt    xyz-derivatives of dens_pt
+    void prep_xc_args_response(const real_function_3d& dens_pt,
+            vecfuncT& xc_args, vecfuncT& ddens_pt) const;
 
     /// compute the intermediates for the XC functionals
 
@@ -347,7 +399,7 @@ private:
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @param[out] vf      vector of intermediates as described above
     /// @param[out] delrho  vector of derivatives of the densities as described above
-    void prep_xc_args(const real_function_3d& arho,
+    void prep_xc_args_old(const real_function_3d& arho,
             const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const;
 
     /// check if the intermediates are initialized

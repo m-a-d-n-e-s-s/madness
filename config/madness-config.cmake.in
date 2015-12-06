@@ -11,16 +11,18 @@
 
 # Compute paths
 get_filename_component(Madness_CONFIG_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
-get_filename_component(Madness_DIR "${Madness_CONFIG_DIR}/../../.." ABSOLUTE)
-set(Madness_INCLUDE_DIRS ${Madness_DIR}/include)
-set(Madness_LIBRARY_DIR ${Madness_DIR}/lib)
+set(prefix "@prefix@")
+set(exec_prefix "@exec_prefix@")
+set(Madness_DIR "@prefix@")
+set(Madness_INCLUDE_DIRS "@includedir@")
+set(Madness_LIBRARY "@libdir@")
 
 # Set package version
 set(Madness_VERSION "@PACKAGE_VERSION@")
 
 # Set compile and link flags, and remove optimization and debug flags
 string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_COMPILE_FLAGS "@CPPFLAGS@ @CXXFLAGS@")
-string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_LINKER_FLAGS "@CXXFLAGS@ @LDFLAGS@ @LIBS@")
+string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_LINKER_FLAGS "@CXXFLAGS@ @LDFLAGS@")
 
 # Set MADNESS component variables
 set(Madness_DEFAULT_COMPONENT_LIST MADchem MADmra MADtinyxml MADmuparser MADlinalg MADtensor MADmisc MADworld)
@@ -44,7 +46,7 @@ foreach(_comp ${Madness_DEFAULT_COMPONENT_LIST})
 
     # Search for Madness library
     find_library(Madness_${_comp}_LIBRARY ${_comp}
-                 PATHS ${Madness_LIBRARY_DIR}
+                 PATHS ${Madness_LIBRARY}
                  NO_DEFAULT_PATH)
 
     # Check that the library component was found
@@ -82,6 +84,8 @@ foreach(_comp ${Madness_DEFAULT_COMPONENT_LIST})
 
 endforeach()
 
+list(APPEND Madness_LIBRARIES "@LIBS@")
+
 # Set Fortran 77 integer size used by MADNESS
 set(Madness_F77_INTEGER_SIZE @MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE@)
 
@@ -93,4 +97,5 @@ unset(Madness_MADlinalg_DEP_LIST)
 unset(Madness_MADtensor_DEP_LIST)
 unset(Madness_MADmisc_DEP_LIST)
 unset(Madness_MADworld_DEP_LIST)
-
+unset(prefix)
+unset(exec_prefix)

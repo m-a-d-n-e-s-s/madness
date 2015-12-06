@@ -42,18 +42,17 @@
  */
 
 #include <chem/nemo.h>
+#include <chem/projector.h>
 #include <chem/molecular_optimizer.h>
 #include <chem/SCFOperators.h>
+#include <madness/constants.h>
+
+
 namespace madness {
-
-
-const static double au2invcm=219474.6313705;
-
-extern Tensor<double> Q3(const Tensor<double>& s);
 
 double Nemo::value(const Tensor<double>& x) {
 
-	// fast return if the reference is already solved at this geometry
+    // fast return if the reference is already solved at this geometry
 	double xsq = x.sumsq();
 	if (xsq == coords_sum)
 		return calc->current_energy;
@@ -61,121 +60,92 @@ double Nemo::value(const Tensor<double>& x) {
 	calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
-	// Make the nuclear potential, initial orbitals, etc.
-	calc->make_nuclear_potential(world);
-	calc->potentialmanager->vnuclear().print_size("vnuc");
-	calc->project_ao_basis(world);
-	save_function(calc->potentialmanager->vnuclear(),"vnuc");
+	construct_nuclear_correlation_factor();
 
     // construct the Poisson solver
     poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
-
-    // construct the nuclear correlation factor:
-    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
-    R = nuclear_correlation->function();
-    R_inverse = nuclear_correlation->inverse();
-    R_square = nuclear_correlation->square();
+            CoulombOperatorPtr(world, calc->param.lo, FunctionDefaults<3>::get_thresh()));
 
 	print_nuclear_corrfac();
+
+	double energy=0.0;
 
 	// read converged wave function from disk if there is one
 	if (calc->param.no_compute) {
 		calc->load_mos(world);
-	    hessian(x);
 
-		return calc->current_energy;
-	}
-
-	if (calc->param.restart) {
-		calc->load_mos(world);
 	} else {
-		calc->initial_guess(world);
 
-		// guess: multiply the guess orbitals with the inverse R
-	    real_function_3d R_inverse = nuclear_correlation->inverse();
-		calc->amo = mul(world, R_inverse, calc->amo);
-//		calc->param.restart = true;
-	}
+        // guess: read from file or multiply the guess orbitals with the inverse R
+	    if (calc->param.restart) {
+	        calc->load_mos(world);
 
-	double energy = solve();
+	    } else {
 
-	calc->current_energy=energy;
+            calc->initial_guess(world);
+	        real_function_3d R_inverse = nuclear_correlation->inverse();
+	        calc->amo = mul(world, R_inverse, calc->amo);
+	    }
 
-	// localize the orbitals
-	if (calc->param.localize) {
-		calc->amo=localize(calc->amo);
-		tensorT fock=compute_fock_matrix(calc->amo,calc->aocc);
-		if (world.rank()==0) print("localized Fock matrix \n",fock);
-		for (std::size_t i=0; i<calc->amo.size(); ++i) {
-			calc->aeps(i)=fock(i,i);
-			if (world.rank()==0) print("orbital energy ",i,calc->aeps(i));
-		}
-	}
+	    for (protocol p(*this); not p.finished(); ++p) {
+	        set_protocol(p.current_prec);
+	        energy=solve(p);
+	    }
+	    set_protocol(get_calc()->param.econv);
 
-	if (calc->param.save) calc->save_mos(world);
+	    calc->current_energy=energy;
+	    if (calc->param.save) calc->save_mos(world);
 
-	// save the converged orbitals and nemos
-	vecfuncT psi = mul(world, R, calc->amo);
-	truncate(world,psi);
-	for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
-		save_function(calc->amo[imo], "nemo" + stringify(imo));
-		save_function(psi[imo], "psi" + stringify(imo));
+	    // save the converged orbitals and nemos
+	    vecfuncT psi = mul(world, R, calc->amo);
+	    truncate(world,psi);
+	    for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
+	        save(calc->amo[imo], "nemo" + stringify(imo));
+	        save(psi[imo], "psi" + stringify(imo));
+	    }
 	}
 
 	// compute the dipole moment
-    functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
-    calc->dipole(world,rho);
+	functionT rho = 2.0*(R_square*make_density(calc->aocc, calc->amo)).truncate();
+	calc->dipole(world,rho);
 
-    // compute stuff
-    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
-    real_derivative_3d Dz = free_space_derivative<double, 3>(world,2);
-    real_function_3d rhonemoz=Dz(rhonemo);
-    real_function_3d rhoz=Dz(rho);
-
-    std::string filename="plot_rhonemoz";
-    Vector<double,3> lo{0,0,-10};
-    Vector<double,3> hi{0,0,10};
-    plot_line(filename.c_str(),500, lo, hi, rhonemoz);
-    filename="plot_rhoz";
-    plot_line(filename.c_str(),500, lo, hi, rhoz);
-    filename="plot_rhonemo";
-    plot_line(filename.c_str(),500, lo, hi, rhonemo);
-    filename="plot_rho";
-    plot_line(filename.c_str(),500, lo, hi, rho);
+	functionT rhonemo=make_density(calc->aocc,calc->amo);
+	functionT ddens0=make_ddensity(rhonemo,0);
+    functionT ddens1=make_ddensity(rhonemo,1);
+    functionT ddens2=make_ddensity(rhonemo,2);
+    save(ddens0,"ddens0_U1");
+    save(ddens1,"ddens1_U1");
+    save(ddens2,"ddens2_U1");
+//    throw;
+	// compute the hessian
+	if (calc->param.hessian) hessian(x);
 
 	return energy;
 }
 
+
 void Nemo::print_nuclear_corrfac() const {
 
 	// the nuclear correlation function
-	save_function(R,"R");
-	save_function(nuclear_correlation->U2(),"U2");
-	save_function(nuclear_correlation->U1(0),"U1x");
-	save_function(nuclear_correlation->U1(1),"U1y");
-	save_function(nuclear_correlation->U1(2),"U1z");
+//	save_function(R,"R");
+//	save_function(nuclear_correlation->U2(),"U2");
+//	save_function(nuclear_correlation->U1(0),"U1x");
+//	save_function(nuclear_correlation->U1(1),"U1y");
+//	save_function(nuclear_correlation->U1(2),"U1z");
 
-	// FIXME: plot_plane doesn't work for more that 1 rank
-	if (world.size()==0) {
-		plot_plane(world,R,"R");
-		plot_plane(world,nuclear_correlation->U2(),"U2");
-		plot_plane(world,nuclear_correlation->U1(0),"U1x");
-	}
 }
 
 /// localize the nemo orbitals according to Pipek-Mezey
 vecfuncT Nemo::localize(const vecfuncT& nemo) const {
 	DistributedMatrix<double> dUT;
 	const double tolloc = 1e-3;
-	double trantol = calc->vtol / std::min(30.0, double(nemo.size()));
 
 	std::vector<int> aset=calc->group_orbital_sets(world,calc->aeps,
 			calc->aocc, nemo.size());
 	// localize using the reconstructed orbitals
 	vecfuncT psi = mul(world, R, nemo);
 	dUT = calc->localize_PM(world, psi, aset, tolloc, 0.25, true, true);
-	dUT.data().screen(trantol);
+	dUT.data().screen(trantol());
 
 	tensorT UT(calc->amo.size(),calc->amo.size());
 	dUT.copy_to_replicated(UT); // for debugging
@@ -204,7 +174,7 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) cons
 }
 
 /// solve the HF equations
-double Nemo::solve() {
+double Nemo::solve(const protocol& proto) {
 
 	// guess has already been performed in value()
 	vecfuncT& nemo = calc->amo;
@@ -212,9 +182,7 @@ double Nemo::solve() {
 
 	// NOTE that nemos are somewhat sensitive to sparse operations (why??)
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
-	const double trantol = 0.0;
 
-	normalize(nemo);
 
 	// apply all potentials (J, K, Vnuc) on the nemos
 	vecfuncT psi, Jnemo, Knemo, Vnemo, JKVpsi, Unemo;
@@ -222,6 +190,7 @@ double Nemo::solve() {
 
 	double energy = 0.0;
 	bool converged = false;
+	bool localized=calc->param.localize;
 
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
@@ -230,6 +199,8 @@ double Nemo::solve() {
 
 	// iterate the residual equations
 	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
+
+	    if (localized) nemo=localize(nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
 		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, Vnemo, Unemo);
@@ -242,36 +213,49 @@ double Nemo::solve() {
 		JKVpsi.clear();
 
 		// report the off-diagonal fock matrix elements
-		tensorT fock_offdiag=copy(fock);
-		for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
-		double max_fock_offidag=fock_offdiag.absmax();
-		if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
+		if (not localized) {
+            tensorT fock_offdiag=copy(fock);
+            for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
+            double max_fock_offidag=fock_offdiag.absmax();
+            if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
+		}
 
 		double oldenergy=energy;
 //		energy = compute_energy(psi, mul(world, R, Jnemo),
 //				mul(world, R, Knemo));
         energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
 
-		// Diagonalize overlap to get the eigenvalues and eigenvectors
-		tensorT overlap = matrix_inner(world, psi, psi, true);
-		const tensorT U=calc->get_fock_transformation(world,overlap,
-	    		fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
+        // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
+        tensorT U;
+        if (not localized) {
+            tensorT overlap = matrix_inner(world, psi, psi, true);
+            U=calc->get_fock_transformation(world,overlap,
+                    fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
 
-		START_TIMER(world);
-		nemo = transform(world, nemo, U, trantol, true);
-		rotate_subspace(world, U, solver, 0, nemo.size(), trantol);
+            START_TIMER(world);
+            nemo = transform(world, nemo, U, trantol(), true);
+            rotate_subspace(world, U, solver, 0, nemo.size());
 
-		truncate(world, nemo);
-		normalize(nemo);
-		END_TIMER(world, "transform orbitals");
+            truncate(world, nemo);
+            normalize(nemo);
+            END_TIMER(world, "transform orbitals");
+        }
 
 		// update the nemos
 
-		// construct the BSH operator
+		// construct the BSH operator and add off-diagonal elements
+		// (in case of non-canonical HF)
 		tensorT eps(nmo);
 		for (int i = 0; i < nmo; ++i) {
 			eps(i) = std::min(-0.05, fock(i, i));
+            fock(i, i) -= eps(i);
 		}
+        vecfuncT fnemo;
+        if (localized) fnemo= transform(world, nemo, fock, trantol(), true);
+
+        // Undo the damage
+        for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
+
 		if (calc->param.orbitalshift>0.0) {
 			if (world.rank()==0) print("shifting orbitals by "
 					,calc->param.orbitalshift," to lower energies");
@@ -282,11 +266,12 @@ double Nemo::solve() {
 		// make the potential * nemos term; make sure it's in phase with nemo
 		START_TIMER(world);
 		vecfuncT Vpsi = add(world, sub(world, Jnemo, Knemo), Unemo);
+        if (localized) gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
 		truncate(world,Vpsi);
 		END_TIMER(world, "make Vpsi");
 
 		START_TIMER(world);
-		Vpsi = transform(world, Vpsi, U, trantol, true);
+		if (not localized) Vpsi = transform(world, Vpsi, U, trantol(), true);
 		truncate(world,Vpsi);
 		END_TIMER(world, "transform Vpsi");
 
@@ -314,21 +299,19 @@ double Nemo::solve() {
 		orthonormalize(nemo_new);
 		nemo=nemo_new;
 
-		if ((norm < calc->param.dconv) and
-				(fabs(energy-oldenergy)<calc->param.econv))
+		if ((norm < proto.dconv) and
+				(fabs(energy-oldenergy)<proto.econv))
 			converged = true;
 
 		if (calc->param.save) calc->save_mos(world);
 
 		if (world.rank() == 0) {
-			printf(
-				"finished iteration %2d at time %8.1fs with energy %12.8f\n",
+			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n",
 					iter, wall_time(), energy);
 			print("current residual norm  ", norm, "\n");
 		}
 
-		if (converged)
-			break;
+		if (converged) break;
 	}
 
 	if (converged) {
@@ -340,7 +323,6 @@ double Nemo::solve() {
 
 	return energy;
 }
-
 
 /// given nemos, compute the HF energy
 double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
@@ -441,7 +423,6 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
     return energy;
 }
 
-
 /// compute the reconstructed orbitals, and all potentials applied on nemo
 
 /// to use these potentials in the fock matrix computation they must
@@ -529,12 +510,24 @@ void Nemo::normalize(vecfuncT& nemo) const {
 
 /// @param[inout]	amo_new	the vectors to be orthonormalized
 void Nemo::orthonormalize(vecfuncT& nemo) const {
+    PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-	vecfuncT mos = mul(world, R, nemo);
-    double trantol = 0.0;
-    madness::normalize(world, mos);
-    nemo = transform(world, nemo, Q3(matrix_inner(world, mos, mos)), trantol, true);
-    truncate(world, nemo);
+    normalize(nemo);
+    double maxq;
+    do {
+        vecfuncT R2nemo=mul(world,R_square,nemo);
+        tensorT Q = Q2(matrix_inner(world, R2nemo, nemo));
+        maxq=0.0;
+        for (int i=0; i<Q.dim(0); ++i)
+            for (int j=0; j<i; ++j)
+                maxq = std::max(maxq,std::abs(Q(i,j)));
+
+        Q.screen(trantol()); // ???? Is this really needed?
+        nemo = transform(world, nemo, Q, trantol(), true);
+        truncate(world, nemo);
+        if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol());
+
+    } while (maxq>0.01);
     normalize(nemo);
     END_TIMER(world, "Orthonormalize");
 }
@@ -542,46 +535,111 @@ void Nemo::orthonormalize(vecfuncT& nemo) const {
 /// return the Coulomb potential
 real_function_3d Nemo::get_coulomb_potential(const vecfuncT& psi) const {
 	MADNESS_ASSERT(calc->param.spin_restricted);
-	functionT rho = calc->make_density(world, calc->aocc, psi).scale(2.0);
+	functionT rho = make_density(calc->aocc, psi).scale(2.0);
 	return calc->make_coulomb_potential(rho);
 }
 
-real_function_3d Nemo::make_density(World& world, const Tensor<double>& occ,
+real_function_3d Nemo::make_density(const Tensor<double>& occ,
         const vecfuncT& nemo) const {
-    real_function_3d rho=calc->make_density(world,occ,nemo);
-    rho=(rho*R_square).truncate();;
-    return rho;
+    return calc->make_density(world,occ,nemo).truncate();
 }
 
-/// rotate the KAIN subspace (cf. SCF.cc)
-template<typename solverT>
-void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
-        int lo, int nfunc, double trantol) const {
-    std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
-    std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
-    for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
-        vecfuncT& v = ulist[iter].x;
-        vecfuncT& r = rlist[iter].x;
-        vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
-                trantol, false);
-        vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,
-                trantol, true);
+real_function_3d Nemo::make_density(const tensorT & occ,
+        const vecfuncT& bra, const vecfuncT& ket) const {
 
-        world.gop.fence();
-        for (int i=0; i<nfunc; i++) {
-            v[i] = vnew[i];
-            r[i] = rnew[i];
-        }
+    vecfuncT vsq = mul(world, bra, ket);
+    compress(world, vsq);
+    functionT rho = factoryT(world).compressed();
+    for (unsigned int i = 0; i < vsq.size(); ++i) {
+        if (calc->get_aocc()[i])
+            rho.gaxpy(1.0, vsq[i], calc->get_aocc()[i], false);
     }
     world.gop.fence();
+    return rho.truncate();
 }
+
+
+real_function_3d Nemo::make_ddensity(const real_function_3d& rhonemo,
+        const int axis) const {
+
+    // 2 RXR * rhonemo
+    NuclearCorrelationFactor::U1_functor U1_func(nuclear_correlation.get(),axis);
+    real_function_3d RXR=real_factory_3d(world).functor(U1_func).truncate_on_project();
+    real_function_3d term1=2.0*RXR*rhonemo;
+
+    // R^2 * \nabla \rho
+    real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
+    real_function_3d Drhonemo=D(rhonemo);
+    real_function_3d term2=(R_square*Drhonemo).truncate();
+
+    return (term1+term2).truncate();
+}
+
+
+real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) const {
+
+    // U1^2 operator
+    NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(nuclear_correlation.get());
+    const real_function_3d U1dot=real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
+
+    real_function_3d result=(2.0*U1dot*rhonemo).truncate();
+
+    // U2 operator
+    const Nuclear U_op(world,this->nuclear_correlation);
+    const Nuclear V_op(world,this->get_calc().get());
+
+    const real_function_3d Vrho=V_op(rhonemo);  // eprec is important here!
+    const real_function_3d Urho=U_op(rhonemo);
+
+    real_function_3d term2=4.0*(Urho-Vrho).truncate();
+    result-=term2;
+
+    // derivative contribution: R2 \Delta rhonemo
+    real_function_3d laplace_rhonemo=real_factory_3d(world).compressed();
+    real_function_3d rhonemo_refined=copy(rhonemo).refine();
+    for (int axis=0; axis<3; ++axis) {
+        real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
+        real_function_3d drhonemo=D(rhonemo_refined).refine();
+        smoothen(drhonemo);
+        real_function_3d d2rhonemo=D(drhonemo);
+        laplace_rhonemo+=d2rhonemo;
+    }
+
+    result+=(laplace_rhonemo).truncate();
+    result=(R_square*result).truncate();
+    save(result,"d2rho");
+
+    // double check result: recompute the density from its laplacian
+    real_function_3d rho_rec=-1./(4.*constants::pi)*(*poisson)(result);
+    save(rho_rec,"rho_reconstructed");
+
+    return result;
+}
+
+
 
 /// compute the nuclear gradients
 Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     START_TIMER(world);
 
+    vecfuncT nemo=calc->amo;
+    {
+        Tensor<double> grad2(3*calc->molecule.natom());
+        vecfuncT R2nemo=mul(world,R_square,nemo);
+        for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+            for (int iaxis=0; iaxis<3; iaxis++) {
+                DNuclear Dnuc(world,this,iatom,iaxis);
+                vecfuncT dnucnemo=Dnuc(nemo);
+                grad2(3*iatom + iaxis)=2.0*(inner(world,R2nemo,dnucnemo)).sum();
+            }
+        }
+        print("grad2");
+        print(grad2);
+    }
+
+
     // the pseudo-density made up of the square of the nemo orbitals
-    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+    functionT rhonemo = make_density(calc->aocc, nemo).scale(2.0);
 
     // the following block computes the gradients more precisely than the
     // direct evaluation of the derivative of the nuclear potential
@@ -608,6 +666,8 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
             grad(3*iatom + axis)=-inner(bra[axis],r2v);
         }
     }
+    print("grad");
+    print(grad);
 
 //    // this block is less precise
 //    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
@@ -646,97 +706,141 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 }
 
 
-/// compute the nuclear gradients
+/// compute the nuclear hessian
 Tensor<double> Nemo::hessian(const Tensor<double>& x) {
-    START_TIMER(world);
+
+    const bool hessdebug=(false and (world.rank()==0));
 
     const int natom=molecule().natom();
+    const vecfuncT& nemo=get_calc()->amo;
+    vecfuncT R2nemo=mul(world,R_square,nemo);
+    truncate(world,R2nemo);
+
     Tensor<double> hessian(3*natom,3*natom);
 
-    functionT rhonemo = calc->make_density(world, calc->aocc, calc->amo).scale(2.0);
+    // the perturbed MOs determined by the CPHF equations
+    std::vector<vecfuncT> xi=compute_all_cphf();
 
-    // take the derivative of \frac{\partial}{\partial X_A} 2\rho R^2
-    vecfuncT bra(3);
-    for (int axis=0; axis<3; ++axis) {
+    START_TIMER(world);
 
-        // compute \frac{\partial \rho}{\partial x_i}
-        real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
-        real_function_3d Drhonemo=D(rhonemo);
-
-        // compute the second term of the bra
-        real_function_3d tmp=rhonemo*nuclear_correlation->U1(axis);
-        tmp.scale(2.0);
-        bra[axis]=(Drhonemo-tmp).truncate();
+    // compute the derivative of the density d/dx rho; 2: closed shell
+    const real_function_3d dens=2.0*make_density(get_calc()->get_aocc(),nemo,R2nemo);
+    vecfuncT drho(3);
+    for (int i=0; i<3; ++i) {
+        real_derivative_3d D = free_space_derivative<double, 3>(world,i);
+        drho[i]=D(dens).truncate();
     }
 
-    // compute the first and third terms
-    for (int iaxis=0; iaxis<3; ++iaxis) {
-        real_function_3d tmp=rhonemo*nuclear_correlation->U1(iaxis);
-        for (int jatom=0; jatom<molecule().natom(); ++jatom) {
-            for (int jaxis=0; jaxis<3; ++jaxis) {
-                NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
-                        nuclear_correlation.get(),this->molecule(),jatom,jaxis);
-                for (int iatom=0; iatom<molecule().natom(); ++iatom) {
+    // compute the perturbed densities
+    // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
+    vecfuncT dens_pt(3*natom);
+    for (int iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            int i=iatom*3 + iaxis;
 
+            dens_pt[i]=4.0*make_density(calc->get_aocc(),R2nemo,xi[i]);
+            NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
+            const real_function_3d RX_div_R=real_factory_3d(world).functor(rxr_func).truncate_on_project();
+            dens_pt[i]=(dens_pt[i]+2.0*RX_div_R*dens).truncate();
+            save(dens_pt[i],"dens_pt"+stringify(i));
+        }
+    }
 
+    // add the electronic contribution to the hessian
+    for (int iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            int i=iatom*3 + iaxis;
 
-                    hessian(3*iatom+iaxis, 3*jatom+jaxis) +=2.0*inner(tmp,r2v);
+            for (int jatom=0; jatom<natom; ++jatom) {
+                for (int jaxis=0; jaxis<3; ++jaxis) {
+                    int j=jatom*3 + jaxis;
 
+                    MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
+                    double result=inner(dens_pt[i],mdf);
+
+                    // integration by parts
+                    if (iatom==jatom) result+=inner(drho[iaxis],mdf);
+
+                    // skip diagonal elements because they are extremely noisy!
+                    // use translational symmetry to reconstruct them from other
+                    // hessian matrix elements (see below)
+                    if (i==j) result=0.0;
+                    hessian(i,j)=result;
                 }
             }
         }
     }
+    if (hessdebug) {
+        print("\n raw electronic Hessian (a.u.)\n");
+        print(hessian);
+    }
 
-    // compute the second derivative using integration by parts
-    for (int iatom=0; iatom<molecule().natom(); ++iatom) {
+    Tensor<double> asymmetric=0.5*(hessian-transpose(hessian));
+    const double max_asymmetric=asymmetric.absmax();
+    if (hessdebug) {
+        print("\n asymmetry in the electronic Hessian (a.u.)\n");
+        print(asymmetric);
+    }
+    if (world.rank()==0) print("max asymmetric element in the Hessian matrix: ",max_asymmetric);
 
-        // compute the term < \phi | D_XA D_YB V | \phi >
-        for (int iaxis=0; iaxis<3; ++iaxis) {
-            for (int jaxis=0; jaxis<3; ++jaxis) {
-                NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
-                        nuclear_correlation.get(),this->molecule(),iatom,jaxis);
-                hessian(3*iatom+iaxis, 3*iatom+jaxis)=+inner(bra[iaxis],r2v);
-            }
-        }
+    // symmetrize hessian
+    hessian+=transpose(hessian);
+    hessian.scale(0.5);
 
-        // compute the term < \zeta | D_XA V | \phi >
-        for (int jatom=0; jatom<molecule().natom(); ++jatom) {
+    // exploit translational symmetry to compute the diagonal elements:
+    // translating all atoms in the same direction will make no energy change,
+    // therefore the respective sum of hessian matrix elements will be zero:
+    for (int i=0; i<3*natom; ++i) {
+        double sum=0.0;
+        for (int j=0; j<3*natom; j+=3) sum+=hessian(i,j+(i%3));
+        hessian(i,i)=-sum;
+    }
 
-        }
+    if (hessdebug) {
+        print("\n electronic Hessian (a.u.)\n");
+        print(hessian);
     }
 
     // add the nuclear-nuclear contribution
     hessian+=molecule().nuclear_repulsion_hessian();
 
-    if (world.rank() == 0) {
+    if (hessdebug) {
         print("\n Hessian (a.u.)\n");
         print(hessian);
     }
     END_TIMER(world, "compute hessian");
 
-    Tensor<double> frequencies=compute_frequencies(hessian);
+    Tensor<double> normalmodes;
+    Tensor<double> frequencies=compute_frequencies(hessian,normalmodes,false,hessdebug);
 
-    if (world.rank() == 0) {
-        print("\n vibrational frequencies (a.u.)\n");
+    if (hessdebug) {
+        print("\n vibrational frequencies (unprojected) (a.u.)\n");
         print(frequencies);
-        print("\n vibrational frequencies (cm-1)\n");
-        print(au2invcm*frequencies);
+        print("\n vibrational frequencies (unprojected) (cm-1)\n");
+        print(constants::au2invcm*frequencies);
     }
 
-    MolecularOptimizer::remove_external_dof(hessian,molecule());
+    frequencies=compute_frequencies(hessian,normalmodes,true,hessdebug);
+    Tensor<double> intensities=compute_IR_intensities(normalmodes,dens_pt);
+    Tensor<double> reducedmass=compute_reduced_mass(normalmodes);
 
     if (world.rank() == 0) {
-        print("\n Hessian projected (a.u.)\n");
-        print(hessian);
-    }
-
-    frequencies=compute_frequencies(hessian);
-
-    if (world.rank() == 0) {
-        print("\n vibrational frequencies projected (a.u.)\n");
-        print(frequencies);
-        print("\n vibrational frequencies projected (cm-1)\n");
-        print(au2invcm*frequencies);
+        print("\nprojected vibrational frequencies (cm-1)\n");
+        printf("frequency in cm-1   ");
+        for (int i=0; i<frequencies.size(); ++i) {
+            printf("%10.3f",constants::au2invcm*frequencies(i));
+        }
+        printf("\n");
+        printf("intensity in km/mol ");
+        for (int i=0; i<intensities.size(); ++i) {
+            printf("%10.3f",intensities(i));
+        }
+        printf("\n");
+        printf("reduced mass in amu ");
+        for (int i=0; i<intensities.size(); ++i) {
+            printf("%10.3f",reducedmass(i));
+        }
+        printf("\n\n");
     }
 
     return hessian;
@@ -748,63 +852,369 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 /// @param[in]  iatom   the atom A to be moved
 /// @param[in]  iaxis   the coordinate X of iatom to be moved
 /// @return     \frac{\partial}{\partial X_A} \varphi
-vecfuncT Nemo::cphf(const int iatom, const int iaxis) const {
+vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
+        const vecfuncT& guess, const protocol& proto) const {
 
-    // use the product rule
-    // \varphi_i^X = R^X F_i + R F_i^X
+    print("\nsolving nemo cphf equations for atom, axis",iatom,iaxis);
 
-    // compute R^X
-    const Atom& atom=molecule().get_atom(iatom);
-    NuclearCorrelationFactor::SX_div_S_functor
-            U1Xfunc(nuclear_correlation.get(),iaxis,atom);
-    const real_function_3d U1X=real_factory_3d(world).functor2(U1Xfunc);
-    const real_function_3d RX=U1X*R;
+    // guess for the perturbed MOs
+    const vecfuncT nemo=calc->amo;
+    vecfuncT xi=copy(world,calc->amo);
+    scale(world,xi,0.5);
+    if (guess.size()>0) {
+        if (world.rank()==0) print("using guess for the CPHF vectors");
+        xi=copy(world,guess);
+    }
+    const int nmo=nemo.size();
 
-    return mul(world,RX,calc->amo);
+    vecfuncT R2nemo=mul(world,R_square,nemo);
+    truncate(world,R2nemo);
+    QProjector<double,3> Q(world,R2nemo,nemo);
+
+    // construct some intermediates
+    const Tensor<double> occ=get_calc()->get_aocc();
+    const real_function_3d rhonemo=2.0*make_density(occ,nemo); // closed shell
+    NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
+    const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
+
+    // construct quantities that are independent of xi
+
+    // derivative of the (regularized) nuclear potential
+    DNuclear Dunuc(world,this,iatom,iaxis);
+    vecfuncT Vpsi2b=Dunuc(nemo);
+    truncate(world,Vpsi2b);
+
+    // part of the Coulomb operator with the derivative of the NCF
+    // J <- \int dr' 1/|r-r'| \sum_i R^XR F_iF_i
+    Coulomb Jconst(world);
+    Jconst.potential()=Jconst.compute_potential(2.0*RXR*rhonemo);        // factor 2 for cphf
+    vecfuncT Jconstnemo=Jconst(nemo);
+    truncate(world,Jconstnemo);
+
+    // part of the exchange operator with the derivative of the NCF
+    // K <- \sum_k |F_k> \int dr' 1/|r-r'| 2R^XR F_k F_i
+    // there is no constant term for DFT, since the potentials are not
+    // linear in the density
+    vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
+    if (not is_dft()) {
+        Exchange Kconst(world);
+        vecfuncT kbra=mul(world,RXR,nemo);
+        scale(world,kbra,2.0);
+        truncate(world,kbra);
+        Kconst.set_parameters(kbra,nemo,occ);
+        Kconstnemo=Kconst(nemo);
+        truncate(world,Kconstnemo);
+    }
+
+    vecfuncT rhsconst=add(world,Vpsi2b,sub(world,Jconstnemo,Kconstnemo));
+    truncate(world,rhsconst);
+
+    // the part of the response that is contained in the occupied space
+    const vecfuncT parallel=parallel_CPHF(nemo,iatom,iaxis);
+
+    // construct unperturbed operators
+    const Coulomb J(world,this);
+    const Exchange K(world,this,0);
+    const XCOperator xc(world,this,0);
+    const Nuclear V(world,this);
+
+    for (int iter=0; iter<25; ++iter) {
+
+        const vecfuncT xi_complete=sub(world,xi,parallel);
+
+        // make the rhs
+        START_TIMER(world);
+        vecfuncT Kxi;
+        if (is_dft()) {
+            Kxi=xc(xi);
+            scale(world,Kxi,-1.0);
+        } else {
+            Kxi=K(xi);
+        }
+        vecfuncT Vpsi1=add(world,V(xi),sub(world,J(xi),Kxi));
+        truncate(world,Vpsi1);
+        END_TIMER(world, "CPHF: make rhs1");
+
+        START_TIMER(world);
+
+        // construct perturbed operators
+        Coulomb Jp(world);
+        // factor 4 from: closed shell (2) and cphf (2)
+        real_function_3d density_pert=4.0*make_density(occ,R2nemo,xi_complete);
+        Jp.potential()=Jp.compute_potential(density_pert);
+        vecfuncT Kp;
+        if (is_dft()) {
+            // reconstruct the full perturbed density
+            const real_function_3d full_dens_pt=(density_pert + 2.0*RXR*rhonemo).truncate();
+            save(full_dens_pt,"full_dens_pt");
+            const XCOperator xc1(world,this,0);
+            real_function_3d gamma=-1.0*xc1.apply_xc_kernel(full_dens_pt);
+            Kp=mul(world,gamma,nemo);
+        } else {
+            Exchange Kp1=Exchange(world).small_memory(false).same(true);
+            Kp1.set_parameters(R2nemo,xi_complete,occ);
+            vecfuncT R2xi=mul(world,R_square,xi_complete);
+            truncate(world,R2xi);
+            Exchange Kp2=Exchange(world).small_memory(false);
+            Kp2.set_parameters(R2xi,nemo,occ);
+
+            Kp=add(world,Kp1(nemo),Kp2(nemo));
+        }
+        vecfuncT Vpsi2a=sub(world,Jp(nemo),Kp);
+        vecfuncT Vpsi2=add(world,Vpsi2a,rhsconst);
+        truncate(world,Vpsi2);
+        Vpsi2=Q(Vpsi2);
+        truncate(world,Vpsi2);
+
+        vecfuncT Vpsi=add(world,Vpsi1,Vpsi2);
+        truncate(world,Vpsi);
+        END_TIMER(world, "CPHF make rhs2");
+
+        // apply the BSH
+        tensorT eps(nmo);
+        for (int i = 0; i < nmo; ++i) eps(i) = std::min(-0.05, fock(i, i));
+        std::vector<poperatorT> ops = calc->make_bsh_operators(world, eps);
+
+        // add the coupling elements in case of localized orbitals
+        if (get_calc()->param.localize) {
+            Tensor<double> fcopy=copy(fock);
+            for (int i = 0; i < nmo; ++i) fcopy(i, i) -= eps(i);
+            vecfuncT fnemo= transform(world, xi, fcopy, trantol(), true);
+            gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
+        }
+
+        // apply the BSH operator on the wave function
+        START_TIMER(world);
+        scale(world, Vpsi, -2.0);
+        vecfuncT tmp = apply(world, ops, Vpsi);
+        truncate(world, tmp);
+        END_TIMER(world, "apply BSH");
+
+        tmp=Q(tmp);
+        truncate(world,tmp);
+
+        vecfuncT residual = sub(world, xi, tmp);
+
+        std::vector<double> rnorm = norm2s(world, residual);
+        double rms, maxval;
+        calc->vector_stats(rnorm, rms, maxval);
+        if (world.rank() == 0)
+            print("CPHF BSH residual: rms", rms, "   max", maxval);
+
+        const double norm = norm2(world,xi);
+        xi=tmp;
+
+        if (rms/norm<proto.dconv) break;
+    }
+    return xi;
+
 }
 
+
+std::vector<vecfuncT> Nemo::compute_all_cphf() {
+
+    const int natom=molecule().natom();
+    std::vector<vecfuncT> xi(3*natom);
+
+    // read CPHF vectors from file if possible
+    if (get_calc()->param.read_cphf) {
+        xi.resize(3*natom);
+        for (std::size_t i=0; i<xi.size(); ++i) {
+            load_function(xi[i],"xi_"+stringify(i));
+        }
+        return xi;
+    }
+
+    const Tensor<double> fock=this->compute_fock_matrix(get_calc()->amo,
+            get_calc()->get_aocc());
+    print("fock");
+    print(fock);
+
+
+    for (protocol p(*this); not p.finished(); ++p) {
+        set_protocol(p.current_prec);
+
+        if (world.rank()==0) {
+            printf("\nstarting CPHF equations at time %8.1fs \n",wall_time());
+        }
+        // double loop over all nuclear displacements
+        for (int i=0, iatom=0; iatom<natom; ++iatom) {
+            for (int iaxis=0; iaxis<3; ++iaxis) {
+                if (xi[i].size()>0) {
+                    for (real_function_3d& xij : xi[i]) xij.set_thresh(p.current_prec);
+                }
+                xi[i]=cphf(iatom,iaxis,fock,xi[i],p);
+                save_function(xi[i],"xi_"+stringify(i));
+                ++i;
+            }
+        }
+        printf("\nfinished CPHF equations at time %8.1fs \n",wall_time());
+    }
+
+    // reset the initial thresholds
+    set_protocol(get_calc()->param.econv);
+
+    if (world.rank()==0) print("\nadding the inhomogeneous part to xi\n");
+
+    // double loop over all nuclear displacements
+    for (int i=0, iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+
+            const vecfuncT& nemo=calc->amo;
+            load_function(xi[i],"xi_"+stringify(i));
+            const vecfuncT parallel=parallel_CPHF(nemo,iatom,iaxis);
+            xi[i]=sub(world,xi[i],parallel);
+            truncate(world,xi[i]);
+            save_function(xi[i],"xi_"+stringify(i));
+            ++i;
+        }
+    }
+
+    if (world.rank()==0) {
+        printf("finished solving the CPHF equations at time %8.1fs \n", wall_time());
+    }
+
+    return xi;
+
+}
+
+
+vecfuncT Nemo::parallel_CPHF(const vecfuncT& nemo, const int iatom,
+        const int iaxis) const {
+
+    NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
+    const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
+    vecfuncT RXRnemo=mul(world,RXR,nemo);   // skipping factor 2
+    truncate(world,RXRnemo);
+
+    Tensor<double> FRXRF=matrix_inner(world,nemo,RXRnemo);  // skipping factor 0.5
+    vecfuncT parallel=transform(world,nemo,FRXRF);
+    truncate(world,parallel);
+    return parallel;
+
+}
 
 /// returns the vibrational frequencies
 
 /// @param[in]  hessian the hessian matrix (not mass-weighted)
+/// @param[in]  project_tr whether to project out translation and rotation
+/// @param[in]  print_hessian   whether to print the hessian matrix
 /// @return the frequencies in atomic units
-Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian) const {
+Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian,
+        Tensor<double>& normalmodes, const bool project_tr=true, const bool print_hessian=false) const {
+
+    // compute mass-weighing matrices
+    Tensor<double> M=massweights(molecule());
+    Tensor<double> Minv(3*molecule().natom(),3*molecule().natom());
+    for (int i=0; i<3*molecule().natom(); ++i) Minv(i,i)=1.0/M(i,i);
 
     // mass-weight the hessian
-    Tensor<double> mwhessian=massweighted_hessian(hessian,molecule());
-    Tensor<double> freq(3*molecule().natom());
-    Tensor<double> U;
-    syev(mwhessian,U,freq);
-    for (std::size_t i=0; i<freq.size(); ++i) {
+    Tensor<double> mwhessian=inner(M,inner(hessian,M));
+
+    // remove translation and rotation
+    if (project_tr) MolecularOptimizer::remove_external_dof(mwhessian,molecule());
+
+    if (print_hessian) {
+        if (project_tr) {
+            print("mass-weighted hessian with translation and rotation projected out");
+        } else {
+            print("mass-weighted unprojected hessian");
+        }
+        Tensor<double> mmhessian=inner(Minv,inner(mwhessian,Minv));
+        print(mwhessian);
+        print("mass-weighted unprojected hessian; mass-weighing undone");
+        print(mmhessian);
+    }
+
+    Tensor<double> freq;
+    syev(mwhessian,normalmodes,freq);
+    for (long i=0; i<freq.size(); ++i) {
         if (freq(i)>0.0) freq(i)=sqrt(freq(i)); // real frequencies
         else freq(i)=-sqrt(-freq(i));           // imaginary frequencies
     }
     return freq;
 }
 
-/// compute the mass-weighted hessian
-Tensor<double> Nemo::massweighted_hessian(const Tensor<double>& hessian,
-        const Molecule& molecule) const {
+Tensor<double> Nemo::compute_reduced_mass(const Tensor<double>& normalmodes) const {
 
-    Tensor<double> masses(3*molecule.natom());
-    for (std::size_t i=0; i<molecule.natom();++i) {
-        const double sqrtmass=1.0/sqrt(molecule.get_atom(i).mass);
-        masses(3*i)=sqrtmass;
-        masses(3*i+1)=sqrtmass;
-        masses(3*i+2)=sqrtmass;
+    Tensor<double> M=massweights(molecule());
+    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule());
+    Tensor<double> L=copy(normalmodes);
+    Tensor<double> DL=inner(D,L);
+    Tensor<double> MDL=inner(M,DL);
+    Tensor<double> mu(3*molecule().natom());
+
+    for (int i=0; i<3*molecule().natom(); ++i) {
+        double mu1=0.0;
+        for (int j=0; j<3*molecule().natom(); ++j) mu1+=MDL(j,i)*MDL(j,i);
+        if (mu1>1.e-14) mu(i)=1.0/(mu1*constants::atomic_mass_in_au);
     }
-    Tensor<double> mass_weights=outer(masses,masses);
-    return copy(hessian).emul(mass_weights);
+    return mu;
 }
 
-/// save a function
-template<typename T, size_t NDIM>
-void Nemo::save_function(const Function<T,NDIM>& f, const std::string name) const {
-    if (world.rank()==0) print("saving function",name);
-    f.print_size(name);
-    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
-    ar & f;
+
+Tensor<double> Nemo::compute_IR_intensities(const Tensor<double>& normalmodes,
+        const vecfuncT& dens_pt) const {
+
+    // compute the matrix of the normal modes: x -> q
+    Tensor<double> M=massweights(molecule());
+    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule());
+    Tensor<double> DL=inner(D,normalmodes);
+    Tensor<double> nm=inner(M,DL);
+
+    // square of the dipole derivative wrt the normal modes Q
+    Tensor<double> mu_Qxyz2(dens_pt.size());
+
+    // compute the derivative of the dipole moment wrt nuclear displacements X
+    for (std::size_t component=0; component<3; ++component) {
+        // electronic and nuclear dipole derivative wrt nucl. displacements X
+        Tensor<double> mu_X(dens_pt.size()), mu_X_nuc(dens_pt.size());
+
+        for (int iatom=0; iatom<molecule().natom(); ++iatom) {
+            for (int iaxis=0; iaxis<3; ++iaxis) {
+                int i=iatom*3 + iaxis;
+                mu_X(i)=-inner(dens_pt[i],DipoleFunctor(component));
+                Tensor<double> dnucdipole=molecule().nuclear_dipole_derivative(iatom,iaxis);
+                mu_X_nuc(i)=dnucdipole(component);
+            }
+        }
+        Tensor<double> mu_X_total=mu_X+mu_X_nuc;
+        Tensor<double> mu_Q=inner(nm,mu_X_total,0,0);
+        mu_Qxyz2+=mu_Q.emul(mu_Q);
+    }
+
+    // have fun with constants
+    // unit of the dipole moment:
+    const double mu_au_to_SI=constants::atomic_unit_of_electric_dipole_moment;
+    // unit of the dipole derivative
+    const double dmu_au_to_SI=mu_au_to_SI/constants::atomic_unit_of_length;
+    // unit of the mass-weighted dipole derivative
+    const double dmuq_au_to_SI=dmu_au_to_SI*sqrt(constants::atomic_mass_in_au/
+            constants::atomic_mass_constant);
+    // some more fundamental constants
+    const double pi=constants::pi;
+    const double N=constants::Avogadro_constant;
+    const double e=constants::dielectric_constant;
+    const double c=constants::speed_of_light_in_vacuum;
+    // final conversion: Eqs (13) and (14) of
+    // J. Neugebauer, M. Reiher, C. Kind, and B. A. Hess,
+    // J. Comp. Chem., vol. 23, no. 9, pp. 895–910, Apr. 2002.
+    const double conversion=pi*N*dmuq_au_to_SI*dmuq_au_to_SI/(3.0*4.0*pi*e*c*c)/1.e3;
+    return mu_Qxyz2.scale(conversion);
 }
 
+
+/// compute the mass-weighting matrix for the hessian
+Tensor<double> Nemo::massweights(const Molecule& molecule) const {
+
+    Tensor<double> M(3*molecule.natom(),3*molecule.natom());
+    for (int i=0; i<molecule.natom(); i++) {
+        const double sqrtmass=1.0/sqrt(molecule.get_atom(i).get_mass_in_au());
+        M(3*i  ,3*i  )=sqrtmass;
+        M(3*i+1,3*i+1)=sqrtmass;
+        M(3*i+2,3*i+2)=sqrtmass;
+    }
+    return M;
+}
 
 } // namespace madness

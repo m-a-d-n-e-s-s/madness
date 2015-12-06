@@ -318,6 +318,13 @@ namespace madness {
 #define TENSOR_ALIGNMENT 16
 #elif HAVE_IBMBGQ
 #define TENSOR_ALIGNMENT 32
+#elif MADNESS_HAVE_AVX2
+/* 32B alignment is best for performance according to
+ * http://www.nas.nasa.gov/hecc/support/kb/haswell-processors_492.html */
+#define TENSOR_ALIGNMENT 32
+#elif MADNESS_HAVE_AVX512
+/* One can infer from the AVX2 case that 64B alignment helps with 512b SIMD. */
+#define TENSOR_ALIGNMENT 64
 #else
 #define TENSOR_ALIGNMENT 16
 #endif
@@ -2165,8 +2172,10 @@ namespace madness {
         long nd = left.ndim() + right.ndim() - 2;
         TENSOR_ASSERT(nd!=0, "result is a scalar but cannot return one ... use dot",
                       nd, &left);
+
+
         TENSOR_ASSERT(left.dim(k0) == right.dim(k1),"common index must be same length",
-                      right.dim(k1), &left);
+                	right.dim(k1), &left);
 
         TENSOR_ASSERT(nd > 0 && nd <= TENSOR_MAXDIM,
                       "invalid number of dimensions in the result", nd,0);

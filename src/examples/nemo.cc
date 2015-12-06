@@ -61,8 +61,8 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-#ifdef GITREVISION
-    const  char* gitrev =  GITREVISION;
+#ifdef MADNESS_GITREVISION
+    const  char* gitrev =  MADNESS_GITREVISION;
     const std::string gitrevision(gitrev);
     if (world.rank()==0) {
     	print("           git revision ...",gitrevision);

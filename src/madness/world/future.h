@@ -134,29 +134,22 @@ namespace madness {
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
     private:
-        /// \todo Brief description needed.
+        /// The static stack size used for callbacks and future assignment used
+        /// for small stack size optimizations
         static const int MAXCALLBACKS = 4;
 
-        /// \todo Brief description needed.
-        typedef std::stack<CallbackInterface*, std::vector<CallbackInterface*> > callbackT;
+        typedef Stack<CallbackInterface*, MAXCALLBACKS> callbackT;
+        typedef Stack<std::shared_ptr<FutureImpl<T> >,MAXCALLBACKS> assignmentT;
 
-        /// \todo Brief description needed.
-        typedef Stack<std::shared_ptr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
-
-        /// \todo Brief description needed.
-        volatile callbackT callbacks;
-
-        /// \todo Brief description needed.
-        volatile mutable assignmentT assignments;
-
-        /// \todo Brief description needed.
-        volatile bool assigned;
-
-        /// \todo Brief description needed.
-        RemoteReference< FutureImpl<T> > remote_ref;
-
-        /// \todo Brief description needed.
-        volatile T t;
+        volatile callbackT callbacks; ///< A stack that stores callbacks that
+                            ///< are invoked once the future has been assigned
+        volatile mutable assignmentT assignments; ///< A stack that stores
+                            ///< future objects that are set to the same value
+                            ///< as this future, once it has been set
+        volatile bool assigned; ///< A flag indicating if the future has been set
+        RemoteReference< FutureImpl<T> > remote_ref; ///< Reference to a remote
+                            ///< future pimpl
+        volatile T t; ///< The future data
 
         /// AM handler for remote set operations.
 
@@ -217,7 +210,7 @@ namespace madness {
             callbackT& cb = const_cast<callbackT&>(callbacks);
 
             while (!as.empty()) {
-                MADNESS_ASSERT(as.front());
+                MADNESS_ASSERT(as.top());
                 as.top()->set(value);
                 as.pop();
             }
@@ -227,6 +220,9 @@ namespace madness {
                 cb.top()->notify();
                 cb.pop();
             }
+
+            as.reset();
+            cb.reset();
         }
 
         /// Pass by value with implied copy to manage lifetime of \c f.

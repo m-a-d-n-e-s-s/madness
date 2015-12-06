@@ -35,6 +35,7 @@
 
 #include <madness/madness_config.h>
 #include <pthread.h>
+#include <cstdio>
 #ifdef ON_A_MAC
 #include <libkern/OSAtomic.h>
 typedef OSSpinLock pthread_spinlock_t;
@@ -71,6 +72,10 @@ inline void pthread_spin_destroy(pthread_spinlock_t* /*p*/) {}
 
 namespace madness {
 
+    namespace detail {
+        void print_mutex_error(int error_number);
+    }
+
     class MutexWaiter {
     private:
         unsigned int count;
@@ -79,9 +84,9 @@ namespace madness {
         /// Blue Gene always has a dedicated hw thread
         void yield(int us) {
 #if !defined(HAVE_IBMBGP) && !defined(HAVE_IBMBGQ)
-	        myusleep(us);
+            myusleep(us);
 #endif
-	    }
+        }
 
     public:
         MutexWaiter() : count(0) { }
@@ -119,13 +124,21 @@ namespace madness {
         /// Acquire the mutex waiting if necessary
         void lock() const {
             const int result = pthread_mutex_lock(&mutex);
-            if (result) MADNESS_EXCEPTION("failed acquiring mutex", result);
+            if (result) {
+                fprintf(stderr, "!! MADNESS ERROR: Mutex::lock() failed acquiring mutex\n");
+                detail::print_mutex_error(result);
+                MADNESS_EXCEPTION("Mutex::lock() failed acquiring mutex", result);
+            }
         }
 
         /// Free a mutex owned by this thread
         void unlock() const {
             const int result = pthread_mutex_unlock(&mutex);
-            if (result) MADNESS_EXCEPTION("failed releasing mutex", result);
+            if (result) {
+                fprintf(stderr, "!! MADNESS ERROR: Mutex::unlock() failed releasing mutex\n");
+                detail::print_mutex_error(result);
+                MADNESS_EXCEPTION("Mutex::unlock() failed releasing mutex", result);
+            }
         }
 
         /// Return a pointer to the pthread mutex for use by a condition variable
@@ -161,13 +174,21 @@ namespace madness {
         /// Acquire the mutex waiting if necessary
         void lock() const {
             int result = pthread_mutex_lock(&mutex);
-            if (result) MADNESS_EXCEPTION("failed acquiring mutex", result);
+            if (result) {
+                fprintf(stderr, "!! MADNESS ERROR: RecursiveMutex::lock() failed acquiring mutex\n");
+                detail::print_mutex_error(result);
+                MADNESS_EXCEPTION("RecursiveMutex::lock() failed acquiring mutex", result);
+            }
         }
 
         /// Free a mutex owned by this thread
         void unlock() const {
             int result = pthread_mutex_unlock(&mutex);
-            if (result) MADNESS_EXCEPTION("failed releasing mutex", result);
+            if (result) {
+                fprintf(stderr, "!! MADNESS ERROR: RecursiveMutex::unlock() failed releasing mutex\n");
+                detail::print_mutex_error(result);
+                MADNESS_EXCEPTION("RecursiveMutex::unlock() failed releasing mutex", result);
+            }
         }
 
         /// Return a pointer to the pthread mutex for use by a condition variable
@@ -225,13 +246,21 @@ namespace madness {
         /// Acquire the spinlock waiting if necessary
         void lock() const {
             int result = pthread_spin_lock(&spinlock);
-            if (result) MADNESS_EXCEPTION("failed acquiring spinlock", result);
+            if (result) {
+                fprintf(stderr, "!! MADNESS ERROR: Spinlock::lock() failed acquiring spinlock\n");
+                detail::print_mutex_error(result);
+                MADNESS_EXCEPTION("Spinlock::lock() failed acquiring spinlock", result);
+            }
         }
 
         /// Free a spinlock owned by this thread
         void unlock() const {
             int result = pthread_spin_unlock(&spinlock);
-            if (result) MADNESS_EXCEPTION("failed releasing spinlock", result);
+            if (result) {
+                fprintf(stderr, "!! MADNESS ERROR: Spinlock::unlock() failed releasing spinlock\n");
+                detail::print_mutex_error(result);
+                MADNESS_EXCEPTION("Spinlock::unlock() failed releasing spinlock", result);
+            }
         }
 
         virtual ~Spinlock() {
@@ -576,12 +605,20 @@ namespace madness {
 
         void lock() const {
             int result = pthread_mutex_lock(&mutex);
-            if (result) MADNESS_EXCEPTION("ConditionVariable: acquiring mutex", result);
+            if (result) {
+                fprintf(stderr, "!! MADNESS ERROR: PthreadConditionVariable::lock() failed acquiring mutex\n");
+                detail::print_mutex_error(result);
+                MADNESS_EXCEPTION("PthreadConditionVariable::lock() failed acquiring mutex", result);
+            }
         }
 
         void unlock() const {
             int result = pthread_mutex_unlock(&mutex);
-            if (result) MADNESS_EXCEPTION("ConditionVariable: releasing mutex", result);
+            if (result) {
+                fprintf(stderr, "!! MADNESS ERROR: PthreadConditionVariable::unlock() failed releasing mutex\n");
+                detail::print_mutex_error(result);
+                MADNESS_EXCEPTION("PthreadConditionVariable::unlock() failed releasing mutex", result);
+            }
         }
 
         /// You should have acquired the mutex before entering here

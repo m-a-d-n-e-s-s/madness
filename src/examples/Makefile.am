@@ -1,11 +1,12 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 
 noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf nemo helium_exact 
+ tdhf cc2 nemo helium_exact density_smoothing
  
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
@@ -34,26 +35,25 @@ testspectralprop_SOURCES = testspectralprop.cc
 
 testsolver_SOURCES = testsolver.cc
 
-tdhf_SOURCES = tdhf.cc  ../apps/chem/TDA.cc ../apps/chem/TDA_XC.cc
+tdhf_SOURCES = tdhf.cc
+
+cc2_SOURCES = cc2.cc
 
 nemo_SOURCES = nemo.cc 
+
+density_smoothing_SOURCES = density_smoothing.cc
 
 newsolver_SOURCES = newsolver.cc
 
 hedft_SOURCES = hedft.cc 
+hedft_LDADD = $(LIBCHEM) $(MRALIBS)
+
 h2dft_SOURCES = h2dft.cc
+h2dft_LDADD = $(LIBCHEM) $(MRALIBS)
+
 if MADNESS_HAS_LIBXC
-hefxc_SOURCES = hefxc.cc  
-hefxc_SOURCES += ../apps/chem/xcfunctional_libxc.cc
-hedft_SOURCES += ../apps/chem/xcfunctional_libxc.cc
-h2dft_SOURCES += ../apps/chem/xcfunctional_libxc.cc
-endif
-if MADNESS_HAS_MADXC
-hedft_SOURCES += ../apps/DFcode/xcfunctional_madxc.cc 
-h2dft_SOURCES += ../apps/DFcode/xcfunctional_madxc.cc 
-else
-hedft_SOURCES += ../apps/chem/xcfunctional_ldaonly.cc 
-h2dft_SOURCES += ../apps/chem/xcfunctional_ldaonly.cc 
+hefxc_SOURCES = hefxc.cc 
+hefxc_LDADD = $(LIBCHEM) $(MRALIBS)
 endif
 
 sininteg_SOURCES = sininteg.cc

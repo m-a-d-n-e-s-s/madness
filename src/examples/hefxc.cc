@@ -54,18 +54,22 @@ XCfunctional xc;
 
 double make_dft_energy(World & world, const vecfuncT& vf, int ispin)
 {
-	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc, ispin), vf);
+	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
 	return vlda.trace();
 }
 
-functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
+functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin,
+        XCfunctional::xc_contribution what)
 {
 	return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
 }
 
-functionT make_dft_kernel(World & world, const vecfuncT& vf, int ispin, int what)
+functionT make_dft_kernel(World & world, const vecfuncT& vf, int ispin,
+        int what)
 {
-        return multiop_values<double, xc_kernel, 3>(xc_kernel(xc, ispin, what), vf);
+    // xc_kernel has been disables and replaced by xc_kernel_apply, because
+    // it's more stable for GGA's
+//        return multiop_values<double, xc_kernel, 3>(xc_kernel(xc, ispin, what), vf);
 }
 
 
@@ -159,17 +163,18 @@ int main(int argc, char** argv) {
                  vf.push_back(saa); // sigma_aa
                  if (vf.size()) {
                        reconstruct(world, vf);
-                       rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//                       rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                       refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
                  }
            }
                   double exc = make_dft_energy(world, vf, 0);
                   print("exc=",exc );
 
-          real_function_3d  vxco = make_dft_potential(world, vf, 0, 0); //.truncate();
+          real_function_3d  vxco = make_dft_potential(world, vf, 0, XCfunctional::potential_rho); //.truncate();
 #if 1
                         if (xc.is_gga() ) {
                             // get Vsigma_aa (if it is the case and Vsigma_bb)
-                            functionT vsigaa = make_dft_potential(world, vf, 0, 1); //.truncate();
+                            functionT vsigaa = make_dft_potential(world, vf, 0, XCfunctional::potential_same_spin); //.truncate();
 
                             for (int axis=0; axis<3; axis++) {
                                 functionT gradn = delrho[axis];
@@ -207,7 +212,7 @@ int main(int argc, char** argv) {
           functionT d3 = make_dft_kernel(world, vf, 0, 2);
           d3.scale(constants::pi);
 //        
-          functionT d4 = make_dft_potential(world, vf, 0, 1);
+          functionT d4 = make_dft_potential(world, vf, 0, XCfunctional::potential_same_spin);
           d4.scale(constants::pi);
           d4.scale(1.*2);
 //

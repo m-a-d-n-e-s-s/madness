@@ -254,7 +254,7 @@ namespace madness {
         for (int i=lo; i<=hi; ++i) CPU_SET(i,&mask);
         if (sched_setaffinity(0, sizeof(mask), &mask) == -1) {
             perror("system error message");
-            std::cout << "ThreadBase: set_affinity: Could not set cpu Affinity" << std::endl;
+            std::cout << "ThreadBase: set_affinity: Could not set cpu affinity" << std::endl;
         }
         //else {
         //    printf("managed to set affinity\n");

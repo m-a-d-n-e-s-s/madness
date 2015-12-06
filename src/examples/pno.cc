@@ -9,7 +9,7 @@ using namespace madness;
 namespace madness {
 
 
-class GaussianGuess : FunctionFunctorInterface<double,3> {
+class GaussianGuess : public FunctionFunctorInterface<double,3> {
 public:
     GaussianGuess(const Atom& atom, const double e, const int i, const int j,
             const int k) : x(atom.x), y(atom.y), z(atom.z),
@@ -55,25 +55,6 @@ std::vector<GaussianGuess> make_guess(const Atom& atom, int l, const double expo
 }
 
 
-class QProjector {
-public:
-    QProjector(World& world, const vecfuncT& amo) : world(world), O(amo) {};
-    real_function_3d operator()(const real_function_3d& rhs) const {
-        return (rhs-O(rhs));
-    }
-    vecfuncT operator()(const vecfuncT& rhs) const {
-        vecfuncT result(rhs.size());
-        for (std::size_t i=0; i<rhs.size(); ++i) {
-            result[i]=(rhs[i]-O(rhs[i])).truncate();
-        }
-        truncate(world,result);
-        return result;
-    }
-
-private:
-    World& world;
-    Projector<double,3> O;
-};
 
 
 
@@ -448,7 +429,7 @@ public:
         vecfuncT virtuals;
         std::vector<GaussianGuess> gg=make_guess(atom,l,e);
         for (std::size_t m=0; m<gg.size(); ++m) {
-            virtuals.push_back(real_factory_3d(world).functor2(gg[m]).truncate_on_project());
+            virtuals.push_back(real_factory_3d(world).functor(gg[m]).truncate_on_project());
         }
         normalize(world,virtuals);
         return virtuals;
@@ -603,7 +584,7 @@ private:
     Kinetic<double,3> T;
     Nuclear V;
     Fock F;
-    QProjector Q;
+    QProjector<double,3> Q;
     std::shared_ptr<real_convolution_3d> poisson;
     std::shared_ptr<real_convolution_3d> bsh;
 

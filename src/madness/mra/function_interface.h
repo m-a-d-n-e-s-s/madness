@@ -53,6 +53,7 @@ namespace madness {
     Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double,NDIM>&), const Tensor<double>&);
 
 
+
 	/// Abstract base class interface required for functors used as input to Functions
 	template<typename T, std::size_t NDIM>
 	class FunctionFunctorInterface {
@@ -61,6 +62,17 @@ namespace madness {
 	    typedef GenTensor<T> coeffT;
 	    typedef Key<NDIM> keyT;
 	    typedef T value_type;
+
+	    Level special_level_;
+
+	    FunctionFunctorInterface() : special_level_(6) {}
+
+	    /// adapt the special level to resolve the smallest length scale
+	    void set_length_scale(double lo) {
+	        double Lmax=FunctionDefaults<NDIM>::get_cell_width().max();
+	        double lo_sim=lo/Lmax;  // lo in simulation coordinates;
+	        special_level_=Level(-log2(lo_sim));
+	    }
 
 	    /// Can we screen this function based on the bounding box information?
 	    virtual bool screened(const Vector<double,NDIM>& c1, const Vector<double,NDIM>& c2) const {
@@ -103,7 +115,7 @@ namespace madness {
 	    }
 
 	    /// Override this change level refinement for special points (default is 6)
-	    virtual Level special_level() {return 6;}
+	    virtual Level special_level() {return special_level_;}
 
 	    virtual ~FunctionFunctorInterface() {}
 
@@ -124,6 +136,12 @@ namespace madness {
 
 	};
 
+
+
+	///forward declaration
+	template <typename T, std::size_t NDIM>
+	//    void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
+	void fcube(const Key<NDIM>& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, Tensor<T>& fval);
 
 	/// CompositeFunctorInterface implements a wrapper of holding several functions and functors
 
@@ -452,7 +470,6 @@ namespace madness {
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
 		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
-
 			initialize(eps);
 		}
 
@@ -507,31 +524,32 @@ namespace madness {
 		}
 	};
 
-	/// a function like f(x) = (1 - exp(-mu x))/x
-	class FGInterface : public TwoElectronInterface<double,6> {
-	public:
-
-		/// constructor: cf the Coulomb kernel
-
-		/// @param[in]	mu		the exponent of the Slater function
-		/// @param[in]	lo		the smallest length scale to be resolved
-		/// @param[in]	eps		the accuracy threshold
-		FGInterface(double mu, double lo, double eps,
-				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
-				int kk=FunctionDefaults<6>::get_k())
-		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
-
-			initialize(eps);
-		}
-
-	private:
-
-		double mu;
-
-		GFit<double,3> fit(const double eps) const {
-			return GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-		}
-	};
+// Not right
+//	/// a function like f(x) = (1 - exp(-mu x))/x
+//	class FGInterface : public TwoElectronInterface<double,6> {
+//	public:
+//
+//		/// constructor: cf the Coulomb kernel
+//
+//		/// @param[in]	mu		the exponent of the Slater function
+//		/// @param[in]	lo		the smallest length scale to be resolved
+//		/// @param[in]	eps		the accuracy threshold
+//		FGInterface(double mu, double lo, double eps,
+//				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
+//				int kk=FunctionDefaults<6>::get_k())
+//		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
+//
+//			initialize(eps);
+//		}
+//
+//	private:
+//
+//		double mu;
+//
+//		GFit<double,3> fit(const double eps) const {
+//			return GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+//		}
+//	};
 
 
 #if 0

@@ -39,6 +39,15 @@
 #define MADNESS_MADNESS_CONFIG_H__INCLUDED
 
 #include <madness/config.h>
+/* undefine what every autoheader package defines to avoid clashes */
+#undef PACKAGE
+#undef PACKAGE_NAME
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_URL
+#undef PACKAGE_VERSION
+#undef VERSION
 
 /* System check */
 #if defined(__CRAYXT)
@@ -71,6 +80,12 @@
    /* x86 64-bit */
 #  define X86_64 1
 #  define MADNESS_HAVE_X86_64 1
+
+/* http://lists.cs.uiuc.edu/pipermail/cfe-commits/Week-of-Mon-20130819/086386.html */
+/* AVX-512 where F=foundational; ER, CD and PF extensions may also be useful some day. */
+#  if defined(__AVX512F__)
+#    define MADNESS_HAVE_AVX512 1
+#  endif
 
 #  if defined(__AVX2__)
 #    define MADNESS_HAVE_AVX2 1

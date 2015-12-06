@@ -2754,7 +2754,8 @@ struct Calculation {
                 }
                 if (vf.size()) {
                     reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                    refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
                 }
             }
 

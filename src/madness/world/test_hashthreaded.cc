@@ -384,17 +384,6 @@ void test_accessors() {
     if (a[1] != 20000000.0) MADNESS_EXCEPTION("Ooops", int(a[1]));
 }
 
-void test_integer_range() {
-    int start(12), end(start+30);
-
-    Range<int> l(start,end);
-    cout << "Initial range " << l.begin() << " " << l.end() << " " << l.size() << endl;
-    Range<int> r(l,Split());
-    cout << "Split left  range " << l.begin() << " " << l.end() << " " << l.size() << endl;
-    cout << "Split right range " << r.begin() << " " << r.end() << " " << r.size() << endl;
-
-}
-
 int main(int argc, char** argv) {
     madness::initialize(argc,argv);
     try {
@@ -403,7 +392,6 @@ int main(int argc, char** argv) {
         test_time();
         test_thread();
         test_accessors();
-        test_integer_range();
 
         cout << "Things seem to be working!\n";
     }

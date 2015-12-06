@@ -1,0 +1,63 @@
+# - CMAKE Config file for the MADNESS package
+# The following variables are defined:
+#  Madness_INCLUDE_DIRS         - The MADNESS include directory
+#  Madness_LIBRARIES            - The MADNESS libraries and their dependencies
+#  Madness_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
+#  Madness_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
+#  Madness_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls 
+
+# Set package version
+set(Madness_VERSION "@MADNESS_VERSION@")
+
+@PACKAGE_INIT@
+
+# Include library IMPORT targets
+if(NOT TARGET madness)
+  include("${CMAKE_CURRENT_LIST_DIR}/madness-targets.cmake")
+endif()
+
+# Set the madness libraries target
+set(Madness_LIBRARIES madness)
+
+set(MADNESS_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
+set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
+
+# Set Elemental variables
+set(ENABLE_ELEMENTAL @ENABLE_ELEMENTAL@)
+
+if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
+  # In build tree
+  
+  set(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
+  set(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
+  
+  set(Madness_INCLUDE_DIRS "${MADNESS_SOURCE_DIR}/src" "${MADNESS_BINARY_DIR}/src")
+  if(ENABLE_ELEMENTAL)
+    list(APPEND Madness_INCLUDE_DIRS 
+        "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
+        "${Elemental_SOURCE_DIR}/external/pmrrr/include"
+        "${Elemental_BINARY_DIR}/external/pmrrr/include")
+  endif()
+else()
+  # In install tree
+  
+  list(APPEND Madness_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
+      "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madnss/external")
+endif()
+
+# Set component variables
+foreach(_comp world misc tensor linalg tinyxml muparser mra chem)
+  if(TARGET MAD${_comp})
+    set(Madness_${_comp}_FOUND TRUE)
+    set(Madness_${_comp}_LIBRARY ${_comp})
+  else()
+    set(Madness_${_comp}_FOUND FALSE)
+    set(Madness_${_comp}_LIBRARY "Madness_${_comp}_LIBRARY-NOTFOUND")
+  endif()
+endforeach()
+
+# Set the Fortran 77 integer size (4 or 8)
+set(Madness_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
+
+check_required_components(Madness)
+

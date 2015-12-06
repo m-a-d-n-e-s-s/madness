@@ -66,21 +66,21 @@ namespace madness {
         /// Iterates dimension d from 0 to limts[d]-1 inclusive
         template<typename V>
         IndexIterator(const V& limits) :
-                n(limits.size()), i(limits.size(), 0), finished(false) {
+                n(limits.size()), i(limits.size(), 0l), finished(false) {
             for (unsigned int d = 0; d < n.size(); ++d)
                 n[d] = limits[d];
         }
 
         /// Iterates dimension d from 0 to limts[d]-1 inclusive
         IndexIterator(int ndim, const long limits[]) :
-                n(ndim), i(ndim, 0), finished(false) {
+                n(ndim), i(ndim, 0l), finished(false) {
             for (unsigned int d = 0; d < n.size(); ++d)
                 n[d] = limits[d];
         }
 
         /// Iterates all dimensions from 0 to top-1 inclusive
         IndexIterator(int ndim, long top) :
-                n(ndim,top), i(ndim, 0), finished(false) {
+                n(ndim,top), i(ndim, 0l), finished(false) {
         }
 
         virtual ~IndexIterator() {}

@@ -155,6 +155,29 @@ public:
     }
 };
 
+
+class AtomicAttractionFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+    const int iatom;
+
+public:
+    AtomicAttractionFunctor(const Molecule& molecule, int iatom)
+        : molecule(molecule), iatom(iatom) {}
+
+    double operator()(const coordT& x) const {
+        const Atom& atom=molecule.get_atom(iatom);
+        const coordT coord={atom.x,atom.y,atom.z};
+        double r = (x-coord).normf();
+        return -atom.q * smoothed_potential(r*molecule.get_rcut()[iatom])
+                *molecule.get_rcut()[iatom];
+    }
+
+    std::vector<coordT> special_points() const {
+        return std::vector<coordT>(1,molecule.get_atom(iatom).get_coords());
+    }
+};
+
 class MolecularDerivativeFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
@@ -174,6 +197,29 @@ public:
         return std::vector<coordT>(1,molecule.get_atom(atom).get_coords());
     }
 };
+
+class MolecularSecondDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+    const int atom;
+    const int iaxis, jaxis;
+
+public:
+    MolecularSecondDerivativeFunctor(const Molecule& molecule, int atom,
+            int iaxis, int jaxis)
+        : molecule(molecule), atom(atom),iaxis(iaxis), jaxis(jaxis)
+    {}
+
+    double operator()(const coordT& x) const {
+        return molecule.nuclear_attraction_potential_second_derivative(atom,
+                iaxis, jaxis, x[0], x[1], x[2]);
+    }
+
+    std::vector<coordT> special_points() const {
+        return std::vector<coordT>(1,molecule.get_atom(atom).get_coords());
+    }
+};
+
 
 class CorePotentialDerivativeFunctor : public FunctionFunctorInterface<double,3> {
 private:
@@ -311,8 +357,10 @@ struct CalculationParameters {
     bool gtest;                 ///< geometry tolerance
     double gval;                ///< value precision
     double gprec;               ///< gradient precision
-    int  gmaxiter;               ///< optimization maxiter
+    int  gmaxiter;              ///< optimization maxiter
     std::string algopt;         ///< algorithm used for optimization
+    bool hessian;               ///< compute the hessian matrix
+    bool read_cphf;             ///< read the orbital response for nuclear displacements from file
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
@@ -326,7 +374,8 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & nuclear_corrfac & psp_calc & pure_ae;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop
+            & nuclear_corrfac & psp_calc & pure_ae & hessian & read_cphf;
     }
 
     CalculationParameters()
@@ -376,6 +425,8 @@ struct CalculationParameters {
         , gprec(1e-4)
         , gmaxiter(20)
         , algopt("BFGS")
+        , hessian(false)
+        , read_cphf(false)
         , tdksprop(false)
         , nuclear_corrfac("none")
         , pure_ae(true)
@@ -552,6 +603,12 @@ struct CalculationParameters {
 //                f.getline(buf,sizeof(buf));
 //                algopt = buf;
             }
+            else if (s == "hessian") {
+               hessian = true;
+            }
+            else if (s == "read_cphf") {
+                read_cphf = true;
+            }
             else if (s == "tdksprop") {
               tdksprop = true;
             }
@@ -717,6 +774,7 @@ public:
     //double esol;//etot;
     //double vacuo_energy;
     static const int vnucextra = 12; // load balance parameter for nuclear pot.
+    static const int loadbalparts = 2.0; // was 6.0
 
     SCF(World & world, const char *filename);
 
@@ -744,7 +802,7 @@ public:
         	FunctionDefaults<NDIM>::set_k(param.k);
         }
         // don't forget to adapt the molecular smoothing parameter!!
-        molecule.set_eprec(std::min(thresh,molecule.get_eprec()));
+//        molecule.set_eprec(std::min(thresh,molecule.get_eprec()));
         FunctionDefaults<NDIM>::set_thresh(thresh);
         FunctionDefaults<NDIM>::set_refine(true);
         FunctionDefaults<NDIM>::set_initial_level(2);
@@ -856,14 +914,14 @@ public:
     functionT make_lda_potential(World & world, const functionT & arho);
 
 
-    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
-    {
-        return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
-    }
+//    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
+//    {
+//        return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
+//    }
 
     double make_dft_energy(World & world, const vecfuncT& vf, int ispin)
     {
-        functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc, ispin), vf);
+        functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
         return vlda.trace();
     }
 

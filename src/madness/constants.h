@@ -239,7 +239,7 @@ namespace madness {
         const double Planck_constant_over_2_pi = 1.054571628e-34 ; //   0.000000053e-34    J s
 
         /// Ratio of proton to electron mass.
-        const double proton_electron_mass_ratio = 1836.15267247 ; //      0.00000080          
+        const double proton_electron_mass_ratio = 1836.15267247 ; //      0.00000080
 
         /// Proton \f$ g \f$ factor.
         const double proton_g_factor = 5.585694713 ; //        0.000000046         
@@ -264,6 +264,18 @@ namespace madness {
 
         /// Unified atomic mass unit.
         const double unified_atomic_mass_unit = 1.660538782e-27 ; //   0.000000083e-27    kg
+
+        /// Atomic mass in atomic units
+        const double atomic_mass_in_au = 1822.88848;
+
+        /// conversion from atomic units in reciprocal centimeter
+        const double au2invcm = 219474.6313705;
+
+        /// the dielectric constant \epsilon_0, or the permittivity of vacuum
+        const double dielectric_constant = 8.854187817e-12;     // F m^{-1}
+
+        /// speed of light in vacuum in au
+        const double speed_of_light_in_vacuum_in_au = 1.0/fine_structure_constant;   // \approx 137
 
     }
 

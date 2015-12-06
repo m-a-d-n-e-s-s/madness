@@ -55,11 +55,12 @@ XCfunctional xc;
 
 double make_dft_energy(World & world, const vecfuncT& vf, int ispin)
 {
-	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc, ispin), vf);
+	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
 	return vlda.trace();
 }
 
-functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
+functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin,
+        XCfunctional::xc_contribution what)
 {
 	return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
 }
@@ -147,75 +148,75 @@ int main(int argc, char** argv) {
 
 	double eps = -0.5;
 	{
-		NonlinearSolver solver;
-		for (int iter=0; iter<20; iter++) {
-                        functionT rho = square(psi).truncate();
-                        //functionT rho  = real_factory_3d(world).f(guess_density);
-                        //rho.truncate();
-			rho.reconstruct();
+	    NonlinearSolver solver;
+	    for (int iter=0; iter<20; iter++) {
+	        functionT rho = square(psi).truncate();
+	        //functionT rho  = real_factory_3d(world).f(guess_density);
+	        //rho.truncate();
+	        rho.reconstruct();
 
-			vecfuncT delrho;
-                        vecfuncT vf;
+	        vecfuncT delrho;
+	        vecfuncT vf(XCfunctional::number_xc_args);    // number of possible intermediates
 
-			vf.push_back(rho);
+//	        vf.push_back(rho);
+	        vf[XCfunctional::enum_rhoa]=rho;
 
-                        // ADD SIGMA
-                        functionT saa;
-			if (xc.is_gga()) {
-                              for(int axis = 0;axis < 3;++axis){
-                                       Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-                                       delrho.push_back(D(rho));
-                              }
-                              saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
-                              //saa  = real_factory_3d(world).f(guess_gradient);
-                              //saa.truncate();
-                              //saa.reconstruct();
+	        // ADD SIGMA
+	        functionT saa;
+	        if (xc.is_gga()) {
+	            for(int axis = 0;axis < 3;++axis){
+	                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+	                delrho.push_back(D(rho));
+	            }
+	            saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
+	            //saa  = real_factory_3d(world).f(guess_gradient);
+	            //saa.truncate();
+	            //saa.reconstruct();
 
-                              vf.push_back(saa); // sigma_aa
-                              if (vf.size()) {
-                                    reconstruct(world, vf);
-                                    rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-                              }
-                        }
-                        //double exc = make_dft_energy(world, vf, 0);
-                        //print("exc=",exc );
+	            vf[XCfunctional::enum_saa]=saa;
 
-                        real_function_3d vxc =  make_dft_potential(world, vf, 0, 0);
+	            reconstruct(world, vf);
+	            refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
+	        }
+	        //double exc = make_dft_energy(world, vf, 0);
+	        //print("exc=",exc );
+
+	        real_function_3d vxc =  make_dft_potential(world, vf, 0, XCfunctional::potential_rho);
 
 
-                        functionT vsigaa;
-			if (xc.is_gga()) {
-                                vsigaa = make_dft_potential(world, vf, 0, 1).truncate();
+	        functionT vsigaa;
+	        if (xc.is_gga()) {
+	            vsigaa = make_dft_potential(world, vf, 0, XCfunctional::potential_same_spin).truncate();
 
-                                for (int axis=0; axis<3; axis++) {
-                                        Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-                                        real_function_3d  gradn = D(rho);
-                                        real_function_3d  ddel = vsigaa*gradn;
-                                        ddel.scale(2.0);
+	            for (int axis=0; axis<3; axis++) {
+	                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+	                real_function_3d  gradn = D(rho);
+	                real_function_3d  ddel = vsigaa*gradn;
+	                ddel.scale(2.0);
 
-                                        real_function_3d vxc2=D(ddel).truncate();
-                                        vxc = vxc - vxc2;
-                                }
-                        }
+	                real_function_3d vxc2=D(ddel).truncate();
+	                vxc = vxc - vxc2;
+	            }
+	        }
 
-                        real_function_3d potential = Vnuc + 2* op(rho).truncate() +vxc.truncate();
+	        real_function_3d potential = Vnuc + 2* op(rho).truncate() +vxc.truncate();
 
-                        //deactivate test printing for now
-                        if(iter == 0 && false){
- 			   std::ofstream file;
-	                   std::ostringstream iter_str;
-	                   iter_str << iter;
+	        //deactivate test printing for now
+	        if(iter == 0 && false){
+	            std::ofstream file;
+	            std::ostringstream iter_str;
+	            iter_str << iter;
 
- 			   file.open ("iter"+iter_str.str()+".txt");
-	                   file.precision(12);
-			   coord_3d r(0.0);
-                           /*double av, avrho, avpot;*/
-                           //double dx=0.1;
-                           //int imax=Length/dx;
-                           int imax=1024;
-			   for (int i=0; i<=imax; i++) {
-			      r[0] = -Length/2. + Length*i/imax;
-                              /*av=0.0;avrho=0.0;avpot=0.0;
+	            file.open ("iter"+iter_str.str()+".txt");
+	            file.precision(12);
+	            coord_3d r(0.0);
+	            /*double av, avrho, avpot;*/
+	            //double dx=0.1;
+	            //int imax=Length/dx;
+	            int imax=1024;
+	            for (int i=0; i<=imax; i++) {
+	                r[0] = -Length/2. + Length*i/imax;
+	                /*av=0.0;avrho=0.0;avpot=0.0;
 			      for (int j=0; j<=imax; j++) {
 			         r[1] = -L/2. + L*j/imax;
 			         for (int k=0; k<=imax; k++) {
@@ -235,30 +236,30 @@ int main(int argc, char** argv) {
 			            avpot+=potential(r);
 			         }
 			      }*/
-                              r[2]=0.01;r[1]=0.01;
-                              /*file << r[2] << "\t" << vxc(r) << "\t" << vxc_trunc(r) << "\t" << av/((imax+1)*(imax+1)) << "\t";
+	                r[2]=0.01;r[1]=0.01;
+	                /*file << r[2] << "\t" << vxc(r) << "\t" << vxc_trunc(r) << "\t" << av/((imax+1)*(imax+1)) << "\t";
                               file << potential(r) << "\t" << avpot/((imax+1)*(imax+1)) << "\t" << Vnuc(r) << "\t"  << rho(r) << "\t" << avrho/((imax+1)*(imax+1));
                               file << "\t" << psi(r) << "\n" ;*/
 
-                              //functionT rho_nt = square(psi);
-                              //functionT rho_rec = square(psi).truncate();
-			      //rho_rec.reconstruct();
-                              functionT rho_nt = real_factory_3d(world);
-                              functionT rho_rec = real_factory_3d(world);
+	                //functionT rho_nt = square(psi);
+	                //functionT rho_rec = square(psi).truncate();
+	                //rho_rec.reconstruct();
+	                functionT rho_nt = real_factory_3d(world);
+	                functionT rho_rec = real_factory_3d(world);
 
-                              file << r[0] << "\t" << vxc(r) << "\t" << potential(r) << "\t" << Vnuc(r) << "\t";
-                              file << rho(r) << "\t" << rho_nt(r) << "\t"  << rho_rec(r) << "\t" << psi(r);
+	                file << r[0] << "\t" << vxc(r) << "\t" << potential(r) << "\t" << Vnuc(r) << "\t";
+	                file << rho(r) << "\t" << rho_nt(r) << "\t"  << rho_rec(r) << "\t" << psi(r);
 
-			      if (xc.is_gga()) {
-                                 file << "\t" << saa(r) << "\t" << vsigaa(r);
-                              }
+	                if (xc.is_gga()) {
+	                    file << "\t" << saa(r) << "\t" << vsigaa(r);
+	                }
 
-                              file << "\n";
-		           }
-                           file.close();
+	                file << "\n";
+	            }
+	            file.close();
 
-                           ///////////////////////////////////////////////////////////
-                           /*{
+	            ///////////////////////////////////////////////////////////
+	            /*{
                               int npt_plot=101;
                               tensorT plot_cell;
                               //plot_cell = tensorT(3L,2L);
@@ -271,41 +272,43 @@ int main(int argc, char** argv) {
                                   plotdx(Vnuc, "vnuc.dx", plot_cell, npt, true);
 
                            }*/
-                           ///////////////////////////////////////////////////////////
+	            ///////////////////////////////////////////////////////////
 
-                        }
+	        }
 
-                        double err  = iterate_ground(world, solver, potential, psi, eps);
+	        double err  = iterate_ground(world, solver, potential, psi, eps);
 
-                        if (err < thresh) break;
-		}
+	        if (err < thresh) break;
+	    }
 	}
 	double kinetic_energy = 0.0;
 	for (int axis=0; axis<3; axis++) {
-		real_derivative_3d D = free_space_derivative<double,3>(world, axis);
-		real_function_3d dpsi = D(psi);
-		kinetic_energy += inner(dpsi,dpsi);
+	    real_derivative_3d D = free_space_derivative<double,3>(world, axis);
+	    real_function_3d dpsi = D(psi);
+	    kinetic_energy += inner(dpsi,dpsi);
 	}
 
 	real_function_3d rho = square(psi);
 	double two_electron_energy = 2*inner(op(rho),rho); // <u|rho> = <phi phi | 1/r12 | phi phi>
 	rho.reconstruct();
-	vecfuncT vf;
-	vf.push_back(rho);
+	vecfuncT vf(13);
+//	vf.push_back(rho);
+    vf[XCfunctional::enum_rhoa]=rho;
+
 	vecfuncT delrho;
 
 	if (xc.is_gga()) {
-             for(int axis = 0;axis < 3;++axis){
-                       Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-                        delrho.push_back(D(rho));
-              }
-              functionT saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
-              vf.push_back(saa); // sigma_aa
-              if (vf.size()) {
-                      reconstruct(world, vf);
-                      rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-              }
-        }
+	    for(int axis = 0;axis < 3;++axis){
+	        Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+	        delrho.push_back(D(rho));
+	    }
+	    functionT saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
+//	    vf.push_back(saa); // sigma_aa
+	    vf[XCfunctional::enum_saa]=saa;
+
+	    reconstruct(world, vf);
+	    refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
+	}
 	double exc=make_dft_energy(world, vf, 0); // Exc
 	double nuclear_attraction_energy = 2.0*inner(Vnuc,rho); // <V|rho> = <phi|V|phi>
 	double total_energy = kinetic_energy + two_electron_energy +

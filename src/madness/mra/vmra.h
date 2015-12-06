@@ -163,6 +163,35 @@ namespace madness {
     }
 
 
+    /// refine all functions to a common (finest) level
+
+    /// if functions are not initialized (impl==NULL) they are ignored
+    template <typename T, std::size_t NDIM>
+    void refine_to_common_level(World& world, std::vector<Function<T,NDIM> >& vf,
+            bool fence=true) {
+
+        reconstruct(world,vf);
+        Key<NDIM> key0(0, Vector<Translation, NDIM> (0));
+        std::vector<FunctionImpl<T,NDIM>*> v_ptr;
+
+        // push initialized function pointers into the vector v_ptr
+        for (unsigned int i=0; i<vf.size(); ++i) {
+            if (vf[i].is_initialized()) v_ptr.push_back(vf[i].get_impl().get());
+        }
+
+        // sort and remove duplicates to not confuse the refining function
+        std::sort(v_ptr.begin(),v_ptr.end());
+        typename std::vector<FunctionImpl<T, NDIM>*>::iterator it;
+        it = std::unique(v_ptr.begin(), v_ptr.end());
+        v_ptr.resize( std::distance(v_ptr.begin(),it) );
+
+        std::vector< Tensor<T> > c(v_ptr.size());
+        v_ptr[0]->refine_to_common_level(v_ptr, c, key0);
+        if (fence) v_ptr[0]->world.gop.fence();
+        if (VERIFY_TREE)
+            for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
+    }
+
     /// Generates non-standard form of a vector of functions
     template <typename T, std::size_t NDIM>
     void nonstandard(World& world,
@@ -270,9 +299,8 @@ namespace madness {
         int m = c.dim(1);  // m is the new dimension
         MADNESS_ASSERT(n==c.dim(0));
 
-        std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
+        std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
         compress(world, v);
-        compress(world, vc);
 
         for (int i=0; i<m; ++i) {
             for (int j=0; j<n; ++j) {
@@ -287,13 +315,15 @@ namespace madness {
 
     template <typename L, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
-    transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence) {
+    transform(World& world,  const std::vector< Function<L,NDIM> >& v,
+            const Tensor<R>& c, double tol, bool fence) {
         PROFILE_BLOCK(Vtransform);
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim(0)));
 
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim(1));
         for (int i=0; i<c.dim(1); ++i) {
-            vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
+            vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(
+                    FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
         }
         compress(world, v, false);
         compress(world, vresult, false);
@@ -877,6 +907,19 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+    template <typename T, std::size_t NDIM>
+    void print_size(World &world, const std::vector<Function<T,NDIM> > &v, const std::string &msg = "vectorfunction" ){
+    	if(v.empty()){
+    		if(world.rank()==0) std::cout << "print_size: " << msg << " is empty" << std::endl;
+    	}else if(v.size()==1){
+    		v.front().print_size(msg);
+    	}else{
+    		for(auto x:v){
+    			x.print_size(msg);
+    		}
+    	}
+    }
+
     // gives back the size in GB
     template <typename T, std::size_t NDIM>
     double get_size(World& world, const std::vector< Function<T,NDIM> >& v){
@@ -888,11 +931,20 @@ namespace madness {
 
         double size=0.0;
         for(unsigned int i=0;i<v.size();i++){
-        	size+=v[i].size();
+            if (v[i].is_initialized()) size+=v[i].size();
         }
 
         return size/fac*d;
 
+    }
+
+    // gives back the size in GB
+    template <typename T, std::size_t NDIM>
+    double get_size(Function<T,NDIM> & f){
+    	const double d=sizeof(T);
+        const double fac=1024*1024*1024;
+        double size=f.size();
+        return size/fac*d;
     }
 
 }

@@ -1,10 +1,11 @@
 # This must match definition of AC_CONFIG_MACRO_DIR in configure.ac
-ACLOCAL_AMFLAGS = -I ./config
+ACLOCAL_AMFLAGS = -I config
 
-SUBDIRS = src config
+SUBDIRS = src config doc
+EXTRA_DIST = cmake external CMakeLists.txt
 
-doc:
-	cd doc; $(MAKE)
+docs:
+	$(MAKE) -C doc docs
 
 
 .PHONY:
@@ -24,11 +25,11 @@ muparser:
 misc: world
 	$(MAKE) -C src/madness/misc libraries
 	
-tensor: misc
+tensor linalg: misc
 	$(MAKE) -C src/madness/tensor libraries
 
-mra:
-	$(MAKE) -C src libraries
+mra: linalg muparser
+	$(MAKE) -C src/madness/mra libraries
 	
 chem: mra
 	$(MAKE) -C src/apps/chem libraries

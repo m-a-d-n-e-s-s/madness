@@ -1,4 +1,11 @@
 ./src/apps/chem:
+CC2.cc
+CC2.h
+CCOperators.cc
+CCOperators.h
+CCStructures.h
+CISOperators.cc
+CISOperators.h
 SCF.cc
 SCF.h
 SCFOperators.cc
@@ -16,6 +23,7 @@ corepotential.h
 correlationfactor.cc
 correlationfactor.h
 distpm.cc
+electronic_correlation_factor.h
 gth_pseudopotential.cc
 gth_pseudopotential.h
 lda.cc
@@ -34,6 +42,8 @@ projector.h
 tdhf_CIS.cc
 tdhf_CIS.h
 test_SCFOperators.cc
+test_correlation_factor.h
+test_dft.c
 testxc.cc
 xcfunctional.h
 xcfunctional_ldaonly.cc
@@ -90,6 +100,7 @@ nwtoxml.py
 parsemad.py
 pointgroup.h
 preal.cc
+subspace.h
 testcosine.cc
 testmolbas.cc
 testperiodic.cc
@@ -170,9 +181,11 @@ tdse4.cc
 ./src/examples:
 3dharmonic.cc
 binaryop.cc
+cc2.cc
 colloid.cc
 csqrt.cc
 dataloadbal.cc
+density_smoothing.cc
 dielectric.cc
 dielectric_external_field.cc
 functionio.cc
@@ -206,6 +219,7 @@ ploterr.cc
 pno.cc
 sdf_shape_tester.cc
 sininteg.cc
+smooth.h
 spectralprop.h
 svpe.cc
 tdhf.cc
@@ -420,6 +434,7 @@ test_papi.cc
 test_prof.cc
 test_queue.cc
 test_sig.cc
+test_stack.cc
 test_sysctl.c
 test_tree.cc
 test_vec.cc
@@ -448,3 +463,8 @@ worldref.cc
 worldref.h
 worldrmi.cc
 worldrmi.h
+
+from last merge (all in world):
+atomicint.h
+future.h
+stack.h

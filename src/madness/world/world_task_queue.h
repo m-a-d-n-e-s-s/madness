@@ -45,7 +45,6 @@
 #include <madness/world/timers.h>
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
-#include <madness/world/world_task_queue.h>
 
 /// \addtogroup taskq
 /// @{

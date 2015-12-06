@@ -49,11 +49,13 @@
 #include <madness/mra/funcplot.h>
 #include <madness/mra/lbdeux.h>
 
-
 #include <iostream>
 
 using namespace madness;
 
+namespace madness{
+extern std::vector<std::string> cubefile_header(std::string filename="input");
+}
 template<size_t NDIM>
 void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0)  print("loading function ", name);
@@ -111,6 +113,7 @@ void draw_circle(World& world, Function<double,NDIM>& pair, const std::string re
 }
 
 
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
@@ -142,8 +145,7 @@ int main(int argc, char** argv) {
     }
 
     // load the function of interest
-    std::string restart_name;
-    bool restart=false;
+    std::vector<std::string> filenames;
 
     for(int i = 1; i < argc; i++) {
         const std::string arg=argv[i];
@@ -153,9 +155,8 @@ int main(int argc, char** argv) {
         std::string key=arg.substr(0,pos);
         std::string val=arg.substr(pos+1);
 
-        if (key=="restart") {                               // usage: restart=path/to/mo_file
-            restart_name=stringify(val);
-            restart=true;
+        if (key=="file") {                               // usage: restart=path/to/mo_file
+            filenames.push_back(stringify(val));
         }
     }
 
@@ -177,17 +178,21 @@ int main(int argc, char** argv) {
 
     try {
         static const size_t NDIM=3;
-        Function<double,NDIM> pair;
-		load_function(world,pair,restart_name);
-		plot_plane(world,pair,restart_name);
-		draw_line(world,pair,restart_name);
+        std::vector<Function<double,NDIM> > vf(filenames.size());
+        for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
+		plot_plane(world,vf,filenames[0]);
+
+		// plot the Gaussian cube file
+		std::vector<std::string> molecular_info=cubefile_header("input");
+		std::string filename=filenames[0]+".cube";
+		plot_cubefile<3>(world,vf[0],filename,molecular_info);
+
     } catch (...) {
         try {
             static const size_t NDIM=6;
-            Function<double,NDIM> pair;
-    		load_function(world,pair,restart_name);
-    		plot_plane(world,pair,restart_name);
-    		draw_line(world,pair,restart_name);
+            std::vector<Function<double,NDIM> > vf(filenames.size());
+            for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
+            plot_plane(world,vf,filenames[0]);
         } catch (...) {
 
         }

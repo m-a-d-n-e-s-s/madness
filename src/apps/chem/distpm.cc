@@ -1,4 +1,4 @@
-#include <madness/config.h>
+#include <madness/madness_config.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/world/MADworld.h>

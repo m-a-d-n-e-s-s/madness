@@ -37,15 +37,38 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
-#include <chem/SCF.h>
-#include <chem/SCFOperators.h>
+#include "SCF.h"
 
-#include <madness/tensor/elem.h>
-#include <madness/mra/lbdeux.h>
-#include <madness/mra/qmprop.h>
-#include <madness/misc/misc.h>
-#include <madness/misc/ran.h>
-#include <madness/tensor/distributed_matrix.h>
+//#include <madness/tensor/distributed_matrix.h>
+#include "/usr/include/math.h"
+#include "../../madness/constants.h"
+#include "../../madness/misc/misc.h"
+#include "../../madness/misc/ran.h"
+#include "../../madness/mra/convolution1d.h"
+#include "../../madness/mra/derivative.h"
+#include "../../madness/mra/funcdefaults.h"
+#include "../../madness/mra/funcplot.h"
+#include "../../madness/mra/function_factory.h"
+#include "../../madness/mra/functypedefs.h"
+#include "../../madness/mra/key.h"
+#include "../../madness/mra/lbdeux.h"
+#include "../../madness/mra/operator.h"
+#include "../../madness/mra/qmprop.h"
+#include "../../madness/mra/vmra.h"
+#include "../../madness/tensor/elem.h"
+#include "../../madness/tensor/slice.h"
+#include "../../madness/tensor/srconf.h"
+#include "../../madness/tensor/tensor.h"
+#include "../../madness/tensor/tensor_macros.h"
+#include "../../madness/world/parallel_archive.h"
+#include "../../madness/world/print.h"
+#include "../../madness/world/timers.h"
+#include "../../madness/world/world.h"
+#include "../../madness/world/worldgop.h"
+#include "../../madness/world/worldprofile.h"
+#include "nemo.h"
+#include "SCFOperators.h"
+#include "TDA.h"
 
 namespace madness {
     
@@ -348,7 +371,7 @@ namespace madness {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         
-        std::vector<long> npt(3, param.npt_plot);
+        std::vector<long> npt(3, static_cast<long>(param.npt_plot));
         
         if (param.plot_cell.size() == 0)
             param.plot_cell = copy(FunctionDefaults < 3 > ::get_cell());
@@ -852,7 +875,7 @@ namespace madness {
                             lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
                 lb.add_tree(rho, lbcost<double, 3>(1.0, 8.0), true);
                 
-                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
                 END_TIMER(world, "guess loadbal");
             }
             
@@ -906,7 +929,7 @@ namespace madness {
                 for (unsigned int i = 0; i < ao.size(); ++i) {
                     lb.add_tree(ao[i], lbcost<double, 3>(1.0, 8.0), false);
                 }
-                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
                 END_TIMER(world, "guess loadbal");
             }
             START_TIMER(world);
@@ -1049,7 +1072,7 @@ namespace madness {
     		const tensorT& occ, const int nmo) const {
         PROFILE_MEMBER_FUNC(SCF);
 
-    	std::vector<int> set = std::vector<int>(nmo, 0);
+    	std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
         for (int i = 1; i < nmo; ++i) {
             set[i] = set[i - 1];
             if (eps[i] - eps[i - 1] > 1.5 || occ[i] != 1.0) ++(set[i]);
@@ -1082,7 +1105,7 @@ namespace madness {
             vnuc = vnuc + gthpseudopotential->vlocalpot();}     
         lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0));
         
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
     }
     
     functionT SCF::make_density(World & world, const tensorT & occ,
@@ -1093,9 +1116,7 @@ namespace madness {
         functionT rho = factoryT(world);
         rho.compress();
         for (unsigned int i = 0; i < vsq.size(); ++i) {
-            if (occ[i])
-                rho.gaxpy(1.0, vsq[i], occ[i], false);
-            
+            if (occ[i]) rho.gaxpy(1.0, vsq[i], occ[i], false);
         }
         world.gop.fence();
         vsq.clear();
@@ -1243,7 +1264,7 @@ namespace madness {
                                   const vecfuncT & amo,
                                   const functionT & vlocal, double & exc, double & enl, int ispin) {
         PROFILE_MEMBER_FUNC(SCF);
-        functionT vloc = vlocal;
+        functionT vloc = copy(vlocal);
         exc = 0.0;
         enl = 0.0;
 
@@ -1410,7 +1431,7 @@ namespace madness {
         tensorT mu(3);
 
         for (unsigned int axis = 0; axis < 3; ++axis) {
-            std::vector<int> x(3, 0);
+            std::vector<int> x(3ul, 0);
             x[axis] = true;
             functionT dipolefunc = factoryT(world)
                     .functor(functorT(new MomentFunctor(x)));
@@ -1513,7 +1534,7 @@ namespace madness {
         }
         world.gop.fence();
         std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmap = FunctionDefaults<3>::get_pmap();
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(2.0)); // 6.0 needs retuning after vnucextra 
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts)); // 6.0 needs retuning after vnucextra 
         END_TIMER(world, "KE redist");*/
         START_TIMER(world);
         tensorT ke(psi.size(),psi.size());
@@ -1766,7 +1787,7 @@ namespace madness {
         }
         world.gop.fence();
         
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0)); // 6.0 needs retuning after vnucextra
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts)); // 6.0 needs retuning after vnucextra
     }
     
     void SCF::rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
@@ -2167,7 +2188,7 @@ namespace madness {
         const double dconv = std::max(FunctionDefaults < 3 > ::get_thresh(),
                                       param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
-        const double tolloc = 1e-3;
+        const double tolloc = 1e-6;
         double update_residual = 0.0, bsh_residual = 0.0;
         subspaceT subspace;
         tensorT Q;

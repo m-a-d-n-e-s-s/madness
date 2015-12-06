@@ -299,22 +299,24 @@ private:
         return inner(v,gv);
     }
 
+public:
+
     /// compute the projector to remove transl. and rot. degrees of freedom
 
     /// taken from http://www.gaussian.com/g_whitepap/vib.htm
     /// I don't really understand the concept behind the projectors, but it
-    /// seems to work, and it is not written down explicitly anywhere!
-    /// All quantities are computed in non-mass-weighted coordinates.
+    /// seems to work, and it is not written down explicitly anywhere.
+    /// NOTE THE ERROR IN THE FORMULAS ON THE WEBPAGE !
     static Tensor<double> projector_external_dof(Molecule& mol) {
 
         // compute the translation vectors
         Tensor<double> transx(3*mol.natom());
         Tensor<double> transy(3*mol.natom());
         Tensor<double> transz(3*mol.natom());
-        for (int i=0; i<3*mol.natom(); i+=3) {
-            transx[i]=1.0/sqrt(mol.natom());
-            transy[i+1]=1.0/sqrt(mol.natom());
-            transz[i+2]=1.0/sqrt(mol.natom());
+        for (int i=0; i<mol.natom(); ++i) {
+            transx[3*i  ]=sqrt(mol.get_atom(i).get_mass_in_au());
+            transy[3*i+1]=sqrt(mol.get_atom(i).get_mass_in_au());
+            transz[3*i+2]=sqrt(mol.get_atom(i).get_mass_in_au());
         }
 
         // compute the rotation vectors
@@ -325,10 +327,17 @@ private:
         mol.translate(-1.0*com);
         Tensor<double> I=mol.moment_of_inertia();
         mol.translate(1.0*com);
+        I.scale(constants::atomic_mass_in_au);
 
         // diagonalize the moment of inertia
         Tensor<double> v,e;
         syev(I, v, e);  // v being the "X" tensor on the web site
+        v=transpose(v);
+
+//        Tensor<double> B(e.size());
+//        for (long i=0; i<e.size(); ++i) B(i)=1.0/(2.0*e(i));
+//        print("rotational constants in cm-1");
+//        print(constants::au2invcm*B);
 
         // rotation vectors
         Tensor<double> rotx(3*mol.natom());
@@ -342,6 +351,10 @@ private:
             coord(0l)=mol.get_atom(iatom).x-com(0l);
             coord(1l)=mol.get_atom(iatom).y-com(1l);
             coord(2l)=mol.get_atom(iatom).z-com(2l);
+
+            // note the wrong formula on the Gaussian website:
+            // multiply with sqrt(mass), do not divide!
+            coord.scale(sqrt(mol.get_atom(iatom).get_mass_in_au()));
 
             // p is the dot product of R and X on the web site
             Tensor<double> p=inner(coord,v);
@@ -363,17 +376,23 @@ private:
 
         // move the translational and rotational vectors to a common tensor
         Tensor<double> ext_dof(6,3*mol.natom());
-        ext_dof(0l,_)=rotx;
-        ext_dof(1l,_)=roty;
-        ext_dof(2l,_)=rotz;
-        ext_dof(3l,_)=transx;
-        ext_dof(4l,_)=transy;
-        ext_dof(5l,_)=transz;
+        ext_dof(0l,_)=transx;
+        ext_dof(1l,_)=transy;
+        ext_dof(2l,_)=transz;
+        ext_dof(3l,_)=rotx;
+        ext_dof(4l,_)=roty;
+        ext_dof(5l,_)=rotz;
+
+        // normalize
+        for (int i=0; i<6; ++i) {
+            double norm=ext_dof(i,_).normf();
+            if (norm>1.e-14) ext_dof(i,_).scale(1.0/norm);
+            else ext_dof(i,_)=0.0;
+        }
 
         // compute overlap to orthonormalize the projectors
         Tensor<double> ovlp=inner(ext_dof,ext_dof,1,1);
         syev(ovlp,v,e);
-        // orthogonalize with the eigenvectors of ovlp
         ext_dof=inner(v,ext_dof,0,0);
 
         // normalize or remove the dof if necessary (e.g. linear molecules)
@@ -381,7 +400,7 @@ private:
             if (e(i)<1.e-14) {
                 ext_dof(i,_).scale(0.0);      // take out this degree of freedom
             } else {
-                ext_dof(i,_).scale(1/sqrt(e(i)));   // normalize
+                ext_dof(i,_).scale(1.0/sqrt(e(i)));   // normalize
             }
         }
 
@@ -392,16 +411,33 @@ private:
         // compute the outer products of the projectors
         // 1- \sum_i | t_i >< t_i |
         projector-=inner(ext_dof,ext_dof,0,0);
+
+        // construct random tensor for orthogonalization
+        Tensor<double> D(3*mol.natom(),3*mol.natom());
+        D.fillrandom();
+        for (int i=0; i<6; ++i) D(i,_)=ext_dof(i,_);
+
+        // this works only for non-linear molecules -- projector seems simpler
+//        ovlp=inner(D,D,1,1);
+//        cholesky(ovlp); // destroys ovlp
+//        Tensor<double> L=transpose(ovlp);
+//        Tensor<double> Linv=inverse(L);
+//        D=inner(Linv,D,1,0);
+//        ovlp=inner(D,D,1,1);
+//
+//        for (int i=0; i<6; ++i) D(i,_)=0.0;
+//        D=copy(D(Slice(6,8),_));
+
+//        return transpose(D);
+
         return projector;
 
     }
 
-public:
     /// remove translational degrees of freedom from the hessian
     static void remove_external_dof(Tensor<double>& hessian,
             Molecule& mol) {
 
-        print("projecting out translational and rotational degrees of freedom");
         // compute the translation of the center of mass
         Tensor<double> projector_ext=projector_external_dof(mol);
 

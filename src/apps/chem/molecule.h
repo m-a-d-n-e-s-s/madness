@@ -90,10 +90,14 @@ public:
     /// Default construct makes a zero charge ghost atom at origin
     Atom() : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0), pseudo_atom(false) {}
 
+   int get_atomic_number() const {return atomic_number;}
 
     madness::Vector<double,3> get_coords() const {
         return madness::Vector<double,3>{x, y, z};
     }
+
+    /// return the mass in atomic units (electron mass = 1 a.u.)
+    double get_mass_in_au() const {return constants::atomic_mass_in_au * mass;}
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -198,6 +202,8 @@ public:
 
     void set_rcut(double value);
 
+    std::vector<double> get_rcut() const {return rcut;}
+
     void set_core_eprec(double value) {
         core_pot.set_eprec(value);
     }
@@ -213,6 +219,8 @@ public:
     double bounding_cube() const;
 
     const Atom& get_atom(unsigned int i) const;
+
+    const std::vector<Atom> & get_atoms()const{return atoms;}
 
     void print() const;
 
@@ -232,10 +240,22 @@ public:
     double nuclear_repulsion_second_derivative(int iatom, int jatom,
             int iaxis, int jaxis) const;
 
-    /// return the hessian matrix of the second derivatives 1/2 d^2/dxdy V
+    /// return the hessian matrix of the second derivatives d^2/dxdy V
+
+    /// no factor 0.5 included
     Tensor<double> nuclear_repulsion_hessian() const;
 
+    /// compute the dipole moment of the nuclei
+
+    ///  @param[in] the axis (x, y, z)
     double nuclear_dipole(int axis) const;
+
+    /// compute the derivative of the nuclear dipole wrt a nuclear displacement
+
+    /// @param[in]  atom    the atom which will be displaced
+    /// @param[in]  axis    the axis where the atom will be displaced
+    /// @return     a vector which all 3 components of the dipole derivative
+    Tensor<double> nuclear_dipole_derivative(const int atom, const int axis) const;
 
     double nuclear_charge_density(double x, double y, double z) const;
 
@@ -271,6 +291,9 @@ public:
     double core_potential_derivative(int atom, int axis, double x, double y, double z) const;
 
     double nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const;
+
+    double nuclear_attraction_potential_second_derivative(int atom, int iaxis,
+            int jaxis, double x, double y, double z) const;
 
     template <typename Archive>
     void serialize(Archive& ar) {

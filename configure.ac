@@ -1,7 +1,7 @@
 AC_PREREQ(2.59)
 # was 2.61 but jaguar is not up to date so backported which
 # involved replacing AC_PROG_SED and UINT*_T type checks.
-AC_INIT([MADNESS], [0.10], [https://github.com/m-a-d-n-e-s-s/madness], , [https://github.com/m-a-d-n-e-s-s/madness])
+AC_INIT([MADNESS], [0.10], [https://github.com/m-a-d-n-e-s-s/madness/issues], , [https://github.com/m-a-d-n-e-s-s/madness])
 AC_CONFIG_SRCDIR([configure.ac])
 
 # This is where autoconf automatically generated files go
@@ -19,6 +19,7 @@ AM_PROG_AR
 AC_CONFIG_HEADERS([src/madness/config.h])
 
 # Detect specific systems so can provide their whacky defaults
+acx_default_enable_all_static=no
 ACX_CRAYXT
 ACX_CRAYXE
 ACX_MAC
@@ -86,14 +87,37 @@ AC_LINK_IFELSE(
 AC_LANG_POP
 
 # Check that the MPICXX Compiler can link correctly.
-AC_LANG_PUSH([C++])
 AC_MSG_CHECKING([that the $MPICXX linker works])
 AC_LINK_IFELSE(
   [AC_LANG_PROGRAM([[]], [[]])],
   [AC_MSG_RESULT([yes])],
   [AC_MSG_RESULT([no])
    AC_MSG_ERROR(["Unable to link with $MPICXX])])
-AC_LANG_POP
+
+# Initialize Libtools (for shared libraries)
+LT_INIT
+LT_LANG([C++])
+AC_SUBST(enable_shared)
+AC_SUBST(enable_static)
+AC_ARG_ENABLE([all-static],
+    [AC_HELP_STRING([--enable-all-static@<:@=yes|no@:>@],
+      [Link with all static libraries.])],
+    [
+      case $enableval in
+      yes)
+        acx_enable_all_static="yes"
+      ;;
+      no)
+        acx_enable_all_static="no"
+      ;;
+      *)
+        AC_MSG_ERROR([Invalid argument '$enableval' given for --enable-all-static])
+      esac
+    ],
+    [acx_enable_all_static="$acx_default_enable_all_static"]
+  )
+
+AM_CONDITIONAL([LINK_ALL_STATIC], [test $acx_enable_all_static = yes])
   
 ACX_DETECT_CXX
 # Check for C++11 support, and
@@ -117,7 +141,6 @@ ACX_ENABLE_OPTIMAL
 ACX_WITH_GOOGLE_PERF
 ACX_WITH_GOOGLE_TEST
 ACX_WITH_LIBXC
-ACX_WITH_MADXC
 ACX_WITH_TBB
 ACX_ENABLE_GENTENSOR
 
@@ -125,7 +148,6 @@ ACX_ENABLE_GENTENSOR
 ACX_ENABLE_TASK_PROFILER
 
 # Check for basic build functionality
-AC_PROG_RANLIB
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
@@ -159,16 +181,19 @@ AC_HEADER_TIME
 AC_HEADER_STDC
 AC_CHECK_HEADERS([limits.h stddef.h stdint.h stdlib.h string.h sys/param.h sys/time.h unistd.h])
 AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
-# Check c++11 headers
-AC_CHECK_HEADERS([array type_traits tuple initializer_list])
 AC_HEADER_STDBOOL
+# Check c++11 headers
+# MUST include CXXFLAGS into CPPFLAGS to choose proper C++ standard switch
+ac_save_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $CXXFLAGS"
+AC_CHECK_HEADERS([array type_traits tuple initializer_list])
+CPPFLAGS="$ac_save_CPPFLAGS"
 
 # Types
 AC_TYPE_PID_T
 AC_C_RESTRICT
 ACX_CHECK_TLS
 AC_TYPE_SIZE_T
-AC_HEADER_TIME
 #AC_TYPE_UINT64_T
 #AC_TYPE_INT64_T
 AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t, long long])
@@ -317,6 +342,13 @@ AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_CXX], ["$CXX"],[Configured C++ compile
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_CXXFLAGS], ["$CXXFLAGS"],[Configured C++ compiler flags])
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_HOST], ["$HOSTNAME"],[Configured on this machine])
 
+# Pass additional configuration information to be used in source 
+# ALSO: undefine the standard definitions that every autoheader-using package will define and thus clash
+AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_NAME],["$PACKAGE_NAME"],[The full name of this package])
+AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_VERSION],["$PACKAGE_VERSION"],[The version of this package])
+AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_URL],["$PACKAGE_URL"],[The URL of the home page of this package])
+AC_DEFINE_UNQUOTED([MADNESS_PACKAGE_BUGREPORT],["$PACKAGE_BUGREPORT"],[The address where to send bug reports for this package])
+
 # Not yet enabled the user to configure this stuff but probably should
 AC_ARG_ENABLE([bsend-ack],
             [AC_HELP_STRING([--disable-bsend-ack], [Use MPI Send instead of MPI Bsend for huge message acknowledgements.])],
@@ -358,6 +390,28 @@ AC_MSG_NOTICE([CFLAGS   = $CFLAGS])
 AC_MSG_NOTICE([CXXFLAGS = $CXXFLAGS])
 AC_MSG_NOTICE([LDFLAGS  = $LDFLAGS])
 AC_MSG_NOTICE([LIBS     = $LIBS])
+AC_MSG_NOTICE([build shared libraries: $enable_shared])
+AC_MSG_NOTICE([build static libraries: $enable_static])
+AC_MSG_NOTICE([link all static libraries: $acx_enable_all_static])
+
+# Set the library suffix used whe generating config/Makefile.sample
+if test $enable_shared = yes; then
+
+if test $ON_A_MAC = yes; then
+# OS X library suffix
+AC_SUBST(LIB_SUFFIX,.dylib)
+else
+# Linux library suffix
+AC_SUBST(LIB_SUFFIX,.so)
+fi
+
+else
+
+# Set the static library file suffix (same on Linux and OS X)
+AC_SUBST(LIB_SUFFIX,.a)
+
+fi
+
 
 # These are the files that must be generated/preprocessed ... as you add files
 # please maintain the directory tree file order and indenting.
@@ -367,6 +421,7 @@ AC_CONFIG_FILES([
     config/Makefile.sample
     config/MADNESS.pc
     config/madness-config.cmake
+    config/madness-project.cmake
     src/Makefile
       src/madness/Makefile
         src/madness/external/Makefile
@@ -380,15 +435,20 @@ AC_CONFIG_FILES([
       src/apps/Makefile
         src/apps/chem/Makefile
         src/apps/tdse/Makefile
-        src/apps/hf/Makefile
-        src/apps/exciting/Makefile
         src/apps/moldft/Makefile
-        src/apps/polar/Makefile
-        src/apps/nick/Makefile
-        src/apps/interior_bc/Makefile
       src/examples/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])
+
+# The following make files are not generated by default. If you want to build
+# these applications, move the appropriate file into the AC_CONFIG_FILES list
+# above.
+
+#        src/apps/hf/Makefile
+#        src/apps/exciting/Makefile
+#        src/apps/polar/Makefile
+#        src/apps/nick/Makefile
+#        src/apps/interior_bc/Makefile
 
 AC_OUTPUT
