@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 
 noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \

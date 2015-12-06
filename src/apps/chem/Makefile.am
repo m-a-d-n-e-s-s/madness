@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 # default location for basis sets etc
 AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\"

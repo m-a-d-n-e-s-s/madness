@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 #bin_PROGRAMS = test_hf test_lattice test_coulomb test_hydro test_he test_be test_comm testconv esolver
 #bin_PROGRAMS = test_he esolver test_xc 
