@@ -467,4 +467,3 @@ worldrmi.h
 from last merge (all in world):
 atomicint.h
 future.h
-stack.h
