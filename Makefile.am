@@ -2,6 +2,7 @@
 ACLOCAL_AMFLAGS = -I config
 
 SUBDIRS = src config doc
+EXTRA_DIST = cmake external CMakeLists.txt
 
 docs:
 	$(MAKE) -C doc docs

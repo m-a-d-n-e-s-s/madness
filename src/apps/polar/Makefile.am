@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 
 if MADNESS_HAS_LIBXC

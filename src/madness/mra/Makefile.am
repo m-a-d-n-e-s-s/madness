@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 #AM_CPPFLAGS += -DMRA_DATA_DIR="\"`pwd`\""
 AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"

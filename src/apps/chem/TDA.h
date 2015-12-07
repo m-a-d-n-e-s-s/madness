@@ -397,10 +397,10 @@ class TDA {
 public:
 	/// the constructor
 	/// @param[in] world	the world
-	/// @param[in] calc 	the SCF calcualtion
 	/// @param[in] mos		the occupied molecular orbitals from the scf calculation
 	/// @param[in] input	name of the input file
 	TDA(World &world,const Nemo &nemo,const vecfuncT &mos,const std::string input):
+		orbital_energies_(nemo.get_calc()->aeps),
 		world(world),
 		dft_(false),
 		use_nemo_(true),
@@ -428,12 +428,11 @@ public:
 		nfreeze_(0),
 		plot_(false),
 		debug_(false),
-		only_fock_(false),
-		only_GS_(false),
 		//on_the_fly_(true),
 		//xclib_interface_(world,calc),
+		only_fock_(false),
+		only_GS_(false),
 		ipot_(0.0),
-		orbital_energies_(nemo.get_calc()->aeps),
 		kain_(false),
 		kain_subspace_(3),
 		shift_(0.0),
@@ -900,7 +899,7 @@ private:
 	Tensor<double> make_perturbed_fock_matrix(const xfunctionsT &xfunctions)const;
 
 	/// The CIS or TDA Potential without the nuclear potential is applied to one xfunction
-	/// @param[in] one xfunction
+	/// @param[in] xfunction one
 	vecfuncT apply_smooth_potential(const xfunction&xfunction)const;
 
 	vecfuncT apply_nuclear_potential(const xfunction &xfunction) const;

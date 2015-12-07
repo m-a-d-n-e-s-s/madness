@@ -192,31 +192,31 @@ private:
 	const std::shared_ptr<real_convolution_3d> f12op;
 	/// const intermediates
 	const real_function_3d density_;
-	/// Exchange intermediate: EX(i,j) = <i|g|j>
+	/// Exchange intermediate: \f$EX(i,j) = <i|g|j>\f$
 	intermediateT exchange_intermediate_;
-	/// The f12 exchange intermediate fEX(i,j) = <i|f12|j>
+	/// The f12 exchange intermediate \f$fEX(i,j) = <i|f12|j>\f$
 	intermediateT f12_exchange_intermediate_;
-	/// Hartree_Potential  = J = \sum_k <k|g|k> = Poisson(density)
+	/// Hartree_Potential  \f$ = J = \sum_k <k|g|k> = \f$ Poisson(density)
 	const real_function_3d hartree_potential_;
 	/// intermediates that need to be recalculated before every iteration
-	/// Perturbed Density = \sum_k |k><\tau_k|
+	/// Perturbed Density \f$= \sum_k |k><\tau_k| \f$
 	real_function_3d perturbed_density_;
-	/// Perturbed Hartree Poptential PJ = \sum_k <k|g|\tau_k> = Poisson(perturbed_density)
+	/// Perturbed Hartree Potential PJ \f$ = \sum_k <k|g|\tau_k> = \f$ Poisson(perturbed_density)
 	real_function_3d perturbed_hartree_potential_;
-	/// Perturbed Exchange Intermediate: PEX(i,j) = <i|g|\tau_j>
+	/// Perturbed Exchange Intermediate: \f$ PEX(i,j) = <i|g|\tau_j> \f$
 	intermediateT perturbed_exchange_intermediate_;
-	/// Perturbed f12-exchange-intermediate: pfEX(i,j) = <i|f12|tau_j>
+	/// Perturbed f12-exchange-intermediate: \f$ pfEX(i,j) = <i|f12|tau_j> \f$
 	intermediateT perturbed_f12_exchange_intermediate_;
 
 	/// Two electron integrals
 	/// The Integrals which consist of the hartree-fock ground state
-	/// <ij|g|kl> = <ji|g|lk>
+	/// \f$ <ij|g|kl> = <ji|g|lk> \f$
 	const Tensor<double> integrals_hf_;
 	/// The Integrals which consist of ground state and t1 amplitudes
-	/// <ij|g|k\tau_l> = <ji|g|\tau_lk>
+	/// \f$ <ij|g|k\tau_l> = <ji|g|\tau_lk> \f$
 	Tensor<double> integrals_mixed_t1_;
 	/// The Integrals from the t1 functions and the hf orbitals
-	/// <ij|g|\tau_k\tau_l> = <ji|g|\tau_l\tau_k>
+	/// \f$ <ij|g|\tau_k\tau_l> = <ji|g|\tau_l\tau_k> \f$
 	Tensor<double> integrals_t1_;
 
 	void error(const std::string &msg) const {
@@ -229,14 +229,14 @@ private:
 		std::cout << "\n\n\nWARNING IN CC_INTERMEDIATES:\n" << msg << "\n\n\n!!!";
 	}
 public:
-	/// Make the exchange intermediate: EX[j][i] <bra[i](r2)|1/r12|ket[j](r2)>
+	/// Make the exchange intermediate: EX[j][i] \f$ <bra[i](r2)|1/r12|ket[j](r2)> \f$
 	intermediateT make_exchange_intermediate(const vecfuncT &bra,
 			const CC_vecfunction &ket)const;
 	intermediateT make_f12_exchange_intermediate(const vecfuncT &bra,
 			const CC_vecfunction &ket)const;
 	/// Calculates the hartree potential Poisson(density)
-	/// @param[in] density: a 3d function on which the poisson operator is applied (can be the occupied density and the perturbed density)
-	/// @param[out] poisson(density) = \int 1/r12 density(r2) dr2
+	/// @param[in] density A 3d function on which the poisson operator is applied (can be the occupied density and the perturbed density)
+	/// @return poisson(density) \f$ = \int 1/r12 density(r2) dr2 \f$
 	real_function_3d make_hartree_potential(
 			const real_function_3d &density) const {
 		real_function_3d hartree = (*poisson)(density);
@@ -245,12 +245,12 @@ public:
 	}
 
 	/// Calculates two electron integrals
-	/// <ij|g|kl>
+	/// \f$ <ij|g|kl> \f$
 	Tensor<double> make_two_electron_integrals_hf() const;
-	/// <ij|g|k\tau_l>
+	/// \f$ <ij|g|k\tau_l> \f$
 	Tensor<double> make_two_electron_integrals_mixed_t1(
 			const vecfuncT &tau) const;
-	// <ij|g|\tau_k \tau_l>
+	// \f$ <ij|g|\tau_k \tau_l> \f$
 	Tensor<double> make_two_electron_integrals_t1(const vecfuncT &tau) const;
 };
 
@@ -259,10 +259,11 @@ class CC_Operators {
 public:
 	/// Constructor
 	CC_Operators(World& world, const Nemo &nemo,
-			const CorrelationFactor &correlationfactor, const CC_Parameters &param) : Q12(world),
-			world(world), nemo(nemo), corrfac(correlationfactor),parameters(param), mo_bra_(
-					make_mo_bra(nemo)), mo_ket_(make_mo_ket(nemo)),orbital_energies(init_orbital_energies(nemo)), intermediates_(
-							world, mo_bra_, mo_ket_, nemo, param){
+			const CorrelationFactor &correlationfactor, const CC_Parameters &param) :
+			world(world), nemo(nemo), corrfac(correlationfactor), parameters(param),
+			mo_bra_(make_mo_bra(nemo)), mo_ket_(make_mo_ket(nemo)),
+			orbital_energies(init_orbital_energies(nemo)),
+			intermediates_(world, mo_bra_, mo_ket_, nemo, param), Q12(world) {
 		// make operators
 
 		// make the active mo vector (ket nemos, bra is not needed for that)
@@ -339,7 +340,7 @@ public:
 	vecfuncT mo_bra()const{return mo_bra_;}
 
 
-	/// makes the t intermediate which is defined as: |t_i> = |\tau_i> + |i>
+	/// makes the t intermediate which is defined as: \f$ |t_i> = |\tau_i> + |i> \f$
 	CC_vecfunction make_t_intermediate(const CC_vecfunction &tau)const{
 		CC_vecfunction result;
 		for(auto x:tau.functions){
@@ -539,7 +540,7 @@ public:
 	}
 
 	/// returns the non constant part of the MP2 potential which is
-	/// (2J-K+Un)|uij>
+	/// \f$ (2J-K+Un)|uij> \f$
 	real_function_6d get_MP2_potential_residue(const CC_Pair &u)const{
 		CC_Timer timer(world,"(2J-K(R)+Un)|uij>");
 		CC_data data("mp2_residue");
@@ -555,8 +556,8 @@ public:
 	/// reconstructs the full pair function from the regularized pair functions
 	/// used to compute norms of the doubles to compare with LCAO codes
 	/// used to debug the singles potential
-	/// @param[in]: u the regularized function
-	/// @param[out]: tau = u + Q12f12(|ij> + |taui,j> + |i,tauj> + |taui,tauj>) = u + Q12f12|titj> with ti = taui + i
+	/// @param[in] u the regularized function
+	/// @return Equation: \f$ \tau = u + Q12f12(|ij> + |taui,j> + |i,tauj> + |taui,tauj>) = u + Q12f12|titj> \f$ with \f$ ti = taui + i \f$
 	real_function_6d make_full_pair_function(const CC_Pair &u,const  CC_function &taui, const CC_function &tauj)const{
 		const size_t i=u.i;
 		const size_t j=u.j;
@@ -782,7 +783,7 @@ public:
 	// \    /\    /...
 	//  \  /  \  /   /\
 	//  _\/_  _\/_  _\/_
-	// -Q \sum_kl 2<kl|g|\tau_k\tau_i> |\tau_l> - \sum_kl <kl|g|\taui\tau_k> |\tau_l>
+	// -Q \sum_kl 2<kl|g|\tau_k\tau_i> |\tau_l> - \sum_kl <kl|g|\tau i\tau_k> |\tau_l>
 	// Q is not applied yet!
 	vecfuncT S6(const CC_vecfunction  &tau) const;
 
@@ -836,10 +837,11 @@ public:
 	//  \    /....
 	//   \  /    /\
 	//  __\/_____\/__
-	/// @param[in] Structure which holds all current CC pair functions
-	/// @param[in] Structure which holds all current CC single excitations
-	/// @param[out] -Q\sum_k \left( 2<k|g|u_ik> - <k|g|u_ki> + 2<k|gQf|t_it_k> - <k|gQf|t_kt_i> \right), with t_i = i + \tau_i
-	/// notation: <k|g|u_ik> = <k(2)|g12|u_ik(1,2)> (Integration over second particle)
+	// @param[in] Structure which holds all current CC pair functions
+	// @param[in] Structure which holds all current CC single excitations
+	/// \todo Parameter descriptions.
+	/// @return Equation: \f$ -Q\sum_k \left( 2<k|g|u_ik> - <k|g|u_ki> + 2<k|gQf|t_it_k> - <k|gQf|t_kt_i> \right), with t_i = i + \tau_i \f$
+	/// \note notation: \f$ <k|g|u_ik> = <k(2)|g12|u_ik(1,2)> \f$ (Integration over second particle)
 	vecfuncT S2b(const Pairs<CC_Pair> u, const CC_vecfunction &singles,CC_data &data) const;
 	vecfuncT S2b_3D_part(const CC_vecfunction &singles,CC_data &data) const;
 	vecfuncT S2b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction &singles,CC_data &data) const;
@@ -849,12 +851,13 @@ public:
 	//  \    /....
 	//   \  /    /\
 	//  __\/_____\/__
-	/// = -Q\sum_{kl}\left( 2<k|lgi|ulk> - <l|kgi|u_{lk}> + 2<k|lgi|t_k>*|t_l> - 2<l|kgi|t_k>*|t_l? \right)
+	/// \f$ = -Q\sum_{kl}\left( 2<k|lgi|ulk> - <l|kgi|u_{lk}> + 2<k|lgi|t_k>*|t_l> - 2<l|kgi|t_k>*|t_l? \right) \f$
 	/// Notation: 6D Integration over second particle, intermediates: lgi = <l|g|i> is the exchange intermediate
-	/// Notation: t are the t-intermediates: |t_i> = |i> + |\tau_i>
-	/// @param[in] All the current coupled cluster Pairs
-	/// @param[in] The coupled cluster singles
-	/// @param[out] the S2c+X Potential
+	/// Notation: t are the t-intermediates: \f$ |t_i> = |i> + |\tau_i> \f$
+	// @param[in] All the current coupled cluster Pairs
+	// @param[in] The coupled cluster singles
+	/// \todo Parameter descriptions. Unknown stuff commented out by Matt.
+	/// @return the S2c+X Potential
 	vecfuncT S2c(const Pairs<CC_Pair> &u, const CC_vecfunction &singles,CC_data &data) const;
 	vecfuncT S2c_3D_part(const CC_vecfunction &singles, CC_data &data) const;
 	vecfuncT S2c_6D_part(const Pairs<CC_Pair> &u, const CC_vecfunction &singles, CC_data &data) const;
@@ -863,7 +866,7 @@ public:
 	// \    ..../.....
 	//  \  /\  /     /\
 	//  _\/_ \/______\/_
-	/// -Q\sum (2<kl|g|\tau_il>|\tau_k> - <kl|g|\tau_ik>|\tau_l>)  : <kl|g|\tau_il>|\tau_k> = <k>
+	/// \f$ -Q\sum (2<kl|g|\tau_il>|\tau_k> - <kl|g|\tau_ik>|\tau_l>)  : <kl|g|\tau_il>|\tau_k> = <k> \f$
 	vecfuncT S4a(const Pairs<CC_Pair> u, const CC_vecfunction & tau,CC_data &data) const;
 	vecfuncT S4a_3D_part(const CC_vecfunction & tau,CC_data &data) const;
 	vecfuncT S4a_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction & tau,CC_data &data) const;
@@ -873,7 +876,7 @@ public:
 	// \    ..../.....
 	//  \  /\  /     /\
 	//  _\/_ \/______\/_
-	/// -Q\sum_{kl} (2<k(3)l(4)|g34f14|\tau_{i}(3)u_{kl}(1,4)>  // exchange part - <k(4)l(3)|g34f14|\tau_i(3)u_{lk}(1,4)>)
+	/// \f$ -Q\sum_{kl} (2<k(3)l(4)|g34f14|\tau_{i}(3)u_{kl}(1,4)>  // exchange part - <k(4)l(3)|g34f14|\tau_i(3)u_{lk}(1,4)>) \f$
 	// 1. make exchange intermedaite X(4) = <k(3)|g34|\tau_i(3)>_3 *  l(4)			Exchange part : Xx(4) = <l(3)|g34|\tau_i(3)>(4) * k(4)
 	// 2. make 6d intermediate Y(1,4) = X(4)* u_{kl}(1,4)							Exchange part : Yx(1,4) = X(4)*u_{lk}(1,4)
 	// 3. make f14 integration via delta function trick: result(1) = \int f14 Y(1,4) d4 = \int delta(5-1) (\int f54 Y(1,4) d4)d5
@@ -888,8 +891,8 @@ public:
 	//   .......   \    /
 	//  /\     /\   \  /
 	// _\/_   _\/____\/_
-	/// Q\sum_{kl}[ 4*<k(3)l(4)|g34 f14| \tau_k(3) u_{il}(1,4)> - 2* <k(3)l(4)|g34 f14|\tau_k(4) u_{li}(1,3)>
-	/// - 2* <k(3)l(4)|g34 f14| \tau_k(3) U_{li}(1,4)> + <k(3)l(4)|g34 f14|\tau_k(4) u_{li}(1,3)>  ]
+	/// \f$ Q\sum_{kl}[ 4*<k(3)l(4)|g34 f14| \tau_k(3) u_{il}(1,4)> - 2* <k(3)l(4)|g34 f14|\tau_k(4) u_{li}(1,3)> \f$
+	/// \f$ - 2* <k(3)l(4)|g34 f14| \tau_k(3) U_{li}(1,4)> + <k(3)l(4)|g34 f14|\tau_k(4) u_{li}(1,3)>  ] \f$
 	// First and third Terms are solved like this:
 	// 1. X(4) = \sum_k (<k(3)|g34|\tau_k(3)>_3(4)) * l(4) = perturbed_hartree_potential(4) * l(4)
 	// 2. Y(1,4) = X(4) u_{il}(1,4)			Exchange Part: Yx(4,1) = X(4) u_{li}(4,1)
@@ -910,21 +913,22 @@ public:
 	}
 
 
-	/// Make the CC2 Residue which is:  Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\taui>+|i>
-	/// @param[in] \tau_i which will create the |t_i> = |\tau_i>+|i> intermediate
-	/// @param[in] \tau_j
-	/// @param[in] u, the uij pair structure which holds the consant part of MP2
-	/// @param[out] Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\taui>+|i>
-	/// Right now Calculated in the decomposed form: |titj> = |i,j> + |\taui,\tauj> + |i,\tauj> + |\taui,j>
+	/// Make the CC2 Residue which is:  Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\tau i>+|i>
+	// @param[in] \tau_i which will create the |t_i> = |\tau_i>+|i> intermediate
+	// @param[in] \tau_j
+	// @param[in] u, the uij pair structure which holds the consant part of MP2
+	/// \todo Parameter descriptions.
+	/// @return Equation: \f$ Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj> \f$  with \f$ |ti> = |\tau i>+|i> \f$
+	/// Right now Calculated in the decomposed form: \f$ |titj> = |i,j> + |\tau i,\tau j> + |i,\tau j> + |\tau i,j> \f$
 	/// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
 	real_function_6d make_cc2_residue(const CC_function &taui, const CC_function &tauj, const CC_Pair &u)const;
 
 
 
 	// apply the kinetic energy operator to a decomposed 6D function
-	/// @param[in] a 3d function x (will be particle 1 in the decomposed 6d function)
-	/// @param[in] a 3d function y (will be particle 2 in the decomposed 6d function)
-	/// @param[out] a 6d function: G(f12*T*|xy>)
+	/// @param[in] y a 3d function x (will be particle 1 in the decomposed 6d function)
+	/// @param[in] x a 3d function y (will be particle 2 in the decomposed 6d function)
+	/// @return a 6d function: G(f12*T*|xy>)
 	real_function_6d make_GQfT_xy(const real_function_3d &x, const real_function_3d &y, const size_t &i, const size_t &j)const;
 
 
@@ -1064,7 +1068,7 @@ public:
 
 	}
 
-	/// Echange Operator on 3D function
+	/// Exchange Operator on 3D function
 	/// !!!!Prefactor (-1) is not included
 	real_function_3d K(const CC_function &f)const;
 
@@ -1112,7 +1116,7 @@ public:
 	/// @param[in] y the 3D function for particle 2
 	/// @param[in] i the first index of the current pair function (needed to construct the BSH operator for screening)
 	/// @param[in] j the second index of the current pair function
-	/// @param[out]  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
+	/// @return  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
 	real_function_6d apply_transformed_Ue(const real_function_3d x,
 			const real_function_3d y, const size_t &i, const size_t &j) const;
 
@@ -1125,8 +1129,8 @@ public:
 
 	/// Apply fK on a tensor product of two 3D functions
 	/// fK|xy> = fK_1|xy> + fK_2|xy>
-	/// @param[in] x, the first 3D function in |xy>, structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
-	/// @param[in] y, the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
+	/// @param[in] x the first 3D function in |xy>, structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
+	/// @param[in] y the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
 	real_function_6d apply_fK(const CC_function &x, const CC_function &y) const;
 
 
@@ -1284,15 +1288,15 @@ public:
 	double make_ijgu(const size_t &i, const size_t &j, const real_function_6d &u)const;
 	/// Make two electron integral with BSH operator
 	double make_ijGu(const size_t &i, const size_t &j, const CC_Pair &u)const;
-	/// apply the operator gf = 1/(2\gamma)*(Coulomb - 4\pi*BSH_\gamma)
+	/// apply the operator \f$ gf = 1/(2\gamma)*(Coulomb - 4\pi*BSH_\gamma) \f$
 	/// works only if f = (1-exp(-\gamma*r12))/(2\gamma)
 	real_function_3d apply_gf(const real_function_3d &f)const;
 	real_function_6d apply_gf(const real_function_6d &f,const size_t &particle)const;
 
-	/// @param[in] x: Function which is convoluted with
-	/// @param[in] y: function over which is not integrated
-	/// @param[in] z: function which is correlated with y over Q12f12
-	/// @param[out] <x(2)|Q12f12|y(1)z(2)>_2
+	/// @param[in] x Function which is convoluted with
+	/// @param[in] y function over which is not integrated
+	/// @param[in] z function which is correlated with y over Q12f12
+	/// @return <x(2)|Q12f12|y(1)z(2)>_2
 	/// Calculation is done in 4 steps over: Q12 = 1 - O1 - O2 + O12
 	/// 1. <x|f12|z>*|y>
 	/// 2. -\sum_m <x|m> <m|f12|z>*|y>
@@ -1413,7 +1417,7 @@ public:
 	/// use that Q12 = Q1*Q2
 	/// need to apply G to every single term in order to avoid entangelment
 
-	/// the doubles diagramms of the form:  <i|g|x>*|y\tauj> which are D4b, D6c and D8a
+	/// the doubles diagramms of the form: \f$ <i|g|x>*|y\tau j> \f$ which are D4b, D6c and D8a
 	real_function_6d D4b_D6c_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		output_section("Now doing combined_D4b_D6c_D8a");
 		const size_t i=taui.i;
@@ -1448,7 +1452,7 @@ public:
 	}
 
 
-	/// the doubles diagramms of the form:  integral * |\tauk,\taul> together (D9,D6b,D8b)
+	/// the doubles diagramms of the form:  integral * |\tau k,\tau l> together (D9,D6b,D8b)
 	real_function_6d D6b_D8b_D9(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		output_section("Now doing D6b_D8b_D9");
 		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
@@ -1481,7 +1485,7 @@ public:
 							<< "Integral from t-intermediate is:" << integral2 << std::endl;
 				}
 				if(fabs(integral1-integral2)>FunctionDefaults<3>::get_thresh())warning("Integrals from t-intermediate has different size than decompose form, diff="+stringify(integral1-integral2));
-				// Greens Function on |\tauk,\taul>
+				// Greens Function on |\tau k,\tau l>
 				real_function_6d tmp = make_xy(k,l);
 				//				real_convolution_6d G = Operator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 				//				real_function_6d tmp= G(k.function,l.function);
@@ -1601,7 +1605,7 @@ public:
 		return result;
 	}
 
-	/// @param[out] result = -( GQ12(\tauk,<k|g|i>|\tauj>) - GQ12(<k|g|j>|\taui>,|\tau_k>) + GQ12(<k|g|\tau_j>|i>,|\tauk>) - GQ12(\tauk,<k|g|\tauj>|j>)
+	/// @return result \f$ = -( GQ12(\tau k,<k|g|i>|\tau j>) - GQ12(<k|g|j>|\tau i>,|\tau_k>) + GQ12(<k|g|\tau_j>|i>,|\tau k>) - GQ12(\tau k,<k|g|\tau j>|j>) \f$
 	real_function_6d G_D6c(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
@@ -1641,7 +1645,7 @@ public:
 	}
 
 	/// may use particle swap in the future
-	/// @paramp[out] result = GQ12( 2.0 <k|g|\tauj>(1) |\taui\tauk> - <k|g|\taui>(1) |\tauj,tauk> + 2.0 <k|g|\taui>(2) |\tauk\tauj> - <k|g|tauj>(2) |\tauk\taui>
+	/// @return result = \f$ GQ12( 2.0 <k|g|\tau j>(1) |\tau i\tau k> - <k|g|\tau i>(1) |\tau j,tau k> + 2.0 <k|g|\tau i>(2) |\tau k\tau j> - <k|g|tau j>(2) |\tau k\tau i> \f$
 	real_function_6d G_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
@@ -1709,7 +1713,7 @@ public:
 		return result;
 	}
 
-	/// @param[out] result = \sum_{kl} (<kl|g|i,\tauj> + <kl|g|\taui,j>)GQ12|tauk,taul>, Q12 absorbed into tauk and taul
+	/// @return result \f$ = \sum_{kl} (<kl|g|i,\tau j> + <kl|g|\tau i,j>)GQ12|tau k,tau l> \f$, Q12 absorbed into tauk and taul
 	real_function_6d G_D8b(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
@@ -1736,7 +1740,7 @@ public:
 		return result;
 	}
 
-	///@param[out] result = \sum_{kl} <kl|g|taui,tauj> GQ|tauk,taul>
+	/// @return result \f$ = \sum_{kl} <kl|g|taui,tauj> GQ|tauk,taul> \f$
 	real_function_6d G_D9(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;

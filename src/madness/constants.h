@@ -271,7 +271,7 @@ namespace madness {
         /// conversion from atomic units in reciprocal centimeter
         const double au2invcm = 219474.6313705;
 
-        /// the dielectric constant \epsilon_0, or the permittivity of vacuum
+        /// the dielectric constant \f$\epsilon_0\f$, or the permittivity of vacuum
         const double dielectric_constant = 8.854187817e-12;     // F m^{-1}
 
         /// speed of light in vacuum in au

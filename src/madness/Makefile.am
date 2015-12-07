@@ -1,5 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 SUBDIRS = external world misc tensor mra
+EXTRA_DIST = CMakeLists.txt
 
 thisincludedir = $(includedir)/madness
 thisinclude_HEADERS = constants.h fortran_ctypes.h madness_config.h config.h 

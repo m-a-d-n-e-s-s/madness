@@ -135,21 +135,27 @@ namespace madness {
 
     private:
         /// The static stack size used for callbacks and future assignment used
-        /// for small stack size optimizations
+        /// for small stack size optimizations.
         static const int MAXCALLBACKS = 4;
 
-        typedef Stack<CallbackInterface*, MAXCALLBACKS> callbackT;
-        typedef Stack<std::shared_ptr<FutureImpl<T> >,MAXCALLBACKS> assignmentT;
+        typedef Stack<CallbackInterface*, MAXCALLBACKS> callbackT; ///< Callback type.
+        typedef Stack<std::shared_ptr<FutureImpl<T> >,MAXCALLBACKS> assignmentT; ///< Assignment type.
 
-        volatile callbackT callbacks; ///< A stack that stores callbacks that
-                            ///< are invoked once the future has been assigned
-        volatile mutable assignmentT assignments; ///< A stack that stores
-                            ///< future objects that are set to the same value
-                            ///< as this future, once it has been set
-        volatile bool assigned; ///< A flag indicating if the future has been set
-        RemoteReference< FutureImpl<T> > remote_ref; ///< Reference to a remote
-                            ///< future pimpl
-        volatile T t; ///< The future data
+        /// A stack that stores callbacks that are invoked once the future has
+        /// been assigned.
+        volatile callbackT callbacks;
+
+        /// A stack that stores future objects that are set to the same value
+        /// as this future, once it has been set.
+        volatile mutable assignmentT assignments;
+
+        /// A flag indicating if the future has been set.
+        volatile bool assigned;
+
+        /// Reference to a remote future pimpl.
+        RemoteReference< FutureImpl<T> > remote_ref;
+
+        volatile T t; ///< The future data.
 
         /// AM handler for remote set operations.
 
@@ -1017,6 +1023,13 @@ namespace madness {
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
 
+    /// \todo Brief description needed.
+
+    /// \todo Descriptions needed.
+    /// \tparam T Description needed.
+    /// \param[in,out] The output stream.
+    /// \param[in] f The future to be output.
+    /// \return The output stream.
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
         if (f.probe()) out << f.get();
