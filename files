@@ -463,7 +463,3 @@ worldref.cc
 worldref.h
 worldrmi.cc
 worldrmi.h
-
-from last merge (all in world):
-atomicint.h
-future.h

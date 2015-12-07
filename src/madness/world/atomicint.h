@@ -122,7 +122,7 @@ namespace madness {
     /// initialize the variable.
     ///
     /// Consciously modeled after the TBB API to prepare for switching to it.
-    /// \todo Should be actually switch to the TBB version?
+    /// \todo Should we actually switch to the TBB version?
     class AtomicInt {
     private:
 
@@ -279,7 +279,10 @@ namespace madness {
 #endif
         }
 
-        /// Subtract \c dec and return the new value
+        /// Subtract \c dec and return the new value.
+
+        /// \param[in] dec The value to be subtracted.
+        /// \return The new value.
         int operator-=(const int dec) {
 #if defined(MADATOMIC_USE_CXX)
             return (value.fetch_sub(dec, std::memory_order_seq_cst) - dec);
