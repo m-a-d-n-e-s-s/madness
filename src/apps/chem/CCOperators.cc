@@ -558,6 +558,7 @@ vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_vecfunction &single
 		return add(world,S2c_6D_part(u,singles,data),S2c_3D_part(singles,data));
 	}else{
 		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+		return vecfuncT(); // should not ever get here
 	}
 }
 vecfuncT CC_Operators::S2c_3D_part(const CC_vecfunction &singles, CC_data &data) const {
@@ -640,6 +641,7 @@ vecfuncT CC_Operators::S4a(const Pairs<CC_Pair> u, const CC_vecfunction & single
 		return add(world,S4a_6D_part(u,singles,data),S4a_3D_part(singles,data));
 	}else{
 		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+		return vecfuncT(); // should not ever get here
 	}
 }
 vecfuncT CC_Operators::S4a_3D_part(const CC_vecfunction & singles,  CC_data &data) const {
@@ -719,6 +721,7 @@ vecfuncT CC_Operators::S4b(const Pairs<CC_Pair> u, const CC_vecfunction & single
 		return add(world,S4b_6D_part(u,singles,data),S4b_3D_part(singles,data));
 	}else{
 		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+		return vecfuncT(); // should not ever get here
 	}
 }
 vecfuncT CC_Operators::S4b_3D_part(const CC_vecfunction & singles,  CC_data &data) const {
@@ -799,6 +802,7 @@ vecfuncT CC_Operators::S4c(const Pairs<CC_Pair> u, const CC_vecfunction & single
 		return add(world,S4c_6D_part(u,singles,data),S4c_3D_part(singles,data));
 	}else{
 		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
+		return vecfuncT(); // should not ever get here
 	}
 }
 vecfuncT CC_Operators::S4c_3D_part(const CC_vecfunction & singles,  CC_data &data) const {
