@@ -45,7 +45,7 @@
 #include <algorithm>            // for std::swap
 #include <iostream>             // for std::iostream
 
-/// \addtogrpup world
+/// \addtogroup world
 /// @{
 
 namespace madness {

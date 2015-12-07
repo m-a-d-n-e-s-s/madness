@@ -673,7 +673,7 @@ namespace madness {
     /// @param[in] n The column (first) dimension
     /// @param[in] m The row (second) dimension
     /// @param[in] coltile Tile size for columns forced to be even (default is to use all processes)
-    /// @retrun A new zero matrix with the requested dimensions and distribution
+    /// @return A new zero matrix with the requested dimensions and distribution
     template <typename T>
     DistributedMatrix<T> column_distributed_matrix(World& world, int64_t n, int64_t m, int64_t coltile=0) {
         return DistributedMatrix<T>(column_distributed_matrix_distribution(world, n, m, coltile));
@@ -701,7 +701,7 @@ namespace madness {
     /// @param[in] n The column (first) dimension
     /// @param[in] m The row (second) dimension
     /// @param[in] rowtile Tile size for row (default is to use all processes)
-    /// @retrun A new zero matrix with the requested dimensions and distribution
+    /// @return A new zero matrix with the requested dimensions and distribution
     template <typename T>
     DistributedMatrix<T> row_distributed_matrix(World& world, int64_t n, int64_t m, int64_t rowtile=0) {
         return DistributedMatrix<T>(row_distributed_matrix_distribution(world, n, m, rowtile));

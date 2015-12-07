@@ -557,7 +557,7 @@ public:
 	/// used to compute norms of the doubles to compare with LCAO codes
 	/// used to debug the singles potential
 	/// @param[in] u the regularized function
-	/// @return Equation: \f$ \tau = u + Q12f12(|ij> + |taui,j> + |i,tauj> + |taui,tauj>) = u + Q12f12|titj> with ti = taui + i \f$
+	/// @return Equation: \f$ \tau = u + Q12f12(|ij> + |taui,j> + |i,tauj> + |taui,tauj>) = u + Q12f12|titj> \f$ with \f$ ti = taui + i \f$
 	real_function_6d make_full_pair_function(const CC_Pair &u,const  CC_function &taui, const CC_function &tauj)const{
 		const size_t i=u.i;
 		const size_t j=u.j;
@@ -783,7 +783,7 @@ public:
 	// \    /\    /...
 	//  \  /  \  /   /\
 	//  _\/_  _\/_  _\/_
-	// -Q \sum_kl 2<kl|g|\tau_k\tau_i> |\tau_l> - \sum_kl <kl|g|\taui\tau_k> |\tau_l>
+	// -Q \sum_kl 2<kl|g|\tau_k\tau_i> |\tau_l> - \sum_kl <kl|g|\tau i\tau_k> |\tau_l>
 	// Q is not applied yet!
 	vecfuncT S6(const CC_vecfunction  &tau) const;
 
@@ -913,13 +913,13 @@ public:
 	}
 
 
-	/// Make the CC2 Residue which is:  Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\taui>+|i>
+	/// Make the CC2 Residue which is:  Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\tau i>+|i>
 	// @param[in] \tau_i which will create the |t_i> = |\tau_i>+|i> intermediate
 	// @param[in] \tau_j
 	// @param[in] u, the uij pair structure which holds the consant part of MP2
 	/// \todo Parameter descriptions.
-	/// @return Equation: \f$ Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\taui>+|i> \f$
-	/// Right now Calculated in the decomposed form: \f$ |titj> = |i,j> + |\taui,\tauj> + |i,\tauj> + |\taui,j> \f$
+	/// @return Equation: \f$ Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj> \f$  with \f$ |ti> = |\tau i>+|i> \f$
+	/// Right now Calculated in the decomposed form: \f$ |titj> = |i,j> + |\tau i,\tau j> + |i,\tau j> + |\tau i,j> \f$
 	/// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
 	real_function_6d make_cc2_residue(const CC_function &taui, const CC_function &tauj, const CC_Pair &u)const;
 
@@ -1417,7 +1417,7 @@ public:
 	/// use that Q12 = Q1*Q2
 	/// need to apply G to every single term in order to avoid entangelment
 
-	/// the doubles diagramms of the form: \f$ <i|g|x>*|y\tauj> \f$ which are D4b, D6c and D8a
+	/// the doubles diagramms of the form: \f$ <i|g|x>*|y\tau j> \f$ which are D4b, D6c and D8a
 	real_function_6d D4b_D6c_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		output_section("Now doing combined_D4b_D6c_D8a");
 		const size_t i=taui.i;
@@ -1452,7 +1452,7 @@ public:
 	}
 
 
-	/// the doubles diagramms of the form:  integral * |\tauk,\taul> together (D9,D6b,D8b)
+	/// the doubles diagramms of the form:  integral * |\tau k,\tau l> together (D9,D6b,D8b)
 	real_function_6d D6b_D8b_D9(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		output_section("Now doing D6b_D8b_D9");
 		output("6D thresh for all new functions at least = " +stringify(parameters.thresh_Ue));
@@ -1485,7 +1485,7 @@ public:
 							<< "Integral from t-intermediate is:" << integral2 << std::endl;
 				}
 				if(fabs(integral1-integral2)>FunctionDefaults<3>::get_thresh())warning("Integrals from t-intermediate has different size than decompose form, diff="+stringify(integral1-integral2));
-				// Greens Function on |\tauk,\taul>
+				// Greens Function on |\tau k,\tau l>
 				real_function_6d tmp = make_xy(k,l);
 				//				real_convolution_6d G = Operator<6>(world, sqrt(-2*get_epsilon(i,j)),parameters.lo, parameters.thresh_bsh_6D);
 				//				real_function_6d tmp= G(k.function,l.function);
@@ -1605,7 +1605,7 @@ public:
 		return result;
 	}
 
-	/// @return result \f$ = -( GQ12(\tauk,<k|g|i>|\tauj>) - GQ12(<k|g|j>|\taui>,|\tau_k>) + GQ12(<k|g|\tau_j>|i>,|\tauk>) - GQ12(\tauk,<k|g|\tauj>|j>) \f$
+	/// @return result \f$ = -( GQ12(\tau k,<k|g|i>|\tau j>) - GQ12(<k|g|j>|\tau i>,|\tau_k>) + GQ12(<k|g|\tau_j>|i>,|\tau k>) - GQ12(\tau k,<k|g|\tau j>|j>) \f$
 	real_function_6d G_D6c(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
@@ -1645,7 +1645,7 @@ public:
 	}
 
 	/// may use particle swap in the future
-	/// @return result = \f$ GQ12( 2.0 <k|g|\tauj>(1) |\taui\tauk> - <k|g|\taui>(1) |\tauj,tauk> + 2.0 <k|g|\taui>(2) |\tauk\tauj> - <k|g|tauj>(2) |\tauk\taui> \f$
+	/// @return result = \f$ GQ12( 2.0 <k|g|\tau j>(1) |\tau i\tau k> - <k|g|\tau i>(1) |\tau j,tau k> + 2.0 <k|g|\tau i>(2) |\tau k\tau j> - <k|g|tau j>(2) |\tau k\tau i> \f$
 	real_function_6d G_D8a(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;
@@ -1713,7 +1713,7 @@ public:
 		return result;
 	}
 
-	/// @return result \f$ = \sum_{kl} (<kl|g|i,\tauj> + <kl|g|\taui,j>)GQ12|tauk,taul> \f$, Q12 absorbed into tauk and taul
+	/// @return result \f$ = \sum_{kl} (<kl|g|i,\tau j> + <kl|g|\tau i,j>)GQ12|tau k,tau l> \f$, Q12 absorbed into tauk and taul
 	real_function_6d G_D8b(const CC_function &taui, const CC_function &tauj,const CC_vecfunction &singles)const{
 		const size_t i=taui.i;
 		const size_t j=tauj.i;

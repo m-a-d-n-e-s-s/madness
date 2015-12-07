@@ -59,9 +59,9 @@ public:
         enum_saa=10,            ///< \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
         enum_sab=11,            ///< \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
         enum_sbb=12,            ///< \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
-        enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho_ \f$
-        enum_sigma_pta=14,      ///< \f$ \nabla_\rho_{\alpha}.\nabla\rho_{pt} \f$
-        enum_sigma_ptb=15       ///< \f$ \nabla_\rho_{\beta}.\nabla\rho_{pt} \f$
+        enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho \f$
+        enum_sigma_pta=14,      ///< \f$ \nabla\rho_{\alpha}.\nabla\rho_{pt} \f$
+        enum_sigma_ptb=15       ///< \f$ \nabla\rho_{\beta}.\nabla\rho_{pt} \f$
     };
     const static int number_xc_args=16;     ///< max number of intermediates
 

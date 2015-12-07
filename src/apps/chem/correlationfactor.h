@@ -479,7 +479,7 @@ public:
 
     /// the unit vector dotted with itself vanishes, so what's left is
     /// \f[
-    ///  U1\dot\U1 = \frac{\left(S^r\right)^2}{S^2}
+    ///  U1\dot U1 = \frac{\left(S^r\right)^2}{S^2}
     /// \f]
     /// with positive sign!
     class U1_dot_U1_functor : public FunctionFunctorInterface<double,3> {

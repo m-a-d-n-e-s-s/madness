@@ -56,7 +56,7 @@
 #include <madness/world/worldtypes.h>
 #include <cstdlib>
 
-/// \addtogroup
+/// \addtogroup mpi
 /// @{
 
 #ifdef MADNESS_USE_BSEND_ACKS

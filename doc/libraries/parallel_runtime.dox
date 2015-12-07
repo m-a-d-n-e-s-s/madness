@@ -87,7 +87,7 @@ knowledge and control of these.
 
 Items in a container may be accessed largely as if in a standard STL
 container, but instead of returning an \c iterator, accessors instead
-return a \c madness::Future \c <iterator>. A future is a container for the result of a
+return a \c madness::Future \c iterator. A future is a container for the result of a
 possibly unevaluated expression.  In the case of an accessor, if the
 requested item is local then the result is immediately
 available. However, if the item is remote, it may take some time
