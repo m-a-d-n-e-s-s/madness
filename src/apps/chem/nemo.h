@@ -27,8 +27,6 @@
  email: harrisonrj@ornl.gov
  tel:   865-241-3937
  fax:   865-572-0680
-
- $Id$
  */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -291,8 +289,9 @@ public:
     /// compute the IR intensities in the double harmonic approximation
 
     /// use the projected normal modes; units are km/mol
-    /// @param[in]  hessian the hessian matrix
+    /// @param[in]  normalmodes the hessian matrix
     /// @param[in]  dens_pt the perturbed densities for each nuclear displacement
+    /// \todo Verify the description of normalmodes.
     Tensor<double> compute_IR_intensities(const Tensor<double>& normalmodes,
             const vecfuncT& dens_pt) const;
 

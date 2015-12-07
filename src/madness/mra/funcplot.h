@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_FUNCPLOT_H__INCLUDED
 #define MADNESS_MRA_FUNCPLOT_H__INCLUDED
 
@@ -555,7 +554,7 @@ namespace madness {
     ///   origin 0.0 0.0 0.7
     /// end
     /// @param[in]	world	the world
-    /// @param[in]	function	the function to plot
+    /// @param[in]	vfunction	the function to plot
     /// @param[in]	name		the output name
     template<size_t NDIM>
     void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfunction,

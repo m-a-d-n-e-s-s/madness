@@ -247,7 +247,7 @@ public:
 
     /// compute the dipole moment of the nuclei
 
-    ///  @param[in] the axis (x, y, z)
+    ///  @param[in] axis the axis (x, y, z)
     double nuclear_dipole(int axis) const;
 
     /// compute the derivative of the nuclear dipole wrt a nuclear displacement

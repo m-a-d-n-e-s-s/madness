@@ -68,6 +68,7 @@ double CC2::solve(){
 }
 
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
+/// \todo Matt added "return false" at the end; otherwise, the end was reached without a return statement. please verify!
 bool CC2::solve_CCS(){
 	output_section("SOLVE CCS");
 	// since the symmetry should not change use the projected aos from moldft as guess
@@ -152,6 +153,7 @@ bool CC2::solve_CCS(){
 	if(world.rank()==0) std::cout << "Correlation Energy Convergence:\n" << omega << std::endl;
 	if(world.rank()==0) std::cout << "CCS finished\n" << "Hartree_Fock energy is " << HF_energy <<"\nCorrelation Energy is " << Corr_energy << "\nTotel Energy is " << HF_energy + Corr_energy << std::endl;
 
+  return false;
 }
 
 double CC2::solve_uncoupled_mp2(Pairs<CC_Pair> &pairs)const{

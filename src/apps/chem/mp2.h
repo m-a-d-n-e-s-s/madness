@@ -27,21 +27,14 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 /*!
   \file mp2.h
   \brief Solves molecular MP2 equations
   \defgroup Solves molecular MP2 equations
   \ingroup examples
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/mp2.h>here</a>.
-
-
 */
-
 
 #ifndef MP2_H_
 #define MP2_H_
@@ -498,9 +491,10 @@ namespace madness {
 
         /// solve the residual equation for electron pair (i,j)
 
-        /// @param[in]  pair    electron pair to solve
-        /// @param[in]  econv   energy convergence criterion (for a single pair)
-        /// @param[in]  dconv   density convergence criterion (for a single pair)
+        /// \todo Parameter documentation. Below are un-doxygenated comments that no longer seem relevant?
+        // @param[in]  pair    electron pair to solve
+        // @param[in]  econv   energy convergence criterion (for a single pair)
+        // @param[in]  dconv   density convergence criterion (for a single pair)
         real_function_6d iterate(const real_function_6d &f)const{
         	ElectronPair tmp(0,0);
         	tmp.function = copy(f);

@@ -222,13 +222,13 @@ private:
     /// \f]
     /// so we can reconstruct sigma_ab from the spin densities (and density
     /// gradients) and the total densities (and density gradients)
-    /// @param[inout]  rhoa alpha spin density
-    /// @param[inout]  rhob beta spin density
-    /// @param[inout]  rho  total density
-    /// @param[inout]  saa  alpha spin reduced density gradient
-    /// @param[inout]  sab  mixed spin reduced density gradient
-    /// @param[inout]  sbb  beta spin reduced density gradient
-    /// @param[inout]  stot total reduced density gradient
+    /// @param[in,out]  rhoa alpha spin density
+    /// @param[in,out]  rhob beta spin density
+    /// @param[in,out]  rho  total density
+    /// @param[in,out]  saa  alpha spin reduced density gradient
+    /// @param[in,out]  sab  mixed spin reduced density gradient
+    /// @param[in,out]  sbb  beta spin reduced density gradient
+    /// @param[in,out]  stot total reduced density gradient
     /// @param[in]  munging munging type
     void munge7(double& rhoa, double& rhob, double& rho,
             double& saa, double& sab, double& sbb, double stot,
@@ -323,8 +323,9 @@ public:
     /// multiple results we need to compute components of the
     /// functional and potential separately:
     /// @param[in] t The input densities and derivatives as required by the functional
-    /// @param[in] what Specifies which component of the potential is to be computed as described above
-    /// @return The component specified by the \c what parameter
+    /// @param[in] ispin Specifies which component of the potential is to be computed as described above
+    /// @return The component specified by the \c ispin parameter
+    /// \todo Matt changed the parameter "what" (no longer listed below) to "ispin". Is this correct?
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
