@@ -97,8 +97,31 @@ int main(int argc, char** argv) {
 			std::cout << "\n\n";
 		}
 
+		real_function_3d density = real_factory_3d(world);
+		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
+		real_function_3d R2 = nemo.nuclear_correlation->square();
+		for(auto x:nemo.get_calc()->amo){
+			//x.truncate();
+			x.refine();
+			real_function_3d xsquare = x.square();
+			plot_plane(world,xsquare,"xsquare");
+			plot_plane(world,x,"xorbital");
+			plot_plane(world,x,"R2");
+			coord_3d start(0.0); start[0]=-width;
+			coord_3d end(0.0); end[0]=width;
+			const std::string line = "line";
+			plot_line((line+"xorbital").c_str(),1000,start,end,x);
+			plot_line((line + "xsquare").c_str(),1000,start,end,xsquare);
+			plot_line((line+"line_R2").c_str(),1000,start,end,R2);
+			density+=xsquare;
+//			real_function_3d amoR = x*nemo.nuclear_correlation->square();
+//			density += amoR*x;
+		}
+		density=density*nemo.nuclear_correlation->square();
+		density.truncate(FunctionDefaults<3>::get_thresh()*0.01);
 		smooth<double,3> smoothing(world);
-		smoothing.set_molecule_mask(1.0,1.0,nemo.get_calc()->molecule.get_atoms());
+		smoothing.smooth_density(density);
+		//smoothing.set_molecule_mask(1.0,1.0,nemo.get_calc()->molecule.get_atoms());
 
 
 

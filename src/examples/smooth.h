@@ -16,7 +16,7 @@
 #include <chem/SCFOperators.h>
 #include <madness/mra/function_common_data.h>
 
-static double RHOMIN = 1.e-15;
+static double RHOMIN = 1.e-20;
 
 double make_log(double x){
 	if(x<0.0) return log(RHOMIN);
@@ -265,6 +265,54 @@ struct slater_kernel_apply {
     }
 };
 
+struct density_mask_operator{
+
+    density_mask_operator(){}
+    density_mask_operator(const density_mask_operator &other): zero_boxes(other.zero_boxes), one_boxes(other.one_boxes) {}
+    void operator=(const density_mask_operator &other){
+    	zero_boxes = other.zero_boxes;
+    	one_boxes = other.one_boxes;
+    }
+
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t)const {
+
+    	const madness::Tensor<double> &rho = t.front();
+    	// set result to zero
+    	const long & k = FunctionDefaults<3>::get_k();
+		std::vector<long> kdims(3,k);
+    	madness::Tensor<double> result(kdims,true);
+    	result =3.0;
+    	if(rho.absmax()<safety){
+    		std::cout << "@";
+    		result = 0.0;
+    	}
+    	else{
+    		result =1.0;
+    	}
+    	return result;
+    }
+    const double safety = FunctionDefaults<3>::get_thresh()*0.1;
+    mutable vector<madness::Key<3> > zero_boxes;
+    mutable vector<madness::Key<3> > one_boxes;
+    void info(){
+    	std::cout << "zero boxes of density:\n";
+    	if(zero_boxes.empty()) std::cout <<"None\n";
+    	else{
+    	for(auto k:zero_boxes){
+    		std::cout << "n=" << k.level() << ", l=" << k.translation() << std::endl;
+    	}
+    	}
+    	std::cout << "one boxes of density:\n";
+    	if(one_boxes.empty()) std::cout << "None\n";
+    	else{
+    	for(auto k:one_boxes){
+    		std::cout << "n=" << k.level() << ", l=" << k.translation() << std::endl;
+    	}
+    	}
+    }
+};
+
 
 template<std::size_t NDIM>
 static double make_radius(const Vector<double,NDIM> &x){
@@ -282,6 +330,12 @@ static double unitfunctor(const Vector<double,NDIM> &x){
 	return 1.0;
 }
 
+template<std::size_t NDIM>
+static double munge(const double x){
+	if(fabs(x)<FunctionDefaults<NDIM>::get_thresh()*0.001) return 1.e-20;
+	else return x;
+}
+
 template<typename T, std::size_t NDIM>
 class smooth{
 public:
@@ -289,12 +343,20 @@ public:
 		world(world),
 		box_mask_(make_mask(1.0,0.75*FunctionDefaults<NDIM>::get_cell_min_width())),
 		mask_(make_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())),
-		inv_mask_(make_inv_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())){}
+		inv_mask_(make_inv_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())){
+		make_plots(mask_,"mask");
+		make_plots(inv_mask_,"inv_mask");
+		make_plots(box_mask_,"box_mask");
+	}
 	smooth(World&world, const double &box_mask_factor, const double box_mask_cutoff):
 		world(world),
 		box_mask_(make_mask(box_mask_factor,box_mask_cutoff)),
 		mask_(make_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())),
-		inv_mask_(make_inv_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())){}
+		inv_mask_(make_inv_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())){
+		make_plots(mask_,"mask");
+		make_plots(inv_mask_,"inv_mask");
+		make_plots(box_mask_,"box_mask");
+	}
 
 	struct mask_functor{
 	public:
@@ -324,6 +386,56 @@ public:
 		const double cutoff_radius_;
 		const Vector<double,NDIM> shift_;
 	};
+
+	Function<T,NDIM> smooth_density(const Function<T,NDIM> &density){
+		make_plots(density,"density");
+		mask_ = make_density_mask(density);
+		inv_mask_ = make_inv_mask(0.0,0.0);
+		density.print_size("Density");
+		Function<T,NDIM> ln_density = copy(density);
+		ln_density.unaryop(make_log);
+		make_plots(ln_density,"ln_density");
+		Function<T,NDIM> linearized_ln_density = linearize(ln_density);
+		linearized_ln_density = gaussian_smoothing(linearized_ln_density,1.,"linearized_ln_density");
+		Function<T,NDIM> smooth_density = copy(linearized_ln_density);
+		smooth_density.refine();
+		smooth_density.unaryop(make_exp);
+		make_plots(smooth_density,"smooth_density");
+//		Function<T,NDIM> smoothed_density = copy(density);
+//		mask_ = make_density_mask(density);
+//		inv_mask_ = make_inv_mask(0.0,0.0);
+//		make_plots(density,"density");
+//		smoothed_density=munge_density(density);
+//		make_plots(smoothed_density,"munged_density");
+//		smoothed_density=make_explog(density,"density");
+//		make_plots(smoothed_density,"explog_density");
+		return smooth_density;
+	}
+
+	Function<T,NDIM> linearize(const Function<T,NDIM> &ln_rho)const{
+		Function<T,NDIM> linear_ln_rho = project(ln_rho,3);
+		make_plots(linear_ln_rho,"linear_ln_rho");
+		Function<T,NDIM> result = project(linear_ln_rho,FunctionDefaults<NDIM>::get_k());
+		make_plots(result,"linear_ln_rho_backprojected");
+		return result;
+	}
+
+	Function<T,NDIM> munge_density(const Function<T,NDIM> &density)const{
+		Function<T,NDIM> munged_density = copy(density);
+		munged_density.unaryop(munge<NDIM>);
+		return munged_density;
+	}
+
+	Function<T,NDIM> make_density_mask(const Function<T,NDIM> &density)const{
+		vecfuncT density_wrapper;
+		density.reconstruct();
+		density_wrapper.push_back(density);
+		density_mask_operator op_tmp;
+	    real_function_3d density_mask=multiop_values<double, density_mask_operator, 3>(op_tmp, density_wrapper);
+	    op_tmp.info();
+	    make_plots(density_mask,"density_mask");
+	    return density_mask;
+	}
 
 	Function<T,NDIM> make_mask(const double &factor, const double &cutoff)const{
 		Vector<double,NDIM> coord(0.0);
@@ -388,7 +500,7 @@ public:
 		explogf.unaryop(make_exp);
 
 		// apply the box_mask to eliminate weird boundary effects
-		explogf = box_mask_*explogf;
+		//explogf = box_mask_*explogf;
 
 		// make some plots
 		make_plots(f,msg);

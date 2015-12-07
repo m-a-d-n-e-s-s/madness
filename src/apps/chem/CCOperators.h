@@ -471,12 +471,14 @@ public:
 
 		Q(result);
 		truncate(world,result);
+		// The Sign needs to be changed because:
+		// 0 = (F-ei)|taui> + V_i , Vi = result
+		// |taui> = -2.0G( -Fock_residue - Vi)
+		scale(world,result,-1.0);
+		scale(world,fock_residue,-1.0);
 		// need to store this for application of Fock oerator on singles ( F|taui> = Singles_potential[i] + \epsilon_i|taui>)
 		current_singles_potential = result;
 		result = add(world,result,fock_residue);
-		Q(result);
-		scale(world,result,-1.0);
-		truncate(world,result);
 		performance_S.current_iteration++;
 		return result;
 	}
