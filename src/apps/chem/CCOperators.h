@@ -60,9 +60,9 @@ public:
 				mo_ket_(ket),
 				poisson(std::shared_ptr < real_convolution_3d> (CoulombOperatorPtr(world,parameters.lo,parameters.thresh_poisson_3D))),
 				f12op(std::shared_ptr< real_convolution_3d> (SlaterF12OperatorPtr(world,parameters.gamma(),parameters.lo,parameters.thresh_poisson_3D))),
-				density_(make_density(bra, CC_vecfunction(ket,HOLE,parameters.freeze))),
-				exchange_intermediate_(make_exchange_intermediate(bra, CC_vecfunction(ket,HOLE,parameters.freeze))),
-				f12_exchange_intermediate_(make_f12_exchange_intermediate(bra,CC_vecfunction(ket,HOLE,parameters.freeze))),
+				density_(make_density(bra, CC_vecfunction(ket,HOLE))),
+				exchange_intermediate_(make_exchange_intermediate(bra, CC_vecfunction(ket,HOLE))),
+				f12_exchange_intermediate_(make_f12_exchange_intermediate(bra,CC_vecfunction(ket,HOLE))),
 				hartree_potential_(make_hartree_potential(density_)),
 				integrals_hf_(make_two_electron_integrals_hf()) {
 		sanity_check();
@@ -140,15 +140,15 @@ public:
 	/// returns <k|g|\tau_l>
 	real_function_3d get_pEX(const size_t &k, const size_t &l)const{return perturbed_exchange_intermediate_(k,l);}
 	real_function_3d get_pfEX(const size_t &k,const size_t &l)const{return perturbed_f12_exchange_intermediate_(k,l);}
-	Tensor<double> get_intergrals_hf() const {
-		return integrals_hf_;
-	}
-	Tensor<double> get_integrals_mixed_t1() const {
-		return integrals_mixed_t1_;
-	}
-	Tensor<double> get_integrals_t1() const {
-		return integrals_t1_;
-	}
+//	Tensor<double> get_intergrals_hf() const {
+//		return integrals_hf_;
+//	}
+//	Tensor<double> get_integrals_mixed_t1() const {
+//		return integrals_mixed_t1_;
+//	}
+//	Tensor<double> get_integrals_t1() const {
+//		return integrals_t1_;
+//	}
 
 	/// refresh the intermediates that depend on the \tau functions
 	void update(const CC_vecfunction &tau) {
@@ -445,7 +445,7 @@ public:
 	}
 
 	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
-
+		if(singles.functions.size()!=mo_ket_.size()-parameters.freeze) error("Wrong size of singles: " + stringify(singles.functions.size()));
 		if(parameters.debug) test_singles_potential(singles,doubles);
 
 		Pairs<CC_Pair> doubles_wrapper;
@@ -611,6 +611,7 @@ public:
 	/// Genereal function which evaluates a CC_singles potential
 	vecfuncT potential_singles(const Pairs<CC_Pair> u, const CC_vecfunction & singles , const potentialtype_s &name) const {
 		output_section("Now doing Singles Potential " + assign_name(name));
+		MADNESS_ASSERT(singles.functions.size()==mo_ket_.size()-parameters.freeze);
 		CC_Timer timer(world,assign_name(name));
 		CC_data data(name);
 		vecfuncT result;
@@ -672,6 +673,7 @@ public:
 		data.info();
 		performance_S.insert(data.name,data);
 		if(minus_sign) scale(world,result,-1.0);
+		MADNESS_ASSERT(result.size()==mo_ket_.size()-parameters.freeze);
 		return result;
 	}
 

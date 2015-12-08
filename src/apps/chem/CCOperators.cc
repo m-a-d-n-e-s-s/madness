@@ -65,6 +65,7 @@ intermediateT CC_Intermediates::make_f12_exchange_intermediate(const vecfuncT &b
 /// Calculates two electron integrals
 /// <ij|g|kl>
 Tensor<double> CC_Intermediates::make_two_electron_integrals_hf() const {
+	if(world.rank()==0) std::cout << "Two electron Integrals are not made !\n";
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), mo_ket_.size(),
 			mo_ket_.size());
 	return result;
@@ -72,12 +73,14 @@ Tensor<double> CC_Intermediates::make_two_electron_integrals_hf() const {
 /// <ij|g|k\tau_l>
 Tensor<double> CC_Intermediates::make_two_electron_integrals_mixed_t1(
 		const vecfuncT &tau) const {
+	if(world.rank()==0) std::cout << "Mixed two electron Integrals are not made !\n";
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), mo_ket_.size(),
 			tau.size());
 	return result;
 }
 // <ij|g|\tau_k \tau_l>
 Tensor<double> CC_Intermediates::make_two_electron_integrals_t1(const vecfuncT &tau) const {
+	if(world.rank()==0) std::cout << "T1 two electron Integrals are not made !\n";
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), tau.size(),
 			tau.size());
 	return result;
@@ -334,7 +337,7 @@ vecfuncT CC_Operators::S2b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 	for(auto tmpi:singles.functions){
 		CC_function& i=tmpi.second;
 		real_function_3d resulti = real_factory_3d(world);
-		CC_Timer S2b_6D_time(world,"S2b: 6D-Part");
+		CC_Timer S2b_6D_time(world,"S2b: 6D-Part internal");
 		for(auto tmpk:singles.functions){
 			CC_function& k=tmpk.second;
 			{

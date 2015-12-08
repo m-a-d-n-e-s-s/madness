@@ -296,6 +296,7 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 	output_section("Initialize CC2 Singles from the MP2 Doubles");
 	CC_Timer init_singles(world,"Initialize CC2 Singles");
 	singles = initialize_cc2_singles(doubles);
+	if(singles.size()!=active_mo.size()) MADNESS_EXCEPTION(("Singles have wrong size after initialization: "+stringify(singles.size())).c_str(),1);
 	// make first iteration
 	CCOPS.update_intermediates(singles);
 	iterate_cc2_singles(doubles,singles);
@@ -377,7 +378,7 @@ std::vector<double> CC2::update_cc2_pair_energies(const Pairs<CC_Pair> &doubles,
 	std::vector<double> omegas;
 	for(size_t i=parameters.freeze;i<mo.size();i++){
 		for(size_t j=i;j<mo.size();j++){
-			double tmp = CCOPS.compute_cc2_pair_energy(doubles(i,j), singles(i-parameters.freeze), singles(j-parameters.freeze));
+			double tmp = CCOPS.compute_cc2_pair_energy(doubles(i,j), singles(i), singles(j));
 			omegas.push_back(tmp);
 		}
 	}
@@ -389,6 +390,7 @@ std::vector<double> CC2::update_cc2_pair_energies(const Pairs<CC_Pair> &doubles,
 }
 
 bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
+	if(singles.functions.size() != active_mo.size()) MADNESS_EXCEPTION(("Wrong size of singles at beginning of iterations " + stringify(singles.functions.size())).c_str(),1);
 	output_subsection("Iterate CC2 Singles");
 	CC_Timer timer_potential(world,"CC2 Singles Potential");
 	vecfuncT potential = CCOPS.get_CC2_singles_potential(singles,doubles);
@@ -410,17 +412,19 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &sin
 	std::vector<double> errors;
 	bool converged = true;
 	for(size_t i=0;i<potential.size();i++){
+		MADNESS_ASSERT(singles(i+parameters.freeze).i==i+parameters.freeze);
 		if(world.rank()==0) std::cout << "|| |tau" + stringify(i)+">|| =" << G_potential[i].norm2() << std::endl;
-		real_function_3d residue = singles(i).function - G_potential[i];
+		real_function_3d residue = singles(i+parameters.freeze).function - G_potential[i];
 		double error = residue.norm2();
 		errors.push_back(error);
-		if(world.rank()==0) std::cout << "|| residue" + stringify(i)+">|| =" << error << std::endl;
+		if(world.rank()==0) std::cout << "|| residue" + stringify(i+parameters.freeze)+">|| =" << error << std::endl;
 		CCOPS.Q(G_potential[i]);
-		CC_function new_single(G_potential[i],singles(i).i,PARTICLE);
+		CC_function new_single(G_potential[i],singles(i+parameters.freeze).i,PARTICLE);
 		new_single.current_error = error;
-		singles(i) = new_single;
+		singles(i+parameters.freeze) = new_single;
 		if(fabs(error) > parameters.dconv_3D) converged = false;
 	}
+	if(singles.functions.size() != active_mo.size()) MADNESS_EXCEPTION(("Wrong size of singles at the end of the iteration " + stringify(singles.functions.size())).c_str(),1);
 	return converged;
 }
 
@@ -438,12 +442,12 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 
 			// note that the Greens function is already applied
 			CC_Timer cc2_residue_time(world,"CC2_residue|titj>");
-			real_function_6d cc2_residue_titj = CCOPS.make_cc2_residue(singles(i-parameters.freeze),singles(j-parameters.freeze),doubles(i,j));
+			real_function_6d cc2_residue_titj = CCOPS.make_cc2_residue(singles(i),singles(j),doubles(i,j));
 			cc2_residue_titj.print_size("CC2-Residue");
 			cc2_residue_time.info();
 
 			CC_Timer rest_potential(world,"Doubles Potential from Singles");
-			real_function_6d dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(i-parameters.freeze),singles(j-parameters.freeze),singles);
+			real_function_6d dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(i),singles(j),singles);
 			dopo.print_size("Doubles Potential from Singles");
 			rest_potential.info();
 

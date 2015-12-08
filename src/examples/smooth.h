@@ -413,7 +413,7 @@ public:
 	}
 
 	Function<T,NDIM> linearize(const Function<T,NDIM> &ln_rho)const{
-		Function<T,NDIM> linear_ln_rho = project(ln_rho,3);
+		Function<T,NDIM> linear_ln_rho = project(ln_rho,2);
 		make_plots(linear_ln_rho,"linear_ln_rho");
 		Function<T,NDIM> result = project(linear_ln_rho,FunctionDefaults<NDIM>::get_k());
 		make_plots(result,"linear_ln_rho_backprojected");
