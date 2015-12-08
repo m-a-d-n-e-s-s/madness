@@ -18,16 +18,16 @@ class DSphere : public FunctionFunctorInterface<double, 3> {
 protected:
   /// Derivative of the mask w.r.t. s=sdf/sigma
   double dmask(double s) const {
-    const double rsqrtpi = 1.0/sqrt(constants::pi);
-    if (fabs(s) > 5.5) return 0.0;
+    const double rsqrtpi = 1. / sqrt(constants::pi);
+    if (fabs(s) > 5.5) return 0.;
     return -exp(-s*s) * rsqrtpi;
   }
   
   /// Gradient of the mask in the specified direction.
-  coord_3d gradient(const coord_3d &r) const {
+  coord_3d grad_over_func(const coord_3d &r) const {
     double d = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
     double sdf = (d-R) / sigma;
-    return r*(dmask(sdf) / (sigma * d));
+    return fac*r*(dmask(sdf) / (sigma * d));
   }
   
 public:
@@ -36,11 +36,11 @@ public:
   {}
   
   double operator()(const coord_3d &r) const {
-    return fac * gradient(r)[axis];
+    return grad_over_func(r)[axis];
   }
 };
 
-double charge_function(const coord_3d &r) {
+double rho_function(const coord_3d &r) {
   const double coeff = pow(xi / constants::pi, 1.5);
   return coeff*exp(-xi * (r[0]*r[0] + r[1]*r[1] + r[2]*r[2]));
 }
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
   real_functor_3d epsz_functor(new DSphere(eps_int, eps_ext, 2));
 
   // Make the actual functions
-  real_function_3d charge = real_factory_3d(world).f(charge_function);
+  real_function_3d charge = real_factory_3d(world).f(rho_function);
   real_function_3d eps_x = real_factory_3d(world).functor(epsx_functor);
   real_function_3d eps_y = real_factory_3d(world).functor(epsy_functor);
   real_function_3d eps_z = real_factory_3d(world).functor(epsz_functor);
