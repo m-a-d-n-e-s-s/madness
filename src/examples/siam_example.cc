@@ -4,58 +4,57 @@
 using namespace madness;
 using namespace std;
 
-const double eps_int = 1.0; // Interior dielectric
-const double eps_ext =10.0; // Exterior dielectric
-const double R = 2.0; // Radius of cavity
-const double expnt = 100.0; // Exponent of Gaussian approx to delta function
-const double sigma = 0.1; // Surface width
+const double eps_int = 1.0; ///< Interior dielectric.
+const double eps_ext =10.0; ///< Exterior dielectric.
+const double R = 2.0; ///< Radius of sphere.
+const double xi = 100.0; ///< Exponent for delta function approx.
+const double sigma = 0.1; ///< Surface "width".
 
-class DSphere : public FunctionFunctorInterface<double,3>  {
-  double R, sigma, fac;
+/// Class to create MADNESS functions representing the gradient of the mask.
+class DSphere : public FunctionFunctorInterface<double, 3> {
+  double fac;
   int axis;
+
 protected:
-  double radius(const coord_3d& r) const {
-    return sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
-  }
-  
-  double dmask(double s) const { // Derivative of the mask w.r.t. s=sdf/sigma
-    const double rsqrtpi = 1.0/sqrt(madness::constants::pi);
+  /// Derivative of the mask w.r.t. s=sdf/sigma
+  double dmask(double s) const {
+    const double rsqrtpi = 1.0/sqrt(constants::pi);
     if (fabs(s) > 5.5) return 0.0;
-    return -exp(-s*s)*rsqrtpi;
+    return -exp(-s*s) * rsqrtpi;
   }
   
-  coord_3d gradient(const coord_3d& r) const { // Gradient of mask
-    double d = radius(r);
-    double sdf = (d-R)/sigma;
-    return r*(dmask(sdf)/(sigma*d));
+  /// Gradient of the mask in the specified direction.
+  coord_3d gradient(const coord_3d &r) const {
+    double d = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+    double sdf = (d-R) / sigma;
+    return r*(dmask(sdf) / (sigma * d));
   }
   
 public:
-  DSphere(double radius, double sigma, double Vint, double Vext, int axis) 
-    : R(radius), sigma(sigma), fac(log(Vint/Vext)), axis(axis)
+  DSphere(double Vint, double Vext, int axis) 
+    : fac(log(Vint/Vext)), axis(axis)
   {}
   
-  double operator()(const madness::coord_3d& r) const {
-    return fac*gradient(r)[axis];
+  double operator()(const coord_3d &r) const {
+    return fac * gradient(r)[axis];
   }
 };
 
-
-double charge_function(const coord_3d& r) {
-    const double coeff = pow(1.0/constants::pi*expnt,1.5);
-    return coeff*exp(-expnt*(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]));
+double charge_function(const coord_3d &r) {
+    const double coeff = pow(xi/constants::pi, 1.5);
+    return coeff*exp(-xi * (r[0]*r[0] + r[1]*r[1] + r[2]*r[2]));
 }
 
-double exact_function(const coord_3d& x) {
-    double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
-    if (r > R) return 1.0/(eps_ext*r);
-    else return erf(sqrt(expnt)*r)/(eps_int*r) + (1.0/eps_ext - 1.0/eps_int)/R;
+double exact_function(const coord_3d &x) {
+    const double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+    if (r > R) return 1.0 / (eps_ext * r);
+    else return erf(sqrt(xi)*r) / (eps_int*r) + (1./eps_ext - 1./eps_int)/R;
 }
 
 int main(int argc, char **argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
-    startup(world,argc,argv);
+    startup(world, argc, argv);
 
     // Function defaults
     FunctionDefaults<3>::set_k(10);
@@ -71,16 +70,16 @@ int main(int argc, char **argv) {
     real_derivative_3d Dz = free_space_derivative<double,3>(world, 2);
 
     // Functors for dielectric related quantities
-    real_functor_3d gradx_functor(new DSphere(R, sigma, eps_int, eps_ext, 0));
-    real_functor_3d grady_functor(new DSphere(R, sigma, eps_int, eps_ext, 1));
-    real_functor_3d gradz_functor(new DSphere(R, sigma, eps_int, eps_ext, 2));
+    real_functor_3d epsx_functor(new DSphere(eps_int, eps_ext, 0));
+    real_functor_3d epsy_functor(new DSphere(eps_int, eps_ext, 1));
+    real_functor_3d epsz_functor(new DSphere(eps_int, eps_ext, 2));
 
     // Make the actual functions
     real_function_3d exact = real_factory_3d(world).f(exact_function);
     real_function_3d charge = real_factory_3d(world).f(charge_function);
-    real_function_3d eps_x = real_factory_3d(world).functor(gradx_functor);
-    real_function_3d eps_y = real_factory_3d(world).functor(grady_functor);
-    real_function_3d eps_z = real_factory_3d(world).functor(gradz_functor);
+    real_function_3d eps_x = real_factory_3d(world).functor(epsx_functor);
+    real_function_3d eps_y = real_factory_3d(world).functor(epsy_functor);
+    real_function_3d eps_z = real_factory_3d(world).functor(epsz_functor);
 
     const double rfourpi = 1.0/(4.0*constants::pi);
 
@@ -95,10 +94,10 @@ int main(int argc, char **argv) {
 
       print("iter", iter, "change", change, "surf charge", surf_charge.trace());
       
-      if (change < 10.0*FunctionDefaults<3>::get_thresh()) break;
+      if (change < 10.*FunctionDefaults<3>::get_thresh()) break;
     }
     
-    coord_3d lo{-5.0,0.0,0.0}, hi{0.5,0.0,0.0}; // Range for line plotting
+    coord_3d lo{-5., 0., 0.}, hi{0.5, 0., 0.}; // Range for line plotting
     plot_line("testpot.dat", 301, lo, hi, u, exact);
     
     finalize();
