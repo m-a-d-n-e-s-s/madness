@@ -33,8 +33,10 @@
 
 #include <madness/madness_config.h>
 
+#undef TIME_DGEMM
+#define TIME_DGEMM
 // Disable for now to facilitate CI 
-#if !(defined(X86_32X) || defined(X86_64X))
+#if !(defined(X86_32) || defined(X86_64))
 
 #include <iostream>
 int main() {std::cout << "x86 only\n"; return 0;}
@@ -193,9 +195,9 @@ int main(int argc, char * argv[]) {
 /*     return 0; */
 
     printf("Starting to test ... \n");
-    for (ni=2; ni<60; ni+=2) {
-        for (nj=2; nj<100; nj+=6) {
-            for (nk=2; nk<100; nk+=6) {
+    for (ni=1; ni<60; ni+=1) {
+        for (nj=1; nj<100; nj+=1) {
+            for (nk=1; nk<100; nk+=1) {
                 for (i=0; i<ni*nj; ++i) d[i] = c[i] = 0.0;
                 mTxm (ni,nj,nk,c,a,b);
                 mTxmq(ni,nj,nk,d,a,b);
@@ -207,7 +209,7 @@ int main(int argc, char * argv[]) {
                        pass the test you may need to change the threshold
                        to circa 1e-13.
                     */
-                    if (err > 1e-15) {
+                    if (err > 1e-13) {
                         printf("test_mtxmq: error %ld %ld %ld %e\n",ni,nj,nk,err);
                         exit(1);
                     }

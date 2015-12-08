@@ -123,8 +123,410 @@ extern "C" void TmTxm2(long dimi, long dimj, long dimk,
 
 namespace madness {
 
+#include <immintrin.h>
+#include <stdio.h>
+
+#define FMA(a,b,c) _mm256_fmadd_pd (a, b, c)
+//#define FMA(a,b,c) _mm256_add_pd(_mm256_mul_pd(a, b), c)
+
     template<>
-    void mTxmq(const long dimi, const long dimj, const long dimk,
+void mTxmq(long dimi, long dimj, long dimk,
+           double * __restrict__ c, const double * __restrict__ a, const double * __restrict__ b) {
+
+
+    int i, k;
+    int dimi2 = (dimi>>1)<<1;
+    int dimj2 = dimj<<1;
+
+    __m256d ci0j0, ci0j1, ci0j2, ci0j3, ci0j4;
+    __m256d ci1j0, ci1j1, ci1j2, ci1j3, ci1j4;
+    __m256d aki0, aki1, bkj;
+    __m256i mask = _mm256_set_epi32(0,0,-1,-1,-1,-1,-1,-1);
+    // __m256d tmp; //temporary from aki*bkj
+    
+    // Loop over tiles of j
+    int nj = dimj;
+    
+    do {
+        int numj = (nj>20) ? 20 : nj;
+
+        double* __restrict__ ci = c;
+
+        switch (numj) {
+        case 20:
+        case 19:
+        case 18:
+        case 17:
+            if      (numj == 20) mask = _mm256_set_epi32(-1,-1,-1,-1,-1,-1,-1,-1);
+            else if (numj == 19) mask = _mm256_set_epi32( 0, 0,-1,-1,-1,-1,-1,-1);
+            else if (numj == 18) mask = _mm256_set_epi32( 0, 0, 0, 0,-1,-1,-1,-1);
+            else if (numj == 17) mask = _mm256_set_epi32( 0, 0, 0, 0, 0, 0,-1,-1);
+
+            for (i=0; i<dimi2; i+=2,ci+=dimj2) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+i;
+                ci0j0 = _mm256_setzero_pd();
+                ci0j1 = _mm256_setzero_pd();
+                ci0j2 = _mm256_setzero_pd();
+                ci0j3 = _mm256_setzero_pd();
+                ci0j4 = _mm256_setzero_pd();
+                
+                ci1j0 = _mm256_setzero_pd();
+                ci1j1 = _mm256_setzero_pd();
+                ci1j2 = _mm256_setzero_pd();
+                ci1j3 = _mm256_setzero_pd();
+                ci1j4 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    aki1 = _mm256_broadcast_sd(paki+1);
+                    
+                    bkj = _mm256_loadu_pd(pbkj   );
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 4);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    ci1j1 = FMA(aki1, bkj, ci1j1);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 8);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                    ci1j2 = FMA(aki1, bkj, ci1j2);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+12);
+                    ci0j3 = FMA(aki0, bkj, ci0j3);
+                    ci1j3 = FMA(aki1, bkj, ci1j3);
+                    
+                    bkj = _mm256_maskload_pd(pbkj+16,mask);
+                    ci0j4 = FMA(aki0, bkj, ci0j4);
+                    ci1j4 = FMA(aki1, bkj, ci1j4);
+                }
+                _mm256_storeu_pd(c+i*dimj   , ci0j0);
+                _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
+                _mm256_storeu_pd(c+i*dimj+ 8, ci0j2);
+                _mm256_storeu_pd(c+i*dimj+12, ci0j3);
+                _mm256_maskstore_pd(c+i*dimj+16, mask, ci0j4);
+                
+                _mm256_storeu_pd(c+(i+1)*dimj   , ci1j0);
+                _mm256_storeu_pd(c+(i+1)*dimj+ 4, ci1j1);
+                _mm256_storeu_pd(c+(i+1)*dimj+ 8, ci1j2);
+                _mm256_storeu_pd(c+(i+1)*dimj+12, ci1j3);
+                _mm256_maskstore_pd(c+(i+1)*dimj+16, mask, ci1j4);
+            }
+                
+            if (dimi&0x1) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+dimi-1;
+                ci0j0 = _mm256_setzero_pd();
+                ci0j1 = _mm256_setzero_pd();
+                ci0j2 = _mm256_setzero_pd();
+                ci0j3 = _mm256_setzero_pd();
+                ci0j4 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    
+                    bkj = _mm256_loadu_pd(pbkj   );
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 4);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 8);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+12);
+                    ci0j3 = FMA(aki0, bkj, ci0j3);
+                    
+                    bkj = _mm256_maskload_pd(pbkj+16,mask);
+                    ci0j4 = FMA(aki0, bkj, ci0j4);
+                }
+                _mm256_storeu_pd(c+i*dimj   , ci0j0);
+                _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
+                _mm256_storeu_pd(c+i*dimj+ 8, ci0j2);
+                _mm256_storeu_pd(c+i*dimj+12, ci0j3);
+                _mm256_maskstore_pd(c+i*dimj+16, mask, ci0j4);
+            }
+
+            break;
+            
+        case 16:
+        case 15:
+        case 14:
+        case 13:
+            if      (numj == 16) mask = _mm256_set_epi32(-1,-1,-1,-1,-1,-1,-1,-1);
+            else if (numj == 15) mask = _mm256_set_epi32( 0, 0,-1,-1,-1,-1,-1,-1);
+            else if (numj == 14) mask = _mm256_set_epi32( 0, 0, 0, 0,-1,-1,-1,-1);
+            else if (numj == 13) mask = _mm256_set_epi32( 0, 0, 0, 0, 0, 0,-1,-1);
+
+            for (i=0; i<dimi2; i+=2,ci+=dimj2) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+i;
+                ci0j0 = _mm256_setzero_pd();
+                ci0j1 = _mm256_setzero_pd();
+                ci0j2 = _mm256_setzero_pd();
+                ci0j3 = _mm256_setzero_pd();
+                
+                ci1j0 = _mm256_setzero_pd();
+                ci1j1 = _mm256_setzero_pd();
+                ci1j2 = _mm256_setzero_pd();
+                ci1j3 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    aki1 = _mm256_broadcast_sd(paki+1);
+                    
+                    bkj = _mm256_loadu_pd(pbkj   );
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 4);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    ci1j1 = FMA(aki1, bkj, ci1j1);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 8);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                    ci1j2 = FMA(aki1, bkj, ci1j2);
+                    
+                    bkj = _mm256_maskload_pd(pbkj+12,mask);
+                    ci0j3 = FMA(aki0, bkj, ci0j3);
+                    ci1j3 = FMA(aki1, bkj, ci1j3);
+                }
+                _mm256_storeu_pd(c+i*dimj   , ci0j0);
+                _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
+                _mm256_storeu_pd(c+i*dimj+ 8, ci0j2);
+                _mm256_maskstore_pd(c+i*dimj+12, mask, ci0j3); 
+               
+                _mm256_storeu_pd(c+(i+1)*dimj   , ci1j0);
+                _mm256_storeu_pd(c+(i+1)*dimj+ 4, ci1j1);
+                _mm256_storeu_pd(c+(i+1)*dimj+ 8, ci1j2);
+                _mm256_maskstore_pd(c+(i+1)*dimj+12, mask, ci1j3);
+            }
+                
+            if (dimi&0x1) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+dimi-1;
+                ci0j0 = _mm256_setzero_pd();
+                ci0j1 = _mm256_setzero_pd();
+                ci0j2 = _mm256_setzero_pd();
+                ci0j3 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    
+                    bkj = _mm256_loadu_pd(pbkj   );
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 4);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 8);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                    
+                    bkj = _mm256_maskload_pd(pbkj+12,mask);
+                    ci0j3 = FMA(aki0, bkj, ci0j3);
+                }
+                _mm256_storeu_pd(c+i*dimj   , ci0j0);
+                _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
+                _mm256_storeu_pd(c+i*dimj+ 8, ci0j2);
+                _mm256_maskstore_pd(c+i*dimj+12, mask, ci0j3); 
+            }
+
+            break;
+            
+        case 12:
+        case 11:
+        case 10:
+        case  9:
+            if      (numj == 12) mask = _mm256_set_epi32(-1,-1,-1,-1,-1,-1,-1,-1);
+            else if (numj == 11) mask = _mm256_set_epi32( 0, 0,-1,-1,-1,-1,-1,-1);
+            else if (numj == 10) mask = _mm256_set_epi32( 0, 0, 0, 0,-1,-1,-1,-1);
+            else if (numj ==  9) mask = _mm256_set_epi32( 0, 0, 0, 0, 0, 0,-1,-1);
+
+            for (i=0; i<dimi2; i+=2,ci+=dimj2) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+i;
+                ci0j0 = _mm256_setzero_pd();
+                ci0j1 = _mm256_setzero_pd();
+                ci0j2 = _mm256_setzero_pd();
+                
+                ci1j0 = _mm256_setzero_pd();
+                ci1j1 = _mm256_setzero_pd();
+                ci1j2 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    aki1 = _mm256_broadcast_sd(paki+1);
+                    
+                    bkj = _mm256_loadu_pd(pbkj   );
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 4);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    ci1j1 = FMA(aki1, bkj, ci1j1);
+                    
+                    bkj = _mm256_maskload_pd(pbkj+8,mask);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                    ci1j2 = FMA(aki1, bkj, ci1j2);
+                }
+                _mm256_storeu_pd(c+i*dimj   , ci0j0);
+                _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
+                _mm256_maskstore_pd(c+i*dimj+8, mask, ci0j2); 
+                
+                _mm256_storeu_pd(c+(i+1)*dimj   , ci1j0);
+                _mm256_storeu_pd(c+(i+1)*dimj+ 4, ci1j1);
+                _mm256_maskstore_pd(c+(i+1)*dimj+8, mask, ci1j2); 
+            }
+                
+            if (dimi&0x1) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+dimi-1;
+                ci0j0 = _mm256_setzero_pd();
+                ci0j1 = _mm256_setzero_pd();
+                ci0j2 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    
+                    bkj = _mm256_loadu_pd(pbkj   );
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    
+                    bkj = _mm256_loadu_pd(pbkj+ 4);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    
+                    bkj = _mm256_maskload_pd(pbkj+8,mask);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                }
+                _mm256_storeu_pd(c+i*dimj   , ci0j0);
+                _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
+                _mm256_maskstore_pd(c+i*dimj+8, mask, ci0j2); 
+            }
+
+            break;
+            
+        case 8:
+        case 7:
+        case 6:
+        case 5:
+            if      (numj == 8) mask = _mm256_set_epi32(-1,-1,-1,-1,-1,-1,-1,-1);
+            else if (numj == 7) mask = _mm256_set_epi32( 0, 0,-1,-1,-1,-1,-1,-1);
+            else if (numj == 6) mask = _mm256_set_epi32( 0, 0, 0, 0,-1,-1,-1,-1);
+            else if (numj == 5) mask = _mm256_set_epi32( 0, 0, 0, 0, 0, 0,-1,-1);
+            for (i=0; i<dimi2; i+=2,ci+=dimj2) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+i;
+                ci0j0 = _mm256_setzero_pd();
+                ci0j1 = _mm256_setzero_pd();
+                
+                ci1j0 = _mm256_setzero_pd();
+                ci1j1 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    aki1 = _mm256_broadcast_sd(paki+1);
+                    
+                    bkj = _mm256_loadu_pd(pbkj   );
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
+                    
+                    bkj = _mm256_maskload_pd(pbkj+4,mask);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    ci1j1 = FMA(aki1, bkj, ci1j1);
+                }
+                _mm256_storeu_pd(c+i*dimj   , ci0j0);
+                _mm256_maskstore_pd(c+i*dimj+4, mask, ci0j1); 
+                
+                _mm256_storeu_pd(c+(i+1)*dimj   , ci1j0);
+                _mm256_maskstore_pd(c+(i+1)*dimj+4, mask, ci1j1); 
+
+            }
+                
+            if (dimi&0x1) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+dimi-1;
+                ci0j0 = _mm256_setzero_pd();
+                ci0j1 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    
+                    bkj = _mm256_loadu_pd(pbkj   );
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    
+                    bkj = _mm256_maskload_pd(pbkj+4,mask);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                }
+                _mm256_storeu_pd(c+i*dimj   , ci0j0);
+                _mm256_maskstore_pd(c+i*dimj+4, mask, ci0j1); 
+            }
+
+            break;
+            
+        case 4:
+        case 3:
+        case 2:
+        case 1:
+            if      (numj == 4) mask = _mm256_set_epi32(-1,-1,-1,-1,-1,-1,-1,-1);
+            else if (numj == 3) mask = _mm256_set_epi32( 0, 0,-1,-1,-1,-1,-1,-1);
+            else if (numj == 2) mask = _mm256_set_epi32( 0, 0, 0, 0,-1,-1,-1,-1);
+            else if (numj == 1) mask = _mm256_set_epi32( 0, 0, 0, 0, 0, 0,-1,-1);
+
+            for (i=0; i<dimi2; i+=2,ci+=dimj2) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+i;
+                ci0j0 = _mm256_setzero_pd();
+                ci1j0 = _mm256_setzero_pd();
+                
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    aki1 = _mm256_broadcast_sd(paki+1);
+                    
+                    bkj = _mm256_maskload_pd(pbkj, mask);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
+                }
+                _mm256_maskstore_pd(c+i*dimj    , mask, ci0j0);
+                _mm256_maskstore_pd(c+(i+1)*dimj, mask, ci1j0);
+            }
+                
+            if (dimi&0x1) {
+                const double* __restrict__ pbkj = b;
+                const double* __restrict__ paki = a+i;
+                ci0j0 = _mm256_setzero_pd();
+                for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
+                    aki0 = _mm256_broadcast_sd(paki);
+                    bkj = _mm256_maskload_pd(pbkj, mask);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                }
+                _mm256_maskstore_pd(c+i*dimj    , mask, ci0j0);
+            }
+            break;
+
+        default:
+            /* for (i=0; i<dimi; i++) { */
+            /*     for (k=0; k<dimk; k++) { */
+            /*         double aki = a[k*dimi+i]; */
+            /*         for (j=0; j<numj; j++) { */
+            /*             c[i*dimj+j] += aki*b[k*dimj+j]; */
+            /*         } */
+            /*     } */
+            /* } */
+            printf("HOW DID WE GET HERE?\n");
+            break;
+        }
+
+        c += numj;
+        b += numj;
+        nj -= numj;
+
+    } while (nj);
+}
+
+
+
+    //template<>
+    void mTxmqdjflkjsalkf(const long dimi, const long dimj, const long dimk,
                double* restrict c, const double* a, const double* b) {
         //PROFILE_BLOCK(mTxmq_double_asm);
         //std::cout << "IN DOUBLE ASM VERSION " << dimi << " " << dimj << " " << dimk << "\n";
