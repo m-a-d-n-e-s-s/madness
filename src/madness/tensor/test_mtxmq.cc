@@ -33,10 +33,8 @@
 
 #include <madness/madness_config.h>
 
-#undef TIME_DGEMM
-#define TIME_DGEMM
 // Disable for now to facilitate CI 
-#if !(defined(X86_32) || defined(X86_64))
+#if !(defined(X86_32X) || defined(X86_64X))
 
 #include <iostream>
 int main() {std::cout << "x86 only\n"; return 0;}
