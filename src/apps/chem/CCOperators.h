@@ -445,8 +445,7 @@ public:
 	}
 
 	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
-		if(singles.functions.size()!=mo_ket_.size()-parameters.freeze) error("Wrong size of singles: " + stringify(singles.functions.size()));
-		if(parameters.debug) test_singles_potential(singles,doubles);
+		//if(parameters.debug) test_singles_potential(singles,doubles);
 
 		Pairs<CC_Pair> doubles_wrapper;
 		if(parameters.pair_function_in_singles_potential==FULL){

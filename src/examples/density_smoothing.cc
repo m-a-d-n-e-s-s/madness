@@ -93,9 +93,17 @@ int main(int argc, char** argv) {
 
 		if(world.rank()==0){
 			std::cout << "\n\nSmooth Density:" << std::endl;
+			std::cout << "Orbital energie \n";
 			std::cout << "3D Threshold is " << FunctionDefaults<3>::get_thresh() << std::endl;
 			std::cout << "\n\n";
 		}
+
+		const size_t norb = nemo.get_calc()->amo.size();
+		std::vector<double> eps;
+		for(size_t i=0;i<norb;i++){
+			eps.push_back(nemo.get_calc()->aeps(i));
+		}
+		std::cout << "Orbital energies\n " << eps << std::endl;
 
 		real_function_3d density = real_factory_3d(world);
 		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
@@ -121,7 +129,7 @@ int main(int argc, char** argv) {
 		density=density*nemo.nuclear_correlation->square();
 		density.truncate(FunctionDefaults<3>::get_thresh()*0.01);
 		smooth<double,3> smoothing(world);
-		smoothing.smooth_density(density);
+		smoothing.smooth_density_from_orbitals(nemo.get_calc()->amo);
 		//smoothing.set_molecule_mask(1.0,1.0,nemo.get_calc()->molecule.get_atoms());
 
 
