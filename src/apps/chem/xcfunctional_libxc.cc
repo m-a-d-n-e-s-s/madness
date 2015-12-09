@@ -794,14 +794,25 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
 
         // multiply the kernel with the various densities
         if (xc_contrib== XCfunctional::kernel_second_local) {  // local terms, second derivative
-            const Tensor<double>& dens_pt=t[enum_rho_pt];
-            const Tensor<double>& sigma_pt=2.0*t[enum_sigma_pta];   // factor 2 for closed shell
+            Tensor<double> dens_pt=copy(t[enum_rho_pt]);
+            Tensor<double> sigma_pt=2.0*copy(t[enum_sigma_pta]);   // factor 2 for closed shell
+            munger m(rhotol,rhomin);
+            dens_pt.unaryop(m);
+            sigma_pt.unaryop(m);
+
             result1=v2rho2.emul(dens_pt);
             if (is_gga()) result1+= 2.0*v2rhosigma.emul(sigma_pt);
 
         } else if (xc_contrib== XCfunctional::kernel_second_semilocal) {   // semilocal terms, second derivative
-            const Tensor<double>& dens_pt=t[enum_rho_pt];
-            const Tensor<double>& sigma_pt=2.0*t[enum_sigma_pta];       // factor 2 for closed shell
+//            const Tensor<double>& dens_pt=t[enum_rho_pt];
+//            const Tensor<double>& sigma_pt=2.0*t[enum_sigma_pta];       // factor 2 for closed shell
+            Tensor<double> dens_pt=copy(t[enum_rho_pt]);
+            Tensor<double> sigma_pt=2.0*copy(t[enum_sigma_pta]);   // factor 2 for closed shell
+            munger m(rhotol,rhomin);
+            dens_pt.unaryop(m);
+            sigma_pt.unaryop(m);
+
+
             result1=2.0*v2rhosigma.emul(dens_pt) + 4.0*v2sigma2.emul(sigma_pt);
 
         } else if (xc_contrib== XCfunctional::kernel_first_semilocal) {   // semilocal terms, first derivative

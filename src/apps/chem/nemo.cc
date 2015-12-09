@@ -109,14 +109,18 @@ double Nemo::value(const Tensor<double>& x) {
 	functionT rho = 2.0*(R_square*make_density(calc->aocc, calc->amo)).truncate();
 	calc->dipole(world,rho);
 
-	functionT rhonemo=make_density(calc->aocc,calc->amo);
-	functionT ddens0=make_ddensity(rhonemo,0);
-    functionT ddens1=make_ddensity(rhonemo,1);
-    functionT ddens2=make_ddensity(rhonemo,2);
-    save(ddens0,"ddens0_U1");
-    save(ddens1,"ddens1_U1");
-    save(ddens2,"ddens2_U1");
-//    throw;
+//	functionT rhonemo=2.0*make_density(calc->aocc,calc->amo);
+//	save(rhonemo,"rhonemo");
+//	save(rho,"rho");
+//	real_function_3d sigma=make_sigma(rhonemo,rhonemo);
+//	save(sigma,"sigmanemo");
+//
+//	real_function_3d dens_pt0=real_factory_3d(world);
+//	load(dens_pt0,"dens_pt0");
+//    real_function_3d sigma_pt=calc->make_sigma(rho,dens_pt0);
+//    save(sigma_pt,"sigma_pt");
+
+
 	// compute the hessian
 	if (calc->param.hessian) hessian(x);
 
@@ -541,11 +545,17 @@ real_function_3d Nemo::get_coulomb_potential(const vecfuncT& psi) const {
 
 real_function_3d Nemo::make_density(const Tensor<double>& occ,
         const vecfuncT& nemo) const {
-    return calc->make_density(world,occ,nemo).truncate();
+    return calc->make_density(world,occ,nemo);
 }
 
 real_function_3d Nemo::make_density(const tensorT & occ,
-        const vecfuncT& bra, const vecfuncT& ket) const {
+        const vecfuncT& bra, const vecfuncT& ket, const bool do_refine) const {
+
+    // density may be twice as precise as the orbitals, if you refine
+    if (do_refine) {
+        refine(world,bra,false);
+        if (&bra!=&ket) refine(world,ket,true);
+    }
 
     vecfuncT vsq = mul(world, bra, ket);
     compress(world, vsq);
@@ -555,7 +565,7 @@ real_function_3d Nemo::make_density(const tensorT & occ,
             rho.gaxpy(1.0, vsq[i], calc->get_aocc()[i], false);
     }
     world.gop.fence();
-    return rho.truncate();
+    return rho;
 }
 
 
@@ -570,9 +580,9 @@ real_function_3d Nemo::make_ddensity(const real_function_3d& rhonemo,
     // R^2 * \nabla \rho
     real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
     real_function_3d Drhonemo=D(rhonemo);
-    real_function_3d term2=(R_square*Drhonemo).truncate();
+    real_function_3d term2=(R_square*Drhonemo);
 
-    return (term1+term2).truncate();
+    return (term1+term2);
 }
 
 
@@ -614,6 +624,33 @@ real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) c
     save(rho_rec,"rho_reconstructed");
 
     return result;
+}
+
+/// compute the reduced densities sigma (gamma) for GGA functionals
+real_function_3d Nemo::make_sigma(const real_function_3d& rho1,
+        const real_function_3d& rho2) const {
+
+    const double tight=FunctionDefaults<3>::get_thresh()*0.001;
+    const double thresh=FunctionDefaults<3>::get_thresh();
+    FunctionDefaults<3>::set_thresh(tight);
+
+    // do refine to have sigma more precise
+    std::vector<real_function_3d> drho1=calc->nabla(rho1,true);
+    std::vector<real_function_3d> drho2=calc->nabla(rho2,true);
+
+    // first term
+    NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(nuclear_correlation.get());
+    const real_function_3d U1dot=real_factory_3d(world).functor(u1_dot_u1);
+    real_function_3d result=(4.0*U1dot*rho1*rho2);
+
+    std::vector<real_function_3d> uvec=nuclear_correlation->U1vec();
+    real_function_3d term2=-2.0*(rho1*dot(world,uvec,drho2) + rho2*dot(world,uvec,drho1));
+
+    real_function_3d term3=dot(world,drho1,drho2);
+    FunctionDefaults<3>::set_thresh(thresh);
+    result+=term2+term3;
+    return result*R_square*R_square;
+
 }
 
 
@@ -741,7 +778,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
             dens_pt[i]=4.0*make_density(calc->get_aocc(),R2nemo,xi[i]);
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
             const real_function_3d RX_div_R=real_factory_3d(world).functor(rxr_func).truncate_on_project();
-            dens_pt[i]=(dens_pt[i]+2.0*RX_div_R*dens).truncate();
+            dens_pt[i]=(dens_pt[i]+2.0*RX_div_R*dens);//.truncate();
             save(dens_pt[i],"dens_pt"+stringify(i));
         }
     }

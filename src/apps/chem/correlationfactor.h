@@ -200,6 +200,15 @@ public:
 		return U1_function[axis];
 	}
 
+    /// return the U1 functions in a vector
+	std::vector<real_function_3d> U1vec() const {
+	    std::vector<real_function_3d> uvec;
+	    uvec[0]=U1_function[0];
+        uvec[1]=U1_function[1];
+        uvec[2]=U1_function[2];
+        return uvec;
+	}
+
 	/// return the U2 term of the correlation function
 	virtual const real_function_3d U2() const  {return U2_function;}
 

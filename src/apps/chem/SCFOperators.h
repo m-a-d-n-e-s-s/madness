@@ -101,6 +101,47 @@ private:
 };
 
 
+template<typename T, std::size_t NDIM>
+class DerivativeOperator {
+    typedef Function<T,NDIM> functionT;
+    typedef std::vector<functionT> vecfuncT;
+    typedef Tensor<T> tensorT;
+
+public:
+
+    DerivativeOperator(World& world, const int axis1) : world(world), axis(axis1) {
+        gradop = free_space_derivative<T,NDIM>(world, axis);
+    }
+
+    functionT operator()(const functionT& ket) const {
+        vecfuncT vket(1,ket);
+        return this->operator()(vket)[0];
+    }
+
+    vecfuncT operator()(const vecfuncT& vket) const {
+        vecfuncT dvket=apply(world, gradop, vket, false);
+        world.gop.fence();
+        return dvket;
+    }
+
+    T operator()(const functionT& bra, const functionT ket) const {
+        vecfuncT vbra(1,bra), vket(1,ket);
+        Tensor<T> tmat=this->operator()(vbra,vket);
+        return tmat(0l,0l);
+    }
+
+    tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        vecfuncT dvket=this->operator()(vket);
+        return matrix_inner(world,vbra,dvket);
+    }
+
+private:
+    World& world;
+    int axis;
+    Derivative<T,NDIM> gradop;
+
+};
+
 class Coulomb {
 public:
 

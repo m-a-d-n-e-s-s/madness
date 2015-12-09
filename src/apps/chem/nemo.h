@@ -324,7 +324,7 @@ public:
     /// e.g. for computing the perturbed density \sum_i \phi_i \phi_i^X
     /// or when using nemos: \sum_i R2nemo_i nemo_i
     real_function_3d make_density(const tensorT & occ,
-            const vecfuncT& bra, const vecfuncT& ket) const;
+            const vecfuncT& bra, const vecfuncT& ket, const bool refine=false) const;
 
     /// make the derivative of the density
 
@@ -334,6 +334,10 @@ public:
     /// @return     the gradient of the *reconstructed* density
     real_function_3d make_ddensity(const real_function_3d& rhonemo,
             const int axis) const;
+
+    /// compute the reduced densities sigma (gamma) for GGA functionals
+    real_function_3d make_sigma(const real_function_3d& rho1,
+            const real_function_3d& rho2) const;
 
 
     /// the Laplacian of the density
@@ -361,6 +365,8 @@ public:
     /// @param[in]  rhonemo    the regularized density \rho_R
     /// @return     the laplacian of the reconstructed density \Delta (R^2\rho_R)
     real_function_3d make_laplacian_density(const real_function_3d& rhonemo) const;
+
+
 
     /// smooth a function by projecting it onto k-1 and then average with k
 
@@ -486,6 +492,14 @@ private:
         tensorT Q = -0.5*s;
         for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
         return Q;
+    }
+
+    void make_plots(const real_function_3d &f,const std::string &name="function")const{
+        double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
+        plot_plane(world,f,name);
+        coord_3d start(0.0); start[0]=-width;
+        coord_3d end(0.0); end[0]=width;
+        plot_line(("line_"+name).c_str(),1000,start,end,f);
     }
 
     /// save a function

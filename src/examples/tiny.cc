@@ -113,6 +113,58 @@ void draw_circle(World& world, Function<double,NDIM>& pair, const std::string re
 }
 
 
+void dostuff(World& world) {
+    real_function_3d rho=real_factory_3d(world),rhonemo=real_factory_3d(world),
+            vsigaa,vsigaanemo;
+    real_function_3d sigmanemo=real_factory_3d(world);
+    real_function_3d dens_pt0=real_factory_3d(world);
+
+    load(rho,"rho");
+    load(rhonemo,"rhonemo");
+    load(sigmanemo,"sigmanemo");
+    load(dens_pt0,"dens_pt0");
+
+    FunctionDefaults<3>::set_k(rho.k());
+    FunctionDefaults<3>::set_thresh(rho.thresh());
+
+    rho.reconstruct();
+    rhonemo.reconstruct();
+    std::vector< std::shared_ptr<Derivative<double,3> > > gradop =
+             gradient_operator<double,3>(world);
+
+    // vsig with nemos
+    {
+
+    }
+
+    // vsig with mos
+    {
+        real_function_3d drhoa_x=(*gradop[0])(rho, true).refine();
+        real_function_3d drhoa_y=(*gradop[1])(rho, true).refine();
+        real_function_3d drhoa_z=(*gradop[2])(rho, true).refine();
+        world.gop.fence();
+
+        // assign the reduced densities sigma
+        vsigaa=(drhoa_x * drhoa_x + drhoa_y * drhoa_y + drhoa_z * drhoa_z);
+    }
+
+    double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
+    coord_3d start(0.0); start[0]=-width;
+    coord_3d end(0.0); end[0]=width;
+
+
+    plot_line("line_rho",10000,start,end,rho);
+    plot_line("line_vsigaa",10000,start,end,vsigaa);
+    plot_line("line_dens_pt0",10000,start,end,dens_pt0);
+
+    SeparatedConvolution<double,3> smooth=SmoothingOperator3D(world,0.005);
+    real_function_3d sigmanemo_smooth=smooth(sigmanemo);
+    plot_line("line_sigaanemo_smooth",10000,start,end,sigmanemo_smooth);
+    real_function_3d dens_pt0_smooth=smooth(dens_pt0);
+    plot_line("line_dens_pt0_smooth",10000,start,end,dens_pt0_smooth);
+
+}
+
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -175,6 +227,7 @@ int main(int argc, char** argv) {
 		print("");
 	}
 
+	dostuff(world);
 
     try {
         static const size_t NDIM=3;
@@ -182,10 +235,15 @@ int main(int argc, char** argv) {
         for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
 		plot_plane(world,vf,filenames[0]);
 
+		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
+		coord_3d start(0.0); start[0]=-width;
+		coord_3d end(0.0); end[0]=width;
+		plot_line(("line_"+filenames[0]).c_str(),10000,start,end,vf[0]);
+
 		// plot the Gaussian cube file
 		std::vector<std::string> molecular_info=cubefile_header("input");
 		std::string filename=filenames[0]+".cube";
-		plot_cubefile<3>(world,vf[0],filename,molecular_info);
+		plot_cubefile<3>(world,vf[0],filenames[0],molecular_info);
 
     } catch (...) {
         try {

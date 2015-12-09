@@ -774,7 +774,7 @@ namespace madness {
         /// Inplace autorefines the function using same test as for squaring.
 
         /// return this for chaining
-        Function<T,NDIM>& refine(bool fence = true) {
+        const Function<T,NDIM>& refine(bool fence = true) const {
             refine_general(autorefine_square_op(), fence);
             return *this;
         }

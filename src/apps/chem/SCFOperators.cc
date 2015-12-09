@@ -682,8 +682,11 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
 
     }
 
+    save(xcargs[XCfunctional::enum_saa],"vsigaa");
     world.gop.fence();
-    truncate(world,xcargs);
+
+    const double tight=FunctionDefaults<3>::get_thresh()*0.001;
+    truncate(world,xc_args,tight);
 
     return xcargs;
 }
@@ -731,19 +734,23 @@ void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
         }
         world.gop.fence();
 
-        xc_args[XCfunctional::enum_sigma_pta]=    // sigma_a
-                (ddensa[0] * ddens_pt[0] + ddensa[1] * ddens_pt[1] + ddensa[2] * ddens_pt[2]).truncate();
+//        xc_args[XCfunctional::enum_sigma_pta]=    // sigma_a
+//                (ddensa[0] * ddens_pt[0] + ddensa[1] * ddens_pt[1] + ddensa[2] * ddens_pt[2]).truncate();
+
+        xc_args[XCfunctional::enum_sigma_pta]=dot(world,ddensa,ddens_pt);    // sigma_a
 
         if (have_beta) {
-            xc_args[XCfunctional::enum_sigma_ptb]=    // sigma_b
-                    (ddensb[0] * ddens_pt[0] + ddensb[1] * ddens_pt[1] + ddensb[2] * ddens_pt[2]).truncate();
+//            xc_args[XCfunctional::enum_sigma_ptb]=    // sigma_b
+//                    (ddensb[0] * ddens_pt[0] + ddensb[1] * ddens_pt[1] + ddensb[2] * ddens_pt[2]).truncate();
+            xc_args[XCfunctional::enum_sigma_ptb]= dot(world,ddensb,ddens_pt);
         }
         world.gop.fence();
-        truncate(world,ddens_pt);
     }
     world.gop.fence();
+    save(xc_args[XCfunctional::enum_sigma_pta],"vsigptaa");
 
-    truncate(world,xc_args);
+    const double tight=FunctionDefaults<3>::get_thresh()*0.001;
+    truncate(world,xc_args,tight);
 }
 
 

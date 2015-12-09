@@ -162,6 +162,13 @@ namespace madness {
         if (fence && must_fence) world.gop.fence();
     }
 
+    /// refine the functions according to the autorefine criteria
+    template <typename T, std::size_t NDIM>
+    void refine(World& world, const std::vector<Function<T,NDIM> >& vf,
+            bool fence=true) {
+        for (const auto& f : vf) f.refine(false);
+        if (fence) world.gop.fence();
+    }
 
     /// refine all functions to a common (finest) level
 
@@ -660,9 +667,8 @@ namespace madness {
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true) {
         PROFILE_BLOCK(Vmulvv);
-        reconstruct(world, a, false);
-        if (&a != &b) reconstruct(world, b, false);
-        world.gop.fence();
+        reconstruct(world, a, true);
+        if (&a != &b) reconstruct(world, b, true);
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
@@ -811,6 +817,31 @@ namespace madness {
         if (fence) world.gop.fence();
         return r;
     }
+
+    /// Returns new function --- q = sum_i f[i]
+    template <typename T, std::size_t NDIM>
+    Function<T, NDIM> sum(World& world, const std::vector<Function<T,NDIM> >& f,
+        bool fence=true) {
+
+        compress(world, f);
+        Function<T,NDIM> r=real_factory_3d(world).compressed();
+
+        for (unsigned int i=0; i<f.size(); ++i) r.gaxpy(1.0,f[i],1.0,false);
+        if (fence) world.gop.fence();
+        return r;
+    }
+
+
+    /// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]
+    template <typename T, typename R, std::size_t NDIM>
+    Function<TENSOR_RESULT_TYPE(T,R), NDIM>
+    dot(World& world,
+        const std::vector< Function<T,NDIM> >& a,
+        const std::vector< Function<R,NDIM> >& b,
+        bool fence=true) {
+        return sum(world,mul(world,a,b,true),fence);
+    }
+
 
 
     /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i]
