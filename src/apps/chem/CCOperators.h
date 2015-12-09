@@ -1237,6 +1237,22 @@ public:
 	std::vector<double> get_orbital_energies()const{return orbital_energies;}
 	/// swap particles 1 and 2
 
+	/// param[in] all CC_Pairs
+	/// param[in] the i index
+	/// param[in] the j index
+	/// param[out] a 6d function correspoding to electron pair ij
+	/// if i>j the pair will be created via: fij(1,2) = fji(2,1)
+	real_function_6d get_pair_function(const Pairs<CC_Pair> &pairs, const size_t i, const size_t j)const{
+		if(i>j){
+			const real_function_6d & function = pairs(j,i).function;
+			const real_function_6d & swapped_function = swap_particles(function);
+			return swapped_function;
+
+		}else{
+			return pairs(i,j).function;
+		}
+	}
+
 	/// param[in]	f	a function of 2 particles f(1,2)
 	/// return	the input function with particles swapped g(1,2) = f(2,1)
 	real_function_6d swap_particles(const real_function_6d& f) const;

@@ -417,33 +417,6 @@ struct CC_Parameters{
 	}
 };
 
-// TAKEN FROM MP2.h
-/// POD holding all electron pairs with easy access
-template<typename T>
-struct Pairs {
-
-	typedef std::map<std::pair<int, int>, T> pairmapT;
-	pairmapT allpairs;
-
-	/// getter
-	const T& operator()(int i, int j) const {
-		return allpairs.find(std::make_pair(i, j))->second;
-	}
-
-	/// getter
-	T& operator()(int i, int j) {
-		return allpairs[std::make_pair(i, j)];
-	}
-
-	/// setter
-	void insert(int i, int j, T pair) {
-		std::pair<int, int> key = std::make_pair(i, j);
-		allpairs.insert(std::make_pair(key, pair));
-	}
-};
-
-typedef Pairs<real_function_3d> intermediateT;
-
 /// enhanced POD for the pair functions
 class CC_Pair: public archive::ParallelSerializableObject {
 
@@ -558,6 +531,36 @@ public:
 
 };
 
+
+// TAKEN FROM MP2.h
+/// POD holding all electron pairs with easy access
+template<typename T>
+struct Pairs {
+
+	typedef std::map<std::pair<int, int>, T> pairmapT;
+	pairmapT allpairs;
+
+
+	/// getter
+	const T & operator()(int i,int j)const{
+		return allpairs.find(std::make_pair(i, j))->second;
+	}
+
+
+
+	/// getter
+	T& operator()(int i, int j) {
+		return allpairs[std::make_pair(i, j)];
+	}
+
+	/// setter
+	void insert(int i, int j, T pair) {
+		std::pair<int, int> key = std::make_pair(i, j);
+		allpairs.insert(std::make_pair(key, pair));
+	}
+};
+
+typedef Pairs<real_function_3d> intermediateT;
 
 
 // structure for a CC Function 3D which holds an index and a type
