@@ -116,7 +116,7 @@ struct CC_Parameters{
 		econv(1.e-4),
 		dconv_3D(1.e-2),
 		dconv_6D(1.e-2),
-		iter_max_3D(30),
+		iter_max_3D(5),
 		iter_max_6D(30),
 		restart(false),
 		corrfac_gamma(-99.0),
@@ -145,7 +145,7 @@ struct CC_Parameters{
 		econv(1.e-4),
 		dconv_3D(1.e-2),
 		dconv_6D(1.e-2),
-		iter_max_3D(30),
+		iter_max_3D(5),
 		iter_max_6D(30),
 		restart(false),
 		corrfac_gamma(corrfac_gamma_),
@@ -232,8 +232,7 @@ struct CC_Parameters{
 			else if (s == "thresh_ue") f >> thresh_Ue;
 			else if (s == "freeze") f >> freeze;
 			else if (s == "iter_max"){
-				f >> iter_max_3D;
-				iter_max_6D = iter_max_3D;
+				f >> iter_max_6D;
 			}
 			else if (s == "iter_max_3d") f >> iter_max_3D;
 			else if (s == "iter_max_6d") f >> iter_max_6D;

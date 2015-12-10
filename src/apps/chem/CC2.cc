@@ -315,12 +315,15 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		CC_Timer timer_iter_all(world,"Iteration " + stringify(iter));
 		CCOPS.update_intermediates(singles);
 		output_subsection("Iteration "+stringify(iter));
-		for(size_t mis=0;mis<1;mis++){
+		for(size_t mis=0;mis<parameters.iter_max_3D;mis++){
 			CC_Timer timer_iter_singles(world,"Iteration " + stringify(iter) + " Singles" + " Microiteration #" + stringify(mis));
 			singles_converged=iterate_cc2_singles(doubles,singles);
 			timer_iter_singles.info();
 			if(singles_converged == true) break;
 		}
+		// IMPORTANT!!!
+		CCOPS.remove_current_s2b_6D_part();
+
 		CCOPS.update_intermediates(singles);
 		CC_Timer timer_iter_doubles(world,"Iteration " + stringify(iter) + " Doubles");
 		doubles_converged = iterate_cc2_doubles(doubles,singles);

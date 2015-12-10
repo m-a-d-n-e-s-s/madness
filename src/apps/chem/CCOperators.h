@@ -1944,11 +1944,17 @@ private:
 	CC_Intermediates intermediates_;
 	/// The current singles potential (Q\sum singles_diagrams) , needed for application of the fock opeerator on a singles function
 	vecfuncT current_singles_potential;
+	/// The 6D part of S2b depends only on doubles and HOLE states (if the singles are iterated this does not change, and it is expensive to calculate)
+	vecfuncT current_S2b_6D_part_;
 	StrongOrthogonalityProjector<double,3> Q12;
 
 
 
 public:
+
+	void remove_current_s2b_6D_part(){
+		current_S2b_6D_part_.clear();
+	}
 
 	//	// Screen Potential
 	//	screeningtype screen_potential(const CC_vecfunction &singles,const CC_function &ti, const CC_function &tj, const potentialtype_d &name)const{

@@ -333,34 +333,41 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_vecfunction & single
 	}
 }
 vecfuncT CC_Operators::S2b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction & singles , CC_data &data) const {
-	vecfuncT result;
-	for(auto tmpi:singles.functions){
-		CC_function& i=tmpi.second;
-		real_function_3d resulti = real_factory_3d(world);
-		CC_Timer S2b_6D_time(world,"S2b: 6D-Part internal");
-		for(auto tmpk:singles.functions){
-			CC_function& k=tmpk.second;
-			{
-				real_function_6d uik = get_pair_function(u,i.i,k.i);
+	// check if the 6D part has been calculated before
+	if(not current_S2b_6D_part_.empty()){
+		output("loading previously calculated S2b_6D_part");
+		return current_S2b_6D_part_;
+	}else{
 
-				real_function_6d tmp = multiply(copy(uik),copy(mo_bra_[k.i]),2);
-				poisson -> particle() = 2;
-				real_function_6d result = (*poisson)(tmp);
-				real_function_3d r = result.dirac_convolution<3>();
+		vecfuncT result;
+		for(auto tmpi:singles.functions){
+			CC_function& i=tmpi.second;
+			real_function_3d resulti = real_factory_3d(world);
+			CC_Timer S2b_6D_time(world,"S2b: 6D-Part internal");
+			for(auto tmpk:singles.functions){
+				CC_function& k=tmpk.second;
+				{
+					real_function_6d uik = get_pair_function(u,i.i,k.i);
 
-				// Exchange Part
-				real_function_6d tmpx = multiply(copy(uik),copy(mo_bra_[k.i]),1);
-				poisson -> particle() = 1;
-				real_function_6d resultx= (*poisson)(tmpx);
-				real_function_3d rx = resultx.dirac_convolution<3>();
+					real_function_6d tmp = multiply(copy(uik),copy(mo_bra_[k.i]),2);
+					poisson -> particle() = 2;
+					real_function_6d result = (*poisson)(tmp);
+					real_function_3d r = result.dirac_convolution<3>();
 
-				resulti += 2.0*r -rx;
+					// Exchange Part
+					real_function_6d tmpx = multiply(copy(uik),copy(mo_bra_[k.i]),1);
+					poisson -> particle() = 1;
+					real_function_6d resultx= (*poisson)(tmpx);
+					real_function_3d rx = resultx.dirac_convolution<3>();
+
+					resulti += 2.0*r -rx;
+				}
 			}
+			S2b_6D_time.info();
+			result.push_back(resulti);
 		}
-		S2b_6D_time.info();
-		result.push_back(resulti);
-	}
 	return result;
+	}// end else
 }
 vecfuncT CC_Operators::S2b_3D_part(const CC_vecfunction & singles , CC_data & data) const {
 	//	vecfuncT result;
@@ -825,15 +832,15 @@ vecfuncT CC_Operators::S4c_3D_part(const CC_vecfunction & singles,  CC_data &dat
 	real_function_3d resulti = real_factory_3d(world);
 	for(auto tmpk:singles.functions){ CC_function& k=tmpk.second;
 	for(auto tmpl:t.functions){ CC_function& l=tmpl.second;
-		CC_function l_kgtk(mo_bra_[l.i]*intermediates_.get_pEX(k.i,k.i));
-		CC_function k_lgtk(mo_bra_[k.i]*intermediates_.get_pEX(l.i,k.i));
+	CC_function l_kgtk(mo_bra_[l.i]*intermediates_.get_pEX(k.i,k.i));
+	CC_function k_lgtk(mo_bra_[k.i]*intermediates_.get_pEX(l.i,k.i));
 
-		real_function_3d part1 = convolute_x_Qf_yz(l_kgtk,i,l);
-		real_function_3d part2 = convolute_x_Qf_yz(k_lgtk,i,l);
-		real_function_3d part3 = convolute_x_Qf_yz(l_kgtk,l,i);
-		real_function_3d part4 = convolute_x_Qf_yz(k_lgtk,l,i);
-		real_function_3d all = 4.0*part1 - 2.0*part2 - 2.0*part3 + part4;
-		resulti+=all;
+	real_function_3d part1 = convolute_x_Qf_yz(l_kgtk,i,l);
+	real_function_3d part2 = convolute_x_Qf_yz(k_lgtk,i,l);
+	real_function_3d part3 = convolute_x_Qf_yz(l_kgtk,l,i);
+	real_function_3d part4 = convolute_x_Qf_yz(k_lgtk,l,i);
+	real_function_3d all = 4.0*part1 - 2.0*part2 - 2.0*part3 + part4;
+	resulti+=all;
 	}
 	}
 	result.push_back(resulti);
