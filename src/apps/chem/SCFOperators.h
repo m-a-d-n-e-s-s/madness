@@ -449,7 +449,7 @@ public:
 
     /// the xc kernel is the second derivative of the xc functions wrt the density
     /// @param[in]  density the (response) density on which the kernel is applied
-    /// @return     kernal * density
+    /// @return     kernel * density
     real_function_3d apply_xc_kernel(const real_function_3d& density) const;
 
 private:

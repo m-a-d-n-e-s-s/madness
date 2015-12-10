@@ -594,6 +594,30 @@ struct CC_function{
 			return "function_"+stringify(i);
 		}
 	}
+	double inner(const CC_function &f)const{
+		return inner(f.function);
+	}
+	double inner(const real_function_3d &f)const{
+		return function.inner(f);
+	}
+
+	CC_function operator*(const CC_function &f)const{
+		real_function_3d product = function*f.function;
+		return CC_function(product,999,UNDEFINED);
+	}
+	CC_function operator+(const CC_function &f)const{
+		real_function_3d sum = function+f.function;
+		return CC_function(sum,i,combine_types(f));
+	}
+
+	functype combine_types(const CC_function &f)const{
+		if(type == UNDEFINED or f.type == UNDEFINED) return UNDEFINED;
+		if(i==f.i){
+			if(type == f.type) return type;
+			else return MIXED;
+		}
+		else return UNDEFINED;
+	}
 };
 
 
@@ -624,8 +648,18 @@ struct CC_vecfunction{
 	CC_functionmap functions;
 
 	/// getter
+	const CC_function& operator()(const CC_function &i) const {
+		return functions.find(i.i)->second;
+	}
+
+	/// getter
 	const CC_function& operator()(const size_t &i) const {
 		return functions.find(i)->second;
+	}
+
+	/// getter
+	CC_function& operator()(const CC_function &i) {
+		return functions[i.i];
 	}
 
 	/// getter
@@ -647,7 +681,6 @@ struct CC_vecfunction{
 	size_t size()const{
 		return functions.size();
 	}
-
 
 	void print_size(const std::string &msg="!?not assigned!?")const{
 		if(functions.size()==0){

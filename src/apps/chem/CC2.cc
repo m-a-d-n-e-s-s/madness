@@ -277,7 +277,7 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		Fi.truncate();
 		real_function_3d ei = CCOPS.get_orbital_energies()[0]*active_mo.front();
 		real_function_3d diff = (Fi - ei);
-		double ei2 = Fi.inner(CCOPS.mo_bra(0));
+		double ei2 = Fi.inner(CCOPS.mo_bra(0).function);
 		double ndiff = diff.norm2();
 		if(ndiff < FunctionDefaults<3>::get_thresh()) std::cout << "... Passed\n";
 		else std::cout << "... Failed\n";

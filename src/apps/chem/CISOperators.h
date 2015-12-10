@@ -8,6 +8,7 @@
 #ifndef CISOPERATORS_H_
 #define CISOPERATORS_H_
 #include <chem/nemo.h>
+#include <chem/SCFOperators.h>
 namespace madness {
 
 typedef std::vector<Function<double, 3> > vecfuncT;
@@ -50,18 +51,29 @@ public:
 	// Closed Shell Singlet CIS potential without the nuclear potential
 	// returns (2J - K)x + 2*S3C_C + S3C_X
 	// which is in components VCIS_j =  2*\sum_i <i|r12|i> |x_j> - \sum_i <i|r12|x_j> |i> + 2*Q\sum_i <i|r12|x_i> |j> - Q\sum_i <i|r12|j> |x_i>
-	vecfuncT get_CIS_potential_singlet(const vecfuncT &x,
-			const Nemo &nemo) const {
-		// test the CC2 singles
-		//		START_TIMER();
-		//		CC_Operators tmpops(world,nemo);
-		//		END_TIMER("INitialize CCOPS ... not necessary ...");
-		//		return tmpops.get_CIS_potential(x);
-
+	vecfuncT get_CIS_potential_singlet(const vecfuncT &x) const {
 		vecfuncT S3CC = S3C_C(x);
 		scale(world, S3CC, 2.0);
 		vecfuncT S3CX = S3C_X(x);
 		return add(world, fock_residue_closed_shell(x), add(world, S3CX, S3CC));
+	}
+
+	// Closed Shell Singlet TDA potential without the nuclear potential
+	vecfuncT get_TDA_potential_singlet(const vecfuncT &x)const{
+		vecfuncT S3CC = S3C_C(x); // Hartree Potential
+		scale(world,S3CC,2.0);
+		START_TIMER();
+		real_function_3d pert_rho = make_density(mo_ket_,x);
+		END_TIMER("computing untruncated perturbed density");
+		START_TIMER();
+		real_function_3d fxc =  xcoperator.apply_xc_kernel(pert_rho);// the exchange correlation kernel
+		vecfuncT applied_fxc = mul(world,fxc,mo_ket_);
+		plot_plane(world,pert_rho,"pert_rho");
+		plot_plane(world,fxc,"fxc");
+		plot_plane(world,applied_fxc.back(),"fxc_x_homo");
+		Q(applied_fxc);
+		END_TIMER("applied fxc");
+		return add(world,KS_residue_closed_shell(x),add(world,S3CC,fxc));
 	}
 
 	// Closed Shell potential for Virtuals (or SCF MOs)
@@ -71,18 +83,22 @@ public:
 
 	// get the ground state density
 	real_function_3d make_density() const {
-		return make_density(mo_bra_, mo_ket_);
+		return make_density(mo_ket_, mo_ket_);
 	}
 
 	// Make a density out of two vectorfunctions f and g
 	// density = \sum_i |f_i><g_i|
-	real_function_3d make_density(const vecfuncT &f, const vecfuncT &g) const {
-		if (f.size() != g.size())
-			error("make_density: sizes of vectors are not equal");
+	real_function_3d make_density(const vecfuncT &bra_, const vecfuncT &ket_)const{
+		MADNESS_ASSERT(bra_.size()==ket_.size());
+		vecfuncT bra = copy(world,bra_);
+		vecfuncT ket = copy(world,ket_);
 		real_function_3d density = real_factory_3d(world);
-		for (size_t i = 0; i < f.size(); i++)
-			density += f[i] * g[i];
-		density.truncate();
+		for(size_t i=0;i<bra.size();i++){
+			bra[i].refine();
+			ket[i].refine();
+			density += bra[i]*ket[i];
+		}
+		if(use_nuclear_correlation_factor_) density = density*R2;
 		return density;
 	}
 
@@ -93,7 +109,7 @@ public:
 	vecfuncT fock_residue_closed_shell(const vecfuncT &tau) const;
 
 	// The same residue for the case that the Fock operator is the Kohn-Sham Operator
-	vecfuncT KS_residue_closed_shell(const std::shared_ptr<SCF> scf,
+	vecfuncT KS_residue_closed_shell(
 			const vecfuncT &tau) const;
 
 	// Kinetik energy
@@ -139,6 +155,7 @@ public:
 private:
 	bool use_timer_ = true;
 	World &world;
+	XCOperator xcoperator;
 	bool use_nuclear_correlation_factor_;
 	vecfuncT mo_bra_, mo_ket_;
 	/// The squared nuclear correlation factor and its derivative;

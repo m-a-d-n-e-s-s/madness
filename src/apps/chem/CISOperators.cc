@@ -11,8 +11,12 @@ namespace madness {
 
 
 CIS_Operators::CIS_Operators(World&world, const Nemo &nemo, const vecfuncT &mos) :
-		world(world), use_nuclear_correlation_factor_(true), mo_ket_(mos), R2(
-				init_R2(nemo)) {
+		world(world),
+		xcoperator(world,&nemo),
+		use_nuclear_correlation_factor_(true),
+		mo_ket_(mos),
+		R2(init_R2(nemo))
+				{
 	if (nemo.nuclear_correlation->type()
 			== NuclearCorrelationFactor::None) {
 		std::cout << "No nuclear correlation factor used" << std::endl;
@@ -141,25 +145,24 @@ vecfuncT CIS_Operators::fock_residue_closed_shell(const vecfuncT &tau) const {
 	return add(world, J, K);
 }
 
+
 // The same residue for the case that the Fock operator is the Kohn-Sham Operator
-vecfuncT CIS_Operators::KS_residue_closed_shell(const std::shared_ptr<SCF> scf,
-		const vecfuncT &tau) const {
-	MADNESS_EXCEPTION("TDA DOES NOT WORK RIGHT NOW",1);
-//	START_TIMER();
-//	vecfuncT J = mul(world, (*poisson)(make_density()), tau);
-//	truncate(world, J);
-//	scale(world, J, 2.0);
-//	END_TIMER("J");
-//	START_TIMER();
-//	XCOperator xcoperator(world, scf.get(), 0);
-//	real_function_3d vxc = xcoperator.make_xc_potential();
-//	vxc.truncate();
-//	vecfuncT applied_vxc = mul(world, vxc, tau);
-//	truncate(world, applied_vxc);
-//	END_TIMER("Vxc");
-//	return add(world, J, applied_vxc);
-	vecfuncT asd;
-	return asd;
+vecfuncT CIS_Operators::KS_residue_closed_shell(const vecfuncT &tau) const {
+	START_TIMER();
+	vecfuncT J = mul(world, (*poisson)(make_density()), tau);
+	truncate(world, J);
+	scale(world, J, 2.0);
+	END_TIMER("J");
+	START_TIMER();
+	real_function_3d vxc = xcoperator.make_xc_potential();
+	vxc.truncate();
+	vecfuncT applied_vxc = mul(world, vxc, tau);
+	truncate(world, applied_vxc);
+	plot_plane(world,vxc,"vxc");
+	plot_plane(world,applied_vxc.back(),"vxc_x_xhomo");
+	plot_plane(world,add(world,J,applied_vxc).back(),"KS_residue_homo");
+	END_TIMER("Vxc");
+	return add(world, J, applied_vxc);
 }
 
 // Kinetik energy
@@ -262,7 +265,7 @@ Tensor<double> CIS_Operators::get_matrix_kinetic(const std::vector<vecfuncT> &x)
 //  _\_/_
 vecfuncT CIS_Operators::S3C_C(const vecfuncT &tau) const {
 	START_TIMER();
-	vecfuncT result = mul(world, (*poisson)(make_density(mo_bra_, tau)),
+	vecfuncT result = mul(world, (*poisson)(make_density(mo_ket_, tau)),
 			mo_ket_);
 	Q(result);
 	truncate(world, result);

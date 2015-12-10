@@ -176,9 +176,6 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 			}
 
 		}
-
-
-
 	}
 
 
@@ -189,18 +186,12 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	}
 
 	// calculate densities and plot
-	real_function_3d rho = real_factory_3d(world);
-	for(size_t i=0;i<active_mo_.size();i++){
-		rho += active_mo_[i]*active_mo_[i];
-	}
+	real_function_3d rho = CCOPS_.make_density(active_mo_,active_mo_);
 	plot_plane(world,rho,"rho");
 
 	for(size_t p=0;p<converged_xfunctions_.size();p++){
-		real_function_3d rhoprime = real_factory_3d(world);
-		for(size_t i=0;i<active_mo_.size();i++){
-			rhoprime += active_mo_[i]*converged_xfunctions_[p].x[i];
-		}
-		plot_plane(world,rhoprime,"rhoprime_"+stringify(p));
+		real_function_3d rhoprime = CCOPS_.make_density(active_mo_,converged_xfunctions_[p].x);
+		plot_plane(world,rhoprime,"rho_pert_"+stringify(p));
 	}
 
 	print("Final result :");
@@ -568,6 +559,7 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	// Add the nuclear potential
 	TDA_TIMER VNUC(world,"Adding nuclear potential to xfunction ");
 	vecfuncT Vpsi = add(world,apply_nuclear_potential(xfunction),xfunction.smooth_potential);
+	plot_plane(world,Vpsi.back(),"Vpsi_homo");
 	VNUC.info();
 
 	double omega = xfunction.omega;
@@ -1054,16 +1046,18 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 // The smooth potential is the potential without the nuclear potential
 // The nuclear potential has to be calculated sepparately
 vecfuncT TDA::apply_smooth_potential(const xfunction&xfunction)const{
-	std::cout << "\nPotential for virtuals: J-K , Vnuc is added later\n";
+	//std::cout << "\nPotential for virtuals: J-K , Vnuc is added later\n";
 	vecfuncT smooth_potential;
 	if(compute_virtuals_){
-		if(dft_) smooth_potential = CCOPS_.KS_residue_closed_shell(get_nemo().get_calc(),xfunction.x);
+		if(dft_) smooth_potential = CCOPS_.KS_residue_closed_shell(xfunction.x);
 		else smooth_potential=CCOPS_.fock_residue_closed_shell(xfunction.x);
 	}else{
 		// for now
-		smooth_potential = CCOPS_.get_CIS_potential_singlet(xfunction.x,nemo_);
+		if(dft_) smooth_potential = CCOPS_.get_TDA_potential_singlet(xfunction.x);
+		else smooth_potential = CCOPS_.get_CIS_potential_singlet(xfunction.x);
 	}
 	truncate(world,smooth_potential);
+	plot_plane(world,smooth_potential.back(),"smooth_potential_homo");
 	return smooth_potential;
 }
 

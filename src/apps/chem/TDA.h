@@ -503,6 +503,7 @@ public:
 			else if (tag == "solve_sequential_thresh") ss>>solve_sequential_thresh_;
 			else if (tag == "solve_thresh") ss >> solve_thresh_;
 			else if (tag == "guess_thresh") ss >> guess_thresh_;
+			else if (tag == "dft") dft_ = true;
 			else continue;
 		}
 		if(compute_virtuals_){
@@ -562,6 +563,7 @@ public:
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
 			std::cout<< std::setw(40) << "use_nemo is " << use_nemo_ << std::endl;
+			std::cout<< std::setw(40) << "dft is " << dft_ << std::endl;
 		}
 
 
