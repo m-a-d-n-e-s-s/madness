@@ -1,6 +1,6 @@
 # Find MPI
 
-if(WITH_MPI)
+if(ENABLE_MPI)
 
   # Try to find MPI
   find_package(MPI REQUIRED)

@@ -1,4 +1,4 @@
-if(WITH_LIBXC)
+if(ENABLE_LIBXC)
 
   find_package(Libxc)
     

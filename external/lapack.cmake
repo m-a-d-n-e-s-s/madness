@@ -4,7 +4,7 @@ include(CMakePushCheckState)
 
 if(NOT LAPACK_LIBRARIES)
 
-  if(WITH_MKL)
+  if(ENABLE_MKL)
     find_package(MKL)
     
     if(MKL_FOUND)
@@ -14,7 +14,7 @@ if(NOT LAPACK_LIBRARIES)
     endif()
   endif()
   
-  if(WITH_ACML)
+  if(ENABLE_ACML)
     find_package(ACML)
     
     if(ACML_FOUND)
