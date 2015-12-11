@@ -108,10 +108,16 @@
 //    \defgroup misc Miscellany
 //    \ingroup libraries
 
-/// \defgroup applications MADNESS applications
+// use tempexamples instead of examples to keep a bunch of the examples (that I haven't gone througuh yet)
+/// \defgroup tempexamples Examples
 
-//    \defgroup examples Examples 
-//    \ingroup applications
+///   \defgroup gettingstarted Getting Started
+///   \ingroup tempexamples
+
+///   \defgroup miscexamples Miscellaneous
+///   \ingroup tempexamples
+
+/// \defgroup applications MADNESS applications
 
 /**
 
