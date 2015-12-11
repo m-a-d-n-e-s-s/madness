@@ -2242,6 +2242,7 @@ namespace madness {
         subspaceT subspace;
         tensorT Q;
         bool do_this_iter = true;
+        bool converged = false;
         // Shrink subspace until stop localizing/canonicalizing
         int maxsub_save = param.maxsub;
         param.maxsub = 2;
@@ -2401,8 +2402,11 @@ namespace madness {
             if (iter > 0) {
                 //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
                 if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
-                    && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) {
-                    if (world.rank() == 0) {
+                    && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) converged=true;
+
+                // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
+                if (converged || iter==param.maxiter-1) {
+                    if (world.rank() == 0 && converged) {
                         print("\nConverged!\n");
                     }
                     
