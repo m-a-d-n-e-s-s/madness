@@ -35,6 +35,7 @@ endif()
 set(MADLINALG_HEADERS cblas.h tensor_lapack.h clapack.h  lapack_functions.h solvers.h)
 set(MADLINALG_SOURCES lapack.cc solvers.cc)
 if(ELEMENTAL_FOUND)
+  list(APPEND MADLINALG_HEADERS elem.h)
   list(APPEND MADLINALG_SOURCE  elem.cc)
 endif()
 
