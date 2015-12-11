@@ -98,7 +98,7 @@ namespace madness {
 		void set_maxsub(const unsigned int &new_maxsub){
 			maxsub = new_maxsub;
 		}
-		const unsigned int get_maxsub()const{
+		unsigned int get_maxsub()const{
 			const unsigned int tmp = maxsub;
 			return tmp;
 		}

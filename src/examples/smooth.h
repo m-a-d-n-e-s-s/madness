@@ -16,7 +16,7 @@
 #include <chem/SCFOperators.h>
 #include <madness/mra/function_common_data.h>
 
-static double RHOMIN = 1.e-15;
+static double RHOMIN = 1.e-20;
 
 double make_log(double x){
 	if(x<0.0) return log(RHOMIN);
@@ -66,28 +66,6 @@ static double mask_functor_box(const coord_3d &x){
 //	double r = sqrt(r2(x));
 //	return 0.5*(1.0 + tanh(mask_factor*(r-cutoff_radius)));
 //}
-
-struct merging_operator {
-	merging_operator() : thresh_(FunctionDefaults<3>::get_thresh()) {}
-	merging_operator(const double thresh) : thresh_(thresh) {}
-    void operator()(const Key<3>& key,
-                    real_tensor U,
-                    const real_tensor& function,
-                    const real_tensor& smoothed_function) const {
-        ITERATOR(U,
-                 double f = function(IND);
-                 double sf = smoothed_function(IND);
-                 if (fabs(f)<thresh_)
-                     U(IND) = sf;
-                 else
-                     U(IND) = f;
-                 );
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-    double thresh_;
-};
 
 struct munging_operator {
 	munging_operator() : thresh_(FunctionDefaults<3>::get_thresh()) {}
@@ -265,6 +243,49 @@ struct slater_kernel_apply {
     }
 };
 
+struct density_mask_operator{
+
+    density_mask_operator(const double thresh): safety(thresh){}
+
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t)const {
+
+    	const madness::Tensor<double> &rho = t.front();
+    	// set result to zero
+    	const long & k = FunctionDefaults<3>::get_k();
+		std::vector<long> kdims(3,k);
+    	madness::Tensor<double> result(kdims,true);
+    	result =3.0;
+    	if(rho.absmax()<safety){
+    		result = 0.0;
+    	}
+    	else{
+    		result =1.0;
+    	}
+    	return result;
+    }
+    const double safety;
+};
+
+struct merging_operator{
+
+    merging_operator(const double c): cutoff(c){}
+
+    madness::Tensor<double> operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t)const {
+
+    	const madness::Tensor<double> &f = t.front();
+    	const madness::Tensor<double> &sf = t.back();
+    	if(f.absmax()>cutoff){
+    		return f;
+    	}
+    	else{
+    		return sf;
+    	}
+    }
+    const double cutoff;
+};
+
 
 template<std::size_t NDIM>
 static double make_radius(const Vector<double,NDIM> &x){
@@ -282,19 +303,21 @@ static double unitfunctor(const Vector<double,NDIM> &x){
 	return 1.0;
 }
 
+template<std::size_t NDIM>
+static double munge(const double x){
+	if(fabs(x)<FunctionDefaults<NDIM>::get_thresh()*0.001) return 1.e-20;
+	else return x;
+}
+
 template<typename T, std::size_t NDIM>
 class smooth{
 public:
 	smooth(World&world):
-		world(world),
-		box_mask_(make_mask(1.0,0.75*FunctionDefaults<NDIM>::get_cell_min_width())),
-		mask_(make_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())),
-		inv_mask_(make_inv_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())){}
+		world(world){
+	}
 	smooth(World&world, const double &box_mask_factor, const double box_mask_cutoff):
-		world(world),
-		box_mask_(make_mask(box_mask_factor,box_mask_cutoff)),
-		mask_(make_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())),
-		inv_mask_(make_inv_mask(1.0,0.5*FunctionDefaults<NDIM>::get_cell_min_width())){}
+		world(world){
+	}
 
 	struct mask_functor{
 	public:
@@ -325,54 +348,148 @@ public:
 		const Vector<double,NDIM> shift_;
 	};
 
-	Function<T,NDIM> make_mask(const double &factor, const double &cutoff)const{
-		Vector<double,NDIM> coord(0.0);
-		return make_mask(factor,cutoff,coord);
-	}
-	Function<T,NDIM> make_inv_mask(const double &factor, const double &cutoff)const{
-		Vector<double,NDIM> coord(0.0);
-		return make_inv_mask(factor,cutoff,coord);
-	}
-	Function<T,NDIM> make_mask(const double &factor, const double &cutoff,const Vector<double,3> &shift)const{
-		mask_functor mask_functor_object(factor,cutoff,shift);
-		Function<T,NDIM> mask = FunctionFactory<T,NDIM>(world).functor(mask_functor_object);
-		// set values below the threshold to zero
-		mask.unaryop(mask_munging<NDIM>);
-		return mask;
+
+
+	Function<T,NDIM> smooth_sigma(const Function<T,NDIM> &density){
+		MADNESS_ASSERT(NDIM==3);
+		std::cout << "Make Sigma\n";
+		real_function_3d sigma = make_sigma(density);
+		make_plots(density,"density");
+		make_plots(sigma,"sigma");
+
+		const double cutoff = get_density_thresh();
+
+		std::cout << "Make Smooth Density\n";
+		real_function_3d smooth_rho = cut_oscillations(density,cutoff);
+
+		std::cout << "Make Smooth Sigma\n";
+		real_function_3d smooth_sigma = cut_oscillations(sigma,cutoff);
+		make_plots(smooth_sigma,"smooth_sigma");
+		sigma.print_size("sigma");
+		smooth_sigma.print_size("smooth_sigma");
+		make_plots(smooth_rho,"smooth_density");
+
+
+		return sigma;
 	}
 
-	Function<T,NDIM> make_inv_mask(const double &factor, const double &cutoff, const Vector<double,3> &shift)const{
-		//inv_mask_functor inv_mask_functor_object(factor,cutoff,shift);
-		//Function<T,NDIM> inv_mask = FunctionFactory<T,NDIM>(world).functor(inv_mask_functor_object);
-		//return inv_mask;
-		Function<T,NDIM> unit = FunctionFactory<T,NDIM>(world).f(unitfunctor);
-		return unit-mask_;
-	}
-
-	void set_simple_mask(const double &factor, const double &cutoff){
-		mask_ = make_mask(factor,cutoff);
-		inv_mask_ = make_inv_mask(factor,cutoff);
-	}
-
-	// place a simple mask on every atom center
-	void set_molecule_mask(const double &factor, const double &cutoff, const std::vector<Atom> &atoms){
-		if(world.rank()==0) std::cout << "Making Mask for " << atoms.size() << "-atomic molecule with exponent=" << factor << " and cutoff radius =" << cutoff << "\n";
-		if(NDIM != 3) MADNESS_EXCEPTION("set_molecule_mask of smooth class only works for 3D functions",1);
-		Function<T,NDIM> mask = FunctionFactory<T,NDIM>(world);
-		Function<T,NDIM> inv_mask = FunctionFactory<T,NDIM>(world);
-		for(Atom a:atoms){
-			const Vector<double,3> shift = a.get_coords();
-			std::cout << "ashift is " << shift << std::endl;
-			Function<T,NDIM> simple_mask_on_a = make_mask(factor,cutoff,shift);
-			make_plots(simple_mask_on_a,"mask_on_atom");
-			mask += simple_mask_on_a;
-//			Function<T,NDIM> simple_inv_mask_on_a = make_inv_mask(factor,cutoff);
-//			inv_mask += simple_inv_mask_on_a;
+	Function<T,NDIM> smooth_density_from_orbitals(const std::vector<Function<T,NDIM>> &orbitals)const{
+		const double thresh = FunctionDefaults<NDIM>::get_thresh();
+		Function<T,NDIM> density = FunctionFactory<T,NDIM>(world);
+		for(size_t i=0;i<orbitals.size();i++){
+			Function<T,NDIM> orb = orbitals[i];
+			orb.refine();
+			Function<T,NDIM> boxes = cut_oscillations(orb,1000.0,1);
+			make_plots(boxes,"orbital_sceleton");
+			Function<T,NDIM> sf = cut_oscillations(orbitals[i],thresh,1);
+			make_plots(sf,"smooth_orbital_1_"+stringify(i));
+			sf = cut_oscillations(sf,thresh*0.1,1);
+			make_plots(sf,"smooth_orbital_2_"+stringify(i));
+			sf = cut_oscillations(sf,thresh*0.01,1);
+			Function<T,NDIM> sf_squared = sf*sf;
+			density += sf_squared;
+			make_plots(sf,"smooth_orbital_3_"+stringify(i));
+			make_plots(sf_squared,"smooth_squared_orbital_"+stringify(i));
 		}
-		make_plots(mask,"molecule_mask");
-		make_plots(inv_mask,"molecule_inv_mask");
-		mask_ = mask;
-		inv_mask_ = make_inv_mask(0.0,0.0);
+		make_plots(density,"smooth_density");
+		return density;
+	}
+
+	// Function gets linearized if it falls below certain threshold
+	Function<T,NDIM> cut_oscillations(const Function<T,NDIM> &f,const double & cutoff, const size_t order)const{
+		// project the function to linear scaling functions
+		Function<T,NDIM> lf = project(f,order);
+		lf = project(lf,FunctionDefaults<NDIM>::get_k());
+		// merge
+		const Function<T,NDIM> sf = merge_functions(f,lf,cutoff);
+		return sf;
+	}
+
+	Function<T,NDIM> make_sigma(const Function<T,NDIM> &density)const{
+		MADNESS_ASSERT(NDIM==3);
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+		gradop = gradient_operator<double, 3>(world);
+		real_function_3d sigma = real_factory_3d(world);
+		for(auto d:gradop){
+			density.autorefine();
+			real_function_3d drho = (*d)(density);
+			drho.autorefine();
+			sigma += drho*drho;
+		}
+		return sigma;
+	}
+
+	Function<T,NDIM> smooth_density(const Function<T,NDIM> &density, const std::string & msg ="function"){
+		make_plots(density,"density");
+		// if thresh is 1.e-x then density thresh is 1.e-2x
+		const double density_thresh = get_density_thresh();
+		std::cout << "Density thresh is " << density_thresh << std::endl;
+		Function<T,NDIM> ln_density = copy(density);
+		ln_density.unaryop(make_log);
+		make_plots(ln_density,"ln_density");
+		Function<T,NDIM> linearized_ln_density = linearize(ln_density);
+		linearized_ln_density = gaussian_smoothing(linearized_ln_density,0.5,"linearized_ln_density");
+		Function<T,NDIM> smooth_density = copy(linearized_ln_density);
+		smooth_density.refine();
+		smooth_density.unaryop(make_exp);
+		Function<T,NDIM> munged_density = merge_functions(density,smooth_density,get_density_thresh());
+		return munged_density;
+	}
+
+	Function<T,NDIM> linearize(const Function<T,NDIM> &ln_rho)const{
+		Function<T,NDIM> linear_ln_rho = project(ln_rho,2);
+		make_plots(linear_ln_rho,"linear_ln_rho");
+		Function<T,NDIM> result = project(linear_ln_rho,FunctionDefaults<NDIM>::get_k());
+		make_plots(result,"linear_ln_rho_backprojected");
+		return result;
+	}
+
+	Function<T,NDIM> munge_density(const Function<T,NDIM> &density)const{
+		Function<T,NDIM> munged_density = copy(density);
+		munged_density.unaryop(munge<NDIM>);
+		return munged_density;
+	}
+
+	Function<T,NDIM> make_density_mask(const Function<T,NDIM> &density)const{
+		vecfuncT density_wrapper;
+		density.reconstruct();
+		density_wrapper.push_back(density);
+		density_mask_operator op_tmp(get_density_thresh());
+	    real_function_3d density_mask=multiop_values<double, density_mask_operator, 3>(op_tmp, density_wrapper);
+	    make_plots(density_mask,"density_mask");
+	    return density_mask;
+	}
+
+	double get_density_thresh()const{
+		const double &thresh = FunctionDefaults<NDIM>::get_thresh();
+		double density_thresh = thresh;
+		for(size_t i=0;i<10;i++){
+			double di = (double) i;
+			if(thresh>pow(10.0,-di)) break;
+			else density_thresh = pow(10.0,-2.0*di);
+		}
+		return density_thresh;
+	}
+
+	Function<T,NDIM> make_mask(const Function<T,NDIM> &samplef, const double &thresh)const{
+		vecfuncT sample_wrapper;
+		samplef.reconstruct();
+		sample_wrapper.push_back(samplef);
+		density_mask_operator op_tmp(thresh);
+	    real_function_3d mask=multiop_values<double, density_mask_operator, 3>(op_tmp, sample_wrapper);
+	    // The mask is constant on each box so make shure this will be the case (avoid flutuations)
+	    real_function_3d const_mask = project(mask,1);
+	    mask = project(const_mask,FunctionDefaults<NDIM>::get_k());
+	    make_plots(mask,"mask");
+	    return mask;
+	}
+
+	Function<T,NDIM> make_inv_mask(const Function<T,NDIM> &mask)const{
+		Function<T,NDIM> unit = FunctionFactory<T,NDIM>(world).f(unitfunctor);
+		real_function_3d inv = unit-mask;
+	    real_function_3d const_inv = project(inv,1);
+	    inv = project(const_inv,FunctionDefaults<NDIM>::get_k());
+		return inv;
 	}
 
 	Function<T,NDIM> make_explog(const Function<T,NDIM> &f, const std::string & msg="function")const{
@@ -388,7 +505,7 @@ public:
 		explogf.unaryop(make_exp);
 
 		// apply the box_mask to eliminate weird boundary effects
-		explogf = box_mask_*explogf;
+		//explogf = box_mask_*explogf;
 
 		// make some plots
 		make_plots(f,msg);
@@ -396,17 +513,6 @@ public:
 		make_plots(logf,"log"+msg);
 		make_plots(explogf,"explog_"+msg);
 		return explogf;
-	}
-
-	void estimate_diffuseness(const Function<T,NDIM> &f, const std::string & msg="function")const{
-		Function<T,NDIM> range_of_f = copy(f);
-		range_of_f.unaryop(estimate_area);
-		gaussian_smoothing(range_of_f,0.04,msg);
-		make_plots(range_of_f,msg);
-		double box_width = FunctionDefaults<3>::get_cell_min_width();
-		double box_volume = box_width*3.0;
-		if(world.rank()==0) std::cout << "range_of_" << msg << " = " << range_of_f.norm2() << std::endl;
-		if(world.rank()==0) std::cout << "range_of_" << msg << " compared to full box = " << range_of_f.norm2()/box_volume << std::endl;
 	}
 
 	Function<T,NDIM> gaussian_smoothing(const Function<T,NDIM> &f, const double &eps=0.04,const std::string &name="nooutput")const{
@@ -418,26 +524,31 @@ public:
 	    SeparatedConvolution<T,NDIM> op(world, coeffs, exponents);
 	    Function<T,NDIM> smoothed_f = apply(op,f);
 	    make_plots(smoothed_f,"smoothed_"+name);
-	    Function<T,NDIM> merged = merge_functions(f,smoothed_f,name);
-	    make_plots(merged,"smoothed_and_merged_"+name);
-
-	    double diff_smoothed = (f-smoothed_f).norm2();
-	    double diff_merged = (f-merged).norm2();
-	    if(world.rank()==0 and name!="noputput"){
-	    	std::cout << "||f-smoothed_f||=" << diff_smoothed << std::endl;
-	    	std::cout << "||f-merged_f||  =" << diff_merged << std::endl;
-	    }
-	    return merged;
+	    return smoothed_f;
 
 	}
 
-	Function<T,NDIM> merge_functions(const Function<T,NDIM> &f, const Function<T,NDIM> &sf,const std::string &name="f")const{
-		Function<T,NDIM> part1 = mask_*f;
-		Function<T,NDIM> part2 = inv_mask_*sf;
+	Function<T,NDIM> merge_functions(const Function<T,NDIM> &f, const Function<T,NDIM> &sf,const Function<T,NDIM> &mask,const std::string &name="f")const{
+		Function<T,NDIM> inv_mask = make_inv_mask(mask);
+		Function<T,NDIM> part1 = mask*f;
+		Function<T,NDIM> part2 = inv_mask*sf;
 		Function<T,NDIM> result = part1 + part2;
+		make_plots(mask,"mask_"+name);
+		make_plots(inv_mask,"inv_mask_"+name);
 		make_plots(part1,"masked_"+name);
 		make_plots(part2,"masked_s"+name);
 		return result;
+	}
+
+	Function<T,NDIM> merge_functions(const Function<T,NDIM>&f, const Function<T,NDIM>&sf, const double &thresh)const{
+		MADNESS_ASSERT(NDIM==3);
+		vecfuncT wrapper;
+		wrapper.push_back(f);
+		wrapper.push_back(sf);
+		refine_to_common_level(world,wrapper);
+		merging_operator op_tmp(thresh);
+		real_function_3d merged_f=multiop_values<double, merging_operator, 3>(op_tmp,wrapper);
+		return merged_f;
 	}
 
 	void make_plots(const Function<T,NDIM> &f,const std::string &name="function")const{

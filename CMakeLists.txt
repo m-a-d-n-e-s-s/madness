@@ -43,14 +43,14 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/Madness"
 # found, it is disable without error. If the library is 'OFF' by default,
 # failure to find the library is an error. 
 
-option(WITH_MPI "Enable MPI" ON)
-option(WITH_TBB "Enables use of Intel TBB as the task scheduler" ON)
-option(WITH_MKL "Search for Intel MKL for BLAS and LAPACK support" ON)
-option(WITH_ACML "Search for AMD math library for BLAS and LAPACK support" ON)
-option(ENABLE_ELEMENTAL "Enable Elemental" OFF)
-option(WITH_GPERFTOOLS "Enable use of gperftools" ON)
-option(WITH_LIBXC "Enables use of the libxc library of density functionals" ON)
-option(WITH_PAPI "Enables use of PAPI" OFF)
+option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
+option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
+option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
+option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
+option(ENABLE_ELEMENTAL "Enable Elemental library for distributed-memory linear algebra" OFF)
+option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON)
+option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
+option(ENABLE_PAPI "Enables use of PAPI" OFF)
 
 # Configure options ============================================================
 

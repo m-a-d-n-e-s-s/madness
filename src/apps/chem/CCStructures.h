@@ -116,7 +116,7 @@ struct CC_Parameters{
 		econv(1.e-4),
 		dconv_3D(1.e-2),
 		dconv_6D(1.e-2),
-		iter_max_3D(30),
+		iter_max_3D(5),
 		iter_max_6D(30),
 		restart(false),
 		corrfac_gamma(-99.0),
@@ -145,7 +145,7 @@ struct CC_Parameters{
 		econv(1.e-4),
 		dconv_3D(1.e-2),
 		dconv_6D(1.e-2),
-		iter_max_3D(30),
+		iter_max_3D(5),
 		iter_max_6D(30),
 		restart(false),
 		corrfac_gamma(corrfac_gamma_),
@@ -232,8 +232,7 @@ struct CC_Parameters{
 			else if (s == "thresh_ue") f >> thresh_Ue;
 			else if (s == "freeze") f >> freeze;
 			else if (s == "iter_max"){
-				f >> iter_max_3D;
-				iter_max_6D = iter_max_3D;
+				f >> iter_max_6D;
 			}
 			else if (s == "iter_max_3d") f >> iter_max_3D;
 			else if (s == "iter_max_6d") f >> iter_max_6D;
@@ -417,33 +416,6 @@ struct CC_Parameters{
 	}
 };
 
-// TAKEN FROM MP2.h
-/// POD holding all electron pairs with easy access
-template<typename T>
-struct Pairs {
-
-	typedef std::map<std::pair<int, int>, T> pairmapT;
-	pairmapT allpairs;
-
-	/// getter
-	const T& operator()(int i, int j) const {
-		return allpairs.find(std::make_pair(i, j))->second;
-	}
-
-	/// getter
-	T& operator()(int i, int j) {
-		return allpairs[std::make_pair(i, j)];
-	}
-
-	/// setter
-	void insert(int i, int j, T pair) {
-		std::pair<int, int> key = std::make_pair(i, j);
-		allpairs.insert(std::make_pair(key, pair));
-	}
-};
-
-typedef Pairs<real_function_3d> intermediateT;
-
 /// enhanced POD for the pair functions
 class CC_Pair: public archive::ParallelSerializableObject {
 
@@ -559,6 +531,36 @@ public:
 };
 
 
+// TAKEN FROM MP2.h
+/// POD holding all electron pairs with easy access
+template<typename T>
+struct Pairs {
+
+	typedef std::map<std::pair<int, int>, T> pairmapT;
+	pairmapT allpairs;
+
+
+	/// getter
+	const T & operator()(int i,int j)const{
+		return allpairs.find(std::make_pair(i, j))->second;
+	}
+
+
+
+	/// getter
+	T& operator()(int i, int j) {
+		return allpairs[std::make_pair(i, j)];
+	}
+
+	/// setter
+	void insert(int i, int j, T pair) {
+		std::pair<int, int> key = std::make_pair(i, j);
+		allpairs.insert(std::make_pair(key, pair));
+	}
+};
+
+typedef Pairs<real_function_3d> intermediateT;
+
 
 // structure for a CC Function 3D which holds an index and a type
 struct CC_function{
@@ -599,6 +601,12 @@ struct CC_function{
 struct CC_vecfunction{
 
 	CC_vecfunction(){}
+	CC_vecfunction(const vecfuncT &v,const functype &type){
+		for(size_t i=0;i<v.size();i++){
+			CC_function tmp(v[i],i,type);
+			functions.insert(std::make_pair(i,tmp));
+		}
+	}
 	CC_vecfunction(const vecfuncT &v,const functype &type,const size_t &freeze){
 		for(size_t i=0;i<v.size();i++){
 			CC_function tmp(v[i],freeze+i,type);

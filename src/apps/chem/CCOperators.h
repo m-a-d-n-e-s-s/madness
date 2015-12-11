@@ -60,9 +60,9 @@ public:
 				mo_ket_(ket),
 				poisson(std::shared_ptr < real_convolution_3d> (CoulombOperatorPtr(world,parameters.lo,parameters.thresh_poisson_3D))),
 				f12op(std::shared_ptr< real_convolution_3d> (SlaterF12OperatorPtr(world,parameters.gamma(),parameters.lo,parameters.thresh_poisson_3D))),
-				density_(make_density(bra, CC_vecfunction(ket,HOLE,parameters.freeze))),
-				exchange_intermediate_(make_exchange_intermediate(bra, CC_vecfunction(ket,HOLE,parameters.freeze))),
-				f12_exchange_intermediate_(make_f12_exchange_intermediate(bra,CC_vecfunction(ket,HOLE,parameters.freeze))),
+				density_(make_density(bra, CC_vecfunction(ket,HOLE))),
+				exchange_intermediate_(make_exchange_intermediate(bra, CC_vecfunction(ket,HOLE))),
+				f12_exchange_intermediate_(make_f12_exchange_intermediate(bra,CC_vecfunction(ket,HOLE))),
 				hartree_potential_(make_hartree_potential(density_)),
 				integrals_hf_(make_two_electron_integrals_hf()) {
 		sanity_check();
@@ -140,15 +140,15 @@ public:
 	/// returns <k|g|\tau_l>
 	real_function_3d get_pEX(const size_t &k, const size_t &l)const{return perturbed_exchange_intermediate_(k,l);}
 	real_function_3d get_pfEX(const size_t &k,const size_t &l)const{return perturbed_f12_exchange_intermediate_(k,l);}
-	Tensor<double> get_intergrals_hf() const {
-		return integrals_hf_;
-	}
-	Tensor<double> get_integrals_mixed_t1() const {
-		return integrals_mixed_t1_;
-	}
-	Tensor<double> get_integrals_t1() const {
-		return integrals_t1_;
-	}
+//	Tensor<double> get_intergrals_hf() const {
+//		return integrals_hf_;
+//	}
+//	Tensor<double> get_integrals_mixed_t1() const {
+//		return integrals_mixed_t1_;
+//	}
+//	Tensor<double> get_integrals_t1() const {
+//		return integrals_t1_;
+//	}
 
 	/// refresh the intermediates that depend on the \tau functions
 	void update(const CC_vecfunction &tau) {
@@ -445,8 +445,7 @@ public:
 	}
 
 	vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles){
-
-		if(parameters.debug) test_singles_potential(singles,doubles);
+		//if(parameters.debug) test_singles_potential(singles,doubles);
 
 		Pairs<CC_Pair> doubles_wrapper;
 		if(parameters.pair_function_in_singles_potential==FULL){
@@ -471,12 +470,14 @@ public:
 
 		Q(result);
 		truncate(world,result);
+		// The Sign needs to be changed because:
+		// 0 = (F-ei)|taui> + V_i , Vi = result
+		// |taui> = -2.0G( -Fock_residue - Vi)
+		scale(world,result,-1.0);
+		scale(world,fock_residue,-1.0);
 		// need to store this for application of Fock oerator on singles ( F|taui> = Singles_potential[i] + \epsilon_i|taui>)
 		current_singles_potential = result;
 		result = add(world,result,fock_residue);
-		Q(result);
-		scale(world,result,-1.0);
-		truncate(world,result);
 		performance_S.current_iteration++;
 		return result;
 	}
@@ -609,6 +610,7 @@ public:
 	/// Genereal function which evaluates a CC_singles potential
 	vecfuncT potential_singles(const Pairs<CC_Pair> u, const CC_vecfunction & singles , const potentialtype_s &name) const {
 		output_section("Now doing Singles Potential " + assign_name(name));
+		MADNESS_ASSERT(singles.functions.size()==mo_ket_.size()-parameters.freeze);
 		CC_Timer timer(world,assign_name(name));
 		CC_data data(name);
 		vecfuncT result;
@@ -670,6 +672,7 @@ public:
 		data.info();
 		performance_S.insert(data.name,data);
 		if(minus_sign) scale(world,result,-1.0);
+		MADNESS_ASSERT(result.size()==mo_ket_.size()-parameters.freeze);
 		return result;
 	}
 
@@ -1233,6 +1236,22 @@ public:
 	// gives back the orbital energies
 	std::vector<double> get_orbital_energies()const{return orbital_energies;}
 	/// swap particles 1 and 2
+
+	/// param[in] all CC_Pairs
+	/// param[in] the i index
+	/// param[in] the j index
+	/// param[out] a 6d function correspoding to electron pair ij
+	/// if i>j the pair will be created via: fij(1,2) = fji(2,1)
+	real_function_6d get_pair_function(const Pairs<CC_Pair> &pairs, const size_t i, const size_t j)const{
+		if(i>j){
+			const real_function_6d & function = pairs(j,i).function;
+			const real_function_6d & swapped_function = swap_particles(function);
+			return swapped_function;
+
+		}else{
+			return pairs(i,j).function;
+		}
+	}
 
 	/// param[in]	f	a function of 2 particles f(1,2)
 	/// return	the input function with particles swapped g(1,2) = f(2,1)
@@ -1925,11 +1944,17 @@ private:
 	CC_Intermediates intermediates_;
 	/// The current singles potential (Q\sum singles_diagrams) , needed for application of the fock opeerator on a singles function
 	vecfuncT current_singles_potential;
+	/// The 6D part of S2b depends only on doubles and HOLE states (if the singles are iterated this does not change, and it is expensive to calculate)
+	vecfuncT current_S2b_6D_part_;
 	StrongOrthogonalityProjector<double,3> Q12;
 
 
 
 public:
+
+	void remove_current_s2b_6D_part(){
+		current_S2b_6D_part_.clear();
+	}
 
 	//	// Screen Potential
 	//	screeningtype screen_potential(const CC_vecfunction &singles,const CC_function &ti, const CC_function &tj, const potentialtype_d &name)const{

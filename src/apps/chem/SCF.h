@@ -343,7 +343,8 @@ struct CalculationParameters {
     bool derivatives;           ///< If true calculate derivatives
     bool dipole;                ///< If true calculate dipole moment
     bool conv_only_dens;        ///< If true remove bsh_residual from convergence criteria   how ugly name is...
-    bool psp_calc;                ///< pseudopotential calculation for all atoms
+    bool psp_calc;              ///< pseudopotential calculation for all atoms
+    bool print_dipole_matels;   ///< If true output dipole matrix elements
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -375,7 +376,7 @@ struct CalculationParameters {
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop
-            & nuclear_corrfac & psp_calc & pure_ae & hessian & read_cphf;
+            & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf;
     }
 
     CalculationParameters()
@@ -411,6 +412,7 @@ struct CalculationParameters {
         , dipole(false)
         , conv_only_dens(false)
         , psp_calc(false)
+        , print_dipole_matels(false)
         , nalpha(0)
         , nbeta(0)
         , nmo_alpha(0)
@@ -620,6 +622,9 @@ struct CalculationParameters {
             else if (s == "psp_calc") {
               psp_calc = true;
               pure_ae = false;
+            }
+            else if (s == "print_dipole_matels") {
+              print_dipole_matels = true;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -1028,6 +1033,9 @@ public:
     /// @param[in]		world	the world
     /// @param[in,out]	amo_new	the vectors to be orthonormalized
     void orthonormalize(World& world, vecfuncT& amo_new) const;
+
+    void orthonormalize(World& world, vecfuncT& amo_new, int nocc) const;
+
 
 
     void propagate(World& world, double omega, int step0);

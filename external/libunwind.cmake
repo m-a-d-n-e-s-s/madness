@@ -1,4 +1,4 @@
-if(WITH_TASK_PROFILER OR WITH_GPERFTOOLS)
+if(ENABLE_TASK_PROFILER OR ENABLE_GPERFTOOLS)
 
   if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     # libunwind is not supported on OS X or Windows

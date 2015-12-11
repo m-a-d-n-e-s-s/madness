@@ -1,4 +1,4 @@
-if(WITH_GPERFTOOLS)
+if(ENABLE_GPERFTOOLS)
   if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     if(NOT LIBUNWIND_FOUND OR (LIBUNWIND_FOUND AND LIBUNWIND_VERION LESS 0.99))
       message(STATUS "Gperftools disabled because libunwind 0.99 or higher was not found") 

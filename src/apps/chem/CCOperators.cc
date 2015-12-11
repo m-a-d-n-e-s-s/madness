@@ -65,6 +65,7 @@ intermediateT CC_Intermediates::make_f12_exchange_intermediate(const vecfuncT &b
 /// Calculates two electron integrals
 /// <ij|g|kl>
 Tensor<double> CC_Intermediates::make_two_electron_integrals_hf() const {
+	if(world.rank()==0) std::cout << "Two electron Integrals are not made !\n";
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), mo_ket_.size(),
 			mo_ket_.size());
 	return result;
@@ -72,12 +73,14 @@ Tensor<double> CC_Intermediates::make_two_electron_integrals_hf() const {
 /// <ij|g|k\tau_l>
 Tensor<double> CC_Intermediates::make_two_electron_integrals_mixed_t1(
 		const vecfuncT &tau) const {
+	if(world.rank()==0) std::cout << "Mixed two electron Integrals are not made !\n";
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), mo_ket_.size(),
 			tau.size());
 	return result;
 }
 // <ij|g|\tau_k \tau_l>
 Tensor<double> CC_Intermediates::make_two_electron_integrals_t1(const vecfuncT &tau) const {
+	if(world.rank()==0) std::cout << "T1 two electron Integrals are not made !\n";
 	Tensor<double> result(mo_bra_.size(), mo_bra_.size(), tau.size(),
 			tau.size());
 	return result;
@@ -330,32 +333,41 @@ vecfuncT CC_Operators::S2b(const Pairs<CC_Pair> u, const CC_vecfunction & single
 	}
 }
 vecfuncT CC_Operators::S2b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction & singles , CC_data &data) const {
-	vecfuncT result;
-	for(auto tmpi:singles.functions){
-		CC_function& i=tmpi.second;
-		real_function_3d resulti = real_factory_3d(world);
-		CC_Timer S2b_6D_time(world,"S2b: 6D-Part");
-		for(auto tmpk:singles.functions){
-			CC_function& k=tmpk.second;
-			{
-				real_function_6d tmp = multiply(copy(u(i.i,k.i).function),copy(mo_bra_[k.i]),2);
-				poisson -> particle() = 2;
-				real_function_6d result = (*poisson)(tmp);
-				real_function_3d r = result.dirac_convolution<3>();
+	// check if the 6D part has been calculated before
+	if(not current_S2b_6D_part_.empty()){
+		output("loading previously calculated S2b_6D_part");
+		return current_S2b_6D_part_;
+	}else{
 
-				// Exchange Part
-				real_function_6d tmpx = multiply(copy(u(i.i,k.i).function),copy(mo_bra_[k.i]),1);
-				poisson -> particle() = 1;
-				real_function_6d resultx= (*poisson)(tmpx);
-				real_function_3d rx = resultx.dirac_convolution<3>();
+		vecfuncT result;
+		for(auto tmpi:singles.functions){
+			CC_function& i=tmpi.second;
+			real_function_3d resulti = real_factory_3d(world);
+			CC_Timer S2b_6D_time(world,"S2b: 6D-Part internal");
+			for(auto tmpk:singles.functions){
+				CC_function& k=tmpk.second;
+				{
+					real_function_6d uik = get_pair_function(u,i.i,k.i);
 
-				resulti += 2.0*r -rx;
+					real_function_6d tmp = multiply(copy(uik),copy(mo_bra_[k.i]),2);
+					poisson -> particle() = 2;
+					real_function_6d result = (*poisson)(tmp);
+					real_function_3d r = result.dirac_convolution<3>();
+
+					// Exchange Part
+					real_function_6d tmpx = multiply(copy(uik),copy(mo_bra_[k.i]),1);
+					poisson -> particle() = 1;
+					real_function_6d resultx= (*poisson)(tmpx);
+					real_function_3d rx = resultx.dirac_convolution<3>();
+
+					resulti += 2.0*r -rx;
+				}
 			}
+			S2b_6D_time.info();
+			result.push_back(resulti);
 		}
-		S2b_6D_time.info();
-		result.push_back(resulti);
-	}
 	return result;
+	}// end else
 }
 vecfuncT CC_Operators::S2b_3D_part(const CC_vecfunction & singles , CC_data & data) const {
 	//	vecfuncT result;
@@ -610,10 +622,12 @@ vecfuncT CC_Operators::S2c_6D_part(const Pairs<CC_Pair> &u, const CC_vecfunction
 				CC_function& k=tmpk.second;
 				for(auto tmpl:singles.functions){
 					CC_function& l=tmpl.second;
+					real_function_6d ukl = get_pair_function(u,k.i,l.i); // needed to avoid seg.faults when k>l
+
 					real_function_3d klgi = (mo_bra_[k.i]*intermediates_.get_EX(l.i,i.i)).truncate();
 					real_function_3d lkgi = (mo_bra_[l.i]*intermediates_.get_EX(k.i,i.i)).truncate();
-					real_function_3d tmp = u(k.i,l.i).function.project_out(klgi,1); // 1 means second particle
-					real_function_3d tmpx= u(k.i,l.i).function.project_out(lkgi,1); // 1 means second particle
+					real_function_3d tmp = ukl.project_out(klgi,1); // 1 means second particle
+					real_function_3d tmpx= ukl.project_out(lkgi,1); // 1 means second particle
 					resulti += 2.0*tmp - tmpx;
 				}
 			}
@@ -691,8 +705,11 @@ vecfuncT CC_Operators::S4a_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 			CC_function& k=tmpk.second;
 			for (auto tmpl:singles.functions) {
 				CC_function& l=tmpl.second;
-				double integral = make_ijgu(k.i,l.i,u(i.i,l.i));
-				double integralx= make_ijgu(l.i,k.i,u(i.i,l.i));
+
+				real_function_6d uil = get_pair_function(u,i.i,k.i); // needed to avoid seg.faults when k>l
+
+				double integral = make_ijgu(k.i,l.i,uil);
+				double integralx= make_ijgu(l.i,k.i,uil);
 				if(k.i==l.i and (integral-integralx)>FunctionDefaults<3>::get_thresh()) warning("Warnings in S4a_6D_part: J and K integral differ for k==l :" + stringify(integral) + " and " + stringify(integralx));
 				resulti += (2.0*integral - integralx)*k.function;
 			}
@@ -773,10 +790,13 @@ vecfuncT CC_Operators::S4b_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 	real_function_3d resulti = real_factory_3d(world);
 	for(auto tmpk:singles.functions){ CC_function& k=tmpk.second;
 	for(auto tmpl:singles.functions){ CC_function& l=tmpl.second; // index l is also pair function index therefore it runs only over non frozen orbs
+
+	real_function_6d ukl = get_pair_function(u,k.i,l.i); // needed to avoid seg.fault when k>l
+
 	real_function_3d k_lgtaui = (mo_bra_[k.i]*intermediates_.get_pEX(l.i,i.i)).truncate();
 	real_function_3d l_kgtaui = (mo_bra_[l.i]*intermediates_.get_pEX(k.i,i.i)).truncate();
-	real_function_3d tmp  = u(k.i,l.i).function.project_out(k_lgtaui,1); // 1 is particle 2
-	real_function_3d tmpx = u(k.i,l.i).function.project_out(l_kgtaui,0); // 0 is particle 1
+	real_function_3d tmp  = ukl.project_out(k_lgtaui,1); // 1 is particle 2
+	real_function_3d tmpx = ukl.project_out(l_kgtaui,0); // 0 is particle 1
 	resulti += (2.0*tmp - tmpx).truncate();
 	}
 	}
@@ -812,15 +832,15 @@ vecfuncT CC_Operators::S4c_3D_part(const CC_vecfunction & singles,  CC_data &dat
 	real_function_3d resulti = real_factory_3d(world);
 	for(auto tmpk:singles.functions){ CC_function& k=tmpk.second;
 	for(auto tmpl:t.functions){ CC_function& l=tmpl.second;
-		CC_function l_kgtk(mo_bra_[l.i]*intermediates_.get_pEX(k.i,k.i));
-		CC_function k_lgtk(mo_bra_[k.i]*intermediates_.get_pEX(l.i,k.i));
+	CC_function l_kgtk(mo_bra_[l.i]*intermediates_.get_pEX(k.i,k.i));
+	CC_function k_lgtk(mo_bra_[k.i]*intermediates_.get_pEX(l.i,k.i));
 
-		real_function_3d part1 = convolute_x_Qf_yz(l_kgtk,i,l);
-		real_function_3d part2 = convolute_x_Qf_yz(k_lgtk,i,l);
-		real_function_3d part3 = convolute_x_Qf_yz(l_kgtk,l,i);
-		real_function_3d part4 = convolute_x_Qf_yz(k_lgtk,l,i);
-		real_function_3d all = 4.0*part1 - 2.0*part2 - 2.0*part3 + part4;
-		resulti+=all;
+	real_function_3d part1 = convolute_x_Qf_yz(l_kgtk,i,l);
+	real_function_3d part2 = convolute_x_Qf_yz(k_lgtk,i,l);
+	real_function_3d part3 = convolute_x_Qf_yz(l_kgtk,l,i);
+	real_function_3d part4 = convolute_x_Qf_yz(k_lgtk,l,i);
+	real_function_3d all = 4.0*part1 - 2.0*part2 - 2.0*part3 + part4;
+	resulti+=all;
 	}
 	}
 	result.push_back(resulti);
@@ -835,13 +855,16 @@ vecfuncT CC_Operators::S4c_6D_part(const Pairs<CC_Pair> u, const CC_vecfunction 
 	for(auto tmpk:singles.functions){ CC_function& k=tmpk.second;	// maybe loop over all pairs
 	real_function_3d kgtk = intermediates_.get_pEX(k.i,k.i);
 	for(auto tmpl:singles.functions){ CC_function& l=tmpl.second;
+
+	real_function_6d uil = get_pair_function(u,i.i,l.i); // needed to avoid seg.faults when k>l
+
 	real_function_3d lgtk = intermediates_.get_pEX(l.i,k.i);
 	real_function_3d l_kgtk = (mo_bra_[l.i]*kgtk).truncate();
 	real_function_3d k_lgtk = (mo_bra_[k.i]*lgtk).truncate();
-	real_function_3d part1 = u(i.i,l.i).function.project_out(l_kgtk,1); // 1 is particle 2 and 0 is particle 1
-	real_function_3d part2 = u(i.i,l.i).function.project_out(k_lgtk,1);
-	real_function_3d part3 = u(i.i,l.i).function.project_out(l_kgtk,0);
-	real_function_3d part4 = u(i.i,l.i).function.project_out(k_lgtk,0);
+	real_function_3d part1 = uil.project_out(l_kgtk,1); // 1 is particle 2 and 0 is particle 1
+	real_function_3d part2 = uil.project_out(k_lgtk,1);
+	real_function_3d part3 = uil.project_out(l_kgtk,0);
+	real_function_3d part4 = uil.project_out(k_lgtk,0);
 	resulti += (4.0*part1 - 2.0*part2 - 2.0*part3 + part4);
 	}
 	}

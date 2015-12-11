@@ -2,11 +2,11 @@ include $(top_srcdir)/config/MakeGlobal.am
 EXTRA_DIST = CMakeLists.txt
 
 
-noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
+noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf cc2 nemo helium_exact density_smoothing
+ tdhf cc2 nemo helium_exact density_smoothing siam_example
  
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
@@ -18,6 +18,8 @@ thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 AUTOMAKE_OPTIONS = subdir-objects
 
 pno_SOURCES = pno.cc 
+
+siam_example_SOURCES = siam_example.cc 
 
 mp2_SOURCES = mp2.cc 
 
@@ -84,7 +86,7 @@ hehf_SOURCES = hehf.cc
 
 # h2hf_SOURCES = h2hf.cc
 
-tdse_SOURCES = tdse.cc
+tdse_example_SOURCES = tdse_example.cc
 
 tdse1d_SOURCES = tdse1d.cc
 

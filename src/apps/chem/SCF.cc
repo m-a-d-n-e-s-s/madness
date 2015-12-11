@@ -980,8 +980,10 @@ namespace madness {
             if (!param.pure_ae){
                 double enl;
                 tensorT occ = tensorT(ao.size());
-                for(unsigned int i = 0;i < ao.size();++i){
+                for(unsigned int i = 0;i < param.nalpha;++i){
                     occ[i] = 1.0;}
+                for(unsigned int i = param.nalpha;i < ao.size();++i){
+                    occ[i] = 0.0;}
                 vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);}
             else{
                 vpsi = mul_sparse(world, vlocal, ao, vtol);}
@@ -1470,7 +1472,7 @@ namespace madness {
         PROFILE_MEMBER_FUNC(SCF);
         double trantol = vtol / std::min(30.0, double(psi.size()));
         int nmo = psi.size();
-        
+
         tensorT eps(nmo);
         for (int i = 0; i < nmo; ++i) {
             eps(i) = std::min(-0.05, fock(i, i));
@@ -1743,6 +1745,15 @@ namespace madness {
         tensorT overlap = matrix_inner(world, psi, psi, true);
         tensorT U = get_fock_transformation(world, overlap, fock, evals, occ,
                                             thresh);
+
+        //eliminate mixing between occ and unocc
+        int nmo=U.dim(0);
+        for (int i=0; i<param.nalpha; ++i){
+           //make virt orthog to occ without changing occ states
+           for (int j=param.nalpha; j<nmo; ++j){
+               U(j,i)=0.0;
+           }
+        }
         
         // transform the orbitals and the orbitals times the potential
         Vpsi = transform(world, Vpsi, U, vtol / std::min(30.0, double(psi.size())),
@@ -1754,7 +1765,7 @@ namespace madness {
         truncate(world, Vpsi, vtol, false);
         truncate(world, psi);
         normalize(world, psi);
-        
+
         END_TIMER(world, "Diagonalization rest");
         return U;
     }
@@ -1841,7 +1852,7 @@ namespace madness {
                 focka(i, i) = tmp;
             }
         }
-        
+  
         vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
         if (param.nbeta != 0 && !param.spin_restricted) {
             for (int i = 0; i < param.nmo_beta; i++) {
@@ -1939,12 +1950,12 @@ namespace madness {
         }
         
         do_step_restriction(world, amo, amo_new, "alpha");
-        orthonormalize(world, amo_new);
+        orthonormalize(world, amo_new, param.nalpha);
         amo = amo_new;
         
         if (!param.spin_restricted && param.nbeta != 0) {
             do_step_restriction(world, bmo, bmo_new, "beta");
-            orthonormalize(world, bmo_new);
+            orthonormalize(world, bmo_new, param.nbeta);
             bmo = bmo_new;
         } else {
             bmo = amo;
@@ -1987,6 +1998,44 @@ namespace madness {
         return maxval;
     }
     
+    /// orthonormalize the vectors
+    
+    /// @param[in]          world   the world
+    /// @param[inout]       amo_new the vectors to be orthonormalized
+    void SCF::orthonormalize(World& world, vecfuncT& amo_new, int nocc) const {
+        PROFILE_MEMBER_FUNC(SCF);
+        START_TIMER(world);
+        double trantol = vtol / std::min(30.0, double(amo_new.size()));
+        normalize(world, amo_new);
+        double maxq;
+        do {
+            tensorT Q = Q2(matrix_inner(world, amo_new, amo_new)); // Q3(matrix_inner(world, amo_new, amo_new))
+            maxq=0.0;
+            for (int i=0; i<Q.dim(0); ++i) 
+                for (int j=0; j<i; ++j)
+                    maxq = std::max(maxq,std::abs(Q(i,j)));
+            
+            Q.screen(trantol); // ???? Is this really needed?
+
+            //make virt orthog to occ without changing occ states
+            for (int i=0; i<nocc; ++i)
+                for (int j=nocc; j<Q.dim(0); ++j)
+                   Q(j,i)=0.0;
+
+            amo_new = transform(world, amo_new,
+                                Q, trantol, true);
+            truncate(world, amo_new);
+            if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+            //print(Q);
+
+        } while (maxq>0.01);
+        normalize(world, amo_new);
+
+        END_TIMER(world, "Orthonormalize");
+
+    }
+
+
     /// orthonormalize the vectors
     
     /// @param[in]          world   the world
@@ -2193,6 +2242,7 @@ namespace madness {
         subspaceT subspace;
         tensorT Q;
         bool do_this_iter = true;
+        bool converged = false;
         // Shrink subspace until stop localizing/canonicalizing
         int maxsub_save = param.maxsub;
         param.maxsub = 2;
@@ -2352,8 +2402,11 @@ namespace madness {
             if (iter > 0) {
                 //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
                 if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
-                    && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) {
-                    if (world.rank() == 0) {
+                    && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) converged=true;
+
+                // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
+                if (converged || iter==param.maxiter-1) {
+                    if (world.rank() == 0 && converged) {
                         print("\nConverged!\n");
                     }
                     
@@ -2447,6 +2500,7 @@ namespace madness {
             
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q,
                             bsh_residual, update_residual);
+
         }
 
         // compute the dipole moment
@@ -2476,9 +2530,11 @@ namespace madness {
             analyze_vectors(world, bmo, bocc, beps);
         }
 
-        dipole_matrix_elements(world, amo, aocc, aeps, 0);
-        if (param.nbeta != 0 && !param.spin_restricted) {    
-            dipole_matrix_elements(world, bmo, bocc, beps, 1);
+        if (param.print_dipole_matels) {
+            dipole_matrix_elements(world, amo, aocc, aeps, 0);
+            if (param.nbeta != 0 && !param.spin_restricted) {    
+                dipole_matrix_elements(world, bmo, bocc, beps, 1);
+            }
         }
 
         

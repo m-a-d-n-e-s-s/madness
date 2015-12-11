@@ -1,4 +1,4 @@
-if(WITH_TBB)
+if(ENABLE_TBB)
   find_package(TBB)
   
   if(TBB_FOUND)

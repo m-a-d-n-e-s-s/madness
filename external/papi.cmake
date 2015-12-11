@@ -1,4 +1,4 @@
-if(WITH_PAPI)
+if(ENABLE_PAPI)
   
   find_package(Papi REQUIRED)
       

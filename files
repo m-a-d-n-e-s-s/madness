@@ -217,6 +217,7 @@ oep.cc
 ploterr.cc
 pno.cc
 sdf_shape_tester.cc
+siam_example.cc
 sininteg.cc
 smooth.h
 spectralprop.h
@@ -232,7 +233,6 @@ vnucso.cc
 vtk.cc
 
 ./src/examples/compiler:
-eqn.tex
 mra-driver.cc
 mra-driver.hh
 mra.cc
