@@ -42,7 +42,7 @@ else()
   # In install tree
   
   list(APPEND Madness_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
-      "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madnss/external")
+      "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madness/external")
 endif()
 
 # Set component variables
