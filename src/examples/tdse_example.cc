@@ -30,7 +30,7 @@
 
   $Id$
 */
-/// \file examples/tdse.cc
+/// \file examples/tdse_example.cc
 /// \brief Evolves the hydrogen atom in imaginary and also real time
 
 

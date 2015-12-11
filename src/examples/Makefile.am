@@ -2,7 +2,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 EXTRA_DIST = CMakeLists.txt
 
 
-noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
+noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
@@ -86,7 +86,7 @@ hehf_SOURCES = hehf.cc
 
 # h2hf_SOURCES = h2hf.cc
 
-tdse_SOURCES = tdse.cc
+tdse_example_SOURCES = tdse_example.cc
 
 tdse1d_SOURCES = tdse1d.cc
 
