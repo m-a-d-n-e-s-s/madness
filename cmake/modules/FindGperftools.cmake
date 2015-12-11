@@ -1,14 +1,14 @@
-# - Try to find Libxc
+# - Try to find Google performance tools (gperftools)
 # Input variables:
-#   GPERFTOOLS_ROOT_DIR    - The libxc install directory
-#   GPERFTOOLS_INCLUDE_DIR - The libxc include directory
-#   GPERFTOOLS_LIBRARY     - The libxc library directory
+#   GPERFTOOLS_ROOT_DIR    - The gperftools install directory
+#   GPERFTOOLS_INCLUDE_DIR - The gperftools include directory
+#   GPERFTOOLS_LIBRARY     - The gperftools library directory
 # Components: profiler, and tcmalloc or tcmalloc_minimal
 # Output variables:
-#   GPERFTOOLS_FOUND        - System has libxc
-#   GPERFTOOLS_INCLUDE_DIRS - The libxc include directories
-#   GPERFTOOLS_LIBRARIES    - The libraries needed to use libxc
-#   GPERFTOOLS_VERSION      - The version string for libxc
+#   GPERFTOOLS_FOUND        - System has gperftools
+#   GPERFTOOLS_INCLUDE_DIRS - The gperftools include directories
+#   GPERFTOOLS_LIBRARIES    - The libraries needed to use gperftools
+#   GPERFTOOLS_VERSION      - The version string for gperftools
 
 include(FindPackageHandleStandardArgs)
   
@@ -16,17 +16,17 @@ if(NOT GPERFTOOLS_FOUND)
 
   if(";${Gperftools_FIND_COMPONENTS};" MATCHES ";tcmalloc;" AND ";${Gperftools_FIND_COMPONENTS};" MATCHES ";tcmalloc_minimal;")
     message("ERROR: Invalid component selection for Gperftools: ${Gperftools_FIND_COMPONENTS}")
-    message("ERROR: Gperftools cannot link both tcmalloc and tcmalloc_minimual")
+    message("ERROR: Gperftools cannot link both tcmalloc and tcmalloc_minimal")
     message(FATAL_ERROR "Gperftools component list is invalid")
   endif() 
 
-  # Set default sarch paths for libxc
+  # Set default sarch paths for gperftools
   if(GPERFTOOLS_ROOT_DIR)
-    set(GPERFTOOLS_INCLUDE_DIR ${GPERFTOOLS_ROOT_DIR}/include CACHE PATH "The include directory for libxc")
+    set(GPERFTOOLS_INCLUDE_DIR ${GPERFTOOLS_ROOT_DIR}/include CACHE PATH "The include directory for gperftools")
     if(CMAKE_SIZEOF_VOID_P EQUAL 8 AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-      set(GPERFTOOLS_LIBRARY ${GPERFTOOLS_ROOT_DIR}/lib64;${GPERFTOOLS_ROOT_DIR}/lib CACHE PATH "The library directory for libxc")
+      set(GPERFTOOLS_LIBRARY ${GPERFTOOLS_ROOT_DIR}/lib64;${GPERFTOOLS_ROOT_DIR}/lib CACHE PATH "The library directory for gperftools")
     else()
-      set(GPERFTOOLS_LIBRARY ${GPERFTOOLS_ROOT_DIR}/lib CACHE PATH "The library directory for libxc")
+      set(GPERFTOOLS_LIBRARY ${GPERFTOOLS_ROOT_DIR}/lib CACHE PATH "The library directory for gperftools")
     endif()
   endif()
   
@@ -63,7 +63,7 @@ if(NOT GPERFTOOLS_FOUND)
     endif()
   endif()
 
-  # handle the QUIETLY and REQUIRED arguments and set LIBXML2_FOUND to TRUE
+  # handle the QUIETLY and REQUIRED arguments and set GPERFTOOLS_FOUND to TRUE
   # if all listed variables are TRUE
   find_package_handle_standard_args(Gperftools
       FOUND_VAR GPERFTOOLS_FOUND
