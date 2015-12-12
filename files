@@ -217,7 +217,6 @@ oep.cc
 ploterr.cc
 pno.cc
 sdf_shape_tester.cc
-siam_example.cc
 sininteg.cc
 smooth.h
 spectralprop.h
