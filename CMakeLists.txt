@@ -21,6 +21,7 @@ include(AddUnittests)
 include(AddMADLibrary)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
+include(FeatureSummary)
 
 # Set install paths ============================================================
 
@@ -55,6 +56,8 @@ option(ENABLE_PAPI "Enables use of PAPI" OFF)
 # Configure options ============================================================
 
 option(ENABLE_GENTENSOR "Enable generic tensor support" OFF)
+add_feature_info(GENTENSOR ENABLE_GENTENSOR "Enables use of MRA Function compression that allows computing in 6 dimensions")
+
 if(ENABLE_GENTENSOR)
   add_definitions(-DUSE_GENTENSOR)
 endif()
@@ -62,44 +65,60 @@ set(TENSOR_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL "Enable generic tensors"
 
 option(ENABLE_TASK_PROFILER
     "Enable task profiler that collects per-task start and stop times." OFF)
+add_feature_info(TASK_PROFILER ENABLE_TASK_PROFILER "supports task-level tracing of program execution")
 set(MADNESS_TASK_PROFILING ${ENABLE_TASK_PROFILER} CACHE BOOL
     "Enable task profiler that collects per-task start and stop times.")
 
 option(ENABLE_WORLD_PROFILE "Enables profiling" OFF)
+add_feature_info(WORLD_PROFILE ENABLE_WORLD_PROFILE "supports simple profiling of MADworld runtime")
 set(WORLD_PROFILE_ENABLE ${ENABLE_WORLD_PROFILE} CACHE BOOL 
     "Enables world profiling")
 
 option(ENABLE_MEM_STATS "Gather memory statistics (expensive)" OFF)
+add_feature_info(MEM_STATS ENABLE_MEM_STATS "gather memory statistics (expensive)")
 set(WORLD_GATHER_MEM_STATS ${ENABLE_MEM_STATS} CACHE BOOL "Gather memory statistics (expensive)")
 
 option(ENABLE_TENSOR_BOUNDS_CHECKING
     "Enable checking of bounds in tensors ... slow but useful for debugging" OFF)
+add_feature_info(TENSOR_BOUNDS_CHECKING ENABLE_TENSOR_BOUNDS_CHECKING
+    "Enable checking of bounds in tensors ... slow but useful for debugging")
 set(TENSOR_BOUNDS_CHECKING ${ENABLE_TENSOR_BOUNDS_CHECKING} CACHE BOOL
     "Enable checking of bounds in tensors ... slow but useful for debugging")
 
 option(ENABLE_TENSOR_INSTANCE_COUNT
     "Enable counting of allocated tensors for memory leak detection" OFF)
+add_feature_info(TENSOR_INSTANCE_COUNT ENABLE_TENSOR_INSTANCE_COUNT
+    "Enable counting of allocated tensors for memory leak detection")
 set(TENSOR_INSTANCE_COUNT CACHE BOOL
     "Enable counting of allocated tensors for memory leak detection")
 
 option(ENABLE_SPINLOCKS
     "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)" ON)
+add_feature_info(SPINLOCKS ENABLE_SPINLOCKS
+    "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 set(USE_SPINLOCKS ${ENABLE_SPINLOCKS} CACHE BOOL
     "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)")
 
 option(ENABLE_NEVER_SPIN
     "Disables use of spinlocks (notably for use inside virtual machines" OFF)
+add_feature_info(NEVER_SPIN ENABLE_NEVER_SPIN
+    "Disables use of spinlocks (notably for use inside virtual machines")
 set(NEVER_SPIN ${ENABLE_NEVER_SPIN} CACHE BOOL
     "Disables use of spinlocks (notably for use inside virtual machines")
 
 option(ENABLE_BSEND_ACKS 
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements" ON)
+add_feature_info(BSEND_ACKS ENABLE_BSEND_ACKS
+    "Use MPI Send instead of MPI Bsend for huge message acknowledgements")
 set(MADNESS_USE_BSEND_ACKS ${ENABLE_BSEND_ACKS} CACHE BOOL
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements")
 
 option(ENABLE_UNITTESTS "Enables unit tests targets" ON)
+add_feature_info(UNITTESTS ENABLE_UNITTESTS
+    "Enables unit tests targets")
 
 set(FORTRAN_INTEGER_SIZE 4 CACHE STRING "The fortran integer size (4 or 8 bytes) used for BLAS and LAPACK function calls")
+add_feature_info(FORTRAN_INTEGER_SIZE FORTRAN_INTEGER_SIZE "assumes Fortran integers to be ${FORTRAN_INTEGER_SIZE} bytes long")
 if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))
   message(FATAL_ERROR "Incorrect fortran integer size '${FORTRAN_INTEGER_SIZE}'\n"
                        "FORTRAN_INTEGER_SIZE must be equal to 4 or 8")
@@ -487,3 +506,7 @@ install(FILES
     "${MADNESS_BINARY_DIR}/madness-config-version.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
     COMPONENT madness)
+
+feature_summary(WHAT ALL
+                DESCRIPTION "=== MADNESS Package/Feature Info ===")
+    
