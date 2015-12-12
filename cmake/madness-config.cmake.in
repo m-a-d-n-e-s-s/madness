@@ -1,5 +1,6 @@
 # - CMAKE Config file for the MADNESS package
 # The following variables are defined:
+#  Madness_FOUND                - System has the MADNESS package
 #  Madness_INCLUDE_DIRS         - The MADNESS include directory
 #  Madness_LIBRARIES            - The MADNESS libraries and their dependencies
 #  Madness_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
@@ -61,3 +62,4 @@ set(Madness_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
 
 check_required_components(Madness)
 
+set(MADNESS_FOUND TRUE)
