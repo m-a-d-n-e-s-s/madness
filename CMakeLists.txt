@@ -479,7 +479,7 @@ configure_package_config_file(cmake/madness-config.cmake.in
 
 # Install config, version, and target files
 install(EXPORT madness
-    FILE "madness-targets.cmake"
+    FILE "${MADNESS_BINARY_DIR}/madness-targets.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
     COMPONENT madness)
 install(FILES
