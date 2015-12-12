@@ -6,7 +6,7 @@ noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat hea
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf cc2 nemo helium_exact density_smoothing siam_example
+ tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian
  
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
@@ -101,6 +101,8 @@ vnucso_SOURCES = vnucso.cc
 hatom_1d_SOURCES = hatom_1d.cc
 
 binaryop_SOURCES = binaryop.cc
+
+gaussian_SOURCES = gaussian.cc
 
 LDADD = $(LIBCHEM) $(MRALIBS)
 
