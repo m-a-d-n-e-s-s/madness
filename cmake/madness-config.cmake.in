@@ -26,30 +26,31 @@ set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
 # Set Elemental variables
 set(MADNESS_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
 set(MADNESS_HAS_ELEMENTAL_EMBEDDED @MADNESS_HAS_ELEMENTAL_EMBEDDED@)
-set(ELEMENTAL_FOUND @ELEMENTAL_FOUND@)
 
 set(MADNESS_BUILD_INCLUDE_DIRS "${MADNESS_SOURCE_DIR}/src" "${MADNESS_BINARY_DIR}/src")
 set(MADNESS_INSTALL_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
       "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madness/external")
 
-if(MADNESS_HAS_ELEMENTAL_EMBEDDED)
-  set(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
-  set(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
-  list(APPEND MADNESS_BUILD_INCLUDE_DIRS
-      "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
-      "${Elemental_SOURCE_DIR}/external/pmrrr/include"
-      "${Elemental_BINARY_DIR}/external/pmrrr/include")
-else()
-  set(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
-  set(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
-  list(APPEND MADNESS_BUILD_INCLUDE_DIRS
-      "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
-      "${Elemental_SOURCE_DIR}/external/pmrrr/include"
-      "${Elemental_BINARY_DIR}/external/pmrrr/include"
-      "${Elemental_SOURCE_DIR}/external/pmrrr/suite_sparse"
-      "${Elemental_BINARY_DIR}/external/pmrrr/suite_sparse"
-      )
-endif()
+if (MADNESS_HAS_ELEMENTAL)
+  if(MADNESS_HAS_ELEMENTAL_EMBEDDED)
+    set(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
+    set(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
+    list(APPEND MADNESS_BUILD_INCLUDE_DIRS
+        "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
+        "${Elemental_SOURCE_DIR}/external/pmrrr/include"
+        "${Elemental_BINARY_DIR}/external/pmrrr/include")
+  else(MADNESS_HAS_ELEMENTAL_EMBEDDED)
+    set(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
+    set(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
+    list(APPEND MADNESS_BUILD_INCLUDE_DIRS
+        "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
+        "${Elemental_SOURCE_DIR}/external/pmrrr/include"
+        "${Elemental_BINARY_DIR}/external/pmrrr/include"
+        "${Elemental_SOURCE_DIR}/external/pmrrr/suite_sparse"
+        "${Elemental_BINARY_DIR}/external/pmrrr/suite_sparse"
+        )
+  endif(MADNESS_HAS_ELEMENTAL_EMBEDDED)
+endif(MADNESS_HAS_ELEMENTAL)
 
 # define MADNESS_INCLUDE_DIRS according to where we are compiling: MADNESS build tree or outside
 # external packages should use MADNESS_BUILD_INCLUDE_DIRS and MADNESS_INSTALL_INCLUDE_DIRS directly

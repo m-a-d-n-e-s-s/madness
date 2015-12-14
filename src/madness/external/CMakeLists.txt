@@ -5,7 +5,7 @@ add_subdirectory(muParser)
 add_subdirectory(tinyxml)
 
 # if want embedded elemental ...
-if(ENABLE_ELEMENTAL_EMBEDDED)
+if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
 
   # Note: Here we are changing the build configuration of for Elemental since it
   # requires [Hybrid|Pure][Debug|Release] as the build configuratino. This
@@ -54,4 +54,4 @@ if(ENABLE_ELEMENTAL_EMBEDDED)
   add_dependencies(install-elemental elemental)
   
   list(APPEND MADNESS_EXPORT_TARGETS elemental pmrrr)
-endif(ENABLE_ELEMENTAL_EMBEDDED)
+endif(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
