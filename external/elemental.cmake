@@ -4,9 +4,6 @@
 # Find Elemental
 ######################
 
-set (MADNESS_HAS_ELEMENTAL 0)
-set (MADNESS_HAS_ELEMENTAL_EMBEDDED 0)
-
 if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
 
   include(ExternalProject)
