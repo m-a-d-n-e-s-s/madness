@@ -4,6 +4,9 @@
 # Find Elemental
 ######################
 
+set (MADNESS_HAS_ELEMENTAL 0)
+set (MADNESS_HAS_ELEMENTAL_EMBEDDED 0)
+
 if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
 
   include(ExternalProject)
@@ -24,7 +27,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   set(ELEMENTAL_BINARY_DIR "${PROJECT_BINARY_DIR}/external/build/elemental" CACHE PATH 
         "Path to the Elemental build directory")
   
-  # Set compile flags
+  # Set Elemental compile flags
   append_flags(ELEMENTAL_CFLAGS "${CMAKE_C_FLAGS}")
   append_flags(ELEMENTAL_CXXFLAGS "${CMAKE_CXX_FLAGS}")
   append_flags(ELEMENTAL_LDFLAGS "${CMAKE_EXE_LINKER_FLAGS}")
@@ -33,6 +36,25 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
     string(TOLOWER ELEMENTAL_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
     append_flags(ELEMENTAL_CFLAGS "${CMAKE_C_FLAGS_${ELEMENTAL_BUILD_TYPE}}")
     append_flags(ELEMENTAL_CXXFLAGS "${CMAKE_CXX_FLAGS_${ELEMENTAL_BUILD_TYPE}}")
+  endif()
+
+  # Note: Here we are changing the build configuration of for Elemental since it
+  # requires [Hybrid|Pure][Debug|Release] as the build configuratino. This
+  # should not be required if we upgrade Elemental to v0.85.
+  
+  # Set the build type used by Elemental. We use Pure (MPI only/no OpenMP) since
+  # MADNESS threads do not play nice with Elemental threads.
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(ELEMENTAL_CMAKE_BUILD_TYPE "PureDebug")
+  else()
+    set(ELEMENTAL_CMAKE_BUILD_TYPE "PureRelease")
+  endif()
+  
+  # Set the configuration variables used by elemental
+  if((ENABLE_SPINLOCKS OR NOT ENABLE_NEVER_SPIN) AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    set(ELEMENTAL_HAVE_SPINLOCKS ON)
+  else()
+    set(ELEMENTAL_HAVE_SPINLOCKS OFF)
   endif()
   
   #
@@ -132,7 +154,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
       ${ELEMENTAL_SOURCE_DIR}
       -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
-      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_BUILD_TYPE=${ELEMENTAL_CMAKE_BUILD_TYPE}
       -DMPI_CXX_COMPILER=${MPI_CXX_COMPILER}
       -DMPI_C_COMPILER=${MPI_C_COMPILER}
       -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
@@ -140,6 +162,8 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
       -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
       "-DCXX_FLAGS=${ELEMENTAL_CXXFLAGS}"
       -DCMAKE_EXE_LINKER_FLAGS=${ELEMENTAL_LDFLAGS}
+      -DMATH_LIBS=${ELEMENTAL_MATH_LIBS}
+      -DHAVE_SPINLOCKS=${ELEMENTAL_HAVE_SPINLOCKS}
       WORKING_DIRECTORY "${ELEMENTAL_BINARY_DIR}"
       RESULT_VARIABLE error_code)
   if(error_code)
@@ -199,7 +223,6 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
       "${ELEMENTAL_BINARY_DIR}/external/pmrrr/${CMAKE_STATIC_LIBRARY_PREFIX}pmrrr${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
   set(MADNESS_HAS_ELEMENTAL 1)
-  set(MADNESS_HAS_ELEMENTAL_EMBEDDED 0)
   
   list(APPEND MADNESS_EXPORT_TARGETS ${ELEMENTAL_PACKAGE_NAME} pmrrr ElSuiteSparse)
 endif(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)

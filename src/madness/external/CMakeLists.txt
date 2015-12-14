@@ -7,6 +7,10 @@ add_subdirectory(tinyxml)
 # if want embedded elemental ...
 if(ENABLE_ELEMENTAL_EMBEDDED)
 
+  # 
+  set (MADNESS_HAS_ELEMENTAL 0)
+  set (MADNESS_HAS_ELEMENTAL_EMBEDDED 0)
+
   # Note: Here we are changing the build configuration of for Elemental since it
   # requires [Hybrid|Pure][Debug|Release] as the build configuratino. This
   # should not be required if we upgrade Elemental to v0.85.
