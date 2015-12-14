@@ -383,6 +383,10 @@ AC_ARG_WITH([mpi-thread],
             ])
 AC_DEFINE_UNQUOTED([MADNESS_MPI_THREAD_LEVEL], [$MADNESS_MPI_THREAD_LEVEL], [Thread-safety level requested from MPI by MADNESS])
 AC_MSG_NOTICE([MPI thread-safety requested: $MADNESS_MPI_THREAD_LEVEL])
+# to use Elemental MUST use MPI_THREAD_MULTIPLE
+if test X$MADNESS_HAS_ELEMENTAL = X1 && test X$MADNESS_MPI_THREAD_LEVEL != XMPI_THREAD_MULTIPLE; then
+  AC_MSG_ERROR([Use of Elemental precludes --with-mpi-thread=serialized, must use --with-mpi-thread=multiple])
+fi
 
 # Display options
 AC_MSG_NOTICE([CPPFLAGS = $CPPFLAGS])
