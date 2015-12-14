@@ -28,26 +28,35 @@ set(MADNESS_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
 set(MADNESS_HAS_ELEMENTAL_EMBEDDED @MADNESS_HAS_ELEMENTAL_EMBEDDED@)
 set(ELEMENTAL_FOUND @ELEMENTAL_FOUND@)
 
-if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
-  # In build tree
-  
+set(Madness_BUILD_INCLUDE_DIRS "${MADNESS_SOURCE_DIR}/src" "${MADNESS_BINARY_DIR}/src")
+set(Madness_INSTALL_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
+      "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madness/external")
+
+if(MADNESS_HAS_ELEMENTAL_EMBEDDED)
   set(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
   set(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
-  
-  set(Madness_INCLUDE_DIRS "${MADNESS_SOURCE_DIR}/src" "${MADNESS_BINARY_DIR}/src")
-  if(MADNESS_HAS_ELEMENTAL_EMBEDDED)
-    list(APPEND Madness_INCLUDE_DIRS 
-        "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
-        "${Elemental_SOURCE_DIR}/external/pmrrr/include"
-        "${Elemental_BINARY_DIR}/external/pmrrr/include")
-  else()
-    message (FATAL_ERROR "Madness_INCLUDE_DIRS has not been adapted to work with non-embedded Elemental")
-  endif()
+  list(APPEND Madness_BUILD_INCLUDE_DIRS
+      "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
+      "${Elemental_SOURCE_DIR}/external/pmrrr/include"
+      "${Elemental_BINARY_DIR}/external/pmrrr/include")
 else()
-  # In install tree
-  
-  list(APPEND Madness_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
-      "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madness/external")
+  set(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
+  set(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
+  list(APPEND Madness_BUILD_INCLUDE_DIRS
+      "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
+      "${Elemental_SOURCE_DIR}/external/pmrrr/include"
+      "${Elemental_BINARY_DIR}/external/pmrrr/include"
+      "${Elemental_SOURCE_DIR}/external/pmrrr/suite_sparse"
+      "${Elemental_BINARY_DIR}/external/pmrrr/suite_sparse"
+      )
+endif()
+
+# define Madness_INCLUDE_DIRS according to where we are compiling: MADNESS build tree or outside
+# external packages should use Madness_BUILD_INCLUDE_DIRS and Madness_INSTALL_INCLUDE_DIRS directly
+if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
+  set(Madness_INCLUDE_DIRS ${Madness_BUILD_INCLUDE_DIRS})
+else()
+  set(Madness_INCLUDE_DIRS ${Madness_INSTALL_INCLUDE_DIRS})
 endif()
 
 # Set component variables
