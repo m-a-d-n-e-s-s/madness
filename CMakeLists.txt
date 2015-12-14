@@ -31,11 +31,12 @@ set(MADNESS_INSTALL_INCLUDEDIR "include"
     CACHE PATH "MADNESS INCLUDE install directory")
 set(MADNESS_INSTALL_LIBDIR "lib"
     CACHE PATH "MADNESS LIB install directory")
-set(MADNESS_INSTALL_DATADIR "share"
+set(MADNESS_INSTALL_DATADIR "share/madness/${MADNESS_VERSION}/data"
     CACHE PATH "MADNESS DATA install directory")
-set(MADNESS_INSTALL_DOCDIR "${MADNESS_INSTALL_DATADIR}/doc"
+# TODO this matches Automake value, should be adjusted to the convention: share/madness/${MADNESS_VERSION}/doc
+set(MADNESS_INSTALL_DOCDIR "share/doc/madness"
     CACHE PATH "MADNESS DOC install directory")
-set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/MADNESS"
+set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
     CACHE PATH "MADNESS CMAKE install directory")
 
 # Enable optional libraries ====================================================
