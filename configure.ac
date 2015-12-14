@@ -362,10 +362,8 @@ AC_ARG_ENABLE([bsend-ack],
             ])
 
 # Set the MPI thread level used by MADNESS
-MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED
-if test X$MADNESS_HAS_ELEMENTAL = X1; then
-  MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE
-fi
+# the default is not MPI_THREAD_MULTIPLE
+MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE
 AC_ARG_WITH([mpi-thread],
             [AC_HELP_STRING([--with-mpi-thread], [Thread level for MPI (multiple,serialized)])],
             [
