@@ -8,8 +8,8 @@ noinst_PROGRAMS = testxc plotxc test_SCFOperators test_dft
 
 lib_LTLIBRARIES = libMADchem.la
 
-data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
-dist_data_DATA = $(data_DATA)
+chemdatadir=$(pkgdatadir)/$(PACKAGE_VERSION)/data
+dist_chemdata_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 
 TESTS = test_SCFOperators test_dft # testxc 
 

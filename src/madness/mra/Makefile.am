@@ -35,9 +35,8 @@ noinst_PROGRAMS =  testperiodic.mpi testbc.mpi testproj.mpi testqm test6 \
                    testdiff1D.mpi testdiff2D.mpi testdiff3D.mpi $(TESTS)
 lib_LTLIBRARIES = libMADmra.la
 
-
-data_DATA = autocorr coeffs gaussleg
-dist_data_DATA = $(data_DATA)
+mradatadir=${pkgdatadir}/$(PACKAGE_VERSION)/data
+dist_mradata_DATA = autocorr coeffs gaussleg
 
 thisincludedir = $(includedir)/madness/mra
 thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  vmra.h \
