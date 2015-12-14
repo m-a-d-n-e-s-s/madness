@@ -4,7 +4,8 @@ add_subdirectory(gtest)
 add_subdirectory(muParser)
 add_subdirectory(tinyxml)
 
-if(ENABLE_ELEMENTAL)
+# if want embedded elemental ...
+if(ENABLE_ELEMENTAL_EMBEDDED)
 
   # Note: Here we are changing the build configuration of for Elemental since it
   # requires [Hybrid|Pure][Debug|Release] as the build configuratino. This
@@ -43,7 +44,8 @@ if(ENABLE_ELEMENTAL)
       CACHE STRING "Specifies the build type on single-configuration generators" FORCE) 
 
   set(MADNESS_HAS_ELEMENTAL 1)
-  set(ELEMENTAL_FOUND TRUE)
+  set(MADNESS_HAS_ELEMENTAL_EMBEDDED 1)
+  set(ELEMENTAL_FOUND 1)
   
   # Add a component install target for elemental 
   add_custom_target(install-elemental
@@ -52,4 +54,4 @@ if(ENABLE_ELEMENTAL)
   add_dependencies(install-elemental elemental)
   
   list(APPEND MADNESS_EXPORT_TARGETS elemental pmrrr)
-endif()
+endif(ENABLE_ELEMENTAL_EMBEDDED)

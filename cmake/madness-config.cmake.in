@@ -24,7 +24,9 @@ set(MADNESS_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
 set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
 
 # Set Elemental variables
-set(ENABLE_ELEMENTAL @ENABLE_ELEMENTAL@)
+set(MADNESS_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
+set(MADNESS_HAS_ELEMENTAL_EMBEDDED @MADNESS_HAS_ELEMENTAL_EMBEDDED@)
+set(ELEMENTAL_FOUND @ELEMENTAL_FOUND@)
 
 if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
   # In build tree
@@ -33,11 +35,13 @@ if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
   set(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
   
   set(Madness_INCLUDE_DIRS "${MADNESS_SOURCE_DIR}/src" "${MADNESS_BINARY_DIR}/src")
-  if(ENABLE_ELEMENTAL)
+  if(MADNESS_HAS_ELEMENTAL_EMBEDDED)
     list(APPEND Madness_INCLUDE_DIRS 
         "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
         "${Elemental_SOURCE_DIR}/external/pmrrr/include"
         "${Elemental_BINARY_DIR}/external/pmrrr/include")
+  else()
+    message (FATAL_ERROR "Madness_INCLUDE_DIRS has not been adapted to work with non-embedded Elemental")
   endif()
 else()
   # In install tree

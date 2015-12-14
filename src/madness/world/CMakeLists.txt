@@ -21,12 +21,12 @@ set(MADWORLD_SOURCES
     group.cc)
 
 # Create the MADworld-obj and MADworld library targets
-add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;elemental" "madness/world/")
+add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACKAGE_NAME}" "madness/world/")
 
 # Set the dependencies for the MADworld library
 #target_compile_definitions(MADworld PUBLIC "-DMADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\"")
-if(ENABLE_ELEMENTAL)
-  target_link_libraries(MADworld PUBLIC elemental)
+if(ELEMENTAL_FOUND)
+  target_link_libraries(MADworld PUBLIC ${ELEMENTAL_PACKAGE_NAME})
 endif()
 if(PAPI_FOUND)
   target_include_directories(MADworld PUBLIC ${PAPI_INCLUDE_DIRS})

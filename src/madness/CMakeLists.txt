@@ -3,10 +3,14 @@
 # Add source subdirectories
 add_subdirectory(external)
 
-if(ENABLE_ELEMENTAL)
+if (MADNESS_HAS_ELEMENTAL_EMBEDDED)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/elemental/include
       ${CMAKE_CURRENT_BINARY_DIR}/elemental/include)
-endif()
+elseif (MADNESS_HAS_ELEMENTAL)
+  include_directories(${ELEMENTAL_SOURCE_DIR}/include
+      ${ELEMENTAL_SOURCE_DIR}/external/suite_sparse/include
+      ${ELEMENTAL_BINARY_DIR}/include)
+endif ()
 
 add_subdirectory(world)
 add_subdirectory(misc)
@@ -27,8 +31,8 @@ endif()
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   target_link_libraries(madness PUBLIC "-Wl,-no_pie")
 endif()
-if(ENABLE_ELEMENTAL)
-  target_link_libraries(madness PUBLIC elemental)
+if(ELEMENTAL_FOUND)
+  target_link_libraries(madness PUBLIC ${ELEMENTAL_PACKAGE_NAME})
 endif()
 if(PAPI_FOUND)
   target_include_directories(madness PUBLIC ${PAPI_INCLUDE_DIRS})

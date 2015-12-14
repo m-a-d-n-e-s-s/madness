@@ -60,7 +60,6 @@ are optional, and it is typically not necessary to specify these variables.
 
 The following CMake cache variables turn MADNESS features on and off.
 
-* ENABLE_ELEMENTAL --- Enable Elemental [default=OFF]
 * ENABLE_GENTENSOR --- Enable generic tensors; only useful if need
                        compressed 6-d tensors, e.g. in MP2 [default=OFF]
 * ENABLE_TASK_PROFILER - Enable task profiler that collects per-task start and 
@@ -163,3 +162,17 @@ Performance Application Programming Interface (PAPI):
 * PAPI_ROOT_DIR --- The install prefix for PAPI.
 * PAPI_INCLUDE_DIR --- The path to the PAPI include directory.
 * PAPI_LIBRARY --- The path to the PAPI library directory.
+
+Elemental parallel linear algebra library:
+
+Elemental provides optional distributed-memory linear algebra for some MADNESS application codes.
+MADNESS source includes (modified) Elemental v0.84, which has been validated to work with
+the few MADNESS apps that can use Elemental. You can instruct MADNESS to download and compile
+a more recent version of Elemental, if desired, but the apps will not use Elemental then.
+Such bundling is currently necessary if your code uses the MADworld runtime AND Elemental because
+madness::initialize will call El::initialize() .
+
+* ENABLE_ELEMENTAL --- Enable Elemental [default=OFF].
+* ELEMENTAL_TAG --- specifies the version of Elemental to be downloaded, compiled, and installed alongside
+                    MADNESS (numerical codes of MADNESS will not use Elemental).
+                    If not set, will use the included Elemental source.

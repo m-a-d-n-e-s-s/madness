@@ -48,20 +48,32 @@ option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
 option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
 option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
-option(ENABLE_ELEMENTAL "Enable Elemental library for distributed-memory linear algebra" OFF)
 option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 
+option(ENABLE_ELEMENTAL "Enable Elemental library for distributed-memory linear algebra" OFF)
+if (DEFINED ELEMENTAL_TAG)
+  if("${ELEMENTAL_TAG}" STREQUAL "")
+    message(FATAL_ERROR "Invalid value given for ELEMENTAL_TAG; specify a valid hash or tag.")
+  endif()
+  message(STATUS "Will compile Elemental source (tag=${ELEMENTAL_TAG}) in the build directory")
+  set(ENABLE_EMBEDDED_ELEMENTAL OFF)
+else (DEFINED ELEMENTAL_TAG)
+  message(STATUS "Will use the embedded Elemental source(tag=v0.84)")
+  set(ENABLE_EMBEDDED_ELEMENTAL ON)
+endif (DEFINED ELEMENTAL_TAG)
+add_feature_info(Elemental ENABLE_ELEMENTAL "compiles parallel linear-algebra library Elemental as part of MADNESS")
+
 # Configure options ============================================================
 
 option(ENABLE_GENTENSOR "Enable generic tensor support" OFF)
-add_feature_info(GENTENSOR ENABLE_GENTENSOR "Enables use of MRA Function compression that allows computing in 6 dimensions")
+add_feature_info(GENTENSOR ENABLE_GENTENSOR "enables use of MRA Function compression that allows computing in 6 dimensions")
 
 if(ENABLE_GENTENSOR)
   add_definitions(-DUSE_GENTENSOR)
 endif()
-set(TENSOR_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL "Enable generic tensors")
+set(TENSOR_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL "enable generic tensors")
 
 option(ENABLE_TASK_PROFILER
     "Enable task profiler that collects per-task start and stop times." OFF)
@@ -118,11 +130,11 @@ add_feature_info(UNITTESTS ENABLE_UNITTESTS
     "Enables unit tests targets")
 
 set(FORTRAN_INTEGER_SIZE 4 CACHE STRING "The fortran integer size (4 or 8 bytes) used for BLAS and LAPACK function calls")
-add_feature_info(FORTRAN_INTEGER_SIZE FORTRAN_INTEGER_SIZE "assumes Fortran integers to be ${FORTRAN_INTEGER_SIZE} bytes long")
 if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))
   message(FATAL_ERROR "Incorrect fortran integer size '${FORTRAN_INTEGER_SIZE}'\n"
                        "FORTRAN_INTEGER_SIZE must be equal to 4 or 8")
 endif()
+add_feature_info("FORTRAN_INTEGER_SIZE=${FORTRAN_INTEGER_SIZE}" TRUE "assumes Fortran integers to be ${FORTRAN_INTEGER_SIZE} bytes long")
 
 set(ASSERTION_TYPE "throw" CACHE STRING "Define MADNESS assertion behavior (abort|assert|disable|throw)")
 if(ASSERTION_TYPE STREQUAL "abort")
@@ -139,6 +151,7 @@ else()
   set(MADNESS_ASSERTIONS_THROW 1)
 endif()
 message(STATUS "Assertion type: ${ASSERTION_TYPE}")
+add_feature_info("ASSERTION_TYPE=${ASSERTION_TYPE}" TRUE "controls how MADNESS assetions are handled")
 
 set(MPI_THREAD "multiple" CACHE STRING "Thread level for MPI (multiple|serialized)")
 if(MPI_THREAD STREQUAL "multiple")
@@ -148,6 +161,7 @@ elseif(MPI_THREAD STREQUAL "serialized")
 else()
   message(FATAL_ERROR "Invalid value for MPI_THREAD '${MPI_THREAD}'; valid valuse are 'multiple' or 'serialized'")
 endif()
+add_feature_info("MPI_THREAD=${MPI_THREAD}" TRUE "controls the level of thread-safety support in MPI")
 
 # Enable support for shared libraries ==========================================
 
@@ -436,7 +450,7 @@ endif()
 find_package(PythonInterp)
 
 # Check for external dependencies ==============================================
-
+add_custom_target(External)
 include(external/pthread.cmake)
 include(external/mpi.cmake)
 include(external/papi.cmake)
@@ -445,7 +459,9 @@ include(external/libxc.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
-#include(external/elemental.cmake)
+if (DEFINED ELEMENTAL_TAG)
+  include(external/elemental.cmake)
+endif (DEFINED ELEMENTAL_TAG)
 
 # Add project subdirectories ===================================================
 

@@ -34,9 +34,10 @@ endif()
 # Source lists for MADlinalg
 set(MADLINALG_HEADERS cblas.h tensor_lapack.h clapack.h  lapack_functions.h solvers.h)
 set(MADLINALG_SOURCES lapack.cc solvers.cc)
-if(ELEMENTAL_FOUND)
+# elem.h && elem.cc have not been adapted to recent Elemental yet
+if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
   list(APPEND MADLINALG_HEADERS elem.h)
-  list(APPEND MADLINALG_SOURCE  elem.cc)
+  list(APPEND MADLINALG_SOURCES elem.cc)
 endif()
 
 # Create MADtensor and MADlinalg libraries
@@ -60,6 +61,9 @@ elseif(HAVE_IBMBGP)
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests
       COMMENT "Building libMADMTXM.a")
   target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
+endif()
+if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
+  target_link_libraries(MADlinalg PUBLIC ${ELEMENTAL_PACKAGE_NAME})
 endif()
 
 # Add unit tests
