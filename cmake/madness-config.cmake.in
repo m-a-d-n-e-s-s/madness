@@ -6,6 +6,15 @@
 #  MADNESS_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
 #  MADNESS_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
 #  MADNESS_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls 
+#
+# Additionally MADNESS exports the following variables from its dependent packages:
+# = MPI =
+#    MPIEXEC                    Executable for running MPI programs
+#    MPIEXEC_NUMPROC_FLAG       Flag to pass to MPIEXEC before giving
+#                               it the number of processors to run on
+#    MPIEXEC_PREFLAGS           Flags to pass to MPIEXEC directly
+#                               before the executable to run.
+#    MPIEXEC_POSTFLAGS          Flags to pass to MPIEXEC after other flags
 
 # Set package version
 set(MADNESS_VERSION "@MADNESS_VERSION@")
@@ -20,8 +29,8 @@ endif()
 # Set the madness libraries target
 set(MADNESS_LIBRARIES madness)
 
-set(MADNESS_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
-set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
+set_and_check(MADNESS_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
+set_and_check(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
 
 # Set Elemental variables
 set(MADNESS_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
@@ -33,15 +42,15 @@ set(MADNESS_INSTALL_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
 
 if (MADNESS_HAS_ELEMENTAL)
   if(MADNESS_HAS_ELEMENTAL_EMBEDDED)
-    set(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
-    set(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
+    set_and_check(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
+    set_and_check(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
     list(APPEND MADNESS_BUILD_INCLUDE_DIRS
         "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
         "${Elemental_SOURCE_DIR}/external/pmrrr/include"
         "${Elemental_BINARY_DIR}/external/pmrrr/include")
   else(MADNESS_HAS_ELEMENTAL_EMBEDDED)
-    set(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
-    set(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
+    set_and_check(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
+    set_and_check(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
     list(APPEND MADNESS_BUILD_INCLUDE_DIRS
         "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
         "${Elemental_SOURCE_DIR}/external/pmrrr/include"
@@ -77,3 +86,9 @@ set(MADNESS_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
 check_required_components(MADNESS)
 
 set(MADNESS_FOUND TRUE)
+
+########### MPI ############
+set(MPIEXEC @MPIEXEC@)
+set(MPIEXEC_NUMPROC_FLAG @MPIEXEC_NUMPROC_FLAG@)
+set(MPIEXEC_PREFLAGS @MPIEXEC_PREFLAGS@)
+set(MPIEXEC_POSTFLAGS @MPIEXEC_POSTFLAGS@)
