@@ -35,7 +35,7 @@ set(MADNESS_INSTALL_DATADIR "share"
     CACHE PATH "MADNESS DATA install directory")
 set(MADNESS_INSTALL_DOCDIR "${MADNESS_INSTALL_DATADIR}/doc"
     CACHE PATH "MADNESS DOC install directory")
-set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/Madness"
+set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/MADNESS"
     CACHE PATH "MADNESS CMAKE install directory")
 
 # Enable optional libraries ====================================================
