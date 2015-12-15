@@ -135,6 +135,7 @@ public:
 	double solve();
 	bool solve_CCS();
 	/// solve the MP2 equations (uncoupled -> Canonical Orbitals)
+	double solve_MP2_alternative(Pairs<CC_Pair> &pairs)const;
 	double solve_uncoupled_mp2(Pairs<CC_Pair> &u)const;
 	/// solve the coupled CC2 equations
 	double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau);
@@ -154,7 +155,8 @@ public:
 	void iterate_singles(vecfuncT &singles, const Pairs<real_function_6d> &doubles)const;
 	/// Iterates the CC2 doubles equations
 	void iterate_doubles(const vecfuncT &singles, Pairs<real_function_6d> &doubles)const;
-
+	/// Iterates a pair of the CC2 doubles equations
+	bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles)const;
 	/// Create formated output, std output with world rank 0
 	void output(const std::string &msg)const{
 		if(world.rank()==0) std::cout << msg << "\n";

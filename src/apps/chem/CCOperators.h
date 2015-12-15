@@ -14,7 +14,7 @@
 #include <chem/CCStructures.h>
 #include <chem/projector.h>
 #include <chem/nemo.h>
-//#include <string>
+//#include <string>o
 
 // to debug
 //#include<chem/mp2.h>
@@ -413,9 +413,6 @@ public:
 		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S4b_));
 		result = add(world,result,potential_singles(doubles_wrapper,singles,pot_S4c_));
 
-		// END THIS TEST (REMEBER TO CHANGE ALSO IN potential_singles function (include 3D parts again)
-
-
 		Q(result);
 		truncate(world,result);
 		// The Sign needs to be changed because:
@@ -557,7 +554,7 @@ public:
 	/// Genereal function which evaluates a CC_singles potential
 	vecfuncT potential_singles(const Pairs<CC_Pair> u, const CC_vecfunction & singles , const potentialtype_s &name) const {
 		output_section("Now doing Singles Potential " + assign_name(name));
-		MADNESS_ASSERT(singles.functions.size()==mo_ket_.size()-parameters.freeze);
+		if(singles.functions.size()!=mo_ket_.size()-parameters.freeze) warning("Somethings wrong: Size of singles unequal to size of orbitals minus freeze parameter");
 		CC_Timer timer(world,assign_name(name));
 		CC_data data(name);
 		vecfuncT result;
@@ -619,7 +616,8 @@ public:
 		data.info();
 		performance_S.insert(data.name,data);
 		if(minus_sign) scale(world,result,-1.0);
-		MADNESS_ASSERT(result.size()==mo_ket_.size()-parameters.freeze);
+		if(result.size()!=mo_ket_.size()-parameters.freeze) warning("Somethings wrong: Size of singles-potential unequal to size of orbitals minus freeze parameter");
+		print_size(world,result,assign_name(name));
 		return result;
 	}
 
@@ -851,12 +849,11 @@ public:
 	/// Make the CC2 Residue which is:  Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\tau i>+|i>
 	// @param[in] \tau_i which will create the |t_i> = |\tau_i>+|i> intermediate
 	// @param[in] \tau_j
-	// @param[in] u, the uij pair structure which holds the consant part of MP2
 	/// \todo Parameter descriptions.
 	/// @return Equation: \f$ Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj> \f$  with \f$ |ti> = |\tau i>+|i> \f$
 	/// Right now Calculated in the decomposed form: \f$ |titj> = |i,j> + |\tau i,\tau j> + |i,\tau j> + |\tau i,j> \f$
 	/// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
-	real_function_6d make_cc2_residue(const CC_function &taui, const CC_function &tauj, const CC_Pair &u)const;
+	real_function_6d make_cc2_residue(const CC_function &taui, const CC_function &tauj)const;
 
 
 

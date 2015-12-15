@@ -15,6 +15,7 @@ CIS_Operators::CIS_Operators(World&world, const Nemo &nemo, const vecfuncT &mos)
 		xcoperator(world,&nemo),
 		use_nuclear_correlation_factor_(true),
 		mo_ket_(mos),
+		orbital_energies_(nemo.get_calc()->aeps),
 		R2(init_R2(nemo))
 				{
 	if (nemo.nuclear_correlation->type()
@@ -230,18 +231,14 @@ Tensor<double> CIS_Operators::get_matrix_kinetic(const std::vector<vecfuncT> &x)
 	for (size_t axis = 0; axis < 3; axis++) {
 		// make all gradients
 		std::vector<vecfuncT> dx, dR2x;
-		size_t i = 0;
 		for (auto xi : x) {
 			const vecfuncT dxi = apply(world, *(gradop[axis]), xi);
 			dx.push_back(dxi);
 			if (use_nuclear_correlation_factor_) {
 				const vecfuncT dR2xi = apply(world, *(gradop[axis]),
 						mul(world, R2, xi));
-				plot_plane(world, dR2xi.back(),
-						"R2xi" + stringify(i) + "_" + stringify(axis));
 				dR2x.push_back(dR2xi);
 			}
-			i++;
 		}
 		for (size_t i = 0; i < x.size(); i++) {
 			for (size_t j = 0; j < x.size(); j++) {

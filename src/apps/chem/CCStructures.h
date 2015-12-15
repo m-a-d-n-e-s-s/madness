@@ -425,20 +425,20 @@ public:
 	CC_Pair() :
 		i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
 				uninitialized()), ij_gQf_ij(uninitialized()), ji_gQf_ij(
-						uninitialized()), iteration(0), converged(false), current_error(uninitialized()) {
+						uninitialized()), iteration(0), converged(false), current_error(uninitialized()), epsilon(uninitialized()){
 	}
 
 	/// ctor; initialize energies with a large number
 	CC_Pair(const int i, const int j) :
 		i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
-						false), current_error(uninitialized()) {
+						false), current_error(uninitialized()),epsilon(uninitialized()){
 	}
 	/// ctor; initialize energies with a large number
 	CC_Pair(const real_function_6d &f,const int i, const int j) :
 		i(i), j(j),function(f), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
 				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
-						false), current_error(uninitialized()) {
+						false), current_error(uninitialized()),epsilon(uninitialized()) {
 	}
 
 	/// print the pair's energy
@@ -458,6 +458,8 @@ public:
 			if(function.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||u||    : " << function.norm2() << std::endl;
 			if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " << constant_term.norm2() << std::endl;
 			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|  : " << current_error << std::endl;
+			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " << current_energy << std::endl;
+			if(epsilon == uninitialized()) std::cout << "WARNING: BSH-epsilon is not initialized" << std::endl;
 		}
 	}
 
@@ -483,6 +485,8 @@ public:
 	bool converged;					///< is the pair function converged
 
 	double current_error;			///< error of the last iteration: ||function_old - function||_L2
+	double current_energy = uninitialized(); /// < the correlation energy of the last iteration
+	double epsilon;					///< the summed up orbital energies corresponding to the pair function indices: epsilon_i + epsilon_j
 
 	/// serialize this CC_Pair
 
@@ -585,13 +589,13 @@ struct CC_function{
 	}
 	std::string name()const{
 		if(type==HOLE){
-			return "phi_"+stringify(i);
+			return "phi"+stringify(i);
 		}else if(type==PARTICLE){
-			return "tau_"+stringify(i);
+			return "tau"+stringify(i);
 		}else if(type==MIXED){
-			return "t_"+stringify(i);
+			return "t"+stringify(i);
 		}else{
-			return "function_"+stringify(i);
+			return "function"+stringify(i);
 		}
 	}
 	double inner(const CC_function &f)const{

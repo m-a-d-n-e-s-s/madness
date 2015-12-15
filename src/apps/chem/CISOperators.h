@@ -73,12 +73,72 @@ public:
 		plot_plane(world,applied_fxc.back(),"fxc_x_homo");
 		Q(applied_fxc);
 		END_TIMER("applied fxc");
-		return add(world,KS_residue_closed_shell(x),add(world,S3CC,fxc));
+		vecfuncT KSx= KS_residue_closed_shell(x);
+		vecfuncT tda_pot = add(world,S3CC,applied_fxc);
+		vecfuncT result = add(world,KSx,tda_pot);
+		plot_plane(world,KSx.back(),"KS_residue_xhomo");
+		plot_plane(world,result.back(),"smooth_potential_inops_homo");
+		return result;
 	}
 
+	// Test TDA potential
+	void test_tda(const bool dft,const Nemo &nemo)const{
+		// F|phi_i> = epsilon_i|phi_i> ?
+		vecfuncT mo = copy(world,mo_ket_);
+		const double old_thresh = FunctionDefaults<3>::get_thresh();
+		FunctionDefaults<3>::set_thresh(old_thresh*0.1);
+		set_thresh(world,mo,FunctionDefaults<3>::get_thresh());
+		vecfuncT V = get_SCF_potential(mo,dft);
+		// make <i|T|i>
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop =gradient_operator<double, 3>(world);
+		std::vector<double> T(mo.size());
+		for(size_t i=0;i<mo.size();i++){
+			double Ti=0.0;
+			for(size_t x=0;x<3;x++){
+				real_function_3d grad_ket  = (*gradop[x])(mo[i]);
+				real_function_3d grad_bra  = (*gradop[x])(mo[i]*nemo.nuclear_correlation -> square());
+				Ti += 0.5*grad_ket.inner(grad_bra);
+			}
+			T[i]=Ti;
+		}
+		// nuclear potential
+		vecfuncT Ux;
+		{
+			Nuclear U(world,&nemo);
+			Ux = U(mo);
+			truncate(world,Ux);
+		}
+		V = add(world,V,Ux);
+
+		std::vector<vecfuncT> tmp(1,mo);
+		std::cout << "Kinetik1\n" << get_matrix_kinetic(tmp);
+		std::cout << "\nKinetik2\n" << T << std::endl;
+		std::vector<double> eps(mo_ket_.size());
+		for(size_t i=0;i<eps.size();i++){
+			eps[i] = T[i] + (mo[i]*nemo.nuclear_correlation->square()).inner(V[i]);
+		}
+
+		std::cout << "Test SCF results:\n";
+		std::cout << eps << std::endl;
+
+		std::cout << "\n\n comparison with moldft\n\n";
+		for(size_t i=0;i<eps.size();i++){
+			std::cout << eps[i] << " | " << orbital_energies_(i) << " | difference = " << eps[i]-orbital_energies_(i)  <<  std::endl;
+		}
+		FunctionDefaults<3>::set_thresh(old_thresh);
+	}
+
+
 	// Closed Shell potential for Virtuals (or SCF MOs)
-	vecfuncT get_SCF_potential(const vecfuncT &x) const {
-		return fock_residue_closed_shell(x);
+	vecfuncT get_SCF_potential(const vecfuncT &x, const bool dft) const {
+		if(dft){
+			std::cout << " Making KS residue\n ";
+			return KS_residue_closed_shell(x);
+		}
+		else{
+			std::cout << " Making HF residue\n ";
+			return fock_residue_closed_shell(x);
+		}
 	}
 
 	// get the ground state density
@@ -98,7 +158,10 @@ public:
 			ket[i].refine();
 			density += bra[i]*ket[i];
 		}
-		if(use_nuclear_correlation_factor_) density = density*R2;
+		if(use_nuclear_correlation_factor_){
+			std::cout << "Making Density*R2" << std::endl;
+			density = density*R2;
+		}
 		return density;
 	}
 
@@ -158,6 +221,7 @@ private:
 	XCOperator xcoperator;
 	bool use_nuclear_correlation_factor_;
 	vecfuncT mo_bra_, mo_ket_;
+	Tensor<double> orbital_energies_;
 	/// The squared nuclear correlation factor and its derivative;
 	const real_function_3d R2;
 	vecfuncT dR2;

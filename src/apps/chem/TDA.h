@@ -455,7 +455,7 @@ public:
 		// The highest possible excitation (-homo_energy)
 		double highest_excitation_default = -orbital_energies_(noct-1);
 		highest_excitation_ = highest_excitation_default;
-		ipot_ = -orbital_energies_(noct-1)*2.0;
+		ipot_ = -orbital_energies_(noct-1)*1.2;
 
 
 		// The guessed lowest excitation (if no guess_omega_ is in the input)
@@ -522,7 +522,7 @@ public:
 		}
 
 		// make potential shift = -ipot - homo
-		if(dft_) shift_= -ipot_ - orbital_energies_[noct-1];
+		if(dft_ and ipot_>0.0) shift_= -ipot_ - orbital_energies_[noct-1];
 		highest_excitation_=highest_excitation_-shift_;
 
 		if(guess_ =="koala"){
@@ -618,8 +618,11 @@ public:
 				if(active_mo_.size()!=1) std::cout << "\nWARNING: Active MOs are larger than one, for virtuals only one entry in the excitation vector is needed "
 						"-> save time and use the freeze keyword to freeze the rest\n";
 			}
-
 		}
+		std::cout << "TESTING SECTION\n";
+		CCOPS_.test_tda(dft_,nemo_);
+		std::cout << "shift is " << shift_ << std::endl;
+		std::cout << "ipot is " << ipot_ << std::endl;
 	}
 
 	//virtual ~TDA();
