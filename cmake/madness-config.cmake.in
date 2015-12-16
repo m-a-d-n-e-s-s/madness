@@ -8,6 +8,8 @@
 #  MADNESS_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls 
 #
 # Additionally MADNESS exports the following variables from its dependent packages:
+# = LAPACK =
+#    LAPACK_LIBRARIES           Linker *flags* providing LAPACK and its dependents
 # = MPI =
 #    MPIEXEC                    Executable for running MPI programs
 #    MPIEXEC_NUMPROC_FLAG       Flag to pass to MPIEXEC before giving
@@ -64,9 +66,9 @@ endif(MADNESS_HAS_ELEMENTAL)
 # define MADNESS_INCLUDE_DIRS according to where we are compiling: MADNESS build tree or outside
 # external packages should use MADNESS_BUILD_INCLUDE_DIRS and MADNESS_INSTALL_INCLUDE_DIRS directly
 if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
-  set(MADNESS_INCLUDE_DIRS ${MADNESS_BUILD_INCLUDE_DIRS})
+  set(MADNESS_INCLUDE_DIRS "${MADNESS_BUILD_INCLUDE_DIRS}")
 else()
-  set(MADNESS_INCLUDE_DIRS ${MADNESS_INSTALL_INCLUDE_DIRS})
+  set(MADNESS_INCLUDE_DIRS "${MADNESS_INSTALL_INCLUDE_DIRS}")
 endif()
 
 # Set component variables
@@ -86,6 +88,9 @@ set(MADNESS_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
 check_required_components(MADNESS)
 
 set(MADNESS_FOUND TRUE)
+
+########### LAPACK ############
+set(LAPACK_LIBRARIES "@LAPACK_LIBRARIES@")
 
 ########### MPI ############
 set(MPIEXEC @MPIEXEC@)
