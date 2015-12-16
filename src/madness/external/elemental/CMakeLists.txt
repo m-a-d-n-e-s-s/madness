@@ -280,10 +280,15 @@ elseif(MPI_CXX_LINK_FLAGS)
 elseif(MPI_C_LINK_FLAGS)
   set(MPI_LINK_FLAGS "${MPI_C_LINK_FLAGS}")
 endif()
+target_include_directories(elemental PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+    $<INSTALL_INTERFACE:${MADNESS_INSTALL_INCLUDEDIR}/madness/external>
+  )
 install(TARGETS elemental EXPORT madness
     COMPONENT elemental
     DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external/")
+    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external")
 
 # Define the header-file preparation rules
 set(PREPARED_HEADERS)

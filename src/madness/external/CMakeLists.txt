@@ -59,5 +59,6 @@ if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
       COMMENT "Installing elemental library components")
   add_dependencies(install-elemental elemental)
   
-  list(APPEND MADNESS_EXPORT_TARGETS elemental pmrrr)
+  # elemental target has been added to the list of exported targets in hacked CMakeFiles.txt in elemental subdir
+  
 endif(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)

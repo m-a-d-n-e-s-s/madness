@@ -46,7 +46,7 @@ typedef Convolution1D<double_complex> complex_operatorT;
 
 
 
-static const double Length = 50.0; // box size
+static const double length = 50.0; // box size
 static const long k = 8;        // wavelet order
 static const double thresh = 1e-8; // precision
 
@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
 	FunctionDefaults<3>::set_refine(true);
 	FunctionDefaults<3>::set_initial_level(5);
 	FunctionDefaults<3>::set_truncate_mode(1);
-	FunctionDefaults<3>::set_cubic_cell(-Length/2, Length/2);
+	FunctionDefaults<3>::set_cubic_cell(-length/2, length/2);
 
 	if (world.rank() == 0) print("\n  Solving for the KS aux. wave function\n");
 	functionT Vnuc = real_factory_3d(world).f(V);
@@ -212,10 +212,10 @@ int main(int argc, char** argv) {
 	            coord_3d r(0.0);
 	            /*double av, avrho, avpot;*/
 	            //double dx=0.1;
-	            //int imax=Length/dx;
+	            //int imax=length/dx;
 	            int imax=1024;
 	            for (int i=0; i<=imax; i++) {
-	                r[0] = -Length/2. + Length*i/imax;
+	                r[0] = -length/2. + length*i/imax;
 	                /*av=0.0;avrho=0.0;avpot=0.0;
 			      for (int j=0; j<=imax; j++) {
 			         r[1] = -L/2. + L*j/imax;
