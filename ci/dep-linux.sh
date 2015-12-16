@@ -6,8 +6,10 @@ set -ev
 # Add repository for libxc
 #sudo add-apt-repository ppa:hogliux/misstep -y
 
-# Add repository for a newer version GCC
+# Add PPA for a newer version GCC
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+# Add PPA for newer cmake (3.2.3)
+sudo add-apt-repository ppa:george-edison55/precise-backports -y
 
 # Update package list
 sudo apt-get update -qq
