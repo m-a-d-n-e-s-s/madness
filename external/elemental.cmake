@@ -35,17 +35,11 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
     append_flags(ELEMENTAL_CXXFLAGS "${CMAKE_CXX_FLAGS_${ELEMENTAL_BUILD_TYPE}}")
   endif()
 
-  # Note: Here we are changing the build configuration of for Elemental since it
-  # requires [Hybrid|Pure][Debug|Release] as the build configuratino. This
-  # should not be required if we upgrade Elemental to v0.85.
-  
-  # Set the build type used by Elemental. We use Pure (MPI only/no OpenMP) since
-  # MADNESS threads do not play nice with Elemental threads.
-  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(ELEMENTAL_CMAKE_BUILD_TYPE "PureDebug")
-  else()
-    set(ELEMENTAL_CMAKE_BUILD_TYPE "PureRelease")
-  endif()
+  # Use same build type for Elemental. Assume this is newer Elemental.
+  # Older El required decorated build types (PureRelease, HybridDebug, etc.)
+  if (NOT DEFINED ELEMENTAL_CMAKE_BUILD_TYPE)
+    set(ELEMENTAL_CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+  endif (NOT DEFINED ELEMENTAL_CMAKE_BUILD_TYPE)
   
   # Set the configuration variables used by elemental
   if((ENABLE_SPINLOCKS OR NOT ENABLE_NEVER_SPIN) AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
