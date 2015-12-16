@@ -472,8 +472,6 @@ include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
 
-set (MADNESS_HAS_ELEMENTAL 0)
-set (MADNESS_HAS_ELEMENTAL_EMBEDDED 0)
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
 endif (DEFINED ELEMENTAL_TAG)
