@@ -1667,7 +1667,8 @@ namespace madness {
     }
 
 
-    /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
+    /// Factory function generating separated kernel for convolution a normalized
+    /// Gaussian (aka a widened delta function)
     static inline SeparatedConvolution<double,3> SmoothingOperator3D(World& world,
             double eps,
             const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
@@ -1679,6 +1680,21 @@ namespace madness {
         coeffs(0L)=pow(exponent/M_PI,0.5*3.0);  // norm of the gaussian
         return SeparatedConvolution<double,3>(world, coeffs, exponents);
 
+    }
+
+    /// Factory function generating separated kernel for convolution a normalized
+    /// Gaussian (aka a widened delta function)
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double,NDIM> SmoothingOperator(World& world,
+            double eps,
+            const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+            int k=FunctionDefaults<NDIM>::get_k()) {
+
+        double exponent = 1.0/(2.0*eps);
+        Tensor<double> coeffs(1), exponents(1);
+        exponents(0L) =  exponent;
+        coeffs(0L)=pow(exponent/M_PI,0.5*NDIM);  // norm of the gaussian
+        return SeparatedConvolution<double,NDIM>(world, coeffs, exponents);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D

@@ -105,6 +105,38 @@ template class Kinetic<double,4>;
 template class Kinetic<double,5>;
 template class Kinetic<double,6>;
 
+
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM> >
+Laplacian<T,NDIM>::operator()(const std::vector<Function<T,NDIM> >& vket) const {
+
+    refine(world,vket);     // for better accuracy
+    vecfuncT result=zero_functions_compressed<T,NDIM>(world,vket.size());
+    SeparatedConvolution<T,NDIM> smooth=SmoothingOperator<NDIM>(world,eps);
+
+
+    for (int idim=0; idim<NDIM; ++idim) {
+        vecfuncT dvket=apply(world,*gradop[idim].get(),vket);
+        refine(world,dvket);
+        if (eps>0.0) dvket=apply(world,smooth,dvket);
+        vecfuncT ddvket=apply(world,*gradop[idim].get(),dvket);
+        result=add(world,result,ddvket);
+    }
+
+    if (eps>0.0) result=apply(world,smooth,result);
+
+    return result;
+}
+
+// explicit instantiation
+template class Laplacian<double,1>;
+template class Laplacian<double,2>;
+template class Laplacian<double,3>;
+template class Laplacian<double,4>;
+template class Laplacian<double,5>;
+template class Laplacian<double,6>;
+
+
 Coulomb::Coulomb(World& world, const Nemo* nemo) : world(world),
         R_square(nemo->R_square) {
     vcoul=compute_potential(nemo);

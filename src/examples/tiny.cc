@@ -227,7 +227,7 @@ int main(int argc, char** argv) {
 		print("");
 	}
 
-	dostuff(world);
+//	dostuff(world);
 
     try {
         static const size_t NDIM=3;

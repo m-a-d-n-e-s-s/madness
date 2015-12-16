@@ -202,7 +202,7 @@ public:
 
     /// return the U1 functions in a vector
 	std::vector<real_function_3d> U1vec() const {
-	    std::vector<real_function_3d> uvec;
+	    std::vector<real_function_3d> uvec(3);
 	    uvec[0]=U1_function[0];
         uvec[1]=U1_function[1];
         uvec[2]=U1_function[2];

@@ -48,7 +48,27 @@
 #include <madness/constants.h>
 
 
+
+
 namespace madness {
+
+struct dens_inv{
+
+    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& t,
+            const Tensor<double>& inv) const {
+//        real_tensor U,
+//        const real_tensor& rho) const {
+ITERATOR(U,
+     double d = t(IND);
+     double p = inv(IND);
+         U(IND) = d/p;
+     );
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+
+};
+
 
 double Nemo::value(const Tensor<double>& x) {
 
@@ -109,17 +129,24 @@ double Nemo::value(const Tensor<double>& x) {
 	functionT rho = 2.0*(R_square*make_density(calc->aocc, calc->amo)).truncate();
 	calc->dipole(world,rho);
 
-//	functionT rhonemo=2.0*make_density(calc->aocc,calc->amo);
-//	save(rhonemo,"rhonemo");
-//	save(rho,"rho");
-//	real_function_3d sigma=make_sigma(rhonemo,rhonemo);
-//	save(sigma,"sigmanemo");
-//
-//	real_function_3d dens_pt0=real_factory_3d(world);
-//	load(dens_pt0,"dens_pt0");
-//    real_function_3d sigma_pt=calc->make_sigma(rho,dens_pt0);
-//    save(sigma_pt,"sigma_pt");
 
+	real_function_3d nu_bar=2.0*kinetic_energy_potential(calc->amo); // factor 2 for closed shell
+
+	save(nu_bar,"nu_bar");
+    save(rho,"rho");
+	save(calc->potentialmanager->vnuclear(),"vnuc");
+
+	// Eq. (23)
+	std::vector<real_function_3d> dipole(3);
+	for (int i=0; i<3; ++i) dipole[i]=real_factory_3d(world)
+	        .functor(functorT(new DipoleFunctor(i))).initial_level(4);
+    std::vector<real_function_3d> drho=calc->nabla(rho,true);
+
+	double T2_1=3.0*inner(nu_bar,rho);
+	real_function_3d arg=dot(world,dipole,drho);
+    double T2_2=inner(nu_bar,arg);
+
+    print("kinetic energy from the potential",0.5*(T2_1+T2_2));
 
 	// compute the hessian
 	if (calc->param.hessian) hessian(x);
@@ -625,6 +652,67 @@ real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) c
 
     return result;
 }
+
+
+
+real_function_3d Nemo::kinetic_energy_potential(const vecfuncT& nemo) const {
+
+    const Nuclear U_op(world,this->nuclear_correlation);
+    const Nuclear V_op(world,this->get_calc().get());
+
+    const vecfuncT Vnemo=V_op(nemo);  // eprec is important here!
+    const vecfuncT Unemo=U_op(nemo);
+
+    // nabla^2 nemo
+    Laplacian<double,3> Laplace(world,0.0);
+    vecfuncT laplace_nemo=Laplace(nemo);
+    real_function_3d laplace_sum=sum(world,laplace_nemo);
+    save(laplace_sum,"laplace_sum");
+
+    // result=-2.0*(Unemo-Vnemo)  + laplace_nemo;
+//    vecfuncT tmp=sub(world,Unemo,Vnemo);
+//    vecfuncT tmp=Unemo;
+    vecfuncT tmp=sub(world,Unemo,mul(world,this->nuclear_correlation->U2(),nemo));
+    gaxpy(world,1.0,laplace_nemo,-2.0,tmp);
+    vecfuncT D2Rnemo=mul(world,R,laplace_nemo);
+
+    // double check result: recompute the density from its laplacian
+    vecfuncT nemo_rec=apply(world,*poisson,D2Rnemo);
+    scale(world,nemo_rec,-1./(4.*constants::pi));
+    vecfuncT Rnemo=mul(world,R,nemo);
+    vecfuncT diff=sub(world,Rnemo,nemo_rec);
+    double dnorm=norm2(world,diff);
+    print("dnorm of laplacian phi ",dnorm);
+
+    // compute \sum_i \phi_i \Delta \phi_i
+    real_function_3d phiD2phi=dot(world,Rnemo,D2Rnemo);
+    save(phiD2phi,"phiD2phi");
+
+    // compute \sum_i \phi_i \epsilon_i \phi_i
+    vecfuncT R2nemo=mul(world,R_square,nemo);
+    real_function_3d rho=2.0*dot(world,nemo,R2nemo);
+
+    std::vector<double> eps(nemo.size());
+    for (int i=0; i<eps.size(); ++i) eps[i]=calc->aeps(i);
+    scale(world,R2nemo,eps);
+    real_function_3d phiepsilonphi=dot(world,R2nemo,nemo);
+
+    // divide by the density
+    real_function_3d numerator=-0.5*phiD2phi-phiepsilonphi;
+    real_function_3d nu_bar=binary_op(numerator,rho,dens_inv());
+
+    // smooth the smooth part of the potential
+    SeparatedConvolution<double,3> smooth=SmoothingOperator3D(world,0.001);
+    nu_bar=smooth(nu_bar);
+    save(nu_bar,"nu_bar_bare_smoothed");
+
+    // reintroduce the nuclear potential *after* smoothing
+    real_function_3d uvnuc=0.5*(calc->potentialmanager->vnuclear()-nuclear_correlation->U2());
+    nu_bar=nu_bar-uvnuc;
+
+    return nu_bar;
+}
+
 
 /// compute the reduced densities sigma (gamma) for GGA functionals
 real_function_3d Nemo::make_sigma(const real_function_3d& rho1,

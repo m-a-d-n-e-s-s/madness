@@ -366,6 +366,10 @@ public:
     /// @return     the laplacian of the reconstructed density \Delta (R^2\rho_R)
     real_function_3d make_laplacian_density(const real_function_3d& rhonemo) const;
 
+    /// compute the kinetic energy potential using Eq. (16) of
+    /// R. A. King and N. C. Handy, “Kinetic energy functionals from the Kohn–Sham potential,”
+    /// Phys. Chem. Chem. Phys., vol. 2, no. 22, pp. 5049–5056, 2000.
+    real_function_3d kinetic_energy_potential(const vecfuncT& nemo) const;
 
 
     /// smooth a function by projecting it onto k-1 and then average with k

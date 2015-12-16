@@ -142,6 +142,53 @@ private:
 
 };
 
+
+/// the Laplacian operator: \sum_i \nabla^2_i
+
+/// note that the application of the Laplacian operator is in general
+/// unstable and very sensitive to noise and cusps in the argument.
+///
+/// !!! BE SURE YOU KNOW WHAT YOU ARE DOING !!!
+///
+/// For computing matrix elements, which is reasonably stable, we refer
+template<typename T, std::size_t NDIM>
+class Laplacian {
+    typedef Function<T,NDIM> functionT;
+    typedef std::vector<functionT> vecfuncT;
+    typedef Tensor<T> tensorT;
+
+public:
+
+    Laplacian(World& world, const double e=0.0) : world(world), eps(e) {
+        gradop = gradient_operator<T,NDIM>(world);
+    }
+
+    functionT operator()(const functionT& ket) const {
+        vecfuncT vket(1,ket);
+        return this->operator()(vket)[0];
+    }
+
+    vecfuncT operator()(const vecfuncT& vket) const;
+
+    T operator()(const functionT& bra, const functionT ket) const {
+        vecfuncT vbra(1,bra), vket(1,ket);
+        Tensor<T> tmat=this->operator()(vbra,vket);
+        return tmat(0l,0l);
+    }
+
+    tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        Kinetic<T,NDIM> t(world);
+        return -2.0*t(vbra,vket);
+    }
+
+private:
+    World& world;
+    std::vector< std::shared_ptr< Derivative<T,NDIM> > > gradop;
+    double eps;
+};
+
+
+
 class Coulomb {
 public:
 
