@@ -37,4 +37,9 @@ autoreconf -i
 make -j2
 sudo make install
 
-sudo apt-get install -qq -y cmake libblas-dev liblapack-dev libgoogle-perftools-dev mpich2 libtbb-dev
+# Install CMake 3
+sudo apt-get -y -qq --no-install-suggests --no-install-recommends --force-yes install cmake cmake-data
+cmake --version
+
+# Install the rest
+sudo apt-get install -qq -y libblas-dev liblapack-dev libgoogle-perftools-dev mpich2 libtbb-dev
