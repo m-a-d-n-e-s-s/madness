@@ -9,7 +9,7 @@
 #
 # Additionally MADNESS exports the following variables from its dependent packages:
 # = LAPACK =
-#    LAPACK_LIBRARIES           Linker *flags* providing LAPACK and its dependents
+#    LAPACK_LIBRARIES           Libraries providing LAPACK and its dependents
 # = MPI =
 #    MPIEXEC                    Executable for running MPI programs
 #    MPIEXEC_NUMPROC_FLAG       Flag to pass to MPIEXEC before giving
