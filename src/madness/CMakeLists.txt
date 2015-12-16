@@ -75,7 +75,7 @@ install(TARGETS madness EXPORT madness
     ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
     INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
 install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINARY_DIR}/config.h
-    DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/"
+    DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness"
     COMPONENT common)
 add_custom_target(install-common
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=common -P ${CMAKE_BINARY_DIR}/cmake_install.cmake

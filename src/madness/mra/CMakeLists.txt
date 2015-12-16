@@ -14,7 +14,7 @@ set(MADMRA_SOURCES
     twoscale.cc qmprop.cc)
 
 # Create the MADmra library
-add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra/")
+add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra")
 
 # Create executables
 add_executable(mraplot mraplot.cc)

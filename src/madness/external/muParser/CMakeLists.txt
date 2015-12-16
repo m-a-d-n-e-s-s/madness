@@ -12,4 +12,4 @@ set(MADMUPARSER_SOURCES
     muParserToken.h muParserTokenReader.h)
 
 # Create the MADmuparser library
-add_mad_library(muparser MADMUPARSER_SOURCES MADMUPARSER_HEADERS "dummy" "madness/external/muParser/")
+add_mad_library(muparser MADMUPARSER_SOURCES MADMUPARSER_HEADERS "dummy" "madness/external/muParser")
