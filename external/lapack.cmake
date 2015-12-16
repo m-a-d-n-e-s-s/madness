@@ -74,9 +74,9 @@ cmake_pop_check_state()
 
 # Set the fortran mangling scheme.
 if(LAPACK_WORKS STREQUAL "cheev_")
-  set(FORTRAN_LINKAGE_LC 1)
-elseif(LAPACK_WORKS STREQUAL "cheev")
   set(FORTRAN_LINKAGE_LCU 1)
+elseif(LAPACK_WORKS STREQUAL "cheev")
+  set(FORTRAN_LINKAGE_LC 1)
 elseif(LAPACK_WORKS STREQUAL "cheev__")
   set(FORTRAN_LINKAGE_LCUU 1)
 elseif(LAPACK_WORKS STREQUAL "CHEEV")
