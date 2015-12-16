@@ -43,7 +43,9 @@ if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
   set(CMAKE_BUILD_TYPE ${PUSH_CMAKE_BUILD_TYPE}
       CACHE STRING "Specifies the build type on single-configuration generators" FORCE) 
 
-  set(ELEMENTAL_FOUND 1)
+  set(ELEMENTAL_FOUND 1 PARENT_SCOPE)
+  set(ELEMENTAL_PACKAGE_NAME elemental PARENT_SCOPE)
+  set(HAVE_ELEMENTAL_H ON CACHE INTERNAL "Have elemental.hpp" FORCE)
   
   # Add build-elemental target
   add_custom_target(build-elemental ALL

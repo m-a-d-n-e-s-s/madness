@@ -4,8 +4,8 @@
 add_subdirectory(external)
 
 if (MADNESS_HAS_ELEMENTAL_EMBEDDED)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/elemental/include
-      ${CMAKE_CURRENT_BINARY_DIR}/elemental/include)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/elemental/include
+      ${CMAKE_CURRENT_BINARY_DIR}/external/elemental/include)
 elseif (MADNESS_HAS_ELEMENTAL)
   include_directories(${ELEMENTAL_SOURCE_DIR}/include
       ${ELEMENTAL_SOURCE_DIR}/external/suite_sparse/include
