@@ -47,6 +47,12 @@ if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
   set(MADNESS_HAS_ELEMENTAL_EMBEDDED 1)
   set(ELEMENTAL_FOUND 1)
   
+  # Add build-elemental target
+  add_custom_target(build-elemental ALL
+      COMMAND ${CMAKE_COMMAND} --build . --target elemental
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      COMMENT "Building elemental")
+  
   # Add a component install target for elemental 
   add_custom_target(install-elemental
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=elemental -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
