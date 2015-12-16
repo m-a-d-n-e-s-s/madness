@@ -128,13 +128,13 @@ int main(int argc, char**argv) {
         World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
 
-        test_inner<double,double,3,false>(world);
-        test_inner<double,double,3,true>(world);
+        test_inner<double,double,1,false>(world);
+        test_inner<double,double,1,true>(world);
 #if !HAVE_GENTENSOR
-        test_inner<double,std::complex<double>,3,false>(world);
-        test_inner<std::complex<double>,double,3,false>(world);
-        test_inner<std::complex<double>,std::complex<double>,3,false>(world);
-        test_inner<std::complex<double>,std::complex<double>,3,true>(world);
+        test_inner<double,std::complex<double>,1,false>(world);
+        test_inner<std::complex<double>,double,1,false>(world);
+        test_inner<std::complex<double>,std::complex<double>,1,false>(world);
+        test_inner<std::complex<double>,std::complex<double>,1,true>(world);
 #endif
     }
     catch (const SafeMPI::Exception& e) {
