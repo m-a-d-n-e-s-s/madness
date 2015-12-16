@@ -11,6 +11,8 @@ if(LIBXC_FOUND)
   list(APPEND EXAMPLE_SOURCES hefxc)
 endif()
 
+include_directories(${CMAKE_SOURCE_DIR}/src/apps)
+
 # Create executables for example applications
 foreach(example ${EXAMPLE_SOURCES})
   add_executable(${example} ${example}.cc)
