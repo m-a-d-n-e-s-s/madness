@@ -30,9 +30,17 @@ set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc)
 if(USE_X86_64_ASM OR USE_X86_32_ASM)
   list(APPEND MADTENSOR_SOURCES mtxmq_asm.S)
 endif()
-  
+
+# logically these headers should be part of their own library (MADclapack)
+# however CMake right now does not support a mechanism to properly handle header-only libs.
+# so will keep this a part of MADlinalg, add an install rule for these header only
+# and will remember that these files depend on LAPACK
+#
+# Source lists for MADclapack
+set(MADCLAPACK_HEADERS cblas.h clapack.h)  # this part of MADlinalg is purely independent of MADtensor
+
 # Source lists for MADlinalg
-set(MADLINALG_HEADERS cblas.h tensor_lapack.h clapack.h  lapack_functions.h solvers.h)
+set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h lapack_functions.h solvers.h)
 set(MADLINALG_SOURCES lapack.cc solvers.cc)
 # elem.h && elem.cc have not been adapted to recent Elemental yet
 if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
@@ -40,10 +48,11 @@ if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
   list(APPEND MADLINALG_SOURCES elem.cc)
 endif()
 
-# Create MADtensor and MADlinalg libraries
+# Create libraries MADtensor and MADlinalg
 add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor")
+#add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
-target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES})
+target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
 if(USE_X86_64_ASM)
   target_compile_definitions(MADtensor-obj PRIVATE -DX86_64)
 elseif(USE_X86_32_ASM)
@@ -65,6 +74,14 @@ endif()
 if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
   target_link_libraries(MADlinalg PUBLIC ${ELEMENTAL_PACKAGE_NAME})
 endif()
+
+# add custom target for "installing" MADclapack headers
+install(FILES ${MADCLAPACK_HEADERS}
+        DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/tensor"
+        COMPONENT clapack)
+add_custom_target(install-clapack
+    COMMAND ${CMAKE_COMMAND} -DCOMPONENT=clapack -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+    COMMENT "Installing clapack headers")
 
 # Add unit tests
 if(ENABLE_UNITTESTS)
