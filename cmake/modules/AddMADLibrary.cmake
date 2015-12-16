@@ -10,6 +10,11 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     set_target_properties(MAD${_name}-obj PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
   endif()
     
+  target_include_directories(MAD${_name} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<INSTALL_INTERFACE:${MADNESS_INSTALL_INCLUDEDIR}>
+  )
+  
   # Pass the private MAD${_name} compile flags to MAD${_name}-obj  
   target_compile_definitions(MAD${_name}-obj PRIVATE 
       $<TARGET_PROPERTY:MAD${_name},COMPILE_DEFINITIONS>)
@@ -90,8 +95,8 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   add_dependencies(libraries MAD${_name})
   
   target_include_directories(MAD${_name} INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<INSTALL_INTERFACE:${MADNESS_INSTALL_INCLUDEDIR}/${_include_dir}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<INSTALL_INTERFACE:${MADNESS_INSTALL_INCLUDEDIR}>
   )
   
   # Add library to the list of installed components
