@@ -9,7 +9,7 @@
 
 //#include <chem/nemo.h>
 //#include <madness/mra/mra.h>
-#include "/usr/include/math.h"
+#include <cmath>
 #include "../../madness/mra/derivative.h"
 #include "../../madness/mra/funcdefaults.h"
 #include "../../madness/mra/funcplot.h"

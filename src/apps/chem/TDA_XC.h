@@ -24,7 +24,7 @@
 #include <madness/mra/lbdeux.h>
 #include <madness/misc/ran.h>
 
-#include </usr/include/math.h>       /* pow */
+#include <cmath>       /* pow */
 
 
 

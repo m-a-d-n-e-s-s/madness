@@ -40,7 +40,7 @@
 #include "SCF.h"
 
 //#include <madness/tensor/distributed_matrix.h>
-#include "/usr/include/math.h"
+#include <cmath>
 #include "../../madness/constants.h"
 #include "../../madness/misc/misc.h"
 #include "../../madness/misc/ran.h"
