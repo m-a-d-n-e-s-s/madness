@@ -24,7 +24,7 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_SOURCES "mra" "chem/")
 
 # Add dependencies for MADchem
 target_include_directories(MADworld PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/apps/>)
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/apps/>)
 if(LIBXC_FOUND)
 #  target_include_directories(MADchem PUBLIC ${LIBXC_INCLUDE_DIRS})
   target_link_libraries(MADchem PUBLIC ${LIBXC_LIBRARIES})
