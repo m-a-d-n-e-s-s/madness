@@ -44,7 +44,7 @@ if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
       CACHE STRING "Specifies the build type on single-configuration generators" FORCE) 
 
   set(ELEMENTAL_FOUND 1 PARENT_SCOPE)
-  set(ELEMENTAL_PACKAGE_NAME elemental PARENT_SCOPE)
+  set(ELEMENTAL_PACKAGE_NAME elemental CACHE INTERNAL "Elemental package name (component name is same)" FORCE)
   set(HAVE_ELEMENTAL_H ON CACHE INTERNAL "Have elemental.hpp" FORCE)
   
   # Add build-elemental target
