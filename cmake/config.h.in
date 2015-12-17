@@ -2,6 +2,7 @@
 
 /* Define of package information */
 #define MADNESS_PACKAGE_NAME "@CMAKE_PROJECT_NAME@"
+#define MADNESS_PACKAGE_URL "https://github.com/m-a-d-n-e-s-s/madness"
 #define MADNESS_PACKAGE_VERSION "@MADNESS_VERSION@"
 #define MADNESS_VERSION "@MADNESS_VERSION@"
 #define MADNESS_MAJOR_VERSION @MADNESS_MAJOR_VERSION@
