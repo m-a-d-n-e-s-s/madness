@@ -25,6 +25,8 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
 
 # Set the dependencies for the MADworld library
 #target_compile_definitions(MADworld PUBLIC "-DMADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\"")
+target_include_directories(MADworld PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/>)
 if(ELEMENTAL_FOUND)
   target_link_libraries(MADworld PUBLIC ${ELEMENTAL_PACKAGE_NAME})
 endif()
