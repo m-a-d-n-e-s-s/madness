@@ -126,6 +126,9 @@ namespace madness {
 #include <immintrin.h>
 #include <stdio.h>
 
+    //#define FMA(a,b,c) _mm256_fmadd_pd (a, b, c)
+#define FMA(a,b,c) _mm256_add_pd(_mm256_mul_pd(a, b), c)
+
     template<>
 void mTxmq(long dimi, long dimj, long dimk,
            double * __restrict__ c, const double * __restrict__ a, const double * __restrict__ b) {
@@ -179,24 +182,24 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki1 = _mm256_broadcast_sd(paki+1);
                     
                     bkj = _mm256_loadu_pd(pbkj   );
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
-                    ci1j0 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 4);
-                    ci0j1 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j1);
-                    ci1j1 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j1);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    ci1j1 = FMA(aki1, bkj, ci1j1);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 8);
-                    ci0j2 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j2);
-                    ci1j2 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j2);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                    ci1j2 = FMA(aki1, bkj, ci1j2);
                     
                     bkj = _mm256_loadu_pd(pbkj+12);
-                    ci0j3 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j3);
-                    ci1j3 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j3);
+                    ci0j3 = FMA(aki0, bkj, ci0j3);
+                    ci1j3 = FMA(aki1, bkj, ci1j3);
                     
                     bkj = _mm256_maskload_pd(pbkj+16,mask);
-                    ci0j4 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j4);
-                    ci1j4 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j4);
+                    ci0j4 = FMA(aki0, bkj, ci0j4);
+                    ci1j4 = FMA(aki1, bkj, ci1j4);
                 }
                 _mm256_storeu_pd(c+i*dimj   , ci0j0);
                 _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
@@ -224,19 +227,19 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki0 = _mm256_broadcast_sd(paki);
                     
                     bkj = _mm256_loadu_pd(pbkj   );
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 4);
-                    ci0j1 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j1);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 8);
-                    ci0j2 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j2);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
                     
                     bkj = _mm256_loadu_pd(pbkj+12);
-                    ci0j3 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j3);
+                    ci0j3 = FMA(aki0, bkj, ci0j3);
                     
                     bkj = _mm256_maskload_pd(pbkj+16,mask);
-                    ci0j4 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j4);
+                    ci0j4 = FMA(aki0, bkj, ci0j4);
                 }
                 _mm256_storeu_pd(c+i*dimj   , ci0j0);
                 _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
@@ -274,20 +277,20 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki1 = _mm256_broadcast_sd(paki+1);
                     
                     bkj = _mm256_loadu_pd(pbkj   );
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
-                    ci1j0 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 4);
-                    ci0j1 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j1);
-                    ci1j1 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j1);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    ci1j1 = FMA(aki1, bkj, ci1j1);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 8);
-                    ci0j2 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j2);
-                    ci1j2 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j2);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                    ci1j2 = FMA(aki1, bkj, ci1j2);
                     
                     bkj = _mm256_maskload_pd(pbkj+12,mask);
-                    ci0j3 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j3);
-                    ci1j3 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j3);
+                    ci0j3 = FMA(aki0, bkj, ci0j3);
+                    ci1j3 = FMA(aki1, bkj, ci1j3);
                 }
                 _mm256_storeu_pd(c+i*dimj   , ci0j0);
                 _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
@@ -312,16 +315,16 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki0 = _mm256_broadcast_sd(paki);
                     
                     bkj = _mm256_loadu_pd(pbkj   );
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 4);
-                    ci0j1 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j1);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 8);
-                    ci0j2 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j2);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
                     
                     bkj = _mm256_maskload_pd(pbkj+12,mask);
-                    ci0j3 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j3);
+                    ci0j3 = FMA(aki0, bkj, ci0j3);
                 }
                 _mm256_storeu_pd(c+i*dimj   , ci0j0);
                 _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
@@ -356,16 +359,16 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki1 = _mm256_broadcast_sd(paki+1);
                     
                     bkj = _mm256_loadu_pd(pbkj   );
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
-                    ci1j0 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 4);
-                    ci0j1 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j1);
-                    ci1j1 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j1);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    ci1j1 = FMA(aki1, bkj, ci1j1);
                     
                     bkj = _mm256_maskload_pd(pbkj+8,mask);
-                    ci0j2 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j2);
-                    ci1j2 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j2);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
+                    ci1j2 = FMA(aki1, bkj, ci1j2);
                 }
                 _mm256_storeu_pd(c+i*dimj   , ci0j0);
                 _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
@@ -387,13 +390,13 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki0 = _mm256_broadcast_sd(paki);
                     
                     bkj = _mm256_loadu_pd(pbkj   );
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
                     
                     bkj = _mm256_loadu_pd(pbkj+ 4);
-                    ci0j1 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j1);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
                     
                     bkj = _mm256_maskload_pd(pbkj+8,mask);
-                    ci0j2 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j2);
+                    ci0j2 = FMA(aki0, bkj, ci0j2);
                 }
                 _mm256_storeu_pd(c+i*dimj   , ci0j0);
                 _mm256_storeu_pd(c+i*dimj+ 4, ci0j1);
@@ -424,12 +427,12 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki1 = _mm256_broadcast_sd(paki+1);
                     
                     bkj = _mm256_loadu_pd(pbkj   );
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
-                    ci1j0 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
                     
                     bkj = _mm256_maskload_pd(pbkj+4,mask);
-                    ci0j1 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j1);
-                    ci1j1 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j1);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
+                    ci1j1 = FMA(aki1, bkj, ci1j1);
                 }
                 _mm256_storeu_pd(c+i*dimj   , ci0j0);
                 _mm256_maskstore_pd(c+i*dimj+4, mask, ci0j1); 
@@ -449,10 +452,10 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki0 = _mm256_broadcast_sd(paki);
                     
                     bkj = _mm256_loadu_pd(pbkj   );
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
                     
                     bkj = _mm256_maskload_pd(pbkj+4,mask);
-                    ci0j1 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j1);
+                    ci0j1 = FMA(aki0, bkj, ci0j1);
                 }
                 _mm256_storeu_pd(c+i*dimj   , ci0j0);
                 _mm256_maskstore_pd(c+i*dimj+4, mask, ci0j1); 
@@ -480,8 +483,8 @@ void mTxmq(long dimi, long dimj, long dimk,
                     aki1 = _mm256_broadcast_sd(paki+1);
                     
                     bkj = _mm256_maskload_pd(pbkj, mask);
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
-                    ci1j0 = _mm256_add_pd(_mm256_mul_pd(aki1, bkj), ci1j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
+                    ci1j0 = FMA(aki1, bkj, ci1j0);
                 }
                 _mm256_maskstore_pd(c+i*dimj    , mask, ci0j0);
                 _mm256_maskstore_pd(c+(i+1)*dimj, mask, ci1j0);
@@ -494,7 +497,7 @@ void mTxmq(long dimi, long dimj, long dimk,
                 for (k=0; k<dimk; k++,pbkj+=dimj,paki+=dimi) {
                     aki0 = _mm256_broadcast_sd(paki);
                     bkj = _mm256_maskload_pd(pbkj, mask);
-                    ci0j0 = _mm256_add_pd(_mm256_mul_pd(aki0, bkj), ci0j0);
+                    ci0j0 = FMA(aki0, bkj, ci0j0);
                 }
                 _mm256_maskstore_pd(c+i*dimj    , mask, ci0j0);
             }
