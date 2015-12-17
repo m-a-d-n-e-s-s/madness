@@ -212,8 +212,9 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   # WARNING: should only need to satisfy build-elemental to use El, however its cmake config file
   # is inadequate for using from build tree, hence MUST install even for build tree. Solving here will
   # take far too much effort. Will file an issue.
-  #add_dependencies(El build-elemental)
-  add_dependencies(El install-elemental)
+  #add_dependencies(${ELEMENTAL_PACKAGE_NAME} build-elemental)
+  add_dependencies(${ELEMENTAL_PACKAGE_NAME} install-elemental)
+  add_dependencies(install-elemental build-elemental)
   
   # Set the build variables
   set(ELEMENTAL_INCLUDE_DIRS "${ELEMENTAL_BINARY_DIR}/include")

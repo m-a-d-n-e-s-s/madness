@@ -53,6 +53,9 @@ if (MADNESS_HAS_ELEMENTAL)
   else(MADNESS_HAS_ELEMENTAL_EMBEDDED)
     set_and_check(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
     set_and_check(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
+    set(Elemental_DIR "${Elemental_BINARY_DIR}")
+    find_package(El REQUIRED
+                 COMPONENTS REQUIRED El)
     list(APPEND MADNESS_BUILD_INCLUDE_DIRS
         "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
         "${Elemental_SOURCE_DIR}/external/pmrrr/include"
