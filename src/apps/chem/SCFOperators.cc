@@ -410,7 +410,7 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
 /// custom ctor with information about the XC functional
 XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polarized,
         const real_function_3d& arho, const real_function_3d& brho)
-    : world(world), nbeta(0), ispin(0) {
+    : world(world), nbeta(0), ispin(0), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(xc_data, spin_polarized, world);
     xc_args=prep_xc_args(arho,brho);
@@ -419,7 +419,7 @@ XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polari
 
 
 XCOperator::XCOperator(World& world, const SCF* calc, int ispin) : world(world),
-        ispin(ispin) {
+        ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(calc->param.xc_data, !calc->param.spin_restricted, world);
     nbeta=calc->param.nbeta;
@@ -436,7 +436,7 @@ XCOperator::XCOperator(World& world, const SCF* calc, int ispin) : world(world),
 }
 
 XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world),
-        ispin(ispin) {
+        ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc_data,
             !nemo->get_calc()->param.spin_restricted, world);
@@ -445,10 +445,10 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
     // compute the alpha and beta densities
     real_function_3d arho,brho;
     arho=nemo->make_density(nemo->get_calc()->aocc,nemo->get_calc()->amo);
-    arho=(arho*nemo->R_square).truncate();
+    arho=(arho*nemo->R_square).truncate(extra_truncation);
     if (xc->is_spin_polarized() && nbeta != 0) {
         brho=nemo->make_density(nemo->get_calc()->bocc,nemo->get_calc()->bmo);
-        brho=(brho*nemo->R_square).truncate();
+        brho=(brho*nemo->R_square).truncate(extra_truncation);
     } else {
         brho=arho;
     }
@@ -458,15 +458,16 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
 
 XCOperator::XCOperator(World& world, const SCF* calc, const real_function_3d& arho,
         const real_function_3d& brho, int ispin)
-        : world(world), nbeta(calc->param.nbeta), ispin(ispin) {
+        : world(world), nbeta(calc->param.nbeta), ispin(ispin),
+          extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(calc->param.xc_data, !calc->param.spin_restricted, world);
     xc_args=prep_xc_args(arho,brho);
 }
 
 XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& arho,
-        const real_function_3d& brho, int ispin)
-        : world(world), nbeta(nemo->get_calc()->param.nbeta), ispin(ispin) {
+        const real_function_3d& brho, int ispin) : world(world),
+        nbeta(nemo->get_calc()->param.nbeta), ispin(ispin), extra_truncation(0.01) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc_data,
             not nemo->get_calc()->param.spin_restricted, world);
@@ -693,7 +694,7 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
 
         // assign the reduced densities sigma
         xcargs[XCfunctional::enum_saa]=        // sigma_aa
-                (drhoa_x * drhoa_x + drhoa_y * drhoa_y + drhoa_z * drhoa_z).truncate();
+                (drhoa_x * drhoa_x + drhoa_y * drhoa_y + drhoa_z * drhoa_z);
         if (have_beta) {
 
             // autorefine before squaring
@@ -702,23 +703,22 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
             real_function_3d drhob_z=copy(xcargs[XCfunctional::enum_drhob_z]).refine();
 
             xcargs[XCfunctional::enum_sab]=    // sigma_ab
-                    (drhoa_x * drhob_x + drhoa_y * drhob_y + drhoa_z * drhob_z).truncate();
+                    (drhoa_x * drhob_x + drhoa_y * drhob_y + drhoa_z * drhob_z);
             xcargs[XCfunctional::enum_sbb]=    // sigma_bb
-                    (drhob_x * drhob_x + drhob_y * drhob_y + drhob_z * drhob_z).truncate();
+                    (drhob_x * drhob_x + drhob_y * drhob_y + drhob_z * drhob_z);
 
             // this is needed for proper munging of sigma_ab
-            xcargs[XCfunctional::enum_sigtot]=    // sigma_total
-                    xcargs[XCfunctional::enum_saa]+2.0*xcargs[XCfunctional::enum_sab]+xcargs[XCfunctional::enum_sbb];
+            xcargs[XCfunctional::enum_sigtot]= xcargs[XCfunctional::enum_saa]
+                           +2.0*xcargs[XCfunctional::enum_sab]+xcargs[XCfunctional::enum_sbb];
         }
         world.gop.fence();
+        save(xcargs[XCfunctional::enum_saa],"vsigaa");
 
     }
 
-    save(xcargs[XCfunctional::enum_saa],"vsigaa");
     world.gop.fence();
 
-    const double tight=FunctionDefaults<3>::get_thresh()*0.001;
-    truncate(world,xc_args,tight);
+    truncate(world,xc_args,extra_truncation);
 
     return xcargs;
 }
@@ -766,20 +766,13 @@ void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
         }
         world.gop.fence();
 
-//        xc_args[XCfunctional::enum_sigma_pta]=    // sigma_a
-//                (ddensa[0] * ddens_pt[0] + ddensa[1] * ddens_pt[1] + ddensa[2] * ddens_pt[2]).truncate();
-
         xc_args[XCfunctional::enum_sigma_pta]=dot(world,ddensa,ddens_pt);    // sigma_a
+        if (have_beta) xc_args[XCfunctional::enum_sigma_ptb]= dot(world,ddensb,ddens_pt);
 
-        if (have_beta) {
-//            xc_args[XCfunctional::enum_sigma_ptb]=    // sigma_b
-//                    (ddensb[0] * ddens_pt[0] + ddensb[1] * ddens_pt[1] + ddensb[2] * ddens_pt[2]).truncate();
-            xc_args[XCfunctional::enum_sigma_ptb]= dot(world,ddensb,ddens_pt);
-        }
         world.gop.fence();
+        save(xc_args[XCfunctional::enum_sigma_pta],"vsigptaa");
     }
     world.gop.fence();
-    save(xc_args[XCfunctional::enum_sigma_pta],"vsigptaa");
 
     const double tight=FunctionDefaults<3>::get_thresh()*0.001;
     truncate(world,xc_args,tight);

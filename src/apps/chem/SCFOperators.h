@@ -405,7 +405,8 @@ class XCOperator {
 public:
 
     /// default ctor without information about the XC functional
-    XCOperator(World& world) : world(world), nbeta(0), ispin(0) {}
+    XCOperator(World& world) : world(world), nbeta(0), ispin(0),
+        extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {}
 
     /// custom ctor with information about the XC functional
     XCOperator(World& world, std::string xc_data, const bool spin_polarized,
@@ -424,6 +425,13 @@ public:
     /// ctor with an Nemo calculation, will initialize the necessary intermediates
     XCOperator(World& world, const Nemo* scf, const real_function_3d& arho,
             const real_function_3d& brho, int ispin=0);
+
+    XCOperator& set_extra_truncation(const double& fac) {
+        extra_truncation=fac;
+        if (world.rank()==0)
+            print("set extra truncation in XCOperator to", extra_truncation);
+        return *this;
+    }
 
     /// apply the xc potential on a set of orbitals
     vecfuncT operator()(const vecfuncT& vket) const;
@@ -465,6 +473,14 @@ private:
     /// corresponding vector components may be left empty.
     /// For the ordering of the intermediates see xcfunctional::xc_arg
     mutable vecfuncT xc_args;
+
+    /// additional truncation for the densities in the XC kernel
+
+    /// the densities in the DFT kernal are processed as their inverses,
+    /// so noise in the small density regions might amplify and lead to inaccurate
+    /// results. Extra truncation will tighten the truncation threshold by a
+    /// specified factor, default is 0.01.
+    double extra_truncation;
 
     /// compute the intermediates for the XC functionals
 
