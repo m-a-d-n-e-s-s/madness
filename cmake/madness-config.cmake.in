@@ -31,8 +31,8 @@ endif()
 # Set the madness libraries target
 set(MADNESS_LIBRARIES madness)
 
-set_and_check(MADNESS_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
-set_and_check(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
+set(MADNESS_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
+set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
 
 # Set Elemental variables
 set(MADNESS_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
