@@ -162,7 +162,7 @@ For classes that do not have symmetric (de)serialization you must define separat
 
 	        template <class Archive>
 	        struct ArchiveStoreImpl<Archive, Obj> {
-	           static inline void store(const Archive& ar, Obj& obj);
+	           static inline void store(const Archive& ar, const Obj& obj);
 	        };
       }
   }
