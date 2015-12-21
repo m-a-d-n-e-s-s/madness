@@ -720,7 +720,7 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
 
     // copy quantities from t to rho and sigma
     Tensor<double> rho,sigma;   // rho=2rho_alpha, sigma=4sigma_alpha
-    make_libxc_args(t, rho, sigma, xc_kernel);
+    make_libxc_args(t, rho, sigma, xc_potential);
 
     // number of grid points
     const int np = t[0].size();
@@ -852,7 +852,7 @@ if nspin == 2
    v2sigma2(6) = (uu_uu, uu_ud, uu_dd, ud_ud, ud_dd, dd_dd)
 */
     madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma, xc_kernel);
+    make_libxc_args(t, rho, sigma, xc_potential);
 
     const int np = t[0].size();
 
