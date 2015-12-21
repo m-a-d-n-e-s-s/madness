@@ -715,6 +715,17 @@ real_function_3d Nemo::kinetic_energy_potential(const vecfuncT& nemo) const {
 
 
 /// compute the reduced densities sigma (gamma) for GGA functionals
+
+/// the reduced density is given by
+/// \f[
+///   \sigma = \nabla\rho_1 \nabla\rho_2
+///          = (\nabla R^2 \rho_{R,1} + R^2 \nabla \rho_{R,1}) \cdot
+///              (\nabla R^2 \rho_{R,2} + R^2 \nabla \rho_{R,2})
+///          = 4R^4 U_1^2 \rho_{R,1}\rho_{R,2}
+///             + 2R^4 \vec U_1 \left(\rho_{R,1}\nabla \rho_{R,2} + \nabla\rho_{R,1} \rho_{R,2}\right)
+///             + R^4 \nabla \rho_{R,1}\cdot \nabla\rho_{R,2}
+/// \f]
+///
 real_function_3d Nemo::make_sigma(const real_function_3d& rho1,
         const real_function_3d& rho2) const {
 
@@ -1004,6 +1015,11 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
     // construct quantities that are independent of xi
 
+    // construct the BSH operator
+    tensorT eps(nmo);
+    for (int i = 0; i < nmo; ++i) eps(i) = std::min(-0.05, fock(i, i));
+    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
+
     // derivative of the (regularized) nuclear potential
     DNuclear Dunuc(world,this,iatom,iaxis);
     vecfuncT Vpsi2b=Dunuc(nemo);
@@ -1033,9 +1049,19 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
     vecfuncT rhsconst=add(world,Vpsi2b,sub(world,Jconstnemo,Kconstnemo));
     truncate(world,rhsconst);
+    rhsconst=Q(rhsconst);
+    scale(world, rhsconst, -2.0);
+    vecfuncT Grhsconst = apply(world, bsh, rhsconst);
+    truncate(world,Grhsconst);
 
     // the part of the response that is contained in the occupied space
     const vecfuncT parallel=parallel_CPHF(nemo,iatom,iaxis);
+
+    // construct the KAIN solver
+    typedef allocator<double, 3> allocT;
+    typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
+    allocT alloc(world, nemo.size());
+    solverT solver(allocT(world, nemo.size()));
 
     // construct unperturbed operators
     const Coulomb J(world,this);
@@ -1086,7 +1112,8 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
             Kp=add(world,Kp1(nemo),Kp2(nemo));
         }
         vecfuncT Vpsi2a=sub(world,Jp(nemo),Kp);
-        vecfuncT Vpsi2=add(world,Vpsi2a,rhsconst);
+//        vecfuncT Vpsi2=add(world,Vpsi2a,rhsconst);
+        vecfuncT Vpsi2=Vpsi2a;
         truncate(world,Vpsi2);
         Vpsi2=Q(Vpsi2);
         truncate(world,Vpsi2);
@@ -1095,10 +1122,6 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         truncate(world,Vpsi);
         END_TIMER(world, "CPHF make rhs2");
 
-        // apply the BSH
-        tensorT eps(nmo);
-        for (int i = 0; i < nmo; ++i) eps(i) = std::min(-0.05, fock(i, i));
-        std::vector<poperatorT> ops = calc->make_bsh_operators(world, eps);
 
         // add the coupling elements in case of localized orbitals
         if (get_calc()->param.localize) {
@@ -1111,9 +1134,10 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         // apply the BSH operator on the wave function
         START_TIMER(world);
         scale(world, Vpsi, -2.0);
-        vecfuncT tmp = apply(world, ops, Vpsi);
+        vecfuncT tmp = apply(world, bsh, Vpsi);
         truncate(world, tmp);
         END_TIMER(world, "apply BSH");
+        tmp=add(world,tmp,Grhsconst);
 
         tmp=Q(tmp);
         truncate(world,tmp);
@@ -1126,9 +1150,13 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         if (world.rank() == 0)
             print("CPHF BSH residual: rms", rms, "   max", maxval);
 
-        const double norm = norm2(world,xi);
-        xi=tmp;
+        if (rms < 5.e-1) {
+            xi = (solver.update(xi, residual)).x;
+        } else {
+            xi = tmp;
+        }
 
+        const double norm = norm2(world,xi);
         if (rms/norm<proto.dconv) break;
     }
     return xi;
