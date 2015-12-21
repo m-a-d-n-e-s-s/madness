@@ -44,6 +44,7 @@
 #include <cstdio>
 #include <vector>
 #include <map>
+#include <tuple>
 //#include <madness/world/worldprofile.h>
 #include <madness/world/type_traits.h>
 #include <madness/world/madness_exception.h>
@@ -973,6 +974,43 @@ namespace madness {
             }
         };
 
+        namespace {
+
+          template <size_t idx, class Archive, typename... Types>
+          struct tuple_serialize_helper;
+
+          template <class Archive, typename... Types>
+          struct tuple_serialize_helper<0,Archive,Types...> {
+        	  static void exec(const Archive& ar, std::tuple<Types...>& t) {
+        		  ar & std::get<0>(t);
+        	  }
+          };
+          template <size_t idx, class Archive, typename... Types>
+          struct tuple_serialize_helper {
+        	  static void exec(const Archive& ar, std::tuple<Types...>& t) {
+        		  ar & std::get<idx>(t);
+        		  tuple_serialize_helper<idx-1,Archive,Types...>::exec(ar,t);
+        	  }
+          };
+
+        };
+
+        /// Serialize (deserialize) a std::tuple
+
+        /// \tparam Archive The archive type.
+        /// \tparam Types The tuple payload
+        template <class Archive, typename... Types>
+        struct ArchiveSerializeImpl< Archive, std::tuple<Types...> > {
+            /// Serialize the \c std::tuple.
+
+            /// \param[in] ar The archive.
+            /// \param[in,out] t The \c tuple.
+            static inline void serialize(const Archive& ar, std::tuple<Types...>& t) {
+                MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize std::tuple" << std::endl);
+                constexpr auto size = std::tuple_size<std::tuple<Types...>>::value;
+                tuple_serialize_helper<size-1,Archive,Types...>::exec(ar, t);
+            }
+        };
 
         /// Serialize an STL \c map (crudely).
 
