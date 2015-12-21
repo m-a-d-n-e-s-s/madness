@@ -1,8 +1,11 @@
 include $(top_srcdir)/config/MakeGlobal.am
 EXTRA_DIST = CMakeLists.txt
 
+# specify the git commit version in the info functions
+GITREV="MADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
+
 # default location for basis sets etc
-AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\"
+AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\" -D$(GITREV)
 
 noinst_PROGRAMS = testxc plotxc test_SCFOperators test_dft
 
@@ -20,7 +23,7 @@ thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
                       mp2.h nemo.h potentialmanager.h gth_pseudopotential.h \
                       molecular_optimizer.h projector.h TDA.h TDA_XC.h \
                       TDA_guess.h TDA_exops.h SCFOperators.h CCOperators.h CCStructures.h CC2.h \
-                      electronic_correlation_factor.h CISOperators.h
+                      electronic_correlation_factor.h CISOperators.h cheminfo.h
 
 testxc_SOURCES = testxc.cc xcfunctional.h
 testxc_LDADD = libMADchem.la $(MRALIBS)
@@ -35,7 +38,7 @@ plotxc_SOURCES = plotxc.cc xcfunctional.h
 plotxc_LDADD = libMADchem.la $(MRALIBS)
 
 libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
-                       corepotential.cc atomutil.cc lda.cc \
+                       corepotential.cc atomutil.cc lda.cc cheminfo.cc \
                        distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc\
                        SCFOperators.cc xcfunctional_ldaonly.cc TDA.cc TDA_XC.cc CC2.cc CCOperators.cc CISOperators.cc \
                        $(thisinclude_HEADERS)
