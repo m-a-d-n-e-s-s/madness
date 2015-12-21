@@ -773,9 +773,7 @@ void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
         save(xc_args[XCfunctional::enum_sigma_pta],"vsigptaa");
     }
     world.gop.fence();
-
-    const double tight=FunctionDefaults<3>::get_thresh()*0.001;
-    truncate(world,xc_args,tight);
+    truncate(world,xc_args,extra_truncation);
 }
 
 

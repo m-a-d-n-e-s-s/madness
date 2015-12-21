@@ -995,12 +995,6 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
     // guess for the perturbed MOs
     const vecfuncT nemo=calc->amo;
-    vecfuncT xi=copy(world,calc->amo);
-    scale(world,xi,0.5);
-    if (guess.size()>0) {
-        if (world.rank()==0) print("using guess for the CPHF vectors");
-        xi=copy(world,guess);
-    }
     const int nmo=nemo.size();
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
@@ -1053,6 +1047,14 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     scale(world, rhsconst, -2.0);
     vecfuncT Grhsconst = apply(world, bsh, rhsconst);
     truncate(world,Grhsconst);
+
+    // initial guess from outside or from the leading term Grhsconst
+    vecfuncT xi=copy(world,Grhsconst);
+    if (guess.size()>0) {
+        if (world.rank()==0) print("using guess for the CPHF vectors");
+        xi=copy(world,guess);
+    }
+
 
     // the part of the response that is contained in the occupied space
     const vecfuncT parallel=parallel_CPHF(nemo,iatom,iaxis);
@@ -1150,7 +1152,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         if (world.rank() == 0)
             print("CPHF BSH residual: rms", rms, "   max", maxval);
 
-        if (rms < 5.e-1) {
+        if (rms < 1.0) {
             xi = (solver.update(xi, residual)).x;
         } else {
             xi = tmp;

@@ -1,6 +1,12 @@
 include $(top_srcdir)/config/MakeGlobal.am
 EXTRA_DIST = CMakeLists.txt
 
+# specify the git commit version in the info functions
+GITREV="MADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
+
+# default location for basis sets etc
+AM_CPPFLAGS += -D$(GITREV)
+
 
 noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
