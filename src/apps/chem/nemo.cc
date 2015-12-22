@@ -129,25 +129,6 @@ double Nemo::value(const Tensor<double>& x) {
 	functionT rho = 2.0*(R_square*make_density(calc->aocc, calc->amo)).truncate();
 	calc->dipole(world,rho);
 
-
-	real_function_3d nu_bar=2.0*kinetic_energy_potential(calc->amo); // factor 2 for closed shell
-
-	save(nu_bar,"nu_bar");
-    save(rho,"rho");
-	save(calc->potentialmanager->vnuclear(),"vnuc");
-
-	// Eq. (23)
-	std::vector<real_function_3d> dipole(3);
-	for (int i=0; i<3; ++i) dipole[i]=real_factory_3d(world)
-	        .functor(functorT(new DipoleFunctor(i))).initial_level(4);
-    std::vector<real_function_3d> drho=calc->nabla(rho,true);
-
-	double T2_1=3.0*inner(nu_bar,rho);
-	real_function_3d arg=dot(world,dipole,drho);
-    double T2_2=inner(nu_bar,arg);
-
-    print("kinetic energy from the potential",0.5*(T2_1+T2_2));
-
 	// compute the hessian
 	if (calc->param.hessian) hessian(x);
 
@@ -1047,6 +1028,9 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     scale(world, rhsconst, -2.0);
     vecfuncT Grhsconst = apply(world, bsh, rhsconst);
     truncate(world,Grhsconst);
+    scale(world,rhsconst,-0.5); // invert the -2.0 from above
+    // keep iterating rhsconst, seems to be more accurate
+    // (as opposed to adding Grhsconst to the result of G(..) )
 
     // initial guess from outside or from the leading term Grhsconst
     vecfuncT xi=copy(world,Grhsconst);
@@ -1097,9 +1081,8 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         Jp.potential()=Jp.compute_potential(density_pert);
         vecfuncT Kp;
         if (is_dft()) {
-            // reconstruct the full perturbed density
-            const real_function_3d full_dens_pt=(density_pert + 2.0*RXR*rhonemo).truncate();
-            save(full_dens_pt,"full_dens_pt");
+            // reconstruct the full perturbed density: do not truncate!
+            const real_function_3d full_dens_pt=(density_pert + 2.0*RXR*rhonemo);
             const XCOperator xc1(world,this,0);
             real_function_3d gamma=-1.0*xc1.apply_xc_kernel(full_dens_pt);
             Kp=mul(world,gamma,nemo);
@@ -1114,8 +1097,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
             Kp=add(world,Kp1(nemo),Kp2(nemo));
         }
         vecfuncT Vpsi2a=sub(world,Jp(nemo),Kp);
-//        vecfuncT Vpsi2=add(world,Vpsi2a,rhsconst);
-        vecfuncT Vpsi2=Vpsi2a;
+        vecfuncT Vpsi2=add(world,Vpsi2a,rhsconst);
         truncate(world,Vpsi2);
         Vpsi2=Q(Vpsi2);
         truncate(world,Vpsi2);
@@ -1139,7 +1121,6 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         vecfuncT tmp = apply(world, bsh, Vpsi);
         truncate(world, tmp);
         END_TIMER(world, "apply BSH");
-        tmp=add(world,tmp,Grhsconst);
 
         tmp=Q(tmp);
         truncate(world,tmp);
