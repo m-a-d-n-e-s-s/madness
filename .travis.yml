@@ -34,6 +34,8 @@ matrix:
       env: GCC_VERSION=4.9 RUN_TEST=tensor
     - compiler: clang
       env: GCC_VERSION=4.9 RUN_TEST=mra
+  allow_failures:
+    - env: RUN_TEST=mra
 #notifications:
 #  email:
 #    recipients:
