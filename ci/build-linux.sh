@@ -23,6 +23,7 @@ export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
     --enable-debugging --disable-optimization --enable-warning --disable-optimal --disable-static \
     --with-google-test \
     --enable-never-spin \
+    --with-libxc=${HOME}/libxc \
     LIBS="-L/usr/lib/lapack -L/usr/lib/libblas -llapack -lblas -lpthread"
 
 if [ "$RUN_TEST" = "buildonly" ]; then

@@ -40,6 +40,23 @@ matrix:
 #      - madness-developers@googlegroups.com
 #    on_success: change
 #    on_failure: always
+sudo: false
+addons:
+  apt:
+    sources:
+      - george-edison55-precise-backports
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-$GCC_VERSION
+      - g++-$GCC_VERSION
+      - gfortran-$GCC_VERSION
+      - libblas-dev
+      - liblapack-dev
+      - libgoogle-perftools-dev
+      - mpich2
+      - libtbb-dev
+      - cmake
+
 before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
 script: ./ci/build-$TRAVIS_OS_NAME.sh
 after_failure: cat ./config.log
