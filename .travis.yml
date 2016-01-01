@@ -50,6 +50,7 @@ addons:
     sources:
       - george-edison55-precise-backports
       - ubuntu-toolchain-r-test
+      - llvm-toolchain-precise-3.6
     packages:
       - gcc-4.7
       - g++-4.7
