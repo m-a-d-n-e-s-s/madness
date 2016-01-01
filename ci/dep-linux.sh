@@ -28,6 +28,7 @@ fi
 export FC=/usr/bin/gfortran-$GCC_VERSION
 
 # Print compiler information
+ls /usr/bin/*gcc*
 $CC --version
 $CXX --version
 $FC --version
