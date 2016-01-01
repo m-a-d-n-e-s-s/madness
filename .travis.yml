@@ -29,13 +29,13 @@ matrix:
     - compiler: clang
       env: GCC_VERSION=4.7 RUN_TEST=mra
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=buildonly
+      env: GCC_VERSION=4.8 RUN_TEST=buildonly
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=world
+      env: GCC_VERSION=4.8 RUN_TEST=world
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=tensor
+      env: GCC_VERSION=4.8 RUN_TEST=tensor
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=mra
+      env: GCC_VERSION=4.8 RUN_TEST=mra
     - os: osx
       compiler: gcc
 #notifications:
