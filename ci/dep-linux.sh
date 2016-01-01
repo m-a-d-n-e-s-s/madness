@@ -43,3 +43,17 @@ cmake --version
 
 # Install the rest
 #sudo apt-get install -qq -y libblas-dev liblapack-dev libgoogle-perftools-dev mpich2 libtbb-dev
+
+if [ ! -d "${HOME}/mpich" ]; then
+    wget --no-check-certificate -q http://www.mpich.org/static/downloads/3.2/mpich-3.2.tar.gz
+    tar -xzf mpich-3.2.tar.gz
+    cd mpich-3.2
+    mkdir build && cd build
+    ../configure CC=$CC CXX=$CXX --disable-fortran --disable-romio --prefix=${HOME}/mpich
+    make -j2
+    make install
+else
+    echo "MPICH installed..."
+    find ${HOME}/mpich -name mpiexec
+    find ${HOME}/mpich -name mpicc
+fi

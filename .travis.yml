@@ -49,15 +49,19 @@ addons:
       - george-edison55-precise-backports
       - ubuntu-toolchain-r-test
     packages:
-      - gcc-$GCC_VERSION
-      - g++-$GCC_VERSION
+      - gcc-4.7
+      - g++-4.7
+      - gcc-4.8
+      - g++-4.8
+      - gcc-4.9
+      - g++-4.9
       - gfortran-$GCC_VERSION
       - libblas-dev
       - liblapack-dev
       - libgoogle-perftools-dev
-      - mpich2
+      #- mpich2 # disallowed - build from source
       - libtbb-dev
-      - cmake
+      #- cmake
 
 before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
 script: ./ci/build-$TRAVIS_OS_NAME.sh
