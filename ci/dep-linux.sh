@@ -3,20 +3,8 @@
 # Exit on error
 set -ev
 
-# Add repository for libxc
-#sudo add-apt-repository ppa:hogliux/misstep -y
-
-# Add PPA for a newer version GCC
-#sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-# Add PPA for newer cmake (3.2.3)
-#sudo add-apt-repository ppa:george-edison55/precise-backports -y
-
-# Update package list
-#sudo apt-get update -qq
-
 # Install packages
 
-#sudo apt-get install -qq -y gcc-$GCC_VERSION g++-$GCC_VERSION gfortran-$GCC_VERSION
 if [ "$CXX" = "g++" ]; then
     export CC=/usr/bin/gcc-$GCC_VERSION
     export CXX=/usr/bin/g++-$GCC_VERSION
@@ -43,12 +31,9 @@ make -j2
 make install
 
 # Install CMake 3
-#sudo apt-get -y -qq --no-install-suggests --no-install-recommends --force-yes install cmake cmake-data
 cmake --version
 
-# Install the rest
-#sudo apt-get install -qq -y libblas-dev liblapack-dev libgoogle-perftools-dev mpich2 libtbb-dev
-
+# Install MPICH
 if [ ! -d "${HOME}/mpich" ]; then
     wget --no-check-certificate -q http://www.mpich.org/static/downloads/3.2/mpich-3.2.tar.gz
     tar -xzf mpich-3.2.tar.gz
