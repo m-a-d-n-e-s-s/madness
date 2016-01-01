@@ -11,10 +11,12 @@ if [ "$CXX" = "g++" ]; then
     export CXX=/usr/bin/g++-$GCC_VERSION
 fi
 export F77=/usr/bin/gfortran-$GCC_VERSION
-export MPICH_CC=$CC
-export MPICH_CXX=$CXX
-export MPICC=/usr/bin/mpicc.mpich2
-export MPICXX=/usr/bin/mpicxx.mpich2
+# Jeff: these are unnecessary because MPICH has been compiler
+#       from source with these compilers.
+#export MPICH_CC=$CC
+#export MPICH_CXX=$CXX
+export MPICC=$HOME/mpich/bin/mpicc
+export MPICXX=$HOME/mpich/bin/mpicxx
 export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
 
 # Configure and build MADNESS
