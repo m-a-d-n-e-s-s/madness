@@ -13,6 +13,7 @@ else
     export CC=/usr/bin/clang-3.6
     export CXX=/usr/bin/clang-3.6
     export CXXFLAGS="-std=c++11"
+    export LDFLAGS="-std=c++11"
 fi
 export FC=/usr/bin/gfortran-$GCC_VERSION
 
@@ -42,8 +43,12 @@ if [ ! -d "${HOME}/mpich" ]; then
     ../configure CC=$CC CXX=$CXX --disable-fortran --disable-romio --prefix=${HOME}/mpich
     make -j2
     make install
+    ${HOME}/mpich/bin/mpichversion
+    ${HOME}/mpich/bin/mpicc -show
+    ${HOME}/mpich/bin/mpicxx -show
 else
     echo "MPICH installed..."
     find ${HOME}/mpich -name mpiexec
     find ${HOME}/mpich -name mpicc
+    find ${HOME}/mpich -name mpicxx
 fi
