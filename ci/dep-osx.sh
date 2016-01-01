@@ -4,4 +4,4 @@
 set -e
 
 brew update
-brew install autoconf automake libtool cmake libxc mpich tbb gperftools
+brew install libxc mpich tbb
