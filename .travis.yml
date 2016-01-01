@@ -1,10 +1,10 @@
 language: cpp
 os:
-  - linux
   - osx
+  - linux
 compiler:
-  - gcc
   - clang
+  - gcc
 env:
   - GCC_VERSION=4.7 RUN_TEST=buildonly
   - GCC_VERSION=4.8 RUN_TEST=buildonly
@@ -19,6 +19,10 @@ env:
   - GCC_VERSION=4.8 RUN_TEST=mra
   - GCC_VERSION=4.9 RUN_TEST=mra
 matrix:
+  # We will not count Mac failures until the issues with the
+  # Travis build are resolved.
+  allow_failures:
+    - os: osx
   exclude:
     - compiler: clang
       env: GCC_VERSION=4.7 RUN_TEST=buildonly
