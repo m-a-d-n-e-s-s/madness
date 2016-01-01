@@ -18,5 +18,5 @@ if [ "$RUN_TEST" = "buildonly" ]; then
 else
     # Run unit tests
     export MAD_NUM_THREADS=2
-    make -C src/madness/$RUN_TEST -j2 check
+    make -C src/madness/$RUN_TEST -j2 test
 fi
