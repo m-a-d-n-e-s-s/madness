@@ -9,6 +9,10 @@ export CPPFLAGS=-DDISABLE_SSE3
 if [ "$CXX" = "g++" ]; then
     export CC=/usr/bin/gcc-$GCC_VERSION
     export CXX=/usr/bin/g++-$GCC_VERSION
+else
+    # Assume CXX = clang
+    export CC=/usr/bin/clang-3.6
+    export CXX=/usr/bin/clang-3.6
 fi
 export F77=/usr/bin/gfortran-$GCC_VERSION
 # Jeff: these are unnecessary because MPICH has been compiler
