@@ -9,7 +9,7 @@ cd build
 cmake \
     -D CMAKE_BUILD_TYPE=RelWithDebInfo \
     -D ENABLE_UNITTESTS=ON \
-    -D ENABLE_NEVER_SPIN=ON
+    -D ENABLE_NEVER_SPIN=ON \
     ..
 
 if [ "$RUN_TEST" = "buildonly" ]; then
