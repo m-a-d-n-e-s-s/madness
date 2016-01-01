@@ -13,6 +13,7 @@ else
     # Assume CXX = clang
     export CC=/usr/bin/clang-3.6
     export CXX=/usr/bin/clang-3.6
+    export LDFLAGS="-fdefine-sized-deallocation"
 fi
 export F77=/usr/bin/gfortran-$GCC_VERSION
 # Jeff: these are unnecessary because MPICH has been compiler
