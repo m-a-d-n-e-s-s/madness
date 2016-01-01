@@ -25,8 +25,10 @@ export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
 
 # Configure and build MADNESS
 ./autogen.sh 
-./configure \
-    --enable-debugging --disable-optimization --enable-warning --disable-optimal --disable-static \
+mkdir build
+cd build
+../configure \
+    --enable-debugging --enable-optimization --enable-warning --disable-optimal --disable-static \
     --with-google-test \
     --enable-never-spin \
     --with-libxc=${HOME}/libxc \
