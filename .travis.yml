@@ -73,7 +73,7 @@ addons:
       - libblas-dev
       - liblapack-dev
       - libopenblas-base
-      - libatlas3-base
+      #- libatlas3-base # "E: Unable to locate package libatlas3-base"
       # END
       - libgoogle-perftools-dev
       #- mpich2 # disallowed - build from source
