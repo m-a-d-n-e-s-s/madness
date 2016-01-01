@@ -24,7 +24,6 @@ else
     # Assume CXX = clang
     export CC=/usr/bin/clang-3.6
     export CXX=/usr/bin/clang-3.6
-    export LDFLAGS="-fdefine-sized-deallocation"
 fi
 export FC=/usr/bin/gfortran-$GCC_VERSION
 
