@@ -20,6 +20,10 @@ set -ev
 if [ "$CXX" = "g++" ]; then
     export CC=/usr/bin/gcc-$GCC_VERSION
     export CXX=/usr/bin/g++-$GCC_VERSION
+else
+    # Assume CXX = clang
+    export CC=/usr/bin/clang-3.6
+    export CXX=/usr/bin/clang-3.6
 fi
 export FC=/usr/bin/gfortran-$GCC_VERSION
 

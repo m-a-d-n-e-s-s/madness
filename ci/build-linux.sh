@@ -9,6 +9,11 @@ export CPPFLAGS=-DDISABLE_SSE3
 if [ "$CXX" = "g++" ]; then
     export CC=/usr/bin/gcc-$GCC_VERSION
     export CXX=/usr/bin/g++-$GCC_VERSION
+else
+    # Assume CXX = clang
+    export CC=/usr/bin/clang-3.6
+    export CXX=/usr/bin/clang-3.6
+    export LDFLAGS="-fdefine-sized-deallocation"
 fi
 export F77=/usr/bin/gfortran-$GCC_VERSION
 # Jeff: these are unnecessary because MPICH has been compiler
@@ -21,8 +26,10 @@ export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
 
 # Configure and build MADNESS
 ./autogen.sh 
-./configure \
-    --enable-debugging --disable-optimization --enable-warning --disable-optimal --disable-static \
+mkdir build
+cd build
+../configure \
+    --enable-debugging --enable-optimization --enable-warning --disable-optimal --disable-static \
     --with-google-test \
     --enable-never-spin \
     --with-libxc=${HOME}/libxc \

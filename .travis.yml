@@ -29,13 +29,15 @@ matrix:
     - compiler: clang
       env: GCC_VERSION=4.7 RUN_TEST=mra
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=buildonly
+      env: GCC_VERSION=4.8 RUN_TEST=buildonly
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=world
+      env: GCC_VERSION=4.8 RUN_TEST=world
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=tensor
+      env: GCC_VERSION=4.8 RUN_TEST=tensor
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=mra
+      env: GCC_VERSION=4.8 RUN_TEST=mra
+    - os: osx
+      compiler: gcc
 #notifications:
 #  email:
 #    recipients:
@@ -48,6 +50,7 @@ addons:
     sources:
       - george-edison55-precise-backports
       - ubuntu-toolchain-r-test
+      - llvm-toolchain-precise-3.6
     packages:
       - gcc-4.7
       - g++-4.7
@@ -58,6 +61,7 @@ addons:
       - gcc-4.9
       - g++-4.9
       - gfortran-4.9
+      - clang-3.6
       - libblas-dev
       - liblapack-dev
       - libgoogle-perftools-dev
@@ -67,4 +71,4 @@ addons:
 
 before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
 script: ./ci/build-$TRAVIS_OS_NAME.sh
-after_failure: cat ./config.log
+after_failure: cat ./build/config.log
