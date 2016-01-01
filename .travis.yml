@@ -9,15 +9,15 @@ env:
   - GCC_VERSION=4.7 RUN_TEST=buildonly
   - GCC_VERSION=4.8 RUN_TEST=buildonly
   - GCC_VERSION=4.9 RUN_TEST=buildonly
-  - GCC_VERSION=4.7 RUN_TEST=world
-  - GCC_VERSION=4.8 RUN_TEST=world
-  - GCC_VERSION=4.9 RUN_TEST=world
-  - GCC_VERSION=4.7 RUN_TEST=tensor
-  - GCC_VERSION=4.8 RUN_TEST=tensor
-  - GCC_VERSION=4.9 RUN_TEST=tensor
-  - GCC_VERSION=4.7 RUN_TEST=mra
-  - GCC_VERSION=4.8 RUN_TEST=mra
-  - GCC_VERSION=4.9 RUN_TEST=mra
+#  - GCC_VERSION=4.7 RUN_TEST=world
+#  - GCC_VERSION=4.8 RUN_TEST=world
+#  - GCC_VERSION=4.9 RUN_TEST=world
+#  - GCC_VERSION=4.7 RUN_TEST=tensor
+#  - GCC_VERSION=4.8 RUN_TEST=tensor
+#  - GCC_VERSION=4.9 RUN_TEST=tensor
+#  - GCC_VERSION=4.7 RUN_TEST=mra
+#  - GCC_VERSION=4.8 RUN_TEST=mra
+#  - GCC_VERSION=4.9 RUN_TEST=mra
 matrix:
   # We will not count Mac failures until the issues with the
   # Travis build are resolved.
