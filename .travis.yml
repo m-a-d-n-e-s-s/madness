@@ -9,20 +9,22 @@ env:
   - GCC_VERSION=4.7 RUN_TEST=buildonly
   - GCC_VERSION=4.8 RUN_TEST=buildonly
   - GCC_VERSION=4.9 RUN_TEST=buildonly
-#  - GCC_VERSION=4.7 RUN_TEST=world
-#  - GCC_VERSION=4.8 RUN_TEST=world
-#  - GCC_VERSION=4.9 RUN_TEST=world
-#  - GCC_VERSION=4.7 RUN_TEST=tensor
-#  - GCC_VERSION=4.8 RUN_TEST=tensor
-#  - GCC_VERSION=4.9 RUN_TEST=tensor
-#  - GCC_VERSION=4.7 RUN_TEST=mra
-#  - GCC_VERSION=4.8 RUN_TEST=mra
-#  - GCC_VERSION=4.9 RUN_TEST=mra
+  - GCC_VERSION=4.7 RUN_TEST=world
+  - GCC_VERSION=4.8 RUN_TEST=world
+  - GCC_VERSION=4.9 RUN_TEST=world
+  - GCC_VERSION=4.7 RUN_TEST=tensor
+  - GCC_VERSION=4.8 RUN_TEST=tensor
+  - GCC_VERSION=4.9 RUN_TEST=tensor
+  - GCC_VERSION=4.7 RUN_TEST=mra
+  - GCC_VERSION=4.8 RUN_TEST=mra
+  - GCC_VERSION=4.9 RUN_TEST=mra
 matrix:
   # We will not count Mac failures until the issues with the
   # Travis build are resolved.
   allow_failures:
-    - os: osx
+    #- os: osx
+    - os: linux
+      compiler: clang
   exclude:
     - compiler: clang
       env: GCC_VERSION=4.7 RUN_TEST=buildonly
@@ -69,8 +71,9 @@ addons:
       - g++-5
       - gfortran-5
       - clang-3.6
-      - libc++-dev
-      - libc++1
+      # These do not lead to the desired result of libc++ >:-(
+      #- libc++-dev
+      #- libc++1
       # BLAS/LAPACK libraries - use OpenBLAS or ATLAS if faster...
       - libblas-dev
       - liblapack-dev
@@ -89,12 +92,4 @@ install:
 script:
   - ./ci/build-$TRAVIS_OS_NAME.sh
 after_failure:
-  - apt-cache search c++
-  - apt-cache show libc++1
-  - apt-cache show libc++-dev
-  - apt-cache showpkg libc++1
-  - apt-cache showpkg libc++-dev
-  - dpkg --print-avail libc++1
-  - dpkg --print-avail libc++-dev
-  - find /usr -name "libc*"
   - cat ./build/config.log

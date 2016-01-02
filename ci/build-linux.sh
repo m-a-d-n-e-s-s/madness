@@ -25,7 +25,7 @@ else
     # Assume CXX = clang
     export CC=/usr/bin/clang-3.6
     export CXX=/usr/bin/clang-3.6
-    export CXXFLAGS="-stdlib=libc++"
+    #export CXXFLAGS="-stdlib=libc++"
     #export LDFLAGS="-fdefine-sized-deallocation"
     # clang-3.6 gives this error:
     #       clang: error: unknown argument: '-fdefine-sized-deallocation'
