@@ -81,9 +81,6 @@ addons:
       #- cmake
 
 before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
+before_script: find . -name config.log -exec cat {} ";"
 script: ./ci/build-$TRAVIS_OS_NAME.sh
-after_failure:
-  - echo "This is the beginning of the end"
-  - cat ./build/config.log
-  - find . -name config.log -exec cat {} ";"
-  - echo "This is the end of the end"
+after_failure: cat ./build/config.log
