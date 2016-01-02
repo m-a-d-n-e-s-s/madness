@@ -28,9 +28,9 @@ matrix:
   # these tests until the issue is resolved.
   allow_failures:
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=tensor
+      env: GCC_VERSION=5 RUN_TEST=tensor
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=mra
+      env: GCC_VERSION=5 RUN_TEST=mra
   exclude:
     - compiler: clang
       env: GCC_VERSION=4.7 RUN_TEST=buildonly
