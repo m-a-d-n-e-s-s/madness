@@ -77,7 +77,7 @@ addons:
       # BLAS/LAPACK libraries - use OpenBLAS or ATLAS if faster...
       - libblas-dev
       - liblapack-dev
-      - libopenblas-base
+      #- libopenblas-base # Do NOT use this library! it causes illegal instruction errors.
       #- libatlas3-base # "E: Unable to locate package libatlas3-base"
       # END
       - libgoogle-perftools-dev
