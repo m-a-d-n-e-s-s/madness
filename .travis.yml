@@ -89,5 +89,12 @@ install:
 script:
   - ./ci/build-$TRAVIS_OS_NAME.sh
 after_failure:
+  - apt-cache search c++
+  - apt-cache show libc++1
+  - apt-cache show libc++-dev
+  - apt-cache showpkg libc++1
+  - apt-cache showpkg libc++-dev
+  - dpkg --print-avail libc++1
+  - dpkg --print-avail libc++-dev
   - find /usr -name "libc*"
   - cat ./build/config.log
