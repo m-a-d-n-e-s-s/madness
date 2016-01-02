@@ -79,8 +79,9 @@ addons:
       #- mpich2 # disallowed - build from source
       - libtbb-dev
       #- cmake
-
-before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
-before_script: find . -name config.log -exec cat {} ";"
-script: ./ci/build-$TRAVIS_OS_NAME.sh
-after_failure: cat ./build/config.log
+script:
+  - ./ci/dep-$TRAVIS_OS_NAME.sh
+  - ./ci/build-$TRAVIS_OS_NAME.sh
+after_failure:
+  - find . -name config.log -exec cat {} ";"
+  - cat ./build/config.log
