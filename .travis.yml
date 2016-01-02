@@ -22,7 +22,10 @@ matrix:
   # We will not count Mac failures until the issues with the
   # Travis build are resolved.
   allow_failures:
-    #- os: osx
+    - os: osx
+      env: GCC_VERSION=4.9 RUN_TEST=tensor
+    - os: osx
+      env: GCC_VERSION=4.9 RUN_TEST=mra
     - os: linux
       compiler: clang
   exclude:
