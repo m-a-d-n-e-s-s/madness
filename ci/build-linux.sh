@@ -37,7 +37,7 @@ export F77=/usr/bin/gfortran-$GCC_VERSION
 #export MPICH_CXX=$CXX
 export MPICC=$HOME/mpich/bin/mpicc
 export MPICXX=$HOME/mpich/bin/mpicxx
-export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/openblas-base:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/libblas:$LD_LIBRARY_PATH
 
 # Configure and build MADNESS
 ./autogen.sh 
