@@ -69,6 +69,7 @@ addons:
       - g++-5
       - gfortran-5
       - clang-3.6
+      - libc++-dev
       # BLAS/LAPACK libraries - use OpenBLAS or ATLAS if faster...
       - libblas-dev
       - liblapack-dev
