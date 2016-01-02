@@ -83,6 +83,4 @@ addons:
 before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
 script: ./ci/build-$TRAVIS_OS_NAME.sh
 after_failure:
-  - cat ./libxc/config.log
-  - cat ./mpich/config.log
-  - cat ./build/config.log
+  - find config.log -exec cat {} ";"
