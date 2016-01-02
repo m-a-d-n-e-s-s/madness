@@ -89,4 +89,5 @@ install:
 script:
   - ./ci/build-$TRAVIS_OS_NAME.sh
 after_failure:
+  - find /usr -name "libc*"
   - cat ./build/config.log
