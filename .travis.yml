@@ -82,4 +82,8 @@ addons:
 
 before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
 script: ./ci/build-$TRAVIS_OS_NAME.sh
-after_failure: find . -name config.log -exec cat {} ";"
+after_failure:
+  - echo "This is the beginning of the end"
+  - cat ./build/config.log
+  - find . -name config.log -exec cat {} ";"
+  - echo "This is the end of the end"
