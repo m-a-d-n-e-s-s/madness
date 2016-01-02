@@ -5,16 +5,22 @@ set -ev
 
 # Install packages
 
-if [ "$CXX" = "g++" ]; then
-    export CC=/usr/bin/gcc-$GCC_VERSION
-    export CXX=/usr/bin/g++-$GCC_VERSION
-else
-    # Assume CXX = clang
-    export CC=/usr/bin/clang-3.6
-    export CXX=/usr/bin/clang-3.6
-    export CXXFLAGS="-std=c++11"
-    export LDFLAGS="-std=c++11"
-fi
+case "$CXX" in
+    g++)
+        export CC=/usr/bin/gcc-$GCC_VERSION
+        export CXX=/usr/bin/g++-$GCC_VERSION
+        ;;
+    clang++)
+        export CC=/usr/bin/clang-3.6
+        export CXX=/usr/bin/clang++-3.6
+        export CXXFLAGS="-std=c++11"
+        ;;
+    *)
+        echo "Unknown C++ compiler:"
+        echo "$CXX"
+        exit 1
+        ;;
+esac
 export FC=/usr/bin/gfortran-$GCC_VERSION
 
 # Print compiler information
