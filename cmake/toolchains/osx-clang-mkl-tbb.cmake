@@ -11,8 +11,6 @@
 #   * TBBROOT: the TBB root directory; if not set, will use /opt/intel/tbb
 #
 
-set(CMAKE_SYSTEM_NAME Darwin)
-
 # Compilers
 set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
