@@ -84,11 +84,15 @@ public:
     /// different munging for potential and for kernel
     enum munging_type {xc_potential, xc_kernel=1};
 
+    double get_rhotol() const {return rhotol;}
+    double get_ggatol() const {return ggatol;}
+
 protected:
 
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
     double rhomin, rhotol, sigmin, sigtol; // See initialize and munge*
+    double ggatol; // See initialize and munge*
     double munge_ratio; // See initialize and munge*
 
 #ifdef MADNESS_HAS_LIBXC
@@ -196,6 +200,15 @@ private:
             rho = rhomin;
             sigma = sigmin;
         }
+//        if ((rho<rhotol) or (sigma<(rhotol*rhotol*100))) {
+//            rho=rhomin;
+//            sigma=sigmin;
+//        }
+//        if (sigma<sigtol) sigma=sigmin;
+//        if (sigma/(rho*rho)) {
+//            rho=rhomin;
+//            sigma=sigmin;
+//        }
     }
 
     void munge2(double& rho, double& sigma, const munging_type& munging) const {

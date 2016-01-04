@@ -487,7 +487,9 @@ private:
     /// @param[in]  arho    density of the alpha orbitals
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @return xc_args vector of intermediates as described above
-    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho,
+            const std::vector<real_function_3d>& darho,
+            const std::vector<real_function_3d>& dbrho) const;
 
     /// compute the intermediates for the XC functionals
 

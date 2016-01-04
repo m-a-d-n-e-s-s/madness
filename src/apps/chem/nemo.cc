@@ -126,11 +126,14 @@ double Nemo::value(const Tensor<double>& x) {
 	}
 
 	// compute the dipole moment
-	functionT rho = 2.0*(R_square*make_density(calc->aocc, calc->amo)).truncate();
+	const real_function_3d rhonemo=2.0*make_density(calc->aocc, calc->amo);
+	const real_function_3d rho = (R_square*rhonemo);
 	calc->dipole(world,rho);
 
 	// compute the hessian
 	if (calc->param.hessian) hessian(x);
+
+	do_stuff();
 
 	return energy;
 }
@@ -583,12 +586,20 @@ real_function_3d Nemo::make_ddensity(const real_function_3d& rhonemo,
     // 2 RXR * rhonemo
     NuclearCorrelationFactor::U1_functor U1_func(nuclear_correlation.get(),axis);
     real_function_3d RXR=real_factory_3d(world).functor(U1_func).truncate_on_project();
-    real_function_3d term1=2.0*RXR*rhonemo;
+    real_function_3d term1=-2.0*R_square*RXR*rhonemo;
+    save(term1,"term1");
 
     // R^2 * \nabla \rho
     real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
-    real_function_3d Drhonemo=D(rhonemo);
+    real_function_3d rhonemo_copy=copy(rhonemo).refine();
+    real_function_3d Drhonemo=D(rhonemo_copy);
     real_function_3d term2=(R_square*Drhonemo);
+//    save(term2,"term2");
+//    real_function_3d term2_km2=project(term2,FunctionDefaults<3>::get_k()-1);
+//    term2_km2=project(term2_km2,FunctionDefaults<3>::get_k());
+//    term2_km2+=term2;
+//    term2_km2.scale(0.5);
+//    save(term2_km2,"term2_km2");
 
     return (term1+term2);
 }
@@ -622,6 +633,7 @@ real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) c
         real_function_3d d2rhonemo=D(drhonemo);
         laplace_rhonemo+=d2rhonemo;
     }
+    save(laplace_rhonemo,"laplace_rhonemo");
 
     result+=(laplace_rhonemo).truncate();
     result=(R_square*result).truncate();

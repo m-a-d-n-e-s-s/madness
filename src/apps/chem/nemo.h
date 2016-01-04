@@ -228,6 +228,8 @@ public:
 	/// returns the molecular hessian matrix at structure x
 	Tensor<double> hessian(const Tensor<double>& x);
 
+	void do_stuff();
+
 	/// solve the CPHF equations for the nuclear displacements
 
 	/// this function computes that part of the orbital response that is

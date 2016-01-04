@@ -47,8 +47,126 @@
 #include <chem/nemo.h>
 #include <chem/molecular_optimizer.h>
 #include <chem/cheminfo.h>
+#include <chem/SCFOperators.h>
 
 using namespace madness;
+
+namespace madness {
+
+const static double a=2.0;
+double exp_r_inv(const coord_3d& r) {
+    return exp(-a*sqrt(r.normf()));
+}
+double exp_r(const coord_3d& r) {
+    return exp(a*sqrt(r.normf()));
+}
+double dx_exp_r(const coord_3d& r) {
+    double rr=sqrt(r.normf());
+    return a*r[0]*exp(a*rr);
+}
+
+double dy_exp_r(const coord_3d& r) {
+    double rr=sqrt(r.normf());
+    return a*r[1]*exp(a*rr);
+}
+
+double dz_exp_r(const coord_3d& r) {
+    double rr=sqrt(r.normf());
+    return a*r[2]*exp(a*rr);
+}
+
+double d2_exp_r(const coord_3d& r) {
+    double rr=sqrt(r.normf());
+    return a*a*exp(a*rr) + 2.0*a/(rr+0.00001)*exp(rr);
+}
+
+
+
+void Nemo::do_stuff() {
+    return;
+    const vecfuncT& nemo=calc->amo;
+    const real_function_3d rhonemo=2.0*make_density(calc->aocc, calc->amo);
+    save(rhonemo,"rhonemo");
+    const real_function_3d rho = (R_square*rhonemo);
+
+    Laplacian<double,3> DD(world);
+    real_function_3d d2nemo=DD(rhonemo);
+    save(d2nemo,"d2rhonemo");
+
+//    typedef NonlinearSolver solverT;
+//    solverT solver;
+//
+//    // solve the inverse Poisson equation
+//    for (int i=0; i<20; ++i) {
+//        real_function_3d rho_rec=-1.0/(4.0*M_PI)*(*poisson)(d2nemo);
+//        real_function_3d res=(rho_rec-rhonemo).truncate();
+//        d2nemo = (solver.update(d2nemo, res));
+//        save(d2nemo,"d2nemo"+stringify(i));
+//        save(res,"res"+stringify(i));
+//        double rnorm=res.norm2();
+//        print("finished iteration ",i," with residual norm", rnorm);
+//    }
+//
+
+
+    real_function_3d d2rho=this->make_laplacian_density(rhonemo);
+    save(d2rho,"d2rho");
+
+    XCOperator xcop(world,this);
+//    xcop.make_xc_potential();
+    xcop.apply_xc_kernel(rho);
+    throw;
+
+    std::vector<real_function_3d> ddens(3);
+    ddens[0]=this->make_ddensity(rhonemo,0);
+    ddens[1]=this->make_ddensity(rhonemo,1);
+    ddens[2]=this->make_ddensity(rhonemo,2);
+//
+//    Derivative<double,3> D0 = free_space_derivative<double,3>(world, 0);
+//    Derivative<double,3> D1 = free_space_derivative<double,3>(world, 1);
+//    Derivative<double,3> D2 = free_space_derivative<double,3>(world, 2);
+//    real_function_3d ddens0b=D0(rho);
+//    real_function_3d ddens1b=D1(rho);
+//    real_function_3d ddens2b=D2(rho);
+//    save(ddens0a,"ddens0a");
+//    save(ddens1a,"ddens1a");
+//    save(ddens2a,"ddens2a");
+//    save(ddens0b,"ddens0b");
+//    save(ddens1b,"ddens1b");
+//    save(ddens2b,"ddens2b");
+//
+//    real_function_3d drhonemo0=D0(rhonemo);
+//    real_function_3d drhonemo1=D1(rhonemo);
+//    real_function_3d drhonemo2=D2(rhonemo);
+//    save(drhonemo0,"drhonemo0");
+//    save(drhonemo1,"drhonemo1");
+//    save(drhonemo2,"drhonemo2");
+
+    real_function_3d precond=real_factory_3d(world).f(exp_r);
+    real_function_3d precond_inv=real_factory_3d(world).f(exp_r_inv);
+
+    std::vector<real_function_3d> dprecond(3);
+    dprecond[0]=real_factory_3d(world).f(dx_exp_r);
+    dprecond[1]=real_factory_3d(world).f(dy_exp_r);
+    dprecond[2]=real_factory_3d(world).f(dz_exp_r);
+
+    real_function_3d d2_precond=real_factory_3d(world).f(d2_exp_r);
+
+    real_function_3d rhof=rhonemo*precond;
+    save(rhof,"rhof");
+    real_function_3d d2rhof=DD(rhof);
+    save(d2rhof,"d2rhof");
+
+    real_function_3d tmp=dot(world,ddens,dprecond);
+    real_function_3d test=precond_inv*(d2rhof - 2.0*tmp - rho*d2_precond);
+    save(test,"d2rho_precond");
+
+    throw;
+
+}
+
+
+}
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
