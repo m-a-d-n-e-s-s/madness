@@ -31,7 +31,7 @@ thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h 
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
                         mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h gentensor.h srconf.h systolic.h \
                         tensortrain.h distributed_matrix.h \
-                        tensor_lapack.h cblas.h clapack.h  lapack_functions.h \
+                        tensor_lapack.h cblas.h clapack.h \
                         solvers.cc solvers.h gmres.h elem.h
 EXTRA_DIST = CMakeLists.txt genmtxm.py tempspec.py
 

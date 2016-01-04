@@ -40,7 +40,7 @@ endif()
 set(MADCLAPACK_HEADERS cblas.h clapack.h)  # this part of MADlinalg is purely independent of MADtensor
 
 # Source lists for MADlinalg
-set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h lapack_functions.h solvers.h)
+set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h solvers.h)
 set(MADLINALG_SOURCES lapack.cc solvers.cc)
 # elem.h && elem.cc have not been adapted to recent Elemental yet
 if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)

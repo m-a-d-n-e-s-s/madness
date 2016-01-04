@@ -40,7 +40,6 @@
 /// \brief C++ prototypes for Fortran LAPACK with associated typedefs and macos
 
 #include <madness/fortran_ctypes.h>
-#include <madness/tensor/lapack_functions.h>
 
 #ifdef FORTRAN_LINKAGE_LC
 #  define sgesvd_ sgesvd
