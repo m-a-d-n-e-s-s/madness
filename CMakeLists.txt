@@ -144,7 +144,14 @@ if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))
 endif()
 add_feature_info("FORTRAN_INTEGER_SIZE=${FORTRAN_INTEGER_SIZE}" TRUE "assumes Fortran integers to be ${FORTRAN_INTEGER_SIZE} bytes long")
 
-set(ASSERTION_TYPE "throw" CACHE STRING "Define MADNESS assertion behavior (abort|assert|disable|throw)")
+if (CMAKE_BUILD_TYPE STREQUAL Release OR
+    CMAKE_BUILD_TYPE STREQUAL RelWithDebugInfo OR
+    CMAKE_BUILD_TYPE STREQUAL MinSizeRel)
+  set (DEFAULT_ASSERTION_TYPE "disable")
+else ()
+  set (DEFAULT_ASSERTION_TYPE "throw")
+endif()
+set(ASSERTION_TYPE ${DEFAULT_ASSERTION_TYPE} CACHE STRING "Define MADNESS assertion behavior (abort|assert|disable|throw)")
 if(ASSERTION_TYPE STREQUAL "abort")
   set(MADNESS_ASSERTIONS_ABORT 1)
 elseif(ASSERTION_TYPE STREQUAL "assert")
