@@ -166,7 +166,7 @@ else()
   set(MADNESS_ASSERTIONS_THROW 1)
 endif()
 message(STATUS "Assertion type: ${ASSERTION_TYPE}")
-add_feature_info("ASSERTION_TYPE=${ASSERTION_TYPE}" TRUE "controls how MADNESS assetions are handled")
+add_feature_info("ASSERTION_TYPE=${ASSERTION_TYPE}" TRUE "controls how MADNESS assertions (MADNESS_ASSERT) are handled")
 
 set(MPI_THREAD "multiple" CACHE STRING "Thread level for MPI (multiple|serialized)")
 if(MPI_THREAD STREQUAL "multiple")
