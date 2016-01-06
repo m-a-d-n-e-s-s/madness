@@ -1,4 +1,9 @@
 # - CMAKE Config file for the MADNESS package
+#
+# Valid COMPONENTS: world tensor misc tensor linalg tinyxml muparser mra chem
+# If MADNESS_FIND_COMPONENTS only contains world, will load the subset of targets
+# necessary for MADworld
+#
 # The following variables are defined:
 #  MADNESS_FOUND                - System has the MADNESS package
 #  MADNESS_INCLUDE_DIRS         - The MADNESS include directory
@@ -23,13 +28,28 @@ set(MADNESS_VERSION "@MADNESS_VERSION@")
 
 @PACKAGE_INIT@
 
+# determine if only looking for MADworld ... this is a common scenario that loads a subset of targets
+set(MADNESS_FIND_WORLD_ONLY FALSE)
+list(LENGTH MADNESS_FIND_COMPONENTS MADNESS_FIND_NUM_COMPONENTS)
+list(FIND MADNESS_FIND_COMPONENTS world MADNESS_FIND_COMPONENTS_world_idx)
+if (MADNESS_FIND_NUM_COMPONENTS EQUAL 1 AND MADNESS_FIND_COMPONENTS_world_idx GREATER -1)
+  set(MADNESS_FIND_WORLD_ONLY TRUE)
+endif()
+
 # Include library IMPORT targets
-if(NOT TARGET madness)
+if(NOT TARGET madness AND NOT MADNESS_FIND_WORLD_ONLY)
   include("${CMAKE_CURRENT_LIST_DIR}/madness-targets.cmake")
+  set(MADNESS_TOP_TARGET_LIBRARY madness)
+  set(MADNESS_TARGET_COMPONENT madness)
+endif()
+if(NOT TARGET MADworld AND MADNESS_FIND_WORLD_ONLY)
+  include("${CMAKE_CURRENT_LIST_DIR}/madworld-targets.cmake")
+  set(MADNESS_TOP_TARGET_LIBRARY MADworld)
+  set(MADNESS_TARGET_COMPONENT world)
 endif()
 
 # Set the madness libraries target
-set(MADNESS_LIBRARIES madness)
+set(MADNESS_LIBRARIES ${MADNESS_TOP_TARGET_LIBRARY})
 
 set(MADNESS_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
 set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
@@ -78,7 +98,7 @@ else()
 endif()
 
 # Set component variables
-foreach(_comp world misc tensor linalg tinyxml muparser mra chem)
+foreach(_comp ${MADNESS_FIND_COMPONENTS})
   if(TARGET MAD${_comp})
     set(MADNESS_${_comp}_FOUND TRUE)
     set(MADNESS_${_comp}_LIBRARY MAD${_comp})
@@ -91,7 +111,7 @@ endforeach()
 # Set the Fortran 77 integer size (4 or 8)
 set(MADNESS_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
 
-check_required_components(MADNESS)
+check_required_components(${MADNESS_TARGET_COMPONENT})
 
 set(MADNESS_FOUND TRUE)
 
