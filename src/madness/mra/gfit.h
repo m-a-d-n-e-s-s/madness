@@ -39,8 +39,16 @@
 /// \brief fit isotropic functions to a set of Gaussians with controlled precision
 
 //#include <iostream>
-#include <madness/tensor/tensor.h>
-#include <madness/constants.h>
+
+#include "/usr/include/math.h"
+#include "../constants.h"
+#include "../tensor/basetensor.h"
+#include "../tensor/slice.h"
+#include "../tensor/tensor.h"
+#include "../tensor/tensor_lapack.h"
+#include "../world/madness_exception.h"
+#include "../world/print.h"
+
 namespace madness {
 
 template<typename T, std::size_t NDIM>

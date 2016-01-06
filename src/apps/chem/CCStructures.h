@@ -18,11 +18,19 @@
 
 namespace madness{
 
+enum calctype {MP2_, CC2_};
 enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
-enum potentialtype_s {pot_F3D_, pot_S3c_, pot_S5b_, pot_S5c_, pot_S6_, pot_S2b_, pot_S2c_, pot_S4a_, pot_S4b_, pot_S4c_, pot_S1_, pot_S5a_};
-enum potentialtype_d {pot_F6D_, pot_D4b_ ,pot_D6b_, pot_D6c_, pot_D8a_, pot_D8b_, pot_D9_, pot_CC2_,pot_D6b_D8b_D9_, pot_D4b_D6c_D8a_};
+enum potentialtype_s {pot_F3D_, pot_S3c_, pot_S5b_, pot_S5c_, pot_S6_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S1_, pot_S5a_, pot_ccs_};
+enum potentialtype_d {pot_F6D_, pot_D4b_ ,pot_D6b_, pot_D6c_, pot_D8a_, pot_D8b_, pot_D9_, pot_cc2_coulomb_,pot_cc2_residue_,pot_D6b_D8b_D9_, pot_D4b_D6c_D8a_};
 // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
 enum pair_function_form{DECOMPOSED, FULL};
+static std::string assign_name(const calctype &inp){
+	switch(inp){
+	case CC2_ : return "CC2";
+	case MP2_ : return "MP2";
+	}
+	return "unknown";
+}
 static std::string assign_name(const potentialtype_s &inp){
 	switch(inp){
 	case pot_F3D_ : return "Fock-Residue-3D";
@@ -30,13 +38,19 @@ static std::string assign_name(const potentialtype_s &inp){
 	case pot_S5b_ : return "S5b";
 	case pot_S5c_ : return "S5c";
 	case pot_S6_  : return "S6";
-	case pot_S2b_ : return "S2b";
-	case pot_S2c_ : return "S2c";
-	case pot_S4a_ : return "S4a";
-	case pot_S4b_ : return "S4b";
-	case pot_S4c_ : return "S4c";
+	case pot_S2b_u_ : return "S2b_u_part";
+	case pot_S2c_u_ : return "S2c_u_part";
+	case pot_S4a_u_ : return "S4a_u_part";
+	case pot_S4b_u_ : return "S4b_u_part";
+	case pot_S4c_u_ : return "S4c_u_part";
+	case pot_S2b_r_ : return "S2b_r_part";
+	case pot_S2c_r_ : return "S2c_r_part";
+	case pot_S4a_r_ : return "S4a_r_part";
+	case pot_S4b_r_ : return "S4b_r_part";
+	case pot_S4c_r_ : return "S4c_r_part";
 	case pot_S1_ : return "S1";
 	case pot_S5a_ : return "S5a";
+	case pot_ccs_ : return "ccs-potential";
 	}
 	return "undefined";
 }
@@ -44,7 +58,8 @@ static std::string assign_name(const potentialtype_s &inp){
 static std::string assign_name(const potentialtype_d &inp){
 	switch(inp){
 	case pot_F6D_ : return "Fock-Residue-6D";
-	case pot_CC2_ : return "CC2-Residue";
+	case pot_cc2_coulomb_ : return "CC2-Coulomb";
+	case pot_cc2_residue_ : return "CC2-Residue";
 	case pot_D4b_ : return "D4b";
 	case pot_D6b_ : return "D6b";
 	case pot_D6c_ : return "D6c";
@@ -55,6 +70,16 @@ static std::string assign_name(const potentialtype_d &inp){
 	case pot_D4b_D6c_D8a_ : return "combined(D4b+D6c+D8a)";
 	}
 	return "undefined";
+}
+
+static std::string assign_name(const functype &inp){
+	switch(inp){
+	case HOLE : return "Hole";
+	case PARTICLE : return "Particle";
+	case MIXED : return "Mixed";
+	case UNDEFINED : return "Undefined";
+	}
+	return "???";
 }
 
 
@@ -127,7 +152,8 @@ struct CC_Parameters{
 		ccs(false),
 		kain(false),
 		freeze(0),
-		pair_function_in_singles_potential(DECOMPOSED)
+		pair_function_in_singles_potential(DECOMPOSED),
+		test(false)
 	{}
 
 	// read parameters from input
@@ -157,7 +183,8 @@ struct CC_Parameters{
 		kain(false),
 		kain_subspace(2),
 		freeze(0),
-		pair_function_in_singles_potential(DECOMPOSED)
+		pair_function_in_singles_potential(DECOMPOSED),
+		test(false)
 	{
 		// get the parameters from the input file
 		std::ifstream f(input.c_str());
@@ -242,7 +269,7 @@ struct CC_Parameters{
 			else if (s == "kain_subspace") f>>kain_subspace;
 			else if (s == "mp2_only" ) {mp2_only=true; mp2=true;}
 			else if (s == "mp2") mp2=true;
-			else if (s == "cc2") ccs=true;
+			else if (s == "ccs") ccs=true;
 			else if (s == "freeze") f>>freeze;
 			else if (s == "pair_function_in_singles_potential" or s == "pair_function"){
 				std::string tmp;
@@ -255,6 +282,7 @@ struct CC_Parameters{
 			}
 			else if (s == "full_pair_function") pair_function_in_singles_potential=FULL;
 			else if (s == "decomposed_pair_function") pair_function_in_singles_potential=DECOMPOSED;
+			else if (s == "test") test =true;
 			else continue;
 		}
 
@@ -324,6 +352,7 @@ struct CC_Parameters{
 		return corrfac_gamma;
 	}
 	pair_function_form pair_function_in_singles_potential; // possible choices are FULL and DECOMPOSED
+	bool test;
 
 	// print out the parameters
 	void information(World &world)const{
@@ -372,6 +401,7 @@ struct CC_Parameters{
 			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
 			if(mp2) std::cout << std::setw(20) << std::setfill(' ') << "MP2 Guess demanded" << std::endl;
 			std::cout << "pair_function_in_singles_potential " << pair_function_in_singles_potential << std::endl;
+			if(test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
 		}
 	}
 
@@ -453,13 +483,13 @@ public:
 	void info()const{
 		if(function.world().rank()==0){
 			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " Current Information about Electron Pair " << name() << std::endl;
-			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ij_gQf_ij: " << ij_gQf_ij << std::endl;
-			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ji_gQf_ij: " << ji_gQf_ij << std::endl;
+			//std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ij_gQf_ij: " << ij_gQf_ij << std::endl;
+			//std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ji_gQf_ij: " << ji_gQf_ij << std::endl;
 			if(function.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||u||    : " << function.norm2() << std::endl;
 			if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " << constant_term.norm2() << std::endl;
 			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|  : " << current_error << std::endl;
-			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " << current_energy << std::endl;
-			if(epsilon == uninitialized()) std::cout << "WARNING: BSH-epsilon is not initialized" << std::endl;
+			if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(FunctionDefaults<6>::get_thresh()*0.1)<<std::fixed<< current_energy << std::endl;
+			//if(epsilon == uninitialized()) std::cout << "WARNING: BSH-epsilon is not initialized" << std::endl;
 		}
 	}
 
