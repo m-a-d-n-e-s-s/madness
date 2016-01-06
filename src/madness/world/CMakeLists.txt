@@ -23,6 +23,14 @@ set(MADWORLD_SOURCES
 # Create the MADworld-obj and MADworld library targets
 add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
 
+# create an additional, MADworld-only, export
+install(TARGETS MADworld EXPORT madworld
+      COMPONENT world
+      PUBLIC_HEADER DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/world"
+      LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+      ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+      INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
+
 # Set the dependencies for the MADworld library
 #target_compile_definitions(MADworld PUBLIC "-DMADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\"")
 target_include_directories(MADworld PUBLIC

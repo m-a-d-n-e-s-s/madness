@@ -527,6 +527,8 @@ write_basic_package_version_file(madness-config-version.cmake
 # Create the targets file
 export(EXPORT madness
   FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
+export(EXPORT madworld
+  FILE "${PROJECT_BINARY_DIR}/madworld-targets.cmake")
 
 # Create the configure file
 configure_package_config_file(cmake/madness-config.cmake.in
@@ -540,6 +542,10 @@ configure_package_config_file(cmake/madness-config.cmake.in
 # Install config, version, and target files
 install(EXPORT madness
     FILE "madness-targets.cmake"
+    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
+    COMPONENT madness-config)
+install(EXPORT madworld
+    FILE "madworld-targets.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
     COMPONENT madness-config)
 install(FILES
