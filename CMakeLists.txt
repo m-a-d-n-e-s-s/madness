@@ -541,12 +541,15 @@ configure_package_config_file(cmake/madness-config.cmake.in
 install(EXPORT madness
     FILE "madness-targets.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
-    COMPONENT madness)
+    COMPONENT madness-config)
 install(FILES
     "${MADNESS_BINARY_DIR}/madness-config.cmake"
     "${MADNESS_BINARY_DIR}/madness-config-version.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
-    COMPONENT madness)
+    COMPONENT madness-config)
+add_custom_target(install-config
+     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+     COMMENT "Installing MADNESS config components")
 
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")
