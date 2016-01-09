@@ -35,6 +35,9 @@
 #include <madness/world/world_object.h>
 #include <madness/world/worldmutex.h>
 #include <list>
+#include <madness/mra/FuseT/PrimitiveOp.h>
+#include <madness/mra/FuseT/OpExecutor.h>
+#include <madness/mra/FuseT/CopyOp.h>
 
 #ifdef FUNCTION_INSTANTIATE_2
 namespace madness {
@@ -44,7 +47,7 @@ namespace madness {
     template void plotdx<double_complex,2>(const Function<double_complex,2>&, const char*, const Tensor<double>&,
                                            const std::vector<long>&, bool binary);
 
-    template void fcube<double,2>(const Key<2>&, const FunctionFunctorInterface<double,2>&, const Tensor<double>&, Tensor<double>&);
+template void fcube<double,2>(const Key<2>&, const FunctionFunctorInterface<double,2>&, const Tensor<double>&, Tensor<double>&);
     template Tensor<double> fcube<double, 2>(Key<2> const&, double (*)(Vector<double, 2> const&), Tensor<double> const&);
     template void fcube<std::complex<double>,2>(const Key<2>&, const FunctionFunctorInterface<std::complex<double>,2>&, const Tensor<double>&, Tensor<std::complex<double> >&);
     template Tensor<std::complex<double> > fcube<std::complex<double>, 2>(Key<2> const&, std::complex<double> (*)(Vector<double, 2> const&), Tensor<double> const&);
@@ -83,6 +86,20 @@ namespace madness {
     template class Displacements<2>;
     template class DerivativeBase<double,2>;
     template class DerivativeBase<double_complex,2>;
+
+
+    //FuseT explicit Instantiations
+    template <> volatile std::list<detail::PendingMsg> WorldObject<OpExecutor<double,2> >::pending = std::list<detail::PendingMsg>();
+    template <> Spinlock WorldObject<OpExecutor<double,2> >::pending_mutex(0);
+
+    template class PrimitiveOp<double,2>;
+    template class OpExecutor<double,2>;
+    template class CopyOp<double,2>;
+    template class WorldObject<OpExecutor<double,2> >;
+
+
+
+
 
 }
 #endif
