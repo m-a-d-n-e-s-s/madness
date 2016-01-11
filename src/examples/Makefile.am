@@ -1,3 +1,4 @@
+#SUBDIRS = FuseTExamples
 include $(top_srcdir)/config/MakeGlobal.am
 EXTRA_DIST = CMakeLists.txt
 
@@ -12,7 +13,7 @@ noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat hea
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian
+ tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian copyEx
  
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
@@ -25,7 +26,9 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 pno_SOURCES = pno.cc 
 
-siam_example_SOURCES = siam_example.cc 
+siam_example_SOURCES = siam_example.cc
+
+copyEx_SOURCES =FuseTExamples/CopyEx.cc
 
 mp2_SOURCES = mp2.cc 
 

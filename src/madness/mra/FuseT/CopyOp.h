@@ -38,7 +38,6 @@ namespace madness {
 	{
 	    //dependnecy Info PSI, ALPHA, DELTA,SIGMA, ID
 	    this->_OpID = output->get_impl()->id().get_obj_id();
-      
 	    this->_dInfoVec.push_back(DependencyInfo<T,NDIM>(i1,true,false,false,false));
 	    this->_dInfoVec.push_back(DependencyInfo<T,NDIM>(output,true,false,false,false));
       
