@@ -14,7 +14,7 @@ if(NOT LAPACK_LIBRARIES)
     endif()
   endif()
   
-  if(ENABLE_ACML)
+  if(ENABLE_ACML AND NOT LAPACK_FOUND)
     find_package(ACML)
     
     if(ACML_FOUND)
