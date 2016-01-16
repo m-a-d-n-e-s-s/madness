@@ -31,6 +31,9 @@ if(NOT TBB_FOUND)
     elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
       set(TBB_LIBRARY ${TBB_ROOT_DIR}/lib/intel64/gcc4.4;${TBB_ROOT_DIR}/lib 
           CACHE PATH "The library directory for TBB")
+    else()
+      set(TBB_LIBRARY ${TBB_ROOT_DIR}/lib
+          CACHE PATH "The library directory for TBB")
     endif()
   endif()
   
