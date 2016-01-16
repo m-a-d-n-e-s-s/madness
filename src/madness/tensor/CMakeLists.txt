@@ -59,16 +59,20 @@ elseif(USE_X86_32_ASM)
   target_compile_definitions(MADtensor-obj PRIVATE -DX86_32)
 endif()
 if(HAVE_IBMBGQ)
-  add_custom_target(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a
       COMMAND TARGET=BGQ ${CMAKE_MAKE_PROGRAM} 
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests
       COMMENT "Building libMADMTXM.a")
+  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
+  add_dependencies(MADtensor libmadmtxm)
   target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
 elseif(HAVE_IBMBGP)
-  add_custom_target(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a
       COMMAND TARGET=BGP ${CMAKE_MAKE_PROGRAM} 
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests
       COMMENT "Building libMADMTXM.a")
+  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
+  add_dependencies(MADtensor libmadmtxm)
   target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
 endif()
 if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
