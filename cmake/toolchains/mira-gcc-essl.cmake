@@ -42,7 +42,7 @@ set(XL_LIBRARIES ${XLSMP_DIR}/bglib64/libxlsmp.a)
 set(XLF_LIBRARIES ${XLF_DIR}/bglib64/libxlf90_r.a;${XLF_DIR}/bglib64/libxlfmath.a;${XLF_DIR}/bglib64/libxlopt.a;${XLF_DIR}/bglib64/libxl.a;-ldl;-lm)
 set(BLAS_LIBRARIES ${ESSL_DIR}/lib64/libesslbg.a;${BLAS_LIBRARY};${XLF_LIBRARIES};${XL_LIBRARIES})
 set(LAPACK_LIBRARIES ${LAPACK_DIR}/lib/liblapack.a;${BLAS_LIBRARIES})
-set(INTEGER4 TRUE CACHE BOOL "Set Fortran integer size to 4 bytes")
+set(FORTRAN_INTEGER_SIZE "4" CACHE STRING "Set Fortran integer size in bytes")
 
 ##############################################################
 
