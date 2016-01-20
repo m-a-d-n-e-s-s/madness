@@ -49,3 +49,5 @@ set(BLAS_LIBRARIES ${BLAS_LIBRARY};${XLF_LIBRARIES};${XL_LIBRARIES})
 set(LAPACK_LIBRARY ${LAPACK_DIR}/lib/liblapack.a)
 set(LAPACK_LIBRARIES ${LAPACK_LIBRARY};${BLAS_LIBRARIES})
 set(FORTRAN_INTEGER_SIZE "4" CACHE STRING "Set Fortran integer size in bytes")
+set(HAVE_SPINLOCKS OFF CACHE BOOL "Enable if pthread lib supports spinlocks in pmrrr")
+

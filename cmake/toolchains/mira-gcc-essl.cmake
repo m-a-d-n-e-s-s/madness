@@ -47,6 +47,8 @@ set(XLF_LIBRARIES ${XLF_DIR}/bglib64/libxlf90_r.a;${XLF_DIR}/bglib64/libxlfmath.
 set(BLAS_LIBRARIES ${ESSL_DIR}/lib64/libesslbg.a;${BLAS_LIBRARY};${XLF_LIBRARIES};${XL_LIBRARIES})
 set(LAPACK_LIBRARIES ${LAPACK_DIR}/lib/liblapack.a;${BLAS_LIBRARIES})
 set(FORTRAN_INTEGER_SIZE "4" CACHE STRING "Set Fortran integer size in bytes")
+set(HAVE_SPINLOCKS OFF CACHE BOOL "Enable if pthread lib supports spinlocks in pmrrr")
+
 
 ##############################################################
 
