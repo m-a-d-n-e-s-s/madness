@@ -120,11 +120,11 @@ set(USE_SPINLOCKS ${ENABLE_SPINLOCKS} CACHE BOOL
     "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)")
 
 option(ENABLE_NEVER_SPIN
-    "Disables use of spinlocks (notably for use inside virtual machines" OFF)
+    "Disables use of spinlocks (notably for use inside virtual machines)" OFF)
 add_feature_info(NEVER_SPIN ENABLE_NEVER_SPIN
-    "Disables use of spinlocks (notably for use inside virtual machines")
+    "Disables use of spinlocks (notably for use inside virtual machines)")
 set(NEVER_SPIN ${ENABLE_NEVER_SPIN} CACHE BOOL
-    "Disables use of spinlocks (notably for use inside virtual machines")
+    "Disables use of spinlocks (notably for use inside virtual machines)")
 
 option(ENABLE_BSEND_ACKS 
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements" ON)
