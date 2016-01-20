@@ -46,7 +46,6 @@
 namespace elem = El;
 #elif defined(HAVE_ELEMENTAL_H)
 # include <elemental.hpp>
-using namespace elem;
 #else
 # error "MADNESS_HAS_ELEMENTAL set but neither HAVE_EL_H nor HAVE_ELEMENTAL_H set: file an issue at " MADNESS_PACKAGE_URL
 #endif
