@@ -1123,15 +1123,11 @@ namespace madness {
 
         // Static data
         static ThreadPool* instance_ptr; ///< Singleton pointer.
-#ifdef __bgq__
-#warning WE NEED TO TUNE THE nmax PARAMETER
-#endif
-        // nmax WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
-        static const int nmax = 128; ///< \todo Description needed.
+        static const int nmax = 128; ///< Number of task a worker thread will pop from the task queue
         static double await_timeout; ///< Waiter timeout.
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
-	static unsigned int main_hpmctx; ///< HPM context for main thread.
+        static unsigned int main_hpmctx; ///< HPM context for main thread.
 #endif
         /// The constructor is private to enforce the singleton model.
 
