@@ -26,10 +26,10 @@ if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
   
   # Set the configuration variables used by elemental
   set(MATH_LIBS "${LAPACK_LIBRARIES}")
-  if((ENABLE_SPINLOCKS OR NOT ENABLE_NEVER_SPIN) AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
-    set(HAVE_SPINLOCKS ON CACHE BOOL "Enable if pthread lib supports spinlocks")
-  else()
+  if(((NOT ENABLE_SPINLOCKS) OR ENABLE_NEVER_SPIN) OR (CMAKE_SYSTEM_NAME MATCHES "Darwin"))
     set(HAVE_SPINLOCKS OFF CACHE BOOL "Enable if pthread lib supports spinlocks")
+  else()
+    set(HAVE_SPINLOCKS ON CACHE BOOL "Enable if pthread lib supports spinlocks")
   endif()
 
   message(STATUS "Begin Elemental Configure")
