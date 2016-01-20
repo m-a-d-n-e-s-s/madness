@@ -23,7 +23,7 @@ set(SPI_DIR    "/bgsys/drivers/ppcfloor/spi")
 
 # Set compilers
 set(CMAKE_C_COMPILER       "${CLANG_DIR}/wbin/bgclang")
-set(CMAKE_CXX_COMPILER     "${CLANG_DIR}/wbin/bgclang++11)
+set(CMAKE_CXX_COMPILER     "${CLANG_DIR}/wbin/bgclang++11")
 set(CMAKE_Fortran_COMPILER "${GCC_DIR}/bin/powerpc64-bgq-linux-gfortran")
 set(MPI_C_COMPILER         "mpicc")
 set(MPI_CXX_COMPILER       "mpicxx")
