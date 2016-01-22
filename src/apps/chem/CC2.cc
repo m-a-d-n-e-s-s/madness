@@ -61,8 +61,10 @@ double CC2::solve(){
 
 	// Make empty CC_vecfunction Vector (will be initialized in the solve routine)
 	CC_vecfunction singles;
-	const double correlation_energy_mp2 = solve_mp2(pairs,singles);
-	const double correlation_energy_cc2 = solve_cc2(pairs,singles);
+	double correlation_energy_mp2 = 0.0;
+	double correlation_energy_cc2 = 0.0;
+	if(not parameters.restart or parameters.mp2) correlation_energy_mp2 = solve_mp2(pairs,singles);
+	if(not parameters.mp2) correlation_energy_cc2 = solve_cc2(pairs,singles);
 	output("Solving of CC2 ended at " + stringify(wall_time()) + "s (wall), " +  stringify(cpu_time()) + "s (cpu)");
 
 	output_section("Solve CC2 ended");
@@ -381,9 +383,10 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 	bool doubles_converged = false;
 	std::vector<double> current_energies = update_cc2_pair_energies(doubles,singles);
 	for(size_t iter=0;iter<parameters.iter_max_6D;iter++){
-		CC_Timer timer_iter_all(world,"Iteration " + stringify(iter));
+		CC_Timer timer_iter_all(world,"Macroiteration " + stringify(iter));
 		CCOPS.update_intermediates(singles);
-		output_subsection("Iteration "+stringify(iter));
+		output_subsection("Macroiteration "+stringify(iter));
+		CCOPS.print_memory_information(singles,doubles);
 
 		// Iterate singles
 		CCOPS.check_stored_singles_potentials();
@@ -413,29 +416,6 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 		if(world.rank()==0)CCOPS.performance_S.info_last_iter();
 		if(world.rank()==0)CCOPS.performance_D.info_last_iter();
 
-
-		output("\nNorm of Singles\n");
-		for(auto x:singles.functions){
-			x.second.info(world);
-			if(world.rank()==0){
-				std::cout << "||R*"<<x.second.name()<<"||=" <<(x.second.function*nemo.nuclear_correlation->function()).norm2();
-			}
-		}
-		output("\nNorm of Doubles\n");
-		for(auto x:doubles.allpairs){
-
-			real_function_6d full_pair = CCOPS.make_full_pair_function(x.second,singles(x.second.i),singles(x.second.j));
-			real_function_6d R2_full_pair = CompositeFactory<double,6,3>(world).ket(copy(full_pair)).V_for_particle1(nemo.nuclear_correlation->function()).V_for_particle2(nemo.nuclear_correlation->function());
-			R2_full_pair.fill_tree().truncate().reduce_rank();
-			const double norm_tau    =    full_pair.norm2();
-			const double norm_R12tau = R2_full_pair.norm2();
-
-			x.second.info();
-			if(world.rank()==0){
-				std::cout <<"||R1R2|tau"<< x.second.i << x.second.j <<">||=" << norm_tau   <<std::endl;
-				std::cout <<"||R1R2|tau"<< x.second.i << x.second.j <<">||=" << norm_R12tau<<std::endl;
-			}
-		}
 		output("\nPair Energies");
 		if(world.rank()==0) std::cout << std::setprecision(parameters.output_prec) << current_energies << std::endl;
 
@@ -443,6 +423,12 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 
 		CCOPS.remove_stored_singles_potentials();
 
+		if(world.rank()==0){
+			output("End of Macroiteration " + stringify(iter));
+			std::cout << "singles converged: " << singles_converged << std::endl;
+			std::cout << "doubles converged: " << doubles_converged << std::endl;
+			std::cout << "energy  converged: " << energy_converged << std::endl;
+		}
 
 		if(singles_converged and doubles_converged and energy_converged){
 			output("Singles and Doubles Converged (!)");
@@ -452,21 +438,40 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 			vecfuncT new_singles = singles.get_vecfunction();
 			vecfuncT difference = sub(world,old_singles,new_singles);
 			bool full_convergence = true;
+
 			for(auto x:difference){
-				if(x.norm2()>parameters.dconv_3D) full_convergence = false;
+				if(x.norm2()>parameters.dconv_6D) full_convergence = false;
 			}
 			if(full_convergence){
+				output_section("CC2 CONVERGED!!!");
 				timer_iter_all.info();
+				output("\nNorm of Singles\n");
+				for(auto x:singles.functions){
+					x.second.info(world);
+					if(world.rank()==0){
+						std::cout << "||R*"<<x.second.name()<<"||=" <<(x.second.function*nemo.nuclear_correlation->function()).norm2();
+					}
+				}
+				output("\nNorm of Doubles\n");
+				for(auto x:doubles.allpairs){
+
+					real_function_6d full_pair = CCOPS.make_full_pair_function(x.second,singles(x.second.i),singles(x.second.j));
+					real_function_6d R2_full_pair = CompositeFactory<double,6,3>(world).ket(copy(full_pair)).V_for_particle1(nemo.nuclear_correlation->function()).V_for_particle2(nemo.nuclear_correlation->function());
+					R2_full_pair.fill_tree().truncate().reduce_rank();
+					const double norm_tau    =    full_pair.norm2();
+					const double norm_R12tau = R2_full_pair.norm2();
+
+					x.second.info();
+					if(world.rank()==0){
+						std::cout <<"|||tau"<< x.second.i << x.second.j <<">||=" << std::setprecision(4) << norm_tau   <<std::endl;
+						std::cout <<"||R1R2|tau"<< x.second.i << x.second.j <<">||=" << std::setprecision(4) << norm_R12tau<<std::endl;
+					}
+				}
 				break;
-			}else{
-				output("Overall convergence not yet reached ... starting cycle again");
 			}
+			else output("Overall convergence not yet reached ... starting cycle again");
 		}
 		timer_iter_all.info();
-
-		// save converged functions
-
-		// make analyze function
 
 	}
 
@@ -527,6 +532,8 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &sin
 		if(fabs(error) > parameters.dconv_3D) converged = false;
 	}
 	if(singles.functions.size() != active_mo.size()) MADNESS_EXCEPTION(("Wrong size of singles at the end of the iteration " + stringify(singles.functions.size())).c_str(),1);
+	if(converged) output("singles converged");
+	else output("No convergence in singles");
 	return converged;
 }
 
@@ -542,20 +549,19 @@ bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles){
 	output_section("Iterate " +pair.name());
 	output_subsection("Get Regularized-Potential of Pair " +pair.name());
 	CC_Timer timer_cc2_regular(world,"Get Semi-Constant CC2 Part of Pair " +pair.name());
-	const real_function_6d regular_part = CCOPS.make_cc2_residue(singles(pair.i),singles(pair.j));
+	const real_function_6d regular_part = CCOPS.make_cc2_residue_sepparated(singles(pair.i),singles(pair.j));
 	regular_part.print_size("Regularization part of pair " + pair.name());
 	timer_cc2_regular.info();
 	const std::pair<double,double> time1 = timer_cc2_regular.current_time();
 
-	output_subsection("Get Regularized-Potential (Sepparated Method) " +pair.name());
-	CC_Timer timer_cc2_regular2(world,"Get Semi-Constant CC2 Part of Pair " +pair.name());
-	const real_function_6d regular_part2 = CCOPS.make_cc2_residue_sepparated(singles(pair.i),singles(pair.j));
-	regular_part2.print_size("Regularization part of pair " + pair.name());
-	timer_cc2_regular2.info();
-	const std::pair<double,double> time2 = timer_cc2_regular2.current_time();
-
-	const double diff = (regular_part-regular_part2).norm2();
-	std::cout << "\n\n\n\nDifference between CC2 residues is " << diff << "\n\nTimings were (Wall), (CPU):\n" << time1 << " and " << time2  << std::endl;
+//	output_subsection("Get Regularized-Potential (Sepparated Method) " +pair.name());
+//	CC_Timer timer_cc2_regular2(world,"Get Semi-Constant CC2 Part of Pair " +pair.name());
+//	const real_function_6d regular_part2 = CCOPS.make_cc2_residue_sepparated(singles(pair.i),singles(pair.j));
+//	regular_part2.print_size("Regularization part of pair " + pair.name());
+//	timer_cc2_regular2.info();
+//	const std::pair<double,double> time2 = timer_cc2_regular2.current_time();
+//	const double diff = (regular_part-regular_part2).norm2();
+//	std::cout << "\n\n\n\nDifference between CC2 residues is " << diff << "\n\nTimings were (Wall), (CPU):\n" << time1 << " and " << time2  << std::endl;
 
 	CC_Timer timer_cc2_coulomb(world,"Get Screened Coulomb Potentials of CC2 singles");
 	const double thresh = CCOPS.guess_thresh(singles(pair.i),singles(pair.j));

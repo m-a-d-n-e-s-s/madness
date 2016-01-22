@@ -1477,7 +1477,8 @@ namespace madness {
                                                    double lo,
                                                    double eps,
                                                    const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
-                                                   int k=FunctionDefaults<3>::get_k())
+
+												   int k=FunctionDefaults<3>::get_k())
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell

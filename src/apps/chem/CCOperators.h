@@ -81,6 +81,12 @@ public:
 
 	}
 
+	// return the whole intermediate (to estimate size)
+	const intermediateT& get_EX()const{return exchange_intermediate_;}
+	const intermediateT& get_pEX()const{return perturbed_exchange_intermediate_;}
+	const intermediateT& get_fEX()const{return f12_exchange_intermediate_;}
+	const intermediateT& get_pfEX()const{return perturbed_f12_exchange_intermediate_;}
+
 	/// Get the intermediates
 	const real_function_3d get_density() const {
 		return density_;
@@ -137,21 +143,6 @@ public:
 				tau);
 		perturbed_f12_exchange_intermediate_ = make_f12_exchange_intermediate(
 				mo_bra_, tau);
-		{
-			if (world.rank() == 0)
-				std::cout << "\n---Updated Intermediates---\n";
-			hartree_potential_.print_size("0-Hartree-Potential ");
-			perturbed_hartree_potential_.print_size("T1-Hartree-Potential");
-			if (world.rank() == 0)
-				std::cout << "Exchange Intermediates:\n";
-			double size0 = 0.0;
-			double sizet = 0.0;
-			for (auto x : exchange_intermediate_.allpairs)
-				size0 += get_size(world, vecfuncT(1, x.second));
-			for (auto x : perturbed_exchange_intermediate_.allpairs)
-				sizet += get_size(world, vecfuncT(1, x.second));
-		}
-
 	}
 
 	/// make a density from two input functions
@@ -273,10 +264,10 @@ public:
 		if(world.rank()==0){
 			std::cout << "\n\n" << std::endl;
 			std::cout << "|| || || || || || || || || || || || || " << std::endl;
-			std::cout << "\/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/" << std::endl;
+			std::cout << "\\/ \\/ \\/ \\/ \\/ \\/ \\/ \\/ \\/ \\/ \\/ \\/ \\/" << std::endl;
 			std::cout << "=> WARNING IN CC_OPERATORS" << std::endl;
 			std::cout << "=> " <<msg << std::endl;
-			std::cout << "/\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ /\ " << std::endl;
+			std::cout << "/\\ /\\ /\\ /\\ /\\ /\\ /\\ /\\ /\\ /\\ /\\ /\\ /\\ " << std::endl;
 			std::cout << "|| || || || || || || || || || || || || " << std::endl;
 			std::cout << "\n\n" << std::endl;
 		}
@@ -1074,10 +1065,6 @@ private:
 	CC_Intermediates intermediates_;
 	/// The current singles potential (Q\sum singles_diagrams) , needed for application of the fock opeerator on a singles function
 	vecfuncT current_singles_potential;
-	/// The 6D part of S2b depends only on doubles and HOLE states (if the singles are iterated this does not change, and it is expensive to calculate)
-	mutable vecfuncT current_S2b_6D_part_;
-	/// The 6D part of S2c depends only on doubles and HOLE states (if the singles are iterated this does not change, and it is expensive to calculate)
-	mutable vecfuncT current_s2c_6D_part_;
 	/// The 6D part of S2c and S2b (only the parts which depends on the u-function, not the regularization tail (since the singles change)
 	mutable vecfuncT current_s2b_u_part;
 	mutable vecfuncT current_s2c_u_part;
@@ -1095,9 +1082,6 @@ public:
 		current_s2b_u_part.clear();
 		current_s2c_u_part.clear();
 		current_singles_potential.clear();
-		// not used anyway
-		current_S2b_6D_part_.clear();
-		current_s2c_6D_part_.clear();
 	}
 
 	//	// Screen Potential
@@ -1315,6 +1299,64 @@ public:
 		}
 		return laplace_f;
 	}
+
+	double size_of(const CC_vecfunction &f)const{
+		double size = 0.0;
+		for(const auto &tmp:f.functions){
+			size += get_size<double,3>(tmp.second.function);
+		}
+		return size;
+	}
+
+	double size_of(const Pairs<CC_Pair> &pairs)const{
+		double size =0.0;
+		for(const auto & pair:pairs.allpairs){
+			size += get_size<double,6>(pair.second.function);
+		}
+		return size;
+	}
+
+	double size_of(const intermediateT &im)const{
+		double size=0.0;
+		for(const auto & tmp:im.allpairs){
+			size += get_size<double,3>(tmp.second);
+		}
+		return size;
+	}
+
+	void print_memory_information(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles)const{
+		const double singles_size = size_of(singles);
+		const double doubles_size = size_of(doubles);
+		const double mo_ket_size  = size_of(mo_ket_);
+		const double mo_bra_size  = size_of(mo_bra_);
+		const double imEX = size_of(intermediates_.get_EX());
+		const double impEX = size_of(intermediates_.get_pEX());
+		const double imfEX = size_of(intermediates_.get_fEX());
+		const double impfEX = size_of(intermediates_.get_pfEX());
+		const double potJ = get_size<double,3>(intermediates_.get_hartree_potential());
+		const double potpJ = get_size<double,3>(intermediates_.get_perturbed_hartree_potential());
+		const double rho = get_size<double,3>(intermediates_.get_density());
+		const double prho = get_size<double,3>(intermediates_.get_perturbed_density());
+
+		const double all = singles_size + doubles_size + mo_ket_size + mo_bra_size + imEX + impEX + imfEX + impfEX + potJ + potpJ + rho + prho;
+
+		if(world.rank()==0){
+			std::cout << "\n\n--------Memory-Information--------\n";
+			std::cout << "Singles" << singles_size    <<" (GByte)"<< std::endl;
+			std::cout << "Doubles" << doubles_size    <<" (GByte)"<< std::endl;
+			std::cout << "Hole   " << mo_ket_size     <<" (GByte)"<< std::endl;
+			std::cout << "R2 Hole" << mo_bra_size     <<" (GByte)"<< std::endl;
+			std::cout << "<H|g|H>" << imEX+potJ       <<" (GByte)"<< std::endl;
+			std::cout << "<H|g|P>" << impEX+potpJ     <<" (GByte)"<< std::endl;
+			std::cout << "<H|f|H>" << imfEX           <<" (GByte)"<< std::endl;
+			std::cout << "<H|f|P>" << impfEX          <<" (GByte)"<< std::endl;
+			std::cout << "density" << rho+prho        <<" (GByte)"<< std::endl;
+			std::cout << "-------" << ""              <<" (GByte)"<< std::endl;
+			std::cout << "All    " << all             <<" (GByte)"<< std::endl;
+			std::cout << "\n----------------------------------\n\n";
+		}
+	}
+
 
 };
 

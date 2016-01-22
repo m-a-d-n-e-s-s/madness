@@ -137,6 +137,12 @@ real_function_6d CC_Operators::make_cc2_coulomb_parts(const CC_function &taui, c
 }
 
 real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj){
+	calctype ctype = CC2_;
+	const bool symmetric = (taui.i==tauj.i);
+	if(make_norm(taui)<parameters.thresh_3D and make_norm(tauj)<parameters.thresh_3D){
+		output("Singles are zero: Current Calculation is MP2");
+		ctype = MP2_;
+	}
 	const CC_function ti = make_t_intermediate(taui);
 	const CC_function tj = make_t_intermediate(tauj);
 	const double epsij =  get_epsilon(taui.i,tauj.i);
@@ -150,25 +156,35 @@ real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &ta
 	real_convolution_6d Gscreen = BSHOperator<6>(world,sqrt(-2.0*epsij),parameters.lo, parameters.thresh_bsh_6D);
 	Gscreen.modified() = true;
 
-	const real_function_3d F_ti = (apply_F(ti)-epsi*ti.function).truncate();
-	const real_function_3d F_tj = (apply_F(tj)-epsj*tj.function).truncate();
+
+	real_function_3d F_ti = real_factory_3d(world);
+	real_function_3d F_tj = real_factory_3d(world);
+	if(ctype == CC2_){
+		F_ti= (apply_F(ti)-epsi*ti.function).truncate();
+		if(symmetric) F_tj=copy(F_ti);
+		else F_tj= (apply_F(tj)-epsj*tj.function).truncate();
+	}
+
 
 	output_section("CC2-Residue-Unprojected-Part");
-	CC_Timer time_unprojected(world,"CC2-Residue:Unprojected-Partr");
+	CC_Timer time_unprojected(world,"CC2-Residue:Unprojected-Part");
 	real_function_6d unprojected_result;
 	real_function_6d unprojected_potential;
 	{
-		const real_function_6d fFeij_part = make_f_xy_screened(F_ti,tj,Gscreen) + make_f_xy_screened(ti,F_tj,Gscreen);
+		real_function_6d fFeij_part = real_factory_6d(world);
+		if(ctype == CC2_){
+			fFeij_part =make_f_xy_screened(F_ti,tj,Gscreen) + make_f_xy_screened(ti,F_tj,Gscreen);
+		}
 		const real_function_6d Uepot_part = apply_transformed_Ue(ti,tj);
 		const real_function_6d Kf_fK_part = apply_exchange_commutator(ti,tj);
 
-		const real_function_6d V = -2.0*(fFeij_part + Uepot_part - Kf_fK_part).truncate().reduce_rank();
+		const real_function_6d V = (fFeij_part + Uepot_part - Kf_fK_part).truncate().reduce_rank();
 		unprojected_potential = copy(V); // necessary because G is detructive
 		Kf_fK_part.print_size("[K,f]"+ti.name()+tj.name()+"   ");
 		Uepot_part.print_size("Ue"+ti.name()+tj.name()+"      ");
 		fFeij_part.print_size("f(F-eij)"+ti.name()+tj.name()+"");
 		V.print_size(      "-2.0(F-eij+Ue-[K,f])"+ti.name()+tj.name());
-		const real_function_6d tmp = G(V);
+		const real_function_6d tmp = G(-2.0*V);
 		unprojected_result = tmp;
 		unprojected_result.print_size("G(-2.0(F-eij+Ue-[K,f]))"+ti.name()+tj.name());
 	}
@@ -197,7 +213,7 @@ real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &ta
 			const real_function_3d kAxy2 = unprojected_potential.project_out(k.function,1);
 			real_function_3d imk1 = real_factory_3d(world);
 			real_function_3d imk2 = real_factory_3d(world);
-				for(const auto & ltmp:mo_bra_.functions){
+			for(const auto & ltmp:mo_bra_.functions){
 				const CC_function & l=ltmp.second;
 				imk1 += l.inner(kAxy1)*mo_ket_(l).function;
 				imk2 += l.inner(kAxy2)*mo_ket_(l).function;
@@ -293,17 +309,6 @@ vecfuncT CC_Operators::fock_residue_closed_shell(const CC_vecfunction &singles) 
 	for(const auto& tmpi:singles.functions){
 		const CC_function& i=tmpi.second;
 		const real_function_3d Ji = intermediates_.get_hartree_potential()*i.function;
-		if(parameters.debug){
-			real_function_3d Jpot = real_factory_3d(world);
-			for(const auto ktmp:mo_ket_.functions){
-				const size_t k=ktmp.first;
-				output("J Debug: k="+stringify(k));
-				Jpot += mo_bra_(k).function*mo_ket_(k).function;
-			}
-			const real_function_3d J_check = (*poisson)(Jpot)*i.function;
-			const double diff = (Ji-J_check).norm2();
-			std::cout << "J-debug-difference-is:" << diff << std::endl;
-		}
 		J.push_back(Ji);
 	}
 	truncate(world, J);
@@ -314,11 +319,6 @@ vecfuncT CC_Operators::fock_residue_closed_shell(const CC_vecfunction &singles) 
 	for(const auto& tmpi:singles.functions){
 		const CC_function& taui=tmpi.second;
 		const real_function_3d Ki = K(taui);
-		if(parameters.debug){
-			const real_function_3d Ki_check = K(CC_function(taui.function,taui.i,UNDEFINED));
-			const double diff=(Ki-Ki_check).norm2();
-			std::cout << "K-debug-difference-is:" << diff << std::endl;
-		}
 		vK.push_back(Ki);
 	}
 	scale(world, vK, -1.0);
@@ -359,9 +359,9 @@ vecfuncT CC_Operators::ccs_potential(const CC_vecfunction &tau) const {
 		for (const auto &ltmp : tau.functions) {
 			const CC_function& taul = ltmp.second;
 			l_kgtauk_ti_taul += mo_bra_(taul).inner(kgtauk_ti)
-									* taul.function;
+											* taul.function;
 			l_kgti_tauk_taul += mo_bra_(taul).inner(kgti_tauk)
-									* taul.function;
+											* taul.function;
 		}
 
 		resulti = 2.0 * kgtauk_ti - kgti_tauk - 2.0 * l_kgtauk_ti_taul
@@ -399,11 +399,6 @@ vecfuncT CC_Operators::S2b_u_part(const Pairs<CC_Pair> &doubles,
 					resulti -= kguik.dirac_convolution<3>();
 				}
 			}
-			//DEBUG
-			{
-				const double test = mo_bra_(i).function.inner(resulti);
-				std::cout << "<" << mo_bra_(i).name() << "|s2b_" << i << "> = " << test << std::endl;
-			}//DEBUG END
 			result.push_back(resulti);
 		}
 		current_s2b_u_part = copy(world,result);
@@ -465,7 +460,7 @@ vecfuncT CC_Operators::S4a_u_part(const Pairs<CC_Pair> &doubles,
 								get_pair_function(doubles, i, k))
 				+ make_ijgu(k, l,
 						get_pair_function(doubles, i, k)))
-											* taul.function;
+													* taul.function;
 			}
 			if(not current_s2b_u_part.empty()){
 				s4ai_consistency -= (mo_bra_(l).function.inner(current_s2b_u_part[i-parameters.freeze]))*taul.function;
@@ -578,9 +573,9 @@ vecfuncT CC_Operators::S2b_reg_part(const CC_vecfunction &singles) const {
 				const size_t m = mtmp.first;
 				const CC_function& mom = mtmp.second;
 				const real_function_3d mftk = intermediates_.get_fEX(m, k)
-										+ intermediates_.get_pfEX(m, k);
+												+ intermediates_.get_pfEX(m, k);
 				const real_function_3d mfti = intermediates_.get_fEX(m, i)
-										+ intermediates_.get_pfEX(m, i);
+												+ intermediates_.get_pfEX(m, i);
 				const real_function_3d kgm = intermediates_.get_EX(k, m);
 				const real_function_3d mfti_tk = mfti * tk.function;
 				const real_function_3d mftk_ti = mftk * ti.function;
@@ -983,7 +978,7 @@ real_function_6d CC_Operators::make_GQfT_xy(const real_function_3d &x, const rea
 
 /// The 6D Fock residue on the cusp free pair function u_{ij}(1,2) is: (2J - Kn - Un)|u_{ij}>
 real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
-	//const double eps = get_epsilon(u.i, u.j);
+	const double eps = get_epsilon(u.i, u.j);
 	// make the coulomb and local Un part with the composite factory
 	real_function_3d local_part = (2.0
 			* intermediates_.get_hartree_potential()
@@ -993,16 +988,14 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 
 	// Contruct the BSH operator in order to screen
 
-	//	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2.0 * eps),
-	//			parameters.lo, parameters.thresh_bsh_6D);
-	//	// apparently the modified_NS form is necessary for the screening procedure
-	//	op_mod.modified() = true;
+	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2.0 * eps),parameters.lo, parameters.thresh_bsh_6D);
+	op_mod.modified() = true;
 	// Make the CompositeFactory
 	real_function_6d vphi =
 			CompositeFactory<double, 6, 3>(world).ket(copy(u.function)).V_for_particle1(
 					copy(local_part)).V_for_particle2(copy(local_part));
 	// Screening procedure
-	vphi.fill_tree();
+	vphi.fill_tree(op_mod);
 
 	vphi.print_size("vlocal|u>");
 
@@ -1018,7 +1011,8 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 		const real_function_3d U1_axis = nemo.nuclear_correlation->U1(
 				axis % 3);
 
-		double tight_thresh = parameters.thresh_Ue;
+		double tight_thresh = parameters.tight_thresh_6D;
+		if(tight_thresh>1.e-4) warning("tight_thresh_6D is too low for Un potential");
 		real_function_6d x;
 		if (axis / 3 + 1 == 1) {
 			x =
@@ -1030,15 +1024,18 @@ real_function_6d CC_Operators::fock_residue_6d(const CC_Pair &u) const {
 					CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle2(
 							copy(U1_axis)).thresh(tight_thresh);
 		}
-		x.fill_tree();
+		x.fill_tree(op_mod);
 		x.set_thresh(FunctionDefaults<6>::get_thresh());
+		x.print_size("Un_axis_"+stringify(axis));
 		vphi += x;
+		vphi.truncate().reduce_rank();
 	}
 
 	vphi.print_size("(Un + J1 + J2)|u>");
 
 	// Exchange Part
 	vphi = (vphi - K(u.function, u.i == u.j)).truncate().reduce_rank();
+	vphi.print_size("(Un + J - K)|u>");
 	return vphi;
 
 }
@@ -1143,6 +1140,7 @@ real_function_3d CC_Operators::apply_K(const CC_function &f)const{
 /// @param[out]  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
 real_function_6d CC_Operators::apply_transformed_Ue(const CC_function &x, const CC_function &y) const {
 	// make shure the thresh is high enough
+	CC_Timer time_Ue(world,"Ue|"+x.name()+y.name()+">");
 	const size_t i = x.i;
 	const size_t j = y.i;
 	double tight_thresh = guess_thresh(x,y);
@@ -1202,6 +1200,7 @@ real_function_6d CC_Operators::apply_transformed_Ue(const CC_function &x, const 
 		diff.truncate();
 		Uxy = (Uxy+diff).truncate();
 	}
+	time_Ue.info();
 
 	// sanity check: <xy|R2 [T,g12] |xy> = <xy |R2 U |xy> - <xy|R2 g12 | xy> = 0
 	CC_Timer time_sane(world,"Ue-Sanity-Check");
@@ -1212,32 +1211,30 @@ real_function_6d CC_Operators::apply_transformed_Ue(const CC_function &x, const 
 	const real_function_3d gxx = (*poisson)(xx);
 	const double aa = inner(yy, gxx);
 	const double error = std::fabs(a - aa);
+	time_sane.info();
 	if (world.rank() == 0 and error > FunctionDefaults<6>::get_thresh()) {
 		printf("<xy| U_R |xy>  %12.8f\n", a);
 		printf("<xy|1/r12|xy>  %12.8f\n", aa);
 		warning("Ue Potential Inaccurate!");
 		if (error > FunctionDefaults<6>::get_thresh() * 10.0) warning("Ue Potential wrong !!!!");
 	}else output("Ue seems to be sane");
-	time_sane.info();
-	//Uxy.print_size("Result of applying Ue");
 	return Uxy;
 }
 
 /// Apply the Exchange Commutator [K,f]|xy>
 real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, const CC_function &y)const{
-
-	output_section("Now applying [K,f]");
-
+	CC_Timer time(world,"[K,f]|"+x.name()+y.name()+">");
 	// make first part of commutator
-	CC_Timer part1_time(world,"Kf");
+	CC_Timer part1_time(world,"Kf"+x.name()+y.name()+">");
 	real_function_6d Kfxy = apply_Kf(x,y);
 	part1_time.info();
 	// make the second part of the commutator
-	CC_Timer part2_time(world,"fK");
+	CC_Timer part2_time(world,"fK"+x.name()+y.name()+">");
 	real_function_6d fKxy = apply_fK(x,y).truncate();
 	part2_time.info();
 	real_function_6d result = (Kfxy - fKxy);
 
+	time.info();
 	// sanity check
 	// <psi|[A,B]|psi> = <psi|AB|psi> - <psi|BA|psi> = <Apsi|Bpsi> - <Bpsi|Apsi> = 0 (if A,B hermitian)
 	{
@@ -1262,7 +1259,6 @@ real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, c
 		sanity.info();
 
 	}
-	result.print_size("[K,f]|"+x.name()+y.name()+">");
 	return result;
 }
 
@@ -1356,48 +1352,49 @@ vecfuncT CC_Operators::apply_F(const CC_vecfunction &x) const {
 
 real_function_3d CC_Operators::apply_F(const CC_function &x) const {
 
-	//		if (x.type == HOLE) {
-	//			return get_orbital_energies()[x.i] * x.function;
-	//		} else if (x.type == PARTICLE) {
-	//			const real_function_3d singles_potential = current_singles_potential[x.i-parameters.freeze];
-	//			return (get_orbital_energies()[x.i] * x.function - singles_potential);
-	//		} else if (x.type == MIXED) {
-	//			const real_function_3d singles_potential = current_singles_potential[x.i-parameters.freeze];
-	//			return (get_orbital_energies()[x.i] * x.function - singles_potential); // for mixed: eps(i)*x.i = epsi*(moi + taui)
-	//		} else if (x.type == UNDEFINED) {
-	real_function_3d refined_x = copy(x.function).refine();
-	// kinetic part
-	CC_Timer T_time(world, "apply_T");
-	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-	gradop = gradient_operator<double, 3>(world);
-	real_function_3d laplace_x = apply_laplacian(x.function);
-	real_function_3d Tx = laplace_x.scale(-0.5).truncate();
-	T_time.info();
+	if (x.type == HOLE) {
+		return get_orbital_energies()[x.i] * x.function;
+	} else if (x.type == PARTICLE and not current_singles_potential.empty()) {
+		const real_function_3d singles_potential = current_singles_potential[x.i-parameters.freeze];
+		return (get_orbital_energies()[x.i] * x.function - singles_potential);
+	} else if (x.type == MIXED and not current_singles_potential.empty()) {
+		const real_function_3d singles_potential = current_singles_potential[x.i-parameters.freeze];
+		return (get_orbital_energies()[x.i] * x.function - singles_potential); // for mixed: eps(i)*x.i = epsi*(moi + taui)
+	} else {
+		real_function_3d refined_x = copy(x.function).refine();
+		// kinetic part
+		CC_Timer T_time(world, "apply_T");
+		std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+		gradop = gradient_operator<double, 3>(world);
+		real_function_3d laplace_x = apply_laplacian(x.function);
+		real_function_3d Tx = laplace_x.scale(-0.5).truncate();
+		T_time.info();
 
-	CC_Timer J_time(world, "apply_J");
-	real_function_3d Jx = (intermediates_.get_hartree_potential()
-			* x.function).truncate();
-	J_time.info();
+		CC_Timer J_time(world, "apply_J");
+		real_function_3d Jx = (intermediates_.get_hartree_potential()
+				* x.function).truncate();
+		J_time.info();
 
-	CC_Timer K_time(world, "apply_K");
-	real_function_3d Kx = K(x);
+		CC_Timer K_time(world, "apply_K");
+		real_function_3d Kx = K(x);
+		K_time.info();
 
-	CC_Timer U_time(world, "apply_U");
-	real_function_3d U2x =
-			(nemo.nuclear_correlation->U2() * x.function).truncate();
-	real_function_3d U1x = real_factory_3d(world);
-	for (size_t axis = 0; axis < 3; axis++) {
-		const real_function_3d U1_axis = nemo.nuclear_correlation->U1(
-				axis);
-		const real_function_3d dx = (*gradop[axis])(x.function);
-		U1x += (U1_axis * dx).truncate();
+		CC_Timer U_time(world, "apply_U");
+		real_function_3d U2x =
+				(nemo.nuclear_correlation->U2() * x.function).truncate();
+		real_function_3d U1x = real_factory_3d(world);
+		for (size_t axis = 0; axis < 3; axis++) {
+			const real_function_3d U1_axis = nemo.nuclear_correlation->U1(
+					axis);
+			const real_function_3d dx = (*gradop[axis])(x.function);
+			U1x += (U1_axis * dx).truncate();
+		}
+		U_time.info();
+
+		return (Tx + 2.0 * Jx - Kx + U2x + U1x).truncate();
 	}
-	U_time.info();
-
-	return (Tx + 2.0 * Jx - Kx + U2x + U1x);
-	//}
-//error("apply_F: should not end up here");
-	//return real_factory_3d(world);
+	error("apply_F: should not end up here");
+	return real_factory_3d(world);
 }
 
 /// swap particles 1 and 2
@@ -1712,6 +1709,8 @@ real_function_3d CC_Operators::apply_gf(const real_function_3d &f)const{
 
 real_function_6d CC_Operators::make_xy(const CC_function &x, const CC_function &y) const {
 	double thresh = guess_thresh(x, y);
+	if(thresh < parameters.thresh_6D) thresh = parameters.tight_thresh_6D;
+	else thresh = parameters.thresh_6D;
 	CC_Timer timer(world,
 			"Making |" + x.name() + "," + y.name() + "> with 6D thresh="
 			+ stringify(thresh));
@@ -1725,6 +1724,8 @@ real_function_6d CC_Operators::make_xy(const CC_function &x, const CC_function &
 real_function_6d CC_Operators::make_f_xy(const CC_function &x,
 		const CC_function &y) const {
 	double thresh = guess_thresh(x, y);
+	if(thresh < parameters.thresh_6D) thresh = parameters.tight_thresh_6D;
+	else thresh = parameters.thresh_6D;
 	CC_Timer timer(world,
 			"Making f|" + x.name() + "," + y.name() + "> with 6D thresh="
 			+ stringify(thresh));
@@ -1739,6 +1740,8 @@ real_function_6d CC_Operators::make_f_xy(const CC_function &x,
 real_function_6d CC_Operators::make_f_xy_screened(const CC_function &x,
 		const CC_function &y, const real_convolution_6d &screenG) const {
 	double thresh = guess_thresh(x, y);
+	if(thresh < parameters.thresh_6D) thresh = parameters.tight_thresh_6D;
+	else thresh = parameters.thresh_6D;
 	CC_Timer timer(world,
 			"Making f|" + x.name() + "," + y.name() + "> with 6D thresh="
 			+ stringify(thresh));

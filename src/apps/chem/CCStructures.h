@@ -418,7 +418,7 @@ public:
 			if(function.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||u||    : " << function.norm2() << std::endl;
 			if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " << constant_term.norm2() << std::endl;
 			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|  : " << current_error << std::endl;
-			if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(FunctionDefaults<6>::get_thresh()*0.1)<<std::fixed<< current_energy << std::endl;
+			if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(5)<<std::fixed<< current_energy << std::endl;
 			//if(epsilon == uninitialized()) std::cout << "WARNING: BSH-epsilon is not initialized" << std::endl;
 		}
 	}
@@ -508,8 +508,6 @@ struct Pairs {
 	const T & operator()(int i,int j)const{
 		return allpairs.find(std::make_pair(i, j))->second;
 	}
-
-
 
 	/// getter
 	T& operator()(int i, int j) {

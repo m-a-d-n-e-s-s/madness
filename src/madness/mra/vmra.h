@@ -971,7 +971,7 @@ namespace madness {
 
     // gives back the size in GB
     template <typename T, std::size_t NDIM>
-    double get_size(Function<T,NDIM> & f){
+    double get_size(const Function<T,NDIM> & f){
     	const double d=sizeof(T);
         const double fac=1024*1024*1024;
         double size=f.size();
