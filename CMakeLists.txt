@@ -11,8 +11,6 @@ set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/)
 include(AppendFlags)
-include(CheckCXXCompilerFlag)
-include(CheckCCompilerFlag)
 include(CheckCXX11Support)
 include(CheckIncludeFile)
 include(CheckTypeSize)
