@@ -1,16 +1,17 @@
-if(ENABLE_GPERFTOOLS)
-  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-    if(NOT LIBUNWIND_FOUND OR (LIBUNWIND_FOUND AND LIBUNWIND_VERION LESS 0.99))
-      message(STATUS "Gperftools disabled because libunwind 0.99 or higher was not found") 
-    else()
-      find_package(Gperftools)
-    endif()
+if(ENABLE_GPERFTOOLS OR ENABLE_TCMALLOC_MINIMAL)
+  
+  if(ENABLE_GPERFTOOLS)
+    find_package(Gperftools COMPONENTS tcmalloc OPTIONAL_COMPONENTS profiler)
+  else()
+    find_package(Gperftools REQUIRED COMPONENTS tcmalloc_minimal)
   endif()
 
-  if(GPERFTOOLS_FOUND)
-    if(GPERFTOOLS_tcmalloc_minimal_FOUND AND NOT GPERFTOOLS_tcmalloc_FOUND)
-      set(MADNESS_HAS_GOOGLE_PERF_MINIMAL 1)
-    endif()
+  # Set the config.h variables
+  if(GPERFTOOLS_FOUND AND ENABLE_TCMALLOC_MINIMAL)
+    set(MADNESS_HAS_GOOGLE_PERF_MINIMAL 1)
+  endif()
+  if(LIBUNWIND_FOUND)
+    set(MADNESS_HAS_LIBUNWIND 1)
   endif()
       
 endif()

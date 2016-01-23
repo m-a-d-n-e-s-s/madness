@@ -36,6 +36,14 @@ install(TARGETS MADworld EXPORT madworld
 target_include_directories(MADworld PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/>
   $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/>)
+if(GPERFTOOLS_FOUND)
+  target_include_directories(MADworld PUBLIC ${GPERFTOOLS_INCLUDE_DIRS})
+  target_link_libraries(MADworld PUBLIC ${GPERFTOOLS_LIBRARIES})
+endif()
+if(LIBUNWIND_FOUND AND NOT GPERFTOOLS_LIBRARIES MATCHES "unwind")
+  target_include_directories(MADworld PUBLIC ${LIBUNWIND_INCLUDE_DIRS})
+  target_link_libraries(MADworld PUBLIC ${LIBUNWIND_LIBRARIES})
+endif()
 if(ELEMENTAL_FOUND)
   target_link_libraries(MADworld PUBLIC ${ELEMENTAL_PACKAGE_NAME})
 endif()

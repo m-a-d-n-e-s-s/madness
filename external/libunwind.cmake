@@ -1,11 +1,6 @@
-if(ENABLE_TASK_PROFILER OR ENABLE_GPERFTOOLS)
+if(ENABLE_TASK_PROFILER)
 
-  if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-    # libunwind is not supported on OS X or Windows
-    set(LIBUNWIND_FOUND FALSE)
-  else()
-    find_package(Libunwind)
-  endif()
+  find_package(Libunwind)
     
   # Set the output variables
   if(LIBUNWIND_FOUND)

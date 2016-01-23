@@ -68,15 +68,6 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     target_link_libraries(MAD${_name} PUBLIC "-Wl,-no_pie")
   endif()
-  if(GPERFTOOLS_FOUND)
-    target_include_directories(MAD${_name} PUBLIC ${GPERFTOOLS_INCLUDE_DIRS})
-    target_link_libraries(MAD${_name} PUBLIC ${GPERFTOOLS_LIBRARIES})
-  endif()
-  if(LIBUNWIND_FOUND)
-    target_include_directories(MAD${_name} PUBLIC ${LIBUNWIND_INCLUDE_DIRS})
-    target_link_libraries(MAD${_name} PUBLIC ${LIBUNWIND_LIBRARIES})
-  endif()
-  target_link_libraries(MAD${_name} PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 
 endmacro()
 

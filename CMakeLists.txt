@@ -49,7 +49,9 @@ option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
 option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
 option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
-option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON)
+option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
+cmake_dependent_option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON
+    "NOT ENABLE_TCMALLOC_MINIMAL" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 
