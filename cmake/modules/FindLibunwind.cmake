@@ -11,7 +11,7 @@
 
 include(FindPackageHandleStandardArgs)
   
-if(NOT LIBUNWIND_FOUND)
+if(NOT DEFINED LIBUNWIND_FOUND)
 
   # Set default sarch paths for libunwind
   if(LIBUNWIND_ROOT_DIR)
@@ -30,14 +30,14 @@ if(NOT LIBUNWIND_FOUND)
       HINTS ${LIBUNWIND_LIBRARY})
   
   # Get libunwind version
-  if(LIBUNWIND_INCLUDE_DIRS)
+  if(EXISTS "${LIBUNWIND_INCLUDE_DIRS}/libunwind-common.h")
     file(READ "${LIBUNWIND_INCLUDE_DIRS}/libunwind-common.h" _libunwind_version_header)
-    string(REGEX MATCH "define[ \t]+UNW_VERSION_MAJOR[ \t]+([0-9]+)" LIBUNWIND_MAJOR_VERSION "${_libunwind_version_header}")
-    string(REGEX MATCH "([0-9]+)" LIBUNWIND_MAJOR_VERSION "${LIBUNWIND_MAJOR_VERSION}")
-    string(REGEX MATCH "define[ \t]+UNW_VERSION_MINOR[ \t]+([0-9]+)" LIBUNWIND_MINOR_VERSION "${_libunwind_version_header}")
-    string(REGEX MATCH "([0-9]+)" LIBUNWIND_MINOR_VERSION "${LIBUNWIND_MINOR_VERSION}")
-    string(REGEX MATCH "define[ \t]+UNW_VERSION_EXTRA[ \t]+([0-9]+)" LIBUNWIND_MICRO_VERSION "${_libunwind_version_header}")
-    string(REGEX MATCH "([0-9]+)" LIBUNWIND_MICRO_VERSION "${LIBUNWIND_MICRO_VERSION}")
+    string(REGEX REPLACE ".*define[ \t]+UNW_VERSION_MAJOR[ \t]+([0-9]+).*" "\\1" 
+        LIBUNWIND_MAJOR_VERSION "${_libunwind_version_header}")
+    string(REGEX REPLACE ".*define[ \t]+UNW_VERSION_MINOR[ \t]+([0-9]+).*" "\\1"
+        LIBUNWIND_MINOR_VERSION "${_libunwind_version_header}")
+    string(REGEX REPLACE ".*define[ \t]+UNW_VERSION_EXTRA[ \t]+([0-9]+).*" "\\1"
+        LIBUNWIND_MICRO_VERSION "${_libunwind_version_header}")
     set(LIBUNWIND_VERSION "${LIBUNWIND_MAJOR_VERSION}.${LIBUNWIND_MINOR_VERSION}.${LIBUNWIND_MICRO_VERSION}")
     unset(_libunwind_version_header)
   endif()
