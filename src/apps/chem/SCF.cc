@@ -41,34 +41,38 @@
 
 //#include <madness/tensor/distributed_matrix.h>
 #include <cmath>
-#include "../../madness/constants.h"
-#include "../../madness/misc/misc.h"
-#include "../../madness/misc/ran.h"
-#include "../../madness/mra/convolution1d.h"
-#include "../../madness/mra/derivative.h"
-#include "../../madness/mra/funcdefaults.h"
-#include "../../madness/mra/funcplot.h"
-#include "../../madness/mra/function_factory.h"
-#include "../../madness/mra/functypedefs.h"
-#include "../../madness/mra/key.h"
-#include "../../madness/mra/lbdeux.h"
-#include "../../madness/mra/operator.h"
-#include "../../madness/mra/qmprop.h"
-#include "../../madness/mra/vmra.h"
-#include "../../madness/tensor/elem.h"
-#include "../../madness/tensor/slice.h"
-#include "../../madness/tensor/srconf.h"
-#include "../../madness/tensor/tensor.h"
-#include "../../madness/tensor/tensor_macros.h"
-#include "../../madness/world/parallel_archive.h"
-#include "../../madness/world/print.h"
-#include "../../madness/world/timers.h"
-#include "../../madness/world/world.h"
-#include "../../madness/world/worldgop.h"
-#include "../../madness/world/worldprofile.h"
-#include "nemo.h"
-#include "SCFOperators.h"
-#include "TDA.h"
+
+// #include "../../madness/constants.h"
+// #include "../../madness/misc/misc.h"
+// #include "../../madness/misc/ran.h"
+// #include "../../madness/mra/convolution1d.h"
+// #include "../../madness/mra/derivative.h"
+// #include "../../madness/mra/funcdefaults.h"
+// #include "../../madness/mra/funcplot.h"
+// #include "../../madness/mra/function_factory.h"
+// #include "../../madness/mra/functypedefs.h"
+// #include "../../madness/mra/key.h"
+// #include "../../madness/mra/lbdeux.h"
+// #include "../../madness/mra/operator.h"
+// #include "../../madness/mra/qmprop.h"
+// #include "../../madness/mra/vmra.h"
+// #include "../../madness/tensor/elem.h"
+// #include "../../madness/tensor/slice.h"
+// #include "../../madness/tensor/srconf.h"
+// #include "../../madness/tensor/tensor.h"
+// #include "../../madness/tensor/tensor_macros.h"
+// #include "../../madness/world/parallel_archive.h"
+// #include "../../madness/world/print.h"
+// #include "../../madness/world/timers.h"
+// #include "../../madness/world/world.h"
+// #include "../../madness/world/worldgop.h"
+// #include "../../madness/world/worldprofile.h"
+
+#include <madness/mra/qmprop.h>
+//#include <madness/tensor/tensor_lapack.h>
+#include <chem/nemo.h>
+#include <chem/SCFOperators.h>
+#include <chem/TDA.h>
 
 namespace madness {
     
@@ -2031,22 +2035,22 @@ namespace madness {
         double maxq;
         do {
             tensorT Q = Q2(matrix_inner(world, amo_new, amo_new)); // Q3(matrix_inner(world, amo_new, amo_new))
-            maxq=0.0;
-            for (int i=0; i<Q.dim(0); ++i) 
-                for (int j=0; j<i; ++j)
-                    maxq = std::max(maxq,std::abs(Q(i,j)));
+            maxq = 0.0;
+            for (int j=1; j<Q.dim(0); j++)
+                for (int i=0; i<j; i++)
+                    maxq = std::max(std::abs(Q(j,i)),maxq);
             
-            Q.screen(trantol); // ???? Is this really needed?
+            //Q.screen(trantol); // ???? Is this really needed? Just for speed.
 
-            //make virt orthog to occ without changing occ states
-            for (int i=0; i<nocc; ++i)
-                for (int j=nocc; j<Q.dim(0); ++j)
-                   Q(j,i)=0.0;
+            //make virt orthog to occ without changing occ states (is this correct?)
+            for (int j=nocc; j<Q.dim(0); ++j)
+                for (int i=0; i<nocc; ++i)
+                    Q(j,i)=0.0;
 
             amo_new = transform(world, amo_new,
                                 Q, trantol, true);
             truncate(world, amo_new);
-            if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+            if (world.rank() == 0) print("ORTHOG2a: maxq trantol", maxq, trantol);
             //print(Q);
 
         } while (maxq>0.01);
@@ -2055,7 +2059,6 @@ namespace madness {
         END_TIMER(world, "Orthonormalize");
 
     }
-
 
     /// orthonormalize the vectors
     
@@ -2069,16 +2072,16 @@ namespace madness {
         double maxq;
         do {
             tensorT Q = Q2(matrix_inner(world, amo_new, amo_new)); // Q3(matrix_inner(world, amo_new, amo_new))
-            maxq=0.0;
-            for (int i=0; i<Q.dim(0); ++i) 
-                for (int j=0; j<i; ++j)
-                    maxq = std::max(maxq,std::abs(Q(i,j)));
+            maxq = 0.0;
+            for (int j=1; j<Q.dim(0); j++)
+                for (int i=0; i<j; i++)
+                    maxq = std::max(std::abs(Q(j,i)),maxq);
             
-            Q.screen(trantol); // ???? Is this really needed?
+            //Q.screen(trantol); // ???? Is this really needed?
             amo_new = transform(world, amo_new,
                                 Q, trantol, true);
             truncate(world, amo_new);
-            if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+            if (world.rank() == 0) print("ORTHOG2b: maxq trantol", maxq, trantol);
             //print(Q);
             
         } while (maxq>0.01);
