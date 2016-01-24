@@ -41,7 +41,7 @@
 #include <cstdlib>
 
 namespace madness {
-    void startup(World& world, int argc, char** argv) {
+    void startup(World& world, int argc, char** argv, bool doprint) {
         const char* data_dir = MRA_DATA_DIR;
 
         // Process command line arguments
@@ -117,7 +117,7 @@ namespace madness {
         MADNESS_ASSERT(test_two_scale_coefficients());
 
         // print the configuration options
-        if (world.rank() == 0) {
+        if (doprint && world.rank() == 0) {
             print("");
             print("--------------------------------------------");
             print("   MADNESS",MADNESS_PACKAGE_VERSION, "multiresolution suite");
