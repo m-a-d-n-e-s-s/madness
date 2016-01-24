@@ -58,7 +58,7 @@ static const bool VERIFY_TREE = false; //true
 
 
 namespace madness {
-    void startup(World& world, int argc, char** argv);
+    void startup(World& world, int argc, char** argv, bool doprint=false);
 }
 
 #include <madness/mra/key.h>
