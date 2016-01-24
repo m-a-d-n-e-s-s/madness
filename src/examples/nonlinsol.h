@@ -55,12 +55,10 @@ namespace madness {
 
 	/// check for subspace linear dependency
 
-	/// if the subspace is linearly dependent the coefficients in c
-	/// will be highly oscillating.
 	/// @param[in]     Q	the input matrix for KAIN
 	/// @param[in,out] c	the coefficients for constructing the new solution
-   /// @param[in]     rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
-   /// @param[in]     cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
+    /// @param[in]     rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+    /// @param[in]     cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
 	template<typename C>
 	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c, const double rcondtol, const double cabsmax) {
 		double rcond = 1e-12;
