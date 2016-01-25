@@ -591,6 +591,8 @@ real_function_3d XCOperator::make_xc_potential() const {
     //
 
     if (xc->is_gga() ) {
+        const real_function_3d& rho=xc_args[XCfunctional::enum_rhoa];
+        double tol=xc->get_ggatol();
 
         bool have_beta=xc->is_spin_polarized() && nbeta != 0;
 
@@ -602,15 +604,16 @@ real_function_3d XCOperator::make_xc_potential() const {
             functionT vsigaa = multiop_values<double, xc_potential, 3>
                 (xc_potential(*xc, ispin, XCfunctional::potential_same_spin), xc_args); //.truncate();
 //            save(vsigaa,"vsigaa");
-            Derivative<double,3> D1 = free_space_derivative<double,3>(world, 0);
-            real_function_3d Dvsigaa=D1(vsigaa);
-//            save(Dvsigaa,"Dvsigaa");
 
             for (int axis=0; axis<3; axis++) {
                 functionT gradn_alpha = xc_args[XCfunctional::enum_drhoa_x+axis];
-                functionT ddel = 4.0*vsigaa*gradn_alpha;    // fac 2 for formula, fac 2 to rho=2rho_\alpha
-//                save(ddel,"ddel"+stringify(axis));
+//                functionT ddel = 4.0*vsigaa*gradn_alpha;    // fac 2 for formula, fac 2 to rho=2rho_\alpha
+                functionT ddel1 = 4.0* vsigaa*gradn_alpha;    // fac 2 for formula, fac 2 to rho=2rho_\alpha
+                real_function_3d ddel=binary_op(ddel1,rho,binary_munging(tol));
                 Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+
+//                save(ddel,"ddel"+stringify(axis));
+//                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
                 functionT vxc2=D(ddel);
 //                (vxc2,"vxc2"+stringify(axis));
                 gga_pot-=vxc2;//.truncate();
@@ -636,15 +639,15 @@ real_function_3d XCOperator::make_xc_potential() const {
                     drho_other_spin=xc_args[XCfunctional::enum_drhoa_x+axis];
                 }
 
-                functionT ddel = 2.0* vsigaa*drho_same_spin + vsigab*drho_other_spin;
+                functionT ddel1 = 2.0* vsigaa*drho_same_spin + vsigab*drho_other_spin;
+                real_function_3d ddel=binary_op(ddel1,rho,binary_munging(tol));
                 Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
                 functionT vxc2=D(ddel);
                 gga_pot-=vxc2;//.truncate();
             }
         }
+//        save(gga_pot,"gga_pot");
 
-        const real_function_3d& rho=xc_args[XCfunctional::enum_rhoa];
-        double tol=xc->get_ggatol();
         real_function_3d gga_pot_munged=binary_op(gga_pot,rho,binary_munging(tol));
 //        save(gga_pot_munged,"gga_pot_munged");
 

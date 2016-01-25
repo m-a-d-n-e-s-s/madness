@@ -1145,11 +1145,12 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         if (world.rank() == 0)
             print("CPHF BSH residual: rms", rms, "   max", maxval);
 
-        if (rms < 1.0) {
-            xi = (solver.update(xi, residual)).x;
-        } else {
+        print("switched off KAIN solver, using fixed-point iteration");
+//        if (rms < 1.0) {
+//            xi = (solver.update(xi, residual)).x;
+//        } else {
             xi = tmp;
-        }
+//        }
 
         const double norm = norm2(world,xi);
         if (rms/norm<proto.dconv) break;

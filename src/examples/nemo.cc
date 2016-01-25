@@ -88,6 +88,39 @@ void Nemo::do_stuff() {
     const real_function_3d rhonemo=2.0*make_density(calc->aocc, calc->amo);
     save(rhonemo,"rhonemo");
     const real_function_3d rho = (R_square*rhonemo);
+    save(rho,"rho");
+
+    std::vector<real_function_3d> ddens(3);
+    ddens[0]=this->make_ddensity(rhonemo,0);
+    ddens[1]=this->make_ddensity(rhonemo,1);
+    ddens[2]=this->make_ddensity(rhonemo,2);
+
+    real_function_3d vsigaa=real_factory_3d(world);
+    load(vsigaa,"vsigaa");
+    std::vector<real_function_3d> ddel=mul(world,4.0*vsigaa,ddens);
+
+    // case 1: apply nabla first, then convolve with the Poisson operator
+    real_function_3d gga_pot1=real_factory_3d(world).compressed();
+    for (int axis=0; axis<3; axis++) {
+        Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+        functionT vxc2=D(ddel[axis]);
+        gga_pot1-=vxc2;//.truncate();
+    }
+    real_function_3d Ggga_pot1=(*poisson)(gga_pot1);
+    save(Ggga_pot1,"Ggga_pot1");
+
+    // case 2: apply the derivative Coulomb operator, accumulate its results
+    const double thresh=FunctionDefaults<3>::get_thresh();
+    std::vector<real_convolution_3d_ptr> g = GradCoulombOperator(world, 1e-3, thresh);
+    std::vector<real_function_3d> Gddel=apply(world,g,ddel);
+    real_function_3d Ggga_pot2=real_factory_3d(world).compressed();
+    for (int axis=0; axis<3; ++axis) {
+        Ggga_pot2-=Gddel[axis];
+    }
+    save(Ggga_pot2,"Ggga_pot2");
+
+
+    return;
 
     Laplacian<double,3> DD(world);
     real_function_3d d2nemo=DD(rhonemo);
@@ -113,14 +146,10 @@ void Nemo::do_stuff() {
     save(d2rho,"d2rho");
 
     XCOperator xcop(world,this);
-//    xcop.make_xc_potential();
+    xcop.make_xc_potential();
     xcop.apply_xc_kernel(rho);
     throw;
 
-    std::vector<real_function_3d> ddens(3);
-    ddens[0]=this->make_ddensity(rhonemo,0);
-    ddens[1]=this->make_ddensity(rhonemo,1);
-    ddens[2]=this->make_ddensity(rhonemo,2);
 //
 //    Derivative<double,3> D0 = free_space_derivative<double,3>(world, 0);
 //    Derivative<double,3> D1 = free_space_derivative<double,3>(world, 1);
