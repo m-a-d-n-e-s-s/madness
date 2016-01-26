@@ -31,10 +31,11 @@ set(MADNESS_VERSION "@MADNESS_VERSION@")
 # ensure that CMAKE_SYSTEM_NAME matches what was used to compile MADNESS
 if (NOT CMAKE_SYSTEM_NAME STREQUAL @CMAKE_SYSTEM_NAME@)
   set (ERROR_MESSAGE "CMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}, does not match CMAKE_SYSTEM_NAME=@CMAKE_SYSTEM_NAME@ used to compile MADNESS")
-  CMAKE_TOOLCHAIN_FILE=@CMAKE_TOOLCHAIN_FILE@
-  if (CMAKE_TOOLCHAIN_FILE)
+  set(MADNESS_CMAKE_TOOLCHAIN_FILE "@CMAKE_TOOLCHAIN_FILE@")
+  if (MADNESS_CMAKE_TOOLCHAIN_FILE)
     set (ERROR_MESSAGE "${ERROR_MESSAGE}; make sure to use toolchain @CMAKE_TOOLCHAIN_FILE@ to compile your code!")
-  message (FATAL_ERROR "${ERROR_MESSAGE}")
+    message (FATAL_ERROR "${ERROR_MESSAGE}")
+  endif(MADNESS_CMAKE_TOOLCHAIN_FILE)
 endif()
 
 # determine if only looking for MADworld ... this is a common scenario that loads a subset of targets
