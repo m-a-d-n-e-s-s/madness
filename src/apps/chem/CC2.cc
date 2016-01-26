@@ -534,21 +534,28 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &sin
 // Note: if the singles are initialized to 0 then this is just MP2
 bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles){
 	bool converged = false;
+	calctype type = CC2_;
+	if(CCOPS.make_norm(singles)<parameters.thresh_3D){
+		output("Singles Are Zero: Current Iterations are MP2");
+		type = MP2_;
+	}
 	output_section("Iterate " +pair.name());
-	output_subsection("Get Semi-Constant CC2 Part of Pair " +pair.name());
+	output_subsection("Get Regularized-Potential of Pair " +pair.name());
 	CC_Timer timer_cc2_regular(world,"Get Semi-Constant CC2 Part of Pair " +pair.name());
 	const real_function_6d regular_part = CCOPS.make_cc2_residue(singles(pair.i),singles(pair.j));
 	regular_part.print_size("Regularization part of pair " + pair.name());
 	timer_cc2_regular.info();
+	const std::pair<double,double> time1 = timer_cc2_regular.current_time();
 
-	output_subsection("Get Semi-Constant CC2 Part of Pair Sepparated Method " +pair.name());
+	output_subsection("Get Regularized-Potential (Sepparated Method) " +pair.name());
 	CC_Timer timer_cc2_regular2(world,"Get Semi-Constant CC2 Part of Pair " +pair.name());
 	const real_function_6d regular_part2 = CCOPS.make_cc2_residue_sepparated(singles(pair.i),singles(pair.j));
 	regular_part2.print_size("Regularization part of pair " + pair.name());
 	timer_cc2_regular2.info();
+	const std::pair<double,double> time2 = timer_cc2_regular2.current_time();
 
 	const double diff = (regular_part-regular_part2).norm2();
-	std::cout << "\n\n\n\nDifference between CC2 residues is " << diff << "\n\n\n\n" << std::endl;
+	std::cout << "\n\n\n\nDifference between CC2 residues is " << diff << "\n\nTimings were (Wall), (CPU):\n" << time1 << " and " << time2  << std::endl;
 
 	CC_Timer timer_cc2_coulomb(world,"Get Screened Coulomb Potentials of CC2 singles");
 	const double thresh = CCOPS.guess_thresh(singles(pair.i),singles(pair.j));
@@ -619,6 +626,17 @@ bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles){
 			break;
 		}else output("Convergence for pair "+pair.name()+" not reached yet");
 	}
+
+	// store current functions for restart later
+	if(type == MP2_){
+		std::string msg = "mp2_";
+		if(converged) msg += "converged";
+		else msg += "not_converged";
+		pair.store_pair(world,msg);
+	}else{
+		pair.store_pair(world,"current_pair");
+	}
+
 	return converged;
 }
 

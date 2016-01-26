@@ -98,7 +98,7 @@ public:
         op_mod.modified()=true;
 
         for (int axis=0; axis<3; ++axis) {
-            if (world.rank()==0) print("working on axis",axis);
+            //if (world.rank()==0) print("working on axis",axis);
             real_derivative_3d D = free_space_derivative<double,3>(world, axis);
             const real_function_3d Di=(D(phi_i)).truncate();
             const real_function_3d Dj=(D(phi_j)).truncate();
@@ -119,10 +119,10 @@ public:
             real_function_6d tmp2=CompositeFactory<double,6,3>(world)
                         .g12(u).particle1(copy(phi_i)).particle2(copy(Dj));
             tmp2.fill_tree(op_mod).truncate();
-            if (world.rank()==0) print("done with fill_tree");
+           // if (world.rank()==0) print("done with fill_tree");
 
-            plot_plane(world,tmp1,"tmp1");
-            plot_plane(world,tmp2,"tmp2");
+           // plot_plane(world,tmp1,"tmp1");
+           // plot_plane(world,tmp2,"tmp2");
 
 //            if(world.rank()==0){
 //            	std::cout << "apply_U debug output:\n"
@@ -150,8 +150,8 @@ public:
 //            			<< std::endl;
 //            }
 
-            if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
-            result.print_size("result");
+            //if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
+           // result.print_size("result");
         }
 
 //        load_balance(result,true);
@@ -163,11 +163,11 @@ public:
             real_function_6d mul=CompositeFactory<double,6,3>(world)
                                 .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j));
             mul.fill_tree(op_mod).truncate();
-            mul.print_size("mul");
+           // mul.print_size("mul");
 
             result=(result+mul).truncate().reduce_rank();
         }
-        result.print_size("U * |ij>");
+       // result.print_size("U * |ij>");
         return result;
     }
 
@@ -390,7 +390,7 @@ public:
         op_mod.modified()=true;
 
         for (int axis=0; axis<3; ++axis) {
-            if (world.rank()==0) print("working on axis",axis);
+            //if (world.rank()==0) print("working on axis",axis);
             real_derivative_6d D1 = free_space_derivative<double,6>(world, axis);
             real_derivative_6d D2 = free_space_derivative<double,6>(world, axis+3);
             const real_function_6d Drhs1=D1(psi).truncate();
@@ -405,7 +405,7 @@ public:
             real_function_6d tmp2=CompositeFactory<double,6,3>(world)
                                  .g12(u1).ket(copy(Drhs2));
             tmp2.fill_tree(op_mod).truncate();
-            if (world.rank()==0) print("done with fill_tree");
+           // if (world.rank()==0) print("done with fill_tree");
 
             result=result+(tmp1-tmp2).truncate();
             tmp1.clear();
@@ -413,9 +413,8 @@ public:
             world.gop.fence();
             result.truncate().reduce_rank();
 
-            if (world.rank()==0)
-                printf("done with multiplication with U at ime %.1f\n",wall_time());
-            result.print_size("result");
+           // if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
+           // result.print_size("result");
         }
 
         real_function_6d u2=U2();

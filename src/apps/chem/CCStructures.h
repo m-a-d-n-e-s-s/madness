@@ -20,8 +20,8 @@ namespace madness{
 
 enum calctype {MP2_, CC2_};
 enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
-enum potentialtype_s {pot_F3D_, pot_S3c_, pot_S5b_, pot_S5c_, pot_S6_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S1_, pot_S5a_, pot_ccs_};
-enum potentialtype_d {pot_F6D_, pot_D4b_ ,pot_D6b_, pot_D6c_, pot_D8a_, pot_D8b_, pot_D9_, pot_cc2_coulomb_,pot_cc2_residue_,pot_D6b_D8b_D9_, pot_D4b_D6c_D8a_};
+enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S1_, pot_S5a_, pot_ccs_};
+enum potentialtype_d {pot_F6D_, pot_cc2_coulomb_,pot_cc2_residue_};
 // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
 enum pair_function_form{DECOMPOSED, FULL};
 static std::string assign_name(const calctype &inp){
@@ -34,10 +34,6 @@ static std::string assign_name(const calctype &inp){
 static std::string assign_name(const potentialtype_s &inp){
 	switch(inp){
 	case pot_F3D_ : return "Fock-Residue-3D";
-	case pot_S3c_ : return "S3c";
-	case pot_S5b_ : return "S5b";
-	case pot_S5c_ : return "S5c";
-	case pot_S6_  : return "S6";
 	case pot_S2b_u_ : return "S2b_u_part";
 	case pot_S2c_u_ : return "S2c_u_part";
 	case pot_S4a_u_ : return "S4a_u_part";
@@ -60,14 +56,6 @@ static std::string assign_name(const potentialtype_d &inp){
 	case pot_F6D_ : return "Fock-Residue-6D";
 	case pot_cc2_coulomb_ : return "CC2-Coulomb";
 	case pot_cc2_residue_ : return "CC2-Residue";
-	case pot_D4b_ : return "D4b";
-	case pot_D6b_ : return "D6b";
-	case pot_D6c_ : return "D6c";
-	case pot_D8a_  : return "D8a";
-	case pot_D8b_ : return "D8b";
-	case pot_D9_ : return "D9";
-	case pot_D6b_D8b_D9_ : return "combined(D6b+D8b+D9)";
-	case pot_D4b_D6c_D8a_ : return "combined(D4b+D6c+D8a)";
 	}
 	return "undefined";
 }
@@ -127,52 +115,29 @@ public:
 
 struct CC_Parameters{
 	// default constructor
-	CC_Parameters():
-		lo(FunctionDefaults<3>::get_thresh()),
-		thresh_3D(FunctionDefaults<3>::get_thresh()),
-		thresh_6D(FunctionDefaults<6>::get_thresh()),
-		//thresh_6D_tight(thresh_6D*0.1),
-		thresh_bsh_3D(FunctionDefaults<3>::get_thresh()),
-		thresh_bsh_6D(FunctionDefaults<6>::get_thresh()),
-		thresh_poisson_3D(FunctionDefaults<3>::get_thresh()),
-		thresh_poisson_6D(FunctionDefaults<6>::get_thresh()),
-		thresh_f12(FunctionDefaults<6>::get_thresh()),
-		thresh_Ue(FunctionDefaults<6>::get_thresh()),
-		econv(1.e-4),
-		dconv_3D(1.e-2),
-		dconv_6D(1.e-2),
-		iter_max_3D(5),
-		iter_max_6D(30),
-		restart(false),
-		corrfac_gamma(-99.0),
-		output_prec(8),
-		debug(false),
-		mp2_only(false),
-		mp2(false),
-		ccs(false),
-		kain(false),
-		freeze(0),
-		pair_function_in_singles_potential(DECOMPOSED),
-		test(false)
-	{}
+//	CC_Parameters():
+//	{return CC_Parameters("default constructor")}
+
+	const double uninitialized = 123.456;
 
 	// read parameters from input
 	/// ctor reading out the input file
 	CC_Parameters(const std::string& input,const double &low,const double &corrfac_gamma_) :
-		lo(1.e-6),
-		thresh_3D(FunctionDefaults<3>::get_thresh()),
-		thresh_6D(FunctionDefaults<6>::get_thresh()),
-		//thresh_6D_tight(thresh_6D*0.1),
-		thresh_bsh_3D(FunctionDefaults<3>::get_thresh()*0.1),
-		thresh_bsh_6D(FunctionDefaults<6>::get_thresh()*0.1),
-		thresh_poisson_3D(FunctionDefaults<3>::get_thresh()*0.1),
-		thresh_poisson_6D(FunctionDefaults<6>::get_thresh()*0.1),
-		thresh_f12(FunctionDefaults<6>::get_thresh()*0.1),
-		econv(1.e-4),
-		dconv_3D(1.e-2),
-		dconv_6D(1.e-2),
-		iter_max_3D(5),
-		iter_max_6D(30),
+		lo(uninitialized),
+		thresh_3D(uninitialized),
+		tight_thresh_3D(uninitialized),
+		thresh_6D(uninitialized),
+		tight_thresh_6D(uninitialized),
+		thresh_bsh_3D(uninitialized),
+		thresh_bsh_6D(uninitialized),
+		thresh_poisson(uninitialized),
+		thresh_f12(uninitialized),
+		thresh_Ue(uninitialized),
+		econv(uninitialized),
+		dconv_3D(uninitialized),
+		dconv_6D(uninitialized),
+		iter_max_3D(0),
+		iter_max_6D(0),
 		restart(false),
 		corrfac_gamma(corrfac_gamma_),
 		output_prec(8),
@@ -181,9 +146,7 @@ struct CC_Parameters{
 		mp2(false),
 		ccs(false),
 		kain(false),
-		kain_subspace(2),
 		freeze(0),
-		pair_function_in_singles_potential(DECOMPOSED),
 		test(false)
 	{
 		// get the parameters from the input file
@@ -191,104 +154,71 @@ struct CC_Parameters{
 		position_stream(f, "cc2");
 		std::string s;
 
+		// general operators thresh
+		double thresh_operators=uninitialized;
+		double thresh_operators_3D=uninitialized;
+		double thresh_operators_6D=uninitialized;
+
 		while (f >> s) {
 			//std::cout << "input tag is: " << s << std::endl;
 			std::transform(s.begin(),s.end(),s.begin(), ::tolower);
 			//std::cout << "transformed input tag is: " << s << std::endl;
 			if (s == "end") break;
-			else if (s == "debug") debug=true;
 			else if (s == "lo") f >> lo;
-			else if (s == "econv"){
-				f >> econv;
-			}
-
-			else if (s == "dconv"){
-				double tmp = 0.0;
-				f >> tmp;
-				dconv_3D = tmp; dconv_6D=tmp;
-			}
-			else if (s == "dconv_3d"){
-				f >> dconv_3D;
-			}
-			else if (s == "dconv_6d"){
-				f >> dconv_6D;
-			}
-			else if (s == "thresh"){
-				double tmp = 0.0;
-				f >> tmp;
-				double opthresh = tmp*0.1;
-				double opthresh_3D = tmp*0.01;
-				thresh_3D 		  = 0.01*tmp;
-				thresh_6D 		  = tmp;
-				thresh_poisson_3D = opthresh_3D;
-				thresh_poisson_6D = opthresh;
-				thresh_bsh_3D     = opthresh_3D;
-				thresh_bsh_6D     = opthresh;
-				thresh_f12        = opthresh;
-				thresh_Ue		  = opthresh;
-			}
-			else if (s == "thresh_operators" or s == "thresh_operator"){
-				double tmp =0.0;
-				f >> tmp;
-				thresh_poisson_3D = tmp;
-				thresh_poisson_6D = tmp;
-				thresh_bsh_3D     = tmp;
-				thresh_bsh_6D     = tmp;
-				thresh_f12        = tmp;
-			}
-			else if (s == "thresh_operators_3d" or s == "thresh_operator_3d"){
-				double tmp =0.0;
-				f >> tmp;
-				thresh_poisson_3D = tmp;
-				thresh_bsh_3D     = tmp;
-			}
-			else if (s == "thresh_operators_6d" or s == "thresh_operator_6d"){
-				double tmp =0.0;
-				f >> tmp;
-				thresh_poisson_6D = tmp;
-				thresh_bsh_6D     = tmp;
-				thresh_f12        = tmp;
-			}
+			else if (s == "thresh") f >> thresh_6D;
 			else if (s == "thresh_3d") f >> thresh_3D;
+			else if (s == "tight_thresh_3d") f >> tight_thresh_3D;
 			else if (s == "thresh_6d") f >> thresh_6D;
+			else if (s == "tight_thresh_6d") f >> tight_thresh_6D;
+			else if (s == "debug") debug = true;
+			else if (s == "econv")f >> econv;
+			else if (s == "dconv") f >> dconv_6D;
+			else if (s == "dconv_3d")f >> dconv_3D;
+			else if (s == "dconv_6d")f >> dconv_6D;
+			else if (s == "thresh_operators" or s == "thresh_operator") f>> thresh_operators;
+			else if (s == "thresh_operators_3d" or s == "thresh_operator_3d") f >> thresh_operators_3D;
+			else if (s == "thresh_operators_6d" or s == "thresh_operator_6d") f >> thresh_operators_6D;
 			else if (s == "thresh_bsh_3d") f >> thresh_bsh_3D;
 			else if (s == "thresh_bsh_6d") f >> thresh_bsh_6D;
-			else if (s == "thresh_poisson_3d") f >> thresh_poisson_3D;
-			else if (s == "thresh_poisson_6d") f >> thresh_poisson_6D;
+			else if (s == "thresh_poisson") f >> thresh_poisson;
 			else if (s == "thresh_f12") f >> thresh_f12;
 			else if (s == "thresh_ue") f >> thresh_Ue;
 			else if (s == "freeze") f >> freeze;
-			else if (s == "iter_max"){
-				f >> iter_max_6D;
-			}
 			else if (s == "iter_max_3d") f >> iter_max_3D;
 			else if (s == "iter_max_6d") f >> iter_max_6D;
 			else if (s == "restart") restart=true;
-			else if ((s == "corrfac_gamma") or (s== "gamma")) f>>corrfac_gamma;
 			else if (s == "kain") kain=true;
 			else if (s == "kain_subspace") f>>kain_subspace;
 			else if (s == "mp2_only" ) {mp2_only=true; mp2=true;}
 			else if (s == "mp2") mp2=true;
 			else if (s == "ccs") ccs=true;
 			else if (s == "freeze") f>>freeze;
-			else if (s == "pair_function_in_singles_potential" or s == "pair_function"){
-				std::string tmp;
-				f>>tmp;
-				if(tmp=="full") pair_function_in_singles_potential=FULL;
-				else if(tmp=="decomposed")pair_function_in_singles_potential=DECOMPOSED;
-				else{
-					MADNESS_EXCEPTION(("UNKNOWN KEYWORD: " + s+" = "+tmp).c_str(),1);
-				}
-			}
-			else if (s == "full_pair_function") pair_function_in_singles_potential=FULL;
-			else if (s == "decomposed_pair_function") pair_function_in_singles_potential=DECOMPOSED;
 			else if (s == "test") test =true;
 			else continue;
 		}
 
-		//thresh_6D_tight = thresh_6D*0.1;
-
+		// set defaults
 		if(not kain) kain_subspace = 0;
+
+		// set all parameters that were not explicitly given
+		if(lo==uninitialized) lo = 1.e-7;
+		if(thresh_6D==uninitialized) thresh_6D = 1.e-3;
+		if(tight_thresh_6D==uninitialized) tight_thresh_6D = thresh_6D*0.1;
+		if(thresh_3D==uninitialized) thresh_3D = thresh_6D*0.01;
+		if(tight_thresh_3D==uninitialized) tight_thresh_3D = thresh_3D*0.1;
+		if(thresh_operators==uninitialized) thresh_operators = 1.e-6;
+		if(thresh_operators_3D==uninitialized) thresh_operators_3D = thresh_operators;
+		if(thresh_operators_6D==uninitialized) thresh_operators_6D = thresh_operators;
+		if(thresh_bsh_3D==uninitialized) thresh_bsh_3D = thresh_operators_3D;
+		if(thresh_bsh_6D==uninitialized) thresh_bsh_6D = thresh_operators_6D;
+		if(thresh_poisson==uninitialized) thresh_poisson = thresh_operators_3D;
+		if(thresh_f12==uninitialized) thresh_f12 = thresh_operators_3D;
+		if(thresh_Ue==uninitialized) thresh_Ue = tight_thresh_6D;
+		if(dconv_6D==uninitialized) dconv_6D = thresh_6D;
+		if(dconv_3D==uninitialized) dconv_3D = dconv_6D;
+		if(econv ==uninitialized) econv = 0.1*dconv_6D;
+		if(iter_max_6D==uninitialized) iter_max_6D = 10;
+		if(iter_max_3D==uninitialized) iter_max_3D = iter_max_6D;
 
 		// set the thresholds
 		FunctionDefaults<3>::set_thresh(thresh_3D);
@@ -304,16 +234,15 @@ struct CC_Parameters{
 	double lo;
 	// function thresh 3D
 	double thresh_3D;
+	double tight_thresh_3D;
 	// function thresh 6D
 	double thresh_6D;
-	//	// tight thresh for 6D functions (for addition)
-	//	double thresh_6D_tight;
+	double tight_thresh_6D;
 	// BSH thresh
 	double thresh_bsh_3D;
 	double thresh_bsh_6D;
 	// Poisson thresh
-	double thresh_poisson_3D;
-	double thresh_poisson_6D;
+	double thresh_poisson;
 	// f12 thresh
 	double thresh_f12;
 	// Ue thresh
@@ -330,7 +259,7 @@ struct CC_Parameters{
 	// restart
 	bool restart;
 	// Exponent for the correlation factor
-	double corrfac_gamma;
+	const double corrfac_gamma;
 	// for formated output
 	size_t output_prec;
 	// debug mode
@@ -351,7 +280,6 @@ struct CC_Parameters{
 		if(corrfac_gamma<0) MADNESS_EXCEPTION("ERROR in CC_PARAMETERS: CORRFAC_GAMMA WAS NOT INITIALIZED",1);
 		return corrfac_gamma;
 	}
-	pair_function_form pair_function_in_singles_potential; // possible choices are FULL and DECOMPOSED
 	bool test;
 
 	// print out the parameters
@@ -370,11 +298,11 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_3D set :"         << FunctionDefaults<3>::get_thresh() << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D demanded :"         << thresh_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D set :"         << FunctionDefaults<6>::get_thresh() << std::endl;
-			//std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D_tight :"     << thresh_6D_tight << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "tight_thresh_6D :"     << tight_thresh_6D << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "tight_thresh_3D :"     << tight_thresh_3D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_3D :"     << thresh_bsh_3D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D :"     << thresh_bsh_6D << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson_3D :" << thresh_poisson_3D << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson_6D :" << thresh_poisson_6D << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson :" << thresh_poisson << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_f12 :"        << thresh_f12 << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_Ue :"        << thresh_Ue << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "econv :"             << econv << std::endl;
@@ -400,7 +328,6 @@ struct CC_Parameters{
 			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
 			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
 			if(mp2) std::cout << std::setw(20) << std::setfill(' ') << "MP2 Guess demanded" << std::endl;
-			std::cout << "pair_function_in_singles_potential " << pair_function_in_singles_potential << std::endl;
 			if(test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
 		}
 	}
@@ -422,6 +349,9 @@ struct CC_Parameters{
 		if(econv < 0.1*FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 3D (more than factor 10 difference)");
 		if(econv < 0.1*FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 6D (more than factor 10 difference)");
 		// Check if the 6D thresholds are not too high
+		if(thresh_6D < 1.e-3) warnings+=warning(world,"thresh_6D is smaller than 1.e-3");
+		if(thresh_6D < tight_thresh_6D) warnings+=warning(world,"tight_thresh_6D is larger than thresh_6D");
+		if(thresh_6D < tight_thresh_3D) warnings+=warning(world,"tight_thresh_3D is larger than thresh_3D");
 		if(thresh_6D < 1.e-3) warnings+=warning(world,"thresh_6D is smaller than 1.e-3");
 		if(thresh_Ue < 1.e-4) warnings+=warning(world,"thresh_Ue is smaller than 1.e-4");
 		if(thresh_Ue > 1.e-4) warnings+=warning(world,"thresh_Ue is larger than 1.e-4");
