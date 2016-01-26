@@ -1,3 +1,7 @@
+
+#ifndef MADNESS_WORLD_BINSORTER_H__INCLUDED
+#define MADNESS_WORLD_BINSORTER_H__INCLUDED
+
 #include <madness/world/MADworld.h>
 #include <madness/world/world_object.h>
 #include <madness/world/madness_exception.h>
@@ -75,6 +79,5 @@ namespace madness {
         }
     };
 }
-      
-    
 
+#endif // MADNESS_WORLD_BINSORTER_H__INCLUDED
