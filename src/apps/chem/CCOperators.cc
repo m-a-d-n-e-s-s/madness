@@ -8,8 +8,7 @@
 
 #include "CCOperators.h"
 
-#include "/usr/include/math.h"
-#include "/usr/include/math.h"
+#include <cmath>
 #include "../../madness/constants.h"
 #include "../../madness/mra/derivative.h"
 #include "../../madness/mra/funcdefaults.h"

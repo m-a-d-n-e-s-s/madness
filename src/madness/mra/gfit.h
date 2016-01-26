@@ -40,7 +40,7 @@
 
 //#include <iostream>
 
-#include "/usr/include/math.h"
+#include <cmath>
 #include "../constants.h"
 #include "../tensor/basetensor.h"
 #include "../tensor/slice.h"
