@@ -29,6 +29,9 @@
   fax:   865-572-0680
 */
 
+#ifndef MADNESS_TENSOR_ELEM_H__INCLUDED
+#define MADNESS_TENSOR_ELEM_H__INCLUDED
+
 #include <madness/madness_config.h>
 
 #ifdef MADNESS_HAS_ELEMENTAL_EMBEDDED
@@ -521,4 +524,6 @@ namespace madness {
     }
 }
 
-#endif //MADNESS_HAS_ELEMENTAL
+#endif //MADNESS_HAS_ELEMENTAL_EMBEDDED
+
+#endif // MADNESS_TENSOR_ELEM_H__INCLUDED
