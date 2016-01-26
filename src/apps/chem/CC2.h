@@ -157,7 +157,7 @@ public:
 	/// Iterates the CC2 doubles equations
 	void iterate_doubles(const vecfuncT &singles, Pairs<real_function_6d> &doubles)const;
 	/// Iterates a pair of the CC2 doubles equations
-	bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles);
+	bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles)const;
 	/// Create formated output, std output with world rank 0
 	void output(const std::string &msg)const{
 		if(world.rank()==0) std::cout << msg << "\n";

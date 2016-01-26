@@ -407,7 +407,7 @@ public:
 	real_function_6d make_cc2_coulomb_parts(const CC_function &taui, const CC_function &tauj, const CC_vecfunction &singles) const;
 
 	// computes: G(f(F-eij)|titj> + Ue|titj> - [K,f]|titj>) and uses G-operator screening
-	real_function_6d make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj);
+	real_function_6d make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj)const;
 
 	// make G(O1+O2-O12)A12|xy>
 	//  \left(\O{1}+\O{2}-\O{12}\right)\optwo{A}\ket{xy} = \ket{k}\otimes\left(A^{k}_{x}\ket{y} - \frac{1}{2} A^{kl}_{xy}\ket{l}\right)

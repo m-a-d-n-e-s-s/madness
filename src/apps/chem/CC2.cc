@@ -379,8 +379,8 @@ double CC2::solve_cc2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles){
 	}
 
 	output_section("Beginn the CC2 Iterations");
-	bool singles_converged = false;
-	bool doubles_converged = false;
+	bool singles_converged = true;
+	bool doubles_converged = true;
 	std::vector<double> current_energies = update_cc2_pair_energies(doubles,singles);
 	for(size_t iter=0;iter<parameters.iter_max_6D;iter++){
 		CC_Timer timer_iter_all(world,"Macroiteration " + stringify(iter));
@@ -539,7 +539,7 @@ bool CC2::iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &sin
 
 // the constant part of CC2 will be calculated and stored in the pair, after that the pair is iterated with the MP2 alg. till it converges
 // Note: if the singles are initialized to 0 then this is just MP2
-bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles){
+bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles)const{
 	bool converged = false;
 	calctype type = CC2_;
 	if(CCOPS.make_norm(singles)<parameters.thresh_3D){
@@ -552,16 +552,6 @@ bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles){
 	const real_function_6d regular_part = CCOPS.make_cc2_residue_sepparated(singles(pair.i),singles(pair.j));
 	regular_part.print_size("Regularization part of pair " + pair.name());
 	timer_cc2_regular.info();
-	const std::pair<double,double> time1 = timer_cc2_regular.current_time();
-
-//	output_subsection("Get Regularized-Potential (Sepparated Method) " +pair.name());
-//	CC_Timer timer_cc2_regular2(world,"Get Semi-Constant CC2 Part of Pair " +pair.name());
-//	const real_function_6d regular_part2 = CCOPS.make_cc2_residue_sepparated(singles(pair.i),singles(pair.j));
-//	regular_part2.print_size("Regularization part of pair " + pair.name());
-//	timer_cc2_regular2.info();
-//	const std::pair<double,double> time2 = timer_cc2_regular2.current_time();
-//	const double diff = (regular_part-regular_part2).norm2();
-//	std::cout << "\n\n\n\nDifference between CC2 residues is " << diff << "\n\nTimings were (Wall), (CPU):\n" << time1 << " and " << time2  << std::endl;
 
 	CC_Timer timer_cc2_coulomb(world,"Get Screened Coulomb Potentials of CC2 singles");
 	const double thresh = CCOPS.guess_thresh(singles(pair.i),singles(pair.j));
@@ -696,85 +686,6 @@ bool CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles, const CC_vecfunction &sin
 
 
 
-	return converged;
-}
-
-bool CC2::iterate_pair(CC_Pair & pair, const CC_vecfunction &singles)const{
-	CC_Timer timer_iteration(world,"Iteration of pair " + pair.name());
-
-	// the cc2 residue and the potential from the singles (dopo) do not change if the singles are not changing (stays constant during pair micro iterations)
-
-
-	output_section("Iterate pair " + pair.name());
-	bool converged = true;
-
-	CC_Timer make_BSH_time(world,"Make Destructive BSH Operator");
-	pair.epsilon = CCOPS.get_epsilon(pair.i,pair.j);
-	real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * pair.epsilon),parameters.lo, parameters.thresh_bsh_6D);
-	G.destructive()=true;
-	if(G.destructive()==false) output("\n\n-----> Greens Operator is NOT destructive (!!??????!!) <------\n\n");
-	make_BSH_time.info();
-
-	CC_Timer cc2_residue_time(world,"CC2 Residue of " + pair.name());
-	const real_function_6d cc2_residue = CCOPS.make_cc2_residue(singles(pair.i),singles(pair.j));
-	cc2_residue_time.info();
-
-	CC_Timer rest_potential(world,"Doubles Potential from Singles for " + pair.name());
-	const real_function_6d dopo = CCOPS.get_CC2_doubles_from_singles_potential(singles(pair.i),singles(pair.j),singles);
-	rest_potential.info();
-
-	for(size_t microiter=0;microiter<parameters.iter_max_6D;microiter++){
-		output_section("Starting microiteration of doubles " + stringify(microiter));
-		real_function_6d potential = real_factory_6d(world);
-		{
-			CC_Timer fock_residue_time(world,"Fock Residue of " + pair.name());
-			const real_function_6d fock_residue = CCOPS.fock_residue_6d(pair);
-			fock_residue_time.info();
-
-			// Add up
-			potential.set_thresh(parameters.thresh_6D*0.1);
-			potential += cc2_residue;
-			potential += fock_residue;
-			potential += dopo;
-		}
-		potential.scale(-2.0);
-		potential.print_size("Doubles-Potential-after-Addition");
-		potential.truncate().reduce_rank();
-		potential.print_size("Doubles-Potential-after-tight-Truncation");
-		potential.set_thresh(parameters.thresh_6D);
-		potential.truncate();
-		potential.print_size("Doubles-Potential-after-Truncation");
-
-		CC_Timer timer_G(world,"Apply the Greens Operator for pair " +pair.name());
-		{
-			const real_function_6d GVpsi = G(potential);
-			real_function_6d new_pair = pair.constant_term + GVpsi;
-			const real_function_6d residue = pair.function - new_pair;
-			const double error = residue.norm2();
-			new_pair.truncate().reduce_rank();
-			pair.function = new_pair;
-			pair.current_error = error;
-			converged = true;
-			if(fabs(error)>parameters.dconv_6D) converged = false;
-		}
-		timer_G.info();
-
-		CC_Timer timer_omega(world,"calculate pair-correlation-energy of pair " +pair.name());
-		pair.current_energy = CCOPS.compute_cc2_pair_energy(pair,singles(pair.i),singles(pair.j));
-		timer_omega.info();
-
-		pair.store_pair(world);
-		output("\n-----\n");
-		pair.info();
-		output("\n-----\n");
-		output("\n\nMicroteration" + stringify(microiter) + " of pair " +pair.name());
-		if(converged){
-			output(" converged\n\n");
-			break;
-		}
-		else output(" ended\n\n");
-		timer_iteration.info();
-	}
 	return converged;
 }
 

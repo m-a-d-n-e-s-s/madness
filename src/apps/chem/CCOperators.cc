@@ -136,7 +136,7 @@ real_function_6d CC_Operators::make_cc2_coulomb_parts(const CC_function &taui, c
 	return G_O1tau_part + G_O2tau_part - G_O12tau_part;
 }
 
-real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj){
+real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj)const{
 	calctype ctype = CC2_;
 	const bool symmetric = (taui.i==tauj.i);
 	if(make_norm(taui)<parameters.thresh_3D and make_norm(tauj)<parameters.thresh_3D){
@@ -599,14 +599,6 @@ vecfuncT CC_Operators::S2b_reg_part(const CC_vecfunction &singles) const {
 			} // end m
 		} // end k
 		resulti = Ipart + Ipartx + O1part + O1partx + O2part + O2partx + O12part + O12partx;
-		//			Ipart.print_size("unitpart");
-		//			O1part.print_size("O1part");
-		//			O2part.print_size("O2part");
-		//			O12part.print_size("O12part");
-		//			Ipartx.print_size("unitpartx");
-		//			O1partx.print_size("O1partx");
-		//			O2partx.print_size("O2partx");
-		//			O12partx.print_size("O12partx");
 		result.push_back(resulti);
 	} // end i
 	return result;
@@ -629,173 +621,62 @@ vecfuncT CC_Operators::S2c_reg_part(const CC_vecfunction &singles) const {
 				resulti -= (2.0 * convolute_x_Qf_yz(l_kgi, tk, tl)
 				- convolute_x_Qf_yz(l_kgi, tl, tk));
 			}
-
-
-			// 2 \sum_n <k(2)|g12|n(1)><n(1)|f12|ti(1)tk(2)> = <k(2)|g12 nfti(2)|n(1)tk(2)> = poisson(k*nfti*tk)*n
-			//   \sum_n <k(2)|g12|n(1)><n(1)|f12|tk(1)ti(2)> = <k(2)|g12 nftk(2)|n(1)ti(2)> = poisson(k*nftk*ti)*n
-			// The sum over n also goes over the frozen orbitals
-			real_function_3d O1part = real_factory_3d(world);
-			real_function_3d O1partx = real_factory_3d(world);
-			for(const auto& tmpk:t.functions){
-				const CC_function& k=tmpk.second;
-				for(size_t n=0;n<nfti.size();n++){
-					O1part += ((*poisson)(mo_bra_(k).function*k.function*nfti[n])*mo_ket_(n).function);
-					real_function_3d nftk = ((*f12op)(mo_bra_(n).function*k.function));
-					real_function_3d poisson_integrant = (mo_bra_(k).function*i.function*nftk);
-					O1partx+= ((*poisson)(poisson_integrant)*mo_ket_(n).function);
-				}
-			}
-
-			// 2 \sum_n <k(2)|g12|n(2)><n(2)|f12|ti(1)tk(2)> = <k(2)|g12 nftk(1) |ti(1)n(2)> = poisson(k*n)*(nftk*ti)
-			//   \sum_n <k(2)|g12|n(2)><n(2)|f12|tk(1)ti(2)> = <k(2)|g12 nfti(1) |tk(1)n(2)> = poisson(k,n)*(nfti*tk)
-			real_function_3d O2part = real_factory_3d(world);
-			real_function_3d O2partx = real_factory_3d(world);
-			for(auto tmpk:t.functions){
-				CC_function& k=tmpk.second;
-				for(size_t n=0;n<mo_ket_.size();n++){
-					real_function_3d kgn = intermediates_.get_EX(k.i,n);
-					real_function_3d nftk = (*f12op)(mo_bra_(n).function*k.function);
-					real_function_3d nfti = (*f12op)(mo_bra_(n).function*i.function);
-					O2part   += (kgn*nftk*i.function);
-					O2partx  += (kgn*nfti*k.function);
-				}
-			}
-
-			// 2 \sum_nm <k(2)|g12|mn><mn|f12|ti(1)tk(2)> = <k|g|n>(1)|m(1)> *<mn|f|titk>
-			//   \sum_nm <k(2)|g12|mn><mn|f12|tk(1)ti(2)> = <k|g|n>(1)|m(1)> *<mn|f|tkti>
-			real_function_3d O12part = real_factory_3d(world);
-			real_function_3d O12partx = real_factory_3d(world);
-			for(auto tmpk:t.functions){
-				CC_function& k=tmpk.second;
-				for(size_t n=0;n<mo_bra_.size();n++){
-					for(size_t m=0;m<mo_ket_.size();m++){
-						real_function_3d kgn = intermediates_.get_EX(k.i,n);
-						real_function_3d nftk = (*f12op)(mo_bra_(n).function*k.function);
-						real_function_3d nfti = (*f12op)(mo_bra_(n).function*i.function);
-						double f = nftk.inner(mo_bra_(m).function*i.function);
-						double fx= nfti.inner(mo_bra_(m).function*k.function);
-						O12part += (f*kgn*mo_ket_(m).function);
-						O12partx +=(fx*kgn*mo_ket_(m).function);
-					}
-				}
-			}
-
-			t1part = unitpart - O1part - O2part +O12part;
-			t1partx = unitpartx - O1partx - O2partx + O12partx;
-//			(2.0*unitpart).print_size("unitpart");
-//			(2.0*O1part).print_size("O1part");
-//			(2.0*O2part).print_size("O2part");
-//			(2.0*O12part).print_size("O12part");
-//			unitpartx.print_size("unitpartx");
-//			O1partx.print_size("O1partx");
-//			O2partx.print_size("O2partx");
-//			O12partx.print_size("O12partx");
 		}
 		result.push_back(resulti);
 	}
 	return result;
 }
 
-<<<<<<< HEAD
-/// S2c + X Term
-// [Q]   [i]
-//  \    /....
-//   \  /    /\
-//  __\/_____\/__
-/// = Q\sum_{kl}\left( 2<k|lgi|ulk> - <l|kgi|u_{lk}> + 2<k|lgiQ12f12|t_lt_k> - <l|kgiQ12f12|t_lt_k> \right)
-/// Notation: 6D Integration over second particle, intermediates: lgi = <l|g|i> is the exchange intermediate
-/// Notation: t are the t-intermediates: |t_i> = |i> + |\tau_i>
-/// @param[in] All the current coupled cluster Pairs
-/// @param[in] The coupled cluster singles
-/// @param[out] the S2c+X Potential
-vecfuncT CC_Operators::S2c(const Pairs<CC_Pair> &u, const CC_vecfunction &singles,CC_data &data) const {
-	if(parameters.pair_function_in_singles_potential==FULL){
-		return S2c_6D_part(u,singles,data);
-	}else if(parameters.pair_function_in_singles_potential==DECOMPOSED){
-		return add(world,S2c_6D_part(u,singles,data),S2c_3D_part(singles,data));
-	}else{
-		error("parameters.pair_function_in_singles_potential definition not valid : " + stringify(parameters.pair_function_in_singles_potential));
-		return vecfuncT(); // should not ever get here
-	}
-}
-vecfuncT CC_Operators::S2c_3D_part(const CC_vecfunction &singles, CC_data &data) const {
-	vecfuncT result;
-	CC_vecfunction t = make_t_intermediate(singles);
-	for(auto tmpi:singles.functions){
-		CC_function& i=tmpi.second; std::cout << "now doing single " << i.i << std::endl;
-		// The 3D Part (maybe merge this later with 6D part to avoid recalculating of  mo_bra_[k]*exchange_intermediate[i][l]
-		real_function_3d resulti_3d = real_factory_3d(world);
-		CC_Timer s2c_3d_timer(world,"s2c_3D_part");
-		{
-			for(auto tmpk:t.functions){
-				CC_function& k=tmpk.second;
-				for(auto tmpl:t.functions){
-					CC_function& l=tmpl.second;
-					real_function_3d klgi = (mo_bra_(k)*intermediates_.get_EX(l,i)).function;
-					real_function_3d lkgi = (mo_bra_(l)*intermediates_.get_EX(k,i)).function;
-					real_function_3d k_lgi_Q12f12_tltk = convolute_x_Qf_yz(CC_function(klgi,99,UNDEFINED),l,k);
-					real_function_3d l_kgi_Q12f12_tltk = convolute_x_Qf_yz(CC_function(lkgi,99,UNDEFINED),l,k);
-					resulti_3d += 2.0*k_lgi_Q12f12_tltk - l_kgi_Q12f12_tltk;
-				}
-			}
-		}
-		s2c_3d_timer.info();
-		result.push_back(resulti_3d);
-	}
-	return result;
-}
-vecfuncT CC_Operators::S2c_6D_part(const Pairs<CC_Pair> &u, const CC_vecfunction &singles, CC_data &data) const {
-=======
 vecfuncT CC_Operators::S4a_reg_part(const CC_vecfunction &singles) const {
->>>>>>> 2f04d32... CC2:cleaning-parameters-functions
-	vecfuncT result;
-	const CC_vecfunction tfunctions = make_t_intermediate(singles);
-	for (const auto& itmp : tfunctions.functions) {
-		const CC_function& ti = itmp.second;
-		real_function_3d resulti = real_factory_3d(world);
+        vecfuncT result;
+        const CC_vecfunction tfunctions = make_t_intermediate(singles);
+        for (const auto& itmp : tfunctions.functions) {
+                const CC_function& ti = itmp.second;
+                real_function_3d resulti = real_factory_3d(world);
 
-		for (const auto& ktmp : tfunctions.functions) {
-			const CC_function& tk = ktmp.second;
-			const size_t k = ktmp.first;
+                for (const auto& ktmp : tfunctions.functions) {
+                        const CC_function& tk = ktmp.second;
+                        const size_t k = ktmp.first;
 
-			for (const auto& ltmp : singles.functions) {
-				const CC_function& taul = ltmp.second;
-				const size_t l = ltmp.first;
+                        for (const auto& ltmp : singles.functions) {
+                                const CC_function& taul = ltmp.second;
+                                const size_t l = ltmp.first;
 
-				const double lkgQftitk = make_ijgQfxy(l, k, ti, tk);
-				const double klgQftitk = make_ijgQfxy(k, l, ti, tk);
-				resulti -= (2.0 * lkgQftitk - klgQftitk) * taul.function;
-			}
-		}
-		result.push_back(resulti);
-	}
-	return result;
+                                const double lkgQftitk = make_ijgQfxy(l, k, ti, tk);
+                                const double klgQftitk = make_ijgQfxy(k, l, ti, tk);
+                                resulti -= (2.0 * lkgQftitk - klgQftitk) * taul.function;
+                        }
+                }
+                result.push_back(resulti);
+        }
+        return result;
 }
 
 /// result: -\sum_{kl}( 2 <l|kgtaui|Qftktl> - <l|kgtaui|Qftltk>
 /// this is the same as S2c with taui instead of i
 vecfuncT CC_Operators::S4b_reg_part(const CC_vecfunction &singles) const {
-	vecfuncT result;
-	const CC_vecfunction tfunctions = make_t_intermediate(singles);
-	for (const auto& itmp : singles.functions) {
-		const CC_function taui = itmp.second;
-		real_function_3d resulti = real_factory_3d(world);
+        vecfuncT result;
+        const CC_vecfunction tfunctions = make_t_intermediate(singles);
+        for (const auto& itmp : singles.functions) {
+                const CC_function taui = itmp.second;
+                real_function_3d resulti = real_factory_3d(world);
 
-		for (const auto& ktmp : tfunctions.functions) {
-			const CC_function tk = ktmp.second;
-			for (const auto& ltmp : tfunctions.functions) {
-				const CC_function tl = ltmp.second;
-				const real_function_3d l_kgi_tmp = mo_bra_(tl).function
-						* intermediates_.get_pEX(tk, taui);
-				const CC_function l_kgi(l_kgi_tmp, 99, UNDEFINED);
-				resulti -= (2.0 * convolute_x_Qf_yz(l_kgi, tk, tl)
-				- convolute_x_Qf_yz(l_kgi, tl, tk));
-			}
-		}
-		result.push_back(resulti);
-	}
-	return result;
+                for (const auto& ktmp : tfunctions.functions) {
+                        const CC_function tk = ktmp.second;
+                        for (const auto& ltmp : tfunctions.functions) {
+                                const CC_function tl = ltmp.second;
+                                const real_function_3d l_kgi_tmp = mo_bra_(tl).function
+                                                * intermediates_.get_pEX(tk, taui);
+                                const CC_function l_kgi(l_kgi_tmp, 99, UNDEFINED);
+                                resulti -= (2.0 * convolute_x_Qf_yz(l_kgi, tk, tl)
+                                - convolute_x_Qf_yz(l_kgi, tl, tk));
+                        }
+                }
+                result.push_back(resulti);
+        }
+        return result;
 }
+
 
 /// result: 4<l|kgtauk|Qftitl> - 2<l|kgtauk|Qftlti> - 2<k|lgtauk|Qftitl> + <k|lgtauk|Qftlti>
 vecfuncT CC_Operators::S4c_reg_part(const CC_vecfunction &singles) const {
@@ -1143,11 +1024,7 @@ real_function_6d CC_Operators::apply_transformed_Ue(const CC_function &x, const 
 	CC_Timer time_Ue(world,"Ue|"+x.name()+y.name()+">");
 	const size_t i = x.i;
 	const size_t j = y.i;
-	double tight_thresh = guess_thresh(x,y);
-	if(tight_thresh > parameters.thresh_Ue){
-		tight_thresh = parameters.thresh_Ue;
-		//output("Thresh to low for Ue setting it back to "+stringify(tight_thresh));
-	}
+	double tight_thresh = parameters.tight_thresh_6D;
 	output("Applying transformed Ue with 6D thresh = " +stringify(tight_thresh));
 
 	real_function_6d Uxy = real_factory_6d(world);
