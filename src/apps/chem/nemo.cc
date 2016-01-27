@@ -130,9 +130,6 @@ double Nemo::value(const Tensor<double>& x) {
 	const real_function_3d rho = (R_square*rhonemo);
 	calc->dipole(world,rho);
 
-	// compute the hessian
-	if (calc->param.hessian) hessian(x);
-
 	do_stuff();
 
 	return energy;
@@ -751,21 +748,7 @@ real_function_3d Nemo::make_sigma(const real_function_3d& rho1,
 Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     START_TIMER(world);
 
-    vecfuncT nemo=calc->amo;
-    {
-        Tensor<double> grad2(3*calc->molecule.natom());
-        vecfuncT R2nemo=mul(world,R_square,nemo);
-        for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
-            for (int iaxis=0; iaxis<3; iaxis++) {
-                DNuclear Dnuc(world,this,iatom,iaxis);
-                vecfuncT dnucnemo=Dnuc(nemo);
-                grad2(3*iatom + iaxis)=2.0*(inner(world,R2nemo,dnucnemo)).sum();
-            }
-        }
-        print("grad2");
-        print(grad2);
-    }
-
+    const vecfuncT& nemo=calc->amo;
 
     // the pseudo-density made up of the square of the nemo orbitals
     functionT rhonemo = make_density(calc->aocc, nemo).scale(2.0);
@@ -1098,6 +1081,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
             const XCOperator xc1(world,this,0);
             real_function_3d gamma=-1.0*xc1.apply_xc_kernel(full_dens_pt);
             Kp=mul(world,gamma,nemo);
+            truncate(world,Kp);
         } else {
             Exchange Kp1=Exchange(world).small_memory(false).same(true);
             Kp1.set_parameters(R2nemo,xi_complete,occ);
@@ -1145,12 +1129,11 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         if (world.rank() == 0)
             print("CPHF BSH residual: rms", rms, "   max", maxval);
 
-        print("switched off KAIN solver, using fixed-point iteration");
-//        if (rms < 1.0) {
-//            xi = (solver.update(xi, residual)).x;
-//        } else {
+        if (rms < 1.0) {
+            xi = (solver.update(xi, residual)).x;
+        } else {
             xi = tmp;
-//        }
+        }
 
         const double norm = norm2(world,xi);
         if (rms/norm<proto.dconv) break;

@@ -232,6 +232,7 @@ int main(int argc, char** argv) {
             calc->param.print(world);
         }
 
+        std::shared_ptr<Nemo> nemo(new Nemo(world,calc));
 
         // optimize the geometry if requested
         if (calc->param.gopt) {
@@ -240,7 +241,8 @@ int main(int argc, char** argv) {
             calc->param.gprint(world);
 
             Tensor<double> geomcoord = calc->molecule.get_all_coords().flat();
-            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
+//            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
+            MolecularOptimizer geom(nemo,
                     calc->param.gmaxiter,
                     calc->param.gtol,  //tol
                     calc->param.gval,  //value prec
@@ -251,14 +253,17 @@ int main(int argc, char** argv) {
         } else {
 
             // compute the energy to get converged orbitals
-            Nemo nemo(world,calc);
-            const double energy=nemo.value();
+//            Nemo nemo(world,calc);
+            const double energy=nemo->value();
             if (world.rank()==0) {
                 printf("final energy   %12.8f\n", energy);
                 printf("finished at time %.1f\n", wall_time());
             }
 
         }
+
+        // compute the hessian
+        if (calc->param.hessian) nemo->hessian(calc->molecule.get_all_coords());
 
 
     } catch (const SafeMPI::Exception& e) {
