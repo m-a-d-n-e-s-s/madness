@@ -138,18 +138,18 @@ public:
 	double solve_MP2_alternative(Pairs<CC_Pair> &pairs)const;
 	double solve_uncoupled_mp2(Pairs<CC_Pair> &u)const;
 	/// solve the coupled CC2 equations
-	double solve_mp2(Pairs<CC_Pair> &doubles, CC_vecfunction &singles);
+	double solve_mp2(Pairs<CC_Pair> &doubles);
 	double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau);
 	bool iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles);
 	bool iterate_cc2_doubles( Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
 	/// Compute the pair correlation energy of an electron pair function at mp2/CCD level (no singles contributions)
 	double compute_mp2_pair_energy(CC_Pair &u)const;
-	CC_vecfunction initialize_cc2_singles(const Pairs<CC_Pair> &doubles)const;
+	CC_vecfunction initialize_cc2_singles()const;
 	/// Initialize an electron pair
 	/// Calculate the constant Term, and the <ij|gQf|ij> etc terms
 	void initialize_electron_pair(CC_Pair &u)const;
 	/// Calculate the current CC2 correlation energy
-	double compute_correlation_energy(const vecfuncT &singles, const Pairs<real_function_6d> &doubles)const;
+	double get_correlation_energy(const Pairs<CC_Pair> &doubles)const;
 	/// update the pair energies of cc2
 	std::vector<double> update_cc2_pair_energies(const Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
 	/// Iterates the CC2 singles equations
@@ -157,7 +157,7 @@ public:
 	/// Iterates the CC2 doubles equations
 	void iterate_doubles(const vecfuncT &singles, Pairs<real_function_6d> &doubles)const;
 	/// Iterates a pair of the CC2 doubles equations
-	bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles)const;
+	bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles=CC_vecfunction())const;
 	/// Create formated output, std output with world rank 0
 	void output(const std::string &msg)const{
 		if(world.rank()==0) std::cout << msg << "\n";
@@ -179,6 +179,37 @@ public:
 		}
 	}
 	void decompose_constant_part();
+
+	void print_results(const Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const{
+	  calctype ctype = CC2_;
+	  if(CCOPS.make_norm(singles)==0.0) ctype = MP2_;
+	  for(auto x : doubles.allpairs){
+	    const std::string ij=std::to_string(x.second.i) + std::to_string(x.second.j);
+	    const real_function_6d full_pair=CCOPS.make_full_pair_function(x.second,singles(x.second.i),singles(x.second.j));
+	    const real_function_6d tmp=multiply(copy(full_pair),nemo.nuclear_correlation->function(),1);
+	    const real_function_6d R12_full_pair=multiply(tmp,nemo.nuclear_correlation->function(),2);
+	    double single_i=0.0;
+	    if(ctype==CC2_) single_i=singles(x.second.i).function.norm2();
+	    double single_j=0.0;
+	    if(ctype==CC2_) single_j=singles(x.second.j).function.norm2();
+	    double R_single_i= 0.0;
+	    if(ctype==CC2_) R_single_i=(singles(x.second.i).function * nemo.nuclear_correlation->function()).norm2();
+	    double R_single_j=0.0;
+	    if(ctype==CC2_) R_single_j=(singles(x.second.j).function * nemo.nuclear_correlation->function()).norm2();
+	    const double norm_pair=x.second.function.norm2();
+	    const double norm_full_pair=full_pair.norm2();
+	    const double norm_R12_full_pair=R12_full_pair.norm2();
+	    if(world.rank() == 0){
+	      std::cout.precision(parameters.output_prec);
+	      std::cout << std::fixed;
+	      std::cout << "Pair " << x.second.name() << ": Correlation Energy=" << x.second.current_energy  << std::endl;
+	      std::cout << std::setw(15) << "|| u" + ij + "||=" << norm_pair << std::setw(15) << ", ||tau" + ij + "||=" << norm_full_pair << std::setw(15) << ", ||R12tau" + ij + "||="
+		  << norm_R12_full_pair << "\n";
+	      std::cout << std::setw(15) << "||tau" + std::to_string(x.second.i) + " ||=" << single_i << std::setw(15) << ", ||tau" + std::to_string(x.second.j) + "||=" << single_j << std::setw(15)
+		  << ", ||Rtau" + std::to_string(x.second.i) + "||=" << R_single_i << std::setw(15) << ", ||Rtau" + std::to_string(x.second.j) + "||=" << R_single_j << "\n" << std::endl;
+	    }
+	  }
+	}
 };
 
 } /* namespace madness */

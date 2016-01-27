@@ -229,7 +229,9 @@ struct CC_Parameters{
 		if(econv < 1.e-4) output_prec = 5;
 		if(econv < 1.e-5) output_prec = 6;
 		if(econv < 1.e-6) output_prec = 7;
+		std::cout.precision(output_prec);
 	}
+
 
 	double lo;
 	// function thresh 3D
@@ -327,7 +329,6 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "CCS is: " << ccs << std::endl;
 			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
 			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
-			if(mp2) std::cout << std::setw(20) << std::setfill(' ') << "MP2 Guess demanded" << std::endl;
 			if(test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
 		}
 	}
@@ -385,7 +386,7 @@ public:
 	CC_Pair() :
 		i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
 				uninitialized()), ij_gQf_ij(uninitialized()), ji_gQf_ij(
-						uninitialized()), iteration(0), converged(false), current_error(uninitialized()), epsilon(uninitialized()){
+						uninitialized()), iteration(0), converged(false), current_error(uninitialized()), current_energy_difference(uninitialized()), epsilon(uninitialized()){
 	}
 
 	/// ctor; initialize energies with a large number
@@ -418,7 +419,8 @@ public:
 			if(function.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||u||    : " << function.norm2() << std::endl;
 			if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " << constant_term.norm2() << std::endl;
 			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|  : " << current_error << std::endl;
-			if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(5)<<std::fixed<< current_energy << std::endl;
+			if(current_energy_difference != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |deltaE|  : " << current_energy_difference << std::endl;
+			if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(6)<<std::fixed<< current_energy << std::endl;
 			//if(epsilon == uninitialized()) std::cout << "WARNING: BSH-epsilon is not initialized" << std::endl;
 		}
 	}
@@ -445,6 +447,7 @@ public:
 	bool converged;					///< is the pair function converged
 
 	double current_error;			///< error of the last iteration: ||function_old - function||_L2
+	double current_energy_difference;/// difference of current_energy and energy of the last iteration
 	double current_energy = uninitialized(); /// < the correlation energy of the last iteration
 	double epsilon;					///< the summed up orbital energies corresponding to the pair function indices: epsilon_i + epsilon_j
 
@@ -487,7 +490,7 @@ public:
 	void store_pair(World& world, const std::string &msg = "pair_") {
 		std::string name = msg + stringify(i) + stringify(j);
 		if (world.rank() == 0)
-			printf("storing matrix elements %s\n", name.c_str());
+			printf("storing CC_Pair %s\n", name.c_str());
 		archive::ParallelOutputArchive ar(world, name.c_str(), 1);
 		ar & *this;
 	}
@@ -580,6 +583,8 @@ struct CC_function{
 		}
 		else return UNDEFINED;
 	}
+
+
 };
 
 

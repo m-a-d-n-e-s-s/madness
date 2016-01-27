@@ -101,38 +101,25 @@ real_function_6d CC_Operators::make_cc2_coulomb_parts(const CC_function &taui, c
 
 		real_function_3d kgti_tj = apply_g12(mo_bra_(k),ti)*tj.function;
 		real_function_3d kgtj_ti = apply_g12(mo_bra_(k),tj)*ti.function;
-		Q(kgti_tj);
-		Q(kgtj_ti);
 
-		real_function_3d tauk_tmp = copy(tauk.function);
-		G_O1tau_part +=-2.0*G(tauk_tmp,kgti_tj);
-		tauk_tmp = copy(tauk.function);
-		G_O2tau_part +=-2.0*G(kgtj_ti,tauk_tmp);
-	}
-
-
-	// GOtau12_part
-	// make <kl|g|titj>*G(tauk,taul)
-	real_function_6d G_O12tau_part = real_factory_6d(world);
-	for(const auto& ktmp:singles.functions){
-		const size_t k=ktmp.first;
-		const CC_function brak = mo_bra_(k);
+		real_function_3d l1 = real_factory_3d(world);
+		real_function_3d l2 = real_factory_3d(world);
 		for(const auto& ltmp:singles.functions){
-			const size_t l=ltmp.first;
-			const CC_function bral = mo_bra_(l);
-			const real_function_3d taul = copy(ltmp.second.function); // copy because greens is destructive
-			const real_function_3d tauk = copy(ktmp.second.function); // copy because greens is destructive
-			const double kgftitj=make_integral(k,l,ti,tj);
-
-			G_O12tau_part += -2.0*kgftitj*G(tauk,taul);
-
+			const CC_function& mo_bra_l = mo_bra_(ltmp.first);
+			const CC_function& taul = ltmp.second;
+			l1 += mo_bra_l.function.inner(kgtj_ti)*taul.function;
+			l2 += mo_bra_l.function.inner(kgti_tj)*taul.function;
 		}
+
+		real_function_3d part1 = -1.0*kgtj_ti + 0.5 * l1;
+		real_function_3d part2 = -1.0*kgti_tj + 0.5 * l2;
+		Q(part1);
+		Q(part2);
+		G_O1tau_part +=-2.0*G(copy(tauk.function),part2);
+		G_O2tau_part +=-2.0*G(part1,copy(tauk.function));
 	}
 
-	G_O1tau_part.print_size( "G(|tauk><k|g|titj>_2)");
-	G_O2tau_part.print_size( "G(|tauk><k|g|titj>_1)");
-	G_O12tau_part.print_size("G(|tauk,taul><kl|g|titj>)");
-	return G_O1tau_part + G_O2tau_part - G_O12tau_part;
+	return  G_O1tau_part + G_O2tau_part;
 }
 
 real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj)const{
@@ -142,8 +129,16 @@ real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &ta
 		output("Singles are zero: Current Calculation is MP2");
 		ctype = MP2_;
 	}
-	const CC_function ti = make_t_intermediate(taui);
-	const CC_function tj = make_t_intermediate(tauj);
+	CC_function ti;
+	CC_function tj;
+	if(ctype==CC2_){
+		ti= make_t_intermediate(taui);
+		tj= make_t_intermediate(tauj);
+	}else if(ctype==MP2_){
+		ti= mo_ket_(taui.i);
+		tj= mo_ket_(tauj.i);
+	}
+
 	const double epsij =  get_epsilon(taui.i,tauj.i);
 	const double epsi =  get_orbital_energies()[taui.i];
 	const double epsj =  get_orbital_energies()[tauj.i];
@@ -249,51 +244,8 @@ real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &ta
 
 
 double CC_Operators::compute_mp2_pair_energy(CC_Pair &pair)const{
-
-	const size_t i = pair.i;
-	const size_t j = pair.j;
-
-	// this will be the bra space
-	real_function_6d eri = TwoElectronFactory(world).dcut(parameters.lo);
-	real_function_6d ij_g =CompositeFactory<double, 6, 3>(world).particle1(copy(mo_bra_(i).function)).particle2(copy(mo_bra_(j).function)).g12(eri);
-	real_function_6d ji_g =CompositeFactory<double, 6, 3>(world).particle1(copy(mo_bra_(j).function)).particle2(copy(mo_bra_(i).function)).g12(eri);
-
-	// compute < ij | g12 | psi >
-	const double ij_g_uij = inner(pair.function, ij_g);
-	if (world.rank() == 0)
-		printf("<ij | g12       | psi^1>  %12.8f\n", ij_g_uij);
-
-	if(parameters.debug){
-		if(world.rank()==0){
-			std::cout << "Debugging make_ijgu function with mp2 pair energy\n";
-		}
-		const double ijguij = make_ijgu(pair.i,pair.j,pair);
-		if(fabs(ijguij-ij_g_uij)>FunctionDefaults<6>::get_thresh()) warning("make_ijgu and mp2 pair energy function give not the same value "+ stringify(ijguij) + " vs " + stringify(ij_g_uij));
-		else if(world.rank()==0) std::cout << "make_ijgu function seems to be fine values are: " << ijguij << " and " << ij_g_uij << std::endl;
-	}
-
-	// compute < ji | g12 | psi > if (i/=j)
-	const double ji_g_uij = (pair.i == pair.j) ? 0 : inner(pair.function, ji_g);
-	if (world.rank() == 0)
-		printf("<ji | g12       | psi^1>  %12.8f\n", ji_g_uij);
-
-	// the singlet and triplet triplet pair energies
-	if (pair.i == pair.j) {
-		pair.e_singlet = ij_g_uij + pair.ij_gQf_ij;
-		pair.e_triplet = 0.0;
-	} else {
-		pair.e_singlet = (ij_g_uij + pair.ij_gQf_ij)+ (ji_g_uij + pair.ji_gQf_ij);
-		pair.e_triplet = 3.0* ((ij_g_uij - ji_g_uij) + (pair.ij_gQf_ij - pair.ji_gQf_ij));
-	}
-
-	// print the pair energies
-	if (world.rank() == 0) {
-		printf("current energy %2d %2d %12.8f %12.8f\n", pair.i, pair.j,
-				pair.e_singlet, pair.e_triplet);
-	}
-
-	// return the total energy of this pair
-	return pair.e_singlet + pair.e_triplet;
+  real_function_3d uninitialized_dummy;
+  return compute_cc2_pair_energy(pair,uninitialized_dummy,uninitialized_dummy);
 }
 
 // The Fock operator is partitioned into F = T + Vn + R
@@ -770,7 +722,7 @@ real_function_6d CC_Operators::make_cc2_residue(const CC_function &taui, const C
 	const real_function_3d Ftj = apply_F(tj)-get_orbital_energies()[tj.i]*tj.function;
 
 	// make the Fock operator part:  f(F-eij)|titj> = (F1+F2-ei-ej)|titj> = (F1-ei)|ti>|tj> + |ti>(F2-ei)|tj>
-	const real_function_6d fF_titj = make_f_xy(Fti,tj) + make_f_xy(ti,Ftj);
+	const real_function_6d fF_titj = make_f_xy(Fti,tj,guess_thresh(Fti,tj)) + make_f_xy(ti,Ftj,guess_thresh(ti,Ftj));
 
 
 	output("Making the CC2 Residue");
@@ -934,17 +886,16 @@ real_function_3d CC_Operators::K(const real_function_3d &x)const{
 /// if i==j in uij then the symmetry will be exploited
 /// !!!!Prefactor (-1) is not included here!!!!
 real_function_6d CC_Operators::K(const real_function_6d &u,
-		const bool symmetric) const {
+		const bool symmetric,const double thresh) const {
 	real_function_6d result = real_factory_6d(world).compressed();
 	// K(1) Part
-	result += apply_K(u, 1);
+	result += apply_K(u, 1,thresh);
 	// K(2) Part
-	if (symmetric)
-		result += swap_particles(result);
-	else
-		result += apply_K(u, 2);
+	if (symmetric) result += swap_particles(result);
+	else result += apply_K(u, 2,thresh);
 
-	return (result.truncate());
+	result.print_size("K(fxy)_untruncated");
+	return (result.truncate(parameters.tight_thresh_6D));
 }
 
 /// Exchange Operator on Pair function: -(K(1)+K(2))u(1,2)
@@ -954,14 +905,18 @@ real_function_6d CC_Operators::K(const real_function_6d &u,
 /// 3. result = Y(1,2)*ket_k(1)
 /// !!!!Prefactor (-1) is not included here!!!!
 real_function_6d CC_Operators::apply_K(const real_function_6d &u,
-		const size_t &particle) const {
+		const size_t &particle,const double thresh) const {
 	MADNESS_ASSERT(particle == 1 or particle == 2);
 	poisson->particle() = particle;
 	real_function_6d result = real_factory_6d(world).compressed();
 	for (size_t k = 0; k < mo_ket_.size(); k++) {
-		real_function_6d X = (multiply(copy(u), copy(mo_bra_(k).function), particle)).truncate();
+		real_function_6d copyu = copy(u);
+		copyu.set_thresh(thresh);
+		real_function_6d X = (multiply(copyu, copy(mo_bra_(k).function), particle)).truncate(thresh);
+		X.set_thresh(thresh);
 		real_function_6d Y = (*poisson)(X);
-		result += (multiply(copy(Y), copy(mo_ket_(k).function), particle)).truncate();
+		Y.set_thresh(thresh);
+		result += (multiply(copy(Y), copy(mo_ket_(k).function), particle)).truncate(thresh);
 	}
 	return result;
 }
@@ -1098,16 +1053,19 @@ real_function_6d CC_Operators::apply_transformed_Ue(const CC_function &x, const 
 }
 
 /// Apply the Exchange Commutator [K,f]|xy>
-real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, const CC_function &y)const{
+real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, const CC_function &y,const double thresh)const{
+	output("Computing [K,f]|"+x.name()+y.name()+"> with thresh=" + stringify(thresh));
 	CC_Timer time(world,"[K,f]|"+x.name()+y.name()+">");
 	// make first part of commutator
 	CC_Timer part1_time(world,"Kf"+x.name()+y.name()+">");
-	real_function_6d Kfxy = apply_Kf(x,y);
+	real_function_6d Kfxy = apply_Kf(x,y,thresh);
 	part1_time.info();
 	// make the second part of the commutator
 	CC_Timer part2_time(world,"fK"+x.name()+y.name()+">");
-	real_function_6d fKxy = apply_fK(x,y).truncate();
+	real_function_6d fKxy = apply_fK(x,y,thresh);
 	part2_time.info();
+	Kfxy.print_size("Kf"+x.name()+y.name());
+	fKxy.print_size("fK"+x.name()+y.name());
 	real_function_6d result = (Kfxy - fKxy);
 
 	time.info();
@@ -1129,25 +1087,33 @@ real_function_6d CC_Operators::apply_exchange_commutator(const CC_function &x, c
 			std::cout << "difference = " << diff << std::endl;
 			warning("Exchange Commutator Plain Wrong");
 		}
+
 		else if(fabs(diff)>FunctionDefaults<6>::get_thresh()*0.1) warning("Exchange Commutator critical");
 		else output("Exchange Commutator seems to be sane");
 
 		sanity.info();
 
+		if(fabs(diff)>parameters.thresh_6D){
+			if(thresh==parameters.tight_thresh_6D) output("Will not raise thresh anymore, already at tight_thresh");
+			else{
+			output("Recalculating [K,f]"+x.name()+y.name()+" with thresh="+stringify(parameters.tight_thresh_6D));
+			result = apply_exchange_commutator(x,y,parameters.tight_thresh_6D);
+			}
+		}
 	}
 	return result;
 }
 
 /// Apply the Exchange operator on a tensor product multiplied with f12
 /// !!! Prefactor of (-1) is not inclued in K here !!!!
-real_function_6d CC_Operators::apply_Kf(const CC_function &x, const CC_function &y) const {
+real_function_6d CC_Operators::apply_Kf(const CC_function &x, const CC_function &y,const double thresh) const {
 	bool symmetric = false;
 	if((x.type == y.type) and (x.i == y.i)) symmetric = true;
 
 	// First make the 6D function f12|x,y>
-	real_function_6d f12xy = make_f_xy(x,y);
+	real_function_6d f12xy = make_f_xy(x,y,thresh);
 	// Apply the Exchange Operator
-	real_function_6d result = K(f12xy, symmetric);
+	real_function_6d result = K(f12xy, symmetric,thresh);
 	return result;
 }
 
@@ -1155,12 +1121,12 @@ real_function_6d CC_Operators::apply_Kf(const CC_function &x, const CC_function 
 /// fK|xy> = fK_1|xy> + fK_2|xy>
 /// @param[in] x, the first 3D function in |xy>, structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
 /// @param[in] y, the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
-real_function_6d CC_Operators::apply_fK(const CC_function &x, const CC_function &y) const {
+real_function_6d CC_Operators::apply_fK(const CC_function &x, const CC_function &y,const double thresh) const {
 
 	const real_function_3d Kx = K(x);
 	const real_function_3d Ky = K(y);
-	const real_function_6d fKphi0a = make_f_xy(x,CC_function(Ky,y.i,UNDEFINED));
-	const real_function_6d fKphi0b = make_f_xy(CC_function(Kx,x.i,UNDEFINED),y);
+	const real_function_6d fKphi0a = make_f_xy(x,CC_function(Ky,y.i,UNDEFINED),thresh);
+	const real_function_6d fKphi0b = make_f_xy(CC_function(Kx,x.i,UNDEFINED),y,thresh);
 	const real_function_6d fKphi0 = (fKphi0a + fKphi0b);
 	return fKphi0;
 
@@ -1314,17 +1280,25 @@ double CC_Operators::compute_ccs_correlation_energy(const CC_function &taui, con
 }
 double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
 		const CC_function &taui, const CC_function &tauj) const {
+	calctype type;
+	if(taui.function.is_initialized() and tauj.function.is_initialized()){
+	  type =CC2_;
+	  MADNESS_ASSERT(u.i==taui.i);
+	  MADNESS_ASSERT(u.j==tauj.i);
+	}
+	else{
+	  type =MP2_;
+	}
+
 	double omega = 0.0;
 	const size_t i = u.i;
 	const size_t j = u.j;
-	MADNESS_ASSERT(i==taui.i);
-	MADNESS_ASSERT(j==tauj.i);
 	double u_part = 0.0;
 	double ij_part = 0.0;
 	double mixed_part = 0.0;
 	double titj_part = 0.0;
 	double singles_part = 0.0;
-	double tight_thresh = parameters.thresh_Ue;
+	double tight_thresh = parameters.tight_thresh_6D;
 	// Contribution from u itself, we will calculate <uij|g|ij> instead of <ij|g|uij> and then just make the inner product (see also mp2.cc)
 	{
 		real_function_6d coulomb = TwoElectronFactory(world).dcut(tight_thresh);
@@ -1336,7 +1310,7 @@ double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
 		u_part = 2.0 * uij_g_ij - uij_g_ji;
 	}
 	// Contribution from the mixed f12(|\tau_i,j>+|i,\tau_j>) part
-	{
+	if(type==CC2_){
 		mixed_part += 2.0*make_ijgQfxy(u.i,u.j,mo_ket_(i),tauj);
 		mixed_part += 2.0*make_ijgQfxy(u.i,u.j,taui,mo_ket_(j));
 		mixed_part -= make_ijgQfxy(u.j,u.i,mo_ket_(i),tauj);
@@ -1347,12 +1321,12 @@ double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
 		ij_part += (2.0*u.ij_gQf_ij - u.ji_gQf_ij );
 	}
 	// Contribution from the f12|\tau_i\tau_j> part
-	{
+	if(type==CC2_){
 		titj_part += 2.0*make_ijgQfxy(u.i,u.j,taui,tauj);
 		titj_part -= make_ijgQfxy(u.i,u.j,tauj,taui);
 	}
 	// Singles Contribution
-	{
+	if(type==CC2_){
 		// I should use intermediates later because the t1 integrals are also needed for the CC2 potential
 		//omega += 2.0*intermediates_.get_integrals_t1()(u.i,u.j,u.i,u.j); //<ij|g|\taui\tauj>
 		singles_part += 2.0*make_ijgxy(u.i,u.j,taui.function,tauj.function);
@@ -1362,13 +1336,13 @@ double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,
 
 	omega = u_part + ij_part + mixed_part + titj_part + singles_part;
 	if(world.rank()==0){
-		std::cout << "\n\nEnergy Contributions to the correlation energy of pair " << i << j << "\n";
+		std::cout << "\n\nEnergy Contributions to the" + assign_name(type) +  "-correlation energy of pair " << i << j << "\n";
 		std::cout << std::fixed << std::setprecision(parameters.output_prec);
 		std::cout << "from   |u" << i << j << "            |: " << u_part << "\n";
 		std::cout << "from Qf|HH" << i << j << "           |: " << ij_part << "\n";
-		std::cout << "from Qf|HP" << i << j << "           |: " << mixed_part << "\n";
-		std::cout << "from Qf|PPu" << i << j << "          |: " << titj_part << "\n";
-		std::cout << "from   |tau" << i << ",tau" << j << "|: " << singles_part << "\n";
+		if(type==CC2_)std::cout << "from Qf|HP" << i << j << "           |: " << mixed_part << "\n";
+		if(type==CC2_)std::cout << "from Qf|PPu" << i << j << "          |: " << titj_part << "\n";
+		if(type==CC2_)std::cout << "from   |tau" << i << ",tau" << j << "|: " << singles_part << "\n";
 		std::cout << "all together = " << omega << "\n";
 		std::cout << "\n\n";
 	}
@@ -1598,10 +1572,7 @@ real_function_6d CC_Operators::make_xy(const CC_function &x, const CC_function &
 }
 
 real_function_6d CC_Operators::make_f_xy(const CC_function &x,
-		const CC_function &y) const {
-	double thresh = guess_thresh(x, y);
-	if(thresh < parameters.thresh_6D) thresh = parameters.tight_thresh_6D;
-	else thresh = parameters.thresh_6D;
+		const CC_function &y, const double thresh) const {
 	CC_Timer timer(world,
 			"Making f|" + x.name() + "," + y.name() + "> with 6D thresh="
 			+ stringify(thresh));

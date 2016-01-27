@@ -272,6 +272,10 @@ public:
 			std::cout << "\n\n" << std::endl;
 		}
 		warnings.push_back(msg);
+		std::ofstream file;
+		file.open ("warnings");
+		file << msg << "\n";
+		file.close();
 	}
 
 	void output_section(const std::string&msg) const {
@@ -384,12 +388,6 @@ public:
 		return result;
 	}
 
-	// only get the part of the singles that is produced exclusively by the doulbes in order to make a first guess for the singles
-	vecfuncT get_CC2_singles_initial_potential(const Pairs<CC_Pair> &doubles) const {
-		vecfuncT result = zero_functions<double, 3>(world,mo_ket_.size() - parameters.freeze);
-		return result;
-	}
-
 	real_function_6d get_CC2_doubles_potential(const CC_Pair &u,const CC_vecfunction &singles) const {
 		const real_function_6d coulomb_part = potential_doubles(u, singles, pot_cc2_coulomb_);
 		const real_function_6d cc2_residue = potential_doubles(u, singles, pot_cc2_residue_);
@@ -409,33 +407,6 @@ public:
 	// computes: G(f(F-eij)|titj> + Ue|titj> - [K,f]|titj>) and uses G-operator screening
 	real_function_6d make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj)const;
 
-	// make G(O1+O2-O12)A12|xy>
-	//  \left(\O{1}+\O{2}-\O{12}\right)\optwo{A}\ket{xy} = \ket{k}\otimes\left(A^{k}_{x}\ket{y} - \frac{1}{2} A^{kl}_{xy}\ket{l}\right)
-    //												     + \left(A^{k}_{y}\ket{x} - \frac{1}{2} A^{kl}_{xy}\ket{l}\right)\otimes\ket{k}
-	// operator A should act as: A(k,x,y) = <k|A12|xy>_1 so that <k|A12|xy>_2 = A(k,y,x)
-//	real_function_3d apply_G_on_screened_operator(const CC_function &x, const CC_function &y, real_function_3d (*A)(const CC_function&,const CC_function&, const CC_function&))const{
-//		const double tight_thresh = parameters.thresh_6D*0.1;
-//		real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*epsij),parameters.lo, parameters.thresh_bsh_6D);
-//		G.destructive()=true;
-//		Tensor<double> klAxy = make_matrix_elements(x,y,A);
-//		real_function_6d result = real_factory_3d(world);
-//		for(const auto & ktmp: mo_ket_.functions){
-//			const CC_function & k = ktmp.second;
-//			const real_function_3d kAx_y = A(mo_bra_(k),x,y); // = <k|A|xy>_1
-//			const real_function_3d kAy_x = A(mo_bra_(k),y,x); // = <k|A|xy>_2
-//			real_function_3d klAxy_l = real_factory_3d(world);
-//			for(const auto & ltmp: mo_ket_.functions){
-//				const CC_function & l = ltmp.second;
-//				klAxy_l += klAxy(k.i,l.i)*l;
-//			}
-//			const real_function_3d part1_tmp = (kax_y - 0.5*klAxy_l).truncate();
-//			const real_function_6d part1 = G(-2.0*k.function,part1_tmp);
-//			const real_function_3d part2_tmp = (kay_x - 0.5*klAxy_l).truncate();
-//			const real_function_6d part2 = G(part1_tmp,-2.0*k.function);
-//			result += (part1+part2).truncate(tight_thresh);
-//		}
-//		return result;
-//	}
 
 	// returns \sum_k <k|operator|xy>_1
 	real_function_3d screen_operator(const CC_vecfunction &bra,const CC_function &x, const CC_function &y,real_function_3d (*A)(const CC_function&,const CC_function&, const CC_function&))const{
@@ -812,7 +783,7 @@ public:
 	/// if i==j in uij then the symmetry will be exploited
 	/// !!!!Prefactor (-1) is not included here!!!!
 	real_function_6d K(const real_function_6d &u,
-			const bool symmetric = false) const;
+			const bool symmetric = false, const double thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	/// Exchange Operator on Pair function: -(K(1)+K(2))u(1,2)
 	/// K(1)u(1,2) = \sum_k <k(3)|g13|u(3,2)> |k(1)>
@@ -821,7 +792,7 @@ public:
 	/// 3. result = Y(1,2)*ket_k(1)
 	/// !!!!Prefactor (-1) is not included here!!!!
 	real_function_6d apply_K(const real_function_6d &u,
-			const size_t &particle) const;
+			const size_t &particle, const double thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	/// returns \sum_k (<k|g|f> *|k>).truncate()
 	real_function_3d apply_K(const CC_function &f) const;
@@ -842,17 +813,17 @@ public:
 
 	/// Apply the Exchange Commutator [K,f]|xy>
 	real_function_6d apply_exchange_commutator(const CC_function &x,
-			const CC_function &y) const;
+			const CC_function &y, const double thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	/// Apply the Exchange operator on a tensor product multiplied with f12
 	/// !!! Prefactor of (-1) is not inclued in K here !!!!
-	real_function_6d apply_Kf(const CC_function &x, const CC_function &y) const;
+	real_function_6d apply_Kf(const CC_function &x, const CC_function &y, const double thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	/// Apply fK on a tensor product of two 3D functions
 	/// fK|xy> = fK_1|xy> + fK_2|xy>
 	/// @param[in] x the first 3D function in |xy>, structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
 	/// @param[in] y the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
-	real_function_6d apply_fK(const CC_function &x, const CC_function &y) const;
+	real_function_6d apply_fK(const CC_function &x, const CC_function &y, const double thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	real_function_3d apply_laplacian(const real_function_3d &x) const;
 
@@ -994,7 +965,7 @@ public:
 	real_function_6d make_xy(const CC_function &x, const CC_function &y) const;
 
 	real_function_6d make_f_xy(const CC_function &x,
-			const CC_function &y) const;
+			const CC_function &y,const double thresh = FunctionDefaults<6>::get_thresh()) const;
 
 	real_function_6d make_f_xy_screened(const CC_function &x,
 			const CC_function &y, const real_convolution_6d &screenG) const;
@@ -1135,26 +1106,7 @@ public:
 		double thresh = parameters.thresh_6D;
 		if (norm > parameters.thresh_6D)
 			thresh = parameters.thresh_6D;
-		else if (norm > 0.5 * parameters.thresh_6D)
-			thresh = 0.5 * parameters.thresh_6D;
-		else if (norm > 0.1 * parameters.thresh_6D)
-			thresh = 0.1 * parameters.thresh_6D;
-		else if (norm > 0.05 * parameters.thresh_6D)
-			thresh = 0.05 * parameters.thresh_6D;
-		else if (norm > 0.01 * parameters.thresh_6D)
-			thresh = 0.01 * parameters.thresh_6D;
-		else {
-			//if (world.rank() == 0)
-			//	std::cout << "Norm of 6D function from 3D function will be "
-			//	<< norm
-			//	<< "... far under the given accuracy ... trying with most precise thresh "
-			//	<< 0.01 * parameters.thresh_6D << std::endl;
-			return 0.01 * parameters.thresh_6D;
-		}
-		//if (world.rank() == 0)
-		//	std::cout << "6D thresh of " << thresh
-		//	<< " is needed to make |xy> with estimated norm of |||xy>||="
-		//	<< norm << std::endl;
+		else thresh = parameters.tight_thresh_6D;
 		return thresh;
 	}
 
@@ -1357,6 +1309,22 @@ public:
 		}
 	}
 
+	void plot(const CC_vecfunction &vf)const{
+	  for(const auto& tmp:vf.functions){
+	    plot(tmp.second);
+	  }
+	}
+	void plot(const CC_function &f)const{
+	  plot_plane(world,f.function,f.name());
+	}
+	void plot(const Pairs<CC_Pair> &pairs)const{
+	  for(const auto& tmp:pairs.allpairs){
+	    plot(tmp.second);
+	  }
+	}
+	void plot(const CC_Pair &f)const{
+	  plot_plane(world,f.function,f.name());
+	}
 
 };
 
