@@ -1,6 +1,7 @@
 #ifndef MADNESS_STUBMPI_H
 #define MADNESS_STUBMPI_H
 
+#include <madness/madness_config.h>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -113,24 +114,24 @@ inline int MPI_Group_free(MPI_Group *group) {
 
 // Initialization and finalize functions
 inline int MPI_Init(int *, char ***) { return MPI_SUCCESS; }
-inline int MPI_Init_thread(int *, char ***, int, int *provided) { *provided = MPI_THREAD_SERIALIZED; return MPI_SUCCESS; }
+inline int MPI_Init_thread(int *, char ***, int, int *provided) { *provided = MADNESS_MPI_THREAD_LEVEL; return MPI_SUCCESS; }
 inline int MPI_Initialized(int* flag) { *flag = 1; return MPI_SUCCESS; }
 inline int MPI_Finalize() { return MPI_SUCCESS; }
 inline int MPI_Finalized(int* flag) { *flag = 0; return MPI_SUCCESS; }
-inline int MPI_Query_thread(int *provided) { *provided = MPI_THREAD_SERIALIZED; return MPI_SUCCESS; }
+inline int MPI_Query_thread(int *provided) { *provided = MADNESS_MPI_THREAD_LEVEL; return MPI_SUCCESS; }
 
 // Buffer functions (do nothing since no messages may be sent)
 inline int MPI_Buffer_attach(void*, int) { return MPI_SUCCESS; }
 inline int MPI_Buffer_detach(void* buffer, int* size) { return MPI_SUCCESS; }
 
 inline int MPI_Test(MPI_Request *, int *flag, MPI_Status *) {
-    *flag = 0;
+    *flag = 1;
     return MPI_SUCCESS;
 }
 
 inline int MPI_Testany(int, MPI_Request[], int* index, int *flag, MPI_Status*) {
     *index = MPI_UNDEFINED;
-    *flag = 0;
+    *flag = 1;
     return MPI_SUCCESS;
 }
 
