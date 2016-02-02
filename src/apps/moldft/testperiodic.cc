@@ -25,13 +25,15 @@ static const double twopi = 2.0*constants::pi;
 //static const double L = 5.0; // Unit cell size in au for neon
 //static const double L = 8.37; // Unit cell size in au for neon
 //static const double L = 7.65; // Unit cell size in au for LiF
-static const double L = 3.8; // Unit cell size in au for LiF
+//static const double L = 3.8; // Unit cell size in au for LiF
 //static const double L = 8.0;
 //static const double L = 10.26085381075144364474; // Unit cell size in au for Si
+// static const double L = 10.3235; // Unit cell size in au for CaF2
+static const double L = 10.6591; // Unit cell size in au for NaCl
 
-static const int maxR = 6; // periodic sums from -R to +R inclusive
+static const int maxR = 3; // periodic sums from -R to +R inclusive
 static const double thresh = 1e-6;
-static const double kwavelet = 8;
+static const double kwavelet = 20;
 static const int truncate_mode = 0;
 
 static Molecule molecule;
@@ -285,9 +287,9 @@ vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,
     int nbf = aobasis.nbf(molecule);
     double t1 = 1./std::sqrt((double)nbf);
     vector_complex_function_3d aos = zero_functions_compressed<double_complex,3>(world, nkpt*nbf);
-    print("nbf:  ", nbf);
+    if (world.rank() == 0) print("nbf:  ", nbf);
     for (int ibf = 0; ibf < nbf; ibf++) {
-        print("\n\nibf: ", ibf);
+        if (world.rank() == 0) print("\n\nibf: ", ibf);
         for (int i = -maxR; i <= maxR; i++) {
             for (int j = -maxR; j <= maxR; j++) {
                 for (int k = -maxR; k <= maxR; k++) {
@@ -321,6 +323,48 @@ vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,
     return aos;
 }
 
+//vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,3> >& kpts, double R) {
+//    START_TIMER(world);
+//    int nkpt = kpts.size();
+//    int nbf = aobasis.nbf(molecule);
+//    double t1 = 1./std::sqrt((double)nbf);
+//    vector_complex_function_3d ao = zero_functions_compressed<double_complex,3>(world, std:pow(2*maxR+1, 3)*nbf);
+//    vector_complex_function_3d aos = zero_functions_compressed<double_complex,3>(world, nkpt*nbf);
+//    print("nbf:  ", nbf);
+//    for (int ibf = 0; ibf < nbf; ibf++) {
+//        print("\n\nibf: ", ibf);
+//        for (int i = -maxR; i <= maxR; i++) {
+//            for (int j = -maxR; j <= maxR; j++) {
+//                for (int k = -maxR; k <= maxR; k++) {
+//                    AtomicBasisFunction abf = aobasis.get_atomic_basis_function(molecule, ibf); 
+//                    //if ((i*i+j*j+k*k)*L*L < 3.0*abf.rangesq()) {
+//                    if (true) {
+//                        real_functor_3d aofunc(
+//                           new AtomicOrbitalFunctor(
+//                           aobasis.get_atomic_basis_function(molecule, ibf), L, i, j, k));
+//                        ao[i = real_factory_3d(world).functor(aofunc).truncate_on_project().truncate_mode(0);
+//                    }
+//                }
+//            }
+//        }
+//    }
+//    for (int ik = 0; ik < nkpt; ik++) {
+//        Vector<double,3> kpt = kpts[ik];
+//        complex_function_3d t2 = t1*std::exp(double_complex(0.0,(i*kpt[0]+j*kpt[1]+k*kpt[2])*R))*ao;
+//        aos[ik*nbf+ibf].gaxpy(1.0,t2,1.0);
+//    }
+//    for (int ik = 0; ik < nkpt; ik++) {
+//        Vector<double,3> kpt = kpts[ik];
+//        complex_function_3d phase_m = complex_factory_3d(world).functor(complex_functor_3d(
+//          new ExpFunctor3d<double_complex>(-I*kpt[0],-I*kpt[1],-I*kpt[2]))).truncate_mode(0).truncate_on_project();
+//        for (int ibf = 0; ibf < nbf; ibf++) {
+//            aos[ik*nbf+ibf] = aos[ik*nbf+ibf]*phase_m;
+//        }
+//    }
+//    END_TIMER(world, "makeao");
+//    return aos;
+//}
+
 tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3d& v, const Vector<double,3>& kpt) {
     START_TIMER(world);
     double kx = kpt[0]; double ky = kpt[1]; double kz = kpt[2];
@@ -353,6 +397,7 @@ tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3
 vector_complex_function_3d apply_potential(World& world, const real_function_3d& potential, const vector_complex_function_3d& psi)
 {
     START_TIMER(world);
+    potential.truncate(FunctionDefaults<3>::get_thresh()*0.1);
     auto vpsi = mul(world, potential, psi, false);
     world.gop.fence();
     END_TIMER(world, "apply potential");
@@ -412,8 +457,8 @@ std::pair<vector_complex_function_3d, tensor_real> diag_and_transform(World& wor
         }
     }
 
-    print("H:\n"); print(fock);
-    print("S:\n"); print(ov_mat);
+    // print("H:\n"); print(fock);
+    // print("S:\n"); print(ov_mat);
     tensor_complex c;
     tensor_real e;
     sygv(fock, ov_mat, 1, c, e);
@@ -519,7 +564,7 @@ vcpairT update(World& world,
 
     // Do the BSH thing
     scale(world, vpsi, -2.0);
-    truncate(world, vpsi);
+    //truncate(world, vpsi);
     
     //vector_complex_function_3d new_psi(nmo);
     //for (int iorb = 0; iorb < nmo; iorb++) {
@@ -547,6 +592,7 @@ real_function_3d make_density(World& world, const vector_complex_function_3d& v,
         rho = rho + weight*abssq(v[i]);
     }
     rho.scale(2.0); // total closed-shell density
+    rho.truncate();
     END_TIMER(world, "make density");
     return rho;
 }
@@ -562,8 +608,8 @@ vector_complex_function_3d initial_guess(World& world, const real_function_3d& v
     int nsize = psi0.size();
     int nst_initial = nsize/nkpt;
     MADNESS_ASSERT(nst <= nst_initial);
-    print("nsize: ", nsize);
-    print("nst_initial: ", nst_initial);
+    if (world.rank() == 0) print("nsize: ", nsize);
+    if (world.rank() == 0) print("nst_initial: ", nst_initial);
     vector_complex_function_3d psi;
     for (int ik = 0; ik < nkpt; ++ik) {
         vector_complex_function_3d psik(psi0.begin()+ik*nst_initial, psi0.begin()+(ik+1)*nst_initial);
@@ -591,17 +637,17 @@ vector_complex_function_3d initial_guess(World& world, const real_function_3d& v
         fock = 0.5*(fock + transpose(fock));
         ov_mat = 0.5*(ov_mat + transpose(ov_mat));
 
-        print("Initial Fock: "); print(real(fock));
-        print("Initial Overlap: "); print(real(ov_mat));
+        // print("Initial Fock: "); print(real(fock));
+        // print("Initial Overlap: "); print(real(ov_mat));
         sygv(fock, ov_mat, 1, c, e);
 
-        print("initial_guess() ik = ", ik);
-        print(e);
+        if (world.rank() == 0) print("initial_guess() ik = ", ik);
+        if (world.rank() == 0) print(e);
     
         psik = transform(world, psik, c);
         vpsik = transform(world, vpsik, c);
         for (int ist = 0; ist < nst; ist++) {
-            print("pushing back ist = ", ist);
+            if (world.rank() == 0) print("pushing back ist = ", ist);
             psi.push_back(psik[ist]);    
         }
     }
@@ -816,9 +862,9 @@ void fixphases(World& world, tensor_real& e, tensor_complex& U, vector_complex_f
             syev(Mcluster, uvecs, eigs);
             if (world.rank() == 0) {
                 print("Found cluster of size: ", nclus, "with energy = ", e[ilo]);
-                print("cluster matrix:"); print(Mcluster);
-                print("cluster eigs:"); print(eigs);
-                print("cluster eigenvectors:"); print(uvecs);
+                // print("cluster matrix:"); print(Mcluster);
+                // print("cluster eigs:"); print(eigs);
+                // print("cluster eigenvectors:"); print(uvecs);
             }
             psik_cluster = transform(world, psik_cluster, uvecs);
             for (int ist = 0; ist < nclus; ist++) {
@@ -841,7 +887,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_cubic_cell(0,L);
     FunctionDefaults<3>::set_truncate_mode(truncate_mode);
 
-    //// kpoint list
+    // kpoint list
     //int nkpt = 4;
     //std::vector<Vector<double,3> > kpoints(nkpt);
     //kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
@@ -850,17 +896,17 @@ int main(int argc, char** argv) {
     //kpoints[3] = vec(0.0*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
     //double weight = 1.0/(double)nkpt;
     
-    //int nkpt = 8;
-    //std::vector<Vector<double,3> > kpoints(nkpt);
-    //kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
-    //kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
-    //kpoints[2] = vec(0.0*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
-    //kpoints[3] = vec(0.0*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
-    //kpoints[4] = vec(0.5*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
-    //kpoints[5] = vec(0.5*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
-    //kpoints[6] = vec(0.5*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
-    //kpoints[7] = vec(0.5*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
-    //double weight = 1.0/(double)nkpt;
+    int nkpt = 8;
+    std::vector<Vector<double,3> > kpoints(nkpt);
+    kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
+    kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
+    kpoints[2] = vec(0.0*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
+    kpoints[3] = vec(0.0*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
+    kpoints[4] = vec(0.5*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
+    kpoints[5] = vec(0.5*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
+    kpoints[6] = vec(0.5*twopi/L, 0.5*twopi/L, 0.0*twopi/L); 
+    kpoints[7] = vec(0.5*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
+    double weight = 1.0/(double)nkpt;
 
     //int nkpt = 2;
     //std::vector<Vector<double,3> > kpoints(nkpt);
@@ -868,11 +914,11 @@ int main(int argc, char** argv) {
     //kpoints[1] = vec(0.0*twopi/L, 0.0*twopi/L, 0.5*twopi/L); 
     //double weight = 1.0/(double)nkpt;
     
-    int nkpt = 1;
-    std::vector<Vector<double,3> > kpoints(nkpt);
-    //kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
-    kpoints[0] = vec(0.5*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
-    double weight = 1.0/(double)nkpt;
+    //int nkpt = 1;
+    //std::vector<Vector<double,3> > kpoints(nkpt);
+    ////kpoints[0] = vec(0.0*twopi/L, 0.0*twopi/L, 0.0*twopi/L); 
+    //kpoints[0] = vec(0.5*twopi/L, 0.5*twopi/L, 0.5*twopi/L); 
+    //double weight = 1.0/(double)nkpt;
     
     // initialize subspace
     subspace = new Subspace[nkpt];
@@ -884,14 +930,38 @@ int main(int argc, char** argv) {
     // molecule.add_atom(  0,L/2,L/2, 10.0, 10);
 
     // Cubic cell for LiF
-    molecule.add_atom(  0,  0,  0, 9.0, 9);
-    molecule.add_atom(L/2,L/2,  0, 9.0, 9);
-    molecule.add_atom(L/2,  0,L/2, 9.0, 9);
-    molecule.add_atom(  0,L/2,L/2, 9.0, 9);
-    molecule.add_atom(L/2,  0,  0, 3.0, 3);
-    molecule.add_atom(  0,L/2,  0, 3.0, 3);
-    molecule.add_atom(  0,  0,L/2, 3.0, 3);
-    molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
+    // molecule.add_atom(  0,  0,  0, 9.0, 9);
+    // molecule.add_atom(L/2,L/2,  0, 9.0, 9);
+    // molecule.add_atom(L/2,  0,L/2, 9.0, 9);
+    // molecule.add_atom(  0,L/2,L/2, 9.0, 9);
+    // molecule.add_atom(L/2,  0,  0, 3.0, 3);
+    // molecule.add_atom(  0,L/2,  0, 3.0, 3);
+    // molecule.add_atom(  0,  0,L/2, 3.0, 3);
+    // molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
+
+    // Cubic cell for CaF2
+    // molecule.add_atom(0.00*L, 0.00*L, 0.00*L, 20.0, 20);
+    // molecule.add_atom(0.50*L, 0.50*L, 0.00*L, 20.0, 20);
+    // molecule.add_atom(0.50*L, 0.00*L, 0.50*L, 20.0, 20);
+    // molecule.add_atom(0.00*L, 0.50*L, 0.50*L, 20.0, 20);
+    // molecule.add_atom(0.25*L, 0.25*L, 0.25*L, 9.0, 9); 
+    // molecule.add_atom(0.75*L, 0.75*L, 0.75*L, 9.0, 9);
+    // molecule.add_atom(0.75*L, 0.75*L, 0.25*L, 9.0, 9);
+    // molecule.add_atom(0.25*L, 0.25*L, 0.75*L, 9.0, 9);
+    // molecule.add_atom(0.75*L, 0.25*L, 0.75*L, 9.0, 9);
+    // molecule.add_atom(0.25*L, 0.75*L, 0.25*L, 9.0, 9);
+    // molecule.add_atom(0.25*L, 0.75*L, 0.75*L, 9.0, 9);
+    // molecule.add_atom(0.75*L, 0.25*L, 0.25*L, 9.0, 9);    
+
+    // Cubic cell for NaCl
+    molecule.add_atom(0.0*L, 0.0*L, 0.0*L, 11.0, 11); 
+    molecule.add_atom(0.0*L, 0.5*L, 0.5*L, 11.0, 11);
+    molecule.add_atom(0.5*L, 0.0*L, 0.5*L, 11.0, 11);
+    molecule.add_atom(0.5*L, 0.5*L, 0.0*L, 11.0, 11);
+    molecule.add_atom(0.5*L, 0.5*L, 0.5*L, 17.0, 17); 
+    molecule.add_atom(0.5*L, 0.0*L, 0.0*L, 17.0, 17);
+    molecule.add_atom(0.0*L, 0.5*L, 0.0*L, 17.0, 17);
+    molecule.add_atom(0.0*L, 0.0*L, 0.5*L, 17.0, 17);
 
     // Cubic cell for Si
     //molecule.add_atom(  0,     0,     0,     14.0, 14);
@@ -929,6 +999,7 @@ int main(int argc, char** argv) {
     for (int iter=0; iter<100; iter++) {
         if (world.rank() == 0) print("\n\n  Iteration",iter,"\n");
         auto v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
+        truncate(world, psi);
         auto vpsi = apply_potential(world, v, psi);
 
         vector_complex_function_3d new_psi(nst*nkpt);
@@ -957,16 +1028,16 @@ int main(int argc, char** argv) {
             tensor_complex c;
             tensor_real e;
             sygv(fock, ov_mat, 1, c, e);
-            print("main() ik = ", ik);
-            print(e);
+            if (world.rank() == 0) print("main() ik = ", ik);
+            if (world.rank() == 0) print(e);
   
-            if (world.rank() == 0) print("fock: "); 
-            if (world.rank() == 0) print(fock);
-            if (world.rank() == 0) print("overlap: "); 
-            if (world.rank() == 0) print(ov_mat);
-            if (world.rank() == 0) print("eigenvectors: "); 
-            if (world.rank() == 0) print(real(c));
-            if (world.rank() == 0) print(imag(c));
+            // if (world.rank() == 0) print("fock: "); 
+            // if (world.rank() == 0) print(fock);
+            // if (world.rank() == 0) print("overlap: "); 
+            // if (world.rank() == 0) print(ov_mat);
+            // if (world.rank() == 0) print("eigenvectors: "); 
+            // if (world.rank() == 0) print(real(c));
+            // if (world.rank() == 0) print(imag(c));
             fixphases(world, e, c); 
 
             psik = transform(world, psik, c);
@@ -978,19 +1049,23 @@ int main(int argc, char** argv) {
             //subspace[ik].update_subspace(world, new_psik, psik, rmk);
             auto damp = 0.3;
             gaxpy(world,damp,psik,(1.0-damp),new_psik);
-            orthogonalize(world,psik);
+
+            //orthogonalize(world,psik);
+            //truncate(world,psik);
+
             truncate(world,psik);
+            orthogonalize(world,psik);
 
             for (int ist = 0; ist < nst; ist++) {
                 psi[ik*nst+ist] = psik[ist];
             }
         }
 
-        print(nkpt,nst,psi.size());
+        if (world.rank() == 0) print(nkpt,nst,psi.size());
         MADNESS_ASSERT(nkpt*nst == (int) psi.size());
 
-        if (iter == 30) {
-          print("reprojecting ..");
+        if (iter == 20) {
+          if (world.rank() == 0) print("reprojecting ..");
             vnuc = madness::project(vnuc, kwavelet+2, thresh*1e-2, true); 
             rho = madness::project(rho, kwavelet+2, thresh*1e-2, true); 
           for (unsigned int i = 0; i < psi.size(); i++) {
@@ -998,10 +1073,10 @@ int main(int argc, char** argv) {
             FunctionDefaults<3>::set_thresh(thresh*1e-2);
             psi[i] = madness::project(psi[i], kwavelet+2, thresh*1e-2, true); 
           }
-          print("done reprojecting ..");
+          if (world.rank() == 0) print("done reprojecting ..");
         }
-        if (iter == 35) {
-          print("reprojecting ..");
+        if (iter == 30) {
+          if (world.rank() == 0) print("reprojecting ..");
             vnuc = madness::project(vnuc, kwavelet+4, thresh*1e-4, true); 
             rho = madness::project(rho, kwavelet+4, thresh*1e-4, true); 
           for (unsigned int i = 0; i < psi.size(); i++) {
@@ -1009,10 +1084,10 @@ int main(int argc, char** argv) {
             FunctionDefaults<3>::set_thresh(thresh*1e-4);
             psi[i] = madness::project(psi[i], kwavelet+4, thresh*1e-4, true); 
           }
-          print("done reprojecting ..");
+          if (world.rank() == 0) print("done reprojecting ..");
         }
-        if (iter == 40) {
-          print("reprojecting ..");
+        if (iter == 50) {
+          if (world.rank() == 0) print("reprojecting ..");
             vnuc = madness::project(vnuc, kwavelet+6, thresh*1e-6, true); 
             rho = madness::project(rho, kwavelet+6, thresh*1e-6, true); 
           for (unsigned int i = 0; i < psi.size(); i++) {
@@ -1020,7 +1095,7 @@ int main(int argc, char** argv) {
             FunctionDefaults<3>::set_thresh(thresh*1e-6);
             psi[i] = madness::project(psi[i], kwavelet+6, thresh*1e-6, true); 
           }
-          print("done reprojecting ..");
+          if (world.rank() == 0) print("done reprojecting ..");
         }
 
 
