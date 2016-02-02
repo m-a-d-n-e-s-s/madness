@@ -80,8 +80,6 @@ double d2_exp_r(const coord_3d& r) {
     return a*a*exp(a*rr) + 2.0*a/(rr+0.00001)*exp(rr);
 }
 
-
-
 void Nemo::do_stuff() {
     return;
     const vecfuncT& nemo=calc->amo;

@@ -294,6 +294,10 @@ double Nemo::solve(const protocol& proto) {
 		truncate(world, tmp);
 		END_TIMER(world, "apply BSH");
 
+		double n1=norm2(world,nemo);
+		double n2=norm2(world,tmp);
+		print("norm of nemo and GVnemo; ratio ",n1,n2,n1/n2);
+
 		// compute the residuals
 		vecfuncT residual = sub(world, nemo, tmp);
 		const double norm = norm2(world, residual) / sqrt(nemo.size());
@@ -778,8 +782,6 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
             grad(3*iatom + axis)=-inner(bra[axis],r2v);
         }
     }
-    print("grad");
-    print(grad);
 
 //    // this block is less precise
 //    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {

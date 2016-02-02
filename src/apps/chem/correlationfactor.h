@@ -322,6 +322,24 @@ public:
     ///          \frac{z \mathrm{erf}\left(\frac{r}{s}\right)}{r}\right\}
     /// \f]
 	coord_3d smoothed_unitvec(const coord_3d& xyz, double smoothing=0.0) const {
+#if 1
+        if (smoothing==0.0) smoothing=molecule.get_eprec();
+        // TODO:need to test this
+        // reduce the smoothing for the unitvector
+        //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
+        const double r=xyz.normf();
+        const double cutoff=smoothing;
+        if (r>cutoff) {
+            return 1.0/r*xyz;
+        } else {
+            const double xi=r/cutoff;
+            const double nu21=0.5+1./32.*(45.*xi - 50.*xi*xi*xi + 21.*xi*xi*xi*xi*xi);
+            const double kk21=2.*nu21-1.0;
+            return kk21/r*xyz;
+        }
+
+
+#else
 	    if (smoothing==0.0) smoothing=molecule.get_eprec();
 	    // TODO:need to test this
 	    // reduce the smoothing for the unitvector
@@ -338,6 +356,7 @@ public:
 	    } else {
 	        return 1.0/r*xyz;
 	    }
+#endif
 	}
 
 	/// derivative of smoothed unit vector wrt the *electronic* coordinate

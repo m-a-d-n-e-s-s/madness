@@ -192,6 +192,7 @@ private:
             for (int i=0; i<freq.size(); ++i) {
                 printf("%10.3f",constants::au2invcm*freq(i));
             }
+            printf("\n");
 
             // this will invert the hessian, multiply with the gradient and
             // return the displacements
