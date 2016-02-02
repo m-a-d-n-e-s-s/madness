@@ -249,6 +249,13 @@ int main(int argc, char** argv) {
                     calc->param.gprec); // grad prec
 //            geom.set_update(calc->param.algopt);
 //            geom.set_test(calc->param.gtest);
+
+            // compute initial hessian
+            if (calc->param.ginitial_hessian) {
+                nemo->value();
+                Tensor<double> hess=nemo->hessian(calc->molecule.get_all_coords());
+                geom.set_hessian(hess);
+            }
             geom.optimize(geomcoord);
         } else {
 

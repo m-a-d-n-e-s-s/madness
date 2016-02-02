@@ -92,6 +92,11 @@ public:
 
     double gradient_norm() const {return gnorm;}
 
+    /// set an (initial) hessian
+    void set_hessian(const Tensor<double>& hess) {
+        h=copy(hess);
+    }
+
 private:
 
     /// How to update the hessian: BFGS or SR1
@@ -125,6 +130,17 @@ private:
                 h(i+1,i+1)/=(target->molecule().get_atom(i).mass);
                 h(i+2,i+2)/=(target->molecule().get_atom(i).mass);
             }
+            madness::print("using the identity as initial Hessian");
+        } else {
+            Tensor<double> normalmodes;
+            Tensor<double> freq=MolecularOptimizer::compute_frequencies(
+                    target->molecule(),h,normalmodes);
+            madness::print("\ngopt: projected vibrational frequencies (cm-1)\n");
+            printf("frequency in cm-1   ");
+            for (int i=0; i<freq.size(); ++i) {
+                printf("%10.3f",constants::au2invcm*freq(i));
+            }
+
         }
 
         remove_external_dof(h,target->molecule());
@@ -153,32 +169,36 @@ private:
                     iter,f,gnorm,gradratio);
             if (converged()) break;
 
-            if (iter == 1 && h_is_identity) {
-                // Default initial Hessian is scaled identity but
-                // prefer to reuse any existing approximation.
-                h.scale(gradient.trace(gp)/gp.trace(dx));
-            }
+//            if (iter == 1 && h_is_identity) {
+//                // Default initial Hessian is scaled identity but
+//                // prefer to reuse any existing approximation.
+//                h.scale(gradient.trace(gp)/gp.trace(dx));
+//            }
 
             if (iter > 0) {
                 if (update == "BFGS") QuasiNewton::hessian_update_bfgs(dx, gradient-gp,h);
                 else QuasiNewton::hessian_update_sr1(dx, gradient-gp,h);
             }
 
-            Tensor<double> v, e;
-//            syev(h, v, e);
-//            print("hessian eigenvalues",e);
 
             remove_external_dof(h,target->molecule());
+            Tensor<double> v, e;
             syev(h, v, e);
-            print("hessian eigenvalues",e);
-            print(h);
+            Tensor<double> normalmodes;
+            Tensor<double> freq=MolecularOptimizer::compute_frequencies(
+                    target->molecule(),h,normalmodes);
+            madness::print("\ngopt: projected vibrational frequencies (cm-1)\n");
+            printf("frequency in cm-1   ");
+            for (int i=0; i<freq.size(); ++i) {
+                printf("%10.3f",constants::au2invcm*freq(i));
+            }
 
             // this will invert the hessian, multiply with the gradient and
             // return the displacements
             dx = new_search_direction2(gradient,h);
 
-//            double step = line_search(1.0, f, dx.trace(g), x, dx);
-            double step=0.5;
+            double step=1.0;
+//            if (h_is_identity) step = QuasiNewton::line_search(1.0, f, dx.trace(g), x, dx);
 
             dx.scale(step);
             x += dx;
@@ -307,7 +327,7 @@ public:
     /// I don't really understand the concept behind the projectors, but it
     /// seems to work, and it is not written down explicitly anywhere.
     /// NOTE THE ERROR IN THE FORMULAS ON THE WEBPAGE !
-    static Tensor<double> projector_external_dof(Molecule& mol) {
+    static Tensor<double> projector_external_dof(const Molecule& mol) {
 
         // compute the translation vectors
         Tensor<double> transx(3*mol.natom());
@@ -324,9 +344,9 @@ public:
         // move the molecule to its center of mass and compute
         // the moment of inertia tensor
         Tensor<double> com=mol.center_of_mass();
-        mol.translate(-1.0*com);
-        Tensor<double> I=mol.moment_of_inertia();
-        mol.translate(1.0*com);
+        Molecule mol2=mol;
+        mol2.translate(-1.0*com);
+        Tensor<double> I=mol2.moment_of_inertia();
         I.scale(constants::atomic_mass_in_au);
 
         // diagonalize the moment of inertia
@@ -436,7 +456,7 @@ public:
 
     /// remove translational degrees of freedom from the hessian
     static void remove_external_dof(Tensor<double>& hessian,
-            Molecule& mol) {
+            const Molecule& mol) {
 
         // compute the translation of the center of mass
         Tensor<double> projector_ext=projector_external_dof(mol);
@@ -445,22 +465,68 @@ public:
         hessian=inner(projector_ext,inner(hessian,projector_ext),0,0);
     }
 
-    /// compute the center of mass
-    Tensor<double> center_of_mass(const Molecule& molecule) const {
-        Tensor<double> com(3);
-        double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
-        for (int i=0; i<molecule.natom(); ++i) {
-            xx += molecule.get_atom(i).x*molecule.get_atom(i).mass;
-            yy += molecule.get_atom(i).y*molecule.get_atom(i).mass;
-            zz += molecule.get_atom(i).z*molecule.get_atom(i).mass;
-            qq += molecule.get_atom(i).mass;
+
+    /// returns the vibrational frequencies
+
+    /// @param[in]  hessian the hessian matrix (not mass-weighted)
+    /// @param[out] normalmodes the normal modes
+    /// @param[in]  project_tr whether to project out translation and rotation
+    /// @param[in]  print_hessian   whether to print the hessian matrix
+    /// @return the frequencies in atomic units
+    static Tensor<double> compute_frequencies(const Molecule& molecule,
+            const Tensor<double>& hessian, Tensor<double>& normalmodes,
+            const bool project_tr=true, const bool print_hessian=false) {
+
+        // compute mass-weighing matrices
+        Tensor<double> M=molecule.massweights();
+        Tensor<double> Minv(3*molecule.natom(),3*molecule.natom());
+        for (int i=0; i<3*molecule.natom(); ++i) Minv(i,i)=1.0/M(i,i);
+
+        // mass-weight the hessian
+        Tensor<double> mwhessian=inner(M,inner(hessian,M));
+
+        // remove translation and rotation
+        if (project_tr) MolecularOptimizer::remove_external_dof(mwhessian,molecule);
+
+        if (print_hessian) {
+            if (project_tr) {
+                print("mass-weighted hessian with translation and rotation projected out");
+            } else {
+                print("mass-weighted unprojected hessian");
+            }
+            Tensor<double> mmhessian=inner(Minv,inner(mwhessian,Minv));
+            print(mwhessian);
+            print("mass-weighted unprojected hessian; mass-weighing undone");
+            print(mmhessian);
         }
-        com(0l)=xx/qq;
-        com(1l)=yy/qq;
-        com(2l)=zz/qq;
-        return com;
+
+        Tensor<double> freq;
+        syev(mwhessian,normalmodes,freq);
+        for (long i=0; i<freq.size(); ++i) {
+            if (freq(i)>0.0) freq(i)=sqrt(freq(i)); // real frequencies
+            else freq(i)=-sqrt(-freq(i));           // imaginary frequencies
+        }
+        return freq;
     }
 
+
+    static Tensor<double> compute_reduced_mass(const Molecule& molecule,
+            const Tensor<double>& normalmodes) {
+
+        Tensor<double> M=molecule.massweights();
+        Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule);
+        Tensor<double> L=copy(normalmodes);
+        Tensor<double> DL=inner(D,L);
+        Tensor<double> MDL=inner(M,DL);
+        Tensor<double> mu(3*molecule.natom());
+
+        for (int i=0; i<3*molecule.natom(); ++i) {
+            double mu1=0.0;
+            for (int j=0; j<3*molecule.natom(); ++j) mu1+=MDL(j,i)*MDL(j,i);
+            if (mu1>1.e-14) mu(i)=1.0/(mu1*constants::atomic_mass_in_au);
+        }
+        return mu;
+    }
 
 };
 

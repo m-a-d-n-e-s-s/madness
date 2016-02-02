@@ -359,6 +359,7 @@ struct CalculationParameters {
     double gval;                ///< value precision
     double gprec;               ///< gradient precision
     int  gmaxiter;              ///< optimization maxiter
+    bool ginitial_hessian;      ///< compute inital hessian for optimization
     std::string algopt;         ///< algorithm used for optimization
     bool hessian;               ///< compute the hessian matrix
     bool read_cphf;             ///< read the orbital response for nuclear displacements from file
@@ -376,7 +377,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
             & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf;
     }
 
@@ -427,6 +428,7 @@ struct CalculationParameters {
         , gval(1e-5)
         , gprec(1e-4)
         , gmaxiter(20)
+        , ginitial_hessian(false)
         , algopt("BFGS")
         , hessian(false)
         , read_cphf(false)
@@ -599,6 +601,9 @@ struct CalculationParameters {
             }
             else if (s == "gmaxiter") {
                 f >> gmaxiter;
+            }
+            else if (s == "ginitial_hessian") {
+                ginitial_hessian = true;
             }
             else if (s == "algopt") {
                 f >> algopt;

@@ -923,7 +923,8 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     END_TIMER(world, "compute hessian");
 
     Tensor<double> normalmodes;
-    Tensor<double> frequencies=compute_frequencies(hessian,normalmodes,false,hessdebug);
+    Tensor<double> frequencies=MolecularOptimizer::compute_frequencies(molecule(),
+            hessian,normalmodes,false,hessdebug);
 
     if (hessdebug) {
         print("\n vibrational frequencies (unprojected) (a.u.)\n");
@@ -932,9 +933,11 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         print(constants::au2invcm*frequencies);
     }
 
-    frequencies=compute_frequencies(hessian,normalmodes,true,hessdebug);
+    frequencies=MolecularOptimizer::compute_frequencies(molecule(),hessian,
+            normalmodes,true,hessdebug);
     Tensor<double> intensities=compute_IR_intensities(normalmodes,dens_pt);
-    Tensor<double> reducedmass=compute_reduced_mass(normalmodes);
+    Tensor<double> reducedmass=MolecularOptimizer::compute_reduced_mass(
+            molecule(),normalmodes);
 
     if (world.rank() == 0) {
         print("\nprojected vibrational frequencies (cm-1)\n");
@@ -1226,70 +1229,13 @@ vecfuncT Nemo::parallel_CPHF(const vecfuncT& nemo, const int iatom,
 
 }
 
-/// returns the vibrational frequencies
-
-/// @param[in]  hessian the hessian matrix (not mass-weighted)
-/// @param[in]  project_tr whether to project out translation and rotation
-/// @param[in]  print_hessian   whether to print the hessian matrix
-/// @return the frequencies in atomic units
-Tensor<double> Nemo::compute_frequencies(const Tensor<double>& hessian,
-        Tensor<double>& normalmodes, const bool project_tr=true, const bool print_hessian=false) const {
-
-    // compute mass-weighing matrices
-    Tensor<double> M=massweights(molecule());
-    Tensor<double> Minv(3*molecule().natom(),3*molecule().natom());
-    for (int i=0; i<3*molecule().natom(); ++i) Minv(i,i)=1.0/M(i,i);
-
-    // mass-weight the hessian
-    Tensor<double> mwhessian=inner(M,inner(hessian,M));
-
-    // remove translation and rotation
-    if (project_tr) MolecularOptimizer::remove_external_dof(mwhessian,molecule());
-
-    if (print_hessian) {
-        if (project_tr) {
-            print("mass-weighted hessian with translation and rotation projected out");
-        } else {
-            print("mass-weighted unprojected hessian");
-        }
-        Tensor<double> mmhessian=inner(Minv,inner(mwhessian,Minv));
-        print(mwhessian);
-        print("mass-weighted unprojected hessian; mass-weighing undone");
-        print(mmhessian);
-    }
-
-    Tensor<double> freq;
-    syev(mwhessian,normalmodes,freq);
-    for (long i=0; i<freq.size(); ++i) {
-        if (freq(i)>0.0) freq(i)=sqrt(freq(i)); // real frequencies
-        else freq(i)=-sqrt(-freq(i));           // imaginary frequencies
-    }
-    return freq;
-}
-
-Tensor<double> Nemo::compute_reduced_mass(const Tensor<double>& normalmodes) const {
-
-    Tensor<double> M=massweights(molecule());
-    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule());
-    Tensor<double> L=copy(normalmodes);
-    Tensor<double> DL=inner(D,L);
-    Tensor<double> MDL=inner(M,DL);
-    Tensor<double> mu(3*molecule().natom());
-
-    for (int i=0; i<3*molecule().natom(); ++i) {
-        double mu1=0.0;
-        for (int j=0; j<3*molecule().natom(); ++j) mu1+=MDL(j,i)*MDL(j,i);
-        if (mu1>1.e-14) mu(i)=1.0/(mu1*constants::atomic_mass_in_au);
-    }
-    return mu;
-}
 
 
 Tensor<double> Nemo::compute_IR_intensities(const Tensor<double>& normalmodes,
         const vecfuncT& dens_pt) const {
 
     // compute the matrix of the normal modes: x -> q
-    Tensor<double> M=massweights(molecule());
+    Tensor<double> M=molecule().massweights();
     Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule());
     Tensor<double> DL=inner(D,normalmodes);
     Tensor<double> nm=inner(M,DL);
@@ -1336,17 +1282,6 @@ Tensor<double> Nemo::compute_IR_intensities(const Tensor<double>& normalmodes,
 }
 
 
-/// compute the mass-weighting matrix for the hessian
-Tensor<double> Nemo::massweights(const Molecule& molecule) const {
 
-    Tensor<double> M(3*molecule.natom(),3*molecule.natom());
-    for (int i=0; i<molecule.natom(); i++) {
-        const double sqrtmass=1.0/sqrt(molecule.get_atom(i).get_mass_in_au());
-        M(3*i  ,3*i  )=sqrtmass;
-        M(3*i+1,3*i+1)=sqrtmass;
-        M(3*i+2,3*i+2)=sqrtmass;
-    }
-    return M;
-}
 
 } // namespace madness

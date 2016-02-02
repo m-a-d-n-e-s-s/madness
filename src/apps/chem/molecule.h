@@ -278,6 +278,24 @@ public:
 
     Tensor<double> center_of_mass() const;
 
+    /// compute the mass-weighting matrix for the hessian
+
+    /// use as
+    /// mass_weighted_hessian=inner(massweights,inner(hessian,massweights));
+    Tensor<double> massweights() const {
+
+        Tensor<double> M(3*natom(),3*natom());
+        for (int i=0; i<natom(); i++) {
+            const double sqrtmass=1.0/sqrt(get_atom(i).get_mass_in_au());
+            M(3*i  ,3*i  )=sqrtmass;
+            M(3*i+1,3*i+1)=sqrtmass;
+            M(3*i+2,3*i+2)=sqrtmass;
+        }
+        return M;
+    }
+
+
+
     Tensor<double> moment_of_inertia() const;
 
     void orient();

@@ -274,19 +274,19 @@ public:
     /// \f]
     vecfuncT parallel_CPHF(const vecfuncT& nemo, const int iatom,
             const int iaxis) const;
-
-	/// returns the vibrational frequencies
-
-	/// @param[in]  hessian the hessian matrix
-    /// @param[in]  project whether to project out translation and rotation
-    /// @param[in]  print_hessian   whether to print the hessian matrix
-	/// @return the frequencies in atomic units
-    Tensor<double> compute_frequencies(const Tensor<double>& hessian,
-            Tensor<double>& normalmodes,
-	        const bool project, const bool print_hessian) const;
-
-    /// compute the reduces masses for the normal vibrations
-    Tensor<double> compute_reduced_mass(const Tensor<double>& normalmodes) const;
+//
+//	/// returns the vibrational frequencies
+//
+//	/// @param[in]  hessian the hessian matrix
+//    /// @param[in]  project whether to project out translation and rotation
+//    /// @param[in]  print_hessian   whether to print the hessian matrix
+//	/// @return the frequencies in atomic units
+//    Tensor<double> compute_frequencies(const Tensor<double>& hessian,
+//            Tensor<double>& normalmodes,
+//	        const bool project, const bool print_hessian) const;
+//
+//    /// compute the reduces masses for the normal vibrations
+//    Tensor<double> compute_reduced_mass(const Tensor<double>& normalmodes) const;
 
     /// compute the IR intensities in the double harmonic approximation
 
@@ -296,13 +296,13 @@ public:
     /// \todo Verify the description of normalmodes.
     Tensor<double> compute_IR_intensities(const Tensor<double>& normalmodes,
             const vecfuncT& dens_pt) const;
-
-	/// compute the mass-weight the hessian matrix
-
-	/// use as: hessian.emul(massweights);
-	/// @param[in]  molecule    for getting access to the atomic masses
-	/// @return the mass-weighting matrix for the hessian
-	Tensor<double> massweights(const Molecule& molecule) const;
+//
+//	/// compute the mass-weight the hessian matrix
+//
+//	/// use as: hessian.emul(massweights);
+//	/// @param[in]  molecule    for getting access to the atomic masses
+//	/// @return the mass-weighting matrix for the hessian
+//	Tensor<double> massweights(const Molecule& molecule) const;
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
