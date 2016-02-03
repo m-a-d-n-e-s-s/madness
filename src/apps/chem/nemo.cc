@@ -174,14 +174,18 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) cons
 	// apply all potentials (J, K, Vnuc) on the nemos
 	vecfuncT psi, Jnemo, Knemo, Vnemo, JKVpsi, Unemo;
 
-	// compute potentials the Fock matrix: J - K + Vnuc
+    vecfuncT R2nemo=mul(world,R_square,nemo);
+    truncate(world,R2nemo);
+
+    // compute potentials the Fock matrix: J - K + Vnuc
 	compute_nemo_potentials(nemo, psi, Jnemo, Knemo, Vnemo, Unemo);
 
-	// compute the fock matrix
-	double ekinetic = 0.0;
-	JKVpsi = mul(world, R, add(world, sub(world, Jnemo, Knemo), Vnemo));
-	tensorT fock = calc->make_fock_matrix(world, psi, JKVpsi, occ,
-			ekinetic);
+    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
+    tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
+    Kinetic<double,3> T(world);
+    fock+=T(R2nemo,nemo);
+    JKUpsi.clear();
+
 	return fock;
 }
 
@@ -197,8 +201,7 @@ double Nemo::solve(const protocol& proto) {
 
 
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT psi, Jnemo, Knemo, Vnemo, JKVpsi, Unemo;
-	tensorT fock;
+	vecfuncT psi, Jnemo, Knemo, Vnemo, Unemo;
 
 	double energy = 0.0;
 	bool converged = false;
@@ -213,16 +216,19 @@ double Nemo::solve(const protocol& proto) {
 	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
 
 	    if (localized) nemo=localize(nemo);
+	    vecfuncT R2nemo=mul(world,R_square,nemo);
+	    truncate(world,R2nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
 		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, Vnemo, Unemo);
 
 		// compute the fock matrix
-		double ekinetic = 0.0;
-		JKVpsi = mul(world, R, add(world, sub(world, Jnemo, Knemo), Vnemo));
-		fock = calc->make_fock_matrix(world, psi, JKVpsi, calc->aocc,
-				ekinetic);
-		JKVpsi.clear();
+		vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
+		tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
+		Kinetic<double,3> T(world);
+		fock+=T(R2nemo,nemo);
+		JKUpsi.clear();
+
 
 		// report the off-diagonal fock matrix elements
 		if (not localized) {
@@ -491,18 +497,18 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
         END_TIMER(world, "compute XCnemo "+stringify(size));
     }
 
-	START_TIMER(world);
-	const real_function_3d& Vnuc = calc->potentialmanager->vnuclear();
-	Vnemo = mul(world, Vnuc, nemo);
-	truncate(world, Vnemo);
-    double size=get_size(world,Vnemo);
-	END_TIMER(world, "compute Vnemo "+stringify(size));
+//	START_TIMER(world);
+//	const real_function_3d& Vnuc = calc->potentialmanager->vnuclear();
+//	Vnemo = mul(world, Vnuc, nemo);
+//	truncate(world, Vnemo);
+//    double size=get_size(world,Vnemo);
+//	END_TIMER(world, "compute Vnemo "+stringify(size));
 
 	START_TIMER(world);
 	Nuclear Unuc(world,this->nuclear_correlation);
 	Unemo=Unuc(nemo);
-    size=get_size(world,Unemo);
-	END_TIMER(world, "compute Unemo "+stringify(size));
+    double size1=get_size(world,Unemo);
+	END_TIMER(world, "compute Unemo "+stringify(size1));
 
 }
 

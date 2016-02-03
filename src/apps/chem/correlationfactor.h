@@ -333,9 +333,13 @@ public:
             return 1.0/r*xyz;
         } else {
             const double xi=r/cutoff;
-            const double nu21=0.5+1./32.*(45.*xi - 50.*xi*xi*xi + 21.*xi*xi*xi*xi*xi);
-            const double kk21=2.*nu21-1.0;
-            return kk21/r*xyz;
+            const double xi2=xi*xi;
+            const double xi3=xi*xi*xi;
+//            const double nu21=0.5+1./32.*(45.*xi - 50.*xi3 + 21.*xi*xi*xi*xi*xi);
+            const double nu22=0.5 + 1./64.*(105* xi - 175 *xi3 + 147* xi2*xi3 - 45* xi3*xi3*xi);
+//            const double nu40=0.5 + 1./128.*(225 *xi - 350 *xi3 + 189*xi2*xi3);
+            const double kk=2.*nu22-1.0;
+            return kk/r*xyz;
         }
 
 

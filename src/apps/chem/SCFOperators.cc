@@ -112,7 +112,7 @@ DistributedMatrix<T> Kinetic<T,NDIM>::kinetic_energy_matrix(World & world,
     }
     world.gop.fence();
     for (std::size_t i=0; i<NDIM; ++i) {
-        r += matrix_inner(r.distribution(), dvbra[i], dvket[i], true);
+        r += matrix_inner(r.distribution(), dvbra[i], dvket[i], false);
     }
     r *= 0.5;
     return r;
