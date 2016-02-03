@@ -143,7 +143,7 @@ END_TIMER(world, "initialize");
 
           functionT rho = calc.make_density(world, calc.aocc, calc.amo);
           functionT brho = rho;
-          if (!calc.param.spin_restricted)
+          if (calc.param.nbeta != 0 && !calc.param.spin_restricted)
               brho = calc.make_density(world, calc.bocc, calc.bmo);
           rho.gaxpy(1.0, brho, 1.0);
 
