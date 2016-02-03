@@ -365,6 +365,7 @@ struct CalculationParameters {
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
+    int nv_factor;              ///< factor to multiply number of virtual orbitals with when automatically decreasing nvirt
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -432,6 +433,7 @@ struct CalculationParameters {
         , tdksprop(false)
         , nuclear_corrfac("none")
         , pure_ae(true)
+        , nv_factor(1)
     {}
 
 
@@ -625,6 +627,9 @@ struct CalculationParameters {
             }
             else if (s == "print_dipole_matels") {
               print_dipole_matels = true;
+            }
+            else if (s == "nv_factor") {
+              f >> nv_factor;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -1121,47 +1126,94 @@ public:
         calc.molecule.set_all_coords(x.reshape(calc.molecule.natom(),3));
         coords_sum = xsq;
 
-		// read converged wave function from disk if there is one
-		if (calc.param.no_compute) {
-			calc.load_mos(world);
-			calc.make_nuclear_potential(world);
-			calc.project_ao_basis(world);
-			return calc.current_energy;
-			}
+	  // read converged wave function from disk if there is one
+	  if (calc.param.no_compute) {
+		calc.load_mos(world);
+		calc.make_nuclear_potential(world);
+		calc.project_ao_basis(world);
+		return calc.current_energy;
+	  }
+
+	  int nvalpha = calc.param.nmo_alpha - calc.param.nalpha;
+	  int nvbeta = calc.param.nmo_beta - calc.param.nbeta;
+	  int nvalpha_start, nv_old;
 
         // The below is missing convergence test logic, etc.
 
         // Make the nuclear potential, initial orbitals, etc.
         for (unsigned int proto=0; proto<calc.param.protocol_data.size(); proto++) {
-            calc.set_protocol<3>(world,calc.param.protocol_data[proto]);
-            calc.make_nuclear_potential(world);
-            calc.project_ao_basis(world);
 
-            if (proto == 0) {
-                if (calc.param.restart) {
-                    calc.load_mos(world);
+            //repeat with gradually decreasing nvirt, only for first protocol
+            if (proto==0 && nvalpha>0){
+                nvalpha_start = nvalpha * calc.param.nv_factor;}
+            else{
+                nvalpha_start = nvalpha;}
+
+            for (int nv=nvalpha_start;nv>=nvalpha;nv-=nvalpha){
+
+                if (nv>0) {std::cout << "Running with " << nv << " virtual states" << std::endl;}
+            
+                calc.param.nmo_alpha = calc.param.nalpha + nv;
+                // check whether this is sensible for spin restricted case
+                if (calc.param.nbeta && !calc.param.spin_restricted){
+                    if (nvbeta == nvalpha){
+                        calc.param.nmo_beta = calc.param.nbeta + nv;}
+                    else{
+                        calc.param.nmo_beta = calc.param.nbeta + nv + nvbeta - nvalpha;}
+                }
+
+                calc.set_protocol<3>(world,calc.param.protocol_data[proto]);
+                calc.make_nuclear_potential(world);
+
+                calc.project_ao_basis(world);
+
+                if (proto == 0 && nv==nvalpha_start) {
+                    if (calc.param.restart) {
+                        calc.load_mos(world);
+                    }
+                    else {
+                        calc.initial_guess(world);
+                        //calc.param.restart = true;
+                    }
                 }
                 else {
-                    calc.initial_guess(world);
-                    //calc.param.restart = true;
+                   if (nv!=nv_old){
+                       calc.amo.resize(calc.param.nmo_alpha);
+                       calc.bmo.resize(calc.param.nmo_beta);
+
+                       calc.aocc = tensorT(calc.param.nmo_alpha);
+                       for (int i = 0; i < calc.param.nalpha; ++i)
+                           calc.aocc[i] = 1.0;
+
+                       calc.bocc = tensorT(calc.param.nmo_beta);
+                       for (int i = 0; i < calc.param.nbeta; ++i)
+                           calc.bocc[i] = 1.0;
+
+                       // might need to resize aset, bset, but for the moment this doesn't seem to be necessary
+
+                   }
+                   calc.project(world);
                 }
-            }
-            else {
-                calc.project(world);
+
+                // If the basis for the inital guess was not sto-3g
+                // switch to sto-3g since this is needed for analysis
+                // of the MOs and orbital localization
+
+                if (calc.param.aobasis != "sto-3g") {
+                    calc.param.aobasis = "sto-3g";
+                    calc.project_ao_basis(world);
+                }
+                calc.solve(world);
+
+                if (calc.param.save)
+                  calc.save_mos(world);
+
+                nv_old=nv;
+                // exit loop over decreasing nvirt if nvirt=0
+                if (nv==0) break;
+
             }
 
-            // If the basis for the inital guess was not sto-3g
-            // switch to sto-3g since this is needed for analysis
-            // of the MOs and orbital localization
-
-            if (calc.param.aobasis != "sto-3g") {
-                calc.param.aobasis = "sto-3g";
-                calc.project_ao_basis(world);
-            }
-
-            calc.solve(world);
-            if (calc.param.save)
-              calc.save_mos(world);
         }
         return calc.current_energy;
     }
