@@ -80,7 +80,30 @@ double d2_exp_r(const coord_3d& r) {
     return a*a*exp(a*rr) + 2.0*a/(rr+0.00001)*exp(rr);
 }
 
+struct dsmooth : public FunctionFunctorInterface<double,3> {
+    typedef std::shared_ptr<NuclearCorrelationFactor> ncf_ptr;
+    ncf_ptr ncf;
+    std::shared_ptr<SCF> calc;
+
+    dsmooth(World& world, std::shared_ptr<SCF> calc) : calc(calc) {
+        ncf=ncf_ptr(new Slater(world, calc->molecule, 2.0));
+    }
+
+    double operator()(const coord_3d& xyz) const {
+        return ncf->dsmoothed_unitvec(xyz,0,calc->molecule.get_eprec())[2];
+    }
+};
+
+
+
 void Nemo::do_stuff() {
+    dsmooth ds(world,calc);
+
+    plot_plane<3,dsmooth>(world,ds,"ds01");
+    real_function_3d f=real_factory_3d(world).functor(ds);
+    save(f,"dsmooth");
+
+
     return;
     const vecfuncT& nemo=calc->amo;
     const real_function_3d rhonemo=2.0*make_density(calc->aocc, calc->amo);

@@ -385,7 +385,11 @@ public:
         const static double sqrtpi=sqrt(constants::pi);
 
 	    const double r=xyz.normf();
+        coord_3d result;
+
         if (smoothing==0.0) smoothing=molecule.get_eprec();
+
+#if 0
         // TODO:need to test this
         // reduce the smoothing for the unitvector
         //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
@@ -394,6 +398,7 @@ public:
         coord_3d result;
         const double rs=r/smoothing;
         const double sqrtpis3=sqrtpi*smoothing*smoothing*smoothing;
+
         if (r<1.e-4) {
             // series expansion
             double p=-4.0/(3.0*sqrtpis3) + 4.0*rs*rs/(5.0*sqrtpis3);
@@ -407,6 +412,25 @@ public:
             const double term1=2.0*exp(-rs*rs)/(sqrtpi*r*r*smoothing);
             result=xyz*xyz[axis]*(term1-erfrs_div_r/(r*r));
             result[axis]+=erfrs_div_r;
+#else
+        if (r<smoothing) {
+            double r2=r*r;
+            double s2=smoothing*smoothing;
+            double s7=s2*s2*s2*smoothing;
+            double x2=xyz[axis]*xyz[axis];
+
+            double fac_offdiag=-(((135. *r2*r2 - 294.* r2 *s2
+                    + 175.*s2*s2))/(16.* s7));
+            double fac_diag=-((45.* r2*r2*r2 - 147.* r2*r2* s2
+                    + 175.* r2*s2*s2 - 105.* s2*s2*s2 + 270.* r2*r2* x2
+                    - 588.* r2* s2* x2 + 350.*s2* s2 *x2)/(32.* s7));
+
+            result[0]=fac_offdiag*xyz[0]*xyz[axis];
+            result[1]=fac_offdiag*xyz[1]*xyz[axis];
+            result[2]=fac_offdiag*xyz[2]*xyz[axis];
+            result[axis]=fac_diag;
+
+#endif
         } else {
             result=xyz*(-xyz[axis]/(r*r*r));
             result[axis]+=1/r;
