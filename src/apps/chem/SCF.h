@@ -1144,14 +1144,16 @@ public:
         for (unsigned int proto=0; proto<calc.param.protocol_data.size(); proto++) {
 
             //repeat with gradually decreasing nvirt, only for first protocol
-            if (proto==0 && nvalpha>0){
+            if (proto == 0 && nvalpha > 0){
                 nvalpha_start = nvalpha * calc.param.nv_factor;}
             else{
                 nvalpha_start = nvalpha;}
 
+            nv_old = nvalpha_start;
+
             for (int nv=nvalpha_start;nv>=nvalpha;nv-=nvalpha){
 
-                if (nv>0) {std::cout << "Running with " << nv << " virtual states" << std::endl;}
+                if (nv > 0 && world.rank() == 0) std::cout << "Running with " << nv << " virtual states" << std::endl;
             
                 calc.param.nmo_alpha = calc.param.nalpha + nv;
                 // check whether this is sensible for spin restricted case
@@ -1167,7 +1169,7 @@ public:
 
                 calc.project_ao_basis(world);
 
-                if (proto == 0 && nv==nvalpha_start) {
+                if (proto == 0 && nv == nvalpha_start) {
                     if (calc.param.restart) {
                         calc.load_mos(world);
                     }
@@ -1177,7 +1179,7 @@ public:
                     }
                 }
                 else {
-                   if (nv!=nv_old){
+                   if (nv != nv_old){
                        calc.amo.resize(calc.param.nmo_alpha);
                        calc.bmo.resize(calc.param.nmo_beta);
 
