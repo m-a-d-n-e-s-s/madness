@@ -19,7 +19,7 @@
 namespace madness{
 
 enum calctype {MP2_, CC2_};
-enum functype {HOLE,PARTICLE,MIXED,UNDEFINED};
+enum functype {HOLE,PARTICLE,MIXED,RESPONSE,UNDEFINED};
 enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S1_, pot_S5a_, pot_ccs_};
 enum potentialtype_d {pot_F6D_, pot_cc2_coulomb_,pot_cc2_residue_};
 // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible

@@ -12,24 +12,6 @@ namespace madness {
   double
   CC2::solve() {
     // Check if HF is converged
-    if(parameters.test){
-      const size_t k3=FunctionDefaults<3>::get_k();
-      const size_t k6=FunctionDefaults<3>::get_k();
-      CCOPS.test_greens_operators<3>(1.e-5,k3,0.0);
-      CCOPS.test_greens_operators<6>(1.e-3,k6,0.0);
-
-      CCOPS.test_greens_operators<3>(1.e-5,k3,-0.5,1.e-4);
-      CCOPS.test_greens_operators<6>(1.e-3,k6,-0.5,1.e-4);
-
-      CCOPS.test_greens_operators<3>(1.e-5,k3,-0.5,1.e-4);
-      CCOPS.test_greens_operators<6>(1.e-3,k6,-0.5,1.e-4);
-
-      CCOPS.test_greens_operators<3>(1.e-5,k3,-0.5,1.e-5);
-      CCOPS.test_greens_operators<6>(1.e-3,k6,-0.5,1.e-5);
-
-      CCOPS.test_greens_operators<3>(1.e-5,k3,-0.5,1.e-6);
-      CCOPS.test_greens_operators<6>(1.e-3,k6,-0.5,1.e-6);
-    }
     //if(parameters.test) decompose_constant_part();
     if(parameters.ccs) solve_CCS();
     if(parameters.test) CCOPS.test_singles_potential();
