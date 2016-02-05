@@ -979,6 +979,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         const vecfuncT& guess, const protocol& proto) const {
 
     print("\nsolving nemo cphf equations for atom, axis",iatom,iaxis);
+    START_TIMER(world);
 
     // guess for the perturbed MOs
     const vecfuncT nemo=calc->amo;
@@ -994,17 +995,23 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
     const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
 
+    END_TIMER(world,"tag1");
+    START_TIMER(world);
     // construct quantities that are independent of xi
 
     // construct the BSH operator
     tensorT eps(nmo);
     for (int i = 0; i < nmo; ++i) eps(i) = std::min(-0.05, fock(i, i));
     std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
+    END_TIMER(world,"tag2");
+    START_TIMER(world);
 
     // derivative of the (regularized) nuclear potential
     DNuclear Dunuc(world,this,iatom,iaxis);
     vecfuncT Vpsi2b=Dunuc(nemo);
     truncate(world,Vpsi2b);
+    END_TIMER(world,"tag3");
+    START_TIMER(world);
 
     // part of the Coulomb operator with the derivative of the NCF
     // J <- \int dr' 1/|r-r'| \sum_i R^XR F_iF_i
@@ -1012,6 +1019,8 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     Jconst.potential()=Jconst.compute_potential(2.0*RXR*rhonemo);        // factor 2 for cphf
     vecfuncT Jconstnemo=Jconst(nemo);
     truncate(world,Jconstnemo);
+    END_TIMER(world,"tag4");
+    START_TIMER(world);
 
     // part of the exchange operator with the derivative of the NCF
     // K <- \sum_k |F_k> \int dr' 1/|r-r'| 2R^XR F_k F_i
@@ -1027,16 +1036,24 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         Kconstnemo=Kconst(nemo);
         truncate(world,Kconstnemo);
     }
+    END_TIMER(world,"tag5");
+    START_TIMER(world);
+
 
     vecfuncT rhsconst=add(world,Vpsi2b,sub(world,Jconstnemo,Kconstnemo));
     truncate(world,rhsconst);
     rhsconst=Q(rhsconst);
     scale(world, rhsconst, -2.0);
+    END_TIMER(world,"tag6");
+    START_TIMER(world);
+
     vecfuncT Grhsconst = apply(world, bsh, rhsconst);
     truncate(world,Grhsconst);
     scale(world,rhsconst,-0.5); // invert the -2.0 from above
     // keep iterating rhsconst, seems to be more accurate
     // (as opposed to adding Grhsconst to the result of G(..) )
+    END_TIMER(world,"tag7");
+    START_TIMER(world);
 
     // initial guess from outside or from the leading term Grhsconst
     vecfuncT xi=copy(world,Grhsconst);
@@ -1060,6 +1077,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     const Exchange K(world,this,0);
     const XCOperator xc(world,this,0);
     const Nuclear V(world,this);
+    END_TIMER(world,"tag8");
 
     for (int iter=0; iter<25; ++iter) {
 

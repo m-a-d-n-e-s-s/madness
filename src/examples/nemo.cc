@@ -97,12 +97,12 @@ struct dsmooth : public FunctionFunctorInterface<double,3> {
 
 
 void Nemo::do_stuff() {
+    return;
     dsmooth ds(world,calc);
 
     plot_plane<3,dsmooth>(world,ds,"ds01");
     real_function_3d f=real_factory_3d(world).functor(ds);
     save(f,"dsmooth");
-
 
     return;
     const vecfuncT& nemo=calc->amo;
