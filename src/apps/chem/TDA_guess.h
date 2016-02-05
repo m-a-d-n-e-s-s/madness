@@ -31,6 +31,22 @@ static std::vector<std::string> make_predefined_guess_strings(const std::string 
 		exop_strings[1] = "y 1.0";
 		exop_strings[2] = "z 1.0";
 		exop_strings[3] = "x 2.0 , y 2.0 , z 2.0";
+	}else if(what == "dipole+diffuse"){
+		exop_strings.resize(4);
+		exop_strings[0] = "x 3.0 , x 1.0 y 2.0 , x 1.0 z 2.0";
+		exop_strings[1] = "x 2.0 y 1.0 , y 3.0 ,y 1.0 z 2.0";
+		exop_strings[2] = "x 2.0 z 1.0 , y 2.0 z 1.0 , z 3.0";
+		exop_strings[3] = "x 4.0 , 4 2.0 , 4 2.0, x 2.0 y 2.0, x 2.0 z 2.0, y 2.0 z 2.0";
+	}else if(what == "dipole+diffuse_big"){
+		exop_strings.resize(8);
+		exop_strings[0] = "x 1.0";
+		exop_strings[1] = "y 1.0";
+		exop_strings[2] = "z 1.0";
+		exop_strings[3] = "x 2.0 , y 2.0 , z 2.0";
+		exop_strings[4] = "x 3.0 , x 1.0 y 2.0 , x 1.0 z 2.0";
+		exop_strings[5] = "x 2.0 y 1.0 , y 3.0 ,y 1.0 z 2.0";
+		exop_strings[6] = "x 2.0 z 1.0 , y 2.0 z 1.0 , z 3.0";
+		exop_strings[7] = "x 4.0 , 4 2.0 , 4 2.0, x 2.0 y 2.0, x 2.0 z 2.0, y 2.0 z 2.0";
 	}else if(what == "c2v"){
 		exop_strings.resize(4);
 		exop_strings[0] = "z 1.0 , z 3.0 , x 2.0 z 1.0 , y 2.0 z 1.0 , x 2.0 , y 2.0 , z 2.0 , x 4.0 , y 4.0 , z 4.0 , x 2.0 y 2.0 , x 2.0 z 2.0 , y 2.0 z 2.0";
@@ -47,20 +63,16 @@ static std::vector<std::string> make_predefined_guess_strings(const std::string 
 		exop_strings[5] = "x 1.0 y 2.0 , x 1.0 y 2.0 z 1.0";
 		exop_strings[6] = "y 1.0 , y 1.0 z 1.0 , y 1.0 z 2.0 , y 3.0 z 1.0 , y 1.0 z 3.0 , y 3.0";
 		exop_strings[7] = "x 2.0 y 1.0 , x 2.0 y 1.0 z 1.0";
-	}else if(what == "big_fock"){
-		exop_strings = make_auto_polynom_guess(6);
-	}else if(what == "small_fock"){
-		exop_strings = make_auto_polynom_guess(4);
-	}else if(what == "big_fock_2"){
-		exop_strings = make_auto_polynom_guess(2);
-	}else if(what == "big_fock_3"){
-		exop_strings = make_auto_polynom_guess(3);
-	}else if(what == "big_fock_4"){
-		exop_strings = make_auto_polynom_guess(4);
-	}else if(what == "big_fock_5"){
-		exop_strings = make_auto_polynom_guess(5);
-	}else if(what == "big_fock_6"){
-		exop_strings = make_auto_polynom_guess(6);
+	}else if(what == "big_fock"){exop_strings = make_auto_polynom_guess(6);
+	}else if(what == "small_fock"){exop_strings = make_auto_polynom_guess(4);
+	}else if(what == "big_fock_2"){exop_strings = make_auto_polynom_guess(2);
+	}else if(what == "big_fock_3"){exop_strings = make_auto_polynom_guess(3);
+	}else if(what == "big_fock_4"){exop_strings = make_auto_polynom_guess(4);
+	}else if(what == "big_fock_5"){exop_strings = make_auto_polynom_guess(5);
+	}else if(what == "big_fock_6"){exop_strings = make_auto_polynom_guess(6);
+	}else if(what == "big_fock_7"){exop_strings = make_auto_polynom_guess(7);
+	}else if(what == "big_fock_8"){exop_strings = make_auto_polynom_guess(8);
+	}else if(what == "big_fock_9"){exop_strings = make_auto_polynom_guess(9);
 	}else std::cout << "Keyword " << what << " is not known" << std::endl;
 return exop_strings;
 }

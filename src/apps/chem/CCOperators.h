@@ -231,13 +231,17 @@ namespace madness {
   public:
     /// Constructor
     CC_Operators(World& world, const Nemo &nemo,
-		 const CorrelationFactor &correlationfactor,
+		 //const CorrelationFactor &correlationfactor,
 		 const CC_Parameters &param) :
-		   world(world), nemo(nemo), corrfac(correlationfactor), parameters(
-		       param), mo_bra_(make_mo_bra(nemo)), mo_ket_(
-			   make_mo_ket(nemo)), orbital_energies(
-			       init_orbital_energies(nemo)), intermediates_(world, mo_bra_,
-									    mo_ket_, nemo, param), Q12(world) {
+		   world(world),
+		   nemo(nemo),
+		   corrfac(world,param.gamma(),1.e-7,nemo.get_calc()->molecule),
+		   parameters(param),
+		   mo_bra_(make_mo_bra(nemo)),
+		   mo_ket_(make_mo_ket(nemo)),
+		   orbital_energies(init_orbital_energies(nemo)),
+		   intermediates_(world, mo_bra_, mo_ket_, nemo, param),
+		   Q12(world) {
       // make operators
 
       // make the active mo vector (ket nemos, bra is not needed for that)
@@ -404,24 +408,24 @@ namespace madness {
       return result;
     }
 
-    real_function_6d get_CC2_doubles_potential(const CC_Pair &u,const CC_vecfunction &singles) const {
-      const real_function_6d coulomb_part = potential_doubles(u, singles, pot_cc2_coulomb_);
-      const real_function_6d cc2_residue = potential_doubles(u, singles, pot_cc2_residue_);
-      const real_function_6d fock_residue = potential_doubles(u, singles, pot_F6D_);
+//    real_function_6d get_CC2_doubles_potential(const CC_Pair &u,const CC_vecfunction &singles) const {
+//      const real_function_6d coulomb_part = potential_doubles(u, singles, pot_cc2_coulomb_);
+//      const real_function_6d cc2_residue = potential_doubles(u, singles, pot_cc2_residue_);
+//      const real_function_6d fock_residue = potential_doubles(u, singles, pot_F6D_);
+//
+//      real_function_6d potential = coulomb_part + cc2_residue;
+//      apply_Q12(potential,"coulomb-part+cc2_residue");
+//      real_function_6d result = fock_residue+potential;
+//      result.truncate().reduce_rank();
+//      result.print_size("doubles potential");
+//      if (world.rank() == 0)performance_D.info(performance_D.current_iteration);
+//      return result;
+//    }
 
-      real_function_6d potential = coulomb_part + cc2_residue;
-      apply_Q12(potential,"coulomb-part+cc2_residue");
-      real_function_6d result = fock_residue+potential;
-      result.truncate().reduce_rank();
-      result.print_size("doubles potential");
-      if (world.rank() == 0)performance_D.info(performance_D.current_iteration);
-      return result;
-    }
-
-    real_function_6d make_cc2_coulomb_parts(const CC_function &taui, const CC_function &tauj, const CC_vecfunction &singles) const;
+    real_function_6d make_cc2_coulomb_parts(const CC_function &taui, const CC_function &tauj, const CC_vecfunction &singles, const double omega=0.0) const;
 
     // computes: G(f(F-eij)|titj> + Ue|titj> - [K,f]|titj>) and uses G-operator screening
-    real_function_6d make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj)const;
+    real_function_6d make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj, const double omega=0.0)const;
 
 
     // returns \sum_k <k|operator|xy>_1
@@ -678,45 +682,45 @@ namespace madness {
       return result;
     }
 
-    real_function_6d potential_doubles(const CC_Pair &u, const CC_vecfunction &singles,
-				       const potentialtype_d &name) const {
-      CC_Timer timer(world, assign_name(name));
-      CC_data data(assign_name(name));
-      output("Now Doing " + assign_name(name) + " \n\n");
-
-      real_function_6d result = real_factory_6d(world);
-
-      switch (name) {
-	//		case pot_D6b_D8b_D9_:
-	//			result = D6b_D8b_D9(taui, tauj, singles);
-	//			break;
-	//		case pot_D4b_D6c_D8a_:
-	//			result = D4b_D6c_D8a(taui, tauj, singles);
-	//			break;
-	case pot_F6D_:
-	  result = fock_residue_6d(u);
-	  break;
-	case pot_cc2_coulomb_:
-	  result = make_cc2_coulomb_parts(singles(u.i),singles(u.j),singles);
-	  break;
-	case pot_cc2_residue_:
-	  result = make_cc2_residue(singles(u.i),singles(u.j));
-	  break;
-	default:
-	  error(
-	      "unknown or unsupported key for doubles potential: "
-	      + assign_name(name));
-	  break;
-      }
-
-      result.print_size(assign_name(name));
-      output("Finished with " + assign_name(name));
-      data.result_norm = result.norm2();
-      data.result_size = get_size(result);
-      data.time = (timer.current_time());
-      performance_D.insert(data.name, data);
-      return result;
-    }
+//    real_function_6d potential_doubles(const CC_Pair &u, const CC_vecfunction &singles,
+//				       const potentialtype_d &name) const {
+//      CC_Timer timer(world, assign_name(name));
+//      CC_data data(assign_name(name));
+//      output("Now Doing " + assign_name(name) + " \n\n");
+//
+//      real_function_6d result = real_factory_6d(world);
+//
+//      switch (name) {
+//	//		case pot_D6b_D8b_D9_:
+//	//			result = D6b_D8b_D9(taui, tauj, singles);
+//	//			break;
+//	//		case pot_D4b_D6c_D8a_:
+//	//			result = D4b_D6c_D8a(taui, tauj, singles);
+//	//			break;
+//	case pot_F6D_:
+//	  result = fock_residue_6d(u);
+//	  break;
+//	case pot_cc2_coulomb_:
+//	  result = make_cc2_coulomb_parts(singles(u.i),singles(u.j),singles);
+//	  break;
+//	case pot_cc2_residue_:
+//	  result = make_cc2_residue(singles(u.i),singles(u.j));
+//	  break;
+//	default:
+//	  error(
+//	      "unknown or unsupported key for doubles potential: "
+//	      + assign_name(name));
+//	  break;
+//      }
+//
+//      result.print_size(assign_name(name));
+//      output("Finished with " + assign_name(name));
+//      data.result_norm = result.norm2();
+//      data.result_size = get_size(result);
+//      data.time = (timer.current_time());
+//      performance_D.insert(data.name, data);
+//      return result;
+//    }
 
     // The Fock operator is partitioned into F = T + Vn + R
     // the fock residue R= 2J-K for closed shell is computed here
@@ -779,6 +783,8 @@ namespace madness {
       Q12_time.info();
     }
 
+    real_function_6d apply_regularization_potential(const CC_function &a, const CC_function &b, const double omega)const;
+
     /// Make the CC2 Residue which is:  Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\tau i>+|i>
     // @param[in] \tau_i which will create the |t_i> = |\tau_i>+|i> intermediate
     // @param[in] \tau_j
@@ -786,8 +792,8 @@ namespace madness {
     /// @return Equation: \f$ Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj> \f$  with \f$ |ti> = |\tau i>+|i> \f$
     /// Right now Calculated in the decomposed form: \f$ |titj> = |i,j> + |\tau i,\tau j> + |i,\tau j> + |\tau i,j> \f$
     /// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
-    real_function_6d make_cc2_residue(const CC_function &taui,
-				      const CC_function &tauj) const;
+    real_function_6d make_regularization_residue(const CC_function &taui,
+				      const CC_function &tauj, const calctype &type, const double omega=0.0) const;
 
     // apply the kinetic energy operator to a decomposed 6D function
     /// @param[in] y a 3d function x (will be particle 1 in the decomposed 6d function)
@@ -910,6 +916,8 @@ namespace madness {
     double get_CC2_correlation_energy() const;
     double compute_ccs_correlation_energy(const CC_function &taui,
 					  const CC_function &tauj) const;
+    double compute_cispd_pair_energy(const CC_Pair &u,const CC_function & xi,const CC_function &xj)const;
+    double compute_cispd_energy_constant_part(const Pairs<CC_Pair> &u, const CC_vecfunction x)const;
     double compute_cc2_pair_energy(const CC_Pair &u, const CC_function &taui,
 				   const CC_function &tauj) const;
     /// Calculate the integral <bra1,bra2|gQf|ket1,ket2>
@@ -917,6 +925,8 @@ namespace madness {
     // the ket elements can be \tau_i , or orbitals dependet n the type given
     double make_ij_gQf_ij(const size_t &i, const size_t &j, CC_Pair &u) const;
     double make_ijgQfxy(const size_t &i, const size_t &j, const CC_function &x,
+			const CC_function &y) const;
+    double make_ijgQfxy(const  CC_function &i, const  CC_function &j, const CC_function &x,
 			const CC_function &y) const;
     double make_ijgfxy(const size_t &i, const size_t &j,
 		       const real_function_3d &x, const real_function_3d &y) const;
@@ -927,6 +937,7 @@ namespace madness {
 			 const CC_function&y) const;
     /// Make two electron integral with the pair function
     double make_ijgu(const size_t &i, const size_t &j, const CC_Pair &u) const;
+    double make_ijgu(const CC_function &phi_i, const CC_function &phi_j, const CC_Pair &u) const;
     double make_ijgu(const size_t &i, const size_t &j,
 		     const real_function_6d &u) const;
     /// Make two electron integral with BSH operator
@@ -939,7 +950,7 @@ namespace madness {
 			       const CC_function &ket) const {
       if (bra.type != HOLE) {
 	output("Apply_f12, bra state is no hole state");
-	return (*f12op)(bra.function * ket.function);
+	return (*f12op)((bra.function* nemo.nuclear_correlation->square()) * ket.function );
       }
       if (ket.type == HOLE) {
 	return intermediates_.get_fEX(bra, ket);
@@ -1377,6 +1388,17 @@ namespace madness {
     }
     void plot(const CC_Pair &f)const{
       plot_plane(world,f.function,f.name());
+    }
+
+    // omega is an excitation energy
+    // this function checks if omega should be zero (ground state calculation)
+    void consistency_check(const CC_function &a, const CC_function&b, const double omega)const{
+      if((a.type!=RESPONSE and b.type!=RESPONSE) and omega !=0.0){
+	error("Inconsistency detected: " + a.name() + b.name() + " and omega nonzero " +std::to_string(omega) );
+      }
+      if((a.type==RESPONSE or b.type==RESPONSE) and omega ==0.0){
+	error("Inconsistency detected: " + a.name() + b.name() + " and omega zero " +std::to_string(omega) );
+      }
     }
 
   };

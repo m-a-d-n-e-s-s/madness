@@ -17,8 +17,7 @@
 #include <madness/mra/vmra.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/misc/ran.h>
-#include <chem/CCOperators.h>
-
+#include <chem/TDA.h>
 #include <examples/nonlinsol.h>
 
 namespace madness {
@@ -33,13 +32,12 @@ public:
 
 	CC2(World &world_,const std::string &inputFileName, const Nemo &nemo_):
 		world(world_),
-		correlationfactor(world,1.0,1.e-7,nemo_.get_calc()->molecule),
-		parameters(inputFileName, nemo_.get_calc() -> param.lo, correlationfactor.gamma()),
+		//correlationfactor(world,1.0,1.e-7,nemo_.get_calc()->molecule),
+		parameters(inputFileName, nemo_.get_calc() -> param.lo),
 		nemo(nemo_),
 		mo(nemo_.get_calc()->amo),
 		active_mo(make_active_mo()),
-		//correlationfactor(world,parameters.corrfac_gamma,parameters.thresh_f12,nemo.get_calc()->molecule),
-		CCOPS(world,nemo,correlationfactor,parameters)
+		CCOPS(world,nemo,parameters)
 {
 		output_section("CC2 Class has been initialized with the following parameters");
 		// set the threshholds
@@ -119,7 +117,7 @@ public:
 	/// The World
 	World &world;
 	/// The electronic Correlation Factor, has to be initialized before parameters so that parameters has the right gamma value
-	CorrelationFactor correlationfactor;
+	//CorrelationFactor correlationfactor;
 	/// Structure holds all the parameters used in the CC2 calculation
 	const CC_Parameters parameters;
 	/// The SCF Calculation
@@ -133,7 +131,7 @@ public:
 
 	/// solve the CC2 ground state equations, returns the correlation energy
 	double solve();
-	bool solve_CCS();
+	std::vector<std::pair<CC_vecfunction,double> > solve_CCS();
 	/// solve the MP2 equations (uncoupled -> Canonical Orbitals)
 	double solve_MP2_alternative(Pairs<CC_Pair> &pairs)const;
 	double solve_uncoupled_mp2(Pairs<CC_Pair> &u)const;
@@ -157,7 +155,8 @@ public:
 	/// Iterates the CC2 doubles equations
 	void iterate_doubles(const vecfuncT &singles, Pairs<real_function_6d> &doubles)const;
 	/// Iterates a pair of the CC2 doubles equations
-	bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles=CC_vecfunction())const;
+	bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles)const;
+	bool iterate_pair(CC_Pair &pair,const CC_vecfunction &singles, const CC_vecfunction response_singles,const calctype ctype) const;
 	/// Create formated output, std output with world rank 0
 	void output(const std::string &msg)const{
 		if(world.rank()==0) std::cout << msg << "\n";

@@ -14,6 +14,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/CISOperators.h>
+#include <chem/CCOperators.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -22,7 +23,7 @@
 //#include <chem/TDA_XC.h>
 //#include <madness/world/print.h>
 
-#include <chem/TDA_exops.h>
+//#include <chem/TDA_exops.h>
 #include <chem/TDA_guess.h>
 
 // Kain solver
@@ -174,88 +175,88 @@ struct xfunction{
 
 };
 
-/// This is a structure to perform operations on a vector of xfunctions
-struct vector_of_xfunctions{
-public:
-	vector_of_xfunctions(const size_t active_element_size): active_element_size(active_element_size){}
-	vector_of_xfunctions(const vector_of_xfunctions &other) : active_element_size(other.active_element_size),active_elements(other.active_elements),remaining_elements(other.remaining_elements),converged_elements(other.converged_elements){}
-	void sort(){
-		std::sort(active_elements.begin(),active_elements.end());
-		std::sort(remaining_elements.begin(),remaining_elements.end());
-		std::sort(converged_elements.begin(),converged_elements.end());
-	}
-	std::vector<xfunction> get_converged_xfunctions(){return converged_elements;}
-	std::vector<xfunction> get_active_xfunctions(){return active_elements;}
-	std::vector<xfunction> get_all_xfunctions(){
-		std::vector<xfunction> all_xfunctions = converged_elements;
-		for(auto x:active_elements) all_xfunctions.push_back(x);
-		for(auto x:remaining_elements) all_xfunctions.push_back(x);
-		return all_xfunctions;
-	}
-	void push_to_converged(){
-		std::vector<xfunction> not_converged;
-		for(auto x:active_elements){
-			if(x.converged)converged_elements.push_back(x);
-			else not_converged.push_back(x);
-		}
-		active_elements = not_converged;
-	}
-	void fill_up(const size_t i){
-		if(active_elements.size()>=i) return;
-		else if(remaining_elements.empty()) return;
-		else {
-			for(size_t k=0;k<i;k++){
-				active_elements.push_back(remaining_elements.front());
-				remaining_elements.erase(remaining_elements.begin());
-				if(remaining_elements.empty())break;
-				if(active_elements.size()==i)break;
-			}
-		}
-	}
-	void clear(){
-		active_elements.clear();
-		converged_elements.clear();
-		remaining_elements.clear();
-	}
-	void set(const std::vector<xfunction> &x){
-		clear();
-		for(size_t i=0;i<active_element_size;i++) active_elements.push_back(x[i]);
-		for(size_t i=active_element_size;i<x.size();i++) remaining_elements.push_back(x[i]);
-	}
-	void reset(){
-		std::vector<xfunction> all_xfunctions = get_all_xfunctions();
-		std::sort(all_xfunctions.begin(),all_xfunctions.end());
-		set(all_xfunctions);
-
-	}
-	void print_status(){
-		std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
-		<< "error"<<std::setw(20)
-		<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
-		std::cout << "_._._._(pre) converged xfunctions" << std::endl;
-		for(auto x:converged_elements) print_xfunction(x);
-		std::cout << "_._._._active xfunctions"<< std::endl;
-		for(auto x:active_elements) print_xfunction(x);
-		std::cout << "_._._._remaining xfunctions" << std::endl;
-		for(auto x:remaining_elements) print_xfunction(x);
-	}
-	void print_xfunction(const xfunction &x){
-		std::cout << std::setw(5) << x.number;
-		std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
-																											<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
-		std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
-	}
-	xfunction operator()(const size_t i){return active_elements[i];}
-
-private:
-	const size_t active_element_size;
-	std::vector<xfunction> active_elements;
-	std::vector<xfunction> remaining_elements;
-	std::vector<xfunction> converged_elements;
-};
-
-
-
+///// This is a structure to perform operations on a vector of xfunctions
+//struct vector_of_xfunctions{
+//public:
+//	vector_of_xfunctions(const size_t active_element_size): active_element_size(active_element_size){}
+//	vector_of_xfunctions(const vector_of_xfunctions &other) : active_element_size(other.active_element_size),active_elements(other.active_elements),remaining_elements(other.remaining_elements),converged_elements(other.converged_elements){}
+//	void sort(){
+//		std::sort(active_elements.begin(),active_elements.end());
+//		std::sort(remaining_elements.begin(),remaining_elements.end());
+//		std::sort(converged_elements.begin(),converged_elements.end());
+//	}
+//	std::vector<xfunction> get_converged_xfunctions(){return converged_elements;}
+//	std::vector<xfunction> get_active_xfunctions(){return active_elements;}
+//	std::vector<xfunction> get_all_xfunctions(){
+//		std::vector<xfunction> all_xfunctions = converged_elements;
+//		for(auto x:active_elements) all_xfunctions.push_back(x);
+//		for(auto x:remaining_elements) all_xfunctions.push_back(x);
+//		return all_xfunctions;
+//	}
+//	void push_to_converged(){
+//		std::vector<xfunction> not_converged;
+//		for(auto x:active_elements){
+//			if(x.converged)converged_elements.push_back(x);
+//			else not_converged.push_back(x);
+//		}
+//		active_elements = not_converged;
+//	}
+//	void fill_up(const size_t i){
+//		if(active_elements.size()>=i) return;
+//		else if(remaining_elements.empty()) return;
+//		else {
+//			for(size_t k=0;k<i;k++){
+//				active_elements.push_back(remaining_elements.front());
+//				remaining_elements.erase(remaining_elements.begin());
+//				if(remaining_elements.empty())break;
+//				if(active_elements.size()==i)break;
+//			}
+//		}
+//	}
+//	void clear(){
+//		active_elements.clear();
+//		converged_elements.clear();
+//		remaining_elements.clear();
+//	}
+//	void set(const std::vector<xfunction> &x){
+//		clear();
+//		for(size_t i=0;i<active_element_size;i++) active_elements.push_back(x[i]);
+//		for(size_t i=active_element_size;i<x.size();i++) remaining_elements.push_back(x[i]);
+//	}
+//	void reset(){
+//		std::vector<xfunction> all_xfunctions = get_all_xfunctions();
+//		std::sort(all_xfunctions.begin(),all_xfunctions.end());
+//		set(all_xfunctions);
+//
+//	}
+//	void print_status(){
+//		std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
+//		<< "error"<<std::setw(20)
+//		<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
+//		std::cout << "_._._._(pre) converged xfunctions" << std::endl;
+//		for(auto x:converged_elements) print_xfunction(x);
+//		std::cout << "_._._._active xfunctions"<< std::endl;
+//		for(auto x:active_elements) print_xfunction(x);
+//		std::cout << "_._._._remaining xfunctions" << std::endl;
+//		for(auto x:remaining_elements) print_xfunction(x);
+//	}
+//	void print_xfunction(const xfunction &x){
+//		std::cout << std::setw(5) << x.number;
+//		std::cout << std::scientific << std::setprecision(10) << std::setw(20) << x.omega << std::setw(20)<< x.delta.back()
+//																											<< std::setw(20)<< x.error.back()<< std::setw(20) << x.expectation_value.back();
+//		std::cout << std::fixed <<std::setw(7)<< x.iterations << "   " << std::setw(7)<<x.converged << std::endl;
+//	}
+//	xfunction operator()(const size_t i){return active_elements[i];}
+//
+//private:
+//	const size_t active_element_size;
+//	std::vector<xfunction> active_elements;
+//	std::vector<xfunction> remaining_elements;
+//	std::vector<xfunction> converged_elements;
+//};
+//
+//
+//
 /// Kain allocator for single roots
 struct TDA_allocator{
 	World& world;
@@ -274,9 +275,9 @@ struct TDA_allocator{
 		return tmp;
 	}
 };
-
-
-
+//
+//
+//
 /// An inner product for the xfunction class also needed by the KAIN solver
 static double inner(const xfunction &a, const xfunction &b) {
 	if (a.x.size()!=b.x.size()) MADNESS_EXCEPTION("ERROR :Inner product of two xfunction structures: Different sizes in x-vectors",1);
@@ -291,24 +292,24 @@ typedef XNonlinearSolver<xfunction,double,TDA_allocator> sequential_kain_solver;
 /// The structure needed if the kain solver shall be used
 
 /// Functor that smoothes guess functions with the error functions (no fluctuations at the box borders)
-struct guess_smoothing : public FunctionFunctorInterface<double,3> {
-private:
-	/// The size of the smoothing box (rectangular function, borders must be at dyadic points)
-	const double box_size_;
-public:
-	guess_smoothing(const double box_size) : box_size_(box_size) {}
-	// Smoothing function
-	//	double operator()(const coord_3d &r)const{
-	//		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
-	//	}
-
-	double operator()(const coord_3d &r)const{
-		if(fabs(r[0])>box_size_) return 0.0;
-		else if(fabs(r[1])>box_size_) return 0.0;
-		else if(fabs(r[2])>box_size_) return 0.0;
-		else return 1.0;
-	}
-};
+//struct guess_smoothing : public FunctionFunctorInterface<double,3> {
+//private:
+//	/// The size of the smoothing box (rectangular function, borders must be at dyadic points)
+//	const double box_size_;
+//public:
+//	guess_smoothing(const double box_size) : box_size_(box_size) {}
+//	// Smoothing function
+//	//	double operator()(const coord_3d &r)const{
+//	//		return 0.5*(erf(-(sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])-box_size_))+1.0);
+//	//	}
+//
+//	double operator()(const coord_3d &r)const{
+//		if(fabs(r[0])>box_size_) return 0.0;
+//		else if(fabs(r[1])>box_size_) return 0.0;
+//		else if(fabs(r[2])>box_size_) return 0.0;
+//		else return 1.0;
+//	}
+//};
 
 /// Structure that makes the excitation operators in polynomial form from strings
 struct polynomial_exop_functor : public FunctionFunctorInterface<double,3> {
@@ -401,13 +402,13 @@ public:
 	/// @param[in] input	name of the input file
 	TDA(World &world,const Nemo &nemo,const vecfuncT &mos,const std::string input):
 		orbital_energies_(nemo.get_calc()->aeps),
+		parameters(input, 1.e-7),
 		world(world),
 		dft_(false),
-		use_nemo_(true),
 		nemo_(nemo),
 		mos_(mos),
 		CCOPS_(CIS_Operators(world,nemo,mos)),
-		active_mos_for_guess_calculation_(mos),
+		//active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
 		guess_("dipole+"),
 		solve_iter_(5),
@@ -416,18 +417,17 @@ public:
 		replace_guess_functions_(true),
 		guess_excitations_(0),
 		excitations_(8),
-		iterating_excitations_(4),
-		bsh_eps_(1.e-5),
+		iterating_excitations_(0),
 		iter_max_(20),
-		econv_(1.e-4),
-		guess_econv_(1.e-3),
-		dconv_(1.e-2),
-		guess_dconv_(5.e-2),
-		hard_dconv_(5.e-3),
-		hard_econv_(5.e-5),
-		nfreeze_(0),
+		econv_(parameters.thresh_3D),
+		guess_econv_(10.0*parameters.thresh_3D), // econv_6D is always looser than econv 3D
+		dconv_(10.0*parameters.thresh_3D),
+		guess_dconv_(100.0*parameters.thresh_3D), // same as with econv
+		hard_dconv_(5.0*parameters.thresh_3D),
+		hard_econv_(0.1*parameters.thresh_3D),
+		//nfreeze_(0),
 		plot_(false),
-		debug_(false),
+		//parameters.debug(parameters.debug),
 		//on_the_fly_(true),
 		//xclib_interface_(world,calc),
 		only_fock_(false),
@@ -438,10 +438,10 @@ public:
 		shift_(0.0),
 		triplet_(false),
 		use_omega_for_bsh_(true),
-		compute_virtuals_(false),
-		guess_thresh_(10.0*nemo.get_calc()->param.dconv),
-		solve_thresh_(nemo.get_calc()->param.dconv),
-		solve_sequential_thresh_(nemo.get_calc()->param.dconv)
+		compute_virtuals_(false)
+		//guess_thresh_(parameters.thresh_3D),
+		//solve_thresh_(parameters.thresh_3D),
+		//solve_sequential_thresh_(parameters.thresh_3D)
 {
 		setup(mos,input);
 }
@@ -459,7 +459,7 @@ public:
 
 
 		// The guessed lowest excitation (if no guess_omega_ is in the input)
-		double guess_omega_default = -0.9*orbital_energies_[noct-1];
+		double guess_omega_default = -0.99*orbital_energies_[noct-1];
 		guess_omega_ = guess_omega_default;
 
 		std::ifstream f(input.c_str());
@@ -481,16 +481,15 @@ public:
 			else if (tag == "guess_mode") ss >> guess_mode_;
 			else if (tag == "replace_guess_functions") ss >> replace_guess_functions_;
 			else if (tag == "guess_excitations") ss >> guess_excitations_;
-			else if (tag == "bsh_eps") ss >> bsh_eps_;
 			else if (tag == "iter_max") ss >> iter_max_;
 			else if (tag == "econv") ss >> econv_;
 			else if (tag == "guess_econv") ss >> guess_econv_;
 			else if (tag == "dconv") ss >> dconv_;
 			else if (tag == "guess_dconv") ss >> guess_dconv_;
-			else if (tag == "freeze") ss >> nfreeze_;
+			//else if (tag == "freeze") ss >> nfreeze_;
 			else if (tag == "print_grid") print_grid_=true;
 			else if (tag == "plot") plot_=true;
-			else if (tag == "debug") debug_=true;
+			else if (tag == "debug") parameters.debug=true;
 			else if (tag == "only_fock") only_fock_=true;
 			else if (tag == "only_GS") only_GS_=true;
 			else if (tag == "highest_excitation") ss >> highest_excitation_;
@@ -500,26 +499,29 @@ public:
 			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "triplet") triplet_=true;
 			else if (tag == "compute_virtuals") compute_virtuals_ = true;
-			else if (tag == "solve_sequential_thresh") ss>>solve_sequential_thresh_;
-			else if (tag == "solve_thresh") ss >> solve_thresh_;
-			else if (tag == "guess_thresh") ss >> guess_thresh_;
+			//else if (tag == "solve_sequential_thresh") ss>>solve_sequential_thresh_;
+			//else if (tag == "solve_thresh") ss >> solve_thresh_;
+			//else if (tag == "guess_thresh") ss >> guess_thresh_;
 			else if (tag == "dft") dft_ = true;
 			else continue;
 		}
 		if(compute_virtuals_){
-			if(nfreeze_ != mos.size()-1){
+			if(parameters.freeze != mos.size()-1){
 				if(world.rank()==0) std::cout << "Virtual orbital calculation demanded: Freeze Key is set to number_of_mos -1 which is " << mos.size()-1 << std::endl;
-				nfreeze_ = mos.size()-1;
-				guess_omega_ = -0.98*orbital_energies_[noct-1];
+				MADNESS_EXCEPTION("Freeze key is set wrong",1);
 			}
 		}
 
+
+
 		// this will be the case if guess_excitations are not assigned
-		if(guess_excitations_ == 0) guess_excitations_ = excitations_*2;
+		if(guess_excitations_ == 0) guess_excitations_ = excitations_;
 		if(guess_excitations_ < excitations_){
 			if(world.rank()==0) std::cout << "WARNING: More converged excitations than guess excitations demanded ... correcting that " << std::endl;
-			guess_excitations_ = excitations_ + 2;
+			guess_excitations_ = excitations_;
 		}
+
+		if(iterating_excitations_==0) iterating_excitations_ = guess_excitations_;
 
 		// make potential shift = -ipot - homo
 		if(dft_ and ipot_>0.0) shift_= -ipot_ - orbital_energies_[noct-1];
@@ -535,9 +537,9 @@ public:
 
 		if (world.rank() == 0) {
 			std::cout<< std::setw(60) <<"\n\n\n\n ======= TDA info =======\n\n\n" << std::endl;
-			if (nfreeze_==0) std::cout<< std::setw(40) <<"# frozen orbitals : "<<"none" << std::endl;
-			if (nfreeze_>0) std::cout<< std::setw(40) <<"# frozen orbitals : " <<  "0 to " << nfreeze_-1 << std::endl;
-			std::cout<< std::setw(40) <<"active orbitals : " << nfreeze_ << " to " << mos_.size()-1 << std::endl;
+			if (parameters.freeze==0) std::cout<< std::setw(40) <<"# frozen orbitals : "<<"none" << std::endl;
+			if (parameters.freeze>0) std::cout<< std::setw(40) <<"# frozen orbitals : " <<  "0 to " << parameters.freeze-1 << std::endl;
+			std::cout<< std::setw(40) <<"active orbitals : " << parameters.freeze << " to " << mos_.size()-1 << std::endl;
 			std::cout<< std::setw(40) << "guess from : " << guess_ << std::endl;
 			std::cout<< std::setw(40) << "Gram-Schmidt is used : " << !only_fock_ << std::endl;
 			std::cout<< std::setw(40) << "threshold 3D : " << FunctionDefaults<3>::get_thresh() << std::endl;
@@ -562,22 +564,16 @@ public:
 			//std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
 			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
-			std::cout<< std::setw(40) << "use_nemo is " << use_nemo_ << std::endl;
 			std::cout<< std::setw(40) << "dft is " << dft_ << std::endl;
 		}
 
-
-
-		lo=get_nemo().get_calc() -> param.lo;
-		bsh_eps_ = FunctionDefaults<3>::get_thresh()*0.1;
-
 		// Make the active_mos_ vector
-		for(size_t i=nfreeze_;i<mos_.size();i++){active_mo_.push_back(mos_[i]);}
+		for(size_t i=parameters.freeze;i<mos_.size();i++){active_mo_.push_back(mos_[i]);}
 
 		// project the mos if demanded (default is true)
 		if(guess_mode_ != "numerical"){
 			active_mos_for_guess_calculation_ = project_to_ao_basis(active_mo_,get_nemo().get_calc() -> ao);
-		}
+		}else active_mos_for_guess_calculation_ = active_mo_;
 
 		/// Make transformation matrix from cannical to localized MOs
 		std::vector<int> set=get_nemo().get_calc() -> group_orbital_sets(world,get_nemo().get_calc() -> aeps,get_nemo().get_calc() -> aocc,active_mo_.size());
@@ -657,9 +653,12 @@ public:
 	}
 	// returns demanded orbital energy of the scf calculation with the right shift (the first unfrozen orbital is number 0)
 	double active_eps(const size_t & i)const{
-		return orbital_energies_(i+nfreeze_);
+		return orbital_energies_(i+parameters.freeze);
 	}
 private:
+
+	/// global parameters
+	CC_Parameters parameters;
 
 	/// The World
 	World & world;
@@ -677,7 +676,7 @@ private:
 
 
 	/// The SCF calculation using NEMOs (MOs without Nuclear Cusp): MO = R*NEMO, R= Nuclear correlation factor
-	bool use_nemo_;
+	//bool use_nemo_;
 	const Nemo & nemo_;
 
 	/// The molecular orbitals of moldft
@@ -724,7 +723,7 @@ private:
 	size_t iterating_excitations_;
 
 	/// Thresholds and convergence cirteria
-	double bsh_eps_;
+	//double bsh_eps_;
 
 	/// maximal iterations per guess_function
 	size_t iter_max_;
@@ -739,13 +738,13 @@ private:
 	double hard_dconv_;
 	double hard_econv_;
 	/// Frozen Orbitals
-	size_t nfreeze_;
+	//size_t nfreeze_;
 
 	/// Many Plots
 	bool plot_;
 
 	/// More output
-	bool debug_;
+	//bool parameters.debug;
 
 	/// use only the fock orthonormalization procedure (default)
 	bool only_fock_;
@@ -755,7 +754,7 @@ private:
 	/// The highest possible excitation to calculate (higher values will result in positive eigenvalues for the BSH operator)
 	double highest_excitation_;
 
-	double lo;
+	//double lo;
 
 	/// Vector of active molecular orbitals
 	vecfuncT active_mo_;
@@ -803,9 +802,9 @@ private:
 	bool compute_virtuals_;
 
 	/// The thresholds for the guess, solve and sequential calculation
-	double guess_thresh_;
-	double solve_thresh_;
-	double solve_sequential_thresh_;
+	//double guess_thresh_;
+	//double solve_thresh_;
+	//double solve_sequential_thresh_;
 
 	/// Print the current xfunctions in a formated way
 	/// @param[in] xfunctions a vector of xfunction structures
@@ -956,9 +955,9 @@ private:
 	void memory_information(const xfunctionsT &xfunctions)const;
 public:
 	/// get the threshholds
-	double get_guess_thresh(){return guess_thresh_;}
-	double get_solve_thresh(){return solve_thresh_;}
-	double get_solve_sequential_thresh(){return solve_sequential_thresh_;}
+	//double get_guess_thresh(){return guess_thresh_;}
+	//double get_solve_thresh(){return solve_thresh_;}
+	//double get_solve_sequential_thresh(){return solve_sequential_thresh_;}
 	/// analyze the root: oscillator strength and contributions from occ
 	void analyze(xfunctionsT& roots) const;
 	/// Project a vecfuncT to the ao basis (used to create projected MOs for the guess calculation)

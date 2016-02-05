@@ -18,7 +18,7 @@
 
 namespace madness{
 
-enum calctype {MP2_, CC2_};
+enum calctype {MP2_, CC2_, CC2_response_, CISpD_};
 enum functype {HOLE,PARTICLE,MIXED,RESPONSE,UNDEFINED};
 enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S1_, pot_S5a_, pot_ccs_};
 enum potentialtype_d {pot_F6D_, pot_cc2_coulomb_,pot_cc2_residue_};
@@ -28,6 +28,8 @@ static std::string assign_name(const calctype &inp){
 	switch(inp){
 	case CC2_ : return "CC2";
 	case MP2_ : return "MP2";
+	case CC2_response_ : return "CC2-Response";
+	case CISpD_ : return "CIS(D)";
 	}
 	return "unknown";
 }
@@ -65,6 +67,7 @@ static std::string assign_name(const functype &inp){
 	case HOLE : return "Hole";
 	case PARTICLE : return "Particle";
 	case MIXED : return "Mixed";
+	case RESPONSE: return "Response";
 	case UNDEFINED : return "Undefined";
 	}
 	return "???";
@@ -122,7 +125,7 @@ struct CC_Parameters{
 
 	// read parameters from input
 	/// ctor reading out the input file
-	CC_Parameters(const std::string& input,const double &low,const double &corrfac_gamma_) :
+	CC_Parameters(const std::string& input,const double &low) :
 		lo(uninitialized),
 		thresh_3D(uninitialized),
 		tight_thresh_3D(uninitialized),
@@ -136,10 +139,10 @@ struct CC_Parameters{
 		econv(uninitialized),
 		dconv_3D(uninitialized),
 		dconv_6D(uninitialized),
-		iter_max_3D(0),
-		iter_max_6D(0),
+		iter_max_3D(10),
+		iter_max_6D(10),
 		restart(false),
-		corrfac_gamma(corrfac_gamma_),
+		corrfac_gamma(1.0),
 		output_prec(8),
 		debug(false),
 		mp2_only(false),
@@ -194,6 +197,7 @@ struct CC_Parameters{
 			else if (s == "ccs") ccs=true;
 			else if (s == "freeze") f>>freeze;
 			else if (s == "test") test =true;
+			else if (s == "corrfac") f>>corrfac_gamma;
 			else continue;
 		}
 
@@ -261,7 +265,7 @@ struct CC_Parameters{
 	// restart
 	bool restart;
 	// Exponent for the correlation factor
-	const double corrfac_gamma;
+	double corrfac_gamma;
 	// for formated output
 	size_t output_prec;
 	// debug mode
@@ -291,6 +295,7 @@ struct CC_Parameters{
 			FunctionDefaults<3>::print();
 			FunctionDefaults<6>::print();
 			std::cout << "\n\nCC2 Parameters:\n";
+			std::cout << std::setw(20) << std::setfill(' ') << "Corrfac. Gamma :"           << corrfac_gamma << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "freeze :"           << freeze << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "restart :"           << restart << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "lo :"                << lo << std::endl;
@@ -549,15 +554,11 @@ struct CC_function{
 		}
 	}
 	std::string name()const{
-		if(type==HOLE){
-			return "phi"+stringify(i);
-		}else if(type==PARTICLE){
-			return "tau"+stringify(i);
-		}else if(type==MIXED){
-			return "t"+stringify(i);
-		}else{
-			return "function"+stringify(i);
-		}
+		if(type==HOLE){return "phi"+stringify(i);}
+		else if(type==PARTICLE){return "tau"+stringify(i);}
+		else if(type==MIXED){return "t"+stringify(i);}
+		else if(type==RESPONSE){return "x"+stringify(i);}
+		else{return "function"+stringify(i);}
 	}
 	double inner(const CC_function &f)const{
 		return inner(f.function);
@@ -591,28 +592,31 @@ struct CC_function{
 // structure for CC Vectorfunction
 struct CC_vecfunction{
 
-	CC_vecfunction(){}
-	CC_vecfunction(const vecfuncT &v,const functype &type){
+	CC_vecfunction(): type(UNDEFINED){}
+	CC_vecfunction(const functype type_): type(type_){}
+	CC_vecfunction(const vecfuncT &v,const functype &type): type(type){
 		for(size_t i=0;i<v.size();i++){
 			CC_function tmp(v[i],i,type);
 			functions.insert(std::make_pair(i,tmp));
 		}
 	}
-	CC_vecfunction(const vecfuncT &v,const functype &type,const size_t &freeze){
+	CC_vecfunction(const vecfuncT &v,const functype &type,const size_t &freeze): type(type){
 		for(size_t i=0;i<v.size();i++){
 			CC_function tmp(v[i],freeze+i,type);
 			functions.insert(std::make_pair(freeze+i,tmp));
 		}
 	}
-	CC_vecfunction(const std::vector<CC_function> &v){
+	CC_vecfunction(const std::vector<CC_function> &v,const functype type_): type(type_){
 		for(auto x:v){
 			functions.insert(std::make_pair(x.i,x));
 		}
 	}
-	CC_vecfunction(const CC_vecfunction &other) : functions(other.functions) {}
+	CC_vecfunction(const CC_vecfunction &other) : functions(other.functions),type(other.type) {}
 
 	typedef std::map<std::size_t, CC_function> CC_functionmap;
 	CC_functionmap functions;
+
+	functype type;
 
 	/// getter
 	const CC_function& operator()(const CC_function &i) const {

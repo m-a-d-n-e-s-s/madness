@@ -40,6 +40,9 @@ struct xyz {
 
 void TDA::solve_guess(xfunctionsT &xfunctions) {
 	output_section("SOLVE GUESS START");
+	if(world.rank()==0) std::cout << "Solving with thresh " << FunctionDefaults<3>::get_thresh() << std::endl;
+	if(world.rank()==0) std::cout << "dconv=" << guess_dconv_ << "\neconv=" << guess_econv_ << std::endl;
+	converged_xfunctions_.clear();
 	if(guess_ =="koala"){
 		guess_koala(xfunctions);
 		return;
@@ -75,7 +78,9 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 
 void TDA::solve(xfunctionsT &xfunctions) {
 	output_section("SOLVE START");
-
+	if(world.rank()==0) std::cout << "Solving with thresh " << FunctionDefaults<3>::get_thresh() << std::endl;
+	if(world.rank()==0) std::cout << "dconv=" << dconv_ << "\neconv=" << econv_ << std::endl;
+	converged_xfunctions_.clear();
 	// Iterate till convergence is reached
 	for(size_t iter=0;iter<300;iter++){
 		output("\nIteration " + stringify(iter));
@@ -99,7 +104,7 @@ void TDA::solve(xfunctionsT &xfunctions) {
 }
 
 void TDA::solve_sequential(xfunctionsT &xfunctions) {
-
+        converged_xfunctions_.clear();
 	// manual now
 	bool kain=true;
 
@@ -205,7 +210,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 void TDA::print_status(const xfunctionsT & xfunctions) const {
 	if(world.rank()==0){
 		if(compute_virtuals_) std::cout << "\nVirtual orbitals: Energy is omega + epsilon\n";
-		std::cout << "\n" <<std::setw(5) << " #" << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
+		std::cout << "\n" <<std::setw(5) << " " << std::setw(20) << "omega" << std::setw(20) << "delta" << std::setw(20)
 		<< "error"<<std::setw(20)
 		<<"expv" << std::setw(7) <<"iter"<< std::setw(7)<< "conv" << std::endl;
 		for(size_t i=0;i<converged_xfunctions_.size();i++) print_xfunction(converged_xfunctions_[i]);
@@ -272,12 +277,12 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 		}
 
 		Tensor<double> F = make_perturbed_fock_matrix(xfunctions);
-		if(debug_) std::cout<< "guess overlap matrix is\n" << overlap << "\n";
-		if(debug_) std::cout<<"guess pert. Fock Matrix is\n" << F << "\n";
+		if(parameters.debug) std::cout<< "guess overlap matrix is\n" << overlap << "\n";
+		if(parameters.debug) std::cout<<"guess pert. Fock Matrix is\n" << F << "\n";
 		Tensor<double> U, evals, dummy(xfunctions.size());
 		U = get_nemo().get_calc() -> get_fock_transformation(world, overlap, F, evals, dummy,
 				1.5 * econv_);
-		if(debug_) std::cout<<"Transformation Matrix is\n" << U << "\n";
+		if(parameters.debug) std::cout<<"Transformation Matrix is\n" << U << "\n";
 		std::vector<vecfuncT> old_x;
 		std::vector<std::string> old_exop_strings;
 		for (size_t i = 0; i < xfunctions.size(); i++) {
@@ -310,7 +315,7 @@ void TDA::make_big_fock_guess(xfunctionsT &xfunctions)const{
 	big_ortho.info();
 	if(world.rank()==0) std::cout << "\nthe following guess functions have been created:\n " << std::endl;
 	print_status(xfunctions);
-	if(world.rank()==0 and debug_){
+	if(world.rank()==0 and parameters.debug){
 		std::cout << "\nCorresponding excitation operators are:\n" << std::endl;
 		for(size_t i=0;i<xfunctions.size();i++){
 			xfunctions[i].number =i ;
@@ -342,7 +347,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 	vecfuncT koala_mo;
 
 	// read koala's orbitals from disk
-	for (std::size_t i=nfreeze_; i<nmo; ++i) {
+	for (std::size_t i=parameters.freeze; i<nmo; ++i) {
 		real_function_3d x_i=real_factory_3d(world).empty();
 		const std::string valuefile="grid.koala.orbital"+stringify(i);
 		x_i.get_impl()->read_grid2<3>(valuefile,functorT());
@@ -351,7 +356,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 	if(koala_mo.size()!=active_mo_.size()) MADNESS_EXCEPTION("ERROR in Koala guess: not the same number of Koala mos and active_mos of MRA",1);
 	// this is the transformation matrix for the rotation
 	guess_phases_=matrix_inner(world,koala_mo,mos_);
-	guess_phases_=guess_phases_(_,Slice(nfreeze_,nmo-1));
+	guess_phases_=guess_phases_(_,Slice(parameters.freeze,nmo-1));
 
 	// compute the inverse of the overlap matrix
 	Tensor<double> S=(guess_phases_+transpose(guess_phases_)).scale(0.5);
@@ -381,7 +386,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 		xfunction root(world);
 
 		// read the actual external guess from file
-		for (std::size_t i=nfreeze_; i<nmo; ++i) {
+		for (std::size_t i=parameters.freeze; i<nmo; ++i) {
 
 			// this is the file where the guess is on disk
 			const std::string valuefile="grid.koala.orbital"+stringify(i)
@@ -393,7 +398,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 
 		// now rotate the active orbitals from the guess to conform with
 		// the MRA orbitals
-		// Sinv=Sinv(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
+		// Sinv=Sinv(Slice(parameters.freeze,nmo-1),Slice(parameters.freeze,nmo-1));
 		root.x=transform(world,root.x,Sinv);
 
 		root.omega = guess_omega_;
@@ -452,7 +457,9 @@ void TDA::iterate_all(xfunctionsT &all_xfunctions, bool guess) {
 
 	size_t guess_iter_counter =1;
 	std::vector<size_t> iteration_counters(xfunctions.size(),0);
-	for(size_t i=0;i<1000;i++){
+	size_t maxiter = 100;
+	if(guess) maxiter = 10;
+	for(size_t i=0;i<maxiter;i++){
 		TDA_TIMER iteration_time(world,"\nEnd of iteration " + stringify(i) +": ");
 
 		{
@@ -582,11 +589,11 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 		if(use_omega_for_bsh_) eps += omega;
 		if (eps > 0) {
 			if (world.rank() == 0)
-				print("bsh: warning: positive eigenvalue", p + nfreeze_, eps);
+				print("bsh: warning: positive eigenvalue", p + parameters.freeze, eps);
 			eps = active_eps(p) + guess_omega_;
 		}
 		bsh[p] = poperatorT(
-				BSHOperatorPtr3D(world, sqrt(-2.0 * eps), lo, bsh_eps_));
+				BSHOperatorPtr3D(world, sqrt(-2.0 * eps), parameters.lo, parameters.thresh_bsh_3D));
 	}
 
 	world.gop.fence();
@@ -798,7 +805,7 @@ double TDA::perturbed_fock_matrix_element(const vecfuncT &xr,
 	double weighted_sum = 0.0;
 	Tensor<double> overlaps = inner(world, xr, xp);
 	for (size_t i = 0; i < xr.size(); i++) {
-		weighted_sum += (orbital_energies_(nfreeze_ + i) + shift_) * overlaps[i];
+		weighted_sum += (orbital_energies_(parameters.freeze + i) + shift_) * overlaps[i];
 	}
 
 	return value - weighted_sum;
@@ -821,10 +828,9 @@ double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potenti
 	for (int axis = 0; axis < 3; axis++) {
 		const vecfuncT dx = apply(world, *(gradop[axis]), x.x);
 		vecfuncT bra_dx;
-		if(use_nemo_) bra_dx = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),x.x));
+		bra_dx = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),x.x));
 		Tensor<double> kin;
-		if(use_nemo_) kin= inner(world, bra_dx, dx);
-		else kin= inner(world, dx, dx);
+		kin= inner(world, bra_dx, dx);
 		expv += 0.5 * kin.sum();
 	}
 
@@ -874,171 +880,7 @@ Tensor<double> TDA::make_perturbed_fock_matrix(
 	EPART.info();
 	MAKE_FOCK_MATRIX_TIMER2.info();
 
-	/// DEBUG
-//	Tensor<double> Kinetic1(xfunctions.size(),xfunctions.size());
-//	Tensor<double> Kinetic2(xfunctions.size(),xfunctions.size());
-//	TDA_TIMER TPART1(world,"Kinetic1 Part");
-//	for(size_t q=0;q<xfunctions.size();q++){
-//		for(size_t p=0;p<xfunctions.size();p++){
-//			Kinetic1(p,q) = CCOPS_.get_matrix_element_kinetic_energy(xfunctions[p].x,xfunctions[q].x);
-//		}}
-//	TPART1.info();
-//	TDA_TIMER TPART2(world,"Kinetic2 Part");
-//	for(size_t q=0;q<xfunctions.size();q++){
-//		for(size_t p=0;p<xfunctions.size();p++){
-//			Kinetic2(p,q) = CCOPS_.get_matrix_element_kinetic_2(xfunctions[p].x,xfunctions[q].x);
-//		}}
-//	TPART2.info();
-//	std::cout << "Kinetic energy matrix 1 \n" << Kinetic1 << "\n and 2 \n" << Kinetic2 <<std::endl;
-//	/// DEBUG END
-
-	/// DEBUG
-	if(debug_){
-		Tensor<double> F(xfunctions.size(),xfunctions.size());
-		F =0.0;
-		TDA_TIMER OLDKINETIK(world,"OLD KINETIK DEBUG CALCULATION");
-        //The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
-        for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-                const vecfuncT& xp = xfunctions[iroot].x;
-                reconstruct(world, xp);
-        }
-
-        std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-        gradop = gradient_operator<double, 3>(world);
-
-        for (int axis = 0; axis < 3; ++axis) {
-
-                std::vector<vecfuncT> dxp;
-                for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-
-                        const vecfuncT& xp = xfunctions[iroot].x;
-                        TDA_TIMER gradx(world,"DEBUG: GRADIENT OF X");
-                        const vecfuncT d = apply(world, *(gradop[axis]), xp);
-                        dxp.push_back(d);
-                        gradx.info();
-                }
-                for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-                        for (std::size_t jroot = 0; jroot < xfunctions.size(); ++jroot) {
-                                Tensor<double> xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
-                                F(iroot, jroot) += 0.5 * xpi_Txqi.sum();
-                        }
-                }
-        }
-        OLDKINETIK.info();
-        TDA_TIMER OLDEPS(world,"DEBUG CALCULATION OLD EPS PART");
-    		// The epsilon part
-    		for (std::size_t p = 0; p < xfunctions.size(); p++) {
-    			for (std::size_t r = 0; r < xfunctions.size(); r++) {
-    				vecfuncT bra_x = xfunctions[p].x;
-    				if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[p].x);}
-    				Tensor<double> eij = inner(world, bra_x, xfunctions[r].x);
-    				for (size_t ii = 0; ii < xfunctions[p].x.size(); ++ii) {
-    					F(p, r) -= (orbital_energies_(ii) + shift_) * eij[ii];
-    				}
-    			}
-    		}
-        OLDEPS.info();
-	}
-	/// DEBUG END
-
-	if(debug_ and world.rank()==0) std::cout << "Debug-Output: Perturbed Fock Matrix\n" << new_F << std::endl;
 	return new_F;
-	//	TDA_TIMER MAKE_FOCK_MATRIX_TIMER(world,"Make old perturbed fock matrix");
-	//
-	//	if(world.rank()==0) std::cout << std::setw(40) << "perturbed fock matrix dimension..." << " : " << xfunctions.size() << "x" << xfunctions.size() << std::endl;
-	//	Tensor<double> F(xfunctions.size(), xfunctions.size());
-	//
-	//	// Part for the smoothed potential
-	//	for (std::size_t p = 0; p < xfunctions.size(); p++) {
-	//		vecfuncT Vxp;
-	//		if(xfunctions[p].smooth_potential.empty()){
-	//			output("smooth potential needs to be recalculated");
-	//			Vxp = add(world,apply_smooth_potential(xfunctions[p]),apply_nuclear_potential(xfunctions[p]));
-	//		}
-	//		else Vxp = add(world,xfunctions[p].smooth_potential,apply_nuclear_potential(xfunctions[p]));
-	//		for (std::size_t k = 0; k < xfunctions.size(); k++) {
-	//			vecfuncT bra_x = xfunctions[k].x;
-	//			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[k].x);}
-	//			Tensor<double> fpk_i = inner(world, bra_x, Vxp);
-	//			F(p, k) = fpk_i.sum();
-	//		}
-	//	}
-	//
-	//TDA_TIMER KINETIC1(world,"KINETIK 1 TIMER: ");
-	//Tensor<double> DEBUG_TENSOR(xfunctions.size(),xfunctions.size());
-	//for(size_t i=0;i<xfunctions.size();i++){
-	//	for(size_t j=0;j<xfunctions.size();j++){
-	//		DEBUG_TENSOR(i,j)=0.0;
-	//	}
-	//}
-	//std::cout << "DEBUG TENSOR ZEROES:\n" << DEBUG_TENSOR<< std::endl;
-	//	//The kinetic part -1/2<xip|nabla^2|xir> = +1/2 <nabla xip||nabla xir>
-	//	for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-	//		const vecfuncT& xp = xfunctions[iroot].x;
-	//		reconstruct(world, xp);
-	//	}
-	//
-	//	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-	//	gradop = gradient_operator<double, 3>(world);
-	//
-	//	for (int axis = 0; axis < 3; ++axis) {
-	//
-	//		std::vector<vecfuncT> dxp, bra_dxp;
-	//		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-	//
-	//			const vecfuncT& xp = xfunctions[iroot].x;
-	//			TDA_TIMER ket(world,"kinetic ket");
-	//			vecfuncT d = apply(world, *(gradop[axis]), xp);
-	//			ket.info();
-	//			vecfuncT bra_d;
-	//			if(use_nemo_){
-	//				TDA_TIMER bra(world,"kinetic bra");
-	//				bra_d = apply(world, *(gradop[axis]), mul(world,get_nemo().nuclear_correlation -> square(),xp));
-	//				bra.info();
-	//			}
-	//			truncate(world,d);
-	//			dxp.push_back(d);
-	//			if(use_nemo_) bra_dxp.push_back(bra_d);
-	//		}
-	//		for (std::size_t iroot = 0; iroot < xfunctions.size(); ++iroot) {
-	//			for (std::size_t jroot = 0; jroot < xfunctions.size(); ++jroot) {
-	//				Tensor<double> xpi_Txqi;
-	//				if(use_nemo_)xpi_Txqi = inner(world, bra_dxp[iroot], dxp[jroot]);
-	//				else xpi_Txqi = inner(world, dxp[iroot], dxp[jroot]);
-	//				F(iroot, jroot) += 0.5 * xpi_Txqi.sum();
-	//				DEBUG_TENSOR(iroot,jroot) += 0.5 * xpi_Txqi.sum();
-	//			}
-	//		}
-	//	}
-	//	std::cout << "KINETIC ENERGY MATRIX OLD WAY:\n" << DEBUG_TENSOR << std::endl;
-	//	KINETIC1.info();
-	//
-	//	TDA_TIMER KINETIC2(world, "KINETIC 2 TIMER: ");
-	//	Tensor<double> DEBUG_TENSOR2(xfunctions.size(),xfunctions.size());
-	//	for(size_t i=0;i<xfunctions.size();i++){
-	//		for(size_t j=0;j<xfunctions.size();j++){
-	//			DEBUG_TENSOR2(i,j)=CCOPS_.get_matrix_element_kinetic_energy(xfunctions[i].x,xfunctions[j].x);
-	//		}
-	//	}
-	//	std::cout << "KINETIC ENERGY MATRIX NEW WAY:\n" << DEBUG_TENSOR2 << std::endl;
-	//	KINETIC2.info();
-	//
-	//	// The epsilon part
-	//	for (std::size_t p = 0; p < xfunctions.size(); p++) {
-	//		for (std::size_t r = 0; r < xfunctions.size(); r++) {
-	//			vecfuncT bra_x = xfunctions[p].x;
-	//			if(use_nemo_){bra_x= mul(world,get_nemo().nuclear_correlation->square(),xfunctions[p].x);}
-	//			Tensor<double> eij = inner(world, bra_x, xfunctions[r].x);
-	//			for (size_t ii = 0; ii < xfunctions[p].x.size(); ++ii) {
-	//				F(p, r) -= (orbital_energies_(ii) + shift_) * eij[ii];
-	//			}
-	//		}
-	//	}
-	//	std::cout << "New Perturbed Fock Matrix\n" << new_F << std::endl;
-	//	std::cout << "Old Perturbed Fock Matrix\n" << F << std::endl;
-	//	MAKE_FOCK_MATRIX_TIMER.info();
-	//	return F;
-
 }
 
 
@@ -1113,7 +955,7 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	// Print results in TeX format
 	std::fstream results;
 	results.open(prename+"results.tex", std::ios::out);
-	results << "% bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << " \t \t \n";
+	results << "% bsh_eps: " <<  parameters.thresh_bsh_3D << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << " \t \t \n";
 	results << "\\begin{tabular}{llll}"<< "\n";
 	results << "\\toprule" << "  \n";
 	results << "\\multicolumn{1}{c}{$\\omega$}" << "&" << "\\multicolumn{1}{c}{error}" << "& \\multicolumn{1}{c}{$\\Delta$}" <<"\\multicolumn{1}{c}{iter}"" \\\\ " << " \n";
@@ -1132,7 +974,7 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	// Print results with oscillator strength in Tex format
 	std::fstream results2;
 	results2.open(prename+"results_full.tex", std::ios::out);
-	results2 << "% bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "\n";
+	results2 << "% bsh_eps: " <<  parameters.thresh_bsh_3D << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "\n";
 	results2 << "\\begin{tabular}{ll}"<< "\n";
 	results2 << "\\toprule" << " \n";
 	for (size_t i = 0; i < xfunctions.size(); i++) {
@@ -1145,7 +987,7 @@ void TDA::print_performance(const xfunctionsT &xfunctions,const std::string pren
 	}
 	results2 << "\\bottomrule" << " \n";
 	results2 << "\\end{tabular} \n";
-	results2 << "\\multicolumn{2}{l}{ bsh_eps: " << bsh_eps_ << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "} \\\\ \n" ;
+	results2 << "\\multicolumn{2}{l}{ bsh_eps: " <<  parameters.thresh_bsh_3D << " thresh: " << FunctionDefaults<3>::get_thresh() << " time: " << wall_time() << "} \\\\ \n" ;
 	results2.close();
 }
 

@@ -84,10 +84,15 @@ namespace madness {
   }
 
   real_function_6d
-  CC_Operators::make_cc2_coulomb_parts(const CC_function &taui,const CC_function &tauj,const CC_vecfunction &singles) const {
-    const CC_function ti=make_t_intermediate(taui);
-    const CC_function tj=make_t_intermediate(tauj);
-    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(taui.i,tauj.i)),parameters.lo,parameters.thresh_bsh_6D);
+  CC_Operators::make_cc2_coulomb_parts(const CC_function &ti,const CC_function &tj,const CC_vecfunction &singles,const double omega) const {
+    output("Make Screened Coulomb Potential with " + ti.name() + tj.name()+ " and projector is mixed with functions of type " + assign_name(singles.type));
+
+    // failsafe
+    if(ti.type==PARTICLE) warning("Particle function has entered cc2_coulomb parts, should be mixed or response or hole");
+    if(tj.type==PARTICLE) warning("Particle function has entered cc2_coulomb parts, should be mixed or response or hole");
+    if(ti.type!=RESPONSE and tj.type!=RESPONSE and omega!=0.0) error("make_cc2_coulomb_parts omega is not zero but non of the functions is of response type");
+
+    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(ti.i,tj.i)+omega),parameters.lo,parameters.thresh_bsh_6D);
     G.destructive()=true;
     // first do the O1 and O2 parts which are
     // Otau1(g|titj) = |tauk><k|(1)g|titj> = kgti(2)|tauktj>
@@ -121,8 +126,8 @@ namespace madness {
     return G_O1tau_part + G_O2tau_part;
   }
 
-  real_function_6d
-  CC_Operators::make_cc2_residue_sepparated(const CC_function &taui,const CC_function &tauj) const {
+  real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &taui,const CC_function &tauj,const double omega) const {
+
     calctype ctype=CC2_;
     const bool symmetric=(taui.i == tauj.i);
     if(make_norm(taui) < parameters.thresh_3D and make_norm(tauj) < parameters.thresh_3D){
@@ -724,6 +729,31 @@ namespace madness {
     return result;
   }
 
+  real_function_6d CC_Operators::apply_regularization_potential(const CC_function &a, const CC_function &b, const double omega)const{
+    if((a.type != RESPONSE and b.type != RESPONSE) and omega !=0.0) error("Apply_regularization_potential: omega is not zero, but none of the functions has response type");
+    const real_function_3d Fa=apply_F(a) - (get_orbital_energies()[a.i]+0.5*omega) * a.function;
+    const real_function_3d Fb=apply_F(b) - (get_orbital_energies()[b.i]+0.5*omega) * b.function;
+
+     // make the Fock operator part:  f(F-eij)|titj> = (F1+F2-ei-ej)|titj> = (F1-ei)|ti>|tj> + |ti>(F2-ei)|tj>
+     const real_function_6d fFab=make_f_xy(Fa,b,guess_thresh(Fa,b)) + make_f_xy(a,Fb,guess_thresh(a,Fb));
+
+     output("Applying Regularization Potential");
+
+     // make the (U-[K,f])|titj> part
+     // first the U Part
+     const real_function_6d Uab=apply_transformed_Ue(a,b);
+     // then the [K,f] part
+     const real_function_6d KffKab=apply_exchange_commutator(a,b);
+
+     real_function_6d V=(fFab + Uab - KffKab);
+     V.print_size("Vreg"+a.name()+b.name());
+     fFab.print_size("Vreg:f12(F-eij)|" + a.name() + b.name() + ">");
+     Uab.print_size("          Vreg:U|" + a.name() + b.name() + ">");
+     KffKab.print_size("      Vreg:[K,f]|" + a.name() + b.name() + ">");
+     return V;
+  }
+
+
   /// Make the CC2 Residue which is:  Q12f12(T-eij + 2J -K +Un )|titj> + Q12Ue|titj> - [K,f]|titj>  with |ti> = |\taui>+|i>
   /// @param[in] \tau_i which will create the |t_i> = |\tau_i>+|i> intermediate
   /// @param[in] \tau_j
@@ -732,96 +762,37 @@ namespace madness {
   /// Right now Calculated in the decomposed form: |titj> = |i,j> + |\taui,\tauj> + |i,\tauj> + |\taui,j>
   /// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
   real_function_6d
-  CC_Operators::make_cc2_residue(const CC_function &taui,const CC_function &tauj) const {
-    const CC_function ti=make_t_intermediate(taui);
-    const CC_function tj=make_t_intermediate(tauj);
-    const real_function_3d Fti=apply_F(ti) - get_orbital_energies()[ti.i] * ti.function;
-    const real_function_3d Ftj=apply_F(tj) - get_orbital_energies()[tj.i] * tj.function;
+  CC_Operators::make_regularization_residue(const CC_function &a,const CC_function &b, const calctype &ctype, const double omega) const {
+    output("Calculating GV_reg|"+a.name()+b.name()+">");
+    consistency_check(a,b,omega);
+    const bool symmetric(a.i==b.i);
 
-    // make the Fock operator part:  f(F-eij)|titj> = (F1+F2-ei-ej)|titj> = (F1-ei)|ti>|tj> + |ti>(F2-ei)|tj>
-    const real_function_6d fF_titj=make_f_xy(Fti,tj,guess_thresh(Fti,tj)) + make_f_xy(ti,Ftj,guess_thresh(ti,Ftj));
+    real_function_6d Vreg;
+    if(ctype==CC2_){
+      Vreg = apply_regularization_potential(make_t_intermediate(a),make_t_intermediate(b),0.0);
+    }else if(ctype==MP2_){
+      Vreg = apply_regularization_potential(mo_ket_(a.i),mo_ket_(b.i),0.0);
+    }else if(ctype==CISpD_){
+      Vreg = apply_regularization_potential(a,mo_ket_(b.i),omega);
+      if(symmetric){
+	output("Exploiting Symmetry for Diagonal pairing: " +a.name()+mo_ket_(b.i).name() +" = P12" + mo_ket_(a.i).name()+b.name());
+	Vreg = Vreg + swap_particles(Vreg);
+      }
+      else Vreg = Vreg = Vreg + apply_regularization_potential(mo_ket_(a.i),b,omega);
+    }else if(ctype==CC2_response_){
+      error("CC2_response residue not yet implemented");
+    }else error("Error in make_cc2_residue: Unknown ctype:"+assign_name(ctype));
 
-    output("Making the CC2 Residue");
+    Vreg.scale(-2.0);
+    apply_Q12(Vreg,"Vreg");
+    Vreg.truncate().reduce_rank();
+    Vreg.print_size("-2.0*Q12Vreg");
 
-    // make the (U-[K,f])|titj> part
-    // first the U Part
-    const real_function_6d U_titj=apply_transformed_Ue(ti,tj);
-    // then the [K,f] part
-    const real_function_6d KffK_titj=apply_exchange_commutator(ti,tj);
-
-    real_function_6d V=(fF_titj + U_titj - KffK_titj);
-    V.scale(-2.0);
-    V.print_size("V");
-    apply_Q12(V,"CC2-Residue:Potential");
-    V.print_size("Q12V");
-    V.truncate().reduce_rank();
-    V.print_size("Q12V.truncate");
-    fF_titj.print_size("CC2-Residue: f12(F-eij)|" + ti.name() + tj.name() + ">");
-    U_titj.print_size("CC2-Residue:          U|" + ti.name() + tj.name() + ">");
-    KffK_titj.print_size("CC2-Residue:      [K,f]|" + ti.name() + tj.name() + ">");
-
-    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(taui.i,tauj.i)),parameters.lo,parameters.thresh_bsh_6D);
+    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(a.i,b.i)+omega),parameters.lo,parameters.thresh_bsh_6D);
     G.destructive()=true;
-    real_function_6d GV=G(V);
+    real_function_6d GV=G(Vreg);
     apply_Q12(GV,"CC2-Residue:G(V)");
     return GV;
-  }
-
-  // apply the kinetic energy operator with cusp to a decomposed 6D function
-  /// @param[in] a 3d function x (will be particle 1 in the decomposed 6d function)
-  /// @param[in] a 3d function y (will be particle 2 in the decomposed 6d function)
-  /// @param[out] a 6d function: G(f12*T*|xy>)
-  real_function_6d
-  CC_Operators::make_GQfT_xy(const real_function_3d &x,const real_function_3d &y,const size_t &i,const size_t &j) const {
-    error("make_GQfT should not be used");
-    // construct the greens operator
-    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(i,j)),parameters.lo,parameters.thresh_bsh_6D);
-
-    std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-    gradop=gradient_operator<double, 3>(world);
-    vecfuncT gradx, grady;
-    vecfuncT laplacex, laplacey;
-    for(size_t axis=0; axis < 3; axis++){
-      real_function_3d gradxi=(*gradop[axis])(x);
-      real_function_3d gradyi=(*gradop[axis])(y);
-      gradx.push_back(gradxi);
-      grady.push_back(gradyi);
-      real_function_3d grad2xi=(*gradop[axis])(gradxi);
-      real_function_3d grad2yi=(*gradop[axis])(gradyi);
-      laplacex.push_back(grad2xi);
-      laplacey.push_back(grad2yi);
-    }
-    real_function_3d laplace_x=laplacex[0] + laplacex[1] + laplacex[2];
-    real_function_3d laplace_y=laplacey[0] + laplacey[1] + laplacey[2];
-    real_function_3d Tx=laplace_x.scale(-0.5);
-    real_function_3d Ty=laplace_y.scale(-0.5);
-    // make the two screened 6D functions
-    // fTxy = f12 |(\Delta x)y> , fxTy = f12 |x\Delta y> (delta = laplace_operator)
-    real_function_6d fTxy=CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).particle1(copy(Tx)).particle2(copy(y));
-    real_function_6d fxTy=CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).particle1(copy(x)).particle2(copy(Ty));
-    // for now construct explicitly and project out Q12 later: use BSH operator to screen
-    if(world.rank() == 0) std::cout << "Constructing fTxy with G as screening operator\n";
-    CC_Timer fTxy_construction_time(world,"Screened 6D construction of fTxy");
-    {
-      real_convolution_6d screenG=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(i,j)),parameters.lo,parameters.thresh_bsh_6D);
-      screenG.modified()=true;
-      fTxy.fill_tree(screenG).truncate().reduce_rank();
-    }
-    {
-      real_convolution_6d screenG=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(i,j)),parameters.lo,parameters.thresh_bsh_6D);
-      screenG.modified()=true;
-      fxTy.fill_tree(screenG).truncate().reduce_rank();
-    }
-    fTxy_construction_time.info();
-    CC_Timer addition_time(world,"f(Tx)y + fxTy");
-    real_function_6d result=(fTxy + fxTy).truncate();
-    apply_Q12(result,"fT|xy>");
-
-    CC_Timer apply_G(world,"G(fTxy)");
-    real_function_6d G_result=G(result);
-    G_result.truncate();
-    apply_G.info();
-    return G_result;
   }
 
   /// The 6D Fock residue on the cusp free pair function u_{ij}(1,2) is: (2J - Kn - Un)|u_{ij}>
@@ -1274,8 +1245,66 @@ namespace madness {
     output("CCS Energy Coulomb part: 2.0<ij|g|\taui\tauj> - <ji|g|\taui\tauj>=" + stringify(omega));
     return omega + omega_f;
   }
-  double
-  CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,const CC_function &taui,const CC_function &tauj) const {
+  // (<ixj| + <xi,j )g(2|uij> - |uji>) +  (<ixj| + <xi,j )gQf(2|xi,j> - |j,xi> + 2|i,xj> - |xj,i>)
+  double CC_Operators::compute_cispd_pair_energy(const CC_Pair &u,const CC_function & xi,const CC_function &xj)const{
+    const CC_function& moi  = mo_ket_(xi.i);
+    const CC_function& moj  = mo_ket_(xj.i);
+    const double ixjgu = make_ijgu(moi,xj,u);
+    const double xijgu = make_ijgu(xi,moj,u);
+
+    const double jxigu = make_ijgu(moj,xi,u);
+    const double xjigu = make_ijgu(xj,moi,u);
+
+    const double local= (xijgu + ixjgu);
+    const double exchange = (xjigu+jxigu);
+    const double regular_part = 2.0*local - exchange ;
+
+    const double ixj_gQf_xij = make_ijgQfxy(moi,xj,xi,moj);
+    const double ixj_gQf_ixj = make_ijgQfxy(moi,xj,moi,xj);
+    const double xij_gQf_xij = make_ijgQfxy(xi,moj,xi,moj);
+    const double xij_gQf_ixj = make_ijgQfxy(xi,moj,moi,xj);
+
+    const double ixj_gQf_jxi = make_ijgQfxy(moi,xj,moj,xi);
+    const double ixj_gQf_xji = make_ijgQfxy(moi,xj,xj,moi);
+    const double xij_gQf_jxi = make_ijgQfxy(xi,moj,moj,xi);
+    const double xij_gQf_xji = make_ijgQfxy(xi,moj,xj,moi);
+
+    const double f12_local = (ixj_gQf_xij+ixj_gQf_ixj+xij_gQf_xij+xij_gQf_ixj);
+    const double f12_exchange=(ixj_gQf_jxi+ixj_gQf_xji+xij_gQf_jxi+xij_gQf_xji);
+    if(xi.i==xj.i){
+      double diff=f12_local-f12_exchange;
+      if(fabs(diff)>1.e-6) warning("Symmetric Pair but local and exchange part of f12 energy are not equal, difference is " + std::to_string(diff));
+      double diff2=local-exchange;
+      if(fabs(diff2)>1.e-6) warning("Symmetric Pair but local and exchange part of pair energy are not equal, difference is " + std::to_string(diff2));
+    }
+    double f12_part = 2.0*f12_local-f12_exchange;
+
+    if(world.rank() == 0){
+      std::cout << "\n\nEnergy Contributions to the CIS(D)-pair energy of pair " << xi.i << xj.i << "\n";
+      std::cout << "Regular Part " << regular_part << std::endl;
+      std::cout << "Reg-Local    " << local << std::endl;
+      std::cout << "Reg-Exchange " << exchange << std::endl;
+      std::cout << "F12 Part     " << f12_part << std::endl;
+      std::cout << "F12-Local    " << f12_local << std::endl;
+      std::cout << "F12-Exchange " << f12_exchange << std::endl;
+    }
+    return regular_part + f12_part;
+  }
+
+  // return <x|S4(u,x)>
+  double CC_Operators::compute_cispd_energy_constant_part(const Pairs<CC_Pair> &u, const CC_vecfunction x)const{
+    const vecfuncT S4a = add(world,potential_singles(u,x,pot_S4a_u_),potential_singles(u,x,pot_S4a_u_));
+    const vecfuncT S4b = add(world,potential_singles(u,x,pot_S4b_u_),potential_singles(u,x,pot_S4b_u_));
+    const vecfuncT S4c = add(world,potential_singles(u,x,pot_S4b_u_),potential_singles(u,x,pot_S4b_u_));
+    const vecfuncT tmp = add(world,S4a,S4b);
+    vecfuncT V = add(world,tmp,S4c);
+    Q(V);
+    const vecfuncT brax = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
+    const Tensor<double> xV = inner(world,brax,V);
+    return xV.sum();
+  }
+
+  double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,const CC_function &taui,const CC_function &tauj) const {
     calctype type;
     if(taui.function.is_initialized() and tauj.function.is_initialized()){
       type=CC2_;
@@ -1344,6 +1373,58 @@ namespace madness {
     return omega;
   }
 
+
+  double CC_Operators::make_ijgQfxy(const  CC_function &i, const  CC_function &j, const CC_function &x, const CC_function &y) const{
+
+    // part 1, no projector: <ij|gf|xy>
+    const real_function_3d brai = nemo.nuclear_correlation->square()*i.function;
+    const real_function_3d braj = nemo.nuclear_correlation->square()*i.function;
+    const real_function_3d jy=(brai * y.function).truncate();
+    const real_function_3d ix=(braj * x.function).truncate();
+    const real_function_3d jgfy=apply_gf(jy);
+    const double part1=ix.inner(jgfy);
+
+    // part 2, projector on particle 1 <j|igm*mfx|y> = jy.inner(igm*mfx)
+    double part2=0.0;
+    for(const auto& mtmp : mo_ket_.functions){
+      const CC_function& mom=mtmp.second;
+      const size_t m=mtmp.first;
+      const real_function_3d igm=apply_g12(mom,i);
+      const real_function_3d mfx=apply_f12(mo_bra_(m),x);
+      part2-=jy.inner(igm * mfx);
+    }
+    // part3, projector on particle 2 <i|jgn*nfy|x>
+    double part3=0.0;
+    for(const auto& ntmp : mo_ket_.functions){
+      const CC_function& mon=ntmp.second;
+      const size_t n=ntmp.first;
+      const real_function_3d jgn=apply_g12(mon,j);
+      const real_function_3d nfy=apply_f12(mo_bra_(n),y);
+      part2-=ix.inner(jgn * nfy);
+    }
+
+    // part4, projector on both particles <ij|g|mn><mn|f|xy>
+    double part4=0.0;
+    for(const auto& mtmp : mo_ket_.functions){
+      const CC_function& mom=mtmp.second;
+      const size_t m=mtmp.first;
+      const real_function_3d igm=apply_g12(mom,i);
+      const real_function_3d mfx=apply_f12(mo_bra_(m),x);
+      for(const auto& ntmp : mo_ket_.functions){
+	const CC_function& mon=ntmp.second;
+	const size_t n=ntmp.first;
+	const real_function_3d jn=braj * mon.function;
+	const real_function_3d ny=mo_bra_(n).function * y.function;
+	const double ijgmn=jn.inner(igm);
+	const double mnfxy=ny.inner(mfx);
+	part4+=ijgmn * mnfxy;
+      }
+    }
+
+    return part1 + part2 + part3 + part4;
+
+  }
+
   /// General Function to make the intergral <ij|gQf|xy>
   double
   CC_Operators::make_ijgQfxy(const size_t &i,const size_t &j,const CC_function &x,const CC_function &y) const {
@@ -1391,7 +1472,11 @@ namespace madness {
       }
     }
 
-    return part1 + part2 + part3 + part4;
+    double result = part1 + part2 + part3 + part4;
+    double test = make_ijgQfxy(mo_ket_(i),mo_ket_(j),x,y);
+    std::cout << " debug ijgQfxy:\nold =" << result <<"\nnew =" << test << "\ndiff=" << test-result << std::endl;
+    if(fabs(test-result)>1.e-5) warning("WARNING FOR IJGQFXY");
+    return result;
 
     //	// Q12 = I12 - O1 - O2 + O12
     //	real_function_3d jy = mo_bra_(j).function*y;
@@ -1488,6 +1573,21 @@ namespace madness {
 
     // compute < ij | g12 | u >
     const double ij_g_u=inner(u,ij_g);
+    return ij_g_u;
+  }
+
+  double
+  CC_Operators::make_ijgu(const CC_function &phi_i,const CC_function &phi_j,const CC_Pair &u) const {
+     real_function_3d brai;
+     if(phi_i.type==HOLE) brai=mo_bra_(phi_i.i).function;
+     else brai = nemo.nuclear_correlation->square()*phi_i.function;
+     real_function_3d braj;
+     if(phi_j.type==HOLE) brai=mo_bra_(phi_j.i).function;
+     else braj = nemo.nuclear_correlation->square()*phi_j.function;
+    real_function_6d g=TwoElectronFactory(world).dcut(parameters.lo);
+    real_function_6d ij_g=CompositeFactory<double, 6, 3>(world).particle1(copy(brai)).particle2(copy(braj)).g12(g);
+    // compute < ij | g12 | u >
+    const double ij_g_u=inner(u.function,ij_g);
     return ij_g_u;
   }
 

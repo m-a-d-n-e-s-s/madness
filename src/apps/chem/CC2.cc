@@ -65,104 +65,36 @@ namespace madness {
   }
 
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
-/// \todo Matt added "return false" at the end; otherwise, the end was reached without a return statement. please verify!
-  bool
-  CC2::solve_CCS() {
+  std::vector<std::pair<CC_vecfunction,double> > CC2::solve_CCS() {
     output_section("SOLVE CCS");
-    // since the symmetry should not change use the projected aos from moldft as guess
-    // calculate HF energy = sum_i 2.0*\epsilon_i + \sum_ij 2.0*<ij|g|ij> - <ij|g|ji>
-    double HF_energy=nemo.get_calc()->molecule.nuclear_repulsion_energy();
-    if(world.rank() == 0) std::cout << "Nuclear repulsion is " << HF_energy << std::endl;
-    double Corr_energy=0.0;
-    for(size_t i=0; i < active_mo.size(); i++){
-      HF_energy+=2.0 * CCOPS.get_orbital_energies()[i];
-      for(size_t j=0; j < active_mo.size(); j++){
-	HF_energy-=2.0 * CCOPS.make_integral(i,j,CC_function(active_mo[i],i,HOLE),CC_function(active_mo[j],j,HOLE));
-	HF_energy+=CCOPS.make_integral(j,i,CC_function(active_mo[i],i,HOLE),CC_function(active_mo[j],j,HOLE));
+    TDA CCS_Solver(world,nemo,nemo.get_calc()->amo,"input");
+    {
+      xfunctionsT guess;
+      CCS_Solver.solve_guess(guess);
+      guess.clear();
+    }
+    {
+      xfunctionsT solve = CCS_Solver.get_converged_xfunctions();
+      CCS_Solver.solve(solve);
+      solve.clear();
+    }
+    {
+      xfunctionsT final = CCS_Solver.get_converged_xfunctions();
+      CCS_Solver.solve_sequential(final);
+      final.clear();
+    }
+    output_section("SOLVE CCS finished");
+    std::vector<std::pair<CC_vecfunction,double>> ccs_vectors;
+    {
+      xfunctionsT ccs_vectors_tmp = CCS_Solver.get_converged_xfunctions();
+      for(size_t i=0;i<ccs_vectors_tmp.size();i++){
+	const vecfuncT xtmp = ccs_vectors_tmp[i].x;
+	const CC_vecfunction x(xtmp,RESPONSE,parameters.freeze);
+	const double omega = ccs_vectors_tmp[i].omega;
+	ccs_vectors.push_back(std::make_pair(x,omega));
       }
     }
-    if(world.rank() == 0) std::cout << "HARTREE-FOCK ENERGY IS: " << HF_energy << std::endl;
-    real_function_3d guessi=real_factory_3d(world);
-    //for(size_t i=0;i<nemo.get_calc()->ao.size();i++) guessi += nemo.get_calc()->ao[i];
-    //CCOPS.Q(guessi);
-    vecfuncT guess(active_mo.size(),guessi);
-    CC_vecfunction singles(guess,PARTICLE,parameters.freeze);
-
-    std::vector<double> omega;
-    for(size_t iter=0; iter < 30; iter++){
-      output_subsection("Iterate CCS: Iteration " + stringify(iter + 1));
-      CCOPS.update_intermediates(singles);
-      CC_Timer timer_potential(world,"CCS Potential");
-      vecfuncT potential=CCOPS.get_CCS_potential(singles);
-      timer_potential.info();
-
-      output_subsection("Apply the Green's Operator");
-      CC_Timer timer_G(world,"Apply the Green's Operator");
-      vecfuncT G_potential=zero_functions<double, 3>(world,potential.size());
-      scale(world,potential,-2.0);
-      for(size_t i=0; i < potential.size(); i++){
-	double epsi=CCOPS.get_orbital_energies()[i];
-	real_convolution_3d G=BSHOperator<3>(world,sqrt(-2.0 * epsi),parameters.lo,parameters.thresh_bsh_3D);
-	real_function_3d tmp=(G(potential[i])).truncate();
-	CCOPS.Q(tmp);
-	G_potential[i]=tmp;
-      }
-      timer_G.info();
-
-      std::vector<double> errors;
-      bool converged=true;
-      for(size_t i=0; i < potential.size(); i++){
-	if(world.rank() == 0) std::cout << "|| |tau" + stringify(i) + ">|| =" << G_potential[i].norm2() << std::endl;
-	real_function_3d residue=singles(i).function - G_potential[i];
-	double error=residue.norm2();
-	errors.push_back(error);
-	if(world.rank() == 0) std::cout << "|| residue" + stringify(i) + ">|| =" << error << std::endl;
-	CCOPS.Q(G_potential[i]);
-	real_function_3d tau_before=singles(i).function;
-	CC_function new_single_i(G_potential[i],singles(i).i,PARTICLE);
-	singles(i)=new_single_i;
-	real_function_3d tau_after=singles(i).function;
-	double difference=(tau_before - tau_after).norm2();
-	double difference2=(tau_after - G_potential[i]).norm2();
-	if(world.rank() == 0) std::cout << "tau replacement debug (difference should be NOT zero): difference=" << difference << std::endl;
-	if(world.rank() == 0) std::cout << "tau replacement debug (difference should be zero): difference=" << difference2 << std::endl;
-	if(fabs(error) > parameters.dconv_3D) converged=false;
-	omega.push_back(CCOPS.compute_ccs_correlation_energy(singles(i),singles(i)));
-      }
-      // print out the norms
-      output("Performance Overview of Iteration " + stringify(iter));
-      if(world.rank() == 0) CCOPS.performance_S.info_last_iter();
-      if(world.rank() == 0) CCOPS.performance_D.info_last_iter();
-      output("\nNorm of Singles\n");
-      for(auto x : singles.functions)
-	x.second.function.print_size("|tau_" + stringify(x.first) + ">");
-      output("End performance Overview\n");
-
-      output("Current CCS Correlation energies (Diagonal Part)");
-      if(world.rank() == 0) std::cout << omega << std::endl;
-      output("CCS Norms");
-      for(size_t i=0; i < singles.size(); i++){
-	double norm=singles(i).function.norm2();
-	if(world.rank() == 0) std::cout << norm << std::endl;
-      }
-      output("Current <ti|F|ti> values");
-      const CC_vecfunction t=CCOPS.make_t_intermediate(singles);
-      const real_function_3d R2=nemo.nuclear_correlation->square();
-      for(const auto itmp : t.functions){
-	const real_function_3d brai=itmp.second.function * R2;
-	const real_function_3d Fketi=CCOPS.apply_F(CC_function(itmp.second.function,itmp.first,UNDEFINED));
-	const double omegai=brai.inner(Fketi);
-	std::cout << "<" << itmp.second.name() << "|F|" << itmp.second.name() << ">=" << omegai << std::endl;
-      }
-      if(converged) break;
-
-    }
-    Corr_energy=omega.back();
-    if(world.rank() == 0) std::cout << "Correlation Energy Convergence:\n" << omega << std::endl;
-    if(world.rank() == 0)
-      std::cout << "CCS finished\n" << "Hartree_Fock energy is " << HF_energy << "\nCorrelation Energy is " << Corr_energy << "\nTotel Energy is " << HF_energy + Corr_energy << std::endl;
-
-    return false;
+    return ccs_vectors;
   }
 
   double
@@ -351,7 +283,7 @@ namespace madness {
     output_section("Solve MP2");
     bool mp2_converged=true;
     for(auto& tmp_pair : doubles.allpairs){
-      bool pair_converged=iterate_pair(tmp_pair.second);
+      bool pair_converged=iterate_pair(tmp_pair.second,CC_vecfunction());
       if(not pair_converged) mp2_converged=false;
     }
     print_results(doubles,initialize_cc2_singles());
@@ -520,34 +452,35 @@ namespace madness {
 
 // the constant part of CC2 will be calculated and stored in the pair, after that the pair is iterated with the MP2 alg. till it converges
 // Note: if the singles are initialized to 0 then this is just MP2
-  bool
-  CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles) const {
-    bool converged=false;
-    calctype type=CC2_;
-    if(singles.size() == 0){
-      output("No Singles: Current Iterations are MP2");
-      type=MP2_;
-    }
+  bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles) const {
+    if(singles.size()==0) return iterate_pair(pair,singles,CC_vecfunction(PARTICLE),MP2_);
+    else if(singles.type==PARTICLE) return iterate_pair(pair,singles,CC_vecfunction(RESPONSE),CC2_);
+    else if(singles.type==RESPONSE) return iterate_pair(pair,CC_vecfunction(PARTICLE),singles,CISpD_);
+    else error("Calles iterate Pair with singles of undefined type");
+  }
+  bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles, const CC_vecfunction response_singles,const calctype ctype) const {
+    output("Iterate " + assign_name(ctype) + " Pair " + pair.name());
 
 // check if the constant part has to be recalculated
     bool recalc_const=true;
-    if(type == MP2_ and parameters.restart) recalc_const=false;
-    if(type == CC2_){
+    if(ctype == MP2_ and parameters.restart) recalc_const=false;
+    if(ctype == CC2_){
       if(singles(pair.i).current_error < parameters.dconv_3D and singles(pair.j).current_error < parameters.dconv_3D) recalc_const=false;
     }
+    if(ctype == CISpD_) recalc_const=false;
+
     if(not pair.constant_term.impl_initialized()){
       output("semi-constant-term was not stored -> recalculation");
       recalc_const=true;
     }
 
-    output_section("Iterate " + pair.name());
-
     real_function_6d regular_part;
     if(recalc_const){
-      output_subsection("Get Regularized-Potential of Pair " + pair.name());
-      CC_Timer timer_cc2_regular(world,"Get Semi-Constant CC2 Part of Pair " + pair.name());
-      if(type == CC2_) regular_part=CCOPS.make_cc2_residue_sepparated(singles(pair.i),singles(pair.j));
-      else if(type == MP2_) regular_part=CCOPS.make_cc2_residue_sepparated(CC_function(real_factory_3d(world),pair.i,HOLE),CC_function(real_factory_3d(world),pair.j,HOLE));
+      output_subsection("Get" + assign_name(ctype)+" Regularization Potential of Pair " + pair.name());
+      CC_Timer timer_cc2_regular(world,"Get Regularization Potential of Pair " + pair.name());
+      if(ctype == CC2_)        regular_part=CCOPS.make_regularization_residue(singles(pair.i),singles(pair.j),ctype,0.0);           //   CCOPS.make_cc2_residue_sepparated(singles(pair.i),singles(pair.j));
+      else if(ctype == MP2_)   regular_part=CCOPS.make_regularization_residue(CCOPS.mo_ket(pair.i),CCOPS.mo_ket(pair.j),ctype,0.0);//   CCOPS.make_cc2_residue_sepparated(CCOPS.mo_ket(pair.i),CCOPS.mo_ket(pair.j));
+      else if(ctype == CISpD_) regular_part=CCOPS.make_regularization_residue(response_singles(pair.i),response_singles(pair.j),ctype,pair.current_energy);
       regular_part.print_size("Regularization part of pair " + pair.name());
       timer_cc2_regular.info();
       pair.constant_term=copy(regular_part);
@@ -559,32 +492,40 @@ namespace madness {
     }
 
     real_function_6d coulomb_part=real_factory_6d(world);
-    if(type == CC2_){
+    if(ctype == CC2_ or ctype==CISpD_){
       CC_Timer timer_cc2_coulomb(world,"Get Screened Coulomb Potentials of CC2 singles");
       const double thresh=CCOPS.guess_thresh(singles(pair.i),singles(pair.j));
       if(thresh < FunctionDefaults<6>::get_thresh()){
 	output("Increasing 6D thresh for screened Coulomb parts of singles");
 	FunctionDefaults<6>::set_thresh(parameters.tight_thresh_6D);
       }
-      coulomb_part=CCOPS.make_cc2_coulomb_parts(singles(pair.i),singles(pair.j),singles);
+      if(ctype==CC2_) coulomb_part=CCOPS.make_cc2_coulomb_parts(CCOPS.make_t_intermediate(singles(pair.i)),CCOPS.make_t_intermediate(singles(pair.j)),singles);
+      if(ctype==CISpD_){
+	coulomb_part=CCOPS.make_cc2_coulomb_parts(CCOPS.mo_ket(pair.i),response_singles(pair.j),response_singles)
+		    +CCOPS.make_cc2_coulomb_parts(response_singles(pair.i),CCOPS.mo_ket(pair.j),response_singles);
+      }
       coulomb_part.print_size("Coulomb part of Singles for pair " + pair.name());
       FunctionDefaults<6>::set_thresh(parameters.thresh_6D);
       timer_cc2_coulomb.info();
     }
 
     const real_function_6d constant_part=(regular_part + coulomb_part);
+    if(ctype == CISpD_)  pair.constant_term = copy(constant_part);
     constant_part.print_size("semi-constant-cc2-part of pair " + pair.name());
 
     output_subsection("Converge pair " + pair.name() + " on constant singles potential");
 
     CC_Timer make_BSH_time(world,"Make Detructive Greens Operator");
-    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * CCOPS.get_epsilon(pair.i,pair.j)),parameters.lo,parameters.thresh_bsh_6D);
+    double bsh_eps = CCOPS.get_epsilon(pair.i,pair.j);
+    if(ctype==CISpD_) bsh_eps = CCOPS.get_epsilon(pair.i,pair.j) + pair.current_energy;
+    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * bsh_eps),parameters.lo,parameters.thresh_bsh_6D);
     G.destructive()=true;
     make_BSH_time.info();
 
     NonlinearSolverND<6> solver(parameters.kain_subspace);
     solver.do_print=(world.rank() == 0);
 
+    bool converged=false;
     for(size_t iter=0; iter < parameters.iter_max_6D; iter++){
       output_subsection("MP2-Microiteration with Frozen CC2-Singles");
       CC_Timer timer_mp2(world,"MP2-Microiteration of pair " + pair.name());
@@ -615,8 +556,8 @@ namespace madness {
 	pair.function=unew;
       }
       const double old_energy=pair.current_energy;
-      if(type == CC2_) pair.current_energy=CCOPS.compute_cc2_pair_energy(pair,singles(pair.i),singles(pair.j));
-      else if(type == MP2_) pair.current_energy=CCOPS.compute_mp2_pair_energy(pair);
+      if(ctype == CC2_) pair.current_energy=CCOPS.compute_cc2_pair_energy(pair,singles(pair.i),singles(pair.j));
+      else if(ctype == MP2_) pair.current_energy=CCOPS.compute_mp2_pair_energy(pair);
       const double delta=pair.current_energy - old_energy;
       pair.current_error=error;
       pair.current_energy_difference=delta;
@@ -637,7 +578,7 @@ namespace madness {
     }
 
 // store current functions for restart later
-    if(type == MP2_){
+    if(ctype == MP2_){
       std::string msg="mp2_";
       if(converged) msg+="converged_pair_";
       else msg+="not_converged_pair_";
@@ -649,58 +590,7 @@ namespace madness {
     return converged;
   }
 
-  bool
-  CC2::iterate_cc2_doubles(Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
-    output_subsection("Iterate CC2 Doubles");
 
-    bool converged=true;
-    for(size_t i=parameters.freeze; i < mo.size(); i++){
-      for(size_t j=i; j < mo.size(); j++){
-	CC_Timer whole_potential(world,"whole doubles potential");
-
-	CC_Timer make_BSH_time(world,"Make BSH Operator");
-	real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * CCOPS.get_epsilon(i,j)),parameters.lo,parameters.thresh_bsh_6D);
-	make_BSH_time.info();
-
-	real_function_6d doubles_potential=CCOPS.get_CC2_doubles_potential(doubles(i,j),singles);
-
-	CC_Timer G_time(world,"Apply Greens Operator to doubles potential");
-	doubles_potential.scale(-2.0);
-	const real_function_6d G_doubles_potential=G(doubles_potential);
-	G_doubles_potential.print_size("-2.0*G(doubles_potential)");
-	G_time.info();
-
-	// add the constant term
-	output("Do NOT Add constant MP2 Term, since it has been recalculated");
-	//real_function_6d u_new = doubles(i,j).constant_term + G_doubles_potential;
-	real_function_6d u_new=G_doubles_potential;
-
-	u_new.print_size("u_new");
-	CCOPS.apply_Q12(u_new,"u_new");
-	u_new.print_size("Q12(u_New)");
-	real_function_6d BSH_residue=doubles(i,j).function - u_new;
-	const double error=BSH_residue.norm2();
-	const double omega=CCOPS.compute_cc2_pair_energy(doubles(i,j),singles(i),singles(j));
-	CCOPS.performance_D.current_iteration++;
-	std::cout << "Iteration of pair |u" << i << j << "> completed, current error is:" << error << ", current correlation energy is " << std::setprecision(parameters.output_prec) << omega
-	    << std::endl;
-	if(error > parameters.dconv_6D) converged=false;
-	if(world.rank() == 0){
-	  if(converged) std::cout << "\n\n\n\t\t\tPair" << i << j << " converged!\n\n\n" << std::endl;
-	}
-	real_function_6d updated_function=u_new;
-	doubles(i,j).function=updated_function;
-	doubles(i,j).current_error=error;
-	doubles(i,j).current_energy=omega;
-	BSH_residue.print_size("Residue");
-	doubles(i,j).function.truncate();
-	doubles(i,j).store_pair(world);
-	whole_potential.info();
-      }
-    }
-
-    return converged;
-  }
 
   CC_vecfunction
   CC2::initialize_cc2_singles() const {
@@ -713,7 +603,7 @@ namespace madness {
       CC_function taui(G_guess_potential[i],i + parameters.freeze,PARTICLE);
       tmp.push_back(taui);
     }
-    return CC_vecfunction(tmp);
+    return CC_vecfunction(tmp,PARTICLE);
   }
 // Unnecessary function
   double
