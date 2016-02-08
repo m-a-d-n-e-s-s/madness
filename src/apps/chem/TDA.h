@@ -408,7 +408,6 @@ public:
 		nemo_(nemo),
 		mos_(mos),
 		CCOPS_(CIS_Operators(world,nemo,mos)),
-		//active_mos_for_guess_calculation_(mos),
 		print_grid_(false),
 		guess_("dipole+"),
 		solve_iter_(5),
@@ -420,16 +419,12 @@ public:
 		iterating_excitations_(0),
 		iter_max_(20),
 		econv_(parameters.thresh_3D),
-		guess_econv_(10.0*parameters.thresh_3D), // econv_6D is always looser than econv 3D
-		dconv_(10.0*parameters.thresh_3D),
-		guess_dconv_(100.0*parameters.thresh_3D), // same as with econv
-		hard_dconv_(5.0*parameters.thresh_3D),
+		guess_econv_(10.0*parameters.dconv_3D), // econv_6D is always looser than econv 3D
+		dconv_(10.0*parameters.dconv_3D),
+		guess_dconv_(100.0*parameters.dconv_3D), // same as with econv
+		hard_dconv_(parameters.dconv_3D),
 		hard_econv_(0.1*parameters.thresh_3D),
-		//nfreeze_(0),
 		plot_(false),
-		//parameters.debug(parameters.debug),
-		//on_the_fly_(true),
-		//xclib_interface_(world,calc),
 		only_fock_(false),
 		only_GS_(false),
 		ipot_(0.0),
@@ -439,9 +434,6 @@ public:
 		triplet_(false),
 		use_omega_for_bsh_(true),
 		compute_virtuals_(false)
-		//guess_thresh_(parameters.thresh_3D),
-		//solve_thresh_(parameters.thresh_3D),
-		//solve_sequential_thresh_(parameters.thresh_3D)
 {
 		setup(mos,input);
 }
@@ -486,7 +478,6 @@ public:
 			else if (tag == "guess_econv") ss >> guess_econv_;
 			else if (tag == "dconv") ss >> dconv_;
 			else if (tag == "guess_dconv") ss >> guess_dconv_;
-			//else if (tag == "freeze") ss >> nfreeze_;
 			else if (tag == "print_grid") print_grid_=true;
 			else if (tag == "plot") plot_=true;
 			else if (tag == "debug") parameters.debug=true;
@@ -499,9 +490,6 @@ public:
 			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
 			else if (tag == "triplet") triplet_=true;
 			else if (tag == "compute_virtuals") compute_virtuals_ = true;
-			//else if (tag == "solve_sequential_thresh") ss>>solve_sequential_thresh_;
-			//else if (tag == "solve_thresh") ss >> solve_thresh_;
-			//else if (tag == "guess_thresh") ss >> guess_thresh_;
 			else if (tag == "dft") dft_ = true;
 			else continue;
 		}
@@ -536,9 +524,10 @@ public:
 		}
 
 		if (world.rank() == 0) {
+			std::cout << std::scientific << std::endl;
 			std::cout<< std::setw(60) <<"\n\n\n\n ======= TDA info =======\n\n\n" << std::endl;
-			if (parameters.freeze==0) std::cout<< std::setw(40) <<"# frozen orbitals : "<<"none" << std::endl;
-			if (parameters.freeze>0) std::cout<< std::setw(40) <<"# frozen orbitals : " <<  "0 to " << parameters.freeze-1 << std::endl;
+			if (parameters.freeze==0) std::cout<< std::setw(40) <<"frozen orbitals : "<<"none" << std::endl;
+			if (parameters.freeze>0) std::cout<< std::setw(40) <<"frozen orbitals : " <<  "0 to " << parameters.freeze-1 << std::endl;
 			std::cout<< std::setw(40) <<"active orbitals : " << parameters.freeze << " to " << mos_.size()-1 << std::endl;
 			std::cout<< std::setw(40) << "guess from : " << guess_ << std::endl;
 			std::cout<< std::setw(40) << "Gram-Schmidt is used : " << !only_fock_ << std::endl;

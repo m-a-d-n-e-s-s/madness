@@ -18,18 +18,38 @@
 
 namespace madness{
 
-enum calctype {MP2_, CC2_, CC2_response_, CISpD_};
+enum optype {g12_,f12_};
+enum calctype {MP2_, CC2_, CCS_response, CC2_response_, CISpD_};
 enum functype {HOLE,PARTICLE,MIXED,RESPONSE,UNDEFINED};
+enum pairtype {GROUND_STATE,EXCITED_STATE};
 enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S1_, pot_S5a_, pot_ccs_};
 enum potentialtype_d {pot_F6D_, pot_cc2_coulomb_,pot_cc2_residue_};
 // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
 enum pair_function_form{DECOMPOSED, FULL};
+static std::string assign_name(const optype &input){
+  switch(input){
+    case g12_ : return "g12";
+    case f12_ : return "f12";
+  }
+}
+static calctype assign_calctype(const std::string name){
+  if(name=="mp2") return MP2_;
+  else if(name=="cc2") return CC2_;
+  else if(name=="cc2_response") return CC2_response_;
+  else if(name=="cispd") return CISpD_;
+  else if(name=="cis" or name=="ccs" or name=="ccs_response") return CCS_response;
+  else{
+    std::string msg= "CALCULATION OF TYPE: " + name + " IS NOT KNOWN!!!!";
+    MADNESS_EXCEPTION(msg.c_str(),1);
+  }
+}
 static std::string assign_name(const calctype &inp){
 	switch(inp){
 	case CC2_ : return "CC2";
 	case MP2_ : return "MP2";
 	case CC2_response_ : return "CC2-Response";
 	case CISpD_ : return "CIS(D)";
+	case CCS_response: return "CCS/CIS";
 	}
 	return "unknown";
 }
@@ -126,6 +146,7 @@ struct CC_Parameters{
 	// read parameters from input
 	/// ctor reading out the input file
 	CC_Parameters(const std::string& input,const double &low) :
+		calculation(CISpD_),
 		lo(uninitialized),
 		thresh_3D(uninitialized),
 		tight_thresh_3D(uninitialized),
@@ -142,12 +163,10 @@ struct CC_Parameters{
 		iter_max_3D(10),
 		iter_max_6D(10),
 		restart(false),
+		no_compute(false),
 		corrfac_gamma(1.0),
 		output_prec(8),
 		debug(false),
-		mp2_only(false),
-		mp2(false),
-		ccs(false),
 		kain(false),
 		freeze(0),
 		test(false)
@@ -167,6 +186,11 @@ struct CC_Parameters{
 			std::transform(s.begin(),s.end(),s.begin(), ::tolower);
 			//std::cout << "transformed input tag is: " << s << std::endl;
 			if (s == "end") break;
+			else if (s == "calculation"){
+			  std::string tmp;
+			  f>>tmp;
+			  calculation = assign_calctype(tmp);
+			}
 			else if (s == "lo") f >> lo;
 			else if (s == "thresh") f >> thresh_6D;
 			else if (s == "thresh_3d") f >> thresh_3D;
@@ -190,15 +214,16 @@ struct CC_Parameters{
 			else if (s == "iter_max_3d") f >> iter_max_3D;
 			else if (s == "iter_max_6d") f >> iter_max_6D;
 			else if (s == "restart") restart=true;
+			else if (s == "no_compute") no_compute=true;
 			else if (s == "kain") kain=true;
 			else if (s == "kain_subspace") f>>kain_subspace;
-			else if (s == "mp2_only" ) {mp2_only=true; mp2=true;}
-			else if (s == "mp2") mp2=true;
-			else if (s == "ccs") ccs=true;
 			else if (s == "freeze") f>>freeze;
 			else if (s == "test") test =true;
 			else if (s == "corrfac") f>>corrfac_gamma;
-			else continue;
+			else{
+			  std::cout << "Unknown Keyword: " << s << "\n";
+			  continue;
+			}
 		}
 
 		// set defaults
@@ -237,6 +262,8 @@ struct CC_Parameters{
 	}
 
 
+	// the demanded calculation: possibilities are MP2_, CC2_, CIS_, CCS_ (same as CIS), CISpD_
+	calctype calculation;
 	double lo;
 	// function thresh 3D
 	double thresh_3D;
@@ -264,19 +291,14 @@ struct CC_Parameters{
 	size_t iter_max_6D;
 	// restart
 	bool restart;
+	bool no_compute;
 	// Exponent for the correlation factor
 	double corrfac_gamma;
 	// for formated output
 	size_t output_prec;
 	// debug mode
 	bool debug;
-	// do only mp2 calculation and no cc2
-	bool mp2_only;
-	// do mp2 calculation as guess calculation for cc2
-	bool mp2;
-	// do CCS calculation in the beginning
-	bool ccs;
-	// use kain or not
+	// use kain
 	bool kain;
 	size_t kain_subspace;
 	// freeze MOs
@@ -291,10 +313,12 @@ struct CC_Parameters{
 	// print out the parameters
 	void information(World &world)const{
 		if(world.rank()==0){
-			std::cout << "Defaults for 6D and 3D Functions:\n";
-			FunctionDefaults<3>::print();
-			FunctionDefaults<6>::print();
-			std::cout << "\n\nCC2 Parameters:\n";
+//			std::cout << "Defaults for 6D and 3D Functions:\n";
+//			FunctionDefaults<3>::print();
+//			FunctionDefaults<6>::print();
+			std::cout << "THE DEMANDED CALCULATION IS " << assign_name(calculation) << std::endl;
+			if(no_compute) warning(world,"no computation demanded");
+			std::cout << "\n\nThe" <<  assign_name(calculation) << " Parameters are:\n";
 			std::cout << std::setw(20) << std::setfill(' ') << "Corrfac. Gamma :"           << corrfac_gamma << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "freeze :"           << freeze << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "restart :"           << restart << std::endl;
@@ -329,11 +353,7 @@ struct CC_Parameters{
 			//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (6D) :" << FunctionDefaults<6>::get_cell_width()  <<std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "Autorefine (3D, 6D) :" << FunctionDefaults<6>::get_autorefine() << ", " << FunctionDefaults<3>::get_autorefine()  <<std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "debug mode is: " << debug  <<std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "Kain is: " << kain << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "MP2 is: " << mp2 << std::endl;
-			std::cout << std::setw(20) << std::setfill(' ') << "CCS is: " << ccs << std::endl;
 			if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
-			if(mp2_only) std::cout << std::setw(20) << std::setfill(' ') << "Only MP2 demanded" << std::endl;
 			if(test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
 		}
 	}
@@ -364,7 +384,6 @@ struct CC_Parameters{
 		if(thresh_3D > 0.01*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
 		if(thresh_3D > 0.1*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
 		if(kain and kain_subspace ==0) warnings+=warning(world,"Demanded Kain solver but the size of the iterative subspace is set to zero");
-		if(restart and mp2_only) warnings+=warning(world,"Demanded mp2_only and restart ... does not work right now");
 		if(warnings >0){
 			if(world.rank()==0) std::cout << warnings <<"Warnings in parameters sanity check!\n\n";
 		}else{
@@ -388,22 +407,22 @@ class CC_Pair: public archive::ParallelSerializableObject {
 public:
 
 	/// default ctor; initialize energies with a large number
-	CC_Pair() :
+	CC_Pair(const pairtype type) : type(type),
 		i(-1), j(-1), e_singlet(uninitialized()), e_triplet(
 				uninitialized()), ij_gQf_ij(uninitialized()), ji_gQf_ij(
-						uninitialized()), iteration(0), converged(false), current_error(uninitialized()), current_energy_difference(uninitialized()), epsilon(uninitialized()){
+						uninitialized()), converged(false), current_error(uninitialized()), current_energy_difference(uninitialized()), epsilon(uninitialized()){
 	}
 
 	/// ctor; initialize energies with a large number
-	CC_Pair(const int i, const int j) :
+	CC_Pair(const int i, const int j,const pairtype type) : type(type),
 		i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
-				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
+				uninitialized()), ji_gQf_ij(uninitialized()), converged(
 						false), current_error(uninitialized()),epsilon(uninitialized()){
 	}
 	/// ctor; initialize energies with a large number
-	CC_Pair(const real_function_6d &f,const int i, const int j) :
+	CC_Pair(const real_function_6d &f,const int i, const int j,const pairtype type) : type(type),
 		i(i), j(j),function(f), e_singlet(uninitialized()), e_triplet(uninitialized()), ij_gQf_ij(
-				uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(
+				uninitialized()), ji_gQf_ij(uninitialized()), converged(
 						false), current_error(uninitialized()),epsilon(uninitialized()) {
 	}
 
@@ -421,8 +440,8 @@ public:
 			std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " Current Information about Electron Pair " << name() << std::endl;
 			//std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ij_gQf_ij: " << ij_gQf_ij << std::endl;
 			//std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ji_gQf_ij: " << ji_gQf_ij << std::endl;
-			if(function.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||u||    : " << function.norm2() << std::endl;
-			if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " << constant_term.norm2() << std::endl;
+			if(function.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||u||    : "      <<std::setprecision(4)<<std::scientific<< function.norm2() << std::endl;
+			if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " <<std::setprecision(4)<<std::scientific<< constant_term.norm2() << std::endl;
 			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|  : " << current_error << std::endl;
 			if(current_energy_difference != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |deltaE|  : " << current_energy_difference << std::endl;
 			if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(6)<<std::fixed<< current_energy << std::endl;
@@ -431,14 +450,19 @@ public:
 	}
 
 	std::string name()const{
-		return "|u"+stringify(i)+stringify(j)+">";
+	    std::string name = "???";
+	    if(type==GROUND_STATE) name ="u";
+	    if(type==EXCITED_STATE) name = "x";
+		return name+stringify(i)+stringify(j);
 	}
 
 	static double uninitialized() {
 		return 1.e10;
 	}
 
-	int i, j;                       ///< orbitals i and j
+	const pairtype type;
+
+	const size_t i, j;                       ///< orbitals i and j
 	real_function_6d function; ///< pair function for a specific pair w/o correlation factor part
 	real_function_6d constant_term;	///< the first order contribution to the MP1 wave function
 
@@ -448,13 +472,13 @@ public:
 	double ij_gQf_ij;         	  	///< <ij | g12 Q12 f12 | ij>
 	double ji_gQf_ij;          		///< <ji | g12 Q12 f12 | ij>
 
-	int iteration;					///< current iteration for restart
 	bool converged;					///< is the pair function converged
 
 	double current_error;			///< error of the last iteration: ||function_old - function||_L2
 	double current_energy_difference;/// difference of current_energy and energy of the last iteration
 	double current_energy = uninitialized(); /// < the correlation energy of the last iteration
 	double epsilon;					///< the summed up orbital energies corresponding to the pair function indices: epsilon_i + epsilon_j
+
 
 	/// serialize this CC_Pair
 
@@ -465,7 +489,7 @@ public:
 		bool fexist = function.is_initialized();
 		bool cexist = constant_term.is_initialized();
 		ar & ij_gQf_ij & ji_gQf_ij & e_singlet & e_triplet & converged
-		& iteration & fexist & cexist;
+		& fexist & cexist;
 		if (fexist)
 			ar & function;
 		if (cexist)
@@ -473,30 +497,28 @@ public:
 	}
 
 	bool load_pair(World& world) {
-		std::string name = "pair_" + stringify(i) + stringify(j);
+		std::string name_ = name();
 		bool exists = archive::ParallelInputArchive::exists(world,
-				name.c_str());
+				name_.c_str());
 		if (exists) {
 			if (world.rank() == 0)
-				printf("loading matrix elements %s", name.c_str());
-			archive::ParallelInputArchive ar(world, name.c_str(), 1);
+				printf("loading pair %s", name_.c_str());
+			archive::ParallelInputArchive ar(world, name_.c_str(), 1);
 			ar & *this;
 			if (world.rank() == 0)
-				printf(" %s\n", (converged) ? " converged" : " not converged");
 			function.set_thresh(FunctionDefaults<6>::get_thresh());
 			constant_term.set_thresh(FunctionDefaults<6>::get_thresh());
 		} else {
-			if (world.rank() == 0)
-				print("could not find pair ", i, j, " on disk");
+			if (world.rank() == 0) std::cout << "pair " << name_ << " not found " << std::endl;
 		}
 		return exists;
 	}
 
-	void store_pair(World& world, const std::string &msg = "pair_") {
-		std::string name = msg + stringify(i) + stringify(j);
+	void store_pair(World& world, const std::string &msg = "") {
+		std::string name_ = msg+name();
 		if (world.rank() == 0)
-			printf("storing CC_Pair %s\n", name.c_str());
-		archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+			printf("storing CC_Pair %s\n", name_.c_str());
+		archive::ParallelOutputArchive ar(world, name_.c_str(), 1);
 		ar & *this;
 	}
 
@@ -508,18 +530,20 @@ public:
 template<typename T>
 struct Pairs {
 
+
 	typedef std::map<std::pair<int, int>, T> pairmapT;
 	pairmapT allpairs;
 
 
 	/// getter
 	const T & operator()(int i,int j)const{
-		return allpairs.find(std::make_pair(i, j))->second;
+		return allpairs.at(std::make_pair(i, j));
 	}
 
 	/// getter
+	// at instead of [] operator bc [] inserts new element if nothing is found while at throws out of range error
 	T& operator()(int i, int j) {
-		return allpairs[std::make_pair(i, j)];
+		return allpairs.at(std::make_pair(i, j));
 	}
 
 	/// setter
@@ -530,6 +554,13 @@ struct Pairs {
 };
 
 typedef Pairs<real_function_3d> intermediateT;
+static double size_of(const intermediateT &im){
+  double size=0.0;
+  for(const auto & tmp:im.allpairs){
+	size += get_size<double,3>(tmp.second);
+  }
+  return size;
+}
 
 
 // structure for a CC Function 3D which holds an index and a type

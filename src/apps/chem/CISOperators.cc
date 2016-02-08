@@ -25,7 +25,7 @@ CIS_Operators::CIS_Operators(World&world, const Nemo &nemo, const vecfuncT &mos)
 	}
 	poisson = std::shared_ptr < real_convolution_3d
 			> (CoulombOperatorPtr(world, nemo.get_calc()->param.lo,
-					FunctionDefaults<3>::get_thresh()));
+					1.e-6));
 	if (use_nuclear_correlation_factor_)
 		mo_bra_ = mul(world, R2, mo_ket_);
 	else

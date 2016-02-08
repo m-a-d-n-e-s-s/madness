@@ -130,21 +130,20 @@ public:
 	CC_Operators CCOPS;
 
 	/// solve the CC2 ground state equations, returns the correlation energy
-	double solve();
-	std::vector<std::pair<CC_vecfunction,double> > solve_CCS();
+	void solve();
+	std::vector<std::pair<CC_vecfunction,double> > solve_ccs();
 	/// solve the MP2 equations (uncoupled -> Canonical Orbitals)
-	double solve_MP2_alternative(Pairs<CC_Pair> &pairs)const;
-	double solve_uncoupled_mp2(Pairs<CC_Pair> &u)const;
-	/// solve the coupled CC2 equations
 	double solve_mp2(Pairs<CC_Pair> &doubles);
 	double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau);
+	double solve_cispd();
+	double solve_cispd(Pairs<CC_Pair> &doubles,const Pairs<CC_Pair> &mp2_pairs, const CC_vecfunction & cis_singles, const double cis_omega);
 	bool iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles);
 	bool iterate_cc2_doubles( Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
 	/// Compute the pair correlation energy of an electron pair function at mp2/CCD level (no singles contributions)
 	double compute_mp2_pair_energy(CC_Pair &u)const;
 	CC_vecfunction initialize_cc2_singles()const;
+	Pairs<CC_Pair> initialize_pairs(const pairtype type, const double omega=0.0)const;
 	/// Initialize an electron pair
-	/// Calculate the constant Term, and the <ij|gQf|ij> etc terms
 	void initialize_electron_pair(CC_Pair &u)const;
 	/// Calculate the current CC2 correlation energy
 	double get_correlation_energy(const Pairs<CC_Pair> &doubles)const;
