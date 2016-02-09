@@ -198,6 +198,7 @@ endif()
 
 set(CMAKE_SKIP_RPATH FALSE)
 set(CMAKE_SKIP_BUILD_RPATH  FALSE)
+set(CMAKE_SKIP_INSTALL_RPATH FALSE)
 
 # Get host and platform information ============================================
 
