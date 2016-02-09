@@ -397,7 +397,6 @@ tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3
 vector_complex_function_3d apply_potential(World& world, const real_function_3d& potential, const vector_complex_function_3d& psi)
 {
     START_TIMER(world);
-    potential.truncate(FunctionDefaults<3>::get_thresh()*0.1);
     auto vpsi = mul(world, potential, psi, false);
     world.gop.fence();
     END_TIMER(world, "apply potential");
