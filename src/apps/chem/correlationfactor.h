@@ -322,7 +322,28 @@ public:
     ///          \frac{z \mathrm{erf}\left(\frac{r}{s}\right)}{r}\right\}
     /// \f]
 	coord_3d smoothed_unitvec(const coord_3d& xyz, double smoothing=0.0) const {
-#if 1
+#if 0
+
+        if (smoothing==0.0) smoothing=molecule.get_eprec();
+        // TODO:need to test this
+        // reduce the smoothing for the unitvector
+        //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
+        smoothing=sqrt(smoothing);
+        const double r=xyz.normf();
+        const double rs=r/smoothing;
+        if (r<1.e-4) {
+            const double sqrtpi=sqrt(constants::pi);
+            double erfrs_div_r=2.0/(smoothing*sqrtpi)-2.0/3.0*rs*rs/(sqrtpi*smoothing);
+            return erfrs_div_r*xyz;
+        } else if (r<6.0) {
+            return erf(rs)/r*xyz;
+        } else {
+            return 1.0/r*xyz;
+        }
+
+
+
+#else
         if (smoothing==0.0) smoothing=molecule.get_eprec();
         // TODO:need to test this
         // reduce the smoothing for the unitvector
@@ -342,24 +363,6 @@ public:
             return kk/r*xyz;
         }
 
-
-#else
-	    if (smoothing==0.0) smoothing=molecule.get_eprec();
-	    // TODO:need to test this
-	    // reduce the smoothing for the unitvector
-	    //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
-	    smoothing=sqrt(smoothing);
-	    const double r=xyz.normf();
-	    const double rs=r/smoothing;
-        if (r<1.e-4) {
-            const double sqrtpi=sqrt(constants::pi);
-            double erfrs_div_r=2.0/(smoothing*sqrtpi)-2.0/3.0*rs*rs/(sqrtpi*smoothing);
-            return erfrs_div_r*xyz;
-        } else if (r<6.0) {
-	        return erf(rs)/r*xyz;
-	    } else {
-	        return 1.0/r*xyz;
-	    }
 #endif
 	}
 
@@ -382,21 +385,18 @@ public:
 	coord_3d dsmoothed_unitvec(const coord_3d& xyz, const int axis,
             double smoothing=0.0) const {
 
-        const static double sqrtpi=sqrt(constants::pi);
-
 	    const double r=xyz.normf();
         coord_3d result;
-
         if (smoothing==0.0) smoothing=molecule.get_eprec();
 
-#if 0
+#if 1
         // TODO:need to test this
         // reduce the smoothing for the unitvector
         //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
         smoothing=sqrt(smoothing);
 
-        coord_3d result;
         const double rs=r/smoothing;
+        const static double sqrtpi=sqrt(constants::pi);
         const double sqrtpis3=sqrtpi*smoothing*smoothing*smoothing;
 
         if (r<1.e-4) {
@@ -611,6 +611,77 @@ public:
 			return ncf->molecule.get_all_coords_vec();
 		}
 	};
+
+    /// U2 functor for a specific atom
+    class U2_atomic_functor : public FunctionFunctorInterface<double,3> {
+
+        const NuclearCorrelationFactor* ncf;
+        const int iatom;
+
+    public:
+        U2_atomic_functor(const NuclearCorrelationFactor* ncf, const int atom)
+            : ncf(ncf), iatom(atom) {}
+
+        double operator()(const coord_3d& xyz) const {
+            const Atom& atom=ncf->molecule.get_atom(iatom);
+            const coord_3d vr1A=xyz-atom.get_coords();
+            const double r=vr1A.normf();
+            return ncf->Spp_div_S(r,atom.q);
+        }
+
+        std::vector<coord_3d> special_points() const {
+            std::vector< madness::Vector<double,3> > c(1);
+            const Atom& atom=ncf->molecule.get_atom(iatom);
+            c[0][0]=atom.x;
+            c[0][1]=atom.y;
+            c[0][2]=atom.z;
+            return c;
+        }
+    };
+
+    /// U3 functor for a specific atom
+    class U3_atomic_functor : public FunctionFunctorInterface<double,3> {
+
+        const NuclearCorrelationFactor* ncf;
+        const int iatom;
+
+    public:
+        U3_atomic_functor(const NuclearCorrelationFactor* ncf, const int atom)
+            : ncf(ncf), iatom(atom) {}
+
+        double operator()(const coord_3d& xyz) const {
+            const Atom& atomA=ncf->molecule.get_atom(iatom);
+            const coord_3d vr1A=xyz-atomA.get_coords();
+            const double rA=vr1A.normf();
+            const coord_3d nA=ncf->smoothed_unitvec(vr1A);
+            double Sr_div_SA=ncf->Sr_div_S(rA,atomA.q);
+
+            double result=0.0;
+            // sum over B
+            for (int i=0; i<ncf->molecule.natom(); ++i) {
+                if (i==iatom) continue; // restricted sum
+
+                const Atom& atomB=ncf->molecule.get_atom(i);
+                const coord_3d vr1B=xyz-atomB.get_coords();
+                const double rB=vr1B.normf();
+                const coord_3d nB=ncf->smoothed_unitvec(vr1B);
+                double Sr_div_SB=ncf->Sr_div_S(rB,atomB.q);
+
+                double dot=nA[0]*nB[0] + nA[1]*nB[1] + nA[2]*nB[2];
+                result+=Sr_div_SB*Sr_div_SA*dot;
+            }
+            return -0.5*result;
+        }
+
+        std::vector<coord_3d> special_points() const {
+            std::vector< madness::Vector<double,3> > c(1);
+            const Atom& atom=ncf->molecule.get_atom(iatom);
+            c[0][0]=atom.x;
+            c[0][1]=atom.y;
+            c[0][2]=atom.z;
+            return c;
+        }
+    };
 
     class square_times_V_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
@@ -1504,7 +1575,8 @@ public:
 	/// @param[in]	mol molecule with the sites of the nuclei
 	PseudoNuclearCorrelationFactor(World& world, const Molecule& mol,
 			const std::shared_ptr<PotentialManager> pot, const double fac)
-		: NuclearCorrelationFactor(world,mol), potentialmanager(pot), fac(fac) {
+		: NuclearCorrelationFactor(world,mol), potentialmanager(pot),
+		  eprec(mol.get_eprec()), fac(fac) {
 
 		if (world.rank()==0) {
 			print("constructed nuclear correlation factor of the form");
@@ -1543,6 +1615,7 @@ private:
 
 	/// underlying potential (=molecule)
     std::shared_ptr<PotentialManager> potentialmanager;
+    double eprec;
 
     /// the factor of the correlation factor: R=fac;
 	const double fac;
@@ -1564,10 +1637,9 @@ private:
     }
 
     /// second derivative of the nuclear correlation factor
-
-    /// this is missing the -Z/r part!
     double Spp_div_S(const double& r, const double& Z) const {
-    	return 0.0;
+        double rcut= 1.0 / smoothing_parameter(Z, eprec);
+        return - Z * smoothed_potential(r*rcut)*rcut;
     }
 
     double U2X_spherical(const double& r, const double& Z, const double& rcut) const {

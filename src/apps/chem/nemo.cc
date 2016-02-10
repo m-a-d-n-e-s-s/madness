@@ -130,8 +130,6 @@ double Nemo::value(const Tensor<double>& x) {
 	const real_function_3d rho = (R_square*rhonemo);
 	calc->dipole(world,rho);
 
-	do_stuff();
-
 	return energy;
 }
 
@@ -1004,17 +1002,120 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     for (int i = 0; i < nmo; ++i) eps(i) = std::min(-0.05, fock(i, i));
     std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
     END_TIMER(world,"tag2");
-    START_TIMER(world);
 
     // derivative of the (regularized) nuclear potential
+    START_TIMER(world);
+
+#define NEW_DNUC 0
+#if NEW_DNUC
+
+
+    START_TIMER(world);
+    std::vector<poperatorT> gradbsh = calc->make_gradbsh_operators(world, eps,iaxis);
+
+    NuclearCorrelationFactor::U1_atomic_functor u1ax_func(nuclear_correlation.get(),iatom,0);
+    NuclearCorrelationFactor::U1_atomic_functor u1ay_func(nuclear_correlation.get(),iatom,1);
+    NuclearCorrelationFactor::U1_atomic_functor u1az_func(nuclear_correlation.get(),iatom,2);
+    NuclearCorrelationFactor::U2_atomic_functor u2a_func(nuclear_correlation.get(),iatom);
+
+    real_function_3d U2A=real_factory_3d(world).functor(u2a_func).truncate_on_project();;
+    vecfuncT U1A=zero_functions<double,3>(world,3);
+    U1A[0]=real_factory_3d(world).functor(u1ax_func).truncate_on_project();;
+    U1A[1]=real_factory_3d(world).functor(u1ay_func).truncate_on_project();;
+    U1A[2]=real_factory_3d(world).functor(u1az_func).truncate_on_project();;
+
+    std::vector<vecfuncT> dnemo(3);
+    std::vector<vecfuncT> ddnemo(3);
+    for (int axis=0; axis<3; ++axis) {
+        Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+        dnemo[axis]=apply(world, D, nemo, true);
+        Derivative<double,3> Di = free_space_derivative<double,3>(world, iaxis);
+        ddnemo[axis]=apply(world, Di, dnemo[axis], true);
+    }
+
+    // U_A |F_i>
+    vecfuncT UAnemo=zero_functions_compressed<double,3>(world,nmo);
+    {
+        vecfuncT U1Axnemo=mul(world,U1A[0],dnemo[0]);
+        vecfuncT U1Aynemo=mul(world,U1A[1],dnemo[1]);
+        vecfuncT U1Aznemo=mul(world,U1A[2],dnemo[2]);
+        vecfuncT U2Anemo=mul(world,U2A,nemo);
+        UAnemo=(U2Anemo-U1Axnemo-U1Aynemo-U1Aznemo);
+        truncate(world,UAnemo);
+    }
+
+    // U_A \nabla |F_i>
+    vecfuncT UAdnemo=zero_functions_compressed<double,3>(world,nmo);
+    {
+        vecfuncT U1Axnemo=mul(world,U1A[0],ddnemo[0]);
+        vecfuncT U1Aynemo=mul(world,U1A[1],ddnemo[1]);
+        vecfuncT U1Aznemo=mul(world,U1A[2],ddnemo[2]);
+        vecfuncT U2Anemo=mul(world,U2A,dnemo[iaxis]);
+        UAdnemo=(U2Anemo-U1Axnemo-U1Aynemo-U1Aznemo);
+        truncate(world,UAdnemo);
+    }
+    END_TIMER(world,"tag2c");
+
+    START_TIMER(world);
+    vecfuncT GxUAnemo=apply(world,gradbsh,-2.0*UAnemo);
+    vecfuncT GUAdnemo=apply(world,bsh,-2.0*UAdnemo);
+    vecfuncT result2=GUAdnemo-GxUAnemo;
+    truncate(world,result2);
+
+    // add U3
+    NuclearCorrelationFactor::U3X_functor u3x_func(nuclear_correlation.get(),iatom,iaxis);
+    real_function_3d u3x_f=real_factory_3d(world).functor(u3x_func).truncate_on_project();
+    vecfuncT Vpsi2b=-1.0*mul(world,u3x_f,nemo);
+    Vpsi2b=Q(Vpsi2b);
+
+    END_TIMER(world,"tag3");
+
+    // subtract P(U1+U2) |nemo>
+    START_TIMER(world);
+    NuclearCorrelationFactor::U2X_functor u2x_func(nuclear_correlation.get(),iatom,iaxis);
+    real_function_3d u2x_f=real_factory_3d(world).functor(u2x_func).truncate_on_project();
+    vecfuncT U2nemo=mul(world,u2x_f,nemo);
+    Tensor<double> tmp=matrix_inner(world,R2nemo,U2nemo);
+    END_TIMER(world,"tag3a");
+
+    std::vector< std::shared_ptr<Derivative<double,3> > > gradop =
+            gradient_operator<double,3>(world);
+    for (std::size_t i=0; i<3; ++i) {
+        START_TIMER(world);
+        vecfuncT dnemo=apply(world, *(gradop[i]), nemo, true);
+        truncate(world,dnemo);
+        END_TIMER(world,"tag dnemo");
+        START_TIMER(world);
+
+        // note the two different axis: U1axis (i) and the derivative axis (iaxis)
+        // \frac{\partial U1_i}{\partial R_{A,iaxis}}
+        // e.g. d/dYA U1x
+        NuclearCorrelationFactor::U1X_functor u1x(nuclear_correlation.get(),iatom,i,iaxis);
+        real_function_3d U1=real_factory_3d(world).functor(u1x).truncate_on_project();
+        vecfuncT U1R2nemo=mul(world,U1,R2nemo);
+        END_TIMER(world,"tag U1R2nemo");
+        START_TIMER(world);
+        truncate(world,U1R2nemo);
+        tmp-=matrix_inner(world,U1R2nemo,dnemo);
+        END_TIMER(world,"tag transform");
+
+    }
+    START_TIMER(world);
+    vecfuncT PUnemo=transform(world,nemo,tmp);
+    truncate(world,PUnemo);
+    END_TIMER(world,"tag3b");
+
+#else
     DNuclear Dunuc(world,this,iatom,iaxis);
     vecfuncT Vpsi2b=Dunuc(nemo);
     truncate(world,Vpsi2b);
     END_TIMER(world,"tag3");
-    START_TIMER(world);
+#endif
+
 
     // part of the Coulomb operator with the derivative of the NCF
     // J <- \int dr' 1/|r-r'| \sum_i R^XR F_iF_i
+    START_TIMER(world);
     Coulomb Jconst(world);
     Jconst.potential()=Jconst.compute_potential(2.0*RXR*rhonemo);        // factor 2 for cphf
     vecfuncT Jconstnemo=Jconst(nemo);
@@ -1043,11 +1144,17 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     vecfuncT rhsconst=add(world,Vpsi2b,sub(world,Jconstnemo,Kconstnemo));
     truncate(world,rhsconst);
     rhsconst=Q(rhsconst);
+#if NEW_DNUC
+    rhsconst-=PUnemo;
+#endif
     scale(world, rhsconst, -2.0);
     END_TIMER(world,"tag6");
     START_TIMER(world);
 
     vecfuncT Grhsconst = apply(world, bsh, rhsconst);
+#if NEW_DNUC
+    Grhsconst+=result2;
+ #endif
     truncate(world,Grhsconst);
     scale(world,rhsconst,-0.5); // invert the -2.0 from above
     // keep iterating rhsconst, seems to be more accurate
@@ -1121,13 +1228,15 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
             Kp=add(world,Kp1(nemo),Kp2(nemo));
         }
-        vecfuncT Vpsi2a=sub(world,Jp(nemo),Kp);
-        vecfuncT Vpsi2=add(world,Vpsi2a,rhsconst);
+        vecfuncT Vpsi2a=Jp(nemo)-Kp;
+        vecfuncT Vpsi2=Vpsi2a+rhsconst;
+//        vecfuncT Vpsi2=Vpsi2a;
+//        print("skip rhsconst, moved to Grhsconst");
         truncate(world,Vpsi2);
         Vpsi2=Q(Vpsi2);
         truncate(world,Vpsi2);
 
-        vecfuncT Vpsi=add(world,Vpsi1,Vpsi2);
+        vecfuncT Vpsi=Vpsi1+Vpsi2;
         truncate(world,Vpsi);
         END_TIMER(world, "CPHF make rhs2");
 
@@ -1145,6 +1254,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         scale(world, Vpsi, -2.0);
         vecfuncT tmp = apply(world, bsh, Vpsi);
         truncate(world, tmp);
+//        tmp=add(world,tmp,Grhsconst);
         END_TIMER(world, "apply BSH");
 
         tmp=Q(tmp);
