@@ -126,6 +126,8 @@
 
 namespace madness {
 
+
+
     /// Compress a vector of functions
     template <typename T, std::size_t NDIM>
     void compress(World& world,
@@ -977,6 +979,52 @@ namespace madness {
         double size=f.size();
         return size/fac*d;
     }
+
+
+    // convenience operators
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
+            const std::vector<Function<T,NDIM>>& rhs) {
+        return add(lhs[0].world(),lhs,rhs);
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
+            const std::vector<Function<T,NDIM> >& rhs) {
+        return sub(lhs[0].world(),lhs,rhs);
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator*(const double fac,
+            const std::vector<Function<T,NDIM> >& rhs) {
+        std::vector<Function<T,NDIM> > tmp=copy(rhs[0].world(),rhs);
+        scale(tmp[0].world(),tmp,fac);
+        return tmp;
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator*(const std::vector<Function<T,NDIM> >& rhs,
+            const double fac) {
+        std::vector<Function<T,NDIM> > tmp=copy(rhs[0].world(),rhs);
+        scale(tmp[0].world(),tmp,fac);
+        return tmp;
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
+            std::vector<Function<T,NDIM> >& lhs) {
+        rhs=add(rhs[0].world(),rhs,lhs);
+        return rhs;
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator-=(std::vector<Function<T,NDIM> >& rhs,
+            std::vector<Function<T,NDIM> >& lhs) {
+        rhs=sub(rhs[0].world(),rhs,lhs);
+        return rhs;
+    }
+
 
 }
 #endif // MADNESS_MRA_VMRA_H__INCLUDED
