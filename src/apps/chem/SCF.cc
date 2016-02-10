@@ -1197,6 +1197,29 @@ namespace madness {
         return ops;
     }
     
+    std::vector<poperatorT> SCF::make_gradbsh_operators(World& world,
+            const tensorT& evals, const int axis) const {
+        PROFILE_MEMBER_FUNC(SCF);
+        int nmo = evals.dim(0);
+        std::vector < poperatorT > ops(nmo);
+        double tol = FunctionDefaults < 3 > ::get_thresh();
+        for (int i = 0; i < nmo; ++i) {
+            double eps = evals(i);
+            if (eps > 0) {
+                if (world.rank() == 0) {
+                    print("bsh: warning: positive eigenvalue", i, eps);
+                }
+                eps = -0.1;
+            }
+
+            ops[i] = GradBSHOperator(world, sqrt(-2.0 * eps),
+                    param.lo, tol)[axis];
+        }
+
+        return ops;
+    }
+
+
     /// apply the HF exchange on a set of orbitals
     
     /// @param[in]  world   the world

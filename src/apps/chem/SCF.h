@@ -918,6 +918,8 @@ public:
 
 
     std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals) const;
+    std::vector<poperatorT> make_gradbsh_operators(World & world,
+            const tensorT & evals, const int axis) const;
 
     /// apply the HF exchange on a set of orbitals
 
