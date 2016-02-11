@@ -65,12 +65,18 @@ namespace madness {
 
     real_function_3d operator()(const CC_function &bra, const CC_function &ket, const bool use_im=true)const{
       real_function_3d result;
-      if(not use_im) result = ((*op)(bra.function*ket.function)).truncate();
+      if(not use_im){
+	if(world.rank()==0) std::cout <<"Recalculating <" << bra.name()<<"|"<< assign_name(operator_type) <<"|"<<ket.name() <<">\n";
+	result = ((*op)(bra.function*ket.function)).truncate();
+      }
       else if(bra.type==HOLE and ket.type==HOLE and not imH.allpairs.empty()) result = imH(bra.i,ket.i);
       else if(bra.type==HOLE and ket.type==RESPONSE and not imR.allpairs.empty()) result = imR(bra.i,ket.i);
       else if(bra.type==HOLE and ket.type==PARTICLE and not imP.allpairs.empty()) result = imP(bra.i,ket.i);
       else if(bra.type==HOLE and ket.type==MIXED and (not imP.allpairs.empty() and not imH.allpairs.empty())) result = (imH(bra.i,ket.i)+imP(bra.i,ket.i));
-      else result = ((*op)(bra.function*ket.function)).truncate();
+      else{
+	if(world.rank()==0) std::cout <<"No Intermediate found for <" << bra.name()<<"|"<<assign_name(operator_type) <<"|"<<ket.name() <<"> ... recalculate \n";
+	result = ((*op)(bra.function*ket.function)).truncate();
+      }
       return result;
     }
 
@@ -103,6 +109,7 @@ namespace madness {
 	  const CC_function& l=tmpl.second;
 	  real_function_3d kl=(bra(k).function * l.function);
 	  real_function_3d result=((*op)(kl)).truncate();
+	  result.reconstruct(); // for sparse multiplication
 	  xim.insert(k.i,l.i,result);
 	}
       }
@@ -133,11 +140,19 @@ namespace madness {
       const size_t size_imR = size_of(imR);
       if(world.rank()==0){
 	std::cout <<"Size of " << name() <<" intermediates:\n";
-	std::cout <<std::setw(5)<<"("<<imH.allpairs.size() << ") x <H|"+name()+"H>=" << size_imH << " (Gbyte)\n";
-	std::cout <<std::setw(5)<<"("<<imP.allpairs.size() << ") x <H|"+name()+"P>=" << size_imH << " (Gbyte)\n";
-	std::cout <<std::setw(5)<<"("<<imR.allpairs.size() << ") x <H|"+name()+"R>=" << size_imH << " (Gbyte)\n";
+	std::cout <<std::setw(5)<<"("<<imH.allpairs.size() << ") x <H|"+name()+"H>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
+	std::cout <<std::setw(5)<<"("<<imP.allpairs.size() << ") x <H|"+name()+"P>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
+	std::cout <<std::setw(5)<<"("<<imR.allpairs.size() << ") x <H|"+name()+"R>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
       }
       return size_imH+size_imP + size_imR;
+    }
+    void sanity()const{
+      print_intermediate(HOLE);
+    }
+    void print_intermediate(const functype type)const{
+      if(type==HOLE)for(const auto& tmp:imH.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|H"+std::to_string(tmp.first.second)+"> intermediate");
+      else if(type==PARTICLE)for(const auto& tmp:imP.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|P"+std::to_string(tmp.first.second)+"> intermediate");
+      else if(type==RESPONSE)for(const auto& tmp:imR.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|R"+std::to_string(tmp.first.second)+"> intermediate");
     }
   private:
     World &world;
@@ -369,7 +384,9 @@ namespace madness {
 			       mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
       // make exchange intermediate for ground state
       g12.update_elements(mo_bra_,mo_ket_);
+      g12.sanity();
       f12.update_elements(mo_bra_,mo_ket_);
+      f12.sanity();
       performance_S.current_iteration = 0;
       performance_D.current_iteration = 0;
 
@@ -381,10 +398,38 @@ namespace madness {
     // collect all the warnings that are put out over a calculation
     mutable std::vector<std::string> warnings;
 
+    // interface to mul_sparse which sets the same tolerance for all operations and makes shure the functions are reconstructed;
+    real_function_3d msparse(const real_function_3d &l,const real_function_3d &r)const{
+      l.reconstruct();
+      r.reconstruct();
+      return mul_sparse(l,r,parameters.thresh_3D);
+    }
+
+    template<typename T, size_t NDIM>
+    void save_functions(const CC_vecfunction &f)const{
+      for(const auto&tmp:f.functions) save_function<T,NDIM>(tmp.second.function,tmp.second.name());
+    }
+
     /// save a function
     template<typename T, size_t NDIM>
-    void save_function(const Function<T, NDIM>& f,
-		       const std::string name) const;
+    void save_function(const Function<T, NDIM>& f,const std::string name) const {
+      if(world.rank() == 0) print("saving function: ",name);
+      f.print_size(name);
+      archive::ParallelOutputArchive ar(world,name.c_str(),1);
+      ar & f;
+    }
+
+    template<typename T, size_t NDIM>
+    bool load_function(Function<T, NDIM>& f, const std::string name) const {
+      bool exists = archive::ParallelInputArchive::exists(world,name.c_str());
+      if(exists){
+      if (world.rank() == 0) print("loading function", name);
+    	archive::ParallelInputArchive ar(world, name.c_str());
+    	ar & f;
+    	f.print_size(name);
+    	return true;
+      }else return false;
+    }
 
     void plot(const real_function_3d &f, const std::string &msg) const {
       CC_Timer plot_time(world, "plotting " + msg);
@@ -436,6 +481,8 @@ namespace madness {
       CC_Timer update(world, "Update Intermediates");
       g12.update_elements(mo_bra_,singles);
       f12.update_elements(mo_bra_,singles);
+      //g12.print_intermediate(PARTICLE);
+      //f12.print_intermediate(PARTICLE);
       //      intermediates_.update(singles);
       update.info();
     }
@@ -446,6 +493,18 @@ namespace madness {
       f12.update_elements(mo_bra_,singles);
       //      intermediates_.update(singles);
       update.info();
+    }
+
+    const vecfuncT get_active_mo_ket()const{
+      vecfuncT result;
+      for(size_t i=parameters.freeze;i<mo_ket_.size();i++) result.push_back(mo_ket_(i).function);
+      return result;
+    }
+
+    const vecfuncT get_active_mo_bra()const{
+      vecfuncT result;
+      for(size_t i=parameters.freeze;i<mo_bra_.size();i++) result.push_back(mo_bra_(i).function);
+      return result;
     }
 
     const CC_function mo_ket(const size_t &i) const {
@@ -517,10 +576,14 @@ namespace madness {
     vecfuncT get_CC2_singles_potential(const CC_vecfunction &singles,
 				       const Pairs<CC_Pair> &doubles) {
 
+      const double norm = make_norm(singles);
+
       vecfuncT fock_residue = potential_singles(doubles, singles,pot_F3D_);
       vecfuncT result = potential_singles(doubles, singles, pot_ccs_);
       result = add(world, result,potential_singles(doubles, singles, pot_S2b_u_));
       result = add(world, result,potential_singles(doubles, singles, pot_S2c_u_));
+
+      if(norm > parameters.thresh_3D){
       result = add(world, result,potential_singles(doubles, singles, pot_S4a_u_));
       result = add(world, result,potential_singles(doubles, singles, pot_S4b_u_));
       result = add(world, result,potential_singles(doubles, singles, pot_S4c_u_));
@@ -530,6 +593,7 @@ namespace madness {
       result = add(world, result,potential_singles(doubles, singles, pot_S4a_r_));
       result = add(world, result,potential_singles(doubles, singles, pot_S4b_r_));
       result = add(world, result,potential_singles(doubles, singles, pot_S4c_r_));
+      }else output("Norm of Singles Vector is below threshold ||singles||=" + std::to_string(norm));
 
       // the fock residue does not get projected, but all the rest
       result=apply_Q(result,"CC2-Singles-Potential");
@@ -556,7 +620,41 @@ namespace madness {
     //    }
 
     real_function_6d make_cc2_coulomb_parts(const CC_function &taui, const CC_function &tauj, const CC_vecfunction &singles, const double omega=0.0) const;
+    real_function_6d make_nonorthogonal_mp2_coulomb_parts(const size_t i,const size_t j)const{
+      real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(i,j)),parameters.lo,parameters.thresh_bsh_6D);
+      G.destructive()=true;
+      const CC_function ti = mo_ket_(i);
+      const CC_function tj = mo_ket_(j);
+      // first do the O1 and O2 parts which are
+      // Otau1(g|titj) = |tauk><k|(1)g|titj> = kgti(2)|tauktj>
+      // same for Otau2 = kgtj(1)|titauk>
+      real_function_6d G_O1tau_part=real_factory_6d(world);
+      real_function_6d G_O2tau_part=real_factory_6d(world);
+      for(const auto& ktmp : mo_ket_.functions){
+        const size_t k=ktmp.first;
+        const CC_function &tauk=ktmp.second;
 
+        real_function_3d kgti_tj=g12(mo_bra_(k),ti) * tj.function;
+        real_function_3d kgtj_ti=g12(mo_bra_(k),tj) * ti.function;
+
+        real_function_3d l1=real_factory_3d(world);
+        real_function_3d l2=real_factory_3d(world);
+        for(const auto& ltmp : mo_ket_.functions){
+  	const CC_function& mo_bra_l=mo_bra_(ltmp.first);
+  	const CC_function& taul=ltmp.second;
+  	l1+=mo_bra_l.function.inner(kgtj_ti) * taul.function;
+  	l2+=mo_bra_l.function.inner(kgti_tj) * taul.function;
+        }
+
+        real_function_3d part1=-1.0 * kgtj_ti + 0.5 * l1;
+        real_function_3d part2=-1.0 * kgti_tj + 0.5 * l2;
+
+        G_O1tau_part+=-2.0 * G(copy(tauk.function),part2);
+        G_O2tau_part+=-2.0 * G(part1,copy(tauk.function));
+      }
+
+      return G_O1tau_part + G_O2tau_part;
+    }
     // computes: G(f(F-eij)|titj> + Ue|titj> - [K,f]|titj>) and uses G-operator screening
     real_function_6d make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj, const double omega=0.0)const;
 
@@ -956,7 +1054,22 @@ namespace madness {
     /// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
     real_function_6d make_regularization_residue(const CC_function &taui,
 						 const CC_function &tauj, const calctype &type, const double omega=0.0) const;
+    real_function_6d make_nonorthogonal_regularization_residue(size_t i, size_t j)const{
+      output("Calculating nonorthogonal GV_reg");
+      const bool symmetric(i==j);
 
+      real_function_6d Vreg;
+      Vreg = apply_regularization_potential(mo_ket_(i),mo_ket_(i),0.0);
+      Vreg.scale(-2.0);
+      Vreg.truncate().reduce_rank();
+      Vreg.print_size("-2.0*Vreg");
+
+      real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(i,j)),parameters.lo,parameters.thresh_bsh_6D);
+      G.destructive()=true;
+      real_function_6d GV=G(Vreg);
+      //apply_Q12(GV,"MP2-Residue:G(V)");
+      return GV;
+    }
     // apply the kinetic energy operator to a decomposed 6D function
     /// @param[in] y a 3d function x (will be particle 1 in the decomposed 6d function)
     /// @param[in] x a 3d function y (will be particle 2 in the decomposed 6d function)
@@ -1220,6 +1333,8 @@ namespace madness {
       vecfuncT tmp = mul(world, nemo.nuclear_correlation->square(),
 			 nemo.get_calc()->amo);
       set_thresh(world, tmp, parameters.thresh_3D);
+      truncate(world,tmp);
+      reconstruct(world,tmp);
       CC_vecfunction mo_bra(tmp, HOLE);
       return mo_bra;
     }
@@ -1227,6 +1342,8 @@ namespace madness {
     CC_vecfunction make_mo_ket(const Nemo&nemo) const {
       vecfuncT tmp = nemo.get_calc()->amo;
       set_thresh(world, tmp, parameters.thresh_3D);
+      truncate(world,tmp);
+      reconstruct(world,tmp);
       CC_vecfunction mo_ket(tmp, HOLE);
       return mo_ket;
     }

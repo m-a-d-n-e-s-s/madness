@@ -19,10 +19,10 @@
 namespace madness{
 
 enum optype {g12_,f12_};
-enum calctype {MP2_, CC2_, CCS_response, CC2_response_, CISpD_};
+enum calctype {MP2_, CC2_, CCS_response, CC2_response_, CISpD_, experimental_};
 enum functype {HOLE,PARTICLE,MIXED,RESPONSE,UNDEFINED};
 enum pairtype {GROUND_STATE,EXCITED_STATE};
-enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S1_, pot_S5a_, pot_ccs_};
+enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_ccs_};
 enum potentialtype_d {pot_F6D_, pot_cc2_coulomb_,pot_cc2_residue_};
 // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
 enum pair_function_form{DECOMPOSED, FULL};
@@ -38,6 +38,7 @@ static calctype assign_calctype(const std::string name){
   else if(name=="cc2_response") return CC2_response_;
   else if(name=="cispd") return CISpD_;
   else if(name=="cis" or name=="ccs" or name=="ccs_response") return CCS_response;
+  else if(name=="experimental") return experimental_;
   else{
     std::string msg= "CALCULATION OF TYPE: " + name + " IS NOT KNOWN!!!!";
     MADNESS_EXCEPTION(msg.c_str(),1);
@@ -66,8 +67,6 @@ static std::string assign_name(const potentialtype_s &inp){
 	case pot_S4a_r_ : return "S4a_r_part";
 	case pot_S4b_r_ : return "S4b_r_part";
 	case pot_S4c_r_ : return "S4c_r_part";
-	case pot_S1_ : return "S1";
-	case pot_S5a_ : return "S5a";
 	case pot_ccs_ : return "ccs-potential";
 	}
 	return "undefined";
@@ -444,7 +443,7 @@ public:
 			if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " <<std::setprecision(4)<<std::scientific<< constant_term.norm2() << std::endl;
 			if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|  : " << current_error << std::endl;
 			if(current_energy_difference != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |deltaE|  : " << current_energy_difference << std::endl;
-			if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(6)<<std::fixed<< current_energy << std::endl;
+			if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(10)<<std::fixed<< current_energy << std::endl;
 			//if(epsilon == uninitialized()) std::cout << "WARNING: BSH-epsilon is not initialized" << std::endl;
 		}
 	}
@@ -648,6 +647,13 @@ struct CC_vecfunction{
 	CC_functionmap functions;
 
 	functype type;
+	std::string name()const{
+	  if (type==PARTICLE) return "singles_gs";
+	  else if(type==HOLE) return "mos_gs";
+	  else if(type==MIXED) return "t_gs";
+	  else if(type==RESPONSE) return "singles_response";
+	  else return "UNKNOWN";
+	}
 
 	/// getter
 	const CC_function& operator()(const CC_function &i) const {

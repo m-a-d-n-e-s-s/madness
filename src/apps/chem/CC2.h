@@ -134,6 +134,7 @@ public:
 	std::vector<std::pair<CC_vecfunction,double> > solve_ccs();
 	/// solve the MP2 equations (uncoupled -> Canonical Orbitals)
 	double solve_mp2(Pairs<CC_Pair> &doubles);
+	double solve_mp2_nonorthogonal(Pairs<CC_Pair> &doubles);
 	double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau);
 	double solve_cispd();
 	double solve_cispd(Pairs<CC_Pair> &doubles,const Pairs<CC_Pair> &mp2_pairs, const CC_vecfunction & cis_singles, const double cis_omega);
@@ -156,6 +157,7 @@ public:
 	/// Iterates a pair of the CC2 doubles equations
 	bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles)const;
 	bool iterate_pair(CC_Pair &pair,const CC_vecfunction &singles, const CC_vecfunction response_singles,const calctype ctype) const;
+	bool iterate_nonorthogonal_pair(CC_Pair &pair) const;
 	/// Create formated output, std output with world rank 0
 	void output(const std::string &msg)const{
 		if(world.rank()==0) std::cout << msg << "\n";
