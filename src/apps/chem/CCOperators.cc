@@ -1350,13 +1350,13 @@ namespace madness {
 	part4 += jn.inner(igm)*ny.inner(mfx);
       }
     }
-    if(world.rank()==0){
-      std::cout << "<" << i.name() << j.name() <<"|gQf|" << x.name() << y.name() << "\n";
-      std::cout << "part1=" << part1 << "\n";
-      std::cout << "part2=" << part2 << "\n";
-      std::cout << "part3=" << part3 << "\n";
-      std::cout << "part4=" << part4 << "\n";
-    }
+//    if(world.rank()==0){
+//      std::cout << "<" << i.name() << j.name() <<"|gQf|" << x.name() << y.name() << "\n";
+//      std::cout << "part1=" << part1 << "\n";
+//      std::cout << "part2=" << part2 << "\n";
+//      std::cout << "part3=" << part3 << "\n";
+//      std::cout << "part4=" << part4 << "\n";
+//    }
     return part1-part2-part3+part4;
   }
 
@@ -1406,17 +1406,17 @@ namespace madness {
 	part4+=ijgmn * mnfxy;
       }
     }
-    if(world.rank()==0){
-      std::cout << "<" << mo_ket_(i).name() << mo_ket_(j).name() <<"|gQf|" << x.name() << y.name() << "\n";
-      std::cout << "part1=" << part1 << "\n";
-      std::cout << "part2=" << part2 << "\n";
-      std::cout << "part3=" << part3 << "\n";
-      std::cout << "part4=" << part4 << "\n";
-    }
+//    if(world.rank()==0){
+//      std::cout << "<" << mo_ket_(i).name() << mo_ket_(j).name() <<"|gQf|" << x.name() << y.name() << "\n";
+//      std::cout << "part1=" << part1 << "\n";
+//      std::cout << "part2=" << part2 << "\n";
+//      std::cout << "part3=" << part3 << "\n";
+//      std::cout << "part4=" << part4 << "\n";
+//    }
     double result = part1 + part2 + part3 + part4;
-    double test = make_ijgQfxy(mo_bra_(i),mo_bra_(j),x,y);
-    std::cout << " debug ijgQfxy:\nold =" << result <<"\nnew =" << test << "\ndiff=" << test-result << std::endl;
-    if(fabs(test-result)>1.e-5) warning("WARNING FOR IJGQFXY");
+    //double test = make_ijgQfxy(mo_bra_(i),mo_bra_(j),x,y);
+    //std::cout << " debug ijgQfxy:\nold =" << result <<"\nnew =" << test << "\ndiff=" << test-result << std::endl;
+    //if(fabs(test-result)>1.e-5) warning("WARNING FOR IJGQFXY");
     return result;
 
   }
