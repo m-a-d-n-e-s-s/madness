@@ -122,13 +122,12 @@ private:
         if (h_is_identity) {
             int n = x.dim(0);
             h = Tensor<double>(n,n);
-            for (int i=0; i<n; ++i) h(i,i) = 1.0;
 
             // mass-weight the initial hessian
             for (int i=0; i<target->molecule().natom(); ++i) {
-                h(i  ,i  )/=(target->molecule().get_atom(i).mass);
-                h(i+1,i+1)/=(target->molecule().get_atom(i).mass);
-                h(i+2,i+2)/=(target->molecule().get_atom(i).mass);
+                h(3*i  ,3*i  )=1.0/(target->molecule().get_atom(i).mass);
+                h(3*i+1,3*i+1)=1.0/(target->molecule().get_atom(i).mass);
+                h(3*i+2,3*i+2)=1.0/(target->molecule().get_atom(i).mass);
             }
             madness::print("using the identity as initial Hessian");
         } else {
