@@ -751,6 +751,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 
     // the pseudo-density made up of the square of the nemo orbitals
     functionT rhonemo = make_density(calc->aocc, nemo).scale(2.0);
+    rhonemo=rhonemo.refine();
 
     // the following block computes the gradients more precisely than the
     // direct evaluation of the derivative of the nuclear potential
@@ -764,14 +765,14 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
         // compute the second term of the bra
         real_function_3d tmp=rhonemo*nuclear_correlation->U1(axis);
         tmp.scale(2.0);
-        bra[axis]=(Drhonemo-tmp).truncate();
+        bra[axis]=(Drhonemo-tmp);
     }
 
     Tensor<double> grad(3*calc->molecule.natom());
 
     for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
-        const Atom& atom=calc->molecule.get_atom(iatom);
-        NuclearCorrelationFactor::square_times_V_functor r2v(nuclear_correlation.get(),atom);
+        NuclearCorrelationFactor::square_times_V_functor r2v(nuclear_correlation.get(),
+                calc->molecule,iatom);
 
         for (int axis=0; axis<3; axis++) {
             grad(3*iatom + axis)=-inner(bra[axis],r2v);

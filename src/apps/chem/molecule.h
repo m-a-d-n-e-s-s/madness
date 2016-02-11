@@ -302,7 +302,11 @@ public:
 
     double total_nuclear_charge() const;
 
+    /// nuclear attraction potential for the whole molecule
     double nuclear_attraction_potential(double x, double y, double z) const;
+
+    /// nuclear attraction potential for a specific atom in the molecule
+    double atomic_attraction_potential(int iatom, double x, double y, double z) const;
 
     double molecular_core_potential(double x, double y, double z) const;
 

@@ -166,17 +166,6 @@ public:
 	}
 
     /// return the square of the nuclear correlation factor multiplied with
-	/// the nuclear potential for the specified atom
-
-	/// @return R^2 * Z_A/r_{1A}
-    virtual real_function_3d square_times_V(const Atom& atom) const {
-        square_times_V_functor func(this,atom);
-        real_function_3d R2v=real_factory_3d(world).thresh(vtol)
-                .functor(func).truncate_on_project();
-        return R2v;
-    }
-
-    /// return the square of the nuclear correlation factor multiplied with
     /// the derivative of the nuclear potential for the specified atom
 
     /// @return R^2 * \frac{\partial Z_A/r_{1A}}{\partial X_A}
@@ -685,10 +674,12 @@ public:
 
     class square_times_V_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
-        const Atom& thisatom;
+        const Molecule& molecule;
+        const int iatom;
     public:
         square_times_V_functor(const NuclearCorrelationFactor* ncf,
-                const Atom& atom1) : ncf(ncf), thisatom(atom1) {}
+                const Molecule& mol, const int iatom1)
+            : ncf(ncf), molecule(mol), iatom(iatom1) {}
         double operator()(const coord_3d& xyz) const {
             double result=1.0;
             for (int i=0; i<ncf->molecule.natom(); ++i) {
@@ -697,8 +688,8 @@ public:
                 const double r=vr1A.normf();
                 result*=ncf->S(r,atom.q);
             }
-            const coord_3d vr1A=xyz-thisatom.get_coords();
-            const double V=thisatom.atomic_number/(vr1A.normf()+1.e-6);
+            const double V=-molecule.atomic_attraction_potential(
+                                iatom, xyz[0], xyz[1], xyz[2]);
             return result*result*V;
 
         }

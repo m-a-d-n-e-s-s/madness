@@ -773,6 +773,19 @@ double Molecule::nuclear_attraction_potential(double x, double y, double z) cons
     return sum;
 }
 
+double Molecule::atomic_attraction_potential(int iatom, double x, double y,
+        double z) const {
+
+    //make sure this isn't a pseudo-atom
+    if (atoms[iatom].pseudo_atom) return 0.0;
+
+    double r = distance(atoms[iatom].x, atoms[iatom].y, atoms[iatom].z, x, y, z);
+    double sum =- atoms[iatom].q * smoothed_potential(r*rcut[iatom])*rcut[iatom];
+
+    return sum;
+}
+
+
 double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const {
     double r = distance(atoms[atom].x, atoms[atom].y, atoms[atom].z, x, y, z);
     double rc = rcut[atom];
