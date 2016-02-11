@@ -143,16 +143,14 @@ class Nemo: public MolecularOptimizationTargetInterface {
 
     /// struct for running a protocol of subsequently tightening precision
     struct protocol {
-        protocol(const Nemo& nemo) : start_prec(1.e-4), current_prec(start_prec),
-            end_prec(nemo.get_calc()->param.econv), thresh(1.e-4), econv(1.e-4),
-            dconv(1.e-3) {
-            if (nemo.world.rank()==0) {
-                print("starting protocol");
-                print("thresh",thresh,"econv ",econv,"dconv",dconv);
-                print("start",start_prec,"end",end_prec);
-            }
+        protocol(const Nemo& nemo) : world(nemo.world), start_prec(1.e-4),
+                current_prec(start_prec), end_prec(nemo.get_calc()->param.econv),
+                thresh(1.e-4), econv(1.e-4), dconv(1.e-3), user_dconv(1.e-20) {
+            user_dconv=nemo.calc->param.dconv;
+
         }
 
+        World& world;
         double start_prec;   ///< starting precision, typically 1.e-4
         double current_prec;   ///< current precision
         double end_prec;     ///< final precision
@@ -160,21 +158,30 @@ class Nemo: public MolecularOptimizationTargetInterface {
         double thresh;  ///< numerical precision of representing functions
         double econv;   ///< energy convergence of SCF calculations
         double dconv;   ///< density convergence of SCF calculations
+        double user_dconv;   ///< density convergence provided by user
+
+        void initialize() {
+            current_prec=start_prec;
+            infer_thresholds(current_prec);
+            if (world.rank()==0) {
+                print("\nstarting protocol: ",start_prec," --> ",end_prec);
+                print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
+            }
+        }
 
         bool finished() const {
-            return (current_prec<end_prec*0.9999);   // account for noise
+            return current_prec<end_prec*0.9999;   // account for noise
         }
 
         /// go to the next level
         protocol& operator++() {
-            // ending criterion
-            bool finish=(approx(current_prec,end_prec));
             current_prec*=0.1;
-
-            if (not finish) {
+            if (not finished()) {
                 if (current_prec<end_prec) current_prec=end_prec;
-                print("setting current_prec to", current_prec);
                 infer_thresholds(current_prec);
+                print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
+            } else {
+                print("ending protocol");
             }
             return *this;
         }
@@ -184,6 +191,7 @@ class Nemo: public MolecularOptimizationTargetInterface {
             econv=prec;
             thresh=econv;
             dconv=std::min(1.e-3,sqrt(econv)*0.1);
+            if (approx(current_prec,end_prec)) dconv=user_dconv;    // respect the user
         }
 
         /// compare two positive doubles to be equal

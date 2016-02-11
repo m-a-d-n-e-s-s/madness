@@ -323,6 +323,8 @@ namespace madness {
                 amo[i] = madness::project(amo[i], k, thresh, false);
             world.gop.fence();
         }
+        set_thresh(world,amo,thresh);
+
         //        normalize(world, amo);
         //        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
         //        truncate(world, amo);
@@ -361,7 +363,8 @@ namespace madness {
                         bmo[i] = madness::project(bmo[i], k, thresh, false);
                     world.gop.fence();
                 }
-                
+                set_thresh(world,amo,thresh);
+
                 //                normalize(world, bmo);
                 //                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);
                 //                truncate(world, bmo);

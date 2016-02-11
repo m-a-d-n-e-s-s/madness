@@ -96,18 +96,21 @@ double Nemo::value(const Tensor<double>& x) {
 
 	} else {
 
+        protocol p(*this);
+
         // guess: read from file or multiply the guess orbitals with the inverse R
 	    if (calc->param.restart) {
 	        calc->load_mos(world);
+	        p.start_prec=calc->amo[0].thresh();
 
 	    } else {
-
             calc->initial_guess(world);
 	        real_function_3d R_inverse = nuclear_correlation->inverse();
 	        calc->amo = mul(world, R_inverse, calc->amo);
 	    }
 
-	    for (protocol p(*this); not p.finished(); ++p) {
+
+	    for (p.initialize() ; not p.finished(); ++p) {
 	        set_protocol(p.current_prec);
 	        energy=solve(p);
 	    }
@@ -117,11 +120,8 @@ double Nemo::value(const Tensor<double>& x) {
 	    if (calc->param.save) calc->save_mos(world);
 
 	    // save the converged orbitals and nemos
-	    vecfuncT psi = mul(world, R, calc->amo);
-	    truncate(world,psi);
 	    for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
 	        save(calc->amo[imo], "nemo" + stringify(imo));
-	        save(psi[imo], "psi" + stringify(imo));
 	    }
 	}
 
@@ -591,22 +591,13 @@ real_function_3d Nemo::make_ddensity(const real_function_3d& rhonemo,
     // 2 RXR * rhonemo
     NuclearCorrelationFactor::U1_functor U1_func(nuclear_correlation.get(),axis);
     real_function_3d RXR=real_factory_3d(world).functor(U1_func).truncate_on_project();
-    real_function_3d term1=-2.0*R_square*RXR*rhonemo;
-    save(term1,"term1");
+    real_function_3d term1=-2.0*RXR*rhonemo;
 
     // R^2 * \nabla \rho
     real_derivative_3d D = free_space_derivative<double, 3>(world,axis);
     real_function_3d rhonemo_copy=copy(rhonemo).refine();
     real_function_3d Drhonemo=D(rhonemo_copy);
-    real_function_3d term2=(R_square*Drhonemo);
-//    save(term2,"term2");
-//    real_function_3d term2_km2=project(term2,FunctionDefaults<3>::get_k()-1);
-//    term2_km2=project(term2_km2,FunctionDefaults<3>::get_k());
-//    term2_km2+=term2;
-//    term2_km2.scale(0.5);
-//    save(term2_km2,"term2_km2");
-
-    return (term1+term2);
+    return R_square*(term1+Drhonemo);
 }
 
 
