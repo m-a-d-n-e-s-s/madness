@@ -94,17 +94,17 @@ namespace madness {
 
     void update_elements(const CC_vecfunction &bra, const CC_vecfunction &ket){
       const  std::string operation_name = "<"+assign_name(bra.type)+"|"+name()+"|"+assign_name(ket.type)+">";
-      if(world.rank()==0) std::cout << "updating operator elements: " << operation_name << std::endl;
+      if(world.rank()==0) std::cout << "updating operator elements: " << operation_name << " (" << bra.size() <<"x"<<ket.size() <<")"<< std::endl;
       if(bra.type != HOLE) error("Can not create intermediate of type "+operation_name+" , bra-element has to be of type HOLE");
       intermediateT xim;
       for(auto tmpk : bra.functions){
-        const CC_function & k=tmpk.second;
-        for(auto tmpl : ket.functions){
-  	const CC_function& l=tmpl.second;
-  	real_function_3d kl=(bra(k).function * l.function);
-  	real_function_3d result=((*op)(kl)).truncate();
-  	xim.insert(k.i,l.i,result);
-        }
+	const CC_function & k=tmpk.second;
+	for(auto tmpl : ket.functions){
+	  const CC_function& l=tmpl.second;
+	  real_function_3d kl=(bra(k).function * l.function);
+	  real_function_3d result=((*op)(kl)).truncate();
+	  xim.insert(k.i,l.i,result);
+	}
       }
       if(ket.type==HOLE) imH=xim;
       else if(ket.type==PARTICLE) imP=xim;
@@ -133,9 +133,9 @@ namespace madness {
       const size_t size_imR = size_of(imR);
       if(world.rank()==0){
 	std::cout <<"Size of " << name() <<" intermediates:\n";
-	std::cout <<"("<<imH.allpairs.size() << ") x <H|"+name()+"H>=" << size_imH << " (Gbyte)\n";
-	std::cout <<"("<<imP.allpairs.size() << ") x <H|"+name()+"P>=" << size_imH << " (Gbyte)\n";
-	std::cout <<"("<<imR.allpairs.size() << ") x <H|"+name()+"R>=" << size_imH << " (Gbyte)\n";
+	std::cout <<std::setw(5)<<"("<<imH.allpairs.size() << ") x <H|"+name()+"H>=" << size_imH << " (Gbyte)\n";
+	std::cout <<std::setw(5)<<"("<<imP.allpairs.size() << ") x <H|"+name()+"P>=" << size_imH << " (Gbyte)\n";
+	std::cout <<std::setw(5)<<"("<<imR.allpairs.size() << ") x <H|"+name()+"R>=" << size_imH << " (Gbyte)\n";
       }
       return size_imH+size_imP + size_imR;
     }
@@ -171,175 +171,175 @@ namespace madness {
   };
 
 
-  /// Structure that holds the CC intermediates and is able to refresh them
-  struct CC_Intermediates {
-  public:
-    CC_Intermediates(World&world, const CC_vecfunction &bra,
-		     const CC_vecfunction &ket, const Nemo&nemo,
-		     const CC_Parameters &param) :
-		       world(world),
-		       parameters(param),
-		       mo_bra_(bra),
-		       mo_ket_(ket),
-		       poisson(std::shared_ptr < real_convolution_3d> (CoulombOperatorPtr(world, parameters.lo,parameters.thresh_poisson))),
-		       f12op(std::shared_ptr < real_convolution_3d> (SlaterF12OperatorPtr(world, parameters.gamma(),parameters.lo, parameters.thresh_poisson))),
-		       density_(make_density(bra, ket)),
-		       exchange_intermediate_(make_exchange_intermediate(bra, ket)),
-		       f12_exchange_intermediate_(make_f12_exchange_intermediate(bra, ket)),
-		       hartree_potential_(make_hartree_potential(density_)) { }
-
-    // return the whole intermediate (to estimate size)
-    const intermediateT& get_EX()const{return exchange_intermediate_;}
-    const intermediateT& get_pEX()const{return perturbed_exchange_intermediate_;}
-    const intermediateT& get_fEX()const{return f12_exchange_intermediate_;}
-    const intermediateT& get_pfEX()const{return perturbed_f12_exchange_intermediate_;}
-    const intermediateT& get_rEX()const{return response_exchange_intermediate_;}
-    const intermediateT& get_rfEX()const{return response_f12_exchange_intermediate_;}
-
-    /// Get the intermediates
-    const real_function_3d get_density() const {
-      return density_;
-    }
-    const real_function_3d get_perturbed_density() const {
-      return perturbed_density_;
-    }
-    const real_function_3d get_hartree_potential() const {
-      return hartree_potential_;
-    }
-    const real_function_3d get_perturbed_hartree_potential() const {
-      return perturbed_hartree_potential_;
-    }
-    /// returns <k|g|l>
-    const real_function_3d get_EX(const size_t &k, const size_t &l) const {
-      return exchange_intermediate_(k, l);
-    }
-    const real_function_3d get_EX(const CC_function &k,
-				  const CC_function &l) const {
-      return exchange_intermediate_(k.i, l.i);
-    }
-    const real_function_3d get_fEX(const size_t &k, const size_t &l) const {
-      return f12_exchange_intermediate_(k, l);
-    }
-    const real_function_3d get_fEX(const CC_function &k,
-				   const CC_function &l) const {
-      return f12_exchange_intermediate_(k.i, l.i);
-    }
-
-    /// returns <k|g|\tau_l>
-    const real_function_3d get_pEX(const CC_function &k,
-				   const CC_function &l) const {
-      return perturbed_exchange_intermediate_(k.i, l.i);
-    }
-    const real_function_3d get_pEX(const size_t &k, const size_t &l) const {
-      return perturbed_exchange_intermediate_(k, l);
-    }
-    /// returns <k|f|\tau_l>
-    const real_function_3d get_pfEX(const CC_function &k,
-				    const CC_function &l) const {
-      return perturbed_f12_exchange_intermediate_(k.i, l.i);
-    }
-    const real_function_3d get_pfEX(const size_t &k, const size_t &l) const {
-      return perturbed_f12_exchange_intermediate_(k, l);
-    }
-    const real_function_3d get_rEX(const CC_function &k,
-				   const CC_function &l) const {
-      return response_exchange_intermediate_(k.i, l.i);
-    }
-    const real_function_3d get_rEX(const size_t &k, const size_t &l) const {
-      return response_exchange_intermediate_(k, l);
-    }
-    const real_function_3d get_rfEX(const CC_function &k,
-				    const CC_function &l) const {
-      return response_f12_exchange_intermediate_(k.i, l.i);
-    }
-    const real_function_3d get_rfEX(const size_t &k, const size_t &l) const {
-      return response_f12_exchange_intermediate_(k, l);
-    }
-
-    /// refresh the intermediates that depend on the \tau functions
-    void update(const CC_vecfunction &tau) {
-      if (world.rank() == 0)
-	std::cout << "Update Intermediates:\n";
-      perturbed_density_ = make_density(mo_bra_, tau);
-      perturbed_hartree_potential_ = (*poisson)(perturbed_density_);
-      perturbed_exchange_intermediate_ = make_exchange_intermediate(mo_bra_,tau);
-      perturbed_f12_exchange_intermediate_ = make_f12_exchange_intermediate(mo_bra_, tau);
-    }
-
-    void update_response(const CC_vecfunction &x){
-      std::cout << "Update Response Intermediates:\n";
-      response_exchange_intermediate_ = make_exchange_intermediate(mo_bra_,x);
-      response_f12_exchange_intermediate_ = make_f12_exchange_intermediate(mo_bra_,x);
-    }
-
-    /// make a density from two input functions
-    /// For closed shell the density has to be scaled with 2 in most cases (this is not done here!)
-    /// @param[in] vecfuncT_bra
-    /// @param[in] vecfuncT_ket
-    /// @param[out] \sum_i bra_i * ket_i
-    //real_function_3d make_density(const vecfuncT &bra,const vecfuncT &ket) const;
-    real_function_3d make_density(const CC_vecfunction &bra,
-				  const CC_vecfunction &ket) const;
-    /// Poisson operator
-    std::shared_ptr<real_convolution_3d> get_poisson() const {
-      return poisson;
-    }
-
-  private:
-    World &world;
-    const CC_Parameters &parameters;
-    const CC_vecfunction &mo_bra_;
-    const CC_vecfunction &mo_ket_;
-    const std::shared_ptr<real_convolution_3d> poisson;
-    const std::shared_ptr<real_convolution_3d> f12op;
-    /// const intermediates
-    const real_function_3d density_;
-    /// Exchange intermediate: \f$EX(i,j) = <i|g|j>\f$
-    intermediateT exchange_intermediate_;
-    /// The f12 exchange intermediate \f$fEX(i,j) = <i|f12|j>\f$
-    intermediateT f12_exchange_intermediate_;
-    /// Hartree_Potential  \f$ = J = \sum_k <k|g|k> = \f$ Poisson(density)
-    const real_function_3d hartree_potential_;
-    /// intermediates that need to be recalculated before every iteration
-    /// Perturbed Density \f$= \sum_k |k><\tau_k| \f$
-    real_function_3d perturbed_density_;
-    /// Perturbed Hartree Potential PJ \f$ = \sum_k <k|g|\tau_k> = \f$ Poisson(perturbed_density)
-    real_function_3d perturbed_hartree_potential_;
-    /// Perturbed Exchange Intermediate: \f$ PEX(i,j) = <i|g|\tau_j> \f$
-    intermediateT perturbed_exchange_intermediate_;
-    /// Perturbed f12-exchange-intermediate: \f$ pfEX(i,j) = <i|f12|tau_j> \f$
-    intermediateT perturbed_f12_exchange_intermediate_;
-    /// response exchange-intermediate: \f$ rEX(i,j) = <i|g12|x_j> \f$
-    intermediateT response_exchange_intermediate_;
-    /// response f12-exchange-intermediate: \f$ rEX(i,j) = <i|f12|x_j> \f$
-    intermediateT response_f12_exchange_intermediate_;
-
-    void error(const std::string &msg) const {
-      std::cout << "\n\n\nERROR IN CC_INTERMEDIATES:\n" << msg << "\n\n\n!!!";
-      MADNESS_EXCEPTION(
-	  "\n\n!!!!ERROR IN CC_INTERMEDIATES!!!!\n\n\n\n\n\n\n\n\n\n\n\n",
-	  1);
-    }
-    void warning(const std::string &msg) const {
-      std::cout << "\n\n\nWARNING IN CC_INTERMEDIATES:\n" << msg
-	  << "\n\n\n!!!";
-    }
-  public:
-    /// Make the exchange intermediate: EX[j][i] \f$ <bra[i](r2)|1/r12|ket[j](r2)> \f$
-    intermediateT make_exchange_intermediate(const CC_vecfunction &bra,
-					     const CC_vecfunction &ket) const;
-    intermediateT make_f12_exchange_intermediate(const CC_vecfunction &bra,
-						 const CC_vecfunction &ket) const;
-    /// Calculates the hartree potential Poisson(density)
-    /// @param[in] density A 3d function on which the poisson operator is applied (can be the occupied density and the perturbed density)
-    /// @return poisson(density) \f$ = \int 1/r12 density(r2) dr2 \f$
-    real_function_3d make_hartree_potential(
-	const real_function_3d &density) const {
-      real_function_3d hartree = (*poisson)(density);
-      hartree.truncate();
-      return hartree;
-    }
-  };
+  //  /// Structure that holds the CC intermediates and is able to refresh them
+  //  struct CC_Intermediates {
+  //  public:
+  //    CC_Intermediates(World&world, const CC_vecfunction &bra,
+  //		     const CC_vecfunction &ket, const Nemo&nemo,
+  //		     const CC_Parameters &param) :
+  //		       world(world),
+  //		       parameters(param),
+  //		       mo_bra_(bra),
+  //		       mo_ket_(ket),
+  //		       poisson(std::shared_ptr < real_convolution_3d> (CoulombOperatorPtr(world, parameters.lo,parameters.thresh_poisson))),
+  //		       f12op(std::shared_ptr < real_convolution_3d> (SlaterF12OperatorPtr(world, parameters.gamma(),parameters.lo, parameters.thresh_poisson))),
+  //		       density_(make_density(bra, ket)),
+  //		       exchange_intermediate_(make_exchange_intermediate(bra, ket)),
+  //		       f12_exchange_intermediate_(make_f12_exchange_intermediate(bra, ket)),
+  //		       hartree_potential_(make_hartree_potential(density_)) { }
+  //
+  //    // return the whole intermediate (to estimate size)
+  //    const intermediateT& get_EX()const{return exchange_intermediate_;}
+  //    const intermediateT& get_pEX()const{return perturbed_exchange_intermediate_;}
+  //    const intermediateT& get_fEX()const{return f12_exchange_intermediate_;}
+  //    const intermediateT& get_pfEX()const{return perturbed_f12_exchange_intermediate_;}
+  //    const intermediateT& get_rEX()const{return response_exchange_intermediate_;}
+  //    const intermediateT& get_rfEX()const{return response_f12_exchange_intermediate_;}
+  //
+  //    /// Get the intermediates
+  //    const real_function_3d get_density() const {
+  //      return density_;
+  //    }
+  //    const real_function_3d get_perturbed_density() const {
+  //      return perturbed_density_;
+  //    }
+  //    const real_function_3d get_hartree_potential() const {
+  //      return hartree_potential_;
+  //    }
+  //    const real_function_3d get_perturbed_hartree_potential() const {
+  //      return perturbed_hartree_potential_;
+  //    }
+  //    /// returns <k|g|l>
+  //    const real_function_3d get_EX(const size_t &k, const size_t &l) const {
+  //      return exchange_intermediate_(k, l);
+  //    }
+  //    const real_function_3d get_EX(const CC_function &k,
+  //				  const CC_function &l) const {
+  //      return exchange_intermediate_(k.i, l.i);
+  //    }
+  //    const real_function_3d get_fEX(const size_t &k, const size_t &l) const {
+  //      return f12_exchange_intermediate_(k, l);
+  //    }
+  //    const real_function_3d get_fEX(const CC_function &k,
+  //				   const CC_function &l) const {
+  //      return f12_exchange_intermediate_(k.i, l.i);
+  //    }
+  //
+  //    /// returns <k|g|\tau_l>
+  //    const real_function_3d get_pEX(const CC_function &k,
+  //				   const CC_function &l) const {
+  //      return perturbed_exchange_intermediate_(k.i, l.i);
+  //    }
+  //    const real_function_3d get_pEX(const size_t &k, const size_t &l) const {
+  //      return perturbed_exchange_intermediate_(k, l);
+  //    }
+  //    /// returns <k|f|\tau_l>
+  //    const real_function_3d get_pfEX(const CC_function &k,
+  //				    const CC_function &l) const {
+  //      return perturbed_f12_exchange_intermediate_(k.i, l.i);
+  //    }
+  //    const real_function_3d get_pfEX(const size_t &k, const size_t &l) const {
+  //      return perturbed_f12_exchange_intermediate_(k, l);
+  //    }
+  //    const real_function_3d get_rEX(const CC_function &k,
+  //				   const CC_function &l) const {
+  //      return response_exchange_intermediate_(k.i, l.i);
+  //    }
+  //    const real_function_3d get_rEX(const size_t &k, const size_t &l) const {
+  //      return response_exchange_intermediate_(k, l);
+  //    }
+  //    const real_function_3d get_rfEX(const CC_function &k,
+  //				    const CC_function &l) const {
+  //      return response_f12_exchange_intermediate_(k.i, l.i);
+  //    }
+  //    const real_function_3d get_rfEX(const size_t &k, const size_t &l) const {
+  //      return response_f12_exchange_intermediate_(k, l);
+  //    }
+  //
+  //    /// refresh the intermediates that depend on the \tau functions
+  //    void update(const CC_vecfunction &tau) {
+  //      if (world.rank() == 0)
+  //	std::cout << "Update Intermediates:\n";
+  //      perturbed_density_ = make_density(mo_bra_, tau);
+  //      perturbed_hartree_potential_ = (*poisson)(perturbed_density_);
+  //      perturbed_exchange_intermediate_ = make_exchange_intermediate(mo_bra_,tau);
+  //      perturbed_f12_exchange_intermediate_ = make_f12_exchange_intermediate(mo_bra_, tau);
+  //    }
+  //
+  //    void update_response(const CC_vecfunction &x){
+  //      std::cout << "Update Response Intermediates:\n";
+  //      response_exchange_intermediate_ = make_exchange_intermediate(mo_bra_,x);
+  //      response_f12_exchange_intermediate_ = make_f12_exchange_intermediate(mo_bra_,x);
+  //    }
+  //
+  //    /// make a density from two input functions
+  //    /// For closed shell the density has to be scaled with 2 in most cases (this is not done here!)
+  //    /// @param[in] vecfuncT_bra
+  //    /// @param[in] vecfuncT_ket
+  //    /// @param[out] \sum_i bra_i * ket_i
+  //    //real_function_3d make_density(const vecfuncT &bra,const vecfuncT &ket) const;
+  //    real_function_3d make_density(const CC_vecfunction &bra,
+  //				  const CC_vecfunction &ket) const;
+  //    /// Poisson operator
+  //    std::shared_ptr<real_convolution_3d> get_poisson() const {
+  //      return poisson;
+  //    }
+  //
+  //  private:
+  //    World &world;
+  //    const CC_Parameters &parameters;
+  //    const CC_vecfunction &mo_bra_;
+  //    const CC_vecfunction &mo_ket_;
+  //    const std::shared_ptr<real_convolution_3d> poisson;
+  //    const std::shared_ptr<real_convolution_3d> f12op;
+  //    /// const intermediates
+  //    const real_function_3d density_;
+  //    /// Exchange intermediate: \f$EX(i,j) = <i|g|j>\f$
+  //    intermediateT exchange_intermediate_;
+  //    /// The f12 exchange intermediate \f$fEX(i,j) = <i|f12|j>\f$
+  //    intermediateT f12_exchange_intermediate_;
+  //    /// Hartree_Potential  \f$ = J = \sum_k <k|g|k> = \f$ Poisson(density)
+  //    const real_function_3d hartree_potential_;
+  //    /// intermediates that need to be recalculated before every iteration
+  //    /// Perturbed Density \f$= \sum_k |k><\tau_k| \f$
+  //    real_function_3d perturbed_density_;
+  //    /// Perturbed Hartree Potential PJ \f$ = \sum_k <k|g|\tau_k> = \f$ Poisson(perturbed_density)
+  //    real_function_3d perturbed_hartree_potential_;
+  //    /// Perturbed Exchange Intermediate: \f$ PEX(i,j) = <i|g|\tau_j> \f$
+  //    intermediateT perturbed_exchange_intermediate_;
+  //    /// Perturbed f12-exchange-intermediate: \f$ pfEX(i,j) = <i|f12|tau_j> \f$
+  //    intermediateT perturbed_f12_exchange_intermediate_;
+  //    /// response exchange-intermediate: \f$ rEX(i,j) = <i|g12|x_j> \f$
+  //    intermediateT response_exchange_intermediate_;
+  //    /// response f12-exchange-intermediate: \f$ rEX(i,j) = <i|f12|x_j> \f$
+  //    intermediateT response_f12_exchange_intermediate_;
+  //
+  //    void error(const std::string &msg) const {
+  //      std::cout << "\n\n\nERROR IN CC_INTERMEDIATES:\n" << msg << "\n\n\n!!!";
+  //      MADNESS_EXCEPTION(
+  //	  "\n\n!!!!ERROR IN CC_INTERMEDIATES!!!!\n\n\n\n\n\n\n\n\n\n\n\n",
+  //	  1);
+  //    }
+  //    void warning(const std::string &msg) const {
+  //      std::cout << "\n\n\nWARNING IN CC_INTERMEDIATES:\n" << msg
+  //	  << "\n\n\n!!!";
+  //    }
+  //  public:
+  //    /// Make the exchange intermediate: EX[j][i] \f$ <bra[i](r2)|1/r12|ket[j](r2)> \f$
+  //    intermediateT make_exchange_intermediate(const CC_vecfunction &bra,
+  //					     const CC_vecfunction &ket) const;
+  //    intermediateT make_f12_exchange_intermediate(const CC_vecfunction &bra,
+  //						 const CC_vecfunction &ket) const;
+  //    /// Calculates the hartree potential Poisson(density)
+  //    /// @param[in] density A 3d function on which the poisson operator is applied (can be the occupied density and the perturbed density)
+  //    /// @return poisson(density) \f$ = \int 1/r12 density(r2) dr2 \f$
+  //    real_function_3d make_hartree_potential(
+  //	const real_function_3d &density) const {
+  //      real_function_3d hartree = (*poisson)(density);
+  //      hartree.truncate();
+  //      return hartree;
+  //    }
+  //  };
 
   /// Coupled Cluster Operators (all closed shell)
   class CC_Operators {
@@ -358,14 +358,15 @@ namespace madness {
 		   g12(world,g12_,param),
 		   f12(world,f12_,param),
 		   //intermediates_(world, mo_bra_, mo_ket_, nemo, param),
-		   Q12(world) {
+		   projector_Q12(world),
+		   projector_Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()){
       // make operators
 
       // make the active mo vector (ket nemos, bra is not needed for that)
       MADNESS_ASSERT(mo_ket_.size() == mo_bra_.size());
       // initialize the Q12 projector
-      Q12.set_spaces(mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction(),
-		     mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
+      projector_Q12.set_spaces(mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction(),
+			       mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
       // make exchange intermediate for ground state
       g12.update_elements(mo_bra_,mo_ket_);
       f12.update_elements(mo_bra_,mo_ket_);
@@ -435,7 +436,7 @@ namespace madness {
       CC_Timer update(world, "Update Intermediates");
       g12.update_elements(mo_bra_,singles);
       f12.update_elements(mo_bra_,singles);
-//      intermediates_.update(singles);
+      //      intermediates_.update(singles);
       update.info();
     }
 
@@ -443,7 +444,7 @@ namespace madness {
       CC_Timer update(world, "Update Intermediates");
       g12.update_elements(mo_bra_,singles);
       f12.update_elements(mo_bra_,singles);
-//      intermediates_.update(singles);
+      //      intermediates_.update(singles);
       update.info();
     }
 
@@ -477,7 +478,7 @@ namespace madness {
     }
     CC_vecfunction make_t_intermediate(const CC_vecfunction &tau) const {
       if(tau.type==PARTICLE){
-	 CC_vecfunction result(MIXED);
+	CC_vecfunction result(MIXED);
 	for (auto x : tau.functions) {
 	  CC_function tmpi = make_t_intermediate(x.second);
 	  result.insert(tmpi.i, tmpi);
@@ -531,10 +532,10 @@ namespace madness {
       result = add(world, result,potential_singles(doubles, singles, pot_S4c_r_));
 
       // the fock residue does not get projected, but all the rest
-      Q(result);
+      result=apply_Q(result,"CC2-Singles-Potential");
       truncate(world, result);
       // need to store this for application of Fock oerator on singles ( F|taui> = -Singles_potential[i] + \epsilon_i|taui>)
-      current_singles_potential = copy(world,result);
+      current_singles_potential_gs = copy(world,result);
       result = add(world, result, fock_residue);
       performance_S.current_iteration++;
       return result;
@@ -560,53 +561,53 @@ namespace madness {
     real_function_6d make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj, const double omega=0.0)const;
 
 
-//    // returns \sum_k <k|operator|xy>_1
-//    real_function_3d screen_operator(const CC_vecfunction &bra,const CC_function &x, const CC_function &y,real_function_3d (*A)(const CC_function&,const CC_function&, const CC_function&))const{
-//      real_function_3d result = real_factory_3d(world);
-//      for(const auto & ktmp:bra.functions){
-//	const CC_function &k=ktmp.second;
-//	result += A(k,x,y);
-//      }
-//      return result;
-//    }
+    //    // returns \sum_k <k|operator|xy>_1
+    //    real_function_3d screen_operator(const CC_vecfunction &bra,const CC_function &x, const CC_function &y,real_function_3d (*A)(const CC_function&,const CC_function&, const CC_function&))const{
+    //      real_function_3d result = real_factory_3d(world);
+    //      for(const auto & ktmp:bra.functions){
+    //	const CC_function &k=ktmp.second;
+    //	result += A(k,x,y);
+    //      }
+    //      return result;
+    //    }
 
-//    // return <k|g|xy>_1 = \sum_k <k|g|x>(2)|y(2)>
-//    real_function_3d screened_g(const CC_function&k,const CC_function&x, const CC_function&y)const{
-//      return (apply_g12(k,x)*y.function).truncate();
-//    }
-//    // return <k|f|xy>_1 = <k|f|x>(2)|y(2)>
-//    real_function_3d screened_f(const CC_function&k,const CC_function&x, const CC_function&y)const{
-//      return (apply_f12(k,x)*y.function).truncate();
-//    }
-//    // return <k|F|xy>_1 = <k|F|x> |y(2)> + <k|x> |Fy(2)>
-//    real_function_3d screened_fF(const CC_function&k,const CC_function&x, const CC_function&y)const{
-//      // <k|F|x> can be calculated more effectively but since the full Fock operator is applied to y we should keep it consistent
-//      const real_function_3d Fx = apply_F(x);
-//      const real_function_3d Fy = apply_F(y);
-//      const double kFx = k.inner(Fx);
-//      const double kx =k.inner(x);
-//      return (kFx*y.function + kx*Fy).truncate();
-//    }
+    //    // return <k|g|xy>_1 = \sum_k <k|g|x>(2)|y(2)>
+    //    real_function_3d screened_g(const CC_function&k,const CC_function&x, const CC_function&y)const{
+    //      return (apply_g12(k,x)*y.function).truncate();
+    //    }
+    //    // return <k|f|xy>_1 = <k|f|x>(2)|y(2)>
+    //    real_function_3d screened_f(const CC_function&k,const CC_function&x, const CC_function&y)const{
+    //      return (apply_f12(k,x)*y.function).truncate();
+    //    }
+    //    // return <k|F|xy>_1 = <k|F|x> |y(2)> + <k|x> |Fy(2)>
+    //    real_function_3d screened_fF(const CC_function&k,const CC_function&x, const CC_function&y)const{
+    //      // <k|F|x> can be calculated more effectively but since the full Fock operator is applied to y we should keep it consistent
+    //      const real_function_3d Fx = apply_F(x);
+    //      const real_function_3d Fy = apply_F(y);
+    //      const double kFx = k.inner(Fx);
+    //      const double kx =k.inner(x);
+    //      return (kFx*y.function + kx*Fy).truncate();
+    //    }
     // return <k|Kf|xy>_1 = <k|K1f|xy>_1 + <k|K2f|xy>
     // <k|K1f|xy> = <l|kgl*f|x>*|y>
     // <k|K2f|xy> = <l|kfx*g|y>*|l>
-//    real_function_3d screened_Kf(const CC_function&k,const CC_function&x, const CC_function&y)const{
-//      const real_function_3d kfx_y = screened_f(k,x,y);
-//      real_function_3d l_kgl = real_factory_3d(world);
-//      real_function_3d k_K2f_xy = real_factory_3d(world);
-//      for(const auto & ltmp:mo_bra_.functions){
-//	const CC_function &l=ltmp.second;
-//	l_kgl += l.function*apply_g12(k,mo_ket_(l));
-//	k_K2f_xy += apply_g12(l,kfx_y)*mo_ket_(l).function;
-//      }
-//      l_kgl.truncate();
-//      k_K2f_xy.truncate();
-//      const real_function_3d k_K1f_xy = (apply_f12(l_kgl,x)*y.function).truncate();
-//
-//
-//      return (k_K1f_xy + k_K2f_xy).truncate();
-//
-//    }
+    //    real_function_3d screened_Kf(const CC_function&k,const CC_function&x, const CC_function&y)const{
+    //      const real_function_3d kfx_y = screened_f(k,x,y);
+    //      real_function_3d l_kgl = real_factory_3d(world);
+    //      real_function_3d k_K2f_xy = real_factory_3d(world);
+    //      for(const auto & ltmp:mo_bra_.functions){
+    //	const CC_function &l=ltmp.second;
+    //	l_kgl += l.function*apply_g12(k,mo_ket_(l));
+    //	k_K2f_xy += apply_g12(l,kfx_y)*mo_ket_(l).function;
+    //      }
+    //      l_kgl.truncate();
+    //      k_K2f_xy.truncate();
+    //      const real_function_3d k_K1f_xy = (apply_f12(l_kgl,x)*y.function).truncate();
+    //
+    //
+    //      return (k_K1f_xy + k_K2f_xy).truncate();
+    //
+    //    }
 
     // return <kl|A|xy>
     // the given operator a should act as: A(x,y,z) = <x|A|yz>_1
@@ -624,28 +625,28 @@ namespace madness {
     }
 
 
-    real_function_6d get_MP2_potential_constant_part(const CC_Pair &u) const {
-      CC_function mo_i = mo_ket_(u.i);
-      CC_function mo_j = mo_ket_(u.j);
-
-      CC_Timer timer_U(world, "U|ij>");
-      real_function_6d UePart = apply_transformed_Ue(mo_i, mo_j);
-      UePart.print_size("Ue|" + mo_i.name() + mo_j.name());
-      timer_U.info();
-
-      CC_Timer timer_KffK(world, "Kf|ij>");
-      real_function_6d KffKPart = apply_exchange_commutator(mo_i, mo_j);
-      KffKPart.print_size("[K,f]|" + mo_i.name() + mo_j.name());
-      timer_KffK.info();
-
-      real_function_6d unprojected_result = (UePart - KffKPart).truncate();
-      unprojected_result.print_size(
-	  "Ue - [K,f]|" + mo_i.name() + mo_j.name());
-      real_function_6d result = Q12(unprojected_result);
-      result.print_size("Q12(Ue - [K,f]" + u.name());
-      return result;
-
-    }
+    //    real_function_6d get_MP2_potential_constant_part(const CC_Pair &u) const {
+    //      CC_function mo_i = mo_ket_(u.i);
+    //      CC_function mo_j = mo_ket_(u.j);
+    //
+    //      CC_Timer timer_U(world, "U|ij>");
+    //      real_function_6d UePart = apply_transformed_Ue(mo_i, mo_j);
+    //      UePart.print_size("Ue|" + mo_i.name() + mo_j.name());
+    //      timer_U.info();
+    //
+    //      CC_Timer timer_KffK(world, "Kf|ij>");
+    //      real_function_6d KffKPart = apply_exchange_commutator(mo_i, mo_j);
+    //      KffKPart.print_size("[K,f]|" + mo_i.name() + mo_j.name());
+    //      timer_KffK.info();
+    //
+    //      real_function_6d unprojected_result = (UePart - KffKPart).truncate();
+    //      unprojected_result.print_size(
+    //	  "Ue - [K,f]|" + mo_i.name() + mo_j.name());
+    //      real_function_6d result = Q12_projector(unprojected_result);
+    //      result.print_size("Q12(Ue - [K,f]" + u.name());
+    //      return result;
+    //
+    //    }
 
     /// returns the non constant part of the MP2 potential which is
     /// \f$ (2J-K+Un)|uij> \f$
@@ -717,31 +718,12 @@ namespace madness {
     // right now this is all copied from mp2.cc
     double compute_mp2_pair_energy(CC_Pair &pair) const;
 
-    /// Projectors to project out the occupied space
-    // 3D on vector of functions
-    void Q(vecfuncT &f) const {
-      for (size_t i = 0; i < f.size(); i++) Q(f[i]);
-    }
-    /// return |\tau_k><k|f_i>
-    vecfuncT P(const vecfuncT &f,const CC_vecfunction &tau) const {
-      vecfuncT result;
-      for (size_t i = 0; i < f.size(); i++)result.push_back(P(f[i],tau));
-      return result;
-    }
-    // 3D on single function
-    // use the projector class, like in Q12
-    void Q(real_function_3d &f) const {
-      for (size_t i = 0; i < mo_ket_.size(); i++) {
-	f -= mo_bra_(i).function.inner(f) * mo_ket_(i).function;
-      }
-    }
-    /// returns |tau_k><k|f>
-    real_function_3d P(const real_function_3d &f,const CC_vecfunction &tau) const {
-      real_function_3d result = real_factory_3d(world);
-      for (size_t i = 0; i < mo_ket_.size(); i++) {
-	result+= mo_bra_(i).function.inner(f) * tau(i).function;
-      }
-      return result;
+    /// returns <mo_bra|f> |g>
+    vecfuncT P(const vecfuncT &f, const CC_vecfunction &g)const{
+      vecfuncT active_mo_bra;
+      for(const auto& gtmp:g.functions) active_mo_bra.push_back(mo_bra_(gtmp.first).function);
+      Projector<double,3> P(active_mo_bra,g.get_vecfunction());
+      return P(f);
     }
 
     /// CCSD/CC2 singles potential parts
@@ -763,11 +745,18 @@ namespace madness {
 	case pot_F3D_:
 	  result = fock_residue_closed_shell(singles);
 	  break;
-	case pot_ccs_:
-	  result = ccs_potential(singles);
-	  break;
+	case pot_ccs_:{
+	  result = ccs_potential_new(singles);
+	  std::cout <<"Make new ccs potential\n";
+	  vecfuncT old = ccs_potential(singles);
+	  std::cout <<"Make old ccs potential\n";
+	  vecfuncT diff = sub(world,result,old);
+	  double norm2 = inner(world,diff,diff).sum();
+	  std::cout <<"Difference between new and old ccs potential: " << sqrt(norm2) << std::endl;
+	  if(sqrt(norm2)>parameters.thresh_3D) warning("Warning: New CCS Potential not good");
+	}
+	break;
 	case pot_S2b_u_:
-
 	  result = S2b_u_part(u, singles);
 	  break;
 	case pot_S2c_u_:
@@ -783,11 +772,11 @@ namespace madness {
 	  result = S4c_u_part(u, singles);
 	  break;
 	case pot_S2b_r_:
-	  {
-	    CC_vecfunction t = make_t_intermediate(singles);
-	    result = S2b_reg_part(t,t);
-	    break;
-	  }
+	{
+	  CC_vecfunction t = make_t_intermediate(singles);
+	  result = S2b_reg_part(t,t);
+	  break;
+	}
 	case pot_S2c_r_:
 	{
 	  CC_vecfunction t = make_t_intermediate(singles);
@@ -812,70 +801,87 @@ namespace madness {
 	  result = S4c_reg_part(t,t,singles);
 	  break;
 	}
-	case pot_S1_:
-	  result = S1(singles);
-	  break;
-	case pot_S5a_:
-	  result = S5a(singles);
-	  break;
       }
 
-      truncate(world, result);
       data.result_size = get_size(world, result);
       data.result_norm = norm2(world, result);
       data.time = timer.current_time();
       data.info();
       performance_S.insert(data.name, data);
-      if (result.size() != mo_ket_.size() - parameters.freeze)
-	warning(
-	    "Somethings wrong: Size of singles-potential unequal to size of orbitals minus freeze parameter");
       return result;
     }
 
-    //    real_function_6d potential_doubles(const CC_Pair &u, const CC_vecfunction &singles,
-    //				       const potentialtype_d &name) const {
-    //      CC_Timer timer(world, assign_name(name));
-    //      CC_data data(assign_name(name));
-    //      output("Now Doing " + assign_name(name) + " \n\n");
-    //
-    //      real_function_6d result = real_factory_6d(world);
-    //
-    //      switch (name) {
-    //	//		case pot_D6b_D8b_D9_:
-    //	//			result = D6b_D8b_D9(taui, tauj, singles);
-    //	//			break;
-    //	//		case pot_D4b_D6c_D8a_:
-    //	//			result = D4b_D6c_D8a(taui, tauj, singles);
-    //	//			break;
-    //	case pot_F6D_:
-    //	  result = fock_residue_6d(u);
-    //	  break;
-    //	case pot_cc2_coulomb_:
-    //	  result = make_cc2_coulomb_parts(singles(u.i),singles(u.j),singles);
-    //	  break;
-    //	case pot_cc2_residue_:
-    //	  result = make_cc2_residue(singles(u.i),singles(u.j));
-    //	  break;
-    //	default:
-    //	  error(
-    //	      "unknown or unsupported key for doubles potential: "
-    //	      + assign_name(name));
-    //	  break;
-    //      }
-    //
-    //      result.print_size(assign_name(name));
-    //      output("Finished with " + assign_name(name));
-    //      data.result_norm = result.norm2();
-    //      data.result_size = get_size(result);
-    //      data.time = (timer.current_time());
-    //      performance_D.insert(data.name, data);
-    //      return result;
-    //    }
+    vecfuncT response_potential_singles(const Pairs<CC_Pair>& gs_u,
+					const CC_vecfunction & gs_singles,
+					const Pairs<CC_Pair>& response_u,
+					const CC_vecfunction & response_singles,
+					const potentialtype_s &name) const {
 
-    // The Fock operator is partitioned into F = T + Vn + R
-    // the fock residue R= 2J-K for closed shell is computed here
-    // J_i = \sum_k <k|r12|k> |tau_i>
-    // K_i = \sum_k <k|r12|tau_i> |k>
+      const std::string full_name = assign_name(CC2_response_)+":"+assign_name(name);
+      CC_Timer timer(world, full_name);
+      CC_data data(full_name);
+      if(response_singles.type!=RESPONSE) error("Error in response_potential_singles " + assign_name(name)+" response_singles have wrong type");
+      if(gs_singles.type!=PARTICLE) error("Error in response_potential_singles " + assign_name(name)+" gs_singles have wrong type");
+      vecfuncT result;
+
+      switch (name) {
+	case pot_F3D_:
+	  result = fock_residue_closed_shell(response_singles);
+	  break;
+	case pot_ccs_:
+	  result = ccs_response_potential(gs_singles,response_singles);
+	  break;
+	case pot_S2b_u_:
+	  result = S2b_u_part(response_u, response_singles);
+	  break;
+	case pot_S2c_u_:
+	  result = S2c_u_part(response_u, response_singles);
+	  break;
+	case pot_S4a_u_:
+	  error(assign_name(name)+"not implemented for response");
+	  break;
+	case pot_S4b_u_:
+	  error(assign_name(name)+"not implemented for response");
+	  break;
+	case pot_S4c_u_:
+	  error(assign_name(name)+"not implemented for response");
+	  break;
+	case pot_S2b_r_:
+	{
+	  error(assign_name(name)+"not implemented for response");
+	  break;
+	}
+	case pot_S2c_r_:
+	{
+	  error(assign_name(name)+"not implemented for response");
+	  break;
+	}
+	case pot_S4a_r_:
+	{
+	  error(assign_name(name)+"not implemented for response");
+	  break;
+	}
+	case pot_S4b_r_:
+	{
+	  error(assign_name(name)+"not implemented for response");
+	  break;
+	}
+	case pot_S4c_r_:
+	{
+	  error(assign_name(name)+"not implemented for response");
+	  break;
+	}
+      }
+      data.result_size = get_size(world, result);
+      data.result_norm = norm2(world, result);
+      data.time = timer.current_time();
+      data.info();
+      performance_S.insert(data.name, data);
+      return result;
+
+    }
+
+
     vecfuncT fock_residue_closed_shell(const CC_vecfunction &tau) const;
 
     /// brilloin terms of ccs
@@ -885,6 +891,8 @@ namespace madness {
     /// The CCS Potential without Brillouin terms and Fock residue
     vecfuncT ccs_potential(const CC_vecfunction &tau) const;
     vecfuncT ccs_potential_new(const CC_vecfunction &tau)const;
+    vecfuncT ccs_unprojected(const CC_vecfunction &ti, const CC_vecfunction &tk)const;
+    vecfuncT ccs_response_potential(const CC_vecfunction &singles, const CC_vecfunction &response)const;
 
     // result: \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 )
     vecfuncT S2b_u_part(const Pairs<CC_Pair> &doubles,
@@ -929,8 +937,12 @@ namespace madness {
     void apply_Q12(real_function_6d &f,
 		   const std::string &msg = "6D-function") const {
       CC_Timer Q12_time(world, "Applying Q12 to " + msg);
-      f = Q12(f);
+      f = projector_Q12(f);
       Q12_time.info();
+    }
+    vecfuncT apply_Q(const vecfuncT &f, const std::string msg="vectorfunction")const{
+      if(world.rank()==0) std::cout <<"Applying Q to " << msg << std::endl;
+      return projector_Q(f);
     }
 
     real_function_6d apply_regularization_potential(const CC_function &a, const CC_function &b, const double omega)const;
@@ -1079,8 +1091,8 @@ namespace madness {
     double make_ijgfxy(const size_t &i, const size_t &j,
 		       const real_function_3d &x, const real_function_3d &y) const;
     /// Make two electron integral (expensive without intermediates) use just for debugging
-   // double make_ijgxy(const size_t &i, const size_t &j,
-		      //const CC_function &x, const CC_function &y) const;
+    // double make_ijgxy(const size_t &i, const size_t &j,
+    //const CC_function &x, const CC_function &y) const;
     double make_integral(const size_t &i, const size_t &j, const CC_function &x,
 			 const CC_function&y, const optype type) const;
     /// Make two electron integral with the pair function
@@ -1094,54 +1106,54 @@ namespace madness {
     /// works only if f = (1-exp(-\gamma*r12))/(2\gamma)
     real_function_3d apply_gf(const real_function_3d &f) const;
 
-//    real_function_3d apply_f12(const CC_function & bra,
-//			       const CC_function &ket) const {
-//      if (bra.type != HOLE) {
-//	output("Apply_f12, bra state is no hole state");
-//	return (*f12op)((bra.function* nemo.nuclear_correlation->square()) * ket.function );
-//      }
-//      if (ket.type == HOLE) {
-//	return intermediates_.get_fEX(bra, ket);
-//      } else if (ket.type == PARTICLE) {
-//	return intermediates_.get_pfEX(bra, ket);
-//      } else if (ket.type == MIXED) {
-//	return intermediates_.get_fEX(bra, ket)
-//	    + intermediates_.get_pfEX(bra, ket);
-//      } else if (ket.type == RESPONSE){
-//	return intermediates_.get_rEX(bra,ket);
-//      } else {
-//	output("Apply_f12, ket state undefined");
-//	return (*f12op)(bra.function * ket.function);
-//      }
-//    }
+    //    real_function_3d apply_f12(const CC_function & bra,
+    //			       const CC_function &ket) const {
+    //      if (bra.type != HOLE) {
+    //	output("Apply_f12, bra state is no hole state");
+    //	return (*f12op)((bra.function* nemo.nuclear_correlation->square()) * ket.function );
+    //      }
+    //      if (ket.type == HOLE) {
+    //	return intermediates_.get_fEX(bra, ket);
+    //      } else if (ket.type == PARTICLE) {
+    //	return intermediates_.get_pfEX(bra, ket);
+    //      } else if (ket.type == MIXED) {
+    //	return intermediates_.get_fEX(bra, ket)
+    //	    + intermediates_.get_pfEX(bra, ket);
+    //      } else if (ket.type == RESPONSE){
+    //	return intermediates_.get_rEX(bra,ket);
+    //      } else {
+    //	output("Apply_f12, ket state undefined");
+    //	return (*f12op)(bra.function * ket.function);
+    //      }
+    //    }
 
-//    real_function_3d apply_g12(const CC_function & bra,
-//			       const CC_function &ket) const {
-//      if (bra.type != HOLE) {
-//	output("Apply_g12, bra state is no hole state");
-//	return (*poisson)(bra.function * ket.function);
-//      }
-//      if (ket.type == HOLE) {
-//	return intermediates_.get_EX(bra, ket);
-//      } else if (ket.type == PARTICLE) {
-//	return intermediates_.get_pEX(bra, ket);
-//      } else if (ket.type == MIXED) {
-//	return intermediates_.get_EX(bra, ket) + intermediates_.get_pEX(bra, ket);
-//      } else if (ket.type == RESPONSE){
-//	return intermediates_.get_rEX(bra,ket);
-//      } else {
-//	output("Apply_g12, ket state undefined");
-//	return (*poisson)(bra.function * ket.function);
-//      }
-//    }
-//    /// returns <k|g|x>*|y>
-//    real_function_3d make_kgx_y(const CC_function &k, const CC_function &x, const CC_function &y)const{
-//      return (apply_g12(k,x)*y.function);
-//    }
-//    /// returns <k|f|x>*|y>
-//    real_function_3d make_kfx_y(const CC_function &k, const CC_function &x, const CC_function &y)const{
-//      return (apply_f12(k,x)*y.function);
-//    }
+    //    real_function_3d apply_g12(const CC_function & bra,
+    //			       const CC_function &ket) const {
+    //      if (bra.type != HOLE) {
+    //	output("Apply_g12, bra state is no hole state");
+    //	return (*poisson)(bra.function * ket.function);
+    //      }
+    //      if (ket.type == HOLE) {
+    //	return intermediates_.get_EX(bra, ket);
+    //      } else if (ket.type == PARTICLE) {
+    //	return intermediates_.get_pEX(bra, ket);
+    //      } else if (ket.type == MIXED) {
+    //	return intermediates_.get_EX(bra, ket) + intermediates_.get_pEX(bra, ket);
+    //      } else if (ket.type == RESPONSE){
+    //	return intermediates_.get_rEX(bra,ket);
+    //      } else {
+    //	output("Apply_g12, ket state undefined");
+    //	return (*poisson)(bra.function * ket.function);
+    //      }
+    //    }
+    //    /// returns <k|g|x>*|y>
+    //    real_function_3d make_kgx_y(const CC_function &k, const CC_function &x, const CC_function &y)const{
+    //      return (apply_g12(k,x)*y.function);
+    //    }
+    //    /// returns <k|f|x>*|y>
+    //    real_function_3d make_kfx_y(const CC_function &k, const CC_function &x, const CC_function &y)const{
+    //      return (apply_f12(k,x)*y.function);
+    //    }
 
 
     /// @param[in] x Function which is convoluted with (it is assumed that x is already multiplied with R2)
@@ -1219,81 +1231,51 @@ namespace madness {
       return mo_ket;
     }
     /// The poisson operator (Coulomb Operator)
-//    std::shared_ptr<real_convolution_3d> poisson = std::shared_ptr
-//	< real_convolution_3d
-//	> (CoulombOperatorPtr(world, parameters.lo,
-//			      parameters.thresh_poisson));
+    //    std::shared_ptr<real_convolution_3d> poisson = std::shared_ptr
+    //	< real_convolution_3d
+    //	> (CoulombOperatorPtr(world, parameters.lo,
+    //			      parameters.thresh_poisson));
     /// The BSH Operator for the f12g12 convolution which is with f12= 1/(2gamma)[1-exp(-gamma*r12)], f12g12 = 1/(2gamma) [CoulombOp - BSHOp(gamma)]
     std::shared_ptr<real_convolution_3d> fBSH = std::shared_ptr
 	< real_convolution_3d
 	> (BSHOperatorPtr3D(world, corrfac.gamma(), parameters.lo,
 			    parameters.thresh_poisson));
     /// The f12 convolution operator
-//    std::shared_ptr<real_convolution_3d> f12op = std::shared_ptr
-//	< real_convolution_3d
-//	> (SlaterF12OperatorPtr(world, corrfac.gamma(), parameters.lo,
-//				parameters.thresh_poisson));
+    //    std::shared_ptr<real_convolution_3d> f12op = std::shared_ptr
+    //	< real_convolution_3d
+    //	> (SlaterF12OperatorPtr(world, corrfac.gamma(), parameters.lo,
+    //				parameters.thresh_poisson));
     /// Intermediates (some need to be refreshed after every iteration)
     //CC_Intermediates intermediates_;
     /// The current singles potential (Q\sum singles_diagrams) , needed for application of the fock opeerator on a singles function
-    vecfuncT current_singles_potential;
+    vecfuncT current_singles_potential_gs;
+    vecfuncT current_singles_potential_response;
     /// The 6D part of S2c and S2b (only the parts which depends on the u-function, not the regularization tail (since the singles change)
-    mutable vecfuncT current_s2b_u_part;
-    mutable vecfuncT current_s2c_u_part;
+    mutable vecfuncT current_s2b_u_part_gs;
+    mutable vecfuncT current_s2b_u_part_response;
+    mutable vecfuncT current_s2c_u_part_gs;
+    mutable vecfuncT current_s2c_u_part_response;
 
     CC_convolution_operator g12;
     CC_convolution_operator f12;
-    StrongOrthogonalityProjector<double, 3> Q12;
+    StrongOrthogonalityProjector<double, 3> projector_Q12;
+    QProjector<double,3> projector_Q;
 
   public:
     void check_stored_singles_potentials() {
-      output("Removing stored singles potentials\n");
-      if(not current_s2b_u_part.empty())  warning("S2b_u_part is not empty before singles iteration ... if this is the first macro-iteration this is OK");
-      if(not current_s2c_u_part.empty())  warning("S2b_u_part is not empty before singles iteration ... if this is the first macro-iteration this is OK");
-      if(not current_singles_potential.empty()) warning("Singles_potential is not empty before singles iteration ... if this is the first macro-iteration this is OK");
+
     }
     void remove_stored_singles_potentials() {
       output("Removing stored singles potentials\n");
-      current_s2b_u_part.clear();
-      current_s2c_u_part.clear();
-      current_singles_potential.clear();
+      current_s2b_u_part_gs.clear();
+      current_s2c_u_part_gs.clear();
+      current_singles_potential_gs.clear();
+      current_s2b_u_part_response.clear();
+      current_s2c_u_part_response.clear();
+      current_singles_potential_response.clear();
     }
 
-    //	// Screen Potential
-    //	screeningtype screen_potential(const CC_vecfunction &singles,const CC_function &ti, const CC_function &tj, const potentialtype_d &name)const{
-    //		size_t i = ti.i;
-    //		size_t j = tj.j;
-    //		CC_function moi(mo_ket_[i],i,HOLE);
-    //		CC_function moj(mo_ket_[j],j,HOLE);
-    //		double estimate=0.0;
-    //
-    //		switch(name);
-    //		{
-    //		case _D6b_ :
-    //			for(auto k:singles.functions){
-    //				for(auto l:singles.functions){
-    //					estimate += fabs(intermediates_.get_integral(mo_ket_[k.i],mo_ket_[l.i],moi,moj))*k.function.norm2()*l.function.norm2();
-    //				}
-    //			}
-    //		case _D6c_:
-    //			for(auto k:singles.functions){
-    //				estimate +=  (intermediates_.get_EX(k.i,i).norm2()*k.function.norm2()*tj.function.norm2()
-    //		                     +intermediates_.get_EX(k.i,j).norm2()*k.function.norm2()*ti.function.norm2()
-    //							 +intermediates_.get_pEX(k.i,i).norm2()*k.function.norm2()*mo_ket_[i].norm2()
-    //							 +intermediates_.get_pEX(k.i,j).norm2()*k.function.norm2()*mo_ket_[j].norm2());
-    //			}
-    //		case _D8a_:
-    //
-    //		case _D8b_:
-    //
-    //		case _D9_:
-    //
-    //		}
-    //		estimate = fabs(estimate);
-    //		if(estimate>thresh_6D) return _calculate_;
-    //		else if(estimate>thresh_6D_tight) return _refine_;
-    //		else return _neglect_;
-    //	}
+
 
     void screening(const real_function_3d &x, const real_function_3d &y) const {
       double normx = x.norm2();
@@ -1475,15 +1457,21 @@ namespace madness {
 
 
     void print_memory_information(const CC_vecfunction &singles, const Pairs<CC_Pair> &doubles)const{
+      const double moket_size = size_of(mo_ket_);
+      const double mobra_size = size_of(mo_bra_);
       const double singles_size = size_of(singles);
       const double doubles_size = size_of(doubles);
       const double intermediates_size = g12.info() + f12.info();
       const double all = singles_size + doubles_size + intermediates_size;
       if(world.rank()==0){
-	std::cout << "Singles" << singles_size    <<" (GByte)"<< std::endl;
-	std::cout << "Doubles" << doubles_size    <<" (GByte)"<< std::endl;
-	std::cout << "-------" << ""              <<" (GByte)"<< std::endl;
-	std::cout << "all    " << all             <<" (GByte)"<< std::endl;
+	std::cout << "MO-ket       :" << moket_size      <<" (GByte)"<< std::endl;
+	std::cout << "MO-bra       :" << mobra_size      <<" (GByte)"<< std::endl;
+	std::cout << "Singles      :" << singles_size    <<" (GByte)"<< std::endl;
+	std::cout << "Singles      :" << singles_size    <<" (GByte)"<< std::endl;
+	std::cout << "Doubles      :" << doubles_size    <<" (GByte)"<< std::endl;
+	std::cout << "Intermediates:" << intermediates_size    <<" (GByte)"<< std::endl;
+	std::cout << "--------      " << "----------------------\n";
+	std::cout << "all           " << all              <<" (GByte)"<< std::endl;
 	std::cout << "\n----------------------------------\n";
       }
     }

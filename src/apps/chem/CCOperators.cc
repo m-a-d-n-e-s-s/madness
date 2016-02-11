@@ -31,57 +31,57 @@ namespace madness {
 
   /// save a function
   template<typename T, size_t NDIM>
-    void
-    CC_Operators::save_function(const Function<T, NDIM>& f,const std::string name) const {
-      if(world.rank() == 0) print("saving function",name);
-      f.print_size(name);
-      archive::ParallelOutputArchive ar(world,name.c_str(),1);
-      ar & f;
-    }
-
-  real_function_3d
-  CC_Intermediates::make_density(const CC_vecfunction &bra,const CC_vecfunction &ket) const {
-    if(bra.size() == 0) error("error in make_density: bra_element is empty");
-    if(ket.size() == 0) error("error in make_density: ket_element is empty");
-    // make the density
-    real_function_3d density=real_factory_3d(world);
-    for(auto x : ket.functions){
-
-      density+=(bra(x.first).function * x.second.function);
-    }
-    density.truncate(FunctionDefaults<3>::get_thresh() * 0.01);
-    return density;
+  void
+  CC_Operators::save_function(const Function<T, NDIM>& f,const std::string name) const {
+    if(world.rank() == 0) print("saving function",name);
+    f.print_size(name);
+    archive::ParallelOutputArchive ar(world,name.c_str(),1);
+    ar & f;
   }
 
-  intermediateT
-  CC_Intermediates::make_exchange_intermediate(const CC_vecfunction &bra,const CC_vecfunction &ket) const {
-    intermediateT xim;
-    for(auto tmpk : bra.functions){
-      const CC_function & k=tmpk.second;
-      for(auto tmpl : ket.functions){
-	const CC_function& l=tmpl.second;
-	real_function_3d kl=(bra(k).function * l.function);
-	real_function_3d result=((*poisson)(kl)).truncate();
-	xim.insert(k.i,l.i,result);
-      }
-    }
-    return xim;
-  }
-
-  intermediateT
-  CC_Intermediates::make_f12_exchange_intermediate(const CC_vecfunction &bra,const CC_vecfunction &ket) const {
-    intermediateT xim;
-    for(auto tmpk : bra.functions){
-      const CC_function & k=tmpk.second;
-      for(auto tmpl : ket.functions){
-	CC_function l=tmpl.second;
-	real_function_3d kl=(bra(k).function * l.function);
-	real_function_3d result=((*f12op)(kl)).truncate();
-	xim.insert(k.i,l.i,result);
-      }
-    }
-    return xim;
-  }
+//  real_function_3d
+//  CC_Intermediates::make_density(const CC_vecfunction &bra,const CC_vecfunction &ket) const {
+//    if(bra.size() == 0) error("error in make_density: bra_element is empty");
+//    if(ket.size() == 0) error("error in make_density: ket_element is empty");
+//    // make the density
+//    real_function_3d density=real_factory_3d(world);
+//    for(auto x : ket.functions){
+//
+//      density+=(bra(x.first).function * x.second.function);
+//    }
+//    density.truncate(FunctionDefaults<3>::get_thresh() * 0.01);
+//    return density;
+//  }
+//
+//  intermediateT
+//  CC_Intermediates::make_exchange_intermediate(const CC_vecfunction &bra,const CC_vecfunction &ket) const {
+//    intermediateT xim;
+//    for(auto tmpk : bra.functions){
+//      const CC_function & k=tmpk.second;
+//      for(auto tmpl : ket.functions){
+//	const CC_function& l=tmpl.second;
+//	real_function_3d kl=(bra(k).function * l.function);
+//	real_function_3d result=((*poisson)(kl)).truncate();
+//	xim.insert(k.i,l.i,result);
+//      }
+//    }
+//    return xim;
+//  }
+//
+//  intermediateT
+//  CC_Intermediates::make_f12_exchange_intermediate(const CC_vecfunction &bra,const CC_vecfunction &ket) const {
+//    intermediateT xim;
+//    for(auto tmpk : bra.functions){
+//      const CC_function & k=tmpk.second;
+//      for(auto tmpl : ket.functions){
+//	CC_function l=tmpl.second;
+//	real_function_3d kl=(bra(k).function * l.function);
+//	real_function_3d result=((*f12op)(kl)).truncate();
+//	xim.insert(k.i,l.i,result);
+//      }
+//    }
+//    return xim;
+//  }
 
   real_function_6d
   CC_Operators::make_cc2_coulomb_parts(const CC_function &ti,const CC_function &tj,const CC_vecfunction &singles,const double omega) const {
@@ -117,8 +117,8 @@ namespace madness {
 
       real_function_3d part1=-1.0 * kgtj_ti + 0.5 * l1;
       real_function_3d part2=-1.0 * kgti_tj + 0.5 * l2;
-      Q(part1);
-      Q(part2);
+      part1=projector_Q(part1);
+      part2=projector_Q(part2);
       G_O1tau_part+=-2.0 * G(copy(tauk.function),part2);
       G_O2tau_part+=-2.0 * G(part1,copy(tauk.function));
     }
@@ -318,9 +318,6 @@ namespace madness {
 	l_kgtauk_ti_taul+=mo_bra_(taul).inner(kgtauk_ti) * taul.function;
 	l_kgti_tauk_taul+=mo_bra_(taul).inner(kgti_tauk) * taul.function;
       }
-      const real_function_3d l_kgtauk_ti_taul_debug = P(kgtauk_ti,tau);
-      const double diff = (l_kgtauk_ti_taul_debug-l_kgtauk_ti_taul).norm2();
-      std::cout << "P-Projector test: error is " << diff << std::endl;
 
       resulti=2.0 * kgtauk_ti - kgti_tauk - 2.0 * l_kgtauk_ti_taul + l_kgti_tauk_taul;
       result.push_back(resulti);
@@ -329,38 +326,11 @@ namespace madness {
   }
 
   /// the ccs potential without terms from the fock operator
-  /// returns: \f$ (Q-|\tau_k><k|)(2 <k|g|tau_k> |t_i> - <k|g|t_i> |\tau_k>)  \f$
+  /// returns: \f$ (1-|\tau_k><k|)(2 <k|g|tau_k> |t_i> - <k|g|t_i> |\tau_k>)  \f$
   vecfuncT
   CC_Operators::ccs_potential_new(const CC_vecfunction &tau) const {
-    const CC_vecfunction tfunctions=make_t_intermediate(tau);
-    vecfuncT local_part;
-    vecfuncT exchange_part;
-    {
-      CC_Timer ccs_time_local(world,"ccs-local");
-      real_function_3d kgtauk=real_function_3d(world);
-      for(const auto& ktmp:tau.functions) kgtauk += g12(mo_bra_(ktmp.first),ktmp.second);
-      for(const auto& itmp : tfunctions.functions){
-	const real_function_3d kgtauk_ti=(kgtauk * itmp.second.function);
-	local_part.push_back(kgtauk_ti);
-      }
-      ccs_time_local.info();
-    }{
-      CC_Timer ccs_time_ex(world,"ccs-exchange");
-      vecfuncT exchange_tmp;
-      for(const auto& itmp : tfunctions.functions){
-	const CC_function& ti=itmp.second;
-	real_function_3d kgti_tauk=real_factory_3d(world);
-	for(const auto& ktmp : tau.functions){
-	  const CC_function& tauk=ktmp.second;
-	  kgti_tauk+= g12(mo_bra_(tauk.i),ti)*tauk.function;
-	}
-	exchange_part.push_back(kgti_tauk);
-      }
-      ccs_time_ex.info();
-    }
-    scale(world,local_part,2.0);
-    scale(world,exchange_part,-1.0);
-    vecfuncT unprojected = add(world,local_part,exchange_part);
+    const CC_vecfunction ti=make_t_intermediate(tau);
+    vecfuncT unprojected = ccs_unprojected(ti,tau);
     CC_Timer projected_time(world,"ccs-projected");
     vecfuncT projected = P(unprojected,tau);
     scale(world,projected,-1.0);
@@ -368,10 +338,46 @@ namespace madness {
     return add(world,unprojected,projected);
   }
 
+  // returns 2kgtk|ti> - kgti|tk>
+  // the ccs potential: ti = ti and tk = tauk
+  vecfuncT CC_Operators::ccs_unprojected(const CC_vecfunction &ti, const CC_vecfunction &tk)const{
+    vecfuncT result;
+    for(const auto& itmp:ti.functions){
+      real_function_3d kgtk = real_factory_3d(world);
+      for(const auto& ktmp:tk.functions) kgtk+=g12(mo_bra_(ktmp.first),ktmp.second);
+      const real_function_3d kgtk_ti = kgtk*ti(itmp.first).function;
+
+      real_function_3d kgti_tk = real_factory_3d(world);
+      for(const auto& ktmp:tk.functions) kgti_tk+=g12(mo_bra_(ktmp.first),ti(itmp.first))*tk(ktmp.first).function;
+
+      const real_function_3d resulti= 2.0*kgtk_ti - kgti_tk;
+      result.push_back(resulti);
+    }
+    return result;
+  }
+  vecfuncT CC_Operators::ccs_response_potential(const CC_vecfunction &singles, const CC_vecfunction &response)const{
+    const CC_vecfunction ti=make_t_intermediate(singles);
+    const vecfuncT tmp1 = ccs_unprojected(ti,response);
+    const vecfuncT tmp2 = ccs_unprojected(response,singles);
+    const vecfuncT part1 = add(world,tmp1,tmp2);
+    const vecfuncT tmp3 = ccs_unprojected(ti,singles);
+    const vecfuncT pt_part1 = P(part1,singles);
+    const vecfuncT part2 = P(tmp3,response);
+    const vecfuncT ccs_response_tmp = sub(world,part1,pt_part1);
+    const vecfuncT ccs_response = sub(world,ccs_response_tmp,part2);
+    return ccs_response;
+  }
+
   vecfuncT
   CC_Operators::S2b_u_part(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
     vecfuncT result;
-    if(current_s2b_u_part.empty()){
+    if(singles.type==PARTICLE) result=copy(world,current_s2b_u_part_gs);
+    else if(singles.type==RESPONSE) result=copy(world,current_s2b_u_part_response);
+    else error("singles of type " + assign_name(singles.type) +" in S2b_u_part");
+
+    if(not result.empty()){
+      output("S2b_u_part already calculated");
+    }else{
       for(const auto& itmp : singles.functions){
 	const size_t i=itmp.first;
 	real_function_3d resulti=real_factory_3d(world);
@@ -379,28 +385,15 @@ namespace madness {
 	  const size_t k=ktmp.first;
 	  const real_function_6d uik=get_pair_function(doubles,i,k);
 	  // S2b u-part
-	  {
-//	    const real_function_6d kuik=multiply(copy(uik),copy(mo_bra_(k).function),2);
-//	    poisson->particle()=2;
-//	    const real_function_6d kguik=(*poisson)(kuik);
-//	    resulti+=2.0 * kguik.dirac_convolution<3>();
-	    resulti += 2.0* g12(mo_bra_(k),uik,2);
-	  }
+	  resulti += 2.0* g12(mo_bra_(k),uik,2);
 	  // S2b u-part-exchange
-	  {
-//	    const real_function_6d kuik=multiply(copy(uik),copy(mo_bra_(k).function),1);
-//	    poisson->particle()=1;
-//	    const real_function_6d kguik=(*poisson)(kuik);
-//	    resulti-=kguik.dirac_convolution<3>();
-	    resulti -= g12(mo_bra_(k),uik,1);
-	  }
+	  resulti -= g12(mo_bra_(k),uik,1);
 	}
 	result.push_back(resulti);
       }
-      current_s2b_u_part=copy(world,result);
-    }else{
-      output("found previously calculated S2b-u-part");
-      result=copy(world,current_s2b_u_part);
+      if(singles.type==PARTICLE) current_s2b_u_part_gs=copy(world,result);
+      else if(singles.type==RESPONSE) current_s2b_u_part_response = copy(world,result);
+
     }
     return result;
   }
@@ -408,7 +401,13 @@ namespace madness {
   vecfuncT
   CC_Operators::S2c_u_part(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
     vecfuncT result;
-    if(current_s2c_u_part.empty()){
+    if(singles.type==PARTICLE) result=copy(world,current_s2c_u_part_gs);
+    else if(singles.type==RESPONSE) result=copy(world,current_s2c_u_part_response);
+    else error("singles of type " + assign_name(singles.type) +" in S2c_u_part");
+
+    if(not result.empty()){
+      output("S2c_u_part already calculated");
+    }else{
       for(const auto& itmp : singles.functions){
 	const size_t i=itmp.first;
 	real_function_3d resulti=real_factory_3d(world);
@@ -425,10 +424,8 @@ namespace madness {
 	}
 	result.push_back(resulti);
       }
-      current_s2c_u_part=copy(world,result);
-    }else{
-      output("found previously calculated S2c-u-part");
-      result=copy(world,current_s2c_u_part);
+      if(singles.type==PARTICLE) current_s2c_u_part_gs=copy(world,result);
+      else if(singles.type==RESPONSE) current_s2c_u_part_response = copy(world,result);
     }
     return result;
   }
@@ -450,21 +447,6 @@ namespace madness {
 	  const size_t k=ktmp.first;
 	  s4ai+=(-2.0 * make_ijgu(l,k,get_pair_function(doubles,i,k)) + make_ijgu(k,l,get_pair_function(doubles,i,k))) * taul.function;
 	}
-	if(not current_s2b_u_part.empty()){
-	  s4ai_consistency-=(mo_bra_(l).function.inner(current_s2b_u_part[i - parameters.freeze])) * taul.function;
-	  std::cout << "||current_s2b_u_part[" << i - parameters.freeze << "]||=" << current_s2b_u_part[i - parameters.freeze].norm2() << std::endl;
-	  std::cout << "<l|current_s2b_u_part[" << i - parameters.freeze << "]=" << mo_bra_(l).function.inner(current_s2b_u_part[i - parameters.freeze]) << std::endl;
-	  std::cout << "||taul||=||" << taul.name() << "||=" << taul.function.norm2() << std::endl;
-	}
-      }
-      if(not current_s2b_u_part.empty()){
-	const double consistency=(s4ai - s4ai_consistency).norm2();
-	if(world.rank() == 0){
-	  std::cout << "||s4a||_" << i << " = " << s4ai.norm2() << std::endl;
-	  std::cout << "||-sum_l <l|s2b>|taul>||_" << i << " = " << s4ai_consistency.norm2() << std::endl;
-	  std::cout << "||s4a + sum_l <l|s2b>|taul>||_" << i << " = " << consistency << std::endl;
-	}
-	if(consistency > FunctionDefaults<6>::get_thresh()) warning("S4a Consistency Check above the 6D thresh");
       }
       s4a.push_back(s4ai);
     }
@@ -510,10 +492,10 @@ namespace madness {
       real_function_3d part4=real_factory_3d(world);
 
       real_function_3d kgtauk= real_factory_3d(world);
-	for(const auto& ktmp : singles.functions){
-	  const size_t k=ktmp.first;
-	  kgtauk += g12(mo_bra_(k),singles(k));
-	}
+      for(const auto& ktmp : singles.functions){
+	const size_t k=ktmp.first;
+	kgtauk += g12(mo_bra_(k),singles(k));
+      }
 
       for(const auto& ltmp : singles.functions){
 	const size_t l=ltmp.first;
@@ -544,7 +526,6 @@ namespace madness {
 
     const real_function_3d kgftk=apply_gf(ktk);
     for(const auto& itmp : reg1.functions){			// convenience
-      const size_t i=itmp.first;						// convenience
       const CC_function& ti=itmp.second;				// convenience
       real_function_3d resulti=real_factory_3d(world);				// this will be the result
       real_function_3d Ipart=real_factory_3d(world);
@@ -710,59 +691,28 @@ namespace madness {
     return result;
   }
 
-  // The two brillouin terms S1 and S5a of the singles potential
-  vecfuncT
-  CC_Operators::S1(const CC_vecfunction &tau) const {
-    vecfuncT result;
-    for(auto tmpi : tau.functions){
-      CC_function& i=tmpi.second;
-      real_function_3d resulti=real_factory_3d(world);
-      resulti=apply_F(CC_function(mo_ket_(i.i).function,i.i,UNDEFINED));     // undefined for the testing case where the mos are not converged
-      result.push_back(resulti);
-    }
-    return result;
-  }
-
-  vecfuncT
-  CC_Operators::S5a(const CC_vecfunction &tau) const {
-    vecfuncT result;
-    for(auto tmpi : tau.functions){
-      CC_function& i=tmpi.second;
-      real_function_3d resulti=real_factory_3d(world);
-      for(auto tmpk : tau.functions){
-	CC_function& k=tmpk.second;
-	real_function_3d tmp=apply_F(CC_function(i.function,i.i,UNDEFINED));     // undefined for the test case where the moi are not converged yet
-	const double a=mo_bra_(k.i).function.inner(tmp);
-	resulti-=a * k.function;
-      }
-      result.push_back(resulti);
-    }
-    Q(result);
-    return result;
-  }
-
   real_function_6d CC_Operators::apply_regularization_potential(const CC_function &a, const CC_function &b, const double omega)const{
     if((a.type != RESPONSE and b.type != RESPONSE) and omega !=0.0) error("Apply_regularization_potential: omega is not zero, but none of the functions has response type");
     const real_function_3d Fa=apply_F(a) - (get_orbital_energies()[a.i]+0.5*omega) * a.function;
     const real_function_3d Fb=apply_F(b) - (get_orbital_energies()[b.i]+0.5*omega) * b.function;
 
-     // make the Fock operator part:  f(F-eij)|titj> = (F1+F2-ei-ej)|titj> = (F1-ei)|ti>|tj> + |ti>(F2-ei)|tj>
-     const real_function_6d fFab=make_f_xy(Fa,b,guess_thresh(Fa,b)) + make_f_xy(a,Fb,guess_thresh(a,Fb));
+    // make the Fock operator part:  f(F-eij)|titj> = (F1+F2-ei-ej)|titj> = (F1-ei)|ti>|tj> + |ti>(F2-ei)|tj>
+    const real_function_6d fFab=make_f_xy(Fa,b,guess_thresh(Fa,b)) + make_f_xy(a,Fb,guess_thresh(a,Fb));
 
-     output("Applying Regularization Potential");
+    output("Applying Regularization Potential");
 
-     // make the (U-[K,f])|titj> part
-     // first the U Part
-     const real_function_6d Uab=apply_transformed_Ue(a,b);
-     // then the [K,f] part
-     const real_function_6d KffKab=apply_exchange_commutator(a,b);
+    // make the (U-[K,f])|titj> part
+    // first the U Part
+    const real_function_6d Uab=apply_transformed_Ue(a,b);
+    // then the [K,f] part
+    const real_function_6d KffKab=apply_exchange_commutator(a,b);
 
-     real_function_6d V=(fFab + Uab - KffKab);
-     V.print_size("Vreg"+a.name()+b.name());
-     fFab.print_size("Vreg:f12(F-eij)|" + a.name() + b.name() + ">");
-     Uab.print_size("          Vreg:U|" + a.name() + b.name() + ">");
-     KffKab.print_size("      Vreg:[K,f]|" + a.name() + b.name() + ">");
-     return V;
+    real_function_6d V=(fFab + Uab - KffKab);
+    V.print_size("Vreg"+a.name()+b.name());
+    fFab.print_size("Vreg:f12(F-eij)|" + a.name() + b.name() + ">");
+    Uab.print_size("          Vreg:U|" + a.name() + b.name() + ">");
+    KffKab.print_size("      Vreg:[K,f]|" + a.name() + b.name() + ">");
+    return V;
   }
 
 
@@ -908,7 +858,7 @@ namespace madness {
       copyu.set_thresh(thresh);
       real_function_6d X=(multiply(copyu,copy(mo_bra_(k).function),particle)).truncate(thresh);
       X.set_thresh(thresh);
-//      real_function_6d Y=(*poisson)(X);
+      //      real_function_6d Y=(*poisson)(X);
       real_function_6d Y=g12(X,particle);
       Y.set_thresh(thresh);
       result+=(multiply(copy(Y),copy(mo_ket_(k).function),particle)).truncate(thresh);
@@ -919,42 +869,42 @@ namespace madness {
   // the K operator runs over ALL orbitals (also the frozen ones)
   real_function_3d
   CC_Operators::apply_K(const CC_function &f) const {
-//    if(parameters.debug and world.rank() == 0) std::cout << "apply K on " << assign_name(f.type) << " function" << std::endl;
-//    if(parameters.debug and world.rank() == 0) std::cout << "K" << f.name() << "=";
-//    real_function_3d result=real_factory_3d(world);
-//    switch(f.type){
-//      case HOLE:
-//	for(auto k_iterator : mo_ket_.functions){
-//	  const CC_function& k=k_iterator.second;
-//	  const real_function_3d tmp=intermediates_.get_EX(k,f);
-//	  result+=(tmp * k.function);
-//	  if(parameters.debug and world.rank() == 0) std::cout << "+ <" << k.name() << "|g|" << f.name() << ">*" << k.name();
-//	}
-//	break;
-//      case PARTICLE:
-//	for(auto k_iterator : mo_ket_.functions){
-//	  const CC_function& k=k_iterator.second;
-//	  result+=(intermediates_.get_pEX(k,f) * k.function);
-//	  if(parameters.debug and world.rank() == 0) std::cout << "+ <" << k.name() << "|g|" << f.name() << ">*" << k.name();
-//	}
-//	break;
-//      case MIXED:
-//	for(auto k_iterator : mo_ket_.functions){
-//	  const CC_function& k=k_iterator.second;
-//	  result+=(intermediates_.get_EX(k,f) + intermediates_.get_pEX(k,f)) * k.function;
-//	  if(parameters.debug and world.rank() == 0) std::cout << "+ <" << k.name() << "|g|t" << f.i << ">*" << k.name();
-//	}
-//	break;
-//      default:
-//	for(auto k_iterator : mo_ket_.functions){
-//	  const CC_function& k=k_iterator.second;
-//	  real_function_3d tmp=((*poisson)(mo_bra_(k).function * f.function)).truncate();
-//	  result+=tmp * k.function;
-//	  if(parameters.debug and world.rank() == 0) std::cout << "+ poisson(mo_bra_" << k.i << "*" << f.name() << ")|mo_ket_" << k.i << ">" << std::endl;
-//	}
-//	break;
-//    }
-//    return result;
+    //    if(parameters.debug and world.rank() == 0) std::cout << "apply K on " << assign_name(f.type) << " function" << std::endl;
+    //    if(parameters.debug and world.rank() == 0) std::cout << "K" << f.name() << "=";
+    //    real_function_3d result=real_factory_3d(world);
+    //    switch(f.type){
+    //      case HOLE:
+    //	for(auto k_iterator : mo_ket_.functions){
+    //	  const CC_function& k=k_iterator.second;
+    //	  const real_function_3d tmp=intermediates_.get_EX(k,f);
+    //	  result+=(tmp * k.function);
+    //	  if(parameters.debug and world.rank() == 0) std::cout << "+ <" << k.name() << "|g|" << f.name() << ">*" << k.name();
+    //	}
+    //	break;
+    //      case PARTICLE:
+    //	for(auto k_iterator : mo_ket_.functions){
+    //	  const CC_function& k=k_iterator.second;
+    //	  result+=(intermediates_.get_pEX(k,f) * k.function);
+    //	  if(parameters.debug and world.rank() == 0) std::cout << "+ <" << k.name() << "|g|" << f.name() << ">*" << k.name();
+    //	}
+    //	break;
+    //      case MIXED:
+    //	for(auto k_iterator : mo_ket_.functions){
+    //	  const CC_function& k=k_iterator.second;
+    //	  result+=(intermediates_.get_EX(k,f) + intermediates_.get_pEX(k,f)) * k.function;
+    //	  if(parameters.debug and world.rank() == 0) std::cout << "+ <" << k.name() << "|g|t" << f.i << ">*" << k.name();
+    //	}
+    //	break;
+    //      default:
+    //	for(auto k_iterator : mo_ket_.functions){
+    //	  const CC_function& k=k_iterator.second;
+    //	  real_function_3d tmp=((*poisson)(mo_bra_(k).function * f.function)).truncate();
+    //	  result+=tmp * k.function;
+    //	  if(parameters.debug and world.rank() == 0) std::cout << "+ poisson(mo_bra_" << k.i << "*" << f.name() << ")|mo_ket_" << k.i << ">" << std::endl;
+    //	}
+    //	break;
+    //    }
+    //    return result;
     real_function_3d result=real_factory_3d(world);
     for(auto k_iterator : mo_ket_.functions){
       result+=g12(mo_bra_(k_iterator.first),f)*mo_ket_(k_iterator.first).function;
@@ -1183,11 +1133,11 @@ namespace madness {
 
     if(x.type == HOLE){
       return get_orbital_energies()[x.i] * x.function;
-    }else if(x.type == PARTICLE and not current_singles_potential.empty()){
-      const real_function_3d singles_potential=current_singles_potential[x.i - parameters.freeze];
+    }else if(x.type == PARTICLE and not current_singles_potential_gs.empty()){
+      const real_function_3d singles_potential=current_singles_potential_gs[x.i - parameters.freeze];
       return (get_orbital_energies()[x.i] * x.function - singles_potential);
-    }else if(x.type == MIXED and not current_singles_potential.empty()){
-      const real_function_3d singles_potential=current_singles_potential[x.i - parameters.freeze];
+    }else if(x.type == MIXED and not current_singles_potential_gs.empty()){
+      const real_function_3d singles_potential=current_singles_potential_gs[x.i - parameters.freeze];
       return (get_orbital_energies()[x.i] * x.function - singles_potential);     // for mixed: eps(i)*x.i = epsi*(moi + taui)
     }else{
       real_function_3d refined_x=copy(x.function).refine();
@@ -1231,7 +1181,7 @@ namespace madness {
   /// return	the input function with particles swapped g(1,2) = f(2,1)
   real_function_6d
   CC_Operators::swap_particles(const real_function_6d& f) const {
-    CC_Timer timer_swap(world,"swap particles");
+   // CC_Timer timer_swap(world,"swap particles");
     // this could be done more efficiently for SVD, but it works decently
     std::vector<long> map(6);
     map[0]=3;
@@ -1240,7 +1190,7 @@ namespace madness {
     map[3]=0;
     map[4]=1;
     map[5]=2;     // 1 -> 2
-    timer_swap.info();
+   // timer_swap.info();
     return mapdim(f,map);
   }
 
@@ -1294,7 +1244,7 @@ namespace madness {
     const vecfuncT S4c = add(world,S4c_u_part(u,x),S4c_reg_part(active_mo,active_mo,x));
     const vecfuncT tmp = add(world,S4a,S4b);
     vecfuncT V = add(world,tmp,S4c);
-    Q(V);
+    V=apply_Q(V,"cispd-energy-constant-part");
     const vecfuncT brax = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
     const Tensor<double> xV = inner(world,brax,V);
     return xV.sum();
@@ -1370,55 +1320,44 @@ namespace madness {
   }
 
 
+  // make shure that the correct bra elements are inserted ( bra_x = x*R^2)
   double CC_Operators::make_ijgQfxy(const  CC_function &i, const  CC_function &j, const CC_function &x, const CC_function &y) const{
+    // part1: No projector, <ij|gf|xy>
+    const real_function_3d ix = i.function*x.function;
+    const real_function_3d jy = j.function*y.function;
+    const real_function_3d gfix = apply_gf(ix);
+    const double part1 = jy.inner(gfix);
 
-    // part 1, no projector: <ij|gf|xy>
-    const real_function_3d brai = nemo.nuclear_correlation->square()*i.function;
-    const real_function_3d braj = nemo.nuclear_correlation->square()*i.function;
-    const real_function_3d jy=(brai * y.function).truncate();
-    const real_function_3d ix=(braj * x.function).truncate();
-    const real_function_3d jgfy=apply_gf(jy);
-    const double part1=ix.inner(jgfy);
-
-    // part 2, projector on particle 1 <j|igm*mfx|y> = jy.inner(igm*mfx)
-    double part2=0.0;
-    for(const auto& mtmp : mo_ket_.functions){
-      const CC_function& mom=mtmp.second;
-      const size_t m=mtmp.first;
-      const real_function_3d igm=g12(mo_bra_(m),i); // <i|g|m> = <m|g|i> and in this way intermediates can be used
-      const real_function_3d mfx=f12(mo_bra_(m),x);
-      part2-=jy.inner(igm * mfx);
-    }
-    // part3, projector on particle 2 <i|jgn*nfy|x>
-    double part3=0.0;
-    for(const auto& ntmp : mo_ket_.functions){
-      const CC_function& mon=ntmp.second;
-      const size_t n=ntmp.first;
-      const real_function_3d jgn=g12(mo_bra_(n),j);
-      const real_function_3d nfy=f12(mo_bra_(n),y);
-      part2-=ix.inner(jgn * nfy);
-    }
-
-    // part4, projector on both particles <ij|g|mn><mn|f|xy>
-    double part4=0.0;
-    for(const auto& mtmp : mo_ket_.functions){
-      const CC_function& mom=mtmp.second;
-      const size_t m=mtmp.first;
-      const real_function_3d igm=g12(mo_bra_(m),i);
-      const real_function_3d mfx=f12(mo_bra_(m),x);
-      for(const auto& ntmp : mo_ket_.functions){
-	const CC_function& mon=ntmp.second;
-	const size_t n=ntmp.first;
-	const real_function_3d jn=braj * mon.function;
-	const real_function_3d ny=mo_bra_(n).function * y.function;
-	const double ijgmn=jn.inner(igm);
-	const double mnfxy=ny.inner(mfx);
-	part4+=ijgmn * mnfxy;
+    // part2: O1-part, <ij|gO1f|xy> = <j|igm*mfx|y>
+    // part3: O2-part, <ij|gO3f|xy> = <i|jgm*mfy|x>
+    // make part 4 from part2 ims
+    // part4: O12-part,<ij|gO12f|xy>= ijgmn*mnfyx = <j|igm|n>*<n|mfx|y>
+    double part2 = 0.0;
+    double part3 = 0.0;
+    double part4 = 0.0;
+    for(const auto& mtmp:mo_ket_.functions){
+      const CC_function& mket =mo_ket_(mtmp.first);
+      const CC_function& mbra =mo_bra_(mtmp.first);
+      const real_function_3d igm = g12(mket,i); //g12(i,mket); this way intermediates can be used
+      const real_function_3d mfx = f12(mbra,x);
+      part2 += jy.inner(igm*mfx);
+      part3 += ix.inner(g12(j,mket)*f12(mbra,y));
+      for(const auto& ntmp:mo_ket_.functions){
+	const CC_function &nket = mo_ket_(ntmp.first);
+	const CC_function &nbra = mo_bra_(ntmp.first);
+	const real_function_3d jn = j.function*nket.function;
+	const real_function_3d ny = nbra.function*y.function;
+	part4 += jn.inner(igm)*ny.inner(mfx);
       }
     }
-
-    return part1 + part2 + part3 + part4;
-
+    if(world.rank()==0){
+      std::cout << "<" << i.name() << j.name() <<"|gQf|" << x.name() << y.name() << "\n";
+      std::cout << "part1=" << part1 << "\n";
+      std::cout << "part2=" << part2 << "\n";
+      std::cout << "part3=" << part3 << "\n";
+      std::cout << "part4=" << part4 << "\n";
+    }
+    return part1-part2-part3+part4;
   }
 
   /// General Function to make the intergral <ij|gQf|xy>
@@ -1428,8 +1367,8 @@ namespace madness {
     const real_function_3d brai=mo_bra_(i).function;
     const real_function_3d braj=mo_bra_(j).function;
     // part 1, no projector: <ij|gf|xy>
-    const real_function_3d jy=(braj * y.function).truncate();
-    const real_function_3d ix=(brai * x.function).truncate();
+    const real_function_3d jy=(braj * y.function);
+    const real_function_3d ix=(brai * x.function);
     const real_function_3d jgfy=apply_gf(jy);
     const double part1=ix.inner(jgfy);
     // part 2, projector on particle 1 <j|igm*mfx|y> = jy.inner(igm*mfx)
@@ -1448,7 +1387,7 @@ namespace madness {
       const size_t n=ntmp.first;
       const real_function_3d jgn=g12(mo_bra_(j),mon);
       const real_function_3d nfy=f12(mo_bra_(n),y);
-      part2-=ix.inner(jgn * nfy);
+      part3-=ix.inner(jgn * nfy);
     }
     // part4, projector on both particles <ij|g|mn><mn|f|xy>
     double part4=0.0;
@@ -1467,47 +1406,19 @@ namespace madness {
 	part4+=ijgmn * mnfxy;
       }
     }
-
+    if(world.rank()==0){
+      std::cout << "<" << mo_ket_(i).name() << mo_ket_(j).name() <<"|gQf|" << x.name() << y.name() << "\n";
+      std::cout << "part1=" << part1 << "\n";
+      std::cout << "part2=" << part2 << "\n";
+      std::cout << "part3=" << part3 << "\n";
+      std::cout << "part4=" << part4 << "\n";
+    }
     double result = part1 + part2 + part3 + part4;
-    double test = make_ijgQfxy(mo_ket_(i),mo_ket_(j),x,y);
+    double test = make_ijgQfxy(mo_bra_(i),mo_bra_(j),x,y);
     std::cout << " debug ijgQfxy:\nold =" << result <<"\nnew =" << test << "\ndiff=" << test-result << std::endl;
     if(fabs(test-result)>1.e-5) warning("WARNING FOR IJGQFXY");
     return result;
 
-    //	// Q12 = I12 - O1 - O2 + O12
-    //	real_function_3d jy = mo_bra_(j).function*y;
-    //	real_function_3d ix = mo_bra_(i).function*x;
-    //	// I12 Part:
-    //	double ijgfxy = (ix).inner(apply_gf(jy));
-    //	// O1 Part
-    //	double ijgO1fxy =0.0;
-    //	for(size_t k=0;k<mo_ket_.size();k++){
-    //		real_function_3d igk = intermediates_.get_EX(i,k);
-    //		real_function_3d kfx = (*f12op)(mo_bra_(k).function*x);
-    //		real_function_3d igkkfx = (igk*kfx).truncate();
-    //		ijgO1fxy += jy.inner(igkkfx);
-    //	}
-    //	// O2 Part
-    //	double ijgO2fxy =0.0;
-    //	for(size_t k=0;k<mo_ket_.size();k++){
-    //		real_function_3d jgk = intermediates_.get_EX(j,k);
-    //		real_function_3d kfy = (*f12op)(mo_bra_(k).function*y);
-    //		real_function_3d jgkkfy = (jgk*kfy).truncate();
-    //		ijgO2fxy += ix.inner(jgkkfy);
-    //	}
-    //	// O12 Part
-    //	double ijgO12fxy = 0.0;
-    //	for(size_t k=0;k<mo_ket_.size();k++){
-    //		real_function_3d igk = intermediates_.get_EX(i,k);
-    //		real_function_3d kfx = (*f12op)(mo_bra_(k).function*x);
-    //		for(size_t l=0;l<mo_ket_.size();l++){
-    //			double ijgkl = igk.inner(mo_bra_(j).function*mo_ket_(l).function);
-    //			double klfxy = kfx.inner(mo_bra_(l).function*y);
-    //			ijgO12fxy += ijgkl*klfxy;
-    //		}
-    //	}
-    //
-    //	return (ijgfxy - ijgO1fxy - ijgO2fxy + ijgO12fxy);
   }
 
   double
@@ -1518,43 +1429,43 @@ namespace madness {
     double ijgfxy=(ix).inner(apply_gf(jy));
     return ijgfxy;
   }
-//
-//  /// General Function to make the two electron integral <ij|g|xy>
-//  /// For Debugging -> Expensive without intermediates
-//  double
-//  CC_Operators::make_ijgxy(const size_t &i,const size_t &j,const CC_function &x,const CC_function &y) const {
-//    real_function_3d igx=g12(mo_bra_(i),x)
-//    real_function_3d jy=(mo_bra_(j).function * y).truncate();
-//    return jy.inner(igx);
-//  }
+  //
+  //  /// General Function to make the two electron integral <ij|g|xy>
+  //  /// For Debugging -> Expensive without intermediates
+  //  double
+  //  CC_Operators::make_ijgxy(const size_t &i,const size_t &j,const CC_function &x,const CC_function &y) const {
+  //    real_function_3d igx=g12(mo_bra_(i),x)
+  //    real_function_3d jy=(mo_bra_(j).function * y).truncate();
+  //    return jy.inner(igx);
+  //  }
 
   double
   CC_Operators::make_integral(const size_t &i,const size_t &j,const CC_function &x,const CC_function&y,const optype type) const {
-//    if(x.type == HOLE){
-//      real_function_3d igx_y=(intermediates_.get_EX(i,x.i) * y.function).truncate();
-//      return mo_bra_(j).function.inner(igx_y);
-//    }else if(x.type == PARTICLE){
-//      if(y.type == HOLE){
-//	real_function_3d jgy_x=(intermediates_.get_EX(j,y.i) * x.function);
-//	return mo_bra_(i).function.inner(jgy_x);
-//      }else if(y.type == PARTICLE){
-//	real_function_3d jgy_x=(intermediates_.get_pEX(j,y.i) * x.function);
-//	return mo_bra_(i).function.inner(jgy_x);
-//      }
-//    }else if(x.type == MIXED or y.type == MIXED){
-//      real_function_3d igx=((*poisson)(mo_bra_(i).function * x.function)).truncate();
-//      double result=mo_bra_(j).function.inner(igx * y.function);
-//      return result;
-//    }else if(x.type == UNDEFINED or y.type == UNDEFINED){
-//      real_function_3d igx=((*poisson)(mo_bra_(i).function * x.function)).truncate();
-//      double result=mo_bra_(j).function.inner(igx * y.function);
-//      return result;
-//    }else{
-//      error("ERROR in make_integrals ... should not end up here");
-//      return 0.0;
-//    }
-//    error("ERROR in make_integrals ... should not end up here");
-//    return 0.0;
+    //    if(x.type == HOLE){
+    //      real_function_3d igx_y=(intermediates_.get_EX(i,x.i) * y.function).truncate();
+    //      return mo_bra_(j).function.inner(igx_y);
+    //    }else if(x.type == PARTICLE){
+    //      if(y.type == HOLE){
+    //	real_function_3d jgy_x=(intermediates_.get_EX(j,y.i) * x.function);
+    //	return mo_bra_(i).function.inner(jgy_x);
+    //      }else if(y.type == PARTICLE){
+    //	real_function_3d jgy_x=(intermediates_.get_pEX(j,y.i) * x.function);
+    //	return mo_bra_(i).function.inner(jgy_x);
+    //      }
+    //    }else if(x.type == MIXED or y.type == MIXED){
+    //      real_function_3d igx=((*poisson)(mo_bra_(i).function * x.function)).truncate();
+    //      double result=mo_bra_(j).function.inner(igx * y.function);
+    //      return result;
+    //    }else if(x.type == UNDEFINED or y.type == UNDEFINED){
+    //      real_function_3d igx=((*poisson)(mo_bra_(i).function * x.function)).truncate();
+    //      double result=mo_bra_(j).function.inner(igx * y.function);
+    //      return result;
+    //    }else{
+    //      error("ERROR in make_integrals ... should not end up here");
+    //      return 0.0;
+    //    }
+    //    error("ERROR in make_integrals ... should not end up here");
+    //    return 0.0;
     switch(type){
       case g12_ : {
 	const real_function_3d igx= g12(mo_bra_(i),x);
@@ -1762,7 +1673,7 @@ namespace madness {
     vecfuncT singles_tmp;
     for(size_t i=parameters.freeze; i < mo_ket_.size(); i++){
       real_function_3d tmp=r * mo_ket_(i).function;
-      Q(tmp);
+      tmp=projector_Q(tmp);
       double norm=tmp.norm2();
       tmp.scale(1.0 / norm);
       tmp.scale(0.5);
@@ -1782,8 +1693,8 @@ namespace madness {
       std::cout << "||ccs-potential_new||_" << i << "=" << (new_ccs[i]).norm2() << std::endl;
       std::cout << "||difference       ||_" << i << "=" << (ccs[i] - new_ccs[i]).norm2() << std::endl;
     }
-    Q(ccs);
-    Q(new_ccs);
+    ccs=apply_Q(ccs,"ccs");
+    new_ccs=apply_Q(new_ccs,"new_ccs");
     std::cout << "Applied Q" << std::endl;
     for(size_t i=0; i < ccs.size(); i++){
       std::cout << "||ccs-potential    ||_" << i << "=" << (ccs[i]).norm2() << std::endl;
@@ -1834,7 +1745,7 @@ namespace madness {
 	for(const auto&s : singles.functions){
 	  X+=s.second.function;
 	}
-	Q(X);
+	X=projector_Q(X);
 	X=X * nemo.nuclear_correlation->square();
 	Tensor<double> xs2b=inner(world,X,u);
 	Tensor<double> xs2b_reg=inner(world,X,r);

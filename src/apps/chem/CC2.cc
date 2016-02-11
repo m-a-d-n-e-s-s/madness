@@ -23,9 +23,10 @@ namespace madness {
     }
     if(type==CC2_){
       Pairs<CC_Pair> pairs = initialize_pairs(GROUND_STATE);
-      const double mp2_correlation_energy = solve_mp2(pairs);
+      double mp2_correlation_energy = 0.0;
+      if(not parameters.no_compute) mp2_correlation_energy = solve_mp2(pairs);
       CC_vecfunction singles=initialize_cc2_singles();
-      print_results(pairs,singles);
+      //print_results(pairs,singles);
       CCOPS.update_intermediates(singles);
       const double cc2_correlation_energy = solve_cc2(pairs,singles);
       output_section("CC2 Ended");
@@ -196,7 +197,8 @@ if(not parameters.no_compute){
     output_section("Beginn the CC2 Iterations");
     bool singles_converged=true;
     bool doubles_converged=true;
-    std::vector<double> current_energies=update_cc2_pair_energies(doubles,singles);
+    std::vector<double> current_energies;
+    for(const auto &tmp:doubles.allpairs) current_energies.push_back(tmp.second.current_energy);
     for(size_t iter=0; iter < parameters.iter_max_6D; iter++){
       CC_Timer timer_iter_all(world,"Macroiteration " + stringify(iter));
       CCOPS.update_intermediates(singles);
@@ -283,16 +285,19 @@ if(not parameters.no_compute){
   std::vector<double>
   CC2::update_cc2_pair_energies(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
     std::vector<double> omegas;
+    double correlation_energy = 0.0;
     for(size_t i=parameters.freeze; i < mo.size(); i++){
       for(size_t j=i; j < mo.size(); j++){
 	double tmp=CCOPS.compute_cc2_pair_energy(doubles(i,j),singles(i),singles(j));
 	omegas.push_back(tmp);
+	correlation_energy += tmp;
+	if(i==j) correlation_energy +=tmp;
       }
     }
     if(world.rank() == 0){
       std::cout << "Updated CC2 pair energies:\n";
-      for(auto x : omegas)
-	std::cout << std::scientific << std::setprecision(parameters.output_prec) << x << std::endl;
+      for(auto x : omegas) std::cout << std::fixed << std::setprecision(parameters.output_prec) << x << std::endl;
+      std::cout <<"Current Correlation Energy = " << std::fixed << std::setprecision(parameters.output_prec) << correlation_energy << std::endl;
     }
     return omegas;
   }
@@ -315,9 +320,9 @@ if(not parameters.no_compute){
       output("Make Greens Operator for single " + stringify(i + parameters.freeze));
       real_convolution_3d G=BSHOperator<3>(world,sqrt(-2.0 * epsi),parameters.lo,parameters.thresh_bsh_3D);
       real_function_3d tmp=(G(potential[i])).truncate();
-      CCOPS.Q(tmp);
       G_potential[i]=tmp;
     }
+    G_potential=CCOPS.apply_Q(G_potential,"G_potential");
     timer_G.info();
 
     std::vector<double> errors;
@@ -325,7 +330,6 @@ if(not parameters.no_compute){
     for(size_t i=0; i < potential.size(); i++){
       MADNESS_ASSERT(singles(i + parameters.freeze).i == i + parameters.freeze);
       if(world.rank() == 0) std::cout << "|| |tau" + stringify(i + parameters.freeze) + ">|| =" << G_potential[i].norm2() << std::endl;
-      CCOPS.Q(G_potential[i]);
       real_function_3d residue=singles(i + parameters.freeze).function - G_potential[i];
       double error=residue.norm2();
       errors.push_back(error);

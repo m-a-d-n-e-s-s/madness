@@ -117,7 +117,7 @@ public:
 	void info(bool debug = true){
 		if(debug==true){
 			update_time();
-			if(world.rank()==0) std::cout<< std::setw(20) << std::setfill(' ') << std::setw(60) << "Timer:"+operation+" : "<< std::setfill(' ') << std::scientific << std::setprecision(1)
+			if(world.rank()==0) std::cout<< std::setw(17) << std::setfill(' ') << std::setw(60) << "Timer:"+operation+" : "<< std::setfill(' ') << std::scientific << std::setprecision(1)
 			<< end_wall << "s (wall) "<< end_cpu << "s (cpu)" << std::endl;
 		}
 	}

@@ -65,7 +65,7 @@ namespace madness {
         /// @param[in]  f   the function to be projected
         /// @return     the projection of f on the space of p
         funcT operator()(const funcT& f) const {
-            return this->operator()(vecfuncT(1,f));
+            return this->operator()(vecfuncT(1,f)).front();
         }
 
         /// project f on p:
