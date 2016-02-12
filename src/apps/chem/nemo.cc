@@ -880,10 +880,10 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
             }
         }
     }
-    if (hessdebug) {
+//    if (hessdebug) {
         print("\n raw electronic Hessian (a.u.)\n");
         print(hessian);
-    }
+//    }
 
     Tensor<double> asymmetric=0.5*(hessian-transpose(hessian));
     const double max_asymmetric=asymmetric.absmax();
@@ -906,18 +906,20 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         hessian(i,i)=-sum;
     }
 
-    if (hessdebug) {
+//    if (hessdebug) {
         print("\n electronic Hessian (a.u.)\n");
         print(hessian);
-    }
+//    }
 
     // add the nuclear-nuclear contribution
     hessian+=molecule().nuclear_repulsion_hessian();
+        print("\n nuclear Hessian (a.u.)\n");
+        print(molecule().nuclear_repulsion_hessian());
 
-    if (hessdebug) {
+//    if (hessdebug) {
         print("\n Hessian (a.u.)\n");
         print(hessian);
-    }
+//    }
     END_TIMER(world, "compute hessian");
 
     Tensor<double> normalmodes;
@@ -960,6 +962,61 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 
 }
 
+Tensor<double> Nemo::make_incomplete_hessian() const {
+
+    const int natom=molecule().natom();
+    const vecfuncT& nemo=get_calc()->amo;
+    const real_function_3d rhonemo=2.0*make_density(get_calc()->get_aocc(),nemo);
+
+    Tensor<double> incomplete_hessian=molecule().nuclear_repulsion_hessian();
+
+    vecfuncT drho(3);
+    drho[0]=make_ddensity(rhonemo,0);
+    drho[1]=make_ddensity(rhonemo,1);
+    drho[2]=make_ddensity(rhonemo,2);
+
+    // compute the perturbed densities (partial only!)
+    // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
+    vecfuncT dens_pt(3*natom);
+    for (int iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            int i=iatom*3 + iaxis;
+
+            NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
+            const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
+            dens_pt[i]=2.0*RXR*rhonemo;//.truncate();
+        }
+    }
+
+    // add the electronic contribution to the hessian
+    for (int iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            int i=iatom*3 + iaxis;
+
+            for (int jatom=0; jatom<natom; ++jatom) {
+                for (int jaxis=0; jaxis<3; ++jaxis) {
+                    int j=jatom*3 + jaxis;
+
+                    MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
+                    double result=inner(dens_pt[i],mdf);
+
+                    // integration by parts
+                    if (iatom==jatom) result+=inner(drho[iaxis],mdf);
+
+                    // skip diagonal elements because they are extremely noisy!
+                    // use translational symmetry to reconstruct them from other
+                    // hessian matrix elements (see below)
+                    incomplete_hessian(i,j)+=result;
+                    if (i==j) incomplete_hessian(i,j)=0.0;
+                }
+            }
+        }
+    }
+
+    return incomplete_hessian;
+}
+
+
 /// solve the CPHF equation for the nuclear displacements
 
 /// @param[in]  iatom   the atom A to be moved
@@ -974,6 +1031,15 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     // guess for the perturbed MOs
     const vecfuncT nemo=calc->amo;
     const int nmo=nemo.size();
+
+
+    Tensor<double> incomplete_hessian=make_incomplete_hessian();
+    int ii=3*iatom+iaxis;
+    Tensor<double> ihr=incomplete_hessian(ii,_);
+    print("incomplete hessian row");
+    print(ihr);
+    Tensor<double> old_h(3*molecule().natom());
+
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
@@ -1178,6 +1244,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     const XCOperator xc(world,this,0);
     const Nuclear V(world,this);
     END_TIMER(world,"tag8");
+    Tensor<double> h_diff(3l);
 
     for (int iter=0; iter<25; ++iter) {
 
@@ -1259,18 +1326,17 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         std::vector<double> rnorm = norm2s(world, residual);
         double rms, maxval;
         calc->vector_stats(rnorm, rms, maxval);
-        if (world.rank() == 0)
-            print("CPHF BSH residual: rms", rms, "   max", maxval);
 
-        if (rms < 1.0) {
-            xi = (solver.update(xi, residual)).x;
-        } else {
+//        if (rms < 1.0) {
+//            xi = (solver.update(xi, residual)).x;
+//        } else {
             xi = tmp;
-        }
+//        }
 //        truncate(world,xi);
 
         // measure for hessian matrix elements
-        real_function_3d dens_pt=dot(world,xi,nemo);
+        real_function_3d dens_pt=dot(world,xi-parallel,nemo);
+        dens_pt=4.0*R_square*dens_pt;
         Tensor<double> h(3*molecule().natom());
         for (int jatom=0, j=0; jatom<molecule().natom(); ++jatom) {
             for (int jaxis=0; jaxis<3; ++jaxis, ++j) {
@@ -1279,11 +1345,18 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
                 h(j)=inner(dens_pt,mdf);
             }
         }
-        print("h, norm(h)");
-        print(h,h.normf());
+        h_diff=h-old_h;
+
+        if (world.rank() == 0)
+            print("xi_"+stringify(ii),"CPHF BSH residual: rms", rms, "   max", maxval, "H, Delta H", h.normf(), h_diff.normf());
+        print("h+ihr");
+        print(h+ihr);
+        old_h=h;
+
 
         const double norm = norm2(world,xi);
-        if (rms/norm<proto.dconv) break;
+//        if (rms/norm<proto.dconv) break;
+        if (h_diff.normf()<proto.dconv) break;
     }
     return xi;
 

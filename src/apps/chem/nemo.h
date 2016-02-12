@@ -489,6 +489,15 @@ private:
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;
 
+	/// compute the incomplete hessian
+
+	/// incomplete hessian is the nuclear-nuclear contribution, and the
+	/// contribution from the second derivative of the nuclear potential,
+	/// and also the derivative of the nuclear correlation factor.
+	/// i.e. all contributions that do not contain the regularized perturbed
+	/// density, but it will contain parts of the perturbed density
+	Tensor<double> make_incomplete_hessian() const;
+
 	bool is_dft() const {return calc->xc.is_dft();}
 
 	/// localize the nemo orbitals
