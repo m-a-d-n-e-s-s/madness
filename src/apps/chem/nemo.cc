@@ -840,10 +840,6 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     drho[0]=make_ddensity(rhonemo,0);
     drho[1]=make_ddensity(rhonemo,1);
     drho[2]=make_ddensity(rhonemo,2);
-//    for (int i=0; i<3; ++i) {
-//        real_derivative_3d D = free_space_derivative<double, 3>(world,i);
-//        drho[i]=D(dens).truncate();
-//    }
 
     // compute the perturbed densities
     // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
@@ -852,13 +848,8 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             int i=iatom*3 + iaxis;
 
-//            dens_pt[i]=4.0*make_density(calc->get_aocc(),R2nemo,xi[i]);
-//            NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
-//            const real_function_3d RX_div_R=real_factory_3d(world).functor(rxr_func).truncate_on_project();
-//            dens_pt[i]=(dens_pt[i]+2.0*RX_div_R*dens);//.truncate();
-//            save(dens_pt[i],"dens_pt"+stringify(i));
             dens_pt[i]=4.0*make_density(calc->get_aocc(),nemo,xi[i]);
-            NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,1);
+            NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
             const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
             dens_pt[i]=R_square*(dens_pt[i]+2.0*RXR*rhonemo);//.truncate();
             save(dens_pt[i],"dens_pt"+stringify(i));
@@ -1000,7 +991,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
     // construct the BSH operator
     tensorT eps(nmo);
-    for (int i = 0; i < nmo; ++i) eps(i) = std::min(-0.05, fock(i, i));
+    for (int i = 0; i < nmo; ++i) eps(i) = fock(i, i);
     std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
     END_TIMER(world,"tag2");
 
@@ -1179,6 +1170,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
     allocT alloc(world, nemo.size());
     solverT solver(allocT(world, nemo.size()));
+    solver.set_maxsub(5);
 
     // construct unperturbed operators
     const Coulomb J(world,this);
