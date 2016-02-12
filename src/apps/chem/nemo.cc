@@ -1181,7 +1181,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
     for (int iter=0; iter<25; ++iter) {
 
-        const vecfuncT xi_complete=sub(world,xi,parallel);
+        const vecfuncT xi_complete=xi-parallel;
 
         // make the rhs
         START_TIMER(world);
@@ -1253,7 +1253,8 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         tmp=Q(tmp);
         truncate(world,tmp);
 
-        vecfuncT residual = sub(world, xi, tmp);
+        vecfuncT residual = xi-tmp;
+//        truncate(world,residual);
 
         std::vector<double> rnorm = norm2s(world, residual);
         double rms, maxval;
@@ -1266,6 +1267,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         } else {
             xi = tmp;
         }
+//        truncate(world,xi);
 
         // measure for hessian matrix elements
         real_function_3d dens_pt=dot(world,xi,nemo);
