@@ -436,11 +436,13 @@ XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polari
     xc->initialize(xc_data, spin_polarized, world);
     const bool have_beta=xc->is_spin_polarized() && nbeta != 0;
 
-    std::vector<real_function_3d> darho,dbrho;
+    std::vector<real_function_3d> darho(3),dbrho(3);
     if (xc->is_gga()) {
-        throw;
-//        darho=calc->nabla(arho);
-//        if (have_beta) dbrho=calc->nabla(brho);
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            Derivative<double,3> D = free_space_derivative<double,3>(world, iaxis);
+            darho[iaxis]=D(arho);
+            if (have_beta) dbrho[iaxis]=D(brho);
+        }
     }
 
     xc_args=prep_xc_args(arho,brho,darho,dbrho);
