@@ -1267,6 +1267,19 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
             xi = tmp;
         }
 
+        // measure for hessian matrix elements
+        real_function_3d dens_pt=dot(world,xi,nemo);
+        Tensor<double> h(3*molecule().natom());
+        for (int jatom=0, j=0; jatom<molecule().natom(); ++jatom) {
+            for (int jaxis=0; jaxis<3; ++jaxis, ++j) {
+                if ((iatom==jatom) and (iaxis==jaxis)) continue;
+                MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
+                h(j)=inner(dens_pt,mdf);
+            }
+        }
+        print("h, norm(h)");
+        print(h,h.normf());
+
         const double norm = norm2(world,xi);
         if (rms/norm<proto.dconv) break;
     }
