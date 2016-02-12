@@ -834,12 +834,16 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     START_TIMER(world);
 
     // compute the derivative of the density d/dx rho; 2: closed shell
-    const real_function_3d dens=2.0*make_density(get_calc()->get_aocc(),nemo,R2nemo);
+    const real_function_3d rhonemo=2.0*make_density(get_calc()->get_aocc(),nemo);
+    const real_function_3d dens=R_square*rhonemo;
     vecfuncT drho(3);
-    for (int i=0; i<3; ++i) {
-        real_derivative_3d D = free_space_derivative<double, 3>(world,i);
-        drho[i]=D(dens).truncate();
-    }
+    drho[0]=make_ddensity(rhonemo,0);
+    drho[1]=make_ddensity(rhonemo,1);
+    drho[2]=make_ddensity(rhonemo,2);
+//    for (int i=0; i<3; ++i) {
+//        real_derivative_3d D = free_space_derivative<double, 3>(world,i);
+//        drho[i]=D(dens).truncate();
+//    }
 
     // compute the perturbed densities
     // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
@@ -848,10 +852,15 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             int i=iatom*3 + iaxis;
 
-            dens_pt[i]=4.0*make_density(calc->get_aocc(),R2nemo,xi[i]);
-            NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
-            const real_function_3d RX_div_R=real_factory_3d(world).functor(rxr_func).truncate_on_project();
-            dens_pt[i]=(dens_pt[i]+2.0*RX_div_R*dens);//.truncate();
+//            dens_pt[i]=4.0*make_density(calc->get_aocc(),R2nemo,xi[i]);
+//            NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
+//            const real_function_3d RX_div_R=real_factory_3d(world).functor(rxr_func).truncate_on_project();
+//            dens_pt[i]=(dens_pt[i]+2.0*RX_div_R*dens);//.truncate();
+//            save(dens_pt[i],"dens_pt"+stringify(i));
+            dens_pt[i]=4.0*make_density(calc->get_aocc(),nemo,xi[i]);
+            NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,1);
+            const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
+            dens_pt[i]=R_square*(dens_pt[i]+2.0*RXR*rhonemo);//.truncate();
             save(dens_pt[i],"dens_pt"+stringify(i));
         }
     }

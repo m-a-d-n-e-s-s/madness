@@ -164,7 +164,8 @@ class Nemo: public MolecularOptimizationTargetInterface {
             current_prec=start_prec;
             infer_thresholds(current_prec);
             if (world.rank()==0) {
-                print("\nstarting protocol: ",start_prec," --> ",end_prec);
+                printf("\starting protocol at time %8.1fs \n",wall_time());
+                print("precision steps ",start_prec," --> ",end_prec);
                 print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
             }
         }
@@ -181,7 +182,8 @@ class Nemo: public MolecularOptimizationTargetInterface {
                 infer_thresholds(current_prec);
                 print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
             } else {
-                print("ending protocol");
+                printf("\nending protocol at time %8.1fs \n",wall_time());
+
             }
             return *this;
         }
