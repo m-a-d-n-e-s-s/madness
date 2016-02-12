@@ -190,7 +190,8 @@ class Nemo: public MolecularOptimizationTargetInterface {
         void infer_thresholds(const double prec) {
             econv=prec;
             thresh=econv;
-            dconv=std::min(1.e-3,sqrt(econv)*0.1);
+//            dconv=std::min(1.e-3,sqrt(econv)*0.1);
+            dconv=std::min(1.e-3,econv*10.0);
             if (approx(current_prec,end_prec)) dconv=user_dconv;    // respect the user
         }
 

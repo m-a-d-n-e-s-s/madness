@@ -1121,7 +1121,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     // linear in the density
     vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
     if (not is_dft()) {
-        Exchange Kconst(world);
+        Exchange Kconst=Exchange(world).small_memory(false);
         vecfuncT kbra=mul(world,RXR,nemo);
         scale(world,kbra,2.0);
         truncate(world,kbra);
@@ -1132,33 +1132,33 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     END_TIMER(world,"tag5");
     START_TIMER(world);
 
-
-    vecfuncT rhsconst=add(world,Vpsi2b,sub(world,Jconstnemo,Kconstnemo));
+    vecfuncT rhsconst=Vpsi2b+Jconstnemo-Kconstnemo;
     truncate(world,rhsconst);
     rhsconst=Q(rhsconst);
 #if NEW_DNUC
     rhsconst-=PUnemo;
 #endif
-    scale(world, rhsconst, -2.0);
     END_TIMER(world,"tag6");
-    START_TIMER(world);
 
-    vecfuncT Grhsconst = apply(world, bsh, rhsconst);
 #if NEW_DNUC
+    START_TIMER(world);
+    vecfuncT Grhsconst = apply(world, bsh, -2.0*rhsconst);
     Grhsconst+=result2;
- #endif
     truncate(world,Grhsconst);
-    scale(world,rhsconst,-0.5); // invert the -2.0 from above
     // keep iterating rhsconst, seems to be more accurate
     // (as opposed to adding Grhsconst to the result of G(..) )
     END_TIMER(world,"tag7");
-    START_TIMER(world);
+#endif
 
     // initial guess from outside or from the leading term Grhsconst
-    vecfuncT xi=copy(world,Grhsconst);
+    START_TIMER(world);
+    vecfuncT xi(nmo);
     if (guess.size()>0) {
         if (world.rank()==0) print("using guess for the CPHF vectors");
         xi=copy(world,guess);
+    } else {
+        xi=apply(world, bsh, -2.0*rhsconst);
+        truncate(world,xi);
     }
 
 
@@ -1173,7 +1173,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
     // construct unperturbed operators
     const Coulomb J(world,this);
-    const Exchange K(world,this,0);
+    const Exchange K=Exchange(world,this,0).small_memory(false);
     const XCOperator xc(world,this,0);
     const Nuclear V(world,this);
     END_TIMER(world,"tag8");
