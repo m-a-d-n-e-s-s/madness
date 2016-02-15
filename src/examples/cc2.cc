@@ -108,7 +108,9 @@ CC2 cc2(world,input,nemo);
 
 cc2.solve();
 
-
+if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
+world.gop.fence();
+finalize();
 
 	return 0;
 }// end main

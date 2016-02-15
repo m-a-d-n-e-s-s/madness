@@ -29,6 +29,7 @@ namespace madness {
       if(world.rank()==0) std::cout << "MP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << mp2_correlation_energy << "\n";
     }
     if(type==CC2_){
+      CC_Timer time_cc2(world,"CC2-Overall-Time");
       Pairs<CC_Pair> pairs = initialize_pairs(GROUND_STATE);
       double mp2_correlation_energy = 0.0;
       if(not parameters.no_compute) mp2_correlation_energy = solve_mp2(pairs);
@@ -37,11 +38,12 @@ namespace madness {
       CCOPS.update_intermediates(singles);
       const double cc2_correlation_energy = solve_cc2(pairs,singles);
       output_section("CC2 Ended");
-      print_results(pairs,singles);
+      //print_results(pairs,singles);
       if(world.rank()==0){
 	std::cout << "MP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << mp2_correlation_energy << "\n";
 	std::cout << "CC2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << cc2_correlation_energy << "\n";
       }
+      time_cc2.info();
     }
     if(type==CISpD_){
       Pairs<CC_Pair> mp2_pairs = initialize_pairs(GROUND_STATE);
@@ -295,7 +297,7 @@ namespace madness {
 	if(full_convergence){
 	  output_section("CC2 CONVERGED!!!");
 	  timer_iter_all.info();
-	  print_results(doubles,singles);
+	  //print_results(doubles,singles);
 	  break;
 	}else output("Overall convergence not yet reached ... starting cycle again");
       }
