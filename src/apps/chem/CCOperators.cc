@@ -413,7 +413,7 @@ namespace madness {
 	const Tensor<double> ls2b = inner(world,s2b[itmp.first-parameters.freeze],active_mo_bra);
 	real_function_3d resulti = real_factory_3d(world);
 	for(const auto& ltmp : singles.functions){
-	  resulti += ls2b(ltmp.first-parameters.freeze)*ltmp.second.function;
+	  resulti -= ls2b(ltmp.first-parameters.freeze)*ltmp.second.function;
 	}
 	s4a.push_back(resulti);
       }
@@ -1495,7 +1495,7 @@ namespace madness {
 
   real_function_3d
   CC_Operators::convolute_x_Qf_yz(const CC_function &x,const CC_function &y,const CC_function &z) const {
-    // !!!!!!!!!!!!! bra element
+    // !!!!!!!!!!!!! bra element: make shure x is actually R2*x when given to the function
     real_function_3d xfz=f12(msparse(x.function,z.function));
     xfz.truncate();
     xfz.reconstruct();
