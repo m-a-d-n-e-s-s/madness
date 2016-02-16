@@ -1,0 +1,9 @@
+libMADworld_la-info.lo: ../../../../src/madness/world/info.cc \
+ ../../../../src/madness/world/info.h \
+ ../../../../src/madness/madness_config.h ../../../src/madness/config.h
+
+../../../../src/madness/world/info.h:
+
+../../../../src/madness/madness_config.h:
+
+../../../src/madness/config.h:

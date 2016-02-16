@@ -1,0 +1,18 @@
+prefix=/homes/naromero/mpich2-1.5-GCC4.7.3
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+cc=mpicc
+cxx=mpicxx
+cppflags= -DMPICH_SKIP_MPICXX=1 -DOMPI_SKIP_MPICXX=1
+cxxflags= -std=c++11 -O3 -Wall -Wno-strict-aliasing -Wno-deprecated -Wno-unused-local-typedefs  -ffast-math -march=native
+ldflags=
+libs= -L/opt/intel/mkl/lib/intel64 -Wl,--start-group -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -Wl,--end-group -lpthread -lm -ldl  
+fortran_integer_width=4
+
+Name: MADNESS
+Description: Multiresolution Adaptive Numerical Environment for Scientific Simulation
+Version: 0.10.1
+Libs: -L${libdir} -lMADmra -lMADlinalg -lMADtensor -lMADmisc -lMADmuparser -lMADtinyxml -lMADworld ${libs}
+Cflags: -I${includedir}

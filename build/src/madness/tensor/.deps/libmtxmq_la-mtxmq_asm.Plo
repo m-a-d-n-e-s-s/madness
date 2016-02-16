@@ -1,0 +1,9 @@
+libmtxmq_la-mtxmq_asm.lo: ../../../../src/madness/tensor/mtxmq_asm.S \
+ ../../../../src/madness/madness_config.h ../../../src/madness/config.h \
+ ../../../../src/madness/tensor/mtxm_gen.h
+
+../../../../src/madness/madness_config.h:
+
+../../../src/madness/config.h:
+
+../../../../src/madness/tensor/mtxm_gen.h:

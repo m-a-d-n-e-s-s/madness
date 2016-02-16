@@ -1,0 +1,43 @@
+
+# These variables substituted by configure
+TRUNK    = /home/kimjins/madness/madness/build/..
+CXX      = mpicxx
+CXXFLAGS =  -std=c++11 -O3 -Wall -Wno-strict-aliasing -Wno-deprecated -Wno-unused-local-typedefs  -ffast-math -march=native 
+CPPFLAGS =  -DMPICH_SKIP_MPICXX=1 -DOMPI_SKIP_MPICXX=1 -I$(TRUNK)/include -I$(TRUNK)/src -I$(TRUNK)/src/apps
+LDFLAGS  = 
+LIBS     =  -L/opt/intel/mkl/lib/intel64 -Wl,--start-group -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -Wl,--end-group -lpthread -lm -ldl  
+
+# Directories holding libraries
+LIBWORLDDIR=$(TRUNK)/src/madness/world
+LIBTENSORDIR=$(TRUNK)/src/madness/tensor
+LIBMISCDIR=$(TRUNK)/src/madness/misc
+LIBMRADIR=$(TRUNK)/src/madness/mra
+LIBTINYXMLDIR=$(TRUNK)/src/madness/external/tinyxml
+LIBMUPARSERDIR=$(TRUNK)/src/madness/external/muParser
+
+# Individual libraries
+LIBWORLD=$(LIBWORLDDIR)/libMADworld.so
+LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.so
+LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.so
+LIBMISC=$(LIBMISCDIR)/libMADmisc.so
+LIBMRA=$(LIBMRADIR)/libMADmra.so
+LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.so
+LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.so
+
+
+
+# Most scientific/numeric applications will link against these libraries
+MRALIBS=$(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) \
+        $(LIBTINYXML) $(LIBWORLD) 
+
+# This to enable implicit Gnumake rule for linking from single source
+LDLIBS := $(MRALIBS) $(LIBS)
+
+
+# Define your targets below here ... this is just an example
+
+OBJ = a.o b.o c.o
+
+myprog:   $(OBJ)
+	$(CXX) -o $@ $^ $(LDLIBS)
+

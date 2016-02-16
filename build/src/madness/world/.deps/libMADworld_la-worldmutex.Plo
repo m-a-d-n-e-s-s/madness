@@ -1,0 +1,184 @@
+libMADworld_la-worldmutex.lo: ../../../../src/madness/world/worldmutex.cc \
+ ../../../../src/madness/world/worldmutex.h \
+ ../../../../src/madness/madness_config.h ../../../src/madness/config.h \
+ /usr/include/pthread.h /usr/include/features.h /usr/include/sys/cdefs.h \
+ /usr/include/bits/wordsize.h /usr/include/gnu/stubs.h \
+ /usr/include/gnu/stubs-64.h /usr/include/endian.h \
+ /usr/include/bits/endian.h /usr/include/bits/byteswap.h \
+ /usr/include/sched.h /usr/include/bits/types.h \
+ /usr/include/bits/typesizes.h \
+ /opt/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stddef.h \
+ /usr/include/time.h /usr/include/bits/sched.h /usr/include/bits/time.h \
+ /usr/include/xlocale.h /usr/include/bits/pthreadtypes.h \
+ /usr/include/bits/setjmp.h /opt/gcc/4.8.3/include/c++/4.8.3/cstdio \
+ /opt/gcc/4.8.3/include/c++/4.8.3/x86_64-unknown-linux-gnu/bits/c++config.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/x86_64-unknown-linux-gnu/bits/os_defines.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/x86_64-unknown-linux-gnu/bits/cpu_defines.h \
+ /usr/include/stdio.h /usr/include/libio.h /usr/include/_G_config.h \
+ /usr/include/wchar.h \
+ /opt/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stdarg.h \
+ /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
+ /usr/include/bits/stdio.h ../../../../src/madness/world/nodefaults.h \
+ ../../../../src/madness/world/timers.h \
+ /opt/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stdint.h \
+ /usr/include/stdint.h /usr/include/bits/wchar.h /usr/include/sys/time.h \
+ /usr/include/sys/select.h /usr/include/bits/select.h \
+ /usr/include/bits/sigset.h /usr/include/unistd.h \
+ /usr/include/bits/posix_opt.h /usr/include/bits/environments.h \
+ /usr/include/bits/confname.h /usr/include/getopt.h \
+ ../../../../src/madness/world/atomicint.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/atomic \
+ /opt/gcc/4.8.3/include/c++/4.8.3/bits/atomic_base.h \
+ /opt/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stdbool.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/bits/atomic_lockfree_defines.h \
+ ../../../../src/madness/world/madness_exception.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/iosfwd \
+ /opt/gcc/4.8.3/include/c++/4.8.3/bits/stringfwd.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/bits/memoryfwd.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/bits/postypes.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/cwchar \
+ /opt/gcc/4.8.3/include/c++/4.8.3/exception \
+ /opt/gcc/4.8.3/include/c++/4.8.3/bits/exception_ptr.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/bits/exception_defines.h \
+ /opt/gcc/4.8.3/include/c++/4.8.3/bits/nested_exception.h \
+ /usr/include/errno.h /usr/include/bits/errno.h \
+ /usr/include/linux/errno.h /usr/include/asm/errno.h \
+ /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h
+
+../../../../src/madness/world/worldmutex.h:
+
+../../../../src/madness/madness_config.h:
+
+../../../src/madness/config.h:
+
+/usr/include/pthread.h:
+
+/usr/include/features.h:
+
+/usr/include/sys/cdefs.h:
+
+/usr/include/bits/wordsize.h:
+
+/usr/include/gnu/stubs.h:
+
+/usr/include/gnu/stubs-64.h:
+
+/usr/include/endian.h:
+
+/usr/include/bits/endian.h:
+
+/usr/include/bits/byteswap.h:
+
+/usr/include/sched.h:
+
+/usr/include/bits/types.h:
+
+/usr/include/bits/typesizes.h:
+
+/opt/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stddef.h:
+
+/usr/include/time.h:
+
+/usr/include/bits/sched.h:
+
+/usr/include/bits/time.h:
+
+/usr/include/xlocale.h:
+
+/usr/include/bits/pthreadtypes.h:
+
+/usr/include/bits/setjmp.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/cstdio:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/x86_64-unknown-linux-gnu/bits/c++config.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/x86_64-unknown-linux-gnu/bits/os_defines.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/x86_64-unknown-linux-gnu/bits/cpu_defines.h:
+
+/usr/include/stdio.h:
+
+/usr/include/libio.h:
+
+/usr/include/_G_config.h:
+
+/usr/include/wchar.h:
+
+/opt/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stdarg.h:
+
+/usr/include/bits/stdio_lim.h:
+
+/usr/include/bits/sys_errlist.h:
+
+/usr/include/bits/stdio.h:
+
+../../../../src/madness/world/nodefaults.h:
+
+../../../../src/madness/world/timers.h:
+
+/opt/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stdint.h:
+
+/usr/include/stdint.h:
+
+/usr/include/bits/wchar.h:
+
+/usr/include/sys/time.h:
+
+/usr/include/sys/select.h:
+
+/usr/include/bits/select.h:
+
+/usr/include/bits/sigset.h:
+
+/usr/include/unistd.h:
+
+/usr/include/bits/posix_opt.h:
+
+/usr/include/bits/environments.h:
+
+/usr/include/bits/confname.h:
+
+/usr/include/getopt.h:
+
+../../../../src/madness/world/atomicint.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/atomic:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/bits/atomic_base.h:
+
+/opt/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stdbool.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/bits/atomic_lockfree_defines.h:
+
+../../../../src/madness/world/madness_exception.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/iosfwd:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/bits/stringfwd.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/bits/memoryfwd.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/bits/postypes.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/cwchar:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/exception:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/bits/exception_ptr.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/bits/exception_defines.h:
+
+/opt/gcc/4.8.3/include/c++/4.8.3/bits/nested_exception.h:
+
+/usr/include/errno.h:
+
+/usr/include/bits/errno.h:
+
+/usr/include/linux/errno.h:
+
+/usr/include/asm/errno.h:
+
+/usr/include/asm-generic/errno.h:
+
+/usr/include/asm-generic/errno-base.h:
