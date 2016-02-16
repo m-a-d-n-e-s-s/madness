@@ -1,9 +1,0 @@
-cheminfo.lo: ../../../../src/apps/chem/cheminfo.cc \
- ../../../../src/apps/chem/cheminfo.h \
- ../../../../src/madness/madness_config.h ../../../src/madness/config.h
-
-../../../../src/apps/chem/cheminfo.h:
-
-../../../../src/madness/madness_config.h:
-
-../../../src/madness/config.h:

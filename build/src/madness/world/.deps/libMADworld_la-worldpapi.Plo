@@ -1,6 +1,0 @@
-libMADworld_la-worldpapi.lo: ../../../../src/madness/world/worldpapi.cc \
- ../../../../src/madness/madness_config.h ../../../src/madness/config.h
-
-../../../../src/madness/madness_config.h:
-
-../../../src/madness/config.h:

@@ -1,6 +1,0 @@
-elem.lo: ../../../../src/madness/tensor/elem.cc \
- ../../../../src/madness/madness_config.h ../../../src/madness/config.h
-
-../../../../src/madness/madness_config.h:
-
-../../../src/madness/config.h:
