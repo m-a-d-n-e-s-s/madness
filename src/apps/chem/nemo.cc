@@ -1016,160 +1016,61 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
     return incomplete_hessian;
 }
 
+/// compute the complementary incomplete hessian
 
-/// solve the CPHF equation for the nuclear displacements
+/// @param[in]  xi the response functions including the parallel part
+Tensor<double> Nemo::make_incomplete_hessian_response_part(
+        const std::vector<vecfuncT>& xi) const {
 
-/// @param[in]  iatom   the atom A to be moved
-/// @param[in]  iaxis   the coordinate X of iatom to be moved
-/// @return     \frac{\partial}{\partial X_A} \varphi
-vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
-        const vecfuncT& guess, const protocol& proto) const {
+    int natom=calc->molecule.natom();
+    const vecfuncT& nemo=calc->amo;
 
-    print("\nsolving nemo cphf equations for atom, axis",iatom,iaxis);
-    START_TIMER(world);
+    Tensor<double> complementary_hessian(3*natom,3*natom);
+    for (int i=0, iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis, ++i) {
+            if (i != 5) continue;
 
+            real_function_3d dens_pt=dot(world,xi[i],nemo);
+            dens_pt=4.0*R_square*dens_pt;
+            Tensor<double> h(3*molecule().natom());
+
+            for (int jatom=0, j=0; jatom<molecule().natom(); ++jatom) {
+                for (int jaxis=0; jaxis<3; ++jaxis, ++j) {
+                    if ((iatom==jatom) and (iaxis==jaxis)) continue;
+                    MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
+                    h(j)=inner(dens_pt,mdf);
+                }
+            }
+            complementary_hessian(i,_)=h;
+        }
+    }
+    return complementary_hessian;
+}
+
+
+vecfuncT Nemo::make_cphf_constant_term(const int iatom, const int iaxis,
+        const vecfuncT& R2nemo, const real_function_3d& rhonemo) const {
     // guess for the perturbed MOs
     const vecfuncT nemo=calc->amo;
     const int nmo=nemo.size();
+    const int natom=calc->molecule.natom();
 
+//    vecfuncT R2nemo=mul(world,R_square,nemo);
+//    truncate(world,R2nemo);
+    const Tensor<double> occ=get_calc()->get_aocc();
+//    const real_function_3d rhonemo=2.0*make_density(occ,nemo); // closed shell
 
-    Tensor<double> incomplete_hessian=make_incomplete_hessian();
-    int ii=3*iatom+iaxis;
-    Tensor<double> ihr=incomplete_hessian(ii,_);
-    print("incomplete hessian row");
-    print(ihr);
-    Tensor<double> old_h(3*molecule().natom());
-
-
-    vecfuncT R2nemo=mul(world,R_square,nemo);
-    truncate(world,R2nemo);
     QProjector<double,3> Q(world,R2nemo,nemo);
 
-    // construct some intermediates
-    const Tensor<double> occ=get_calc()->get_aocc();
-    const real_function_3d rhonemo=2.0*make_density(occ,nemo); // closed shell
-    NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
-    const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
-
-    END_TIMER(world,"tag1");
     START_TIMER(world);
-    // construct quantities that are independent of xi
-
-    // construct the BSH operator
-    tensorT eps(nmo);
-    for (int i = 0; i < nmo; ++i) eps(i) = fock(i, i);
-    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
-    END_TIMER(world,"tag2");
-
-    // derivative of the (regularized) nuclear potential
-    START_TIMER(world);
-
-#define NEW_DNUC 0
-#if NEW_DNUC
-
-
-    START_TIMER(world);
-    std::vector<poperatorT> gradbsh = calc->make_gradbsh_operators(world, eps,iaxis);
-
-    NuclearCorrelationFactor::U1_atomic_functor u1ax_func(nuclear_correlation.get(),iatom,0);
-    NuclearCorrelationFactor::U1_atomic_functor u1ay_func(nuclear_correlation.get(),iatom,1);
-    NuclearCorrelationFactor::U1_atomic_functor u1az_func(nuclear_correlation.get(),iatom,2);
-    NuclearCorrelationFactor::U2_atomic_functor u2a_func(nuclear_correlation.get(),iatom);
-
-    real_function_3d U2A=real_factory_3d(world).functor(u2a_func).truncate_on_project();;
-    vecfuncT U1A=zero_functions<double,3>(world,3);
-    U1A[0]=real_factory_3d(world).functor(u1ax_func).truncate_on_project();;
-    U1A[1]=real_factory_3d(world).functor(u1ay_func).truncate_on_project();;
-    U1A[2]=real_factory_3d(world).functor(u1az_func).truncate_on_project();;
-
-    std::vector<vecfuncT> dnemo(3);
-    std::vector<vecfuncT> ddnemo(3);
-    for (int axis=0; axis<3; ++axis) {
-        Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-        dnemo[axis]=apply(world, D, nemo, true);
-        Derivative<double,3> Di = free_space_derivative<double,3>(world, iaxis);
-        ddnemo[axis]=apply(world, Di, dnemo[axis], true);
-    }
-
-    // U_A |F_i>
-    vecfuncT UAnemo=zero_functions_compressed<double,3>(world,nmo);
-    {
-        vecfuncT U1Axnemo=mul(world,U1A[0],dnemo[0]);
-        vecfuncT U1Aynemo=mul(world,U1A[1],dnemo[1]);
-        vecfuncT U1Aznemo=mul(world,U1A[2],dnemo[2]);
-        vecfuncT U2Anemo=mul(world,U2A,nemo);
-        UAnemo=(U2Anemo-U1Axnemo-U1Aynemo-U1Aznemo);
-        truncate(world,UAnemo);
-    }
-
-    // U_A \nabla |F_i>
-    vecfuncT UAdnemo=zero_functions_compressed<double,3>(world,nmo);
-    {
-        vecfuncT U1Axnemo=mul(world,U1A[0],ddnemo[0]);
-        vecfuncT U1Aynemo=mul(world,U1A[1],ddnemo[1]);
-        vecfuncT U1Aznemo=mul(world,U1A[2],ddnemo[2]);
-        vecfuncT U2Anemo=mul(world,U2A,dnemo[iaxis]);
-        UAdnemo=(U2Anemo-U1Axnemo-U1Aynemo-U1Aznemo);
-        truncate(world,UAdnemo);
-    }
-    END_TIMER(world,"tag2c");
-
-    START_TIMER(world);
-    vecfuncT GxUAnemo=apply(world,gradbsh,-2.0*UAnemo);
-    vecfuncT GUAdnemo=apply(world,bsh,-2.0*UAdnemo);
-    vecfuncT result2=GUAdnemo-GxUAnemo;
-    truncate(world,result2);
-
-    // add U3
-    NuclearCorrelationFactor::U3X_functor u3x_func(nuclear_correlation.get(),iatom,iaxis);
-    real_function_3d u3x_f=real_factory_3d(world).functor(u3x_func).truncate_on_project();
-    vecfuncT Vpsi2b=-1.0*mul(world,u3x_f,nemo);
-    Vpsi2b=Q(Vpsi2b);
-
-    END_TIMER(world,"tag3");
-
-    // subtract P(U1+U2) |nemo>
-    START_TIMER(world);
-    NuclearCorrelationFactor::U2X_functor u2x_func(nuclear_correlation.get(),iatom,iaxis);
-    real_function_3d u2x_f=real_factory_3d(world).functor(u2x_func).truncate_on_project();
-    vecfuncT U2nemo=mul(world,u2x_f,nemo);
-    Tensor<double> tmp=matrix_inner(world,R2nemo,U2nemo);
-    END_TIMER(world,"tag3a");
-
-    std::vector< std::shared_ptr<Derivative<double,3> > > gradop =
-            gradient_operator<double,3>(world);
-    for (std::size_t i=0; i<3; ++i) {
-        START_TIMER(world);
-        vecfuncT dnemo=apply(world, *(gradop[i]), nemo, true);
-        truncate(world,dnemo);
-        END_TIMER(world,"tag dnemo");
-        START_TIMER(world);
-
-        // note the two different axis: U1axis (i) and the derivative axis (iaxis)
-        // \frac{\partial U1_i}{\partial R_{A,iaxis}}
-        // e.g. d/dYA U1x
-        NuclearCorrelationFactor::U1X_functor u1x(nuclear_correlation.get(),iatom,i,iaxis);
-        real_function_3d U1=real_factory_3d(world).functor(u1x).truncate_on_project();
-        vecfuncT U1R2nemo=mul(world,U1,R2nemo);
-        END_TIMER(world,"tag U1R2nemo");
-        START_TIMER(world);
-        truncate(world,U1R2nemo);
-        tmp-=matrix_inner(world,U1R2nemo,dnemo);
-        END_TIMER(world,"tag transform");
-
-    }
-    START_TIMER(world);
-    vecfuncT PUnemo=transform(world,nemo,tmp);
-    truncate(world,PUnemo);
-    END_TIMER(world,"tag3b");
-
-#else
     DNuclear Dunuc(world,this,iatom,iaxis);
     vecfuncT Vpsi2b=Dunuc(nemo);
     truncate(world,Vpsi2b);
     END_TIMER(world,"tag3");
-#endif
 
+    // construct some intermediates
+    NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
+    const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
 
     // part of the Coulomb operator with the derivative of the NCF
     // J <- \int dr' 1/|r-r'| \sum_i R^XR F_iF_i
@@ -1201,35 +1102,57 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     vecfuncT rhsconst=Vpsi2b+Jconstnemo-Kconstnemo;
     truncate(world,rhsconst);
     rhsconst=Q(rhsconst);
-#if NEW_DNUC
-    rhsconst-=PUnemo;
-#endif
     END_TIMER(world,"tag6");
+    return rhsconst;
 
-#if NEW_DNUC
+}
+
+
+/// solve the CPHF equation for the nuclear displacements
+
+/// @param[in]  iatom   the atom A to be moved
+/// @param[in]  iaxis   the coordinate X of iatom to be moved
+/// @return     \frac{\partial}{\partial X_A} \varphi
+vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double> fock,
+        const vecfuncT& guess, const vecfuncT& rhsconst,
+        const Tensor<double> incomplete_hessian, const vecfuncT& parallel,
+        const protocol& proto) const {
+
+    print("\nsolving nemo cphf equations for atom, axis",iatom,iaxis);
     START_TIMER(world);
-    vecfuncT Grhsconst = apply(world, bsh, -2.0*rhsconst);
-    Grhsconst+=result2;
-    truncate(world,Grhsconst);
-    // keep iterating rhsconst, seems to be more accurate
-    // (as opposed to adding Grhsconst to the result of G(..) )
-    END_TIMER(world,"tag7");
-#endif
 
-    // initial guess from outside or from the leading term Grhsconst
+    vecfuncT xi=guess;
+    // guess for the perturbed MOs
+    const vecfuncT nemo=calc->amo;
+    const int nmo=nemo.size();
+    const Tensor<double> occ=get_calc()->get_aocc();
+    const real_function_3d rhonemo=2.0*make_density(occ,nemo); // closed shell
+    NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
+    const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
+
+    int ii=3*iatom+iaxis;
+    Tensor<double> ihr=incomplete_hessian(ii,_);
+    print("incomplete hessian row");
+    print(ihr);
+    Tensor<double> old_h(3*molecule().natom());
+
+
+    vecfuncT R2nemo=mul(world,R_square,nemo);
+    truncate(world,R2nemo);
+    QProjector<double,3> Q(world,R2nemo,nemo);
+
+    END_TIMER(world,"tag1");
     START_TIMER(world);
-    vecfuncT xi(nmo);
-    if (guess.size()>0) {
-        if (world.rank()==0) print("using guess for the CPHF vectors");
-        xi=copy(world,guess);
-    } else {
-        xi=apply(world, bsh, -2.0*rhsconst);
-        truncate(world,xi);
-    }
+    // construct quantities that are independent of xi
 
+    // construct the BSH operator
+    tensorT eps(nmo);
+    for (int i = 0; i < nmo; ++i) eps(i) = fock(i, i);
+    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
+    END_TIMER(world,"tag2");
 
-    // the part of the response that is contained in the occupied space
-    const vecfuncT parallel=parallel_CPHF(nemo,iatom,iaxis);
+    // derivative of the (regularized) nuclear potential
+    START_TIMER(world);
 
     // construct the KAIN solver
     typedef allocator<double, 3> allocT;
@@ -1246,7 +1169,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
     END_TIMER(world,"tag8");
     Tensor<double> h_diff(3l);
 
-    for (int iter=0; iter<25; ++iter) {
+    for (int iter=0; iter<10; ++iter) {
 
         const vecfuncT xi_complete=xi-parallel;
 
@@ -1288,10 +1211,7 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
             Kp=add(world,Kp1(nemo),Kp2(nemo));
         }
-        vecfuncT Vpsi2a=Jp(nemo)-Kp;
-        vecfuncT Vpsi2=Vpsi2a+rhsconst;
-//        vecfuncT Vpsi2=Vpsi2a;
-//        print("skip rhsconst, moved to Grhsconst");
+        vecfuncT Vpsi2=Jp(nemo)-Kp+rhsconst;
         truncate(world,Vpsi2);
         Vpsi2=Q(Vpsi2);
         truncate(world,Vpsi2);
@@ -1311,10 +1231,8 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 
         // apply the BSH operator on the wave function
         START_TIMER(world);
-        scale(world, Vpsi, -2.0);
-        vecfuncT tmp = apply(world, bsh, Vpsi);
+        vecfuncT tmp = apply(world, bsh, -2.0*Vpsi);
         truncate(world, tmp);
-//        tmp=add(world,tmp,Grhsconst);
         END_TIMER(world, "apply BSH");
 
         tmp=Q(tmp);
@@ -1348,15 +1266,15 @@ vecfuncT Nemo::cphf(const int iatom, const int iaxis, const Tensor<double> fock,
         h_diff=h-old_h;
 
         if (world.rank() == 0)
-            print("xi_"+stringify(ii),"CPHF BSH residual: rms", rms, "   max", maxval, "H, Delta H", h.normf(), h_diff.normf());
+            print("xi_"+stringify(ii),"CPHF BSH residual: rms", rms,
+                    "   max", maxval, "H, Delta H", h.normf(), h_diff.normf());
         print("h+ihr");
         print(h+ihr);
         old_h=h;
 
-
         const double norm = norm2(world,xi);
-//        if (rms/norm<proto.dconv) break;
-        if (h_diff.normf()<proto.dconv) break;
+        if (rms/norm<proto.dconv) break;
+//        if (h_diff.normf()<proto.dconv) break;
     }
     return xi;
 
@@ -1371,19 +1289,81 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     // read CPHF vectors from file if possible
     if (get_calc()->param.read_cphf) {
         xi.resize(3*natom);
-        for (std::size_t i=0; i<xi.size(); ++i) {
-            load_function(xi[i],"xi_"+stringify(i));
-        }
+        for (int i=0; i<3*natom; ++i) load_function(xi[i],"xi_"+stringify(i));
         return xi;
     }
 
-    const Tensor<double> fock=this->compute_fock_matrix(get_calc()->amo,
-            get_calc()->get_aocc());
-    print("fock");
-    print(fock);
+    const vecfuncT& nemo=calc->amo;
+
+    timer t1(world);
+    vecfuncT R2nemo=mul(world,R_square,nemo);
+    const real_function_3d rhonemo=2.0*make_density(calc->aocc, nemo);
+    t1.tag("make density");
+
+    // compute some intermediates
+
+    // compute those contributions to the hessian that do not depend on the response
+    Tensor<double> incomplete_hessian=make_incomplete_hessian();
+    t1.tag("make incomplete hessian");
+
+    // compute the initial guess for the response
+    const Tensor<double> fock=compute_fock_matrix(nemo,get_calc()->get_aocc());
+    const int nmo=nemo.size();
+    tensorT eps(nmo);
+    for (int i = 0; i < nmo; ++i) eps(i) = fock(i, i);
+    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
+    t1.tag("make fock matrix");
+
+    // construct the leading and constant term rhs involving the derivative
+    // of the nuclear potential
+    std::vector<vecfuncT> parallel(3*natom);
+    std::vector<vecfuncT> rhsconst(3*natom);
+
+    for (int i=0, iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis, ++i) {
+            parallel[i]=zero_functions_compressed<double,3>(world,3*natom);
+            rhsconst[i]=zero_functions_compressed<double,3>(world,3*natom);
+            if (i != 5) continue;
+
+            timer t2(world);
+            parallel[i]=compute_cphf_parallel_term(iatom,iaxis);
+            rhsconst[i]=make_cphf_constant_term(iatom,iaxis,R2nemo,rhonemo);
+            t2.end("tag1 xi_"+stringify(i));
+        }
+    }
+    t1.tag("make constant and parallel terms");
 
 
-    for (protocol p(*this); not p.finished(); ++p) {
+    // initial guess from the constant rhs
+    for (std::size_t i=0; i<rhsconst.size(); ++i) {
+        xi[i]=zero_functions_compressed<double,3>(world,3*natom);
+
+        if (i != 5) continue;
+
+        START_TIMER(world);
+        xi[i]=apply(world, bsh, -2.0*rhsconst[i]);
+        truncate(world,xi[i]);
+        END_TIMER(world,"tag2 xi_"+stringify(i));
+    }
+    t1.tag("make initial guess");
+
+    // compute a first guess for the hessian
+    std::vector<vecfuncT> full_xi(3*natom);
+    for (int i=0; i<3*natom; ++i) full_xi[i]=xi[i]-parallel[i];
+    Tensor<double> complementary_hessian=make_incomplete_hessian_response_part(full_xi);
+    t1.tag("make complementary hessian");
+    print("incomplete, complementary, and full hessian matrix");
+    print(incomplete_hessian);
+    print(complementary_hessian);
+    print(incomplete_hessian+complementary_hessian);
+
+
+    // solve the response equations
+
+    protocol p(*this);
+    p.end_prec=3.e-7;
+
+    for (p.initialize() ;not p.finished(); ++p) {
         set_protocol(p.current_prec);
 
         if (world.rank()==0) {
@@ -1391,13 +1371,20 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
         }
         // double loop over all nuclear displacements
         for (int i=0, iatom=0; iatom<natom; ++iatom) {
-            for (int iaxis=0; iaxis<3; ++iaxis) {
+            for (int iaxis=0; iaxis<3; ++iaxis, ++i) {
+                if (i != 5) continue;
                 if (xi[i].size()>0) {
                     for (real_function_3d& xij : xi[i]) xij.set_thresh(p.current_prec);
                 }
-                xi[i]=cphf(iatom,iaxis,fock,xi[i],p);
+                xi[i]=solve_cphf(iatom,iaxis,fock,xi[i],rhsconst[i],
+                        incomplete_hessian,parallel[i],p);
                 save_function(xi[i],"xi_"+stringify(i));
-                ++i;
+
+                for (int i=0; i<3*natom; ++i) full_xi[i]=xi[i]-parallel[i];
+                Tensor<double> complementary_hessian=make_incomplete_hessian_response_part(full_xi);
+                print("full hessian matrix");
+                print(incomplete_hessian+complementary_hessian);
+
             }
         }
         printf("\nfinished CPHF equations at time %8.1fs \n",wall_time());
@@ -1410,15 +1397,12 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 
     // double loop over all nuclear displacements
     for (int i=0, iatom=0; iatom<natom; ++iatom) {
-        for (int iaxis=0; iaxis<3; ++iaxis) {
+        for (int iaxis=0; iaxis<3; ++iaxis, ++i) {
 
-            const vecfuncT& nemo=calc->amo;
             load_function(xi[i],"xi_"+stringify(i));
-            const vecfuncT parallel=parallel_CPHF(nemo,iatom,iaxis);
-            xi[i]=sub(world,xi[i],parallel);
+            xi[i]-=parallel[i];
             truncate(world,xi[i]);
             save_function(xi[i],"xi_"+stringify(i));
-            ++i;
         }
     }
 
@@ -1431,16 +1415,18 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 }
 
 
-vecfuncT Nemo::parallel_CPHF(const vecfuncT& nemo, const int iatom,
-        const int iaxis) const {
+vecfuncT Nemo::compute_cphf_parallel_term(const int iatom, const int iaxis) const {
 
+    const vecfuncT& nemo=calc->amo;
+    int natom=calc->molecule.natom();
+    vecfuncT parallel(nemo.size());
     NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
     const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
     vecfuncT RXRnemo=mul(world,RXR,nemo);   // skipping factor 2
     truncate(world,RXRnemo);
 
     Tensor<double> FRXRF=matrix_inner(world,nemo,RXRnemo);  // skipping factor 0.5
-    vecfuncT parallel=transform(world,nemo,FRXRF);
+    parallel=transform(world,nemo,FRXRF);
     truncate(world,parallel);
     return parallel;
 

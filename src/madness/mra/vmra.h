@@ -1013,14 +1013,14 @@ namespace madness {
 
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
-            std::vector<Function<T,NDIM> >& lhs) {
+            const std::vector<Function<T,NDIM> >& lhs) {
         rhs=add(rhs[0].world(),rhs,lhs);
         return rhs;
     }
 
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-=(std::vector<Function<T,NDIM> >& rhs,
-            std::vector<Function<T,NDIM> >& lhs) {
+            const std::vector<Function<T,NDIM> >& lhs) {
         rhs=sub(rhs[0].world(),rhs,lhs);
         return rhs;
     }

@@ -171,17 +171,19 @@ class Nemo: public MolecularOptimizationTargetInterface {
         }
 
         bool finished() const {
-            return current_prec<end_prec*0.9999;   // account for noise
+            return current_prec<0.0;
+            return current_prec*0.9999<end_prec;   // account for noise
         }
 
         /// go to the next level
         protocol& operator++() {
-            current_prec*=0.1;
-            if (not finished()) {
+            if (current_prec*0.9999>end_prec) {
+                current_prec*=0.1;
                 if (current_prec<end_prec) current_prec=end_prec;
                 infer_thresholds(current_prec);
                 print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
             } else {
+                current_prec=-1.0;
                 printf("\nending protocol at time %8.1fs \n",wall_time());
 
             }
@@ -252,8 +254,10 @@ public:
 	/// @param[in]  iatom   the atom A to be moved
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
 	/// @return     \ket{i^X} or \ket{F^\perp}
-	vecfuncT cphf(const int iatom, const int iaxis, const Tensor<double> fock,
-	        const vecfuncT& guess, const protocol& p) const;
+	vecfuncT solve_cphf(const int iatom, const int iaxis, const Tensor<double> fock,
+	        const vecfuncT& guess, const vecfuncT& rhsconst,
+	        const Tensor<double> incomplete_hessian, const vecfuncT& parallel,
+	        const protocol& p) const;
 
 	/// solve the CPHF equation for all displacements
 
@@ -281,8 +285,8 @@ public:
     /// \f[
     ///  F_i^\parallel = -\frac{1}{2}\sum_k|F_k ><F_k | (R^2)^X | F_i>
     /// \f]
-    vecfuncT parallel_CPHF(const vecfuncT& nemo, const int iatom,
-            const int iaxis) const;
+    vecfuncT compute_cphf_parallel_term(const int iatom, const int iaxis) const;
+
 //
 //	/// returns the vibrational frequencies
 //
@@ -414,6 +418,33 @@ private:
 	    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 	}
 
+	struct timer {
+        World& world;
+	    double ttt,sss;
+	    timer(World& world) : world(world) {
+	        world.gop.fence();
+	        ttt=wall_time();
+	        sss=cpu_time();
+	    }
+
+	    void tag(const std::string msg) {
+            world.gop.fence();
+	        double tt1=wall_time()-ttt;
+	        double ss1=cpu_time()-sss;
+	        if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+	        ttt=wall_time();
+	        sss=cpu_time();
+	    }
+
+	    void end(const std::string msg) {
+            world.gop.fence();
+            double tt1=wall_time()-ttt;
+            double ss1=cpu_time()-sss;
+            if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+        }
+
+	};
+
 public:
 
 	/// the nuclear correlation factor
@@ -494,9 +525,21 @@ private:
 	/// incomplete hessian is the nuclear-nuclear contribution, and the
 	/// contribution from the second derivative of the nuclear potential,
 	/// and also the derivative of the nuclear correlation factor.
-	/// i.e. all contributions that do not contain the regularized perturbed
+	/// i.e. all contributions that *do not* contain the regularized perturbed
 	/// density, but it will contain parts of the perturbed density
 	Tensor<double> make_incomplete_hessian() const;
+
+    /// compute the complementary incomplete hessian
+
+	/// @param[in]  xi the response functions including the parallel part
+    Tensor<double> make_incomplete_hessian_response_part(
+            const std::vector<vecfuncT>& xi) const;
+
+	/// compute the constant term for the CPHF equations
+
+	/// mainly all terms with the nuclear correlation factor's derivatives
+	vecfuncT make_cphf_constant_term(const int iatom, const int iaxis,
+	        const vecfuncT& R2nemo, const real_function_3d& rhonemo) const;
 
 	bool is_dft() const {return calc->xc.is_dft();}
 
