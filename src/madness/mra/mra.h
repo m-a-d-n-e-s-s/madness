@@ -74,7 +74,9 @@ namespace madness {
 
 // some forward declarations
 namespace madness {
-
+    template<typename T, std::size_t NDIM>
+    class PrimitiveOp;
+    
     template<typename T, std::size_t NDIM>
     class FunctionImpl;
 
@@ -118,15 +120,22 @@ namespace madness {
     /// A multiresolution adaptive numerical function
     template <typename T, std::size_t NDIM>
     class Function : public archive::ParallelSerializableObject {
-        // We make all of the content of Function and FunctionImpl
+	friend class PrimitiveOp<T,NDIM>;
+	// We make all of the content of Function and FunctionImpl
         // public with the intent of avoiding the cumbersome forward
         // and friend declarations.  However, this open access should
         // not be abused.
-
+	
     private:
         std::shared_ptr< FunctionImpl<T,NDIM> > impl;
 
     public:
+	std::string _treeName;
+
+	void setTreeName(std::string name){
+	    _treeName = name;
+	}
+	
         bool impl_initialized()const{
         	if(impl==NULL) return false;
         	else return true;
@@ -588,6 +597,13 @@ namespace madness {
 
         /// Returns a shared-pointer to the implementation
         const std::shared_ptr< FunctionImpl<T,NDIM> >& get_impl() const {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            return impl;
+        }
+
+
+	std::shared_ptr< FunctionImpl<T,NDIM> >& implP() {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             return impl;
@@ -1352,6 +1368,8 @@ namespace madness {
             if (not impl) return;
             impl->change_tensor_type1(targs,fence);
         }
+
+
 
 
         /// This is replaced with left*right ...  private

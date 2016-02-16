@@ -418,6 +418,9 @@ namespace madness {
                 finished(false) {
         }
 
+		/// The # of Children
+		int size();
+
         /// Pre-increment of an iterator (i.e., ++it)
         KeyChildIterator&
         operator++() {

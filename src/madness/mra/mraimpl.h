@@ -1461,7 +1461,8 @@ namespace madness {
     /// @param[in] keepleaves	keep sum coeffs (but no diff coeffs) at leaves
     /// @param[in] redundant    keep only sum coeffs at all levels, discard difference coeffs
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::compress(bool nonstandard, bool keepleaves, bool redundant, bool fence) {
+    void FunctionImpl<T,NDIM>::compress(bool nonstandard, bool keepleaves, bool redundant, bool fence) 
+	{
         MADNESS_ASSERT(not is_redundant());
         // Must set true here so that successive calls without fence do the right thing
         this->compressed = true;
@@ -1474,8 +1475,9 @@ namespace madness {
         if (redundant) {MADNESS_ASSERT(keepleaves);}
 
         //            this->print_tree();
-        if (world.rank() == coeffs.owner(cdata.key0)) {
-
+        if (world.rank() == coeffs.owner(cdata.key0)) 
+		{
+			//std::cout << "cdata.key0: " << cdata.key0 << "\n";
             compress_spawn(cdata.key0, nonstandard, keepleaves, redundant);
         }
         if (fence)
@@ -1640,6 +1642,7 @@ namespace madness {
         double cpu0=cpu_time();
         // Copy child scaling coeffs into contiguous block
         tensorT d(cdata.v2k);
+
         //            coeffT d(cdata.v2k,targs);
         int i=0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
@@ -1999,14 +2002,21 @@ namespace madness {
             node.set_coeff(coeffT(cdata.v2k,targs));
         }
 
-        if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
+        if (node.has_children() || node.has_coeff()) { 
+			//std::cout << __func__ << " key: " << key << " [3rd if]" << std::endl;
+			// Must allow for inconsistent state from transform, etc.
             coeffT d = node.coeff();
             if (!d.has_data()) d = coeffT(cdata.v2k,targs);
-            if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
+            if (key.level() > 0)
+			{
+				d(cdata.s0) += s; // -- note accumulate for NS summation
+			}
+
             if (d.dim(0)==2*get_k()) {              // d might be pre-truncated if it's a leaf
                 d = unfilter(d);
                 node.clear_coeff();
                 node.set_has_children(true);
+				int i=0;
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     coeffT ss = copy(d(child_patch(child)));
@@ -2021,10 +2031,13 @@ namespace madness {
             }
         }
         else {
+			//std::cout << __func__ << " key: " << key << " [3rd else]" << std::endl;
             coeffT ss=s;
             if (s.has_no_data()) ss=coeffT(cdata.vk,targs);
             if (key.level()) node.set_coeff(copy(ss));
             else node.set_coeff(ss);
+			
+			//std::cout << "ss: " << ss << std::endl;
         }
     }
 
@@ -3043,32 +3056,47 @@ namespace madness {
         typedef std::pair< Key<NDIM>,coeffT > argT;
         Future<argT> result;
         //PROFILE_BLOCK(find_me_send); // Too fine grain for routine profiling
-        woT::task(coeffs.owner(key), &implT::sock_it_to_me_too, key, result.remote_ref(world), TaskAttributes::hipri());
+        woT::task(coeffs.owner(key), &implT::sock_it_to_me_too, key, result.remote_ref(world), 
+																		TaskAttributes::hipri());
         return result;
     }
 
 
     template <typename T, std::size_t NDIM>
     Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key,
-                                                                bool nonstandard, bool keepleaves, bool redundant) {
+                                                                bool nonstandard, bool keepleaves, 
+																bool redundant) 
+	{
+		//std::cout << "[" << __func__ << "] Key: " << key << std::endl;
         if (!coeffs.probe(key)) print("missing node",key);
         MADNESS_ASSERT(coeffs.probe(key));
 
         // get fetches remote data (here actually local)
         nodeT& node = coeffs.find(key).get()->second;
-        if (node.has_children()) {
+
+		//std::cout << "\t node: " << node << std::endl;
+        if (node.has_children()) 
+		{
             std::vector< Future<coeffT > > v = future_vector_factory<coeffT >(1<<NDIM);
             int i=0;
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) 
+			{
                 //PROFILE_BLOCK(compress_send); // Too fine grain for routine profiling
                 // readily available
                 v[i] = woT::task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(),
                                  nonstandard, keepleaves, redundant, TaskAttributes::hipri());
             }
-            if (redundant) return woT::task(world.rank(),&implT::make_redundant_op, key, v);
+            if (redundant)
+			{
+				return woT::task(world.rank(),&implT::make_redundant_op, key, v);
+			}
+			
             return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard, redundant);
         }
-        else {
+        else 
+		{
+			// node(FunctionNode).coeff()
+			//		return const_cast<const coeffT&>(_coeffs);
             Future<coeffT > result(node.coeff());
             if (!keepleaves) node.clear_coeff();
             return result;
@@ -3078,7 +3106,8 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,
                                                 const keyT& key,
-                                                const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt,
+                                                const coordT& plotlo, const coordT& plothi, 
+												const std::vector<long>& npt,
                                                 bool eval_refine) const {
 
         Tensor<T>& r = *ptr;

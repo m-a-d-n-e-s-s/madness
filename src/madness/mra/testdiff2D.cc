@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
         PeriodicDerivative<double,2> dx1(world, k, test_axis, 1) ; // Periodic
 */
         Derivative<double,2> dx1(world, test_axis, bc, xleft_d, xright_d, k) ;
-        functionT dudx1 = dx1(u) ;
+        functionT dudx1 = dx1(u) ;// return diffed functionT
         success+=compare(world, dudx1, dudxe, "dudx1") ;
 
         // X Right B.C.: Free

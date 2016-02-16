@@ -784,6 +784,7 @@ namespace madness {
     	/// const reference to impl
     	const implT* get_impl() const {return impl;}
 
+
     	/// const reference to the coeffs
     	const coeffT& coeff() const {return coeff_;}
 
@@ -914,7 +915,7 @@ namespace madness {
         int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 1=(|d|<thresh/4^n);
         bool autorefine; ///< If true, autorefine where appropriate
         bool truncate_on_project; ///< If true projection inserts at level n-1 not n
-        bool nonstandard; ///< If true, compress keeps scaling coeff
+        //bool nonstandard; ///< If true, compress keeps scaling coeff
         TensorArgs targs; ///< type of tensor to be used in the FunctionNodes
 
         const FunctionCommonData<T,NDIM>& cdata;
@@ -922,8 +923,8 @@ namespace madness {
         std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functor;
 
         bool on_demand; ///< does this function have an additional functor?
-        bool compressed; ///< Compression status
-        bool redundant; ///< If true, function keeps sum coefficients on all levels
+        //bool compressed; ///< Compression status
+        //bool redundant; ///< If true, function keeps sum coefficients on all levels
 
         dcT coeffs; ///< The coefficients
 
@@ -931,6 +932,13 @@ namespace madness {
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
 
     public:
+
+		// temporary
+        bool nonstandard; ///< If true, compress keeps scaling coeff
+        bool compressed; ///< Compression status
+        bool redundant; ///< If true, function keeps sum coefficients on all levels
+
+
         Timer timer_accumulate;
         Timer timer_lr_result;
         Timer timer_filter;
@@ -3470,7 +3478,8 @@ namespace madness {
                 if (node.has_coeff()) {
                     const keyT& key = it->first;
                     const Tensor<R>& c = node.coeff().full_tensor_copy();
-                    woT::task(me, &implT:: template apply_1d_realspace_push_op<opT,R>,
+
+                    woT::task(me, &implT::template apply_1d_realspace_push_op<opT,R>,
                               archive::archive_ptr<const opT>(&op), axis, key, c);
                 }
             }
@@ -3899,7 +3908,7 @@ namespace madness {
 
         /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
         void change_tensor_type1(const TensorArgs& targs, bool fence);
-
+	
         /// reduce the rank of the coefficients tensors
 
         /// @param[in]  targs   target tensor arguments (threshold and full/low rank)

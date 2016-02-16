@@ -182,6 +182,7 @@ namespace madness {
         /// Returns a new function with the same distribution
         Function<T,NDIM>
         operator()(const functionT& f, bool fence=true) const {
+			printf ("wtf!\n");
             if (VERIFY_TREE) f.verify_tree();
 
             if (f.is_compressed()) {
