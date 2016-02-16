@@ -35,6 +35,7 @@
 #include <madness/mra/operator.h>
 #include <madness/constants.h>
 #include <madness/mra/FuseT/CopyOp.h>
+#include <madness/mra/FuseT/CompressOp.h>
 #include <madness/mra/FuseT/OpExecutor.h>
 /*!
 \file heat2.cc
@@ -117,7 +118,8 @@ struct unaryexp {
     void serialize(Archive& ar) {}
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
 
@@ -134,23 +136,25 @@ int main(int argc, char** argv) {
 
     double u0_norm = u0.norm2();
     double u0_trace = u0.trace();
-
+	
     if (world.rank() == 0) print("Initial norm", u0_norm,"trace", u0_trace);
     world.gop.fence();
 
     // Make exponential of Vp
     real_function_3d result_factory = real_factory_3d(world);
-
     real_function_3d result(result_factory);
 
     CopyOp<double,3> op1("Copy",&result,&u0);
+    //CompressOp<double,3> op1("Compress",&result, &u0);
     OpExecutor<double,3> exe(world);
-    exe.execute(&op1);
+    exe.execute(&op1, false);
     world.gop.fence();
-    double result_norm = result.norm2();
-    double result_trace = u0.trace();
+
+
+//	double result_norm = result.norm2();
+//	double result_trace = u0.trace();
     
-    if (world.rank() == 0) print("Result norm", result_norm," result trace", result_trace);
+    //if (world.rank() == 0) print("Result norm", result_norm," result trace", result_trace);
     world.gop.fence();
     
     return 0;

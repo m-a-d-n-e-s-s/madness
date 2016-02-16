@@ -1295,7 +1295,9 @@ namespace madness {
         template <typename objT, typename memfnT, typename... argT>
         typename detail::memfunc_enabler<objT, memfnT>::type
         add(objT&& obj, memfnT memfn, argT&&... args)
-        { return add(detail::wrap_mem_fn(std::forward<objT>(obj),memfn), std::forward<argT>(args)...); }
+        { 
+			//printf ("???!\n");
+			return add(detail::wrap_mem_fn(std::forward<objT>(obj),memfn), std::forward<argT>(args)...); }
 
 
 

@@ -1370,6 +1370,8 @@ namespace madness {
         }
 
 
+
+
         /// This is replaced with left*right ...  private
         template <typename Q, typename opT>
         Function<typename opT::resultT,NDIM>& unary_op_coeffs(const Function<Q,NDIM>& func,

@@ -8,7 +8,7 @@ GITREV="MADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\
 AM_CPPFLAGS += -D$(GITREV)
 
 
-noinst_PROGRAMS = CopyEx
+noinst_PROGRAMS = CopyEx CompressEx
  
 thisincludedir = $(includedir)/examples/FuseTExamples/
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
@@ -16,6 +16,7 @@ thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 AUTOMAKE_OPTIONS = subdir-objects
 
 CopyEx_SOURCES = CopyEx.cc
+CompressEx_SOURCES = compress.cc
 
 LDADD = $(LIBCHEM) $(MRALIBS)
 

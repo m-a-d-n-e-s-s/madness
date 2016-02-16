@@ -13,7 +13,9 @@ noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat hea
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian copyEx
+ tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian \
+ copyEx compressEx nothingEx reconstructEx serializeCompressEx diffEx \
+ innerEx
  
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
@@ -29,6 +31,18 @@ pno_SOURCES = pno.cc
 siam_example_SOURCES = siam_example.cc
 
 copyEx_SOURCES =FuseTExamples/CopyEx.cc
+
+compressEx_SOURCES = FuseTExamples/compress.cc
+
+nothingEx_SOURCES = FuseTExamples/NothingEx.cc
+
+reconstructEx_SOURCES = FuseTExamples/ReconstructEx.cc
+
+serializeCompressEx_SOURCES = FuseTExamples/serialize-compress.cc
+
+diffEx_SOURCES = FuseTExamples/DiffEx.cc
+
+innerEx_SOURCES = FuseTExamples/InnerEx.cc
 
 mp2_SOURCES = mp2.cc 
 

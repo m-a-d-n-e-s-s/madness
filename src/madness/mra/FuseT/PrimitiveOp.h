@@ -4,61 +4,69 @@
 #include "madness/mra/mra.h"
 #include "madness/world/archive.h"
 #include <string>
+#include "BaseParameters.h"
+#include "FuseTContainer.h"
 
 namespace madness {
 
     using namespace std;
     /*!spatial relation, Same Node Relation (PSI), Some Sibling Relation (SIGMA), Ancestor Relation (ALPHA), Descendent Relation (DELTA). Dependency Info contains information about type of dependency to parameters*/
     template<typename T, std::size_t NDIM>
-    struct DependencyInfo{
-	const Function<T,NDIM>* _producerTree;
-	string _treeName;
-        unsigned long _treeID;
+    struct DependencyInfo
+	{
+		const Function<T,NDIM>* _producerTree;
+		string _treeName;
+			unsigned long _treeID;
 
-	bool _psi;
-	bool _alpha;
-	bool _delta;
-	bool _sigma;
+		bool _psi;
+		bool _alpha;
+		bool _delta;
+		bool _sigma;
 
 
-	/*!this is used by FuseT. _producerIndex stores the index of operator that produces this tree/ _consumerIndex stores the index of the operator that consumes this tree*/
-	int _producerIndex;
-	int _consumerIndex;
-	DependencyInfo(const Function<T,NDIM>* producerTree, bool psi, bool alpha, bool delta, bool sigma){
-	    _psi =psi;
-	    _alpha = alpha;
-	    _delta=delta;
-	    _sigma=sigma;
-	    
-	    _producerTree = producerTree;
-	    _treeID=_producerTree->get_impl()->id().get_obj_id();
-	    _treeName = _producerTree->_treeName;
-	   
-	}
+		/*!this is used by FuseT. _producerIndex stores the index of operator that produces this tree/ _consumerIndex stores the index of the operator that consumes this tree*/
+		int _producerIndex;
+		int _consumerIndex;
+
+		DependencyInfo(const Function<T,NDIM>* producerTree, bool psi, bool alpha, bool delta, bool sigma)
+		{
+			_psi			= psi;
+			_alpha			= alpha;
+			_delta			= delta;
+			_sigma			= sigma;
+			
+			_producerTree	= producerTree;
+			_treeID			= _producerTree->get_impl()->id().get_obj_id();
+			_treeName		= _producerTree->_treeName;
+		}
     };
 
 //    struct DependencyInfo<double>;
     
     template<typename T, std::size_t NDIM>
-	class PrimitiveOp{
-	typedef Function<T,NDIM> KTREE;
-	typedef FunctionNode<T,NDIM> KNODE;
-	typedef Key<NDIM> keyT;
-	typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
-
+	class PrimitiveOp
+	{
+		typedef Function<T,NDIM>									KTREE;
+		typedef FunctionNode<T,NDIM>								KNODE;
+		typedef Key<NDIM>											keyT;
+		typedef WorldContainer<Key<NDIM>, FunctionNode<T,NDIM> >	dcT; ///< Type of container holding the nodes
 
     public:
-    PrimitiveOp(string opName="Unknown",KTREE* result=NULL, bool isComplete=false)  
-	: _opName(opName),
-	_result(result),
-	    _isComplete(isComplete)
+		PrimitiveOp(string opName="Unknown",KTREE* result=NULL, bool isComplete=false)  
+		: _opName(opName),
+		 _result(result),
+	     _isComplete(isComplete)
 	    {}
 
 	virtual ~PrimitiveOp() {}
     
-	virtual void compute(const keyT& key) = 0;
-	virtual bool isDone(const keyT& key) const = 0;
-	virtual bool isPre() const = 0;
+	virtual BaseParameters<T> compute(const keyT& key, const BaseParameters<T> &s)				= 0;
+	//virtual FuseTContainer<T> computeT(const keyT& key, const BaseParameters<T> &s)				= 0;
+	virtual Future<BaseParameters<T>> computeC(const keyT& key, const BaseParameters<T> &s)		= 0;
+	virtual Future<BaseParameters<T>> computeC(const keyT& key, const std::vector<Future<BaseParameters<T>>> &v) = 0;	// should be merged into computeC
+		
+	virtual bool isDone(const keyT& key) const	= 0;
+	virtual bool isPre() const					= 0;
  
 	//!used for postCompute ops to see if it needs to be pushed to the compute stack or not
 	virtual bool notEmpty(map<int,bool>& emptyMap) const{return true;}

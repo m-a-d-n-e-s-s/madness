@@ -3,21 +3,26 @@
 
 #include "PrimitiveOp.h"
 
-namespace madness {
+namespace madness 
+{
     template<typename T, std::size_t NDIM>
-	class CopyOp : public PrimitiveOp<T,NDIM> {
+	class CopyOp : public PrimitiveOp<T,NDIM> 
+	{
+		typedef Function<T,NDIM> KTREE;
+		typedef FunctionNode<T,NDIM> KNODE;
+		typedef Key<NDIM> keyT;
+		typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
 
-	typedef Function<T,NDIM> KTREE;
-	typedef FunctionNode<T,NDIM> KNODE;
-	typedef Key<NDIM> keyT;
-	typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
-
-///< Type of container holding the nodes
+		///< Type of container holding the nodes
 	    
     public:
 	CopyOp(string opName, KTREE* output, const KTREE* i1);
     
-	void compute(const keyT& key);
+	BaseParameters<T> compute(const keyT& key, const BaseParameters<T> &s);
+	//BaseParameters<T,NDIM>& computeB(const keyT& key) { }
+	
+	Future<BaseParameters<T>> computeC(const keyT& key, const BaseParameters<T> &s) { }
+	Future<BaseParameters<T>> computeC(const keyT& key, const std::vector<Future<BaseParameters<T>>> &v) { }
 
 	bool isDone(const keyT& key) const;
 
@@ -44,9 +49,9 @@ namespace madness {
 	}
     
     template<typename T, std::size_t NDIM>
-	void CopyOp<T,NDIM>::compute(const keyT& key) {
-
-	typename dcT::iterator it= _i1->get_impl()->get_coeffs().find(key).get();
+	BaseParameters<T> CopyOp<T,NDIM>::compute(const keyT& key, const BaseParameters<T> &s) 
+	{
+		typename dcT::iterator it= _i1->get_impl()->get_coeffs().find(key).get();
 
         if (it == _i1->get_impl()->get_coeffs().end()) {
 	    cerr<<"This should not have happenned"<<endl;
@@ -54,8 +59,10 @@ namespace madness {
         }
 	
         KNODE& node = it->second;
-	this->_result->implP()->get_coeffs().replace(key,node);
-	           
+		this->_result->implP()->get_coeffs().replace(key,node);
+	    
+		BaseParameters<T> temp;
+		return temp;       
     }
 
     template<typename T, std::size_t NDIM>
