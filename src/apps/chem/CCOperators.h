@@ -423,11 +423,11 @@ namespace madness {
     bool load_function(Function<T, NDIM>& f, const std::string name) const {
       bool exists = archive::ParallelInputArchive::exists(world,name.c_str());
       if(exists){
-      if (world.rank() == 0) print("loading function", name);
-    	archive::ParallelInputArchive ar(world, name.c_str());
-    	ar & f;
-    	f.print_size(name);
-    	return true;
+	if (world.rank() == 0) print("loading function", name);
+	archive::ParallelInputArchive ar(world, name.c_str());
+	ar & f;
+	f.print_size(name);
+	return true;
       }else return false;
     }
 
@@ -584,15 +584,15 @@ namespace madness {
       result = add(world, result,potential_singles(doubles, singles, pot_S2c_u_));
 
       if(norm > parameters.thresh_3D){
-      result = add(world, result,potential_singles(doubles, singles, pot_S4a_u_));
-      result = add(world, result,potential_singles(doubles, singles, pot_S4b_u_));
-      result = add(world, result,potential_singles(doubles, singles, pot_S4c_u_));
+	result = add(world, result,potential_singles(doubles, singles, pot_S4a_u_));
+	result = add(world, result,potential_singles(doubles, singles, pot_S4b_u_));
+	result = add(world, result,potential_singles(doubles, singles, pot_S4c_u_));
 
-      result = add(world, result,potential_singles(doubles, singles, pot_S2b_r_));
-      result = add(world, result,potential_singles(doubles, singles, pot_S2c_r_));
-      result = add(world, result,potential_singles(doubles, singles, pot_S4a_r_));
-      result = add(world, result,potential_singles(doubles, singles, pot_S4b_r_));
-      result = add(world, result,potential_singles(doubles, singles, pot_S4c_r_));
+	result = add(world, result,potential_singles(doubles, singles, pot_S2b_r_));
+	result = add(world, result,potential_singles(doubles, singles, pot_S2c_r_));
+	result = add(world, result,potential_singles(doubles, singles, pot_S4a_r_));
+	result = add(world, result,potential_singles(doubles, singles, pot_S4b_r_));
+	result = add(world, result,potential_singles(doubles, singles, pot_S4c_r_));
       }else output("Norm of Singles Vector is below threshold ||singles||=" + std::to_string(norm));
 
       // the fock residue does not get projected, but all the rest
@@ -631,26 +631,26 @@ namespace madness {
       real_function_6d G_O1tau_part=real_factory_6d(world);
       real_function_6d G_O2tau_part=real_factory_6d(world);
       for(const auto& ktmp : mo_ket_.functions){
-        const size_t k=ktmp.first;
-        const CC_function &tauk=ktmp.second;
+	const size_t k=ktmp.first;
+	const CC_function &tauk=ktmp.second;
 
-        real_function_3d kgti_tj=g12(mo_bra_(k),ti) * tj.function;
-        real_function_3d kgtj_ti=g12(mo_bra_(k),tj) * ti.function;
+	real_function_3d kgti_tj=g12(mo_bra_(k),ti) * tj.function;
+	real_function_3d kgtj_ti=g12(mo_bra_(k),tj) * ti.function;
 
-        real_function_3d l1=real_factory_3d(world);
-        real_function_3d l2=real_factory_3d(world);
-        for(const auto& ltmp : mo_ket_.functions){
-  	const CC_function& mo_bra_l=mo_bra_(ltmp.first);
-  	const CC_function& taul=ltmp.second;
-  	l1+=mo_bra_l.function.inner(kgtj_ti) * taul.function;
-  	l2+=mo_bra_l.function.inner(kgti_tj) * taul.function;
-        }
+	real_function_3d l1=real_factory_3d(world);
+	real_function_3d l2=real_factory_3d(world);
+	for(const auto& ltmp : mo_ket_.functions){
+	  const CC_function& mo_bra_l=mo_bra_(ltmp.first);
+	  const CC_function& taul=ltmp.second;
+	  l1+=mo_bra_l.function.inner(kgtj_ti) * taul.function;
+	  l2+=mo_bra_l.function.inner(kgti_tj) * taul.function;
+	}
 
-        real_function_3d part1=-1.0 * kgtj_ti + 0.5 * l1;
-        real_function_3d part2=-1.0 * kgti_tj + 0.5 * l2;
+	real_function_3d part1=-1.0 * kgtj_ti + 0.5 * l1;
+	real_function_3d part2=-1.0 * kgti_tj + 0.5 * l2;
 
-        G_O1tau_part+=-2.0 * G(copy(tauk.function),part2);
-        G_O2tau_part+=-2.0 * G(part1,copy(tauk.function));
+	G_O1tau_part+=-2.0 * G(copy(tauk.function),part2);
+	G_O2tau_part+=-2.0 * G(part1,copy(tauk.function));
       }
 
       return G_O1tau_part + G_O2tau_part;
@@ -748,10 +748,47 @@ namespace madness {
 
     /// returns the non constant part of the MP2 potential which is
     /// \f$ (2J-K+Un)|uij> \f$
-    real_function_6d get_MP2_potential_residue(const CC_Pair &u) const {
+    real_function_6d get_MP2_potential_residue(const CC_Pair &pair) const {
       CC_Timer timer(world, "(2J-K(R)+Un)|uij>");
       CC_data data("mp2_residue");
-      real_function_6d result = fock_residue_6d(u);
+      real_function_6d result = fock_residue_6d(pair);
+
+      // make sanity test
+      // (T-eps_ij)|uij> = -result
+      // do <ij|T|uij> and <ij|result>
+      // and <uij|T|uij> = - <uij|result> + eps_ij <uij|uij>
+      {
+	CC_Timer time(world,"MP2-Potential-Sanity-Check");
+	output("\n MP2-Potential Sanity Check");
+//	const CC_function moi = mo_bra_(u.i);
+//	const CC_function moj = mo_bra_(u.j);
+	std::vector<real_function_6d> grad_u;
+	for(size_t axis=0;axis<6;axis++){
+	  real_derivative_6d D = free_space_derivative<double,6>(world, axis);
+	  const real_function_6d Du = D(pair.function);
+	  Du.print_size("d_"+std::to_string(axis)+"("+pair.name()+")");
+	  grad_u.push_back(Du);
+	}
+	const double ur =pair.function.inner(result);
+	const double eps_uij = get_epsilon(pair.i,pair.j)*pair.function.inner(pair.function);
+	double uTu =0.0;
+	for(const auto& k:grad_u){
+	  uTu += k.inner(k);
+	}
+	uTu = 0.5*uTu;
+	const double diff = uTu + ur - eps_uij;
+	if(world.rank()==0){
+	  std::cout << "Current error is " << pair.current_error << "\n";
+	  std::cout << "<"<<pair.name()<<"|T|"<<pair.name() << "=" << uTu << "\n";
+	  std::cout << "<"<<pair.name()<<"|V_MP2>=" << ur << "\n";
+	  std::cout << "<"<<pair.name()<<"|" << pair.name() << "*epsij=" << eps_uij << "\n";
+	  std::cout << "0 = " << diff << "\n";
+	}
+	if(fabs(diff)>fabs(pair.current_error)) warning("MP2 Potential Inaccurate");
+	else output("MP2 Potential seems to be sane");
+	time.info();
+      }
+
       data.result_size = get_size(result);
       data.result_norm = result.norm2();
       data.time = timer.current_time();
@@ -1288,7 +1325,7 @@ namespace madness {
     /// need to apply G to every single term in order to avoid entangelment
 
 
-    real_function_6d make_xy(const CC_function &x, const CC_function &y) const;
+    real_function_6d make_xy(const CC_function &x, const CC_function &y, const double thresh=FunctionDefaults<6>::get_thresh() ) const;
 
     real_function_6d make_f_xy(const CC_function &x,
 			       const CC_function &y,const double thresh = FunctionDefaults<6>::get_thresh()) const;
@@ -1621,6 +1658,220 @@ namespace madness {
 	error("Inconsistency detected: " + a.name() + b.name() + " and omega zero " +std::to_string(omega) );
       }
     }
+
+    // make: result = Q12u - O1f|xy> - O2f|xy> + O12f|xy>
+    real_function_6d do_f12_projection(const real_function_6d &u,const CC_function &x, const CC_function &y)const{
+      CC_Timer time(world,"f12-projection");
+      output("Now Doing f12_projection");
+      const real_function_6d Qu = projector_Q12(u);
+
+      real_function_6d  Ofxy= real_factory_6d(world);
+      Ofxy.set_thresh(parameters.tight_thresh_6D);
+      for(const auto& mtmp:mo_ket_.functions){
+	const size_t m = mtmp.first;
+	const real_function_3d mfx = f12(mo_bra_(m),x);
+	const real_function_3d my = mo_bra_(m).function*y.function;
+	const real_function_3d mfx_y = mfx*y.function;
+	const real_function_3d mfy = f12(mo_bra_(m),y);
+	const real_function_3d mfy_x = mfy*x.function;
+
+	real_function_3d im1 = real_factory_3d(world);
+	real_function_3d im2 = real_factory_3d(world);
+	for(const auto& ntmp:mo_ket_.functions){
+	  const size_t n = ntmp.first;
+	  const real_function_3d ny = mo_bra_(n).function*y.function;
+	  const real_function_3d nx = mo_bra_(n).function*x.function;
+	  const double mnfxy = ny.inner(mfx);
+	  const double nmfxy = nx.inner(mfy);
+	  im2 += mnfxy*mo_ket_(n).function;
+	  im1 += nmfxy*mo_ket_(n).function;
+	}
+	im1.scale(-0.5);
+	im2.scale(-0.5);
+	const real_function_3d particle2 = mfx_y + im2;
+	const real_function_3d particle1 = mfy_x + im1;
+	const real_function_6d O1part = make_xy(mo_ket_(m),CC_function(particle2,99,UNDEFINED),parameters.tight_thresh_6D);
+	const real_function_6d O2part = make_xy(CC_function(particle1,99,UNDEFINED),mo_ket_(m),parameters.tight_thresh_6D);
+	Ofxy += O1part + O2part;
+      }
+      const real_function_6d result = Qu - Ofxy;
+      if(world.rank()==0){
+	std::cout << "\n\n u=Qu-O12f12|"+x.name()+y.name()+"> results:\n";
+	std::cout << "||u||     =" << u.norm2() << "\n";
+	std::cout << "||Qu||    ="<< Qu.norm2() << "\n";
+	std::cout << "||Ofxy||  ="<< Ofxy.norm2() << "\n";
+	std::cout << "||QfU||   ="<< result.norm2() << "\n";
+	std::cout << "||diff||  ="<< (u-result).norm2() << "\n\n";
+      }
+      time.info();
+      return result;
+    }
+
+    real_function_6d make_O12_op_xy(const CC_convolution_operator &op, const CC_function &x, const CC_function &y)const{
+      Tensor<double> mn_op_xy = make_matrix_mn_Op_xy(mo_bra_,mo_bra_,op,x,y);
+      // make intermediate for particle2 of O1(1-0.5O2) part
+      vecfuncT O1_particle1 = mo_ket_.get_vecfunction();
+      vecfuncT O1_particle2;
+      vecfuncT O2_particle2 = mo_ket_.get_vecfunction();
+      vecfuncT O2_particle1;
+      for(size_t m=0;m<mo_ket_.size();m++){
+	real_function_3d O1p2_m = op(mo_bra_(m),x)*y.function;
+	real_function_3d O2p1_m = op(mo_bra_(m),y)*x.function;
+	for(size_t n=0;n<mo_ket_.size();n++){
+	  O1p2_m -= 0.5*mn_op_xy(m,n)*mo_ket_(n).function;
+	  O2p1_m -= 0.5*mn_op_xy(n,m)*mo_ket_(n).function;
+	}
+	O1_particle2.push_back(O1p2_m);
+	O2_particle1.push_back(O2p1_m);
+      }
+      if(O1_particle1.size()!=O1_particle2.size())error("inconsistent sizes in O1-part of O12"+op.name()+x.name()+y.name());
+      if(O2_particle1.size()!=O2_particle2.size())error("inconsistent sizes in O2-part of O12"+op.name()+x.name()+y.name());
+      if(O1_particle1.size()!=O2_particle1.size())error("inconsitent sizes in "+op.name()+x.name()+y.name());
+      real_function_6d result = real_factory_6d(world);
+      result.set_thresh(parameters.tight_thresh_6D);
+      for(size_t i=0;i<O1_particle1.size();i++){
+	result += make_xy(O1_particle1[i],O1_particle2[i],parameters.tight_thresh_6D);
+	result += make_xy(O2_particle1[i],O2_particle2[i],parameters.tight_thresh_6D);
+      }
+      return result;
+    }
+
+    Tensor<double> make_matrix_mn_Op_xy(const CC_vecfunction &m, const CC_vecfunction &n, const CC_convolution_operator &op ,const CC_function &x, const CC_function &y)const{
+      bool mhole = (m.type==HOLE);
+      bool nhole = (n.type==HOLE);
+      bool same_size =(m.size()==n.size());
+      if(not(mhole and nhole and same_size)) error("Matrix for m,n not HOLE states or different sizes not possible");
+
+      Tensor<double> result(m.size(),n.size());
+	for(size_t i=0;i<m.size();i++){
+	  const real_function_3d mfx = op(mo_bra_(i),x);
+	  const real_function_3d mfx_y = mfx*y.function;
+	  for(size_t j=0;j<n.size();j++){
+	    const double mnfxy = mo_bra_(j).inner(mfx_y);
+	    result(i,j)=mnfxy;
+	  }
+	}
+	return result;
+    }
+
+    bool test_f12_projections()const{
+      const real_function_6d fij = make_f_xy(mo_ket_(parameters.freeze),mo_ket_(parameters.freeze));
+      real_function_6d Qfij_1 = copy(fij);
+      apply_Q12(Qfij_1);
+      const real_function_6d zero = real_factory_6d(world);
+      const real_function_6d Ofij_1 = do_f12_projection(zero,mo_ket_(parameters.freeze),mo_ket_(parameters.freeze)); // gets 0 - Ofij back
+      const real_function_6d Ofij_2 = make_O12_op_xy(f12,mo_ket_(parameters.freeze),mo_ket_(parameters.freeze));
+      const real_function_6d diff_Ofij = Ofij_1 + Ofij_2;
+      const real_function_6d Qfij_2 = fij + Ofij_1; // minus sign included in function before
+      const real_function_6d diff = Qfij_1 - Qfij_2;
+      Qfij_1.print_size("Qfij_1");
+      Qfij_2.print_size("Qfij_2");
+      diff.print_size("difference");
+      if(world.rank()==0){
+        std::cout << "\n\nEnd of f12-projection Test:\n";
+        std::cout << "||Qfij_1||=" << Qfij_1.norm2() << "\n";
+        std::cout << "||Qfij_2||=" << Qfij_2.norm2() << "\n";
+        std::cout << "||differ||=" << diff.norm2() << "\n\n";
+        std::cout << "difference between Ofij from different functions: " << diff_Ofij.norm2() <<"\n\n"<< std::endl;
+      }
+      if(diff.norm2()<parameters.thresh_6D) return true;
+      else return false;
+    }
+
+    bool test_inverse_correlation_factor()const{
+      if(corrfac.gamma()!=0.5){
+	output("Gamma of correlationfactor is not 1/2!");
+	return false;
+      }
+
+      CorrelationFactor2 corrfac2(world);
+      real_function_3d x = mo_ket_(parameters.freeze).function;
+      real_function_3d y = copy(x);
+      const real_function_6d xy = make_xy(x,y,parameters.thresh_6D);
+      CC_Timer time1(world,"make fxy");
+      real_function_6d fxy = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(x)).particle2(copy(y));
+      fxy.fill_tree().truncate().reduce_rank();
+      time1.info();
+      CC_Timer time2(world,"make f2xy");
+      real_function_6d f2xy = CompositeFactory<double,6,3>(world).g12(corrfac2.function()).particle1(copy(x)).particle2(copy(y));
+      f2xy.fill_tree().truncate().reduce_rank();
+      time2.info();
+      real_function_6d f2xy_2 = 0.5*(xy+fxy);
+      real_function_6d diff_f2 = f2xy_2 - f2xy;
+      xy.print_size("|xy>");
+      fxy.print_size("f|xy>");
+      f2xy.print_size("f2|xy>");
+      f2xy_2.print_size("0.5(1+f)|xy>");
+      diff_f2.print_size("diff_f2");
+
+      CC_Timer time3(world,"make (1/f2)*f2|xy>");
+      real_function_6d xy_2 = CompositeFactory<double,6,3>(world).g12(corrfac2.inverse()).ket(f2xy);
+      xy_2.fill_tree().truncate().reduce_rank();
+      time3.info();
+
+      real_function_6d diff_xy = xy - xy_2;
+      xy.print_size("|xy>");
+      xy_2.print_size("(1/f2)*f2|xy>");
+      diff_xy.print_size("diff_|xy>");
+
+      if(world.rank()==0){
+	std::cout << "Test corrfactor2 and inverse of it:\n";
+	std::cout << "diff_f2 =" << diff_f2.norm2() << "\n";
+	std::cout << "diff_inv=" << diff_xy.norm2() << "\n";
+      }
+
+      if(diff_f2.norm2()<parameters.thresh_6D and diff_xy.norm2()<parameters.thresh_6D) return true;
+      else return false;
+
+    }
+
+    bool test_pure_6D_commutator()const{
+      CC_function mo = mo_ket_(parameters.freeze);
+      CC_Timer time1(world,"make fxy");
+      const real_function_6d f00 = make_f_xy(mo,mo,parameters.thresh_6D);
+      time1.info();
+      CC_Timer time2(world,"make 00");
+      const real_function_6d mo00 = make_xy(mo,mo,parameters.thresh_6D);
+      time2.info();
+      CC_Timer time3(world,"make_Kf");
+      const real_function_6d Kf = K(f00,parameters.thresh_6D);
+      time3.info();
+      CC_Timer time4(world,"make_K00");
+      const real_function_6d K00 = K(mo00,parameters.thresh_6D);
+      time4.info();
+      CC_Timer time5(world,"make fK_6D");
+      real_function_6d fK_6D = CompositeFactory<double,6,3>(world).g12(corrfac.f()).ket(copy(K00));
+      fK_6D.fill_tree().truncate().reduce_rank();
+      time5.info();
+      CC_Timer time6(world,"make fK_mixed");
+      const real_function_6d fK=apply_fK(mo,mo,parameters.thresh_6D);
+      time6.info();
+      CC_Timer time7(world,"make commutators");
+      const real_function_6d commutator_pure6D = Kf - fK_6D;
+      const real_function_6d commutator_mixed = Kf - fK;
+      time7.info();
+
+      const real_function_6d diff = commutator_pure6D - commutator_mixed;
+
+      CC_Timer time8(world,"make bra");
+      const real_function_6d bra_xy = make_xy(mo_bra_(parameters.freeze),mo_bra_(parameters.freeze),parameters.thresh_6D);
+      time8.info();
+      const double sanity_comm_pure6D = bra_xy.inner(commutator_pure6D);
+      const double sanity_comm_mixed  = bra_xy.inner(commutator_mixed);
+
+      if(world.rank()==0){
+	std::cout << "Test pure 6D commutator results:\n ";
+	std::cout << "difference: pure and mixed commutator = " << diff.norm2() << std::endl;
+	std::cout << "Sanity pure: " << sanity_comm_pure6D << std::endl;
+	std::cout << "Sanity mixed:" << sanity_comm_mixed << std::endl;
+	std::cout << "Test end\n\n";
+      }
+
+
+      if(sanity_comm_pure6D < 0.1*parameters.thresh_6D) return true;
+      else return false;
+    }
+
 
   };
 

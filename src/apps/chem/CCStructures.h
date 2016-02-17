@@ -158,6 +158,7 @@ struct CC_Parameters{
 		thresh_f12(uninitialized),
 		thresh_Ue(uninitialized),
 		econv(uninitialized),
+		econv_pairs(uninitialized),
 		dconv_3D(uninitialized),
 		dconv_6D(uninitialized),
 		iter_max_3D(10),
@@ -199,6 +200,7 @@ struct CC_Parameters{
 			else if (s == "tight_thresh_6d") f >> tight_thresh_6D;
 			else if (s == "debug") debug = true;
 			else if (s == "econv")f >> econv;
+			else if (s == "econv_pairs")f >> econv_pairs;
 			else if (s == "dconv") f >> dconv_6D;
 			else if (s == "dconv_3d")f >> dconv_3D;
 			else if (s == "dconv_6d")f >> dconv_6D;
@@ -246,6 +248,7 @@ struct CC_Parameters{
 		if(dconv_6D==uninitialized) dconv_6D = thresh_6D;
 		if(dconv_3D==uninitialized) dconv_3D = dconv_6D;
 		if(econv ==uninitialized) econv = 0.1*dconv_6D;
+		if(econv_pairs ==uninitialized) econv_pairs = econv;
 		if(iter_max_6D==uninitialized) iter_max_6D = 10;
 		if(iter_max_3D==uninitialized) iter_max_3D = iter_max_6D;
 
@@ -280,8 +283,9 @@ struct CC_Parameters{
 	double thresh_f12;
 	// Ue thresh
 	double thresh_Ue;
-	// Convergence for Correlation Energy
+	// Convergence for Correlation Energy (overall and pairs)
 	double econv;
+	double econv_pairs;
 	// Convergence for CC-singles
 	double dconv_3D;
 	// Convergence for CC-Doubles
@@ -337,6 +341,7 @@ struct CC_Parameters{
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_f12 :"        << thresh_f12 << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "thresh_Ue :"        << thresh_Ue << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "econv :"             << econv << std::endl;
+			std::cout << std::setw(20) << std::setfill(' ') << "econv_pairs :"             << econv_pairs << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "dconv_3D :"          << dconv_3D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "dconv_6D :"          << dconv_6D << std::endl;
 			std::cout << std::setw(20) << std::setfill(' ') << "freeze :"           << freeze << std::endl;

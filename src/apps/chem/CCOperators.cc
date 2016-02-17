@@ -811,7 +811,7 @@ namespace madness {
     if(symmetric) result+=swap_particles(result);
     else result+=apply_K(u,2,thresh);
 
-    result.print_size("K(fxy)_untruncated");
+    result.print_size("K|u>_untruncated");
     return (result.truncate(parameters.tight_thresh_6D));
   }
 
@@ -996,11 +996,11 @@ namespace madness {
       const double xyfKxy=xy.inner(fKxy);
       const double xyKfxy=xy.inner(Kfxy);
       const double diff=xyfKxy - xyKfxy;
-      if(world.rank() == 0 and fabs(diff) > FunctionDefaults<6>::get_thresh()){
 	std::cout << std::setprecision(parameters.output_prec);
 	std::cout << "<" << x.name() << y.name() << "|fK|" << x.name() << y.name() << "> =" << xyfKxy << std::endl;
 	std::cout << "<" << x.name() << y.name() << "|Kf|" << x.name() << y.name() << "> =" << xyKfxy << std::endl;
 	std::cout << "difference = " << diff << std::endl;
+      if(world.rank() == 0 and fabs(diff) > FunctionDefaults<6>::get_thresh()){
 	warning("Exchange Commutator Plain Wrong");
       }
 
@@ -1541,10 +1541,7 @@ namespace madness {
   }
 
   real_function_6d
-  CC_Operators::make_xy(const CC_function &x,const CC_function &y) const {
-    double thresh=guess_thresh(x,y);
-    if(thresh < parameters.thresh_6D) thresh=parameters.tight_thresh_6D;
-    else thresh=parameters.thresh_6D;
+  CC_Operators::make_xy(const CC_function &x,const CC_function &y,const double thresh) const {
     CC_Timer timer(world,"Making |" + x.name() + "," + y.name() + "> with 6D thresh=" + stringify(thresh));
     real_function_6d xy=CompositeFactory<double, 6, 3>(world).particle1(copy(x.function)).particle2(copy(y.function)).thresh(thresh);
     xy.fill_tree().truncate().reduce_rank();

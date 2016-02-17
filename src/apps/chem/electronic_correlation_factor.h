@@ -331,6 +331,8 @@ private:
 };
 
 /// a class holding the electronic correlation factor for R12 theory
+/// CorrelationFactor2 = (1-0.5*exp(-gamma*r12), gamma=0.5
+/// (CorrelationFactor + 1)*2.0 = CorrelationFactor2 (currently CorrelationFactor2 is only implemented for gamma=0.5 so use this gamma also on CorrelationFactor
 class CorrelationFactor2 {
 
     World& world;
@@ -433,6 +435,7 @@ private:
         double gamma;
         int exponent;
 
+
     public:
         R_functor(double gamma, int e=1) : gamma(gamma), exponent(e) {
             MADNESS_ASSERT(gamma==0.5);
@@ -465,7 +468,7 @@ private:
             const double rr=r12(r);
             // Taylor expansion for small r
             if (rr<1.e-4) { // valid for gamma==0.5, otherwise singular
-                return 5./4.0 - rr + (35.0* rr*rr)/48.0 - (101.0*rr*rr*rr)/192.0;
+                return (5./4.0 - rr + (35.0* rr*rr)/48.0 - (101.0*rr*rr*rr)/192.0);
             }
             const double egr=exp(-gamma*rr);
             return -(-8.*egr + 8.0 + rr*egr)/(4.0 *rr*egr - 8 *rr);
