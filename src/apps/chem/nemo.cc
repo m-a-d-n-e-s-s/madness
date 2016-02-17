@@ -1168,6 +1168,7 @@ vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double>
     const Nuclear V(world,this);
     END_TIMER(world,"tag8");
     Tensor<double> h_diff(3l);
+    bool do_kain=true;
 
     for (int iter=0; iter<10; ++iter) {
 
@@ -1244,12 +1245,16 @@ vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double>
         std::vector<double> rnorm = norm2s(world, residual);
         double rms, maxval;
         calc->vector_stats(rnorm, rms, maxval);
+        const double norm = norm2(world,xi);
 
-//        if (rms < 1.0) {
-//            xi = (solver.update(xi, residual)).x;
-//        } else {
+        // switch off once and for all
+//        if (rms/norm>proto.dconv*5.) do_kain=false;
+
+        if ((rms < 1.0) and do_kain) {
+            xi = (solver.update(xi, residual)).x;
+        } else {
             xi = tmp;
-//        }
+        }
 //        truncate(world,xi);
 
         // measure for hessian matrix elements
@@ -1272,7 +1277,7 @@ vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double>
         print(h+ihr);
         old_h=h;
 
-        const double norm = norm2(world,xi);
+        if ((proto.dconv<5.e-4) and iter==2) break;
         if (rms/norm<proto.dconv) break;
 //        if (h_diff.normf()<proto.dconv) break;
     }
@@ -1285,15 +1290,24 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 
     const int natom=molecule().natom();
     std::vector<vecfuncT> xi(3*natom);
+    const vecfuncT& nemo=calc->amo;
 
     // read CPHF vectors from file if possible
     if (get_calc()->param.read_cphf) {
         xi.resize(3*natom);
-        for (int i=0; i<3*natom; ++i) load_function(xi[i],"xi_"+stringify(i));
+        for (int i=0; i<3*natom; ++i) {
+            if (i != 5) continue;
+
+            load_function(xi[i],"xi_"+stringify(i));
+            real_function_3d dens_pt=dot(world,xi[i],nemo);
+            dens_pt=4.0*R_square*dens_pt;
+            save(dens_pt,"dens_pt"+stringify(i));
+        }
+
+
         return xi;
     }
 
-    const vecfuncT& nemo=calc->amo;
 
     timer t1(world);
     vecfuncT R2nemo=mul(world,R_square,nemo);
