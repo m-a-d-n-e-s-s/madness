@@ -1027,6 +1027,44 @@ private:
 
     }
 
+    /// derivative of the U2 potential wrt X (scalar part)
+
+    /// with
+    /// \f[
+    ///   \rho = \left| \vec r- \vec R_A \right|
+    /// \f]
+    /// returns the term in the parenthesis without the the derivative of rho
+    /// \f[
+    /// \frac{\partial U_2}{\partial X_A} = \frac{\partial \rho}{\partial X}
+    ///           \left(-\frac{1}{2}\frac{S''' S - S'' S'}{S^2} + \frac{1}{\rho^2}\frac{S'}{S}
+    ///           - \frac{1}{\rho} \frac{S''S - S'^2}{S^2} + \frac{Z_A}{\rho^2}\right)
+    /// \f]
+    double U2X_spherical(const double& r, const double& Z, const double& rcut) const {
+
+        double result=0.0;
+        if (r*Z<1.e-4) {
+            const double ZZ=Z*Z;
+            const double ZZZ=ZZ*Z;
+            const double Z4=ZZ*ZZ;
+            const double r0=-4.0*ZZZ;
+            const double r1=12.0*Z4;
+            const double r2=36*Z4*Z;
+            const double r3=-67.0/6.0*Z4*ZZ;
+            result=(r0 + r*r1 + r*r*r2 + r*r*r*r3);
+
+        } else {
+            const double S1=Sr_div_S(r,Z);
+            const double S2=Srr_div_S(r,Z);
+            const double S3=Srrr_div_S(r,Z);
+            const double term1=-0.5*(S3-S1*S2);
+            const double term2=(S1+Z)/(r*r);
+            const double term3=(S2-S1*S1)/r;
+            result=term1+term2-term3;
+        }
+        return result;
+    }
+
+
 };
 
 /// A nuclear correlation factor class
@@ -1140,6 +1178,37 @@ private:
         return -num/denom;
     }
 
+    double U2X_spherical(const double& r, const double& Z, const double& rcut) const {
+
+        double result=0.0;
+        if (r*Z<1.e-4) {
+            const double sqrtz=sqrt(Z);
+            const double Z2=Z*Z;
+            const double Z4=Z2*Z2;
+            const double Z5=Z4*Z;
+            const double Z6=Z5*Z;
+            const double Z7=Z6*Z;
+            const double a2=a*a;
+            const double a4=a2*a2;
+
+            const double r0=-4.* a2* sqrt(Z7);
+            const double r1=2.* (-2.* a2* Z*sqrt(Z7)+ 5.* a4* Z*sqrt(Z7) + 3.* a4 *Z5) *r;
+            const double r2=1.5 * (-a2* sqrtz*Z5 + 11.* a4* sqrtz*Z5 + 14.*a4* Z6)* r*r;
+            const double r3=1./6.* (-a2* sqrtz*Z6 + 66.* a4*sqrtz*Z6 - 84.* a2*a4* sqrtz*Z6 +
+                    180. *a4* Z7 - 156.*a2*a4* Z7 - 72.* a2*a4*sqrtz*Z7) *r*r*r;
+            result=(r0 + r1 + r2 + r3);
+
+        } else {
+            const double S1=Sr_div_S(r,Z);
+            const double S2=Srr_div_S(r,Z);
+            const double S3=Srrr_div_S(r,Z);
+            const double term1=-0.5*(S3-S1*S2);
+            const double term2=(S1+Z)/(r*r);
+            const double term3=(S2-S1*S1)/r;
+            result=term1+term2-term3;
+        }
+        return result;
+    }
 };
 
 
