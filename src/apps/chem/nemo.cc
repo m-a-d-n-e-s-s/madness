@@ -974,6 +974,12 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
     drho[0]=make_ddensity(rhonemo,0);
     drho[1]=make_ddensity(rhonemo,1);
     drho[2]=make_ddensity(rhonemo,2);
+    double thresh=FunctionDefaults<3>::get_thresh();
+    drho[0].set_thresh(thresh*0.1);
+    drho[1].set_thresh(thresh*0.1);
+    drho[2].set_thresh(thresh*0.1);
+    print("set drho thresh to ",drho[1].thresh());
+
 
     // compute the perturbed densities (partial only!)
     // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
@@ -1028,7 +1034,6 @@ Tensor<double> Nemo::make_incomplete_hessian_response_part(
     Tensor<double> complementary_hessian(3*natom,3*natom);
     for (int i=0, iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis, ++i) {
-            if (i != 5) continue;
 
             real_function_3d dens_pt=dot(world,xi[i],nemo);
             dens_pt=4.0*R_square*dens_pt;
@@ -1053,13 +1058,8 @@ vecfuncT Nemo::make_cphf_constant_term(const int iatom, const int iaxis,
     // guess for the perturbed MOs
     const vecfuncT nemo=calc->amo;
     const int nmo=nemo.size();
-    const int natom=calc->molecule.natom();
 
-//    vecfuncT R2nemo=mul(world,R_square,nemo);
-//    truncate(world,R2nemo);
     const Tensor<double> occ=get_calc()->get_aocc();
-//    const real_function_3d rhonemo=2.0*make_density(occ,nemo); // closed shell
-
     QProjector<double,3> Q(world,R2nemo,nemo);
 
     START_TIMER(world);
@@ -1296,7 +1296,6 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     if (get_calc()->param.read_cphf) {
         xi.resize(3*natom);
         for (int i=0; i<3*natom; ++i) {
-            if (i != 5) continue;
 
             load_function(xi[i],"xi_"+stringify(i));
             real_function_3d dens_pt=dot(world,xi[i],nemo);
@@ -1337,7 +1336,6 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
         for (int iaxis=0; iaxis<3; ++iaxis, ++i) {
             parallel[i]=zero_functions_compressed<double,3>(world,3*natom);
             rhsconst[i]=zero_functions_compressed<double,3>(world,3*natom);
-            if (i != 5) continue;
 
             timer t2(world);
             parallel[i]=compute_cphf_parallel_term(iatom,iaxis);
@@ -1351,8 +1349,6 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     // initial guess from the constant rhs
     for (std::size_t i=0; i<rhsconst.size(); ++i) {
         xi[i]=zero_functions_compressed<double,3>(world,3*natom);
-
-        if (i != 5) continue;
 
         START_TIMER(world);
         xi[i]=apply(world, bsh, -2.0*rhsconst[i]);
@@ -1373,9 +1369,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 
 
     // solve the response equations
-
     protocol p(*this);
-    p.end_prec=3.e-7;
 
     for (p.initialize() ;not p.finished(); ++p) {
         set_protocol(p.current_prec);
@@ -1383,25 +1377,27 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
         if (world.rank()==0) {
             printf("\nstarting CPHF equations at time %8.1fs \n",wall_time());
         }
+
         // double loop over all nuclear displacements
         for (int i=0, iatom=0; iatom<natom; ++iatom) {
             for (int iaxis=0; iaxis<3; ++iaxis, ++i) {
-                if (i != 5) continue;
                 if (xi[i].size()>0) {
                     for (real_function_3d& xij : xi[i]) xij.set_thresh(p.current_prec);
                 }
                 xi[i]=solve_cphf(iatom,iaxis,fock,xi[i],rhsconst[i],
                         incomplete_hessian,parallel[i],p);
                 save_function(xi[i],"xi_"+stringify(i));
-
-                for (int i=0; i<3*natom; ++i) full_xi[i]=xi[i]-parallel[i];
-                Tensor<double> complementary_hessian=make_incomplete_hessian_response_part(full_xi);
-                print("full hessian matrix");
-                print(incomplete_hessian+complementary_hessian);
-
             }
         }
-        printf("\nfinished CPHF equations at time %8.1fs \n",wall_time());
+        if (world.rank()==0) {
+            printf("\nfinished CPHF equations at time %8.1fs \n",wall_time());
+        }
+
+        for (int i=0; i<3*natom; ++i) full_xi[i]=xi[i]-parallel[i];
+        Tensor<double> complementary_hessian=make_incomplete_hessian_response_part(full_xi);
+        print("full hessian matrix");
+        print(incomplete_hessian+complementary_hessian);
+
     }
 
     // reset the initial thresholds
