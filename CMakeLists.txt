@@ -9,7 +9,7 @@ set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS
 
 # Add module directory and modules =============================================
 
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/)
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
 include(AppendFlags)
 include(CheckCXX11Support)
 include(CheckIncludeFile)
