@@ -146,7 +146,7 @@ struct CC_Parameters{
 	// read parameters from input
 	/// ctor reading out the input file
 	CC_Parameters(const std::string& input,const double &low) :
-		calculation(CISpD_),
+		calculation(CC2_response_),
 		lo(uninitialized),
 		thresh_3D(uninitialized),
 		tight_thresh_3D(uninitialized),
@@ -629,30 +629,33 @@ struct CC_function{
 struct CC_vecfunction{
 
 	CC_vecfunction(): type(UNDEFINED){}
-	CC_vecfunction(const functype type_): type(type_){}
-	CC_vecfunction(const vecfuncT &v,const functype &type): type(type){
+	CC_vecfunction(const functype type_): type(type_),omega(0.0){}
+	CC_vecfunction(const vecfuncT &v,const functype &type): type(type),omega(0.0){
 		for(size_t i=0;i<v.size();i++){
 			CC_function tmp(v[i],i,type);
 			functions.insert(std::make_pair(i,tmp));
 		}
 	}
-	CC_vecfunction(const vecfuncT &v,const functype &type,const size_t &freeze): type(type){
+	CC_vecfunction(const vecfuncT &v,const functype &type,const size_t &freeze): type(type),omega(0.0){
 		for(size_t i=0;i<v.size();i++){
 			CC_function tmp(v[i],freeze+i,type);
 			functions.insert(std::make_pair(freeze+i,tmp));
 		}
 	}
-	CC_vecfunction(const std::vector<CC_function> &v,const functype type_): type(type_){
+	CC_vecfunction(const std::vector<CC_function> &v,const functype type_): type(type_),omega(0.0){
 		for(auto x:v){
 			functions.insert(std::make_pair(x.i,x));
 		}
 	}
-	CC_vecfunction(const CC_vecfunction &other) : functions(other.functions),type(other.type) {}
+	CC_vecfunction(const CC_vecfunction &other) : functions(other.functions),type(other.type), omega(other.omega) {}
 
 	typedef std::map<std::size_t, CC_function> CC_functionmap;
 	CC_functionmap functions;
 
+
+
 	functype type;
+	double omega; // excitation energy
 	std::string name()const{
 	  if (type==PARTICLE) return "singles_gs";
 	  else if(type==HOLE) return "mos_gs";

@@ -618,6 +618,10 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	// Factor 0.5 removes the factor 2 from the scaling before
 	xfunction.delta.push_back(0.5 * tmp / tmp2);
 
+	// DEBUG: Check phase
+	const Tensor<double> phase = inner(world,xfunction.x,GVpsi);
+	if(world.rank()==0) std::cout << "<x|x_new> = \n" << phase << "\n";
+
 	// return Updated x-function
 	return GVpsi;
 

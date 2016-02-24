@@ -136,9 +136,61 @@ namespace madness {
     double solve_mp2(Pairs<CC_Pair> &doubles);
     double solve_mp2_nonorthogonal(Pairs<CC_Pair> &doubles);
     double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau);
+    double solve_cc2_response(const CC_vecfunction &tau, const Pairs<CC_Pair> &u,CC_vecfunction x, Pairs<CC_Pair> &chi);
     double solve_cispd();
     double solve_cispd(Pairs<CC_Pair> &doubles,const Pairs<CC_Pair> &mp2_pairs, const CC_vecfunction & cis_singles, const double cis_omega);
     bool iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles);
+    bool iterate_cc2_singles_response(const CC_vecfunction &tau, const Pairs<CC_Pair> &u,CC_vecfunction x, const Pairs<CC_Pair> &chi) {
+      output_subsection("Iterate Response of CC2 Singles");
+      const double current_omega = x.omega;
+      output("Current Omega is " + std::to_string(current_omega));
+      CC_Timer timer_potential(world,"Response of CC2 Singles Potential");
+      vecfuncT potential=CCOPS.get_CC2_singles_response_potential(tau,u,x,chi);
+      timer_potential.info();
+
+      output_subsection("Apply the Green's Operator");
+      CC_Timer timer_G(world,"Apply the Green's Operator");
+      vecfuncT G_potential=zero_functions<double, 3>(world,potential.size());
+      scale(world,potential,-2.0);
+      for(size_t i=0; i < potential.size(); i++){
+        double epsi=CCOPS.get_orbital_energies()[i + parameters.freeze]+current_omega;
+        output("Make Greens Operator for single " + stringify(i + parameters.freeze));
+        real_convolution_3d G=BSHOperator<3>(world,sqrt(-2.0 * epsi),parameters.lo,parameters.thresh_bsh_3D);
+        real_function_3d tmp=(G(potential[i])).truncate();
+        G_potential[i]=tmp;
+      }
+      G_potential=CCOPS.apply_Q(G_potential,"G_potential");
+      timer_G.info();
+
+      const vecfuncT residue = sub(world,x.get_vecfunction(),G_potential);
+      const vecfuncT res_bra = mul(world,nemo.nuclear_correlation->square(),residue);
+      const vecfuncT GV_bra = mul(world,nemo.nuclear_correlation->square(),G_potential);
+      const double tmp1 = inner(world,res_bra,G_potential).sum();
+      const double tmp2 = inner(world,GV_bra,G_potential).sum();
+
+      const double delta = 0.5*tmp1/tmp2;
+      if(world.rank()==0) std::cout << " Delta is " << delta << "\n";
+      const double new_omega = current_omega + delta;
+      x.omega = new_omega;
+
+      std::vector<double> errors;
+      bool converged=true;
+      for(size_t i=0; i < potential.size(); i++){
+        MADNESS_ASSERT(x(i + parameters.freeze).i == i + parameters.freeze);
+        if(world.rank() == 0) std::cout << "|| |tau" + stringify(i + parameters.freeze) + ">|| =" << G_potential[i].norm2() << std::endl;
+        real_function_3d residue=x(i + parameters.freeze).function - G_potential[i];
+        double error=residue.norm2();
+        errors.push_back(error);
+        if(world.rank() == 0) std::cout << "|| residue" + stringify(i + parameters.freeze) + ">|| =" << error << std::endl;
+        CC_function new_x(G_potential[i],x(i + parameters.freeze).i,RESPONSE);
+        new_x.current_error=error;
+        x(i + parameters.freeze)=new_x;
+        if(fabs(error) > parameters.dconv_3D) converged=false;
+      }
+      if(converged) output("response singles converged");
+      else output("No convergence in response singles");
+      return converged;
+    }
     bool iterate_cc2_doubles( Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
     /// Compute the pair correlation energy of an electron pair function at mp2/CCD level (no singles contributions)
     double compute_mp2_pair_energy(CC_Pair &u)const;
@@ -156,7 +208,7 @@ namespace madness {
     void iterate_doubles(const vecfuncT &singles, Pairs<real_function_6d> &doubles)const;
     /// Iterates a pair of the CC2 doubles equations
     bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles)const;
-    bool iterate_pair(CC_Pair &pair,const CC_vecfunction &singles, const CC_vecfunction response_singles,const calctype ctype) const;
+    bool iterate_pair(CC_Pair &pair,const CC_vecfunction &singles, const CC_vecfunction &response_singles,const calctype ctype) const;
     bool iterate_nonorthogonal_pair(CC_Pair &pair);
     /// Create formated output, std output with world rank 0
     void output(const std::string &msg)const{

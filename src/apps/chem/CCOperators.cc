@@ -77,6 +77,8 @@ namespace madness {
     return G_O1tau_part + G_O2tau_part;
   }
 
+
+
   real_function_6d CC_Operators::make_cc2_residue_sepparated(const CC_function &taui,const CC_function &tauj,const double omega) const {
 
     calctype ctype=CC2_;
@@ -392,20 +394,20 @@ namespace madness {
     else if(singles.type==RESPONSE) s2b=copy(world,current_s2b_u_part_response);
     else warning("S4a_u_part: Singles are of type "+assign_name(singles.type));
     if(s2b.empty()){
-    for(const auto& itmp : singles.functions){
-      const size_t i=itmp.first;
-      real_function_3d s4ai=real_factory_3d(world);
-      real_function_3d s4ai_consistency=real_factory_3d(world);     // here the unprojected s2b result will be used to check consistency since this is not expensive this will be used everytime the s2b part was stored
-      for(const auto& ltmp : singles.functions){
-	const size_t l=ltmp.first;
-	const CC_function& taul=ltmp.second;
-	for(const auto& ktmp : singles.functions){
-	  const size_t k=ktmp.first;
-	  s4ai+=(-2.0 * make_ijgu(l,k,get_pair_function(doubles,i,k)) + make_ijgu(k,l,get_pair_function(doubles,i,k))) * taul.function;
+      for(const auto& itmp : singles.functions){
+	const size_t i=itmp.first;
+	real_function_3d s4ai=real_factory_3d(world);
+	real_function_3d s4ai_consistency=real_factory_3d(world);     // here the unprojected s2b result will be used to check consistency since this is not expensive this will be used everytime the s2b part was stored
+	for(const auto& ltmp : singles.functions){
+	  const size_t l=ltmp.first;
+	  const CC_function& taul=ltmp.second;
+	  for(const auto& ktmp : singles.functions){
+	    const size_t k=ktmp.first;
+	    s4ai+=(-2.0 * make_ijgu(l,k,get_pair_function(doubles,i,k)) + make_ijgu(k,l,get_pair_function(doubles,i,k))) * taul.function;
+	  }
 	}
+	s4a.push_back(s4ai);
       }
-      s4a.push_back(s4ai);
-    }
     }else{
       output("S4a from stored S2b potential");
       const vecfuncT active_mo_bra = get_active_mo_bra();
@@ -695,25 +697,26 @@ namespace madness {
   /// Right now Calculated in the decomposed form: |titj> = |i,j> + |\taui,\tauj> + |i,\tauj> + |\taui,j>
   /// The G_Q_Ue and G_Q_KffK part which act on |ij> are already calculated and stored as constant_term in u (same as for MP2 calculations) -> this should be the biggerst (faster than |titj> form)
   real_function_6d
-  CC_Operators::make_regularization_residue(const CC_function &a,const CC_function &b, const calctype &ctype, const double omega) const {
-    output("Calculating GV_reg|"+a.name()+b.name()+">");
-    consistency_check(a,b,omega);
-    const bool symmetric(a.i==b.i);
+  CC_Operators::make_regularization_residue(const CC_function &reg1,const CC_function &reg2, const calctype &ctype, const double omega) const {
+    output("Calculating GV_reg|"+reg1.name()+reg2.name()+">");
+    consistency_check(reg1,reg2,omega);
+    const bool symmetric(reg1.i==reg2.i);
 
     real_function_6d Vreg;
     if(ctype==CC2_){
-      Vreg = apply_regularization_potential(make_t_intermediate(a),make_t_intermediate(b),0.0);
+      Vreg = apply_regularization_potential(make_t_intermediate(reg1),make_t_intermediate(reg2),0.0);
     }else if(ctype==MP2_){
-      Vreg = apply_regularization_potential(mo_ket_(a.i),mo_ket_(b.i),0.0);
+      Vreg = apply_regularization_potential(mo_ket_(reg1.i),mo_ket_(reg2.i),0.0);
     }else if(ctype==CISpD_){
-      Vreg = apply_regularization_potential(a,mo_ket_(b.i),omega);
+      Vreg = apply_regularization_potential(reg1,mo_ket_(reg2.i),omega);
       if(symmetric){
-	output("Exploiting Symmetry for Diagonal pairing: " +a.name()+mo_ket_(b.i).name() +" = P12" + mo_ket_(a.i).name()+b.name());
+	output("Exploiting Symmetry for Diagonal pairing: " +reg1.name()+mo_ket_(reg2.i).name() +" = P12" + mo_ket_(reg1.i).name()+reg2.name());
 	Vreg = Vreg + swap_particles(Vreg);
       }
-      else Vreg = Vreg = Vreg + apply_regularization_potential(mo_ket_(a.i),b,omega);
+      else Vreg = Vreg = Vreg + apply_regularization_potential(mo_ket_(reg1.i),reg2,omega);
     }else if(ctype==CC2_response_){
-      error("CC2_response residue not yet implemented");
+      error("CC2_response not implemented for make_regularization_residue, use make_response_regularization_residue");
+
     }else error("Error in make_cc2_residue: Unknown ctype:"+assign_name(ctype));
 
     Vreg.scale(-2.0);
@@ -721,7 +724,7 @@ namespace madness {
     Vreg.truncate().reduce_rank();
     Vreg.print_size("-2.0*Q12Vreg");
 
-    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(a.i,b.i)+omega),parameters.lo,parameters.thresh_bsh_6D);
+    real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(reg1.i,reg2.i)+omega),parameters.lo,parameters.thresh_bsh_6D);
     G.destructive()=true;
     real_function_6d GV=G(Vreg);
     apply_Q12(GV,"CC2-Residue:G(V)");
@@ -996,10 +999,10 @@ namespace madness {
       const double xyfKxy=xy.inner(fKxy);
       const double xyKfxy=xy.inner(Kfxy);
       const double diff=xyfKxy - xyKfxy;
-	std::cout << std::setprecision(parameters.output_prec);
-	std::cout << "<" << x.name() << y.name() << "|fK|" << x.name() << y.name() << "> =" << xyfKxy << std::endl;
-	std::cout << "<" << x.name() << y.name() << "|Kf|" << x.name() << y.name() << "> =" << xyKfxy << std::endl;
-	std::cout << "difference = " << diff << std::endl;
+      std::cout << std::setprecision(parameters.output_prec);
+      std::cout << "<" << x.name() << y.name() << "|fK|" << x.name() << y.name() << "> =" << xyfKxy << std::endl;
+      std::cout << "<" << x.name() << y.name() << "|Kf|" << x.name() << y.name() << "> =" << xyKfxy << std::endl;
+      std::cout << "difference = " << diff << std::endl;
       if(world.rank() == 0 and fabs(diff) > FunctionDefaults<6>::get_thresh()){
 	warning("Exchange Commutator Plain Wrong");
       }
@@ -1102,7 +1105,7 @@ namespace madness {
   }
 
   real_function_3d
-  CC_Operators::apply_F(const CC_function &x) const {
+  CC_Operators::apply_F(const CC_function &x,const double& omega) const {
 
     if(x.type == HOLE){
       return get_orbital_energies()[x.i] * x.function;
@@ -1112,7 +1115,12 @@ namespace madness {
     }else if(x.type == MIXED and not current_singles_potential_gs.empty()){
       const real_function_3d singles_potential=current_singles_potential_gs[x.i - parameters.freeze];
       return (get_orbital_energies()[x.i] * x.function - singles_potential);     // for mixed: eps(i)*x.i = epsi*(moi + taui)
-    }else{
+    }else if(x.type == RESPONSE and not current_singles_potential_response.empty()){
+      const real_function_3d singles_potential=current_singles_potential_response[x.i - parameters.freeze];
+      return ((get_orbital_energies()[x.i]+omega)*x.function - singles_potential);
+    }
+
+    else{
       real_function_3d refined_x=copy(x.function).refine();
       // kinetic part
       CC_Timer T_time(world,"apply_T");
@@ -1154,7 +1162,7 @@ namespace madness {
   /// return	the input function with particles swapped g(1,2) = f(2,1)
   real_function_6d
   CC_Operators::swap_particles(const real_function_6d& f) const {
-   // CC_Timer timer_swap(world,"swap particles");
+    // CC_Timer timer_swap(world,"swap particles");
     // this could be done more efficiently for SVD, but it works decently
     std::vector<long> map(6);
     map[0]=3;
@@ -1163,7 +1171,7 @@ namespace madness {
     map[3]=0;
     map[4]=1;
     map[5]=2;     // 1 -> 2
-   // timer_swap.info();
+    // timer_swap.info();
     return mapdim(f,map);
   }
 
@@ -1323,13 +1331,13 @@ namespace madness {
 	part4 += jn.inner(igm)*ny.inner(mfx);
       }
     }
-//    if(world.rank()==0){
-//      std::cout << "<" << i.name() << j.name() <<"|gQf|" << x.name() << y.name() << "\n";
-//      std::cout << "part1=" << part1 << "\n";
-//      std::cout << "part2=" << part2 << "\n";
-//      std::cout << "part3=" << part3 << "\n";
-//      std::cout << "part4=" << part4 << "\n";
-//    }
+    //    if(world.rank()==0){
+    //      std::cout << "<" << i.name() << j.name() <<"|gQf|" << x.name() << y.name() << "\n";
+    //      std::cout << "part1=" << part1 << "\n";
+    //      std::cout << "part2=" << part2 << "\n";
+    //      std::cout << "part3=" << part3 << "\n";
+    //      std::cout << "part4=" << part4 << "\n";
+    //    }
     return part1-part2-part3+part4;
   }
 
@@ -1379,13 +1387,13 @@ namespace madness {
 	part4+=ijgmn * mnfxy;
       }
     }
-//    if(world.rank()==0){
-//      std::cout << "<" << mo_ket_(i).name() << mo_ket_(j).name() <<"|gQf|" << x.name() << y.name() << "\n";
-//      std::cout << "part1=" << part1 << "\n";
-//      std::cout << "part2=" << part2 << "\n";
-//      std::cout << "part3=" << part3 << "\n";
-//      std::cout << "part4=" << part4 << "\n";
-//    }
+    //    if(world.rank()==0){
+    //      std::cout << "<" << mo_ket_(i).name() << mo_ket_(j).name() <<"|gQf|" << x.name() << y.name() << "\n";
+    //      std::cout << "part1=" << part1 << "\n";
+    //      std::cout << "part2=" << part2 << "\n";
+    //      std::cout << "part3=" << part3 << "\n";
+    //      std::cout << "part4=" << part4 << "\n";
+    //    }
     double result = part1 + part2 + part3 + part4;
     //double test = make_ijgQfxy(mo_bra_(i),mo_bra_(j),x,y);
     //std::cout << " debug ijgQfxy:\nold =" << result <<"\nnew =" << test << "\ndiff=" << test-result << std::endl;
