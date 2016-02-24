@@ -440,10 +440,11 @@ double dsmoothed_potential(double r) {
     return result;
 }
 
-/// second derivative of the regularized 1/r potential
+/// second radial derivative of the regularized 1/r potential
 
 /// invoke as d2smoothed_potential(r*rc) * rc*rc*rc
 /// with rc the reciprocal smoothing radius
+/// d2u[r*rc]*rc*rc*rc \approx 2/r^3
 double d2smoothed_potential(double r) {
     double rsq = r*r;
     const double sqrtpi=sqrt(madness::constants::pi);

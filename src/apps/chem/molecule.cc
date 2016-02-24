@@ -820,23 +820,29 @@ double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, dou
 double Molecule::nuclear_attraction_potential_second_derivative(int atom,
         int iaxis, int jaxis, double x, double y, double z) const {
 
-    const Vector<double,3> rr={x-atoms[atom].x,y-atoms[atom].y,z-atoms[atom].y};
+    const Vector<double,3> rr={x-atoms[atom].x,y-atoms[atom].y,z-atoms[atom].z};
     double r = rr.normf();
-    double rinv=1./r;
-    double r2 = r*r;
-    double r3inv = 1/(r2*r);
     double rc = rcut[atom];
+
+    double u=smoothed_potential(r*rc)*rc;
+    double d2u=d2smoothed_potential(r * rc) * (rc * rc * rc);
+//    double rreg=r+1.e-5;
+//    double rinv=1./(rreg);
+//    double r3inv = 1.0/(rreg * rreg* rreg);
+    double rinv=u;
+    double r3inv = 0.5*d2u;
 
     double di=rr[iaxis]*rinv;
     double dj=rr[jaxis]*rinv;
-    double term1=2.0*r3inv*di*dj;
+    double term1=3.0*r3inv*di*dj;
 
-    double term2=-di*dj*r3inv;
-    if (iaxis==jaxis) term2+=rinv;
+//    double term2=-di*dj*r3inv;
+//    if (iaxis==jaxis) term2+=rinv;
 
-    double du=dsmoothed_potential(r * rc) * (rc * rc);
-    double d2u=d2smoothed_potential(r * rc) * (rc * rc * rc);
-    return term1*d2u + term2*du;
+    double result=-atoms[atom].q * (term1);
+    if (iaxis==jaxis) return 0.0;
+    return result;
+
 }
 
 

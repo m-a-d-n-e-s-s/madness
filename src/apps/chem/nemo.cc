@@ -965,20 +965,24 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 Tensor<double> Nemo::make_incomplete_hessian() const {
 
     const int natom=molecule().natom();
-    const vecfuncT& nemo=get_calc()->amo;
-    const real_function_3d rhonemo=2.0*make_density(get_calc()->get_aocc(),nemo);
+    vecfuncT& nemo=get_calc()->amo;
+    refine(world,nemo);
+    real_function_3d rhonemo=2.0*make_density(get_calc()->get_aocc(),nemo);
+    real_function_3d rho=R_square*rhonemo;
 
     Tensor<double> incomplete_hessian=molecule().nuclear_repulsion_hessian();
 
     vecfuncT drho(3);
+//    double thresh=FunctionDefaults<3>::get_thresh();
+//    rhonemo.set_thresh(thresh*0.1);
+//    FunctionDefaults<3>::set_thresh(thresh*0.1);
+//    print("set thresh to ",thresh*0.1);
+
     drho[0]=make_ddensity(rhonemo,0);
     drho[1]=make_ddensity(rhonemo,1);
     drho[2]=make_ddensity(rhonemo,2);
-    double thresh=FunctionDefaults<3>::get_thresh();
-    drho[0].set_thresh(thresh*0.1);
-    drho[1].set_thresh(thresh*0.1);
-    drho[2].set_thresh(thresh*0.1);
-    print("set drho thresh to ",drho[1].thresh());
+    save(rhonemo,"rhonemo");
+    save(drho[0],"drho0");
 
 
     // compute the perturbed densities (partial only!)
@@ -989,7 +993,7 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
             int i=iatom*3 + iaxis;
 
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
-            const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
+            const real_function_3d RXR=real_factory_3d(world).functor(rxr_func);//.truncate_on_project();
             dens_pt[i]=2.0*RXR*rhonemo;//.truncate();
         }
     }
@@ -1007,7 +1011,11 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
                     double result=inner(dens_pt[i],mdf);
 
                     // integration by parts
-                    if (iatom==jatom) result+=inner(drho[iaxis],mdf);
+//                    if (iatom==jatom) result+=inner(drho[iaxis],mdf);
+
+                    // no integration by parts
+                    MolecularSecondDerivativeFunctor m2df(molecule(), jatom, jaxis,iaxis);
+                    if (iatom==jatom) result+=inner(rho,m2df);
 
                     // skip diagonal elements because they are extremely noisy!
                     // use translational symmetry to reconstruct them from other
@@ -1318,6 +1326,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     // compute those contributions to the hessian that do not depend on the response
     Tensor<double> incomplete_hessian=make_incomplete_hessian();
     t1.tag("make incomplete hessian");
+    print(incomplete_hessian);
 
     // compute the initial guess for the response
     const Tensor<double> fock=compute_fock_matrix(nemo,get_calc()->get_aocc());
