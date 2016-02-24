@@ -119,7 +119,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 	print_status(xfunctions);
 
 	print("\n\n\n\n-------------------------------------------------------");
-	print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF ... no kain right now", hard_dconv_);
+	print("BEGINNING THE FINAL ITERATIONS TO AN ACCURACY OF %f and energy %f ", hard_dconv_, hard_econv_);
 	print("-------------------------------------------------------\n\n\n\n");
 
 	// Failsafe for comming fock orthonormalization
@@ -572,12 +572,6 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	double omega = xfunction.omega;
 	if(Vpsi.empty()) MADNESS_EXCEPTION("ERROR in iterate_one function: Applied potential of xfunction is empty",1);
 
-	if(not use_omega_for_bsh_){
-	truncate(world, Vpsi); // no fence
-	vecfuncT omegapsi = xfunction.x;
-	scale(world,omegapsi,-omega);
-	Vpsi = add(world,Vpsi,omegapsi);
-	}
 	truncate(world, Vpsi); // no fence
 	scale(world, Vpsi, -2.0);
 
@@ -586,7 +580,7 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 	std::vector<poperatorT> bsh(active_mo_.size());
 	for (size_t p = 0; p < active_mo_.size(); p++) {
 		double eps = active_eps(p);// + omega;
-		if(use_omega_for_bsh_) eps += omega;
+		eps += omega;
 		if (eps > 0) {
 			if (world.rank() == 0)
 				print("bsh: warning: positive eigenvalue", p + parameters.freeze, eps);
@@ -629,33 +623,37 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 
 
 std::string TDA::update_energy(xfunction &xfunction)const {
-	double thresh = FunctionDefaults<3>::get_thresh();
-	if(use_omega_for_bsh_){
-	//failsafe: make shure the delta and expectation values vectors are not empty to avoid segmentation faults
-	if(not xfunction.delta.empty() and not xfunction.expectation_value.empty() and not xfunction.error.empty()) {
-		if(xfunction.expectation_value.back() < highest_excitation_) {
-			if(fabs(xfunction.delta.back()) < thresh*20.0) {
-				xfunction.omega +=xfunction.delta.back();
-				return "(2nd)";
-			} else {
-				xfunction.omega = xfunction.expectation_value.back();
-				return "(exp)";
-			}
-		} else {
-			// get the highest converged energy, of no xfunction converged already use the guess_omega_ energy
-			double setback_energy = guess_omega_;
-			// set the last converged value of the same type of guess as the default
-			//double new_omega = highest_excitation_*0.8;// default
-			xfunction.omega = setback_energy;
-			return "(-)";
-		}
 
-	}else return "(no energies)";
+	  const bool empty_delta = xfunction.delta.empty();
+	  const bool empty_expv = xfunction.expectation_value.empty();
 
-	}else{
-		xfunction.omega = xfunction.expectation_value.back();
-		return "(omega not used for BSH, no second order update possible -> use expectation value)";
-	}
+	  std::string result;
+
+	  double delta = 99.99;
+	  if(not empty_delta) delta = xfunction.delta.back();
+
+	  double expv = 99.99;
+	  if(not empty_expv) expv = xfunction.expectation_value.back();
+
+	  double omega = guess_omega_;
+	  result = "(guess)";
+	  if(fabs(delta) < 1.e-3){
+	    omega = xfunction.omega + delta;
+	    result = "(2nd order)";
+	  }
+	  else if(expv < highest_excitation_){
+	    omega = expv;
+	    result = "(expv)";
+	  }
+
+	  if(omega > highest_excitation_){
+	    omega = highest_excitation_;
+	    result += "(too high ... set back)";
+	  }
+
+	  xfunction.omega=omega;
+
+	  return result;
 }
 
 void TDA::normalize(xfunctionsT & xfunctions)const {
@@ -826,7 +824,10 @@ double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potenti
 	double exp_vnuc = CCOPS_.make_inner_product(x.x,apply_nuclear_potential(x));
 	expv += exp_vnuc;
 
+	const double pot = expv;
+
 	// The kinetic part
+	double Ekin=0.0;
 	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 	gradop = gradient_operator<double, 3>(world);
 	for (int axis = 0; axis < 3; axis++) {
@@ -836,12 +837,22 @@ double TDA::expectation_value(const xfunction &x, const vecfuncT &smooth_potenti
 		Tensor<double> kin;
 		kin= inner(world, bra_dx, dx);
 		expv += 0.5 * kin.sum();
+		Ekin += 0.5 * kin.sum();
 	}
 
+	double eps=0.0;
 	// The epsilon part to get the excitation energy
 	for (size_t i = 0; i < x.x.size(); i++) {
 		double overlap = CCOPS_.make_inner_product(x.x[i],x.x[i]);
 		expv -= active_eps(i)* overlap;
+		eps -= active_eps(i)* overlap;
+	}
+	if(world.rank()==0){
+	  std::cout << "Expectation Value:\n";
+	  std::cout << "Kinetic-Energy  =" << std::fixed << std::setprecision(8)<< Ekin << "\n";
+	  std::cout << "Potential-Energy=" << std::fixed << std::setprecision(8)<< pot << "\n";
+	  std::cout << "Eps-Part        =" << std::fixed << std::setprecision(8)<< eps << "\n";
+	  std::cout << "Expectationvalue=" << std::fixed << std::setprecision(8)<< expv << "\n";
 	}
 	return expv;
 }

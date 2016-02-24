@@ -19,10 +19,10 @@
 namespace madness{
 
 enum optype {g12_,f12_};
-enum calctype {MP2_, CC2_, CCS_response, CC2_response_, CISpD_, experimental_};
+enum calctype {MP2_, CC2_, CCS_response_, CC2_response_, CISpD_, experimental_};
 enum functype {HOLE,PARTICLE,MIXED,RESPONSE,UNDEFINED};
 enum pairtype {GROUND_STATE,EXCITED_STATE};
-enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_ccs_};
+enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_ccs_,pot_cis_};
 enum potentialtype_d {pot_F6D_, pot_cc2_coulomb_,pot_cc2_residue_};
 // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
 enum pair_function_form{DECOMPOSED, FULL};
@@ -38,7 +38,7 @@ static calctype assign_calctype(const std::string name){
   else if(name=="cc2") return CC2_;
   else if(name=="cc2_response") return CC2_response_;
   else if(name=="cispd") return CISpD_;
-  else if(name=="cis" or name=="ccs" or name=="ccs_response") return CCS_response;
+  else if(name=="cis" or name=="ccs" or name=="ccs_response") return CCS_response_;
   else if(name=="experimental") return experimental_;
   else{
     std::string msg= "CALCULATION OF TYPE: " + name + " IS NOT KNOWN!!!!";
@@ -51,7 +51,7 @@ static std::string assign_name(const calctype &inp){
 	case MP2_ : return "MP2";
 	case CC2_response_ : return "CC2-Response";
 	case CISpD_ : return "CIS(D)";
-	case CCS_response: return "CCS/CIS";
+	case CCS_response_: return "CCS/CIS";
 	}
 	return "unknown";
 }
@@ -69,6 +69,7 @@ static std::string assign_name(const potentialtype_s &inp){
 	case pot_S4b_r_ : return "S4b_r_part";
 	case pot_S4c_r_ : return "S4c_r_part";
 	case pot_ccs_ : return "ccs-potential";
+	case pot_cis_ : return "cis-potential";
 	}
 	return "undefined";
 }
@@ -657,10 +658,10 @@ struct CC_vecfunction{
 	functype type;
 	double omega; // excitation energy
 	std::string name()const{
-	  if (type==PARTICLE) return "singles_gs";
-	  else if(type==HOLE) return "mos_gs";
-	  else if(type==MIXED) return "t_gs";
-	  else if(type==RESPONSE) return "singles_response";
+	  if (type==PARTICLE) return "tau";
+	  else if(type==HOLE) return "phi";
+	  else if(type==MIXED) return "t";
+	  else if(type==RESPONSE) return "x";
 	  else return "UNKNOWN";
 	}
 

@@ -22,30 +22,20 @@
 
 namespace madness {
 
-
-
-
-  class CC2 {
+  class CC2{
   public:
 
-
-
-    CC2(World &world_,const std::string &inputFileName, const Nemo &nemo_):
-      world(world_),
-      //correlationfactor(world,1.0,1.e-7,nemo_.get_calc()->molecule),
-      parameters(inputFileName, nemo_.get_calc() -> param.lo),
-      nemo(nemo_),
-      mo(nemo_.get_calc()->amo),
-      active_mo(make_active_mo()),
-      CCOPS(world,nemo,parameters)
-  {
+    CC2(World &world_,const std::string &inputFileName,const Nemo &nemo_)
+	: world(world_),
+	//correlationfactor(world,1.0,1.e-7,nemo_.get_calc()->molecule),
+	parameters(inputFileName,nemo_.get_calc()->param.lo), nemo(nemo_), mo(nemo_.get_calc()->amo), active_mo(make_active_mo()), CCOPS(world,nemo,parameters) {
       output_section("CC2 Class has been initialized with the following parameters");
       // set the threshholds
       // Set Protocoll
       output("Set Protocol 3D");
-      nemo_.get_calc() -> set_protocol<3>(world,parameters.thresh_3D);
+      nemo_.get_calc()->set_protocol < 3 > (world, parameters.thresh_3D);
       output("Set Protocol 6D");
-      nemo_.get_calc() -> set_protocol<6>(world,parameters.thresh_6D);
+      nemo_.get_calc()->set_protocol < 6 > (world, parameters.thresh_6D);
 
       FunctionDefaults<3>::set_thresh(parameters.thresh_3D);
       FunctionDefaults<6>::set_thresh(parameters.thresh_6D);
@@ -57,31 +47,31 @@ namespace madness {
       parameters.information(world);
       parameters.sanity_check(world);
       // sanity checks
-      if (active_mo.size()+parameters.freeze != CCOPS.mo_ket().size()) CCOPS.error("active_mo + freeze of CC2 class and mo_ket_ of CC_Operators have not the same size");
-      if (active_mo.size()+parameters.freeze != CCOPS.mo_bra().size()) CCOPS.error("active_mo + freeze of CC2 class and mo_bra_ of CC_Operators have not the same size");
+      if(active_mo.size() + parameters.freeze != CCOPS.mo_ket().size()) CCOPS.error("active_mo + freeze of CC2 class and mo_ket_ of CC_Operators have not the same size");
+      if(active_mo.size() + parameters.freeze != CCOPS.mo_bra().size()) CCOPS.error("active_mo + freeze of CC2 class and mo_bra_ of CC_Operators have not the same size");
       output("Active molecular orbitals have been created...");
-      if(world.rank()==0) std::cout << mo.size() << " MOs\n " << active_mo.size() << " Active MOs\n" << parameters.freeze << "frozen MOs\n";
+      if(world.rank() == 0) std::cout << mo.size() << " MOs\n " << active_mo.size() << " Active MOs\n" << parameters.freeze << "frozen MOs\n";
 
-
-      std::string nuc = "???";
-      if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::None) nuc="None";
-      else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::GaussSlater) nuc="GaussSlater";
-      else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::GradientalGaussSlater) nuc="GradientalGaussSlater";
-      else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::LinearSlater) nuc="LinearSlater";
-      else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::Polynomial) nuc="Polynomial";
-      else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::Slater) nuc="Slater";
-      else if(nemo.nuclear_correlation -> type()==NuclearCorrelationFactor::Two) nuc="Two";
-      if(world.rank()==0) std::cout << "Nuclear Correlation Factor is " << nuc << std::endl;
+      std::string nuc="???";
+      if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::None) nuc="None";
+      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::GaussSlater) nuc="GaussSlater";
+      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::GradientalGaussSlater) nuc="GradientalGaussSlater";
+      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::LinearSlater) nuc="LinearSlater";
+      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::Polynomial) nuc="Polynomial";
+      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::Slater) nuc="Slater";
+      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::Two) nuc="Two";
+      if(world.rank() == 0) std::cout << "Nuclear Correlation Factor is " << nuc << std::endl;
 
       //output_section("Testing Section in Constructor");
       //CCOPS.test_fill_tree();
-  }
-    vecfuncT make_active_mo(){
+    }
+    vecfuncT
+    make_active_mo() {
       if(mo.empty()) MADNESS_EXCEPTION("Tried to init. active MOs, but MO vector is empty",1);
       if(parameters.freeze != 0){
 	output("Make Active MOs from " + stringify(parameters.freeze) + " to " + stringify(mo.size()));
 	vecfuncT tmp;
-	for(size_t i=parameters.freeze; i<mo.size();i++){
+	for(size_t i=parameters.freeze; i < mo.size(); i++){
 	  tmp.push_back(mo[i]);
 	}
 	return tmp;
@@ -90,30 +80,34 @@ namespace madness {
 	return mo;
       }
     }
-    void plot(const real_function_3d &f, const std::string &msg = "unspecified function")const{
+    void
+    plot(const real_function_3d &f,const std::string &msg="unspecified function") const {
       plot_plane(world,f,msg);
       output("Plotted " + msg);
     }
     /// Check energy convergence: Creates the difference between two vectors and compares against given thresh in parameters
-    bool check_energy_convergence(const std::vector<double> &current, const std::vector<double> &updated)const{
-      if(current.size()!=updated.size())MADNESS_EXCEPTION("error in energy convergence check: different sizes in vectors",1);
-      bool conv = true;
+    bool
+    check_energy_convergence(const std::vector<double> &current,const std::vector<double> &updated) const {
+      if(current.size() != updated.size()) MADNESS_EXCEPTION("error in energy convergence check: different sizes in vectors",1);
+      bool conv=true;
       std::vector<double> diff(current.size(),0.0);
-      for(size_t i=0;i<current.size();i++){
-	double diffi = updated[i] - current[i];
-	diff[i] = diffi;
+      for(size_t i=0; i < current.size(); i++){
+	double diffi=updated[i] - current[i];
+	diff[i]=diffi;
 	if(diffi > parameters.econv) conv=false;
       }
-      if(world.rank()==0){
+      if(world.rank() == 0){
 	std::cout << "\n\n";
 	std::cout << "Pair Correlation Energies: New, Old, Diff\n";
-	for(size_t i=0;i<current.size();i++) std::cout << updated[i] << ", " << current[i] << ", " << diff[i] << std::endl;
+	for(size_t i=0; i < current.size(); i++)
+	  std::cout << updated[i] << ", " << current[i] << ", " << diff[i] << std::endl;
 	std::cout << "\n\n";
       }
       return conv;
     }
     /// make consistency tests
-    bool test()const;
+    bool
+    test() const;
     /// The World
     World &world;
     /// The electronic Correlation Factor, has to be initialized before parameters so that parameters has the right gamma value
@@ -130,138 +124,297 @@ namespace madness {
     CC_Operators CCOPS;
 
     /// solve the CC2 ground state equations, returns the correlation energy
-    void solve();
-    std::vector<std::pair<CC_vecfunction,double> > solve_ccs();
+    void
+    solve();
+    std::vector<std::pair<CC_vecfunction, double> >
+    solve_ccs();
     /// solve the MP2 equations (uncoupled -> Canonical Orbitals)
-    double solve_mp2(Pairs<CC_Pair> &doubles);
-    double solve_mp2_nonorthogonal(Pairs<CC_Pair> &doubles);
-    double solve_cc2(Pairs<CC_Pair> &u, CC_vecfunction &tau);
-    double solve_cc2_response(const CC_vecfunction &tau, const Pairs<CC_Pair> &u,CC_vecfunction x, Pairs<CC_Pair> &chi);
-    double solve_cispd();
-    double solve_cispd(Pairs<CC_Pair> &doubles,const Pairs<CC_Pair> &mp2_pairs, const CC_vecfunction & cis_singles, const double cis_omega);
-    bool iterate_cc2_singles(const Pairs<CC_Pair> &doubles, CC_vecfunction &singles);
-    bool iterate_cc2_singles_response(const CC_vecfunction &tau, const Pairs<CC_Pair> &u,CC_vecfunction x, const Pairs<CC_Pair> &chi) {
-      output_subsection("Iterate Response of CC2 Singles");
-      const double current_omega = x.omega;
-      output("Current Omega is " + std::to_string(current_omega));
-      CC_Timer timer_potential(world,"Response of CC2 Singles Potential");
-      vecfuncT potential=CCOPS.get_CC2_singles_response_potential(tau,u,x,chi);
-      timer_potential.info();
+    double
+    solve_mp2(Pairs<CC_Pair> &doubles);
+    double
+    solve_mp2_nonorthogonal(Pairs<CC_Pair> &doubles);
+    double
+    solve_cc2(Pairs<CC_Pair> &u,CC_vecfunction &tau);
+    double
+    solve_cc2_response(const CC_vecfunction &tau,const Pairs<CC_Pair> &u,CC_vecfunction x,Pairs<CC_Pair> &chi);
+    double
+    solve_cispd();
+    double
+    solve_cispd(Pairs<CC_Pair> &doubles,const Pairs<CC_Pair> &mp2_pairs,const CC_vecfunction & cis_singles,const double cis_omega);
 
-      output_subsection("Apply the Green's Operator");
-      CC_Timer timer_G(world,"Apply the Green's Operator");
-      vecfuncT G_potential=zero_functions<double, 3>(world,potential.size());
-      scale(world,potential,-2.0);
-      for(size_t i=0; i < potential.size(); i++){
-        double epsi=CCOPS.get_orbital_energies()[i + parameters.freeze]+current_omega;
-        output("Make Greens Operator for single " + stringify(i + parameters.freeze));
-        real_convolution_3d G=BSHOperator<3>(world,sqrt(-2.0 * epsi),parameters.lo,parameters.thresh_bsh_3D);
-        real_function_3d tmp=(G(potential[i])).truncate();
-        G_potential[i]=tmp;
-      }
-      G_potential=CCOPS.apply_Q(G_potential,"G_potential");
-      timer_G.info();
-
-      const vecfuncT residue = sub(world,x.get_vecfunction(),G_potential);
-      const vecfuncT res_bra = mul(world,nemo.nuclear_correlation->square(),residue);
-      const vecfuncT GV_bra = mul(world,nemo.nuclear_correlation->square(),G_potential);
-      const double tmp1 = inner(world,res_bra,G_potential).sum();
-      const double tmp2 = inner(world,GV_bra,G_potential).sum();
-
-      const double delta = 0.5*tmp1/tmp2;
-      if(world.rank()==0) std::cout << " Delta is " << delta << "\n";
-      const double new_omega = current_omega + delta;
-      x.omega = new_omega;
-
-      std::vector<double> errors;
+    // doubles[0] = gs_doubles, doubles[1] = response_doubles
+    bool
+    iterate_singles(CC_vecfunction &singles,const CC_vecfunction singles2,const std::vector<Pairs<CC_Pair>> &doubles,const calctype ctype) {
+      output_subsection("Iterate " + assign_name(ctype) + "-Singles");
+      CC_Timer time_all(world,"Overall Iteration of " + assign_name(ctype) + "-Singles");
       bool converged=true;
-      for(size_t i=0; i < potential.size(); i++){
-        MADNESS_ASSERT(x(i + parameters.freeze).i == i + parameters.freeze);
-        if(world.rank() == 0) std::cout << "|| |tau" + stringify(i + parameters.freeze) + ">|| =" << G_potential[i].norm2() << std::endl;
-        real_function_3d residue=x(i + parameters.freeze).function - G_potential[i];
-        double error=residue.norm2();
-        errors.push_back(error);
-        if(world.rank() == 0) std::cout << "|| residue" + stringify(i + parameters.freeze) + ">|| =" << error << std::endl;
-        CC_function new_x(G_potential[i],x(i + parameters.freeze).i,RESPONSE);
-        new_x.current_error=error;
-        x(i + parameters.freeze)=new_x;
-        if(fabs(error) > parameters.dconv_3D) converged=false;
+
+      CC_vecfunction old_singles(singles);
+      for(auto& tmp : singles.functions)
+	old_singles(tmp.first).function=copy(tmp.second.function);
+
+      // KAIN solver
+      typedef allocator<double, 3> allocT;
+      typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
+      allocT alloc(world,singles.size());
+      solverT solver(allocT(world,singles.size()));
+      solver.do_print=(world.rank() == 0);
+
+      for(size_t iter=0; iter < parameters.iter_max_3D; iter++){
+	output_subsection("Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
+	CC_Timer time(world,"Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
+	double omega=0.0;
+	if(ctype == CC2_response_) omega=singles.omega;
+	else if(ctype == CCS_response_) omega=singles.omega;
+
+	// consistency check
+	switch(ctype){
+	  case CC2_:
+	    if(singles.type != PARTICLE) CCOPS.warning("iterate_singles: CC2 demanded but singles are not of type PARTICLE");
+	    break;
+	  case MP2_:
+	    CCOPS.error("Demanded Singles Calculation for MP2 ????");
+	    break;
+	  case CC2_response_:
+	    if(singles.type != RESPONSE or singles2.type != PARTICLE) CCOPS.warning("iterate_singles: CC2_response_ singles have wrong types");
+	    break;
+	  case CCS_response_:
+	    if(singles.type != RESPONSE) CCOPS.warning("iterate_singles: CCS_response_ singles have wrong types");
+	    break;
+	  case CISpD_:
+	    CCOPS.error("Demanded Singles Calculation for CIS(D)");
+	    break;
+	  case experimental_:
+	    CCOPS.error("Iterate Singles not implemented for Experimental calculation");
+	    break;
+	  default:
+	    CCOPS.error("Unknown calculation type in iterate singles: " + assign_name(ctype));
+	}
+
+	// get potentials
+	CC_Timer time_V(world,assign_name(ctype) + "-Singles Potential");
+	vecfuncT V;
+	if(ctype == CC2_) V=CCOPS.get_CC2_singles_potential(singles,doubles.front());
+	else if(ctype == CC2_response_) V=CCOPS.get_CC2_singles_response_potential(singles2,doubles.front(),singles,doubles.back());
+	else if(ctype == CCS_response_) V=CCOPS.get_CCS_response_potential(singles);
+	else CCOPS.error("iterate singles: unknown type");
+	time_V.info();
+
+	if(ctype == CCS_response_){
+	  const double expv=CCOPS.compute_cis_expectation_value(singles,V);
+	  if(world.rank() == 0) std::cout << "Current CCS/CIS Expectation Value " << expv << "\n";
+	  if(world.rank() == 0) std::cout << "using expectation-value for bsh-operator\n";
+	  singles.omega = expv;
+	  omega = expv;
+	}
+
+	scale(world,V,-2.0);
+	truncate(world,V);
+
+	// make bsh operators
+	CC_Timer time_makebsh(world,"Make G-Operators");
+	std::vector < std::shared_ptr<SeparatedConvolution<double, 3> > > G(singles.size());
+	for(size_t i=0; i < G.size(); i++){
+	  const double bsh_eps=CCOPS.get_orbital_energies()[i + parameters.freeze] + omega;
+	  G[i]=std::shared_ptr < SeparatedConvolution<double, 3> > (BSHOperatorPtr3D(world,sqrt(-2.0 * bsh_eps),parameters.lo,parameters.thresh_bsh_3D));
+	}
+	world.gop.fence();
+	time_makebsh.info();
+
+	// apply bsh operators
+	CC_Timer time_applyG(world,"Apply G-Operators");
+	vecfuncT GV=apply<SeparatedConvolution<double, 3>, double, 3>(world,G,V);
+	world.gop.fence();
+	time_applyG.info();
+
+	// apply Q-Projector to result
+	GV=CCOPS.apply_Q(GV);
+
+	if(ctype==CCS_response_){
+	  output("Normalizing new singles");
+	  const vecfuncT x = GV;
+	  const vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),GV);
+	  const double norm = sqrt(inner(world,xbra,x).sum());
+	  if(world.rank()==0) std::cout << " Norm was " <<std::fixed<< std::setprecision(parameters.output_prec) << norm << "\n";
+	  scale(world,GV,1.0/norm);
+	}
+
+	// residual
+	const vecfuncT residual=sub(world,singles.get_vecfunction(),GV);
+
+	// information with and without nuclear correlation factor
+	const Tensor<double> xinnerx=inner(world,singles.get_vecfunction(),singles.get_vecfunction());
+	const Tensor<double> R2xinnerx=inner(world,mul(world,nemo.nuclear_correlation->square(),singles.get_vecfunction()),singles.get_vecfunction());
+	const Tensor<double> GVinnerGV=inner(world,GV,GV);
+	const Tensor<double> R2GVinnerGV=inner(world,mul(world,nemo.nuclear_correlation->square(),GV),GV);
+	const Tensor<double> rinnerr=inner(world,residual,residual);
+	const Tensor<double> R2rinnerr=inner(world,mul(world,nemo.nuclear_correlation->square(),residual),residual);
+	const double R2vector_error=sqrt(R2rinnerr.sum());
+
+	// print information
+	if(world.rank() == 0) std::cout << "\n\n-----Results of current interation:-----\nresult with nuclear correlation factor (result without)\n";
+	if(world.rank() == 0) std::cout << "\nName: ||" << singles.name() << "||, ||GV" << singles.name() << ", ||residual||" << "\n";
+	if(world.rank() == 0)
+	  std::cout << singles.name() << ": " << std::scientific << std::setprecision(parameters.output_prec) << sqrt(R2xinnerx.sum()) << " (" << sqrt(xinnerx.sum()) << "), "
+	      << sqrt(R2GVinnerGV.sum()) << " (" << sqrt(GVinnerGV.sum()) << "), " << sqrt(R2rinnerr.sum()) << " (" << sqrt(rinnerr.sum()) << "), \n----------------------------------------\n";
+	for(size_t i=0; i < GV.size(); i++){
+	  if(world.rank() == 0)
+	    std::cout << singles(i + parameters.freeze).name() << ": " << std::scientific << std::setprecision(parameters.output_prec) << sqrt(R2xinnerx(i)) << " (" << sqrt(xinnerx(i)) << "), "
+		<< sqrt(R2GVinnerGV(i)) << " (" << sqrt(GVinnerGV(i)) << "), " << sqrt(R2rinnerr(i)) << " (" << sqrt(rinnerr(i)) << "), ";
+	}
+	if(world.rank() == 0) std::cout << "\n----------------------------------------\n\n";
+
+	// make second order update (only for response)
+	if(ctype == CC2_response_ or ctype == CCS_response_){
+	  output("\nMake 2nd order energy update:");
+	  double tmp=inner(world,residual,V).sum();
+	  double tmp2=inner(world,GV,GV).sum();
+	  const double delta=(0.5 * tmp / tmp2);
+	  // include nuclear factors
+	  {
+	    vecfuncT bra_res=mul(world,nemo.nuclear_correlation->square(),residual);
+	    vecfuncT bra_GV=mul(world,nemo.nuclear_correlation->square(),GV);
+	    double Rtmp=inner(world,bra_res,V).sum();
+	    double Rtmp2=inner(world,bra_GV,GV).sum();
+	    const double Rdelta=(0.5 * Rtmp / Rtmp2);
+	    double old_omega=omega;
+	    if(fabs(delta) < 0.1) omega+=Rdelta;
+	    if(world.rank() == 0)
+	      std::cout << "omega, old_omega, Rdelta, (delta)" << std::fixed << std::setprecision(parameters.output_prec + 2) << omega << ", " << old_omega << ", " << Rdelta << ", (" << delta
+		  << ")\n\n";
+	  }
+
+	}
+
+	// update singles
+	singles.omega=omega;
+	vecfuncT new_singles=GV;
+	if(parameters.kain) new_singles=solver.update(singles.get_vecfunction(),residual).x;
+	for(size_t i=0; i < GV.size(); i++){
+	  singles(i + parameters.freeze).function=copy(new_singles[i]);
+	}
+
+	// update intermediates
+	if(singles.type == RESPONSE) CCOPS.update_response_intermediates(singles);
+	else if(singles.type == PARTICLE) CCOPS.update_intermediates(singles);
+
+	converged=(R2vector_error < parameters.dconv_3D);
+
+	time.info();
+	if(converged) break;
       }
-      if(converged) output("response singles converged");
-      else output("No convergence in response singles");
+      time_all.info();
+
+      // Assign the overall changes
+      if(world.rank() == 0) std::cout << "Change in Singles functions after all the CC2-Single-Microiterations" << std::endl;
+      for(auto& tmp : singles.functions){
+	tmp.second.current_error=(tmp.second.function - old_singles(tmp.first).function).norm2();
+	if(world.rank() == 0) std::cout << "Change of " << tmp.second.name() << "=" << tmp.second.current_error << std::endl;
+      }
+
+      CCOPS.plot(singles);
+      CCOPS.save_functions(singles);
+
       return converged;
     }
-    bool iterate_cc2_doubles( Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
+
+    bool
+    iterate_cc2_singles(const Pairs<CC_Pair> &doubles,CC_vecfunction &singles);
+
+    bool
+    iterate_cc2_doubles(Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const;
     /// Compute the pair correlation energy of an electron pair function at mp2/CCD level (no singles contributions)
-    double compute_mp2_pair_energy(CC_Pair &u)const;
-    CC_vecfunction initialize_cc2_singles()const;
-    Pairs<CC_Pair> initialize_pairs(const pairtype type, const double omega=0.0)const;
+    double
+    compute_mp2_pair_energy(CC_Pair &u) const;
+    CC_vecfunction
+    initialize_cc2_singles() const;
+    Pairs<CC_Pair>
+    initialize_pairs(const pairtype type,const double omega=0.0) const;
+    Pairs<CC_Pair>
+    make_empty_pairs(const pairtype type,const double omega=0.0) const {
+      Pairs<CC_Pair> pairs;
+      for(size_t i=parameters.freeze; i < mo.size(); i++){
+	for(size_t j=i; j < mo.size(); j++){
+	  CC_Pair u(i,j,type);
+	  u.function=real_factory_6d(world);
+	  u.current_energy=0.0;
+	  u.current_energy_difference=CC_Pair::uninitialized();
+	  if(u.type == GROUND_STATE){
+	    u.ij_gQf_ij=CCOPS.make_ijgQfxy(u.i,u.j,CC_function(mo[u.i],u.i,HOLE),CC_function(mo[u.j],u.j,HOLE));
+	    u.ji_gQf_ij=CCOPS.make_ijgQfxy(u.i,u.j,CC_function(mo[u.j],u.j,HOLE),CC_function(mo[u.i],u.i,HOLE));
+	    u.epsilon=CCOPS.get_epsilon(u.i,u.j);
+	    u.current_energy=CCOPS.compute_mp2_pair_energy(u);
+	  }else if(u.type == EXCITED_STATE){
+	    u.epsilon=CCOPS.get_epsilon(u.i,u.j) + omega;
+	    u.current_energy=omega;
+	  }
+	  pairs.insert(i,j,u);
+	}
+      }
+      return pairs;
+    }
     /// Initialize an electron pair
-    void initialize_electron_pair(CC_Pair &u)const;
+    void
+    initialize_electron_pair(CC_Pair &u) const;
     /// Calculate the current CC2 correlation energy
-    double get_correlation_energy(const Pairs<CC_Pair> &doubles)const;
+    double
+    get_correlation_energy(const Pairs<CC_Pair> &doubles) const;
     /// update the pair energies of cc2
-    std::vector<double> update_cc2_pair_energies(const Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const;
-    /// Iterates the CC2 singles equations
-    void iterate_singles(vecfuncT &singles, const Pairs<real_function_6d> &doubles)const;
-    /// Iterates the CC2 doubles equations
-    void iterate_doubles(const vecfuncT &singles, Pairs<real_function_6d> &doubles)const;
+    std::vector<double>
+    update_cc2_pair_energies(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const;
     /// Iterates a pair of the CC2 doubles equations
-    bool iterate_pair(CC_Pair & pair, const CC_vecfunction &singles)const;
-    bool iterate_pair(CC_Pair &pair,const CC_vecfunction &singles, const CC_vecfunction &response_singles,const calctype ctype) const;
-    bool iterate_nonorthogonal_pair(CC_Pair &pair);
+    bool
+    iterate_pair(CC_Pair & pair,const CC_vecfunction &singles) const;
+    bool
+    iterate_pair(CC_Pair &pair,const CC_vecfunction &singles,const CC_vecfunction &response_singles,const calctype ctype) const;
+    bool
+    iterate_nonorthogonal_pair(CC_Pair &pair);
     /// Create formated output, std output with world rank 0
-    void output(const std::string &msg)const{
-      if(world.rank()==0) std::cout << msg << "\n";
+    void
+    output(const std::string &msg) const {
+      if(world.rank() == 0) std::cout << msg << "\n";
     }
     /// Create formated output, New programm section
-    void output_section(const std::string&msg)const{
-      if(world.rank()==0){
+    void
+    output_section(const std::string&msg) const {
+      if(world.rank() == 0){
 	std::cout << std::setw(100) << std::setfill('#') << std::endl;
 	std::cout << "\n" << msg << "\n";
 	std::cout << std::setw(100) << std::setfill('#') << "\n" << std::endl;
       }
     }
     /// Create formated output, New programm subsection
-    void output_subsection(const std::string&msg)const{
-      if(world.rank()==0){
+    void
+    output_subsection(const std::string&msg) const {
+      if(world.rank() == 0){
 	std::cout << std::setw(50) << std::setfill('*') << std::endl;
 	std::cout << "\n" << msg << "\n";
 	std::cout << std::setw(50) << std::setfill('*') << "\n" << std::endl;
       }
     }
-    void decompose_constant_part();
+    void
+    decompose_constant_part();
 
-    void print_results(const Pairs<CC_Pair> &doubles, const CC_vecfunction &singles)const{
-      const double Ecorr = get_correlation_energy(doubles);
+    void
+    print_results(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
+      const double Ecorr=get_correlation_energy(doubles);
       output("\n Results:\n");
-      const size_t prec = std::max<double>(6,parameters.output_prec);
-      std::cout <<std::setw(5)<<std::setfill(' ')<< "Pair" << "|"
-	  <<std::setw(prec+1)<<std::setfill(' ')<< "omega" <<"|"
-	  <<std::setw(prec+1)<<std::setfill(' ')<< "omega*2" << "|"
-	  <<std::setw(7)<<std::setfill(' ')<< "error" << "|"
-	  <<std::setw(7)<<std::setfill(' ')<< "deltaE" << "|"
-	  <<std::setw(7)<<std::setfill(' ')<< "||uij||" << "|"
-	  <<std::setw(7)<<std::setfill(' ')<< "||ti||" << "|"
-	  <<std::setw(7)<<std::setfill(' ')<< "||tj||" <<"\n" ;
-      for(const auto utmp:doubles.allpairs){
+      const size_t prec=std::max<double>(6,parameters.output_prec);
+      std::cout << std::setw(5) << std::setfill(' ') << "Pair" << "|" << std::setw(prec + 1) << std::setfill(' ') << "omega" << "|" << std::setw(prec + 1) << std::setfill(' ') << "omega*2" << "|"
+	  << std::setw(7) << std::setfill(' ') << "error" << "|" << std::setw(7) << std::setfill(' ') << "deltaE" << "|" << std::setw(7) << std::setfill(' ') << "||uij||" << "|" << std::setw(7)
+	  << std::setfill(' ') << "||ti||" << "|" << std::setw(7) << std::setfill(' ') << "||tj||" << "\n";
+      for(const auto utmp : doubles.allpairs){
 	const CC_Pair & u=utmp.second;
-	double omega = u.current_energy;
-	if(u.i!=u.j) omega = 2.0*u.current_energy;
-	if(world.rank()==0){
-	  std::cout << std::fixed << std::setprecision(prec)
-	  <<std::setw(5)<<std::setfill(' ')<< u.name() << "|"
-	  <<std::setw(prec+1)<<std::setfill(' ')<< u.current_energy <<"|"
-	  <<std::setw(prec+1)<<std::setfill(' ')<< omega << "|"
-	  << std::scientific << std::setprecision(3)
-	  <<std::setw(7)<<std::setfill(' ')<< u.current_error << "|"
-	  <<std::setw(7)<<std::setfill(' ')<< u.current_energy_difference << "|"
-	  <<std::setw(7)<<std::setfill(' ')<< u.function.norm2() <<"|"
-	  <<std::setw(7)<<std::setfill(' ')<< singles(u.i).function.norm2() <<"|"
-	  <<std::setw(7)<<std::setfill(' ')<< singles(u.j).function.norm2() <<"\n";
+	double omega=u.current_energy;
+	if(u.i != u.j) omega=2.0 * u.current_energy;
+	if(world.rank() == 0){
+	  std::cout << std::fixed << std::setprecision(prec) << std::setw(5) << std::setfill(' ') << u.name() << "|" << std::setw(prec + 1) << std::setfill(' ') << u.current_energy << "|"
+	      << std::setw(prec + 1) << std::setfill(' ') << omega << "|" << std::scientific << std::setprecision(3) << std::setw(7) << std::setfill(' ') << u.current_error << "|" << std::setw(7)
+	      << std::setfill(' ') << u.current_energy_difference << "|" << std::setw(7) << std::setfill(' ') << u.function.norm2() << "|" << std::setw(7) << std::setfill(' ')
+	      << singles(u.i).function.norm2() << "|" << std::setw(7) << std::setfill(' ') << singles(u.j).function.norm2() << "\n";
 	}
       }
-      if(world.rank()==0) std::cout << "\n ---> overall correlation energy: " << std::fixed << std::setprecision(parameters.output_prec) << Ecorr << std::endl;
+      if(world.rank() == 0) std::cout << "\n ---> overall correlation energy: " << std::fixed << std::setprecision(parameters.output_prec) << Ecorr << std::endl;
     }
   };
 

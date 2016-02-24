@@ -10,7 +10,7 @@ AM_CPPFLAGS += -D$(GITREV)
 
 noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
- dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
+ dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic 2dharmonic ndharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
  tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian
  
@@ -67,6 +67,10 @@ endif
 sininteg_SOURCES = sininteg.cc
 
 3dharmonic_SOURCES = 3dharmonic.cc
+
+2dharmonic_SOURCES = 2dharmonic.cc
+
+ndharmonic_SOURCES = ndharmonic.cc
 
 functionio_SOURCES = functionio.cc
 

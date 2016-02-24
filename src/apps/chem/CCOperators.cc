@@ -7,27 +7,8 @@
 
 #include "CCOperators.h"
 
-#include <cmath>
-#include "../../madness/constants.h"
-#include "../../madness/mra/derivative.h"
-#include "../../madness/mra/funcdefaults.h"
-#include "../../madness/mra/funcimpl.h"
-#include "../../madness/mra/funcplot.h"
-#include "../../madness/mra/function_factory.h"
-#include "../../madness/mra/functypedefs.h"
-#include "../../madness/mra/mra.h"
-#include "../../madness/mra/operator.h"
-#include "../../madness/mra/vmra.h"
-#include "../../madness/tensor/srconf.h"
-#include "../../madness/tensor/tensor.h"
-#include "../../madness/world/madness_exception.h"
-#include "../../madness/world/parallel_archive.h"
-#include "../../madness/world/print.h"
-#include "../../madness/world/world.h"
-#include "electronic_correlation_factor.h"
-#include "TDA.h"
-
 namespace madness {
+
 
 
 
@@ -111,9 +92,9 @@ namespace madness {
     real_function_3d F_ti=real_factory_3d(world);
     real_function_3d F_tj=real_factory_3d(world);
     if(ctype == CC2_){
-      F_ti=(apply_F(ti) - epsi * ti.function).truncate();
+      F_ti=(apply_reduced_F(ti) * ti.function).truncate();
       if(symmetric) F_tj=copy(F_ti);
-      else F_tj=(apply_F(tj) - epsj * tj.function).truncate();
+      else F_tj=(apply_reduced_F(tj) * tj.function).truncate();
     }
 
     output_section("CC2-Residue-Unprojected-Part");
@@ -197,6 +178,7 @@ namespace madness {
     cc2_residue.print_size("Q12cc2_residue");
     return cc2_residue;
   }
+
 
   double
   CC_Operators::compute_mp2_pair_energy(CC_Pair &pair) const {
@@ -666,8 +648,8 @@ namespace madness {
 
   real_function_6d CC_Operators::apply_regularization_potential(const CC_function &a, const CC_function &b, const double omega)const{
     if((a.type != RESPONSE and b.type != RESPONSE) and omega !=0.0) error("Apply_regularization_potential: omega is not zero, but none of the functions has response type");
-    const real_function_3d Fa=apply_F(a) - (get_orbital_energies()[a.i]+0.5*omega) * a.function;
-    const real_function_3d Fb=apply_F(b) - (get_orbital_energies()[b.i]+0.5*omega) * b.function;
+    const real_function_3d Fa=apply_reduced_F(a) + 0.5*omega * a.function;
+    const real_function_3d Fb=apply_reduced_F(b) + 0.5*omega * b.function;
 
     // make the Fock operator part:  f(F-eij)|titj> = (F1+F2-ei-ej)|titj> = (F1-ei)|ti>|tj> + |ti>(F2-ei)|tj>
     const real_function_6d fFab=make_f_xy(Fa,b,guess_thresh(Fa,b)) + make_f_xy(a,Fb,guess_thresh(a,Fb));
@@ -676,7 +658,7 @@ namespace madness {
 
     // make the (U-[K,f])|titj> part
     // first the U Part
-    const real_function_6d Uab=apply_transformed_Ue(a,b);
+    const real_function_6d Uab=apply_transformed_Ue(a,b,omega);
     // then the [K,f] part
     const real_function_6d KffKab=apply_exchange_commutator(a,b);
 
@@ -746,6 +728,11 @@ namespace madness {
 
     // Contruct the BSH operator in order to screen
 
+    double bsh_eps = eps;
+    if(u.type==EXCITED_STATE){
+      if(world.rank()==0) std::cout << "omega for bsh is " << u.current_energy << "\n";
+      bsh_eps = eps + u.current_energy;
+    }
     real_convolution_6d op_mod=BSHOperator<6>(world,sqrt(-2.0 * eps),parameters.lo,parameters.thresh_bsh_6D);
     op_mod.modified()=true;
     // Make the CompositeFactory
@@ -900,8 +887,9 @@ namespace madness {
   /// @param[in] j the second index of the current pair function
   /// @param[out]  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
   real_function_6d
-  CC_Operators::apply_transformed_Ue(const CC_function &x,const CC_function &y) const {
+  CC_Operators::apply_transformed_Ue(const CC_function &x,const CC_function &y, const double &omega) const {
     // make shure the thresh is high enough
+    if(x.type!=RESPONSE and y.type!=RESPONSE and omega!=0.0) warning("apply_Ue omega!=0 but either x nor y are of type RESPONSE");
     CC_Timer time_Ue(world,"Ue|" + x.name() + y.name() + ">");
     const size_t i=x.i;
     const size_t j=y.i;
@@ -911,7 +899,7 @@ namespace madness {
     real_function_6d Uxy=real_factory_6d(world);
     Uxy.set_thresh(tight_thresh);
     // Apply the untransformed U Potential
-    const double eps=get_epsilon(i,j);
+    const double eps=get_epsilon(i,j)+omega;
     Uxy=corrfac.apply_U(x.function,y.function,eps);
     Uxy.set_thresh(tight_thresh);
 
@@ -960,6 +948,7 @@ namespace madness {
     const real_function_3d gxx=g12(xx);
     const double aa=inner(yy,gxx);
     const double error=std::fabs(a - aa);
+    if(world.rank()==0) std::cout << "Ue-Error=" << error << "\n";
     time_sane.info();
     if(world.rank() == 0 and error > FunctionDefaults<6>::get_thresh()){
       printf("<xy| U_R |xy>  %12.8f\n",a);
@@ -1094,66 +1083,53 @@ namespace madness {
     return result;
   }
 
-  vecfuncT
-  CC_Operators::apply_F(const CC_vecfunction &x) const {
-    vecfuncT result;
-    for(const auto itmp : x.functions){
-      const CC_function& xi=itmp.second;
-      result.push_back(apply_F(xi));
+
+  // returns (F-eps-omega)|x>
+  real_function_3d
+  CC_Operators::apply_reduced_F(const CC_function &x) const {
+    output("Getting (F-eps-omega)|"+x.name()+"> from singles potential");
+    if(x.type==HOLE) return real_factory_3d(world);
+    else if(x.type==PARTICLE) return -1.0*current_singles_potential_gs[x.i-parameters.freeze];
+    else if(x.type==MIXED) return -1.0*current_singles_potential_gs[x.i-parameters.freeze];
+    else if(x.type==RESPONSE) return -1.0*current_singles_potential_response[x.i-parameters.freeze];
+    else{
+      error("Apply_reduced_F unknown type");
+      return real_factory_3d(world);
     }
-    return result;
   }
 
-  real_function_3d
-  CC_Operators::apply_F(const CC_function &x,const double& omega) const {
+  real_function_3d CC_Operators::apply_F(const CC_function &x)const{
+    output("apply F on " + x.name());
+    real_function_3d refined_x=copy(x.function).refine();
+    // kinetic part
+    CC_Timer T_time(world,"apply_T");
+    std::vector < std::shared_ptr<real_derivative_3d> > gradop;
+    gradop=gradient_operator<double, 3>(world);
+    real_function_3d laplace_x=apply_laplacian(x.function);
+    real_function_3d Tx=laplace_x.scale(-0.5).truncate();
+    T_time.info();
 
-    if(x.type == HOLE){
-      return get_orbital_energies()[x.i] * x.function;
-    }else if(x.type == PARTICLE and not current_singles_potential_gs.empty()){
-      const real_function_3d singles_potential=current_singles_potential_gs[x.i - parameters.freeze];
-      return (get_orbital_energies()[x.i] * x.function - singles_potential);
-    }else if(x.type == MIXED and not current_singles_potential_gs.empty()){
-      const real_function_3d singles_potential=current_singles_potential_gs[x.i - parameters.freeze];
-      return (get_orbital_energies()[x.i] * x.function - singles_potential);     // for mixed: eps(i)*x.i = epsi*(moi + taui)
-    }else if(x.type == RESPONSE and not current_singles_potential_response.empty()){
-      const real_function_3d singles_potential=current_singles_potential_response[x.i - parameters.freeze];
-      return ((get_orbital_energies()[x.i]+omega)*x.function - singles_potential);
-    }
+    CC_Timer J_time(world,"apply_J");
+    real_function_3d hartree_potential= real_function_3d(world);
+    for(const auto& tmpk :mo_ket_.functions) hartree_potential+=g12(mo_bra_(tmpk.first),tmpk.second);
+    const real_function_3d Jx = hartree_potential*x.function;
+    J_time.info();
 
-    else{
-      real_function_3d refined_x=copy(x.function).refine();
-      // kinetic part
-      CC_Timer T_time(world,"apply_T");
-      std::vector < std::shared_ptr<real_derivative_3d> > gradop;
-      gradop=gradient_operator<double, 3>(world);
-      real_function_3d laplace_x=apply_laplacian(x.function);
-      real_function_3d Tx=laplace_x.scale(-0.5).truncate();
-      T_time.info();
+    CC_Timer K_time(world,"apply_K");
+    const real_function_3d Kx=K(x);
+    K_time.info();
 
-      CC_Timer J_time(world,"apply_J");
-      real_function_3d hartree_potential= real_function_3d(world);
-      for(const auto& tmpk :mo_ket_.functions) hartree_potential+=g12(mo_bra_(tmpk.first),tmpk.second);
-      const real_function_3d Jx = hartree_potential*x.function;
-      J_time.info();
-
-      CC_Timer K_time(world,"apply_K");
-      const real_function_3d Kx=K(x);
-      K_time.info();
-
-      CC_Timer U_time(world,"apply_U");
-      real_function_3d U2x=(nemo.nuclear_correlation->U2() * x.function).truncate();
-      real_function_3d U1x=real_factory_3d(world);
-      for(size_t axis=0; axis < 3; axis++){
+    CC_Timer U_time(world,"apply_U");
+    real_function_3d U2x=(nemo.nuclear_correlation->U2() * x.function).truncate();
+    real_function_3d U1x=real_factory_3d(world);
+    for(size_t axis=0; axis < 3; axis++){
 	const real_function_3d U1_axis=nemo.nuclear_correlation->U1(axis);
 	const real_function_3d dx=(*gradop[axis])(x.function);
 	U1x+=(U1_axis * dx).truncate();
-      }
-      U_time.info();
-
-      return (Tx + 2.0 * Jx - Kx + U2x + U1x).truncate();
     }
-    error("apply_F: should not end up here");
-    return real_factory_3d(world);
+    U_time.info();
+
+    return (Tx + 2.0 * Jx - Kx + U2x + U1x).truncate();
   }
 
   /// swap particles 1 and 2
@@ -1186,7 +1162,7 @@ namespace madness {
 
 
   // E = <x_i|S2b_i> + <x_i|S2c_i>
-  //   = 2<x_ik|g|tauik> - <kx_i|g|tauik> + <x_i|S2c_i>
+  //   = 2<x_ik|g|tauik> - <kx_i|g|tauik> + <x_i|S2b_i>
   double CC_Operators::compute_cispd_energy(const Pairs<CC_Pair> &u, const Pairs<CC_Pair> mp2_doubles, const CC_vecfunction x){
     remove_stored_singles_potentials();
     const CC_vecfunction active_mo = make_t_intermediate(x);

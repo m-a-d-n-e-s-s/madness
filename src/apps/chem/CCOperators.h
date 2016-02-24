@@ -13,6 +13,7 @@
 #include <chem/CCStructures.h>
 #include <chem/projector.h>
 #include <chem/nemo.h>
+#include <chem/SCFOperators.h>
 //#include <string>o
 
 // to debug
@@ -405,9 +406,11 @@ namespace madness {
       return mul_sparse(l,r,parameters.thresh_3D);
     }
 
-    template<typename T, size_t NDIM>
+
     void save_functions(const CC_vecfunction &f)const{
-      for(const auto&tmp:f.functions) save_function<T,NDIM>(tmp.second.function,tmp.second.name());
+      CC_Timer time(world,"Saving CC_vecfunction");
+      for(const auto&tmp:f.functions) save_function<double,3>(tmp.second.function,tmp.second.name());
+      time.info();
     }
 
     /// save a function
@@ -573,6 +576,19 @@ namespace madness {
 
     void test_singles_potential();
 
+
+    vecfuncT get_CCS_response_potential(const CC_vecfunction &x){
+      if(x.type!=RESPONSE) error("get_CCS_response_potential: Wrong type of input singles");
+      Pairs<CC_Pair> empty_doubles;
+      CC_vecfunction empty_singles(PARTICLE);
+      const vecfuncT fock_residue = response_potential_singles(empty_singles,empty_doubles,x,empty_doubles,pot_F3D_);
+      vecfuncT potential =          response_potential_singles(empty_singles,empty_doubles,x,empty_doubles,pot_cis_);
+      potential = apply_Q(potential,"CCS-Response-Singles-Potential");
+      truncate(world,potential);
+      current_singles_potential_response = copy(world,potential);
+      return add(world,fock_residue,potential);
+    }
+
     vecfuncT get_CC2_singles_response_potential(const CC_vecfunction &gs_singles,
 						const Pairs<CC_Pair> &gs_doubles,const CC_vecfunction &response_singles,
 						const Pairs<CC_Pair> &response_doubles) {
@@ -582,7 +598,8 @@ namespace madness {
       if(response_doubles(parameters.freeze,parameters.freeze).type != EXCITED_STATE) error("cc2_singles_response_potential: response_doubles have wrong type");
 
       const vecfuncT fock_residue = response_potential_singles(gs_singles,gs_doubles,response_singles,response_doubles,pot_F3D_);
-      vecfuncT potential =          response_potential_singles(gs_singles,gs_doubles,response_singles,response_doubles,pot_S2b_u_);
+      vecfuncT potential =          response_potential_singles(gs_singles,gs_doubles,response_singles,response_doubles,pot_ccs_);
+      potential=add(world,potential,response_potential_singles(gs_singles,gs_doubles,response_singles,response_doubles,pot_S2b_u_));
       potential=add(world,potential,response_potential_singles(gs_singles,gs_doubles,response_singles,response_doubles,pot_S2c_u_));
 
       potential=add(world,potential,response_potential_singles(gs_singles,gs_doubles,response_singles,response_doubles,pot_S4a_u_));
@@ -638,6 +655,29 @@ namespace madness {
     }
 
 
+    /// returns: $\f - G(Q*kgj*moi,xk) - G(xk,kgi*moj)   $\f
+    real_function_6d make_cispd_coulomb_parts(const CC_function & moi, const CC_function &moj, const CC_vecfunction &x)const{
+      if(FunctionDefaults<6>::get_thresh()>parameters.tight_thresh_6D) warning("Thresh has not been tightened for coulomb parts of CIS(D)");
+      const double omega = x.omega;
+      const double bsh_eps = get_epsilon(moi.i,moj.i)+omega;
+      real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 *bsh_eps),parameters.lo,parameters.thresh_bsh_6D);
+
+      real_function_6d result = real_factory_6d(world);
+      for(const auto& ktmp:x.functions){
+	CC_function mokbra = mo_bra_(ktmp.first);
+	CC_function xk = ktmp.second;
+
+	const real_function_3d p1 = apply_Q(g12(mokbra,moj)*moi.function);
+	const real_function_3d p2 = apply_Q(g12(mokbra,moi)*moj.function);
+
+	result -= -2.0*(G(p1,xk.function));
+	result -= -2.0*(G(xk.function,p2));
+
+      }
+
+      return result;
+    }
+
     real_function_6d make_cc2_coulomb_parts(const CC_function &taui, const CC_function &tauj, const CC_vecfunction &singles, const double omega=0.0) const;
 
 
@@ -681,53 +721,6 @@ namespace madness {
     real_function_6d make_cc2_residue_sepparated(const CC_function &taui, const CC_function &tauj, const double omega=0.0)const;
 
 
-    //    // returns \sum_k <k|operator|xy>_1
-    //    real_function_3d screen_operator(const CC_vecfunction &bra,const CC_function &x, const CC_function &y,real_function_3d (*A)(const CC_function&,const CC_function&, const CC_function&))const{
-    //      real_function_3d result = real_factory_3d(world);
-    //      for(const auto & ktmp:bra.functions){
-    //	const CC_function &k=ktmp.second;
-    //	result += A(k,x,y);
-    //      }
-    //      return result;
-    //    }
-
-    //    // return <k|g|xy>_1 = \sum_k <k|g|x>(2)|y(2)>
-    //    real_function_3d screened_g(const CC_function&k,const CC_function&x, const CC_function&y)const{
-    //      return (apply_g12(k,x)*y.function).truncate();
-    //    }
-    //    // return <k|f|xy>_1 = <k|f|x>(2)|y(2)>
-    //    real_function_3d screened_f(const CC_function&k,const CC_function&x, const CC_function&y)const{
-    //      return (apply_f12(k,x)*y.function).truncate();
-    //    }
-    //    // return <k|F|xy>_1 = <k|F|x> |y(2)> + <k|x> |Fy(2)>
-    //    real_function_3d screened_fF(const CC_function&k,const CC_function&x, const CC_function&y)const{
-    //      // <k|F|x> can be calculated more effectively but since the full Fock operator is applied to y we should keep it consistent
-    //      const real_function_3d Fx = apply_F(x);
-    //      const real_function_3d Fy = apply_F(y);
-    //      const double kFx = k.inner(Fx);
-    //      const double kx =k.inner(x);
-    //      return (kFx*y.function + kx*Fy).truncate();
-    //    }
-    // return <k|Kf|xy>_1 = <k|K1f|xy>_1 + <k|K2f|xy>
-    // <k|K1f|xy> = <l|kgl*f|x>*|y>
-    // <k|K2f|xy> = <l|kfx*g|y>*|l>
-    //    real_function_3d screened_Kf(const CC_function&k,const CC_function&x, const CC_function&y)const{
-    //      const real_function_3d kfx_y = screened_f(k,x,y);
-    //      real_function_3d l_kgl = real_factory_3d(world);
-    //      real_function_3d k_K2f_xy = real_factory_3d(world);
-    //      for(const auto & ltmp:mo_bra_.functions){
-    //	const CC_function &l=ltmp.second;
-    //	l_kgl += l.function*apply_g12(k,mo_ket_(l));
-    //	k_K2f_xy += apply_g12(l,kfx_y)*mo_ket_(l).function;
-    //      }
-    //      l_kgl.truncate();
-    //      k_K2f_xy.truncate();
-    //      const real_function_3d k_K1f_xy = (apply_f12(l_kgl,x)*y.function).truncate();
-    //
-    //
-    //      return (k_K1f_xy + k_K2f_xy).truncate();
-    //
-    //    }
 
     // return <kl|A|xy>
     // the given operator a should act as: A(x,y,z) = <x|A|yz>_1
@@ -743,30 +736,6 @@ namespace madness {
       }
       return result;
     }
-
-
-    //    real_function_6d get_MP2_potential_constant_part(const CC_Pair &u) const {
-    //      CC_function mo_i = mo_ket_(u.i);
-    //      CC_function mo_j = mo_ket_(u.j);
-    //
-    //      CC_Timer timer_U(world, "U|ij>");
-    //      real_function_6d UePart = apply_transformed_Ue(mo_i, mo_j);
-    //      UePart.print_size("Ue|" + mo_i.name() + mo_j.name());
-    //      timer_U.info();
-    //
-    //      CC_Timer timer_KffK(world, "Kf|ij>");
-    //      real_function_6d KffKPart = apply_exchange_commutator(mo_i, mo_j);
-    //      KffKPart.print_size("[K,f]|" + mo_i.name() + mo_j.name());
-    //      timer_KffK.info();
-    //
-    //      real_function_6d unprojected_result = (UePart - KffKPart).truncate();
-    //      unprojected_result.print_size(
-    //	  "Ue - [K,f]|" + mo_i.name() + mo_j.name());
-    //      real_function_6d result = Q12_projector(unprojected_result);
-    //      result.print_size("Q12(Ue - [K,f]" + u.name());
-    //      return result;
-    //
-    //    }
 
     /// returns the non constant part of the MP2 potential which is
     /// \f$ (2J-K+Un)|uij> \f$
@@ -872,7 +841,79 @@ namespace madness {
       return result;
     }
 
-    // right now this is all copied from mp2.cc
+    double compute_cis_expectation_value(const CC_vecfunction &x, const vecfuncT &V = vecfuncT()){
+
+      const vecfuncT xket = x.get_vecfunction();
+      const vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
+      const double norm = sqrt(inner(world,xbra,xket).sum());
+      Kinetic<double,3> T(world);
+      double kinetic = 0.0;
+      for(size_t k=0;k<xket.size();k++) kinetic += T(xbra[k],xket[k]);
+
+      vecfuncT pot;
+      if(V.empty()) pot = get_CCS_response_potential(x);
+      else pot = V;
+
+      double eps = 0.0;
+      for(size_t k=0;k<xket.size();k++) eps -= get_orbital_energies()[k+parameters.freeze]*xbra[k].inner(xket[k]);
+
+      double potential = inner(world,xbra,V).sum();
+
+      const double result = 1.0/norm*(potential + kinetic + eps);
+      if(world.rank()==0){
+	std::cout << "CCS Expectation Value:\n--------\n";
+	std::cout << "Kinetic-Energy  =" << std::fixed << std::setprecision(8) <<  kinetic << "\n";
+	std::cout << "Potential-Energy=" << std::fixed << std::setprecision(8) <<  potential << "\n";
+	std::cout << "ei*<xi|xi>      =" << std::fixed << std::setprecision(8) <<  eps << "\n";
+	std::cout << "||x||           =" << std::fixed << std::setprecision(8) <<  norm << "\n";
+	std::cout << "Expectationvalue=" << std::fixed << std::setprecision(8)<< result << "\n--------\n";
+      }
+
+      return result;
+
+    }
+
+    double compute_cispd_energy_correction(const CC_vecfunction &x, const Pairs<CC_Pair> &u, const Pairs<CC_Pair> &chi )const{
+
+      const vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
+
+      // S2 Part;
+      const vecfuncT amo_tmp = get_active_mo_ket();
+      const CC_vecfunction amo(amo_tmp,HOLE,parameters.freeze);
+      const double s2bu = inner(world,xbra,S2b_u_part(chi,x)).sum();
+      const double s2cu = inner(world,xbra,S2c_u_part(chi,x)).sum();
+      const double s2br = inner(world,xbra,add(world,S2b_reg_part(x,amo),S2b_reg_part(amo,x))).sum();
+      const double s2cr = inner(world,xbra,add(world,S2c_reg_part(x,amo),S2c_reg_part(amo,x))).sum();
+
+      // S4 Part;
+      const double s4au = inner(world,xbra,S4a_u_part(u,x)).sum();
+      const double s4ar = inner(world,xbra,S4a_reg_part(amo,amo,x)).sum();
+      const double s4bu = inner(world,xbra,S4b_u_part(u,x)).sum();
+      const double s4br = inner(world,xbra,S4b_reg_part(amo,amo,x)).sum();
+      const double s4cu = inner(world,xbra,S4c_u_part(u,x)).sum();
+      const double s4cr = inner(world,xbra,S4c_reg_part(amo,amo,x)).sum();
+
+      double result = 0.0;
+      {
+	if(world.rank()==0)std::cout << " CIS(D) Energy Correction:\n";
+	if(world.rank()==0)std::cout <<"s2bu-part="<< s2bu << "\n";result+=s2bu;
+	if(world.rank()==0)std::cout <<"s2cu-part="<< s2cu << "\n";result+=s2cu;
+	if(world.rank()==0)std::cout <<"s2br-part="<< s2br << "\n";result+=s2br;
+	if(world.rank()==0)std::cout <<"s2cr-part="<< s2cr << "\n";result+=s2cr;
+	if(world.rank()==0)std::cout <<"s4au-part="<< s4au << "\n";result+=s4au;
+	if(world.rank()==0)std::cout <<"s4ar-part="<< s4ar << "\n";result+=s4ar;
+	if(world.rank()==0)std::cout <<"s4bu-part="<< s4bu << "\n";result+=s4bu;
+	if(world.rank()==0)std::cout <<"s4br-part="<< s4br << "\n";result+=s4br;
+	if(world.rank()==0)std::cout <<"s4cu-part="<< s4cu << "\n";result+=s4cu;
+	if(world.rank()==0)std::cout <<"s4cr-part="<< s4cr << "\n";result+=s4cr;
+	if(world.rank()==0)std::cout <<"All together = " << result << "\n";
+      }
+      return result;
+    }
+
+
+
+    // right now this s4cuis all copied from mp2.cc
     double compute_mp2_pair_energy(CC_Pair &pair) const;
 
     /// returns <mo_bra|f> |g>
@@ -912,6 +953,8 @@ namespace madness {
 	  std::cout <<"Difference between new and old ccs potential: " << sqrt(norm2) << std::endl;
 	  if(sqrt(norm2)>parameters.thresh_3D) warning("Warning: New CCS Potential not good");
 	}
+	break;
+	case pot_cis_: error("No Ground State Singles Potential for CIS");
 	break;
 	case pot_S2b_u_:
 	  result = S2b_u_part(u, singles);
@@ -988,6 +1031,9 @@ namespace madness {
 	  break;
 	case pot_ccs_:
 	  result = ccs_response_potential(gs_singles,response_singles);
+	  break;
+	case pot_cis_:
+	  result = cis_response_potential(response_singles);
 	  break;
 	case pot_S2b_u_:
 	  result = S2b_u_part(response_u, response_singles);
@@ -1091,6 +1137,21 @@ namespace madness {
     vecfuncT ccs_unprojected(const CC_vecfunction &ti, const CC_vecfunction &tk)const;
     vecfuncT ccs_response_potential(const CC_vecfunction &singles, const CC_vecfunction &response)const;
 
+    vecfuncT cis_response_potential(const CC_vecfunction &x)const{
+      vecfuncT result;
+      for(const auto& itmp:x.functions){
+	const size_t i=itmp.first;
+	real_function_3d resulti = real_factory_3d(world);
+	for(const auto& ktmp:x.functions){
+	  const size_t k=ktmp.first;
+	  resulti+= 2.0*g12(mo_bra_(k),x(k))*mo_ket(i).function - g12(mo_bra_(k),mo_ket_(i))*x(k).function;
+	}
+	result.push_back(resulti);
+      }
+      return result;
+    }
+
+
     // result: \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 )
     // singles are not needed explicitly but to determine if it is response or ground state
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
@@ -1188,12 +1249,16 @@ namespace madness {
       Q12_time.info();
     }
     vecfuncT apply_Q(const vecfuncT &f, const std::string msg="vectorfunction")const{
-      if(world.rank()==0) std::cout <<"Applying Q to " << msg << std::endl;
-      return projector_Q(f);
+      CC_Timer time(world,"Q("+msg+")");
+      vecfuncT result= projector_Q(f);
+      time.info();
+      return result;
     }
     real_function_3d apply_Q(const real_function_3d &f, const std::string msg="function")const{
-      if(world.rank()==0) std::cout <<"Applying Q to " << msg << std::endl;
-      return projector_Q(f);
+      CC_Timer time(world,"Q("+msg+")");
+      real_function_3d result= projector_Q(f);
+      time.info();
+      return result;
     }
 
     real_function_6d apply_regularization_potential(const CC_function &a, const CC_function &b, const double omega)const;
@@ -1308,7 +1373,7 @@ namespace madness {
     /// @param[in] j the second index of the current pair function
     /// @return  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
     real_function_6d apply_transformed_Ue(const CC_function &x,
-					  const CC_function &y) const;
+					  const CC_function &y, const double &omega=0.0) const;
 
     /// Apply the Exchange Commutator [K,f]|xy>
     real_function_6d apply_exchange_commutator(const CC_function &x,
@@ -1326,9 +1391,8 @@ namespace madness {
 
     real_function_3d apply_laplacian(const real_function_3d &x) const;
 
-    vecfuncT apply_F(const CC_vecfunction &x) const;
-
-    real_function_3d apply_F(const CC_function &x,const double &omega =0.0) const;
+    real_function_3d apply_F(const CC_function &x) const;
+    real_function_3d apply_reduced_F(const CC_function &x)const;
 
     /// little helper function to pack a vector of CC_3D_functions (just structures which hold the function the index and the type)
     std::vector<CC_function> make_CC_3D_function(const vecfuncT &f,
@@ -1406,55 +1470,6 @@ namespace madness {
     /// apply the operator \f$ gf = 1/(2\gamma)*(Coulomb - 4\pi*BSH_\gamma) \f$
     /// works only if f = (1-exp(-\gamma*r12))/(2\gamma)
     real_function_3d apply_gf(const real_function_3d &f) const;
-
-    //    real_function_3d apply_f12(const CC_function & bra,
-    //			       const CC_function &ket) const {
-    //      if (bra.type != HOLE) {
-    //	output("Apply_f12, bra state is no hole state");
-    //	return (*f12op)((bra.function* nemo.nuclear_correlation->square()) * ket.function );
-    //      }
-    //      if (ket.type == HOLE) {
-    //	return intermediates_.get_fEX(bra, ket);
-    //      } else if (ket.type == PARTICLE) {
-    //	return intermediates_.get_pfEX(bra, ket);
-    //      } else if (ket.type == MIXED) {
-    //	return intermediates_.get_fEX(bra, ket)
-    //	    + intermediates_.get_pfEX(bra, ket);
-    //      } else if (ket.type == RESPONSE){
-    //	return intermediates_.get_rEX(bra,ket);
-    //      } else {
-    //	output("Apply_f12, ket state undefined");
-    //	return (*f12op)(bra.function * ket.function);
-    //      }
-    //    }
-
-    //    real_function_3d apply_g12(const CC_function & bra,
-    //			       const CC_function &ket) const {
-    //      if (bra.type != HOLE) {
-    //	output("Apply_g12, bra state is no hole state");
-    //	return (*poisson)(bra.function * ket.function);
-    //      }
-    //      if (ket.type == HOLE) {
-    //	return intermediates_.get_EX(bra, ket);
-    //      } else if (ket.type == PARTICLE) {
-    //	return intermediates_.get_pEX(bra, ket);
-    //      } else if (ket.type == MIXED) {
-    //	return intermediates_.get_EX(bra, ket) + intermediates_.get_pEX(bra, ket);
-    //      } else if (ket.type == RESPONSE){
-    //	return intermediates_.get_rEX(bra,ket);
-    //      } else {
-    //	output("Apply_g12, ket state undefined");
-    //	return (*poisson)(bra.function * ket.function);
-    //      }
-    //    }
-    //    /// returns <k|g|x>*|y>
-    //    real_function_3d make_kgx_y(const CC_function &k, const CC_function &x, const CC_function &y)const{
-    //      return (apply_g12(k,x)*y.function);
-    //    }
-    //    /// returns <k|f|x>*|y>
-    //    real_function_3d make_kfx_y(const CC_function &k, const CC_function &x, const CC_function &y)const{
-    //      return (apply_f12(k,x)*y.function);
-    //    }
 
 
     /// @param[in] x Function which is convoluted with (it is assumed that x is already multiplied with R2)
@@ -1684,21 +1699,6 @@ namespace madness {
       }
     }
 
-    // return <f|F-eps|f> matrix
-    Tensor<double> make_reduced_fock_matrix(const CC_vecfunction &f, const double eps)const{
-      vecfuncT Ff = apply_F(f);
-      vecfuncT fbra = mul(world,nemo.nuclear_correlation->square(),f.get_vecfunction());
-      vecfuncT epsf = f.get_vecfunction();
-      scale(world,epsf,eps);
-      Tensor<double> result(f.size(),f.size());
-      for(size_t i=0;i<Ff.size();i++){
-	for(size_t j=0;j<fbra.size();j++){
-	  const double eji = fbra[j].inner(Ff[i]) - fbra[j].inner(epsf[i]);
-	  result(j,i) = eji;
-	}
-      }
-      return result;
-    }
 
 
     template<size_t NDIM>
@@ -1786,9 +1786,11 @@ namespace madness {
 
 
     void plot(const CC_vecfunction &vf)const{
+      CC_Timer time(world,"Plotting " +vf.name());
       for(const auto& tmp:vf.functions){
 	plot(tmp.second);
       }
+      time.info();
     }
     void plot(const CC_function &f)const{
       plot_plane(world,f.function,f.name());
@@ -2037,52 +2039,7 @@ namespace madness {
 
     }
 
-    bool test_pure_6D_commutator()const{
-      CC_function mo = mo_ket_(parameters.freeze);
-      CC_Timer time1(world,"make fxy");
-      const real_function_6d f00 = make_f_xy(mo,mo,parameters.thresh_6D);
-      time1.info();
-      CC_Timer time2(world,"make 00");
-      const real_function_6d mo00 = make_xy(mo,mo,parameters.thresh_6D);
-      time2.info();
-      CC_Timer time3(world,"make_Kf");
-      const real_function_6d Kf = K(f00,parameters.thresh_6D);
-      time3.info();
-      CC_Timer time4(world,"make_K00");
-      const real_function_6d K00 = K(mo00,parameters.thresh_6D);
-      time4.info();
-      CC_Timer time5(world,"make fK_6D");
-      real_function_6d fK_6D = CompositeFactory<double,6,3>(world).g12(corrfac.f()).ket(copy(K00));
-      fK_6D.fill_tree().truncate().reduce_rank();
-      time5.info();
-      CC_Timer time6(world,"make fK_mixed");
-      const real_function_6d fK=apply_fK(mo,mo,parameters.thresh_6D);
-      time6.info();
-      CC_Timer time7(world,"make commutators");
-      const real_function_6d commutator_pure6D = Kf - fK_6D;
-      const real_function_6d commutator_mixed = Kf - fK;
-      time7.info();
 
-      const real_function_6d diff = commutator_pure6D - commutator_mixed;
-
-      CC_Timer time8(world,"make bra");
-      const real_function_6d bra_xy = make_xy(mo_bra_(parameters.freeze),mo_bra_(parameters.freeze),parameters.thresh_6D);
-      time8.info();
-      const double sanity_comm_pure6D = bra_xy.inner(commutator_pure6D);
-      const double sanity_comm_mixed  = bra_xy.inner(commutator_mixed);
-
-      if(world.rank()==0){
-	std::cout << "Test pure 6D commutator results:\n ";
-	std::cout << "difference: pure and mixed commutator = " << diff.norm2() << std::endl;
-	std::cout << "Sanity pure: " << sanity_comm_pure6D << std::endl;
-	std::cout << "Sanity mixed:" << sanity_comm_mixed << std::endl;
-	std::cout << "Test end\n\n";
-      }
-
-
-      if(sanity_comm_pure6D < 0.1*parameters.thresh_6D) return true;
-      else return false;
-    }
 
 
   };

@@ -423,7 +423,7 @@ public:
 		dconv_(10.0*parameters.dconv_3D),
 		guess_dconv_(100.0*parameters.dconv_3D), // same as with econv
 		hard_dconv_(parameters.dconv_3D),
-		hard_econv_(0.1*parameters.thresh_3D),
+		hard_econv_(parameters.thresh_3D),
 		plot_(false),
 		only_fock_(false),
 		only_GS_(false),
@@ -432,7 +432,6 @@ public:
 		kain_subspace_(3),
 		shift_(0.0),
 		triplet_(false),
-		use_omega_for_bsh_(true),
 		compute_virtuals_(false)
 {
 		setup(mos,input);
@@ -783,9 +782,6 @@ private:
 
 	/// Calculate triplets
 	bool triplet_;
-
-	/// Use the excitation energy in the BSH operator (if not it is added to the potential)
-	bool use_omega_for_bsh_;
 
 	/// Compute virtual orbitals, the freeze_ key should then be set to (all_mos)-1
 	bool compute_virtuals_;
