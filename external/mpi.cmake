@@ -21,5 +21,8 @@ if(ENABLE_MPI)
   else()
     message(FATAL_ERROR "No suitable MPI compiler was not found.")
   endif()
-
+  
+else()
+  # Disable MPI via config.h
+  set(STUBOUTMPI 1)
 endif()
