@@ -9,8 +9,8 @@ be done when compiling parsec (at ccmake . step):
 
 The cmake command for madness is:
 cmake -Wno-dev -D
-CMAKE_TOOLCHAIN_FILE=/home/aguermou/tmp/madness_cmake/cmake/toolchains/dancer_gcc.cmake
--D ENABLE_T\ BB=OFF -D ENABLE_MPI=OFF $HOME/tmp/madness_cmake/
+CMAKE_TOOLCHAIN_FILE=PATH_to_MADNESS/cmake/toolchains/dancer_gcc.cmake
+-D ENABLE_T\ BB=OFF -D ENABLE_MPI=OFF PATH_to_MADNESS
 
 dancer_gcc.cmake is the configure file for a linux based machine
 (update the paths and the CC and CXX compilers if needed, plus update the parsec directory).
