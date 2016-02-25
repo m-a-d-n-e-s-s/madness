@@ -6,6 +6,7 @@ be done when compiling parsec (at ccmake . step):
 2- Set DAGUE_WITH_DEVEL_HEADERS ON
 3- Set DAGUE_DIST_WITH_MPI OFF (with openMPI)
 4- You have to run make install after make
+5- Set PKG_CONFIG_PATH to where parsec.pc is (PARSEC_INSTALL_DIR/lib/pkgconfig)
 
 The cmake command for madness is:
 cmake -Wno-dev -D
