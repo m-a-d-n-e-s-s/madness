@@ -333,6 +333,8 @@ namespace madness {
 
 #endif // MADNESS_TASK_PROFILING
 
+  dague_context_t *ThreadPool::parsec = NULL;
+
     // The constructor is private to enforce the singleton model
     ThreadPool::ThreadPool(int nthread) :
             threads(nullptr), main_thread(), nthreads(nthread), finish(false)
@@ -347,39 +349,57 @@ namespace madness {
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 
-#if HAVE_INTEL_TBB
+        //////////// Parsec Related Begin ////////////////////
+        /* Scheduler init*/
+	int argc = 1;
+	char ** argv = (char**)malloc(2*sizeof(char*));
+        argv[0]=(char*)malloc(2*sizeof(char));
+        char tmp[] = "t";
+        strcpy(argv[0], tmp);
+	//argv[1] = NULL;
+	argv[1] = NULL;
 
-        if(nthreads < 1)
-            nthreads = 1;
+        ThreadPool::parsec = dague_init(-1, &argc, &argv);
+        dague_enqueue(ThreadPool::parsec, &madness_handle);
+        dague_context_start(ThreadPool::parsec);
+        dague_handle_update_nbtask(&madness_handle, 1);
+        //////////// Parsec Related End ////////////////////
 
-        if (SafeMPI::COMM_WORLD.Get_size() > 1) {
-            // There are nthreads+2 because the main and communicator thread
-            // are counted as part of tbb.
-            tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
-        }
-        else {
-            // There are nthreads+1 because the main
-            // is counted as part of tbb.
-            tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
+                /* This is removed to replace TBB or madness by parsec*/
+// #if HAVE_INTEL_TBB
 
-        }
-#else
+//         if(nthreads < 1)
+//             nthreads = 1;
 
-        try {
-            if (nthreads > 0)
-                threads = new ThreadPoolThread[nthreads];
-            else
-                threads = 0;
-        }
-        catch (...) {
-            MADNESS_EXCEPTION("memory allocation failed", 0);
-        }
+//         if (SafeMPI::COMM_WORLD.Get_size() > 1) {
+//             // There are nthreads+2 because the main and communicator thread
+//             // are counted as part of tbb.
+//             tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
+//         }
+//         else {
+//             // There are nthreads+1 because the main
+//             // is counted as part of tbb.
+//             tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
 
-        for (int i=0; i<nthreads; ++i) {
-            threads[i].set_pool_thread_index(i);
-            threads[i].start(pool_thread_main, (void *)(threads+i));
-        }
-#endif
+//         }
+// #else
+
+//         try {
+//             if (nthreads > 0)
+//                 threads = new ThreadPoolThread[nthreads];
+//             else
+//                 threads = 0;
+//         }
+//         catch (...) {
+//             MADNESS_EXCEPTION("memory allocation failed", 0);
+//         }
+
+//         for (int i=0; i<nthreads; ++i) {
+//             threads[i].set_pool_thread_index(i);
+//             threads[i].start(pool_thread_main, (void *)(threads+i));
+//         }
+// #endif
+        /****************************/
     }
 
     // Get number of threads from the environment

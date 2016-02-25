@@ -48,6 +48,11 @@
 #include <typeinfo>
 #include <new>
 
+//////////// Parsec Related Begin ////////////////////
+#include <dague/dague_internal.h>
+#include "parsec.h"
+//////////// Parsec Related End ////////////////////
+
 #ifdef MADNESS_TASK_PROFILING
 #include <execinfo.h> // for backtrace_symbols
 #ifndef USE_LIBIBERTY
@@ -1056,6 +1061,23 @@ namespace madness {
         ///
         /// \todo Description needed.
         /// \param[in] info Description needed.
+
+        //////////// Parsec Related Begin ////////////////////
+        dague_execution_context_t exec_context;
+        static const dague_function_t*   func;
+
+        /* This function initializes exec_context from the one in parsec.cpp*/
+        void init_exec_context(void)
+          {
+            exec_context.dague_handle = &madness::madness_handle;
+            exec_context.function = &madness::madness_function;
+            exec_context.chore_id = 0;
+            exec_context.status = DAGUE_TASK_STATUS_NONE;
+            exec_context.priority = 0;
+            std::cout << "task interface constructor" << std::endl;
+          }
+        //////////// Parsec Related End   ///////////////////
+
         virtual void run(const TaskThreadEnv& info) = 0;
 
     };
@@ -1145,7 +1167,7 @@ namespace madness {
         /// \return The number of threads.
         int default_nthread();
 
-        /// Run the next task.
+       /// Run the next task.
 
         /// \todo Verify and complete this documentation.
         /// \param[in] wait Block of true.
@@ -1244,6 +1266,9 @@ namespace madness {
 
 
     public:
+	////////////////// Parsec Related Begin //////////////////
+        static dague_context_t *parsec;
+        ///////////////// Parsec Related End ////////////////////
 
 #if HAVE_INTEL_TBB
         static tbb::task_scheduler_init* tbb_scheduler; ///< \todo Description needed.
@@ -1263,27 +1288,38 @@ namespace madness {
         /// \todo Description needed.
         /// \param[in,out] task Description needed.
         static void add(PoolTaskInterface* task) {
+
 #ifdef MADNESS_TASK_PROFILING
             task->submit();
 #endif // MADNESS_TASK_PROFILING
-#if HAVE_INTEL_TBB
-            if(task->is_high_priority()) {
-                tbb::task::spawn(*task);
-            } else {
-                tbb::task::enqueue(*task);
-            }
-#else
-            if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
-            int task_threads = task->get_nthread();
-            // Currently multithreaded tasks must be shoved on the end of the q
-            // to avoid a race condition as multithreaded task is starting up
-            if (task->is_high_priority() && (task_threads == 1)) {
-                instance()->queue.push_front(task);
-            }
-            else {
-                instance()->queue.push_back(task, task_threads);
-            }
-#endif // HAVE_INTEL_TBB
+
+            //////////// Parsec Related Begin ////////////////////
+            /* Initialize the execution context and give it to the scheduler*/
+	    std::cout << "adding a new task to parsec" << std::endl;
+            dague_execution_context_t *context = &(task->exec_context);
+            DAGUE_LIST_ITEM_SINGLETON(context);
+            __dague_schedule(parsec->virtual_processes[0]->execution_units[0], context);
+            //////////// Parsec Related End ////////////////////
+
+            /* Remove since parsec is used instead*/
+/* #if HAVE_INTEL_TBB */
+/*             if(task->is_high_priority()) { */
+/*                 tbb::task::spawn(*task); */
+/*             } else { */
+/*                 tbb::task::enqueue(*task); */
+/*             } */
+/* #else */
+/*             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1); */
+/*             int task_threads = task->get_nthread(); */
+/*             // Currently multithreaded tasks must be shoved on the end of the q */
+/*             // to avoid a race condition as multithreaded task is starting up */
+/*             if (task->is_high_priority() && (task_threads == 1)) { */
+/*                 instance()->queue.push_front(task); */
+/*             } */
+/*             else { */
+/*                 instance()->queue.push_back(task, task_threads); */
+/*             } */
+/* #endif // HAVE_INTEL_TBB */
         }
 
         /// \todo Brief description needed.
@@ -1403,10 +1439,18 @@ namespace madness {
 
         /// Desctructor.
         ~ThreadPool() {
-#if HAVE_INTEL_TBB
-            tbb_scheduler->terminate();
-            delete(tbb_scheduler);
-#endif
+          ////////////////// Parsec related Begin /////////////////
+          /* End of scheduling*/
+          dague_handle_update_nbtask(&madness_handle, -1);
+          dague_context_wait(parsec);
+          dague_fini((dague_context_t **)&parsec);
+          ////////////////// Parsec related End /////////////////
+
+          /* Remove since Parsec is used instead*/
+/* #if HAVE_INTEL_TBB */
+/*             tbb_scheduler->terminate(); */
+/*             delete(tbb_scheduler); */
+/* #endif */
         }
     };
 
