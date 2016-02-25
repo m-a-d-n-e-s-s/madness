@@ -164,7 +164,7 @@ class Nemo: public MolecularOptimizationTargetInterface {
             current_prec=start_prec;
             infer_thresholds(current_prec);
             if (world.rank()==0) {
-                printf("\starting protocol at time %8.1fs \n",wall_time());
+                printf("\nstarting protocol at time %8.1fs \n",wall_time());
                 print("precision steps ",start_prec," --> ",end_prec);
                 print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
             }

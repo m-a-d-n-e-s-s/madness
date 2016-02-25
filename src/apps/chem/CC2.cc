@@ -379,6 +379,7 @@ namespace madness {
     else if(singles.type==PARTICLE) return iterate_pair(pair,singles,CC_vecfunction(RESPONSE),CC2_);
     else if(singles.type==RESPONSE) return iterate_pair(pair,CC_vecfunction(PARTICLE),singles,CISpD_);
     else error("Calles iterate Pair with singles of undefined type");
+    MADNESS_EXCEPTION("cannot get here but need to make compiler happy",1);
   }
   bool CC2::iterate_pair(CC_Pair &pair,const CC_vecfunction &singles, const CC_vecfunction response_singles,const calctype ctype) const {
     output("Iterate " + assign_name(ctype) + " Pair " + pair.name());

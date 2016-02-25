@@ -31,6 +31,7 @@ static std::string assign_name(const optype &input){
     case g12_ : return "g12";
     case f12_ : return "f12";
   }
+  MADNESS_EXCEPTION("bad string assign name",1);
 }
 static calctype assign_calctype(const std::string name){
   if(name=="mp2") return MP2_;
@@ -428,7 +429,7 @@ public:
 	/// print the pair's energy
 	void print_energy() const {
 		if (function.world().rank() == 0) {
-			printf("final correlation energy %2d %2d %12.8f %12.8f\n", i, j,
+			printf("final correlation energy %2ld %2ld %12.8f %12.8f\n", i, j,
 					e_singlet, e_triplet);
 		}
 	}

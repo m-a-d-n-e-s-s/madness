@@ -1453,6 +1453,7 @@ namespace madness {
 	break;
       }
     }
+    MADNESS_EXCEPTION("make_integral: how did we get here?",1);
   }
 
   /// General Function to make two electron integrals with pair functions (needed for energy)
