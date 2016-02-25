@@ -11,14 +11,14 @@ set(MADWORLD_HEADERS
     uniqueid.h worldprofile.h timers.h binary_fstream_archive.h mpi_archive.h 
     text_fstream_archive.h worlddc.h mem_func_wrapper.h taskfn.h group.h 
     dist_cache.h distributed_id.h type_traits.h function_traits.h stubmpi.h 
-    bgq_atomics.h binsorter.h)
+    bgq_atomics.h binsorter.h parsec.h)
 set(MADWORLD_SOURCES
     madness_exception.cc world.cc timers.cc future.cc redirectio.cc
     archive_type_names.cc info.cc debug.cc print.cc worldmem.cc worldrmi.cc
     safempi.cc worldpapi.cc worldref.cc worldam.cc worldprofile.cc thread.cc 
     world_task_queue.cc worldgop.cc deferred_cleanup.cc worldmutex.cc
     binary_fstream_archive.cc text_fstream_archive.cc lookup3.c worldmpi.cc 
-    group.cc)
+    group.cc parsec.cc)
 
 # Create the MADworld-obj and MADworld library targets
 add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
@@ -59,6 +59,15 @@ if(TBB_FOUND)
   else()
     target_link_libraries(MADworld PUBLIC ${TBB_LIBRARIES_RELEASE})
   endif()
+endif()
+if(PARSEC_FOUND)
+  target_include_directories(MADworld PUBLIC ${PARSEC_INCLUDE_DIRS})
+  # if(TBB_USE_DEBUG AND TBB_LIBRARIES_DEBUG)
+  #   target_compile_definitions(MADworld PUBLIC "${TBB_COMPILE_FLAGS_DEBUG}")
+  #   target_link_libraries(MADworld PUBLIC ${TBB_LIBRARIES_DEBUG})
+  # else()
+  target_link_libraries(MADworld PUBLIC ${PARSEC_LIBRARIES} ${PARSEC_LIBRARIES_DEP})
+  # endif()
 endif()
 if(MPI_FOUND)
   target_include_directories(MADworld PUBLIC ${MPI_INCLUDE_PATH})
