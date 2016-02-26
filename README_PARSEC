@@ -8,7 +8,7 @@ be done when compiling parsec (at ccmake . step):
 4- You have to run make install after make
 5- Set PKG_CONFIG_PATH to where parsec.pc is (PARSEC_INSTALL_DIR/lib/pkgconfig)
 
-The cmake command for madness is:
+The cmake command for madness is (from a build directory):
 cmake -Wno-dev -D
 CMAKE_TOOLCHAIN_FILE=PATH_to_MADNESS/cmake/toolchains/dancer_gcc.cmake
 -D ENABLE_T\ BB=OFF -D ENABLE_MPI=OFF PATH_to_MADNESS
