@@ -1026,5 +1026,19 @@ namespace madness {
     }
 
 
+
+    /// load a vector of functions
+    template<typename T, size_t NDIM>
+    void load_function(World& world, std::vector<Function<T,NDIM> >& f,
+            const std::string name) {
+        if (world.rank()==0) print("loading vector of functions",name);
+        archive::ParallelInputArchive ar(world, name.c_str(), 1);
+        std::size_t fsize=0;
+        ar & fsize;
+        f.resize(fsize);
+        for (std::size_t i=0; i<fsize; ++i) ar & f[i];
+    }
+
+
 }
 #endif // MADNESS_MRA_VMRA_H__INCLUDED

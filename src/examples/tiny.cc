@@ -231,8 +231,18 @@ int main(int argc, char** argv) {
 
     try {
         static const size_t NDIM=3;
-        std::vector<Function<double,NDIM> > vf(filenames.size());
-        for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
+        std::vector<Function<double,NDIM> > vf;
+        for (int i=0; i<filenames.size(); ++i) {
+            real_function_3d tmp;
+            try { // load a single function
+                load_function(world,tmp,filenames[i]);
+                vf.push_back(tmp);
+            } catch (...) { // load a vector of functions
+                std::vector<Function<double,NDIM> > tmp2;
+                load_function(world,tmp2,filenames[i]);
+                for (auto& t : tmp2) vf.push_back(t);
+            }
+        }
 		plot_plane(world,vf,filenames[0]);
 
 		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;

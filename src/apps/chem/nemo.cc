@@ -80,6 +80,11 @@ double Nemo::value(const Tensor<double>& x) {
 	calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
+	if (world.rank()==0) {
+	    print("\n");
+	    calc->molecule.print();
+	}
+
 	construct_nuclear_correlation_factor();
 
     // construct the Poisson solver
@@ -128,6 +133,8 @@ double Nemo::value(const Tensor<double>& x) {
 	// compute the dipole moment
 	const real_function_3d rhonemo=2.0*make_density(calc->aocc, calc->amo);
 	const real_function_3d rho = (R_square*rhonemo);
+	save(rho,"rho");
+	save(rhonemo,"rhonemo");
 	calc->dipole(world,rho);
 
 	return energy;
@@ -797,6 +804,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
         }
     }
 
+
     END_TIMER(world, "compute gradients");
 
     if (world.rank() == 0) {
@@ -852,7 +860,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,-1);
             const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();
             dens_pt[i]=R_square*(dens_pt[i]+2.0*RXR*rhonemo);//.truncate();
-            save(dens_pt[i],"dens_pt"+stringify(i));
+            save(dens_pt[i],"fulldens_pt"+stringify(i));
         }
     }
 
@@ -972,26 +980,12 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
 
     Tensor<double> incomplete_hessian=molecule().nuclear_repulsion_hessian();
 
-    vecfuncT drho(3);
-//    double thresh=FunctionDefaults<3>::get_thresh();
-//    rhonemo.set_thresh(thresh*0.1);
-//    FunctionDefaults<3>::set_thresh(thresh*0.1);
-//    print("set thresh to ",thresh*0.1);
-
-    drho[0]=make_ddensity(rhonemo,0);
-    drho[1]=make_ddensity(rhonemo,1);
-    drho[2]=make_ddensity(rhonemo,2);
-    save(rhonemo,"rhonemo");
-    save(drho[0],"drho0");
-
-
     // compute the perturbed densities (partial only!)
     // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
     vecfuncT dens_pt(3*natom);
     for (int iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             int i=iatom*3 + iaxis;
-
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
             const real_function_3d RXR=real_factory_3d(world).functor(rxr_func);//.truncate_on_project();
             dens_pt[i]=2.0*RXR*rhonemo;//.truncate();
@@ -1009,9 +1003,6 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
 
                     MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
                     double result=inner(dens_pt[i],mdf);
-
-                    // integration by parts
-//                    if (iatom==jatom) result+=inner(drho[iaxis],mdf);
 
                     // no integration by parts
                     MolecularSecondDerivativeFunctor m2df(molecule(), jatom, jaxis,iaxis);
@@ -1140,8 +1131,6 @@ vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double>
 
     int ii=3*iatom+iaxis;
     Tensor<double> ihr=incomplete_hessian(ii,_);
-    print("incomplete hessian row");
-    print(ihr);
     Tensor<double> old_h(3*molecule().natom());
 
 
@@ -1176,7 +1165,6 @@ vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double>
     const Nuclear V(world,this);
     END_TIMER(world,"tag8");
     Tensor<double> h_diff(3l);
-    bool do_kain=true;
 
     for (int iter=0; iter<10; ++iter) {
 
@@ -1248,22 +1236,17 @@ vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double>
         truncate(world,tmp);
 
         vecfuncT residual = xi-tmp;
-//        truncate(world,residual);
 
         std::vector<double> rnorm = norm2s(world, residual);
         double rms, maxval;
         calc->vector_stats(rnorm, rms, maxval);
         const double norm = norm2(world,xi);
 
-        // switch off once and for all
-//        if (rms/norm>proto.dconv*5.) do_kain=false;
-
-        if ((rms < 1.0) and do_kain) {
+        if (rms < 1.0) {
             xi = (solver.update(xi, residual)).x;
         } else {
             xi = tmp;
         }
-//        truncate(world,xi);
 
         // measure for hessian matrix elements
         real_function_3d dens_pt=dot(world,xi-parallel,nemo);
@@ -1287,7 +1270,6 @@ vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double>
 
         if ((proto.dconv<5.e-4) and iter==2) break;
         if (rms/norm<proto.dconv) break;
-//        if (h_diff.normf()<proto.dconv) break;
     }
     return xi;
 
