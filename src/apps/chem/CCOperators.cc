@@ -334,11 +334,11 @@ namespace madness {
   }
 
   vecfuncT
-  CC_Operators::S2c_u_part(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
+  CC_Operators::S2c_u_part(const Pairs<CC_function_6d> &doubles,const CC_vecfunction &singles) const {
     vecfuncT result;
-    if(singles.type==PARTICLE) result=copy(world,current_s2c_u_part_gs);
-    else if(singles.type==RESPONSE) result=copy(world,current_s2c_u_part_response);
-    else error("singles of type " + assign_name(singles.type) +" in S2c_u_part");
+//    if(singles.type==PARTICLE) result=copy(world,current_s2c_u_part_gs);
+//    else if(singles.type==RESPONSE) result=copy(world,current_s2c_u_part_response);
+//    else error("singles of type " + assign_name(singles.type) +" in S2c_u_part");
 
     if(not result.empty()){
       output("S2c_u_part already calculated");
@@ -351,16 +351,16 @@ namespace madness {
 	  const real_function_3d kgi=g12(mo_bra_(k),mo_ket_(i));
 	  for(const auto& ltmp : singles.functions){
 	    const size_t l=ltmp.first;
-	    const real_function_6d ukl=get_pair_function(doubles,k,l);
+	    const CC_function_6d ukl=get_pair_function(doubles,k,l);
 	    const real_function_3d l_kgi=mo_bra_(l).function * kgi;
-	    resulti+=-2.0 * ukl.project_out(l_kgi,1);     // 1 means second particle
-	    resulti+=ukl.project_out(l_kgi,0);
+	    resulti+=-2.0 * ukl.project_out(l_kgi,2);     // for real_function_6d we would need: 1 means second particle
+	    resulti+=ukl.project_out(l_kgi,1);
 	  }
 	}
 	result.push_back(resulti);
       }
-      if(singles.type==PARTICLE) current_s2c_u_part_gs=copy(world,result);
-      else if(singles.type==RESPONSE) current_s2c_u_part_response = copy(world,result);
+      //if(singles.type==PARTICLE) current_s2c_u_part_gs=copy(world,result);
+      //else if(singles.type==RESPONSE) current_s2c_u_part_response = copy(world,result);
     }
     return result;
   }
@@ -407,7 +407,7 @@ namespace madness {
 
   // result: -\sum_k( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui>
   vecfuncT
-  CC_Operators::S4b_u_part(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
+  CC_Operators::S4b_u_part(const Pairs<CC_function_6d> &doubles,const CC_vecfunction &singles) const {
     vecfuncT result;
     const vecfuncT active_mo_bra = get_active_mo_bra();
     for(const auto& itmp : singles.functions){
@@ -420,10 +420,10 @@ namespace madness {
 	truncate(world,l_kgi);
 	for(const auto& ltmp : singles.functions){
 	  const size_t l=ltmp.first;
-	  const real_function_6d ukl=get_pair_function(doubles,k,l);
+	  const CC_function_6d ukl=get_pair_function(doubles,k,l);
 	  //const real_function_3d l_kgi=mo_bra_(l).function * kgi;
-	  resulti+=-2.0 * ukl.project_out(l_kgi[l-parameters.freeze],1);     // 1 means second particle
-	  resulti+=ukl.project_out(l_kgi[l-parameters.freeze],0);
+	  resulti+=-2.0 * ukl.project_out(l_kgi[l-parameters.freeze],2);     // 1 meant second particle in the old code, not for CC_function_6d
+	  resulti+=ukl.project_out(l_kgi[l-parameters.freeze],1);
 	}
       }
       resulti.print_size("s4b_"+std::to_string(i));
@@ -433,7 +433,7 @@ namespace madness {
   }
 
   vecfuncT
-  CC_Operators::S4c_u_part(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
+  CC_Operators::S4c_u_part(const Pairs<CC_function_6d> &doubles,const CC_vecfunction &singles) const {
     vecfuncT result;
     const vecfuncT active_mo_bra = get_active_mo_bra();
     for(const auto& itmp : singles.functions){
@@ -454,7 +454,7 @@ namespace madness {
 
       for(const auto& ltmp : singles.functions){
 	const size_t l=ltmp.first;
-	const real_function_6d uil=get_pair_function(doubles,i,l);
+	const CC_function_6d uil=get_pair_function(doubles,i,l);
 	part1+=uil.project_out(l_kgtauk[l-parameters.freeze],1);
 	part2+=uil.project_out(l_kgtauk[l-parameters.freeze],0);
 
@@ -471,11 +471,15 @@ namespace madness {
     return result;
   }
 
-  // the s2b potential with u=Qf|reg1,reg2>
+  // the s2b potential with u=Qt12f12|reg1,reg2>
   vecfuncT
-  CC_Operators::S2b_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2) const {
+  CC_Operators::S2b_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2, const CC_vecfunction &projector_t) const {
     vecfuncT result;
     real_function_3d ktk=real_factory_3d(world);
+    if(projector_t.type!=MIXED) warning("Projector-Functions for S2b_reg_part are of type "+assign_name(projector_t.type));
+    projector_functions_consistency(projector_t);
+    const CC_vecfunction tfull = projector_t;
+
     for(const auto& ktmp:reg2.functions) ktk+=mo_bra_(ktmp.first).function*ktmp.second.function;
 
     const real_function_3d kgftk=apply_gf(ktk);
@@ -498,12 +502,12 @@ namespace madness {
 	const real_function_3d kgfti=apply_gf(kti);
 	Ipartx+=-1.0 * kgfti * tk.function;     // part1x
 
-	for(const auto& mtmp : mo_ket_.functions){
+	for(const auto& mtmp : tfull.functions){
 	  const size_t m=mtmp.first;
 	  const CC_function& mom=mtmp.second;
 	  const real_function_3d mftk= f12(mo_bra_(m),tk);
 	  const real_function_3d mfti= f12(mo_bra_(m),ti);
-	  const real_function_3d kgm= g12(mo_bra_(k),mo_ket_(m));
+	  const real_function_3d kgm= g12(mo_bra_(k),mom);
 	  const real_function_3d mfti_tk=mfti * tk.function;
 	  const real_function_3d mftk_ti=mftk * ti.function;
 	  O2part-=(2.0 * kgm * mftk_ti);     //part3
@@ -514,7 +518,7 @@ namespace madness {
 	  const real_function_3d k_gmftk_ti=g12(k_mftk_ti);
 	  O1part-=(2.0 * k_gmfti_tk * mom.function);     //part2
 	  O1partx-=(-1.0 * k_gmftk_ti * mom.function);
-	  for(const auto& ntmp : mo_ket_.functions){
+	  for(const auto& ntmp : tfull.functions){
 	    const CC_function& mon=ntmp.second;
 	    const double nmftitk=mo_bra_(mon).inner(mftk_ti);
 	    const double nmftkti=mo_bra_(mon).inner(mfti_tk);
@@ -530,8 +534,11 @@ namespace madness {
   }
 
   vecfuncT
-  CC_Operators::S2c_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2) const {
+  CC_Operators::S2c_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2, const CC_vecfunction &projector_t) const {
     vecfuncT result;
+    if(projector_t.type!=MIXED) warning("Projector-Functions for S2c_reg_part are of type "+assign_name(projector_t.type));
+    projector_functions_consistency(projector_t);
+    const CC_vecfunction tfull = projector_t;
     for(const auto& itmp : reg1.functions){
       const size_t i=itmp.first;
       real_function_3d resulti=real_factory_3d(world);
@@ -542,7 +549,7 @@ namespace madness {
 	  const CC_function tl=ltmp.second;
 	  const real_function_3d l_kgi_tmp=mo_bra_(tl).function * g12(mo_bra_(k),mo_ket_(i));
 	  const CC_function l_kgi(l_kgi_tmp,99,UNDEFINED);
-	  resulti-=(2.0 * convolute_x_Qf_yz(l_kgi,tk,tl) - convolute_x_Qf_yz(l_kgi,tl,tk));
+	  resulti-=(2.0 * convolute_x_Qtf_yz(l_kgi,tfull,tk,tl) - convolute_x_Qtf_yz(l_kgi,tfull,tl,tk));
 	}
       }
       result.push_back(resulti);
@@ -551,8 +558,11 @@ namespace madness {
   }
 
   vecfuncT
-  CC_Operators::S4a_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2, const CC_vecfunction &singles) const {
+  CC_Operators::S4a_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2, const CC_vecfunction &singles, const CC_vecfunction &projector_t) const {
     vecfuncT result;
+    if(projector_t.type!=MIXED) warning("Projector-Functions for S2c_reg_part are of type "+assign_name(projector_t.type));
+    projector_functions_consistency(projector_t);
+    const CC_vecfunction tfull =projector_t;
     for(const auto& itmp : reg1.functions){
       const CC_function& ti=itmp.second;
       real_function_3d resulti=real_factory_3d(world);
@@ -565,8 +575,8 @@ namespace madness {
 	  const CC_function& taul=ltmp.second;
 	  const size_t l=ltmp.first;
 
-	  const double lkgQftitk=make_ijgQfxy(l,k,ti,tk);
-	  const double klgQftitk=make_ijgQfxy(k,l,ti,tk);
+	  const double lkgQftitk=make_ijgQtfxy(mo_bra_(l),mo_bra_(k),tfull,ti,tk);
+	  const double klgQftitk=make_ijgQtfxy(mo_bra_(k),mo_bra_(l),tfull,ti,tk);
 	  const double factor =(2.0 * lkgQftitk - klgQftitk);
 	  resulti-= factor* taul.function;
 	}
@@ -579,8 +589,11 @@ namespace madness {
   /// result: -\sum_{kl}( 2 <l|kgtaui|Qftktl> - <l|kgtaui|Qftltk>
   /// this is the same as S2c with taui instead of i
   vecfuncT
-  CC_Operators::S4b_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2,const CC_vecfunction &singles) const {
+  CC_Operators::S4b_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2,const CC_vecfunction &singles, const CC_vecfunction &projector_t) const {
     vecfuncT result;
+    if(projector_t.type!=MIXED) warning("Projector-Functions for S2c_reg_part are of type "+assign_name(projector_t.type));
+    projector_functions_consistency(projector_t);
+    const CC_vecfunction tfull =projector_t;
     for(const auto& itmp : singles.functions){
       const CC_function taui=itmp.second;
       real_function_3d resulti=real_factory_3d(world);
@@ -591,7 +604,7 @@ namespace madness {
 	  const CC_function tl=ltmp.second;
 	  const real_function_3d l_kgi_tmp=msparse(mo_bra_(tl).function,g12(mo_bra_(tk.i),taui));
 	  const CC_function l_kgi(l_kgi_tmp,99,UNDEFINED);
-	  resulti-=(2.0 * convolute_x_Qf_yz(l_kgi,tk,tl) - convolute_x_Qf_yz(l_kgi,tl,tk));
+	  resulti-=(2.0 * convolute_x_Qtf_yz(l_kgi,tfull,tk,tl) - convolute_x_Qtf_yz(l_kgi,tfull,tl,tk));
 	}
       }
       result.push_back(resulti);
@@ -601,8 +614,11 @@ namespace madness {
 
   /// result: 4<l|kgtauk|Qftitl> - 2<l|kgtauk|Qftlti> - 2<k|lgtauk|Qftitl> + <k|lgtauk|Qftlti>
   vecfuncT
-  CC_Operators::S4c_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2,const CC_vecfunction &singles) const {
+  CC_Operators::S4c_reg_part(const CC_vecfunction &reg1, const CC_vecfunction &reg2,const CC_vecfunction &singles, const CC_vecfunction &projector_t) const {
     vecfuncT result;
+    if(projector_t.type!=MIXED) warning("Projector-Functions for S2c_reg_part are of type "+assign_name(projector_t.type));
+    projector_functions_consistency(projector_t);
+    const CC_vecfunction tfull =projector_t;
     for(const auto& itmp : reg1.functions){
       const CC_function& ti=itmp.second;
       real_function_3d resulti=real_factory_3d(world);
@@ -620,8 +636,8 @@ namespace madness {
 	const CC_function& tl=ltmp.second;
 	const size_t l=ltmp.first;
 	const real_function_3d l_kgtauk=msparse(mo_bra_(l).function,kgtauk);
-	part1+=convolute_x_Qf_yz(CC_function(l_kgtauk,99,UNDEFINED),ti,tl);
-	part2+=convolute_x_Qf_yz(CC_function(l_kgtauk,99,UNDEFINED),tl,ti);
+	part1+=convolute_x_Qtf_yz(CC_function(l_kgtauk,99,UNDEFINED),tfull,ti,tl);
+	part2+=convolute_x_Qtf_yz(CC_function(l_kgtauk,99,UNDEFINED),tfull,tl,ti);
       }
 
       // second two parts
@@ -636,8 +652,8 @@ namespace madness {
 	  const size_t l=ltmp.first;
 
 	  const real_function_3d k_lgtauk=msparse(mo_bra_(k).function,g12(mo_bra_(l),tauk));
-	  part3+=convolute_x_Qf_yz(CC_function(k_lgtauk,99,UNDEFINED),ti,tl);
-	  part4+=convolute_x_Qf_yz(CC_function(k_lgtauk,99,UNDEFINED),tl,ti);
+	  part3+=convolute_x_Qtf_yz(CC_function(k_lgtauk,99,UNDEFINED),tfull,ti,tl);
+	  part4+=convolute_x_Qtf_yz(CC_function(k_lgtauk,99,UNDEFINED),tfull,tl,ti);
 	}
       }
       resulti=4.0 * part1 - 2.0 * part2 - 2.0 * part3 + part4;
@@ -663,7 +679,7 @@ namespace madness {
     const real_function_6d KffKab=apply_exchange_commutator(a,b);
 
     real_function_6d V=(fFab + Uab - KffKab);
-    V.print_size("Vreg"+a.name()+b.name());
+    V.print_size("Vreg|"+a.name()+b.name()+">");
     fFab.print_size("Vreg:f12(F-eij)|" + a.name() + b.name() + ">");
     Uab.print_size("          Vreg:U|" + a.name() + b.name() + ">");
     KffKab.print_size("      Vreg:[K,f]|" + a.name() + b.name() + ">");
@@ -701,16 +717,78 @@ namespace madness {
 
     }else error("Error in make_cc2_residue: Unknown ctype:"+assign_name(ctype));
 
+    real_function_6d result;
+    // do GQV
+    if(not parameters.decompose_Q){
     Vreg.scale(-2.0);
     apply_Q12(Vreg,"Vreg");
     Vreg.truncate().reduce_rank();
     Vreg.print_size("-2.0*Q12Vreg");
 
+    CC_Timer timeG(world,"Apply G to QVreg");
     real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(reg1.i,reg2.i)+omega),parameters.lo,parameters.thresh_bsh_6D);
     G.destructive()=true;
     real_function_6d GV=G(Vreg);
-    apply_Q12(GV,"CC2-Residue:G(V)");
-    return GV;
+    timeG.info();
+
+    result = GV;
+    }else {// alternative do GQV = GV - GO12V
+      Vreg.scale(-2.0);
+      Vreg.truncate().reduce_rank();
+      Vreg.print_size("-2.0*Vreg");
+
+      CC_Timer timeG(world,"Apply G to Vreg");
+      real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(reg1.i,reg2.i)+omega),parameters.lo,parameters.thresh_bsh_6D);
+      G.destructive()=true;
+
+      const real_function_6d copyVreg = copy(Vreg); // G is destructive
+      real_function_6d GV=G(copyVreg);
+      timeG.info();
+
+      CC_Timer timeG2(world,"Apply G to O12Vreg");
+      real_function_6d GOV = real_factory_6d(world);
+
+      // raise thresh for many additions
+      GOV.set_thresh(parameters.tight_thresh_6D);
+      for(const auto& ktmp:mo_ket_.functions){
+	const CC_function & mok_ket = ktmp.second;
+	const CC_function & mok_bra = mo_bra_(mok_ket);
+
+	const real_function_3d kV1 = Vreg.project_out(mok_bra.function,0); // kV1 means that the projection was over particle1, the functions is therefore a 3D function of particle 2
+	const real_function_3d kV2 = Vreg.project_out(mok_bra.function,1);
+
+	real_function_3d im1 = real_factory_3d(world);
+	real_function_3d im2 = real_factory_3d(world);
+	for(const auto& ltmp:mo_ket_.functions){
+	  const CC_function & mol_bra = mo_bra_(ltmp.first);
+	  const CC_function & mol_ket = mo_ket_(ltmp.first);
+	  im1 += 0.5* mol_bra.function.inner(kV1)*mol_ket.function; // im1 is made from kV1, both are functions of particle2
+	  im2 += 0.5* mol_bra.function.inner(kV2)*mol_ket.function;
+	}
+
+	const real_function_3d p1 = kV2 - im2; // see comment above
+	const real_function_3d p2 = kV1 - im1;
+	const real_function_3d mo1 = copy(mok_ket.function); // copy because G is destructive
+	const real_function_3d mo2 = copy(mok_ket.function);
+	GOV += G(mo1,p2);
+	GOV += G(p1,mo2);
+
+      }
+      GOV.set_thresh(parameters.thresh_6D);
+      GOV.scale(-2.0);
+
+      GV.print_size("GV");
+      GOV.print_size("GO12V");
+
+      result = GV - GOV;
+      result.print_size("GV-GOV");
+
+      timeG2.info();
+    }
+
+    apply_Q12(result,"GQVreg");
+    result.print_size("QGQVreg");
+    return result;
   }
 
 
@@ -984,9 +1062,14 @@ namespace madness {
       // make the <xy| bra state which is <xy|R2
       const real_function_3d brax=x.function * nemo.nuclear_correlation->square();
       const real_function_3d bray=y.function * nemo.nuclear_correlation->square();
-      const real_function_6d xy=make_xy(CC_function(brax,x.i,x.type),CC_function(bray,y.i,y.type));
-      const double xyfKxy=xy.inner(fKxy);
-      const double xyKfxy=xy.inner(Kfxy);
+      // this gets expensive
+      //const real_function_6d xy=make_xy(CC_function(brax,x.i,x.type),CC_function(bray,y.i,y.type));
+      //const double xyfKxy=xy.inner(fKxy);
+      //const double xyKfxy=xy.inner(Kfxy);
+      const real_function_3d xfKxy = fKxy.project_out(brax,0);
+      const double xyfKxy = bray.inner(xfKxy);
+      const real_function_3d xKfxy = Kfxy.project_out(brax,0);
+      const double xyKfxy = bray.inner(xKfxy);
       const double diff=xyfKxy - xyKfxy;
       std::cout << std::setprecision(parameters.output_prec);
       std::cout << "<" << x.name() << y.name() << "|fK|" << x.name() << y.name() << "> =" << xyfKxy << std::endl;
@@ -1165,46 +1248,47 @@ namespace madness {
   //   = 2<x_ik|g|tauik> - <kx_i|g|tauik> + <x_i|S2b_i>
   double CC_Operators::compute_cispd_energy(const Pairs<CC_Pair> &u, const Pairs<CC_Pair> mp2_doubles, const CC_vecfunction x){
     remove_stored_singles_potentials();
-    const CC_vecfunction active_mo = make_t_intermediate(x);
-    const vecfuncT s2b_u = S2b_u_part(u,active_mo); // amo is only for size
-    const vecfuncT s2b_r = add(world,S2b_reg_part(x,active_mo),S2b_reg_part(active_mo,x));
-    const vecfuncT s2c_u = S2c_u_part(u,active_mo); // amo is only for size
-    const vecfuncT s2c_r = add(world,S2c_reg_part(x,active_mo),S2c_reg_part(active_mo,x));
-    const vecfuncT brax = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
-    const Tensor<double> s2but=inner(world,brax,s2b_u);
-    const Tensor<double> s2brt=inner(world,brax,s2b_r);
-    const Tensor<double> s2cut=inner(world,brax,s2c_u);
-    const Tensor<double> s2crt=inner(world,brax,s2c_r);
-    const double ws2bu = s2but.sum();
-    const double ws2br = s2brt.sum();
-    const double ws2cu = s2cut.sum();
-    const double ws2cr = s2crt.sum();
-    const double tmp = ws2bu + ws2br + ws2cu + ws2cr;
-    remove_stored_singles_potentials();
-    const double constant_part = compute_cispd_energy_constant_part(mp2_doubles,x);
-    remove_stored_singles_potentials();
-    const double result = constant_part + tmp;
-    if(world.rank()==0){
-      std::cout << " CIS(D) Energy Calculation:\n";
-      std::cout << " constant part: <xi|S4(MP2,CIS)> =" << constant_part << "\n";
-      std::cout << " doubles  part: <xi|S2(CIS(D))>  =" << tmp << "\n";
-      std::cout << " result = " << result << "\n";
-    }
-    return result;
+//    const CC_vecfunction active_mo = make_t_intermediate(x);
+//    const vecfuncT s2b_u = S2b_u_part(u,active_mo); // amo is only for size
+//    const vecfuncT s2b_r = add(world,S2b_reg_part(x,active_mo),S2b_reg_part(active_mo,x));
+//    const vecfuncT s2c_u = S2c_u_part(u,active_mo); // amo is only for size
+//    const vecfuncT s2c_r = add(world,S2c_reg_part(x,active_mo),S2c_reg_part(active_mo,x));
+//    const vecfuncT brax = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
+//    const Tensor<double> s2but=inner(world,brax,s2b_u);
+//    const Tensor<double> s2brt=inner(world,brax,s2b_r);
+//    const Tensor<double> s2cut=inner(world,brax,s2c_u);
+//    const Tensor<double> s2crt=inner(world,brax,s2c_r);
+//    const double ws2bu = s2but.sum();
+//    const double ws2br = s2brt.sum();
+//    const double ws2cu = s2cut.sum();
+//    const double ws2cr = s2crt.sum();
+//    const double tmp = ws2bu + ws2br + ws2cu + ws2cr;
+//    remove_stored_singles_potentials();
+//    const double constant_part = compute_cispd_energy_constant_part(mp2_doubles,x);
+//    remove_stored_singles_potentials();
+//    const double result = constant_part + tmp;
+//    if(world.rank()==0){
+//      std::cout << " CIS(D) Energy Calculation:\n";
+//      std::cout << " constant part: <xi|S4(MP2,CIS)> =" << constant_part << "\n";
+//      std::cout << " doubles  part: <xi|S2(CIS(D))>  =" << tmp << "\n";
+//      std::cout << " result = " << result << "\n";
+//    }
+//    return result;
   }
 
   // return <x|S4(u,x)>
   double CC_Operators::compute_cispd_energy_constant_part(const Pairs<CC_Pair> &u, const CC_vecfunction x)const{
-    const CC_vecfunction active_mo = make_t_intermediate(x);
-    const vecfuncT S4a = add(world,S4a_u_part(u,x),S4a_reg_part(active_mo,active_mo,x));
-    const vecfuncT S4b = add(world,S4b_u_part(u,x),S4b_reg_part(active_mo,active_mo,x));
-    const vecfuncT S4c = add(world,S4c_u_part(u,x),S4c_reg_part(active_mo,active_mo,x));
-    const vecfuncT tmp = add(world,S4a,S4b);
-    vecfuncT V = add(world,tmp,S4c);
-    V=apply_Q(V,"cispd-energy-constant-part");
-    const vecfuncT brax = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
-    const Tensor<double> xV = inner(world,brax,V);
-    return xV.sum();
+    error("CIS(D) stuff has to be rewritten due to changed regularization");
+//    const CC_vecfunction active_mo = make_t_intermediate(x);
+//    const vecfuncT S4a = add(world,S4a_u_part(u,x),S4a_reg_part(active_mo,active_mo,x));
+//    const vecfuncT S4b = add(world,S4b_u_part(u,x),S4b_reg_part(active_mo,active_mo,x));
+//    const vecfuncT S4c = add(world,S4c_u_part(u,x),S4c_reg_part(active_mo,active_mo,x));
+//    const vecfuncT tmp = add(world,S4a,S4b);
+//    vecfuncT V = add(world,tmp,S4c);
+//    V=apply_Q(V,"cispd-energy-constant-part");
+//    const vecfuncT brax = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
+//    const Tensor<double> xV = inner(world,brax,V);
+//    return xV.sum();
   }
 
   double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,const CC_function &taui,const CC_function &tauj) const {
@@ -1307,13 +1391,6 @@ namespace madness {
 	part4 += jn.inner(igm)*ny.inner(mfx);
       }
     }
-    //    if(world.rank()==0){
-    //      std::cout << "<" << i.name() << j.name() <<"|gQf|" << x.name() << y.name() << "\n";
-    //      std::cout << "part1=" << part1 << "\n";
-    //      std::cout << "part2=" << part2 << "\n";
-    //      std::cout << "part3=" << part3 << "\n";
-    //      std::cout << "part4=" << part4 << "\n";
-    //    }
     return part1-part2-part3+part4;
   }
 
@@ -1668,81 +1745,82 @@ namespace madness {
     }
 
 
-    Pairs<CC_Pair> doubles=make_reg_residues(singles);
-
-
-
-    CC_data dummy;
-
-    output("\n\n Checking u-parts and r-parts of singles potentials with doubles\n\n");
-    const potentialtype_s u_parts_tmp[]={pot_S4a_u_, pot_S4b_u_, pot_S4c_u_, pot_S2b_u_, pot_S2c_u_};
-    const potentialtype_s r_parts_tmp[]={pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S2b_r_, pot_S2c_r_};
-    std::vector < std::pair<std::string, double> > results;
-    for(size_t pot=0; pot < 5; pot++){
-      const potentialtype_s current_u=u_parts_tmp[pot];
-      const potentialtype_s current_r=r_parts_tmp[pot];
-      const std::string name=assign_name(current_u);
-      double largest_error=0.0;
-      output("\n\nConsistency Check of Singles Potential " + assign_name(current_u) + " with " + assign_name(current_r));
-      const vecfuncT u=potential_singles(doubles,singles,current_u);
-      const vecfuncT r=potential_singles(doubles,singles,current_r);
-      const vecfuncT diff=sub(world,u,r);
-      const double normdiff=norm2(world,u) - norm2(world,r);
-      if(world.rank() == 0) std::cout << std::setw(20) << "||" + assign_name(current_u) + "||-||" + assign_name(current_r) + "||" << std::setfill(' ') << "=" << normdiff << std::endl;
-      for(const auto d : diff){
-	const double norm=d.norm2();
-	if(norm > largest_error) largest_error=norm;
-	if(world.rank() == 0) std::cout << std::setw(20) << "||" + assign_name(current_u) + "-" + assign_name(current_r) + "||" << std::setfill(' ') << "=" << norm << std::endl;
-      }
-      results.push_back(std::make_pair(name,largest_error));
-      if(current_u == pot_S2b_u_){
-	output("Making Integration Test for S2b potential:");
-	// integrate the s2b potential against a function which not in the hole space = \sum_k 2<X,k|g|uik> - <k,X|g|uik>, with X=QX
-	real_function_3d X=real_factory_3d(world);
-	for(const auto&s : singles.functions){
-	  X+=s.second.function;
-	}
-	X=projector_Q(X);
-	X=X * nemo.nuclear_correlation->square();
-	Tensor<double> xs2b=inner(world,X,u);
-	Tensor<double> xs2b_reg=inner(world,X,r);
-	std::vector<double> control_6D;
-	for(auto& itmp : singles.functions){
-	  const size_t i=itmp.first;
-	  double controli_6D=0.0;
-	  for(auto& ktmp : singles.functions){
-	    const size_t k=ktmp.first;
-	    real_function_6d g=TwoElectronFactory(world).dcut(parameters.lo);
-	    real_function_6d Xk_g=CompositeFactory<double, 6, 3>(world).particle1(copy(X)).particle2(copy(mo_bra_(k).function)).g12(g);
-	    real_function_6d g2=TwoElectronFactory(world).dcut(parameters.lo);
-	    real_function_6d kX_g=CompositeFactory<double, 6, 3>(world).particle1(copy(mo_bra_(k).function)).particle2(copy(X)).g12(g2);
-	    const double tmp_6D=2.0 * Xk_g.inner(get_pair_function(doubles,i,k)) - kX_g.inner(get_pair_function(doubles,i,k));
-	    controli_6D+=tmp_6D;
-	  }
-	  control_6D.push_back(controli_6D);
-	}
-	for(size_t i=0; i < control_6D.size(); i++){
-	  const double diff=xs2b(i) - control_6D[i];
-	  const double diff2=xs2b_reg(i) - control_6D[i];
-	  std::cout << "||diffu||_" << i << "=" << fabs(diff) << std::endl;
-	  std::cout << "||diffr||_" << i << "=" << fabs(diff2) << std::endl;
-	  if(fabs(diff) > FunctionDefaults<6>::get_thresh()) warning("Integration Test of S2b failed !!!!!");
-	}
-      }
-    }
-
-    bool problems=false;
-    for(const auto res : results){
-      std::string status="... passed!";
-      if(res.second > FunctionDefaults<6>::get_thresh()){
-	status="... failed!";
-	problems=true;
-      }
-      if(world.rank() == 0) std::cout << std::setw(10) << res.first << status << " largest error was " << res.second << std::endl;
-    }
-    if(problems) warning("Inconsistencies in Singles Potential detected!!!!");
-    else output("Singles Potentials seem to be consistent");
+    // reimplement this, only needed for tests
+//    Pairs<CC_Pair> doubles=make_reg_residues(singles);
+//
+//
+//
+//    CC_data dummy;
+//
+//    output("\n\n Checking u-parts and r-parts of singles potentials with doubles\n\n");
+//    const potentialtype_s u_parts_tmp[]={pot_S4a_u_, pot_S4b_u_, pot_S4c_u_, pot_S2b_u_, pot_S2c_u_};
+//    const potentialtype_s r_parts_tmp[]={pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_S2b_r_, pot_S2c_r_};
+//    std::vector < std::pair<std::string, double> > results;
+//    for(size_t pot=0; pot < 5; pot++){
+//      const potentialtype_s current_u=u_parts_tmp[pot];
+//      const potentialtype_s current_r=r_parts_tmp[pot];
+//      const std::string name=assign_name(current_u);
+//      double largest_error=0.0;
+//      output("\n\nConsistency Check of Singles Potential " + assign_name(current_u) + " with " + assign_name(current_r));
+//      const vecfuncT u=potential_singles(doubles,singles,current_u);
+//      const vecfuncT r=potential_singles(doubles,singles,current_r);
+//      const vecfuncT diff=sub(world,u,r);
+//      const double normdiff=norm2(world,u) - norm2(world,r);
+//      if(world.rank() == 0) std::cout << std::setw(20) << "||" + assign_name(current_u) + "||-||" + assign_name(current_r) + "||" << std::setfill(' ') << "=" << normdiff << std::endl;
+//      for(const auto d : diff){
+//	const double norm=d.norm2();
+//	if(norm > largest_error) largest_error=norm;
+//	if(world.rank() == 0) std::cout << std::setw(20) << "||" + assign_name(current_u) + "-" + assign_name(current_r) + "||" << std::setfill(' ') << "=" << norm << std::endl;
+//      }
+//      results.push_back(std::make_pair(name,largest_error));
+//      if(current_u == pot_S2b_u_){
+//	output("Making Integration Test for S2b potential:");
+//	// integrate the s2b potential against a function which not in the hole space = \sum_k 2<X,k|g|uik> - <k,X|g|uik>, with X=QX
+//	real_function_3d X=real_factory_3d(world);
+//	for(const auto&s : singles.functions){
+//	  X+=s.second.function;
+//	}
+//	X=projector_Q(X);
+//	X=X * nemo.nuclear_correlation->square();
+//	Tensor<double> xs2b=inner(world,X,u);
+//	Tensor<double> xs2b_reg=inner(world,X,r);
+//	std::vector<double> control_6D;
+//	for(auto& itmp : singles.functions){
+//	  const size_t i=itmp.first;
+//	  double controli_6D=0.0;
+//	  for(auto& ktmp : singles.functions){
+//	    const size_t k=ktmp.first;
+//	    real_function_6d g=TwoElectronFactory(world).dcut(parameters.lo);
+//	    real_function_6d Xk_g=CompositeFactory<double, 6, 3>(world).particle1(copy(X)).particle2(copy(mo_bra_(k).function)).g12(g);
+//	    real_function_6d g2=TwoElectronFactory(world).dcut(parameters.lo);
+//	    real_function_6d kX_g=CompositeFactory<double, 6, 3>(world).particle1(copy(mo_bra_(k).function)).particle2(copy(X)).g12(g2);
+//	    const double tmp_6D=2.0 * Xk_g.inner(get_pair_function(doubles,i,k)) - kX_g.inner(get_pair_function(doubles,i,k));
+//	    controli_6D+=tmp_6D;
+//	  }
+//	  control_6D.push_back(controli_6D);
+//	}
+//	for(size_t i=0; i < control_6D.size(); i++){
+//	  const double diff=xs2b(i) - control_6D[i];
+//	  const double diff2=xs2b_reg(i) - control_6D[i];
+//	  std::cout << "||diffu||_" << i << "=" << fabs(diff) << std::endl;
+//	  std::cout << "||diffr||_" << i << "=" << fabs(diff2) << std::endl;
+//	  if(fabs(diff) > FunctionDefaults<6>::get_thresh()) warning("Integration Test of S2b failed !!!!!");
+//	}
+//      }
+//    }
+//
+//    bool problems=false;
+//    for(const auto res : results){
+//      std::string status="... passed!";
+//      if(res.second > FunctionDefaults<6>::get_thresh()){
+//	status="... failed!";
+//	problems=true;
+//      }
+//      if(world.rank() == 0) std::cout << std::setw(10) << res.first << status << " largest error was " << res.second << std::endl;
+//    }
+//    if(problems) warning("Inconsistencies in Singles Potential detected!!!!");
+//    else output("Singles Potentials seem to be consistent");
     output("\n\n Ending Testing Section\n\n");
-  }
+ }
 
 }

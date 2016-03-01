@@ -18,6 +18,7 @@
 
 namespace madness{
 
+
 enum optype {g12_,f12_};
 enum calctype {MP2_, CC2_, CCS_response_, CC2_response_, CISpD_, experimental_};
 enum functype {HOLE,PARTICLE,MIXED,RESPONSE,UNDEFINED};
@@ -26,6 +27,8 @@ enum potentialtype_s {pot_F3D_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, 
 enum potentialtype_d {pot_F6D_, pot_cc2_coulomb_,pot_cc2_residue_};
 // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
 enum pair_function_form{DECOMPOSED, FULL};
+
+
 static std::string assign_name(const optype &input){
   switch(input){
     case g12_ : return "g12";
@@ -171,7 +174,8 @@ struct CC_Parameters{
 		debug(false),
 		kain(false),
 		freeze(0),
-		test(false)
+		test(false),
+		decompose_Q(false)
 	{
 		// get the parameters from the input file
 		std::ifstream f(input.c_str());
@@ -216,13 +220,14 @@ struct CC_Parameters{
 			else if (s == "freeze") f >> freeze;
 			else if (s == "iter_max_3d") f >> iter_max_3D;
 			else if (s == "iter_max_6d") f >> iter_max_6D;
-			else if (s == "restart") restart=true;
-			else if (s == "no_compute") no_compute=true;
 			else if (s == "kain") kain=true;
 			else if (s == "kain_subspace") f>>kain_subspace;
 			else if (s == "freeze") f>>freeze;
 			else if (s == "test") test =true;
 			else if (s == "corrfac") f>>corrfac_gamma;
+			else if (s == "decompose_q") decompose_Q=true;
+			else if (s == "restart")restart = true;
+			else if (s == "no_compute") no_compute = true;
 			else{
 			  std::cout << "Unknown Keyword: " << s << "\n";
 			  continue;
@@ -263,6 +268,8 @@ struct CC_Parameters{
 		if(econv < 1.e-5) output_prec = 6;
 		if(econv < 1.e-6) output_prec = 7;
 		std::cout.precision(output_prec);
+
+		if(no_compute==true and restart ==false) restart = true;
 	}
 
 
@@ -314,6 +321,8 @@ struct CC_Parameters{
 		return corrfac_gamma;
 	}
 	bool test;
+	// choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
+	bool decompose_Q;
 
 	// print out the parameters
 	void information(World &world)const{
@@ -394,6 +403,9 @@ struct CC_Parameters{
 			if(world.rank()==0) std::cout << warnings <<"Warnings in parameters sanity check!\n\n";
 		}else{
 			if(world.rank()==0) std::cout << "Sanity check for parameters passed\n\n" << std::endl;
+		}
+		if(restart == false and no_compute==true){
+		  warnings+=warning(world,"no_compute flag detected but no restart flag");
 		}
 	}
 
@@ -735,7 +747,8 @@ struct CC_data{
 		else return;
 	}
 	void info()const{
-		std::cout << std::setw(25) <<name << std::setfill(' ') << ", ||f||=" << result_norm << ", (" << result_size << ") GB, " << time.first << "s (Wall), " << time.second << "s (CPU)\n";
+		std::cout << std::setw(25) <<name << std::setfill(' ') << ", ||f||=" <<std::fixed << std::setprecision(6) << result_norm
+		    <<std::scientific << std::setprecision(2) << ", (" << result_size << ") GB, " << time.first << "s (Wall), " << time.second << "s (CPU)\n";
 		if(not warnings.empty()){
 			std::cout << "!!!Problems were detected in " << name <<"!!!\n";
 			std::cout << warnings << std::endl;

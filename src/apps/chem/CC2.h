@@ -306,16 +306,19 @@ namespace madness {
       time_all.info();
 
       // Assign the overall changes
+      bool no_change=true;
       if(world.rank() == 0) std::cout << "Change in Singles functions after all the CC2-Single-Microiterations" << std::endl;
       for(auto& tmp : singles.functions){
-	tmp.second.current_error=(tmp.second.function - old_singles(tmp.first).function).norm2();
+	const double change = (tmp.second.function - old_singles(tmp.first).function).norm2();
+	tmp.second.current_error= change;
+	if(change>parameters.dconv_6D*0.1) no_change=false;
 	if(world.rank() == 0) std::cout << "Change of " << tmp.second.name() << "=" << tmp.second.current_error << std::endl;
       }
 
       CCOPS.plot(singles);
       CCOPS.save_functions(singles);
-
-      return converged;
+      if(no_change) output("Change of Singles was below (0.1*thresh_6D) = " +std::to_string(parameters.dconv_6D*0.1)+"!");
+      return no_change;
     }
 
     bool
@@ -361,7 +364,7 @@ namespace madness {
     get_correlation_energy(const Pairs<CC_Pair> &doubles) const;
     /// update the pair energies of cc2
     std::vector<double>
-    update_cc2_pair_energies(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const;
+    update_cc2_pair_energies(Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const;
     /// Iterates a pair of the CC2 doubles equations
     bool
     iterate_pair(CC_Pair & pair,const CC_vecfunction &singles) const;
@@ -407,10 +410,14 @@ namespace madness {
 	const CC_Pair & u=utmp.second;
 	double omega=u.current_energy;
 	if(u.i != u.j) omega=2.0 * u.current_energy;
+	double delta=u.current_energy_difference;
+	double delta_sign = delta/fabs(delta);
+	std::string sign = "+"; if(delta_sign<0.0) sign="-";
+	const std::string sdelta = sign+std::to_string(fabs(delta));
 	if(world.rank() == 0){
 	  std::cout << std::fixed << std::setprecision(prec) << std::setw(5) << std::setfill(' ') << u.name() << "|" << std::setw(prec + 1) << std::setfill(' ') << u.current_energy << "|"
 	      << std::setw(prec + 1) << std::setfill(' ') << omega << "|" << std::scientific << std::setprecision(3) << std::setw(7) << std::setfill(' ') << u.current_error << "|" << std::setw(7)
-	      << std::setfill(' ') << u.current_energy_difference << "|" << std::setw(7) << std::setfill(' ') << u.function.norm2() << "|" << std::setw(7) << std::setfill(' ')
+	      << std::setfill(' ') << sdelta << "|" << std::setw(7) << std::setfill(' ') << u.function.norm2() << "|" << std::setw(7) << std::setfill(' ')
 	      << singles(u.i).function.norm2() << "|" << std::setw(7) << std::setfill(' ') << singles(u.j).function.norm2() << "\n";
 	}
       }
