@@ -1084,7 +1084,7 @@ namespace madness {
   }
 
 
-  // returns (F-eps-omega)|x>
+  // returns (F-eps)|x>
   real_function_3d
   CC_Operators::apply_reduced_F(const CC_function &x) const {
     output("Getting (F-eps-omega)|"+x.name()+"> from singles potential");

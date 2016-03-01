@@ -44,44 +44,7 @@ namespace madness {
       }
       time_cc2.info();
     }
-    if(type==CISpD_){
-      Pairs<CC_Pair> mp2_pairs = initialize_pairs(GROUND_STATE);
-      output("Test ijgu");
-      const CC_Pair test = mp2_pairs.allpairs.find(std::make_pair(0,0))->second;
-      CCOPS.make_ijgu(CCOPS.mo_ket(0),CCOPS.mo_ket(0),test);
-      output("Test finished");
-      const double mp2_correlation_energy = solve_mp2(mp2_pairs);
-      output_section("MP2 Ended");
-      if(world.rank()==0) std::cout << "MP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << mp2_correlation_energy << "\n";
-
-      std::vector<std::pair<CC_vecfunction,double> > cis_results = solve_ccs();
-      std::vector<std::pair<double,double>> result;
-      size_t i=0;
-      for(const auto& cistmp:cis_results){
-	const double cis_omega = cistmp.second;
-	const CC_vecfunction cis_singles = cistmp.first;
-	cis_singles.print_size();
-	Pairs<CC_Pair> cispd_pairs = initialize_pairs(EXCITED_STATE,cis_omega);
-	const double cispd_omega = solve_cispd(cispd_pairs,mp2_pairs,cis_singles,cis_omega);
-
-	if(world.rank()==0) std::cout << "CIS(D) for Excitation " << i << "\n"
-	    << std::fixed << std::setprecision(parameters.output_prec)
-	<< cis_omega <<" (CIS), " << cispd_omega << " (CIS(D))\n";
-	result.push_back(std::make_pair(cis_omega,cispd_omega));
-	i++;
-      }
-
-      output_section("CIS(D) Ended:");
-      i=0;
-      for(const auto & res:result){
-	if(world.rank()==0) std::cout << "CIS(D) for Excitation " << i << "\n"
-	    << std::fixed << std::setprecision(parameters.output_prec)
-	<< res.first <<" (CIS), " << res.second << " (CIS(D))\n";
-	i++;
-      }
-
-    }
-    if(type==CC2_response_){
+    if(type==CC2_response_ or type==CISpD_){
       CC_Timer time_cc2(world,"CC2-Overall-Time");
       CC_Timer time_cc2_gs(world,"CC2-Ground-State-Time");
       Pairs<CC_Pair> pairs = initialize_pairs(GROUND_STATE);
@@ -105,11 +68,11 @@ namespace madness {
       size_t i=0;
       std::vector<std::pair<CC_vecfunction,double> > cc2_results;
       for(const auto& cistmp:cis_results){
-	const double omega = cistmp.second;
-	output_section("Solving Excitation " + std::to_string(i) + " with CIS excitation energy " + std::to_string(omega));
+	const double omega_cis = cistmp.second;
+	output_section("Solving Excitation " + std::to_string(i) + " with CIS excitation energy " + std::to_string(omega_cis));
 	CC_vecfunction x(cistmp.first);
-	x.omega = omega;
-	Pairs<CC_Pair> chi = initialize_pairs(EXCITED_STATE,omega);
+	x.omega = omega_cis;
+	Pairs<CC_Pair> chi = initialize_pairs(EXCITED_STATE,omega_cis);
 	CCOPS.update_response_intermediates(x);
 
 	// reiterate ccs/cis (make shure it converged and make shure the singles potential is stored (needed for fock application)
@@ -118,8 +81,16 @@ namespace madness {
 	if(not iterate_singles(x,empty_vector,empty_pair_vector, CCS_response_)) CCOPS.warning("CCS/CIS not converged!");
 
 	// make CIS(D) as first guess for doubles
-	const double omega_cispd = solve_cispd(chi,pairs,x,x.omega);
+	const double omega_cispd = solve_cispd(chi,pairs,x,omega_cis);
 	singles.omega = omega_cispd;
+
+	output_section("CIS(D) ended");
+	if(world.rank()==0){
+	  std::cout << "Excitation Energy:\n";
+	  std::cout << "CIS   =" << omega_cis << "\n";
+	  std::cout << "CIS(D)=" << omega_cispd << "\n";
+	  std::cout << "Diff  =" << omega_cis - omega_cispd << "\n----------\n";
+	}
 
 	// reiterate cc2 singles (make shure they converged and that the singles potential is stored
 	if(iterate_cc2_singles(pairs,singles)) output("CC2 Singles Converged and Potential is stored");
@@ -127,7 +98,7 @@ namespace madness {
 
 	const double cc2_omega = solve_cc2_response(singles,pairs,x,chi);
 	cc2_results.push_back(std::make_pair(x,cc2_omega));
-	if(world.rank()==0) std::cout << " Excitation " << i << "\n" << "Excitation Energy (CIS) " << omega << "\n" << "Excitation Energy (CC2)" << cc2_omega << "\n";
+	if(world.rank()==0) std::cout << " Excitation " << i << "\n" << "Excitation Energy (CIS) " << omega_cis << "\n" << "Excitation Energy (CC2)" << cc2_omega << "\n";
 	i++;
       }
       output_section("CC2 Response Ended");
@@ -577,10 +548,14 @@ namespace madness {
       timer_cc2_coulomb.info();
     }
 
+    regular_part.print_size("Regularized-Part");
+    coulomb_part.print_size("Screened-Coulomb-Part");
+
     real_function_6d constant_part=(regular_part + coulomb_part);
+    constant_part.print_size("semi-constant-part before Q12");
     CCOPS.apply_Q12(constant_part,"constant_part+screened_coulomb_part");
     // if(ctype == CISpD_)  pair.constant_term = copy(constant_part);
-    constant_part.print_size("semi-constant-cc2-part of pair " + pair.name());
+    constant_part.print_size("semi-constant-part of pair " + pair.name());
 
     output_subsection("Converge pair " + pair.name() + " on constant singles potential");
 
