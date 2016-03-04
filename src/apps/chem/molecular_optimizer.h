@@ -129,6 +129,7 @@ private:
                 h(3*i+1,3*i+1)=1.0/(target->molecule().get_atom(i).mass);
                 h(3*i+2,3*i+2)=1.0/(target->molecule().get_atom(i).mass);
             }
+            h*=10.0;
             madness::print("using the identity as initial Hessian");
         } else {
             Tensor<double> normalmodes;
@@ -197,8 +198,11 @@ private:
             // return the displacements
             dx = new_search_direction2(gradient,h);
 
+            // line search only for large displacements > 0.01 bohr = 2pm
             double step=1.0;
-//            if (h_is_identity) step = QuasiNewton::line_search(1.0, f, dx.trace(g), x, dx);
+            double maxdx=dx.absmax();
+            if (h_is_identity and (maxdx>0.01)) step = QuasiNewton::line_search(1.0, f,
+                    dx.trace(gradient), x, dx,target, value_precision);
 
             dx.scale(step);
             x += dx;

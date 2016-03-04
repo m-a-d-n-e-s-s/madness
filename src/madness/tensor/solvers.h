@@ -260,8 +260,10 @@ namespace madness {
     public:
 
         /// make this static for other QN classed to have access to it
-        double line_search(double a1, double f0, double dxgrad,
-                const Tensor<double>& x, const Tensor<double>& dx) const;
+        static double line_search(double a1, double f0, double dxgrad,
+                const Tensor<double>& x, const Tensor<double>& dx,
+                std::shared_ptr<OptimizationTargetInterface> target,
+                double value_precision);
 
         /// make this static for other QN classed to have access to it
         static void hessian_update_sr1(const Tensor<double>& s, const Tensor<double>& y,

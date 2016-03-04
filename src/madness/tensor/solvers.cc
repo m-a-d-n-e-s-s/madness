@@ -111,7 +111,9 @@ namespace madness {
     double SteepestDescent::value() const {return f;}
 
     double QuasiNewton::line_search(double a1, double f0, double dxgrad,
-            const Tensor<double>& x, const Tensor<double>& dx) const {
+            const Tensor<double>& x, const Tensor<double>& dx,
+            std::shared_ptr<OptimizationTargetInterface> target1,
+            double value_precision) {
         double f1, f2p;
         double hess, a2;
         const char* lsmode = "";
@@ -121,7 +123,7 @@ namespace madness {
             a1 = -a1;
         }
 
-        f1 = target->value(x + a1 * dx);
+        f1 = target1->value(x + a1 * dx);
 
         // Fit to a parabola using f0, g0, f1
         hess = 2.0*(f1-f0-a1*dxgrad)/(a1*a1);
@@ -314,7 +316,8 @@ namespace madness {
 
             dx = new_search_direction(g);
 
-            double step = line_search(1.0, f, dx.trace(g), x, dx);
+            double step = line_search(1.0, f, dx.trace(g), x, dx, target,
+                    value_precision);
 
             dx.scale(step);
             x += dx;
