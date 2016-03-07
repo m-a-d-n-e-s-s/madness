@@ -7,6 +7,9 @@ set(MADMISC_SOURCES
 # Create the MADmisc library
 add_mad_library(misc MADMISC_SOURCES MADMISC_HEADERS "world" "madness/misc/")
 
+get_property(MADWORLD_LINK_FLAGS TARGET MADworld PROPERTY LINK_FLAGS)
+set_target_properties(MADmisc PROPERTIES LINK_FLAGS "${MADWORLD_LINK_FLAGS}")
+
 if(ENABLE_UNITTESTS)
   
   # The list of unit test source files
