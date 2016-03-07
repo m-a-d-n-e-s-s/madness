@@ -2,7 +2,7 @@ Some info about parsec compilation:
 
 In order for the compilation to work, the following modifications must
 be done when compiling parsec (at ccmake . step):
-1- Add -fPIC to CFLAGS
+1- Add -fPIC to CFLAGS (EV: this did not work for me, setting BUILD_SHARED_LIBS cmake var to ON  did)
 2- Set DAGUE_WITH_DEVEL_HEADERS ON
 3- Set DAGUE_DIST_WITH_MPI OFF (with openMPI)
 4- You have to run make install after make
