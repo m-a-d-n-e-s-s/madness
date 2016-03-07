@@ -42,6 +42,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   add_dependencies(install-${_name} MAD${_name})
   add_dependencies(install-libraries install-${_name})
 
+  set(LINK_FLAGS "")
   foreach(_dep ${_dep_mad_comp})
     if(TARGET install-${_dep})
       add_dependencies(install-${_name} install-${_dep})
@@ -58,9 +59,18 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
       else()
         target_link_libraries(MAD${_name} PUBLIC ${_dep})
       endif()      
+
+      # import LINK_FLAGS from dependent
+      get_property(_dep_LINK_FLAGS_SET TARGET MAD${_dep} PROPERTY LINK_FLAGS SET)
+      if (_dep_LINK_FLAGS_SET)
+        get_property(_dep_LINK_FLAGS TARGET MAD${_dep} PROPERTY LINK_FLAGS)
+        set(LINK_FLAGS "${LINK_FLAGS} ${_dep_LINK_FLAGS}")
+      endif ()
+        
     endif()
   endforeach()
-  
+  set_target_properties(MAD${_name} PROPERTIES LINK_FLAGS "${LINK_FLAGS}") 
+ 
   # Add compile and linker flags to library
   if(CXX11_COMPILE_FLAG)
     target_compile_options(MAD${_name} INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
