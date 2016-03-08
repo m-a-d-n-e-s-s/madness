@@ -333,29 +333,6 @@ namespace madness {
     initialize_cc2_singles() const;
     Pairs<CC_Pair>
     initialize_pairs(const pairtype type,const double omega=0.0) const;
-    Pairs<CC_Pair>
-    make_empty_pairs(const pairtype type,const double omega=0.0) const {
-      Pairs<CC_Pair> pairs;
-      for(size_t i=parameters.freeze; i < mo.size(); i++){
-	for(size_t j=i; j < mo.size(); j++){
-	  CC_Pair u(i,j,type);
-	  u.function=real_factory_6d(world);
-	  u.current_energy=0.0;
-	  u.current_energy_difference=CC_Pair::uninitialized();
-	  if(u.type == GROUND_STATE){
-	    u.ij_gQf_ij=CCOPS.make_ijgQfxy(u.i,u.j,CC_function(mo[u.i],u.i,HOLE),CC_function(mo[u.j],u.j,HOLE));
-	    u.ji_gQf_ij=CCOPS.make_ijgQfxy(u.i,u.j,CC_function(mo[u.j],u.j,HOLE),CC_function(mo[u.i],u.i,HOLE));
-	    u.epsilon=CCOPS.get_epsilon(u.i,u.j);
-	    u.current_energy=CCOPS.compute_mp2_pair_energy(u);
-	  }else if(u.type == EXCITED_STATE){
-	    u.epsilon=CCOPS.get_epsilon(u.i,u.j) + omega;
-	    u.current_energy=omega;
-	  }
-	  pairs.insert(i,j,u);
-	}
-      }
-      return pairs;
-    }
     /// Initialize an electron pair
     void
     initialize_electron_pair(CC_Pair &u) const;
@@ -367,11 +344,45 @@ namespace madness {
     update_cc2_pair_energies(Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const;
     /// Iterates a pair of the CC2 doubles equations
     bool
-    iterate_pair(CC_Pair & pair,const CC_vecfunction &singles) const;
-    bool
-    iterate_pair(CC_Pair &pair,const CC_vecfunction &singles,const CC_vecfunction &response_singles,const calctype ctype) const;
+    iterate_pair(CC_Pair & pair,const double omega=0.0) const;
     bool
     iterate_nonorthogonal_pair(CC_Pair &pair);
+
+    bool update_constant_part_mp2(CC_Pair &pair){
+      if(pair.constant_term.is_initialized()) return false;
+      else pair.constant_term = CCOPS.make_regularization_residue(CCOPS.mo_ket(pair.i),CCOPS.mo_ket(pair.j),MP2_,0.0);
+      return true;
+    }
+
+    bool update_constant_part_cc2_gs(CC_Pair &pair, const CC_vecfunction &tau){
+      if(pair.type!=GROUND_STATE)CCOPS.error("asked for constant part of ground state, but given pair is not a ground state pair");
+      const CC_function taui = tau(pair.i);
+      const CC_function tauj = tau(pair.j);
+      bool recalc=(taui.current_error > parameters.dconv_3D or tauj.current_error>parameters.dconv_3D);
+      if(not pair.constant_term.is_initialized()) recalc=true;
+
+      if(recalc){
+	output_section("(Re)-Calculating the (Semi-) Constant-Terms of the CC2-Ground-State");
+	const CC_vecfunction t = CCOPS.make_t_intermediate_full(tau);
+	pair.constant_term = CCOPS.make_constant_part_cc2_gs(t(pair.i),t(pair.j),t,0.0);
+      }else output("Singles did not change significantly: Constant part is not recalculated");
+      return recalc;
+    }
+
+    bool update_constant_part_cc2_response(CC_Pair &pair, const CC_vecfunction &tau,const CC_vecfunction &x){
+      if(pair.type!=EXCITED_STATE)CCOPS.error("asked for constant part of the response, but given pair is not a response pair");
+      if(x.type!=RESPONSE) error("update_constant_part_response: x!=RESPONSE");
+      if(tau.type!=PARTICLE) error("update_constant_part_response: x!=PARTICLE");
+
+      bool recalc=(x(pair.i).current_error > parameters.dconv_3D or x(pair.j).current_error>parameters.dconv_3D);
+      if(not pair.constant_term.is_initialized()) recalc=true;
+
+      if(recalc){
+	output_section("(Re)-Calculating the (Semi-) Constant-Terms of the CC2-Response");
+	pair.constant_term = CCOPS.make_constant_part_cc2_response(std::make_pair(pair.i,pair.j),x,CCOPS.mo_ket());
+      }else output("Singles did not change significantly: Constant part is not recalculated");
+      return recalc;
+    }
     /// Create formated output, std output with world rank 0
     void
     output(const std::string &msg) const {

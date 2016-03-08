@@ -10,8 +10,223 @@
 namespace madness {
 
 
+    real_function_3d CC_convolution_operator::operator()(const CC_function &bra, const CC_function &ket, const bool use_im)const{
+      real_function_3d result;
+      if(not use_im){
+	if(world.rank()==0) std::cout <<"Recalculating <" << bra.name()<<"|"<< assign_name(operator_type) <<"|"<<ket.name() <<">\n";
+	result = ((*op)(bra.function*ket.function)).truncate();
+      }
+      else if(bra.type==HOLE and ket.type==HOLE and not imH.allpairs.empty()) result = imH(bra.i,ket.i);
+      else if(bra.type==HOLE and ket.type==RESPONSE and not imR.allpairs.empty()) result = imR(bra.i,ket.i);
+      else if(bra.type==HOLE and ket.type==PARTICLE and not imP.allpairs.empty()) result = imP(bra.i,ket.i);
+      else if(bra.type==HOLE and ket.type==MIXED and (not imP.allpairs.empty() and not imH.allpairs.empty())) result = (imH(bra.i,ket.i)+imP(bra.i,ket.i));
+      else{
+	if(world.rank()==0) std::cout <<"No Intermediate found for <" << bra.name()<<"|"<<assign_name(operator_type) <<"|"<<ket.name() <<"> ... recalculate \n";
+	result = ((*op)(bra.function*ket.function)).truncate();
+      }
+      return result;
+    }
+
+    real_function_6d CC_convolution_operator::operator()(const real_function_6d &u, const size_t particle)const{
+      MADNESS_ASSERT(particle==1 or particle==2);
+      MADNESS_ASSERT(operator_type == g12_);
+      op->particle()=particle;
+      return (*op)(u);
+    }
+
+    real_function_3d CC_convolution_operator::operator()(const CC_function &bra,const real_function_6d &u, const size_t particle)const{
+      MADNESS_ASSERT(particle==1 or particle==2);
+      MADNESS_ASSERT(operator_type == g12_);
+      const real_function_6d tmp = multiply(copy(u),copy(bra.function),particle);
+      op->particle()=particle;
+      const real_function_6d g_tmp = (*op)(tmp);
+      const real_function_3d result = g_tmp.dirac_convolution<3>();
+      return result;
+    }
 
 
+    void CC_convolution_operator::update_elements(const CC_vecfunction &bra, const CC_vecfunction &ket){
+      const  std::string operation_name = "<"+assign_name(bra.type)+"|"+name()+"|"+assign_name(ket.type)+">";
+      if(world.rank()==0) std::cout << "updating operator elements: " << operation_name << " (" << bra.size() <<"x"<<ket.size() <<")"<< std::endl;
+      if(bra.type != HOLE) error("Can not create intermediate of type "+operation_name+" , bra-element has to be of type HOLE");
+      intermediateT xim;
+      for(auto tmpk : bra.functions){
+	const CC_function & k=tmpk.second;
+	for(auto tmpl : ket.functions){
+	  const CC_function& l=tmpl.second;
+	  real_function_3d kl=(bra(k).function * l.function);
+	  real_function_3d result=((*op)(kl)).truncate();
+	  result.reconstruct(); // for sparse multiplication
+	  xim.insert(k.i,l.i,result);
+	}
+      }
+      if(ket.type==HOLE) imH=xim;
+      else if(ket.type==PARTICLE) imP=xim;
+      else if(ket.type==RESPONSE) imR=xim;
+      else error("Can not create intermediate of type <"+assign_name(bra.type)+"|op|"+assign_name(ket.type)+">");
+    }
+
+
+    void CC_convolution_operator::clear_intermediates(const functype &type){
+      if(world.rank()==0) std::cout <<"Deleting all <HOLE|" << name() <<"|" << assign_name(type) << "> intermediates \n";
+      switch(type){
+	case HOLE : {imH.allpairs.clear(); break;}
+	case PARTICLE:{imP.allpairs.clear(); break;}
+	case RESPONSE:{imR.allpairs.clear(); break;}
+	default: error("intermediates for " + assign_name(type) + " are not defined");
+      }
+    }
+
+    size_t CC_convolution_operator::info()const{
+      const size_t size_imH = size_of(imH);
+      const size_t size_imP = size_of(imP);
+      const size_t size_imR = size_of(imR);
+      if(world.rank()==0){
+	std::cout <<"Size of " << name() <<" intermediates:\n";
+	std::cout <<std::setw(5)<<"("<<imH.allpairs.size() << ") x <H|"+name()+"H>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
+	std::cout <<std::setw(5)<<"("<<imP.allpairs.size() << ") x <H|"+name()+"P>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
+	std::cout <<std::setw(5)<<"("<<imR.allpairs.size() << ") x <H|"+name()+"R>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
+      }
+      return size_imH+size_imP + size_imR;
+    }
+
+    SeparatedConvolution<double,3>* CC_convolution_operator::init_op(const optype &type,const CC_Parameters &parameters)const{
+      switch(type){
+	case g12_ : {
+	  if(world.rank()==0) std::cout << "Creating " << assign_name(type) <<" Operator with thresh=" << parameters.thresh_poisson <<" and lo=" << parameters.lo << std::endl;
+	  return CoulombOperatorPtr(world, parameters.lo,parameters.thresh_poisson);
+	}
+	case f12_ : {
+	  if(world.rank()==0) std::cout << "Creating " << assign_name(type) <<" Operator with thresh=" << parameters.thresh_poisson <<" and lo=" << parameters.lo << " and Gamma=" << parameters.gamma() << std::endl;
+	  return SlaterF12OperatorPtr(world, parameters.gamma(),parameters.lo, parameters.thresh_poisson);
+	}
+	default : {
+	  error("Unknown operatorype " + assign_name(type));
+	  MADNESS_EXCEPTION("error",1);
+	}
+      }
+
+    }
+
+    real_function_3d CC_function_6d::project_out(const CC_function &f,const size_t particle)const{
+      MADNESS_ASSERT(particle==1 or particle==2);
+      real_function_3d result;
+      switch(type){
+	case pure_ :
+	  result= u.project_out(f.function,particle-1); // this needs 0 or 1 for particle but we give 1 or 2
+	  break;
+	case decomposed_ :
+	  result= project_out_decomposed(f.function,particle);
+	  break;
+	case op_decomposed_:
+	  result= project_out_op_decomposed(f,particle);
+	  break;
+      }
+      if(not result.is_initialized()) MADNESS_EXCEPTION("Result of project out on CC_function_6d was not initialized",1);
+      return result;
+    }
+
+    // result is: <x|op12|f>_particle
+    real_function_3d CC_function_6d::dirac_convolution(const CC_function &x, const CC_convolution_operator &op, const size_t particle)const{
+      real_function_3d result;
+      switch(type){
+	case pure_:
+	  result = op(x,u,particle);
+	  break;
+	case decomposed_ :
+	  result = dirac_convolution_decomposed(x,op,particle);
+	  break;
+	case op_decomposed_:
+	 MADNESS_EXCEPTION("op_decomposed dirac convolution not yet implemented",1);
+      }
+      return result;
+    }
+
+    CC_function_6d CC_function_6d::swap_particles()const{
+      switch(type){
+	case pure_:
+	  return swap_particles_pure();
+	  break;
+	case decomposed_:
+	  return swap_particles_decomposed();
+	  break;
+	case op_decomposed_:
+	  return swap_particles_decomposed();
+	  break;
+      }
+      MADNESS_EXCEPTION("swap_particles in CC_function_6d: we should not end up here",1);
+    }
+
+    real_function_6d CC_function_6d::apply_G(const real_convolution_6d &G)const{
+      real_function_6d result = real_factory_6d(world);
+      result.set_thresh(FunctionDefaults<6>::get_thresh()*0.1);
+      MADNESS_ASSERT(a.size()==b.size());
+      MADNESS_ASSERT(type==decomposed_);
+      for(size_t i=0;i<a.size();i++){
+	result += G(a[i],b[i]);
+      }
+      return result;
+    }
+
+    real_function_3d CC_function_6d::project_out_decomposed(const real_function_3d &f,const size_t particle)const{
+      real_function_3d result = real_factory_3d(world);
+      const std::pair<vecfuncT,vecfuncT> decompf = assign_particles(particle);
+      Tensor<double> c = inner(world,f,decompf.first);
+      for(size_t i=0;i<a.size();i++) result += c(i)*decompf.second[i];
+      return result;
+    }
+
+    real_function_3d CC_function_6d::project_out_op_decomposed(const CC_function &f, const size_t particle)const{
+      if(particle==1){
+	return (*op)(f,x)*y.function;
+      }else if(particle==2){
+	return (*op)(f,y)*x.function;
+      }else{
+	MADNESS_EXCEPTION("project_out_op_decomposed: particle must be 1 or 2",1);
+	return real_factory_3d(world);
+      }
+    }
+
+    real_function_3d CC_function_6d::dirac_convolution_decomposed(const CC_function &x, const CC_convolution_operator &op, const size_t particle)const{
+      const std::pair<vecfuncT,vecfuncT> f = assign_particles(particle);
+      const vecfuncT xa = mul(world,x.function,f.first);
+      const vecfuncT xga = op(xa);
+      real_function_3d result = real_factory_3d(world);
+      for(size_t i=0;i<xga.size();i++) result += xga[i]*f.second[i];
+      return result;
+    }
+
+    const std::pair<vecfuncT,vecfuncT> CC_function_6d::assign_particles(const size_t particle)const{
+      if(particle==1){
+	return std::make_pair(a,b);
+      }else if(particle==2){
+	return std::make_pair(b,a);
+      }else{
+	MADNESS_EXCEPTION("project_out_decomposed: Particle is neither 1 nor 2",1);
+	return std::make_pair(a,b);
+      }
+    }
+
+    CC_function_6d CC_function_6d::swap_particles_pure() const {
+      // CC_Timer timer_swap(world,"swap particles");
+      // this could be done more efficiently for SVD, but it works decently
+      std::vector<long> map(6);
+      map[0]=3;
+      map[1]=4;
+      map[2]=5;     // 2 -> 1
+      map[3]=0;
+      map[4]=1;
+      map[5]=2;     // 1 -> 2
+      // timer_swap.info();
+      real_function_6d swapped_u =mapdim(u,map);
+      return CC_function_6d(world,u);
+    }
+    CC_function_6d CC_function_6d::swap_particles_decomposed()const{
+      return CC_function_6d(world,b,a);
+    }
+    CC_function_6d CC_function_6d::swap_particles_op_decomposed()const{
+      return CC_function_6d(world,op,b.front(),a.front());
+    }
 
 
 
@@ -182,8 +397,19 @@ namespace madness {
 
   double
   CC_Operators::compute_mp2_pair_energy(CC_Pair &pair) const {
-    real_function_3d uninitialized_dummy;
-    return compute_cc2_pair_energy(pair,uninitialized_dummy,uninitialized_dummy);
+    const double constant_part = pair.constant_energy;
+    double u_part;
+    if(pair.i==pair.j) u_part = make_ijgu(pair.i,pair.j,pair.function);
+    else u_part = 2.0*make_ijgu(pair.i,pair.j,pair.function) - make_ijgu(pair.j,pair.i,pair.function);
+    const double result = constant_part + u_part;
+    pair.current_energy = result;
+    if(world.rank()==0){
+      std::cout << " MP2/CC2 Correlation Energy of Pair " << pair.name() << "\n";
+      std::cout << " u-part     =" <<std::fixed<<std::setprecision(parameters.output_prec+3)<< u_part << "\n";
+      std::cout << " const-part ="  <<std::fixed<<std::setprecision(parameters.output_prec+3)<< constant_part <<"\n";
+      std::cout << " overall    ="  <<std::fixed<<std::setprecision(parameters.output_prec+3)<< result << "\n";
+    }
+    return result;
   }
 
   // The Fock operator is partitioned into F = T + Vn + R
@@ -416,7 +642,6 @@ namespace madness {
 	  resulti+=ukl.project_out(l_kgi[l-parameters.freeze],1);
 	}
       }
-      resulti.print_size("s4b_"+std::to_string(i));
       result.push_back(resulti);
     }
     return result;
@@ -653,12 +878,15 @@ namespace madness {
   }
 
   real_function_6d CC_Operators::apply_regularization_potential(const CC_function &a, const CC_function &b, const double omega)const{
-    if((a.type != RESPONSE and b.type != RESPONSE) and omega !=0.0) error("Apply_regularization_potential: omega is not zero, but none of the functions has response type");
+    //if((a.type != RESPONSE and b.type != RESPONSE) and omega !=0.0) error("Apply_regularization_potential: omega is not zero, but none of the functions has response type");
+
+    real_function_6d fFab = real_factory_6d(world);
+
     const real_function_3d Fa=apply_reduced_F(a) + 0.5*omega * a.function;
     const real_function_3d Fb=apply_reduced_F(b) + 0.5*omega * b.function;
 
     // make the Fock operator part:  f(F-eij)|titj> = (F1+F2-ei-ej)|titj> = (F1-ei)|ti>|tj> + |ti>(F2-ei)|tj>
-    const real_function_6d fFab=make_f_xy(Fa,b,guess_thresh(Fa,b)) + make_f_xy(a,Fb,guess_thresh(a,Fb));
+    fFab=make_f_xy(Fa,b,guess_thresh(Fa,b)) + make_f_xy(a,Fb,guess_thresh(a,Fb));
 
     output("Applying Regularization Potential");
 
@@ -1211,7 +1439,7 @@ namespace madness {
   /// return	the input function with particles swapped g(1,2) = f(2,1)
   real_function_6d
   CC_Operators::swap_particles(const real_function_6d& f) const {
-    // CC_Timer timer_swap(world,"swap particles");
+    CC_Timer timer_swap(world,"swap particles");
     // this could be done more efficiently for SVD, but it works decently
     std::vector<long> map(6);
     map[0]=3;
@@ -1220,134 +1448,8 @@ namespace madness {
     map[3]=0;
     map[4]=1;
     map[5]=2;     // 1 -> 2
-    // timer_swap.info();
+    timer_swap.info();
     return mapdim(f,map);
-  }
-
-  // Calculate the CC2 energy equation which is
-  // \omega = \sum_{ij} 2<ij|g|\tau_{ij}> - <ij|g|\tau_{ji}> + 2 <ij|g|\tau_i\tau_j> - <ij|g|\tau_j\tau_i>
-  // with \tau_{ij} = u_{ij} + Q12f12|ij> + Q12f12|\tau_i,j> + Q12f12|i,\tau_j> + Q12f12|\tau_i\tau_j>
-  double
-  CC_Operators::get_CC2_correlation_energy() const {
-    MADNESS_EXCEPTION("get_cc2_correlation_energy not implemented yet",1);
-    return 0.0;
-  }
-
-
-  // E = <x_i|S2b_i> + <x_i|S2c_i>
-  //   = 2<x_ik|g|tauik> - <kx_i|g|tauik> + <x_i|S2b_i>
-  double CC_Operators::compute_cispd_energy(const Pairs<CC_Pair> &u, const Pairs<CC_Pair> mp2_doubles, const CC_vecfunction x){
-    remove_stored_singles_potentials();
-//    const CC_vecfunction active_mo = make_t_intermediate(x);
-//    const vecfuncT s2b_u = S2b_u_part(u,active_mo); // amo is only for size
-//    const vecfuncT s2b_r = add(world,S2b_reg_part(x,active_mo),S2b_reg_part(active_mo,x));
-//    const vecfuncT s2c_u = S2c_u_part(u,active_mo); // amo is only for size
-//    const vecfuncT s2c_r = add(world,S2c_reg_part(x,active_mo),S2c_reg_part(active_mo,x));
-//    const vecfuncT brax = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
-//    const Tensor<double> s2but=inner(world,brax,s2b_u);
-//    const Tensor<double> s2brt=inner(world,brax,s2b_r);
-//    const Tensor<double> s2cut=inner(world,brax,s2c_u);
-//    const Tensor<double> s2crt=inner(world,brax,s2c_r);
-//    const double ws2bu = s2but.sum();
-//    const double ws2br = s2brt.sum();
-//    const double ws2cu = s2cut.sum();
-//    const double ws2cr = s2crt.sum();
-//    const double tmp = ws2bu + ws2br + ws2cu + ws2cr;
-//    remove_stored_singles_potentials();
-//    const double constant_part = compute_cispd_energy_constant_part(mp2_doubles,x);
-//    remove_stored_singles_potentials();
-//    const double result = constant_part + tmp;
-//    if(world.rank()==0){
-//      std::cout << " CIS(D) Energy Calculation:\n";
-//      std::cout << " constant part: <xi|S4(MP2,CIS)> =" << constant_part << "\n";
-//      std::cout << " doubles  part: <xi|S2(CIS(D))>  =" << tmp << "\n";
-//      std::cout << " result = " << result << "\n";
-//    }
-//    return result;
-  }
-
-  // return <x|S4(u,x)>
-  double CC_Operators::compute_cispd_energy_constant_part(const Pairs<CC_Pair> &u, const CC_vecfunction x)const{
-    error("CIS(D) stuff has to be rewritten due to changed regularization");
-//    const CC_vecfunction active_mo = make_t_intermediate(x);
-//    const vecfuncT S4a = add(world,S4a_u_part(u,x),S4a_reg_part(active_mo,active_mo,x));
-//    const vecfuncT S4b = add(world,S4b_u_part(u,x),S4b_reg_part(active_mo,active_mo,x));
-//    const vecfuncT S4c = add(world,S4c_u_part(u,x),S4c_reg_part(active_mo,active_mo,x));
-//    const vecfuncT tmp = add(world,S4a,S4b);
-//    vecfuncT V = add(world,tmp,S4c);
-//    V=apply_Q(V,"cispd-energy-constant-part");
-//    const vecfuncT brax = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
-//    const Tensor<double> xV = inner(world,brax,V);
-//    return xV.sum();
-  }
-
-  double CC_Operators::compute_cc2_pair_energy(const CC_Pair &u,const CC_function &taui,const CC_function &tauj) const {
-    calctype type;
-    if(taui.function.is_initialized() and tauj.function.is_initialized()){
-      type=CC2_;
-      MADNESS_ASSERT(u.i == taui.i);
-      MADNESS_ASSERT(u.j == tauj.i);
-    }else{
-      type=MP2_;
-    }
-
-    double omega=0.0;
-    const size_t i=u.i;
-    const size_t j=u.j;
-    double u_part=0.0;
-    double ij_part=0.0;
-    double mixed_part=0.0;
-    double titj_part=0.0;
-    double singles_part=0.0;
-    double tight_thresh=parameters.tight_thresh_6D;
-    // Contribution from u itself, we will calculate <uij|g|ij> instead of <ij|g|uij> and then just make the inner product (see also mp2.cc)
-    {
-      real_function_6d coulomb=TwoElectronFactory(world).dcut(tight_thresh);
-      real_function_6d g_ij=CompositeFactory<double, 6, 3>(world).particle1(copy(mo_bra_(i).function)).particle2(copy(mo_bra_(j).function)).g12(coulomb).thresh(tight_thresh);
-
-      real_function_6d g_ji=CompositeFactory<double, 6, 3>(world).particle1(copy(mo_bra_(j).function)).particle2(copy(mo_bra_(i).function)).g12(coulomb).thresh(tight_thresh);
-      const double uij_g_ij=inner(u.function,g_ij);
-      const double uij_g_ji=inner(u.function,g_ji);     // =uji_g_ij
-      u_part=2.0 * uij_g_ij - uij_g_ji;
-    }
-    // Contribution from the mixed f12(|\tau_i,j>+|i,\tau_j>) part
-    if(type == CC2_){
-      mixed_part+=2.0 * make_ijgQfxy(u.i,u.j,mo_ket_(i),tauj);
-      mixed_part+=2.0 * make_ijgQfxy(u.i,u.j,taui,mo_ket_(j));
-      mixed_part-=make_ijgQfxy(u.j,u.i,mo_ket_(i),tauj);
-      mixed_part-=make_ijgQfxy(u.j,u.i,taui.function,mo_ket_(j));
-    }
-    // Contribution from the f12|ij> part, this should be calculated in the beginning
-    {
-      ij_part+=(2.0 * u.ij_gQf_ij - u.ji_gQf_ij);
-    }
-    // Contribution from the f12|\tau_i\tau_j> part
-    if(type == CC2_){
-      titj_part+=2.0 * make_ijgQfxy(u.i,u.j,taui,tauj);
-      titj_part-=make_ijgQfxy(u.i,u.j,tauj,taui);
-    }
-    // Singles Contribution
-    if(type == CC2_){
-      // I should use intermediates later because the t1 integrals are also needed for the CC2 potential
-      //omega += 2.0*intermediates_.get_integrals_t1()(u.i,u.j,u.i,u.j); //<ij|g|\taui\tauj>
-      singles_part+=2.0 * make_integral(u.i,u.j,taui.function,tauj.function,g12_);
-      //omega -= intermediates_.get_integrals_t1()(u.i,u.j,u.j,u.i);     //<ij|g|\tauj\taui>
-      singles_part-=make_integral(u.i,u.j,tauj.function,taui.function,g12_);
-    }
-
-    omega=u_part + ij_part + mixed_part + titj_part + singles_part;
-    if(world.rank() == 0){
-      std::cout << "\n\nEnergy Contributions to the" + assign_name(type) + "-correlation energy of pair " << i << j << "\n";
-      std::cout << std::fixed << std::setprecision(parameters.output_prec);
-      std::cout << "from   |u" << i << j << "            |: " << u_part << "\n";
-      std::cout << "from Qf|HH" << i << j << "           |: " << ij_part << "\n";
-      if(type == CC2_) std::cout << "from Qf|HP" << i << j << "           |: " << mixed_part << "\n";
-      if(type == CC2_) std::cout << "from Qf|PPu" << i << j << "          |: " << titj_part << "\n";
-      if(type == CC2_) std::cout << "from   |tau" << i << ",tau" << j << "|: " << singles_part << "\n";
-      std::cout << "all together = " << omega << "\n";
-      std::cout << "\n\n";
-    }
-    return omega;
   }
 
 

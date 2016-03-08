@@ -57,143 +57,100 @@ namespace madness {
 
   typedef std::vector<Function<double, 3> > vecfuncT;
 
-  /// Small Helper Structure which applies either the Coulomb or f12 operator and can store intermediates <H|g|X> where the bra element is always a HOLE state and X can be HOLE, PARTICLE or RESPONSE
-  /// The strucutre is initialized with the CC_Parameters to make sure all operations are carried out with the same parametrization in the operators
+  /// Helper Structure that carries out operations on CC_functions
+  /// The structure can hold intermediates for g12 and f12 of type : <mo_bra_k|op|type> with type=HOLE,PARTICLE or RESPONSE
+  /// some 6D operations are also included
+  /// The structure does not know if nuclear correlation facors are used, so the corresponding bra states have to be prepared beforehand
   struct CC_convolution_operator{
+    /// @param[in] world
+    /// @param[in] optype: the operatortype (can be g12_ or f12_)
+    /// @param[in] param: the parameters of the current CC-Calculation (including function and operator thresholds and the exponent for f12)
     CC_convolution_operator(World &world,const optype type, const CC_Parameters param):world(world),operator_type(type),op(init_op(type,param)){}
 
+    /// @param[in] f: a 3D function
+    /// @param[out] the convolution op(f), no intermediates are used
     real_function_3d operator()(const real_function_3d &f)const {return ((*op)(f)).truncate();}
 
+    // @param[in] f: a vector of 3D functions
+    // @param[out] the convolution of op with each function, no intermeditates are used
     vecfuncT operator()(const vecfuncT &f)const{
       return apply<double,double,3>(world,(*op),f);
     }
 
+    // @param[in] bra: a 3D CC_function, if nuclear-correlation factors are used they have to be applied before
+    // @param[in] ket: a 3D CC_function,
+    // @param[in] use_im: default is true, if false then no intermediates are used
+    // @param[out] the convolution <bra|op|ket> = op(bra*ket), if intermediates were calculated before the operator uses them
+    real_function_3d operator()(const CC_function &bra, const CC_function &ket, const bool use_im=true)const;
 
-    real_function_3d operator()(const CC_function &bra, const CC_function &ket, const bool use_im=true)const{
-      real_function_3d result;
-      if(not use_im){
-	if(world.rank()==0) std::cout <<"Recalculating <" << bra.name()<<"|"<< assign_name(operator_type) <<"|"<<ket.name() <<">\n";
-	result = ((*op)(bra.function*ket.function)).truncate();
-      }
-      else if(bra.type==HOLE and ket.type==HOLE and not imH.allpairs.empty()) result = imH(bra.i,ket.i);
-      else if(bra.type==HOLE and ket.type==RESPONSE and not imR.allpairs.empty()) result = imR(bra.i,ket.i);
-      else if(bra.type==HOLE and ket.type==PARTICLE and not imP.allpairs.empty()) result = imP(bra.i,ket.i);
-      else if(bra.type==HOLE and ket.type==MIXED and (not imP.allpairs.empty() and not imH.allpairs.empty())) result = (imH(bra.i,ket.i)+imP(bra.i,ket.i));
-      else{
-	if(world.rank()==0) std::cout <<"No Intermediate found for <" << bra.name()<<"|"<<assign_name(operator_type) <<"|"<<ket.name() <<"> ... recalculate \n";
-	result = ((*op)(bra.function*ket.function)).truncate();
-      }
-      return result;
-    }
+    // @param[in] u: a 6D-function
+    // @param[out] the convolution \int g(r,r') u(r,r') dr' (if particle==2) and g(r,r') u(r',r) dr' (if particle==1)
+    // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
+    real_function_6d operator()(const real_function_6d &u, const size_t particle)const;
 
-    real_function_6d operator()(const real_function_6d &u, const size_t particle)const{
-      MADNESS_ASSERT(particle==1 or particle==2);
-      MADNESS_ASSERT(operator_type == g12_);
-      op->particle()=particle;
-      return (*op)(u);
-    }
+    // @param[in] bra: a 3D-CC_function, if nuclear-correlation factors are used they have to be applied before
+    // @param[in] u: a 6D-function
+    // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
+    // @param[out] the convolution <bra|g12|u>_particle
+    real_function_3d operator()(const CC_function &bra,const real_function_6d &u, const size_t particle)const;
 
-    real_function_3d operator()(const CC_function &bra,const real_function_6d &u, const size_t particle)const{
-      MADNESS_ASSERT(particle==1 or particle==2);
-      MADNESS_ASSERT(operator_type == g12_);
-      const real_function_6d tmp = multiply(copy(u),copy(bra.function),particle);
-      op->particle()=particle;
-      const real_function_6d g_tmp = (*op)(tmp);
-      const real_function_3d result = g_tmp.dirac_convolution<3>();
-      return result;
-    }
+    /// @param[in] bra: a vector of CC_functions, the type has to be HOLE
+    /// @param[in] ket: a vector of CC_functions, the type can be HOLE,PARTICLE,RESPONSE
+    /// updates intermediates of the type <bra|op|ket>
+    void update_elements(const CC_vecfunction &bra, const CC_vecfunction &ket);
 
-
-    void update_elements(const CC_vecfunction &bra, const CC_vecfunction &ket){
-      const  std::string operation_name = "<"+assign_name(bra.type)+"|"+name()+"|"+assign_name(ket.type)+">";
-      if(world.rank()==0) std::cout << "updating operator elements: " << operation_name << " (" << bra.size() <<"x"<<ket.size() <<")"<< std::endl;
-      if(bra.type != HOLE) error("Can not create intermediate of type "+operation_name+" , bra-element has to be of type HOLE");
-      intermediateT xim;
-      for(auto tmpk : bra.functions){
-	const CC_function & k=tmpk.second;
-	for(auto tmpl : ket.functions){
-	  const CC_function& l=tmpl.second;
-	  real_function_3d kl=(bra(k).function * l.function);
-	  real_function_3d result=((*op)(kl)).truncate();
-	  result.reconstruct(); // for sparse multiplication
-	  xim.insert(k.i,l.i,result);
-	}
-      }
-      if(ket.type==HOLE) imH=xim;
-      else if(ket.type==PARTICLE) imP=xim;
-      else if(ket.type==RESPONSE) imR=xim;
-      else error("Can not create intermediate of type <"+assign_name(bra.type)+"|op|"+assign_name(ket.type)+">");
-    }
+    /// @param[out] prints the name of the operator (convenience) which is g12 or f12 or maybe other things like gf in the future
     std::string name()const{return assign_name(operator_type);}
 
-    void clear_intermediates(const functype &type){
-      if(world.rank()==0) std::cout <<"Deleting all <HOLE|" << name() <<"|" << assign_name(type) << "> intermediates \n";
-      switch(type){
-	case HOLE : {imH.allpairs.clear(); break;}
-	case PARTICLE:{imP.allpairs.clear(); break;}
-	case RESPONSE:{imR.allpairs.clear(); break;}
-	default: error("intermediates for " + assign_name(type) + " are not defined");
-      }
-    }
+    /// @param[in] the type of which intermediates will be deleted
+    /// e.g if(type==HOLE) then all intermediates of type <mo_bra_k|op|HOLE> will be deleted
+    void clear_intermediates(const functype &type);
+    /// name speaks for itself
     void clear_all_intermediates(){
       clear_intermediates(HOLE);
       clear_intermediates(PARTICLE);
       clear_intermediates(RESPONSE);
     }
-    size_t info()const{
-      const size_t size_imH = size_of(imH);
-      const size_t size_imP = size_of(imP);
-      const size_t size_imR = size_of(imR);
-      if(world.rank()==0){
-	std::cout <<"Size of " << name() <<" intermediates:\n";
-	std::cout <<std::setw(5)<<"("<<imH.allpairs.size() << ") x <H|"+name()+"H>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
-	std::cout <<std::setw(5)<<"("<<imP.allpairs.size() << ") x <H|"+name()+"P>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
-	std::cout <<std::setw(5)<<"("<<imR.allpairs.size() << ") x <H|"+name()+"R>=" << std::scientific << std::setprecision(1) << size_imH << " (Gbyte)\n";
-      }
-      return size_imH+size_imP + size_imR;
-    }
-    void sanity()const{
-      print_intermediate(HOLE);
-    }
+    /// prints out information (operatorname, number of stored intermediates ...)
+    size_t info()const;
+
+    /// sanity check .. doens not do so much
+    void sanity()const{print_intermediate(HOLE);}
+
+    /// @param[in] type: the type of intermediates which will be printed, can be HOLE,PARTICLE or RESPONSE
     void print_intermediate(const functype type)const{
       if(type==HOLE)for(const auto& tmp:imH.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|H"+std::to_string(tmp.first.second)+"> intermediate");
       else if(type==PARTICLE)for(const auto& tmp:imP.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|P"+std::to_string(tmp.first.second)+"> intermediate");
       else if(type==RESPONSE)for(const auto& tmp:imR.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|R"+std::to_string(tmp.first.second)+"> intermediate");
     }
-  private:
-    World &world;
-    const optype operator_type;
-    SeparatedConvolution<double,3>* init_op(const optype &type,const CC_Parameters &parameters)const{
-      switch(type){
-	case g12_ : {
-	  if(world.rank()==0) std::cout << "Creating " << assign_name(type) <<" Operator with thresh=" << parameters.thresh_poisson <<" and lo=" << parameters.lo << std::endl;
-	  return CoulombOperatorPtr(world, parameters.lo,parameters.thresh_poisson);
-	}
-	case f12_ : {
-	  if(world.rank()==0) std::cout << "Creating " << assign_name(type) <<" Operator with thresh=" << parameters.thresh_poisson <<" and lo=" << parameters.lo << " and Gamma=" << parameters.gamma() << std::endl;
-	  return SlaterF12OperatorPtr(world, parameters.gamma(),parameters.lo, parameters.thresh_poisson);
-	}
-	default : {
-	  error("Unknown operatorype " + assign_name(type));
-	  MADNESS_EXCEPTION("error",1);
-	}
-      }
 
-    }
+  private:
+    /// the world
+    World &world;
+    /// the operatortype, currently this can be g12_ or f12_
+    const optype operator_type;
+    /// @param[in] optype: can be f12_ or g12_ depending on which operator shall be intitialzied
+    /// @param[in] parameters: parameters (thresholds etc)
+    /// initializes the operators
+    SeparatedConvolution<double,3>* init_op(const optype &type,const CC_Parameters &parameters)const;
     const std::shared_ptr<real_convolution_3d> op;
     intermediateT imH;
     intermediateT imP;
     intermediateT imR;
+    /// @param[in] msg: output message
+    /// the function will throw an MADNESS_EXCEPTION
     void error(const std::string &msg)const{
       if(world.rank()==0) std::cout <<"\n\n!!!!ERROR in CC_convolution_operator: " << msg <<"!!!!!\n\n"<< std::endl;
       MADNESS_EXCEPTION(msg.c_str(),1);
     }
-
   };
 
 
-  // a structure that either holds a standard real_function_6d or the function in decomposed form f=|a_k,b_k> or in the form f=f12|a_kb_k>
-
+  /// Helper structure for the coupling potential of CC Singles and Doubles
+  /// because of the regularization of the CC-Wavefunction (for CC2: |tauij> = |uij> + Qt12*f12*|titj>)
+  /// we have 6D-functions in std format |u> : type==pure_
+  /// we have 6D-functions in sepparated format: type==decomposed_ (e.g O1*f12*|titj> = |xy> with x=|k> and y=<k|f12|ti>*|tj>)
+  /// we have 6D-function like f12|xy> which are not needed to be represented on the 6D MRA-Grid, type==op_decomposed_
   struct CC_function_6d{
 
   public:
@@ -202,140 +159,72 @@ namespace madness {
     CC_function_6d(World&world,const std::pair<vecfuncT,vecfuncT> &f):world(world), type(decomposed_), a(f.first),b(f.second), op(0),u() {}
     CC_function_6d(World&world,const CC_convolution_operator *op_,const CC_function &f1, const CC_function &f2):world(world), type(op_decomposed_), a(),b(), op(op_),x(f1),y(f2),u() {}
 
-    real_function_3d project_out(const CC_function &f,const size_t particle)const{
-      MADNESS_ASSERT(particle==1 or particle==2);
-      real_function_3d result;
-      switch(type){
-	case pure_ :
-	  result= u.project_out(f.function,particle-1); // this needs 0 or 1 for particle but we give 1 or 2
-	  break;
-	case decomposed_ :
-	  result= project_out_decomposed(f.function,particle);
-	  break;
-	case op_decomposed_:
-	  result= project_out_op_decomposed(f,particle);
-	  break;
-      }
-      if(not result.is_initialized()) MADNESS_EXCEPTION("Result of project out on CC_function_6d was not initialized",1);
-      return result;
-    }
+    /// @param[in] f: a 3D-CC_function
+    /// @param[in] particle: the particle on which the operation acts
+    /// @param[out] <f|u>_particle (projection from 6D to 3D)
+    real_function_3d project_out(const CC_function &f,const size_t particle)const;
 
     // result is: <x|op12|f>_particle
-    real_function_3d dirac_convolution(const CC_function &x, const CC_convolution_operator &op, const size_t particle)const{
-      real_function_3d result;
-      switch(type){
-	case pure_:
-	  result = op(x,u,particle);
-	  break;
-	case decomposed_ :
-	  result = dirac_convolution_decomposed(x,op,particle);
-	  break;
-	case op_decomposed_:
-	 MADNESS_EXCEPTION("op_decomposed dirac convolution not yet implemented",1);
-      }
-      return result;
-    }
+    /// @param[in] x: a 3D-CC_function
+    /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
+    /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
+    /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
+    real_function_3d dirac_convolution(const CC_function &x, const CC_convolution_operator &op, const size_t particle)const;
 
-    CC_function_6d swap_particles()const{
-      switch(type){
-	case pure_:
-	  return swap_particles_pure();
-	  break;
-	case decomposed_:
-	  return swap_particles_decomposed();
-	  break;
-	case op_decomposed_:
-	  return swap_particles_decomposed();
-	  break;
-      }
-      MADNESS_EXCEPTION("swap_particles in CC_function_6d: we should not end up here",1);
-    }
+    /// @param[out] particles are interchanged, if the function was u(1,2) the result is u(2,1)
+    CC_function_6d swap_particles()const;
 
-    real_function_6d apply_G(const real_convolution_6d &G)const{
-      real_function_6d result = real_factory_6d(world);
-      result.set_thresh(FunctionDefaults<6>::get_thresh()*0.1);
-      MADNESS_ASSERT(a.size()==b.size());
-      MADNESS_ASSERT(type==decomposed_);
-      for(size_t i=0;i<a.size();i++){
-	result += G(a[i],b[i]);
-      }
-      return result;
-    }
+    /// @param[in] the Greens operator
+    /// @param[out] the Greens operator is applied to the function: G(u)
+    real_function_6d apply_G(const real_convolution_6d &G)const;
+
 
   private:
+    /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
     enum functype_6d {pure_, decomposed_, op_decomposed_};
     World &world;
+    /// the type of the given 6D-function
     const functype_6d type;
+    /// if type==decomposed this is the first particle
     const vecfuncT a;
+    /// if type==decomposed this is the second particle
     const vecfuncT b;
+    /// if type==op_decomposed_ this is the symmetric 6D-operator (g12 or f12) in u=op12|xy>
     const CC_convolution_operator* op;
+    /// if type==op_decomposed_ this is the first particle in u=op12|xy>
     const CC_function x;
+    /// if type==op_decomposed_ this is the second particle in u=op12|xy>
     const CC_function y;
+    /// if type=pure_ this is just the MRA 6D-function
     const real_function_6d u;
 
-    real_function_3d project_out_decomposed(const real_function_3d &f,const size_t particle)const{
-      real_function_3d result = real_factory_3d(world);
-      const std::pair<vecfuncT,vecfuncT> decompf = assign_particles(particle);
-      Tensor<double> c = inner(world,f,decompf.first);
-      for(size_t i=0;i<a.size();i++) result += c(i)*decompf.second[i];
-      return result;
-    }
+    /// @param[in] f: a 3D-CC_function
+    /// @param[in] particle: the particle on which the operation acts
+    /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=|ab> so <f|u>_particle = <f|a>*|b> if particle==1
+    real_function_3d project_out_decomposed(const real_function_3d &f,const size_t particle)const;
 
-    real_function_3d project_out_op_decomposed(const CC_function &f, const size_t particle)const{
-      if(particle==1){
-	return (*op)(f,x)*y.function;
-      }else if(particle==2){
-	return (*op)(f,y)*x.function;
-      }else{
-	MADNESS_EXCEPTION("project_out_op_decomposed: particle must be 1 or 2",1);
-	return real_factory_3d(world);
-      }
-    }
+    /// @param[in] f: a 3D-CC_function
+    /// @param[in] particle: the particle on which the operation acts
+    /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=op|xy> so <f|u>_particle = <f|op|x>*|y> if particle==1
+    real_function_3d project_out_op_decomposed(const CC_function &f, const size_t particle)const;
 
-    real_function_3d dirac_convolution_decomposed(const CC_function &x, const CC_convolution_operator &op, const size_t particle)const{
-      const std::pair<vecfuncT,vecfuncT> f = assign_particles(particle);
-      const vecfuncT xa = mul(world,x.function,f.first);
-      const vecfuncT xga = op(xa);
-      real_function_3d result = real_factory_3d(world);
-      for(size_t i=0;i<xga.size();i++) result += xga[i]*f.second[i];
-      return result;
-    }
+    /// @param[in] x: a 3D-CC_function
+    /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
+    /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
+    /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
+    /// in this case u=|ab> and the result is <x|op|u>_1 = <x|op|a>*|b> for particle==1
+    real_function_3d dirac_convolution_decomposed(const CC_function &x, const CC_convolution_operator &op, const size_t particle)const;
 
-    const std::pair<vecfuncT,vecfuncT> assign_particles(const size_t particle)const{
-      if(particle==1){
-	return std::make_pair(a,b);
-      }else if(particle==2){
-	return std::make_pair(b,a);
-      }else{
-	MADNESS_EXCEPTION("project_out_decomposed: Particle is neither 1 nor 2",1);
-	return std::make_pair(a,b);
-      }
-    }
+    /// small helper function that gives back (a,b) or (b,a) depending on the value of particle
+    const std::pair<vecfuncT,vecfuncT> assign_particles(const size_t particle)const;
 
-    CC_function_6d swap_particles_pure() const {
-      // CC_Timer timer_swap(world,"swap particles");
-      // this could be done more efficiently for SVD, but it works decently
-      std::vector<long> map(6);
-      map[0]=3;
-      map[1]=4;
-      map[2]=5;     // 2 -> 1
-      map[3]=0;
-      map[4]=1;
-      map[5]=2;     // 1 -> 2
-      // timer_swap.info();
-      real_function_6d swapped_u =mapdim(u,map);
-      return CC_function_6d(world,u);
-    }
-    CC_function_6d swap_particles_decomposed()const{
-      return CC_function_6d(world,b,a);
-    }
-    CC_function_6d swap_particles_op_decomposed()const{
-      return CC_function_6d(world,op,b.front(),a.front());
-    }
-
+    /// swap particle function if type==pure_
+    CC_function_6d swap_particles_pure() const;
+    /// swap particle function if type==decomposed_
+    CC_function_6d swap_particles_decomposed()const;
+    /// swap particle function if type==op_decomposed_ (all ops are assumed to be symmetric)
+    CC_function_6d swap_particles_op_decomposed()const;
   };
-
-
 
   /// Coupled Cluster Operators (all closed shell)
   class CC_Operators {
@@ -466,9 +355,6 @@ namespace madness {
       CC_Timer update(world, "Update Intermediates");
       g12.update_elements(mo_bra_,singles);
       f12.update_elements(mo_bra_,singles);
-      //g12.print_intermediate(PARTICLE);
-      //f12.print_intermediate(PARTICLE);
-      //      intermediates_.update(singles);
       update.info();
     }
 
@@ -476,7 +362,6 @@ namespace madness {
       CC_Timer update(world, "Update Intermediates");
       g12.update_elements(mo_bra_,singles);
       f12.update_elements(mo_bra_,singles);
-      //      intermediates_.update(singles);
       update.info();
     }
 
@@ -828,41 +713,41 @@ namespace madness {
     }
 
     double compute_cispd_energy_correction(const CC_vecfunction &x, const Pairs<CC_Pair> &u, const Pairs<CC_Pair> &chi )const{
-      // this needs to be reconsidered for the new algorithm with tau = u + Qtf|titj>
-      //      const vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
-      //
-      //      // S2 Part;
-      //      const vecfuncT amo_tmp = get_active_mo_ket();
-      //      const CC_vecfunction amo(amo_tmp,HOLE,parameters.freeze);
-      //      const double s2bu = inner(world,xbra,S2b_u_part(chi,x)).sum();
-      //      const double s2cu = inner(world,xbra,S2c_u_part(chi,x)).sum();
-      //      const double s2br = inner(world,xbra,add(world,S2b_reg_part(x,amo),S2b_reg_part(amo,x))).sum();
-      //      const double s2cr = inner(world,xbra,add(world,S2c_reg_part(x,amo),S2c_reg_part(amo,x))).sum();
-      //
-      //      // S4 Part;
-      //      const double s4au = inner(world,xbra,S4a_u_part(u,x)).sum();
-      //      const double s4ar = inner(world,xbra,S4a_reg_part(amo,amo,x)).sum();
-      //      const double s4bu = inner(world,xbra,S4b_u_part(u,x)).sum();
-      //      const double s4br = inner(world,xbra,S4b_reg_part(amo,amo,x)).sum();
-      //      const double s4cu = inner(world,xbra,S4c_u_part(u,x)).sum();
-      //      const double s4cr = inner(world,xbra,S4c_reg_part(amo,amo,x)).sum();
-      //
-      //      double result = 0.0;
-      //      {
-      //	if(world.rank()==0)std::cout << " CIS(D) Energy Correction:\n";
-      //	if(world.rank()==0)std::cout <<"s2bu-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s2bu << "\n";result+=s2bu;
-      //	if(world.rank()==0)std::cout <<"s2cu-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s2cu << "\n";result+=s2cu;
-      //	if(world.rank()==0)std::cout <<"s2br-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s2br << "\n";result+=s2br;
-      //	if(world.rank()==0)std::cout <<"s2cr-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s2cr << "\n";result+=s2cr;
-      //	if(world.rank()==0)std::cout <<"s4au-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s4au << "\n";result+=s4au;
-      //	if(world.rank()==0)std::cout <<"s4ar-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s4ar << "\n";result+=s4ar;
-      //	if(world.rank()==0)std::cout <<"s4bu-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s4bu << "\n";result+=s4bu;
-      //	if(world.rank()==0)std::cout <<"s4br-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s4br << "\n";result+=s4br;
-      //	if(world.rank()==0)std::cout <<"s4cu-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s4cu << "\n";result+=s4cu;
-      //	if(world.rank()==0)std::cout <<"s4cr-part="<<std::fixed << std::setprecision(parameters.output_prec)<< s4cr << "\n";result+=s4cr;
-      //	if(world.rank()==0)std::cout <<"All together = " <<std::fixed << std::setprecision(parameters.output_prec)<< result << "\n";
-      //      }
-      //      return result;
+      // make empty singles for the ground state
+      const CC_vecfunction tau(zero_functions<double,3>(world,x.size()),PARTICLE,parameters.freeze);
+
+      // now calculate the singles-response potential without the CIS potential (so just the S2 and S4 terms since tau is zero anyways)
+      vecfuncT V = response_potential_singles(tau,u,x,chi,pot_S2b_u_);
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2c_u_));
+
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4a_u_));
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4b_u_));
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4c_u_));
+
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2b_r_));
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2c_r_));
+
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4a_r_));
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4b_r_));
+      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4c_r_));
+
+      // apply Q-projector
+      V = Q(V,mo_ket_);
+      truncate(world,V);
+      const double Vnorm = norm2(world,V);
+
+      // make inner product with cis_states
+      vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
+      Tensor<double> xV = inner(world,xbra,V);
+      const double result = xV.sum();
+      if(world.rank()==0){
+	std::cout << "CIS(D) Energy Correction to CCS/CIS Excitation Energy: " << x.omega << "\n";
+	std::cout << "||V||     =" << Vnorm  << "\n";
+	std::cout << "CIS       =" << std::fixed << std::setprecision(parameters.output_prec+3)<< x.omega << "\n";
+	std::cout << "CIS(D)    =" << std::fixed << std::setprecision(parameters.output_prec+3)<< x.omega+result << "\n";
+	std::cout << "correction=" << std::fixed << std::setprecision(parameters.output_prec+3)<< result << "\n";
+      }
+      return result;
     }
 
 
@@ -892,7 +777,7 @@ namespace madness {
       vecfuncT tmp; tmp.push_back(f); return P(tmp,g).front();
     }
 
-    /// CCSD/CC2 singles potential parts
+    /// CC2 singles potential parts of the ground state
     /// only for CC2 ground state right now
     /// Genereal function which evaluates a CC_singles potential
     vecfuncT potential_singles(const Pairs<CC_Pair>& u,
@@ -934,24 +819,24 @@ namespace madness {
 	  }else output("Found u-part of S2b-potential");
 	  result = s2b;
 	}
-	  break;
+	break;
 	case pot_S2c_u_:{
-	 vecfuncT s2c = current_s2c_u_part_gs;
-	 if(s2c.empty()){
-	   s2c=S2c_u_part(make_pairs(u), singles);
-	   vecfuncT tmp = copy(world,s2c);
-	   truncate(world,s2c);
-	   current_s2c_u_part_gs = tmp;
-	 }else output("Found u-part of S2c-potential");
-	 result = s2c;
+	  vecfuncT s2c = current_s2c_u_part_gs;
+	  if(s2c.empty()){
+	    s2c=S2c_u_part(make_pairs(u), singles);
+	    vecfuncT tmp = copy(world,s2c);
+	    truncate(world,s2c);
+	    current_s2c_u_part_gs = tmp;
+	  }else output("Found u-part of S2c-potential");
+	  result = s2c;
 	}
-	  break;
+	break;
 	case pot_S4a_u_:{
 	  const vecfuncT s2b = current_s2b_u_part_gs;
 	  result = S4a_from_S2b(s2b,singles);
 	  //result = S4a_u_part(u, singles);
 	}
-	  break;
+	break;
 	case pot_S4b_u_:
 	  result = S4b_u_part(make_pairs(u), singles);
 	  break;
@@ -978,7 +863,7 @@ namespace madness {
 	{
 	  CC_vecfunction t = make_t_intermediate(singles);
 	  CC_vecfunction tfull = make_t_intermediate_full(singles);
-//	  result = S2c_reg_part(t,t,tfull);
+	  //	  result = S2c_reg_part(t,t,tfull);
 	  vecfuncT f12_part = S2c_u_part(make_regularization_tails_f12(t,t),singles);
 	  vecfuncT tmp1 = S2c_u_part(make_regularization_tails_O1(tfull,tfull,t,t,0.5),singles);
 	  vecfuncT tmp2 = S2c_u_part(make_regularization_tails_O2(tfull,tfull,t,t,0.5),singles);
@@ -988,9 +873,9 @@ namespace madness {
 	}
 	case pot_S4a_r_:
 	{
-//	  CC_vecfunction t = make_t_intermediate(singles);
-//	  CC_vecfunction tfull = make_t_intermediate_full(singles);
-//	  result = S4a_reg_part(t,t,singles,tfull);
+	  //	  CC_vecfunction t = make_t_intermediate(singles);
+	  //	  CC_vecfunction tfull = make_t_intermediate_full(singles);
+	  //	  result = S4a_reg_part(t,t,singles,tfull);
 	  const vecfuncT s2b = current_s2b_reg_part_gs;
 	  result = S4a_from_S2b(s2b,singles);
 	  break;
@@ -1029,59 +914,212 @@ namespace madness {
       return result;
     }
 
+    // same thing as potential_singles for the response potential of CC2
     vecfuncT response_potential_singles(
-	const CC_vecfunction & gs_singles,
-	const Pairs<CC_Pair>& gs_u,
-	const CC_vecfunction & response_singles,
-	const Pairs<CC_Pair>& response_u,
+	const CC_vecfunction & tau,
+	const Pairs<CC_Pair>& u,
+	const CC_vecfunction & x,
+	const Pairs<CC_Pair>& chi,
 	const potentialtype_s &name) const {
 
       const std::string full_name = assign_name(CC2_response_)+":"+assign_name(name);
       CC_Timer timer(world, full_name);
       CC_data data(full_name);
-      if(response_singles.type!=RESPONSE) error("Error in response_potential_singles " + assign_name(name)+" response_singles have wrong type");
-      if(gs_singles.type!=PARTICLE) error("Error in response_potential_singles " + assign_name(name)+" gs_singles have wrong type");
+      if(x.type!=RESPONSE) error("Error in response_potential_singles " + assign_name(name)+" response_singles have wrong type");
+      if(tau.type!=PARTICLE) error("Error in response_potential_singles " + assign_name(name)+" gs_singles have wrong type");
       vecfuncT result;
 
       switch (name) {
 	case pot_F3D_:
-	  result = fock_residue_closed_shell(response_singles);
+	  result = fock_residue_closed_shell(x);
 	  break;
 	case pot_ccs_:
-	  result = ccs_response_potential(gs_singles,response_singles);
+	  result = ccs_response_potential(tau,x);
 	  break;
 	case pot_cis_:
-	  result = cis_response_potential(response_singles);
+	  result = cis_response_potential(x);
 	  break;
 	case pot_S2b_u_:{
-
-	}break;
+	  vecfuncT s2b = current_s2b_u_part_response;
+	  if(s2b.empty()){
+	    s2b = S2b_u_part(make_pairs(chi),tau);
+	    vecfuncT tmp = copy(world,s2b);
+	    truncate(world,tmp);
+	    current_s2b_u_part_response = tmp;
+	  }else output("Found u-part of S2b-potential");
+	  result = s2b;
+	}
+	break;
 	case pot_S2c_u_:{
-
+	  vecfuncT s2c = current_s2c_u_part_gs;
+	  if(s2c.empty()){
+	    s2c=S2c_u_part(make_pairs(chi),tau);
+	    vecfuncT tmp = copy(world,s2c);
+	    truncate(world,s2c);
+	    current_s2c_u_part_gs = tmp;
+	  }else output("Found u-part of S2c-potential");
+	  result = s2c;
 	}break;
 	case pot_S4a_u_:{
-
+	  vecfuncT s2b_response = current_s2b_u_part_response;
+	  if(s2b_response.empty()) s2b_response = S2b_u_part(make_pairs(chi),tau);
+	  const vecfuncT part1 = S4a_from_S2b(s2b_response,tau);
+	  vecfuncT s2b_gs = current_s2b_u_part_gs;
+	  if(s2b_gs.empty()) s2b_gs = S2b_u_part(make_pairs(u),x);
+	  const vecfuncT part2 = S4a_from_S2b(s2b_gs,x);
+	  result = add(world,part1,part2);
 	}break;
 	case pot_S4b_u_:{
-
+	  const vecfuncT part1 = S4b_u_part(make_pairs(u), x);
+	  const vecfuncT part2 = S4b_u_part(make_pairs(chi), tau);
+	  result = add(world,part1,part2);
 	}break;
 	case pot_S4c_u_:{
-
+	  const vecfuncT part1 = S4c_u_part(make_pairs(u), x);
+	  const vecfuncT part2 = S4c_u_part(make_pairs(chi), tau);
+	  result = add(world,part1,part2);
 	}break;
 	case pot_S2b_r_:{
+	  CC_vecfunction t = make_t_intermediate(tau);
+	  CC_vecfunction tfull = make_t_intermediate_full(tau);
 
+	  const Pairs<CC_function_6d> reg_O1_xt = make_regularization_tails_O1(tfull,tfull,x,t,0.5);
+	  const Pairs<CC_function_6d> reg_O2_xt = make_regularization_tails_O2(tfull,tfull,x,t,0.5);
+	  const Pairs<CC_function_6d> reg_O1_tx = make_regularization_tails_O1(tfull,tfull,t,x,0.5);
+	  const Pairs<CC_function_6d> reg_O2_tx = make_regularization_tails_O2(tfull,tfull,t,x,0.5);
+
+	  const Pairs<CC_function_6d> reg_O1_tt = make_regularization_tails_O1(x,tfull,t,t,1.0);
+	  const Pairs<CC_function_6d> reg_O2_tt = make_regularization_tails_O1(tfull,x,t,t,1.0);
+
+	  vecfuncT f12_part_xt = S2b_gf_part(x,t);
+	  vecfuncT f12_part_tx = S2b_gf_part(t,x);
+	  vecfuncT f12_part = add(world,f12_part_xt,f12_part_tx);
+
+	  vecfuncT function_response = S2b_u_part(reg_O1_xt,tau);
+	  function_response=add(world,function_response,S2b_u_part(reg_O1_tx,tau));
+	  function_response=add(world,function_response,S2b_u_part(reg_O2_xt,tau));
+	  function_response=add(world,function_response,S2b_u_part(reg_O2_tx,tau));
+	  vecfuncT projector_response = add(world,S2b_u_part(reg_O1_tt,tau),S2b_u_part(reg_O2_tt,tau));
+
+	  result = add(world,f12_part,sub(world,function_response,projector_response));
+	  // save for s4a_reg_ potential
+	  vecfuncT tmp = copy(world,result);
+	  truncate(world,tmp);
+	  current_s2b_reg_part_response = tmp;
 	}break;
 	case pot_S2c_r_:{
+	  CC_vecfunction t = make_t_intermediate(tau);
+	  CC_vecfunction tfull = make_t_intermediate_full(tau);
 
+	  // ground state reg_pairs: Qtf|titj>
+	  const Pairs<CC_function_6d> gs_reg_f12=make_regularization_tails_f12(t,t);
+	  const Pairs<CC_function_6d> gs_reg_O1=make_regularization_tails_O1(tfull,tfull,t,t,0.5);
+	  const Pairs<CC_function_6d> gs_reg_O2=make_regularization_tails_O2(tfull,tfull,t,t,0.5);
+	  // response reg_pairs: Qtf|xitj+tixj> - (OxQt+QtOx)f|titj>
+	  const Pairs<CC_function_6d> re_reg_f12_xt=make_regularization_tails_f12(x,t);
+	  const Pairs<CC_function_6d> re_reg_f12_tx=make_regularization_tails_f12(t,x);
+	  const Pairs<CC_function_6d> re_reg_O1_xt=make_regularization_tails_O1(tfull,tfull,x,t,0.5);
+	  const Pairs<CC_function_6d> re_reg_O1_tx=make_regularization_tails_O1(tfull,tfull,t,x,0.5);
+	  const Pairs<CC_function_6d> re_reg_O2_xt=make_regularization_tails_O2(tfull,tfull,x,t,0.5);
+	  const Pairs<CC_function_6d> re_reg_O2_tx=make_regularization_tails_O2(tfull,tfull,t,x,0.5);
+
+	  const Pairs<CC_function_6d> re_reg_O1_tt=make_regularization_tails_O1(x,tfull,t,t,1.0);
+	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(x,tfull,t,t,1.0);
+
+	  // u with x
+	  result = S2c_u_part(gs_reg_f12,x);
+	  result = sub(world,result,S2c_u_part(gs_reg_O1,x));
+	  result = sub(world,result,S2c_u_part(gs_reg_O2,x));
+
+	  // chi with tau function response
+	  result = add(world,result,S2c_u_part(re_reg_f12_xt,tau));
+	  result = add(world,result,S2c_u_part(re_reg_f12_tx,tau));
+	  result = sub(world,result,S2c_u_part(re_reg_O1_tx,tau));
+	  result = sub(world,result,S2c_u_part(re_reg_O1_xt,tau));
+	  result = sub(world,result,S2c_u_part(re_reg_O1_tx,tau));
+	  result = sub(world,result,S2c_u_part(re_reg_O2_xt,tau));
+	  // chi with tau projector response
+	  result = sub(world,result,S2c_u_part(re_reg_O1_tt,tau));
+	  result = sub(world,result,S2c_u_part(re_reg_O2_tt,tau));
 	}break;
 	case pot_S4a_r_:{
-
+	  vecfuncT s2b_response = current_s2b_reg_part_response;
+	  if(s2b_response.empty()) s2b_response = S2b_u_part(make_pairs(chi),tau);
+	  const vecfuncT part1 = S4a_from_S2b(s2b_response,tau);
+	  vecfuncT s2b_gs = current_s2b_reg_part_gs;
+	  if(s2b_gs.empty()) s2b_gs = S2b_u_part(make_pairs(u),x);
+	  const vecfuncT part2 = S4a_from_S2b(s2b_gs,x);
+	  result = add(world,part1,part2);
 	}break;
 	case pot_S4b_r_:{
+	  CC_vecfunction t = make_t_intermediate(tau);
+	  CC_vecfunction tfull = make_t_intermediate_full(tau);
 
+	  // ground state reg_pairs: Qtf|titj>
+	  const Pairs<CC_function_6d> gs_reg_f12=make_regularization_tails_f12(t,t);
+	  const Pairs<CC_function_6d> gs_reg_O1=make_regularization_tails_O1(tfull,tfull,t,t,0.5);
+	  const Pairs<CC_function_6d> gs_reg_O2=make_regularization_tails_O2(tfull,tfull,t,t,0.5);
+	  // response reg_pairs: Qtf|xitj+tixj> - (OxQt+QtOx)f|titj>
+	  const Pairs<CC_function_6d> re_reg_f12_xt=make_regularization_tails_f12(x,t);
+	  const Pairs<CC_function_6d> re_reg_f12_tx=make_regularization_tails_f12(t,x);
+	  const Pairs<CC_function_6d> re_reg_O1_xt=make_regularization_tails_O1(tfull,tfull,x,t,0.5);
+	  const Pairs<CC_function_6d> re_reg_O1_tx=make_regularization_tails_O1(tfull,tfull,t,x,0.5);
+	  const Pairs<CC_function_6d> re_reg_O2_xt=make_regularization_tails_O2(tfull,tfull,x,t,0.5);
+	  const Pairs<CC_function_6d> re_reg_O2_tx=make_regularization_tails_O2(tfull,tfull,t,x,0.5);
+
+	  const Pairs<CC_function_6d> re_reg_O1_tt=make_regularization_tails_O1(x,tfull,t,t,1.0);
+	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(x,tfull,t,t,1.0);
+
+	  // u with x
+	  result = S4b_u_part(gs_reg_f12,x);
+	  result = sub(world,result,S4b_u_part(gs_reg_O1,x));
+	  result = sub(world,result,S4b_u_part(gs_reg_O2,x));
+
+	  // chi with tau function response
+	  result = add(world,result,S4b_u_part(re_reg_f12_xt,tau));
+	  result = add(world,result,S4b_u_part(re_reg_f12_tx,tau));
+	  result = sub(world,result,S4b_u_part(re_reg_O1_tx,tau));
+	  result = sub(world,result,S4b_u_part(re_reg_O1_xt,tau));
+	  result = sub(world,result,S4b_u_part(re_reg_O1_tx,tau));
+	  result = sub(world,result,S4b_u_part(re_reg_O2_xt,tau));
+	  // chi with tau projector response
+	  result = sub(world,result,S4b_u_part(re_reg_O1_tt,tau));
+	  result = sub(world,result,S4b_u_part(re_reg_O2_tt,tau));
 	}break;
 	case pot_S4c_r_:{
+	  CC_vecfunction t = make_t_intermediate(tau);
+	  CC_vecfunction tfull = make_t_intermediate_full(tau);
 
+	  // ground state reg_pairs: Qtf|titj>
+	  const Pairs<CC_function_6d> gs_reg_f12=make_regularization_tails_f12(t,t);
+	  const Pairs<CC_function_6d> gs_reg_O1=make_regularization_tails_O1(tfull,tfull,t,t,0.5);
+	  const Pairs<CC_function_6d> gs_reg_O2=make_regularization_tails_O2(tfull,tfull,t,t,0.5);
+	  // response reg_pairs: Qtf|xitj+tixj> - (OxQt+QtOx)f|titj>
+	  const Pairs<CC_function_6d> re_reg_f12_xt=make_regularization_tails_f12(x,t);
+	  const Pairs<CC_function_6d> re_reg_f12_tx=make_regularization_tails_f12(t,x);
+	  const Pairs<CC_function_6d> re_reg_O1_xt=make_regularization_tails_O1(tfull,tfull,x,t,0.5);
+	  const Pairs<CC_function_6d> re_reg_O1_tx=make_regularization_tails_O1(tfull,tfull,t,x,0.5);
+	  const Pairs<CC_function_6d> re_reg_O2_xt=make_regularization_tails_O2(tfull,tfull,x,t,0.5);
+	  const Pairs<CC_function_6d> re_reg_O2_tx=make_regularization_tails_O2(tfull,tfull,t,x,0.5);
+
+	  const Pairs<CC_function_6d> re_reg_O1_tt=make_regularization_tails_O1(x,tfull,t,t,1.0);
+	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(x,tfull,t,t,1.0);
+
+	  // u with x
+	  result = S4c_u_part(gs_reg_f12,x);
+	  result = sub(world,result,S4c_u_part(gs_reg_O1,x));
+	  result = sub(world,result,S4c_u_part(gs_reg_O2,x));
+
+	  // chi with tau function response
+	  result = add(world,result,S4c_u_part(re_reg_f12_xt,tau));
+	  result = add(world,result,S4c_u_part(re_reg_f12_tx,tau));
+	  result = sub(world,result,S4c_u_part(re_reg_O1_tx,tau));
+	  result = sub(world,result,S4c_u_part(re_reg_O1_xt,tau));
+	  result = sub(world,result,S4c_u_part(re_reg_O1_tx,tau));
+	  result = sub(world,result,S4c_u_part(re_reg_O2_xt,tau));
+	  // chi with tau projector response
+	  result = sub(world,result,S4c_u_part(re_reg_O1_tt,tau));
+	  result = sub(world,result,S4c_u_part(re_reg_O2_tt,tau));
 	}break;
       }
       data.result_size = get_size(world, result);
@@ -1165,26 +1203,26 @@ namespace madness {
       else warning("singles of type " + assign_name(singles.type) +" in S2c_u_part");
 
       if(not result.empty()){
-        output("S2c_u_part already calculated");
+	output("S2c_u_part already calculated");
       }else{
-        for(const auto& itmp : singles.functions){
-  	const size_t i=itmp.first;
-  	real_function_3d resulti=real_factory_3d(world);
-  	for(const auto& ktmp : singles.functions){
-  	  const size_t k=ktmp.first;
-  	  const real_function_3d kgi=g12(mo_bra_(k),mo_ket_(i));
-  	  for(const auto& ltmp : singles.functions){
-  	    const size_t l=ltmp.first;
-  	    const real_function_6d ukl=get_pair_function(doubles,k,l);
-  	    const real_function_3d l_kgi=mo_bra_(l).function * kgi;
-  	    resulti+=-2.0 * ukl.project_out(l_kgi,1);     // 1 means second particle
-  	    resulti+=ukl.project_out(l_kgi,0);
-  	  }
-  	}
-  	result.push_back(resulti);
-        }
-        if(singles.type==PARTICLE) current_s2c_u_part_gs=copy(world,result);
-        else if(singles.type==RESPONSE) current_s2c_u_part_response = copy(world,result);
+	for(const auto& itmp : singles.functions){
+	  const size_t i=itmp.first;
+	  real_function_3d resulti=real_factory_3d(world);
+	  for(const auto& ktmp : singles.functions){
+	    const size_t k=ktmp.first;
+	    const real_function_3d kgi=g12(mo_bra_(k),mo_ket_(i));
+	    for(const auto& ltmp : singles.functions){
+	      const size_t l=ltmp.first;
+	      const real_function_6d ukl=get_pair_function(doubles,k,l);
+	      const real_function_3d l_kgi=mo_bra_(l).function * kgi;
+	      resulti+=-2.0 * ukl.project_out(l_kgi,1);     // 1 means second particle
+	      resulti+=ukl.project_out(l_kgi,0);
+	    }
+	  }
+	  result.push_back(resulti);
+	}
+	if(singles.type==PARTICLE) current_s2c_u_part_gs=copy(world,result);
+	else if(singles.type==RESPONSE) current_s2c_u_part_response = copy(world,result);
       }
       return result;
     }
@@ -1227,23 +1265,23 @@ namespace madness {
       vecfuncT result;
       const vecfuncT active_mo_bra = get_active_mo_bra();
       for(const auto& itmp : singles.functions){
-        const size_t i=itmp.first;
-        real_function_3d resulti=real_factory_3d(world);
-        for(const auto& ktmp : singles.functions){
-  	const size_t k=ktmp.first;
-  	const real_function_3d kgi = g12(mo_bra_(k),singles(i));
-  	vecfuncT l_kgi = mul_sparse(world,kgi,active_mo_bra,parameters.thresh_3D);
-  	truncate(world,l_kgi);
-  	for(const auto& ltmp : singles.functions){
-  	  const size_t l=ltmp.first;
-  	  const real_function_6d ukl=get_pair_function(doubles,k,l);
-  	  //const real_function_3d l_kgi=mo_bra_(l).function * kgi;
-  	  resulti+=-2.0 * ukl.project_out(l_kgi[l-parameters.freeze],1);     // 1 means second particle
-  	  resulti+=ukl.project_out(l_kgi[l-parameters.freeze],0);
-  	}
-        }
-        resulti.print_size("s4b_"+std::to_string(i));
-        result.push_back(resulti);
+	const size_t i=itmp.first;
+	real_function_3d resulti=real_factory_3d(world);
+	for(const auto& ktmp : singles.functions){
+	  const size_t k=ktmp.first;
+	  const real_function_3d kgi = g12(mo_bra_(k),singles(i));
+	  vecfuncT l_kgi = mul_sparse(world,kgi,active_mo_bra,parameters.thresh_3D);
+	  truncate(world,l_kgi);
+	  for(const auto& ltmp : singles.functions){
+	    const size_t l=ltmp.first;
+	    const real_function_6d ukl=get_pair_function(doubles,k,l);
+	    //const real_function_3d l_kgi=mo_bra_(l).function * kgi;
+	    resulti+=-2.0 * ukl.project_out(l_kgi[l-parameters.freeze],1);     // 1 means second particle
+	    resulti+=ukl.project_out(l_kgi[l-parameters.freeze],0);
+	  }
+	}
+	resulti.print_size("s4b_"+std::to_string(i));
+	result.push_back(resulti);
       }
       return result;
     }
@@ -1421,126 +1459,265 @@ namespace madness {
 
     real_function_6d apply_regularization_potential(const CC_function &a, const CC_function &b, const double omega)const;
 
+    // uses ansatz: tau = u + Qtf12(|xitj>+|tixj>) - (OxQt + QtOx)f12|titj>
+    real_function_6d make_constant_part_cc2_response(const std::pair<size_t,size_t> &u,const CC_vecfunction &x,const CC_vecfunction&t ){
+      const size_t i=u.first;
+      const size_t j=u.second;
+      const CC_function xi = x(i);
+      const CC_function xj = x(j);
+      const CC_function ti = t(i);
+      const CC_function tj = t(j);
+      const double omega = x.omega;
+      const double bsh_eps = get_epsilon(i,j)+omega;
+
+      real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 *bsh_eps),parameters.lo,parameters.thresh_bsh_6D);
+      G.destructive()=true;
+
+      output_section("Computing Commutator-Response of Constant-Part: (OVxQt + QtOVx - OxOVt - OVtOx)f|"+ti.name()+tj.name()+">");
+
+      output_section("Computing Function-Response of Constant-Part: (Qt*Vreg + [F,Qt])|"+xi.name()+tj.name()+"+"+ti.name()+xj.name()+">");
+      // QtVreg|titj> + [F,Qt]f|tifj> function response: |titj> --> >|xitj>+|tixj>
+      const real_function_6d function_response_xt = make_constant_part_cc2_gs(xi,tj,t,omega);
+      const real_function_6d function_response_tx = make_constant_part_cc2_gs(ti,xj,t,omega);
+      const real_function_6d function_response = function_response_xt + function_response_tx;
+
+      // Projector  and commutator response
+      // -(OxQt+QtOx)Vregf|titj> + (OVxQt - OxOVt + QtOVx - OVtOx)f|titj>
+
+      output_section("Computing Projector-Response of Constant-Part: -(QtOx+OxQt)*Vreg|"+ti.name()+tj.name()+">"+ " and projector-ket-states: " + t.name() +"\n");
+      // this operation can be made into a complete 3D operation because of the projectors Ox
+      const real_function_6d Vreg_tt = apply_regularization_potential(ti,tj,omega);
+      // two intermediates
+      const std::pair<vecfuncT,vecfuncT> Ox1_Vreg_tt = make_O1t_u(x,CC_function_6d(world,Vreg_tt));
+      const std::pair<vecfuncT,vecfuncT> Ox2_Vreg_tt = make_O2t_u(x,CC_function_6d(world,Vreg_tt));
+      // those are the needed functions
+      const std::pair<vecfuncT,vecfuncT> OxQt_Vreg_tt = std::make_pair(Ox1_Vreg_tt.first,Q(Ox1_Vreg_tt.second,t));
+      const std::pair<vecfuncT,vecfuncT> QtOx_Vreg_tt = std::make_pair(Q(Ox2_Vreg_tt.first,t),Ox2_Vreg_tt.second);
+
+      // now apply the Greens Operator
+      output("Raising 6D-thresh to " + std::to_string(parameters.tight_thresh_6D) + " in order to avoid accumulation of errors from 6D low-rank addition");
+      FunctionDefaults<6>::set_thresh(parameters.tight_thresh_6D);
+      const real_function_6d projector_response_xt = apply_G_decomposed(G,OxQt_Vreg_tt);
+      const real_function_6d projector_response_tx = apply_G_decomposed(G,QtOx_Vreg_tt);
+      const real_function_6d projector_response = -1.0*projector_response_xt - projector_response_tx;
+      projector_response_xt.print_size("OxQt*Vreg|"+ti.name()+tj.name()+">");
+      projector_response_tx.print_size("QtOx*Vreg|"+ti.name()+tj.name()+">");
+      projector_response.print_size("-(QtOx+OxQt)*Vreg|"+ti.name()+tj.name()+">");
+
+      // now the Response from the Commutator;
+      const vecfuncT Vx = current_singles_potential_response;
+      vecfuncT Vt = current_singles_potential_gs;
+
+      // for (CIS(D) there is no singles potential for the ground state (it is zero) so the parts including Vt will not be calculated
+      const bool cispd = (t.type==HOLE);
+      if(Vx.empty())warning("Constant-Part of CC2-Response: Vx is empty");
+      if(not cispd and Vt.empty())warning("Constant-Part of CC2-Response: Vt is empty");
+      if(cispd) output("t==HOLE: CIS(D)-Calculation!");
+
+      // OVxQt parts
+      const std::pair<vecfuncT,vecfuncT> OVx1_ftitj = make_O1t_op_xy(Vx,f12,ti,tj);
+      const std::pair<vecfuncT,vecfuncT> OVx2_ftitj = make_O2t_op_xy(Vx,f12,ti,tj);
+      const std::pair<vecfuncT,vecfuncT> OVxQt_ftitj = std::make_pair(OVx1_ftitj.first,Q(OVx1_ftitj.second,t));
+      const std::pair<vecfuncT,vecfuncT> QtOVx_ftitj = std::make_pair(Q(OVx2_ftitj.first,t),OVx2_ftitj.second);
+
+      // OVtOx parts (zero for CIS(D))
+      std::pair<vecfuncT,vecfuncT> OxOVt_ftitj;
+      std::pair<vecfuncT,vecfuncT> OVtOx_ftitj;
+      if(not cispd){
+      const std::pair<vecfuncT,vecfuncT> OVt1_ftitj = make_O1t_op_xy(Vt,f12,ti,tj);
+      const std::pair<vecfuncT,vecfuncT> OVt2_ftitj = make_O2t_op_xy(Vt,f12,ti,tj);
+      OxOVt_ftitj = std::make_pair(P(OVt1_ftitj.first,x),OVt1_ftitj.second);
+      OVtOx_ftitj = std::make_pair(OVt2_ftitj.first,P(OVt2_ftitj.second,x));
+      }else output("Skipping Vt parts bc. they are zero in CIS(D)");
+
+      // apply the greens operator
+      real_function_6d commutator_response=real_factory_6d(world);
+      commutator_response += apply_G_decomposed(G,OVxQt_ftitj);
+      commutator_response += apply_G_decomposed(G,QtOVx_ftitj);
+      if(not cispd) commutator_response -= apply_G_decomposed(G,OxOVt_ftitj); // for CIS(D) the given pair is empty, the return is then just real_factory_6d(world) so it is initialized to zero
+      if(not cispd) commutator_response -= apply_G_decomposed(G,OVtOx_ftitj); // same here
+
+      // add all together and apply Q12
+      real_function_6d constant_term = function_response+projector_response+commutator_response;
+      constant_term.print_size("ConstTermResponse");
+      function_response.print_size("function-response");
+      commutator_response.print_size("commutator-response");
+      apply_Q12(constant_term,"ConstTermResponse");
+      constant_term.print_size("Q12ConstTermResponse");
+
+      output("Lowering 6D-thresh back to " + std::to_string(parameters.thresh_6D));
+      FunctionDefaults<6>::set_thresh(parameters.thresh_6D);
+      constant_term.set_thresh(parameters.thresh_6D);
+
+      return constant_term;
+    }
+
+    void test_on_mp2_constant_part(const CC_function &reg1, const CC_function &reg2){
+      real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(reg1.i,reg2.i)),parameters.lo,parameters.thresh_bsh_6D);
+      G.destructive()=true;
+      real_convolution_6d Gscreen=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(reg1.i,reg2.i)),parameters.lo,parameters.thresh_bsh_6D);
+      Gscreen.destructive()=true;
+      Gscreen.modified()=true;
+
+      //fK|r1r2> part
+      real_function_6d fK = real_factory_6d(world);
+      CC_Timer time_fK(world,"fK-part");
+      {
+	CC_Timer time_K(world,"fK: Apply K");
+      const real_function_3d Kreg1 = K(reg1);
+      const real_function_3d Kreg2 = K(reg2);
+      time_K.info();
+
+      CC_Timer time_fill(world,"fK: fill-functions");
+      real_function_6d V1 = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(reg1.function)).particle2(copy(Kreg2));
+      real_function_6d V2 = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(Kreg2)).particle2(copy(reg2.function));
+      V1.fill_tree(Gscreen).truncate().reduce_rank();
+      V2.fill_tree(Gscreen).truncate().reduce_rank();
+      V1.print_size("fK: V1");
+      V2.print_size("fK: V2");
+      time_fill.info();
+
+      CC_Timer time_G(world,"fK: Apply G");
+      real_function_6d GV1 = -2.0*G(V1);
+      real_function_6d GV2 = -2.0*G(V2);
+      time_G.info();
+
+      fK = GV1 + GV2;
+      fK.print_size("fK: result");
+      }time_fK.info();
+
+      // Kf|r1r2> part
+      real_function_6d Kf = real_factory_6d(world);
+      CC_Timer time_Kf(world,"Kf-part");
+      {
+	CC_Timer time_fill(world,"Kf: fill-functions");
+	real_function_6d freg1reg2 = CompositeFactory<double,6,3>(world).g12(corrfac.f()).particle1(copy(reg1.function)).particle2(copy(reg2.function));
+	freg1reg2.fill_tree(Gscreen).truncate().reduce_rank();
+	time_fill.info();
+
+	CC_Timer time_K(world,"Kf: Apply K");
+	real_function_6d V = K(freg1reg2).truncate().reduce_rank();
+	V.print_size("Kf: V");
+	time_K.info();
+
+	CC_Timer time_G(world,"Kf: Apply G");
+	Kf = -2.0*G(V);
+	time_G.info();
+
+	Kf.print_size("Kf: result");
+      }time_Kf.info();
+
+      // Ue part
+      CC_Timer time_Ue(world,"Ue-part");
+      real_function_6d Ue = real_factory_6d(world);
+      {
+	CC_Timer time_U(world,"Ue: apply U");
+	real_function_6d V = corrfac.apply_U(reg1.function,reg2.function,get_epsilon(reg1.i,reg2.i));
+	V.print_size("Ue");
+	time_U.info();
+
+	CC_Timer time_G(world,"Ue: apply G");
+	Ue = -2.0*G(V);
+	Ue.print_size("Ue: result");
+	time_G.info();
+      }time_Ue.info();
+
+
+
+
+    }
+
+
 
     // new version which uses: tau = u + Qt*f12*|titj>
-    real_function_6d make_constant_part_cc2_new_version(const CC_function &taui, const CC_function &tauj, const CC_vecfunction &singles)const{
-      if(current_singles_potential_gs.empty())error("Constant_part of cc2 needs the singles potential");
-      const CC_vecfunction & tfull = make_t_intermediate_full(singles);
-      const CC_function reg1 = tfull(taui.i);
-      const CC_function reg2 = tfull(tauj.i);
+    real_function_6d make_constant_part_cc2_gs(const CC_function &reg1, const CC_function &reg2, const CC_vecfunction &t, const double omega=0.0){
+      // output convenience
       const std::string name = "|" + reg1.name()+reg2.name()+">";
+      output("Calculating Constant-Part for CC2-Ground-State with functions: " + name + " and projector-ket-states: " + t.name() +"\n");
+      if(parameters.test) test_on_mp2_constant_part(reg1,reg2);
+      // consistency check
+      if(omega==0.0 and (reg1.type==RESPONSE or reg2.type==RESPONSE)) warning("make_constant_part_cc2_gs: omega is zero but a response function was given");
+      if(omega!=0.0 and (reg1.type!=RESPONSE and reg2.type!=RESPONSE)) warning("make_constant_part_cc2_gs: omega is not zero, but only ground state functions were given");
+      if(t.size()!=mo_ket_.size())warning("make_constant_part_CC2_gs: The t-functions for the projector have not the same size as the unfrozen MOs");
 
-      const bool symmetric=(taui.i==tauj.i and taui.type==tauj.type);
+      const bool symmetric=(reg1.i==reg2.i and reg1.type==reg2.type);
+
+      real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(reg1.i,reg2.i)+omega),parameters.lo,parameters.thresh_bsh_6D);
+      G.destructive()=true;
 
       CC_Timer time_V(world,"Apply Vreg to " + name);
       real_function_6d Vreg = apply_regularization_potential(reg1,reg2,0.0);
-      Vreg.scale(-2.0);
       Vreg.truncate().reduce_rank();
-      Vreg.print_size("Vreg");
+      Vreg.print_size("(Vreg).truncate()");
       time_V.info();
 
       // unprojected part: G(Vreg)
       CC_Timer time_GV(world,"GVreg"+name);
-      real_convolution_6d G=BSHOperator<6>(world,sqrt(-2.0 * get_epsilon(reg1.i,reg2.i)),parameters.lo,parameters.thresh_bsh_6D);
-      G.destructive()=true;
       const real_function_6d cVreg = copy(Vreg); // needed bc G is destructive
-      const real_function_6d GV = G(cVreg);
+      const real_function_6d GV = -2.0*G(cVreg);
       GV.print_size("GVreg"+name);
       time_GV.info();
 
-      // projected part: G(Ot12Vreg)
-      CC_Timer timeG2(world,"Apply G to O12Vreg");
-      real_function_6d GOV = real_factory_6d(world);
+      output("Raising 6D-thresh to " + std::to_string(parameters.tight_thresh_6D) + " to avoid accumulation of addition errors");
+      FunctionDefaults<6>::set_thresh(parameters.tight_thresh_6D);
 
-      // raise thresh for many additions
-      GOV.set_thresh(parameters.tight_thresh_6D);
-      for(const auto& ktmp:tfull.functions){
-	const CC_function & mok_ket = ktmp.second;
-	const CC_function & mok_bra = mo_bra_(mok_ket);
+      CC_Timer timeG2(world,"GOt12Vreg"+name);
+      // projected part is : -O1t(1-0.5O2t) - O2t(1-0.5O1t)
+      const std::pair<vecfuncT,vecfuncT> O1t_Vreg = make_O1t_u(t,CC_function_6d(world,Vreg));
+      const std::pair<vecfuncT,vecfuncT> O1_part = std::make_pair(O1t_Vreg.first,Q(O1t_Vreg.second,t,0.5));
+      const real_function_6d GOV_O1 = apply_G_decomposed(G,O1_part);
 
-	const real_function_3d kV1 = Vreg.project_out(mok_bra.function,0); // kV1 means that the projection was over particle1, the functions is therefore a 3D function of particle 2
-	const real_function_3d kV2 = Vreg.project_out(mok_bra.function,1);
 
-	real_function_3d im1 = real_factory_3d(world);
-	real_function_3d im2 = real_factory_3d(world);
-	for(const auto& ltmp:tfull.functions){
-	  const CC_function & mol_ket = ltmp.second;
-	  const CC_function & mol_bra = mo_bra_(ltmp.first);
-	  im1 += 0.5* mol_bra.function.inner(kV1)*mol_ket.function; // im1 is made from kV1, both are functions of particle2
-	  im2 += 0.5* mol_bra.function.inner(kV2)*mol_ket.function;
-	}
-
-	const real_function_3d p1 = kV2 - im2; // see comment above
-	const real_function_3d p2 = kV1 - im1;
-	const real_function_3d mo1 = copy(mok_ket.function); // copy because G is destructive
-	const real_function_3d mo2 = copy(mok_ket.function);
-	GOV += G(mo1,p2);
-	GOV += G(p1,mo2);
-
+      real_function_6d GOV_O2;
+      if(symmetric) GOV_O2 = swap_particles(GOV_O1);
+      else{
+	const std::pair<vecfuncT,vecfuncT> O2t_Vreg = make_O2t_u(t,CC_function_6d(world,Vreg));
+	const std::pair<vecfuncT,vecfuncT> O2_part = std::make_pair(Q(O2t_Vreg.first,t,0.5),O2t_Vreg.second);
+	GOV_O2 = apply_G_decomposed(G,O2_part);
       }
-      GOV.set_thresh(parameters.thresh_6D);
+
+      // negativ sign because this is projected out: Qt12 = (1-Ot1)(x)(1-Ot2)
+      const real_function_6d GOV = -1.0*(GOV_O1 + GOV_O2);
 
       GV.print_size("GV"+name);
       GOV.print_size("GO12V"+name);
-
       timeG2.info();
 
       // fock commutator part [F,Qt12]f12|reg1reg2> = |Vk> (x) Qt <k|f|ti>*|tj> + Qt <k|f|tj>*|ti> (x) |Vk> , Vk = current singles potential: -Vk = (F-ek)|tauk>
-      real_function_6d GFQQF_part1 = real_factory_6d(world);
-      real_function_6d GFQQF_part2 = real_factory_6d(world);
-      // raise thresh for many additions
-      GFQQF_part1.set_thresh(parameters.tight_thresh_6D);
-      GFQQF_part2.set_thresh(parameters.tight_thresh_6D);
-      CC_Timer time_FQQF(world,"apply [F,Qt12]f12"+name);
-      //      for(const auto &ktmp:singles.functions){
-      //	const size_t k=ktmp.first;
-      //
-      //	// part 1
-      //	{
-      //	  const real_function_3d tmp2 = f12(mo_bra_(k),reg1)*reg2.function;
-      //	  const real_function_3d p2 = Q(tmp2,tfull);
-      //	  const real_function_3d Vk1 = copy(current_singles_potential_gs[k-parameters.freeze]);
-      //	  GFQQF_part1 += -2.0*G(Vk1,p2);
-      //	}
-      //	{
-      //	  // part2 with i,j and 12 interchanged
-      //	  const real_function_3d tmp1 = f12(mo_bra_(k),reg2)*reg1.function;
-      //	  const real_function_3d p1 = Q(tmp1,tfull);
-      //	  const real_function_3d Vk2 = copy(current_singles_potential_gs[k-parameters.freeze]); // the same as Vk2 but G is destructive
-      //	  GFQQF_part2 += -2.0*G(p1,Vk2);
-      //	}
-      //      }
-      //      const real_function_6d GFQQF = GFQQF_part1 + GFQQF_part2;
-      //      if(symmetric){
-      //	const real_function_6d GFQQF_test = GFQQF_part1 + swap_particles(GFQQF_part1);
-      //	const double diff = (GFQQF_test - GFQQF).norm2();
-      //	if(world.rank()==0){
-      //	  std::cout << "Symmetric Test of FQQF Part\n";
-      //	  std::cout << "Difference is " << diff << "\n";
-      //	  if(diff>parameters.thresh_6D) warning("QFFQ part not symmetric .... but should be ...");
-      //	  else output("All fine, use symmetry for diagonal pairs to save time ...");
-      //	}
-      //      }
+      // the negative sign from the singles equation and the negative sign from the projector cancel each other
 
-      // test new fancy way
-      // [F,Qt12] = OVQt + QtOV
-      // [F,Qt12]f12|xy> = OVQtf12|xy> + QtOVf12|xy> = Qt(2)_OV(1)f|xy> + Qt(1)_OV(2)f|xy>,  OV(2)f|xy> = P12(OV(1)f|yx>)
-      const CC_vecfunction OV(current_singles_potential_gs,UNDEFINED,parameters.freeze);
-      const std::pair<vecfuncT,vecfuncT> OVfxy = make_O1t_op_xy(OV,f12,reg1,reg2);
-      const std::pair<vecfuncT,vecfuncT> OVQtfxy = std::make_pair(OVfxy.first,Q(OVfxy.second,tfull));
-      GFQQF_part1 = apply_G_decomposed(G,OVQtfxy);
+      real_function_6d GFQQF=real_factory_6d(world);
+      if(t.type==HOLE){
+	output("t-functions for projector are of typ: HOLE, the commutator [F,Qt] is therefore zero");
+      }else{
+	// little sanity check
+	if(current_singles_potential_gs.empty())warning("Constant_part of cc2 needs the singles potential but it is empty");
+	if((reg1.type==RESPONSE or reg2.type==RESPONSE) and current_singles_potential_response.empty()) warning("Constant_part of cc2-response needs the response-singles potential but it is empty");
 
-      if(symmetric)  GFQQF_part2 = swap_particles(GFQQF_part1);
-      else{
-	const std::pair<vecfuncT,vecfuncT> OVfxy = make_O2t_op_xy(OV,f12,reg1,reg2);
-	const std::pair<vecfuncT,vecfuncT> QtOVfxy = std::make_pair(Q(OVfxy.first,tfull),OVfxy.second); // here the particle swap is made
-	GFQQF_part2 = apply_G_decomposed(G,QtOVfxy);
+
+	real_function_6d GFQQF_part1 = real_factory_6d(world);
+	real_function_6d GFQQF_part2 = real_factory_6d(world);
+	// raise thresh for many additions
+	GFQQF_part1.set_thresh(parameters.tight_thresh_6D);
+	GFQQF_part2.set_thresh(parameters.tight_thresh_6D);
+	CC_Timer time_FQQF(world,"apply [F,Qt12]f12"+name);
+	const CC_vecfunction OV(current_singles_potential_gs,UNDEFINED,parameters.freeze);
+	const std::pair<vecfuncT,vecfuncT> O1Vfxy = make_O1t_op_xy(OV,f12,reg1,reg2);
+	const std::pair<vecfuncT,vecfuncT> O1VQ2tfxy = std::make_pair(O1Vfxy.first,Q(O1Vfxy.second,t));
+	GFQQF_part1 = apply_G_decomposed(G,O1VQ2tfxy);
+
+	if(symmetric)  GFQQF_part2 = swap_particles(GFQQF_part1);
+	else{
+	  const std::pair<vecfuncT,vecfuncT> O2Vfxy = make_O2t_op_xy(OV,f12,reg1,reg2);
+	  const std::pair<vecfuncT,vecfuncT> Q1tO2Vfxy = std::make_pair(Q(O2Vfxy.first,t),O2Vfxy.second); // here the particle swap is made
+	  GFQQF_part2 = apply_G_decomposed(G,Q1tO2Vfxy);
+	}
+	GFQQF =  GFQQF_part1 +  GFQQF_part2;
+	time_FQQF.info();
       }
-      const real_function_6d GFQQF =  GFQQF_part1 +  GFQQF_part2;
 
-      time_FQQF.info();
-
-      real_function_6d result = GV - GOV + GFQQF;
+      // sign of GOV has been applied before
+      real_function_6d result = GV + GOV + GFQQF;
       result.print_size("(GV-GOV+GFQQF)");
       result.truncate().reduce_rank();
       GV.print_size("GV"+name);
@@ -1549,6 +1726,9 @@ namespace madness {
       result.print_size("(GV-GOV+GFQQF).truncate()"+name);
       apply_Q12(result);
       result.print_size("Q12(GV-GOV+GFQQF)"+name);
+
+      output("Lowering 6D-thresh back to " + std::to_string(parameters.thresh_6D));
+      FunctionDefaults<6>::set_thresh(parameters.thresh_6D);
 
       return result;
     }
@@ -1724,7 +1904,7 @@ namespace madness {
     }
 
     CC_function_6d get_pair_function(const Pairs<CC_function_6d> &pairs,
-				       const size_t i, const size_t j) const {
+				     const size_t i, const size_t j) const {
       if (i > j) {
 	const CC_function_6d & function = pairs(j, i);
 	const CC_function_6d & swapped_function = swap_particles(function);
@@ -1746,11 +1926,9 @@ namespace madness {
     // \omega = \sum_{ij} 2<ij|g|\tau_{ij}> - <ij|g|\tau_{ji}> + 2 <ij|g|\tau_i\tau_j> - <ij|g|\tau_j\tau_i>
     // with \tau_{ij} = u_{ij} + Q12f12|ij> + Q12f12|\tau_i,j> + Q12f12|i,\tau_j> + Q12f12|\tau_i\tau_j>
     double get_CC2_correlation_energy() const;
-    double compute_cispd_energy(const Pairs<CC_Pair> &u, const Pairs<CC_Pair> mp2_doubles, const CC_vecfunction x);
-    double compute_cispd_energy_constant_part(const Pairs<CC_Pair> &u, const CC_vecfunction x)const;
     double compute_cc2_pair_energy(const CC_Pair &u, const CC_function &taui,
 				   const CC_function &tauj) const;
-    double compute_pair_energy(const CC_Pair &u, const CC_vecfunction &singles)const{
+    double compute_pair_energy(CC_Pair &u, const CC_vecfunction &singles)const{
       if(singles.type!=PARTICLE)error("compute_pair_energy with singles of type " + assign_name(singles.type) + " is not possible");
       CC_vecfunction t = make_t_intermediate_full(singles);
 
@@ -1779,7 +1957,8 @@ namespace madness {
 	std::cout << "-------------------------\n";
 	std::cout << "overall = " << result << "\n\n";
       }
-
+      u.current_energy = result;
+      u.constant_energy = pure_singles_part + regularization_part;
       return result;
     }
     /// Calculate the integral <bra1,bra2|gQf|ket1,ket2>
@@ -2387,7 +2566,8 @@ namespace madness {
     // Ot(1)f|xy> = |tk(1)>(x) <k|f|x>*|y>
     // t has always the size of all mos (since the frozen t-functions are just the mos)
     std::pair<vecfuncT,vecfuncT> make_O1t_op_xy(const CC_vecfunction &t, const CC_convolution_operator &op, const CC_function &x, const CC_function &y)const{
-      vecfuncT particle1 = t.get_vecfunction();
+      if(t.size()==0) output("Ot1|"+x.name()+y.name()+"> : FUNCTIONS FOR PROJECTOR ARE EMPTY");
+      vecfuncT particle1 = copy(world,t.get_vecfunction()); // avoid shallow copy errors (in most cases a destructive G-operator will be applied to this)
       vecfuncT particle2;
       for(const auto & ktmp:t.functions){
 	const size_t k=ktmp.first;
@@ -2398,14 +2578,38 @@ namespace madness {
       return std::make_pair(particle1,particle2);
     }
     std::pair<vecfuncT,vecfuncT> make_O2t_op_xy(const CC_vecfunction &t, const CC_convolution_operator &op, const CC_function &x, const CC_function &y)const{
+      if(t.size()==0) output("Ot2|"+x.name()+y.name()+"> : FUNCTIONS FOR PROJECTOR ARE EMPTY");
       vecfuncT particle1;
-      vecfuncT particle2= t.get_vecfunction();
+      vecfuncT particle2= copy(world,t.get_vecfunction()); // avoid shallow copy errors (in most cases a destructive G-operator will be applied to this)
       for(const auto & ktmp:t.functions){
 	const size_t k=ktmp.first;
 	const real_function_3d p1tmp = op(mo_bra_(k),y)*x.function;
 	particle1.push_back(p1tmp);
       }
 
+      return std::make_pair(particle1,particle2);
+    }
+
+    std::pair<vecfuncT,vecfuncT> make_O1t_u(const CC_vecfunction &t, const CC_function_6d &u)const{
+      if(t.size()==0) output("Ot1|V6D> : FUNCTIONS FOR PROJECTOR ARE EMPTY");
+      vecfuncT particle1 = copy(world,t.get_vecfunction()); // avoid shallow copy errors (in most cases a destructive G-operator will be applied to this)
+      vecfuncT particle2;
+      for(const auto &ktmp:t.functions){
+	const size_t k=ktmp.first;
+	const real_function_3d p2tmp = u.project_out(mo_bra_(k),1);
+	particle2.push_back(p2tmp);
+      }
+      return std::make_pair(particle1,particle2);
+    }
+    std::pair<vecfuncT,vecfuncT> make_O2t_u(const CC_vecfunction &t, const CC_function_6d &u)const{
+      if(t.size()==0) output("Ot2|V6D> : FUNCTIONS FOR PROJECTOR ARE EMPTY");
+      vecfuncT particle2 = copy(world,t.get_vecfunction()); // avoid shallow copy errors (in most cases a destructive G-operator will be applied to this)
+      vecfuncT particle1;
+      for(const auto &ktmp:t.functions){
+	const size_t k=ktmp.first;
+	const real_function_3d p1tmp = u.project_out(mo_bra_(k),2);
+	particle1.push_back(p1tmp);
+      }
       return std::make_pair(particle1,particle2);
     }
 
