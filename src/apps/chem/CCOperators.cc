@@ -455,14 +455,14 @@ namespace madness {
       for(const auto& ltmp : singles.functions){
 	const size_t l=ltmp.first;
 	const CC_function_6d uil=get_pair_function(doubles,i,l);
-	part1+=uil.project_out(l_kgtauk[l-parameters.freeze],1);
-	part2+=uil.project_out(l_kgtauk[l-parameters.freeze],0);
+	part1+=uil.project_out(l_kgtauk[l-parameters.freeze],2);
+	part2+=uil.project_out(l_kgtauk[l-parameters.freeze],1);
 
 	for(const auto& ktmp : singles.functions){
 	  const size_t k=ktmp.first;
 	  const real_function_3d k_lgtauk=(mo_bra_(k).function * g12(mo_bra_(l),singles(k))).truncate();
-	  part3+=uil.project_out(k_lgtauk,1);
-	  part4+=uil.project_out(k_lgtauk,0);
+	  part3+=uil.project_out(k_lgtauk,2);
+	  part4+=uil.project_out(k_lgtauk,1);
 	}
       }
       resulti=4.0 * part1 - 2.0 * part2 - 2.0 * part3 + part4;
