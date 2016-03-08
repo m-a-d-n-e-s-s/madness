@@ -335,6 +335,24 @@ AC_ARG_WITH([papi],
             [AC_MSG_NOTICE([Enabling use of PAPI]); AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
             [])
 
+AC_ARG_WITH([parsec],
+            [AC_HELP_STRING([--with-parsec], [Build with support for PaRSEC])])
+AS_IF([test "x$with_parsec" != "xno"],
+      [AS_IF([test "x$with_parsec" != "xyes"],
+             [PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:$with_parsec/lib/pkgconfig"])
+       PKG_CHECK_MODULES([PaRSEC], [parsec],
+                         [AC_DEFINE([HAVE_PARSEC], [1], [Define if have PaRSEC])
+                          # Remove the trailing -I from the PaRSEC pkgconfig file
+                          PaRSEC_CFLAGS=`echo ${PaRSEC_CFLAGS} | sed 's#-I$##'`
+                          CFLAGS="$CFLAGS ${PaRSEC_CFLAGS}"
+                          # Don't propagate the -std=c99 C flag to C++
+                          PARSEC_CXXFLAGS=`echo ${PaRSEC_CFLAGS} | sed 's#-std=c99##'`
+                          CXXFLAGS="$CXXFLAGS ${PARSEC_CXXFLAGS}"
+                          LIBADD="$LIBADD ${PaRSEC_LIBS}"],
+                         [with_parsec="no"])
+       ])
+AM_CONDITIONAL([USE_PARSEC], [test "x$with_parsec" != "xno"])
+
 # Capture configuration info for user by compiled code
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_USER],["$USER"],[User that configured the code])
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_DATE],["`date`"],[Date of configuration])
