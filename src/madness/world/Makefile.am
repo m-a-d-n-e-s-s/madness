@@ -52,49 +52,49 @@ AM_LOG_FLAGS =
 noinst_PROGRAMS = $(TESTS)
 
 test_prof_mpi_SOURCES = test_prof.cc
-test_prof_mpi_LDADD = libMADworld.la
+test_prof_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_binsorter_mpi_SOURCES = test_binsorter.cc
-test_binsorter_mpi_LDADD = libMADworld.la
+test_binsorter_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_ar_mpi_SOURCES = test_ar.cc
-test_ar_mpi_LDADD = libMADworld.la
+test_ar_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_hashdc_mpi_SOURCES = test_hashdc.cc
-test_hashdc_mpi_LDADD = libMADworld.la
+test_hashdc_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_future_mpi_SOURCES = test_future.cc
-test_future_mpi_LDADD = libMADworld.la
+test_future_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_hello_mpi_SOURCES = test_hello.cc
-test_hello_mpi_LDADD = libMADworld.la
+test_hello_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_atomicint_mpi_SOURCES = test_atomicint.cc
-test_atomicint_mpi_LDADD = libMADworld.la
+test_atomicint_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_future2_mpi_SOURCES = test_future2.cc
-test_future2_mpi_LDADD = libMADworld.la
+test_future2_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_future3_mpi_SOURCES = test_future3.cc
-test_future3_mpi_LDADD = libMADworld.la
+test_future3_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_dc_mpi_SOURCES = test_dc.cc
-test_dc_mpi_LDADD = libMADworld.la
+test_dc_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_tree_mpi_SOURCES = test_tree.cc
 test_tree_mpi_LDADD = libMADworld.la
 
 test_hashthreaded_mpi_SOURCES = test_hashthreaded.cc
-test_hashthreaded_mpi_LDADD = libMADworld.la
+test_hashthreaded_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_queue_mpi_SOURCES = test_queue.cc
-test_queue_mpi_LDADD = libMADworld.la
+test_queue_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_world_mpi_SOURCES = test_world.cc
-test_world_mpi_LDADD = libMADworld.la
+test_world_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 test_worldprofile_mpi_SOURCES = test_worldprofile.cc
-test_worldprofile_mpi_LDADD = libMADworld.la
+test_worldprofile_mpi_LDADD = libMADworld.la ${PaRSEC_LIBS}
 
 if MADNESS_HAS_GOOGLE_TEST
 
@@ -132,8 +132,12 @@ libMADworld_la_SOURCES = madness_exception.cc world.cc timers.cc future.cc \
 	worldgop.cc deferred_cleanup.cc worldmutex.cc binary_fstream_archive.cc \
 	text_fstream_archive.cc lookup3.c worldmpi.cc group.cc \
 	$(thisinclude_HEADERS)
+
 libMADworld_la_CPPFLAGS = $(AM_CPPFLAGS) -D$(GITREV)
 libMADworld_la_LDFLAGS = -version-info 0:0:0
+if USE_PARSEC
+libMADworld_la_SOURCES += parsec.cc
+endif
 
 
 libraries:	$(lib_LTLIBRARIES)
