@@ -643,6 +643,12 @@ struct CC_vecfunction{
 
 	CC_vecfunction(): type(UNDEFINED){}
 	CC_vecfunction(const functype type_): type(type_),omega(0.0){}
+	CC_vecfunction(const vecfuncT &v): type(UNDEFINED),omega(0.0){
+		for(size_t i=0;i<v.size();i++){
+			CC_function tmp(v[i],i,type);
+			functions.insert(std::make_pair(i,tmp));
+		}
+	}
 	CC_vecfunction(const vecfuncT &v,const functype &type): type(type),omega(0.0){
 		for(size_t i=0;i<v.size();i++){
 			CC_function tmp(v[i],i,type);

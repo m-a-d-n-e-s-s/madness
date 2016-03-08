@@ -64,6 +64,11 @@ namespace madness {
 
     real_function_3d operator()(const real_function_3d &f)const {return ((*op)(f)).truncate();}
 
+    vecfuncT operator()(const vecfuncT &f)const{
+      return apply<double,double,3>(world,(*op),f);
+    }
+
+
     real_function_3d operator()(const CC_function &bra, const CC_function &ket, const bool use_im=true)const{
       real_function_3d result;
       if(not use_im){
@@ -215,6 +220,22 @@ namespace madness {
       return result;
     }
 
+    // result is: <x|op12|f>_particle
+    real_function_3d dirac_convolution(const CC_function &x, const CC_convolution_operator &op, const size_t particle)const{
+      real_function_3d result;
+      switch(type){
+	case pure_:
+	  result = op(x,u,particle);
+	  break;
+	case decomposed_ :
+	  result = dirac_convolution_decomposed(x,op,particle);
+	  break;
+	case op_decomposed_:
+	 MADNESS_EXCEPTION("op_decomposed dirac convolution not yet implemented",1);
+      }
+      return result;
+    }
+
     CC_function_6d swap_particles()const{
       switch(type){
 	case pure_:
@@ -269,6 +290,15 @@ namespace madness {
 	MADNESS_EXCEPTION("project_out_op_decomposed: particle must be 1 or 2",1);
 	return real_factory_3d(world);
       }
+    }
+
+    real_function_3d dirac_convolution_decomposed(const CC_function &x, const CC_convolution_operator &op, const size_t particle)const{
+      const std::pair<vecfuncT,vecfuncT> f = assign_particles(particle);
+      const vecfuncT xa = mul(world,x.function,f.first);
+      const vecfuncT xga = op(xa);
+      real_function_3d result = real_factory_3d(world);
+      for(size_t i=0;i<xga.size();i++) result += xga[i]*f.second[i];
+      return result;
     }
 
     const std::pair<vecfuncT,vecfuncT> assign_particles(const size_t particle)const{
@@ -894,14 +924,33 @@ namespace madness {
 	break;
 	case pot_cis_: error("No Ground State Singles Potential for CIS");
 	break;
-	case pot_S2b_u_:
-	  result = S2b_u_part(u, singles);
+	case pot_S2b_u_:{
+	  vecfuncT s2b = current_s2b_u_part_gs;
+	  if(s2b.empty()){
+	    s2b = S2b_u_part(make_pairs(u),singles);
+	    vecfuncT tmp = copy(world,s2b);
+	    truncate(world,tmp);
+	    current_s2b_u_part_gs = tmp;
+	  }else output("Found u-part of S2b-potential");
+	  result = s2b;
+	}
 	  break;
-	case pot_S2c_u_:
-	  result = S2c_u_part_old(u, singles);
+	case pot_S2c_u_:{
+	 vecfuncT s2c = current_s2c_u_part_gs;
+	 if(s2c.empty()){
+	   s2c=S2c_u_part(make_pairs(u), singles);
+	   vecfuncT tmp = copy(world,s2c);
+	   truncate(world,s2c);
+	   current_s2c_u_part_gs = tmp;
+	 }else output("Found u-part of S2c-potential");
+	 result = s2c;
+	}
 	  break;
-	case pot_S4a_u_:
-	  result = S4a_u_part(u, singles);
+	case pot_S4a_u_:{
+	  const vecfuncT s2b = current_s2b_u_part_gs;
+	  result = S4a_from_S2b(s2b,singles);
+	  //result = S4a_u_part(u, singles);
+	}
 	  break;
 	case pot_S4b_u_:
 	  result = S4b_u_part(make_pairs(u), singles);
@@ -913,7 +962,16 @@ namespace madness {
 	{
 	  CC_vecfunction t = make_t_intermediate(singles);
 	  CC_vecfunction tfull = make_t_intermediate_full(singles);
-	  result = S2b_reg_part(t,t,tfull);
+	  //result = S2b_reg_part(t,t,tfull);
+	  vecfuncT f12_part = S2b_gf_part(t,t);
+	  vecfuncT tmp1 = S2b_u_part(make_regularization_tails_O1(tfull,tfull,t,t,0.5),singles);
+	  vecfuncT tmp2 = S2b_u_part(make_regularization_tails_O2(tfull,tfull,t,t,0.5),singles);
+	  vecfuncT projected_part = add(world,tmp1,tmp2);
+	  result=sub(world,f12_part,projected_part);
+	  // save for s4a_reg_ potential
+	  vecfuncT tmp = copy(world,result);
+	  truncate(world,tmp);
+	  current_s2b_reg_part_gs = tmp;
 	  break;
 	}
 	case pot_S2c_r_:
@@ -930,9 +988,11 @@ namespace madness {
 	}
 	case pot_S4a_r_:
 	{
-	  CC_vecfunction t = make_t_intermediate(singles);
-	  CC_vecfunction tfull = make_t_intermediate_full(singles);
-	  result = S4a_reg_part(t,t,singles,tfull);
+//	  CC_vecfunction t = make_t_intermediate(singles);
+//	  CC_vecfunction tfull = make_t_intermediate_full(singles);
+//	  result = S4a_reg_part(t,t,singles,tfull);
+	  const vecfuncT s2b = current_s2b_reg_part_gs;
+	  result = S4a_from_S2b(s2b,singles);
 	  break;
 	}
 	case pot_S4b_r_:
@@ -993,12 +1053,36 @@ namespace madness {
 	case pot_cis_:
 	  result = cis_response_potential(response_singles);
 	  break;
-	case pot_S2b_u_:
-	  result = S2b_u_part(response_u, response_singles);
-	  break;
-	case pot_S2c_u_:
-	  result = S2c_u_part_old(response_u, response_singles);
-	  break;
+	case pot_S2b_u_:{
+
+	}break;
+	case pot_S2c_u_:{
+
+	}break;
+	case pot_S4a_u_:{
+
+	}break;
+	case pot_S4b_u_:{
+
+	}break;
+	case pot_S4c_u_:{
+
+	}break;
+	case pot_S2b_r_:{
+
+	}break;
+	case pot_S2c_r_:{
+
+	}break;
+	case pot_S4a_r_:{
+
+	}break;
+	case pot_S4b_r_:{
+
+	}break;
+	case pot_S4c_r_:{
+
+	}break;
       }
       data.result_size = get_size(world, result);
       data.result_norm = norm2(world, result);
@@ -1043,9 +1127,27 @@ namespace madness {
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[out] \f$ \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 ) \f$
     /// Q-Projector is not applied, sign is correct
-    vecfuncT S2b_u_part(const Pairs<CC_Pair> &doubles,
+    vecfuncT S2b_u_part(const Pairs<CC_function_6d> &doubles,
 			const CC_vecfunction &singles) const;
 
+    // the <k|gf|xy> part of S2b where the f|xy> term comes from the unprojected regularization tail
+    vecfuncT S2b_gf_part(const CC_vecfunction &x, const CC_vecfunction &y)const{
+      vecfuncT result;
+      for(const auto &itmp:x.functions){
+	const CC_function &ti = x(itmp.first);
+	real_function_3d resulti = real_factory_3d(world);
+
+	for(const auto &ktmp:y.functions){
+	  const CC_function &tk = y(ktmp.first);
+	  const CC_function &k = mo_bra_(ktmp.first);
+	  const real_function_3d part1 = apply_gf(k.function*tk.function)*ti.function;
+	  const real_function_3d partx = apply_gf(k.function*ti.function)*tk.function;
+	  resulti += 2.0*part1 - partx;
+	}
+	result.push_back(resulti);
+      }
+      return result;
+    }
     // result: -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1)
     // singles are not needed explicitly but to determine if it is response or ground state
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
@@ -1095,6 +1197,22 @@ namespace madness {
     /// Q-Projector is not applied, sign is correct
     vecfuncT S4a_u_part(const Pairs<CC_Pair> &doubles,
 			const CC_vecfunction &singles) const;
+
+    /// the S4a potential can be calcualted from the S2b potential
+    /// result is \f$ s4a_i = - <l|s2b_i>*|tau_l> \f$
+    vecfuncT S4a_from_S2b(const vecfuncT &s2b, const CC_vecfunction&singles)const{
+      if(s2b.empty())warning("S2b-potential is empy --> S4a will be zero");
+      vecfuncT result;
+      for(size_t i=0;i<s2b.size();i++){
+	real_function_3d resulti = real_factory_3d(world);
+	const Tensor<double> ls2bi = inner(world,s2b[i],get_active_mo_bra());
+	for(const auto& ltmp:singles.functions){
+	  resulti -= ls2bi[ltmp.first-parameters.freeze]*singles(ltmp.first).function;
+	}
+	result.push_back(resulti);
+      }
+      return result;
+    }
 
     // result: -\sum_k( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui>
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
@@ -1864,6 +1982,8 @@ namespace madness {
     mutable vecfuncT current_s2b_u_part_response;
     mutable vecfuncT current_s2c_u_part_gs;
     mutable vecfuncT current_s2c_u_part_response;
+    mutable vecfuncT current_s2b_reg_part_gs;
+    mutable vecfuncT current_s2b_reg_part_response;
 
     CC_convolution_operator g12;
     CC_convolution_operator f12;
@@ -2265,6 +2385,7 @@ namespace madness {
     }
 
     // Ot(1)f|xy> = |tk(1)>(x) <k|f|x>*|y>
+    // t has always the size of all mos (since the frozen t-functions are just the mos)
     std::pair<vecfuncT,vecfuncT> make_O1t_op_xy(const CC_vecfunction &t, const CC_convolution_operator &op, const CC_function &x, const CC_function &y)const{
       vecfuncT particle1 = t.get_vecfunction();
       vecfuncT particle2;
@@ -2273,6 +2394,7 @@ namespace madness {
 	const real_function_3d p2tmp = op(mo_bra_(k),x)*y.function;
 	particle2.push_back(p2tmp);
       }
+
       return std::make_pair(particle1,particle2);
     }
     std::pair<vecfuncT,vecfuncT> make_O2t_op_xy(const CC_vecfunction &t, const CC_convolution_operator &op, const CC_function &x, const CC_function &y)const{
@@ -2283,6 +2405,7 @@ namespace madness {
 	const real_function_3d p1tmp = op(mo_bra_(k),y)*x.function;
 	particle1.push_back(p1tmp);
       }
+
       return std::make_pair(particle1,particle2);
     }
 

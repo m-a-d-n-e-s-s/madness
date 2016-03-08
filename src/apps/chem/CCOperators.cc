@@ -304,32 +304,22 @@ namespace madness {
   }
 
   vecfuncT
-  CC_Operators::S2b_u_part(const Pairs<CC_Pair> &doubles,const CC_vecfunction &singles) const {
+  CC_Operators::S2b_u_part(const Pairs<CC_function_6d> &doubles,const CC_vecfunction &singles) const {
     vecfuncT result;
-    if(singles.type==PARTICLE) result=copy(world,current_s2b_u_part_gs);
-    else if(singles.type==RESPONSE) result=copy(world,current_s2b_u_part_response);
-    else error("singles of type " + assign_name(singles.type) +" in S2b_u_part");
-
-    if(not result.empty()){
-      output("S2b_u_part already calculated");
-    }else{
       for(const auto& itmp : singles.functions){
 	const size_t i=itmp.first;
 	real_function_3d resulti=real_factory_3d(world);
 	for(const auto& ktmp : singles.functions){
 	  const size_t k=ktmp.first;
-	  const real_function_6d uik=get_pair_function(doubles,i,k);
+	  const CC_function_6d uik=get_pair_function(doubles,i,k);
 	  // S2b u-part
-	  resulti += 2.0* g12(mo_bra_(k),uik,2);
+	  resulti += 2.0*uik.dirac_convolution(mo_bra_(k),g12,2); //2.0* g12(mo_bra_(k),uik,2);
 	  // S2b u-part-exchange
-	  resulti -= g12(mo_bra_(k),uik,1);
+	  resulti -= uik.dirac_convolution(mo_bra_(k),g12,1);//g12(mo_bra_(k),uik,1);
 	}
 	result.push_back(resulti);
       }
-      if(singles.type==PARTICLE) current_s2b_u_part_gs=copy(world,result);
-      else if(singles.type==RESPONSE) current_s2b_u_part_response = copy(world,result);
 
-    }
     return result;
   }
 
