@@ -764,6 +764,7 @@ namespace madness {
 	std::cout << "CIS(D)    =" << std::fixed << std::setprecision(parameters.output_prec+3)<< x.omega+result << "\n";
 	std::cout << "correction=" << std::fixed << std::setprecision(parameters.output_prec+3)<< result << "\n";
       }
+      print_size(world,current_s2b_reg_part_gs,"current_s2b_reg_part_gs");
       return result;
     }
     double compute_cispd_energy_V(const CC_vecfunction &x, const Pairs<CC_Pair> u, const Pairs<CC_Pair> &chi, const potentialtype_s &name)const{
