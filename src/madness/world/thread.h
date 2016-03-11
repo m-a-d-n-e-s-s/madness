@@ -49,8 +49,10 @@
 #include <new>
 
 //////////// Parsec Related Begin ////////////////////
+#ifdef HAVE_PARSEC
 #include <dague/dague_internal.h>
 #include "parsec.h"
+#endif
 //////////// Parsec Related End ////////////////////
 
 #ifdef MADNESS_TASK_PROFILING
@@ -952,7 +954,10 @@ namespace madness {
             : TaskAttributes()
             , barrier(nullptr)
         {
-            count = 0;
+#if HAVE_PARSEC
+	  init_exec_context();
+#endif
+	  count = 0;
         }
 
         /// Contructor setting teh speicified task attributes.
@@ -962,6 +967,9 @@ namespace madness {
             : TaskAttributes(attr)
             , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
         {
+#if HAVE_PARSEC
+	  init_exec_context();
+#endif
             count = 0;
         }
 
@@ -988,13 +996,30 @@ namespace madness {
                     barrier = 0;
             }
         }
+#if HAVE_PARSEC        //////////// Parsec Related Begin ////////////////////
+        dague_execution_context_t exec_context;
+        static const dague_function_t*   func;
+
+        /* This function initializes exec_context from the one in parsec.cpp*/
+        void init_exec_context(void)
+          {
+            exec_context.dague_handle = &madness::madness_handle;
+            exec_context.function = &madness::madness_function;
+            exec_context.chore_id = 0;
+            exec_context.status = DAGUE_TASK_STATUS_NONE;
+            exec_context.priority = 0;
+            std::cout << "task interface constructor" << std::endl;
+          }
+        //////////// Parsec Related End   ///////////////////
+#endif
 
 #else
 
     public:
 
         /// Default constructor.
-        PoolTaskInterface() : TaskAttributes() { }
+        PoolTaskInterface() : TaskAttributes() { 
+	}
 
         /// \todo Brief description needed.
 
@@ -1002,7 +1027,8 @@ namespace madness {
         /// \param[in] attr Description needed.
         explicit PoolTaskInterface(const TaskAttributes& attr) :
             TaskAttributes(attr)
-        { }
+        {
+	}
 
         /// Destructor.
         virtual ~PoolTaskInterface() = default;
@@ -1062,21 +1088,6 @@ namespace madness {
         /// \todo Description needed.
         /// \param[in] info Description needed.
 
-        //////////// Parsec Related Begin ////////////////////
-        dague_execution_context_t exec_context;
-        static const dague_function_t*   func;
-
-        /* This function initializes exec_context from the one in parsec.cpp*/
-        void init_exec_context(void)
-          {
-            exec_context.dague_handle = &madness::madness_handle;
-            exec_context.function = &madness::madness_function;
-            exec_context.chore_id = 0;
-            exec_context.status = DAGUE_TASK_STATUS_NONE;
-            exec_context.priority = 0;
-            std::cout << "task interface constructor" << std::endl;
-          }
-        //////////// Parsec Related End   ///////////////////
 
         virtual void run(const TaskThreadEnv& info) = 0;
 
@@ -1266,9 +1277,11 @@ namespace madness {
 
 
     public:
+#if HAVE_PARSEC
 	////////////////// Parsec Related Begin //////////////////
         static dague_context_t *parsec;
         ///////////////// Parsec Related End ////////////////////
+#endif
 
 #if HAVE_INTEL_TBB
         static tbb::task_scheduler_init* tbb_scheduler; ///< \todo Description needed.
@@ -1295,31 +1308,33 @@ namespace madness {
 
             //////////// Parsec Related Begin ////////////////////
             /* Initialize the execution context and give it to the scheduler*/
+#if HAVE_PARSEC
 	    std::cout << "adding a new task to parsec" << std::endl;
             dague_execution_context_t *context = &(task->exec_context);
             DAGUE_LIST_ITEM_SINGLETON(context);
+	    if( 0 != dague_handle_update_nbtask(&madness_handle, 1) ) {
+	     std::cout << "dague_handle_update_nbtask!!" << std::endl;
+	    }
             __dague_schedule(parsec->virtual_processes[0]->execution_units[0], context);
             //////////// Parsec Related End ////////////////////
-
-            /* Remove since parsec is used instead*/
-/* #if HAVE_INTEL_TBB */
-/*             if(task->is_high_priority()) { */
-/*                 tbb::task::spawn(*task); */
-/*             } else { */
-/*                 tbb::task::enqueue(*task); */
-/*             } */
-/* #else */
-/*             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1); */
-/*             int task_threads = task->get_nthread(); */
-/*             // Currently multithreaded tasks must be shoved on the end of the q */
-/*             // to avoid a race condition as multithreaded task is starting up */
-/*             if (task->is_high_priority() && (task_threads == 1)) { */
-/*                 instance()->queue.push_front(task); */
-/*             } */
-/*             else { */
-/*                 instance()->queue.push_back(task, task_threads); */
-/*             } */
-/* #endif // HAVE_INTEL_TBB */
+#elif HAVE_INTEL_TBB
+            if(task->is_high_priority()) {
+                tbb::task::spawn(*task);
+            } else {
+                tbb::task::enqueue(*task);
+            }
+#else
+            if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
+            int task_threads = task->get_nthread();
+            // Currently multithreaded tasks must be shoved on the end of the q
+            // to avoid a race condition as multithreaded task is starting up
+            if (task->is_high_priority() && (task_threads == 1)) {
+                instance()->queue.push_front(task);
+            }
+            else {
+                instance()->queue.push_back(task, task_threads);
+            }
+#endif // HAVE_INTEL_TBB
         }
 
         /// \todo Brief description needed.
@@ -1439,11 +1454,11 @@ namespace madness {
 
         /// Desctructor.
         ~ThreadPool() {
+#if HAVE_PARSEC
           ////////////////// Parsec related Begin /////////////////
           /* End of scheduling*/
-          dague_handle_update_nbtask(&madness_handle, -1);
-          dague_context_wait(parsec);
           dague_fini((dague_context_t **)&parsec);
+#endif	  
           ////////////////// Parsec related End /////////////////
 
           /* Remove since Parsec is used instead*/
