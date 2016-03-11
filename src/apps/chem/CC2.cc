@@ -83,7 +83,7 @@ namespace madness {
       size_t i=0;
       std::vector<std::pair<CC_vecfunction,double> > cc2_results;
       for(const auto& cistmp:cis_results){
-	const double omega_cis = cistmp.second;
+	double omega_cis = cistmp.second;
 	output_section("Solving Excitation " + std::to_string(i) + " with CIS excitation energy " + std::to_string(omega_cis));
 	CC_vecfunction x(cistmp.first);
 	x.omega = omega_cis;
@@ -94,6 +94,9 @@ namespace madness {
 	std::vector<Pairs<CC_Pair>> empty_pair_vector;
 	CC_vecfunction empty_vector;
 	if(not iterate_singles(x,empty_vector,empty_pair_vector, CCS_response_)) CCOPS.warning("CCS/CIS not converged!");
+	// update
+	CCOPS.update_response_intermediates(x);
+	omega_cis = x.omega;
 
 	// make CIS(D) as first guess for doubles
 	const double omega_cispd = solve_cispd(chi,pairs,x,omega_cis);
@@ -217,11 +220,13 @@ namespace madness {
     CC_vecfunction empty_singles(zero_functions<double,3>(world,cis_singles.size()),PARTICLE,parameters.freeze);
     CCOPS.update_intermediates(empty_singles);
 
+    if(not parameters.no_compute){
     for(auto& tmp_pair : doubles.allpairs){
       tmp_pair.second.current_energy = cis_omega;
       update_constant_part_cc2_response(tmp_pair.second,CC_vecfunction(PARTICLE),cis_singles);
       bool pair_converged=iterate_pair(tmp_pair.second);
       if(not pair_converged) cispd_converged=false;
+    }
     }
 
     output_section("Calculating the CIS(D) Excitation Energies");

@@ -713,39 +713,73 @@ namespace madness {
     }
 
     double compute_cispd_energy_correction(const CC_vecfunction &x, const Pairs<CC_Pair> &u, const Pairs<CC_Pair> &chi )const{
-      // make empty singles for the ground state
-      const CC_vecfunction tau(zero_functions<double,3>(world,x.size()),PARTICLE,parameters.freeze);
+//      // make empty singles for the ground state
+//      const CC_vecfunction tau(zero_functions<double,3>(world,x.size()),PARTICLE,parameters.freeze);
+//
+//      // now calculate the singles-response potential without the CIS potential (so just the S2 and S4 terms since tau is zero anyways)
+//      vecfuncT V = response_potential_singles(tau,u,x,chi,pot_S2b_u_);
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2c_u_));
+//
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4a_u_));
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4b_u_));
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4c_u_));
+//
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2b_r_));
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2c_r_));
+//
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4a_r_));
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4b_r_));
+//      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4c_r_));
+//
+//      // apply Q-projector
+//      V = Q(V,mo_ket_);
+//      truncate(world,V);
+//      const double Vnorm = norm2(world,V);
+//
+//      // make inner product with cis_states
+//      vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
+//      Tensor<double> xV = inner(world,xbra,V);
+//      const double result = xV.sum();
+      if(world.rank()==0){
+	std::cout << "Current S2b_reg_part_gs\n";
+      }
+      print_size(world,current_s2b_reg_part_gs,"current_s2b_reg_part_gs");
+      current_s2b_reg_part_gs.clear();
+      double result = 0.0;
+      result += compute_cispd_energy_V(x,u,chi,pot_S2b_u_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S2c_u_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S4a_u_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S4b_u_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S4c_u_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S2b_r_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S2c_r_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S4a_r_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S4b_r_);
+      result += compute_cispd_energy_V(x,u,chi,pot_S4c_r_);
 
-      // now calculate the singles-response potential without the CIS potential (so just the S2 and S4 terms since tau is zero anyways)
-      vecfuncT V = response_potential_singles(tau,u,x,chi,pot_S2b_u_);
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2c_u_));
-
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4a_u_));
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4b_u_));
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4c_u_));
-
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2b_r_));
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S2c_r_));
-
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4a_r_));
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4b_r_));
-      V = add(world,V,response_potential_singles(tau,u,x,chi,pot_S4c_r_));
-
-      // apply Q-projector
-      V = Q(V,mo_ket_);
-      truncate(world,V);
-      const double Vnorm = norm2(world,V);
-
-      // make inner product with cis_states
-      vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
-      Tensor<double> xV = inner(world,xbra,V);
-      const double result = xV.sum();
       if(world.rank()==0){
 	std::cout << "CIS(D) Energy Correction to CCS/CIS Excitation Energy: " << x.omega << "\n";
-	std::cout << "||V||     =" << Vnorm  << "\n";
+	//std::cout << "||V||     =" << Vnorm  << "\n";
 	std::cout << "CIS       =" << std::fixed << std::setprecision(parameters.output_prec+3)<< x.omega << "\n";
 	std::cout << "CIS(D)    =" << std::fixed << std::setprecision(parameters.output_prec+3)<< x.omega+result << "\n";
 	std::cout << "correction=" << std::fixed << std::setprecision(parameters.output_prec+3)<< result << "\n";
+      }
+      return result;
+    }
+    double compute_cispd_energy_V(const CC_vecfunction &x, const Pairs<CC_Pair> u, const Pairs<CC_Pair> &chi, const potentialtype_s &name)const{
+      const CC_vecfunction tau(zero_functions<double,3>(world,x.size()),PARTICLE,parameters.freeze);
+      const vecfuncT V = response_potential_singles(tau,u,x,chi,name);
+      const vecfuncT QV = Q(V,mo_ket_);
+      const double Vnorm = norm2(world,V);
+      const double QVnorm = norm2(world,QV);
+      vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),x.get_vecfunction());
+      const double result = inner(world,xbra,QV).sum();
+
+      if(world.rank()==0){
+	std::cout << "CIS(D) Contribution from " + assign_name(name) + ":\n";
+	std::cout << "||V|| =" <<  Vnorm << "\n";
+	std::cout << "||QV||=" << QVnorm << "\n";
+	std::cout << " delta-omega = " << result << "\n";
       }
       return result;
     }
@@ -967,15 +1001,18 @@ namespace madness {
 	  vecfuncT s2b_gs = current_s2b_u_part_gs;
 	  if(s2b_gs.empty()) s2b_gs = S2b_u_part(make_pairs(u),x);
 	  const vecfuncT part2 = S4a_from_S2b(s2b_gs,x);
+	  print_size(world,part2,assign_name(name)+" ux-part"); // for CIS(D) this is the nonzero part
 	  result = add(world,part1,part2);
 	}break;
 	case pot_S4b_u_:{
 	  const vecfuncT part1 = S4b_u_part(make_pairs(u), x);
+	  print_size(world,part1,assign_name(name)+" ux-part"); // for CIS(D) this is the nonzero part
 	  const vecfuncT part2 = S4b_u_part(make_pairs(chi), tau);
 	  result = add(world,part1,part2);
 	}break;
 	case pot_S4c_u_:{
 	  const vecfuncT part1 = S4c_u_part(make_pairs(u), x);
+	  print_size(world,part1,assign_name(name)+" ux-part"); // for CIS(D) this is the nonzero part
 	  const vecfuncT part2 = S4c_u_part(make_pairs(chi), tau);
 	  result = add(world,part1,part2);
 	}break;
@@ -989,19 +1026,22 @@ namespace madness {
 	  const Pairs<CC_function_6d> reg_O2_tx = make_regularization_tails_O2(tfull,tfull,t,x,0.5);
 
 	  const Pairs<CC_function_6d> reg_O1_tt = make_regularization_tails_O1(x,tfull,t,t,1.0);
-	  const Pairs<CC_function_6d> reg_O2_tt = make_regularization_tails_O1(tfull,x,t,t,1.0);
+	  const Pairs<CC_function_6d> reg_O2_tt = make_regularization_tails_O2(tfull,x,t,t,1.0);
 
 	  vecfuncT f12_part_xt = S2b_gf_part(x,t);
 	  vecfuncT f12_part_tx = S2b_gf_part(t,x);
 	  vecfuncT f12_part = add(world,f12_part_xt,f12_part_tx);
 
-	  vecfuncT function_response = S2b_u_part(reg_O1_xt,tau);
-	  function_response=add(world,function_response,S2b_u_part(reg_O1_tx,tau));
-	  function_response=add(world,function_response,S2b_u_part(reg_O2_xt,tau));
-	  function_response=add(world,function_response,S2b_u_part(reg_O2_tx,tau));
+	  vecfuncT function_response_projected = S2b_u_part(reg_O1_xt,tau);
+	  function_response_projected=add(world,function_response_projected,S2b_u_part(reg_O1_tx,tau));
+	  function_response_projected=add(world,function_response_projected,S2b_u_part(reg_O2_xt,tau));
+	  function_response_projected=add(world,function_response_projected,S2b_u_part(reg_O2_tx,tau));
+
+	  vecfuncT function_response = sub(world,f12_part,function_response_projected);
+
 	  vecfuncT projector_response = add(world,S2b_u_part(reg_O1_tt,tau),S2b_u_part(reg_O2_tt,tau));
 
-	  result = add(world,f12_part,sub(world,function_response,projector_response));
+	  result = sub(world,function_response,projector_response);
 	  // save for s4a_reg_ potential
 	  vecfuncT tmp = copy(world,result);
 	  truncate(world,tmp);
@@ -1011,10 +1051,8 @@ namespace madness {
 	  CC_vecfunction t = make_t_intermediate(tau);
 	  CC_vecfunction tfull = make_t_intermediate_full(tau);
 
-	  // ground state reg_pairs: Qtf|titj>
-	  const Pairs<CC_function_6d> gs_reg_f12=make_regularization_tails_f12(t,t);
-	  const Pairs<CC_function_6d> gs_reg_O1=make_regularization_tails_O1(tfull,tfull,t,t,0.5);
-	  const Pairs<CC_function_6d> gs_reg_O2=make_regularization_tails_O2(tfull,tfull,t,t,0.5);
+	  // NO GS REG PAIRS FOR S2C -> ONLY RESPONSE FUNCTION (SINCE NO SINGLES IN THIS POTENTIAL)
+
 	  // response reg_pairs: Qtf|xitj+tixj> - (OxQt+QtOx)f|titj>
 	  const Pairs<CC_function_6d> re_reg_f12_xt=make_regularization_tails_f12(x,t);
 	  const Pairs<CC_function_6d> re_reg_f12_tx=make_regularization_tails_f12(t,x);
@@ -1024,19 +1062,14 @@ namespace madness {
 	  const Pairs<CC_function_6d> re_reg_O2_tx=make_regularization_tails_O2(tfull,tfull,t,x,0.5);
 
 	  const Pairs<CC_function_6d> re_reg_O1_tt=make_regularization_tails_O1(x,tfull,t,t,1.0);
-	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(x,tfull,t,t,1.0);
-
-	  // u with x
-	  result = S2c_u_part(gs_reg_f12,x);
-	  result = sub(world,result,S2c_u_part(gs_reg_O1,x));
-	  result = sub(world,result,S2c_u_part(gs_reg_O2,x));
+	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(tfull,x,t,t,1.0);
 
 	  // chi with tau function response
-	  result = add(world,result,S2c_u_part(re_reg_f12_xt,tau));
+	  result = 		    S2c_u_part(re_reg_f12_xt,tau);
 	  result = add(world,result,S2c_u_part(re_reg_f12_tx,tau));
 	  result = sub(world,result,S2c_u_part(re_reg_O1_tx,tau));
 	  result = sub(world,result,S2c_u_part(re_reg_O1_xt,tau));
-	  result = sub(world,result,S2c_u_part(re_reg_O1_tx,tau));
+	  result = sub(world,result,S2c_u_part(re_reg_O2_tx,tau));
 	  result = sub(world,result,S2c_u_part(re_reg_O2_xt,tau));
 	  // chi with tau projector response
 	  result = sub(world,result,S2c_u_part(re_reg_O1_tt,tau));
@@ -1044,11 +1077,20 @@ namespace madness {
 	}break;
 	case pot_S4a_r_:{
 	  vecfuncT s2b_response = current_s2b_reg_part_response;
-	  if(s2b_response.empty()) s2b_response = S2b_u_part(make_pairs(chi),tau);
+	  if(s2b_response.empty()){
+	    output("recalculating s2b_reg_part_response");
+	    s2b_response = response_potential_singles(tau,u,x,chi,pot_S2b_r_);
+	  }
 	  const vecfuncT part1 = S4a_from_S2b(s2b_response,tau);
 	  vecfuncT s2b_gs = current_s2b_reg_part_gs;
-	  if(s2b_gs.empty()) s2b_gs = S2b_u_part(make_pairs(u),x);
+	  print_size(world,current_s2b_reg_part_gs,"current_s2b_reg_part_gs");
+	  if(s2b_gs.empty()){
+	    output("recalculating s2b_reg_part_gs");
+	    s2b_gs = potential_singles(u,tau,pot_S2b_r_);
+	  }
+	  print_size(world,current_s2b_reg_part_gs,"current_s2b_reg_part_gs");
 	  const vecfuncT part2 = S4a_from_S2b(s2b_gs,x);
+	  print_size(world,part2,"S4a ux part");
 	  result = add(world,part1,part2);
 	}break;
 	case pot_S4b_r_:{
@@ -1068,12 +1110,13 @@ namespace madness {
 	  const Pairs<CC_function_6d> re_reg_O2_tx=make_regularization_tails_O2(tfull,tfull,t,x,0.5);
 
 	  const Pairs<CC_function_6d> re_reg_O1_tt=make_regularization_tails_O1(x,tfull,t,t,1.0);
-	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(x,tfull,t,t,1.0);
+	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(tfull,x,t,t,1.0);
 
 	  // u with x
 	  result = S4b_u_part(gs_reg_f12,x);
 	  result = sub(world,result,S4b_u_part(gs_reg_O1,x));
 	  result = sub(world,result,S4b_u_part(gs_reg_O2,x));
+	  print_size(world,result,assign_name(name)+" ux-part"); // for CIS(D) this is the nonzero part
 
 	  // chi with tau function response
 	  result = add(world,result,S4b_u_part(re_reg_f12_xt,tau));
@@ -1103,12 +1146,13 @@ namespace madness {
 	  const Pairs<CC_function_6d> re_reg_O2_tx=make_regularization_tails_O2(tfull,tfull,t,x,0.5);
 
 	  const Pairs<CC_function_6d> re_reg_O1_tt=make_regularization_tails_O1(x,tfull,t,t,1.0);
-	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(x,tfull,t,t,1.0);
+	  const Pairs<CC_function_6d> re_reg_O2_tt=make_regularization_tails_O2(tfull,x,t,t,1.0);
 
 	  // u with x
 	  result = S4c_u_part(gs_reg_f12,x);
 	  result = sub(world,result,S4c_u_part(gs_reg_O1,x));
 	  result = sub(world,result,S4c_u_part(gs_reg_O2,x));
+	  print_size(world,result,assign_name(name)+" ux-part"); // for CIS(D) this is the nonzero part
 
 	  // chi with tau function response
 	  result = add(world,result,S4c_u_part(re_reg_f12_xt,tau));
