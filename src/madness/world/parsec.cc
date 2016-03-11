@@ -4,9 +4,8 @@
 #include <dague/dague_internal.h>
 
 // Here we initialize with the right child class
-
-namespace madness {
 #if HAVE_PARSEC
+namespace madness {
   dague_hook_return_t release_madness_task (dague_execution_unit_t *eu, 
 					    dague_execution_context_t *exec_context)
   {
@@ -144,5 +143,5 @@ dague_handle_t madness_handle {
   .functions_array = madness_function_array,
 };
 }
-#endif
 }
+#endif

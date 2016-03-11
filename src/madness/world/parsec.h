@@ -9,13 +9,12 @@
 #include <iostream>
 
 namespace madness{
-#if HAVE_PARSEC
   extern "C"{
 
     extern const dague_function_t madness_function;
     extern dague_handle_t madness_handle;
   }
-#endif
+
 }
 
 
