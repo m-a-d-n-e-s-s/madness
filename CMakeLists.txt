@@ -51,7 +51,6 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 # failure to find the library is an error. 
 
 option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
-option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
 option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
@@ -59,6 +58,14 @@ cmake_dependent_option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools
     "NOT ENABLE_TCMALLOC_MINIMAL" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
+
+option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
+option(ENABLE_PARSEC "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
+if(ENABLE_PARSEC)
+	if(ENABLE_TBB)
+		message(FATAK_ERROR "TBB and PaRSEC cannot be both enabled.")
+	endif(ENABLE_TBB)
+endif(ENABLE_PARSEC)
 
 option(ENABLE_ELEMENTAL "Enable Elemental library for distributed-memory linear algebra" OFF)
 if (ENABLE_ELEMENTAL)
@@ -486,6 +493,7 @@ include(external/libxc.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
+include(external/parsec.cmake)
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)

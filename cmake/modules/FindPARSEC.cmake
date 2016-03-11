@@ -67,7 +67,7 @@
 include(CheckSymbolExists)
 
 if (NOT PARSEC_FOUND)
-    set(PARSEC_DIR ${PARSEC_DIR} CACHE PATH "Installation directory of PARSEC library")
+    set(PARSEC_DIR "" CACHE PATH "Installation directory of PARSEC library")
     if (NOT PARSEC_FIND_QUIETLY)
         message(STATUS "A cache variable, namely PARSEC_DIR, has been set to specify the install directory of PARSEC")
     endif()

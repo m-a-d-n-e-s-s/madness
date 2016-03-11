@@ -333,8 +333,9 @@ namespace madness {
 
 #endif // MADNESS_TASK_PROFILING
 
+#if HAVE_PARSEC
   dague_context_t *ThreadPool::parsec = NULL;
-
+#endif
     // The constructor is private to enforce the singleton model
     ThreadPool::ThreadPool(int nthread) :
             threads(nullptr), main_thread(), nthreads(nthread), finish(false)
@@ -348,7 +349,7 @@ namespace madness {
                 static_cast<void*>(&main_thread));
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
-
+#if HAVE_PARSEC
         //////////// Parsec Related Begin ////////////////////
         /* Scheduler init*/
 	int argc = 1;
@@ -358,47 +359,53 @@ namespace madness {
         strcpy(argv[0], tmp);
 	//argv[1] = NULL;
 	argv[1] = NULL;
-
-        ThreadPool::parsec = dague_init(-1, &argc, &argv);
-        dague_enqueue(ThreadPool::parsec, &madness_handle);
-        dague_context_start(ThreadPool::parsec);
-        dague_handle_update_nbtask(&madness_handle, 1);
+        ThreadPool::parsec = dague_init(2, &argc, &argv);
+        if( 0 != dague_enqueue(ThreadPool::parsec, &madness_handle) ) {
+	  std::cout << "ERROR: dague_enqueue!!" << std::endl;
+	}
+	std::cout << "dague_enqueue!! <" << &madness_handle << ">" << std::endl;
+        if( 0 != dague_handle_update_nbtask(&madness_handle, 1) ) {
+	  std::cout << "ERROR: dague_handle_update_nbtask!!" << std::endl;
+	}
+        if( 0 != dague_context_start(ThreadPool::parsec) ) {
+	  std::cout << "ERROR: dague_context_start!!" << std::endl;
+	}
         //////////// Parsec Related End ////////////////////
-
+#elif HAVE_INTEL_TBB
                 /* This is removed to replace TBB or madness by parsec*/
 // #if HAVE_INTEL_TBB
 
-//         if(nthreads < 1)
-//             nthreads = 1;
+        if(nthreads < 1)
+            nthreads = 1;
 
-//         if (SafeMPI::COMM_WORLD.Get_size() > 1) {
-//             // There are nthreads+2 because the main and communicator thread
-//             // are counted as part of tbb.
-//             tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
-//         }
-//         else {
-//             // There are nthreads+1 because the main
-//             // is counted as part of tbb.
-//             tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
+        if (SafeMPI::COMM_WORLD.Get_size() > 1) {
+            // There are nthreads+2 because the main and communicator thread
+            // are counted as part of tbb.
+            tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
+        }
+        else {
+            // There are nthreads+1 because the main
+            // is counted as part of tbb.
+            tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
 
-//         }
-// #else
+        }
+#else
 
-//         try {
-//             if (nthreads > 0)
-//                 threads = new ThreadPoolThread[nthreads];
-//             else
-//                 threads = 0;
-//         }
-//         catch (...) {
-//             MADNESS_EXCEPTION("memory allocation failed", 0);
-//         }
+        try {
+            if (nthreads > 0)
+                threads = new ThreadPoolThread[nthreads];
+            else
+                threads = 0;
+        }
+        catch (...) {
+            MADNESS_EXCEPTION("memory allocation failed", 0);
+        }
 
-//         for (int i=0; i<nthreads; ++i) {
-//             threads[i].set_pool_thread_index(i);
-//             threads[i].start(pool_thread_main, (void *)(threads+i));
-//         }
-// #endif
+        for (int i=0; i<nthreads; ++i) {
+            threads[i].set_pool_thread_index(i);
+            threads[i].start(pool_thread_main, (void *)(threads+i));
+        }
+#endif
         /****************************/
     }
 
@@ -431,16 +438,16 @@ namespace madness {
         PROFILE_MEMBER_FUNC(ThreadPool);
         thread->set_affinity(2, thread->get_pool_thread_index());
 
-#define MULTITASK
-#ifdef  MULTITASK
-        while (!finish) {
-            run_tasks(true, thread);
-        }
-#else
-        while (!finish) {
-            run_task(true, thread);
-        }
-#endif
+// #define MULTITASK
+// #ifdef  MULTITASK
+//         while (!finish) {
+//             run_tasks(true, thread);
+//         }
+// #else
+//         while (!finish) {
+//             run_task(true, thread);
+//         }
+// #endif
 
 #ifdef MADNESS_TASK_PROFILING
         thread->profiler().write_to_file();
@@ -517,11 +524,16 @@ namespace madness {
 #if !HAVE_INTEL_TBB
         if (!instance_ptr) return;
         instance()->finish = true;
+#if !HAVE_PARSEC
         for (int i=0; i<instance()->nthreads; ++i) {
             add(new PoolTaskNull);
         }
         while (instance_ptr->nfinished != instance_ptr->nthreads);
-
+#else  /* HAVE_PARSEC */
+	/* Remove the fake task we used to keep the engine up and running */
+	dague_handle_update_nbtask(&madness_handle, -1);
+	dague_context_wait(parsec);
+#endif
 #ifdef MADNESS_TASK_PROFILING
         instance_ptr->main_thread.profiler().write_to_file();
 #endif // MADNESS_TASK_PROFILING

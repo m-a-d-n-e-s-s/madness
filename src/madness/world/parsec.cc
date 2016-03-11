@@ -6,9 +6,9 @@
 // Here we initialize with the right child class
 
 namespace madness {
-
-  dague_hook_return_t complete_madness_task (dague_execution_unit_t *eu, 
-                                             dague_execution_context_t *exec_context)
+#if HAVE_PARSEC
+  dague_hook_return_t release_madness_task (dague_execution_unit_t *eu, 
+					    dague_execution_context_t *exec_context)
   {
     char* s;
     PoolTaskInterface *c;
@@ -33,7 +33,7 @@ namespace madness {
 const dague_function_t* PoolTaskInterface::func = &madness_function;
 
 dague_hook_return_t pointer_call(dague_execution_unit_t *eu, 
-                 dague_execution_context_t *exec_context)
+				 dague_execution_context_t *exec_context)
 {
   char* s;
   PoolTaskInterface *c;
@@ -95,7 +95,7 @@ static const __dague_chore_t __RUN_chores[] = {
 };
 
 
-DAGUE_DECLSPEC const dague_function_t madness_function = {
+const dague_function_t madness_function = {
     .name = "RUN",
     .flags = DAGUE_HAS_IN_IN_DEPENDENCIES | DAGUE_USE_DEPS_MASK,
     .function_id = 0,
@@ -123,9 +123,9 @@ DAGUE_DECLSPEC const dague_function_t madness_function = {
     .iterate_successors = (dague_traverse_function_t *) NULL,
     .iterate_predecessors = (dague_traverse_function_t *) NULL,
     .release_deps = (dague_release_deps_t *) NULL,
-    .complete_execution = complete_madness_task, //object delete,
+    .complete_execution = empty_hook, // complete MADNESS task and generate successors
     .new_task = (dague_new_task_function_t*) NULL,
-    .release_task = empty_hook, //dague_release_task_to_mempool,
+    .release_task = release_madness_task, //object delete,
     .fini = (dague_hook_t *) NULL,
 };
 
@@ -134,14 +134,15 @@ DAGUE_DECLSPEC const dague_function_t madness_function = {
 dague_handle_t madness_handle {
   .super = { 0x0, },
   .handle_id = 0,
-  .nb_tasks = 1,
+  .nb_tasks = 0,
   .nb_functions = 1,
   .devices_mask = DAGUE_DEVICES_ALL,
   .priority = 0,
-  .nb_pending_actions = 0,
+  .nb_pending_actions = 1,
   .context = NULL,
   .startup_hook = NULL,
   .functions_array = madness_function_array,
 };
 }
+#endif
 }
