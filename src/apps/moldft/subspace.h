@@ -52,7 +52,7 @@
                          const vector_complex_function_3d& bwfs_old,
                          const vector_complex_function_3d& rm)
     {
-      // concatentate up and down spins
+      // concatenate up and down spins
       vector_complex_function_3d vm = awfs_old;
       if (_spinpol)
       {
@@ -157,7 +157,7 @@
                          const vector_complex_function_3d& awfs_old,
                          const vector_complex_function_3d& rm)
     {
-      // concatentate up and down spins
+      // concatenate up and down spins
       vector_complex_function_3d vm = awfs_old;
 
       // Update subspace and matrix Q
