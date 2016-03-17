@@ -47,6 +47,9 @@
 
 #include <iosfwd>
 #include <exception>
+#ifdef MADNESS_ASSERTIONS_ASSERT
+#  include <cassert>
+#endif
 #include <madness/madness_config.h>
 
 #ifndef MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE
@@ -140,7 +143,6 @@ namespace madness {
 #endif
 
 #ifdef MADNESS_ASSERTIONS_ASSERT
-#  include <cassert>
 #  define MADNESS_ASSERT(condition) assert(condition)
 #endif
 
