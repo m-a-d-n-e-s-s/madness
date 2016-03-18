@@ -47,10 +47,10 @@
 
 #include <iosfwd>
 #include <exception>
+#include <madness/madness_config.h>
 #ifdef MADNESS_ASSERTIONS_ASSERT
 #  include <cassert>
 #endif
-#include <madness/madness_config.h>
 
 #ifndef MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE
 /// Display the exception break message unless otherwise specified.
