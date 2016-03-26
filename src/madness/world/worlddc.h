@@ -65,6 +65,7 @@ namespace madness {
     public:
         virtual void redistribute_phase1(const std::shared_ptr< WorldDCPmapInterface<keyT> >& newmap) = 0;
         virtual void redistribute_phase2() = 0;
+        virtual void redistribute_phase3() = 0;
 	virtual ~WorldDCRedistributeInterface() {};
     };
 
@@ -124,6 +125,12 @@ namespace madness {
                 newpmap->register_callback(*iter);
             }
             ptrs.clear();
+            world.gop.fence();
+            for (typename std::set<ptrT>::iterator iter = ptrs.begin();
+                 iter != ptrs.end();
+                 ++iter) {
+	         (*iter)->redistribute_phase3();
+            }
             world.gop.fence();
         }
     };
@@ -410,6 +417,7 @@ namespace madness {
                 acc->second = datum.second;
             }
             else {
+  	        // Must be send (not task) for sequential consistency (and relies on single-threaded remote server)
                 this->send(dest, &implT::insert, datum);
             }
         }
@@ -589,16 +597,39 @@ namespace madness {
             }
         }
 
-        // Second phase moves data and cleans up
+	struct P2Op {
+	  implT * impl;
+	  typedef Range<typename std::vector<keyT>::const_iterator> rangeT;
+	  P2Op(implT* impl) : impl(impl) {}
+    	  P2Op(const P2Op& p) : impl(p.impl) {}
+	  bool operator()(typename rangeT::iterator& iterator) const {
+	    typename internal_containerT::iterator iter = impl->local.find(*iterator);
+	    MADNESS_ASSERT(iter != impl->local.end());
+
+	    //impl->insert(*iter);
+	    impl->task(impl->owner(*iterator), &implT::insert, *iter);
+
+	    impl->local.erase(iter); // delete local copy of the data
+	    return true;
+	  }
+	};
+
+        // Second phase moves data
         void redistribute_phase2() {
-            std::vector<keyT>& mvlist = *move_list;
-            for (unsigned int i=0; i<move_list->size(); ++i) {
-                typename internal_containerT::iterator iter = local.find(mvlist[i]);
-                MADNESS_ASSERT(iter != local.end());
-                insert(*iter);
-                local.erase(iter);
-            }
-            delete move_list;
+	  this->get_world().taskq.for_each(typename P2Op::rangeT(move_list->begin(), move_list->end()), P2Op(this));
+	    //std::vector<keyT>& mvlist = *move_list;
+            //for (unsigned int i=0; i<move_list->size(); ++i) {
+            //    typename internal_containerT::iterator iter = local.find(mvlist[i]);
+            //    MADNESS_ASSERT(iter != local.end());
+            //    insert(*iter);
+            //    local.erase(iter);
+            //}
+            //delete move_list;
+        }
+
+        // Third phase cleans up
+        void redistribute_phase3() {
+	   delete move_list;
         }
     };
 
