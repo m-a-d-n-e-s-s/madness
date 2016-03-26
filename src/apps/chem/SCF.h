@@ -367,6 +367,9 @@ struct CalculationParameters {
     std::string nuclear_corrfac;	///< nuclear correlation factor
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
     int nv_factor;              ///< factor to multiply number of virtual orbitals with when automatically decreasing nvirt
+    int vnucextra; // load balance parameter for nuclear pot.
+    int loadbalparts = 2; // was 6
+
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -378,7 +381,8 @@ struct CalculationParameters {
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
-            & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf;
+            & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf
+  	    & vnucextra & loadbalparts;
     }
 
     CalculationParameters()
@@ -436,6 +440,8 @@ struct CalculationParameters {
         , nuclear_corrfac("none")
         , pure_ae(true)
         , nv_factor(1)
+        , vnucextra(12)
+        , loadbalparts(2)
     {}
 
 
@@ -450,6 +456,9 @@ struct CalculationParameters {
             if (s == "end") {
                 break;
             }
+            else if (s == "loadbal") {
+	      f >> vnucextra >> loadbalparts;
+	    }
             else if (s == "charge") {
                 f >> charge;
             }
@@ -689,6 +698,8 @@ struct CalculationParameters {
         madness::print("             restart ", restart);
         madness::print(" number of processes ", world.size());
         madness::print("   no. of io servers ", nio);
+	madness::print("   vnuc load bal fac ", vnucextra);
+	madness::print("      load bal parts ", loadbalparts);
         madness::print("     simulation cube ", -L, L);
         madness::print("        total charge ", charge);
         madness::print("            smearing ", smear);
@@ -788,9 +799,6 @@ public:
     double current_energy;
     //double esol;//etot;
     //double vacuo_energy;
-    static const int vnucextra = 12; // load balance parameter for nuclear pot.
-    static const int loadbalparts = 2.0; // was 6.0
-
     SCF(World & world, const char *filename);
 
     template<std::size_t NDIM>
@@ -893,8 +901,8 @@ public:
         return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
     }
 
-    // tensorT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set,
-    // 		const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true);
+    distmatT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set,
+			   const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true);
 
 
     distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;

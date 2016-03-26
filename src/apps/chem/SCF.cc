@@ -118,13 +118,20 @@ namespace madness {
         return expV;
     }
     
-    static double ttt, sss;
+    // Timer modified to correctly nest
+    static std::vector<double> ttt, sss;
     static void START_TIMER(World& world) {
-        world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+      world.gop.fence(); ttt.push_back(wall_time()); sss.push_back(cpu_time());
     }
     
+  static double pop(std::vector<double>& v) {
+    double x=v.back();
+    v.pop_back();
+    return x;
+  }
     static void END_TIMER(World& world, const char* msg) {
-        ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+      double wall=wall_time()-pop(ttt), cpu=cpu_time()-pop(sss); 
+      if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
     }
     
     extern void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc);
@@ -542,140 +549,144 @@ namespace madness {
         
     }
     
-    // tensorT SCF::localize_boys(World & world, const vecfuncT & mo,
-    //                            const std::vector<int> & set, const double thresh,
-    //                            const double thetamax, const bool randomize) {
-    //     START_TIMER(world);
-    //     const bool doprint = false;
-    //     long nmo = mo.size();
-    //     tensorT dip(nmo, nmo, 3);
-    //     for (int axis = 0; axis < 3; ++axis) {
-    //         functionT fdip = factoryT(world).functor(
-    //                                                  functorT(new DipoleFunctor(axis))).initial_level(4);
-    //         dip(_, _, axis) = matrix_inner(world, mo,
-    //                                        mul_sparse(world, fdip, mo, vtol), true);
-    //     }
-    //     tensorT U(nmo, nmo);
-    //     if (world.rank() == 0) {
-    //         for (long i = 0; i < nmo; ++i)
-    //             U(i, i) = 1.0;
-            
-    //         double tol = thetamax;
-    //         long ndone = 0;
-    //         bool converged = false;
-    //         for (long iter = 0; iter < 300; ++iter) {
-    //             double sum = 0.0;
-    //             for (long i = 0; i < nmo; ++i) {
-    //                 sum += DIP(dip, i, i, i, i);
-    //             }
-    //             long ndone_iter = 0;
-    //             double maxtheta = 0.0;
-    //             if (doprint)
-    //                 printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum,
-    //                        ndone, tol);
-                
-    //             for (long i = 0; i < nmo; ++i) {
-    //                 for (long j = 0; j < i; ++j) {
-    //                     if (set[i] == set[j]) {
-    //                         double g = DIP(dip, i, j, j, j) - DIP(dip, i, j, i, i);
-    //                         double h = 4.0 * DIP(dip, i, j, i, j)
-    //                             + 2.0 * DIP(dip, i, i, j, j)
-    //                             - DIP(dip, i, i, i, i) - DIP(dip, j, j, j, j);
-    //                         double sij = DIP(dip, i, j, i, j);
-    //                         bool doit = false;
-    //                         if (h >= 0.0) {
-    //                             doit = true;
-    //                             if (doprint)
-    //                                 print("             forcing negative h", i, j,
-    //                                       h);
-                                
-    //                             h = -1.0;
-    //                         }
-    //                         double theta = -g / h;
-    //                         maxtheta = std::max<double>(std::abs(theta), maxtheta);
-    //                         if (fabs(theta) > thetamax) {
-    //                             doit = true;
-    //                             if (doprint)
-    //                                 print("             restricting", i, j);
-                                
-    //                             if (g < 0)
-    //                                 theta = -thetamax;
-                                
-    //                             else
-    //                                 theta = thetamax * 0.8;
-                                
-    //                         }
-    //                         bool randomized = false;
-    //                         if (randomize && iter == 0 && sij > 0.01
-    //                             && fabs(theta) < 0.01) {
-    //                             randomized = true;
-    //                             if (doprint)
-    //                                 print("             randomizing", i, j);
-                                
-    //                             theta += (RandomValue<double>() - 0.5);
-    //                         }
-    //                         if (fabs(theta) >= tol || randomized || doit) {
-    //                             ++ndone_iter;
-    //                             if (doprint)
-    //                                 print("     rotating", i, j, theta);
-                                
-    //                             double c = cos(theta);
-    //                             double s = sin(theta);
-    //                             drot3(nmo, &dip(i, 0, 0), &dip(j, 0, 0), s, c, 1);
-    //                             drot3(nmo, &dip(0, i, 0), &dip(0, j, 0), s, c, nmo);
-    //                             drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
-    //                         }
-    //                     }
-    //                 }
-    //             }
-                
-    //             ndone += ndone_iter;
-    //             if (ndone_iter == 0 && tol == thresh) {
-    //                 if (doprint)
-    //                     print("Boys localization converged in", ndone, "steps");
-                    
-    //                 converged = true;
-    //                 break;
-    //             }
-    //             tol = std::max(0.1 * maxtheta, thresh);
-    //         }
-            
-    //         if (!converged) {
-    //             print("warning: boys localization did not fully converge: ", ndone);
-    //         }
-    //         U = transpose(U);
-            
-    //         bool switched = true;
-    //         while (switched) {
-    //             switched = false;
-    //             for (int i = 0; i < nmo; i++) {
-    //                 for (int j = i + 1; j < nmo; j++) {
-    //                     if (set[i] == set[j]) {
-    //                         double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
-    //                         double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
-    //                         if (snew > sold) {
-    //                             tensorT tmp = copy(U(_, i));
-    //                             U(_, i) = U(_, j);
-    //                             U(_, j) = tmp;
-    //                             switched = true;
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-            
-    //         // Fix phases.
-    //         for (long i = 0; i < nmo; ++i) {
-    //             if (U(i, i) < 0.0)
-    //                 U(_, i).scale(-1.0);
-    //         }
-            
-    //     }
-        
-    //     world.gop.broadcast(U.ptr(), U.size(), 0);
-    //     END_TIMER(world, "Boys localize");
-    //     return U;
-    // }
+  distmatT SCF::localize_boys(World & world, const vecfuncT & mo,
+                           const std::vector<int> & set, const double thresh,
+			     const double thetamax, const bool randomize) {
+    START_TIMER(world);
+    const bool doprint = false;
+    long nmo = mo.size();
+    tensorT dip(nmo, nmo, 3);
+    for (int axis = 0; axis < 3; ++axis) {
+        functionT fdip = factoryT(world).functor(
+                                                 functorT(new DipoleFunctor(axis))).initial_level(4);
+        dip(_, _, axis) = matrix_inner(world, mo,
+                                       mul_sparse(world, fdip, mo, vtol), true);
+    }
+    tensorT U(nmo, nmo);
+    if (world.rank() == 0) {
+        for (long i = 0; i < nmo; ++i)
+            U(i, i) = 1.0;
+     
+        double tol = thetamax;
+        long ndone = 0;
+        bool converged = false;
+        for (long iter = 0; iter < 300; ++iter) {
+            double sum = 0.0;
+            for (long i = 0; i < nmo; ++i) {
+                sum += DIP(dip, i, i, i, i);
+            }
+            long ndone_iter = 0;
+            double maxtheta = 0.0;
+            if (doprint)
+                printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum,
+                       ndone, tol);
+         
+            for (long i = 0; i < nmo; ++i) {
+                for (long j = 0; j < i; ++j) {
+                    if (set[i] == set[j]) {
+                        double g = DIP(dip, i, j, j, j) - DIP(dip, i, j, i, i);
+                        double h = 4.0 * DIP(dip, i, j, i, j)
+                            + 2.0 * DIP(dip, i, i, j, j)
+                            - DIP(dip, i, i, i, i) - DIP(dip, j, j, j, j);
+                        double sij = DIP(dip, i, j, i, j);
+                        bool doit = false;
+                        if (h >= 0.0) {
+                            doit = true;
+                            if (doprint)
+                                print("             forcing negative h", i, j,
+                                      h);
+                         
+                            h = -1.0;
+                        }
+                        double theta = -g / h;
+                        maxtheta = std::max<double>(std::abs(theta), maxtheta);
+                        if (fabs(theta) > thetamax) {
+                            doit = true;
+                            if (doprint)
+                                print("             restricting", i, j);
+                         
+                            if (g < 0)
+                                theta = -thetamax;
+                         
+                            else
+                                theta = thetamax * 0.8;
+                         
+                        }
+                        bool randomized = false;
+                        if (randomize && iter == 0 && sij > 0.01
+                            && fabs(theta) < 0.01) {
+                            randomized = true;
+                            if (doprint)
+                                print("             randomizing", i, j);
+                         
+                            theta += 0.1*(RandomValue<double>() - 0.5);
+                        }
+                        if (fabs(theta) >= tol || randomized || doit) {
+                            ++ndone_iter;
+                            if (doprint)
+                                print("     rotating", i, j, theta);
+                         
+                            double c = cos(theta);
+                            double s = sin(theta);
+                            drot3(nmo, &dip(i, 0, 0), &dip(j, 0, 0), s, c, 1);
+                            drot3(nmo, &dip(0, i, 0), &dip(0, j, 0), s, c, nmo);
+                            drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
+                        }
+                    }
+                }
+            }
+         
+            ndone += ndone_iter;
+            if (ndone_iter == 0 && tol == thresh) {
+                if (doprint)
+                    print("Boys localization converged in", ndone, "steps");
+             
+                converged = true;
+                break;
+            }
+            tol = std::max(0.1 * maxtheta, thresh);
+        }
+     
+        if (!converged) {
+            print("warning: boys localization did not fully converge: ", ndone);
+        }
+        U = transpose(U);
+     
+        bool switched = true;
+        while (switched) {
+            switched = false;
+            for (int i = 0; i < nmo; i++) {
+                for (int j = i + 1; j < nmo; j++) {
+                    if (set[i] == set[j]) {
+                        double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
+                        double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+                        if (snew > sold) {
+                            tensorT tmp = copy(U(_, i));
+                            U(_, i) = U(_, j);
+                            U(_, j) = tmp;
+                            switched = true;
+                        }
+                    }
+                }
+            }
+        }
+     
+        // Fix phases.
+        for (long i = 0; i < nmo; ++i) {
+            if (U(i, i) < 0.0)
+                U(_, i).scale(-1.0);
+        }
+     
+    }
+ 
+    world.gop.broadcast(U.ptr(), U.size(), 0);
+
+    DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
+    dUT.copy_from_replicated(transpose(U));
+
+    END_TIMER(world, "Boys localize");
+    return dUT;
+}
     
     // tensorT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
     //     reconstruct(world, v);
@@ -706,21 +717,29 @@ namespace madness {
 
     // this version is faster than the previous version on BG/Q
     distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
-        PROFILE_MEMBER_FUNC(SCF);
+         PROFILE_MEMBER_FUNC(SCF);
          int n = v.size();
          distmatT r = column_distributed_matrix<double>(world, n, n);
+	 START_TIMER(world);
          reconstruct(world, v);
+         END_TIMER(world, "KEmat reconstruct");
+	 START_TIMER(world);
          vecfuncT dvx = apply(world, *(gradop[0]), v, false);
          vecfuncT dvy = apply(world, *(gradop[1]), v, false);
          vecfuncT dvz = apply(world, *(gradop[2]), v, false);
          world.gop.fence();
+         END_TIMER(world, "KEmat differentiate");
+	 START_TIMER(world);
          compress(world,dvx,false);
          compress(world,dvy,false);
          compress(world,dvz,false);
          world.gop.fence();
+         END_TIMER(world, "KEmat compress");
+	 START_TIMER(world);
          r += matrix_inner(r.distribution(), dvx, dvx, true);
          r += matrix_inner(r.distribution(), dvy, dvy, true);
          r += matrix_inner(r.distribution(), dvz, dvz, true);
+         END_TIMER(world, "KEmat inner products");
          r *= 0.5;
          //tensorT p(v.size(),v.size());
          //r.copy_to_replicated(p);
@@ -879,10 +898,10 @@ namespace madness {
                     vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 
                 lb.add_tree(vnuc,
-                            lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
+                            lbcost<double, 3>(param.vnucextra * 1.0, param.vnucextra * 8.0), false);
                 lb.add_tree(rho, lbcost<double, 3>(1.0, 8.0), true);
                 
-                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
+                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts));
                 END_TIMER(world, "guess loadbal");
             }
             
@@ -932,11 +951,11 @@ namespace madness {
                     vnuc = potentialmanager->vnuclear();
                     vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 lb.add_tree(vnuc,
-                            lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
+                            lbcost<double, 3>(param.vnucextra * 1.0, param.vnucextra * 8.0), false);
                 for (unsigned int i = 0; i < ao.size(); ++i) {
                     lb.add_tree(ao[i], lbcost<double, 3>(1.0, 8.0), false);
                 }
-                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
+                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts));
                 END_TIMER(world, "guess loadbal");
             }
             START_TIMER(world);
@@ -1112,9 +1131,9 @@ namespace madness {
         else {
             vnuc = potentialmanager->vnuclear();
             vnuc = vnuc + gthpseudopotential->vlocalpot();}     
-        lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0));
+        lb.add_tree(vnuc, lbcost<double, 3>(param.vnucextra * 1.0, param.vnucextra * 8.0));
         
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts));
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts));
     }
     
     functionT SCF::make_density(World & world, const tensorT & occ,
@@ -1166,7 +1185,7 @@ namespace madness {
         const double thresh=FunctionDefaults<3>::get_thresh();
         FunctionDefaults<3>::set_thresh(tight);
 
-        // do refine to have sigma more precise
+        // do refine to have sigma more precise ... why does this help????
         std::vector<real_function_3d> drho1=nabla(rho1,true);
         std::vector<real_function_3d> drho2=nabla(rho2,true);
 
@@ -1580,25 +1599,39 @@ namespace madness {
         START_TIMER(world);
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
         END_TIMER(world, "PE matrix");
-        /*START_TIMER(world);
+
+	/////////////////
+        START_TIMER(world);
         LoadBalanceDeux < 3 > lb(world);
-        for (unsigned int i = 0; i < amo.size(); ++i) {
-            lb.add_tree(amo[i], lbcost<double, 3>(1.0, 8.0), false);
+        for (unsigned int i = 0; i < psi.size(); ++i) {
+            lb.add_tree(psi[i], lbcost<double, 3>(1.0, 8.0), false);
         }
         world.gop.fence();
-        std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmap = FunctionDefaults<3>::get_pmap();
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts)); // 6.0 needs retuning after vnucextra 
-        END_TIMER(world, "KE redist");*/
+	END_TIMER(world, "KE compute loadbal");
+
+        START_TIMER(world);
+        std::shared_ptr< WorldDCPmapInterface< Key<3> > > oldpmap = FunctionDefaults<3>::get_pmap();
+        std::shared_ptr< WorldDCPmapInterface< Key<3> > > newpmap = lb.load_balance(param.loadbalparts);
+	FunctionDefaults<3>::set_pmap(newpmap);
+	
+	vecfuncT psicopy;
+        for (unsigned int i=0; i<psi.size(); ++i) psicopy.push_back(copy(psi[i],newpmap,false));
+        world.gop.fence();
+	END_TIMER(world, "KE redist");
+	/////////////////
+
         START_TIMER(world);
         tensorT ke(psi.size(),psi.size());
         {
-            distmatT k = kinetic_energy_matrix(world, psi);
-            k.copy_to_replicated(ke);
+            distmatT k = kinetic_energy_matrix(world, psicopy);
+            k.copy_to_replicated(ke); // !!!!!!!! ugh
         }
         END_TIMER(world, "KE matrix");
-        /*START_TIMER(world);
-        FunctionDefaults < 3 > ::redistribute(world, pmap);
-        END_TIMER(world, "KE redist");*/
+
+	psicopy.clear();
+	FunctionDefaults<3>::set_pmap(oldpmap); // ! DON'T FORGET !
+	
+
         START_TIMER(world);
         int nocc = occ.size();
         ekinetic = 0.0;
@@ -1835,7 +1868,7 @@ namespace madness {
         else {
             vnuc = potentialmanager->vnuclear();
             vnuc = vnuc + gthpseudopotential->vlocalpot();}     
-        lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0),
+        lb.add_tree(vnuc, lbcost<double, 3>(param.vnucextra * 1.0, param.vnucextra * 8.0),
                     false);
         lb.add_tree(arho, lbcost<double, 3>(1.0, 8.0), false);
         for (unsigned int i = 0; i < amo.size(); ++i) {
@@ -1849,7 +1882,7 @@ namespace madness {
         }
         world.gop.fence();
         
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(loadbalparts)); // 6.0 needs retuning after vnucextra
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts)); // 6.0 needs retuning after param.vnucextra
     }
     
     void SCF::rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
@@ -2307,24 +2340,31 @@ namespace madness {
             }
             
             if (param.localize && do_this_iter) {
-                distmatT dUT;
-                dUT = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0, true);
-                dUT.data().screen(trantol);
+	        distmatT dUT;
+		if (param.localize_pm)
+		  dUT = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0, true);
+		else 
+		  dUT = localize_boys(world, amo, aset, tolloc, 0.25, iter == 0);
 
+                dUT.data().screen(trantol);
                 START_TIMER(world);
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 normalize(world, amo);
-                ////////////////////////////////////////////rotate_subspace(world, dUT, subspace, 0, amo.size(), trantol);
+                //rotate_subspace(world, dUT, subspace, 0, amo.size(), trantol); // ????????????????????????????? 
                 END_TIMER(world, "Rotate subspace");
                 if (!param.spin_restricted && param.nbeta != 0) {
+		  throw "need boys and subspace rot?";
+		  if (param.localize_pm)
                     dUT = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0, true);
+		  else
+		    dUT = localize_boys(world, bmo, bset, tolloc, 0.25, iter == 0);
+
                     START_TIMER(world);
                     dUT.data().screen(trantol);
                     bmo = transform(world, bmo, dUT);
                     truncate(world, bmo);
                     normalize(world, bmo);
-                    /////////////////////////////////////////////rotate_subspace(world, dUT, subspace, amo.size(), bmo.size(),trantol);
                     END_TIMER(world, "Rotate subspace");
                 }
             }
@@ -2413,12 +2453,11 @@ namespace madness {
             if (!param.localize && do_this_iter) {
                 tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc,
                                              FunctionDefaults < 3 > ::get_thresh());
-                ////////////////////////////////////////////rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+                //rotate_subspace(world, U, subspace, 0, amo.size(), trantol); ??
                 if (!param.spin_restricted && param.nbeta != 0) {
                     U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc,
                                          FunctionDefaults < 3 > ::get_thresh());
-                    /////////////////////rotate_subspace(world, U, subspace, amo.size(), bmo.size(),
-		    //////////////////////////////////trantol);
+                    //rotate_subspace(world, U, subspace, amo.size(), bmo.size(),trantol);
                 }
             }
             
