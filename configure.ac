@@ -101,7 +101,7 @@ AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 AC_ARG_ENABLE([all-static],
     [AC_HELP_STRING([--enable-all-static@<:@=yes|no@:>@],
-      [Link with all static libraries.])],
+      [Link with all static libraries --- likely to fail due to missing system static libraries. Do you really instead want --disable-shared which will avoid building the shared libaries and link against our static libraries?.])],
     [
       case $enableval in
       yes)
@@ -118,7 +118,7 @@ AC_ARG_ENABLE([all-static],
   )
 
 AM_CONDITIONAL([LINK_ALL_STATIC], [test $acx_enable_all_static = yes])
-  
+
 ACX_DETECT_CXX
 # Check for C++11 support, and
 # add the -std=c++11 or -std=c++0x flag to CXXFLAGS if necessary.
