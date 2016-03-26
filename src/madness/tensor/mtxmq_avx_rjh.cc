@@ -129,7 +129,10 @@ namespace madness {
 #include <immintrin.h>
 #include <stdio.h>
 
-#ifdef __GNUG__
+static const int shuffm1=0x0F; // originally -1=0xFFFFFFFF but produced compiler warning about out of range value (upper bits reseved and must be zero).
+
+#ifndef __INTEL_COMPILER
+// __GNUG__
   // RJH --- Intel compiler defines this but all extant GNU (upto 5.3) do not
 static inline void
 _mm256_storeu2_m128d(double *__addr_hi, double *__addr_lo, __m256d __a)
@@ -164,11 +167,12 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 	double* __restrict__ ci = c;
 
 	//pointer converter 
-#ifdef __GNUG__
+#ifndef __INTEL_COMPILER
+// __GNUG__
 	// produces internal compiler error with all extant compilers (upto 5.3)
-  #define conv_addr_trans2normal(i, j) (c + dimi * j + i)
+#define conv_addr_trans2normal(i, j) (c + dimi * j + i)
 #else
-	//	const auto conv_addr_trans2normal = [dimi, c](long i, long j){return c + dimi * j + i;}; // gcc internal compiler error
+       const auto conv_addr_trans2normal = [dimi, c](long i, long j){return c + dimi * j + i;}; // gcc internal compiler error
 #endif
 
 	switch (numj) {
@@ -245,7 +249,7 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 				//the variables don't mean aki0 or aki1
 				//please ignore the meaning of name
 				aki0 = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 
 				//store transposed matrix's location c[j*dimi+i]
 				_mm256_storeu2_m128d(c+2*dimi+i, c+0*dimi+i, aki0);
@@ -253,27 +257,27 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,3), conv_addr_trans2normal(i,1), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,6), conv_addr_trans2normal(i,4), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,7), conv_addr_trans2normal(i,5), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j2, ci1j2, 0);
-				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, -1);
+				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,10), conv_addr_trans2normal(i,8), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,11), conv_addr_trans2normal(i,9), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j3, ci1j3, 0);
-				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, -1);
+				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,14), conv_addr_trans2normal(i,12), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,15), conv_addr_trans2normal(i,13), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j4, ci1j4, 0);
-				aki1 = _mm256_shuffle_pd(ci0j4, ci1j4, -1);
+				aki1 = _mm256_shuffle_pd(ci0j4, ci1j4, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,18), conv_addr_trans2normal(i,16), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,19), conv_addr_trans2normal(i,17), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j5, ci1j5, 0);
-				aki1 = _mm256_shuffle_pd(ci0j5, ci1j5, -1);
+				aki1 = _mm256_shuffle_pd(ci0j5, ci1j5, shuffm1);
 				switch(numj){
 					case 24:
 						_mm256_storeu2_m128d(conv_addr_trans2normal(i,22), conv_addr_trans2normal(i,20), aki0);
@@ -448,27 +452,27 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}else{
 				//temporary use aki0, aki1 and mask
 				aki0 = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,2), conv_addr_trans2normal(i,0), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,3), conv_addr_trans2normal(i,1), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,6), conv_addr_trans2normal(i,4), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,7), conv_addr_trans2normal(i,5), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j2, ci1j2, 0);
-				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, -1);
+				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,10), conv_addr_trans2normal(i,8), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,11), conv_addr_trans2normal(i,9), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j3, ci1j3, 0);
-				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, -1);
+				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,14), conv_addr_trans2normal(i,12), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,15), conv_addr_trans2normal(i,13), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j4, ci1j4, 0);
-				aki1 = _mm256_shuffle_pd(ci0j4, ci1j4, -1);
+				aki1 = _mm256_shuffle_pd(ci0j4, ci1j4, shuffm1);
 				switch(numj){
 					case 20:
 						_mm256_storeu2_m128d(conv_addr_trans2normal(i,18), conv_addr_trans2normal(i,16), aki0);
@@ -625,22 +629,22 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}else{
 				//temporary use aki0, aki1 and mask
 				aki0 = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,2), conv_addr_trans2normal(i,0), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,3), conv_addr_trans2normal(i,1), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,6), conv_addr_trans2normal(i,4), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,7), conv_addr_trans2normal(i,5), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j2, ci1j2, 0);
-				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, -1);
+				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,10), conv_addr_trans2normal(i,8), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,11), conv_addr_trans2normal(i,9), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j3, ci1j3, 0);
-				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, -1);
+				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, shuffm1);
 				switch(numj){
 					case 16:
 						_mm256_storeu2_m128d(conv_addr_trans2normal(i,14), conv_addr_trans2normal(i,12), aki0);
@@ -777,17 +781,17 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}else{
 				//temporary use aki0, aki1 and mask
 				aki0 = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,2), conv_addr_trans2normal(i,0), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,3), conv_addr_trans2normal(i,1), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,6), conv_addr_trans2normal(i,4), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,7), conv_addr_trans2normal(i,5), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j2, ci1j2, 0);
-				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, -1);
+				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, shuffm1);
 				switch(numj){
 					case 12:
 						_mm256_storeu2_m128d(conv_addr_trans2normal(i,10), conv_addr_trans2normal(i,8), aki0);
@@ -904,12 +908,12 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}else{
 				//temporary use aki0, aki1 and mask
 				aki0 = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,2), conv_addr_trans2normal(i,0), aki0);
 				_mm256_storeu2_m128d(conv_addr_trans2normal(i,3), conv_addr_trans2normal(i,1), aki1);
 
 				aki0 = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				switch(numj){
 					case  8:
 						_mm256_storeu2_m128d(conv_addr_trans2normal(i,6), conv_addr_trans2normal(i,4), aki0);
@@ -1009,7 +1013,7 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}else{
 				//temporary use aki0, aki1 and mask
 				aki0 = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				switch(numj){
 					case  4:
 						_mm256_storeu2_m128d(conv_addr_trans2normal(i,2), conv_addr_trans2normal(i,0), aki0);
@@ -1849,42 +1853,42 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}
 			if(!is_trans){
 				bkj = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj   , aki0);
 				_mm256_storeu_pd(c+i*dimj+ 4, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+ 8, aki0);
 				_mm256_storeu_pd(c+i*dimj+12, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j2, ci1j2, 0);
-				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, -1);
+				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+16, aki0);
 				_mm256_storeu_pd(c+i*dimj+20, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j3, ci1j3, 0);
-				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, -1);
+				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+24, aki0);
 				_mm256_storeu_pd(c+i*dimj+28, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j4, ci1j4, 0);
-				aki1 = _mm256_shuffle_pd(ci0j4, ci1j4, -1);
+				aki1 = _mm256_shuffle_pd(ci0j4, ci1j4, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+32, aki0);
 				_mm256_storeu_pd(c+i*dimj+36, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j5, ci1j5, 0);
-				aki1 = _mm256_shuffle_pd(ci0j5, ci1j5, -1);
+				aki1 = _mm256_shuffle_pd(ci0j5, ci1j5, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				switch(numj){
@@ -1965,35 +1969,35 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}
 			if(!is_trans){
 				bkj = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj   , aki0);
 				_mm256_storeu_pd(c+i*dimj+ 4, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+ 8, aki0);
 				_mm256_storeu_pd(c+i*dimj+12, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j2, ci1j2, 0);
-				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, -1);
+				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+16, aki0);
 				_mm256_storeu_pd(c+i*dimj+20, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j3, ci1j3, 0);
-				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, -1);
+				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+24, aki0);
 				_mm256_storeu_pd(c+i*dimj+28, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j4, ci1j4, 0);
-				aki1 = _mm256_shuffle_pd(ci0j4, ci1j4, -1);
+				aki1 = _mm256_shuffle_pd(ci0j4, ci1j4, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 
@@ -2069,28 +2073,28 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}
 			if(!is_trans){
 				bkj = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj   , aki0);
 				_mm256_storeu_pd(c+i*dimj+ 4  , aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+ 8, aki0);
 				_mm256_storeu_pd(c+i*dimj+12, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j2, ci1j2, 0);
-				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, -1);
+				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+16, aki0);
 				_mm256_storeu_pd(c+i*dimj+20, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j3, ci1j3, 0);
-				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, -1);
+				aki1 = _mm256_shuffle_pd(ci0j3, ci1j3, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 
@@ -2160,21 +2164,21 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}
 			if(!is_trans){
 				bkj = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj   , aki0);
 				_mm256_storeu_pd(c+i*dimj+ 4, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj+ 8, aki0);
 				_mm256_storeu_pd(c+i*dimj+12, aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j2, ci1j2, 0);
-				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, -1);
+				aki1 = _mm256_shuffle_pd(ci0j2, ci1j2, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 
@@ -2238,14 +2242,14 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			if(!is_trans){
 
 				bkj = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				_mm256_storeu_pd(c+i*dimj   , aki0);
 				_mm256_storeu_pd(c+i*dimj+4 , aki1);
 
 				bkj = _mm256_shuffle_pd(ci0j1, ci1j1, 0);
-				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, -1);
+				aki1 = _mm256_shuffle_pd(ci0j1, ci1j1, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 
@@ -2303,7 +2307,7 @@ void mTxmq_core(bool is_trans, long dimi, long dimj, long dimk,
 			}
 			if(!is_trans){
 				bkj = _mm256_shuffle_pd(ci0j0, ci1j0, 0);
-				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, -1);
+				aki1 = _mm256_shuffle_pd(ci0j0, ci1j0, shuffm1);
 				aki0 = _mm256_permute2f128_pd(bkj, aki1, 0x20);
 				aki1 = _mm256_permute2f128_pd(bkj, aki1, 0x31);
 				switch(numj){
