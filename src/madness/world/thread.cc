@@ -359,11 +359,11 @@ namespace madness {
         strcpy(argv[0], tmp);
 	//argv[1] = NULL;
 	argv[1] = NULL;
-        ThreadPool::parsec = dague_init(-1, &argc, &argv);
+	int nb_threads = ThreadPool::default_nthread();
+        ThreadPool::parsec = dague_init(nb_threads, &argc, &argv);
         if( 0 != dague_enqueue(ThreadPool::parsec, &madness_handle) ) {
 	  std::cout << "ERROR: dague_enqueue!!" << std::endl;
 	}
-	std::cout << "dague_enqueue!! <" << &madness_handle << ">" << std::endl;
         if( 0 != dague_handle_update_nbtask(&madness_handle, 1) ) {
 	  std::cout << "ERROR: dague_handle_update_nbtask!!" << std::endl;
 	}
