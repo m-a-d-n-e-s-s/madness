@@ -1008,7 +1008,6 @@ namespace madness {
             exec_context.chore_id = 0;
             exec_context.status = DAGUE_TASK_STATUS_NONE;
             exec_context.priority = 0;
-            std::cout << "task interface constructor" << std::endl;
           }
         //////////// Parsec Related End   ///////////////////
 #endif
@@ -1309,7 +1308,6 @@ namespace madness {
             //////////// Parsec Related Begin ////////////////////
             /* Initialize the execution context and give it to the scheduler*/
 #if HAVE_PARSEC
-	    std::cout << "adding a new task to parsec" << std::endl;
             dague_execution_context_t *context = &(task->exec_context);
             DAGUE_LIST_ITEM_SINGLETON(context);
 	    if( 0 != dague_handle_update_nbtask(&madness_handle, 1) ) {

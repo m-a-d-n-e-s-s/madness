@@ -39,7 +39,6 @@ dague_hook_return_t pointer_call(dague_execution_unit_t *eu,
   s=(char*)exec_context;
   s-=offsetof(PoolTaskInterface, exec_context);
   c = (PoolTaskInterface*)s;
-  std::cout << "in pointer call " << std::endl;
   c->run(TaskThreadEnv(1, 0, 0));
   return DAGUE_HOOK_RETURN_DONE;
 }
