@@ -363,6 +363,7 @@ struct CalculationParameters {
     std::string algopt;         ///< algorithm used for optimization
     bool hessian;               ///< compute the hessian matrix
     bool read_cphf;             ///< read the orbital response for nuclear displacements from file
+    bool purify_hessian;        ///< symmetrize the hessian matrix based on atomic charges
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
@@ -381,8 +382,8 @@ struct CalculationParameters {
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
-            & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf
-  	    & vnucextra & loadbalparts;
+           & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf
+           & purify_hessian & vnucextra & loadbalparts;
     }
 
     CalculationParameters()
@@ -436,6 +437,7 @@ struct CalculationParameters {
         , algopt("BFGS")
         , hessian(false)
         , read_cphf(false)
+        , purify_hessian(false)
         , tdksprop(false)
         , nuclear_corrfac("none")
         , pure_ae(true)
@@ -626,6 +628,9 @@ struct CalculationParameters {
             }
             else if (s == "read_cphf") {
                 read_cphf = true;
+            }
+            else if (s == "purify_hessian") {
+                purify_hessian = true;
             }
             else if (s == "tdksprop") {
               tdksprop = true;

@@ -241,6 +241,21 @@ public:
 	/// returns the molecular hessian matrix at structure x
 	Tensor<double> hessian(const Tensor<double>& x);
 
+	/// purify and symmetrize the hessian
+
+	/// The hessian should be symmetric, but it is not, because
+	/// \f[
+	///  \langle i^{Y_B}|H^{X_A}|i\rangle \neq \langle i|H^{X_A}|i^{Y_B}\rangle
+	/// \f]
+	/// does holds analytically, but not numerically. If the two numbers
+	/// differ, pick the more trustworthy, which is the one with a heavy
+	/// atom causing the perturbed density and the light atom being the
+	/// nuclear singularity.
+	/// @param[in]  hessian the raw hessian
+	/// @return     a symmetrized hessian
+	Tensor<double> purify_hessian(const Tensor<double>& hessian) const;
+
+
 	/// solve the CPHF equations for the nuclear displacements
 
 	/// this function computes that part of the orbital response that is
@@ -287,35 +302,13 @@ public:
     /// \f]
     vecfuncT compute_cphf_parallel_term(const int iatom, const int iaxis) const;
 
-//
-//	/// returns the vibrational frequencies
-//
-//	/// @param[in]  hessian the hessian matrix
-//    /// @param[in]  project whether to project out translation and rotation
-//    /// @param[in]  print_hessian   whether to print the hessian matrix
-//	/// @return the frequencies in atomic units
-//    Tensor<double> compute_frequencies(const Tensor<double>& hessian,
-//            Tensor<double>& normalmodes,
-//	        const bool project, const bool print_hessian) const;
-//
-//    /// compute the reduces masses for the normal vibrations
-//    Tensor<double> compute_reduced_mass(const Tensor<double>& normalmodes) const;
-
     /// compute the IR intensities in the double harmonic approximation
 
     /// use the projected normal modes; units are km/mol
-    /// @param[in]  normalmodes the hessian matrix
+    /// @param[in]  normalmodes the normal modes
     /// @param[in]  dens_pt the perturbed densities for each nuclear displacement
-    /// \todo Verify the description of normalmodes.
     Tensor<double> compute_IR_intensities(const Tensor<double>& normalmodes,
             const vecfuncT& dens_pt) const;
-//
-//	/// compute the mass-weight the hessian matrix
-//
-//	/// use as: hessian.emul(massweights);
-//	/// @param[in]  molecule    for getting access to the atomic masses
-//	/// @return the mass-weighting matrix for the hessian
-//	Tensor<double> massweights(const Molecule& molecule) const;
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 

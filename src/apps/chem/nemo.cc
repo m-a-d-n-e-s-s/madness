@@ -892,6 +892,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         print("\n raw electronic Hessian (a.u.)\n");
         print(hessian);
 //    }
+    if (calc->param.purify_hessian) hessian=purify_hessian(hessian);
 
     Tensor<double> asymmetric=0.5*(hessian-transpose(hessian));
     const double max_asymmetric=asymmetric.absmax();
@@ -969,6 +970,50 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     return hessian;
 
 }
+
+/// purify and symmetrize the hessian
+
+Tensor<double> Nemo::purify_hessian(const Tensor<double>& hessian) const {
+
+    Tensor<double> purified=copy(hessian);
+    double maxasymmetric=0.0;
+
+    const int natom=calc->molecule.natom();
+
+    for (int iatom=0; iatom<natom; ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            int i=iatom*3 + iaxis;
+
+            for (int jatom=0; jatom<natom; ++jatom) {
+                for (int jaxis=0; jaxis<3; ++jaxis) {
+                    int j=jatom*3 + jaxis;
+
+                    double mean=(purified(i,j)+purified(j,i))*0.5;
+                    double diff=0.5*fabs(purified(i,j)-purified(j,i));
+                    maxasymmetric=std::max(maxasymmetric,diff);
+
+                    unsigned int ZA=calc->molecule.get_atom_number(iatom);
+                    unsigned int ZB=calc->molecule.get_atom_number(jatom);
+                    if (ZA<ZB) purified(i,j)=purified(j,i);
+                    if (ZA>ZB) purified(j,i)=purified(i,j);
+                    if (ZA==ZB) {
+                        purified(i,j)=mean;
+                        purified(j,i)=mean;
+                    }
+                }
+            }
+        }
+    }
+    print("purify: max asymmetric element ",maxasymmetric);
+    print("purify: raw hessian ");
+    print(hessian);
+    print("purify: purified hessian ");
+    print(purified);
+
+    return purified;
+}
+
+
 
 Tensor<double> Nemo::make_incomplete_hessian() const {
 
