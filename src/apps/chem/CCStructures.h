@@ -33,6 +33,7 @@ namespace madness{
     switch(input){
       case g12_ : return "g12";
       case f12_ : return "f12";
+      default   : return "";
     }
   }
 
