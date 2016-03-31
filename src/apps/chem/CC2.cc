@@ -139,7 +139,7 @@ namespace madness {
   std::vector<std::pair<CC_vecfunction,double> > CC2::solve_ccs() {
     output_section("SOLVE CCS");
     // this is that the output of CIS is not screwed
-    std:cout << std::setw(5) << std::setfill(' ') << std::endl;
+    std::cout << std::setw(5) << std::setfill(' ') << std::endl;
     TDA CCS_Solver(world,nemo,nemo.get_calc()->amo,"input");
     {
       xfunctionsT guess;
