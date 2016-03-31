@@ -33,9 +33,9 @@
 #define MADNESS_WORLD_THREAD_H__INCLUDED
 
 /**
- \file thread.h
- \brief Implements Dqueue, Thread, ThreadBase and ThreadPool.
- \ingroup threads
+   \file thread.h
+   \brief Implements Dqueue, Thread, ThreadBase and ThreadPool.
+   \ingroup threads
 */
 
 #include <madness/world/dqueue.h>
@@ -61,7 +61,7 @@
 #include <cxxabi.h> // for abi::__cxa_demangle
 #else
 extern "C" {
-  extern char * cplus_demangle (const char *mangled, int options);
+    extern char * cplus_demangle (const char *mangled, int options);
 #define DMGL_NO_OPTS     0              /* For readability... */
 }
 #endif
@@ -120,14 +120,14 @@ namespace madness {
 
         /// \todo Brief description needed.
         static void init_thread_key() {
-           const int rc = pthread_key_create(&thread_key, nullptr);
-           if(rc != 0)
-               MADNESS_EXCEPTION("pthread_key_create failed", rc);
+            const int rc = pthread_key_create(&thread_key, nullptr);
+            if(rc != 0)
+                MADNESS_EXCEPTION("pthread_key_create failed", rc);
         }
 
         /// \todo Brief description needed.
         static void delete_thread_key() {
-           pthread_key_delete(thread_key);
+            pthread_key_delete(thread_key);
         }
 
         /// Sets the index of this thread within the pool.
@@ -152,7 +152,7 @@ namespace madness {
 
         /// Sets up the thread; however, \c start() must be invoked to
         /// actually begin the thread.
-        ThreadBase() : pool_num(-1) { }
+    ThreadBase() : pool_num(-1) { }
 
         virtual ~ThreadBase() { }
 
@@ -237,14 +237,14 @@ namespace madness {
         /// Default constructor.
 
         /// \c start() must be invoked to actually execute the thread.
-        Thread() : f(nullptr), args(nullptr) { }
+    Thread() : f(nullptr), args(nullptr) { }
 
         /// Create a thread and start it running `f(args)`.
 
         /// \param[in] f The function to be called.
         /// \param[in,out] args The arguments to the function.
-        Thread(void* (*f)(void *), void* args=nullptr)
-                : f(f), args(args) {
+    Thread(void* (*f)(void *), void* args=nullptr)
+        : f(f), args(args) {
             ThreadBase::start();
         }
 
@@ -296,8 +296,8 @@ namespace madness {
         /// Copy constructor.
 
         /// \param[in] attr The attributes to copy.
-        TaskAttributes(const TaskAttributes& attr)
-            : flags(attr.flags) {}
+    TaskAttributes(const TaskAttributes& attr)
+        : flags(attr.flags) {}
 
         virtual ~TaskAttributes() {}
 
@@ -384,7 +384,7 @@ namespace madness {
         /// tparam Archive The archive type.
         /// \param[in,out] ar The archive.
         template <typename Archive>
-        void serialize(Archive& ar) {
+            void serialize(Archive& ar) {
             ar & flags;
         }
 
@@ -428,8 +428,8 @@ namespace madness {
         /// \param[in] nthread The number of threads collaborating on this task.
         /// \param[in] id The ID of this thread.
         /// \param[in] barrier Pointer to the shared barrier.
-        TaskThreadEnv(int nthread, int id, Barrier* barrier)
-            : _nthread(nthread), _id(id), _barrier(barrier)
+    TaskThreadEnv(int nthread, int id, Barrier* barrier)
+        : _nthread(nthread), _id(id), _barrier(barrier)
         {}
 
 #if HAVE_INTEL_TBB
@@ -441,8 +441,8 @@ namespace madness {
         ///
         /// \todo I cannot get the TaskThreadEnv to work with Barrier.
         /// Need to figure out why.
-        TaskThreadEnv(int nthread, int id)
-            : _nthread(nthread), _id(id), _barrier(nullptr)
+    TaskThreadEnv(int nthread, int id)
+        : _nthread(nthread), _id(id), _barrier(nullptr)
         {};
 #endif
 
@@ -504,7 +504,7 @@ namespace madness {
 #ifndef USE_LIBIBERTY
                     const char* name = abi::__cxa_demangle(symbol, 0, 0, &status);
 #else
-		    char* name = cplus_demangle(symbol, DMGL_NO_OPTS);
+                    char* name = cplus_demangle(symbol, DMGL_NO_OPTS);
 #endif
                     // Append the demangled symbol name to the output stream
                     if(status == 0) {
@@ -569,7 +569,7 @@ namespace madness {
             /// \param[in] submit_time The time that the task was submitted to the
             ///     task queue.
             void start(const std::pair<void*, unsigned short>& id,
-                    const unsigned short threads, const double submit_time)
+                       const unsigned short threads, const double submit_time)
             {
                 id_ = id;
                 threads_ = threads;
@@ -598,26 +598,26 @@ namespace madness {
             friend std::ostream& operator<<(std::ostream& os, const TaskEvent& te) {
                 // Add address to output stream
                 os << std::hex << std::showbase << te.id_.first <<
-                        std::dec << std::noshowbase << "\t";
+                    std::dec << std::noshowbase << "\t";
 
                 // Print the name
                 switch(te.id_.second) {
-                    case 1:
-                        {
-                            const std::string mangled_name = te.get_name();
+                case 1:
+                    {
+                        const std::string mangled_name = te.get_name();
 
-                            // Print the demangled name
-                            if(! mangled_name.empty())
-                                print_demangled(os, mangled_name.c_str());
-                            else
-                                os << "UNKNOWN\t";
-                        }
-                        break;
-                    case 2:
-                        print_demangled(os, static_cast<const char*>(te.id_.first));
-                        break;
-                    default:
-                        os << "UNKNOWN\t";
+                        // Print the demangled name
+                        if(! mangled_name.empty())
+                            print_demangled(os, mangled_name.c_str());
+                        else
+                            os << "UNKNOWN\t";
+                    }
+                    break;
+                case 2:
+                    print_demangled(os, static_cast<const char*>(te.id_.first));
+                    break;
+                default:
+                    os << "UNKNOWN\t";
                 }
 
                 // Print:
@@ -626,7 +626,7 @@ namespace madness {
                 const std::streamsize precision = os.precision();
                 os.precision(6);
                 os << std::fixed << "\t" << te.times_[0]
-                        << "\t" << te.times_[1] << "\t" << te.times_[2];
+                   << "\t" << te.times_[1] << "\t" << te.times_[2];
                 os.precision(precision);
                 return os;
             }
@@ -646,8 +646,8 @@ namespace madness {
         public:
 
             /// Default constructor.
-            TaskEventListBase()
-                : next_(nullptr) { }
+        TaskEventListBase()
+            : next_(nullptr) { }
 
             /// Virtual destructor.
             virtual ~TaskEventListBase() = default;
@@ -702,9 +702,9 @@ namespace madness {
             /// \param[in] nmax The maximum number of task events.
             /// \todo Should nmax be stored? I think it used to be a template
             ///    parameter (N), which is no longer present.
-            TaskEventList(const unsigned int nmax) :
-                TaskEventListBase(), n_(0ul), events_(new TaskEvent[nmax])
-            { }
+        TaskEventList(const unsigned int nmax) :
+            TaskEventListBase(), n_(0ul), events_(new TaskEvent[nmax])
+                { }
 
             /// Virtual destructor.
             virtual ~TaskEventList() = default;
@@ -759,8 +759,8 @@ namespace madness {
 
         public:
             /// Default constructor.
-            TaskProfiler()
-                : head_(nullptr), tail_(nullptr)
+        TaskProfiler()
+            : head_(nullptr), tail_(nullptr)
             { }
 
             /// Destructor.
@@ -818,279 +818,280 @@ namespace madness {
     /// setup for multiple threads, and then invokes the user's \c run() method.
     class PoolTaskInterface :
 #ifdef HAVE_INTEL_TBB
-            public tbb::task,
+        public tbb::task,
 #endif // HAVE_INTEL_TBB
-            public TaskAttributes
-    {
-        friend class ThreadPool;
+        public TaskAttributes
+        {
+            friend class ThreadPool;
 
-    private:
+        private:
 
 #ifdef MADNESS_TASK_PROFILING
-    	profiling::TaskEvent* task_event_; ///< \todo Description needed.
-    	double submit_time_; ///< \todo Description needed.
-        std::pair<void*, unsigned short> id_; ///< \todo Description needed.
+            profiling::TaskEvent* task_event_; ///< \todo Description needed.
+            double submit_time_; ///< \todo Description needed.
+            std::pair<void*, unsigned short> id_; ///< \todo Description needed.
 
-        /// \todo Brief description needed.
+            /// \todo Brief description needed.
 
-        /// \todo Descriptions needed.
-        /// \param[in,out] task_event Description needed.
-        void set_event(profiling::TaskEvent* task_event) {
-            task_event_ = task_event;
-        }
+            /// \todo Descriptions needed.
+            /// \param[in,out] task_event Description needed.
+            void set_event(profiling::TaskEvent* task_event) {
+                task_event_ = task_event;
+            }
 
-        /// Collect info on the task and record the submit time.
-        void submit() {
-            submit_time_ = wall_time();
-            this->get_id(id_);
-        }
+            /// Collect info on the task and record the submit time.
+            void submit() {
+                submit_time_ = wall_time();
+                this->get_id(id_);
+            }
 #endif // MADNESS_TASK_PROFILING
 
-        /// Object that is used to convert function and member function pointers into `void*`.
+            /// Object that is used to convert function and member function pointers into `void*`.
 
-        /// \note This is technically not supported by the C++ standard but
-        /// it will likely not cause any issues here (famous last words?).
-        /// \todo Descriptions needed.
-        /// \tparam T Description needed.
-        template <typename T>
-        union FunctionPointerGrabber {
-            T in; ///< \todo Description needed.
-            void* out; ///< \todo Description needed.
-        };
+            /// \note This is technically not supported by the C++ standard but
+            /// it will likely not cause any issues here (famous last words?).
+            /// \todo Descriptions needed.
+            /// \tparam T Description needed.
+            template <typename T>
+                union FunctionPointerGrabber {
+                    T in; ///< \todo Description needed.
+                    void* out; ///< \todo Description needed.
+                };
 
-    protected:
+        protected:
 
-        /// \todo Brief description needed.
+            /// \todo Brief description needed.
 
-        /// \todo Descriptions needed.
-        /// \tparam fnT Description needed.
-        /// \param[in,out] id Description needed.
-        /// \param[in] fn Description needed.
-        /// \return Description needed.
-        template <typename fnT>
-        static typename std::enable_if<detail::function_traits<fnT>::value ||
+            /// \todo Descriptions needed.
+            /// \tparam fnT Description needed.
+            /// \param[in,out] id Description needed.
+            /// \param[in] fn Description needed.
+            /// \return Description needed.
+            template <typename fnT>
+                static typename std::enable_if<detail::function_traits<fnT>::value ||
                 detail::memfunc_traits<fnT>::value>::type
-        make_id(std::pair<void*,unsigned short>& id, fnT fn) {
-            FunctionPointerGrabber<fnT> poop;
-            poop.in = fn;
-            id.first = poop.out;
-            id.second = 1ul;
-        }
+                make_id(std::pair<void*,unsigned short>& id, fnT fn) {
+                FunctionPointerGrabber<fnT> poop;
+                poop.in = fn;
+                id.first = poop.out;
+                id.second = 1ul;
+            }
 
-        /// \todo Brief description needed.
+            /// \todo Brief description needed.
 
-        /// \todo Descriptions needed. What is the purpose of the second argument?
-        /// \tparam fnobjT Description needed.
-        /// \param[in,out] id Description needed.
-        template <typename fnobjT>
-        static typename std::enable_if<!(detail::function_traits<fnobjT>::value ||
-                detail::memfunc_traits<fnobjT>::value) >::type
-        make_id(std::pair<void*,unsigned short>& id, const fnobjT&) {
-            id.first = reinterpret_cast<void*>(const_cast<char*>(typeid(fnobjT).name()));
-            id.second = 2ul;
-        }
+            /// \todo Descriptions needed. What is the purpose of the second argument?
+            /// \tparam fnobjT Description needed.
+            /// \param[in,out] id Description needed.
+            template <typename fnobjT>
+                static typename std::enable_if<!(detail::function_traits<fnobjT>::value ||
+                                                 detail::memfunc_traits<fnobjT>::value) >::type
+                make_id(std::pair<void*,unsigned short>& id, const fnobjT&) {
+                id.first = reinterpret_cast<void*>(const_cast<char*>(typeid(fnobjT).name()));
+                id.second = 2ul;
+            }
 
-    private:
+        private:
 
-        /// \todo Brief description needed.
+            /// \todo Brief description needed.
 
-        /// \todo Descriptions needed.
-        /// \param[in,out] id Description needed.
-        virtual void get_id(std::pair<void*,unsigned short>& id) const {
-            id.first = nullptr;
-            id.second = 0ul;
-        }
+            /// \todo Descriptions needed.
+            /// \param[in,out] id Description needed.
+            virtual void get_id(std::pair<void*,unsigned short>& id) const {
+                id.first = nullptr;
+                id.second = 0ul;
+            }
 
 #ifndef HAVE_INTEL_TBB
 
-        Barrier* barrier; ///< Barrier, only allocated for multithreaded tasks.
-        AtomicInt count; ///< Used to count threads as they start.
+            Barrier* barrier; ///< Barrier, only allocated for multithreaded tasks.
+            AtomicInt count; ///< Used to count threads as they start.
 
-    	/// Returns true for the one thread that should invoke the destructor.
+            /// Returns true for the one thread that should invoke the destructor.
 
-        /// \return True for the one thread that should invoke the destructor.
-    	bool run_multi_threaded() {
-            // As a thread enters this routine it increments the shared counter
-            // to generate a unique id without needing any thread-local storage.
-            // A downside is this does not preserve any relationships between thread
-            // numbering and the architecture ... more work ahead.
-            int nthread = get_nthread();
-            if (nthread == 1) {
+            /// \return True for the one thread that should invoke the destructor.
+            bool run_multi_threaded() {
+                // As a thread enters this routine it increments the shared counter
+                // to generate a unique id without needing any thread-local storage.
+                // A downside is this does not preserve any relationships between thread
+                // numbering and the architecture ... more work ahead.
+                int nthread = get_nthread();
+                if (nthread == 1) {
 #ifdef MADNESS_TASK_PROFILING
-                task_event_->start(id_, nthread, submit_time_);
-#endif // MADNESS_TASK_PROFILING
-                run(TaskThreadEnv(1,0,0));
-#ifdef MADNESS_TASK_PROFILING
-                task_event_->stop();
-#endif // MADNESS_TASK_PROFILING
-                return true;
-            }
-            else {
-                int id = count++;
-                volatile bool barrier_flag;
-                barrier->register_thread(id, &barrier_flag);
-
-#ifdef MADNESS_TASK_PROFILING
-                if(id == 0)
                     task_event_->start(id_, nthread, submit_time_);
 #endif // MADNESS_TASK_PROFILING
-
-                run(TaskThreadEnv(nthread, id, barrier));
+                    run(TaskThreadEnv(1,0,0));
+#ifdef MADNESS_TASK_PROFILING
+                    task_event_->stop();
+#endif // MADNESS_TASK_PROFILING
+                    return true;
+                }
+                else {
+                    int id = count++;
+                    volatile bool barrier_flag;
+                    barrier->register_thread(id, &barrier_flag);
 
 #ifdef MADNESS_TASK_PROFILING
-                const bool cleanup = barrier->enter(id);
-                if(cleanup) task_event_->stop();
-                return cleanup;
-#else
-                return barrier->enter(id);
+                    if(id == 0)
+                        task_event_->start(id_, nthread, submit_time_);
 #endif // MADNESS_TASK_PROFILING
+
+                    run(TaskThreadEnv(nthread, id, barrier));
+
+#ifdef MADNESS_TASK_PROFILING
+                    const bool cleanup = barrier->enter(id);
+                    if(cleanup) task_event_->stop();
+                    return cleanup;
+#else
+                    return barrier->enter(id);
+#endif // MADNESS_TASK_PROFILING
+                }
             }
-        }
 
-    public:
+        public:
 
-        /// Default constructor.
+            /// Default constructor.
         PoolTaskInterface()
             : TaskAttributes()
-            , barrier(nullptr)
-        {
+                , barrier(nullptr)
+            {
 #if HAVE_PARSEC
-	  init_exec_context();
+                init_exec_context();
 #endif
-	  count = 0;
-        }
-
-        /// Contructor setting teh speicified task attributes.
-
-        /// \param[in] attr The task attributes.
-        explicit PoolTaskInterface(const TaskAttributes& attr)
-            : TaskAttributes(attr)
-            , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
-        {
-#if HAVE_PARSEC
-	  init_exec_context();
-#endif
-            count = 0;
-        }
-
-        /// Destructor.
-        /// \todo Should we either use a unique_ptr for barrier or check that barrier != nullptr here?
-        virtual ~PoolTaskInterface() {
-            delete barrier;
-        }
-
-        /// Call this to reset the number of threads before the task is submitted.
-
-        /// Once a task has been constructed, /c TaskAttributes::set_nthread()
-        /// is insufficient because a multithreaded task includes a barrier
-        /// that needs to know the number of threads.
-        ///
-        /// \param[in] nthread The new number of threads.
-        void set_nthread(int nthread) {
-            if (nthread != get_nthread()) {
-                TaskAttributes::set_nthread(nthread);
-                delete barrier;
-                if (nthread > 1)
-                    barrier = new Barrier(nthread);
-                else
-                    barrier = 0;
+                count = 0;
             }
-        }
-#if HAVE_PARSEC        //////////// Parsec Related Begin ////////////////////
-        dague_execution_context_t exec_context;
-        static const dague_function_t*   func;
 
-        /* This function initializes exec_context from the one in parsec.cpp*/
-        void init_exec_context(void)
-          {
-            exec_context.dague_handle = &madness::madness_handle;
-            exec_context.function = &madness::madness_function;
-            exec_context.chore_id = 0;
-            exec_context.status = DAGUE_TASK_STATUS_NONE;
-            exec_context.priority = 0;
-          }
-        //////////// Parsec Related End   ///////////////////
+            /// Contructor setting teh speicified task attributes.
+
+            /// \param[in] attr The task attributes.
+            explicit PoolTaskInterface(const TaskAttributes& attr)
+                : TaskAttributes(attr)
+                , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
+                {
+#if HAVE_PARSEC
+                    init_exec_context();
+#endif
+                    count = 0;
+                }
+
+            /// Destructor.
+            /// \todo Should we either use a unique_ptr for barrier or check that barrier != nullptr here?
+            virtual ~PoolTaskInterface() {
+                delete barrier;
+            }
+
+            /// Call this to reset the number of threads before the task is submitted.
+
+            /// Once a task has been constructed, /c TaskAttributes::set_nthread()
+            /// is insufficient because a multithreaded task includes a barrier
+            /// that needs to know the number of threads.
+            ///
+            /// \param[in] nthread The new number of threads.
+            void set_nthread(int nthread) {
+                if (nthread != get_nthread()) {
+                    TaskAttributes::set_nthread(nthread);
+                    delete barrier;
+                    if (nthread > 1)
+                        barrier = new Barrier(nthread);
+                    else
+                        barrier = 0;
+                }
+            }
+#if HAVE_PARSEC
+	    //////////// Parsec Related Begin ////////////////////
+            dague_execution_context_t exec_context;
+            static const dague_function_t*   func;
+
+            /* This function initializes exec_context from the one in parsec.cpp*/
+            void init_exec_context(void)
+            {
+                exec_context.dague_handle = &madness::madness_handle;
+                exec_context.function = &madness::madness_function;
+                exec_context.chore_id = 0;
+                exec_context.status = DAGUE_TASK_STATUS_NONE;
+                exec_context.priority = 0;
+            }
+            //////////// Parsec Related End   ///////////////////
 #endif
 
 #else
 
-    public:
+        public:
 
-        /// Default constructor.
+            /// Default constructor.
         PoolTaskInterface() : TaskAttributes() { 
-	}
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \param[in] attr Description needed.
-        explicit PoolTaskInterface(const TaskAttributes& attr) :
-            TaskAttributes(attr)
-        {
-	}
-
-        /// Destructor.
-        virtual ~PoolTaskInterface() = default;
-
-        /// Call this to reset the number of threads before the task is submitted
-
-        /// Once a task has been constructed /c TaskAttributes::set_nthread()
-        /// is insufficient because a multithreaded task includes a
-        /// barrier that needs to know the number of threads.
-        void set_nthread(int nthread) {
-            if (nthread != get_nthread())
-                TaskAttributes::set_nthread(nthread);
-        }
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \return Description needed.
-        tbb::task* execute() {
-            const int nthread = get_nthread();
-            run( TaskThreadEnv(nthread, 0) );
-            return nullptr;
-        }
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \throw std::bad_alloc Description needed.
-        /// \param[in] size Description needed.
-        /// \return Description needed.
-        static inline void * operator new(std::size_t size) throw(std::bad_alloc) {
-             return ::operator new(size, tbb::task::allocate_root());
-        }
-
-        /// Destroy a task object.
-
-        /// \param[in,out] p Pointer to the task object (or array of task
-        ///     objects) to be destroyed.
-        /// \param[in] size The size of the array.
-        static inline void operator delete(void* p, std::size_t size) throw() {
-            if(p != nullptr) {
-                tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
             }
-        }
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \param[in] attr Description needed.
+            explicit PoolTaskInterface(const TaskAttributes& attr) :
+            TaskAttributes(attr)
+            {
+            }
+
+            /// Destructor.
+            virtual ~PoolTaskInterface() = default;
+
+            /// Call this to reset the number of threads before the task is submitted
+
+            /// Once a task has been constructed /c TaskAttributes::set_nthread()
+            /// is insufficient because a multithreaded task includes a
+            /// barrier that needs to know the number of threads.
+            void set_nthread(int nthread) {
+                if (nthread != get_nthread())
+                    TaskAttributes::set_nthread(nthread);
+            }
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \return Description needed.
+            tbb::task* execute() {
+                const int nthread = get_nthread();
+                run( TaskThreadEnv(nthread, 0) );
+                return nullptr;
+            }
+
+            /// \todo Brief description needed.
+
+            /// \todo Descriptions needed.
+            /// \throw std::bad_alloc Description needed.
+            /// \param[in] size Description needed.
+            /// \return Description needed.
+            static inline void * operator new(std::size_t size) throw(std::bad_alloc) {
+                return ::operator new(size, tbb::task::allocate_root());
+            }
+
+            /// Destroy a task object.
+
+            /// \param[in,out] p Pointer to the task object (or array of task
+            ///     objects) to be destroyed.
+            /// \param[in] size The size of the array.
+            static inline void operator delete(void* p, std::size_t size) throw() {
+                if(p != nullptr) {
+                    tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
+                }
+            }
 
 #endif // HAVE_INTEL_TBB
 
-        /// Override this method to implement a multi-threaded task.
+            /// Override this method to implement a multi-threaded task.
 
-        /// \c info.nthread() will be the number of threads collaborating on this task.
-        ///
-        /// \c info.id() will be the index of the current thread \c id=0,...,nthread-1.
-        ///
-        /// \c info.barrier() will be a barrier for all of the threads, and returns
-        ///     true for the last thread to enter the barrier (other threads get false).
-        ///
-        /// \todo Description needed.
-        /// \param[in] info Description needed.
+            /// \c info.nthread() will be the number of threads collaborating on this task.
+            ///
+            /// \c info.id() will be the index of the current thread \c id=0,...,nthread-1.
+            ///
+            /// \c info.barrier() will be a barrier for all of the threads, and returns
+            ///     true for the last thread to enter the barrier (other threads get false).
+            ///
+            /// \todo Description needed.
+            /// \param[in] info Description needed.
 
 
-        virtual void run(const TaskThreadEnv& info) = 0;
+            virtual void run(const TaskThreadEnv& info) = 0;
 
-    };
+        };
 
     /// A no-operation task used for various purposes.
     class PoolTaskNull : public PoolTaskInterface {
@@ -1123,7 +1124,7 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 
     public:
-        ThreadPoolThread() : Thread() { }
+    ThreadPoolThread() : Thread() { }
         virtual ~ThreadPoolThread() = default;
 
 #ifdef MADNESS_TASK_PROFILING
@@ -1177,7 +1178,7 @@ namespace madness {
         /// \return The number of threads.
         int default_nthread();
 
-       /// Run the next task.
+        /// Run the next task.
 
         /// \todo Verify and complete this documentation.
         /// \param[in] wait Block of true.
@@ -1192,7 +1193,7 @@ namespace madness {
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
 #ifdef MADNESS_TASK_PROFILING
             profiling::TaskEventList* event_list =
-                    this_thread->profiler().new_list(1);
+                this_thread->profiler().new_list(1);
 #endif // MADNESS_TASK_PROFILING
             // Task pointer might be zero due to stealing
             if (t.second && t.first) {
@@ -1214,15 +1215,15 @@ namespace madness {
         /// \return Description needed.
         bool run_tasks(bool wait, ThreadPoolThread* const this_thread) {
 #if HAVE_INTEL_TBB
-//            if (!wait && tbb_task_list->empty()) return false;
-//            tbb::task* t = &tbb_task_list->pop_front();
-//            if (t) {
-//                tbb_parent_task->increment_ref_count();
-//                tbb_parent_task->enqueue(*t);
-//            }
+            //            if (!wait && tbb_task_list->empty()) return false;
+            //            tbb::task* t = &tbb_task_list->pop_front();
+            //            if (t) {
+            //                tbb_parent_task->increment_ref_count();
+            //                tbb_parent_task->enqueue(*t);
+            //            }
 
-//            wait = (tbb_parent_task->ref_count() >= 1) ? false : true;
-//            return wait;
+            //            wait = (tbb_parent_task->ref_count() >= 1) ? false : true;
+            //            return wait;
 
             MADNESS_EXCEPTION("run_tasks should not be called when using Intel TBB", 1);
 #else
@@ -1231,7 +1232,7 @@ namespace madness {
             int ntask = queue.pop_front(nmax, taskbuf, wait);
 #ifdef MADNESS_TASK_PROFILING
             profiling::TaskEventList* event_list =
-                    this_thread->profiler().new_list(ntask);
+                this_thread->profiler().new_list(ntask);
 #endif // MADNESS_TASK_PROFILING
             for (int i=0; i<ntask; ++i) {
                 if (taskbuf[i]) { // Task pointer might be zero due to stealing
@@ -1277,7 +1278,7 @@ namespace madness {
 
     public:
 #if HAVE_PARSEC
-	////////////////// Parsec Related Begin //////////////////
+        ////////////////// Parsec Related Begin //////////////////
         static dague_context_t *parsec;
         ///////////////// Parsec Related End ////////////////////
 #endif
@@ -1310,9 +1311,7 @@ namespace madness {
 #if HAVE_PARSEC
             dague_execution_context_t *context = &(task->exec_context);
             DAGUE_LIST_ITEM_SINGLETON(context);
-	    if( 0 != dague_handle_update_nbtask(&madness_handle, 1) ) {
-	     std::cout << "dague_handle_update_nbtask!!" << std::endl;
-	    }
+            dague_atomic_add_32b(&madness_handle.nb_tasks, 1);
             __dague_schedule(parsec->virtual_processes[0]->execution_units[0], context);
             //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
@@ -1341,7 +1340,7 @@ namespace madness {
         /// \tparam opT Description needed.
         /// \param[in,out] op Description needed.
         template <typename opT>
-        void scan(opT& op) {
+            void scan(opT& op) {
             queue.scan(op);
         }
 
@@ -1418,7 +1417,7 @@ namespace madness {
         /// \param[in] probe The probe.
         /// \param[in] dowork Description needed.
         template <typename Probe>
-        static void await(const Probe& probe, bool dowork = true) {
+            static void await(const Probe& probe, bool dowork = true) {
             double start = cpu_time();
             const double timeout = await_timeout;
             int counter = 0;
@@ -1442,7 +1441,7 @@ namespace madness {
 
                         if(counter++ > 3)
                             throw madness::MadnessException("ThreadPool::await() timeout",
-                                    0, 1, __LINE__, __FUNCTION__, __FILE__);
+                                                            0, 1, __LINE__, __FUNCTION__, __FILE__);
                     }
 
                     waiter.wait();
@@ -1453,17 +1452,17 @@ namespace madness {
         /// Desctructor.
         ~ThreadPool() {
 #if HAVE_PARSEC
-          ////////////////// Parsec related Begin /////////////////
-          /* End of scheduling*/
-          dague_fini((dague_context_t **)&parsec);
+            ////////////////// Parsec related Begin /////////////////
+            /* End of scheduling*/
+            dague_fini((dague_context_t **)&parsec);
 #endif	  
-          ////////////////// Parsec related End /////////////////
+            ////////////////// Parsec related End /////////////////
 
-          /* Remove since Parsec is used instead*/
-/* #if HAVE_INTEL_TBB */
-/*             tbb_scheduler->terminate(); */
-/*             delete(tbb_scheduler); */
-/* #endif */
+            /* Remove since Parsec is used instead*/
+            /* #if HAVE_INTEL_TBB */
+            /*             tbb_scheduler->terminate(); */
+            /*             delete(tbb_scheduler); */
+            /* #endif */
         }
     };
 
