@@ -30,9 +30,9 @@
 */
 
 /**
- \file thread.cc
- \brief Implements Dqueue, Thread, ThreadBase and ThreadPool.
- \ingroup threads
+   \file thread.cc
+   \brief Implements Dqueue, Thread, ThreadBase and ThreadPool.
+   \ingroup threads
 */
 
 #include <madness/world/thread.h>
@@ -93,23 +93,23 @@ namespace madness {
         begin_papi_measurement();
 #endif
 #if defined(HAVE_IBMBGQ) and defined(HPM)
-	unsigned int slave_hpmctx; // HPM context for the slave threads
-	int pool_num = static_cast<ThreadBase*>(self)->pool_num;
-	// int all_instrumented = static_cast<ThreadBase*>(self)->all_instrumented;
-	// int hpm_thread_id = static_cast<ThreadBase*>(self)->hpm_thread_id;
-	bool this_slave_instrumented;
+        unsigned int slave_hpmctx; // HPM context for the slave threads
+        int pool_num = static_cast<ThreadBase*>(self)->pool_num;
+        // int all_instrumented = static_cast<ThreadBase*>(self)->all_instrumented;
+        // int hpm_thread_id = static_cast<ThreadBase*>(self)->hpm_thread_id;
+        bool this_slave_instrumented;
 
-	if ((hpm_thread_id == pool_num) || all_instrumented) {
-	  this_slave_instrumented = true;
-	} else
-	  this_slave_instrumented = false;
+        if ((hpm_thread_id == pool_num) || all_instrumented) {
+            this_slave_instrumented = true;
+        } else
+            this_slave_instrumented = false;
 
-	if (this_slave_instrumented) {
-	  slave_hpmctx = HPM_Prof_init_thread();
-	  HPM_Prof_start(slave_hpmctx);
-	}
+        if (this_slave_instrumented) {
+            slave_hpmctx = HPM_Prof_init_thread();
+            HPM_Prof_start(slave_hpmctx);
+        }
 #endif
-	const int rc = pthread_setspecific(thread_key, self);
+        const int rc = pthread_setspecific(thread_key, self);
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 
@@ -145,7 +145,7 @@ namespace madness {
 #endif
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
-	if (this_slave_instrumented) HPM_Prof_stop(slave_hpmctx);
+        if (this_slave_instrumented) HPM_Prof_stop(slave_hpmctx);
 #endif
         return 0;
     }
@@ -169,7 +169,7 @@ namespace madness {
     // Get no. of actual hardware processors
     int ThreadBase::num_hw_processors() {
 #if defined(HAVE_IBMBGP)
-    #if 0 /* total overkill - what was i thinking? */
+#if 0 /* total overkill - what was i thinking? */
         int ncpu=0;
         _BGP_Personality_t pers;
         Kernel_GetPersonality(&pers, sizeof(pers));
@@ -177,17 +177,17 @@ namespace madness {
         else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_2x2 ) ncpu = 2;
         else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_VNM ) ncpu = 1;
         return ncpu;
-    #else
+#else
         /* Returns the number of Processes (Virtual Nodes) running on this Physical Node. */
         return 4/Kernel_ProcessCount();
-    #endif
+#endif
 #elif defined(HAVE_IBMBGQ)
         /* Return number of processors (hardware threads) within the current process. */
         return Kernel_ProcessorCount();
 #elif defined(_SC_NPROCESSORS_CONF)
         int ncpu = sysconf(_SC_NPROCESSORS_CONF);
         if (ncpu <= 0)
-           MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+            MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
         return ncpu;
 #elif defined(HC_NCPU)
         int mib[2]={CTL_HW,HW_NCPU};
@@ -263,19 +263,19 @@ namespace madness {
     }
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
-  void ThreadBase::set_hpm_thread_env(int hpm_thread_id) {
-    if (hpm_thread_id == ThreadBase::hpm_thread_id_all) {
-      ThreadBase::main_instrumented = true;
-      ThreadBase::all_instrumented = true;
-    } else if (hpm_thread_id == ThreadBase::hpm_thread_id_main) {
-      ThreadBase::main_instrumented = true;
-      ThreadBase::all_instrumented = false;
-    } else {
-      ThreadBase::main_instrumented = false;
-      ThreadBase::all_instrumented = false;
+    void ThreadBase::set_hpm_thread_env(int hpm_thread_id) {
+        if (hpm_thread_id == ThreadBase::hpm_thread_id_all) {
+            ThreadBase::main_instrumented = true;
+            ThreadBase::all_instrumented = true;
+        } else if (hpm_thread_id == ThreadBase::hpm_thread_id_main) {
+            ThreadBase::main_instrumented = true;
+            ThreadBase::all_instrumented = false;
+        } else {
+            ThreadBase::main_instrumented = false;
+            ThreadBase::all_instrumented = false;
+        }
+        ThreadBase::hpm_thread_id = hpm_thread_id;
     }
-    ThreadBase::hpm_thread_id = hpm_thread_id;
-  }
 #endif
 
 #ifdef MADNESS_TASK_PROFILING
@@ -288,8 +288,8 @@ namespace madness {
                 // Construct the actual output filename
                 std::stringstream file_name;
                 file_name << output_file_name_ << "_"
-                        << SafeMPI::COMM_WORLD.Get_rank() << "x"
-                        << ThreadPool::size() + 1;
+                          << SafeMPI::COMM_WORLD.Get_rank() << "x"
+                          << ThreadPool::size() + 1;
 
                 // Lock file for output
                 ScopedMutex<Mutex> locker(TaskProfiler::output_mutex_);
@@ -310,7 +310,7 @@ namespace madness {
                     tail_ = nullptr;
                 } else {
                     std::cerr << "!!! ERROR: TaskProfiler cannot open file: "
-                            << file_name.str() << "\n";
+                              << file_name.str() << "\n";
                 }
 
                 // close the file
@@ -334,11 +334,11 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 
 #if HAVE_PARSEC
-  dague_context_t *ThreadPool::parsec = NULL;
+    dague_context_t *ThreadPool::parsec = NULL;
 #endif
     // The constructor is private to enforce the singleton model
     ThreadPool::ThreadPool(int nthread) :
-            threads(nullptr), main_thread(), nthreads(nthread), finish(false)
+        threads(nullptr), main_thread(), nthreads(nthread), finish(false)
     {
         nfinished = 0;
         instance_ptr = this;
@@ -346,34 +346,31 @@ namespace madness {
         MADNESS_ASSERT(nthreads >= 0);
 
         const int rc = pthread_setspecific(ThreadBase::thread_key,
-                static_cast<void*>(&main_thread));
+                                           static_cast<void*>(&main_thread));
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 #if HAVE_PARSEC
         //////////// Parsec Related Begin ////////////////////
         /* Scheduler init*/
-	int argc = 1;
-	char ** argv = (char**)malloc(2*sizeof(char*));
+        int argc = 1;
+        char ** argv = (char**)malloc(2*sizeof(char*));
         argv[0]=(char*)malloc(2*sizeof(char));
         char tmp[] = "t";
         strcpy(argv[0], tmp);
-	//argv[1] = NULL;
-	argv[1] = NULL;
+        //argv[1] = NULL;
+        argv[1] = NULL;
         ThreadPool::parsec = dague_init(-1, &argc, &argv);
         if( 0 != dague_enqueue(ThreadPool::parsec, &madness_handle) ) {
-	  std::cout << "ERROR: dague_enqueue!!" << std::endl;
-	}
-	std::cout << "dague_enqueue!! <" << &madness_handle << ">" << std::endl;
-        if( 0 != dague_handle_update_nbtask(&madness_handle, 1) ) {
-	  std::cout << "ERROR: dague_handle_update_nbtask!!" << std::endl;
-	}
+            std::cerr << "ERROR: dague_enqueue!!" << std::endl;
+        }
+        dague_atomic_add_32b(&madness_handle.nb_tasks, 1);
         if( 0 != dague_context_start(ThreadPool::parsec) ) {
-	  std::cout << "ERROR: dague_context_start!!" << std::endl;
-	}
+            std::cerr << "ERROR: dague_context_start!!" << std::endl;
+        }
         //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
-                /* This is removed to replace TBB or madness by parsec*/
-// #if HAVE_INTEL_TBB
+        /* This is removed to replace TBB or madness by parsec*/
+        // #if HAVE_INTEL_TBB
 
         if(nthreads < 1)
             nthreads = 1;
@@ -438,16 +435,16 @@ namespace madness {
         PROFILE_MEMBER_FUNC(ThreadPool);
         thread->set_affinity(2, thread->get_pool_thread_index());
 
-// #define MULTITASK
-// #ifdef  MULTITASK
-//         while (!finish) {
-//             run_tasks(true, thread);
-//         }
-// #else
-//         while (!finish) {
-//             run_task(true, thread);
-//         }
-// #endif
+        // #define MULTITASK
+        // #ifdef  MULTITASK
+        //         while (!finish) {
+        //             run_tasks(true, thread);
+        //         }
+        // #else
+        //         while (!finish) {
+        //             run_task(true, thread);
+        //         }
+        // #endif
 
 #ifdef MADNESS_TASK_PROFILING
         thread->profiler().write_to_file();
@@ -493,7 +490,7 @@ namespace madness {
 #ifdef MADNESS_TASK_PROFILING
         // Initialize the output file name for the task profiler.
         profiling::TaskProfiler::output_file_name_ =
-                getenv("MAD_TASKPROFILER_NAME");
+            getenv("MAD_TASKPROFILER_NAME");
         if(! profiling::TaskProfiler::output_file_name_) {
             if(SafeMPI::COMM_WORLD.Get_rank() == 0)
                 std::cerr
@@ -503,8 +500,8 @@ namespace madness {
             // Construct the actual output filename
             std::stringstream file_name;
             file_name << profiling::TaskProfiler::output_file_name_ << "_"
-                    << SafeMPI::COMM_WORLD.Get_rank() << "x"
-                    << ThreadPool::size() + 1;
+                      << SafeMPI::COMM_WORLD.Get_rank() << "x"
+                      << ThreadPool::size() + 1;
 
             // Erase the profiler output file
             std::ofstream file(file_name.str().c_str(), std::ios_base::out | std::ios_base::trunc);
@@ -513,10 +510,10 @@ namespace madness {
 #endif  // MADNESS_TASK_PROFILING
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
-	if (ThreadBase::main_instrumented) {
-	  main_hpmctx = HPM_Prof_init_thread();
-	  HPM_Prof_start(main_hpmctx);
-	}
+        if (ThreadBase::main_instrumented) {
+            main_hpmctx = HPM_Prof_init_thread();
+            HPM_Prof_start(main_hpmctx);
+        }
 #endif
     }
 
@@ -530,9 +527,10 @@ namespace madness {
         }
         while (instance_ptr->nfinished != instance_ptr->nthreads);
 #else  /* HAVE_PARSEC */
-	/* Remove the fake task we used to keep the engine up and running */
-	dague_handle_update_nbtask(&madness_handle, -1);
-	dague_context_wait(parsec);
+        /* Remove the fake task we used to keep the engine up and running */
+        int remaining = dague_atomic_add_32b(&madness_handle.nb_tasks, -1);
+        dague_check_complete_cb(&madness_handle, parsec, remaining);
+        dague_context_wait(parsec);
 #endif
 #ifdef MADNESS_TASK_PROFILING
         instance_ptr->main_thread.profiler().write_to_file();
@@ -542,7 +540,7 @@ namespace madness {
 #endif
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
-	if (ThreadBase::main_instrumented) HPM_Prof_stop(main_hpmctx);
+        if (ThreadBase::main_instrumented) HPM_Prof_stop(main_hpmctx);
 #endif
         delete instance_ptr;
         instance_ptr = nullptr;
