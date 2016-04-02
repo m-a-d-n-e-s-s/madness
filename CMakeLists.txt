@@ -2,8 +2,8 @@ cmake_minimum_required (VERSION 3.0.0)
 project(MADNESS CXX C ASM)
 
 # Check CMake version
-if ((CMAKE_MAJOR_VERSION VERSION_EQUAL 3) AND (CMAKE_MINOR_VERSION VERSION_LESS 5))  
-   message("WARNING: If parallel build fails halfway through, reduce the value of the parallel build to 'make -j 4'. Or try upgrading to CMake 3.5.1.")
+if(CMAKE_VERSION VERSION_LESS 3.5.1)  
+  message("WARNING: If parallel build fails halfway through, reduce the value of the parallel build to 'make -j 4'. Or try upgrading to CMake 3.5.1.")
 endif()
 
 # Set MADNESS version
