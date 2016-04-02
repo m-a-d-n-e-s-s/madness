@@ -1,5 +1,5 @@
 CMAKE := cmake-3.5.1
-URL := http://www.cmake.org/files/v3.5/$(CMAKE).tar.gz
+URL := https://cmake.org/files/v3.5/$(CMAKE).tar.gz
 PREFIX := $(PWD)
 
 all: cmake

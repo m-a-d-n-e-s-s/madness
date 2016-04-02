@@ -48,3 +48,4 @@ ltoptions.m4
 ltmain.sh
 libtool.m4
 config.h.in~
+cmake/cmake-*
