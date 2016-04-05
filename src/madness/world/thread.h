@@ -1310,9 +1310,7 @@ namespace madness {
 #if HAVE_PARSEC
             dague_execution_context_t *context = &(task->exec_context);
             DAGUE_LIST_ITEM_SINGLETON(context);
-	    if( 0 != dague_handle_update_nbtask(&madness_handle, 1) ) {
-	     std::cout << "dague_handle_update_nbtask!!" << std::endl;
-	    }
+            dague_atomic_add_32b(&madness_handle.nb_tasks, 1);
             __dague_schedule(parsec->virtual_processes[0]->execution_units[0], context);
             //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB

@@ -357,19 +357,16 @@ namespace madness {
         argv[0]=(char*)malloc(2*sizeof(char));
         char tmp[] = "t";
         strcpy(argv[0], tmp);
-	//argv[1] = NULL;
 	argv[1] = NULL;
 	int nb_threads = ThreadPool::default_nthread() + 1;
         ThreadPool::parsec = dague_init(nb_threads, &argc, &argv);
 
         if( 0 != dague_enqueue(ThreadPool::parsec, &madness_handle) ) {
-	  std::cout << "ERROR: dague_enqueue!!" << std::endl;
+            std::cerr << "ERROR: dague_enqueue!!" << std::endl;
 	}
-        if( 0 != dague_handle_update_nbtask(&madness_handle, 1) ) {
-	  std::cout << "ERROR: dague_handle_update_nbtask!!" << std::endl;
-	}
+        dague_atomic_add_32b(&madness_handle.nb_tasks, 1);
         if( 0 != dague_context_start(ThreadPool::parsec) ) {
-	  std::cout << "ERROR: dague_context_start!!" << std::endl;
+            std::cerr << "ERROR: dague_context_start!!" << std::endl;
 	}
         //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
@@ -532,7 +529,8 @@ namespace madness {
         while (instance_ptr->nfinished != instance_ptr->nthreads);
 #else  /* HAVE_PARSEC */
 	/* Remove the fake task we used to keep the engine up and running */
-	dague_handle_update_nbtask(&madness_handle, -1);
+        int remaining = dague_atomic_add_32b(&madness_handle.nb_tasks, -1);
+        dague_check_complete_cb(&madness_handle, parsec, remaining);
 	dague_context_wait(parsec);
 #endif
 #ifdef MADNESS_TASK_PROFILING
