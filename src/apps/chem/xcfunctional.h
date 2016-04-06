@@ -172,7 +172,7 @@ private:
             : rhotol(rhotol1), rhomin(rhomin1) {}
         double operator()(double rho) const {
 //            if(rho<1.e-7) rho = 1.e-7;
-            if (fabs(rho) <= rhotol) rho=rhomin;
+            if (rho <= rhotol) rho=rhomin;
             return rho;
         }
         double rhotol,rhomin;
@@ -181,7 +181,7 @@ private:
     /// simple munging for the density only (LDA)
     double munge(double rho) const {
 //        if(rho<1.e-7) rho = 1.e-7;
-    	if (fabs(rho) <= rhotol) rho=rhomin;
+    	if (rho <= rhotol) rho=rhomin;
         return rho;
     }
 
