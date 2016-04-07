@@ -171,8 +171,18 @@ private:
         munger(const double rhotol1, const double rhomin1)
             : rhotol(rhotol1), rhomin(rhomin1) {}
         double operator()(double rho) const {
-//            if(rho<1.e-7) rho = 1.e-7;
-            if (rho <= rhotol) rho=rhomin;
+            // See discussion in madness mailing list on munging.
+            // Per Florian
+            /*
+              The perturbed densities are munged in some parts of the code only,
+              with the unperturbed densities being the munging criteria. The problem
+              is the (higher) derivatives of the potential (especially for GGA),
+              because it becomes so large that multiplying it with even a small
+              number other than exactly zero will make it explode. The final
+              perturbed density will not be munged because it might be physically
+              more extended than the unperturbed density.
+             */
+            if (fabs(rho) <= rhotol) rho=rhomin;
             return rho;
         }
         double rhotol,rhomin;
@@ -180,7 +190,6 @@ private:
 
     /// simple munging for the density only (LDA)
     double munge(double rho) const {
-//        if(rho<1.e-7) rho = 1.e-7;
     	if (rho <= rhotol) rho=rhomin;
         return rho;
     }
