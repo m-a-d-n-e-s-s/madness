@@ -49,3 +49,6 @@ ltmain.sh
 libtool.m4
 config.h.in~
 cmake/cmake-*
+cmake/bin
+cmake/doc
+cmake/share
