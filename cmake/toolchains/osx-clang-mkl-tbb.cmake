@@ -42,6 +42,6 @@ else()
 endif()
 
 # Flags
-set(BLAS_LINKER_FLAGS "-L${MKL_ROOT_DIR}/lib -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lm" CACHE STRING "BLAS linker flags")
-set(LAPACK_LINKER_FLAGS "" CACHE STRING "LAPACK linker flags")
+set(LAPACK_LIBRARIES "-L${MKL_ROOT_DIR}/lib" "-lmkl_intel_lp64" "-lmkl_core" 
+    "-lmkl_sequential" "-lm" CACHE STRING "LAPACK linker flags")
 set(INTEGER4 TRUE CACHE BOOL "Set Fortran integer size to 4 bytes")
