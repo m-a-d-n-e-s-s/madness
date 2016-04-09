@@ -97,9 +97,6 @@ typedef std::complex<double> double_complex;
 
 class TestTask : public TaskInterface {
 public:
-#if defined(__INTEL_COMPILER) || defined(__PGI)
-  using madness::TaskInterface::run;
-#endif
     void run(World& world) {
         print("Hi, I am running!");
     }

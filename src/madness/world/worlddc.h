@@ -63,6 +63,7 @@ namespace madness {
     template <typename keyT>
     class WorldDCRedistributeInterface {
     public:
+        virtual std::size_t size() const = 0;
         virtual void redistribute_phase1(const std::shared_ptr< WorldDCPmapInterface<keyT> >& newmap) = 0;
         virtual void redistribute_phase2() = 0;
         virtual void redistribute_phase3() = 0;
@@ -111,6 +112,7 @@ namespace madness {
         /// @param[in] world The associated world
         /// @param[in] newpmap The new process map
         void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface<keyT> >& newpmap) {
+            print_data_sizes(world, "before redistributing");
             world.gop.fence();
             for (typename std::set<ptrT>::iterator iter = ptrs.begin();
                  iter != ptrs.end();
@@ -124,12 +126,52 @@ namespace madness {
                 (*iter)->redistribute_phase2();
                 newpmap->register_callback(*iter);
             }
-            ptrs.clear();
             world.gop.fence();
             for (typename std::set<ptrT>::iterator iter = ptrs.begin();
                  iter != ptrs.end();
                  ++iter) {
 	         (*iter)->redistribute_phase3();
+            }
+            world.gop.fence();
+            ptrs.clear();
+            newpmap->print_data_sizes(world, "after redistributing");
+        }
+
+        /// Counts global number of entries in all containers associated with this process map
+
+        /// Collective operation with global fence
+        std::size_t global_size(World& world) const {
+            world.gop.fence();
+            std::size_t sum = local_size();
+            world.gop.sum(sum);
+            world.gop.fence();
+            return sum;
+        }
+
+        /// Counts local number of entries in all containers associated with this process map
+        std::size_t local_size() const {
+            std::size_t sum = 0;
+            for (typename std::set<ptrT>::iterator iter = ptrs.begin(); iter != ptrs.end(); ++iter) {
+                sum += (*iter)->size();
+            }
+            return sum;
+        }
+
+        /// Prints size info to std::cout
+
+        /// Collective operation with global fence
+        void print_data_sizes(World& world, const std::string msg="") const {
+            world.gop.fence();
+            std::size_t total = global_size(world);
+            std::vector<std::size_t> sizes(world.size());
+            sizes[world.rank()] = local_size();
+            world.gop.sum(&sizes[0],world.size());
+            if (world.rank() == 0) {
+                madness::print("data distribution info", msg);
+                madness::print("   total: ", total);
+                std::cout << "   procs: ";
+                for (int i=0; i<world.size(); i++) std::cout << sizes[i] << " ";
+                std::cout << std::endl;
             }
             world.gop.fence();
         }

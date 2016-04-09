@@ -177,6 +177,8 @@ void test1(World& world) {
         
         world.gop.fence(); total = double_count; world.gop.sum(total);
         if (world.rank() == 0) print("count after redistributing", total);
+        std::size_t global_count = c.get_pmap()->global_size(world);
+        if (world.rank() == 0) print("count after from global sz", global_count);
         
         for (int i=0; i<100; ++i) {
             MADNESS_ASSERT(c.find(i).get()->second == (i+1.0));
