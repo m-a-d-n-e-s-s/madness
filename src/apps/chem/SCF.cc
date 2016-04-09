@@ -38,38 +38,8 @@
 
 
 #include "SCF.h"
-
-//#include <madness/tensor/distributed_matrix.h>
 #include <cmath>
-
-// #include "../../madness/constants.h"
-// #include "../../madness/misc/misc.h"
-// #include "../../madness/misc/ran.h"
-// #include "../../madness/mra/convolution1d.h"
-// #include "../../madness/mra/derivative.h"
-// #include "../../madness/mra/funcdefaults.h"
-// #include "../../madness/mra/funcplot.h"
-// #include "../../madness/mra/function_factory.h"
-// #include "../../madness/mra/functypedefs.h"
-// #include "../../madness/mra/key.h"
-// #include "../../madness/mra/lbdeux.h"
-// #include "../../madness/mra/operator.h"
-// #include "../../madness/mra/qmprop.h"
-// #include "../../madness/mra/vmra.h"
-// #include "../../madness/tensor/elem.h"
-// #include "../../madness/tensor/slice.h"
-// #include "../../madness/tensor/srconf.h"
-// #include "../../madness/tensor/tensor.h"
-// #include "../../madness/tensor/tensor_macros.h"
-// #include "../../madness/world/parallel_archive.h"
-// #include "../../madness/world/print.h"
-// #include "../../madness/world/timers.h"
-// #include "../../madness/world/world.h"
-// #include "../../madness/world/worldgop.h"
-// #include "../../madness/world/worldprofile.h"
-
 #include <madness/mra/qmprop.h>
-//#include <madness/tensor/tensor_lapack.h>
 #include <chem/nemo.h>
 #include <chem/SCFOperators.h>
 #include <chem/TDA.h>
@@ -1600,26 +1570,26 @@ namespace madness {
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
         END_TIMER(world, "PE matrix");
 
-	/////////////////
-        START_TIMER(world);
-        LoadBalanceDeux < 3 > lb(world);
-        for (unsigned int i = 0; i < psi.size(); ++i) {
-            lb.add_tree(psi[i], lbcost<double, 3>(1.0, 8.0), false);
-        }
-        world.gop.fence();
-	END_TIMER(world, "KE compute loadbal");
-
-        START_TIMER(world);
         std::shared_ptr< WorldDCPmapInterface< Key<3> > > oldpmap = FunctionDefaults<3>::get_pmap();
-        std::shared_ptr< WorldDCPmapInterface< Key<3> > > newpmap = lb.load_balance(param.loadbalparts);
-	FunctionDefaults<3>::set_pmap(newpmap);
-	
-	vecfuncT psicopy;
-        for (unsigned int i=0; i<psi.size(); ++i) psicopy.push_back(copy(psi[i],newpmap,false));
-        world.gop.fence();
-	END_TIMER(world, "KE redist");
-	/////////////////
-
+        vecfuncT psicopy=psi; // Functions are shallow copy so this is lightweight
+        if (world.size() > 1) {
+            START_TIMER(world);
+            LoadBalanceDeux < 3 > lb(world);
+            for (unsigned int i = 0; i < psi.size(); ++i) {
+                lb.add_tree(psi[i], lbcost<double, 3>(1.0, 8.0), false);
+            }
+            world.gop.fence();
+            END_TIMER(world, "KE compute loadbal");
+            
+            START_TIMER(world);
+            std::shared_ptr< WorldDCPmapInterface< Key<3> > > newpmap = lb.load_balance(param.loadbalparts);
+            FunctionDefaults<3>::set_pmap(newpmap);
+            
+            for (unsigned int i=0; i<psi.size(); ++i) psicopy[i] = copy(psi[i],newpmap,false);
+            world.gop.fence();
+            END_TIMER(world, "KE redist");
+        }
+            
         START_TIMER(world);
         tensorT ke(psi.size(),psi.size());
         {
@@ -1628,9 +1598,10 @@ namespace madness {
         }
         END_TIMER(world, "KE matrix");
 
-	psicopy.clear();
-	FunctionDefaults<3>::set_pmap(oldpmap); // ! DON'T FORGET !
-	
+        psicopy.clear();
+        if (world.size() > 1) {
+            FunctionDefaults<3>::set_pmap(oldpmap); // ! DON'T FORGET !
+        }
 
         START_TIMER(world);
         int nocc = occ.size();
@@ -1858,7 +1829,7 @@ namespace madness {
                       functionT & arho_old, functionT & brho_old, subspaceT & subspace) {
         if (world.size() == 1)
             return;
-        
+
         LoadBalanceDeux < 3 > lb(world);
         real_function_3d vnuc;
         if (param.psp_calc){
@@ -1883,6 +1854,8 @@ namespace madness {
         world.gop.fence();
         
         FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts)); // 6.0 needs retuning after param.vnucextra
+
+        world.gop.fence();
     }
     
     void SCF::rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
