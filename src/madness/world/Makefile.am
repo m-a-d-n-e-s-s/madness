@@ -24,7 +24,7 @@ thisinclude_HEADERS = info.h archive.h print.h worldam.h future.h worldmpi.h \
                       
 TESTS = test_prof.mpi test_ar.mpi test_hashdc.mpi test_hello.mpi test_atomicint.mpi test_future.mpi \
         test_future2.mpi test_future3.mpi test_dc.mpi test_hashthreaded.mpi test_queue.mpi test_world.mpi \
-        test_worldprofile.mpi test_binsorter.mpi
+        test_worldprofile.mpi test_binsorter.mpi test_tree.mpi
 
 
 if MADNESS_HAS_GOOGLE_TEST
@@ -80,6 +80,9 @@ test_future3_mpi_LDADD = libMADworld.la
 
 test_dc_mpi_SOURCES = test_dc.cc
 test_dc_mpi_LDADD = libMADworld.la
+
+test_tree_mpi_SOURCES = test_tree.cc
+test_tree_mpi_LDADD = libMADworld.la
 
 test_hashthreaded_mpi_SOURCES = test_hashthreaded.cc
 test_hashthreaded_mpi_LDADD = libMADworld.la
