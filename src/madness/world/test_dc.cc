@@ -32,6 +32,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
+#include <madness/world/atomicint.h>
 
 using namespace madness;
 using namespace std;
@@ -77,6 +78,8 @@ struct Node {
     void serialize(const Archive& ar) {
         ar & k;
     }
+
+    ~Node() {}
 };
 
 ostream& operator<<(ostream&s, const Node& node) {
@@ -101,7 +104,6 @@ void test0(World& world) {
     for (int i=3; i<100; ++i)
         MADNESS_ASSERT(c.find(Key(i)).get() == c.end());
 
-
     world.gop.fence();
 }
 
@@ -121,29 +123,84 @@ public:
     }
 };
 
+AtomicInt double_count;
+
+// Can use just a plain int as key or value but make this class only to conunt instances
+class Double {
+    double value;
+public:
+
+    Double(double value=0.0) : value(value) {double_count++;}
+
+    Double(const Double& d) : value(d.value) {double_count++;}
+
+    ~Double() {double_count--;}
+
+    Double operator+(double x) {return Double(value+x);}
+
+    bool operator==(double x) {return value==x;}
+
+
+    template <typename Archive>
+    void serialize(const Archive& ar) {
+        ar & value;
+    }
+};
+    
+
 void test1(World& world) {
     std::shared_ptr< WorldDCPmapInterface<int> > pmap0(new TestPmap(world, 0));
     std::shared_ptr< WorldDCPmapInterface<int> > pmap1(new TestPmap(world, 1));
 
-    WorldContainer<int,double> c(world,pmap0), d(world,pmap0), e(world,pmap0);
-
-    if (world.rank() == 0) {
-        for (int i=0; i<100; ++i) {
-            c.replace(i,i+1.0);
-            d.replace(i,i+2.0);
-            e.replace(i,i+3.0);
-        }
-    }
-
-    pmap0->redistribute(world, pmap1);
-
-    for (int i=0; i<100; ++i) {
-        MADNESS_ASSERT(c.find(i).get()->second == (i+1.0));
-        MADNESS_ASSERT(d.find(i).get()->second == (i+2.0));
-        MADNESS_ASSERT(e.find(i).get()->second == (i+3.0));
-    }
-
+    int total;
+    double_count = 0;
     world.gop.fence();
+        
+    {
+        WorldContainer<int,Double> c(world,pmap0), d(world,pmap0), e(world,pmap0);
+        
+        world.gop.fence(); total = double_count; world.gop.sum(total);
+        if (world.rank() == 0) print("count after constructor", total);
+        
+        if (world.rank() == 0) {
+            for (int i=0; i<100; ++i) {
+                c.replace(i,i+1.0);
+                d.replace(i,i+2.0);
+                e.replace(i,i+3.0);
+            }
+        }
+        
+        world.gop.fence(); total = double_count; world.gop.sum(total);
+        if (world.rank() == 0) print("count after making", total);
+        
+        pmap0->redistribute(world, pmap1);
+        
+        world.gop.fence(); total = double_count; world.gop.sum(total);
+        if (world.rank() == 0) print("count after redistributing", total);
+        
+        for (int i=0; i<100; ++i) {
+            MADNESS_ASSERT(c.find(i).get()->second == (i+1.0));
+            MADNESS_ASSERT(d.find(i).get()->second == (i+2.0));
+            MADNESS_ASSERT(e.find(i).get()->second == (i+3.0));
+        }
+        
+        world.gop.fence(); total = double_count; world.gop.sum(total);
+        if (world.rank() == 0) print("count after testing", total);
+        
+        c.clear();
+        
+        world.gop.fence(); total = double_count; world.gop.sum(total);
+        if (world.rank() == 0) print("count after clearing c", total);
+    }
+
+    total = double_count; world.gop.sum(total);
+    if (world.rank() == 0) print("count after going out of scope without fence", total);
+    
+    world.gop.fence(); total = double_count; world.gop.sum(total);
+    if (world.rank() == 0) print("count after first fence", total);
+
+    world.gop.fence(); total = double_count; world.gop.sum(total);
+    if (world.rank() == 0) print("count after second fence", total);
 }
 
 
