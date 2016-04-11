@@ -9,7 +9,7 @@
 # set(ESSL_DIR   "/soft/libraries/essl/current/essl/5.1")
 # set(LAPACK_DIR "/soft/libraries/alcf/current/xl/LAPACK")
 
-set (PARSEC_DIR "/home/aguermou/devel_build_gcc/install")
+#set (PARSEC_DIR "/home/aguermou/devel_build_gcc/install")
 
 # # V1R2M0
 # #set(MPI_DIR   "/bgsys/drivers/ppcfloor/comm/gcc")
@@ -50,6 +50,9 @@ set(BLAS_LIBRARIES /opt/intel/mkl/lib/intel64/libmkl_sequential.so;/opt/intel/mk
 set(LAPACK_LIBRARIES ${BLAS_LIBRARIES})
 set(FORTRAN_INTEGER_SIZE "4" CACHE STRING "Set Fortran integer size in bytes")
 set(HAVE_SPINLOCKS OFF CACHE BOOL "Enable if pthread lib supports spinlocks in pmrrr")
+
+#set(PAPI_INCLUDE_DIR "/opt/papi-5.4.3/include")
+#set(PAPI_LIBRARY "/opt/papi-5.4.3/lib/libpapi.so")
 
 
 ##############################################################
