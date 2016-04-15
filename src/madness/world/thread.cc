@@ -365,7 +365,6 @@ namespace madness {
             std::cerr << "ERROR: dague_enqueue!!" << std::endl;
 	}
         dague_atomic_add_32b(&madness_handle.nb_tasks, 1);
-
         if( 0 != dague_context_start(ThreadPool::parsec) ) {
             std::cerr << "ERROR: dague_context_start!!" << std::endl;
 	}

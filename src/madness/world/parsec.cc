@@ -6,7 +6,6 @@
 // Here we initialize with the right child class
 #if HAVE_PARSEC
 namespace madness {
-
     dague_hook_return_t complete_madness_task_execution (dague_execution_unit_t *eu, 
                                                          dague_execution_context_t *exec_context)
     {
@@ -40,6 +39,7 @@ namespace madness {
         c->run(TaskThreadEnv(1, 0, 0));
         return DAGUE_HOOK_RETURN_DONE;
     }
+
 
   extern "C"{
 
