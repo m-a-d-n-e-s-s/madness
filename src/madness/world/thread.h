@@ -1008,7 +1008,7 @@ namespace madness {
                 exec_context.function = &madness::madness_function;
                 exec_context.chore_id = 0;
                 exec_context.status = DAGUE_TASK_STATUS_NONE;
-                exec_context.priority = 0;
+                exec_context.priority = is_high_priority() ? 1000 : 0; // 1 & 0 would work as good
             }
             //////////// Parsec Related End   ///////////////////
         
