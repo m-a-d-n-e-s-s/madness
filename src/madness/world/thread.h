@@ -995,7 +995,7 @@ namespace madness {
                 else
                     barrier = 0;
             }
-
+        }
 #if HAVE_PARSEC
 	    //////////// Parsec Related Begin ////////////////////
             dague_execution_context_t exec_context;
@@ -1092,7 +1092,7 @@ namespace madness {
 
         virtual void run(const TaskThreadEnv& info) = 0;
 
-    };
+        };
 
     /// A no-operation task used for various purposes.
     class PoolTaskNull : public PoolTaskInterface {
