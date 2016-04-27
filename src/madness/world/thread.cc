@@ -360,7 +360,12 @@ namespace madness {
 	argv[1] = NULL;
 	int nb_threads = ThreadPool::default_nthread() + 1;
         ThreadPool::parsec = dague_init(nb_threads, &argc, &argv);
-
+#ifdef DAGUE_PROF_TRACE
+	madness_handle.profiling_array = (int*)malloc(2*sizeof(int));
+	dague_profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
+					       (int *)&madness_handle.profiling_array[0],
+					       (int *)&madness_handle.profiling_array[1]);
+#endif
         if( 0 != dague_enqueue(ThreadPool::parsec, &madness_handle) ) {
             std::cerr << "ERROR: dague_enqueue!!" << std::endl;
 	}

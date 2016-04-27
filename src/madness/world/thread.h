@@ -51,6 +51,7 @@
 //////////// Parsec Related Begin ////////////////////
 #ifdef HAVE_PARSEC
 #include <dague/dague_internal.h>
+#include <dague_config.h>
 #include "parsec.h"
 #endif
 //////////// Parsec Related End ////////////////////
