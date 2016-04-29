@@ -362,6 +362,7 @@ public:
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
+
     /// compute the second derivative of the XC energy wrt the density and apply
 
     /// apply the kernel on the fly on the provided (response) density
@@ -444,6 +445,6 @@ struct xc_kernel_apply {
         return r;
     }
 };
-}
 
+}
 #endif

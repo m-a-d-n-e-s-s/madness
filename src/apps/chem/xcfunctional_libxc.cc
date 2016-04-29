@@ -795,10 +795,20 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
             MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::fxc",1);
         }
 
-        Tensor<double> result1;
+        Tensor<double> result1(3L, t[0].dims());
 
+        // LDA
+        if (xc_contrib == XCfunctional::potential_rho) {  
+            //Tensor<double> dens_pt = copy(t[enum_rhoa]);
+            //munger m(rhotol,rhomin);
+            //dens_pt.unaryop(m);
+
+            //result1 = v2rho2.emul(dens_pt);
+            result1 = copy(v2rho2);
+        }
+        // GGA, requires 3 terms
         // multiply the kernel with the various densities
-        if (xc_contrib== XCfunctional::kernel_second_local) {  // local terms, second derivative
+        else if (xc_contrib== XCfunctional::kernel_second_local) {  // local terms, second derivative
             Tensor<double> dens_pt=copy(t[enum_rho_pt]);
             Tensor<double> sigma_pt=2.0*copy(t[enum_sigma_pta]);   // factor 2 for closed shell
             munger m(rhotol,rhomin);
@@ -807,8 +817,8 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
 
             result1=v2rho2.emul(dens_pt);
             if (is_gga()) result1+= 2.0*v2rhosigma.emul(sigma_pt);
-
-        } else if (xc_contrib== XCfunctional::kernel_second_semilocal) {   // semilocal terms, second derivative
+        } 
+        else if (xc_contrib== XCfunctional::kernel_second_semilocal) {   // semilocal terms, second derivative
 //            const Tensor<double>& dens_pt=t[enum_rho_pt];
 //            const Tensor<double>& sigma_pt=2.0*t[enum_sigma_pta];       // factor 2 for closed shell
             Tensor<double> dens_pt=copy(t[enum_rho_pt]);
@@ -817,16 +827,14 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
             dens_pt.unaryop(m);
             sigma_pt.unaryop(m);
 
-
             result1=2.0*v2rhosigma.emul(dens_pt) + 4.0*v2sigma2.emul(sigma_pt);
-
-        } else if (xc_contrib== XCfunctional::kernel_first_semilocal) {   // semilocal terms, first derivative
+        } 
+        else if (xc_contrib== XCfunctional::kernel_first_semilocal) {   // semilocal terms, first derivative
             result1=2.0*vsigma;
         }
 
         // accumulate into result tensor with proper weighting
         result+=result1*funcs[i].second;
-
     }
 
     // check for NaNs

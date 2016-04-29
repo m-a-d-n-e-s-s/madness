@@ -149,6 +149,7 @@ END_TIMER(world, "initialize");
 
           if (calc.param.derivatives) calc.derivatives(world,rho);
           if (calc.param.dipole) calc.dipole(world,rho);
+          if (calc.param.response) calc.polarizability(world);
         }
 
         //        if (calc.param.twoint) {
