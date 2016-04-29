@@ -370,9 +370,6 @@ public:
     madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
-    madness::Tensor<double> fxc_old(const std::vector< madness::Tensor<double> >& t,
-            const int ispin, const xc_contribution xc_contrib) const;
-
     /// Crude function to plot the energy and potential functionals
     void plot() const {
         long npt = 1001;
