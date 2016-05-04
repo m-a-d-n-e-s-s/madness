@@ -68,6 +68,15 @@ namespace madness {
 	template<typename T>
 	class TensorTrain {
 
+        /// C++ typename of this tensor.
+        typedef T type;
+
+        /// C++ typename of the real type associated with a complex type.
+        typedef typename TensorTypeData<T>::scalar_type scalar_type;
+
+        /// C++ typename of the floating point type associated with scalar real type
+        typedef typename TensorTypeData<T>::float_scalar_type float_scalar_type;
+
 		/// holding the core tensors of a tensor train
 		/// the tensors have the shape (k,r0) (r0,k,r1) (r1,k,r2) .. (rn-1,k)
 		std::vector<Tensor<T> > core;
@@ -75,6 +84,10 @@ namespace madness {
 		bool zero_rank;
 
 	public:
+
+		/// empty constructor
+		TensorTrain() : core(), zero_rank(true) {
+		}
 
 		/// ctor for a TensorTrain, with the tolerance eps
 
@@ -117,6 +130,62 @@ namespace madness {
 		    MADNESS_ASSERT(t.size() != 0);
             MADNESS_ASSERT(t.ndim() != 0);
             decompose(t,eps,dims);
+		}
+
+		/// ctor for a TensorTrain, set up only the dimensions, no data
+		TensorTrain(const std::vector<long>& dims) {
+            zero_rank = true;
+
+            // first and last core tensor
+            core[0] = Tensor<T>(dims[0],long(0));
+            core[dims.size()-1] = Tensor<T>(long(0),dims[dims.size()-1]);
+
+            // iterate through the rest -- fast forward
+            for (int d=1; d<dims.size()-1; ++d) {
+                core[d] = Tensor<T>(long(0),dims[d],long(0));
+		    }
+
+		}
+
+		/// copy constructor, shallow
+		TensorTrain(const TensorTrain& other) : core(other.core),
+		        zero_rank(other.zero_rank) {
+		}
+
+		/// deep copy of the whole tensor
+		friend TensorTrain copy(const TensorTrain& other) {
+            TensorTrain result;
+            for (const Tensor<T>& t: other.core)
+                result.core.push_back(madness::copy(t));
+            result.zero_rank=other.zero_rank;
+            return result;
+		}
+
+		/// deep copy of a slice of the tensor
+
+		/// this operation does not change the ranks, i.e. the resulting
+		/// tensor is most likely not in an optimal compression state
+		/// @param[in]  other   tensor to be sliced
+		/// @param[in]  s       vector of slices
+		friend TensorTrain copy(const TensorTrain& other, const std::vector<Slice>& s) {
+
+		    MADNESS_ASSERT(other.ndim()==s.size());
+		    if (other.zero_rank) return TensorTrain(other.dims());
+
+		    TensorTrain result;
+		    const long nd=other.ndim();
+		    result.zero_rank=other.zero_rank;
+		    result.core.resize(nd);
+
+		    // special treatment for first and last core tensor
+		    // slice dim only, keep ranks
+		    result.core[0]=other.core[0](s[0],_);
+		    for (long i=1; i<nd-1; ++i) {
+		        result.core[i]=other.core[i](_,s[i],_);
+		    }
+
+		    if (other.core.size()>1) result.core[nd-2]=other.core[nd-2](_,s[nd-2]);
+		    return result;
 		}
 
 		/// decompose the input tensor into a TT representation
@@ -164,7 +233,7 @@ namespace madness {
 			long vtdim=t.size();
 
 			// c will be destroyed, and assignment is only shallow, so need to deep copy
-			Tensor<T> c=copy(t);
+			Tensor<T> c=madness::copy(t);
 
 			// work array for dgesvd
 			Tensor<T> work(lwork);
@@ -221,7 +290,7 @@ namespace madness {
 				if (r[d]) {
 
 					// done with this dimension -- slice and deep-copy
-					core[d-1]=copy((u(Slice(0,c.dim(0)*rmax-1)))
+					core[d-1]=madness::copy((u(Slice(0,c.dim(0)*rmax-1)))
 							.reshape(c.dim(0),rmax)(_,Slice(0,rank-1)));
 					core[d-1]=core[d-1].reshape(r[d-1],k,r[d]);
 
@@ -444,8 +513,8 @@ namespace madness {
 
 				// truncate the SVD
 				int r_truncate=SRConf<T>::max_sigma(eps,rmax,s)+1;
-				U=copy(U(_,Slice(0,r_truncate-1)));
-				VT=copy(VT(Slice(0,r_truncate-1),_));
+				U=madness::copy(U(_,Slice(0,r_truncate-1)));
+				VT=madness::copy(VT(Slice(0,r_truncate-1),_));
 
 				dims[ndim-1]=r_truncate;
 				core[d]=U.reshape(ndim,dims);
@@ -490,6 +559,14 @@ namespace madness {
 			return core[i].dim(1);
 		}
 
+		/// return the dimensions of this tensor
+		std::vector<long> dims() const {
+		    std::vector<long> d(ndim());
+            d[0]=core[0].dim(0);    // dim,rank
+		    for (long i=1; i<ndim(); ++i) d[i]=core[i].dim(1);  // rank,dim,rank
+		    return d;
+		}
+
 		/// if rank is zero
 		bool is_zero_rank() const {return zero_rank;}
 
@@ -501,7 +578,64 @@ namespace madness {
 			return r;
 		}
 
+        /// returns the Frobenius norm
+        float_scalar_type normf() const {
+            MADNESS_EXCEPTION("implement normf in TensorTrain",1);
+            return float_scalar_type(0);
+        };
+
+        void scale(T fac) {
+            MADNESS_EXCEPTION("implement scale in TensorTrain",1);
+        }
+
+        /// Returns a pointer to the internal data
+
+        /// @param[in]  ivec    index of core vector to which the return values points
+        T* ptr(const int ivec=0) {
+            if (core.size()) return core[ivec].ptr();
+            return 0;
+        }
+
+        /// Returns a pointer to the internal data
+
+        /// @param[in]  ivec    index of core vector to which the return values points
+        const T* ptr(const int ivec=0) const {
+            if (core.size()) return core[ivec].ptr();
+            return 0;
+        }
+
+        /// Return the trace of two tensors with complex conjugate of the leftmost (i.e., this)
+        template <class Q>
+        TENSOR_RESULT_TYPE(T,Q) trace_conj(const TensorTrain<Q>& t) const {
+            MADNESS_EXCEPTION("implement trace_conj in TensorTrain",1);
+            return TENSOR_RESULT_TYPE(T,Q)(0.0);
+        }
+
+
 	};
+
+
+    template <class T, class Q>
+    TensorTrain<TENSOR_RESULT_TYPE(T,Q)> transform(const TensorTrain<T>& t,
+            const Tensor<Q>& c) {
+        MADNESS_EXCEPTION("implement TensorTrain transform",1);
+        return TensorTrain<TENSOR_RESULT_TYPE(T,Q)>();
+    }
+
+    template <class T, class Q>
+    TensorTrain<TENSOR_RESULT_TYPE(T,Q)> general_transform(const TensorTrain<T>& t,
+            const Tensor<Q> c[]) {
+        MADNESS_EXCEPTION("implement TensorTrain general_transform",1);
+        return TensorTrain<TENSOR_RESULT_TYPE(T,Q)>();
+    }
+
+    template <class T, class Q>
+    TensorTrain<TENSOR_RESULT_TYPE(T,Q)> transform_dir(const TensorTrain<T>& t,
+            const Tensor<Q>& c, const int axis) {
+        MADNESS_EXCEPTION("implement TensorTrain transform_dir",1);
+        return TensorTrain<TENSOR_RESULT_TYPE(T,Q)>();
+    }
+
 
 
 }

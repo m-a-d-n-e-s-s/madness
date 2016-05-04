@@ -55,6 +55,8 @@ namespace madness {
 
 
 	template <class T> class GenTensor;
+    template <class T> class LowRankTensor;
+    template <class T> class SliceLowRankTensor;
 
 	/**
 	 * A SRConf handles all the configurations in a Separated Representation.
@@ -63,6 +65,8 @@ namespace madness {
 	template <typename T>
 	class SRConf {
 		friend class GenTensor<T>;
+		friend class LowRankTensor<T>;
+        friend class SliceLowRankTensor<T>;
 
 		/// return the number of vectors (i.e. dim_eff) according to the TensorType
 		static unsigned int compute_nvec(const TensorType& tt) {
@@ -527,6 +531,7 @@ namespace madness {
 #endif
 		}
 
+	protected:
 		/// alpha * this(lhs_s) + beta * rhs(rhs_s)
 
 		/// bounds checking should have been performed by caller
@@ -622,6 +627,84 @@ namespace madness {
 
 			return SRConf<T>(copy(rhs.weights_(Slice(0,rhs.rank()-1))),vector,rhs.dim(),rhs.get_k(),rhs.type());
 		}
+
+
+        /// return a slice of this (deep copy)
+        SRConf<T> copy_slice(const std::vector<Slice>& s) const {
+
+            // fast return if possible
+            if (this->has_no_data()) {
+                int k_new=s[0].end-s[0].start+1;
+                return SRConf<T>(dim(),k_new,this->type());
+            }
+
+            // consistency check
+            MADNESS_ASSERT(s.size()==this->dim());
+            MADNESS_ASSERT(s[0].step==1);
+
+            // fast return for full rank tensors
+            if (type()==TT_FULL) {
+                tensorT a=copy(ref_vector(0)(s));
+                return SRConf<T>(a);
+            }
+
+
+            MADNESS_ASSERT(has_structure());
+//          _ptr->make_structure();
+
+            // get dimensions
+            const TensorType tt=this->type();
+            const int merged_dim=this->dim_per_vector();
+            const int dim_eff=this->dim_eff();
+            const int rank=this->rank();
+            int k_new=s[0].end-s[0].start+1;
+            if (s[0].end<0) k_new+=this->get_k();
+
+            // get and reshape the vectors, slice and re-reshape again;
+            // this is shallow
+            const SRConf<T>& sr=*this;
+
+            std::vector<Tensor<T> > vectors(dim_eff,Tensor<T>());
+
+            for (int idim=0; idim<dim_eff; idim++) {
+
+                // assignment from/to slice is deep-copy
+                if (merged_dim==1) {
+                    if (rank>0) {
+                        vectors[idim]=copy(sr.ref_vector(idim)(Slice(0,rank-1),s[idim]));
+                    } else {
+                        vectors[idim]=Tensor<T>(0,s[idim].end-s[idim].start+1);
+                    }
+                } else if (merged_dim==2) {
+                    if (rank>0) {
+                        vectors[idim]=copy(sr.ref_vector(idim)(Slice(0,rank-1),s[2*idim],s[2*idim+1]));
+                    } else {
+                        vectors[idim]=tensorT(0,s[2*idim].end-s[2*idim].start+1,
+                                                s[2*idim+1].end-s[2*idim+1].start+1);
+                    }
+                } else if (merged_dim==3) {
+                    if (rank>0) {
+                        vectors[idim]=copy(sr.ref_vector(idim)(Slice(0,rank-1),
+                                s[3*idim],s[3*idim+1],s[3*idim+2]));
+                    } else {
+                        vectors[idim]=tensorT(0,s[3*idim].end-s[3*idim].start+1,
+                                s[3*idim+1].end-s[3*idim+1].start+1,
+                                s[3*idim+2].end-s[3*idim+2].start+1);
+
+                    }
+                } else MADNESS_EXCEPTION("unknown number of dimensions in GenTensor::copy_slice()",0);
+            }
+
+            // work-around for rank==0
+            Tensor<double> weights;
+            if (rank>0) {
+                weights=copy(this->weights_(Slice(0,rank-1)));
+            } else {
+                weights=Tensor<double>(int(0));
+            }
+            return SRConf<T>(weights,vectors,this->dim(),k_new,tt);
+        }
+
 
 		/// redo the Slices for getting direct access to the configurations
 		void make_slices() {
@@ -836,6 +919,90 @@ namespace madness {
 
 		/// return the weight
 		double weights(const unsigned int& i) const {return weights_(i);};
+
+        /// reconstruct this to return a full tensor
+        Tensor<T> reconstruct() const {
+
+            if (type()==TT_FULL) return ref_vector(0);
+
+            /*
+             * reconstruct the tensor first to the configurational dimension,
+             * then to the real dimension
+             */
+
+            // for convenience
+            const unsigned int conf_dim=this->dim_eff();
+            const unsigned int conf_k=this->kVec();           // possibly k,k*k,..
+            const long rank=this->rank();
+            long d[TENSOR_MAXDIM];
+
+            // fast return if possible
+            if (rank==0) {
+                // reshape the tensor to the really required one
+                const long k=this->get_k();
+                const long dim=this->dim();
+                for (long i=0; i<dim; i++) d[i] = k;
+
+                return Tensor<T> (dim,d,true);
+            }
+
+
+            // set up result Tensor (in configurational dimensions)
+            for (long i=0; i<conf_dim; i++) d[i] = conf_k;
+            tensorT s(conf_dim,d,true);
+
+            // flatten this
+            SRConf<T> sr=*this;
+
+            // and a scratch Tensor
+            Tensor<T>  scr(rank);
+            Tensor<T>  scr1(rank);
+            Tensor<T>  scr2(rank);
+
+            if (conf_dim==1) {
+
+                for (unsigned int i0=0; i0<conf_k; i0++) {
+                    scr=sr.weights_;
+                    //                  scr.emul(F[0][i0]);
+                    T buffer=scr.sum();
+                    s(i0)=buffer;
+                }
+
+            } else if (conf_dim==2) {
+
+
+                //              tensorT weight_matrix(rank,rank);
+                //              for (unsigned int r=0; r<rank; r++) {
+                //                  weight_matrix(r,r)=this->weight(r);
+                //              }
+                //              s=inner(weight_matrix,sr._ptr->refVector(0));
+                //              s=inner(s,sr._ptr->refVector(1),0,0);
+//                tensorT sscr=copy(sr._ptr->ref_vector(0)(sr._ptr->c0()));
+                tensorT sscr=copy(sr.flat_vector(0));
+                for (unsigned int r=0; r<rank; r++) {
+                    const double w=weights(r);
+                    for (unsigned int k=0; k<conf_k; k++) {
+                        sscr(r,k)*=w;
+                    }
+                }
+                inner_result(sscr,sr.flat_vector(1),0,0,s);
+
+
+            } else {
+                print("only config_dim=1,2 in SRConf::reconstruct");
+                MADNESS_ASSERT(0);
+            }
+
+
+            // reshape the tensor to the really required one
+            const long k=this->get_k();
+            const long dim=this->dim();
+            for (long i=0; i<dim; i++) d[i] = k;
+
+            Tensor<T> s2=s.reshape(dim,d);
+            return s2;
+        }
+
 
 	private:
 		/// return the number of coefficients

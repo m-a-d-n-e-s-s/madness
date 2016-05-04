@@ -110,7 +110,6 @@
  *   the number of terms on the lhs.
  */
 
-
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/srconf.h>
 #include <madness/tensor/tensortrain.h>
@@ -298,6 +297,13 @@ namespace madness {
 	private:
 
 		friend class SliceGenTensor<T>;
+
+        /// C++ typename of the real type associated with a complex type.
+        typedef typename TensorTypeData<T>::scalar_type scalar_type;
+
+        /// C++ typename of the floating point type associated with scalar real type
+        typedef typename TensorTypeData<T>::float_scalar_type float_scalar_type;
+
 
 		typedef SRConf<T> configT;
 		typedef Tensor<T> tensorT;
@@ -519,65 +525,9 @@ namespace madness {
 			if (tensor_type()==TT_FULL) {
 				tensorT a=copy(full_tensor()(s));
 				return gentensorT(configT(a));
+			} else if (tensor_type()==TT_2D) {
+			    return gentensorT(config()(copy_slice(s)));
 			}
-
-			MADNESS_ASSERT(_ptr->has_structure());
-//			_ptr->make_structure();
-
-			// get dimensions
-			const TensorType tt=this->tensor_type();
-			const int merged_dim=this->_ptr->dim_per_vector();
-			const int dim_eff=this->_ptr->dim_eff();
-			const int rank=this->rank();
-			int k_new=s[0].end-s[0].start+1;
-			if (s[0].end<0) k_new+=this->get_k();
-
-			// get and reshape the vectors, slice and re-reshape again;
-			// this is shallow
-			const gentensorT& sr=*this;
-
-			std::vector<Tensor<T> > vectors(dim_eff,Tensor<T>());
-
-			for (int idim=0; idim<dim_eff; idim++) {
-
-				// assignment from/to slice is deep-copy
-				if (merged_dim==1) {
-					if (rank>0) {
-						vectors[idim]=copy(sr._ptr->ref_vector(idim)(Slice(0,rank-1),s[idim]));
-					} else {
-						vectors[idim]=Tensor<T>(0,s[idim].end-s[idim].start+1);
-					}
-				} else if (merged_dim==2) {
-					if (rank>0) {
-						vectors[idim]=copy(sr._ptr->ref_vector(idim)(Slice(0,rank-1),s[2*idim],s[2*idim+1]));
-					} else {
-						vectors[idim]=tensorT(0,s[2*idim].end-s[2*idim].start+1,
-												s[2*idim+1].end-s[2*idim+1].start+1);
-					}
-				} else if (merged_dim==3) {
-					if (rank>0) {
-						vectors[idim]=copy(sr._ptr->ref_vector(idim)(Slice(0,rank-1),
-								s[3*idim],s[3*idim+1],s[3*idim+2]));
-					} else {
-						vectors[idim]=tensorT(0,s[3*idim].end-s[3*idim].start+1,
-								s[3*idim+1].end-s[3*idim+1].start+1,
-								s[3*idim+2].end-s[3*idim+2].start+1);
-
-					}
-				} else MADNESS_EXCEPTION("unknown number of dimensions in GenTensor::copy_slice()",0);
-			}
-
-			// work-around for rank==0
-			Tensor<double> weights;
-			if (rank>0) {
-				weights=copy(this->_ptr->weights_(Slice(0,rank-1)));
-			} else {
-				weights=Tensor<double>(int(0));
-			}
-			const configT conf(weights,vectors,this->dim(),k_new,tt);
-
-			return gentensorT(conf);
-
 		}
 
 	public:
@@ -727,7 +677,7 @@ namespace madness {
 		};
 
 		/// returns the Frobenius norm
-		double normf() const {
+		float_scalar_type normf() const {
 			if (has_no_data()) return 0.0;
 			return config().normf();
 		};
@@ -826,101 +776,12 @@ namespace madness {
 		/// reconstruct this to return a full tensor
 		Tensor<T> reconstruct_tensor() const {
 
-			/*
-			 * reconstruct the tensor first to the configurational dimension,
-			 * then to the real dimension
-			 */
-
-			// fast return for full rank tensors
 			if (tensor_type()==TT_FULL) return full_tensor();
-
-			// for convenience
-			const unsigned int conf_dim=this->_ptr->dim_eff();
-			const unsigned int conf_k=this->_ptr->kVec();			// possibly k,k*k,..
-			const long rank=this->rank();
-			long d[TENSOR_MAXDIM];
-
-			// fast return if possible
-			if (rank==0) {
-				// reshape the tensor to the really required one
-				const long k=this->get_k();
-				const long dim=this->dim();
-				for (long i=0; i<dim; i++) d[i] = k;
-
-				return Tensor<T> (dim,d,true);
+			else if (tensor_type()==TT_2D) return config().reconstruct();
+			else {
+			    MADNESS_EXCEPTION("you should not be here",1);
 			}
-
-
-			// set up result Tensor (in configurational dimensions)
-			for (long i=0; i<conf_dim; i++) d[i] = conf_k;
-			tensorT s(conf_dim,d,true);
-
-			// flatten this
-			gentensorT sr=*this;
-
-			// and a scratch Tensor
-			Tensor<T>  scr(rank);
-			Tensor<T>  scr1(rank);
-			Tensor<T>  scr2(rank);
-
-			if (conf_dim==1) {
-
-				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=sr._ptr->weights_;
-					//					scr.emul(F[0][i0]);
-					T buffer=scr.sum();
-					s(i0)=buffer;
-				}
-
-			} else if (conf_dim==2) {
-
-
-				//				tensorT weight_matrix(rank,rank);
-				//				for (unsigned int r=0; r<rank; r++) {
-				//					weight_matrix(r,r)=this->weight(r);
-				//				}
-				//				s=inner(weight_matrix,sr._ptr->refVector(0));
-				//				s=inner(s,sr._ptr->refVector(1),0,0);
-//                tensorT sscr=copy(sr._ptr->ref_vector(0)(sr._ptr->c0()));
-				tensorT sscr=copy(sr._ptr->flat_vector(0));
-				for (unsigned int r=0; r<rank; r++) {
-					const double w=_ptr->weights(r);
-					for (unsigned int k=0; k<conf_k; k++) {
-						sscr(r,k)*=w;
-					}
-				}
-				inner_result(sscr,sr._ptr->flat_vector(1),0,0,s);
-
-
-			} else if (conf_dim==3) {
-
-                MADNESS_EXCEPTION("flat/structure issue",1);
-				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=copy(sr._ptr->weights_(Slice(0,sr.rank()-1)));
-					scr.emul(sr._ptr->ref_vector(0)(Slice(0,rank-1),i0));
-					for (unsigned int i1=0; i1<conf_k; i1++) {
-						scr1=copy(scr);
-						scr1.emul(sr._ptr->ref_vector(1)(Slice(0,rank-1),i1));
-						for (unsigned int i2=0; i2<conf_k; i2++) {
-							scr2=copy(scr1);
-							scr2.emul(sr._ptr->ref_vector(2)(Slice(0,rank-1),i2));
-							s(i0,i1,i2)=scr2.sum();
-						}
-					}
-				}
-			} else {
-				print("only config_dim=1,2,3 in GenTensor::reconstructTensor");
-				MADNESS_ASSERT(0);
-			}
-
-
-			// reshape the tensor to the really required one
-			const long k=this->get_k();
-			const long dim=this->dim();
-			for (long i=0; i<dim; i++) d[i] = k;
-
-			Tensor<T> s2=s.reshape(dim,d);
-			return s2;
+            return Tensor<T>();
 		}
 
 		/// append this to rhs, shape must conform
@@ -1358,5 +1219,6 @@ namespace madness {
 
 
 }
+#include <madness/tensor/lowranktensor.h>
 
 #endif /* GENTENSOR_H_ */

@@ -269,7 +269,7 @@ namespace madness {
 
 
     /// low rank representations of tensors (see gentensor.h)
-	enum TensorType {TT_NONE, TT_FULL, TT_2D};
+	enum TensorType {TT_NONE, TT_FULL, TT_2D, TT_TENSORTRAIN};
 
     static
     inline
