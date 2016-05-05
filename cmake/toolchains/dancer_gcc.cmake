@@ -51,8 +51,8 @@ set(LAPACK_LIBRARIES ${BLAS_LIBRARIES})
 set(FORTRAN_INTEGER_SIZE "4" CACHE STRING "Set Fortran integer size in bytes")
 set(HAVE_SPINLOCKS OFF CACHE BOOL "Enable if pthread lib supports spinlocks in pmrrr")
 
-#set(PAPI_INCLUDE_DIR "/opt/papi-5.4.3/include")
-#set(PAPI_LIBRARY "/opt/papi-5.4.3/lib/libpapi.so")
+set(PAPI_INCLUDE_DIR "/opt/papi-5.4.3/include")
+set(PAPI_LIBRARY "/opt/papi-5.4.3/lib/libpapi.so")
 
 
 ##############################################################

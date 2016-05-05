@@ -51,6 +51,7 @@
 //////////// Parsec Related Begin ////////////////////
 #ifdef HAVE_PARSEC
 #include <dague/dague_internal.h>
+#include <dague_config.h>
 #include "parsec.h"
 #endif
 //////////// Parsec Related End ////////////////////
@@ -1457,14 +1458,11 @@ namespace madness {
           ////////////////// Parsec related Begin /////////////////
           /* End of scheduling*/
           dague_fini((dague_context_t **)&parsec);
-#endif	  
           ////////////////// Parsec related End /////////////////
-
-          /* Remove since Parsec is used instead*/
-/* #if HAVE_INTEL_TBB */
-/*             tbb_scheduler->terminate(); */
-/*             delete(tbb_scheduler); */
-/* #endif */
+#elif HAVE_INTEL_TBB
+            tbb_scheduler->terminate();
+            delete(tbb_scheduler);
+#endif
         }
     };
 
