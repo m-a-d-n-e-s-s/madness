@@ -1009,6 +1009,7 @@ namespace madness {
                 exec_context.chore_id = 0;
                 exec_context.status = DAGUE_TASK_STATUS_NONE;
                 exec_context.priority = is_high_priority() ? 1000 : 0; // 1 & 0 would work as good
+                ((PoolTaskInterface **)exec_context.locals)[0] = this;
             }
             //////////// Parsec Related End   ///////////////////
         
