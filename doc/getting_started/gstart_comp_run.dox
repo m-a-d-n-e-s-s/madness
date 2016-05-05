@@ -39,7 +39,7 @@
 
 Assuming your code is in saved in `fred.cc`, to make the program type
 \code
-make -f trunk/config/Makefile.sample fred
+make -f trunk/doc/devsamp/Makefile.sample fred
 \endcode
 The example makefile `Makefile.sample` must be copied and modified for projects with more than one source file (see the end of that file for an example).
 
