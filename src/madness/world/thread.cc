@@ -375,7 +375,6 @@ namespace madness {
 	}
         //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
-                /* This is removed to replace TBB or madness by parsec*/
 // #if HAVE_INTEL_TBB
 
         if(nthreads < 1)
@@ -441,16 +440,18 @@ namespace madness {
         PROFILE_MEMBER_FUNC(ThreadPool);
         thread->set_affinity(2, thread->get_pool_thread_index());
 
-// #define MULTITASK
-// #ifdef  MULTITASK
-//         while (!finish) {
-//             run_tasks(true, thread);
-//         }
-// #else
-//         while (!finish) {
-//             run_task(true, thread);
-//         }
-// #endif
+#if !HAVE_PARSEC
+#define MULTITASK
+#ifdef  MULTITASK
+        while (!finish) {
+            run_tasks(true, thread);
+        }
+#else
+        while (!finish) {
+            run_task(true, thread);
+        }
+#endif
+#endif
 
 #ifdef MADNESS_TASK_PROFILING
         thread->profiler().write_to_file();
