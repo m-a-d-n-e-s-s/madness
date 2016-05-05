@@ -372,6 +372,16 @@ struct CalculationParameters {
     int loadbalparts = 2; // was 6
 
 
+    // Next list for response code from a4v4
+    bool response;                    ///< response function calculation
+    double response_freq;             ///< Frequency for calculation response function
+    std::vector<bool> response_axis;  ///< Calculation protocol
+    bool nonrotate;                   ///< If true do not molcule orient
+    double rconv;                     ///< Response convergence
+    double efield;                    ///< eps for finite field
+    double efield_axis;               ///< eps for finite field axis
+
+
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta
@@ -442,6 +452,13 @@ struct CalculationParameters {
         , nuclear_corrfac("none")
         , pure_ae(true)
         , nv_factor(1)
+        , response(false)
+        , response_freq(0.0)
+        , response_axis(madness::vector_factory(true, true, true))
+        , nonrotate(false)
+        , rconv(1e-6)
+        , efield(0.0)
+        , efield_axis(0)
         , vnucextra(12)
         , loadbalparts(2)
     {}
@@ -649,6 +666,43 @@ struct CalculationParameters {
             }
             else if (s == "nv_factor") {
               f >> nv_factor;
+            }
+            else if (s == "response") {
+              response = true;
+            }
+            else if (s == "response_freq") {
+              double freq;
+              f >> freq;
+                response_freq = freq;
+            }
+            else if (s == "response_axis") {
+                std::string buf;
+                std::getline(f,buf);
+                response_axis = std::vector<bool>();
+                bool d;
+                std::stringstream s(buf);
+                while (s >> d) response_axis.push_back(d);
+            }
+            else if (s == "nonrotate") {
+              nonrotate = true; 
+            }
+            else if (s == "rconv") {
+                f >> rconv;
+            }
+            else if (s == "efield") {
+                f >> efield;
+            }
+            else if (s == "efield_axis") {
+              std::string axis;
+              f >> axis;
+              if(axis == "x")
+                  efield_axis = 0;
+              else if (axis == "y") 
+                  efield_axis = 1;
+              else if (axis == "z") 
+                  efield_axis = 2;
+              else if (axis == "none") 
+                  efield_axis = -1;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -959,7 +1013,7 @@ public:
         return vlda.trace();
     }
 
-	vecfuncT apply_potential(World & world, const tensorT & occ,
+    vecfuncT apply_potential(World & world, const tensorT & occ,
 			const vecfuncT & amo,
 			const functionT & vlocal, double & exc, double & enl, int ispin);
 
@@ -998,12 +1052,66 @@ public:
     void vector_stats(const std::vector<double> & v, double & rms,
     		double & maxabsval) const;
 
-	vecfuncT compute_residual(World & world, tensorT & occ, tensorT & fock,
+    vecfuncT compute_residual(World & world, tensorT & occ, tensorT & fock,
 			const vecfuncT & psi, vecfuncT & Vpsi, double & err);
 
-	tensorT make_fock_matrix(World & world, const vecfuncT & psi,
+    tensorT make_fock_matrix(World & world, const vecfuncT & psi,
 			const vecfuncT & Vpsi, const tensorT & occ,
 			double & ekinetic) const;
+
+    /// Begin functions for polarizability
+    void update_response_subspace(World & world,
+                         vecfuncT & ax, vecfuncT & ay,
+                         vecfuncT & bx, vecfuncT & by,
+                         vecfuncT & rax, vecfuncT & ray,
+                         vecfuncT & rbx, vecfuncT & rby,
+                         subspaceT & subspace, tensorT & Q, double & update_residual);
+
+
+    vecfuncT apply_potential_response(World & world, const tensorT & occ, const vecfuncT & dmo,
+                             const vecfuncT& vf, const vecfuncT& delrho,  const functionT & vlocal,
+                             double & exc,
+                             int ispin);
+    void this_axis(World & world, int & axis);
+    vecfuncT calc_dipole_mo(World & world,  vecfuncT & mo, int & axis);
+    void calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int sign);
+    void make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
+            std::vector<poperatorT> & aop, std::vector<poperatorT> & bop);
+    functionT make_density_ground(World & world, functionT & arho, functionT & brho);
+
+    functionT make_derivative_density(World & world, const vecfuncT & mo,
+                                     const tensorT & occ ,
+                                     const vecfuncT & x, const vecfuncT & y);
+    functionT calc_exchange_function(World & world,  const int & p,
+             const vecfuncT & dmo1,  const vecfuncT & dmo2,
+             const vecfuncT & mo, int & spin);
+    vecfuncT calc_xc_function(World & world,
+             const vecfuncT & mo,  const vecfuncT & vf,  const functionT & drho, int & spin)     ;
+    vecfuncT calc_djkmo(World & world, const vecfuncT & dmo1,
+                        const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,     
+                        const vecfuncT & vf,
+                        const functionT & drhos,
+                        int  spin);
+    vecfuncT calc_rhs(World & world, const vecfuncT & mo ,
+                     const vecfuncT & Vdmo,
+                     const vecfuncT & dipolemo, const vecfuncT & djkmo );
+    void calc_response_function(World & world, vecfuncT & dmo,
+            std::vector<poperatorT> & op, vecfuncT & rhs);
+    void orthogonalize_response(World & world, vecfuncT & dmo, vecfuncT & mo );
+
+    void dpolar(World & world, tensorT & polar, functionT & drho, int & axis);
+
+    void calc_dpolar(World & world,
+            const vecfuncT & ax, const vecfuncT & ay,
+            const vecfuncT & bx, const vecfuncT & by,
+            int & axis,
+            tensorT & Dpolar_total, tensorT & Dpolar_alpha, tensorT & Dpolar_beta);
+    double residual_response(World & world, const vecfuncT & x,const  vecfuncT & y,
+                             const vecfuncT & x_old, const vecfuncT & y_old,
+                             vecfuncT & rx, vecfuncT & ry);
+
+    void polarizability(World & world);
+    /// End functions for polarizability
 
 
     /// make the Coulomb potential given the total density

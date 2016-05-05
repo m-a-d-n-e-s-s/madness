@@ -362,15 +362,13 @@ public:
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
+
     /// compute the second derivative of the XC energy wrt the density and apply
 
     /// apply the kernel on the fly on the provided (response) density
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @return The component specified by the \c what parameter
     madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,
-            const int ispin, const xc_contribution xc_contrib) const;
-
-    madness::Tensor<double> fxc_old(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
     /// Crude function to plot the energy and potential functionals
@@ -447,6 +445,6 @@ struct xc_kernel_apply {
         return r;
     }
 };
-}
 
+}
 #endif

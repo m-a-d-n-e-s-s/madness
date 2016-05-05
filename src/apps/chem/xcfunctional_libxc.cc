@@ -795,10 +795,20 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
             MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::fxc",1);
         }
 
-        Tensor<double> result1;
+        Tensor<double> result1(3L, t[0].dims());
 
+        // LDA
+        if (xc_contrib == XCfunctional::potential_rho) {  
+            //Tensor<double> dens_pt = copy(t[enum_rhoa]);
+            //munger m(rhotol,rhomin);
+            //dens_pt.unaryop(m);
+
+            //result1 = v2rho2.emul(dens_pt);
+            result1 = copy(v2rho2);
+        }
+        // GGA, requires 3 terms
         // multiply the kernel with the various densities
-        if (xc_contrib== XCfunctional::kernel_second_local) {  // local terms, second derivative
+        else if (xc_contrib== XCfunctional::kernel_second_local) {  // local terms, second derivative
             Tensor<double> dens_pt=copy(t[enum_rho_pt]);
             Tensor<double> sigma_pt=2.0*copy(t[enum_sigma_pta]);   // factor 2 for closed shell
             munger m(rhotol,rhomin);
@@ -807,8 +817,8 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
 
             result1=v2rho2.emul(dens_pt);
             if (is_gga()) result1+= 2.0*v2rhosigma.emul(sigma_pt);
-
-        } else if (xc_contrib== XCfunctional::kernel_second_semilocal) {   // semilocal terms, second derivative
+        } 
+        else if (xc_contrib== XCfunctional::kernel_second_semilocal) {   // semilocal terms, second derivative
 //            const Tensor<double>& dens_pt=t[enum_rho_pt];
 //            const Tensor<double>& sigma_pt=2.0*t[enum_sigma_pta];       // factor 2 for closed shell
             Tensor<double> dens_pt=copy(t[enum_rho_pt]);
@@ -817,16 +827,14 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
             dens_pt.unaryop(m);
             sigma_pt.unaryop(m);
 
-
             result1=2.0*v2rhosigma.emul(dens_pt) + 4.0*v2sigma2.emul(sigma_pt);
-
-        } else if (xc_contrib== XCfunctional::kernel_first_semilocal) {   // semilocal terms, first derivative
+        } 
+        else if (xc_contrib== XCfunctional::kernel_first_semilocal) {   // semilocal terms, first derivative
             result1=2.0*vsigma;
         }
 
         // accumulate into result tensor with proper weighting
         result+=result1*funcs[i].second;
-
     }
 
     // check for NaNs
@@ -836,234 +844,4 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
     return result;
 }
 
-
-madness::Tensor<double> XCfunctional::fxc_old(const std::vector< madness::Tensor<double> >& t,
-        const int ispin, const xc_contribution what) const {
-/* Some useful formulas:
-   sigma_st = grad rho_s . grad rho_t
-   zk = energy density per unit particle
-   vrho_s = d zk / d rho_s
-   vsigma_st = d n*zk / d sigma_st
-   v2rho2_st = d^2 n*zk / d rho_s d rho_t
-   v2rhosigma_svx = d^2 n*zk / d rho_s d sigma_tv
-   v2sigma2_stvx = d^2 n*zk / d sigma_st d sigma_vx
-if nspin == 2
-   rho(2) = (u, d)
-   sigma(3) = (uu, du, dd)
-   vrho(2) = (u, d)
-   vsigma(3) = (uu, du, dd)
-   v2rho2(3) = (uu, du, dd)
-   v2rhosigma(6) = (u_uu, u_ud, u_dd, d_uu, d_ud, d_dd)
-   v2sigma2(6) = (uu_uu, uu_ud, uu_dd, ud_ud, ud_dd, dd_dd)
-*/
-    madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma, xc_potential);
-
-    const int np = t[0].size();
-
-    int nv2rho2, nv2rhosigma, nv2sigma2;
-    if (spin_polarized) {
-    	nv2rho2 = 3;
-    	nv2rhosigma = 6;
-    	nv2sigma2 = 6;
-    }
-    else {
-    	nv2rho2 = 1;
-    	nv2rhosigma = 1;
-    	nv2sigma2 = 1;
-    }
-
-    madness::Tensor<double> result(3L, t[0].dims());
-    double * restrict res = result.ptr();
-    const double * restrict dens = rho.ptr();
-    for (long j=0; j<np; j++) 
-    			res[j] = 0.0;
-
-    if(what ==99){
-// for debugging 
-       for (long j=0; j<np; j++) {
-  	     	res[j] = dens[j]*.5;
-  	     	if (isnan_x(res[j])) throw "ouch";
-	     }
-    }
-    else {
-    for (unsigned int i=0; i<funcs.size(); i++) {
-       	switch(funcs[i].first->info->family) {
-       	     case XC_FAMILY_LDA:
-                {
-                madness::Tensor<double> v2rho2(nv2rho2*np);
-    		double * restrict vr = v2rho2.ptr();
-    		xc_lda_fxc(funcs[i].first, np, dens, vr);
-             	if (what < 2) {
-                   //fxc_lda
-                     for (long j=0; j<np; j++) {
-    			     	res[j] += vr[nv2rho2*j+ispin]*funcs[i].second;
-    			     	//res[j] += vr[nvrho*j+ispin]*funcs[i].second*dens[j];
-    			     	//res[j] = vr[j];
-    			     	//res[j] += vr[nvrho*j+ispin]*funcs[i].second;
-    			     	if (isnan_x(res[j])) throw "ouch";
-    			     }
-    			}
-    		}
-
-		break;
-
-             case XC_FAMILY_GGA:
-    		{
-    	        madness::Tensor<double> v2rho2(nv2rho2*np);
-    	        madness::Tensor<double> v2rhosigma(nv2rhosigma*np);
-    	        madness::Tensor<double> v2sigma2(nv2sigma2*np);
-                double * restrict v2r2 = v2rho2.ptr();
-                double * restrict v2rs = v2rhosigma.ptr();
-                double * restrict v2s2 = v2sigma2.ptr();
-    	        const double * restrict sig = sigma.ptr();
- //void xc_gga_fxc(xc_func_type *p, int np, double *rho, double *sigma, double *v2rho2, double *v2rhosigma, double *v2sigma2)
-	      	xc_gga_fxc(funcs[i].first, np, dens, sig, v2r2, v2rs, v2s2);
-	    	if (spin_polarized) {
-        		if (what == 0) {
-                        // V2rho2_aa 1 or V2rho2_bb
-        			for (long j=0; j<np; j++) {
-    					res[j] += v2r2[nv2rho2*j    ] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 1) {
-    			// V2rho2_ab 2
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2r2[nv2rho2*j + 1] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 3) {
-    			// V2rho2_bb 3*
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2r2[nv2rho2*j + 2] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 4) {
-    			// V2rhosigma_a_aa 1
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2rs[nv2rhosigma*j    ] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 5) {
-    			// V2rhosigma_a_ab 2
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2rs[nv2rhosigma*j + 1] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 6) {
-    			// V2rhosigma_a_bb 3
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2rs[nv2rhosigma*j + 2] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 7) {
-    			// V2rhosigma_b_aa 4
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2rs[nv2rhosigma*j + 3] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 8) {
-    			// V2rhosigma_b_ab 5
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2rs[nv2rhosigma*j + 4] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 9) {
-    			// V2rhosigma_b_bb 6 **
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2rs[nv2rhosigma*j + 5] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 10) {
-    			// V2sigma2_aa_aa 1
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2s2[nv2sigma2*j    ] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 11) {
-    			// V2sigma2_aa_ab 2
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2s2[nv2sigma2*j + 1] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 12) {
-    			// V2sigma2_aa_bb 3
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2s2[nv2sigma2*j + 2] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 13) {
-    			// V2sigma2_ab_ab 4
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2s2[nv2sigma2*j + 3] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 14) {
-    			// V2sigma2_ab_bb 5
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2s2[nv2sigma2*j + 4] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else if (what == 15) {
-    			// V2sigma2_bb_bb 6
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2s2[nv2sigma2*j + 5] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch";
-    				}
-    			}
-    			else {
-    				throw "ouch";
-    			}
-    		}
-    		else {
-        		if (what == 0) {
-                        // V2rho2_aa 1
-        			for (long j=0; j<np; j++) {
-    					res[j] += v2r2[nv2rho2*j] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch nan V2rho2_aa";
-    				}
-    			}
-    			else if (what == 1) {
-    			// V2rhosigma_a_aa 1
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2rs[nv2rhosigma*j] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch nan V2rhosigma_a_aa";
-    				}
-    			}
-    			else if (what == 2) {
-    			// V2sigma2_aa_aa 1
-    				for (long j=0; j<np; j++) {
-    					res[j] += v2s2[nv2sigma2*j] * funcs[i].second;
-    					if (isnan_x(res[j])) throw "ouch nan V2sigma2_aa_aa";
-    				}
-    			}
-    		}
-   		}
-    		break;
-         	case XC_FAMILY_HYB_GGA:
-        	{
-       				throw "ouch XC_FAMILY_HYB_GGA fxc disabled" ;
-        	}
-    	break;
-    	default:
-    	throw "UGH!";
-    	}
-    }
-    }
-    return result;
-}
 }

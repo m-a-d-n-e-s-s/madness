@@ -2601,5 +2601,1149 @@ namespace madness {
 
         
     }        // end solve function
+
+
+
+//vama polarizability
+    void SCF::update_response_subspace(World & world,
+                         vecfuncT & ax, vecfuncT & ay,
+                         vecfuncT & bx, vecfuncT & by,
+                         vecfuncT & rax, vecfuncT & ray,
+                         vecfuncT & rbx, vecfuncT & rby,
+                         subspaceT & subspace, tensorT & Q, double & update_residual)
+    {
+        vecfuncT vm = ax;
+        vm.insert(vm.end(), ay.begin(), ay.end());
+
+        vecfuncT rm = rax;
+        rm.insert(rm.end(), ray.begin(), ray.end());
+
+        if(param.nbeta != 0 && !param.spin_restricted){
+            vm.insert(vm.end(), bx.begin(), bx.end());
+            vm.insert(vm.end(), by.begin(), by.end());
+            rm.insert(rm.end(), rbx.begin(), rbx.end());
+            rm.insert(rm.end(), rby.begin(), rby.end());
+        }
+
+        compress(world, vm, false);
+        compress(world, rm, false);
+        world.gop.fence();
+        subspace.push_back(pairvecfuncT(vm, rm));
+        int m = subspace.size();
+        tensorT ms(m);
+        tensorT sm(m);
+        for(int s = 0;s < m;++s){
+            const vecfuncT & vs = subspace[s].first;
+            const vecfuncT & rs = subspace[s].second;
+            for(unsigned int i = 0;i < vm.size();++i){
+                ms[s] += vm[i].inner_local(rs[i]);
+                sm[s] += vs[i].inner_local(rm[i]);
+            }
+        }
+
+        world.gop.sum(ms.ptr(), m);
+        world.gop.sum(sm.ptr(), m);
+        tensorT newQ(m, m);
+        if(m > 1)
+            newQ(Slice(0, -2), Slice(0, -2)) = Q;
+
+        newQ(m - 1, _) = ms;
+        newQ(_, m - 1) = sm;
+        Q = newQ;
+        //if (world.rank() == 0) { print("kain Q"); print(Q); }
+        tensorT c;
+        if(world.rank() == 0){
+            double rcond = 1e-12;
+            while(1){
+                c = KAIN(Q, rcond);
+                //if (world.rank() == 0) print("kain c:", c);
+                if(std::abs(c[m - 1]) < 3.0){
+                    break;
+                } else if(rcond < 0.01){
+                    print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+                    rcond *= 100;
+                } else {
+                    print("Forcing full step due to subspace malfunction");
+                    c = 0.0;
+                    c[m - 1] = 1.0;
+                    break;
+                }
+            }
+        }
+
+        world.gop.broadcast_serializable(c, 0);
+        if(world.rank() == 0){
+            print("Response Subspace solution", c);
+        }
+        START_TIMER(world);
+        vecfuncT ax_new = zero_functions_compressed<double,3>(world, ax.size());
+        vecfuncT ay_new = zero_functions_compressed<double,3>(world, ay.size());
+        vecfuncT bx_new = zero_functions_compressed<double,3>(world, bx.size());
+        vecfuncT by_new = zero_functions_compressed<double,3>(world, by.size());
+
+        for(unsigned int m = 0;m < subspace.size();++m){
+            const vecfuncT & vm = subspace[m].first;
+            const vecfuncT & rm = subspace[m].second;
+            const vecfuncT vmax(vm.begin(), vm.begin() + ax.size());
+            const vecfuncT rmax(rm.begin(), rm.begin() + rax.size());
+            const vecfuncT vmay(vm.begin() + ax.size(), vm.begin() + ax.size() + ay.size());
+            const vecfuncT rmay(rm.begin() + rax.size(), rm.begin() + rax.size() + ray.size());
+            gaxpy(world, 1.0, ax_new, c(m), vmax, false);
+            gaxpy(world, 1.0, ax_new, -c(m), rmax, false);
+            gaxpy(world, 1.0, ay_new, c(m), vmay, false);
+            gaxpy(world, 1.0, ay_new, -c(m), rmay, false);
+            //if(param.nbeta != 0 && !param.spin_restricted){
+                const vecfuncT vmbx(vm.end() - by.size() - bx.size(), vm.end() - by.size());
+                const vecfuncT rmbx(rm.end() - rby.size() - rbx.size(), rm.end() - rby.size());
+                const vecfuncT vmby(vm.end() - by.size(), vm.end());
+                const vecfuncT rmby(rm.end() - rby.size(), rm.end());
+                gaxpy(world, 1.0, bx_new, c(m), vmbx, false);
+                gaxpy(world, 1.0, bx_new, -c(m), rmbx, false);
+                gaxpy(world, 1.0, by_new, c(m), vmby, false);
+                gaxpy(world, 1.0, by_new, -c(m), rmby, false);
+            //}
+        }
+        world.gop.fence();
+        END_TIMER(world, "Subspace transform");
+        if(param.maxsub <= 1){
+            subspace.clear();
+        } else if(subspace.size() == param.maxsub){
+            subspace.erase(subspace.begin());
+            Q = Q(Slice(1, -1), Slice(1, -1));
+        }
+
+        std::vector<double> axnorm = norm2s(world, sub(world, ax, ax_new));
+        std::vector<double> aynorm = norm2s(world, sub(world, ay, ay_new));
+        std::vector<double> bxnorm = norm2s(world, sub(world, bx, bx_new));
+        std::vector<double> bynorm = norm2s(world, sub(world, by, by_new));
+        int nres = 0;
+        for(unsigned int i = 0;i < ax.size();++i){
+            if(axnorm[i] > param.maxrotn){
+                double s = param.maxrotn / axnorm[i];
+                ++nres;
+                if(world.rank() == 0){
+                    if(nres == 1)
+                        printf("  restricting step for alpha orbitals:");
+
+                    printf(" %d", i);
+                }
+                ax_new[i].gaxpy(s, ax[i], 1.0 - s, false);
+            }
+
+        }
+        if(nres > 0 && world.rank() == 0)
+            printf("\n");
+        
+        nres = 0;
+        for(unsigned int i = 0;i < ay.size();++i){
+            if(aynorm[i] > param.maxrotn){
+                double s = param.maxrotn / aynorm[i];
+                ++nres;
+                if(world.rank() == 0){
+                    if(nres == 1)
+                        printf("  restricting step for alpha orbitals:");
+
+                    printf(" %d", i);
+                }
+                ay_new[i].gaxpy(s, ay[i], 1.0 - s, false);
+            }
+
+        }
+        if(nres > 0 && world.rank() == 0)
+            printf("\n");
+
+        //if(param.nbeta != 0 && !param.spin_restricted){
+            nres = 0;
+            for(unsigned int i = 0;i < bx.size();++i){
+                if(bxnorm[i] > param.maxrotn){
+                    double s = param.maxrotn / bxnorm[i];
+                    ++nres;
+                    if(world.rank() == 0){
+                        if(nres == 1)
+                            printf("  restricting step for  beta orbitals:");
+
+                        printf(" %d", i);
+                    }
+                    bx_new[i].gaxpy(s, bx[i], 1.0 - s, false);
+                }
+
+            }
+            if(nres > 0 && world.rank() == 0)
+                printf("\n");
+
+            nres = 0;
+            for(unsigned int i = 0;i < by.size();++i){
+                if(bynorm[i] > param.maxrotn){
+                    double s = param.maxrotn / bynorm[i];
+                    ++nres;
+                    if(world.rank() == 0){
+                        if(nres == 1)
+                            printf("  restricting step for  beta orbitals:");
+
+                        printf(" %d", i);
+                    }
+                    by_new[i].gaxpy(s, by[i], 1.0 - s, false);
+                }
+
+            }
+            if(nres > 0 && world.rank() == 0)
+                printf("\n");
+        //}
+
+        world.gop.fence();
+        double rms, maxval_x, maxval_y, maxval_b;
+        vector_stats(axnorm, rms, maxval_x);
+        vector_stats(aynorm, rms, maxval_y);
+
+        update_residual = std::max(maxval_x, maxval_y);
+
+        if(bxnorm.size()){
+            vector_stats(bxnorm, rms, maxval_x);
+            vector_stats(bynorm, rms, maxval_y);
+            
+            maxval_b = std::max(maxval_x, maxval_y);
+            update_residual = std::max(update_residual, maxval_b);
+        }
+        //START_TIMER(world);
+        //double trantol = vtol / std::min(30.0, double(ax.size()));
+        //normalize(world, ax_new);
+        //normalize(world, ay_new);
+        //ax_new = transform(world, ax_new, Q3(matrix_inner(world, ax_new, ax_new)), trantol, true);
+        //ay_new = transform(world, ay_new, Q3(matrix_inner(world, ay_new, ay_new)), trantol, true);
+        truncate(world, ax_new);
+        truncate(world, ay_new);
+        //normalize(world, ax_new);
+        //normalize(world, ay_new);
+        if(param.nbeta != 0  && !param.spin_restricted){
+            //normalize(world, bx_new);
+            //normalize(world, by_new);
+            //bx_new = transform(world, bx_new, Q3(matrix_inner(world, bx_new, bx_new)), trantol, true);
+            //by_new = transform(world, by_new, Q3(matrix_inner(world, by_new, by_new)), trantol, true);
+            truncate(world, bx_new);
+            truncate(world, by_new);
+            //normalize(world, bx_new);
+            //normalize(world, by_new);
+        }
+        //END_TIMER(world, "Orthonormalize");
+        ax = ax_new;
+        ay = ay_new;
+        bx = bx_new;
+        by = by_new;
+    }
+
+    vecfuncT SCF::apply_potential_response(World & world, const tensorT & occ, const vecfuncT & dmo,
+                             const vecfuncT& vf, const vecfuncT& delrho,  const functionT & vlocal,
+                             double & exc, 
+                             int ispin)
+    {
+        functionT vloc = copy(vlocal);
+        exc = 0.0;
+
+        if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
+            START_TIMER(world);
+
+            XCOperator xcoperator(world,this,ispin);
+            if (ispin==0) exc=xcoperator.compute_xc_energy();
+            vloc += xcoperator.make_xc_potential();
+
+
+#ifdef MADNESS_HAS_LIBXC
+            if (xc.is_gga() ) {
+                
+                functionT vsigaa = xcoperator.make_xc_potential();
+                functionT vsigab;
+		if (xc.is_spin_polarized() && param.nbeta != 0)// V_ab
+                    vsigab = xcoperator.make_xc_potential();                
+
+                for (int axis=0; axis<3; axis++) {
+                    functionT gradn = delrho[axis + 3*ispin];
+                    functionT ddel = vsigaa*gradn;
+	            if (xc.is_spin_polarized() && param.nbeta != 0) {
+                        functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
+                        ddel = ddel + vsab;
+                    }
+                    ddel.scale(xc.is_spin_polarized() ? 2.0 : 4.0);
+                    Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+                    functionT vxc2=D(ddel);
+                    vloc = vloc - vxc2;//.truncate();
+                }
+            }
+#endif
+            END_TIMER(world, "DFT potential");
+        }
+
+
+
+        START_TIMER(world);
+        vecfuncT Vdmo = mul_sparse(world, vloc, dmo, vtol);
+        END_TIMER(world, "V*dmo");
+	print_meminfo(world.rank(), "V*dmo");
+        if(xc.hf_exchange_coefficient()){
+            START_TIMER(world);
+            vecfuncT Kdmo;
+            Exchange K=Exchange(world,this,ispin).small_memory(false).same(false);
+            vecfuncT Kamo=K(amo);
+             if(ispin == 0)
+                Kdmo=K(amo); 
+            if(ispin == 1)
+                Kdmo=K(bmo); 
+             //tensorT excv = inner(world, Kdmo, dmo);
+            //double exchf = 0.0;
+            //for(unsigned long i = 0;i < dmo.size();++i){
+            //    exchf -= 0.5 * excv[i] * occ[i];
+            //}
+            //if (!xc.is_spin_polarized()) exchf *= 2.0;
+            gaxpy(world, 1.0, Vdmo, -xc.hf_exchange_coefficient(), Kdmo);
+            Kdmo.clear();
+            END_TIMER(world, "HF exchange");
+            //exc = exchf* xc.hf_exchange_coefficient() + exc;
+        }
+        if (param.pure_ae)
+            potentialmanager->apply_nonlocal_potential(world, amo, Vdmo);
+
+        truncate(world, Vdmo);
+
+	print_meminfo(world.rank(), "Truncate Vdmo");
+        world.gop.fence();
+        return Vdmo;
+    }
+
+    void SCF::this_axis(World & world, int & axis)
+    {
+        print("\n");
+        if (world.rank() == 0) { 
+            if(axis == 0) 
+                print(" AXIS of frequency = x");
+
+            else if(axis == 1) 
+                print(" AXIS of frequency = y");
+
+            else if(axis == 2) 
+                print(" AXIS of frequency = z");
+        }
+    }
+
+    vecfuncT SCF::calc_dipole_mo(World & world,  vecfuncT & mo, int & axis)
+    {
+        //START_TIMER(world);
+
+        vecfuncT dipolemo = zero_functions<double,3>(world, mo.size());
+        
+        std::vector<int> f(3, 0);
+        f[axis] = true;
+        //print("f = ", f[0]," ",  f[1], " ", f[2]);
+        functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
+        reconstruct(world, mo);  
+
+        // dipolefunc * mo[iter]
+        for(int p=0; p<mo.size(); ++p)
+            dipolemo[p] =  mul_sparse(dipolefunc, mo[p],false);
+
+        //END_TIMER(world, "Make perturbation");
+        print_meminfo(world.rank(), "Make perturbation");
+
+        truncate(world, dipolemo);
+        return dipolemo;
+    }
+
+    void SCF::calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int sign)
+    {
+
+        for(int i=0; i<param.nalpha; ++i){
+            ak[i] = sqrt(-2.0 * (aeps[i] + sign * omega));
+            if (world.rank() == 0)  
+                print(" kxy(alpha) [", i, "] : sqrt(-2 * (eps +/- omega)) = ", ak[i]);
+        }
+        if(!param.spin_restricted && param.nbeta != 0) {
+            for(int i=0; i<param.nbeta; ++i){
+                bk[i] = sqrt(-2.0 * (beps[i] + sign * omega));
+                if (world.rank() == 0)  
+                    if (world.rank() == 0)  
+                        print(" kxy(beta) [", i, "]: sqrt(-2 * (eps +/- omega)) = ", bk[i]);
+            }
+        }
+    }
+
+    void SCF::make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
+            std::vector<poperatorT> & aop, std::vector<poperatorT> & bop)
+    {
+        //START_TIMER(world);
+        double tol = FunctionDefaults < 3 > ::get_thresh();
+
+        for(int i=0; i<param.nalpha; ++i) {
+            // thresh tol : 1e-6
+            aop[i] = poperatorT(BSHOperatorPtr3D(world, ak[i], param.lo , tol));
+        }
+        if(!param.spin_restricted && param.nbeta != 0) {
+            for(int i=0; i<param.nbeta; ++i) {
+                bop[i] = poperatorT(BSHOperatorPtr3D(world, bk[i], param.lo, tol));
+            }
+        }
+        //END_TIMER(world, "Make BSHOp");
+        print_meminfo(world.rank(), "Make BSHOp");
+    }
+
+    functionT SCF::make_density_ground(World & world, functionT & arho, functionT & brho)
+    {
+
+        //START_TIMER(world);            
+
+        functionT rho = factoryT(world);
+
+        arho = make_density(world, aocc, amo);
+        if (!param.spin_restricted) {
+            brho = make_density(world, bocc, bmo);
+        }
+        else {
+            brho = arho;
+        }
+
+        rho = arho + brho;
+        rho.truncate();
+
+        //END_TIMER(world, "Make densities");
+        print_meminfo(world.rank(), "Make densities");
+
+        return rho;
+    }
+
+    functionT SCF::make_derivative_density(World & world, const vecfuncT & mo, 
+                                     const tensorT & occ , 
+                                     const vecfuncT & x, const vecfuncT & y)
+    {
+        functionT drho = factoryT(world);
+        drho.compress();
+        for(int i=0; i<mo.size(); ++i) {
+            functionT rhoi = mo[i] * x[i] + mo[i] * y[i];
+            rhoi.compress();
+            if(occ[i])
+                drho.gaxpy(1.0, rhoi, occ[i], false);
+              // drho += (mo[i] * x[i]) + (mo[i] * y[i]);
+        }
+        world.gop.fence();
+        //drho.truncate();
+        return drho;
+    }
+
+
+    functionT SCF::calc_exchange_function(World & world,  const int & p,
+             const vecfuncT & dmo1,  const vecfuncT & dmo2,
+             const vecfuncT & mo, int & spin)
+    {
+
+        functionT dKmo = factoryT(world);
+        reconstruct(world, mo);
+        reconstruct(world, dmo1);
+        reconstruct(world, dmo2);
+
+        functionT k1 = factoryT(world);
+        functionT k2 = factoryT(world);
+        for(int i=0; i<mo.size(); ++i) {
+            k1 = apply(*coulop, ( mo[i] * mo[p] )) * dmo1[i];
+            k2 = apply(*coulop, ( mo[p] * dmo2[i] )) * mo[i];
+            dKmo = dKmo - (k1 + k2);
+            k1.clear(false);
+            k2.clear(false);
+        }
+        dKmo.truncate();
+        return dKmo;
+    }
+
+
+    vecfuncT SCF::calc_xc_function(World & world, 
+             const vecfuncT & mo,  const vecfuncT & vf,  const functionT & drho, int & spin)
+    {
+        START_TIMER(world);
+        reconstruct(world, mo);
+
+        functionT dJ = apply(*coulop, drho);
+        dJ.truncate();
+
+        functionT vloc = dJ;
+        //if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
+        if (xc.is_dft() && xc.hf_exchange_coefficient() !=1.0) {
+            // ALDA approximation only
+            // use kernel of ground state
+            std::string xc_alda= "LDA";
+            xc.initialize(xc_alda, !param.spin_restricted, world);
+
+            real_function_3d fxc = multiop_values <double, xc_kernel_apply, 3> (xc_kernel_apply(xc, spin, XCfunctional::potential_rho), vf);
+
+            // return to original xc
+            xc.initialize(param.xc_data, !param.spin_restricted, world);
+     
+            vloc =  dJ +  fxc * drho;
+            //vloc = dJ + fxc;     
+     
+            // TODO openshell ?
+        }
+        else { 
+            vloc =  dJ;
+        } 
+        vecfuncT Vxcmo = mul_sparse(world, vloc, mo, vtol);
+        truncate(world, Vxcmo);
+
+
+        END_TIMER(world, "Calc calc_xc_function ");
+        print_meminfo(world.rank(), "Calc calc_xc_function");
+        return Vxcmo;
+    }
     
+    vecfuncT SCF::calc_djkmo(World & world, const vecfuncT & dmo1, 
+                        const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,  
+                        const vecfuncT & vf,
+                        const functionT & drhos,
+                        int  spin)
+    {
+
+        vecfuncT djkmo = zero_functions<double,3>(world, mo.size());
+        // TODO becareful with drhos , drho
+        // open shell drhoa !=drhob
+
+        vecfuncT dkxcmo = calc_xc_function(world, mo, vf, drho, spin);
+         //TODO hybrdid functs: not sure if should i have to apply 
+        if(xc.hf_exchange_coefficient() == 1.0){
+        //if(xc.hf_exchange_coefficient()){
+            START_TIMER(world);
+            for(int p=0; p<mo.size(); ++p) {
+                djkmo[p] = calc_exchange_function(world, p, dmo1, dmo2, mo,spin);
+               //add a fraction only
+                djkmo[p].scale(xc.hf_exchange_coefficient());
+            }
+            END_TIMER(world, "Calc calc_exchange_function ");
+            print_meminfo(world.rank(), "Calc calc_exchange_function");
+        }
+        gaxpy(world, 1.0, djkmo, 1.0, dkxcmo);
+        truncate(world, djkmo);
+
+        return djkmo;
+    }
+
+    vecfuncT SCF::calc_rhs(World & world, const vecfuncT & mo , 
+                     const vecfuncT & Vdmo, 
+                     const vecfuncT & dipolemo, const vecfuncT & djkmo )
+    {
+        //START_TIMER(world);
+        vecfuncT rhs;
+
+        // the projector on the unperturbed density
+        Projector<double,3> rho0(mo);
+
+        vecfuncT gp = add(world, dipolemo, djkmo);
+        for (int i=0; i<Vdmo.size(); ++i) {
+            functionT gp1 =  gp[i];
+            gp1 = gp1 - rho0(gp1);
+            gp1 = Vdmo[i] + gp1 ;
+            rhs.push_back(gp1);
+        }
+
+        //END_TIMER(world, "Sum rhs response");
+        print_meminfo(world.rank(), "Sum rhs response");
+        truncate(world, rhs);
+
+        return rhs;
+    }
+
+
+    void SCF::calc_response_function(World & world, vecfuncT & dmo, 
+            std::vector<poperatorT> & op, vecfuncT & rhs)
+    {
+        // new response function
+        // BSHOperatorPrt3D : op
+        dmo = apply(world, op, rhs);
+        scale(world, dmo, -2.0);
+        truncate(world, dmo);
+    }
+
+    // orthogonalization
+    void SCF::orthogonalize_response(World & world, vecfuncT & dmo, vecfuncT & mo )
+    {
+     reconstruct(world, dmo);
+       for(int i=0; i<mo.size(); ++i){
+           for (int j=0; j<mo.size(); ++j){
+               // new_x = new_x - < psi | new_x > * psi
+               dmo[i] = dmo[i] - dmo[i].inner(mo[j])*mo[j];
+           }
+       }
+    }
+
+
+//vama ugly ! alpha_ij(w) = - sum(m occ) [<psi_m(0)|r_i|psi_mj(1)(w)> + <psi_mj(1)(-w)|r_i|psi_m(0)>]
+
+    void SCF::dpolar(World & world, tensorT & polar, functionT & drho, int & axis)
+    {
+        for(int i=0; i<3; ++i) {
+            std::vector<int> f(3, 0);
+            f[i] = true;
+            functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
+            polar(axis, i) = -2.0 * dipolefunc.inner(drho);
+        }
+    }
+
+    void SCF::calc_dpolar(World & world,  
+            const vecfuncT & ax, const vecfuncT & ay, 
+            const vecfuncT & bx, const vecfuncT & by, 
+            int & axis,
+            tensorT & Dpolar_total, tensorT & Dpolar_alpha, tensorT & Dpolar_beta)
+    {
+        int fflag = 0;
+        double Dpolar_average = 0.0;
+        double Dpolar_iso = 0.0;
+
+        //START_TIMER(world);
+        // derivative density matrix
+        functionT drhoa = make_derivative_density(world, amo, aocc, ax, ay);
+        functionT drhob;
+        if(!param.spin_restricted) 
+            drhob = make_derivative_density(world, bmo, bocc, bx, by );
+        else 
+            drhob = drhoa;
+
+        functionT drho = drhoa + drhob;
+        
+        dpolar(world, Dpolar_alpha, drhoa, axis);
+        dpolar(world, Dpolar_beta,  drhob, axis);
+        dpolar(world, Dpolar_total, drho,  axis);
+        
+        for(int i=0; i<3; ++i) 
+            Dpolar_total(axis, i) = 0.5 * Dpolar_total(axis, i);
+
+        drhoa.clear(false);
+        drhob.clear(false);
+        drho.clear(false);
+
+
+        if (world.rank() == 0 ) { 
+                printf("Dynamic Polarizability alpha ( Frequency = %.6f, axis %d )\n", param.response_freq, axis);
+                for(unsigned int i=0; i<3; ++i) 
+                printf(" \t %.6f ", Dpolar_alpha(axis,i));   
+                printf("\n");
+
+                
+                if(param.nbeta != 0) {
+                   printf("Dynamic Polarizability beta ( Frequency = %.6f, axis %d )\n", param.response_freq, axis);
+                    for(unsigned int i=0; i<3; ++i) 
+                       printf(" \t %.6f ", Dpolar_beta(axis,i));   
+                   print("\n");
+               }
+                
+        }
+
+        // last round
+        if(axis == 2) {
+            //diagonalize
+            tensorT V, epolar, eapolar, ebpolar;
+            syev(Dpolar_alpha, V, eapolar);
+            syev(Dpolar_total, V, epolar);
+            if(param.nbeta != 0) 
+                  syev(Dpolar_beta, V, ebpolar);
+            for(unsigned int i=0; i<3; ++i)  
+                   Dpolar_average = Dpolar_average + epolar[i];
+            Dpolar_average = Dpolar_average /3.0;
+            Dpolar_iso= sqrt(.5)*sqrt( std::pow(Dpolar_alpha(0,0) -  Dpolar_alpha(1,1),2) + 
+                              std::pow(Dpolar_alpha(1,1) -  Dpolar_alpha(2,2),2) + 
+                              std::pow(Dpolar_alpha(2,2) -  Dpolar_alpha(0,0),2));
+             
+            if (world.rank() == 0) { 
+                print("Total Dynamic Polarizability Tensor ( Frequency = ", param.response_freq, ")\n");
+                print(Dpolar_total);
+                printf("\tEigenvalues = ");
+                printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
+                printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
+                printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
+                printf("\n");
+                printf("\n");
+            }
+        }
+        //END_TIMER(world, "Calc D polar");
+        print_meminfo(world.rank(), "Calc D polar");
+    // end of solving polarizability
+    }
+    double SCF::residual_response(World & world, const vecfuncT & x,const  vecfuncT & y,
+                             const vecfuncT & x_old, const vecfuncT & y_old,
+                             vecfuncT & rx, vecfuncT & ry)
+    {
+        double residual = 0.0;
+        
+        //START_TIMER(world);
+        rx = sub(world, x_old, x);
+        ry = sub(world, y_old, y);
+        std::vector<double> rnormx = norm2s(world, rx);
+        std::vector<double> rnormy = norm2s(world, ry);
+
+        double rms, maxval_x, maxval_y;
+        vector_stats(rnormx, rms, maxval_x);
+        vector_stats(rnormy, rms, maxval_y);
+        residual = std::max(maxval_x, maxval_y);
+        
+        //END_TIMER(world, "Residual X,Y");
+        print_meminfo(world.rank(), "Residual X,Y");
+
+        return residual;
+    }
+
+    /// Calculates the dynamic polarizability of the current system 
+    ///
+    /// This is the only external function for a polarizability calcualtion.
+    /// The input parameters (such as frequency of perturbing radiation) are 
+    /// all input via the input file (which is parsed on creation of a 
+    /// calculation object, see SCF.h), but are listed here for completeness:
+    ///
+    /// bool response;                    // response function calculation
+    /// double response_freq;             // Frequency for calculation response function
+    /// std::vector<bool> response_axis;  // Calculation protocol
+    /// bool nonrotate;                   // If true do not molcule orient
+    /// double rconv;                     // Response convergence
+    /// double efield;                    // eps for finite field
+    /// double efield_axis;               // eps for finite field axis 
+ 
+    void SCF::polarizability(World & world)
+    {
+        if(world.rank() == 0) {
+            print("\n\n\n");
+            print(" ------------------------------------------------------------------------------");
+            print(" |                MADNESS RESPONSE                                            |");
+            print(" ------------------------------------------------------------------------------");
+            print(" \n\n");
+        }
+
+        
+        // TODO move this  X:axis=0, Y:axis=1, Z:axis=2
+        double omega = param.response_freq;
+        
+        if (world.rank() == 0) { 
+            print(" eps_alpha");
+            print(aeps);
+            if(!param.spin_restricted && param.nbeta != 0) print(" eps_beta  = ", beps);
+
+            print(" Frequency for response function (omega)= ", omega);
+            print(" Number of alpha orbitals = ", param.nalpha);
+            print(" Number of beta orbitals = ", param.nbeta);
+        }
+
+        // START_TIMER(world);
+        // Green's function
+        tensorT akx(param.nalpha);
+        tensorT aky(param.nalpha);
+        tensorT bkx(param.nbeta);
+        tensorT bky(param.nbeta);
+
+        // combine frequency term and eigenvalues
+        calc_freq(world, omega, akx, bkx, 1);
+        if(omega != 0.0)
+            calc_freq(world, omega, aky, bky, -1);
+        print_meminfo(world.rank(), "Make frequency term");
+
+        // make density matrix
+        functionT arho ; 
+        functionT brho ; 
+        functionT rho = make_density_ground(world, arho, brho);
+
+
+        // In order to integrate with Florian's rewrite, need vf to follow this formatting:
+        // 
+        // the ordering of the intermediates is fixed, but the code can handle
+        // non-initialized functions, so if e.g. no GGA is requested, all the
+        // corresponding vector components may be left empty.
+        //  enum xc_arg {
+        //      enum_rhoa=0,            ///< alpha density \f$ \rho_\alpha \f$
+        //      enum_rhob=1,            ///< \f$ \rho_\beta \f$
+        //      enum_rho_pt=2,          ///< perturbed density (CPHF, TDKS) \f$ \rho_{pt} \f$
+        //      enum_drhoa_x=4,         ///< \f$ \partial/{\partial x} \rho_{\alpha} \f$
+        //      enum_drhoa_y=5,         ///< \f$ \partial/{\partial y} \rho_{\alpha} \f$
+        //      enum_drhoa_z=6,         ///< \f$ \partial/{\partial z} \rho_{\alpha} \f$
+        //      enum_drhob_x=7,         ///< \f$ \partial/{\partial x} \rho_{\beta} \f$
+        //      enum_drhob_y=8,         ///< \f$ \partial/{\partial y} \rho_{\beta} \f$
+        //      enum_drhob_z=9,         ///< \f$ \partial/{\partial z} \rho_{\beta} \f$
+        //      enum_saa=10,            ///< \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
+        //      enum_sab=11,            ///< \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
+        //      enum_sbb=12,            ///< \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
+        //      enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho \f$
+        //      enum_sigma_pta=14,      ///< \f$ \nabla\rho_{\alpha}.\nabla\rho_{pt} \f$
+        //      enum_sigma_ptb=15       ///< \f$ \nabla\rho_{\beta}.\nabla\rho_{pt} \f$
+        //
+        //      const static int number_xc_args=16 ///< max number of intermediates
+
+        vecfuncT vf(XCfunctional::number_xc_args);
+        vecfuncT delrho;
+
+        if (xc.is_dft()) {
+            START_TIMER(world);
+            arho.reconstruct();
+            vf[XCfunctional::enum_rhoa] = copy(arho);
+            if(!param.spin_restricted && param.nbeta != 0) {
+                brho.reconstruct();
+                vf[XCfunctional::enum_rhob] = copy(brho);                
+            }
+
+#ifdef MADNESS_HAS_LIBXC
+            if (xc.is_gga()) {
+                for (int axis = 0; axis < 3; ++axis)
+                          delrho.push_back((*gradop[axis])(arho, false)); // delrho
+                if (!param.spin_restricted && param.nbeta != 0)
+                //TODO if (xc.is_spin_polarized() && param.nbeta != 0)
+                          for (int axis = 0; axis < 3; ++axis)
+                                  delrho.push_back((*gradop[axis])(brho, false));
+
+                world.gop.fence(); // NECESSARY
+
+                vf[XCfunctional::enum_saa] = copy(   delrho[0] * delrho[0] 
+                                                   + delrho[1] * delrho[1]
+                                                   + delrho[2] * delrho[2]);   // sigma_aa
+
+                if (!param.spin_restricted && param.nbeta != 0)
+                {
+                       vf[XCfunctional::enum_sab] = copy(  delrho[0] * delrho[3] 
+                                                         + delrho[1] * delrho[4]
+                                                         + delrho[2] * delrho[5]); // sigma_ab
+
+                       vf[XCfunctional::enum_sbb] = copy(  delrho[3] * delrho[3] 
+                                                         + delrho[4] * delrho[4]
+                                                         + delrho[5] * delrho[5]); // sigma_bb
+                 }
+                 world.gop.fence(); // NECESSARY
+            }
+#endif
+        } 
+
+        print_meminfo(world.rank(), "Make delrho");
+
+        // vlocal = vnuc + 2*J  
+        functionT vlocal;
+        {
+            functionT vnuc;
+            // TODO vnuc = potentialmanager->vnuclear();
+            if (param.psp_calc){
+                vnuc = gthpseudopotential->vlocalpot();
+            }
+            else if (param.pure_ae){ 
+                vnuc = potentialmanager->vnuclear();
+            }
+            else {
+                vnuc = potentialmanager->vnuclear();
+                vnuc = vnuc + gthpseudopotential->vlocalpot();
+            }
+            START_TIMER(world);
+            functionT vcoul = apply(*coulop, rho);
+            vlocal = vcoul + vnuc;
+            END_TIMER(world, "Calc vlocal");
+        } 
+        vlocal.reconstruct();
+        vlocal.truncate();
+
+        // BSHOperatorPtr
+        std::vector<poperatorT> aopx(param.nalpha); 
+        std::vector<poperatorT> bopx(param.nbeta); 
+        std::vector<poperatorT> aopy(param.nalpha); 
+        std::vector<poperatorT> bopy(param.nbeta); 
+        make_BSHOperatorPtr(world, akx, bkx, aopx, bopx);
+
+        if(omega != 0.0)
+              make_BSHOperatorPtr(world, aky, bky, aopy, bopy);
+       
+        tensorT Dpolar_total(3, 3), Dpolar_alpha(3, 3), Dpolar_beta(3, 3);
+
+        double update_residual = 0.0;
+        const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
+        int maxsub_save = param.maxsub;
+
+        for ( int axis=0; axis<param.response_axis.size(); axis++) {
+            if(!param.response_axis[axis]) continue; 
+        
+            subspaceT subspace;
+            tensorT Q;
+            if (world.rank() == 0) {
+                this_axis(world, axis);
+            }
+
+            // perturbation
+            vecfuncT dipoleamo = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT dipolebmo = zero_functions<double,3>(world, param.nbeta);
+
+            // make response function x, y
+            vecfuncT ax = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ay = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bx = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT by = zero_functions<double,3>(world, param.nbeta);
+
+            // old response function
+            vecfuncT ax_old = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ay_old = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bx_old = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT by_old = zero_functions<double,3>(world, param.nbeta);
+
+            vecfuncT axrhs = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ayrhs = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bxrhs = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT byrhs = zero_functions<double,3>(world, param.nbeta);
+
+            vecfuncT aVx;
+            vecfuncT bVx;
+
+            vecfuncT aVy;
+            vecfuncT bVy;
+
+            // make (dJ-dK)*2*mo
+            vecfuncT djkamox;
+            vecfuncT djkamoy;
+
+            vecfuncT djkbmox;
+            vecfuncT djkbmoy;
+
+            // ri * psi_0
+            dipoleamo = calc_dipole_mo(world, amo, axis);
+            if(!param.spin_restricted && param.nbeta != 0) {
+                dipolebmo = calc_dipole_mo(world, bmo, axis);
+            }
+            else {
+                dipolebmo = dipoleamo;
+            }
+
+            //guess : drho=rho_0=sum[rho_i]=sum[psi_i^2]
+            functionT drhoa = make_derivative_density( world, amo , aocc, dipoleamo, dipoleamo);
+            drhoa.reconstruct();
+            functionT drhob;
+            if(!param.spin_restricted && param.nbeta != 0) {
+               drhob = make_derivative_density( world, bmo, aocc, dipolebmo, dipolebmo );
+               drhob.reconstruct();
+            } else {
+               drhob = drhoa;
+            } 
+            functionT drho = drhoa + drhob; 
+
+            for(int iter = 0; iter < param.maxiter; ++iter) {
+                if(world.rank() == 0)
+                    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
+                
+                double residual = 0.0;
+                double exca = 0.0, excb = 0.0;
+            
+                if (iter > 0 && update_residual < 0.1) {
+                    //do_this_iter = false;
+                    param.maxsub = maxsub_save;
+                }
+                
+                if(iter == 0) {
+                    // iter = 0 initial_guess
+                    aVx = apply_potential_response(world, aocc, dipoleamo, vf, delrho, vlocal, exca,  0);
+                    djkamox = calc_djkmo(world, dipoleamo, dipoleamo, drho, amo, vf, drhoa,  0);
+                    axrhs = calc_rhs(world, amo,  aVx, dipoleamo, djkamox);
+
+                    if(!param.spin_restricted && param.nbeta != 0) { 
+                        bVx = apply_potential_response(world, bocc, dipolebmo, vf, delrho, vlocal, excb, 0);
+                        djkbmox = calc_djkmo(world, dipolebmo, dipolebmo, drho, bmo, vf, drhob,  0);
+                        bxrhs = calc_rhs(world, bmo,  bVx, dipolebmo, djkbmox);
+                    } 
+ 
+                    if(omega != 0.0) {
+                        aVy = apply_potential_response(world, aocc, dipoleamo, vf, delrho, vlocal, exca, 0);
+                        djkamoy = calc_djkmo(world, dipoleamo, dipoleamo, drho, amo, vf, drhoa,  0);
+                        ayrhs = calc_rhs(world, amo,  aVy, dipoleamo, djkamoy);
+                        if(!param.spin_restricted && param.nbeta != 0) 
+                            bVy = apply_potential_response(world, bocc, dipolebmo, vf, delrho, vlocal, excb,  0);
+                            djkbmoy = calc_djkmo(world, dipolebmo, dipolebmo, drho, bmo, vf, drhob,  0);
+                            byrhs = calc_rhs(world, bmo,  bVy, dipolebmo, djkbmoy);
+                    } 
+                }
+
+                else{
+                    drhoa = make_derivative_density( world, amo, aocc, ax_old, ay_old );
+                    drhoa.reconstruct();
+                    drhob;
+                    if(!param.spin_restricted && param.nbeta != 0) {
+                       drhob = make_derivative_density( world, bmo, bocc, bx_old, by_old );
+                       drhob.reconstruct();
+                    } else {
+                       drhob = drhoa;
+                    } 
+                    drho = drhoa + drhob; 
+
+                    // calculate (dJ-dK)*2*mo
+                    aVx = apply_potential_response(world, aocc, ax_old, vf, delrho, vlocal, exca, 0);
+                    // make potential * wave function
+                    djkamox = calc_djkmo(world, ax_old, ay_old, drho, amo, vf, drhoa,  0);
+                    // axrhs = -2.0 * (aVx + dipoleamo + duamo)
+                    axrhs = calc_rhs(world, amo,  aVx, dipoleamo, djkamox);
+
+                    if(!param.spin_restricted && param.nbeta != 0) {
+                        bVx = apply_potential_response(world, bocc, bx_old, vf, delrho, vlocal, excb,  1);
+                        djkbmox = calc_djkmo(world, bx_old, by_old, drho, bmo, vf, drhob , 1);
+                        bxrhs = calc_rhs(world, bmo, bVx, dipolebmo, djkbmox);
+                    }
+
+                    if(omega != 0.0) {
+                        aVy = apply_potential_response(world, aocc, ay_old, vf,  delrho, vlocal, exca, 0);
+                        djkamoy = calc_djkmo(world, ay_old, ax_old,  drho, amo, vf,  drhoa, 0);
+                        // bxrhs = -2.0 * (bVx + dipolebmo + dubmo)
+                        ayrhs = calc_rhs(world, amo, aVy, dipoleamo, djkamoy);
+
+                        if(!param.spin_restricted && param.nbeta != 0) {
+                            bVy = apply_potential_response(world, bocc, by_old, vf,  delrho, vlocal, excb, 1);
+                            djkbmoy = calc_djkmo(world, by_old, bx_old, drho, amo, vf, drhob, 1);
+                            byrhs = calc_rhs(world, bmo, bVy, dipolebmo, djkbmoy);
+                        }
+                    }
+                    aVx.clear();
+                    bVx.clear(); 
+                    aVy.clear();
+                    bVy.clear();
+                    djkamox.clear();
+                    djkamoy.clear();
+                    djkbmox.clear();
+                    djkbmoy.clear();
+
+                }
+
+                //START_TIMER(world);
+                // ax_new = G * axrhs;
+                calc_response_function(world, ax, aopx, axrhs);
+                orthogonalize_response(world, ax, amo);
+                truncate(world, ax);
+                axrhs.clear();
+                if(!param.spin_restricted && param.nbeta != 0) {
+                    // bx_new = G * bxrhs;
+                    calc_response_function(world, bx, bopx, bxrhs);
+                    orthogonalize_response(world, bx, bmo);
+                    truncate(world, bx);
+                    bxrhs.clear();
+                }
+                else {
+                    bx = ax;
+                }
+
+                if(omega != 0.0){
+                    calc_response_function(world, ay, aopy, ayrhs);
+                    orthogonalize_response(world, ay, amo);
+                    truncate(world, ay);
+                    ayrhs.clear();
+
+                    if(!param.spin_restricted && param.nbeta != 0) {
+                        calc_response_function(world, by, bopy, byrhs);
+                        orthogonalize_response(world, by, bmo);
+                        truncate(world, by);
+                        byrhs.clear();
+                    }
+                    else {
+                       by = ay;
+                    }
+                }     
+                else {
+                       ay = ax;
+                       by = bx;
+                }
+                //END_TIMER(world, "Make response func");
+                print_meminfo(world.rank(), "Make response func");
+
+                if(iter > 0) {
+                   // START_TIMER(world);
+                    residual = 0.0;
+                    
+                    vecfuncT rax = zero_functions<double,3>(world, param.nalpha); //residual alpha x
+                    vecfuncT ray = zero_functions<double,3>(world, param.nalpha); //residual alpha y
+                    vecfuncT rbx = zero_functions<double,3>(world, param.nbeta);  //residual beta x
+                    vecfuncT rby = zero_functions<double,3>(world, param.nbeta);  //residual beta y
+
+                    double aresidual =  residual_response(world, ax, ay, ax_old, ay_old, rax, ray);
+                    double bresidual = 0.0;
+                    world.gop.fence(); 
+                    if(!param.spin_restricted && param.nbeta != 0) { 
+                        bresidual = aresidual + residual_response(world, bx, by, bx_old, by_old, rbx, rby);
+                        residual = std::max(aresidual, bresidual);
+                        world.gop.fence(); 
+                    }
+                    else { 
+                      residual = aresidual;
+                    } 
+
+                    if (world.rank() == 0)  
+                        print("\nresiduals_response (first) = ", residual);
+                    residual = 0.0;
+
+                    double nx,ny;
+                    ////////UPDATE
+                    nx=norm2(world, ax);
+                    if (world.rank() == 0) 
+                        print("CURRENT_X_norm2() = ", nx);
+                    update_response_subspace(world, ax, ay, bx, by, rax, ray, rbx, rby, subspace, Q, update_residual); 
+
+                    nx = norm2(world, ax);
+                    ny = norm2(world, ay);
+                    if (world.rank() == 0) { 
+                        print("new X (alpha) norm2() = ", nx);
+                        print("new Y (alpha) norm2() = ", ny);
+                    }
+
+                    aresidual = residual_response(world, ax, ay, ax_old, ay_old, rax, ray);
+                    bresidual = 0.0;
+                    
+                    if(!param.spin_restricted && param.nbeta != 0) { 
+                        bresidual = residual_response(world, bx, by, bx_old, by_old, rbx, rby);
+                        residual = std::max(aresidual, bresidual);
+                    }
+                    else residual = aresidual;
+
+                    double thresh = rconv *(param.nalpha + param.nbeta)*2; 
+                    if (world.rank() == 0) { 
+                        print("\nresiduals_response (final) = ", residual);
+                        print("rconv *(param.nalpha + param.nbeta)*2", thresh);
+                    }
+
+                   //  END_TIMER(world, "Update response func");
+                    print_meminfo(world.rank(), "Update response func");
+                    
+                    if( residual < (rconv *(param.nalpha + param.nbeta)*2))
+                    {
+                        if (world.rank() == 0) { 
+                            print("\nConverged response function!!\n");
+                            print("\n\n\n");
+                            print(" ------------------------------------------------------------------------------");
+                            print(" |                  MADNESS CALCULATION POLARIZABILITY                        |");
+                            print(" ------------------------------------------------------------------------------");
+                            print(" \n\n");
+                        } 
+                        break; 
+                    }
+                }
+
+                ax_old = ax;
+                ay_old = ay;
+                bx_old = bx;
+                by_old = by;
+                ax.clear();
+                ay.clear();
+                bx.clear();
+                by.clear();
+                    
+            } //end iteration
+            //END_TIMER(world, "Make response func");
+            print_meminfo(world.rank(), "Make response func");
+
+            calc_dpolar(world, ax_old, ay_old, bx_old, by_old, axis, Dpolar_total, Dpolar_alpha, Dpolar_beta);
+            
+#if  0
+//hyper polarizability
+            for (int p=0; p < ax_old.size(); p++){
+                axx.push_back(ax_old[p]);
+                ayx.push_back(ay_old[p]);
+                if(!param.spin_restricted && param.nbeta != 0) { 
+                   bxx.push_back(bx_old[p]);
+                   byx.push_back(by_old[p]);
+                }
+            }
+#endif 
+            ax_old.clear();
+            ay_old.clear();
+            bx_old.clear();
+            by_old.clear();
+
+            dipoleamo.clear();
+            dipolebmo.clear();
+        } //end axis
+
+    }
+//vama polarizability
+
+
 }
+
+
