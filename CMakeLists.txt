@@ -481,7 +481,7 @@ if(GDB_EXECUTABLE)
   message(STATUS "Found gdb: ${GDB_EXECUTABLE}")
 endif()
 find_package(PythonInterp)
-find_package(PARSEC COMPONENTS HWLOC)
+find_package(PARSEC)
 
 # Check for external dependencies ==============================================
 add_custom_target(External)
