@@ -274,11 +274,12 @@ namespace madness {
     static
     inline
     std::ostream& operator << (std::ostream& s, const TensorType& tt) {
-       	std::string str="confused tensor type";
-       	if (tt==TT_FULL) str="full rank tensor";
-       	if (tt==TT_2D) str="low rank tensor 2-way";
-       	if (tt==TT_NONE) str="no tensor type specified";
-       	s << str.c_str();
+        std::string str="confused tensor type";
+        if (tt==TT_FULL) str="full rank tensor";
+        if (tt==TT_2D) str="low rank tensor 2-way";
+        if (tt==TT_TENSORTRAIN) str="tensor train";
+        if (tt==TT_NONE) str="no tensor type specified";
+        s << str.c_str();
         return s;
     }
 

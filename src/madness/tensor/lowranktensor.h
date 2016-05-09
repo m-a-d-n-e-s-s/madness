@@ -241,6 +241,19 @@ public:
         return -1;
     }
 
+    /// return the number of entries in dimension i
+    long dim(const int i) const {
+        if (type==TT_NONE) return -1;
+        else if (type==TT_FULL) return impl.full->dim(i);
+        else if (type==TT_2D) return impl.svd->get_k();
+        else if (type==TT_TENSORTRAIN) return impl.tt->dim(i);
+        else {
+            MADNESS_EXCEPTION("you should not be here",1);
+        }
+        return -1;
+    }
+
+
     void normalize() {
         if (type==TT_2D) impl.svd->normalize();
     }

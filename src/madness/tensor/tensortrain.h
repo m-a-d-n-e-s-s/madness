@@ -136,6 +136,7 @@ namespace madness {
 		TensorTrain(const std::vector<long>& dims) {
             zero_rank = true;
 
+            core.resize(dims.size());
             // first and last core tensor
             core[0] = Tensor<T>(dims[0],long(0));
             core[dims.size()-1] = Tensor<T>(long(0),dims[dims.size()-1]);
@@ -179,12 +180,12 @@ namespace madness {
 
 		    // special treatment for first and last core tensor
 		    // slice dim only, keep ranks
-		    result.core[0]=other.core[0](s[0],_);
+		    result.core[0]=copy(other.core[0](s[0],_));
 		    for (long i=1; i<nd-1; ++i) {
-		        result.core[i]=other.core[i](_,s[i],_);
+		        result.core[i]=copy(other.core[i](_,s[i],_));
 		    }
 
-		    if (other.core.size()>1) result.core[nd-2]=other.core[nd-2](_,s[nd-2]);
+		    if (other.core.size()>1) result.core[nd-1]=copy(other.core[nd-1](_,s[nd-1]));
 		    return result;
 		}
 
@@ -572,7 +573,7 @@ namespace madness {
 
 		/// return the TT ranks
 		std::vector<long> ranks() const {
-			if (zero_rank) return std::vector<long>(0,core.size()-1);
+			if (zero_rank) return std::vector<long>(core.size()-1,0);
 			std::vector<long> r(core.size()-1);
 			for (std::size_t i=0; i<r.size(); ++i) r[i]=core[i+1].dim(0);
 			return r;
@@ -580,8 +581,7 @@ namespace madness {
 
         /// returns the Frobenius norm
         float_scalar_type normf() const {
-            MADNESS_EXCEPTION("implement normf in TensorTrain",1);
-            return float_scalar_type(0);
+            return sqrt(trace_conj(*this));
         };
 
         void scale(T fac) {
@@ -605,12 +605,80 @@ namespace madness {
         }
 
         /// Return the trace of two tensors with complex conjugate of the leftmost (i.e., this)
-        template <class Q>
-        TENSOR_RESULT_TYPE(T,Q) trace_conj(const TensorTrain<Q>& t) const {
-            MADNESS_EXCEPTION("implement trace_conj in TensorTrain",1);
-            return TENSOR_RESULT_TYPE(T,Q)(0.0);
-        }
 
+        /// @return <this | B>
+        template <class Q>
+        TENSOR_RESULT_TYPE(T,Q) trace_conj(const TensorTrain<Q>& B) const {
+
+            typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+            // alias
+            const TensorTrain<T>& A=*this;
+
+            MADNESS_ASSERT(A.ndim()==B.ndim());   // number of dimensions
+
+            // fast return
+            if (A.zero_rank or B.zero_rank) return resultT(0.0);
+
+            // set up temporary tensors for intermediates
+            std::vector<long> r1=A.ranks();
+            std::vector<long> r2=B.ranks();
+
+            long size1=r1[0]*r2[0];
+            long size2=r1[0]*A.dim(0);
+
+            for (int d=1; d<A.ndim()-1; ++d) {
+                size1=std::max(size1,r1[d]*r2[d]);
+                size2=std::max(size2,r1[d]*r2[d-1]*A.dim(d));
+            }
+            Tensor<resultT> tmp1(size1), tmp2(size2);       // scratch
+            Tensor<resultT> Aprime, AB;                     // for flat views of tmp
+
+            // loop over all dimensions but the last one
+            for (int d=0; d<A.ndim()-1; ++d) {
+
+                // contract cores to matrix AB(rank(A), rank(B))
+                // AB(ra1,rb1) = sum_(r0,i0) A(ra0,i0,ra1) B(rb0,i0,rb1)
+                // index dimension is the first one: core((r * i), r)
+
+                // calculate dimensions
+                long rA= (d==0) ? A.core[d].dim(1) : Aprime.dim(2);     //  r_d (A)
+                long rB= (d==0) ? B.core[d].dim(1) : B.core[d].dim(2);                           //  r_d (B)
+                MADNESS_ASSERT(rA*rB<=size1);
+                if (d>0) tmp1(Slice(0,rA*rB-1))=0.0;         // zero out old stuff
+
+//                Tensor<resultT> AB;
+                if (d==0) {
+//                    AB=inner(A.core[d],B.core[d],0,0);
+                    inner_result(A.core[d],B.core[d],0,0,tmp1);
+                } else {
+//                    AB=inner(Aprime.fusedim(0),B.core[d].fusedim(0),0,0);
+                    inner_result(Aprime.fusedim(0),B.core[d].fusedim(0),0,0,tmp1);
+                }
+                AB=tmp1(Slice(0,rA*rB-1)).reshape(rA,rB);
+
+                // contract temp matrix AB into core of A of dimension i+1
+                // into temp core A_i+1
+                // Atmp(rank(B1), i(2)) = sum_ rank(A1) ABi(rank(A1),rank(B1)) A.core[1](rank(A1),i(2),rank(A2))
+
+                // calculate dimensions
+                long d1=AB.dim(1);              //  r_d
+                long d2=A.core[d+1].dim(1);     //  i_d
+                long d3=A.core[d+1].dim(2);     //  r_{d+1}
+                MADNESS_ASSERT(d1*d2*d3<=size2);
+
+                // repeated zero-ing probably much faster than reallocation
+                //                Aprime=inner(AB,A.core[d+1],0,0);
+                if (d>0) tmp2(Slice(0,d1*d2*d3-1))=0.0;
+                inner_result(AB,A.core[d+1],0,0,tmp2);
+                Aprime=tmp2(Slice(0,d1*d2*d3-1)).reshape(d1,d2,d3);
+
+            }
+
+            // special treatment for the last dimension
+            resultT result=Aprime.trace(B.core[ndim()-1]);
+            return result;
+        }
 
 	};
 
