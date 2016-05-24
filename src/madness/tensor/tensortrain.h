@@ -154,10 +154,18 @@ namespace madness {
 		}
 
 		/// deep copy of the whole tensor
+
+		/// if argument has zero rank return a zero-rank tensor of the same dimensions
 		friend TensorTrain copy(const TensorTrain& other) {
+
+		    // fast return
+		    if (other.zero_rank) return TensorTrain(other.dims());
+
             TensorTrain result;
-            for (const Tensor<T>& t: other.core)
+            for (const Tensor<T>& t: other.core) {
+                if (t.size()==0) return TensorTrain(other.dims());  // also zero
                 result.core.push_back(madness::copy(t));
+            }
             result.zero_rank=other.zero_rank;
             return result;
 		}
@@ -322,30 +330,63 @@ namespace madness {
 
 		}
 
+
+		/// turn this into an empty tensor with all cores properly shaped
+		void zero_me() {
+		    *this=TensorTrain<T>(this->dims());
+		}
+
+		/// return this multiplied by a scalar
+
+		/// @return new tensor
+		TensorTrain<T> operator*(const T& factor) const {
+		    TensorTrain result=copy(*this);
+		    result.scale(factor);
+		    return result;
+		}
+
 		/// inplace addition of two Tensortrains; will increase ranks of this
 
 		/// inefficient if many additions are performed, since it requires
 		/// many calls of new.
 		/// @param[in]	rhs	a TensorTrain to be added
 		TensorTrain<T>& operator+=(const TensorTrain<T>& rhs) {
+		    gaxpy(1.0,rhs,1.0);
+		    return *this;
+		}
+
+        /// inplace subtraction of two Tensortrains; will increase ranks of this
+
+        /// inefficient if many subtractions are performed, since it requires
+        /// many calls of new.
+        /// @param[in]  rhs a TensorTrain to be added
+        TensorTrain<T>& operator-=(const TensorTrain<T>& rhs) {
+            gaxpy(1.0,rhs,-1.0);
+            return *this;
+        }
+
+		/// Inplace generalized saxpy ... this = this*alpha + other*beta
+        TensorTrain<T>& gaxpy(T alpha, const TensorTrain<T>& rhs, T beta) {
 
 			// make sure dimensions conform
 			MADNESS_ASSERT(this->ndim()==rhs.ndim());
 
-			if (this->zero_rank) {
-				*this=rhs;
-			} else if (rhs.zero_rank) {
-				;
+			if (this->zero_rank or (alpha==0.0)) {
+				*this=rhs*beta;
+			} else if (rhs.zero_rank or (beta==0.0)) {
+				scale(alpha);
 			} else {
 
 				// special treatment for first border cores (k,r1)
+
+			    // alpha and beta are only included in the first core(!)
 				{
 					long k=core[0].dim(0);
 					long r1_this=core[0].dim(1);
 					long r1_rhs=rhs.core[0].dim(1);
 					Tensor<T> core_new(k,r1_this+r1_rhs);
-					core_new(_,Slice(0,r1_this-1))=core[0];
-					core_new(_,Slice(r1_this,r1_this+r1_rhs-1))=rhs.core[0];
+					core_new(_,Slice(0,r1_this-1))=alpha*core[0];
+					core_new(_,Slice(r1_this,r1_this+r1_rhs-1))=beta*rhs.core[0];
 					core[0]=core_new;
 				}
 
@@ -374,10 +415,8 @@ namespace madness {
 					core_new(Slice(r0_this,r0_this+r0_rhs-1),_)=rhs.core[d];
 					core[d]=core_new;
 				}
-
 			}
-
-
+			if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
 			return *this;
 		}
 
@@ -468,13 +507,26 @@ namespace madness {
 
 		/// recompress and truncate this TT representation
 
-      /// this in recompressed TT form with optimal rank
+		/// this in recompressed TT form with optimal rank
 		/// @param[in]	eps	the truncation threshold
 		void truncate(double eps) {
+
+		    // fast return
+		    if (zero_rank) return;
+
+		    for (long i=0; i<core.size(); ++i) if (ranks(i)==0) zero_rank=true;
+
+		    if (zero_rank) {
+		        zero_me();
+		        return;
+		    }
+
+
 			eps=eps/sqrt(this->ndim());
+            if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
 
 			// right-to-left orthogonalization (line 4)
-			Tensor<T> R;
+			Tensor<T> L;
 			long dims[TENSOR_MAXDIM];
 			for (std::size_t d=core.size()-1; d>0; --d) {
 
@@ -487,11 +539,12 @@ namespace madness {
 				core[d]=core[d].reshape(r0,core[d].size()/r0);
 
 				// decompose the core tensor (line 5)
-				lq(core[d],R);
+				lq(core[d],L);  // might shrink the core
+				dims[0]=std::min(r0,core[d].dim(0));
 				core[d]=core[d].reshape(ndim,dims);
 
 				// multiply to the left (line 6)
-				core[d-1]=inner(core[d-1],R);
+				core[d-1]=inner(core[d-1],L);
 			}
 
 			// left-to-right SVD (line 9)
@@ -502,7 +555,8 @@ namespace madness {
 				for (int i=0; i<ndim; ++i) dims[i]=core[d].dim(i);
 
 				// reshape the core tensor (r0*k, r1)
-				long r1=core[d].dim(core[d].ndim()-1);
+                long r1=core[d].dim(core[d].ndim()-1);
+//				long r1=core[d].dim(1);
 				core[d]=core[d].reshape(core[d].size()/r1,r1);
 
 				Tensor<T> U,VT;
@@ -514,6 +568,10 @@ namespace madness {
 
 				// truncate the SVD
 				int r_truncate=SRConf<T>::max_sigma(eps,rmax,s)+1;
+				if (r_truncate==0) {
+				    zero_me();
+				    return;
+				}
 				U=madness::copy(U(_,Slice(0,r_truncate-1)));
 				VT=madness::copy(VT(Slice(0,r_truncate-1),_));
 
@@ -523,7 +581,7 @@ namespace madness {
 
 				for (int i=0; i<VT.dim(0); ++i) {
 					for (int j=0; j<VT.dim(1); ++j) {
-						VT(i,j)*=s(j);
+						VT(i,j)*=s(i);
 					}
 				}
 
@@ -532,6 +590,7 @@ namespace madness {
 
 			}
 
+            if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
 		}
 
 		/// return the number of dimensions
@@ -568,6 +627,21 @@ namespace madness {
 		    return d;
 		}
 
+		/// check that the ranks of all core tensors are consistent
+		bool verify() const {
+		    if (core[0].dim(1)!=core[1].dim(0)) return false;
+		    for (int d=2; d<ndim(); ++d) {
+		        if (core[d-1].dim(2)!=core[d].dim(0)) return false;
+		    }
+		    for (const Tensor<T>& c : core) {
+		        int size=1;
+		        for (int i=0; i<c.ndim(); ++i) size*=c.dim(i);
+		        if (size!=c.size()) return false;
+		        if (not c.iscontiguous()) return false;
+		    }
+		    return true;
+		}
+
 		/// if rank is zero
 		bool is_zero_rank() const {return zero_rank;}
 
@@ -579,13 +653,32 @@ namespace madness {
 			return r;
 		}
 
+        /// return the TT ranks for dimension i (to i+1)
+       long ranks(const int i) const {
+            if (zero_rank) return 0;
+            if (i==0) {
+                return core[0].dim(1);
+            } else if (i<core.size()) {
+                return core[i].dim(2);
+            } else {
+                print("ndim ",ndim());
+                print("i    ",i);
+                MADNESS_EXCEPTION("requested invalid rank in TensorTrain",1);
+                return 0;
+            }
+        }
+
         /// returns the Frobenius norm
         float_scalar_type normf() const {
-            return sqrt(trace_conj(*this));
+            return sqrt(trace(*this));
         };
 
+        /// scale this by a number
+
+        /// @param[in]  fac the factor to multiply
+        /// @return *this * fac
         void scale(T fac) {
-            MADNESS_EXCEPTION("implement scale in TensorTrain",1);
+            if (not zero_rank and (core.size()>0)) core.front().scale(fac);
         }
 
         /// Returns a pointer to the internal data
@@ -604,11 +697,11 @@ namespace madness {
             return 0;
         }
 
-        /// Return the trace of two tensors with complex conjugate of the leftmost (i.e., this)
+        /// Return the trace of two tensors, no complex conjugate involved
 
         /// @return <this | B>
         template <class Q>
-        TENSOR_RESULT_TYPE(T,Q) trace_conj(const TensorTrain<Q>& B) const {
+        TENSOR_RESULT_TYPE(T,Q) trace(const TensorTrain<Q>& B) const {
 
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
@@ -621,15 +714,12 @@ namespace madness {
             if (A.zero_rank or B.zero_rank) return resultT(0.0);
 
             // set up temporary tensors for intermediates
-            std::vector<long> r1=A.ranks();
-            std::vector<long> r2=B.ranks();
+            long size1=A.ranks(0)*B.ranks(0);
+            long size2=A.ranks(0)*A.dim(0);
 
-            long size1=r1[0]*r2[0];
-            long size2=r1[0]*A.dim(0);
-
-            for (int d=1; d<A.ndim()-1; ++d) {
-                size1=std::max(size1,r1[d]*r2[d]);
-                size2=std::max(size2,r1[d]*r2[d-1]*A.dim(d));
+            for (int d=1; d<A.ndim(); ++d) {
+                size1=std::max(size1,A.ranks(d)*B.ranks(d));
+                size2=std::max(size2,A.ranks(d)*B.ranks(d-1)*A.dim(d));
             }
             Tensor<resultT> tmp1(size1), tmp2(size2);       // scratch
             Tensor<resultT> Aprime, AB;                     // for flat views of tmp
@@ -680,28 +770,148 @@ namespace madness {
             return result;
         }
 
+
+        template <typename R, typename Q>
+        friend TensorTrain<TENSOR_RESULT_TYPE(R,Q)> transform(
+                const TensorTrain<R>& t, const Tensor<Q>& c);
+
+        template <typename R, typename Q>
+        friend TensorTrain<TENSOR_RESULT_TYPE(R,Q)> general_transform(
+                const TensorTrain<R>& t, const Tensor<Q> c[]);
+
+        template <typename R, typename Q>
+        friend TensorTrain<TENSOR_RESULT_TYPE(R,Q)> transform_dir(
+                const TensorTrain<R>& t, const Tensor<Q>& c, const int axis);
+
 	};
 
 
-    template <class T, class Q>
+	/// transform each dimension with the same operator matrix
+
+    /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c(i',i) c(j',j) c(k',k) ...
+    /// TODO: merge this with general_transform
+	template <class T, class Q>
     TensorTrain<TENSOR_RESULT_TYPE(T,Q)> transform(const TensorTrain<T>& t,
             const Tensor<Q>& c) {
-        MADNESS_EXCEPTION("implement TensorTrain transform",1);
-        return TensorTrain<TENSOR_RESULT_TYPE(T,Q)>();
+
+        typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+        // fast return if possible
+        if (t.zero_rank or (t.ndim()==0)) return TensorTrain<resultT>(t.dims());
+
+        const long ndim=t.ndim();
+
+        TensorTrain<resultT> result;
+        result.zero_rank=false;
+        result.core.resize(ndim);
+        // special treatment for first core(i1,r1) and last core (rd-1, id)
+        result.core[0]=inner(c,t.core[0],0,0);
+        if (ndim>1) result.core[ndim-1]=inner(t.core[ndim-1],c,1,0);
+
+        // other cores have dimensions core(r1,i2,r2);
+
+        // set up scratch tensor
+        long size=0;
+        for (int d=1; d<ndim-1; ++d) size=std::max(size,t.core[d].size());
+        Tensor<resultT> tmp(size);
+
+        for (int d=1; d<ndim-1; ++d) {
+            long r1=t.core[d].dim(0);
+            long i2=t.core[d].dim(1);
+            long r2=t.core[d].dim(2);
+
+            // zero out old stuff from the scratch tensor
+            if (d>1) tmp(Slice(0,r1*i2*r2-1))=0.0;
+            inner_result(t.core[d],c,1,0,tmp);
+            result.core[d]=copy(tmp(Slice(0,r1*i2*r2-1)).reshape(r1,r2,i2).swapdim(1,2));
+        }
+        return result;
     }
 
+
+    /// Transform all dimensions of the tensor t by distinct matrices c
+
+    /// \ingroup tensor
+    /// Similar to transform but each dimension is transformed with a
+    /// distinct matrix.
+    /// \code
+    /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c[0](i',i) c[1](j',j) c[2](k',k) ...
+    /// \endcode
+    /// The first dimension of the matrices c must match the corresponding
+    /// dimension of t.
     template <class T, class Q>
     TensorTrain<TENSOR_RESULT_TYPE(T,Q)> general_transform(const TensorTrain<T>& t,
             const Tensor<Q> c[]) {
-        MADNESS_EXCEPTION("implement TensorTrain general_transform",1);
-        return TensorTrain<TENSOR_RESULT_TYPE(T,Q)>();
+
+        typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+        // fast return if possible
+        if (t.zero_rank or (t.ndim()==0)) return TensorTrain<resultT>(t.dims());
+
+        const long ndim=t.ndim();
+
+        TensorTrain<resultT> result;
+        result.zero_rank=false;
+        result.core.resize(ndim);
+        // special treatment for first core(i1,r1) and last core (rd-1, id)
+        result.core[0]=inner(c[0],t.core[0],0,0);
+        if (ndim>1) result.core[ndim-1]=inner(t.core[ndim-1],c[ndim-1],1,0);
+
+        // other cores have dimensions core(r1,i2,r2);
+
+        // set up scratch tensor
+        long size=0;
+        for (int d=1; d<ndim-1; ++d) size=std::max(size,t.core[d].size());
+        Tensor<resultT> tmp(size);
+
+        for (int d=1; d<ndim-1; ++d) {
+            long r1=t.core[d].dim(0);
+            long i2=t.core[d].dim(1);
+            long r2=t.core[d].dim(2);
+
+            // zero out old stuff from the scratch tensor
+            if (d>1) tmp(Slice(0,r1*i2*r2-1))=0.0;
+            inner_result(t.core[d],c[d],1,0,tmp);
+            result.core[d]=copy(tmp(Slice(0,r1*i2*r2-1)).reshape(r1,r2,i2).swapdim(1,2));
+        }
+        return result;
     }
 
+    /// Transforms one dimension of the tensor t by the matrix c, returns new contiguous tensor
+
+    /// \ingroup tensor
+    /// \code
+    /// transform_dir(t,c,1) = r(i,j,k,...) = sum(j') t(i,j',k,...) * c(j',j)
+    /// \endcode
+    /// @param[in] t Tensor to transform (size of dimension to be transformed must match size of first dimension of \c c )
+    /// @param[in] c Matrix used for the transformation
+    /// @param[in] axis Dimension (or axis) to be transformed
+    /// @result Returns a new tensor train
     template <class T, class Q>
     TensorTrain<TENSOR_RESULT_TYPE(T,Q)> transform_dir(const TensorTrain<T>& t,
             const Tensor<Q>& c, const int axis) {
-        MADNESS_EXCEPTION("implement TensorTrain transform_dir",1);
-        return TensorTrain<TENSOR_RESULT_TYPE(T,Q)>();
+
+        typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+        // fast return if possible
+        if (t.zero_rank or (t.ndim()==0)) return TensorTrain<resultT>(t.dims());
+
+        const long ndim=t.ndim();
+        MADNESS_ASSERT(axis<ndim and axis>=0);
+        MADNESS_ASSERT(c.ndim()==2);
+
+        TensorTrain<resultT> result=copy(t);
+
+        if (axis==0) {
+            result.core[0]=inner(c,t.core[0],0,0);
+        } else if (axis==ndim-1) {
+            result.core[ndim-1]=inner(t.core[ndim-1],c,1,0);
+        } else {
+            Tensor<resultT> tmp=inner(t.core[axis],c,1,0);  // G~(r1,r2,i')
+            result.core[axis]=copy(tmp.swapdim(1,2));
+        }
+        return result;
+
     }
 
 

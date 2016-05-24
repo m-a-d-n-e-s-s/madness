@@ -164,7 +164,8 @@ namespace {
     ));
 
     INSTANTIATE_TEST_CASE_P(BinaryGenTest,BinaryGenTest,
-    				::testing::Combine(::testing::Values(::madness::TT_FULL, ::madness::TT_2D),
+    				::testing::Combine(::testing::Values(::madness::TT_FULL,
+    				                    ::madness::TT_2D, ::madness::TT_TENSORTRAIN),
     								   ::testing::Values(2l,4l),
     								   ::testing::Values(1.e-3, 1.e-4, 1.e-5),
      								   ::testing::Values(null,index,random),
@@ -182,9 +183,9 @@ namespace {
     		ASSERT_NEAR(g0.normf(),t0.normf(),eps);
     		ASSERT_NEAR(g0.svd_normf(),t0.normf(),eps);
 
-//    		// svd_normf computes the norm of the weights only
-//    		g0.scale(1.1);
-//    		ASSERT_NEAR(g0.svd_normf(),1.1*(t0.normf()),eps);
+    		// svd_normf computes the norm of the weights only
+    		g0.scale(1.1);
+    		ASSERT_NEAR(g0.svd_normf(),1.1*(t0.normf()),eps);
 
     	} catch (const madness::TensorException& e) {
     		if (dim.size() != 0) std::cout << e;
@@ -338,6 +339,7 @@ namespace {
     		// check for addition
     		t0+=t1;
     		g0+=g1;
+            ASSERT_LT((g0.full_tensor_copy()-t0).normf(),eps);
     		g0.reduce_rank(eps);
     		ASSERT_LT((g0.full_tensor_copy()-t0).normf(),eps);
 

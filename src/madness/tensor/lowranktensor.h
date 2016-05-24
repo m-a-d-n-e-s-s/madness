@@ -34,9 +34,17 @@
 #ifndef MADNESS_TENSOR_LOWRANKTENSOR_H_
 #define MADNESS_TENSOR_LOWRANKTENSOR_H_
 
-#include <madness/tensor/tensor.h>
-#include <madness/tensor/tensortrain.h>
-#include <madness/tensor/srconf.h>
+#include <memory>
+#include <vector>
+
+#include "../world/madness_exception.h"
+#include "../world/print.h"
+#include "gentensor.h"
+#include "slice.h"
+#include "srconf.h"
+#include "tensor.h"
+#include "tensortrain.h"
+#include "type_data.h"
 
 namespace madness {
 
@@ -351,7 +359,7 @@ public:
         if (type==TT_NONE) return resultT(0.0);
         else if (type==TT_FULL) return impl.full->trace_conj(*(rhs.impl.full));
         else if (type==TT_2D) return overlap(*impl.svd,*(rhs.impl.svd));
-        else if (type==TT_TENSORTRAIN) return impl.tt->trace_conj(*rhs.impl.tt);
+        else if (type==TT_TENSORTRAIN) return impl.tt->trace(*rhs.impl.tt);
         else {
             MADNESS_EXCEPTION("you should not be here",1);
         }
@@ -371,9 +379,8 @@ public:
     LowRankTensor& operator-=(const LowRankTensor& other) {
         if (type==TT_FULL) impl.full->operator-=(*other.impl.full);
         else if (type==TT_2D) impl.svd->append((*other.impl.svd),-1.0);
-        else if (type==TT_TENSORTRAIN) {
-            MADNESS_EXCEPTION("implement operator-= for TensorTrain",1);
-        } else {
+        else if (type==TT_TENSORTRAIN) impl.tt->operator-=(*other.impl.tt);
+        else {
             MADNESS_EXCEPTION("you should not be here",1);
         }
         return *this;
@@ -388,13 +395,11 @@ public:
             if (not (alpha==1.0)) this->scale(alpha);
             impl.svd->append(*other.impl.svd,beta);
         } else if (type==TT_TENSORTRAIN) {
-            MADNESS_EXCEPTION("implement gaxpy for TensorTrain",1);
+            impl.tt->gaxpy(alpha,*other.impl.tt,beta);
         } else {
             MADNESS_EXCEPTION("you should not be here",1);
         }
-
         return *this;
-
     }
 
     void add_SVD(const LowRankTensor& other, const double& thresh) {
@@ -550,7 +555,7 @@ public:
             SVDTensor<resultT> result(impl.svd->transform_dir(c,axis));
             return LowRankTensor<resultT>(result);
         } else if (type==TT_TENSORTRAIN) {
-            TensorTrain<resultT> tt=madness::transform_dir(*impl.tt,c,axis);
+            TensorTrain<resultT> tt=madness::transform_dir((*impl.tt),c,axis);
             return LowRankTensor(tt);
         } else {
             MADNESS_EXCEPTION("you should not be here",1);
