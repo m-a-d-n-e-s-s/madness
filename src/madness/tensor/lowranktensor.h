@@ -714,7 +714,7 @@ public:
             lrt.impl.svd->inplace_add(*rhs.impl.svd,thisslice,rhs_slice, 1.0, 1.0);
 
         } else if (lrt.type==TT_TENSORTRAIN) {
-            MADNESS_EXCEPTION("implement inplace_add for TensorTrain",1);
+            lrt.impl.tt->gaxpy(thisslice,*rhs.impl.tt,1.0,rhs_slice);
         }
         return *this;
     }
@@ -746,7 +746,7 @@ public:
             lrt.impl.svd->inplace_add(*rhs.impl.svd,thisslice,rhs_slice, 1.0, -1.0);
 
         } else if (lrt.type==TT_TENSORTRAIN) {
-            MADNESS_EXCEPTION("implement inplace_add for TensorTrain",1);
+            lrt.impl.tt->gaxpy(thisslice,*rhs.impl.tt,-1.0,rhs_slice);
         }
         return *this;
     }
@@ -777,7 +777,7 @@ public:
             lrt.impl.svd->inplace_add(*rhs.lrt.impl.svd,thisslice,rhs_slice, 1.0, 1.0);
 
         } else if (lrt.type==TT_TENSORTRAIN) {
-            MADNESS_EXCEPTION("implement inplace_add for TensorTrain",1);
+            lrt.impl.tt->gaxpy(thisslice,*rhs.lrt.impl.tt,1.0,rhs_slice);
         }
         return *this;
 
@@ -796,7 +796,7 @@ public:
             lrt.impl.svd->inplace_add(*tmp.impl.svd,thisslice,thisslice, 1.0, -1.0);
 
         } else if (lrt.type==TT_TENSORTRAIN) {
-            MADNESS_EXCEPTION("implement inplace_add for TensorTrain",1);
+            lrt.impl.tt->gaxpy(thisslice,*lrt.impl.tt,-1.0,thisslice);
         }
         return *this;
     }

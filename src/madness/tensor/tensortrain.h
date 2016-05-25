@@ -420,6 +420,66 @@ namespace madness {
 			return *this;
 		}
 
+        /// Inplace generalized saxpy with slices and without alpha
+
+        /// return this = this(s1) + other(s2) * beta
+        TensorTrain<T>& gaxpy(const std::vector<Slice>& s1,
+                const TensorTrain<T>& rhs, T beta, const std::vector<Slice>& s2) {
+
+            // make sure dimensions conform
+            MADNESS_ASSERT(this->ndim()==rhs.ndim());
+
+//            if (this->zero_rank) {
+//                *this=rhs*beta;
+
+//            } else {
+            if (true) {
+                // special treatment for first border cores (k,r1)
+
+                // alpha and beta are only included in the first core(!)
+                {
+                    long k=core[0].dim(0);  // this is max dimension: k>=slice1; k>=slice2
+                    long r1_this=core[0].dim(1);
+                    long r1_rhs=rhs.core[0].dim(1);
+
+                    Tensor<T> core_new(k,r1_this+r1_rhs);
+                    if (r1_this>0) core_new(_,Slice(0,r1_this-1))=core[0];
+                    if (r1_rhs>0)  core_new(s1[0],Slice(r1_this,r1_this+r1_rhs-1))=beta*rhs.core[0](s2[0],_);
+                    core[0]=core_new;
+                }
+
+                // interior cores (r0,k,r1)
+                for (std::size_t i=1; i<core.size()-1; ++i) {
+                    MADNESS_ASSERT(core[i].ndim()==3 or i==core.size()-1);
+                    long r0_this=core[i].dim(0);
+                    long r0_rhs=rhs.core[i].dim(0);
+                    long k=core[i].dim(1);
+                    long r1_this=core[i].dim(2);
+                    long r1_rhs=rhs.core[i].dim(2);
+                    Tensor<T> core_new(r0_this+r0_rhs,k,r1_this+r1_rhs);
+                    if (r1_this>0) core_new(Slice(0,r0_this-1),_,Slice(0,r1_this-1))=core[i];
+                    if (r1_rhs>0)  core_new(Slice(r0_this,r0_this+r0_rhs-1),s1[i],Slice(r1_this,r1_this+r1_rhs-1))=rhs.core[i](_,s2[i],_);
+                    core[i]=core_new;
+                }
+
+                // special treatment for last border core (r0,k)
+                {
+                    std::size_t d=core.size()-1;
+                    long r0_this=core[d].dim(0);
+                    long r0_rhs=rhs.core[d].dim(0);
+                    long k=core[d].dim(1);
+                    Tensor<T> core_new(r0_this+r0_rhs,k);
+                    if (r0_this>0) core_new(Slice(0,r0_this-1),_)=core[d];
+                    if (r0_rhs>0)  core_new(Slice(r0_this,r0_this+r0_rhs-1),s1[d])=rhs.core[d](_,s2[d]);
+                    core[d]=core_new;
+                }
+            }
+            if (not rhs.zero_rank) zero_rank=false;
+            if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
+            return *this;
+        }
+
+
 		/// merge two dimensions into one
 
 		/// merge dimension i and i+1 into new dimension i
