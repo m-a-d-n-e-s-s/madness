@@ -1920,14 +1920,14 @@ namespace madness {
 
         // specialized version for 3D
         if (NDIM <= 3) {
-            result.set_impl(f, true);
+            result.set_impl(f, false);
             result.get_impl()->apply(op, *f.get_impl(), fence);
 
         } else {        // general version for higher dimension
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
-            result.set_impl(f, true);
-            r1.set_impl(f, true);
+            result.set_impl(f, true); // ??????????????????
+            r1.set_impl(f, true); // ??????????????????
 
             result.get_impl()->reset_timer();
             op.reset_timer();
