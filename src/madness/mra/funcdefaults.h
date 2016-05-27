@@ -148,7 +148,7 @@ namespace madness {
      inline
      std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
          s << "BoundaryConditions(";
-         for (int d=0; d<NDIM; ++d) {
+         for (unsigned int d=0; d<NDIM; ++d) {
              s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
              if (d == NDIM-1)
                  s << ")";
