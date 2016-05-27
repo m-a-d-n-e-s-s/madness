@@ -341,7 +341,8 @@ namespace madness {
                 //                coeff() = coeffT(t,args);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
-                    const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                    //const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                    const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
             double cpu1=cpu_time();
@@ -379,7 +380,8 @@ namespace madness {
             	coeff() = copy(t);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
-                    const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                    //const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                    const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
             double cpu1=cpu_time();
@@ -991,8 +993,7 @@ namespace madness {
 
             coeffs.process_pending();
             this->process_pending();
-            if (factory._fence && functor)
-                world.gop.fence();
+            if (factory._fence && (functor || !empty)) world.gop.fence();
         }
 
         /// Copy constructor
@@ -4298,7 +4299,11 @@ namespace madness {
                         // } else {
                             tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
                             if (result.normf()> 0.3*tol/fac) {
-                                coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
+			      // Switched back to send in order to get rid of a zillion small tasks and to preserve
+			      // direct call optimization.  Also reduces memory foot print in remote end by directly
+			      // consuming data.
+			      //coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
+			      coeffs.send(dest, &nodeT::accumulate2, result, coeffs, dest);
                             }
                         // }
                     } else if (d.distsq() >= 1)
