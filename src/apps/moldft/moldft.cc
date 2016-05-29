@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
 START_TIMER(world);
       try {
         // Load info for MADNESS numerical routines
-        startup(world,argc,argv);
+        startup(world,argc,argv,true);
 	print_meminfo(world.rank(), "startup");
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 
