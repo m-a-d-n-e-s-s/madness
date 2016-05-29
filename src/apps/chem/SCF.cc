@@ -1585,6 +1585,7 @@ namespace madness {
             std::shared_ptr< WorldDCPmapInterface< Key<3> > > newpmap = lb.load_balance(param.loadbalparts);
             FunctionDefaults<3>::set_pmap(newpmap);
             
+            world.gop.fence();
             for (unsigned int i=0; i<psi.size(); ++i) psicopy[i] = copy(psi[i],newpmap,false);
             world.gop.fence();
             END_TIMER(world, "KE redist");
