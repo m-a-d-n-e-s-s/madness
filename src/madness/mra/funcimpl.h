@@ -1028,6 +1028,7 @@ namespace madness {
             if (dozero) {
                 initial_level = 1;
                 insert_zero_down_to_initial_level(cdata.key0);
+		//world.gop.fence(); <<<<<<<<<<<<<<<<<<<<<<   needs a fence argument
             }
             coeffs.process_pending();
             this->process_pending();

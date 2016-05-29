@@ -617,6 +617,7 @@ namespace madness {
         template <typename R>
         void set_impl(const Function<R,NDIM>& f, bool zero = true) {
             impl = std::shared_ptr<implT>(new implT(*f.get_impl(), f.get_pmap(), zero));
+	    if (zero) world().gop.fence();
         }
 
         /// Returns the world
@@ -2107,7 +2108,7 @@ namespace madness {
         MADNESS_ASSERT(particle==1 or particle==2);
 
         Function<T,NDIM> result;
-        result.set_impl(f, true);
+        result.set_impl(f, true); // ???????????????????????????????????????????????????
 
         Function<T,NDIM>& ff = const_cast< Function<T,NDIM>& >(f);
         Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
