@@ -33,10 +33,10 @@
 #define MADNESS_TENSOR_ELEM_H__INCLUDED
 
 #include <madness/madness_config.h>
+#include <madness/world/MADworld.h>
 
 #ifdef MADNESS_HAS_ELEMENTAL_EMBEDDED
 
-#include <madness/world/MADworld.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/tensor/distributed_matrix.h>
@@ -515,6 +515,8 @@ namespace madness {
                const Tensor<T>& a, const Tensor<T>& B, int itype,
                Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
         sygv(a, B, itype, V, e);
+	world.gop.broadcast_serializable(V,0);
+	world.gop.broadcast_serializable(e,0);
     }
     
     // sequential fall back code
