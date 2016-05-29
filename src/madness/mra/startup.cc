@@ -145,9 +145,11 @@ namespace madness {
             print("  tensor instance count ...", "enabled");
 #endif
 #if HAVE_INTEL_TBB
-            print("              Intel TBB ...", "yes ");
+            print(" multi-threaded runtime ...", "Intel TBB");
+#elif defined(HAVE_PARSEC)
+            print(" multi-threaded runtime ...", "PaRSEC");
 #else
-            print("              Intel TBB ...", "no ");
+            print(" multi-threaded runtime ...", "MADNESS ThreadPool");
 #endif
            	print("               compiled ...",__TIME__," on ",__DATE__);
 
