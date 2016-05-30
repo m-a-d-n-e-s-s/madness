@@ -75,9 +75,11 @@ int main(int argc, char** argv) {
     real_convolution_3d op = CoulombOperator(world, 1e-4, 1e-6);
     real_function_3d g = real_factory_3d(world).f(gaussian);
 
+    g.truncate();
+
     print(g.trace()); // exact trace is Pi^(3/2)=5.56832799683175
     print(g.norm2()); // exact norm2 is (Pi/2)^3/4=1.40310414553422
-    print(g.inner(op(g))); // exact answer is Pi^(5/2)*sqrt(2) = 24.7394294511936
+    print(inner(g,op(g))); // exact answer is Pi^(5/2)*sqrt(2) = 24.7394294511936
 
     finalize();
     return 0;
