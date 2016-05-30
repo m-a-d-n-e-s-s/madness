@@ -24,16 +24,20 @@ thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 AUTOMAKE_OPTIONS = subdir-objects
 
 pno_SOURCES = pno.cc 
+pno_LDADD = $(LIBCHEM) $(MRALIBS)
 
 siam_example_SOURCES = siam_example.cc 
 
 mp2_SOURCES = mp2.cc 
 
 helium_exact_SOURCES = helium_exact.cc 
+helium_exact_LDADD = $(LIBCHEM) $(MRALIBS)
 
 oep_SOURCES = oep.cc 
+oep_LDADD = $(LIBCHEM) $(MRALIBS)
 
 tiny_SOURCES = tiny.cc
+tiny_LDADD = $(LIBCHEM) $(MRALIBS)
 
 dataloadbal_SOURCES = dataloadbal.cc
 
@@ -44,12 +48,15 @@ testspectralprop_SOURCES = testspectralprop.cc
 testsolver_SOURCES = testsolver.cc
 
 tdhf_SOURCES = tdhf.cc
+tdhf_LDADD = $(LIBCHEM) $(MRALIBS)
 
 cc2_SOURCES = cc2.cc
 
 nemo_SOURCES = nemo.cc 
+nemo_LDADD = $(LIBCHEM) $(MRALIBS)
 
 density_smoothing_SOURCES = density_smoothing.cc
+density_smoothing_LDADD = $(LIBCHEM) $(MRALIBS)
 
 newsolver_SOURCES = newsolver.cc
 
@@ -110,5 +117,6 @@ binaryop_SOURCES = binaryop.cc
 
 gaussian_SOURCES = gaussian.cc
 
-LDADD = $(LIBCHEM) $(MRALIBS)
+LDADD = $(MRALIBS)
+#LDADD = $(LIBCHEM) $(MRALIBS)
 
