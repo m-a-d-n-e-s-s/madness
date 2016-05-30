@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 if CAN_BUILD_DOC
-.PHONY: all
+.PHONY: docs
 docs:
 	$(DOXYGEN) doxygen.cfg
 
