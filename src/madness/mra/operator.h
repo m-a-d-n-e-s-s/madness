@@ -40,7 +40,6 @@
 #include <type_traits>
 #include <limits.h>
 #include <madness/mra/adquad.h>
-#include <madness/tensor/mtxmq.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/constants.h>
@@ -220,7 +219,6 @@ namespace madness {
                                   const Tensor<T>& f,
                                   Tensor<R>& work1,
                                   Tensor<R>& work2,
-                                  Tensor<Q>& work3,
                                   const Q mufac,
                                   Tensor<R>& result) const {
 
@@ -231,16 +229,11 @@ namespace madness {
 
             R* restrict w1=work1.ptr();
             R* restrict w2=work2.ptr();
-#ifndef HAVE_IBMBGQ
-            Q* restrict w3=work3.ptr();
-            const Q* U;
-#endif
 
 #ifdef HAVE_IBMBGQ
             mTxmq_padding(dimi, trans[0].r, dimk, dimk, w1, f.ptr(), trans[0].U);
 #else
-            U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
-            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), trans[0].U, dimk);
 #endif
 
             size = trans[0].r * size / dimk;
@@ -249,8 +242,7 @@ namespace madness {
 #ifdef HAVE_IBMBGQ
                 mTxmq_padding(dimi, trans[d].r, dimk, dimk, w2, w1, trans[d].U);
 #else
-                U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
-                mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+                mTxmq(dimi, trans[d].r, dimk, w2, w1, trans[d].U, dimk);
 #endif
                 size = trans[d].r * size / dimk;
                 dimi = size/dimk;
@@ -307,7 +299,6 @@ namespace madness {
                                   const GenTensor<T>& f,
                                   GenTensor<R>& work1,
                                   GenTensor<R>& work2,
-                                  GenTensor<Q>& work3,
                                   const Q mufac,
                                   GenTensor<R>& result) const {
 
@@ -325,17 +316,12 @@ namespace madness {
 
             R* restrict w1=work1.ptr();
             R* restrict w2=work2.ptr();
-            Q* restrict w3=work3.ptr();
 
-            const Q* U;
-
-            U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
-            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), trans[0].U, dimk);
             size = trans[0].r * size / dimk;
             dimi = size/dimk;
             for (std::size_t d=1; d<NDIM; ++d) {
-                U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
-                mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+                mTxmq(dimi, trans[d].r, dimk, w2, w1, trans[d].U, dimk);
                 size = trans[d].r * size / dimk;
                 dimi = size/dimk;
                 std::swap(w1,w2);
@@ -376,8 +362,7 @@ namespace madness {
                          double tol,
                          const Q mufac,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
-                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
-                         Tensor<Q>& work5) const {
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2) const {
 
             //PROFILE_MEMBER_FUNC(SeparatedConvolution); // Too fine grain for routine profiling
             Transformation trans[NDIM];
@@ -399,6 +384,7 @@ namespace madness {
                 else if (NDIM==2) break_even = long(0.6*twok);
                 else if (NDIM==3) break_even=long(0.65*twok);
                 else break_even=long(0.7*twok);
+                bool rank_is_zero = false;
                 for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
                     for (r=0; r<twok; ++r) {
@@ -410,15 +396,22 @@ namespace madness {
                         trans[d].VT = 0;
                     }
                     else {
-                        r += (r&1L);
-                        trans[d].r = std::max(2L,r);
+                        //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+                        if (r == 0) {
+                            rank_is_zero = true;
+                            break;
+                        }
+                        trans[d].r = r;
                         trans[d].U = ops_1d[d]->RU.ptr();
                         trans[d].VT = ops_1d[d]->RVT.ptr();
                     }
                     trans2[d]=ops_1d[d]->R;
                 }
-                apply_transformation(twok, trans, f, work1, work2, work5, mufac, result);
-    //            apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
+
+                if (!rank_is_zero)
+                    apply_transformation(twok, trans, f, work1, work2, mufac, result);
+
+                //            apply_transformation2(n, twok, tol, trans2, f, work1, work2, mufac, result);
 //                apply_transformation3(trans2, f, mufac, result);
             }
 
@@ -433,6 +426,7 @@ namespace madness {
                 else if (NDIM==2) break_even = long(0.6*k);
                 else if (NDIM==3) break_even=long(0.65*k);
                 else break_even=long(0.7*k);
+                bool rank_is_zero = false;
                 for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
                     for (r=0; r<k; ++r) {
@@ -444,15 +438,20 @@ namespace madness {
                         trans[d].VT = 0;
                     }
                     else {
-                        r += (r&1L);
-                        trans[d].r = std::max(2L,r);
+                        //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+                        if (r == 0) {
+                            rank_is_zero = true;
+                            break;
+                        }
+                        trans[d].r = r;
                         trans[d].U = ops_1d[d]->TU.ptr();
                         trans[d].VT = ops_1d[d]->TVT.ptr();
                     }
                     trans2[d]=ops_1d[d]->T;
                 }
-                apply_transformation(k, trans, f0, work1, work2, work5, -mufac, result0);
-//                apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
+                if (!rank_is_zero)
+                    apply_transformation(k, trans, f0, work1, work2, -mufac, result0);
+//                apply_transformation2(n, k, tol, trans2, f0, work1, work2, -mufac, result0);
 //                apply_transformation3(trans2, f0, -mufac, result0);
             }
         }
@@ -468,8 +467,7 @@ namespace madness {
                          double tol,
                          const Q mufac,
                          GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
-                         GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
-                         GenTensor<Q>& work5) const {
+                         GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work2) const {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
 //            Transformation trans[NDIM];
@@ -493,24 +491,24 @@ namespace madness {
 //				else if (NDIM==3) break_even=long(0.65*twok);
 //				else break_even=long(0.7*twok);
 				for (std::size_t d=0; d<NDIM; ++d) {
-					long r;
-					for (r=0; r<twok; ++r) {
-						if (ops_1d[d]->Rs[r] < tol) break;
-					}
+					// long r;
+					// for (r=0; r<twok; ++r) {
+					// 	if (ops_1d[d]->Rs[r] < tol) break;
+					// }
 //					if (r >= break_even) {
 //						trans[d].r = twok;
 //						trans[d].U = ops_1d[d]->R.ptr();
 //						trans[d].VT = 0;
 //					}
 //					else {
-//						r += (r&1L);
-//						trans[d].r = std::max(2L,r);
+//						//r += std::max(2L,r&1L); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+//						trans[d].r = r; 
 //						trans[d].U = ops_1d[d]->RU.ptr();
 //						trans[d].VT = ops_1d[d]->RVT.ptr();
 //					}
 					trans2[d]=ops_1d[d]->R;
 				}
-				apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
+				apply_transformation2(n, twok, tol, trans2, f, work1, work2, mufac, result);
             }
 
             double Tnorm = 1.0;
@@ -524,24 +522,24 @@ namespace madness {
 //                else if (NDIM==3) break_even=long(0.65*k);
 //                else break_even=long(0.7*k);
                 for (std::size_t d=0; d<NDIM; ++d) {
-                    long r;
-                    for (r=0; r<k; ++r) {
-                        if (ops_1d[d]->Ts[r] < tol) break;
-                    }
+                    // long r;
+                    // for (r=0; r<k; ++r) {
+                    //     if (ops_1d[d]->Ts[r] < tol) break;
+                    // }
 //                    if (r >= break_even) {
 //                        trans[d].r = k;
 //                        trans[d].U = ops_1d[d]->T.ptr();
 //                        trans[d].VT = 0;
 //                    }
 //                    else {
-//                        r += (r&1L);
-//                        trans[d].r = std::max(2L,r);
+//                        //r += std::max(2L,r&1L); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+//                        trans[d].r = r; 
 //                        trans[d].U = ops_1d[d]->TU.ptr();
 //                        trans[d].VT = ops_1d[d]->TVT.ptr();
 //                    }
                     trans2[d]=ops_1d[d]->T;
                 }
-                apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
+                apply_transformation2(n, k, tol, trans2, f0, work1, work2, -mufac, result0);
             }
         }
 
@@ -1154,13 +1152,11 @@ namespace madness {
 
             Tensor<resultT> r(v2k), r0(vk);
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
-            Tensor<Q> work5(2*k,2*k);
 
             if (modified()) {
                    r=Tensor<resultT>(vk);
                    work1=Tensor<resultT>(vk,false);
                    work2=Tensor<resultT>(vk,false);
-                   work5=Tensor<Q>(k,k);
             }
 
             const Tensor<T> f0 = copy(coeff(s0));
@@ -1171,7 +1167,7 @@ namespace madness {
                     // ops is of ConvolutionND, returns data for 1 term and all dimensions
                     Q fac = ops[mu].getfac();
                     muopxv_fast(at, muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
-                                work1, work2, work5);
+                                work1, work2);
                 }
             }
 
@@ -1217,7 +1213,6 @@ namespace madness {
 
             // some workspace
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
-            Tensor<Q> work5(2*k,2*k);
 
             // sliced input and final result
             const GenTensor<T> f0 = copy(coeff(s00));
@@ -1252,7 +1247,7 @@ namespace madness {
 
                         Q fac = ops[mu].getfac();
                         muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
-                                tol/std::abs(fac), fac, work1, work2, work5);
+                                tol/std::abs(fac), fac, work1, work2);
 
 //                    }
                 }
@@ -1323,14 +1318,11 @@ namespace madness {
 
             GenTensor<resultT> r, r0, result, result0;
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
-            GenTensor<Q> work5(v2k,tt);
 
             if (modified()) {
                 r=GenTensor<resultT>(vk,tt);
                 work1=GenTensor<resultT>(vk,tt);
                 work2=GenTensor<resultT>(vk,tt);
-                work5=GenTensor<Q>();
-
             }
 
             // collect the results of the individual operator terms
@@ -1361,7 +1353,7 @@ namespace madness {
 
                         Q fac = ops[mu].getfac();
                         muopxv_fast2(source.level(), muop.ops, chunk, chunk0, r, r0,
-                                tol/std::abs(fac), fac,	work1, work2, work5);
+                                tol/std::abs(fac), fac,	work1, work2);
                         double cpu1=cpu_time();
                         timer_low_transf.accumulate(cpu1-cpu0);
 
