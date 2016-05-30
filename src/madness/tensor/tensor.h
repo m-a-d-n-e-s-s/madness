@@ -56,7 +56,6 @@
 #include <madness/tensor/basetensor.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/mxm.h>
-#include <madness/tensor/mtxmq.h>
 #include <madness/tensor/tensorexcept.h>
 #include <madness/tensor/tensoriter.h>
 
@@ -326,7 +325,8 @@ namespace madness {
 /* One can infer from the AVX2 case that 64B alignment helps with 512b SIMD. */
 #define TENSOR_ALIGNMENT 64
 #else
-#define TENSOR_ALIGNMENT 16
+// Typical cache line size
+#define TENSOR_ALIGNMENT 64
 #endif
 
 #ifdef WORLD_GATHER_MEM_STATS
@@ -2227,7 +2227,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimj = right.stride(0);
                 long dimi = left.stride(0);
-                ::mTxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                mTxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==(left.ndim()-1) && k1==(right.ndim()-1)) {
@@ -2235,7 +2235,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.size()/dimk;
                 long dimj = right.size()/dimk;
-                ::mxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                mxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==0 && k1==(right.ndim()-1)) {
@@ -2243,7 +2243,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.stride(0);
                 long dimj = right.size()/dimk;
-                ::mTxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                mTxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==(left.ndim()-1) && k1==0) {
@@ -2251,7 +2251,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.size()/dimk;
                 long dimj = right.stride(0);
-                ::mxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                mxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
         }
@@ -2345,10 +2345,11 @@ namespace madness {
     /// The input, result and workspace tensors must be distinct.
     ///
     /// All input tensors must be contiguous and fastest execution
-    /// will result if all dimensions are even and data is aligned on
-    /// 16-byte boundaries.  The workspace and the result must be of
-    /// the same size as the input \c t .  The result tensor need not
-    /// be initialized before calling fast_transform.
+    /// will result if all dimensions are approriately aligned and
+    /// multiples of the underlying vector length.  The workspace and
+    /// the result must be of the same size as the input \c t .  The
+    /// result tensor need not be initialized before calling
+    /// fast_transform.
     ///
     /// \code
     ///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...
@@ -2370,35 +2371,9 @@ namespace madness {
         long dimi = 1;
         for (int n=1; n<t.ndim(); ++n) dimi *= dimj;
 
-#ifdef AVX_MTXMQ_TEST
-        // The new AVX code is smokin' fast and has no restrictions
-            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); ++n) {
-                mTxmq(dimi, dimj, dimj, t1, t0, pc);
-                std::swap(t0,t1);
-            }
-#elif HAVE_IBMBGQ
-            long nij = dimi*dimj;
-            if (IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
-                for (long i=0; i<nij; ++i) t0[i] = 0.0;
-                mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
-                for (int n=1; n<t.ndim(); ++n) {
-                    for (long i=0; i<nij; ++i) t1[i] = 0.0;
-                    mTxm(dimi, dimj, dimj, t1, t0, pc);
-                    std::swap(t0,t1);
-                }
-            }
-            else {
-                mTxmq_padding(dimi, dimj, dimj, dimj, t0, t.ptr(), pc);
-                for (int n=1; n<t.ndim(); ++n) {
-                    mTxmq_padding(dimi, dimj, dimj, dimj, t1, t0, pc);
-                    std::swap(t0,t1);
-                }
-            }
-#else
+#if HAVE_IBMBGQ
         long nij = dimi*dimj;
-        if (IS_ODD(dimi) || IS_ODD(dimj) ||
-                IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
+        if (IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
             for (long i=0; i<nij; ++i) t0[i] = 0.0;
             mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
             for (int n=1; n<t.ndim(); ++n) {
@@ -2408,14 +2383,21 @@ namespace madness {
             }
         }
         else {
-         mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-         for (int n=1; n<t.ndim(); ++n) {
-             mTxmq(dimi, dimj, dimj, t1, t0, pc);
-             std::swap(t0,t1);
-         }
+            mTxmq_padding(dimi, dimj, dimj, dimj, t0, t.ptr(), pc);
+            for (int n=1; n<t.ndim(); ++n) {
+                mTxmq_padding(dimi, dimj, dimj, dimj, t1, t0, pc);
+                std::swap(t0,t1);
+            }
+        }
+#else
+        // Now assume no restriction on the use of mtxmq
+        mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+        for (int n=1; n<t.ndim(); ++n) {
+            mTxmq(dimi, dimj, dimj, t1, t0, pc);
+            std::swap(t0,t1);
         }
 #endif
-
+        
         return result;
     }
 

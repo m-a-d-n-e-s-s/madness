@@ -34,7 +34,7 @@
 #include <madness/madness_config.h>
 
 // Disable for now to facilitate CI 
-#if !(defined(X86_32X) || defined(X86_64X))
+#if !(defined(X86_32) || defined(X86_64))
 
 #include <iostream>
 int main() {std::cout << "x86 only\n"; return 0;}
@@ -50,7 +50,7 @@ int main() {std::cout << "x86 only\n"; return 0;}
 #include <madness/world/posixmem.h>
 #include <madness/tensor/cblas.h>
 #include <madness/tensor/tensor.h>
-#include <madness/tensor/mtxmq.h>
+#include <madness/tensor/mxm.h>
 
 using namespace madness;
 

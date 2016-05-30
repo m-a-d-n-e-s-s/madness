@@ -51,7 +51,7 @@
 #include <madness/madness_config.h>
 #include <madness/misc/ran.h>
 #include <madness/tensor/tensor.h>
-#include <madness/tensor/mtxmq.h>
+#include <madness/tensor/mxm.h>
 #include <madness/tensor/aligned.h>
 
 #include <stdlib.h>
@@ -61,9 +61,6 @@
 #include <cstring>
 #include <iostream>
 
-namespace madness {
-#include <madness/tensor/mxm.h>
-}
 
 /// \file tensor.cc
 /// \brief Completes the implementation of Tensor and instantiates all specializations for fast compiles.

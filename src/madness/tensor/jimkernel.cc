@@ -32,7 +32,6 @@
 */
 
 #include <madness/tensor/tensor.h>
-#include <madness/tensor/mtxmq.h>
 #include <madness/world/print.h>
 #include <madness/world/timers.h>
 #include <vector>
