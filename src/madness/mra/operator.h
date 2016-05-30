@@ -1140,7 +1140,7 @@ namespace madness {
                 }
             }
 
-            tol = tol/rank; // Error is per separated term
+            tol = 0.3*tol/rank; // Error is per separated term
             ApplyTerms at;
             at.r_term=true;
             at.t_term=(source.level()>0);
