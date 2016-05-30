@@ -279,6 +279,7 @@ namespace madness {
 
 #else
 
+#if 0
 
 	/// A GenTensor is a generalized tensor, possibly in a low rank representation
 
@@ -526,7 +527,10 @@ namespace madness {
 				tensorT a=copy(full_tensor()(s));
 				return gentensorT(configT(a));
 			} else if (tensor_type()==TT_2D) {
-			    return gentensorT(config()(copy_slice(s)));
+			    return gentensorT(config().copy_slice(s));
+			} else {
+			    MADNESS_EXCEPTION("fault in GenTensor::copy_slice",1);
+			    return gentensorT();
 			}
 		}
 
@@ -1163,6 +1167,8 @@ namespace madness {
  		return coeff;
      }
 
+#endif
+
     #endif /* HAVE_GENTENSOR */
 
     /// change representation to targ.tt
@@ -1217,8 +1223,82 @@ namespace madness {
     }
 
 
+}   // namespace madness
 
-}
 #include <madness/tensor/lowranktensor.h>
 
+namespace madness {
+
+template<typename T>
+class GenTensor : public LowRankTensor<T> {
+
+public:
+    GenTensor<T>() : LowRankTensor<T>() {}
+    GenTensor<T>(const GenTensor<T>& g) : LowRankTensor<T>(g) {}
+    GenTensor<T>(const LowRankTensor<T>& g) : LowRankTensor<T>(g) {}
+    GenTensor<T>(const SliceLowRankTensor<T>& g) : LowRankTensor<T>(g) {}
+
+    GenTensor<T>(const Tensor<T>& t1) : LowRankTensor<T>(static_cast<const LowRankTensor<T>& >(t1)) {}
+    GenTensor<T>(const Tensor<T>& t1, const TensorArgs& targs) : LowRankTensor<T>(t1,targs) {}
+    GenTensor<T>(const Tensor<T>& t1, double eps, const TensorType tt) : LowRankTensor<T>(t1,eps,tt) {}
+    GenTensor<T>(const TensorType tt): LowRankTensor<T>(tt) {}
+    GenTensor<T>(std::vector<long> v, const TensorType& tt) : LowRankTensor<T>(v,tt) {}
+    GenTensor<T>(std::vector<long> v, const TensorArgs& targs) : LowRankTensor<T>(v,targs) {}
+    GenTensor<T>(const SRConf<T>& sr1) : LowRankTensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);}
+
+    operator LowRankTensor<T>() const {return *this;}
+    std::string what_am_i() const {return TensorArgs::what_am_i(this->tensor_type());};
+
+    SRConf<T> config() const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
+    SRConf<T> get_configs(const int& start, const int& end) const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
+
+};
+
+/// add all the GenTensors of a given list
+
+ /// If there are many tensors to add it's beneficial to do a sorted addition and start with
+ /// those tensors with low ranks
+ /// @param[in]  addends     a list with gentensors of same dimensions; will be destroyed upon return
+/// @param[in]  eps         the accuracy threshold
+/// @param[in]  are_optimal flag if the GenTensors in the list are already in SVD format (if TT_2D)
+/// @return     the sum GenTensor of the input GenTensors
+template<typename T>
+GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_optimal=false) {
+    typedef typename std::list<GenTensor<T> >::iterator iterT;
+    GenTensor<T> result=copy(addends.front());
+    for (iterT it=++addends.begin(); it!=addends.end(); ++it) {
+        result+=*it;
+    }
+    result.reduce_rank(eps);
+    return result;
+
+}
+
+
+namespace archive {
+/// Serialize a tensor
+template <class Archive, typename T>
+struct ArchiveStoreImpl< Archive, GenTensor<T> > {
+
+    friend class GenTensor<T>;
+    /// Stores the GenTensor to an archive
+    static void store(const Archive& ar, const GenTensor<T>& t) {
+        ar & t;
+    };
+};
+
+
+/// Deserialize a tensor ... existing tensor is replaced
+template <class Archive, typename T>
+struct ArchiveLoadImpl< Archive, GenTensor<T> > {
+
+    friend class GenTensor<T>;
+    /// Replaces this GenTensor with one loaded from an archive
+    static void load(const Archive& ar, GenTensor<T>& t) {
+        ar & t;
+    };
+};
+};
+
+}
 #endif /* GENTENSOR_H_ */

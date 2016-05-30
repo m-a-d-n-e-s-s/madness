@@ -314,6 +314,22 @@ public:
         return Tensor<T>();
     }
 
+    const Tensor<T>& full_tensor() const {
+        if (type==TT_FULL) return *impl.full;
+        else {
+            MADNESS_EXCEPTION("no full_tensor() if there is no full tensor",1);
+        }
+        return Tensor<T>();
+    }
+
+    Tensor<T>& full_tensor() {
+        if (type==TT_FULL) return *impl.full;
+        else {
+            MADNESS_EXCEPTION("no full_tensor() if there is no full tensor",1);
+        }
+        return Tensor<T>();
+    }
+
     static double facReduce() {return 1.e-3;}
     static double fac_reduce() {return 1.e-3;}
 
@@ -337,6 +353,17 @@ public:
         else if (type==TT_FULL) return impl.full->size();
         else if (type==TT_2D) return impl.svd->nCoeff();
         else if (type==TT_TENSORTRAIN) return impl.tt->size();
+        else {
+            MADNESS_EXCEPTION("you should not be here",1);
+        }
+        return false;
+    }
+
+    long real_size() const {
+        if (type==TT_NONE) return 0l;
+        else if (type==TT_FULL) return impl.full->size();
+        else if (type==TT_2D) return impl.svd->real_size();
+        else if (type==TT_TENSORTRAIN) return impl.tt->real_size();
         else {
             MADNESS_EXCEPTION("you should not be here",1);
         }
@@ -646,12 +673,73 @@ LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const LowRankTensor<T>& t1,
 
 }
 
+
+namespace archive {
+    /// Serialize a tensor
+    template <class Archive, typename T>
+    struct ArchiveStoreImpl< Archive, LowRankTensor<T> > {
+
+        friend class LowRankTensor<T>;
+        /// Stores the GenTensor to an archive
+        static void store(const Archive& ar, const LowRankTensor<T>& t) {
+            bool exist=t.has_data();
+            ar & exist & t.type;
+            if (exist) {
+                if (t.impl.svd) ar & *t.impl.svd;
+                if (t.impl.full) ar & *t.impl.full;
+                if (t.impl.tt) ar & *t.impl.tt;
+            }
+        };
+    };
+
+
+    /// Deserialize a tensor ... existing tensor is replaced
+    template <class Archive, typename T>
+    struct ArchiveLoadImpl< Archive, LowRankTensor<T> > {
+
+        friend class GenTensor<T>;
+        /// Replaces this GenTensor with one loaded from an archive
+        static void load(const Archive& ar, LowRankTensor<T>& t) {
+            // check for pointer existence
+            bool exist=false;
+            ar & exist & t.type;
+            if (exist) {
+                if (t.type==TT_2D) ar & *t.impl.svd;
+                if (t.type==TT_FULL) ar & *t.impl.full;
+                if (t.type==TT_TENSORTRAIN) ar & *t.impl.tt;
+
+            }
+        };
+    };
+};
+
+
 /// The class defines tensor op scalar ... here define scalar op tensor.
 template <typename T, typename Q>
 typename IsSupported < TensorTypeData<Q>, LowRankTensor<T> >::type
 operator*(const Q& x, const LowRankTensor<T>& t) {
     return t*x;
 }
+
+/// add all the GenTensors of a given list
+
+ /// If there are many tensors to add it's beneficial to do a sorted addition and start with
+ /// those tensors with low ranks
+ /// @param[in]  addends     a list with gentensors of same dimensions; will be destroyed upon return
+ /// @param[in]  eps         the accuracy threshold
+ /// @param[in]  are_optimal flag if the GenTensors in the list are already in SVD format (if TT_2D)
+ /// @return     the sum GenTensor of the input GenTensors
+ template<typename T>
+ LowRankTensor<T> reduce(std::list<LowRankTensor<T> >& addends, double eps, bool are_optimal=false) {
+     typedef typename std::list<LowRankTensor<T> >::iterator iterT;
+     LowRankTensor<T> result=copy(addends.front());
+      for (iterT it=++addends.begin(); it!=addends.end(); ++it) {
+          result+=*it;
+      }
+      result.reduce_rank(eps);
+      return result;
+
+ }
 
 
 /// implements a temporary(!) slice of a LowRankTensor
