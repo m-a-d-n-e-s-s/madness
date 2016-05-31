@@ -35,6 +35,8 @@
 #ifndef MADNESS_TENSOR_MXM_H__INCLUDED
 #define MADNESS_TENSOR_MXM_H__INCLUDED
 
+#include <madness/madness_config.h>
+
 #ifdef HAVE_INTEL_MKL
 #include <madness/tensor/cblas.h>
 #endif
