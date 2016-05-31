@@ -771,7 +771,7 @@ int main(int argc, char**argv) {
     int error=0;
     print("hello world");
 
-    test(k,dim,TensorArgs(eps,TT_2D));
+//    test(k,dim,TensorArgs(eps,TT_2D));
     for (int kk=4; kk<k+1; ++kk) {
     	for (int d=2; d<dim+1; ++d) {
     	    error+=testTensorTrain(kk,d,TensorArgs(eps,TT_2D));
@@ -793,7 +793,7 @@ int main(int argc, char**argv) {
 //    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
     error+=testGenTensor_algebra(k,dim,eps,TT_2D);
 
-    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_rankreduce(k,dim,eps,TT_3D);
     error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
 

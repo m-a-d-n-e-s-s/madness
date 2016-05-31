@@ -68,6 +68,10 @@ namespace madness {
 	template<typename T>
 	class TensorTrain {
 
+	    // make all types of TensorTrain friends of each other (for type conversion)
+	    template<typename Q>
+	    friend class TensorTrain;
+
         /// C++ typename of this tensor.
         typedef T type;
 
@@ -152,6 +156,18 @@ namespace madness {
 		TensorTrain(const TensorTrain& other) : core(other.core),
 		        zero_rank(other.zero_rank) {
 		}
+
+        /// Type conversion makes a deep copy
+        template <class Q> operator TensorTrain<Q>() const { // type conv => deep copy
+
+            TensorTrain<Q> result(this->dims());
+            result.zero_rank=zero_rank;
+            for (const Tensor<T>& c : core) {
+                result.core.push_back(Tensor<Q>(c));
+            }
+            return result;
+        }
+
 
 		/// deep copy of the whole tensor
 

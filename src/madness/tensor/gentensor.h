@@ -1254,8 +1254,11 @@ public:
     operator LowRankTensor<T>() {return *this;}
     std::string what_am_i() const {return TensorArgs::what_am_i(this->tensor_type());};
 
-    SRConf<T> config() const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
-    SRConf<T> get_configs(const int& start, const int& end) const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
+    SRConf<T> config() const {
+        MADNESS_ASSERT(this->type==TT_2D and (this->impl.svd));
+        return *this->impl.svd.get();
+    }
+    SRConf<T> get_configs(const int& start, const int& end) const {MADNESS_EXCEPTION("no SRConf in LRT/GenTensor",1);}
 
     /// deep copy of rhs by deep copying rhs.configs
     friend GenTensor<T> copy(const GenTensor<T>& rhs) {
@@ -1297,6 +1300,25 @@ GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_opti
     return result;
 
 }
+
+/// outer product of two Tensors, yielding a low rank tensor
+ template <class T, class Q>
+ GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2, const GenTensor<Q>& rhs2) {
+    return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor());
+ }
+
+ /// outer product of two Tensors, yielding a low rank tensor
+ template <class T, class Q>
+ GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2, const Tensor<Q>& rhs2) {
+
+    typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+    MADNESS_EXCEPTION("no outer_low_rank in GenTensor yet",1);
+
+    GenTensor<resultT> coeff;
+    return coeff;
+ }
+
 
 
 namespace archive {

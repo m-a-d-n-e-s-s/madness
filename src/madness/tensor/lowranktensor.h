@@ -209,6 +209,23 @@ public:
         return *this;
     }
 
+    /// Type conversion makes a deep copy
+    template <class Q> operator LowRankTensor<Q>() const { // type conv => deep copy
+
+        LowRankTensor<Q> result;
+        if (this->type==TT_FULL) {
+            result.impl.full.reset(new Tensor<Q>(*impl.full));
+        } else if (this->type==TT_2D) {
+            MADNESS_EXCEPTION("no type conversion for TT_2D yes=t",1);
+        } else if (this->type==TT_TENSORTRAIN) {
+            result.impl.tt.reset(new TensorTrain<Q>(*impl.tt));
+        } else {
+            MADNESS_EXCEPTION("you should not be here",1);
+        }
+        return result;
+    }
+
+
     /// general slicing, shallow; for temporary use only!
     SliceLowRankTensor<T> operator()(const std::vector<Slice>& s) {
         return SliceLowRankTensor<T>(*this,s);
@@ -299,7 +316,8 @@ public:
     template <typename Q>
     typename IsSupported<TensorTypeData<Q>,LowRankTensor<T>&>::type
     scale(Q fac) {
-        if (type==TT_FULL) impl.full->scale(T(fac));
+        if (type==TT_NONE) return *this;
+        else if (type==TT_FULL) impl.full->scale(T(fac));
         else if (type==TT_2D) impl.svd->scale(T(fac));
         else if (type==TT_TENSORTRAIN) impl.tt->scale(T(fac));
         else {
