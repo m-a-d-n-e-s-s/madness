@@ -166,7 +166,7 @@ namespace madness {
             for (int i=0; i<100; ++i) cpu_relax();
         }
 #elif defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
-        int count = BG_CYCLES_PER_MICROSECOND*us;
+        int count = BG_CYCLES_PER_MICROSECOND*us; // ??????
         for (int i=0; i<count; i++) {
             asm volatile ("nop\n");
         }
