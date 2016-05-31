@@ -565,11 +565,24 @@ namespace madness {
 			}
 		}
 
+        /// recompress and truncate this TT representation
+
+        /// this in recompressed TT form with optimal rank
+        /// @param[in]  eps the truncation threshold
+		template<typename R=T>
+        typename std::enable_if<!std::is_arithmetic<R>::value, void>::type
+        truncate(double eps) {
+            MADNESS_EXCEPTION("no complex truncate in TensorTrain",1);
+        }
+
+
 		/// recompress and truncate this TT representation
 
 		/// this in recompressed TT form with optimal rank
 		/// @param[in]	eps	the truncation threshold
-		void truncate(double eps) {
+        template<typename R=T>
+		typename std::enable_if<std::is_arithmetic<R>::value, void>::type
+		truncate(double eps) {
 
 		    // fast return
 		    if (zero_rank) return;
@@ -730,7 +743,7 @@ namespace madness {
 
         /// returns the Frobenius norm
         float_scalar_type normf() const {
-            return sqrt(trace(*this));
+            return sqrt(float_scalar_type(std::abs(trace(*this))));
         };
 
         /// scale this by a number
@@ -757,11 +770,14 @@ namespace madness {
             return 0;
         }
 
+
         /// Return the trace of two tensors, no complex conjugate involved
 
         /// @return <this | B>
         template <class Q>
         TENSOR_RESULT_TYPE(T,Q) trace(const TensorTrain<Q>& B) const {
+            if (TensorTypeData<T>::iscomplex) MADNESS_EXCEPTION("no complex trace in TensorTrain, sorry",1);
+            if (TensorTypeData<Q>::iscomplex) MADNESS_EXCEPTION("no complex trace in TensorTrain, sorry",1);
 
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 

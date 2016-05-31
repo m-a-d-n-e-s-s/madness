@@ -214,6 +214,11 @@ public:
         return SliceLowRankTensor<T>(*this,s);
     }
 
+    /// general slicing, shallow; for temporary use only!
+    const SliceLowRankTensor<T> operator()(const std::vector<Slice>& s) const {
+        return SliceLowRankTensor<T>(*this,s);
+    }
+
 
 
 //    /// shallow assignment operator
@@ -315,20 +320,27 @@ public:
     }
 
     const Tensor<T>& full_tensor() const {
-        if (type==TT_FULL) return *impl.full;
+        MADNESS_ASSERT(type==TT_FULL);
+        return *impl.full;
+    }
+
+    Tensor<T>& full_tensor() {
+        MADNESS_ASSERT(type==TT_FULL);
+        return *impl.full;
+    }
+
+
+    /// reconstruct this to return a full tensor
+    Tensor<T> reconstruct_tensor() const {
+
+        if (type==TT_FULL) return full_tensor();
+        else if (type==TT_2D or type==TT_TENSORTRAIN) return full_tensor_copy();
         else {
-            MADNESS_EXCEPTION("no full_tensor() if there is no full tensor",1);
+            MADNESS_EXCEPTION("you should not be here",1);
         }
         return Tensor<T>();
     }
 
-    Tensor<T>& full_tensor() {
-        if (type==TT_FULL) return *impl.full;
-        else {
-            MADNESS_EXCEPTION("no full_tensor() if there is no full tensor",1);
-        }
-        return Tensor<T>();
-    }
 
     static double facReduce() {return 1.e-3;}
     static double fac_reduce() {return 1.e-3;}

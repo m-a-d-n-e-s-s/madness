@@ -1233,24 +1233,48 @@ template<typename T>
 class GenTensor : public LowRankTensor<T> {
 
 public:
+
+    using LowRankTensor<T>::LowRankTensor;
+
     GenTensor<T>() : LowRankTensor<T>() {}
     GenTensor<T>(const GenTensor<T>& g) : LowRankTensor<T>(g) {}
     GenTensor<T>(const LowRankTensor<T>& g) : LowRankTensor<T>(g) {}
-    GenTensor<T>(const SliceLowRankTensor<T>& g) : LowRankTensor<T>(g) {}
 
-    GenTensor<T>(const Tensor<T>& t1) : LowRankTensor<T>(static_cast<const LowRankTensor<T>& >(t1)) {}
-    GenTensor<T>(const Tensor<T>& t1, const TensorArgs& targs) : LowRankTensor<T>(t1,targs) {}
-    GenTensor<T>(const Tensor<T>& t1, double eps, const TensorType tt) : LowRankTensor<T>(t1,eps,tt) {}
-    GenTensor<T>(const TensorType tt): LowRankTensor<T>(tt) {}
-    GenTensor<T>(std::vector<long> v, const TensorType& tt) : LowRankTensor<T>(v,tt) {}
-    GenTensor<T>(std::vector<long> v, const TensorArgs& targs) : LowRankTensor<T>(v,targs) {}
+//    GenTensor<T>(const SliceLowRankTensor<T>& g) : LowRankTensor<T>(g) {}
+//
+//    GenTensor<T>(const Tensor<T>& t1) : LowRankTensor<T>(static_cast<const LowRankTensor<T>& >(t1)) {}
+//    GenTensor<T>(const Tensor<T>& t1, const TensorArgs& targs) : LowRankTensor<T>(t1,targs) {}
+//    GenTensor<T>(const Tensor<T>& t1, double eps, const TensorType tt) : LowRankTensor<T>(t1,eps,tt) {}
+//    GenTensor<T>(const TensorType tt): LowRankTensor<T>(tt) {}
+//    GenTensor<T>(std::vector<long> v, const TensorType& tt) : LowRankTensor<T>(v,tt) {}
+//    GenTensor<T>(std::vector<long> v, const TensorArgs& targs) : LowRankTensor<T>(v,targs) {}
     GenTensor<T>(const SRConf<T>& sr1) : LowRankTensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);}
 
     operator LowRankTensor<T>() const {return *this;}
+    operator LowRankTensor<T>() {return *this;}
     std::string what_am_i() const {return TensorArgs::what_am_i(this->tensor_type());};
 
     SRConf<T> config() const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
     SRConf<T> get_configs(const int& start, const int& end) const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
+
+    /// deep copy of rhs by deep copying rhs.configs
+    friend GenTensor<T> copy(const GenTensor<T>& rhs) {
+        return GenTensor<T>(copy(LowRankTensor<T>(rhs)));
+    }
+
+};
+
+/// implements a slice of a GenTensor
+template <typename T>
+class SliceGenTensor : public SliceLowRankTensor<T> {
+public:
+    using SliceLowRankTensor<T>::SliceLowRankTensor;
+
+    SliceGenTensor<T>(const SliceGenTensor<T>& g) : SliceLowRankTensor<T>(g) {}
+    SliceGenTensor<T>(const SliceLowRankTensor<T>& g) : SliceLowRankTensor<T>(g) {}
+
+    operator SliceLowRankTensor<T>() const {return *this;}
+    operator SliceLowRankTensor<T>() {return *this;}
 
 };
 
