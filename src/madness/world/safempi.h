@@ -38,16 +38,6 @@
 
 #include <madness/madness_config.h>
 
-//  Jeff's original comments:
-//  It is not safe to undefine this because the MPI mutex protects static variables.
-//  One needs thread-local storage or something similar if MPI_THREAD_MULTIPLE is to be used.
-//  Jeff's new comments:
-//  I can't remember where the static stuff is that scared me but it must be found and properly
-//  protected.  We really need to be able to use MPI_THREAD_MULTIPLE on BGQ.
-#if MADNESS_MPI_THREAD_LEVEL == MPI_THREAD_SERIALIZED
-#  define MADNESS_SERIALIZES_MPI
-#endif
-
 #ifdef STUBOUTMPI
 #include <madness/world/stubmpi.h>
 #else
@@ -64,6 +54,13 @@
 
 #include <mpi.h>
 #endif
+
+
+#if MADNESS_MPI_THREAD_LEVEL == MPI_THREAD_SERIALIZED
+#  define MADNESS_SERIALIZES_MPI
+#endif
+
+
 
 #include <madness/world/worldmutex.h>
 #include <madness/world/type_traits.h>
