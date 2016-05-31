@@ -1418,9 +1418,10 @@ namespace madness {
         /// \todo Descriptions needed/need verification.
         /// \tparam Probe Type of the probe.
         /// \param[in] probe The probe.
-        /// \param[in] dowork Description needed.
+        /// \param[in] dowork Do work while waiting - default is true
+        /// \param[in] sleep Sleep instead of spin while waiting (e.g., to avoid pounding on MPI) - default is false
         template <typename Probe>
-        static void await(const Probe& probe, bool dowork = true) {
+	  static void await(const Probe& probe, bool dowork = true, bool sleep = false) {
             double start = cpu_time();
             const double timeout = await_timeout;
             int counter = 0;
@@ -1431,23 +1432,38 @@ namespace madness {
                 const bool working = (dowork ? ThreadPool::run_task() : false);
                 const double current_time = cpu_time();
 
-                if (working) {
-                    // Reset timeout logic
+                if (working) {	// Reset timeout logic
                     waiter.reset();
                     start = current_time;
                     counter = 0;
                 } else {
-                    // Check for timeout
-                    if(((current_time - start) > timeout) && (timeout > 1.0)) {
-                        std::cout << "!!MADNESS: Hung queue?\n";
-                        std::cout.flush();
-
+                    if(((current_time - start) > timeout) && (timeout > 1.0)) {	// Check for timeout
+		        std::cout << "!!MADNESS: Hung queue?" << std::endl;
                         if(counter++ > 3)
                             throw madness::MadnessException("ThreadPool::await() timeout",
                                     0, 1, __LINE__, __FUNCTION__, __FILE__);
                     }
-
-                    waiter.wait();
+		    if (sleep) {
+		      // THIS NEEDS TO BECOME AN EXTERNAL PARAMETER
+		      // Problem is exacerbated when running with many
+		      // (e.g., 512 or more) send/recv buffers, and
+		      // also with many threads.  More outstanding
+		      // requests means each call into MPI takes
+		      // longer and more threads means more calls in
+		      // spots where all threads are messaging.  Old
+		      // code was OK on dancer.icl.utk.edu with just
+		      // 32 bufs and 20 threads, but 512 bufs caused
+		      // intermittent hangs I think due to something
+		      // not being able to make progress or general
+		      // confusion (this with MPICH) ... maybe using a
+		      // fair mutex somewhere would help.
+		      //
+		      // 100us is a long time ... will try 10us.
+		      myusleep(10);
+		    }
+		    else {
+		      waiter.wait();
+		    }
                 }
             }
         }

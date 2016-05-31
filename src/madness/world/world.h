@@ -485,9 +485,9 @@ namespace madness {
 
         /// \todo Descriptions needed.
         /// \param[in,out] request The MPI request on which to wait.
-        /// \param dowork Description needed. I'm guessing this has to do with blocking/nonblocking options.
+        /// \param dowork Work while waiting - default is true
         static void inline await(SafeMPI::Request& request, bool dowork = true) {
-            ThreadPool::await(MpiRequestTester(request), dowork);
+	  ThreadPool::await(MpiRequestTester(request), dowork, true); // Last arg is sleep=true --- don't hard spin on MPI requests
         }
 
         /// Gracefully wait for a condition to become true.
@@ -496,9 +496,10 @@ namespace madness {
         /// \todo Descriptions needed.
         /// \tparam Probe An object that, when called, returns the status.
         /// \param[in] probe The conditional's test.
-        /// \param dowork Description needed. I'm guessing this has to do with blocking/nonblocking options.
+        /// \param dowork Work while waiting - default is true
+	/// \param sleep Sleep instead of spin while waiting - default is false
         template <typename Probe>
-        static void inline await(const Probe& probe, bool dowork = true) {
+	  static void inline await(const Probe& probe, bool dowork = true, bool sleep=false) {
             ThreadPool::await(probe, dowork);
         }
 
