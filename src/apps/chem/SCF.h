@@ -331,6 +331,7 @@ struct CalculationParameters {
     bool localize;              ///< If true solve for localized orbitals
     bool localize_pm;           ///< If true use PM for localization
     bool restart;               ///< If true restart from orbitals on disk
+    bool restartao;             ///< If true restart from orbitals projected into AO basis (STO3G) on disk
     bool no_compute;            ///< If true use orbitals on disk, set value to computed
     bool no_orient;				///< If true the molecule coordinates will not be reoriented
     bool save;                  ///< If true save orbitals to disk
@@ -387,7 +388,7 @@ struct CalculationParameters {
         ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta
            & nopen & maxiter & nio & spin_restricted;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm
-           & restart & save & no_compute &no_orient & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
+           & restart & restartao & save & no_compute &no_orient & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -417,6 +418,7 @@ struct CalculationParameters {
         , localize(true)
         , localize_pm(true)
         , restart(false)
+        , restartao(false)
     	, no_compute(false)
     	, no_orient(false)
         , save(true)
@@ -452,6 +454,8 @@ struct CalculationParameters {
         , nuclear_corrfac("none")
         , pure_ae(true)
         , nv_factor(1)
+        , vnucextra(12)
+        , loadbalparts(2)
         , response(false)
         , response_freq(0.0)
         , response_axis(madness::vector_factory(true, true, true))
@@ -459,8 +463,6 @@ struct CalculationParameters {
         , rconv(1e-6)
         , efield(0.0)
         , efield_axis(0)
-        , vnucextra(12)
-        , loadbalparts(2)
     {}
 
 
@@ -570,6 +572,9 @@ struct CalculationParameters {
             }
             else if (s == "restart") {
                 restart = true;
+            }
+            else if (s == "restartao") {
+                restartao = true;
             }
             else if (s == "save") {
                 //can't redirect true/false as with other variables so create temporary variable
@@ -755,6 +760,7 @@ struct CalculationParameters {
 
         //madness::print(" date of calculation ", tmp);
         madness::print("             restart ", restart);
+        madness::print("    restart from AOs ", restartao);
         madness::print(" number of processes ", world.size());
         madness::print("   no. of io servers ", nio);
 	madness::print("   vnuc load bal fac ", vnucextra);
@@ -922,6 +928,8 @@ public:
     void save_mos(World& world);
 
     void load_mos(World& world);
+
+    bool restart_aos(World& world);
 
     void do_plots(World& world);
 
@@ -1295,15 +1303,19 @@ public:
                 calc.set_protocol<3>(world,calc.param.protocol_data[proto]);
                 calc.make_nuclear_potential(world);
 
+                if (calc.param.restartao) calc.param.aobasis = "sto-3g"; // since this was used for the projection
                 calc.project_ao_basis(world);
 
                 if (proto == 0 && nv == nvalpha_start) {
                     if (calc.param.restart) {
                         calc.load_mos(world);
                     }
+                    else if (calc.param.restartao) {
+                        if (!calc.restart_aos(world)) calc.initial_guess(world);
+                    }
                     else {
                         calc.initial_guess(world);
-                        //calc.param.restart = true;
+                        calc.param.restartao = true;
                     }
                 }
                 else {

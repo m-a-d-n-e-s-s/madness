@@ -244,6 +244,14 @@ namespace madness {
             for (unsigned int i = 0; i < bmo.size(); ++i)
                 ar & bmo[i];
         }
+
+        tensorT Saoamo = matrix_inner(world, ao, amo);
+        tensorT Saobmo = (!param.spin_restricted) ? matrix_inner(world, ao, bmo) : tensorT();
+        if (world.rank() == 0) {
+            archive::BinaryFstreamOutputArchive arao("restartaodata");
+            arao << Saoamo << aeps << aocc << aset;
+            if (!param.spin_restricted) arao << Saobmo << beps << bocc << bset;
+        }
     }
     
     void SCF::load_mos(World& world) {
@@ -826,12 +834,63 @@ namespace madness {
         return r;
     }
     
+    bool SCF::restart_aos(World& world) {
+        tensorT Saoamo, Saobmo;
+        bool OK = true;
+        if (world.rank() == 0) {
+            try {
+                archive::BinaryFstreamInputArchive arao("restartaodata");
+                arao >> Saoamo >> aeps >> aocc >> aset;
+                if (Saoamo.dim(0) != int(ao.size()) || Saoamo.dim(1) != param.nmo_alpha) {
+                    print(" AO alpha restart data size mismatch --- starting from atomic guess instead", Saoamo.dim(0), ao.size(), Saoamo.dim(1), param.nmo_alpha);
+                    OK = false;
+                }
+                if (!param.spin_restricted) {
+                    arao >> Saobmo >> beps >> bocc >> bset;
+                    if (Saobmo.dim(0) != int(ao.size()) || Saobmo.dim(1) != param.nmo_beta) {
+                        print(" AO beta restart data size mismatch --- starting from atomic guess instead", Saobmo.dim(0), ao.size(), Saobmo.dim(1), param.nmo_beta);
+                        OK = false;
+                    }
+                }
+                print("\nRestarting from AO projections on disk\n");
+            }
+            catch (...) {
+                print("\nAO restart file open/reading failed --- starting from atomic guess instead\n");
+                OK=false;
+            }
+        }
+        int fred = OK;
+        world.gop.broadcast(fred, 0);
+        OK = fred;
+        if (!OK) return false;
+        
+        world.gop.broadcast_serializable(Saoamo, 0);
+        if (!param.spin_restricted) world.gop.broadcast_serializable(Saobmo, 0);
+
+        tensorT S = matrix_inner(world, ao, ao), c;
+
+        gesvp(world, S, Saoamo, c);
+        amo = transform(world, ao, c, vtol, true);
+        truncate(world, amo);
+        orthonormalize(world, amo, param.nalpha);
+
+        if (!param.spin_restricted) {
+            gesvp(world, S, Saobmo, c);
+            bmo = transform(world, ao, c, vtol, true);
+            truncate(world, bmo);
+            orthonormalize(world, bmo, param.nbeta);
+        }
+
+        return true;
+    }
+
     void SCF::initial_guess(World & world) {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         if (param.restart) {
             load_mos(world);
         } else {
+            
 
             // recalculate initial guess density matrix without core orbitals
             if (!param.pure_ae){
@@ -1029,8 +1088,8 @@ namespace madness {
             if (param.core_type != "") {
                 ncore = molecule.n_core_orb_all();
             }
-            amo = transform(world, ao,
-                            c(_, Slice(ncore, ncore + param.nmo_alpha - 1)), 0.0, true);
+
+            amo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_alpha - 1)), vtol, true);
             truncate(world, amo);
             normalize(world, amo);
             aeps = e(Slice(ncore, ncore + param.nmo_alpha - 1));
@@ -1043,8 +1102,7 @@ namespace madness {
             aset=group_orbital_sets(world,aeps,aocc,param.nmo_alpha);
 
             if (param.nbeta && !param.spin_restricted) {
-                bmo = transform(world, ao,
-                                c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
+                bmo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_beta - 1)), vtol, true);
                 truncate(world, bmo);
                 normalize(world, bmo);
                 beps = e(Slice(ncore, ncore + param.nmo_beta - 1));
@@ -2325,10 +2383,8 @@ namespace madness {
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 normalize(world, amo);
-                //rotate_subspace(world, dUT, subspace, 0, amo.size(), trantol); // ????????????????????????????? 
                 END_TIMER(world, "Rotate subspace");
                 if (!param.spin_restricted && param.nbeta != 0) {
-		  throw "need boys and subspace rot?";
 		  if (param.localize_pm)
                     dUT = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0, true);
 		  else
