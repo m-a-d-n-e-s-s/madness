@@ -2,11 +2,6 @@
 
 # Add targets for generated header files
 if(PYTHONINTERP_FOUND)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/mtxm_gen.h
-      COMMAND ${PYTHON_EXECUTABLE} genmtxm.py > mtxm_gen.h
-      MAIN_DEPENDENCY genmtxm.py
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      COMMENT "Generating mtxm_gen.h")
   add_custom_command(
       OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/tensoriter_spec.h
              ${CMAKE_CURRENT_SOURCE_DIR}/tensor_spec.h
@@ -14,8 +9,7 @@ if(PYTHONINTERP_FOUND)
       MAIN_DEPENDENCY tempspec.py
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Generating tensoriter_spec.h and tensor_spec.h")
-elseif(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mtxm_gen.h
-    OR NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tensoriter_spec.h.h
+elseif(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tensoriter_spec.h.h
     OR NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tensor_spec.h)
   message(FATAL_ERROR "PYTHON executable is not available to generate required source files")
 endif()
@@ -23,13 +17,10 @@ endif()
 # Source lists for MADtensor
 set(MADTENSOR_HEADERS 
     aligned.h mxm.h tensorexcept.h tensoriter_spec.h type_data.h basetensor.h
-    tensor.h tensor_macros.h vector_factory.h mtxmq.h slice.h tensoriter.h
+    tensor.h tensor_macros.h vector_factory.h slice.h tensoriter.h
     tensor_spec.h vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h
     tensortrain.h)
-set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc)
-if(USE_X86_64_ASM OR USE_X86_32_ASM)
-  list(APPEND MADTENSOR_SOURCES mtxmq_asm.S)
-endif()
+set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc)
 
 # logically these headers should be part of their own library (MADclapack)
 # however CMake right now does not support a mechanism to properly handle header-only libs.
@@ -53,28 +44,6 @@ add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tenso
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
 target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
-if(USE_X86_64_ASM)
-  target_compile_definitions(MADtensor-obj PRIVATE -DX86_64)
-elseif(USE_X86_32_ASM)
-  target_compile_definitions(MADtensor-obj PRIVATE -DX86_32)
-endif()
-if(HAVE_IBMBGQ)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a
-      COMMAND TARGET=BGQ ${CMAKE_MAKE_PROGRAM} 
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests
-      COMMENT "Building libMADMTXM.a")
-  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
-  add_dependencies(MADtensor libmadmtxm)
-  target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
-elseif(HAVE_IBMBGP)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a
-      COMMAND TARGET=BGP ${CMAKE_MAKE_PROGRAM} 
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests
-      COMMENT "Building libMADMTXM.a")
-  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
-  add_dependencies(MADtensor libmadmtxm)
-  target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
-endif()
 if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
   target_link_libraries(MADlinalg PUBLIC ${ELEMENTAL_PACKAGE_NAME})
 endif()
@@ -91,7 +60,7 @@ add_custom_target(install-clapack
 if(ENABLE_UNITTESTS)
   
   # The list of unit test source files
-  set(TENSOR_TEST_SOURCES test_tensor.cc oldtest.cc test_scott.cc test_mtxmq.cc
+  set(TENSOR_TEST_SOURCES test_tensor.cc oldtest.cc test_mtxmq.cc
       jimkernel.cc test_distributed_matrix.cc test_Zmtxmq.cc test_systolic.cc)
   if(ENABLE_GENTENSOR)
     list(APPEND TENSOR_TEST_SOURCES test_gentensor.cc)
