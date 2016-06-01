@@ -368,7 +368,8 @@ namespace cblas {
         
         //Don't have ZDGEMM ... only DZGEMM ... so use A*B = (BT * AT)T
         
-        complex_real8 ctrans[m*n]; // Here assume matrices are small and can be allocated on the stack
+      //complex_real8 ctrans[m*n]; // Here assume matrices are small and can be allocated on the stack
+      complex_real8* ctrans = new complex_real8[m*n];
         static const char *opT[] = { "t","n","c" }; // Transpose of op ... conj-transpose not working yet
         MADNESS_ASSERT(OpA!=ConjTrans && OpB!=ConjTrans);
         const complex_real8 zero = 0.0;
@@ -389,6 +390,7 @@ namespace cblas {
                     c[i*ldc+j] = beta*c[i*ldc+j] + ctrans[j*n+i];
                 }
             }
+	delete [] ctrans;
     }
     
     inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
