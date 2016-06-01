@@ -180,8 +180,11 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
 		double theta;
 
 		// Full formula loses accuracy for b<<a. use taylor series instead
-		if (fabs(bij)<1e-4*fabs(aij)) {
-		  theta = -0.25*fabs(bij)/aij;
+                double fa = fabs(aij), fb = fabs(bij);
+		if (fb < 1e-2*fa) {
+                    double r = fb/aij;
+                    theta = -0.25*r*(1.0 - r*r/3.0 + r*r*r*r/5.0);
+                    //theta = -0.25*fabs(bij)/aij;
 		}
 		else {
 		  theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
