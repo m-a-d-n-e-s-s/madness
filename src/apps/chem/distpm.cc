@@ -176,8 +176,17 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
                     aij += qija * qija - 0.25 * d * d;
                     bij += qija * d;
                 }
-                double theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
 
+		double theta;
+
+		// Full formula loses accuracy for b<<a. use taylor series instead
+		if (fabs(bij)<1e-4*fabs(aij)) {
+		  theta = -0.25*fabs(bij)/aij;
+		}
+		else {
+		  theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
+		}
+		
                 if(bij > 0.0)
                     theta = -theta;
 
@@ -186,6 +195,8 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
                 else
                     if(theta < -thetamax)
                         theta = -thetamax;
+
+		//print(theta, aij, bij);
 
                 if(fabs(theta) >= tol){
                     ndone_iter++;
@@ -241,7 +252,7 @@ public:
             //if (iter > 0) tol = std::max(0.1 * std::min(maxtheta, tol), thresh);
             if (iter > 0) tol = std::max(0.1 * tol, thresh);
             ndone_iter = 0;
-            //madness::print("start", SystolicMatrixAlgorithm::get_world().rank(),iter);
+            //madness::print("start", SystolicMatrixAlgorithm::get_world().rank(),iter,tol);
         }
     }
 
