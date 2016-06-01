@@ -1,5 +1,9 @@
-#ifndef PARSEC
-#define PARSEC
+#ifndef MADNESS_PARSEC_INCLUED
+#define MADNESS_PARSEC_INCLUED
+
+#inclue <madness/madness_config.h>
+
+#ifdef HAVE_PARSEC
 
 #include <dague.h>
 #include <dague/dague_internal.h>
@@ -17,5 +21,6 @@ namespace madness{
 
 }
 
+#endif // HAVE_PARSEC
 
-#endif
+#endif // MADNESS_PARSEC_INCLUED
