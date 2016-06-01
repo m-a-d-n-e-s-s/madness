@@ -1,10 +1,12 @@
+#include <madness/madness_config.h>
+
+#ifdef HAVE_PARSEC
 #include "parsec.h"
 #include <iostream>
 #include "thread.h"
 #include <dague/dague_internal.h>
 
 // Here we initialize with the right child class
-#if HAVE_PARSEC
 namespace madness {
     dague_hook_return_t complete_madness_task_execution (dague_execution_unit_t *eu, 
                                                          dague_execution_context_t *exec_context)
