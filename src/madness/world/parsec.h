@@ -1,7 +1,7 @@
 #ifndef MADNESS_PARSEC_INCLUED
 #define MADNESS_PARSEC_INCLUED
 
-#inclue <madness/madness_config.h>
+#include <madness/madness_config.h>
 
 #ifdef HAVE_PARSEC
 
