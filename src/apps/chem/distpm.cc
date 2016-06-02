@@ -162,10 +162,10 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
             for(long a = 0; a < natom; ++a) {
                 Qi[a] = PM_q(Svec[a], Ci, Ci, at_to_bf[a], at_nbf[a]);
                 Qj[a] = PM_q(Svec[a], Cj, Cj, at_to_bf[a], at_nbf[a]);
-                ovij += Qi[a] * Qj[a];
+                ovij += fabs(Qi[a] * Qj[a]);
             }
 
-            if(fabs(ovij) > tol * tol){
+            if(ovij > tol * tol){
                 double aij = 0.0;
                 double bij = 0.0;
                 for(long a = 0;a < natom;++a){
@@ -177,12 +177,20 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
                     bij += qija * d;
                 }
 
-		double theta;
+		// double theta = 0.25*bij/aij; // initial estimate for step restriction
+		// if (theta > thetamax) {
+		//   theta = thetamax;
+		// }
+		// else if (theta < -thetamax) {
+		//   theta = -thetamax;
+		// }
+		// else {
+		//   theta = 0.25*atan(bij/aij);
+		// }
 
+		double theta, fa=fabs(aij), fb=fabs(bij), r=fb/aij;
 		// Full formula loses accuracy for b<<a. use taylor series instead
-                double fa = fabs(aij), fb = fabs(bij);
 		if (fb < 1e-2*fa) {
-                    double r = fb/aij;
                     theta = -0.25*r*(1.0 - r*r/3.0 + r*r*r*r/5.0);
                     //theta = -0.25*fabs(bij)/aij;
 		}
@@ -190,19 +198,16 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
 		  theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
 		}
 		
-                if(bij > 0.0)
-                    theta = -theta;
+                if(bij > 0.0) theta = -theta;
 
                 if(theta > thetamax)
                     theta = thetamax;
-                else
-                    if(theta < -thetamax)
-                        theta = -thetamax;
+                else if(theta < -thetamax)
+		    theta = -thetamax;
 
-		//print(theta, aij, bij);
-
-                if(fabs(theta) >= tol){
-                    ndone_iter++;
+		if(fabs(theta) >= tol){
+		    //print(theta, aij, bij);
+		    ndone_iter++;
                     double c = cos(theta);
                     double s = sin(theta);
                     drot(nao, Ci, Cj, s, c, 1);
@@ -253,7 +258,7 @@ public:
         if (env.id() == 0) {
             iter++;
             //if (iter > 0) tol = std::max(0.1 * std::min(maxtheta, tol), thresh);
-            if (iter > 0) tol = std::max(0.1 * tol, thresh);
+            if (iter > 0) tol = std::max(0.333 * tol, thresh);
             ndone_iter = 0;
             //madness::print("start", SystolicMatrixAlgorithm::get_world().rank(),iter,tol);
         }
@@ -294,7 +299,7 @@ DistributedMatrix<double> distributed_localize_PM(World & world,
                                                   const std::vector<int> & at_to_bf,
                                                   const std::vector<int> & at_nbf,
                                                   const double thresh = 1e-9,
-                                                  const double thetamax = 0.5,
+                                                  const double thetamax = 0.25,
                                                   const bool randomize = true,
                                                   const bool doprint = false)
 {
