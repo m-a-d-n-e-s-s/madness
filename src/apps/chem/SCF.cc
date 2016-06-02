@@ -2374,9 +2374,9 @@ namespace madness {
             if (param.localize && do_this_iter) {
 	        distmatT dUT;
 		if (param.localize_pm)
-		  dUT = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0, true);
+		  dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, true);
 		else 
-		  dUT = localize_boys(world, amo, aset, tolloc, 0.25, iter == 0);
+		  dUT = localize_boys(world, amo, aset, tolloc, 0.1, iter == 0);
 
                 dUT.data().screen(trantol);
                 START_TIMER(world);
@@ -2386,9 +2386,9 @@ namespace madness {
                 END_TIMER(world, "Rotate subspace");
                 if (!param.spin_restricted && param.nbeta != 0) {
 		  if (param.localize_pm)
-                    dUT = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0, true);
+                    dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, true);
 		  else
-		    dUT = localize_boys(world, bmo, bset, tolloc, 0.25, iter == 0);
+		    dUT = localize_boys(world, bmo, bset, tolloc, 0.1, iter == 0);
 
                     START_TIMER(world);
                     dUT.data().screen(trantol);
