@@ -4256,59 +4256,58 @@ namespace madness {
         void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
+	    // working assumption here WAS that the operator is
+	    // isotropic and montonically decreasing with distance
+	    // ... however, now we are using derivative Gaussian
+	    // expansions (and also non-cubic boxes) isotropic is
+	    // violated. While not strictly monotonically decreasing,
+	    // the derivative gaussian is still such that once it
+	    // becomes negligible we are in the asymptotic region.
+
             typedef typename opT::keyT opkeyT;
             static const size_t opdim=opT::opdim;
-
             const opkeyT source=op->get_source_key(key);
 
-            // insert timer here
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
-            //const long lmax = 1L << (key.level()-1);
 
-            const std::vector<opkeyT>& disp = op->get_disp(key.level());
-
-            // use to have static in front, but this is not thread-safe
+            const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in orer of increasing distance
             const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
-
+	    int ndone=1;	// Counts #done at each distance
+	    uint64_t distsq = 99999999999999; 
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-                //                const opkeyT& d = *it;
-
-                keyT d;
+	        keyT d;
                 Key<NDIM-opdim> nullkey(key.level());
                 if (op->particle()==1) d=it->merge_with(nullkey);
                 if (op->particle()==2) d=nullkey.merge_with(*it);
 
-                keyT dest = neighbor(key, d, is_periodic);
+		uint64_t dsq = d.distsq();
+		if (dsq != distsq) { // Moved to next shell of neighbors
+		    if (ndone == 0 && dsq > 1) {
+		        // Have at least done the input box and all first
+		        // nearest neighbors, and for all of the last set
+		        // of neighbors had no contribution.  Thus,
+		        // assuming monotonic decrease, we are done.
+		        break;
+		    }
+		    ndone = 0;
+		    distsq = dsq;
+		} 
 
+                keyT dest = neighbor(key, d, is_periodic);
                 if (dest.is_valid()) {
                     double opnorm = op->norm(key.level(), *it, source);
-                    // working assumption here is that the operator is isotropic and
-                    // montonically decreasing with distance
                     double tol = truncate_tol(thresh, key);
 
-                    //print("APP", key, dest, cnorm, opnorm, (cnorm*opnorm> tol/fac));
-
                     if (cnorm*opnorm> tol/fac) {
-
-                        // // Most expensive part is the kernel ... do it in a separate task
-                        // if (d.distsq()==0) {
-                        //     // This introduces finer grain parallelism
-                        //     ProcessID where = world.rank();
-                        //     do_op_args<opdim> args(source, *it, dest, tol, fac, cnorm);
-                        //     woT::task(where, &implT:: template do_apply_kernel<opT,R,opdim>, op, c, args);
-                        // } else {
-                            tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
-                            if (result.normf()> 0.3*tol/fac) {
+		        ndone++;
+		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
+			if (result.normf() > 0.3*tol/fac) {
 			      // Switched back to send in order to get rid of a zillion small tasks and to preserve
-			      // direct call optimization.  Also reduces memory foot print in remote end by directly
-			      // consuming data.
-			      //coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
+			      // direct call optimization.  Also reduces remote memory foot print.
 			      coeffs.send(dest, &nodeT::accumulate2, result, coeffs, dest);
-                            }
-                        // }
-                    } else if (d.distsq() >= 1)
-                        break; // Assumes monotonic decay beyond nearest neighbor
+                        }
+                    }
                 }
             }
         }
