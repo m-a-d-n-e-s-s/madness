@@ -51,6 +51,7 @@ namespace madness {
 template<typename T>
 class SVDTensor : public SRConf<T> {
 public:
+    explicit SVDTensor() : SRConf<T>() {    }
     explicit SVDTensor(const Tensor<T>& rhs) : SRConf<T>(rhs) {    }
     explicit SVDTensor(const SVDTensor<T>& rhs) : SRConf<T>(static_cast<SRConf<T> >(rhs)) {    }
     explicit SVDTensor(const SRConf<T>& rhs) : SRConf<T>(SRConf<T>(rhs)) {    }
@@ -713,11 +714,12 @@ namespace archive {
         /// Stores the GenTensor to an archive
         static void store(const Archive& ar, const LowRankTensor<T>& t) {
             bool exist=t.has_data();
-            ar & exist & t.type;
+            int i=int(t.type);
+            ar & exist & i;
             if (exist) {
-                if (t.impl.svd) ar & *t.impl.svd;
-                if (t.impl.full) ar & *t.impl.full;
-                if (t.impl.tt) ar & *t.impl.tt;
+                if (t.impl.svd) ar & *t.impl.svd.get();
+                if (t.impl.full) ar & *t.impl.full.get();
+                if (t.impl.tt) ar & *t.impl.tt.get();
             }
         };
     };
@@ -732,11 +734,24 @@ namespace archive {
         static void load(const Archive& ar, LowRankTensor<T>& t) {
             // check for pointer existence
             bool exist=false;
-            ar & exist & t.type;
+            int i=-1;
+            ar & exist & i;
+            t.type=TensorType(i);
+
             if (exist) {
-                if (t.type==TT_2D) ar & *t.impl.svd;
-                if (t.type==TT_FULL) ar & *t.impl.full;
-                if (t.type==TT_TENSORTRAIN) ar & *t.impl.tt;
+                if (t.type==TT_2D) {
+                    SVDTensor<T> svd;
+                    ar & svd;
+                    t.impl.svd.reset(new SVDTensor<T>(svd));
+                } else if (t.type==TT_FULL) {
+                    Tensor<T> full;
+                    ar & full;
+                    t.impl.full.reset(new Tensor<T>(full));
+                } else if (t.type==TT_TENSORTRAIN) {
+                    TensorTrain<T> tt;
+                    ar & tt;
+                    t.impl.tt.reset(new TensorTrain<T>(tt));
+                }
 
             }
         };

@@ -168,6 +168,11 @@ namespace madness {
             return result;
         }
 
+        template <typename Archive>
+        void serialize(Archive& ar) {
+                ar & core & zero_rank;
+        }
+
 
 		/// deep copy of the whole tensor
 

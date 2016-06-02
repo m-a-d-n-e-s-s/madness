@@ -1329,7 +1329,8 @@ struct ArchiveStoreImpl< Archive, GenTensor<T> > {
     friend class GenTensor<T>;
     /// Stores the GenTensor to an archive
     static void store(const Archive& ar, const GenTensor<T>& t) {
-        ar & t;
+        LowRankTensor<T> tt(t);
+        ar & tt;
     };
 };
 
@@ -1341,7 +1342,9 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
     friend class GenTensor<T>;
     /// Replaces this GenTensor with one loaded from an archive
     static void load(const Archive& ar, GenTensor<T>& t) {
-        ar & t;
+        LowRankTensor<T> tt;
+        ar & tt;
+        t=tt;
     };
 };
 };
