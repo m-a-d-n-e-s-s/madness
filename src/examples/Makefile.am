@@ -29,6 +29,7 @@ pno_LDADD = $(LIBCHEM) $(MRALIBS)
 siam_example_SOURCES = siam_example.cc 
 
 mp2_SOURCES = mp2.cc 
+mp2_LDADD = $(LIBCHEM) $(MRALIBS)
 
 helium_exact_SOURCES = helium_exact.cc 
 helium_exact_LDADD = $(LIBCHEM) $(MRALIBS)
@@ -51,6 +52,7 @@ tdhf_SOURCES = tdhf.cc
 tdhf_LDADD = $(LIBCHEM) $(MRALIBS)
 
 cc2_SOURCES = cc2.cc
+cc2_LDADD = $(LIBCHEM) $(MRALIBS)
 
 nemo_SOURCES = nemo.cc 
 nemo_LDADD = $(LIBCHEM) $(MRALIBS)
