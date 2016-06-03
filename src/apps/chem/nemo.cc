@@ -932,8 +932,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     END_TIMER(world, "compute hessian");
 
     Tensor<double> normalmodes;
-    Tensor<double> frequencies=MolecularOptimizer::compute_frequencies(molecule(),
-            hessian,normalmodes,false,hessdebug);
+    Tensor<double> frequencies=compute_frequencies(molecule(),hessian,normalmodes,false,hessdebug);
 
     if (hessdebug) {
         print("\n vibrational frequencies (unprojected) (a.u.)\n");
@@ -942,11 +941,9 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         print(constants::au2invcm*frequencies);
     }
 
-    frequencies=MolecularOptimizer::compute_frequencies(molecule(),hessian,
-            normalmodes,true,hessdebug);
+    frequencies=compute_frequencies(molecule(),hessian, normalmodes,true,hessdebug);
     Tensor<double> intensities=compute_IR_intensities(normalmodes,dens_pt);
-    Tensor<double> reducedmass=MolecularOptimizer::compute_reduced_mass(
-            molecule(),normalmodes);
+    Tensor<double> reducedmass=compute_reduced_mass(molecule(),normalmodes);
 
     if (world.rank() == 0) {
         print("\nprojected vibrational frequencies (cm-1)\n");
