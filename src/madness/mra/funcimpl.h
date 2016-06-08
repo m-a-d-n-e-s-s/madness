@@ -4246,6 +4246,12 @@ namespace madness {
 
         }
 
+        // volume of n-dimensional sphere of radius R
+        double vol_nsphere(int n, double R) {
+            return std::pow(madness::constants::pi,n*0.5)*std::pow(R,n)/std::tgamma(1+0.5*n);
+        }
+        
+
         /// apply an operator on the coeffs c (at node key)
 
         /// the result is accumulated inplace to this's tree at various FunctionNodes
@@ -4268,7 +4274,27 @@ namespace madness {
             static const size_t opdim=opT::opdim;
             const opkeyT source=op->get_source_key(key);
 
-            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+            
+            // Tuning here is based on observation that with
+            // sufficiently high-order wavelet relative to the
+            // precision, that only nearest neighbor boxes contribute,
+            // whereas for low-order wavelets more neighbors will
+            // contribute.  Sufficiently high is picked as
+            // k>=2-log10(eps) which is our empirical rule for
+            // efficiency/accuracy and code instrumentation has
+            // previously indicated that (in 3D) just unit
+            // displacements are invoked.  The error decays as R^-(k+1),
+            // and the number of boxes increases as R^d.
+            //
+            // Fac is the expected number of contributions to a given
+            // box, so the error permitted per contribution will be
+            // tol/fac
+
+            // radius of shell (nearest neighbor is diameter of 3 boxes, so radius=1.5)
+            double radius = 1.5 + 0.33*std::max(0.0,2-std::log10(thresh)-k); // 0.33 was 0.5
+            double fac = vol_nsphere(NDIM, radius);
+            //previously fac=10.0 selected empirically constrained by qmprop
+
             double cnorm = c.normf();
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in orer of increasing distance

@@ -47,6 +47,8 @@ namespace madness {
             if      (NDIM == 1) bmax = 7;
             else if (NDIM == 2) bmax = 5;
             else if (NDIM == 3) bmax = 3;
+            else if (NDIM == 4) bmax = 3;
+            else if (NDIM == 5) bmax = 3;
             else if (NDIM == 6) bmax = 3;
             else                bmax = 2;
             return bmax;
