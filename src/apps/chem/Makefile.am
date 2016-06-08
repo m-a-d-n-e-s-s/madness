@@ -23,7 +23,7 @@ thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
                       mp2.h nemo.h potentialmanager.h gth_pseudopotential.h \
                       molecular_optimizer.h projector.h TDA.h TDA_XC.h \
                       TDA_guess.h TDA_exops.h SCFOperators.h CCOperators.h CCStructures.h CC2.h \
-                      electronic_correlation_factor.h CISOperators.h cheminfo.h
+                      electronic_correlation_factor.h CISOperators.h cheminfo.h vibanal.h
 
 testxc_SOURCES = testxc.cc xcfunctional.h
 testxc_LDADD = libMADchem.la $(MRALIBS)
@@ -37,7 +37,7 @@ test_SCFOperators_LDADD = libMADchem.la $(MRALIBS)
 plotxc_SOURCES = plotxc.cc xcfunctional.h
 plotxc_LDADD = libMADchem.la $(MRALIBS)
 
-libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
+libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc \
                        corepotential.cc atomutil.cc lda.cc cheminfo.cc \
                        distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc\
                        SCFOperators.cc xcfunctional_ldaonly.cc TDA.cc TDA_XC.cc CC2.cc CCOperators.cc CISOperators.cc \
