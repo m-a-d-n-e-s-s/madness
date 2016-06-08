@@ -6,21 +6,21 @@ compiler:
   - clang
   - gcc
 env:
-  - GCC_VERSION=4.7 RUN_TEST=buildonly
-  - GCC_VERSION=4.8 RUN_TEST=buildonly
-  - GCC_VERSION=4.9 RUN_TEST=buildonly
+  #- GCC_VERSION=4.7 RUN_TEST=buildonly
+  #- GCC_VERSION=4.8 RUN_TEST=buildonly
+  #- GCC_VERSION=4.9 RUN_TEST=buildonly
   - GCC_VERSION=5 RUN_TEST=buildonly
-  - GCC_VERSION=4.7 RUN_TEST=world
-  - GCC_VERSION=4.8 RUN_TEST=world
-  - GCC_VERSION=4.9 RUN_TEST=world
+  #- GCC_VERSION=4.7 RUN_TEST=world
+  #- GCC_VERSION=4.8 RUN_TEST=world
+  #- GCC_VERSION=4.9 RUN_TEST=world
   - GCC_VERSION=5 RUN_TEST=world
-  - GCC_VERSION=4.7 RUN_TEST=tensor
-  - GCC_VERSION=4.8 RUN_TEST=tensor
-  - GCC_VERSION=4.9 RUN_TEST=tensor
+  #- GCC_VERSION=4.7 RUN_TEST=tensor
+  #- GCC_VERSION=4.8 RUN_TEST=tensor
+  #- GCC_VERSION=4.9 RUN_TEST=tensor
   - GCC_VERSION=5 RUN_TEST=tensor
-  - GCC_VERSION=4.7 RUN_TEST=mra
-  - GCC_VERSION=4.8 RUN_TEST=mra
-  - GCC_VERSION=4.9 RUN_TEST=mra
+  #- GCC_VERSION=4.7 RUN_TEST=mra
+  #- GCC_VERSION=4.8 RUN_TEST=mra
+  #- GCC_VERSION=4.9 RUN_TEST=mra
   - GCC_VERSION=5 RUN_TEST=mra
 matrix:
   # Currently there is a segfault that occurs in the unit tests when
@@ -70,21 +70,21 @@ addons:
     sources:
       - george-edison55-precise-backports
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-precise-3.7
+      #- llvm-toolchain-precise-3.7
     packages:
-      - gcc-4.7
-      - g++-4.7
-      - gfortran-4.7
-      - gcc-4.8
-      - g++-4.8
-      - gfortran-4.8
-      - gcc-4.9
-      - g++-4.9
-      - gfortran-4.9
+      #- gcc-4.7
+      #- g++-4.7
+      #- gfortran-4.7
+      #- gcc-4.8
+      #- g++-4.8
+      #- gfortran-4.8
+      #- gcc-4.9
+      #- g++-4.9
+      #- gfortran-4.9
       - gcc-5
       - g++-5
       - gfortran-5
-      - clang-3.7
+      #- clang-3.7
       # These do not lead to the desired result of libc++ >:-(
       #- libc++-dev
       #- libc++1
