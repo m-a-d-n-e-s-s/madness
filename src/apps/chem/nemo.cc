@@ -46,7 +46,7 @@
 #include <chem/molecular_optimizer.h>
 #include <chem/SCFOperators.h>
 #include <madness/constants.h>
-
+#include <chem/vibanal.h>
 
 
 
