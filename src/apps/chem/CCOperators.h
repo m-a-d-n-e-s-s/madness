@@ -119,9 +119,9 @@ namespace madness {
 
     /// @param[in] type: the type of intermediates which will be printed, can be HOLE,PARTICLE or RESPONSE
     void print_intermediate(const functype type)const{
-      if(type==HOLE)for(const auto& tmp:imH.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|H"+std::to_string(tmp.first.second)+"> intermediate");
-      else if(type==PARTICLE)for(const auto& tmp:imP.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|P"+std::to_string(tmp.first.second)+"> intermediate");
-      else if(type==RESPONSE)for(const auto& tmp:imR.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|R"+std::to_string(tmp.first.second)+"> intermediate");
+      if(type==HOLE)for(const auto& tmp:imH.allpairs)tmp.second.print_size("<H"+std::to_string(int(tmp.first.first))+"|"+assign_name(operator_type)+"|H"+std::to_string(int(tmp.first.second))+"> intermediate");
+      else if(type==PARTICLE)for(const auto& tmp:imP.allpairs)tmp.second.print_size("<H"+std::to_string(int(tmp.first.first))+"|"+assign_name(operator_type)+"|P"+std::to_string(int(tmp.first.second))+"> intermediate");
+      else if(type==RESPONSE)for(const auto& tmp:imR.allpairs)tmp.second.print_size("<H"+std::to_string(int(tmp.first.first))+"|"+assign_name(operator_type)+"|R"+std::to_string(int(tmp.first.second))+"> intermediate");
     }
 
   private:
