@@ -39,6 +39,7 @@
 #include <utility>
 #include <list>
 #include <memory>
+#include <pthread.h>
 
 /*
   There is just one server thread and it is the only one
@@ -126,16 +127,27 @@ namespace madness {
         uint64_t nbyte_sent;
         uint64_t nmsg_recv;
         uint64_t nbyte_recv;
+        uint64_t max_serv_send_q;
 
         RMIStats()
-                : nmsg_sent(0), nbyte_sent(0), nmsg_recv(0), nbyte_recv(0) {}
+            : nmsg_sent(0), nbyte_sent(0), nmsg_recv(0), nbyte_recv(0), max_serv_send_q(0) {}
     };
 
+    /// This for RMI server thread to manage lifetime of WorldAM messages that it is sending
+    struct RMISendReq {
+        virtual bool TestAndFree() = 0;
+        virtual ~RMISendReq() {} // ESSENTIAL!!
+    };
 
     /// This class implements the communications server thread and provides the only send interface
     class RMI  {
         typedef uint16_t counterT;
         typedef uint32_t attrT;
+
+        static thread_local bool is_server_thread; //< if true this thread is the server thread
+
+        
+
     public:
 
         typedef SafeMPI::Request Request;
@@ -149,7 +161,25 @@ namespace madness {
 
         static int testsome_backoff_us;
 
+        static void set_this_thread_is_server() {is_server_thread = true;} // std::cout << "setting this is the server thread " << pthread_self() << std::endl;}
+
+        static bool get_this_thread_is_server() {return is_server_thread;}
+
+        static std::list< std::unique_ptr<RMISendReq> > send_req; // List of outstanding world active messages sent by the server
+
     private:
+
+        static void clear_send_req() {
+            //std::cout << "clearing server messages " << pthread_self() << std::endl;
+            stats.max_serv_send_q = std::max(stats.max_serv_send_q,uint64_t(send_req.size()));
+            auto it=send_req.begin();
+            while (it != send_req.end()) {
+                if ((*it)->TestAndFree()) 
+                    it = send_req.erase(it);
+                else 
+                    ++it;
+            }
+        }
 
         class RmiTask
 #if HAVE_INTEL_TBB
@@ -195,18 +225,14 @@ namespace madness {
 
 #if HAVE_INTEL_TBB
             tbb::task* execute() {
-                // Process some messages
-                process_some();
-                if(! finished) {
-                   tbb::task::increment_ref_count();
-                   tbb::task::recycle_as_safe_continuation();
-                } else {
-                    finished = false;
-                }
+                RMI::set_this_thread_is_server();
+                while (! finished) process_some();
+                finished = false; // ??? why?
                 return nullptr;
             }
 #else
             void run() {
+                RMI::set_this_thread_is_server();
                 try {
                     while (! finished) process_some();
                     finished = false;
@@ -214,7 +240,7 @@ namespace madness {
                     delete this;
                     throw;
                 }
-                delete this;
+                delete this; // because the task is not actually put into the q
             }
 #endif // HAVE_INTEL_TBB
 

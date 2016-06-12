@@ -38,12 +38,17 @@
 #include <algorithm>
 #include <utility>
 #include <sstream>
+#include <list>
+#include <memory>
 
 namespace madness {
 
     RMI::RmiTask* RMI::task_ptr = nullptr;
     RMIStats RMI::stats;
     volatile bool RMI::debugging = false;
+    std::list< std::unique_ptr<RMISendReq> > RMI::send_req;
+
+    thread_local bool RMI::is_server_thread = false;
 
 #if HAVE_INTEL_TBB
     tbb::task* RMI::tbb_rmi_parent_task = nullptr;
@@ -59,12 +64,17 @@ namespace madness {
 
         // If MPI is not safe for simultaneous entry by multiple threads we
         // cannot call Waitsome ... have to poll via Testsome
+
+        // Now that the server thread doing other stuff (including being
+        // responsible for its own outbound messages) we have to poll.
         int narrived = 0, iterations = 0;
 
         MutexWaiter waiter;
         while((narrived == 0) && (iterations < 1000)) {
 	  narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
+          if (narrived) break;
 	  ++iterations;
+          clear_send_req();
 	  myusleep(RMI::testsome_backoff_us);
         }
 
@@ -163,6 +173,8 @@ namespace madness {
             n_in_q = nleftover;
 
             post_pending_huge_msg();
+
+            clear_send_req();
         }
     }
 

@@ -253,28 +253,34 @@ namespace madness {
         double nmsg_recv = rmi.nmsg_recv;
         double nbyte_sent = rmi.nbyte_sent;
         double nbyte_recv = rmi.nbyte_recv;
+        double server_q = rmi.max_serv_send_q;
         world.gop.sum(nmsg_sent);
         world.gop.sum(nmsg_recv);
         world.gop.sum(nbyte_sent);
         world.gop.sum(nbyte_recv);
+        world.gop.sum(server_q);
 
         double max_nmsg_sent = rmi.nmsg_sent;
         double max_nmsg_recv = rmi.nmsg_recv;
         double max_nbyte_sent = rmi.nbyte_sent;
         double max_nbyte_recv = rmi.nbyte_recv;
+        double max_server_q = rmi.max_serv_send_q;
         world.gop.max(max_nmsg_sent);
         world.gop.max(max_nmsg_recv);
         world.gop.max(max_nbyte_sent);
         world.gop.max(max_nbyte_recv);
+        world.gop.max(max_server_q);
 
         double min_nmsg_sent = rmi.nmsg_sent;
         double min_nmsg_recv = rmi.nmsg_recv;
         double min_nbyte_sent = rmi.nbyte_sent;
         double min_nbyte_recv = rmi.nbyte_recv;
+        double min_server_q = rmi.max_serv_send_q;
         world.gop.min(min_nmsg_sent);
         world.gop.min(min_nmsg_recv);
         world.gop.min(min_nbyte_sent);
         world.gop.min(min_nbyte_recv);
+        world.gop.min(min_server_q);
 
         double npush_back = q.npush_back;
         double npush_front = q.npush_front;
@@ -336,6 +342,8 @@ namespace madness {
 
             printf("  RMI message statistics (min / avg / max)\n");
             printf("  ----------------------\n");
+            printf("   #messages in server q    %.2e / %.2e / %.2e\n",
+                   min_server_q, server_q/world.size(), max_server_q);
             printf(" #messages sent per node    %.2e / %.2e / %.2e\n",
                    min_nmsg_sent, nmsg_sent/world.size(), max_nmsg_sent);
             printf("    #bytes sent per node    %.2e / %.2e / %.2e\n",

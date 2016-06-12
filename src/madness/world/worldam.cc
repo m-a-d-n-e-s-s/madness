@@ -40,7 +40,6 @@ namespace madness {
 
     WorldAmInterface::WorldAmInterface(World& world)
             : nsend(DEFAULT_NSEND)
-            , managed_send_buf(nullptr)
             , send_req(nullptr)
             , worldid(0) // worldid is initialized in the World constructor
             , rank(world.mpi.Get_rank())
@@ -66,10 +65,9 @@ namespace madness {
         }
 
         // Allocate send buffers and requests
-        managed_send_buf.reset(new AmArg* volatile[nsend]);
-        send_req.reset(new RMI::Request[nsend]);
+        send_req.reset(new SendReq[nsend]);
 
-        for (int i=0; i<nsend; ++i) managed_send_buf[i] = nullptr;
+        for (int i=0; i<nsend; ++i) send_req[i].set((AmArg*) 0,RMI::Request());
 
         std::vector<int> fred(nproc);
         for (int i=0; i<nproc; ++i) fred[i] = i;
@@ -85,17 +83,10 @@ namespace madness {
     }
 
     WorldAmInterface::~WorldAmInterface() {
-        if(SafeMPI::Is_finalized()) {
-            for(int i=0; i < nsend; ++i)
-                free_managed_send_buf(i);
-        } else {
-            for(int i=0; i < nsend; ++i) {
-                while (!send_req[i].Test()) {
-                    myusleep(100);
-                }
-                free_managed_send_buf(i);
-            }
+        if(!SafeMPI::Is_finalized()) {
+            while (free_managed_buffers() != nsend) myusleep(100);
         }
+        // otherwise the send buffers are freed when the WorldAMInterface::send_req is freed
     }
 
 } // namespace madness
