@@ -253,7 +253,8 @@ namespace madness {
                 // Task on next line used to be TaskAttributes::hipri()) ... but deferring execution of this
                 // makes sense since it is not urgent and lazy connection will likely mean that less forwarding
                 // will happen since the upper level task will have already made the connection.
-                const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                //const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 //madness::print("   set_chi_recu: forwarding",key,parent);
             }
             _has_children = true;
@@ -1438,7 +1439,7 @@ namespace madness {
                 coeffT coeff=coeffT(this->values2coeffs(key,values),targs);
                 nodeT node(coeff,has_children);
                 coeffs.replace(key,node);
-                const_cast<dcT&>(coeffs).task(key.parent(), &FunctionNode<T,NDIM>::set_has_children_recursive, coeffs, key.parent());
+                const_cast<dcT&>(coeffs).send(key.parent(), &FunctionNode<T,NDIM>::set_has_children_recursive, coeffs, key.parent());
                 ii++;
             }
 
@@ -1534,7 +1535,7 @@ namespace madness {
                 coeffT coeff=coeffT(this->values2coeffs(key,values),targs);
                 nodeT node(coeff,has_children);
                 coeffs.replace(key,node);
-                const_cast<dcT&>(coeffs).task(key.parent(),
+                const_cast<dcT&>(coeffs).send(key.parent(),
                                               &FunctionNode<T,NDIM>::set_has_children_recursive,
                                               coeffs, key.parent());
                 ii++;
@@ -2431,7 +2432,7 @@ namespace madness {
                             bool newnode = left->coeffs.insert(acc,key);
                             if (newnode && key.level()>0) {
                                 Key<NDIM> parent = key.parent();
-                                left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+                                left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
                             }
                             nodeT& node = acc->second;
                             if (!node.has_coeff())
