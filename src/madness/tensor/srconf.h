@@ -628,7 +628,7 @@ namespace madness {
 			return SRConf<T>(copy(rhs.weights_(Slice(0,rhs.rank()-1))),vector,rhs.dim(),rhs.get_k(),rhs.type());
 		}
 
-
+public:
         /// return a slice of this (deep copy)
         SRConf<T> copy_slice(const std::vector<Slice>& s) const {
 
@@ -706,6 +706,7 @@ namespace madness {
         }
 
 
+protected:
 		/// redo the Slices for getting direct access to the configurations
 		void make_slices() {
 			if (type()==TT_FULL) return;
