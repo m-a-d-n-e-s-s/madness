@@ -1303,20 +1303,32 @@ GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_opti
 
 /// outer product of two Tensors, yielding a low rank tensor
  template <class T, class Q>
- GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2, const GenTensor<Q>& rhs2) {
-    return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor());
+ GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2,
+         const GenTensor<Q>& rhs2, const TensorArgs final_tensor_args) {
+    return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor(), final_tensor_args);
  }
 
  /// outer product of two Tensors, yielding a low rank tensor
  template <class T, class Q>
- GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2, const Tensor<Q>& rhs2) {
+ GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2,
+         const Tensor<Q>& rhs2, const TensorArgs final_tensor_args) {
 
-    typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+     typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
-    MADNESS_EXCEPTION("no outer_low_rank in GenTensor yet",1);
+     // prepare lo-dim tensors for the outer product
+     TensorArgs targs;
+     targs.thresh=final_tensor_args.thresh;
+     if (final_tensor_args.tt==TT_FULL) targs.tt=TT_FULL;
+     else if (final_tensor_args.tt==TT_2D) targs.tt=TT_FULL;
+     else if (final_tensor_args.tt==TT_TENSORTRAIN) targs.tt=TT_TENSORTRAIN;
+     else {
+         MADNESS_EXCEPTION("confused tensor args in outer_low_rank",1);
+     }
 
-    GenTensor<resultT> coeff;
-    return coeff;
+     LowRankTensor<T> lhs(lhs2,targs);
+     LowRankTensor<Q> rhs(rhs2,targs);
+     LowRankTensor<resultT> result=outer(lhs,rhs,final_tensor_args);
+     return result;
  }
 
 

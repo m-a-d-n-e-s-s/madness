@@ -2046,7 +2046,7 @@ namespace madness {
         template <typename opT>
         void flo_unary_op_node_inplace(const opT& op, bool fence) {
             typedef Range<typename dcT::iterator> rangeT;
-            typedef do_unary_op_value_inplace<opT> xopT;
+//            typedef do_unary_op_value_inplace<opT> xopT;
             world.taskq.for_each<rangeT,opT>(rangeT(coeffs.begin(), coeffs.end()), op);
             if (fence) world.gop.fence();
         }
@@ -2056,7 +2056,7 @@ namespace madness {
         template <typename opT>
         void flo_unary_op_node_inplace(const opT& op, bool fence) const {
             typedef Range<typename dcT::const_iterator> rangeT;
-            typedef do_unary_op_value_inplace<opT> xopT;
+//            typedef do_unary_op_value_inplace<opT> xopT;
             world.taskq.for_each<rangeT,opT>(rangeT(coeffs.begin(), coeffs.end()), op);
             if (fence)
                 world.gop.fence();
@@ -3294,8 +3294,7 @@ namespace madness {
                 const coeffT s2=gcoeff(p2.get_impl()->cdata.s0);
 
                 // new coeffs are simply the hartree/kronecker/outer product --
-                coeffT coeff=outer(s1,s2);
-                change_tensor_type(coeff,result->get_tensor_args());
+                coeffT coeff=outer(s1,s2,result->get_tensor_args());
                 // no post-determination
                 //                is_leaf=leaf_op(key,coeff);
                 return std::pair<bool,coeffT>(is_leaf,coeff);
@@ -3695,10 +3694,11 @@ namespace madness {
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
 
+                TensorArgs targs=result->get_tensor_args();
             	// use the ket coeffs if they are there, or make them by hartree product
             	const coeffT coeff_ket_NS = (iaket.get_impl())
                     ? iaket.coeff(key)
-                    : outer(iap1.coeff(key1),iap2.coeff(key2));
+                    : outer(iap1.coeff(key1),iap2.coeff(key2),targs);
 
             	coeffT val_potential1, val_potential2;
             	if (iav1.get_impl()) {
@@ -3720,11 +3720,12 @@ namespace madness {
             	// break key into particles
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
+                TensorArgs targs=result->get_tensor_args();
 
             	// use the ket coeffs if they are there, or make them by hartree product
             	const coeffT coeff_ket_NS = (iaket.get_impl())
                     ? iaket.coeff(key)
-                    : outer(iap1.coeff(key1),iap2.coeff(key2));
+                    : outer(iap1.coeff(key1),iap2.coeff(key2),targs);
 
                 // get the sum coeffs for all children
             	const coeffT coeff_ket_unfiltered=result->unfilter(coeff_ket_NS);
@@ -4580,8 +4581,8 @@ namespace madness {
                     // new coeffs are simply the hartree/kronecker/outer product --
                     const std::vector<Slice>& s0=iaf.get_impl()->cdata.s0;
                     const coeffT coeff = (apply_op->modified())
-                        ? outer_low_rank(copy(fcoeff(s0)),copy(gcoeff(s0)))
-                        : outer_low_rank(fcoeff,gcoeff);
+                        ? outer_low_rank(copy(fcoeff(s0)),copy(gcoeff(s0)),result->targs)
+                        : outer_low_rank(fcoeff,gcoeff,result->targs);
 
                     // now send off the application
                     tensorT coeff_full;

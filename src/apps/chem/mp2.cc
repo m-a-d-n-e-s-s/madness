@@ -252,6 +252,7 @@ double MP2::value(const Tensor<double>& x) {
 
 /// print the SCF parameters
 void MP2::print_info(World& world) const {
+    FunctionDefaults<6>::set_tensor_type(TT_TENSORTRAIN);
 	if (world.rank() == 0) {
 		madness::print("\n");
 		madness::print_centered("MP2 info\n",31,false);

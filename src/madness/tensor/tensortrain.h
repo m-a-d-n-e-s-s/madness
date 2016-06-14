@@ -880,6 +880,10 @@ namespace madness {
         friend TensorTrain<TENSOR_RESULT_TYPE(R,Q)> transform_dir(
                 const TensorTrain<R>& t, const Tensor<Q>& c, const int axis);
 
+        template <typename R, typename Q>
+        friend TensorTrain<TENSOR_RESULT_TYPE(R,Q)> outer(
+                const TensorTrain<R>& t1, const TensorTrain<Q>& t2);
+
 	};
 
 
@@ -1012,6 +1016,41 @@ namespace madness {
     }
 
 
+    /// computes the outer product of two tensors
+
+    /// result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
+    /// @result Returns a new tensor train
+    template <class T, class Q>
+    TensorTrain<TENSOR_RESULT_TYPE(T,Q)> outer(const TensorTrain<T>& t1,
+            const TensorTrain<Q>& t2) {
+
+        typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+
+        // fast return if possible
+        if (t1.zero_rank or t2.zero_rank) {
+            // compute new dimensions
+            std::vector<long> dims(t1.ndim()+t2.ndim());
+            for (int i=0; i<t1.ndim(); ++i) dims[i]=t1.dim(i);
+            for (int i=0; i<t2.ndim(); ++i) dims[t1.ndim()+i]=t2.dim(i);
+
+            return TensorTrain<resultT>(dims);
+        }
+
+        TensorTrain<resultT> result;
+        for (int i=0; i<t1.ndim(); ++i) result.core.push_back(copy(t1.core[i]));
+        for (int i=0; i<t2.ndim(); ++i) result.core.push_back(copy(t2.core[i]));
+
+        // reshape the new interior cores
+        long k1=t1.core.back().dim(1);
+        long k2=t2.core.front().dim(0);
+        result.core[t1.ndim()-1]=result.core[t1.ndim()-1].splitdim(1,k1,1);
+        result.core[t1.ndim()]=result.core[t1.ndim()].splitdim(0,1,k2);
+        result.zero_rank=false;
+
+        return result;
+
+    }
 
 }
 

@@ -661,19 +661,19 @@ LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> transform_dir(const LowRankTensor<Q>& t,
 /// all other combinations are currently invalid.
 template <class T, class Q>
 LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const LowRankTensor<T>& t1,
-        const LowRankTensor<Q>& t2, const TensorType final_tensor_type=TT_2D) {
+        const LowRankTensor<Q>& t2, const TensorArgs final_tensor_args) {
 
     typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
 
     MADNESS_ASSERT(t1.tensor_type()==t2.tensor_type());
 
-    if (final_tensor_type==TT_FULL) {
+    if (final_tensor_args.tt==TT_FULL) {
         MADNESS_ASSERT(t1.tensor_type()==TT_FULL);
         Tensor<resultT> t(outer(*t1.impl.full,*t2.impl.full));
         return LowRankTensor<resultT>(t);
 
-    } else if (final_tensor_type==TT_2D) {
+    } else if (final_tensor_args.tt==TT_2D) {
         MADNESS_ASSERT(t1.tensor_type()==TT_FULL);
 
         // srconf is shallow, do deep copy here
@@ -695,8 +695,10 @@ LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const LowRankTensor<T>& t1,
 //        srconf.normalize();
         return LowRankTensor<resultT>(SVDTensor<resultT>(srconf));
 
-    } else if (final_tensor_type==TT_TENSORTRAIN) {
-        MADNESS_EXCEPTION("implement outer for TensorTrain",1);
+    } else if (final_tensor_args.tt==TT_TENSORTRAIN) {
+        MADNESS_ASSERT(t1.tensor_type()==TT_TENSORTRAIN);
+        MADNESS_ASSERT(t2.tensor_type()==TT_TENSORTRAIN);
+        return outer(*t1.impl.tt,*t2.impl.tt);
     } else {
         MADNESS_EXCEPTION("you should not be here",1);
     }
