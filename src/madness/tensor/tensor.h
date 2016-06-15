@@ -41,6 +41,7 @@
 #include <vector>
 #include <cmath>
 #include <cstdlib>
+#include <cstddef>
 
 #include <madness/world/archive.h>
 // #include <madness/world/print.h>
@@ -281,7 +282,37 @@ namespace madness {
         return s;
     }
 
-
+    //#define TENSOR_USE_SHARED_ALIGNED_ARRAY
+#ifdef TENSOR_USE_SHARED_ALIGNED_ARRAY
+#define TENSOR_SHARED_PTR detail::SharedAlignedArray
+    namespace detail {
+        // Minimal ref-counted array with data+counter in one alloc
+        template <typename T> class SharedAlignedArray {
+            T* p;
+            AtomicInt* cnt;
+            void dec() {if (p && ((*cnt)-- == 1)) {free(p); p = 0;}}
+            void inc() {if (p) (*cnt)++;}
+        public:
+            SharedAlignedArray() : p(0), cnt(0) {}
+            T* allocate(std::size_t size, unsigned int alignment) {
+                std::size_t offset = (size*sizeof(T)-1)/sizeof(AtomicInt) + 1; // Where the counter will be
+                std::size_t nbyte = (offset+1)*sizeof(AtomicInt);
+                if (posix_memalign((void **) &p, alignment, nbyte)) throw 1;
+                cnt = (AtomicInt*)(p) + offset;
+                *cnt = 1;
+                return p;
+            }
+            SharedAlignedArray<T>& operator=(const SharedAlignedArray<T>& other) {
+                if (this != &other) {dec(); p = other.p; cnt = other.cnt; inc();}
+                return *this;
+            }
+            void reset() {dec(); p = 0;}
+            ~SharedAlignedArray() {dec();}
+        };
+    }
+#else
+#define TENSOR_SHARED_PTR std::shared_ptr
+#endif
 
     /// A tensor is a multidimension array
 
@@ -291,8 +322,7 @@ namespace madness {
 
     protected:
         T* restrict _p;
-        std::shared_ptr<T> _shptr;
-
+        TENSOR_SHARED_PTR <T> _shptr;
 
         void allocate(long nd, const long d[], bool dozero) {
             _id = TensorTypeData<T>::id;
@@ -329,8 +359,10 @@ namespace madness {
 #define TENSOR_ALIGNMENT 64
 #endif
 
-#ifdef WORLD_GATHER_MEM_STATS
-                    _p = new T[size];
+#ifdef TENSOR_USE_SHARED_ALIGNED_ARRAY
+                    _p = _shptr.allocate(_size, TENSOR_ALIGNMENT);
+#elif defined WORLD_GATHER_MEM_STATS
+                    _p = new T[_size];
                     _shptr = std::shared_ptr<T>(_p);
 #else
                     if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
@@ -2455,5 +2487,7 @@ namespace madness {
         return result;
     }
 }
+
+#undef TENSOR_SHARED_PTR
 
 #endif // MADNESS_TENSOR_TENSOR_H__INCLUDED
