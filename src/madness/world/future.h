@@ -457,7 +457,8 @@ namespace madness {
         explicit Future(const remote_refT& remote_ref) :
                 f(remote_ref.is_local() ?
                         remote_ref.get_shared() :
-                        std::shared_ptr<FutureImpl<T> >(new FutureImpl<T>(remote_ref))),
+                        std::make_shared<FutureImpl<T> >(remote_ref)),
+                //                        std::shared_ptr<FutureImpl<T> >(new FutureImpl<T>(remote_ref))),
                 value(nullptr)
         { }
 
