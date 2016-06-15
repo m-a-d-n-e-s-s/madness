@@ -200,7 +200,11 @@ namespace madness {
 		friend TensorTrain copy(const TensorTrain& other, const std::vector<Slice>& s) {
 
 		    MADNESS_ASSERT(other.ndim()==s.size());
-		    if (other.zero_rank) return TensorTrain(other.dims());
+		    if (other.zero_rank) {
+		        std::vector<long> dims(s.size());
+		        for (int i=0; i<dims.size(); ++i) dims[i]=s[i].end-s[i].start+1;
+		        return TensorTrain(dims);
+		    }
 
 		    TensorTrain result;
 		    const long nd=other.ndim();
