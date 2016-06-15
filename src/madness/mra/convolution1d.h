@@ -856,12 +856,12 @@ namespace madness {
             hash_combine(key, int(periodic));
             iterator it = map.find(key);
             if (it == map.end()) {
-                map.insert(datumT(key, std::shared_ptr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
-                                                                                                          Q(sqrt(expnt/constants::pi)),
-                                                                                                          expnt,
-                                                                                                          m,
-                                                                                                          periodic
-                                                                                                          ))));
+                map.insert(datumT(key, std::make_shared< GaussianConvolution1D<Q> >(k,
+                                                                                    Q(sqrt(expnt/constants::pi)),
+                                                                                    expnt,
+                                                                                    m,
+                                                                                    periodic
+                                                                                    )));
                 it = map.find(key);
                 //printf("conv1d: making  %d %.8e\n",k,expnt);
             }
