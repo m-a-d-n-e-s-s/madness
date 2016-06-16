@@ -651,6 +651,16 @@ int testTensorTrain(const long k, const long dim, const TensorArgs targs) {
 		double error1=(t-tt1.reconstruct()).normf();
 		print(ok(is_small(error1,eps)),"full rank; k=",k,"dim=",dim,"error=",error1,"size=",tt1.size());
 		if (!is_small(error1,eps)) nerror++;
+
+		// test fusedim/splitdim
+		TensorTrain<double> tt2=copy(tt1);
+		tt2.fusedim(0);
+		tt2=tt2.splitdim(0,k,k,eps);
+		tt2-=tt1;
+		double error2=tt2.normf();
+        print(ok(is_small(error2,eps)),"split/fusedim; k=",k,"dim=",dim,"error=",error2,"size=",tt1.size());
+        if (!is_small(error2,eps)) nerror++;
+
 	}
 
 	// set up a tensor of low rank

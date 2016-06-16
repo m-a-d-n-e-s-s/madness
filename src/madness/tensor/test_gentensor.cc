@@ -278,7 +278,7 @@ namespace {
 			// check for outer product
     		if ((t0.ndim()+t1.ndim()<=TENSOR_MAXDIM) and (tt==TT_FULL)) {
     			Tensor<double> t2=outer(t0,t1);
-    			LowRankTensor<double> g2=outer(g0,g1);
+    			LowRankTensor<double> g2=outer(g0,g1,TensorArgs(eps,TT_FULL));
     			ASSERT_LT((g2.full_tensor_copy()-t2).normf(),eps);
     		}
 

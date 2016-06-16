@@ -400,6 +400,8 @@ namespace madness {
 				*this=rhs*beta;
 			} else if (rhs.zero_rank or (beta==0.0)) {
 				scale(alpha);
+			} else if (ndim()==1) {     // simple algorithm for ndim=1
+			    core[0].gaxpy(alpha,rhs.core[0],beta);
 			} else {
 
 				// special treatment for first border cores (k,r1)
@@ -525,6 +527,82 @@ namespace madness {
 
 		}
 
+        /// Returns new view/tensor splitting dimension \c i as \c dimi0*dimi1
+		/// to produce conforming d+1 dimension tensor
+
+		/// @param[in]  idim    the dimension to be split
+		/// @param[in]  k1      new first dimension of idim
+		/// @param[in]  k2      new second dimension of idim
+		/// @param[in]  eps     threshold for SVD
+        /// @return new deep copy of this with split dimensions
+        TensorTrain<T> splitdim(long idim, long k1, long k2, const double eps) const {
+            // core_new = left * right
+            // (r1, k1*k2, r3) = sum_r2 (r1, k1, r2) * (r2, k2, r3)
+
+            // check for consistency
+            MADNESS_ASSERT(k1*k2==dim(idim));
+
+            TensorTrain<T> result;
+
+            long r1= (idim==0) ? 1 : ranks(idim-1);       // left-side rank
+            long r2= (idim==ndim()-1) ? 1 : ranks(idim);  // right-side rank
+            long k12=dim(idim);
+
+            Tensor<T> A=core[idim].reshape(r1*k1,r2*k2);
+            Tensor<T> U,VT;
+            Tensor< typename Tensor<T>::scalar_type > s(k12);
+            svd(A,U,s,VT);
+
+            // this is the new interior rank
+            long r=SRConf<T>::max_sigma(eps,std::min(A.dim(0),A.dim(1)),s)+1;
+
+            // handle rank=0 explicitly
+            if (r==0) {
+                std::vector<long> newdims(this->ndim()+1);
+                for (long i=0; i<idim; ++i) newdims[i]=this->dim(i);
+                newdims[idim]=k1;
+                newdims[idim]=k2;
+                for (long i=idim+1; i<ndim(); ++i) newdims[i+1]=dim(i);
+                return TensorTrain(newdims);
+            } else {
+
+                // convolve the singular values into the right singular vectors
+                for (int ii=0; ii<r; ++ii) {
+                    for (int j=0; j<VT.dim(1); ++j) {
+                        VT(ii,j)*=s(ii);
+                    }
+                }
+
+                // testing
+                for (int ii=r; ii<VT.dim(0); ++ii) {
+                    for (int j=0; j<VT.dim(1); ++j) {
+                        VT(idim,j)=0.0;
+                    }
+                }
+
+                double err1=(inner(U,VT)-A).normf();
+                print("err1 in splitdim ",err1);
+
+                for (long ii=0; ii<idim; ++ii) result.core.push_back(copy(core[ii]));
+                result.core.push_back(copy(U(_,Slice(0,r-1))).reshape(r1,k1,r));
+                result.core.push_back(copy(VT(Slice(0,r-1),_)).reshape(r,k2,r2));
+                for (long ii=idim+1; ii<ndim(); ++ii) result.core.push_back(core[ii]);
+
+                // post-processing
+                if (result.core.front().ndim()==3) result.core.front()=result.core.front().fusedim(0);
+                if (result.core.back().ndim()==3) result.core.back()=result.core.back().fusedim(1);
+                result.zero_rank=false;
+            }
+
+            // testing
+            TensorTrain refuse=copy(result);
+            refuse.fusedim(idim);
+            refuse-=*this;
+            double err2=refuse.normf();
+            print("err2 in splitdim", err2);
+            return result;
+
+        }
 
 		/// reconstruct this to a full representation
 
@@ -612,7 +690,7 @@ namespace madness {
 		    // fast return
 		    if (zero_rank) return;
 
-		    for (long i=0; i<core.size(); ++i) if (ranks(i)==0) zero_rank=true;
+		    for (long i=0; i<core.size()-1; ++i) if (ranks(i)==0) zero_rank=true;
 
 		    if (zero_rank) {
 		        zero_me();
@@ -727,6 +805,7 @@ namespace madness {
 
 		/// check that the ranks of all core tensors are consistent
 		bool verify() const {
+		    if (core.size()<2) return true; // no ranks
 		    if (core[0].dim(1)!=core[1].dim(0)) return false;
 		    for (int d=2; d<ndim(); ++d) {
 		        if (core[d-1].dim(2)!=core[d].dim(0)) return false;
@@ -756,7 +835,7 @@ namespace madness {
             if (zero_rank) return 0;
             if (i==0) {
                 return core[0].dim(1);
-            } else if (i<core.size()) {
+            } else if (i<core.size()-1) {
                 return core[i].dim(2);
             } else {
                 print("ndim ",ndim());
@@ -813,12 +892,15 @@ namespace madness {
 
             // fast return
             if (A.zero_rank or B.zero_rank) return resultT(0.0);
+            if (A.ndim()==1) {
+                return A.core[0].trace(B.core[0]);
+            }
 
             // set up temporary tensors for intermediates
-            long size1=A.ranks(0)*B.ranks(0);
-            long size2=A.ranks(0)*A.dim(0);
+            long size1=A.ranks(0)*B.ranks(0);                   // first contraction
+            long size2=B.ranks(ndim()-2)*A.dim(ndim()-1);       // last contraction
 
-            for (int d=1; d<A.ndim(); ++d) {
+            for (int d=1; d<A.ndim()-1; ++d) {
                 size1=std::max(size1,A.ranks(d)*B.ranks(d));
                 size2=std::max(size2,A.ranks(d)*B.ranks(d-1)*A.dim(d));
             }
