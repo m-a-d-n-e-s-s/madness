@@ -285,10 +285,16 @@ namespace madness {
     //#define TENSOR_USE_SHARED_ALIGNED_ARRAY
 #ifdef TENSOR_USE_SHARED_ALIGNED_ARRAY
 #define TENSOR_SHARED_PTR detail::SharedAlignedArray
+    // this code has been tested and seems to work correctly on all
+    // tests and moldft ... however initial testing indicated a hard
+    // to measure improvement in thread scaling (from 20 to 60 threads
+    // on cn-mem) and no change in the modest thread count (20)
+    // execution time with tbballoc.  hence we are not presently using
+    // it but will test more in the future with different allocators
     namespace detail {
         // Minimal ref-counted array with data+counter in one alloc
         template <typename T> class SharedAlignedArray {
-            T* p;
+            T* volatile p;
             AtomicInt* cnt;
             void dec() {if (p && ((*cnt)-- == 1)) {free(p); p = 0;}}
             void inc() {if (p) (*cnt)++;}
