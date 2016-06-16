@@ -261,6 +261,50 @@ public:
     /// return the tensor type
     TensorType tensor_type() const {return type;}
 
+    /// convert this to a new LowRankTensor of given tensor type
+    LowRankTensor convert(const TensorArgs& targs) {
+
+        // fast return if old and new type are identical
+        if (this->tensor_type()==targs.tt) return copy(*this);
+
+        LowRankTensor result;
+
+        if (tensor_type()==TT_FULL) {
+            // TT_FULL -> TT_SVD
+            // TT_FULL -> TT_TENSORTRAIN
+            result=LowRankTensor(*impl.full,targs);
+
+        } else if (tensor_type()==TT_2D) {
+
+            // TT_SVD -> TT_FULL
+            // TT_SVD -> TT_TENSORTRAIN
+            result=LowRankTensor(this->reconstruct_tensor(),targs);
+
+        } else if (tensor_type()==TT_TENSORTRAIN) {
+
+            if (targs.tt==TT_FULL) {
+
+                // TT_TENSORTRAIN -> TT_FULL
+                result=LowRankTensor(this->reconstruct_tensor(),targs);
+
+            } else {
+
+                // TT_TENSORTRAIN -> TT_SVD
+                Tensor<T> U,VT;
+                Tensor< typename Tensor<T>::scalar_type > s;
+                impl.tt->two_mode_representation(U, VT, s);
+                U=copy(transpose(U));   // make it contiguous
+                SVDTensor<T> svdtensor(s, U, VT, ndim(), dim(0));
+                result=LowRankTensor<T>(svdtensor);
+            }
+
+        } else {
+            MADNESS_EXCEPTION("unknown tensor type in LowRankTensor::convert",1);
+        }
+
+        return result;
+    }
+
     long ndim() const {
         if (type==TT_NONE) return -1;
         else if (type==TT_FULL) return impl.full->ndim();

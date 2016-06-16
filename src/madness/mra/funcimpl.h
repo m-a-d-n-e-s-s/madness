@@ -3113,31 +3113,81 @@ namespace madness {
 
                 // get coefficients of the actual FunctionNode
                 coeffT coeff1=f.get_impl()->parent_to_child(f.coeff(),f.key(),key);
-                coeff1.normalize();
                 const coeffT coeff2=g.get_impl()->parent_to_child(g.coeff(),g.key(),gkey);
 
-                coeffT hcoeff;
+                bool is_leaf=false;
+                if (coeff1.tensor_type()==TT_TENSORTRAIN) {
+                    coeffT coeff11=coeff1.convert(TensorArgs(h->get_thresh(),TT_2D));
+                    coeff11.normalize();
+                    is_leaf=screen(coeff11,coeff2,key);
+                } else {
+                    is_leaf=screen(coeff1,coeff2,key);
+                }
 
-                bool is_leaf=screen(coeff1,coeff2,key);
                 if (key.level()<2) is_leaf=false;
 
+                coeffT hcoeff;
                 if (is_leaf) {
 
                     // convert coefficients to values
                     coeffT hvalues=f.get_impl()->coeffs2values(key,coeff1);
                     coeffT gvalues=g.get_impl()->coeffs2values(gkey,coeff2);
 
-                    // multiply one of the two vectors of f with g
-                    // note shallow copy of Tensor<T>
-                    MADNESS_ASSERT(hvalues.tensor_type()==TT_2D);
                     MADNESS_ASSERT(gvalues.tensor_type()==TT_FULL);
-                    const long rank=hvalues.rank();
-                    const long maxk=h->get_k();
-                    MADNESS_ASSERT(maxk==coeff1.dim(0));
-                    tensorT vec=hvalues.config().ref_vector(particle-1).reshape(rank,maxk,maxk,maxk);
-                    for (long i=0; i<rank; ++i) {
-                        tensorT c=vec(Slice(i,i),_,_,_);
-                        c.emul(gvalues.full_tensor());
+
+                    if (hvalues.tensor_type()==TT_2D) {
+                        // multiply one of the two vectors of f with g
+                        // note shallow copy of Tensor<T>
+                        const long rank=hvalues.rank();
+                        const long maxk=h->get_k();
+                        MADNESS_ASSERT(maxk==coeff1.dim(0));
+                        tensorT vec=hvalues.config().ref_vector(particle-1).reshape(rank,maxk,maxk,maxk);
+                        for (long i=0; i<rank; ++i) {
+                            tensorT c=vec(Slice(i,i),_,_,_);
+                            c.emul(gvalues.full_tensor());
+                        }
+                    } else if (hvalues.tensor_type()==TT_TENSORTRAIN) {
+                        TensorTrain<T> hval=*hvalues.impl.tt;
+
+                        if (particle==1) {
+                            // fuse dimension 0,1,2 to one
+                            hval.fusedim(0);
+                            hval.fusedim(0);
+
+                            const long rank=hval.ranks(0);
+                            const long maxk=h->get_k();
+                            MADNESS_ASSERT(maxk==coeff1.dim(0));
+                            tensorT vec=hval.get_core(0);  // shallow
+                            for (long i=0; i<rank; ++i) {
+                                tensorT c=vec(_,Slice(i,i));  // shallow
+                                c.emul(gvalues.full_tensor());
+                            }
+
+                            // split dimensions again
+                            hval=hval.splitdim(0,maxk,2*maxk,h->get_tensor_args().thresh);
+                            hval=hval.splitdim(1,maxk,maxk,h->get_tensor_args().thresh);
+
+                        } else if (particle==2) {
+                            // fuse dimension 3,4,5 to one
+                            hval.fusedim(3);
+                            hval.fusedim(3);
+
+                            const long rank=hval.ranks(3);
+                            const long maxk=h->get_k();
+                            MADNESS_ASSERT(maxk==coeff1.dim(0));
+                            tensorT vec=hval.get_core(3).reshape(rank,maxk,maxk,maxk);  // shallow
+                            for (long i=0; i<rank; ++i) {
+                                tensorT c=vec(Slice(i,i),_,_,_);        // shallow
+                                c.emul(gvalues.full_tensor());
+                            }
+
+                            // split dimensions again
+                            hval=hval.splitdim(3,maxk,2*maxk,h->get_tensor_args().thresh);
+                            hval=hval.splitdim(4,maxk,maxk,h->get_tensor_args().thresh);
+                        }
+                        hvalues=coeffT(hval);
+                    } else {
+                        MADNESS_EXCEPTION("unsupported TensorType in multiply: use TT_2D or TT_TENSORTRAIN",1);
                     }
 
                     // convert values back to coefficients

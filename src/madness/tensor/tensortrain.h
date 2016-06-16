@@ -874,6 +874,17 @@ namespace madness {
             return 0;
         }
 
+        /// reference to the internal core
+        Tensor<T>& get_core(const int i) {
+            MADNESS_ASSERT(i<ndim());
+            return core[i];
+        }
+
+        /// const reference to the internal core
+        const Tensor<T>& get_core(const int i) const {
+            MADNESS_ASSERT(i<ndim());
+            return core[i];
+        }
 
         /// Return the trace of two tensors, no complex conjugate involved
 
