@@ -133,6 +133,8 @@ static double gauss_plus_tight_3d(const coord_3d& r) {
 }
 
 
+
+
 static double gauss_6d(const coord_6d& r) {
     coord_3d r1, r2;
     r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
@@ -226,9 +228,11 @@ int test_multiply(World& world, const long& k, const double thresh) {
     int nerror=0;
     bool good;
 
+    real_function_6d f12=TwoElectronFactory(world).f12().thresh(thresh).gamma(1.0);
+
+
     real_function_3d phi=real_factory_3d(world).f(gauss_3d);
     real_function_3d phisq=phi*phi;
-    real_function_6d f12=real_factory_6d(world).functor(&slater_6d).is_on_demand();
 
     real_function_6d fii=CompositeFactory<double,6,3>(world)
     	    	.particle1(copy(phi))
@@ -240,7 +244,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
     	    	.g12(f12);
 
 
-    if (0) {
+    if (1) {
     	fii.fill_tree();
     	save_function(world,fii,"fii");
     	fiii.fill_tree();
@@ -250,9 +254,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
     	load_function(world,fiii,"fiii");
     }
     fii.print_size("f12 |phi phi>");
-    fiii=real_factory_6d(world).functor(&slateriii_6d);
     fiii.print_size("f12 |phi^2 phi>");
-	save_function(world,fiii,"fiii2");
 
 
 //    real_function_6d ij=hartree_product(phi,phi);
@@ -672,6 +674,7 @@ int main(int argc, char**argv) {
         if (key=="TT") {
             if (val=="TT_2D") tt=TT_2D;
             else if (val=="TT_FULL") tt=TT_FULL;
+            else if (val=="TT_TENSORTRAIN") tt=TT_TENSORTRAIN;
             else {
                 print("arg",arg, "key",key,"val",val);
                 MADNESS_EXCEPTION("confused tensor type",0);
@@ -708,8 +711,8 @@ int main(int argc, char**argv) {
 
 //    test(world,k,thresh);
 //    error+=test_hartree_product(world,k,thresh);
-    error+=test_convolution(world,k,thresh);
-//    error+=test_multiply(world,k,thresh);
+//    error+=test_convolution(world,k,thresh);
+    error+=test_multiply(world,k,thresh);
     error+=test_add(world,k,thresh);
 //    error+=test_exchange(world,k,thresh);
 //    error+=test_inner(world,k,thresh);

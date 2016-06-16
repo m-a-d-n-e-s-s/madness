@@ -168,9 +168,27 @@ namespace madness {
             return result;
         }
 
+        /// serialize this
         template <typename Archive>
         void serialize(Archive& ar) {
-                ar & core & zero_rank;
+            long dim=ndim();
+            ar & zero_rank & dim;
+
+            // no empty tensor
+            if (dim>0) {
+
+                ar & core;
+
+                // need this because tensor serialization does not preserve the
+                // dimensions if the tensor is empty, but we need to!
+
+                // existing tensor filled with zeros
+                if (zero_rank) {
+                    std::vector<long> d=this->dims();
+                    ar & d;
+                    zero_me(d);
+                }
+            }
         }
 
 
@@ -360,6 +378,12 @@ namespace madness {
 		void zero_me() {
 		    *this=TensorTrain<T>(this->dims());
 		}
+
+        /// turn this into an empty tensor with all cores properly shaped
+        void zero_me(const std::vector<long>& dim) {
+            *this=TensorTrain<T>(dim);
+        }
+
 
 		/// return this multiplied by a scalar
 
