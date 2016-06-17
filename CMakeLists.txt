@@ -59,13 +59,11 @@ cmake_dependent_option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 
-option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
-option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" ON)
-if(ENABLE_PARSEC)
-	if(ENABLE_TBB)
-		message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
-	endif(ENABLE_TBB)
-endif(ENABLE_PARSEC)
+option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
+option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
+if(ENABLE_PARSEC AND ENABLE_TBB)
+  message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
+endif()
 
 option(ENABLE_ELEMENTAL "Enable Elemental library for distributed-memory linear algebra" OFF)
 if (ENABLE_ELEMENTAL)
