@@ -60,10 +60,10 @@ option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 
 option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
-option(ENABLE_PARSEC "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
+option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" ON)
 if(ENABLE_PARSEC)
 	if(ENABLE_TBB)
-		message(FATAK_ERROR "TBB and PaRSEC cannot be both enabled.")
+		message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
 	endif(ENABLE_TBB)
 endif(ENABLE_PARSEC)
 
@@ -481,7 +481,6 @@ if(GDB_EXECUTABLE)
   message(STATUS "Found gdb: ${GDB_EXECUTABLE}")
 endif()
 find_package(PythonInterp)
-find_package(PARSEC)
 
 # Check for external dependencies ==============================================
 add_custom_target(External)

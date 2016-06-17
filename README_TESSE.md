@@ -25,7 +25,7 @@
   * Configuring PaRSEC should go smoothly. In the context of TESSE, it is necessary to produce shared libraries and to force the installation of the PaRSEC development headers. As a hint, if you want a debug build add ```-DCMAKE_BUILD_TYPE=Debug`` before the ```../```.
 
     ```shell
-    cmake -G 'Unix Makefiles' -DBUILD_SHARED_LIBS=ON —DDAGUE_WITH_DEVEL_HEADERS=ON -DHWLOC_DIR=<hwloc-install-prefix> -DDAGUE_DIST_WITH_MPI=OFF -DDAGUE_GPU_WITH_CUDA=OFF -DCMAKE_INSTALL_PREFIX:PATH=${TESSE_DIR}/install -DBUILD_DPLASMA=OFF ../
+    cmake -G 'Unix Makefiles' -DBUILD_SHARED_LIBS=ON —DDAGUE_WITH_DEVEL_HEADERS=ON -DHWLOC_DIR=<hwloc-install-prefix> -DDAGUE_DIST_WITH_MPI=ON -DDAGUE_GPU_WITH_CUDA=OFF -DCMAKE_INSTALL_PREFIX:PATH=${TESSE_DIR}/install -DBUILD_DPLASMA=OFF ../
     ```
   
     PaRSEC will complain about missing BLAS libraries, but for the purpose of TESSE we don’t need them. Take a careful look at the output, to make sure the important pieces are indeed correctly found. Look for HWLOC and MPI at a minimum, CUDA if you need GPU support. It is also important to have support for atomic operations (especially 128 bits, such a double CAS to prevent ABA issues).
