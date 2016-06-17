@@ -61,9 +61,9 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
       endif()      
 
       # import LINK_FLAGS from dependent
-      get_property(_dep_LINK_FLAGS_SET TARGET MAD${_dep} PROPERTY LINK_FLAGS SET)
+      get_property(_dep_LINK_FLAGS_SET TARGET ${_dep} PROPERTY LINK_FLAGS SET)
       if (_dep_LINK_FLAGS_SET)
-        get_property(_dep_LINK_FLAGS TARGET MAD${_dep} PROPERTY LINK_FLAGS)
+        get_property(_dep_LINK_FLAGS TARGET ${_dep} PROPERTY LINK_FLAGS)
         set(LINK_FLAGS "${LINK_FLAGS} ${_dep_LINK_FLAGS}")
       endif ()
         
