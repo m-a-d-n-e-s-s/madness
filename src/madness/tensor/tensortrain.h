@@ -542,8 +542,16 @@ namespace madness {
 			// determine index
 			const int index=core[i].ndim()-2;	// (r-1, k, k, .. , k, r1)
 
-			if (not zero_rank) core[i]=inner(core[i],core[i+1]);
-			core[i]=core[i].fusedim(index);
+			if (not zero_rank) {
+			    core[i]=inner(core[i],core[i+1]);
+	            core[i]=core[i].fusedim(index);
+			} else {
+			    if (i==0) { // (k1*k2, r2=0)
+	                core[i]=Tensor<T>(core[i].dim(0)*core[i+1].dim(1),0l);
+			    } else {                /// (r1=0, k1*k2, r2=0)
+                    core[i]=Tensor<T>(0l,core[i].dim(0)*core[i+1].dim(1),0l);
+			    }
+			}
 
 			// shift all subsequent cores and remove the last one
 			for (std::size_t d=i+1; d<core.size()-1; ++d) core[d]=core[d+1];
@@ -557,7 +565,7 @@ namespace madness {
 		/// @param[in]  idim    the dimension to be split
 		/// @param[in]  k1      new first dimension of idim
 		/// @param[in]  k2      new second dimension of idim
-		/// @param[in]  eps     threshold for SVD
+		/// @param[in]  eps     threshold for SVD (choose negative to keep all terms)
         /// @return new deep copy of this with split dimensions
         TensorTrain<T> splitdim(long idim, long k1, long k2, const double eps) const {
             // core_new = left * right
@@ -565,6 +573,15 @@ namespace madness {
 
             // check for consistency
             MADNESS_ASSERT(k1*k2==dim(idim));
+
+            if (zero_rank) {
+                std::vector<long> newdims(this->ndim()+1);
+                for (long i=0; i<idim; ++i) newdims[i]=this->dim(i);
+                newdims[idim]=k1;
+                newdims[idim+1]=k2;
+                for (long i=idim+1; i<ndim(); ++i) newdims[i+1]=dim(i);
+                return TensorTrain(newdims);
+            }
 
             TensorTrain<T> result;
 
@@ -585,7 +602,7 @@ namespace madness {
                 std::vector<long> newdims(this->ndim()+1);
                 for (long i=0; i<idim; ++i) newdims[i]=this->dim(i);
                 newdims[idim]=k1;
-                newdims[idim]=k2;
+                newdims[idim+1]=k2;
                 for (long i=idim+1; i<ndim(); ++i) newdims[i+1]=dim(i);
                 return TensorTrain(newdims);
             } else {
@@ -597,16 +614,6 @@ namespace madness {
                     }
                 }
 
-                // testing
-                for (int ii=r; ii<VT.dim(0); ++ii) {
-                    for (int j=0; j<VT.dim(1); ++j) {
-                        VT(idim,j)=0.0;
-                    }
-                }
-
-                double err1=(inner(U,VT)-A).normf();
-                print("err1 in splitdim ",err1);
-
                 for (long ii=0; ii<idim; ++ii) result.core.push_back(copy(core[ii]));
                 result.core.push_back(copy(U(_,Slice(0,r-1))).reshape(r1,k1,r));
                 result.core.push_back(copy(VT(Slice(0,r-1),_)).reshape(r,k2,r2));
@@ -617,13 +624,6 @@ namespace madness {
                 if (result.core.back().ndim()==3) result.core.back()=result.core.back().fusedim(1);
                 result.zero_rank=false;
             }
-
-            // testing
-            TensorTrain refuse=copy(result);
-            refuse.fusedim(idim);
-            refuse-=*this;
-            double err2=refuse.normf();
-            print("err2 in splitdim", err2);
             return result;
 
         }
@@ -663,33 +663,37 @@ namespace madness {
 		/// @param[out] VT The right singular vectors, (rank,{i})
 		/// @param[out]	s Vector holding 1's, (rank)
 		void two_mode_representation(Tensor<T>& U, Tensor<T>& VT,
-				Tensor< typename Tensor<T>::scalar_type >& s) {
+		        Tensor< typename Tensor<T>::scalar_type >& s) {
 
-			// number of dimensions needs to be even
-			MADNESS_ASSERT(ndim()%2==0);
+		    // number of dimensions needs to be even
+		    MADNESS_ASSERT(ndim()%2==0);
 
-			if (not zero_rank) {
-			  typename std::vector<Tensor<T> >::const_iterator it1, it2;
-			  U=core.front();
-			  VT=core.back();
-			  for (it1=++core.begin(), it2=--(--core.end()); it1<it2; ++it1, --it2) {
-			    U=inner(U,*it1);
-				VT=inner(*it2,VT);
-			  }
-			  s=Tensor< typename Tensor<T>::scalar_type >(VT.dim(0));
-			  s=1.0;
-			}
-			else {
-			  long dim1 = core.front().dim(0);
-			  long dim2 = core.back().dim(1);
-              for (int d1=1, d2=core.size()-2; d1<d2; ++d1, --d2) {
-                dim1 *= core[d1].dim(1);
-                dim2 *= core[d2].dim(1);
-              }
-              U = Tensor<T>(dim1,long(0));
-              VT = Tensor<T>(long(0),dim2);
-              s = Tensor< typename Tensor<T>::scalar_type >(VT.dim(0));
-			}
+		    if (not zero_rank) {
+		        typename std::vector<Tensor<T> >::const_iterator it1, it2;
+		        U=core.front();
+		        VT=core.back();
+		        for (it1=++core.begin(), it2=--(--core.end()); it1<it2; ++it1, --it2) {
+		            U=inner(U,*it1);
+		            VT=inner(*it2,VT);
+		        }
+		        s=Tensor< typename Tensor<T>::scalar_type >(VT.dim(0));
+		        s=1.0;
+		    }
+		    else {
+		        if (ndim()==2) {
+                    U = Tensor<T>(dim(0),long(0));
+                    VT = Tensor<T>(long(0),dim(1));
+		        } else if (ndim()==4) {
+                    U = Tensor<T>(dim(0),dim(1),long(0));
+                    VT = Tensor<T>(long(0),dim(2),dim(3));
+		        } else if (ndim()==6) {
+                    U = Tensor<T>(dim(0),dim(1),dim(2),long(0));
+                    VT = Tensor<T>(long(0),dim(3),dim(4),dim(5));
+		        } else {
+		            MADNESS_EXCEPTION("ndim>6 in tensortrain::two_mode_representation",1);
+		        }
+		        s = Tensor< typename Tensor<T>::scalar_type >(0l);
+		    }
 		}
 
         /// recompress and truncate this TT representation

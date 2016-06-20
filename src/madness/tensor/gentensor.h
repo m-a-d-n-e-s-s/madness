@@ -115,6 +115,8 @@
 #include <madness/tensor/tensortrain.h>
 #include <stdexcept>
 
+#define USE_LRT
+
 namespace madness {
 
 	// a forward declaration
@@ -134,6 +136,7 @@ namespace madness {
 		static std::string what_am_i(const TensorType& tt) {
 			if (tt==TT_2D) return "TT_2D";
 			if (tt==TT_FULL) return "TT_FULL";
+            if (tt==TT_TENSORTRAIN) return "TT_TENSORTRAIN";
 			return "unknown tensor type";
 		}
 		template <typename Archive>
@@ -279,7 +282,7 @@ namespace madness {
 
 #else
 
-#if 0
+#ifndef USE_LRT
 
 	/// A GenTensor is a generalized tensor, possibly in a low rank representation
 
@@ -1136,14 +1139,17 @@ namespace madness {
 
     /// outer product of two Tensors, yielding a low rank tensor
      template <class T, class Q>
-     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2, const GenTensor<Q>& rhs2) {
-     	return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor());
+     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2,
+             const GenTensor<Q>& rhs2, const TensorArgs final_tensor_args) {
+     	return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor(), final_tensor_args);
      }
 
      /// outer product of two Tensors, yielding a low rank tensor
      template <class T, class Q>
-     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2, const Tensor<Q>& rhs2) {
+     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2,
+             const Tensor<Q>& rhs2, const TensorArgs final_tensor_args) {
 
+         MADNESS_ASSERT(final_tensor_args.tt==TT_2D);
      	typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
      	// srconf is shallow, do deep copy here
@@ -1167,7 +1173,7 @@ namespace madness {
  		return coeff;
      }
 
-#endif
+#endif /* not USE_LRT */
 
     #endif /* HAVE_GENTENSOR */
 
@@ -1225,6 +1231,7 @@ namespace madness {
 
 }   // namespace madness
 
+#ifdef USE_LRT
 #include <madness/tensor/lowranktensor.h>
 
 namespace madness {
@@ -1239,22 +1246,28 @@ public:
     GenTensor<T>() : LowRankTensor<T>() {}
     GenTensor<T>(const GenTensor<T>& g) : LowRankTensor<T>(g) {}
     GenTensor<T>(const LowRankTensor<T>& g) : LowRankTensor<T>(g) {}
-
-//    GenTensor<T>(const SliceLowRankTensor<T>& g) : LowRankTensor<T>(g) {}
-//
-//    GenTensor<T>(const Tensor<T>& t1) : LowRankTensor<T>(static_cast<const LowRankTensor<T>& >(t1)) {}
-//    GenTensor<T>(const Tensor<T>& t1, const TensorArgs& targs) : LowRankTensor<T>(t1,targs) {}
-//    GenTensor<T>(const Tensor<T>& t1, double eps, const TensorType tt) : LowRankTensor<T>(t1,eps,tt) {}
-//    GenTensor<T>(const TensorType tt): LowRankTensor<T>(tt) {}
-//    GenTensor<T>(std::vector<long> v, const TensorType& tt) : LowRankTensor<T>(v,tt) {}
-//    GenTensor<T>(std::vector<long> v, const TensorArgs& targs) : LowRankTensor<T>(v,targs) {}
-    GenTensor<T>(const SRConf<T>& sr1) : LowRankTensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);}
+    GenTensor<T>(const SRConf<T>& sr1) : LowRankTensor<T>() {
+        MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);
+    }
 
     operator LowRankTensor<T>() const {return *this;}
     operator LowRankTensor<T>() {return *this;}
+
+    /// general slicing, shallow; for temporary use only!
+    SliceGenTensor<T> operator()(const std::vector<Slice>& s) {
+        return SliceGenTensor<T>(*this,s);
+    }
+
+    /// general slicing, shallow; for temporary use only!
+    const SliceGenTensor<T> operator()(const std::vector<Slice>& s) const {
+        return SliceGenTensor<T>(*this,s);
+    }
+
+
+
     std::string what_am_i() const {return TensorArgs::what_am_i(this->tensor_type());};
 
-    SRConf<T> config() const {
+    SRConf<T>& config() const {
         MADNESS_ASSERT(this->type==TT_2D and (this->impl.svd));
         return *this->impl.svd.get();
     }
@@ -1278,6 +1291,13 @@ public:
 
     operator SliceLowRankTensor<T>() const {return *this;}
     operator SliceLowRankTensor<T>() {return *this;}
+
+    /// inplace zero-ing as in g(s)=0.0
+    SliceGenTensor<T>& operator=(const T& number) {
+        SliceLowRankTensor<T>& base=*this;
+        base=number;
+        return *this;
+    }
 
 };
 
@@ -1362,4 +1382,5 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 };
 
 }
+#endif /* USE_LRT */
 #endif /* GENTENSOR_H_ */

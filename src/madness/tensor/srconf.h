@@ -128,6 +128,7 @@ namespace madness {
     	/// @return		i		the index of s_max to contribute: w(Slice(0,i)); i.e. inclusive!
     	static int max_sigma(const double& thresh, const int& rank, const Tensor<double>& w) {
 
+    	    if (thresh<0.0) return rank-1;
     		// find the maximal singular value that's supposed to contribute
     		// singular values are ordered (largest first)
     		double residual=0.0;

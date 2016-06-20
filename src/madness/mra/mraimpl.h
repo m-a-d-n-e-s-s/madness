@@ -663,8 +663,8 @@ namespace madness {
     /// Directly project parent NS coeffs to child NS coeffs
 
     template <typename T, std::size_t NDIM>
-    typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::parent_to_child_NS(const keyT& child, const keyT& parent,
-                                                                                   const coeffT& coeff) const {
+    typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::parent_to_child_NS(
+            const keyT& child, const keyT& parent, const coeffT& coeff) const {
 
         const implT* f=this;
         //        	MADNESS_ASSERT(coeff.tensor_type()==TT_FULL);
@@ -679,6 +679,10 @@ namespace madness {
                 tensorT t(f->cdata.v2k);
                 t(f->cdata.s0)=coeff.full_tensor_copy();
                 result=coeffT(t,f->get_tensor_args());
+//                coeffT t(f->cdata.v2k,f->get_tensor_type());
+//                t(f->cdata.s0)+=coeff;
+//                result=t;
+
             } else {
                 MADNESS_EXCEPTION("confused k in parent_to_child_NS",1);
             }
@@ -1070,20 +1074,85 @@ namespace madness {
     /// @param[in]	particle	if 0 then g(1), if 1 then g(2)
     /// @return		the resulting function values
     template <typename T, std::size_t NDIM>
-    typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::multiply(const coeffT& val_ket, const coeffT& val_pot, int particle) const {
+    typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::multiply(const coeffT& val_ket,
+            const coeffT& val_pot, int particle) const {
         MADNESS_ASSERT(val_pot.tensor_type()==TT_FULL);
-        MADNESS_ASSERT(val_ket.tensor_type()==TT_2D);
         MADNESS_ASSERT(particle==0 or particle==1);
 
-        coeffT rr=copy(val_ket);
-        // loop over all individual terms in val_ket
-        std::vector<Slice> s(rr.config().dim_per_vector()+1,_);
-        for (int r=0; r<rr.rank(); ++r) {
-            s[0]=Slice(r,r);
-            tensorT chunk=rr.config().ref_vector(particle)(s);
-            chunk.emul(val_pot.full_tensor());
+        coeffT result;
+
+        if (val_ket.tensor_type()==TT_2D) {
+            result=copy(val_ket);
+            // loop over all individual terms in val_ket
+            std::vector<Slice> s(result.config().dim_per_vector()+1,_);
+            for (int r=0; r<result.rank(); ++r) {
+                s[0]=Slice(r,r);
+                tensorT chunk=result.config().ref_vector(particle)(s);
+                chunk.emul(val_pot.full_tensor());
+            }
+
+#ifdef USE_LRT
+        } else if (val_ket.tensor_type()==TT_TENSORTRAIN) {
+            TensorTrain<T> hval=copy(*val_ket.impl.tt);
+
+            if (hval.is_zero_rank()) {
+                // empty tensor with the correct dimensions
+                result=TensorTrain<T>(hval.dims());
+
+            } else {
+
+                MADNESS_ASSERT(val_ket.ndim()==6);
+                if (particle==0) {
+                    // fuse dimension 0,1,2 to one
+                    hval.fusedim(0);
+                    hval.fusedim(0);
+
+                    const long rank=hval.ranks(0);
+                    const long k0=val_pot.dim(0);
+                    const long k1=val_pot.dim(1);
+                    const long k2=val_pot.dim(2);
+                    MADNESS_ASSERT(k0*k1*k2==val_ket.dim(0)*val_ket.dim(1)*val_ket.dim(2));
+
+                    tensorT vec=copy(hval.get_core(0).reshape(k0*k1*k2,rank));  // deep
+                    vec=copy(transpose(vec));
+                    for (long i=0; i<rank; ++i) {
+                        tensorT c=vec(Slice(i,i),_);  // shallow
+                        c.emul(val_pot.full_tensor());
+                    }
+                    hval.get_core(0)=copy(transpose(vec));
+
+                    // split dimensions again (negative eps, can't truncate on function values)
+                    hval=hval.splitdim(0,k0,k1*k2,-1.0);
+                    hval=hval.splitdim(1,k1,k2,-1.0);
+
+                } else if (particle==1) {
+                    // fuse dimension 3,4,5 to one
+                    hval.fusedim(3);
+                    hval.fusedim(3);
+
+                    const long rank=hval.ranks(2);
+                    const long k3=val_pot.dim(0);
+                    const long k4=val_pot.dim(1);
+                    const long k5=val_pot.dim(2);
+                    MADNESS_ASSERT(k3*k4*k5==val_ket.dim(3)*val_ket.dim(4)*val_ket.dim(5));
+
+                    tensorT vec=hval.get_core(3).reshape(rank,k3*k4*k5);  // shallow
+                    for (long i=0; i<rank; ++i) {
+                        tensorT c=vec(Slice(i,i),_);        // shallow
+                        c.emul(val_pot.full_tensor());
+                    }
+
+                    // split dimensions again (negative eps, can't truncate on function values)
+                    hval=hval.splitdim(3,k3,k4*k5,-1.0);
+                    hval=hval.splitdim(4,k4,k5,-1.0);
+                }
+                result=coeffT(hval);
+            }
+#endif
+        } else {
+            MADNESS_EXCEPTION("use TT_2D or TT_TENSORTRAIN in funcimpl:multiply()",1);
         }
-        return rr;
+        return result;
     }
 
 
@@ -1099,9 +1168,9 @@ namespace madness {
     /// @param[in]	vpotential2	function values of the potential for particle 2
     /// @param[in]	veri		function values for the 2-particle potential
     template <typename T, std::size_t NDIM>
-    typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::assemble_coefficients(const keyT& key, const coeffT& coeff_ket,
-                                                                                      const coeffT& vpotential1, const coeffT& vpotential2,
-                                                                                      const tensorT& veri) const {
+    typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::assemble_coefficients(
+            const keyT& key, const coeffT& coeff_ket, const coeffT& vpotential1,
+            const coeffT& vpotential2, const tensorT& veri) const {
 
         // take a shortcut if we are already done
         bool ket_only=(not (vpotential1.has_data() or vpotential2.has_data() or veri.has_data()));

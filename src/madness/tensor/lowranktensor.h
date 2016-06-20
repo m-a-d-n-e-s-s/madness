@@ -51,6 +51,8 @@ namespace madness {
 template<typename T>
 class SVDTensor : public SRConf<T> {
 public:
+    using SRConf<T>::SRConf;
+
     explicit SVDTensor() : SRConf<T>() {    }
     explicit SVDTensor(const Tensor<T>& rhs) : SRConf<T>(rhs) {    }
     explicit SVDTensor(const SVDTensor<T>& rhs) : SRConf<T>(static_cast<SRConf<T> >(rhs)) {    }
@@ -293,9 +295,21 @@ public:
                 Tensor<T> U,VT;
                 Tensor< typename Tensor<T>::scalar_type > s;
                 impl.tt->two_mode_representation(U, VT, s);
-                U=copy(transpose(U));   // make it contiguous
-                SVDTensor<T> svdtensor(s, U, VT, ndim(), dim(0));
-                result=LowRankTensor<T>(svdtensor);
+                long rank=s.size();
+                if (rank>0) {
+                    long n=1,m=1;
+                    for (int i=0; i<U.ndim()-1; ++i) n*=U.dim(i);
+                    for (int i=1; i<VT.ndim(); ++i) m*=VT.dim(i);
+                    MADNESS_ASSERT(rank*n==U.size());
+                    MADNESS_ASSERT(rank*m==VT.size());
+                    U=copy(transpose(U.reshape(n,rank)));   // make it contiguous
+                    VT=VT.reshape(rank,m);
+                    SVDTensor<T> svdtensor(s, U, VT, ndim(), dim(0));
+                    result=LowRankTensor<T>(svdtensor);
+                } else {
+                    SVDTensor<T> svdtensor(ndim(), dim(0), TT_2D);
+                    result=LowRankTensor<T>(svdtensor);
+                }
             }
 
         } else {
@@ -334,7 +348,8 @@ public:
     }
 
     float_scalar_type normf() const {
-        if (type==TT_FULL) return impl.full->normf();
+        if (type==TT_NONE) return 0.0;
+        else if (type==TT_FULL) return impl.full->normf();
         else if (type==TT_2D) return impl.svd->normf();
         else if (type==TT_TENSORTRAIN) return impl.tt->normf();
         else {
@@ -468,27 +483,29 @@ public:
         return TENSOR_RESULT_TYPE(T,Q)(0);
     }
 
+    /// multiply with a number
+    template<typename Q>
+    LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> operator*(const Q& x) const {
+        LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> result(copy(*this));
+        result.scale(x);
+        return result;
+    }
+
     LowRankTensor& operator+=(const LowRankTensor& other) {
-        if (type==TT_FULL) impl.full->operator+=(*other.impl.full);
-        else if (type==TT_2D) impl.svd->append((*other.impl.svd),1.0);
-        else if (type==TT_TENSORTRAIN) impl.tt->operator+=(*other.impl.tt);
-        else {
-            MADNESS_EXCEPTION("you should not be here",1);
-        }
+        gaxpy(1.0,other,1.0);
         return *this;
     }
 
     LowRankTensor& operator-=(const LowRankTensor& other) {
-        if (type==TT_FULL) impl.full->operator-=(*other.impl.full);
-        else if (type==TT_2D) impl.svd->append((*other.impl.svd),-1.0);
-        else if (type==TT_TENSORTRAIN) impl.tt->operator-=(*other.impl.tt);
-        else {
-            MADNESS_EXCEPTION("you should not be here",1);
-        }
+        gaxpy(1.0,other,-1.0);
         return *this;
     }
 
     LowRankTensor& gaxpy(const T alpha, const LowRankTensor& other, const T beta) {
+
+        // fast return if possible
+        if (this->type==TT_NONE) *this=other*beta;
+
         MADNESS_ASSERT(this->type==other.type);
 
         if (type==TT_FULL) {
@@ -513,13 +530,6 @@ public:
         }
     }
 
-    /// multiply with a number
-    template<typename Q>
-    LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> operator*(const Q& x) const {
-        LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> result(copy(*this));
-        result.scale(x);
-        return result;
-    }
 
     void reduce_rank(const double& thresh) {
         if ((type==TT_FULL) or (type==TT_NONE)) return;
