@@ -285,6 +285,27 @@ namespace madness {
 			return *this;
 		}
 
+		/// assign a number to this;
+		SRConf& operator=(const T& number) {
+
+		    if (type()==TT_2D) {
+                // rank will be one
+                rank_=1;
+                vector_[0]=Tensor<T>(1,kVec());
+                vector_[1]=Tensor<T>(1,kVec());
+                vector_[0]=number;
+                vector_[1]=1.0;
+                weights_=Tensor< typename Tensor<T>::scalar_type > (1);
+                weights_(0l)=1.0;
+                make_structure();
+                normalize();
+		    } else if (type()==TT_FULL) {
+		        vector_[0]=number;
+
+		    }
+		    return *this;
+		}
+
 		/// return some of the terms of the SRConf (start,..,end), inclusively
 		/// shallow copy
 		const SRConf get_configs(const int& start, const int& end) const {

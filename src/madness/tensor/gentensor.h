@@ -1263,6 +1263,12 @@ public:
         return SliceGenTensor<T>(*this,s);
     }
 
+    /// assign a number to this tensor
+    GenTensor<T>& operator=(const T& number) {
+        LowRankTensor<T>& base=*this;
+        base=(number);
+        return *this;
+    }
 
 
     std::string what_am_i() const {return TensorArgs::what_am_i(this->tensor_type());};
@@ -1325,12 +1331,31 @@ GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_opti
  template <class T, class Q>
  GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2,
          const GenTensor<Q>& rhs2, const TensorArgs final_tensor_args) {
-    return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor(), final_tensor_args);
+//    return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor(), final_tensor_args);
+     typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+     // prepare lo-dim tensors for the outer product
+     TensorArgs targs;
+     targs.thresh=final_tensor_args.thresh;
+     if (final_tensor_args.tt==TT_FULL) targs.tt=TT_FULL;
+     else if (final_tensor_args.tt==TT_2D) targs.tt=TT_FULL;
+     else if (final_tensor_args.tt==TT_TENSORTRAIN) targs.tt=TT_TENSORTRAIN;
+     else {
+         MADNESS_EXCEPTION("confused tensor args in outer_low_rank",1);
+     }
+
+     LowRankTensor<T> lhs(lhs2);
+     LowRankTensor<Q> rhs(rhs2);
+
+     LowRankTensor<resultT> result=outer(lhs,rhs,final_tensor_args);
+     return result;
+
+
  }
 
  /// outer product of two Tensors, yielding a low rank tensor
  template <class T, class Q>
- GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2,
+ GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const Tensor<T>& lhs2,
          const Tensor<Q>& rhs2, const TensorArgs final_tensor_args) {
 
      typedef TENSOR_RESULT_TYPE(T,Q) resultT;

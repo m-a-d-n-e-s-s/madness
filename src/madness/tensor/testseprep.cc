@@ -242,6 +242,20 @@ int testGenTensor_assignment(const long& k, const long& dim, const double& eps, 
 		print(ok(is_small(norm,eps)),"sliced assignment with rhs=0.0",g0.what_am_i(),norm);
 		if (!is_small(norm,eps)) nerror++;
 	}
+
+	// assign to a number
+    // sliced assignment: g1(s)=number
+    for (int i=0; i<3; i++) {
+
+        Tensor<double> t0=copy(t[i]);
+        GenTensor<double> g0(t0,eps,tt);
+        g0=2.0;
+        t0=2.0;
+        norm=(t0-g0.full_tensor_copy()).normf();
+        print(ok(is_small(norm,eps)),"assignment with a number",g0.what_am_i(),norm);
+        if (!is_small(norm,eps)) nerror++;
+    }
+
 	print("all done\n");
 	return nerror;
 
@@ -833,14 +847,14 @@ int main(int argc, char**argv) {
     error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
     error+=testGenTensor_ctor(k,dim,eps,TT_2D);
     error+=testGenTensor_ctor(k,dim,eps,TT_TENSORTRAIN);
-//
-//    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
-//    error+=testGenTensor_assignment(k,dim,eps,TT_TENSORTRAIN);
 
-    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
-    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
-    error+=testGenTensor_algebra(k,dim,eps,TT_TENSORTRAIN);
+    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
+    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
+    error+=testGenTensor_assignment(k,dim,eps,TT_TENSORTRAIN);
+//
+//    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
+//    error+=testGenTensor_algebra(k,dim,eps,TT_TENSORTRAIN);
 
 ////    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
 ////    error+=testGenTensor_rankreduce(k,dim,eps,TT_3D);

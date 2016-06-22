@@ -1076,10 +1076,24 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::multiply(const coeffT& val_ket,
             const coeffT& val_pot, int particle) const {
-        MADNESS_ASSERT(val_pot.tensor_type()==TT_FULL);
-        MADNESS_ASSERT(particle==0 or particle==1);
 
-        coeffT result;
+        MADNESS_ASSERT(particle==0 or particle==1);
+        MADNESS_ASSERT(val_pot.tensor_type()==TT_FULL);
+        MADNESS_ASSERT(val_ket.tensor_type()==TT_2D);
+
+        std::vector<long> vkhalf=std::vector<long>(NDIM/2,cdata.vk[0]);
+        tensorT ones=tensorT(vkhalf);
+        ones=1.0;
+
+        TensorArgs targs(-1.0,val_ket.tensor_type());
+        coeffT pot12;
+        if (particle==0) pot12=outer(val_pot.full_tensor(),ones,targs);
+        else if (particle==1) pot12=outer(ones,val_pot.full_tensor(),targs);
+
+        coeffT result=copy(val_ket);
+        result.emul(pot12);
+
+        return result;
 
         if (val_ket.tensor_type()==TT_2D) {
             result=copy(val_ket);
@@ -1183,7 +1197,10 @@ namespace madness {
         coeffT val_result;
         coeffT coeff_result;
 
-        // potential for particles 1 and 2
+        // potential for particles 1 and 2, must be done in TT_2D
+        if (vpotential1.has_data() or vpotential2.has_data()) {
+            val_ket=val_ket.convert(TensorArgs(-1.0,TT_2D));
+        }
         if (vpotential1.has_data()) val_result+=multiply(val_ket,vpotential1,0);
         if (vpotential2.has_data()) val_result+=multiply(val_ket,vpotential2,1);
 
@@ -1196,6 +1213,8 @@ namespace madness {
 
         } else {
 
+            // convert back to original tensor type
+            val_ket=val_ket.convert(get_tensor_args());
             MADNESS_ASSERT(val_result.has_data());
             coeff_result=values2coeffs(key,val_result);
             coeff_result.reduce_rank(this->get_tensor_args().thresh);

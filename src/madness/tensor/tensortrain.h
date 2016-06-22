@@ -384,6 +384,20 @@ namespace madness {
             *this=TensorTrain<T>(dim);
         }
 
+        /// assign a number to this tensor
+        TensorTrain<T>& operator=(const T& number) {
+
+            // tensor will have ranks = 1 all over
+            core[0]=Tensor<T>(dim(0),1);
+            for (int i=1; i<ndim()-1; ++i) core[i]=Tensor<T>(1,dim(i),1);
+            if (ndim()>1) core[ndim()-1]=Tensor<T>(1,dim(ndim()-1));
+
+            core[0]=number;
+            for (int i=1; i<ndim(); ++i) core[i]=1.0;
+
+            zero_rank=false;
+            return *this;
+        }
 
 		/// return this multiplied by a scalar
 

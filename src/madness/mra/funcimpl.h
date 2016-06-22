@@ -4581,8 +4581,8 @@ namespace madness {
                     // new coeffs are simply the hartree/kronecker/outer product --
                     const std::vector<Slice>& s0=iaf.get_impl()->cdata.s0;
                     const coeffT coeff = (apply_op->modified())
-                        ? outer_low_rank(copy(fcoeff(s0)),copy(gcoeff(s0)),result->targs)
-                        : outer_low_rank(fcoeff,gcoeff,result->targs);
+                        ? outer(copy(fcoeff(s0)),copy(gcoeff(s0)),result->targs)
+                        : outer(fcoeff,gcoeff,result->targs);
 
                     // now send off the application
                     tensorT coeff_full;

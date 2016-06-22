@@ -63,6 +63,11 @@ public:
             const unsigned int maxk) : SRConf<T>(weights,
                     vector1, vector2, dim, maxk ) {}
 
+    SVDTensor& operator=(const T& number) {
+        SRConf<T>& base=*this;
+        base=number;
+        return *this;
+    }
 };
 
 // forward declaration
@@ -519,6 +524,21 @@ public:
             MADNESS_EXCEPTION("you should not be here",1);
         }
         return *this;
+    }
+
+    /// assign a number to this tensor
+    LowRankTensor& operator=(const T& number) {
+        if (type==TT_FULL) {
+            *impl.full=number;
+        } else if (type==TT_2D) {
+            *impl.svd=number;
+        } else if (type==TT_TENSORTRAIN) {
+            *impl.tt=number;
+        } else {
+            MADNESS_EXCEPTION("you should not be here",1);
+        }
+        return *this;
+
     }
 
     void add_SVD(const LowRankTensor& other, const double& thresh) {
