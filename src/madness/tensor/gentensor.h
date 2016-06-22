@@ -1344,8 +1344,8 @@ GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_opti
          MADNESS_EXCEPTION("confused tensor args in outer_low_rank",1);
      }
 
-     LowRankTensor<T> lhs(lhs2);
-     LowRankTensor<Q> rhs(rhs2);
+     LowRankTensor<T> lhs=lhs2.convert(targs);
+     LowRankTensor<Q> rhs=rhs2.convert(targs);
 
      LowRankTensor<resultT> result=outer(lhs,rhs,final_tensor_args);
      return result;

@@ -268,11 +268,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
     double err4=(fi2i-iij3).norm2();
     print("error in CompositeFactory 1",err4);
     good=is_small(err4,thresh);
-    print(ok(good), "multiply vs CompositeFactory f(1,2)*g(1) error:",err4);
-
-//    double err2=(iij2-iij3).norm2();
-//    good=is_small(err2,thresh);
-//    print(ok(good), "multiply vs CompositeFactory f(1,2)*g(1) error:",err2);
+    print(ok(good), "CompositeFactory f(1,2)*g(1) error:",err4);
 
 
     if (not good) nerror++;

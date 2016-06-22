@@ -269,7 +269,7 @@ public:
     TensorType tensor_type() const {return type;}
 
     /// convert this to a new LowRankTensor of given tensor type
-    LowRankTensor convert(const TensorArgs& targs) {
+    LowRankTensor convert(const TensorArgs& targs) const {
 
         // fast return if old and new type are identical
         if (this->tensor_type()==targs.tt) return copy(*this);

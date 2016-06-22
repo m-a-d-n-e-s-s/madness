@@ -3116,32 +3116,28 @@ namespace madness {
                 coeff1.normalize();
                 const coeffT coeff2=g.get_impl()->parent_to_child(g.coeff(),g.key(),gkey);
 
-                bool is_leaf=false;
-#ifdef USE_LRT
-                if (coeff1.tensor_type()==TT_TENSORTRAIN) {
-                    coeffT coeff1_2D=coeff1.convert(TensorArgs(h->get_thresh(),TT_2D));
-                    coeff1_2D.normalize();
-                    is_leaf=screen(coeff1_2D,coeff2,key);
-                } else {
-                    is_leaf=screen(coeff1,coeff2,key);
-                }
-#else
-                is_leaf=screen(coeff1,coeff2,key);
-#endif
+                // multiplication is done in TT_2D
+                coeffT coeff1_2D=coeff1.convert(TensorArgs(h->get_thresh(),TT_2D));
+                coeff1_2D.normalize();
 
+                bool is_leaf=screen(coeff1_2D,coeff2,key);
                 if (key.level()<2) is_leaf=false;
 
                 coeffT hcoeff;
                 if (is_leaf) {
 
                     // convert coefficients to values
-                    coeffT hvalues=f.get_impl()->coeffs2values(key,coeff1);
+                    coeffT hvalues=f.get_impl()->coeffs2values(key,coeff1_2D);
                     coeffT gvalues=g.get_impl()->coeffs2values(gkey,coeff2);
 
                     // perform multiplication
                     coeffT result_val=h->multiply(hvalues,gvalues,particle-1);
 
                     hcoeff=h->values2coeffs(key,result_val);
+
+                    // conversion on coeffs, not on values, because it implies truncation!
+                    if (hcoeff.tensor_type()!=h->get_tensor_type())
+                        hcoeff=hcoeff.convert(h->get_tensor_args());
                 }
 
                 return std::pair<bool,coeffT> (is_leaf,hcoeff);
