@@ -530,6 +530,29 @@ public:
         }
     }
 
+    /// Inplace multiply by corresponding elements of argument Tensor
+    LowRankTensor<T>& emul(const LowRankTensor<T>& other) {
+
+        // fast return if possible
+        if (this->type==TT_NONE or other.type==TT_NONE) {
+            MADNESS_EXCEPTION("no TT_NONE in LowRankTensor::emul",1);
+        }
+
+        MADNESS_ASSERT(this->type==other.type);
+
+        if (type==TT_FULL) {
+            impl.full->emul(*other.impl.full);
+        } else if (type==TT_2D) {
+            impl.svd->emul(*other.impl.svd);
+        } else if (type==TT_TENSORTRAIN) {
+            impl.tt->emul(*other.impl.tt);
+        } else {
+            MADNESS_EXCEPTION("you should not be here",1);
+        }
+        return *this;
+    }
+
+
 
     void reduce_rank(const double& thresh) {
         if ((type==TT_FULL) or (type==TT_NONE)) return;

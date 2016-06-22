@@ -258,6 +258,10 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 	t[0]=Tensor<double>(d);
 	t[1]=Tensor<double>(d).fillindex();
 	t[2]=Tensor<double>(d).fillrandom();
+	double t1norm=t[1].normf();
+    double t2norm=t[2].normf();
+    t[1].scale(1./t1norm)*2.1375;
+    t[2].scale(1./t2norm)*137.72;
 
 	std::vector<Slice> s(dim,Slice(0,1));
 
@@ -322,16 +326,37 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 		}
 	}
 
-//	// test inplace scale: g=g0*=fac
-//	{
-//		GenTensor<double> g0(t0,eps,tt);
-//		GenTensor<double> g2=g0.scale(2.0);
-//		Tensor<double> t2=t0.scale(2.0);
-//		norm=(g0.full_tensor_copy()-t0).normf();
-//		print(ok(is_small(norm,eps)),"algebra scale",g0.what_am_i(),norm);
-//		if (!is_small(norm,eps)) nerror++;
-//
-//	}
+	// test inplace scale: g=g0*=fac
+    for (int i=0; i<3; i++) {
+        for (int j=0; j<3; j++) {
+
+            Tensor<double> t0=copy(t[i]);
+            Tensor<double> t1=copy(t[j]);
+            GenTensor<double> g0(t0,eps,tt);
+            GenTensor<double> g2=g0.scale(2.0);
+            Tensor<double> t2=t0.scale(2.0);
+            norm=(g0.full_tensor_copy()-t0).normf();
+            print(ok(is_small(norm,eps)),"algebra scale",g0.what_am_i(),norm);
+            if (!is_small(norm,eps)) nerror++;
+        }
+	}
+
+    // test elementwise multiplication emul:
+    for (int i=0; i<3; i++) {
+        for (int j=0; j<3; j++) {
+
+            Tensor<double> t0=copy(t[i]);
+            Tensor<double> t1=copy(t[j]);
+            GenTensor<double> g0(t0,eps,tt);
+            GenTensor<double> g1(t1,eps,tt);
+            g1.emul(g0);
+            t1.emul(t0);
+            norm=(g1.full_tensor_copy()-t1).normf();
+            print(ok(is_small(norm,eps)),"algebra emul",g1.what_am_i(),norm);
+            if (!is_small(norm,eps)) nerror++;
+        }
+    }
+
 
 
 
@@ -785,7 +810,7 @@ int main(int argc, char**argv) {
     std::cout << std::scientific;
 
     // the parameters
-    long k=7;
+    long k=4;
     const unsigned int dim=6;
     double eps=1.e-3;
     print("k    ",k);
@@ -808,10 +833,10 @@ int main(int argc, char**argv) {
     error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
     error+=testGenTensor_ctor(k,dim,eps,TT_2D);
     error+=testGenTensor_ctor(k,dim,eps,TT_TENSORTRAIN);
-
-    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
-    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
-    error+=testGenTensor_assignment(k,dim,eps,TT_TENSORTRAIN);
+//
+//    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
+//    error+=testGenTensor_assignment(k,dim,eps,TT_TENSORTRAIN);
 
     error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
     error+=testGenTensor_algebra(k,dim,eps,TT_2D);
@@ -833,7 +858,7 @@ int main(int argc, char**argv) {
 ////    error+=testGenTensor_deepcopy(k,dim,eps,TT_3D);
 //    error+=testGenTensor_deepcopy(k,dim,eps,TT_2D);
 
-    error+=testGenTensor_reduce(k,dim,eps,TT_2D);
+//    error+=testGenTensor_reduce(k,dim,eps,TT_2D);
 
     print(ok(error==0),error,"finished test suite\n");
 #endif

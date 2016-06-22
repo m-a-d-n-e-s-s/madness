@@ -706,6 +706,39 @@ public:
             return SRConf<T>(weights,vectors,this->dim(),k_new,tt);
         }
 
+        /// perform elementwise Hadamard product
+        SRConf<T>& emul(const SRConf<T>& other) {
+            // consistency check
+            MADNESS_ASSERT(this->dim()==other.dim());
+            MADNESS_ASSERT(this->get_k()==other.get_k());
+
+            long finalrank=this->rank()*other.rank();
+            SRConf<T> result(dim(),get_k(),TT_2D);
+            if ((this->rank()==0) or (other.rank()==0)) {
+                ;   // pass
+            } else {
+
+                result.vector_[0]=Tensor<T>(finalrank,kVec());
+                result.vector_[1]=Tensor<T>(finalrank,kVec());
+                result.weights_=outer(weights_,other.weights_).flat();
+                result.rank_=finalrank;
+
+                for (int k=0; k<kVec(); ++k) {
+                    Tensor<T> a1=flat_vector(0)(_,Slice(k,k));   // (1,k)->(k)
+                    Tensor<T> a2=flat_vector(1)(_,Slice(k,k));
+                    Tensor<T> b1=other.flat_vector(0)(_,Slice(k,k));
+                    Tensor<T> b2=other.flat_vector(1)(_,Slice(k,k));
+
+                    result.vector_[0](_,Slice(k,k))=outer(a1,b1).reshape(finalrank,1);
+                    result.vector_[1](_,Slice(k,k))=outer(a2,b2).reshape(finalrank,1);
+                }
+            }
+            result.make_structure();
+            result.normalize();
+
+            *this=result;
+            return *this;
+        }
 
 protected:
 		/// redo the Slices for getting direct access to the configurations

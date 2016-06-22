@@ -530,6 +530,79 @@ namespace madness {
             return *this;
         }
 
+        /// compute the Hadamard product of two TensorTrains
+
+        /// see Sec. 4.2 of the TT paper
+        /// @return *this with the ranks of the input tensors multiplied!
+        TensorTrain<T>& emul(const TensorTrain<T>& other) {
+
+            // consistency checks
+            MADNESS_ASSERT(ndim()==other.ndim());
+            for (int i=0; i<ndim(); ++i) MADNESS_ASSERT(dim(i)==other.dim(i));
+
+            // set up the result tensor
+            std::vector<long> cranks(ndim()-1);       // ranks of result C
+            for (int i=0; i<ndim()-1; ++i) cranks[i]=ranks(i)*other.ranks(i);
+
+            // check for large sizes
+            for (int i=0; i<ndim()-2; ++i) {
+                long size=cranks[i]*cranks[i+1]*dim(i);
+                if (size>10000000)
+                    MADNESS_EXCEPTION("emul in TensorTrain too large -- use full rank tenspr",1);
+            }
+            TensorTrain result(dims());
+
+            // fast return for zero ranks
+            if (zero_rank or other.zero_rank) {
+                ;
+            } else if (ndim()==1) {
+                // fast return for one core only (all ranks equal 1)
+                result.core[0]=copy(core[0]);
+                result.core[0].emul(other.core[0]);
+
+            } else {
+                result.zero_rank=false;
+                // compute outer product for each core for each k
+
+                // special treatment for first core
+                result.core[0]=Tensor<T>(dim(0),cranks[0]);
+                for (int k=0; k<dim(0); ++k) {
+                    Tensor<T> a1=core[0](Slice(k,k),_);
+                    Tensor<T> b1=other.core[0](Slice(k,k),_);
+                    result.core[0](Slice(k,k),_)=outer(a1,b1).reshape(1,cranks[0]);
+                    // before reshape rhs has dimensions (1, r1, 1, r1')
+                    // after reshape rhs has dimensions (1, r1*r1')
+                }
+
+                for (int i=1; i<ndim()-1; ++i) {
+                    result.core[i]=Tensor<T>(cranks[i-1],dim(i),cranks[i]);
+                    for (int k=0; k<dim(i); ++k) {
+                        Tensor<T> a1=core[i](_,Slice(k,k),_).fusedim(1);    // (r1,r2)
+                        Tensor<T> b1=other.core[i](_,Slice(k,k),_).fusedim(1);  // (r1',r2')
+                        Tensor<T> tmp=copy(outer(a1,b1).swapdim(1,2));  // make contiguous
+                        result.core[i](_,Slice(k,k),_)=tmp.reshape(cranks[i-1],1,cranks[i]);
+                        // before swap/fuse/splitdim rhs has dimensions (r1, r2, r1', r2')
+                        // after fusedim/splitdim rhs has dimensions (r1*r1', 1, r2*r2')
+                    }
+                }
+
+                // special treatment for last core
+                const long n=ndim()-1;
+                result.core[n]=Tensor<T>(cranks[n-1],dim(n));
+                for (int k=0; k<dim(n); ++k) {
+                    Tensor<T> a1=core[n](_,Slice(k,k));
+                    Tensor<T> b1=other.core[n](_,Slice(k,k));
+                    result.core[n](_,Slice(k,k))=outer(a1,b1).reshape(cranks[n-1],1);
+                    // before reshape rhs has dimensions (r1,1, r1',1)
+                    // after reshape rhs has dimensions (r1*r1', 1)
+
+                }
+            }
+            *this=result;
+            return *this;
+        }
+
+
 
 		/// merge two dimensions into one
 
