@@ -220,7 +220,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
                 .g12(f12);
 
 
-    if (0) {
+    if (1) {
     	fii.fill_tree();
     	save_function(world,fii,"fii");
     	fi2i.fill_tree();

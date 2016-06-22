@@ -508,12 +508,12 @@ public:
 
     LowRankTensor& gaxpy(const T alpha, const LowRankTensor& other, const T beta) {
 
+        if (this->type != TT_NONE) MADNESS_ASSERT(this->type==other.type);
+
         // fast return if possible
-        if (this->type==TT_NONE) *this=other*beta;
-
-        MADNESS_ASSERT(this->type==other.type);
-
-        if (type==TT_FULL) {
+        if (this->type==TT_NONE) {
+            *this=other*beta;
+        } else if (type==TT_FULL) {
             impl.full->gaxpy(alpha,*other.impl.full,beta);
         } else if (type==TT_2D) {
             if (not (alpha==1.0)) this->scale(alpha);
