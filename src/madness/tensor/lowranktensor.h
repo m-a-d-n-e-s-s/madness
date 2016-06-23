@@ -138,36 +138,42 @@ public:
     LowRankTensor(const Tensor<T>& rhs, const TensorArgs& targs)
         : type(targs.tt) {
 
-        // deep copy, either explicitly (full) or implicitly (SVD, TensorTrain)
-        if (type==TT_FULL) {
-            impl.full=std::shared_ptr<Tensor<T> >(new Tensor<T>(copy(rhs)));
+        if (not rhs.has_data()) {
+            type=TT_NONE;
 
-        } else if ((type==TT_2D) or (type==TT_TENSORTRAIN)) {
+        } else {
 
-            // construct tensortrain first, convert into SVD format afterwards
-            std::shared_ptr<TensorTrain<T> > tt(new TensorTrain<T>(rhs,targs.thresh*facReduce()));
+            // deep copy, either explicitly (full) or implicitly (SVD, TensorTrain)
+            if (type==TT_FULL) {
+                impl.full=std::shared_ptr<Tensor<T> >(new Tensor<T>(copy(rhs)));
 
-            if (type==TT_2D) {
-                Tensor<T> U,VT;
-                Tensor< typename Tensor<T>::scalar_type > s;
-                tt->two_mode_representation(U,VT,s);
-                const long r=VT.dim(0);
-                const long nd=VT.ndim();
-                MADNESS_ASSERT(U.dim(nd-1)==r);
+            } else if ((type==TT_2D) or (type==TT_TENSORTRAIN)) {
 
-                // empty SVDTensor due to zero rank
-                if (r==0) {
-                    impl.svd.reset(new SVDTensor<T>(tt->dims()));
+                // construct tensortrain first, convert into SVD format afterwards
+                std::shared_ptr<TensorTrain<T> > tt(new TensorTrain<T>(rhs,targs.thresh*facReduce()));
 
-                } else {
-                    Tensor<T> UU=U.reshape(U.size()/r,r);
-                    SVDTensor<T> sr(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
-                                          rhs.ndim(), rhs.dim(0));
-                    sr.normalize();
-                    impl.svd.reset(new SVDTensor<T>(sr));
+                if (type==TT_2D) {
+                    Tensor<T> U,VT;
+                    Tensor< typename Tensor<T>::scalar_type > s;
+                    tt->two_mode_representation(U,VT,s);
+                    const long r=VT.dim(0);
+                    const long nd=VT.ndim();
+                    MADNESS_ASSERT(U.dim(nd-1)==r);
+
+                    // empty SVDTensor due to zero rank
+                    if (r==0) {
+                        impl.svd.reset(new SVDTensor<T>(tt->dims()));
+
+                    } else {
+                        Tensor<T> UU=U.reshape(U.size()/r,r);
+                        SVDTensor<T> sr(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
+                                              rhs.ndim(), rhs.dim(0));
+                        sr.normalize();
+                        impl.svd.reset(new SVDTensor<T>(sr));
+                    }
+                } else if (type==TT_TENSORTRAIN) {
+                    impl.tt=tt;
                 }
-            } else if (type==TT_TENSORTRAIN) {
-                impl.tt=tt;
             }
         }
     }

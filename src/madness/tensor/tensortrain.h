@@ -157,6 +157,15 @@ namespace madness {
 		        zero_rank(other.zero_rank) {
 		}
 
+		/// assigment operator
+		TensorTrain& operator=(const TensorTrain& other) {
+		    if (this!=&other) {
+                zero_rank=other.zero_rank;
+                core=other.core;
+		    }
+            return *this;
+		}
+
         /// Type conversion makes a deep copy
         template <class Q> operator TensorTrain<Q>() const { // type conv => deep copy
 
@@ -812,6 +821,7 @@ namespace madness {
 		        return;
 		    }
 
+		    std::vector<long> tt_dims=this->dims();
 
 			eps=eps/sqrt(this->ndim());
             if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
@@ -860,7 +870,7 @@ namespace madness {
 				// truncate the SVD
 				int r_truncate=SRConf<T>::max_sigma(eps,rmax,s)+1;
 				if (r_truncate==0) {
-				    zero_me();
+				    zero_me(tt_dims);
 				    return;
 				}
 				U=madness::copy(U(_,Slice(0,r_truncate-1)));
