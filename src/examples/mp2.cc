@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
 #endif
     }
 
-    TensorType tt=TT_2D;
+    TensorType tt=TT_TENSORTRAIN;
     FunctionDefaults<6>::set_tensor_type(tt);
     FunctionDefaults<6>::set_apply_randomize(true);
 

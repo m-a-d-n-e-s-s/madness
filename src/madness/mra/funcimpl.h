@@ -4224,16 +4224,13 @@ namespace madness {
             coeffT result;
             if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
             if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
-            //            double result_norm=-1.0;
-            //            if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
-            //            if (result.tensor_type()==TT_FULL) result_norm=result.normf();
-            //            MADNESS_ASSERT(result_norm>-0.5);
 
             const double result_norm=result.svd_normf();
 
             if (result_norm> 0.3*args.tol/args.fac) {
                 small++;
 
+                if (targs.tt!=result.tensor_type()) result=result.convert(targs);
                 // accumulate also expects result in SVD form
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
@@ -4401,8 +4398,13 @@ namespace madness {
             apply_targs.thresh=tol/fac*0.03;
 
             double maxnorm=0.0;
+
             // for the kernel it may be more efficient to do the convolution in full rank
             tensorT coeff_full;
+            // for partial application (exchange operator) it's more efficient to
+            // do SVD tensors instead of tensortrains, because addition in apply
+            // can be done in full form for the specific particle
+            coeffT coeff_SVD=coeff.convert(TensorArgs(-1.0,TT_2D));
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
             const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
@@ -4443,7 +4445,7 @@ namespace madness {
 
                     if (cnorm*opnorm> tol/fac) {
 
-                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
+                        double cost_ratio=op->estimate_costs(source, d, coeff_SVD, tol/fac/cnorm, tol/fac);
                         //                        cost_ratio=1.5;     // force low rank
                         //                        cost_ratio=0.5;     // force full rank
 
@@ -4455,7 +4457,11 @@ namespace madness {
                                 if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
                                 norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
                             } else {
-                                norm=do_apply_kernel3(op,coeff,args,apply_targs);
+                                if (2*opdim==NDIM) {    // apply operator on one particle only
+                                    norm=do_apply_kernel3(op,coeff_SVD,args,apply_targs);
+                                } else {
+                                    norm=do_apply_kernel3(op,coeff,args,apply_targs);
+                                }
                             }
                             maxnorm=std::max(norm,maxnorm);
                         }
