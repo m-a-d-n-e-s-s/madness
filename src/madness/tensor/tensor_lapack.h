@@ -128,6 +128,9 @@ namespace madness {
     /// LQ decomposition
     template<typename T>
     void lq(Tensor<T>& A, Tensor<T>& L);
+    /// LQ decomposition
+    template<typename T>
+    void lq_result(Tensor<T>& A, Tensor<T>& R, Tensor<T>& tau, Tensor<T>& work,bool do_qr);
 
     template <typename T>
     void geqp3(Tensor<T>& A, Tensor<T>& tau, Tensor<integer>& jpvt);

@@ -807,7 +807,7 @@ namespace madness {
 
 		/// this in recompressed TT form with optimal rank
 		/// @param[in]	eps	the truncation threshold
-        template<typename R=T>
+		template<typename R=T>
 		typename std::enable_if<std::is_arithmetic<R>::value, void>::type
 		truncate(double eps) {
 
@@ -823,75 +823,157 @@ namespace madness {
 
 		    std::vector<long> tt_dims=this->dims();
 
-			eps=eps/sqrt(this->ndim());
-            if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
+		    eps=eps/sqrt(this->ndim());
+		    if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
 
-			// right-to-left orthogonalization (line 4)
-			Tensor<T> L;
-			long dims[TENSOR_MAXDIM];
-			for (std::size_t d=core.size()-1; d>0; --d) {
+		    // right-to-left orthogonalization (line 4)
+		    // get maximum rank and maximum k-value
+		    // cores are (k0,r0), (r0,k1,r1), (r1,k2,r2), ... (rd-1,kd)
+		    long rmax = core[0].dim(1);
+		    long kmax = core[0].dim(0);
+		    for(size_t i=1;i<core.size();i++){
+		        rmax = std::max(rmax,core[i].dim(0));
+		        kmax = std::max(kmax,core[i].dim(1));
+		    }
 
-				// save tensor structure
-				const long ndim=core[d].ndim();
-				for (int i=0; i<ndim; ++i) dims[i]=core[d].dim(i);
+		    Tensor<T> L;//L_buffer(rmax,rmax*kmax);
+		    Tensor<T> lq_tau(rmax);
+		    long max_rk = std::max(rmax,kmax);
+		    long lq_work_dim = 2*max_rk+(max_rk+1)*64;
+		    Tensor<T> lq_work(lq_work_dim);
+		    Tensor<T> L_buffer(max_rk,max_rk);
+		    long dimensions[TENSOR_MAXDIM];
+		    // last tensor differs in dimension (first tensor also, but we dont reach it in the loop)
+		    if(core.size()>1){
+		        const long n_dim = core.back().ndim();
+		        for (int i=0; i<n_dim; ++i) dimensions[i]=core.back().dim(i);
 
-				// G(r0, k*r1)
-				const long r0=core[d].dim(0);
-				core[d]=core[d].reshape(r0,core[d].size()/r0);
+		        const long r0 = core.back().dim(0);
+		        const long r1 = core.back().size()/r0;
+		        core.back()=core.back().reshape(r0,r1);
 
-				// decompose the core tensor (line 5)
-				lq(core[d],L);  // might shrink the core
-				dims[0]=std::min(r0,core[d].dim(0));
-				core[d]=core[d].reshape(ndim,dims);
+		        // assignement of L with the L_buffer tensor
+		        // works only if the bool for lq_result is set to false
+		        {
+		            long r_rows= (core.back().dim(1)>=core.back().dim(0)) ? core.back().dim(0) : core.back().dim(1);
+		            long r_cols=core.back().dim(0);
+		            L = L_buffer(Slice(0,r_cols-1),Slice(0,r_rows-1));
+		            L = 0.0;
+		        }
+		        lq_result(core.back(),L,lq_tau,lq_work,false);
+		        //Tensor<T> L = L_buffer(Slice(0,r0-1),Slice(0,r1-1));
 
-				// multiply to the left (line 6)
-				core[d-1]=inner(core[d-1],L);
-			}
+		        dimensions[0]=std::min(dimensions[0],core.back().dim(0));
+		        core.back()=core.back().reshape(n_dim,dimensions);
+		        // multiply to the left (line 6)
+		        core[core.size()-2]=inner(core[core.size()-2],L);
 
-			// left-to-right SVD (line 9)
-			for (std::size_t d=0; d<core.size()-1; ++d) {
-
-				// save tensor structure
-				const long ndim=core[d].ndim();
-				for (int i=0; i<ndim; ++i) dims[i]=core[d].dim(i);
-
-				// reshape the core tensor (r0*k, r1)
-                long r1=core[d].dim(core[d].ndim()-1);
-//				long r1=core[d].dim(1);
-				core[d]=core[d].reshape(core[d].size()/r1,r1);
-
-				Tensor<T> U,VT;
-				long rmax=std::min(core[d].dim(0),core[d].dim(1));
-				Tensor< typename Tensor<T>::scalar_type > s(rmax);
-
-				// decompose (line 10)
-				svd(core[d],U,s,VT);
-
-				// truncate the SVD
-				int r_truncate=SRConf<T>::max_sigma(eps,rmax,s)+1;
-				if (r_truncate==0) {
-				    zero_me(tt_dims);
-				    return;
-				}
-				U=madness::copy(U(_,Slice(0,r_truncate-1)));
-				VT=madness::copy(VT(Slice(0,r_truncate-1),_));
-
-				dims[ndim-1]=r_truncate;
-				core[d]=U.reshape(ndim,dims);
+		    }
 
 
-				for (int i=0; i<VT.dim(0); ++i) {
-					for (int j=0; j<VT.dim(1); ++j) {
-						VT(i,j)*=s(i);
-					}
-				}
+		    for (std::size_t d=core.size()-2; d>0; --d) {
 
-				// multiply to the right (line 11)
-				core[d+1]=inner(VT,core[d+1]);
+		        // save tensor structure
+		        const long ndim=core[d].ndim();
+		        for (int i=0; i<ndim; ++i) dimensions[i]=core[d].dim(i);
 
-			}
+		        // G(r0, k*r1)
+		        const long r0=core[d].dim(0);
+		        const long r1=core[d].size()/r0;
+		        core[d]=core[d].reshape(r0,r1);
 
-            if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
+		        // decompose the core tensor (line 5)
+		        //lq(core[d],L_buffer);  // might shrink the core
+
+		        // assignement of L with the inner_buffer tensor
+		        // works only if the bool for lq_result is set to false
+		        {
+		            long r_rows= (core[d].dim(1)>=core[d].dim(0)) ? core[d].dim(0) : core[d].dim(1);
+		            long r_cols=core[d].dim(0);
+		            L = L_buffer(Slice(0,r_cols-1),Slice(0,r_rows-1));
+		            L = 0.0;
+		        }
+
+		        // workaround for LQ decomposition to avoid reallocations
+		        //L_buffer = 0.0;
+		        lq_tau = 0.0;
+		        lq_work = 0.0;
+		        lq_result(core[d],L,lq_tau,lq_work,false);
+		        // slice L to the right size
+		        //Tensor<T> L = L_buffer(Slice(0,r0-1),Slice(0,r1-1));
+
+		        dimensions[0]=std::min(r0,core[d].dim(0));
+		        core[d]=core[d].reshape(ndim,dimensions);
+
+		        // multiply to the left (line 6)
+		        core[d-1]=inner(core[d-1],L);
+		    }
+
+		    // svd buffer tensor (see svd_results in lapack.cc)
+		    long m =rmax*kmax;
+		    long n =rmax;
+		    long k =std::min<long>(m,n);
+		    long svd_buffer_size = std::max<long>(3*std::min<long>(m,n)+std::max<long>(m,n),5*std::min<long>(m,n)-4)*32;
+		    Tensor<T> svd_buffer(svd_buffer_size);
+		    Tensor<T> U_buffer(m,k);
+		    Tensor<T> dummy;
+		    Tensor< typename Tensor<T>::scalar_type > s_buffer(k);
+
+		    // left-to-right SVD (line 9)
+		    for (std::size_t d=0; d<core.size()-1; ++d) {
+
+		        // save tensor structure
+		        const long ndim=core[d].ndim();
+		        for (int i=0; i<ndim; ++i) dimensions[i]=core[d].dim(i);
+
+		        // reshape the core tensor (r0*k, r1)
+		        long r1=core[d].dim(core[d].ndim()-1);
+		        //				long r1=core[d].dim(1);
+		        core[d]=core[d].reshape(core[d].size()/r1,r1);
+
+		        Tensor<T> U,VT;
+		        long ds=std::min(core[d].dim(0),core[d].dim(1));
+		        s_buffer = 0.0;
+		        //Tensor< typename Tensor<T>::scalar_type > s(ds)
+		        Tensor< typename Tensor<T>::scalar_type > s = s_buffer(Slice(0,ds-1));
+
+		        // decompose (line 10)
+		        //svd(core[d],U,s,VT);
+		        // get the dimensions of U and V
+		        long du = core[d].dim(0);
+		        long dv = core[d].dim(1);
+		        U_buffer = 0.0;
+		        svd_buffer = 0.0;
+		        U_buffer = U_buffer.flat();
+		        // VT is written on core[d] input
+		        svd_result(core[d],U_buffer,s,dummy,svd_buffer);
+
+		        // truncate the SVD
+		        int r_truncate=SRConf<T>::max_sigma(eps,ds,s)+1;
+		        if (r_truncate==0) {
+		            zero_me(tt_dims);
+		            return;
+		        }
+
+		        // make tensors contiguous
+		        U=madness::copy(U_buffer(Slice(0,(du*ds)-1)).reshape(du,ds)(_,Slice(0,r_truncate-1)));
+		        VT=madness::copy(core[d](Slice(0,r_truncate-1),Slice(0,dv-1)));
+
+		        dimensions[ndim-1]=r_truncate;
+		        core[d]=U.reshape(ndim,dimensions);
+
+		        for (int i=0; i<VT.dim(0); ++i) {
+		            for (int j=0; j<VT.dim(1); ++j) {
+		                VT(i,j)*=s(i);
+		            }
+		        }
+
+		        // multiply to the right (line 11)
+		        core[d+1]=inner(VT,core[d+1]);
+
+		    }
+
+		    if (not verify()) MADNESS_EXCEPTION("ranks in TensorTrain inconsistent",1);
 		}
 
 		/// return the number of dimensions

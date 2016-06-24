@@ -687,7 +687,7 @@ namespace madness {
 				}
 			}
 		} else {
-			R=Tensor<T>(r_cols,r_rows);
+			//R=Tensor<T>(r_cols,r_rows);
 			for (int i=0; i<r_rows; ++i) {
 				for (int j=i; j<r_cols; ++j) {
 					R(j,i)=A(j,i);
@@ -696,7 +696,7 @@ namespace madness {
 		}
 
 		// reconstruction of Q
-    	integer k=tau.size();
+    	integer k=std::min(m,n);//tau.size(); // size of tau is tau(min(m,n))
     	integer q_rows=m;
     	integer q_cols= (m>=n) ? n : m;
     	dorgqr_(&q_rows, &q_cols, &k, A.ptr(), &q_rows, const_cast<T*>(tau.ptr()),
@@ -1039,6 +1039,10 @@ namespace madness {
 
     template
     void lq(Tensor<double>& A, Tensor<double>& L);
+
+    template
+    void lq_result(Tensor<double>& A, Tensor<double>& R, Tensor<double>& tau, Tensor<double>& work,
+    		bool do_qr);
 
 
     template
