@@ -737,8 +737,10 @@ namespace madness {
 
         /// Inplace multiply by corresponding elements of argument Tensor
         GenTensor<T>& emul(const GenTensor<T>& t) {
-        	print("no GenTensor<T>::emul yet");
-        	MADNESS_ASSERT(0);
+            MADNESS_ASSERT(t.tensor_type()==this->tensor_type());
+
+            if (this->tensor_type()==TT_FULL) full_tensor().emul(t.full_tensor());
+            else config().emul(t.config());
         }
 
         GenTensor convert(const TensorArgs& targs) const {
