@@ -115,7 +115,7 @@
 #include <madness/tensor/tensortrain.h>
 #include <stdexcept>
 
-#define USE_LRT
+#undef USE_LRT
 
 namespace madness {
 
@@ -741,7 +741,14 @@ namespace madness {
         	MADNESS_ASSERT(0);
         }
 
-		/// return a Tensor, no matter what
+        GenTensor convert(const TensorArgs& targs) const {
+            GenTensor<T> result=copy(*this);
+            change_tensor_type(result,targs);
+            return result;
+        }
+
+
+        /// return a Tensor, no matter what
 		Tensor<T> full_tensor_copy() const {
 			const TensorType tt=tensor_type();
 			if (tt==TT_NONE) return Tensor<T>();
@@ -1141,12 +1148,12 @@ namespace madness {
      template <class T, class Q>
      GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2,
              const GenTensor<Q>& rhs2, const TensorArgs final_tensor_args) {
-     	return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor(), final_tensor_args);
+     	return outer(lhs2.full_tensor(),rhs2.full_tensor(), final_tensor_args);
      }
 
      /// outer product of two Tensors, yielding a low rank tensor
      template <class T, class Q>
-     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2,
+     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const Tensor<T>& lhs2,
              const Tensor<Q>& rhs2, const TensorArgs final_tensor_args) {
 
          MADNESS_ASSERT(final_tensor_args.tt==TT_2D);
