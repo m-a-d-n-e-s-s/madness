@@ -846,14 +846,14 @@ int main(int argc, char**argv) {
 #if 1
     error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
     error+=testGenTensor_ctor(k,dim,eps,TT_2D);
-    error+=testGenTensor_ctor(k,dim,eps,TT_TENSORTRAIN);
+//    error+=testGenTensor_ctor(k,dim,eps,TT_TENSORTRAIN);
 
     error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
     error+=testGenTensor_assignment(k,dim,eps,TT_2D);
-    error+=testGenTensor_assignment(k,dim,eps,TT_TENSORTRAIN);
-//
-//    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
+//    error+=testGenTensor_assignment(k,dim,eps,TT_TENSORTRAIN);
+
+    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
+    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
 //    error+=testGenTensor_algebra(k,dim,eps,TT_TENSORTRAIN);
 
 ////    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);

@@ -497,7 +497,9 @@ namespace madness {
 
 		/// assign a number
 		GenTensor& operator=(const T& fac) {
-			MADNESS_EXCEPTION("no assignment with a number for GenTensor",0);
+            if (this->tensor_type()==TT_FULL) full_tensor()=fac;
+            else config()=fac;
+            return *this;
 		}
 
 	private:
@@ -741,6 +743,7 @@ namespace madness {
 
             if (this->tensor_type()==TT_FULL) full_tensor().emul(t.full_tensor());
             else config().emul(t.config());
+            return *this;
         }
 
         GenTensor convert(const TensorArgs& targs) const {
