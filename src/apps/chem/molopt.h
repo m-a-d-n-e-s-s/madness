@@ -210,6 +210,12 @@ namespace madness {
                     a2 = a1;
                 }
             }
+
+            if (std::abs(a2-a1)<0.2*std::abs(a1)) { // Take full step to avoid reconverging SCF
+                a2 = a1;
+                lsmode = "fixed2";
+            }
+
             
             // Predicted next energy
             double energy2 = energy0 + dxgrad*a2 + 0.5*hess*a2*a2;
