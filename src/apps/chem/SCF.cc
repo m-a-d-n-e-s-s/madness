@@ -3606,7 +3606,6 @@ namespace madness {
                 else{
                     drhoa = make_derivative_density( world, amo, aocc, ax_old, ay_old );
                     drhoa.reconstruct();
-                    drhob;
                     if(!param.spin_restricted && param.nbeta != 0) {
                        drhob = make_derivative_density( world, bmo, bocc, bx_old, by_old );
                        drhob.reconstruct();
