@@ -283,7 +283,7 @@ namespace madness {
         PROFILE_BLOCK(Vzero_functions);
         std::vector< Function<T,NDIM> > r(n);
         for (int i=0; i<n; ++i)
-  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true));
+  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true).initial_level(1));
 
 	if (n && fence) world.gop.fence();
 
@@ -329,14 +329,10 @@ namespace madness {
         PROFILE_BLOCK(Vtransform);
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim(0)));
 
-        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim(1));
-        for (int i=0; i<c.dim(1); ++i) {
-            vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(
-                    FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
-        }
-        compress(world, v, false);
-        compress(world, vresult, false);
-        world.gop.fence();
+        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult
+            = zero_functions_compressed<TENSOR_RESULT_TYPE(L,R),NDIM>(world, c.dim(1));
+
+        compress(world, v, true);
         vresult[0].vtransform(v, c, vresult, tol, fence);
         return vresult;
     }
