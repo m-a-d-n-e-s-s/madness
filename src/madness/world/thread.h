@@ -1458,8 +1458,8 @@ namespace madness {
 		      // confusion (this with MPICH) ... maybe using a
 		      // fair mutex somewhere would help.
 		      //
-		      // 100us is a long time ... will try 10us.
-		      myusleep(10);
+		      // 100us is a long time ... will try 10us. mmm ... perhaps need 100 at least on dancer with 17 threads per node
+		      myusleep(100);
 		    }
 		    else {
 		      waiter.wait();
