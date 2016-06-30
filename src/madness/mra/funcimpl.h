@@ -2432,7 +2432,7 @@ namespace madness {
                             bool newnode = left->coeffs.insert(acc,key);
                             if (newnode && key.level()>0) {
                                 Key<NDIM> parent = key.parent();
-                                left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+                                left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent); // send was hanging???
                             }
                             nodeT& node = acc->second;
                             if (!node.has_coeff())
