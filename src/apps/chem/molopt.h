@@ -304,13 +304,13 @@ namespace madness {
                 
                 target.energy_and_gradient(molecule, e, g);               
 
-                double de = fabs(e - ep);
+                double de = e - ep;
                 double dxmax = dx.absmax();
                 double gmax = g.absmax();
                 
                 bool dxconv = (iter>0) && (dxmax < xtol);
                 bool gconv = gmax < gtol;
-                bool econv = (iter>0) && (de < etol);
+                bool econv = (iter>0) && (std::abs(de) < etol);
                 bool converged = econv && dxconv && gconv;
 
                 if (!converged && gmax < gradient_precision) {
