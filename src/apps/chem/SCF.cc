@@ -1431,7 +1431,7 @@ namespace madness {
                 functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
                 dv[atom * 3 + axis] =
                     functionT(
-                              factoryT(world).functor(func).nofence().truncate_on_project());
+                              factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
                 if (param.core_type != ""
                     && molecule.is_potential_defined_atom(atom)) {
                     // core potential contribution
