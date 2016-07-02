@@ -343,7 +343,7 @@ namespace madness {
                 if (print_level>1) print("gradient after projection", g);
 
                 if (iter > 0) {
-                    if ((g-gp).absmax() < 10.0*gradient_precision) {
+                    if ((g-gp).absmax() < 2.0*gradient_precision) {
                         if (print_level > 0) print("  skipping hessian update due to insufficient precision in gradient");
                     }
                     else if (update == "BFGS") {
