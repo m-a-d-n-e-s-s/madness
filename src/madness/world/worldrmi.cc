@@ -287,6 +287,20 @@ namespace madness {
             maxq_ = nrecv_ + 1;
         }
 
+        // Get environment variable controlling use of synchronous send (MAD_NSSEND)
+        // negative=sends synchronous message every MAD_RECV_BUFFER sends (default)
+        //        0=never send synchronous message
+        //      n>0=sends synchronous message every n sends (n=1 always uses ssend)
+        nssend_ = nrecv_;
+        const char* mad_nssend = getenv("MAD_NSSEND");
+        if (mad_nssend) {
+            std::stringstream ss(mad_nssend);
+            ss >> nssend_;
+            if (nssend_ < 0) {
+                nssend_ = nrecv_;
+            }
+        }
+
         // Allocate memory for receive buffer and requests
         recv_buf.reset(new void*[maxq_]);
         recv_req.reset(new Request[maxq_]);
@@ -325,6 +339,7 @@ namespace madness {
     RMI::Request
     RMI::RmiTask::RmiTask::isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
         int tag = SafeMPI::RMI_TAG;
+        static std::size_t numsent = 0; // for tracking synchronous sends
 
         if (nbyte > max_msg_len_) {
             // Huge message protocol ... send message to dest indicating size and origin of huge message.
@@ -378,9 +393,17 @@ namespace madness {
         ++(RMI::stats.nmsg_sent);
         RMI::stats.nbyte_sent += nbyte;
 
-        Request result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
 
-        //if (is_ordered(attr)) unlock();
+        numsent++;
+        Request result;
+        if (nssend_ && numsent==nssend_) {
+            result = comm.Issend(buf, nbyte, MPI_BYTE, dest, tag);
+        }
+        else {
+            result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
+        }
+        numsent %= nssend_;
+
         unlock();
 
         return result;
