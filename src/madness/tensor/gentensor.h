@@ -115,7 +115,7 @@
 #include <madness/tensor/tensortrain.h>
 #include <stdexcept>
 
-#undef USE_LRT
+#define USE_LRT
 
 namespace madness {
 
@@ -1258,8 +1258,7 @@ public:
     GenTensor<T>() : LowRankTensor<T>() {}
     GenTensor<T>(const GenTensor<T>& g) : LowRankTensor<T>(g) {}
     GenTensor<T>(const LowRankTensor<T>& g) : LowRankTensor<T>(g) {}
-    GenTensor<T>(const SRConf<T>& sr1) : LowRankTensor<T>() {
-        MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);
+    GenTensor<T>(const SRConf<T>& sr1) : LowRankTensor<T>(SVDTensor<T>(sr1)) {
     }
 
     operator LowRankTensor<T>() const {return *this;}
@@ -1289,7 +1288,10 @@ public:
         MADNESS_ASSERT(this->type==TT_2D and (this->impl.svd));
         return *this->impl.svd.get();
     }
-    SRConf<T> get_configs(const int& start, const int& end) const {MADNESS_EXCEPTION("no SRConf in LRT/GenTensor",1);}
+    GenTensor<T> get_configs(const int& start, const int& end) const {
+        MADNESS_ASSERT(this->type==TT_2D and (this->impl.svd));
+        return GenTensor<T>(config().get_configs(start,end));
+    }
 
     /// deep copy of rhs by deep copying rhs.configs
     friend GenTensor<T> copy(const GenTensor<T>& rhs) {

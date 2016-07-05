@@ -290,8 +290,47 @@ public:
         } else if (tensor_type()==TT_2D) {
 
             // TT_SVD -> TT_FULL
+            if (targs.tt==TT_FULL) result=LowRankTensor(this->reconstruct_tensor(),targs);
+
             // TT_SVD -> TT_TENSORTRAIN
-            result=LowRankTensor(this->reconstruct_tensor(),targs);
+            else if (targs.tt==TT_TENSORTRAIN) {
+
+                // extract core tensors from SVD representation
+                Tensor< typename Tensor<T>::scalar_type >& s=impl.svd->weights_;
+                const Tensor<T>& U=impl.svd->ref_vector(0); // (r,k,k,..,k)
+                const Tensor<T>& VT=impl.svd->ref_vector(1);    // (r,k,k,..,k)
+
+                const long rank=s.size();
+
+                if (rank==0) {
+                    std::vector<long> dims(this->ndim());
+                    for (int i=0; i<dims.size(); ++i) dims[i]=this->dim(i);
+                    result=LowRankTensor(dims,targs);
+                } else {
+
+                    // convolve singular values into U/ core[0]
+                    std::vector<Tensor<T> > core(2);
+                    core[0]=transpose(U.reshape(rank,U.size()/rank));   // (k^n,r)
+                    for (int j=0; j<core[0].dim(0); ++j) core[0](j,_).emul(s);
+
+                    core[1]=VT.reshape(rank,VT.size()/rank);        // (r,k^m)
+
+                    // construct TensorTrain with 2 dimensions only
+                    result=LowRankTensor(core);
+
+                    // set correct dimensions
+                    const long k=impl.svd->get_k();
+                    for (long d=0; d<impl.svd->dim(); ++d) {
+                        if (result.dim(d)==k) continue;
+
+                        const long k1=k;
+                        const long k2=result.dim(d)/k1;
+                        result=result.impl.tt->splitdim(d,k1,k2,targs.thresh*facReduce());
+                    }
+                }
+            } else {
+                MADNESS_EXCEPTION("confused tensor types in convert TT_SVD -> ?",1);
+            }
 
         } else if (tensor_type()==TT_TENSORTRAIN) {
 

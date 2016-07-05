@@ -4230,11 +4230,15 @@ namespace madness {
             if (result_norm> 0.3*args.tol/args.fac) {
                 small++;
 
+                double cpu0=cpu_time();
                 if (targs.tt!=result.tensor_type()) result=result.convert(targs);
+                double cpu1=cpu_time();
+                timer_lr_result.accumulate(cpu1-cpu0);
+
                 // accumulate also expects result in SVD form
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
-                //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
+                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
 
             }
             return result_norm;

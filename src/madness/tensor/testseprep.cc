@@ -687,6 +687,127 @@ int testGenTensor_reduce(const long& k, const long& dim, const double& eps, cons
 
 }
 
+/// test conversion from one gentensor representation to another
+int testGenTensor_convert(const long k, const long dim, const TensorArgs targs) {
+
+    print("entering testGenTensor convert");
+    int nerror=0;
+    double eps=targs.thresh;
+
+    std::vector<long> d(dim,k);
+    Tensor<double> t0(d),t1(d),t2(d);
+
+    // set up a tensor of full rank
+    t0.fillrandom();
+
+    // set up a tensor of low rank
+    t1.fillindex();
+    t1.scale(1.0/t1.normf());
+
+    {
+        GenTensor<double> g0(t0,targs);
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        double error1=(t0-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t0.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_FULL));
+        error1=(t0-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_FULL; k=",k,"dim=",dim,"error=",error1,"size=",t0.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_TENSORTRAIN));
+        error1=(t0-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_TENSORTRAIN; k=",k,"dim=",dim,"error=",error1,"size=",t0.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        error1=(t0-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t0.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_TENSORTRAIN));
+        error1=(t0-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_TENSORTRAIN; k=",k,"dim=",dim,"error=",error1,"size=",t0.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_FULL));
+        error1=(t0-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_FULL; k=",k,"dim=",dim,"error=",error1,"size=",t0.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        error1=(t0-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t0.size());
+
+    }
+
+    // set up a tensor of low rank
+    {
+        GenTensor<double> g0(t1,targs);
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        double error1=(t1-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t1.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_FULL));
+        error1=(t1-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_FULL; k=",k,"dim=",dim,"error=",error1,"size=",t1.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_TENSORTRAIN));
+        error1=(t1-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_TENSORTRAIN; k=",k,"dim=",dim,"error=",error1,"size=",t1.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        error1=(t1-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t1.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_TENSORTRAIN));
+        error1=(t1-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_TENSORTRAIN; k=",k,"dim=",dim,"error=",error1,"size=",t1.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_FULL));
+        error1=(t1-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_FULL; k=",k,"dim=",dim,"error=",error1,"size=",t1.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        error1=(t1-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t1.size());
+
+    }
+
+    // set up a tensor of zero rank
+    {
+        GenTensor<double> g0(t2,targs);
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        double error1=(t2-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t2.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_FULL));
+        error1=(t2-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_FULL; k=",k,"dim=",dim,"error=",error1,"size=",t2.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_TENSORTRAIN));
+        error1=(t2-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_TENSORTRAIN; k=",k,"dim=",dim,"error=",error1,"size=",t2.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        error1=(t2-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t2.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_TENSORTRAIN));
+        error1=(t2-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_TENSORTRAIN; k=",k,"dim=",dim,"error=",error1,"size=",t2.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_FULL));
+        error1=(t2-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_FULL; k=",k,"dim=",dim,"error=",error1,"size=",t2.size());
+
+        g0=g0.convert(TensorArgs(targs.thresh,TT_2D));
+        error1=(t2-g0.full_tensor_copy()).normf();
+        print(ok(is_small(error1,eps)),"TT_2D; k=",k,"dim=",dim,"error=",error1,"size=",t2.size());
+
+    }
+
+    return nerror;
+}
+
 /// test the tensor train representation
 int testTensorTrain(const long k, const long dim, const TensorArgs targs) {
 
@@ -846,15 +967,19 @@ int main(int argc, char**argv) {
 #if 1
     error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
     error+=testGenTensor_ctor(k,dim,eps,TT_2D);
-//    error+=testGenTensor_ctor(k,dim,eps,TT_TENSORTRAIN);
+    error+=testGenTensor_ctor(k,dim,eps,TT_TENSORTRAIN);
 
     error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
     error+=testGenTensor_assignment(k,dim,eps,TT_2D);
-//    error+=testGenTensor_assignment(k,dim,eps,TT_TENSORTRAIN);
+    error+=testGenTensor_assignment(k,dim,eps,TT_TENSORTRAIN);
 
     error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
     error+=testGenTensor_algebra(k,dim,eps,TT_2D);
-//    error+=testGenTensor_algebra(k,dim,eps,TT_TENSORTRAIN);
+    error+=testGenTensor_algebra(k,dim,eps,TT_TENSORTRAIN);
+
+    error+=testGenTensor_convert(k,dim,TensorArgs(eps,TT_FULL));
+    error+=testGenTensor_convert(k,dim,TensorArgs(eps,TT_2D));
+    error+=testGenTensor_convert(k,dim,TensorArgs(eps,TT_TENSORTRAIN));
 
 ////    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
 ////    error+=testGenTensor_rankreduce(k,dim,eps,TT_3D);

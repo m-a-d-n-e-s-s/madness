@@ -929,8 +929,8 @@ void MP2::guess_mp1_3(ElectronPair& pair) const {
 	real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0 * eps), lo,
 			bsh_eps);
 
-	real_function_6d Uphi0 = make_Uphi0(pair);
 	real_function_6d KffKphi0 = make_KffKphi0(pair);
+    real_function_6d Uphi0 = make_Uphi0(pair);
 
 //	{
 //		//DEBUG

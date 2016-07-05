@@ -397,11 +397,12 @@ namespace madness {
                     }
                     else {
                         //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
-                        if (r == 0) {
-                            rank_is_zero = true;
-                            break;
-                        }
-                        trans[d].r = r;
+//                        if (r == 0) {
+//                            rank_is_zero = true;
+//                            break;
+//                        }
+//                        trans[d].r = r;
+                        trans[d].r = std::max(2L,r);
                         trans[d].U = ops_1d[d]->RU.ptr();
                         trans[d].VT = ops_1d[d]->RVT.ptr();
                     }
@@ -439,11 +440,12 @@ namespace madness {
                     }
                     else {
                         //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
-                        if (r == 0) {
-                            rank_is_zero = true;
-                            break;
-                        }
-                        trans[d].r = r;
+//                        if (r == 0) {
+//                            rank_is_zero = true;
+//                            break;
+//                        }
+//                        trans[d].r = r;
+                        trans[d].r = std::max(2L,r);
                         trans[d].U = ops_1d[d]->TU.ptr();
                         trans[d].VT = ops_1d[d]->TVT.ptr();
                     }
@@ -1242,12 +1244,15 @@ namespace madness {
                 // and [P Q P]_1, respectively
                 for (int mu=0; mu<rank; ++mu) {
                     const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                    double cpu0=cpu_time();
 
 //                    if (muop.norm > tol2*std::abs(weight)) {
 
                         Q fac = ops[mu].getfac();
                         muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
                                 tol/std::abs(fac), fac, work1, work2);
+                        double cpu1=cpu_time();
+                        timer_low_transf.accumulate(cpu1-cpu0);
 
 //                    }
                 }
@@ -1265,10 +1270,13 @@ namespace madness {
                 }
 
             }
+            double cpu0=cpu_time();
 
             final(s00)+=final0;
             final.reduce_rank(tol2);
 
+            double cpu1=cpu_time();
+            timer_low_accumulate.accumulate(cpu1-cpu0);
             return final;
         }
 

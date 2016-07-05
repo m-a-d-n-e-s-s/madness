@@ -152,6 +152,19 @@ namespace madness {
 
 		}
 
+
+        /// ctor for a TensorTrain, with core tensors explicitly given
+
+        /// the core tensors must have the shape (k1,r1) (r1,k2,r2) .. (r2,k3)
+		/// @param[in]  core    vector of core tensors, properly shaped
+        TensorTrain(const std::vector<Tensor<T> >& c) : core(c) {
+            zero_rank=false;
+
+            // check for zero ranks
+            for (int d=1; d<core.size(); ++d) if (core[d].dim(0)==0) zero_me();
+        }
+
+
 		/// copy constructor, shallow
 		TensorTrain(const TensorTrain& other) : core(other.core),
 		        zero_rank(other.zero_rank) {
