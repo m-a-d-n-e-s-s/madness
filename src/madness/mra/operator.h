@@ -452,9 +452,9 @@ namespace madness {
                     trans2[d]=ops_1d[d]->T;
                 }
                 if (!rank_is_zero)
-                    apply_transformation(k, trans, f0, work1, work2, -mufac, result0);
+//                    apply_transformation(k, trans, f0, work1, work2, -mufac, result0);
 //                apply_transformation2(n, k, tol, trans2, f0, work1, work2, -mufac, result0);
-//                apply_transformation3(trans2, f0, -mufac, result0);
+                apply_transformation3(trans2, f0, -mufac, result0);
             }
         }
 
@@ -1199,6 +1199,30 @@ namespace madness {
 
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
+            // prepare access to the singular vectors
+            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
+            // can't use predefined slices and vectors -- they have the wrong dimension
+            const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
+            const std::vector<long> v2k0(coeff.ndim(),2*k);
+
+
+
+            const TensorTrain<T> op_tt = make_tt_representation(source, shift,tol,true,false);
+            const TensorTrain<T> op_tt0= make_tt_representation(source, shift,tol,false,true);
+            double cpu00=cpu_time();
+            double thresh=FunctionDefaults<NDIM>::get_thresh();
+            GenTensor<T> tt_coeff=coeff.convert(TensorArgs(thresh,TT_TENSORTRAIN));
+            GenTensor<T> tt_coeff0=tt_coeff(s00);
+            GenTensor<resultT> tt_result=GenTensor<resultT>(LowRankTensor<resultT>(apply_lowdim_tensortrain(op_tt,source,
+                    shift, tt_coeff, tol, true, false)));       // do_R
+            GenTensor<resultT> tt_result0=GenTensor<resultT>(LowRankTensor<resultT>(apply_lowdim_tensortrain(op_tt0,source,
+                    shift, tt_coeff0, tol, false, true)));   // do_T
+            tt_result(s00)+=tt_result0;
+            tt_result.reduce_rank(thresh);
+            double cpu11=cpu_time();
+            double cpu_tt=cpu11-cpu00;
+
+
             // some checks
             MADNESS_ASSERT(coeff.tensor_type()==TT_2D);           // for now
             MADNESS_ASSERT(not modified());
@@ -1208,10 +1232,37 @@ namespace madness {
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
 
-            // prepare access to the singular vectors
-            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
-            // can't use predefined slices and vectors -- they have the wrong dimension
-            const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
+            std::vector<Slice> sss(6,Slice(0,k-1));
+            if (0) {
+                long twok=2*k;
+                Tensor<Q> op_reconstructed(twok,twok,twok,twok,twok,twok);
+                Tensor<Q> op_reconstructed0(k,k,k,k,k,k);
+                for (int mu=0; mu<rank; ++mu) {
+                    const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                    Q fac = ops[mu].getfac();
+
+                    Tensor<Q> tmp=outer(muop.ops[0]->T,muop.ops[1]->T);
+                    Tensor<Q> tmp2=outer(tmp,muop.ops[2]->T);
+
+                    Tensor<Q> tmp3=outer(muop.ops[0]->R,muop.ops[1]->R);
+                    Tensor<Q> tmp4=outer(tmp3,muop.ops[2]->R);
+
+                    op_reconstructed+=tmp4*fac;
+                    op_reconstructed0-=tmp2*fac;
+                }
+                TensorTrain<Q> tt_op0=make_tt_representation(source, shift, tol,false,true);     // do_T
+                TensorTrain<Q> tt_op =make_tt_representation(source, shift, tol,true,false);     // do_R
+                Tensor<Q> op_reconstructed_tt0=tt_op0.reconstruct();
+                Tensor<Q> op_reconstructed_tt=tt_op.reconstruct();
+                print("operator error ",source.level(),shift.distsq(),(op_reconstructed_tt-op_reconstructed).normf());
+                print("operator0 error ",source.level(),shift.distsq(),(op_reconstructed_tt0-op_reconstructed0).normf());
+
+            }
+
+//            // prepare access to the singular vectors
+//            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
+//            // can't use predefined slices and vectors -- they have the wrong dimension
+//            const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
 
             // some workspace
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
@@ -1223,7 +1274,6 @@ namespace madness {
 
             tol = tol/rank*0.01; // Error is per separated term
             tol2= tol2/rank;
-make_tt_representation(source, shift,tol);
             for (int r=0; r<coeff.rank(); ++r) {
 
                 // get the appropriate singular vector (left or right depends on particle)
@@ -1270,14 +1320,129 @@ make_tt_representation(source, shift,tol);
                 }
 
             }
+
             double cpu0=cpu_time();
 
+//            Tensor<Q> full=final.full_tensor_copy();
+//            full-=tt_result.full_tensor_copy();
+//            double error1=full.normf();
+//
+//            Tensor<Q> full0=final0.full_tensor_copy();
+//            full0-=tt_result0.full_tensor_copy();
+//            double error0=full0.normf();
+//
             final(s00)+=final0;
             final.reduce_rank(tol2);
+//
+//            tt_result(s00)+=tt_result0;
+//            Tensor<Q> diff=tt_result.full_tensor_copy()-final.full_tensor_copy();
+//            double errorfinal=diff.normf();
+//
+//            print("tt: level, disp, cnorm, error1,error0,errorfinal",
+//                    source.level(),shift,coeff.normf(),error1,error0,errorfinal);
+
 
             double cpu1=cpu_time();
+            double cpu_2D=cpu1-cpu11;
+
+            print("tt: level, disp, cpu_tt, cpu_2D",cpu_tt,cpu_2D);
+
             timer_low_accumulate.accumulate(cpu1-cpu0);
             return final;
+        }
+
+        /// apply this operator on only 1 particle of the coefficients in low rank form
+
+        /// @param[in]  coeff   source coeffs in TensorTrain format
+        /// @param[in]  source  the source key in low dimensionality (3D)
+        /// @param[in]  shift   the displacement in low dimensionality (3D)
+        /// @param[in]  tol     thresh/#neigh*cnorm
+        /// @param[in]  tol2    thresh/#neigh
+        /// @return     coeff result
+        template<typename T>
+        GenTensor<TENSOR_RESULT_TYPE(T,Q)> apply_lowdim_tensortrain(const TensorTrain<T>& op,
+                const Key<NDIM>& source, const Key<NDIM>& shift, const GenTensor<T>& coeff,
+                double tol, bool do_R, bool do_T) const {
+
+//            const TensorTrain<T> op = make_tt_representation(source, shift,tol,do_R,do_T);
+            const TensorTrain<T> cc = *coeff.impl.tt;
+            Tensor<T> U,VT,s;   // scratch
+            Tensor<T> B1,B2,B3;
+
+            long r1=cc.ranks(0);
+            long r2=cc.ranks(1);
+            long r3=cc.ranks(2);
+            long q1=op.ranks(0);
+            long q2=op.ranks(1);
+
+            long twok=coeff.dim(0);
+            MADNESS_ASSERT((twok==k) or (twok==2*k));
+
+            const Tensor<T> A1=op.get_core(0).reshape(twok,twok,q1);        // A(k',k,q1)
+            Tensor<T> A2=copy(op.get_core(1).reshape(q1,twok,twok,q2));     // A(q1,k',k,q2)
+            Tensor<T> A3=copy(op.get_core(2).reshape(q2,twok,twok));        // A(q2,k',k)
+            const Tensor<T> C1=cc.get_core(0).reshape(twok,r1);             // C(k',r1)
+            const Tensor<T> C2=cc.get_core(1).reshape(r1,twok,r2);          // C(r1,k',r2)
+            const Tensor<T> C3=cc.get_core(2).reshape(r2,twok,r3);          // C(r2,k',r3)
+
+            Tensor<T> AC1=inner(A1,C1,0,0).reshape(twok,q1*r1);       // AC(k,q1*r1)
+            svd(AC1,B1,s,VT);                                         // B1(k,R1) VT(R1,q1*r1)
+
+            // this is the new interior rank
+            long R1=SRConf<T>::max_sigma(tol*LowRankTensor<T>::fac_reduce(),std::min(AC1.dim(0),AC1.dim(1)),s)+1;
+
+            // handle rank=0 explicitly
+            if (R1==0) return TensorTrain<T>(cc.dims());
+
+            // convolve the singular values into the right singular vectors
+            for (int ii=0; ii<R1; ++ii) {
+                for (int j=0; j<VT.dim(1); ++j) {
+                    VT(ii,j)*=s(ii);
+                }
+            }
+            B1=copy(B1(_,Slice(0,R1-1))).reshape(twok,R1);
+            VT=VT(Slice(0,R1-1),_).reshape(R1,q1,r1);   // V(R1,q1,r1)
+
+            Tensor<T> VC=inner(VT,C2,2,0);          // VC(R1,q1,k',r2)       ; sum_r1
+            VC=VC.fusedim(1);                       // VC(R1,(q1,k'),r2)     ;
+            A2=A2.fusedim(0);                       // A((q1,k'),k,q2);
+            Tensor<T> AVC=inner(VC,A2,1,0);         // AVC(R1,r2,k,q2)       ; sum_{k',q1}
+            AVC=copy(AVC.swapdim(1,2));             // AVC(R1,k,r2,q2);
+            AVC=copy(AVC.swapdim(2,3));             // AVC(R1,k,q2,r2);
+            AVC=AVC.reshape(R1*twok,q2*r2);
+
+            svd(AVC,B2,s,VT);
+
+            // this is the new interior rank
+            long R2=SRConf<T>::max_sigma(tol*LowRankTensor<T>::fac_reduce(),
+                    std::min(AVC.dim(0),AVC.dim(1)),s)+1;
+
+            // handle rank=0 explicitly
+            if (R2==0) return TensorTrain<T>(cc.dims());
+
+            // convolve the singular values into the right singular vectors
+            for (int ii=0; ii<R2; ++ii) {
+                for (int j=0; j<VT.dim(1); ++j) {
+                    VT(ii,j)*=s(ii);
+                }
+            }
+            B2=copy(B2(_,Slice(0,R2-1))).reshape(R1,twok,R2);
+            VT=VT(Slice(0,R2-1),_).reshape(R2,q2,r2);   // V(R2,q2,r2)
+
+            // sum_r2     --> expensive step! <--
+            VC=inner(VT,C3,-1,0);                       // VC(R2,q2,k',r3)
+
+            VC=VC.fusedim(1);                           // VC(R2,(q2,k'),r3);
+            A3=A3.fusedim(0);                           // A2((q2,k'),k);
+            AVC=inner(VC,A3,1,0);                       // AVC(R2,r3,k);
+            B3=copy(AVC.swapdim(1,2));
+
+            TensorTrain<T> result=copy(cc);
+            result.get_core(0)=B1;
+            result.get_core(1)=B2;
+            result.get_core(2)=B3;
+
+            return result;
         }
 
 
@@ -1440,30 +1605,92 @@ make_tt_representation(source, shift,tol);
         }
 
 
-        void make_tt_representation(const Key<NDIM>& source,
-                const Key<NDIM>& shift, double tol) const {
+        /// construct the tensortrain representation of the operator
 
-            if (shift.distsq() !=0) return;
+        /// @param[in]  source  source coefficient box
+        /// @param[in]  shift   displacement
+        /// @param[in]  tol     threshold for the TT truncation
+        /// @param[in]  do_R    compute the R term of the operator (2k^d)
+        /// @param[in]  do_T    compute the T term of the operator (k^d), including factor -1
+        /// Both do_R and do_T may be used simultaneously, then the final
+        /// operator will have dimensions (2k^d)
+        TensorTrain<double> make_tt_representation(const Key<NDIM>& source,
+                const Key<NDIM>& shift, double tol, bool do_R, bool do_T) const {
+
+            if (not (do_R or do_T)) {
+                print("no operator requested in make_tt_representation??");
+                MADNESS_EXCEPTION("you're sure you know what you're doing?",1);
+            }
+
             double cpu0=cpu_time();
-            std::vector<Tensor<double> > cores(NDIM,Tensor<double>(rank,4*k*k,rank));
-            cores[0]=Tensor<double>(4*k*k,rank);
-            cores[NDIM-1]=Tensor<double>(rank,4*k*k);
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
-            for (int mu=0; mu<rank; ++mu) {
-                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
-                Q fac = ops[mu].getfac();
-                cores[0](_,Slice(mu,mu))=muop.ops[0]->R.reshape(4*k*k,1);
-                for (std::size_t idim=1; idim<NDIM-1; ++idim) {
-                    cores[idim](Slice(mu,mu),_,Slice(mu,mu))=muop.ops[idim]->R.reshape(1,4*k*k,1);
-                }
-                cores[NDIM-1](Slice(mu,mu),_)=muop.ops[NDIM-1]->R.reshape(1,4*k*k)*fac;
-            }
-            TensorTrain<double> tt(cores);
-            tt.truncate(tol);
-            double cpu1=cpu_time();
-            print("time in TT representation of operator, level: ", source.level(),cpu1-cpu0,tt.ranks());
 
+            // check for significant ranks since the R/T matrices' construction
+            // might have been omitted. Tnorm is always smaller than Rnorm
+            long lo=0,hi=rank;
+            for (int mu=0; mu<rank; ++mu) {
+                double Rnorm=1.0;
+                for (std::size_t d=0; d<NDIM; ++d) Rnorm *= op->muops[mu].ops[d]->Rnorm;
+                if (Rnorm>1.e-20) hi=mu;
+                if ((Rnorm<1.e-20) and (mu<hi)) lo=mu;
+            }
+            hi++;lo++;
+
+            // think about dimensions
+            long rank_eff=(hi-lo);    // R or T matrices
+            long step=1;
+            if (do_R and do_T) {        // R and T matrices
+                rank_eff*=2;
+                step*=2;
+            }
+
+            long k2k=k;             // T matrices
+            if (do_R) k2k=2*k;      // R matrices
+
+
+            // construct empty TT cores and fill them with the significant R/T matrices
+            std::vector<Tensor<double> > cores(NDIM,Tensor<double>(rank_eff,k2k,k2k,rank_eff));
+            cores[0]=Tensor<double>(k2k,k2k,rank_eff);
+            cores[NDIM-1]=Tensor<double>(rank_eff,k2k,k2k);
+
+
+            for (int mu=lo, r=0; mu<hi; ++mu, ++r) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                const Q fac = ops[mu].getfac();
+                const Slice sr0(step*r,  step*r,  0);
+                const Slice sr1(step*r+step-1,step*r+step-1,0);
+                const Slice s00(0,k-1,1);
+
+                if (do_R) {
+                    cores[0](_,  _  ,sr0)=muop.ops[0]->R;
+                    for (std::size_t idim=1; idim<NDIM-1; ++idim) {
+                          cores[idim](sr0,_  ,_  ,sr0)=muop.ops[idim]->R;
+                    }
+                    cores[NDIM-1](sr0,_  ,_  )=muop.ops[NDIM-1]->R*fac;
+                }
+
+                if (do_T) {
+                    cores[0](s00,s00,sr1)=muop.ops[0]->T;
+                    for (std::size_t idim=1; idim<NDIM-1; ++idim) {
+                        cores[idim](sr1,s00,s00,sr1)=muop.ops[idim]->T;
+                    }
+                    cores[NDIM-1](sr1,s00,s00)=muop.ops[NDIM-1]->T*(-fac);
+                }
+            }
+
+            // need to reshape for the TT truncation
+            cores[0]=cores[0].reshape(k2k*k2k,rank_eff);
+            for (std::size_t idim=1; idim<NDIM-1; ++idim)
+                cores[idim]=cores[idim].reshape(rank_eff,k2k*k2k,rank_eff);
+            cores[NDIM-1]=cores[NDIM-1].reshape(rank_eff,k2k*k2k);
+
+            // construct TT representation
+            TensorTrain<double> tt(cores);
+            tt.truncate(tol*LowRankTensor<double>::fac_reduce());
+            double cpu1=cpu_time();
+//            print("time in TT representation of operator, level: ", source.level(),cpu1-cpu0,tt.ranks());
+            return tt;
         }
 
     };
