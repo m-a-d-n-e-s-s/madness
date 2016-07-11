@@ -101,7 +101,7 @@ namespace madness {
             }
 
             // While we are probably idle free unused communication buffers
-            world_.am.free_managed_buffers();
+            //world_.am.free_managed_buffers();
 
             //bool dowork = (npass==0) || (ThreadPool::size()==0);
             bool dowork = true;

@@ -253,8 +253,8 @@ namespace madness {
                 // Task on next line used to be TaskAttributes::hipri()) ... but deferring execution of this
                 // makes sense since it is not urgent and lazy connection will likely mean that less forwarding
                 // will happen since the upper level task will have already made the connection.
-                //const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
-                const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                //const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 //madness::print("   set_chi_recu: forwarding",key,parent);
             }
             _has_children = true;
