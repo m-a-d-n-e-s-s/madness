@@ -1223,7 +1223,7 @@ namespace madness {
 
             tol = tol/rank*0.01; // Error is per separated term
             tol2= tol2/rank;
-
+make_tt_representation(source, shift,tol);
             for (int r=0; r<coeff.rank(); ++r) {
 
                 // get the appropriate singular vector (left or right depends on particle)
@@ -1436,6 +1436,33 @@ namespace madness {
             if (low_cost>0.0) ratio=full_cost/low_cost;
 //            print("nterms, full, low, full/low", full_cost, low_cost,shift.distsq(), ratio);
             return ratio;
+
+        }
+
+
+        void make_tt_representation(const Key<NDIM>& source,
+                const Key<NDIM>& shift, double tol) const {
+
+            if (shift.distsq() !=0) return;
+            double cpu0=cpu_time();
+            std::vector<Tensor<double> > cores(NDIM,Tensor<double>(rank,4*k*k,rank));
+            cores[0]=Tensor<double>(4*k*k,rank);
+            cores[NDIM-1]=Tensor<double>(rank,4*k*k);
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
+            for (int mu=0; mu<rank; ++mu) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                Q fac = ops[mu].getfac();
+                cores[0](_,Slice(mu,mu))=muop.ops[0]->R.reshape(4*k*k,1);
+                for (std::size_t idim=1; idim<NDIM-1; ++idim) {
+                    cores[idim](Slice(mu,mu),_,Slice(mu,mu))=muop.ops[idim]->R.reshape(1,4*k*k,1);
+                }
+                cores[NDIM-1](Slice(mu,mu),_)=muop.ops[NDIM-1]->R.reshape(1,4*k*k)*fac;
+            }
+            TensorTrain<double> tt(cores);
+            tt.truncate(tol);
+            double cpu1=cpu_time();
+            print("time in TT representation of operator, level: ", source.level(),cpu1-cpu0,tt.ranks());
 
         }
 

@@ -1999,8 +1999,12 @@ namespace madness {
             if ((print_timings) and (f.world().rank()==0)) {
                 fff.get_impl()->timer_filter.print("filter");
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
+print("stats before apply");
+fff.get_impl()->print_stats();
             }
             result = apply_only(op, fff, fence);
+print("stats after apply");
+result.get_impl()->print_stats();
             result.reconstruct();
 //            fff.clear();
             if (op.destructive()) {

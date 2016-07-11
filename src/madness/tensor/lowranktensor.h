@@ -477,7 +477,10 @@ public:
         if (type==TT_NONE) return 0;
         else if (type==TT_FULL) return -1;
         else if (type==TT_2D) return impl.svd->rank();
-        else if (type==TT_TENSORTRAIN) return -2;   // not defined;
+        else if (type==TT_TENSORTRAIN) {
+            std::vector<long> r=impl.tt->ranks();
+            return *(std::max_element(r.begin(), r.end()));
+        }
         else {
             MADNESS_EXCEPTION("you should not be here",1);
         }
