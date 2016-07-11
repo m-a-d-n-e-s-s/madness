@@ -44,6 +44,25 @@ add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tenso
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
 target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
+
+if(HAVE_IBMBGQ)
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a
+      COMMAND TARGET=BGQ ${CMAKE_MAKE_PROGRAM} 
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg
+      COMMENT "Building libMADMTXM.a")
+  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
+  add_dependencies(MADtensor libmadmtxm)
+  target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
+elseif(HAVE_IBMBGP)
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a
+      COMMAND TARGET=BGP ${CMAKE_MAKE_PROGRAM} 
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg
+      COMMENT "Building libMADMTXM.a")
+  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
+  add_dependencies(MADtensor libmadmtxm)
+  target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
+endif()
+
 if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
   target_link_libraries(MADlinalg PUBLIC ${ELEMENTAL_PACKAGE_NAME})
 endif()
