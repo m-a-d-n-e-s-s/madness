@@ -164,8 +164,8 @@ namespace madness {
 	output_subsection("Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
 	CC_Timer time(world,"Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
 	double omega=0.0;
-	if(ctype == CC2_response_) omega=singles.omega;
-	else if(ctype == CCS_response_) omega=singles.omega;
+	if(ctype == LRCC2_) omega=singles.omega;
+	else if(ctype == LRCCS_) omega=singles.omega;
 
 	// consistency check
 	switch(ctype){
@@ -175,11 +175,11 @@ namespace madness {
 	  case MP2_:
 	    CCOPS.error("Demanded Singles Calculation for MP2 ????");
 	    break;
-	  case CC2_response_:
-	    if(singles.type != RESPONSE or singles2.type != PARTICLE) CCOPS.warning("iterate_singles: CC2_response_ singles have wrong types");
+	  case LRCC2_:
+	    if(singles.type != RESPONSE or singles2.type != PARTICLE) CCOPS.warning("iterate_singles: LRCC2_ singles have wrong types");
 	    break;
-	  case CCS_response_:
-	    if(singles.type != RESPONSE) CCOPS.warning("iterate_singles: CCS_response_ singles have wrong types");
+	  case LRCCS_:
+	    if(singles.type != RESPONSE) CCOPS.warning("iterate_singles: LRCCS_ singles have wrong types");
 	    break;
 	  case CISpD_:
 	    CCOPS.error("Demanded Singles Calculation for CIS(D)");
@@ -195,12 +195,12 @@ namespace madness {
 	CC_Timer time_V(world,assign_name(ctype) + "-Singles Potential");
 	vecfuncT V;
 	if(ctype == CC2_) V=CCOPS.get_CC2_singles_potential(singles,doubles.front());
-	else if(ctype == CC2_response_) V=CCOPS.get_CC2_singles_response_potential(singles2,doubles.front(),singles,doubles.back());
-	else if(ctype == CCS_response_) V=CCOPS.get_CCS_response_potential(singles);
+	else if(ctype == LRCC2_) V=CCOPS.get_CC2_singles_response_potential(singles2,doubles.front(),singles,doubles.back());
+	else if(ctype == LRCCS_) V=CCOPS.get_LRCCS_potential(singles);
 	else CCOPS.error("iterate singles: unknown type");
 	time_V.info();
 
-	if(ctype == CCS_response_){
+	if(ctype == LRCCS_){
 	  const double expv=CCOPS.compute_cis_expectation_value(singles,V);
 	  if(world.rank() == 0) std::cout << "Current CCS/CIS Expectation Value " << expv << "\n";
 	  if(world.rank() == 0) std::cout << "using expectation-value for bsh-operator\n";
@@ -230,7 +230,7 @@ namespace madness {
 	// apply Q-Projector to result
 	GV=CCOPS.apply_Q(GV);
 
-	if(ctype==CCS_response_){
+	if(ctype==LRCCS_){
 	  output("Normalizing new singles");
 	  const vecfuncT x = GV;
 	  const vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),GV);
@@ -265,7 +265,7 @@ namespace madness {
 	if(world.rank() == 0) std::cout << "\n----------------------------------------\n\n";
 
 	// make second order update (only for response)
-	if(ctype == CC2_response_ or ctype == CCS_response_){
+	if(ctype == LRCC2_ or ctype == LRCCS_){
 	  output("\nMake 2nd order energy update:");
 	  double tmp=inner(world,residual,V).sum();
 	  double tmp2=inner(world,GV,GV).sum();

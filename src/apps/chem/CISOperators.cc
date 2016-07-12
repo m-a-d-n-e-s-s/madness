@@ -126,12 +126,12 @@ std::vector<vecfuncT> CIS_Operators::make_exchange_intermediate() const {
 // J_j = \sum_i <i|r12|i> |tau>
 // K_j = \sum_i <i|r12|tau_j> |i>
 vecfuncT CIS_Operators::fock_residue_closed_shell(const vecfuncT &tau) const {
-	START_TIMER();
+  if(debug)START_TIMER();
 	vecfuncT J = mul(world, (*poisson)(make_density()), tau);
 	truncate(world, J);
 	scale(world, J, 2.0);
-	END_TIMER("J");
-	START_TIMER();
+	if(debug)END_TIMER("J");
+	if(debug)START_TIMER();
 	vecfuncT K;
 	for (size_t j = 0; j < tau.size(); j++) {
 		real_function_3d Kj = real_factory_3d(world);
@@ -142,7 +142,7 @@ vecfuncT CIS_Operators::fock_residue_closed_shell(const vecfuncT &tau) const {
 	}
 	truncate(world, K);
 	scale(world, K, -1);
-	END_TIMER("K");
+	if(debug)END_TIMER("K");
 	return add(world, J, K);
 }
 
@@ -180,15 +180,15 @@ double CIS_Operators::get_matrix_element_kinetic_energy(const vecfuncT &ket,
 	std::vector < std::shared_ptr<real_derivative_3d> > gradop;
 	gradop = gradient_operator<double, 3>(world);
 	for (size_t axis = 0; axis < 3; axis++) {
-		START_TIMER();
+	        if(debug)START_TIMER();
 		const vecfuncT gradbra = apply(world, *gradop[axis], R2bra);
-		END_TIMER("Gradient of R2Bra");
-		START_TIMER();
+		if(debug)END_TIMER("Gradient of R2Bra");
+		if(debug)START_TIMER();
 		const vecfuncT gradket = apply(world, *gradop[axis], ket);
-		END_TIMER("Gradient of Ket");
-		START_TIMER();
+		if(debug)END_TIMER("Gradient of Ket");
+		if(debug)START_TIMER();
 		value += 0.5 * inner(world, gradbra, gradket).sum();
-		END_TIMER("Inner Product");
+		if(debug)END_TIMER("Inner Product");
 	}
 	return value;
 }
@@ -261,12 +261,12 @@ Tensor<double> CIS_Operators::get_matrix_kinetic(const std::vector<vecfuncT> &x)
 //  \---/  = Q\sum_j(<j|g12|tau_j>)|i>
 //  _\_/_
 vecfuncT CIS_Operators::S3C_C(const vecfuncT &tau) const {
-	START_TIMER();
+  if(debug)START_TIMER();
 	vecfuncT result = mul(world, (*poisson)(make_density(mo_ket_, tau)),
 			mo_ket_);
 	Q(result);
 	truncate(world, result);
-	END_TIMER("S3C_C");
+	if(debug)END_TIMER("S3C_C");
 	return result;
 }
 
@@ -276,7 +276,7 @@ vecfuncT CIS_Operators::S3C_C(const vecfuncT &tau) const {
 //     / \
 //    _\_/_
 vecfuncT CIS_Operators::S3C_X(const vecfuncT &tau) const {
-	START_TIMER();
+  if(debug)START_TIMER();
 	vecfuncT result;
 	for (size_t i = 0; i < tau.size(); i++) {
 		real_function_3d tmp = real_factory_3d(world);
@@ -289,7 +289,7 @@ vecfuncT CIS_Operators::S3C_X(const vecfuncT &tau) const {
 	Q(result);
 	truncate(world, result);
 	scale(world, result, -1.0);
-	END_TIMER("S3C_X");
+	if(debug)END_TIMER("S3C_X");
 	return result;
 }
 

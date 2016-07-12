@@ -516,7 +516,7 @@ namespace madness {
     }
     return result;
   }
-  vecfuncT CC_Operators::ccs_response_potential(const CC_vecfunction &singles, const CC_vecfunction &response)const{
+  vecfuncT CC_Operators::LRCCS_potential(const CC_vecfunction &singles, const CC_vecfunction &response)const{
     const CC_vecfunction ti=make_t_intermediate(singles);
     const vecfuncT tmp1 = ccs_unprojected(ti,response);
     const vecfuncT tmp2 = ccs_unprojected(response,singles);
@@ -524,8 +524,8 @@ namespace madness {
     const vecfuncT tmp3 = ccs_unprojected(ti,singles);
     const vecfuncT pt_part1 = P(part1,singles);
     const vecfuncT part2 = P(tmp3,response);
-    const vecfuncT ccs_response_tmp = sub(world,part1,pt_part1);
-    const vecfuncT ccs_response = sub(world,ccs_response_tmp,part2);
+    const vecfuncT LRCCS_tmp = sub(world,part1,pt_part1);
+    const vecfuncT ccs_response = sub(world,LRCCS_tmp,part2);
     return ccs_response;
   }
 
@@ -930,7 +930,7 @@ namespace madness {
 	Vreg = Vreg + swap_particles(Vreg);
       }
       else Vreg = Vreg = Vreg + apply_regularization_potential(mo_ket_(reg1.i),reg2,omega);
-    }else if(ctype==CC2_response_){
+    }else if(ctype==LRCC2_){
       error("CC2_response not implemented for make_regularization_residue, use make_response_regularization_residue");
 
     }else error("Error in make_cc2_residue: Unknown ctype:"+assign_name(ctype));
