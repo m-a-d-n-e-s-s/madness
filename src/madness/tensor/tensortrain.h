@@ -53,6 +53,61 @@
 
 namespace madness {
 
+    /// decompose the input tensor A into U and V, skipping singular vectors of
+    /// small singular values. One deep copy/allocation for U is performed
+
+    /// @param[inout]   A the input matrix, on exit the matrix VT (right sing. vectors)
+    /// @param[out]     U contiguous new tensor holding the left sing. vectors
+    /// @param[in]      thresh threshold for truncation of the singular vectors
+    /// @param[in]      s   scratch tensor for the singular values, dimension min(n,m)
+    /// @param[in]      scr scratch tensor
+    /// the dimension of the scratch tensor may be computed as
+    /// long lwork=std::max(3*std::min(m,n)+std::max(m,n),5*std::min(m,n)) + n*m;
+    template<typename T>
+    long rank_revealing_decompose(Tensor<T>& A, Tensor<T>& U,
+            const double thresh, Tensor< typename Tensor<T>::scalar_type > & s,
+            Tensor<T>& scr) {
+
+        MADNESS_ASSERT(A.ndim()==2);    // must be a matrix
+        const long n=A.dim(0);
+        const long m=A.dim(1);
+        const long rmax=std::min(n,m);
+        long lwork=std::max(3*std::min(m,n)+std::max(m,n),5*std::min(m,n));
+
+        // set up contiguous scratch arrays
+        MADNESS_ASSERT(scr.size()>lwork+n*m);
+        scr=scr.flat();
+        Tensor<T> work=scr(Slice(0,lwork-1));
+        Tensor<T> utmp=scr(Slice(lwork,lwork+n*m-1));
+        Tensor<T> dummy;    // real dummy
+
+        svd_result(A,utmp,s,dummy,work);
+
+        // this is rank_right
+        const long R1=SRConf<T>::max_sigma(thresh,rmax,s)+1;
+
+        // skip if rank=0
+        if (R1>0) {
+
+            U=madness::copy((utmp(Slice(0,n*rmax-1)))
+                    .reshape(n,rmax)(_,Slice(0,R1-1)));
+
+            A=A(Slice(0,R1-1),_);
+
+            // continue with the next dimension
+            for (int j=0; j<m; ++j) {
+                for (int i=0; i<R1; ++i) {
+                    A(i,j)*=s(i);
+                }
+            }
+        } else {
+            U=Tensor<T>(n,0l);
+        }
+        return R1;
+    }
+
+
+
 	/**
 	 * A tensor train is a multi-modal representation of a tensor t
 	 * \code
@@ -1045,6 +1100,7 @@ namespace madness {
 		/// return the TT ranks
 		std::vector<long> ranks() const {
 			if (zero_rank) return std::vector<long>(core.size()-1,0);
+			MADNESS_ASSERT(is_tensor());
 			std::vector<long> r(core.size()-1);
 			for (std::size_t i=0; i<r.size(); ++i) r[i]=core[i+1].dim(0);
 			return r;
@@ -1053,10 +1109,8 @@ namespace madness {
         /// return the TT ranks for dimension i (to i+1)
        long ranks(const int i) const {
             if (zero_rank) return 0;
-            if (i==0) {
-                return core[0].dim(1);
-            } else if (i<core.size()-1) {
-                return core[i].dim(2);
+            if (i<core.size()-1) {
+                return core[i].dim(core[i].ndim()-1);
             } else {
                 print("ndim ",ndim());
                 print("i    ",i);
@@ -1093,6 +1147,58 @@ namespace madness {
             if (core.size()) return core[ivec].ptr();
             return 0;
         }
+
+        /// check if this is a tensor (r,k,r)
+        bool is_tensor() const {
+            if (ndim()>0) return (core[0].ndim()==2);
+            return false;
+        }
+
+        /// check if this is an operator (r,k',k,r)
+        bool is_operator() const {
+            return (!is_tensor());
+        }
+
+        /// convert this into a tensor representation (r,k,r)
+        TensorTrain<T>& make_tensor() {
+            if (is_tensor()) return *this;
+
+            long nd=this->ndim();
+            core[0]=core[0].fusedim(0);         // (k,k,r) -> (k,r)
+            core[nd-1]=core[nd-1].fusedim(1);   // (r,k,k) -> (r,k)
+            for (int i=1; i<nd-1; ++i) core[i]=core[i].fusedim(1);  // (r,k',k,r) -> (r,k,r)
+            return *this;
+
+        }
+
+        /// convert this into an operator representation (r,k',k,r)
+        TensorTrain<T>& make_operator() {
+            if (is_operator()) return *this;
+
+            long nd=this->ndim();
+
+            long k2=core[0].dim(0);
+            long k0=sqrt(k2);
+            MADNESS_ASSERT(k0*k0==k2);
+            MADNESS_ASSERT(core[0].ndim()==2);
+            core[0]=core[0].splitdim(0,k0,k0);         // (k*k,r) -> (k,k,r)
+
+            k2=core[nd-1].dim(1);
+            k0=sqrt(k2);
+            MADNESS_ASSERT(k0*k0==k2);
+            MADNESS_ASSERT(core[nd-1].ndim()==2);
+            core[nd-1]=core[nd-1].splitdim(1,k0,k0);   // (r,k*k) -> (r,k,k)
+
+            for (int i=1; i<nd-1; ++i) {
+                k2=core[i].dim(1);
+                k0=sqrt(k2);
+                MADNESS_ASSERT(k0*k0==k2);
+                MADNESS_ASSERT(core[i].ndim()==3);
+                core[i]=core[i].splitdim(1,k0,k0);  // (r,k*k,r) -> (r,k',k,r)
+            }
+            return *this;
+        }
+
 
         /// reference to the internal core
         Tensor<T>& get_core(const int i) {
@@ -1333,6 +1439,166 @@ namespace madness {
     }
 
 
+    /// apply an operator in TT format on a tensor in TT format
+
+    /// @param[in]  op  operator in TT format ..(r_1,k',k,r_2)..
+    /// @param[in]  t   tensor in TT format  ..(r_1,k',r_2)..
+    /// the result tensor will be
+    /// .. (r_1,k,r_2) = \sum_k' ..(r_1,k',k,r_2)..  ..(r_1,k',r_2)..
+    /// during the apply a rank reduction will be performed
+    /// 2*ndim allocates are needed
+    template <class T, class Q>
+    TensorTrain<TENSOR_RESULT_TYPE(T,Q)> apply(const TensorTrain<T>& op,
+            const TensorTrain<Q>& t, const double thresh) {
+
+        typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+        MADNESS_ASSERT(op.ndim()==t.ndim());
+
+        const long nd=t.ndim();
+
+        std::vector<Tensor<resultT> > B(t.ndim());  // will be the result cores
+
+        // set up scratch tensors
+        long maxk=0;           // max dimension of the tensor t
+        long maxr_t=1;         // max rank of the input tensor t
+        long maxr_op=1;        // max rank of the operator op
+        for (int i=0; i<nd-1; ++i) {
+            maxk=std::max(maxk,t.dim(i));
+            maxr_t=std::max(t.ranks(i),maxr_t);
+            maxr_op=std::max(op.ranks(i),maxr_op);
+        }
+
+        long maxr_r=1;           // max rank of the result tensor
+        for (int i=0, j=nd-1; i<j; ++i, --j) {
+            maxr_r*=t.dim(i);
+        }
+
+        long maxn=0, maxm=0;
+//        {
+            long R11=t.dim(0);         // max final ranks
+            long rR=R11*t.ranks(1);      // R1 r2
+            long maxR=R11, maxr=t.ranks(1);            //
+            for (int i=1; i<nd-2; ++i) {
+                long k=t.dim(i);
+                R11*=k;     // max final ranks
+                R11=std::min(R11,maxr_r);
+                long r2=t.ranks(i+1);   // initial ranks
+                if (rR<R11*r2) {
+                    maxR=std::max(maxR,R11);
+                    maxr=std::max(maxr,r2);
+                    rR=R11*r2;
+                }
+            }
+            // max matrix dimensions to be svd'ed
+            maxn=maxR*maxk;
+            maxm=maxr_op*maxr;
+//        }
+
+
+        if (maxm*maxn>5e7) {
+            print("huge scratch spaces!! ",maxn*maxm/1024/1024,"MByte");
+        }
+        long lscr=std::max(3*std::min(maxm,maxn)+std::max(maxm,maxn),
+                5*std::min(maxm,maxn)) + maxn*maxm;
+        Tensor<resultT> scr(lscr);   // scratch
+        Tensor< typename Tensor<T>::scalar_type > s(std::min(maxn,maxm));
+
+        // scratch space for contractions
+        Tensor<resultT> scr3(2*maxn*maxm);
+        Tensor<resultT> scr1=scr3(Slice(0,maxn*maxm-1));
+        Tensor<resultT> scr2=scr3(Slice(maxn*maxm,-1));
+
+
+        // contract first core
+        const long r0=t.ranks(0l);
+        const long q0=op.get_core(0).dim(2);
+        const long k0=t.dim(0);
+        inner_result(op.get_core(0),t.get_core(0),0,0,scr2);
+        Tensor<resultT> AC=scr2(Slice(0,r0*q0*k0-1)).reshape(k0,r0*q0);
+
+        // SVD on first core, skip small singular values
+        long R=rank_revealing_decompose(AC,B[0],thresh,s,scr1);
+        if (R==0) return TensorTrain<resultT>(t.dims());    // fast return for zero ranks
+        B[0]=B[0].reshape(k0,R);
+
+        // AC has dimensions R1,(q1,r1)
+        Tensor<resultT> VT=AC.reshape(R,q0,r0);
+
+        // loop over all dimensions 1,..,nd-1
+        for (int d=1; d<nd; ++d) {
+
+            // alias
+            Tensor<T> C=t.get_core(d);
+            Tensor<T> A=op.get_core(d);
+
+            // alias dimensions
+            long R1=VT.dim(0);        // left rank of the result tensor
+            long q1=A.dim(0);         // left rank of the operator
+            long k=C.dim(1);          // true for d>0
+            long r2=1;                // right rank of the input tensor, true for d=nd-1
+            long q2=1;                // right rank of the operator, true for d=nd-1
+            if (d<nd-1) {
+                r2=C.dim(2);          // right rank of the input tensor, true for d<nd-1
+                q2=A.dim(3);          // right rank of the operator
+            }
+
+            // contract VT into the next core
+            Tensor<resultT> VC=scr1(Slice(0,R1*q1*k*r2-1));
+            VC(Slice(0,R1*q1*k*r2-1))=resultT(0.0);         // zero out result tensor
+            inner_result(VT,C,-1,0,VC);          // VT(R1,q1,r1) * C(r1,k',r2)
+
+            // contract A into VC (R,q,k,r2)
+            VC=VC.reshape(R1,q1*k,r2);           // VC(R,(q,k),r2)
+            A=A.fusedim(0);                      // A((q1,k),k,q2);
+            Tensor<resultT> AVC=scr2(Slice(0,R1*q2*k*r2-1));
+            AVC(Slice(0,R1*q2*k*r2-1))=resultT(0.0);        // zero out result tensor
+            inner_result(VC,A,1,0,AVC);          // AVC(R1,r2,k,q2)
+            AVC=AVC.reshape(R1,r2,k,q2);
+
+            // AVC is the final core if we have reached the end of the tensor train
+            if (d==nd-1) {
+                B[d]=copy(AVC.reshape(R1,k));
+                break;
+            }
+
+            // SVD on current core
+            AVC=copy(AVC.cycledim(2,1,3));       // AVC(R,k,q2,r2); deep copy necessary
+
+            MADNESS_ASSERT(AVC.dim(0)==R1);
+            MADNESS_ASSERT(AVC.dim(1)==k);
+            MADNESS_ASSERT(AVC.dim(2)==q2);
+
+            AVC=AVC.reshape(R1*k,q2*r2);
+            long R2=rank_revealing_decompose(AVC,B[d],thresh,s,scr1);
+            if (R2==0) return TensorTrain<resultT>(t.dims());    // fast return for zero ranks
+            B[d]=B[d].reshape(R1,k,R2);
+            VT=AVC.reshape(R2,q2,r2);
+        }
+
+        TensorTrain<T> result(B);
+        return result;
+
+    }
+
+
+    /// compute the n-D identity operator with k elements per dimension
+    template<typename T>
+    TensorTrain<T> tt_identity(const long ndim, const long k) {
+        Tensor<T> id(k,k);
+        for (int i=0; i<k; ++i) id(i,i)=1.0;
+        id=id.reshape(1,k,k,1);
+        std::vector<Tensor<T> > cores(ndim,id);
+        TensorTrain<T> result(cores);
+        if (ndim>1) {
+            result.get_core(0)=result.get_core(0).reshape(k,k,1);
+            result.get_core(ndim-1)=result.get_core(ndim-1).reshape(1,k,k);
+        } else {
+            result.get_core(0)=result.get_core(0).reshape(k,k);
+        }
+        return result;
+    }
+
+
     /// computes the outer product of two tensors
 
     /// result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
@@ -1359,9 +1625,10 @@ namespace madness {
         for (int i=0; i<t2.ndim(); ++i) result.core.push_back(copy(t2.core[i]));
 
         // reshape the new interior cores
-        long k1=t1.core.back().dim(1);
+        long core_dim=t1.core.back().ndim();       // 2 for tensors, 3 for operators
+        long k1=t1.core.back().dim(core_dim-1);    // (r,k) for tensors, (r,k',k) for operators
         long k2=t2.core.front().dim(0);
-        result.core[t1.ndim()-1]=result.core[t1.ndim()-1].splitdim(1,k1,1);
+        result.core[t1.ndim()-1]=result.core[t1.ndim()-1].splitdim(core_dim-1,k1,1);
         result.core[t1.ndim()]=result.core[t1.ndim()].splitdim(0,1,k2);
         result.zero_rank=false;
 

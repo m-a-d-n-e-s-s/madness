@@ -1934,7 +1934,9 @@ namespace madness {
             result.get_impl()->reset_timer();
             op.reset_timer();
 
+            printf("before apply_source_driven at time %6.1fs \n", wall_time());
             result.get_impl()->apply_source_driven(op, *f.get_impl(), fence);
+            printf("after apply_source_driven at time %6.1fs \n", wall_time());
 
             // recursive_apply is about 20% faster than apply_source_driven
             //result.get_impl()->recursive_apply(op, f.get_impl().get(),
@@ -1999,13 +2001,19 @@ namespace madness {
             if ((print_timings) and (f.world().rank()==0)) {
                 fff.get_impl()->timer_filter.print("filter");
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
-print("stats before apply");
-fff.get_impl()->print_stats();
+//print("stats before apply");
+//fff.get_impl()->print_stats();
+                printf(" at time %6.1fs \n", wall_time());
+                fff.print_size("before apply at time ");
             }
             result = apply_only(op, fff, fence);
-print("stats after apply");
-result.get_impl()->print_stats();
+//print("stats after apply");
+//result.get_impl()->print_stats();
+            printf(" at time %6.1fs \n", wall_time());
+            fff.print_size("after apply at time");
             result.reconstruct();
+            printf(" at time %6.1fs \n", wall_time());
+            fff.print_size("after reconstruct at time");
 //            fff.clear();
             if (op.destructive()) {
             	ff.world().gop.fence();

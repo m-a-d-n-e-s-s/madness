@@ -4222,8 +4222,10 @@ namespace madness {
                                 const TensorArgs& apply_targs) {
 
             coeffT result;
-            if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
-            if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
+            if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff,
+                    args.tol/args.fac/args.cnorm, args.tol/args.fac);
+            if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff,
+                    args.tol/args.fac/args.cnorm, args.tol/args.fac);
 
             const double result_norm=result.svd_normf();
 
@@ -4409,6 +4411,7 @@ namespace madness {
             // do SVD tensors instead of tensortrains, because addition in apply
             // can be done in full form for the specific particle
             coeffT coeff_SVD=coeff.convert(TensorArgs(-1.0,TT_2D));
+            coeff_SVD.impl.svd->orthonormalize(tol*LowRankTensor<T>::fac_reduce());
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
             const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
