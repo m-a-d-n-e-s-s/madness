@@ -40,6 +40,7 @@
 #include <sstream>
 #include <list>
 #include <memory>
+#include <mpi.h>
 
 namespace madness {
 
@@ -220,6 +221,8 @@ namespace madness {
         //for (int i=0; i<nrecv_; ++i) free(recv_buf[i]);
     }
 
+    static volatile bool rmi_task_is_running = false;
+
     RMI::RmiTask::RmiTask()
             : comm(SafeMPI::COMM_WORLD)
             , nproc(comm.Get_size())
@@ -335,6 +338,55 @@ namespace madness {
         RMI::task_ptr->hugeq.push_back(std::make_pair(src,nbyte));
         RMI::task_ptr->post_pending_huge_msg();
     }
+
+    void RMI::begin() {
+            testsome_backoff_us = 5;
+            const char* buf = getenv("MAD_BACKOFF_US");
+            if (buf) {
+                std::stringstream ss(buf);
+                ss >> testsome_backoff_us;
+                if (testsome_backoff_us < 0) testsome_backoff_us = 0;
+                if (testsome_backoff_us > 100) testsome_backoff_us = 100;
+            }
+
+            MADNESS_ASSERT(task_ptr == nullptr);
+#if HAVE_INTEL_TBB
+
+	    // Struggle here is to have the RMI task not executed by
+            // the main thread when it first enters fence ... make the task but then 
+	    // system wide wait for the darn thing to be picked up by another thread
+
+            tbb_rmi_parent_task = new( tbb::task::allocate_root() ) tbb::empty_task;
+            tbb_rmi_parent_task->set_ref_count(2);
+            task_ptr = new( tbb_rmi_parent_task->allocate_child() ) RmiTask();
+            tbb::task::enqueue(*task_ptr, tbb::priority_high);
+
+	    MPI_Barrier(MPI_COMM_WORLD);
+	    tbb::task* empty_root = new( tbb::task::allocate_root() ) tbb::empty_task;
+	    empty_root->set_ref_count(1);
+	    while (!rmi_task_is_running) {
+	      const int NEMPTY=1000000;
+	      empty_root->add_ref_count(NEMPTY);
+	      for (int i=0; i<NEMPTY; i++) {
+		tbb::task* empty = new( empty_root->allocate_child() ) tbb::empty_task;
+		empty->set_ref_count(1);
+		tbb::task::enqueue(*empty, tbb::priority_high);
+	      }
+	      myusleep(100000);	    
+	    }
+	    empty_root->wait_for_all();
+	    tbb::task::destroy(*empty_root);
+	    MPI_Barrier(MPI_COMM_WORLD);
+#else
+            task_ptr = new RmiTask();
+            task_ptr->start();
+#endif // HAVE_INTEL_TBB
+        }
+
+
+  void RMI::RmiTask::set_rmi_task_is_running() {
+	      rmi_task_is_running = true; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
+  }
 
     RMI::Request
     RMI::RmiTask::RmiTask::isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
