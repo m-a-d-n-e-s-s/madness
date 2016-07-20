@@ -1,0 +1,25 @@
+# Rename this file to input
+# run lrccs from the MADNESS/src/examples/ directory 
+
+dft
+ xc hf
+ econv 1.e-5
+ dconv 1.e-4
+end
+
+cc2
+ thresh 3D 1.e-4
+ tda econv hard 1.e-4
+ tda dconv hard 1.e-3
+ tda guess dipole+
+end
+
+geometry
+ he 0.0 0.0 0.0
+end
+
+plot
+ plane x1 x2
+ origin 0.0 0.0 0.0
+ zoom 1.0
+end

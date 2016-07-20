@@ -14,7 +14,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/CISOperators.h>
-#include <chem/CCOperators.h>
+#include <chem/CCStructures.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -400,106 +400,59 @@ public:
 	/// @param[in] world	the world
 	/// @param[in] mos		the occupied molecular orbitals from the scf calculation
 	/// @param[in] input	name of the input file
-	TDA(World &world,const Nemo &nemo,const vecfuncT &mos,const std::string input):
+	TDA(World &world,const Nemo &nemo,const vecfuncT &active_mos,const std::string input):
 		orbital_energies_(nemo.get_calc()->aeps),
 		parameters(input, 1.e-7),
 		world(world),
 		dft_(false),
 		nemo_(nemo),
-		mos_(mos),
-		CCOPS_(CIS_Operators(world,nemo,mos)),
+		CCOPS_(CIS_Operators(world,nemo,active_mos)),
 		print_grid_(false),
-		guess_("dipole+"),
-		solve_iter_(5),
-		guess_iter_(3),
-		guess_mode_("projected"),
+		guess_(parameters.tda_guess),
+		solve_iter_(parameters.iter_max_3D),
+		guess_iter_(parameters.iter_max_3D),
+		guess_mode_(parameters.tda_guess_mode),
 		replace_guess_functions_(true),
-		guess_excitations_(0),
-		excitations_(8),
-		iterating_excitations_(0),
-		iter_max_(20),
-		econv_(parameters.thresh_3D),
-		guess_econv_(10.0*parameters.dconv_3D), // econv_6D is always looser than econv 3D
-		dconv_(10.0*parameters.dconv_3D),
-		guess_dconv_(100.0*parameters.dconv_3D), // same as with econv
-		hard_dconv_(parameters.dconv_3D),
-		hard_econv_(parameters.thresh_3D),
+		guess_excitations_(parameters.tda_guess_excitations),
+		excitations_(parameters.tda_excitations),
+		iterating_excitations_(parameters.tda_iterating_excitations),
+		iter_max_(parameters.iter_max_3D),
+		econv_(parameters.tda_econv),
+		guess_econv_(parameters.tda_econv_guess), // econv_6D is always looser than econv 3D
+		dconv_(parameters.tda_dconv),
+		guess_dconv_(parameters.tda_dconv_guess), // same as with econv
+		hard_dconv_(parameters.tda_dconv_hard),
+		hard_econv_(parameters.tda_econv_hard),
 		plot_(false),
 		only_fock_(false),
 		only_GS_(false),
 		ipot_(0.0),
 		kain_(false),
-		kain_subspace_(3),
+		kain_subspace_(parameters.kain_subspace),
 		shift_(0.0),
 		triplet_(false),
 		compute_virtuals_(false)
 {
-		setup(mos,input);
+		setup(active_mos,input);
 }
 	/// reads the input file and calculates needed functions
-	void setup(const vecfuncT &mos,const std::string input){
-
-		// so that the thresh can be changed from the outside
-		mos_ = mos;
-
+	void setup(const vecfuncT &active_mos,const std::string input){
 		size_t noct = orbital_energies_.size();
+
+		CCOPS_.debug=parameters.debug;
+
 		// The highest possible excitation (-homo_energy)
 		double highest_excitation_default = -orbital_energies_(noct-1);
 		highest_excitation_ = highest_excitation_default;
-		ipot_ = -orbital_energies_(noct-1)*1.2;
 
 
 		// The guessed lowest excitation (if no guess_omega_ is in the input)
-		double guess_omega_default = -0.99*orbital_energies_[noct-1];
+		double factor = parameters.tda_energy_guess_factor;
+		if(factor>1.0) MADNESS_EXCEPTION("tda_energy_guess_factor must be below 1.0",1);
+		if(factor<0.0) MADNESS_EXCEPTION("tda_energy_guess_factor must be above 0.0",1);
+		if(factor==0.0) MADNESS_EXCEPTION("tda_energy_guess_factor must not be 0.0",1);
+		double guess_omega_default = -factor*orbital_energies_[noct-1];
 		guess_omega_ = guess_omega_default;
-
-		std::ifstream f(input.c_str());
-		position_stream(f, "TDA");
-		std::string s, tag;
-		while (std::getline(f,s)) {
-			std::istringstream ss(s);
-			ss >> tag;
-			if (tag == "end") break;
-			else if (tag == "dft") dft_=true;
-			else if (tag == "excitations") ss >> excitations_;
-			else if (tag == "iterating_excitations") ss >> iterating_excitations_;
-			else if (tag == "guess") ss >> guess_;
-			else if (tag == "hard_dconv") ss >> hard_dconv_;
-			else if (tag == "hard_econv") ss >> hard_econv_;
-			else if (tag == "solve_iter") ss >> solve_iter_;
-			else if (tag == "guess_iter") ss >> guess_iter_;
-			else if (tag == "guess_omega") ss >> guess_omega_;
-			else if (tag == "guess_mode") ss >> guess_mode_;
-			else if (tag == "replace_guess_functions") ss >> replace_guess_functions_;
-			else if (tag == "guess_excitations") ss >> guess_excitations_;
-			else if (tag == "iter_max") ss >> iter_max_;
-			else if (tag == "econv") ss >> econv_;
-			else if (tag == "guess_econv") ss >> guess_econv_;
-			else if (tag == "dconv") ss >> dconv_;
-			else if (tag == "guess_dconv") ss >> guess_dconv_;
-			else if (tag == "print_grid") print_grid_=true;
-			else if (tag == "plot") plot_=true;
-			else if (tag == "debug") parameters.debug=true;
-			else if (tag == "only_fock") only_fock_=true;
-			else if (tag == "only_GS") only_GS_=true;
-			else if (tag == "highest_excitation") ss >> highest_excitation_;
-			else if (tag == "ipot") ss >> ipot_;
-			else if (tag == "kain") kain_=true;
-			else if (tag == "kain_subspace") ss>> kain_subspace_;
-			else if (tag == "exop") {std::string tmp;char buf[1024];ss.getline(buf,sizeof(buf));tmp=buf; custom_exops_.push_back(tmp);}
-			else if (tag == "triplet") triplet_=true;
-			else if (tag == "compute_virtuals") compute_virtuals_ = true;
-			else if (tag == "dft") dft_ = true;
-			else continue;
-		}
-		if(compute_virtuals_){
-			if(parameters.freeze != mos.size()-1){
-				if(world.rank()==0) std::cout << "Virtual orbital calculation demanded: Freeze Key is set to number_of_mos -1 which is " << mos.size()-1 << std::endl;
-				MADNESS_EXCEPTION("Freeze key is set wrong",1);
-			}
-		}
-
-
 
 		// this will be the case if guess_excitations are not assigned
 		if(guess_excitations_ == 0) guess_excitations_ = excitations_;
@@ -510,10 +463,6 @@ public:
 
 		if(iterating_excitations_==0) iterating_excitations_ = guess_excitations_;
 
-		// make potential shift = -ipot - homo
-		if(dft_ and ipot_>0.0) shift_= -ipot_ - orbital_energies_[noct-1];
-		highest_excitation_=highest_excitation_-shift_;
-
 		if(guess_ =="koala"){
 			if(replace_guess_functions_){
 			if(world.rank()==0) std::cout << "For the koala guess the guess functions will not be replaced after convergece \n"
@@ -522,64 +471,59 @@ public:
 			}
 		}
 
+		const size_t nmo = nemo_.get_calc()->amo.size();
+		const size_t freeze = parameters.freeze;
+		const size_t namo= active_mos.size();
+		if(namo+freeze!=nmo) MADNESS_EXCEPTION("Freeze Keyword and Active MOS do not agree",1);
+
 		if (world.rank() == 0) {
 			std::cout << std::scientific << std::endl;
 			std::cout<< std::setw(60) <<"\n\n\n\n ======= TDA info =======\n\n\n" << std::endl;
 			if (parameters.freeze==0) std::cout<< std::setw(40) <<"frozen orbitals : "<<"none" << std::endl;
 			if (parameters.freeze>0) std::cout<< std::setw(40) <<"frozen orbitals : " <<  "0 to " << parameters.freeze-1 << std::endl;
-			std::cout<< std::setw(40) <<"active orbitals : " << parameters.freeze << " to " << mos_.size()-1 << std::endl;
+			std::cout<< std::setw(40) <<"active orbitals : " << active_mos.size(); //parameters.freeze << " to " << mos_.size()-1 << std::endl;
 			std::cout<< std::setw(40) << "guess from : " << guess_ << std::endl;
-			std::cout<< std::setw(40) << "Gram-Schmidt is used : " << !only_fock_ << std::endl;
 			std::cout<< std::setw(40) << "threshold 3D : " << FunctionDefaults<3>::get_thresh() << std::endl;
 			std::cout<< std::setw(40) << "energy convergence : " << econv_ << std::endl;
 			std::cout<< std::setw(40) << "max residual (dconv) : " << dconv_ << std::endl;
 			std::cout<< std::setw(40) << "number of final excitations : " << excitations_ << std::endl;
 			std::cout<< std::setw(40) << "number of guess excitations : " << guess_excitations_ << std::endl;
-			std::cout<< std::setw(40) << "number of parallel iterating excitations : " << iterating_excitations_ << std::endl;
+			std::cout<< std::setw(40) << "Parallel iterating excitations : " << iterating_excitations_ << std::endl;
 			std::cout<< std::setw(40) << "guess_iter : " << guess_iter_<< std::endl;
 			std::cout<< std::setw(40) << "solve_iter : " << solve_iter_ << std::endl;
-			std::cout<< std::setw(40) << "guessed lowest extitation energy : " << guess_omega_ << std::endl;
-			std::cout<< std::setw(40) << "highest possible excitation : " << highest_excitation_default << std::endl;
-			std::cout<< std::setw(40) << "used highest possible excitation : " << highest_excitation_ << std::endl;
-			std::cout<< std::setw(40) << "guessed ionization potential is : " << ipot_ << std::endl;
-			std::cout<< std::setw(40) << "potential shift is : " << shift_ << std::endl;
-			std::cout<< std::setw(40) << "guessed lowest excitation : " << guess_omega_default << std::endl;
-			std::cout<< std::setw(40) << "chosen lowest excitation : " << guess_omega_ << std::endl;
-			std::cout<< std::setw(40) << "orthonormalization : ";
-			if(only_fock_) std::cout << "only perturbed fock matrix"<< std::endl;
-			else if(only_GS_) std::cout << "only Gram-Schmidt"<< std::endl;
-			else std::cout << "use both"<< std::endl;
+			std::cout<< std::setw(40) << "guessed lowest excitation energy : " << guess_omega_ << std::endl;
+			std::cout<< std::setw(40) << "highest possible excitation : " << highest_excitation_ << std::endl;
+			std::cout<< std::setw(40) << "dconv_guess : " << guess_dconv_<<std::endl;
+			std::cout<< std::setw(40) << "dconv : " << dconv_ << std::endl;
+			std::cout<< std::setw(40) << "dconv_hard : " << hard_dconv_ <<std::endl;
+			std::cout<< std::setw(40) << "econv_guess : " << guess_econv_<<std::endl;
+			std::cout<< std::setw(40) << "econv : " << econv_ << std::endl;
+			std::cout<< std::setw(40) << "econv_hard : " << hard_econv_ <<std::endl;
 			//std::cout<< std::setw(40) << "potential calculation : " << "on_the_fly is " << on_the_fly_ << std::endl;
 			std::cout<< std::setw(40) << "use KAIN : " << kain_ << std::endl;
+			std::cout<< std::setw(40) << "Kain subspace : " << kain_subspace_ << std::endl;
 			std::cout<< std::setw(40) << "triplet is " << triplet_ << std::endl;
-			std::cout<< std::setw(40) << "dft is " << dft_ << std::endl;
 		}
 
 		// Make the active_mos_ vector
-		for(size_t i=parameters.freeze;i<mos_.size();i++){active_mo_.push_back(mos_[i]);}
+		//for(size_t i=parameters.freeze;i<mos_.size();i++){active_mo_.push_back(mos_[i]);}
+		active_mo_ = active_mos;
 
 		// project the mos if demanded (default is true)
 		if(guess_mode_ != "numerical"){
 			active_mos_for_guess_calculation_ = project_to_ao_basis(active_mo_,get_nemo().get_calc() -> ao);
 		}else active_mos_for_guess_calculation_ = active_mo_;
 
-		/// Make transformation matrix from cannical to localized MOs
-		std::vector<int> set=get_nemo().get_calc() -> group_orbital_sets(world,get_nemo().get_calc() -> aeps,get_nemo().get_calc() -> aocc,active_mo_.size());
-		distmatT dmo2lmo=get_nemo().get_calc() -> localize_PM(world,active_mo_,set);
-		tensorT mo2lmo(active_mo_.size(),active_mo_.size());
-		dmo2lmo.copy_to_replicated(mo2lmo);
-		mo2lmo_ = mo2lmo;
 
 		// Initialize the projector on the occupied space
-		Projector<double,3> projector(mos_);
+		Projector<double,3> projector(nemo_.get_calc()->amo);
 		rho0 = projector;
 
 		// make the unperturbed density (closed shell)
 		real_function_3d active_density = real_factory_3d(world);
 		for(size_t i=0;i<active_mo_.size();i++){active_density += 2.0*active_mo_[i]*active_mo_[i];}
 		active_density_ = active_density;
-		real_function_3d density = real_factory_3d(world);
-		for(size_t i=0;i<mos_.size();i++){density+=2.0*mos_[i]*mos_[i];}
+		real_function_3d density = CCOPS_.make_density();
 		density_=density;
 
 		// Prevent misstakes:
@@ -593,7 +537,7 @@ public:
 		}
 
 		// Truncate the current mos
-		truncate(world,mos_);
+		truncate(world,active_mo_);
 		if(world.rank()==0)std::cout << "setup of TDA class ended\n" << std::endl;
 
 		if(compute_virtuals_){
@@ -603,10 +547,6 @@ public:
 						"-> save time and use the freeze keyword to freeze the rest\n";
 			}
 		}
-		std::cout << "TESTING SECTION\n";
-		CCOPS_.test_tda(dft_,nemo_);
-		std::cout << "shift is " << shift_ << std::endl;
-		std::cout << "ipot is " << ipot_ << std::endl;
 	}
 
 	//virtual ~TDA();
@@ -669,7 +609,7 @@ private:
 
 	/// The molecular orbitals of moldft
 	/// extra member variable that the thresh can be changed without changing calc_
-	vecfuncT mos_;
+	//vecfuncT mos_;
 
 	/// The Operators for the Potential, structure contains also an exchange intermediate
 	CIS_Operators CCOPS_;

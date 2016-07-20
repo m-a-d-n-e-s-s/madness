@@ -12,7 +12,7 @@ noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat hea
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian
+ tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian lrccs
  
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
@@ -54,6 +54,9 @@ tdhf_LDADD = $(LIBCHEM) $(MRALIBS)
 cc2_SOURCES = cc2.cc
 cc2_LDADD = $(LIBCHEM) $(MRALIBS)
 
+lrccs_SOURCES = lrccs.cc
+lrccs_LDADD = $(LIBCHEM) $(MRALIBS)
+ 
 nemo_SOURCES = nemo.cc 
 nemo_LDADD = $(LIBCHEM) $(MRALIBS)
 
