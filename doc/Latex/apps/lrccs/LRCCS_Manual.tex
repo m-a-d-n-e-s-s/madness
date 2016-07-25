@@ -1,0 +1,142 @@
+\documentclass[10pt,a4paper]{scrartcl}
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage[english]{babel}
+\usepackage[
+	colorlinks=true,
+	urlcolor=blue,
+	linkcolor=green
+]{hyperref}
+
+% no indentation
+\setlength{\parindent}{0pt} 
+
+\begin{document}
+\section*{MADNESS: CIS Excitation Energies}
+The Tutorial was written for the Git commit \textit{f03a51fbe4f5a30d870c28772e5960ae39502da9} which you can checkout before compiling via: \\
+\textit{git checkout f03a51fbe4f5a30d870c28772e5960ae39502da9}\\
+If you experience any sort of trouble please feel free to contact me at:\\
+\href{mailto:jakob.kottmann@hu-berlin.de}{jakob.kottmann@hu-berlin.de}
+
+\section{Built LRCCS}
+Detailed information can be found in the MADNESS wiki on Github: \url{https://github.com/m-a-d-n-e-s-s/madness/wiki}
+\begin{itemize}
+\item Make shure you have Git installed
+\item Make shure you have (see also the MADNESS wiki):
+\begin{itemize}
+\item C++11 Compiler: Clang-3.8 or later (Mac OS), GCC-4.8 or later (Linux)
+\item Corresponding MPICH
+\item GNU Autotools (autoconf 2.59 or later, automake 1.11 or later)
+\end{itemize}
+\item Get the MADNESS source Code from Github\\
+\textit{git clone {https://github.com/m-a-d-n-e-s-s/madness.git} madness-source}
+\item Execute \textit{autogen.sh} in the madness-source directory
+\item Configure MADNESSS in your compile directory like this (use the correct paths):\\
+\textit{/path-to-source/madness-source/configure 'CC=/usr/bin/clang' 'CXX=/usr/bin/clang++'
+'MPICC=/opt/local/bin/mpicc-mpich-clang38' 'MPICXX=/opt/local/bin/mpicxx-mpich-clang38'} 
+\item Compile the MADNESS libraries in your compile directory\\
+\textit{make -C /path-to-madness-compile/madness-compile/ libraries}
+\item Compile LRCCS in the MADNESS examples directory\\
+\textit{make -C /path-to-madness-compile/madness-compile/src/examples lrccs}
+\end{itemize}
+
+\section{Run LRCCS}
+After compiling you can execute \textit{lrccs} in the \textit{madness-compile/src/examples} directory. For the calculation it is necessary that an input file with the name \textit{input} is present in the directory from which you call lrccs.
+
+\clearpage
+\section{Quick Tutorial}
+The programm \textit{LRCCS} \cite{mra-cis} will solve the linear-response equations for excitation energies in the CIS approximation via the following steps.
+\begin{enumerate}
+\item Solve Hartree-Fock (HF) ground state
+\item Create guess vectorfunctions $\lbrace x_i \rbrace $ from the HF orbitals $\lbrace \phi_i \rbrace$ via
+\[ x_i = f\cdot\phi_i \]
+where $f$ is constructed from polynomials (see Keyword section)
+\item Iterate the guess vectorfunctions 
+\item Iterate the lowest guess vectorfunctions further
+\item Iterate sequentially untill convergence
+\end{enumerate}
+Detailed information can be found in \cite{mra-cis}.
+\subsection{Input File Structure}
+The input file has four main sections.
+\paragraph{Ground-State section:} Begins with \textit{dft} and ends with \textit{end}\\
+
+Mandatory Keywords:
+\begin{itemize}
+\item xc value: \textit{value} is the exchange correlation potential. To solve the CIS equations this has to be always \textit{hf} 
+\item k value: \textit{value} is the order of polynomials for the MRA representation (usually around 6-9)
+\item econv value: \textit{value} is the MRA:threshold for the HF orbitals and at the same time the convergence threshold for the energy
+\end{itemize}
+Optional Keywords:
+\begin{itemize}
+\item L value: \textit{value} it the size of the cubic simulation box in atomic units. Each dimension of the box runs rum -L to L (default is 50.0)
+\item dconv value: \textit{value} convergence threshold for the orbitals (does not affect MRA threshold)
+\item nuclear\_corrfac value: \textit{value} is the nuclear correlation factor which is used \\
+(default is \textit{none}, other options are \textit{slater}, \textit{GradientalGaussSlater}, \textit{GaussSlater}, \textit{LinearSlater} and
+	    \textit{Polynomial}). For more information see \cite{nemo-I}.
+\item no\_compute or restart: Load the HF equations from the file \textit{restartdata.00000} which has to be present in the same directory. If \textit{restart} is chosen the HF orbitals will be re-iterated
+\end{itemize}
+
+\paragraph{Response Section:} Begins with \textit{cc2} and ends with \textit{end}\\
+
+Mandatory Keywords
+\begin{itemize}
+\item thresh\_3D value: \textit{value} is the MRA threshold for the response vectorfunctions (default is 5)
+\end{itemize}
+Optional Keywords
+\begin{itemize}
+\item tda\_econv\_hard value: \textit{value} is the final convergence threshold for the excitation energies
+\item tda\_dconv\_hard value: \textit{value} is the final convergence threshold for the response vectorfunctions
+\item tda\_excitations value: \textit{value} is the number of excitation energies which shall be calculated
+\item tda\_guess\_excitations value: \textit{value} is the number of guess excitations which is iterated in the beginning
+\item tda\_iterating\_excitations value: \textit{value} is the number of excitation vectors which are iterated together (change if you have memory problems)
+\item freeze value: \textit{value} is the number of frozen core orbitals
+\item tda\_guess value: \textit{value} is the guess that is used (default is a big guess from a perturbed fock matrix). Possible entries are: \textit{dipole}, \textit{dipole+}, \textit{quadrupole}, \textit{big\_fock\_3}, \textit{big\_fock\_4}, \textit{c2v}, \textit{c2v\_big} and \textit{custom}).
+The polynomials which are used for the specific guesses will be displayed in the output. The \textit{custom} valueword has to be used together with the \textit{exop} valueword.
+\item exop value: \textit{value} is a custom polynomial to create a guess vectorfunction from the HF orbitals.
+Example: \textit{exop x 1.0 y 2.0, x 3.0 z 1.0 c -2.0} corresponds to $xy^2 + -2.0\cdot x^3z$.
+To calculate more than one guess the exop keyword can used more than one time.
+Example: The following line would be equivalent with the \textit{tda\_guess dipole+} keyword: \\
+\textit{tda\_guess custom} \\
+\textit{exop x 1.0}\\
+\textit{exop y 1.0}\\
+\textit{exop z 1.0}\\
+\textit{exop x 2.0, y 2.0, z 2.0}
+\end{itemize}
+\clearpage
+\paragraph{Geometry section:} Begins with \textit{geometry} and ends with \textit{end}. Contains the molecular coordinates in atomic units
+\paragraph{Plot section:} Begins with \textit{plot} and ends with \textit{end}. Contains plotting information. Can in principle be empty but should be present. 
+\subsection{Example Input}
+The example input File should also be found in the madness-source/src/examples directory with the name \textit{input\_example\_lrccs}. Note that it has to be renamed to \textit{input}\\
+
+
+dft\\
+  xc hf\\
+  econv 1.e-5\\
+  dconv 1.e-4\\
+end\\
+
+cc2\\
+  thresh\_3D 1.e-4\\
+  tda\_econv\_hard 1.e-4\\
+  tda\_dconv\_hard 1.e-3\\
+  tda\_guess dipole+ \\
+end\\
+
+geometry\\
+	he 0.0 0.0 0.0\\
+end\\
+
+plot \\
+ plane x1 x2\\
+ origin 0.0 0.0 0.0\\
+ zoom 1.0\\
+end
+
+%References
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
