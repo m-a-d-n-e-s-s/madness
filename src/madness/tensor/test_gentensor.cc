@@ -497,15 +497,15 @@ namespace {
                     } {
                         LowRankTensor<TypeParam> d2(dim, TT_TENSORTRAIN);
                         ASSERT_TRUE(d2.has_data());
-                        ASSERT_EQ(d2.rank(),-2);
+                        ASSERT_EQ(d2.rank(),0);
 
                         LowRankTensor<TypeParam> d3(dim, TensorArgs(eps,TT_TENSORTRAIN));
                         ASSERT_TRUE(d3.has_data());
-                        ASSERT_EQ(d3.rank(),-2);
+                        ASSERT_EQ(d3.rank(),0);
 
                         LowRankTensor<TypeParam> d4(TT_TENSORTRAIN, alldim, ndim);
                         ASSERT_TRUE(d4.has_data());
-                        ASSERT_EQ(d4.rank(),-2);
+                        ASSERT_EQ(d4.rank(),0);
                     }
 
                     // verify various constructors with actual data

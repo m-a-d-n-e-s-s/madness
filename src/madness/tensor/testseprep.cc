@@ -395,87 +395,69 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 	t[1].scale(1.0/t[1].normf());
 	t[2]=Tensor<double>(d).fillrandom();
 
-	// test rank reduction g0+=g1
-	for (int i=0; i<3; i++) {
-		for (int j=0; j<3; j++) {
 
-			Tensor<double> t0=copy(t[i]);
-			Tensor<double> t1=copy(t[j]);
+    // test rank reduction g0+=g1
+    for (int i=0; i<3; i++) {
+        for (int j=0; j<3; j++) {
 
-			GenTensor<double> g0(t0,eps,tt);
-			GenTensor<double> g1(t1,eps,tt);
+            Tensor<double> t0=copy(t[i]);
+            Tensor<double> t1=copy(t[j]);
 
-			g0+=g1;
-			t0+=t1;
-			g0.config().orthonormalize(eps);
-			norm=(g0.full_tensor_copy()-t0).normf();
-			print(ok(is_small(norm,eps)),"rank reduction orthonormalize   ",g0.what_am_i(),norm,g0.rank());
-			if (!is_small(norm,eps)) nerror++;
-		}
-	}
+            GenTensor<double> g0(t0,eps,tt);
+            GenTensor<double> g1(t1,eps,tt);
 
+            g0+=g1;
+            t0+=t1;
+            g0.reduce_rank(eps);
+            norm=(g0.full_tensor_copy()-t0).normf();
+            print(ok(is_small(norm,eps)),"rank reduction reduceRank   ",g0.what_am_i(),norm);
+            if (!is_small(norm,eps)) nerror++;
+        }
+    }
 
-	// test rank reduction g0+=g1
-	for (int i=0; i<3; i++) {
-		for (int j=0; j<3; j++) {
+    // the other tests make only sense for TT_2D
 
-			Tensor<double> t0=copy(t[i]);
-			Tensor<double> t1=copy(t[j]);
+    if (tt==TT_2D) {
+        // test rank reduction g0+=g1
+        for (int i=0; i<3; i++) {
+            for (int j=0; j<3; j++) {
 
-			GenTensor<double> g0(t0,eps,tt);
-			GenTensor<double> g1(t1,eps,tt);
+                Tensor<double> t0=copy(t[i]);
+                Tensor<double> t1=copy(t[j]);
 
-			g0.config().orthonormalize(eps*0.5/std::max(1.0,g1.normf()));
-			g1.config().orthonormalize(eps*0.5/std::max(1.0,g0.normf()));
-			g0.add_SVD(g1,eps);
-			t0+=t1;
-			norm=(g0.full_tensor_copy()-t0).normf();
-			print(ok(is_small(norm,eps)),"add SVD   ",g0.what_am_i(),norm,g0.rank());
-			if (!is_small(norm,eps)) nerror++;
-		}
-	}
+                GenTensor<double> g0(t0,eps,tt);
+                GenTensor<double> g1(t1,eps,tt);
 
-
-	// test rank reduction g0+=g1
-	for (int i=0; i<3; i++) {
-		for (int j=0; j<3; j++) {
-
-			Tensor<double> t0=copy(t[i]);
-			Tensor<double> t1=copy(t[j]);
-
-			GenTensor<double> g0(t0,eps,tt);
-			GenTensor<double> g1(t1,eps,tt);
-
-			g0+=g1;
-			t0+=t1;
-//			g0.config().divide_and_conquer_reduce(eps);
-			norm=(g0.full_tensor_copy()-t0).normf();
-			print(ok(is_small(norm,eps)),"rank reduction divide&conquer",g0.what_am_i(),norm,g0.rank());
-			if (!is_small(norm,eps)) nerror++;
-		}
-	}
+                g0+=g1;
+                t0+=t1;
+                g0.config().orthonormalize(eps);
+                norm=(g0.full_tensor_copy()-t0).normf();
+                print(ok(is_small(norm,eps)),"rank reduction orthonormalize   ",g0.what_am_i(),norm,g0.rank());
+                if (!is_small(norm,eps)) nerror++;
+            }
+        }
 
 
+        // test rank reduction g0+=g1
+        for (int i=0; i<3; i++) {
+            for (int j=0; j<3; j++) {
 
+                Tensor<double> t0=copy(t[i]);
+                Tensor<double> t1=copy(t[j]);
 
-	// test rank reduction g0+=g1
-	for (int i=0; i<3; i++) {
-		for (int j=0; j<3; j++) {
+                GenTensor<double> g0(t0,eps,tt);
+                GenTensor<double> g1(t1,eps,tt);
 
-			Tensor<double> t0=copy(t[i]);
-			Tensor<double> t1=copy(t[j]);
-
-			GenTensor<double> g0(t0,eps,tt);
-			GenTensor<double> g1(t1,eps,tt);
-
-			g0+=g1;
-			t0+=t1;
-			g0.reduce_rank(eps);
-			norm=(g0.full_tensor_copy()-t0).normf();
-			print(ok(is_small(norm,eps)),"rank reduction reduceRank   ",g0.what_am_i(),norm);
-			if (!is_small(norm,eps)) nerror++;
-		}
-	}
+                g0.config().orthonormalize(eps*0.5/std::max(1.0,g1.normf()));
+                g1.config().orthonormalize(eps*0.5/std::max(1.0,g0.normf()));
+                g0.add_SVD(g1,eps);
+                t0+=t1;
+                norm=(g0.full_tensor_copy()-t0).normf();
+                print(ok(is_small(norm,eps)),"add SVD   ",g0.what_am_i(),norm,g0.rank());
+                if (!is_small(norm,eps)) nerror++;
+            }
+        }
+    }
 
 	print("all done\n");
 	return nerror;
@@ -988,7 +970,7 @@ int main(int argc, char**argv) {
 
 ////    test(k,dim,TensorArgs(eps,TT_2D));
     for (int kk=4; kk<k+1; ++kk) {
-    	for (int d=2; d<dim+1; ++d) {
+    	for (int d=3; d<dim+1; ++d) {
     	    error+=testTensorTrain(kk,d,TensorArgs(eps,TT_2D));
     	    error+=test_TT_truncate(kk,d,TensorArgs(eps,TT_2D));
             error+=test_TT_operator_application(kk,d,TensorArgs(eps,TT_2D));
@@ -1013,23 +995,23 @@ int main(int argc, char**argv) {
     error+=testGenTensor_convert(k,dim,TensorArgs(eps,TT_2D));
     error+=testGenTensor_convert(k,dim,TensorArgs(eps,TT_TENSORTRAIN));
 
-////    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
-////    error+=testGenTensor_rankreduce(k,dim,eps,TT_3D);
-//    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
-//
-//    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
-////    error+=testGenTensor_transform(k,dim,eps,TT_3D);
-//    error+=testGenTensor_transform(k,dim,eps,TT_2D);
-//
-//    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
-////    error+=testGenTensor_reconstruct(k,dim,eps,TT_3D);
-//    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
-//
-//    error+=testGenTensor_deepcopy(k,dim,eps,TT_FULL);
-////    error+=testGenTensor_deepcopy(k,dim,eps,TT_3D);
-//    error+=testGenTensor_deepcopy(k,dim,eps,TT_2D);
+    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
+    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
+    error+=testGenTensor_rankreduce(k,dim,eps,TT_TENSORTRAIN);
 
-//    error+=testGenTensor_reduce(k,dim,eps,TT_2D);
+    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
+    error+=testGenTensor_transform(k,dim,eps,TT_2D);
+    error+=testGenTensor_transform(k,dim,eps,TT_TENSORTRAIN);
+
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_TENSORTRAIN);
+
+    error+=testGenTensor_deepcopy(k,dim,eps,TT_FULL);
+    error+=testGenTensor_deepcopy(k,dim,eps,TT_2D);
+    error+=testGenTensor_deepcopy(k,dim,eps,TT_TENSORTRAIN);
+
+    error+=testGenTensor_reduce(k,dim,eps,TT_2D);
 
     print(ok(error==0),error,"finished test suite\n");
 #endif

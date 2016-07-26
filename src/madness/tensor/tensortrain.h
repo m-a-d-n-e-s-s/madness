@@ -1456,6 +1456,9 @@ namespace madness {
 
         const long nd=t.ndim();
 
+        // need to add special cases for low dimensions
+        MADNESS_ASSERT(nd>2);
+
         std::vector<Tensor<resultT> > B(t.ndim());  // will be the result cores
 
         // set up scratch tensors
