@@ -679,10 +679,6 @@ namespace madness {
                 tensorT t(f->cdata.v2k);
                 t(f->cdata.s0)=coeff.full_tensor_copy();
                 result=coeffT(t,f->get_tensor_args());
-//                coeffT t(f->cdata.v2k,f->get_tensor_type());
-//                t(f->cdata.s0)+=coeff;
-//                result=t;
-
             } else {
                 MADNESS_EXCEPTION("confused k in parent_to_child_NS",1);
             }

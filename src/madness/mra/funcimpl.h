@@ -4411,7 +4411,9 @@ namespace madness {
             // do SVD tensors instead of tensortrains, because addition in apply
             // can be done in full form for the specific particle
             coeffT coeff_SVD=coeff.convert(TensorArgs(-1.0,TT_2D));
+#ifdef USE_LRT
             coeff_SVD.impl.svd->orthonormalize(tol*LowRankTensor<T>::fac_reduce());
+#endif
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
             const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp

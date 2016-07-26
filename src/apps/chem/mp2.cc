@@ -929,8 +929,8 @@ void MP2::guess_mp1_3(ElectronPair& pair) const {
 	real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0 * eps), lo,
 			bsh_eps);
 
-	real_function_6d KffKphi0 = make_KffKphi0(pair);
     real_function_6d Uphi0 = make_Uphi0(pair);
+    real_function_6d KffKphi0 = make_KffKphi0(pair);
 
 //	{
 //		//DEBUG
@@ -1260,12 +1260,8 @@ real_function_6d MP2::apply_exchange(const real_function_6d& f,
 	// apply the Poisson operator
 	//            if (world.rank()==0) printf("start exchange at time %.1f\n",wall_time());
 	load_balance(x, false);
-print("stats of x");
-x.get_impl()->print_stats();
-
 	x = op(x).truncate();
-print("stats of G(x)");
-x.get_impl()->print_stats();
+
 	// do the final multiplication with the orbital
 	//            if (world.rank()==0) printf("start multiplication after K at time %.1f\n",wall_time());
 	//            real_function_6d result= (particle==1)

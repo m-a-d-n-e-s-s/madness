@@ -693,13 +693,13 @@ int main(int argc, char**argv) {
     norm=phi2.norm2();
     if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
-//    test(world,k,thresh);
-//    error+=test_hartree_product(world,k,thresh);
-//    error+=test_convolution(world,k,thresh);
+    test(world,k,thresh);
+    error+=test_hartree_product(world,k,thresh);
+    error+=test_convolution(world,k,thresh);
     error+=test_multiply(world,k,thresh);
     error+=test_add(world,k,thresh);
-//    error+=test_exchange(world,k,thresh);
-//    error+=test_inner(world,k,thresh);
+    error+=test_exchange(world,k,thresh);
+    error+=test_inner(world,k,thresh);
 
 
     print(ok(error==0),error,"finished test suite\n");

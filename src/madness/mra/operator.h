@@ -397,12 +397,11 @@ namespace madness {
                     }
                     else {
                         //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
-//                        if (r == 0) {
-//                            rank_is_zero = true;
-//                            break;
-//                        }
-//                        trans[d].r = r;
-                        trans[d].r = std::max(2L,r);
+                        if (r == 0) {
+                            rank_is_zero = true;
+                            break;
+                        }
+                        trans[d].r = r;
                         trans[d].U = ops_1d[d]->RU.ptr();
                         trans[d].VT = ops_1d[d]->RVT.ptr();
                     }
@@ -440,21 +439,20 @@ namespace madness {
                     }
                     else {
                         //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
-//                        if (r == 0) {
-//                            rank_is_zero = true;
-//                            break;
-//                        }
-//                        trans[d].r = r;
-                        trans[d].r = std::max(2L,r);
+                        if (r == 0) {
+                            rank_is_zero = true;
+                            break;
+                        }
+                        trans[d].r = r;
                         trans[d].U = ops_1d[d]->TU.ptr();
                         trans[d].VT = ops_1d[d]->TVT.ptr();
                     }
                     trans2[d]=ops_1d[d]->T;
                 }
                 if (!rank_is_zero)
-//                    apply_transformation(k, trans, f0, work1, work2, -mufac, result0);
+                    apply_transformation(k, trans, f0, work1, work2, -mufac, result0);
 //                apply_transformation2(n, k, tol, trans2, f0, work1, work2, -mufac, result0);
-                apply_transformation3(trans2, f0, -mufac, result0);
+//                apply_transformation3(trans2, f0, -mufac, result0);
             }
         }
 
@@ -1518,7 +1516,7 @@ namespace madness {
 
             // need to reshape for the TT truncation
             tt.make_tensor();
-            tt.truncate(tol*LowRankTensor<double>::fac_reduce());
+            tt.truncate(tol*GenTensor<double>::fac_reduce());
             tt.make_operator();
 
             return tt;

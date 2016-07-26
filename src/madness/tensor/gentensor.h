@@ -115,7 +115,13 @@
 #include <madness/tensor/tensortrain.h>
 #include <stdexcept>
 
+
+// you can use low-rank tensors only when you use gentensor
+#if HAVE_GENTENSOR
 #define USE_LRT
+#else
+#undef USE_LRT
+#endif
 
 namespace madness {
 
@@ -179,6 +185,7 @@ namespace madness {
             return result;
         }
 
+        GenTensor convert(const TensorArgs& targs) const {return copy(*this);}
 
 		GenTensor<T> reconstruct_tensor() const {return *this;}
 		GenTensor<T> full_tensor() const {return *this;}
@@ -229,7 +236,8 @@ namespace madness {
 
     /// \ingroup tensor
     template <class T>
-    GenTensor<T> outer(const GenTensor<T>& left, const GenTensor<T>& right) {
+    GenTensor<T> outer(const GenTensor<T>& left, const GenTensor<T>& right,
+            const TensorArgs final_tensor_args) {
         return madness::outer(static_cast<Tensor<T> >(left),static_cast<Tensor<T> >(right));
     }
 
@@ -237,7 +245,8 @@ namespace madness {
 
      /// \ingroup tensor
      template <class T>
-     GenTensor<T> outer_low_rank(const Tensor<T>& left, const Tensor<T>& right) {
+     GenTensor<T> outer(const Tensor<T>& left, const Tensor<T>& right,
+             const TensorArgs final_tensor_args) {
          return madness::outer(left,right);
      }
 
@@ -1243,6 +1252,7 @@ namespace madness {
 
 }   // namespace madness
 
+#if HAVE_GENTENSOR
 #ifdef USE_LRT
 #include <madness/tensor/lowranktensor.h>
 
@@ -1422,4 +1432,5 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 
 }
 #endif /* USE_LRT */
+#endif /* HAVE_GENTENSOR */
 #endif /* GENTENSOR_H_ */
