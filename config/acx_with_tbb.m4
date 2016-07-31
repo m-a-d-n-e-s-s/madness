@@ -104,5 +104,9 @@ AC_DEFUN([ACX_WITH_TBB], [
 
   if test $acx_with_tbb != "no"; then
     AC_DEFINE(HAVE_INTEL_TBB, [1], [Define if Intel TBB is available.])
+
+    AC_CHECK_LIB([tbbmalloc_proxy], [__TBB_malloc_proxy], [LIBS="$LIBS -ltbbmalloc_proxy"], 
+                   [AC_MSG_NOTICE(["Unable to link with Intel TBB malloc proxy])])
+
   fi
 ])
