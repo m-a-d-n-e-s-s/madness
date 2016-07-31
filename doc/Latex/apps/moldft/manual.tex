@@ -79,15 +79,55 @@ MADNESS issue tracker at XXXXXXXXXXXXXXX.
 
 \chapter{Configuring and building}
 
-intel mkl
+This is just for LI-red for the purposes of the summer school.
+MADNESS should build out of the box on most Linux and Apple Macintosh
+boxes. Intel MKL is now free so you should alway use that (download
+from Intel), and there is an open source version of Intel TBB (Linux
+distributions should have that in their package managers).  If you are
+building to run on a virtual machine you should configure with the
+never spin option.
 
-intel tbb
+\begin{enumerate}
+\item Copy the modules from section \ref{sec:pbslired} below into your
+  \verb+.bashrc+ file.  You will be using the Intel compiler, MPI, MKL
+  and TBB which is the recommended stack when running on a cluster.
 
-tbbmallocproxy
+\item Clone MADNESS from
+  \url{https://github.com/m-a-d-n-e-s-s/madness}.  I (RJH) used
+  revision {\tt a1b4bae8acf57ae363f24cb8a7ea9e7229a0d95f} for testing.
 
-libxc
+\item {\tt cd madness}
 
-virtual machines (cloud)
+\item \verb+sh autogen.sh+ --- only need to do this after initial checkout
+
+\item \verb+autoreconf+ --- only need to do this if a configure script has changed
+
+\item Configure with this command
+\begin{verbatim}
+  ./configure --disable-shared \
+       CC=mpiicc CXX=mpiicpc +\verb+ MPICC=mpiicc MPICXX=mpiicpc
+\end{verbatim}
+If you have installed LIBXC you can specify it with option
+\begin{verbatim}
+  --with-libxc=full-path-to-libxc+.
+\end{verbatim}
+
+\item \verb+make -j 10 libraries+ --- using just 10 processes on
+  LI-red is to be social.  Also, if building on your own machine note
+  that some of the files can use over 2GB of memory to compile, so if
+  you have limited memory you may need to restrict the number of
+  processes.  If compiling on {\tt cn-mem} I always use
+  \verb+make -j libraries+ which uses maximum parallelism (since {\tt
+    cn-mem} has 72 cores and 3 TB of memory.
+
+\item \verb+cd src/apps/moldft+
+
+\item \verb+make moldft+
+
+\item \verb+MAD_NUM_THREADS=10 ./moldft+ --- run a quick test (the {\tt input} file by default does LDA water which is quick).
+
+\end{enumerate}
+
 
 \chapter{Execution}
 
@@ -152,10 +192,56 @@ message to be acknowledged.  This makes things a bit slower but can
 workaround MPI hangs.
 
 \subsection{PBS script for LI-red}
+\label{sec:pbslired}
 
-XXXXXX
+This example makes a 2 hour job running in the short queue on 8 nodes
+with one process per node and job name {\tt moldft}.  Each process
+will use 20 threads.
+
+\begin{verbatim}
+#!/bin/bash                                                                     
+#PBS -l nodes=8:ppn=1,walltime=02:00:00                                         
+#PBS -q short                                                                   
+#PBS -N moldft                                                                  
+
+export EXE=/home/rjh/madness/src/apps/moldft/moldft
+export INPUT=benzenehf.in
+export OUTPUT=benzenehf.out
+
+export I_MPI_FABRICS=shm:ofa
+export MAD_NUM_THREADS=20
+
+cd $PBS_O_WORKDIR
+
+mpirun -ppn 1 $EXE $INPUT >& $OUTPUT
+\end{verbatim}
+
+The modules I (RJH) used for testing were (put the following in your \verb+.bashrc+)
+\begin{verbatim}
+module load shared                                                              
+module load torque/5.1.0                                                        
+module load maui/3.3.1                                                          
+module load gcc/4.9.2                                                           
+module load intel/compiler/64/16.0.2/2016.2.181                                 
+module load intel/mkl/64/11.3.2/2016.2.181
+module load intel-mpi/64/5.1.2/5.1.2.150.XXX
+module load intel/tbb/64/4.4.3/2016.2.181
+module load intel/vtune/2016/2016.1.1.434111
+\end{verbatim}
 
 \subsection{PBS script for SeaWulf}
+
+On SeaWulf the PBS option {\tt ppn} is presently not consistent with
+that on LI-red --- this will change soon.  In the meantime the script
+is a little more complicated in order to get just two MADNESS
+processes per node with threads able to use all cores.
+
+ASIDE: SeaWulf has 28 cores per node and a 40 Gbit/s InfiniBand
+network whereas LI-red has 24 cores per node and a 56 Gbit/s network.
+Somehow these factors (or others?) combine to make MADNESS execution
+on SeaWulf with 1 MPI process that uses 26 MADNESS threads/node not
+reliable.  Hence, the job below uses two MPI processes per node each
+with 11 MADNESS threads.
 
 \begin{verbatim}
 #!/bin/bash
@@ -191,9 +277,8 @@ cd $PBS_O_WORKDIR
 sort < $PBS_NODEFILE | uniq > $$.hosts
 let NPROC=$PBS_NUM_NODES*2
 
-# Path to executable
+# Paths to files
 MOLDFT=/gpfs/home/rharrison/madness/src/apps/moldft/moldft
-
 INPUTFILE=input
 OUTPUTFILE=output
 
