@@ -590,7 +590,7 @@ public:
         }
         else if (c.size() == 0) {
             if (s=="Let") {
-                file << "#define WORLD_INSTANTIATE_STATIC_TEMPLATES\n";
+	        //file << "#define WORLD_INSTANTIATE_STATIC_TEMPLATES\n";
                 file << "#include <madness/mra/mra.h>\n";
                 file << "using namespace madness;\n";
             }
@@ -610,7 +610,7 @@ public:
                 file << "\n";
                 file << "int main(int argc, char**argv) {\n";
                 file << "    initialize(argc,argv);\n";
-                file << "    World world(MPI::COMM_WORLD);\n";
+                file << "    World world(SafeMPI::COMM_WORLD);\n";
                 file << "    setup(world, argc, argv);\n";
             }
             else if (s == "End") {
