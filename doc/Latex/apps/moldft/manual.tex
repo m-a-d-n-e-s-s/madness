@@ -140,11 +140,28 @@ named {\tt input}.  E.g.,
     ./moldft inputfilename
 \end{verbatim}
 
-By default, MADNESS will create one thread for every core in the
-computer, which is appropriate if the machine is dedicated.
-Oversubscribing the cores can lead to very poor performance due to
-cache contention and locks/mutexes being held by de-scheduled threads.
-See the environment variable \verb+MAD_NUM_THREADS+ to override this.
+
+Recommendations:
+\begin{itemize}
+\item Use Intel TBB if it is available since it is more scalable than the old task pool.
+\item By default, MADNESS will create one thread for every core in the
+  computer, but even with TBB it may be more effective to use fewer threads
+  (see the environment variable \verb+MAD_NUM_THREADS+). E.g.,
+\begin{verbatim}
+      MAD_NUM_THREADS=10 ./moldft inputfile
+\end{verbatim}
+\item Oversubscribing the cores can lead to very poor performance due to
+  cache contention and locks/mutexes being held by de-scheduled
+  threads. Oversubscription can happen due to other processes (of yourself or other users)
+  running at the same time, or from use of hyperthreading (which on Intel processors
+  makes one phyiscal core appear to the system as two cores).
+\item Many threads seem to interact badly with how we are using MPI.
+  Thus, it can help both robustness and performance to use multiple
+  MPI processes per node with fewer threads per processes. As a side benefit you
+  can bind the threads associated with each process to execute on the same
+  socket, which improves thread scaling.  See the SeaWulf batch script below
+  for an example.
+\end{itemize}
 
 To run in parallel using MPI to create multiple, multi-threaded
 processes use the command {\tt mpirun} (or on some systems {\tt
@@ -153,6 +170,7 @@ additional options to specify where and how many processes are created
 (see below for use on SeaWulf and LI-red).  E.g.,
 
 \begin{verbatim}
+    export MAD_NUM_THREADS=10
     mpirun -np 12 ./moldft inputfilename
 \end{verbatim}
 
