@@ -1,0 +1,79 @@
+\documentclass[10pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\title{Manual for nemo and mp2 programs in MADNESS}
+
+\begin{document}
+
+\maketitle{}
+
+\section{Intro}
+The nemo program computes molecular HF and DFT energies and gradients using a nuclear correlation factor (ncf) as well as vibrational frequencies.\cite{Bischoff:2014du} 
+In contrast, the moldft program does the same without using an ncf.
+
+The mp2 program computes the MP2 energies on top of either the nemo or the moldft HF reference wave function.\cite{Bischoff:2014ky,Bischoff:2013cx}
+
+\section{Input sections}
+\subsection{nemo}
+The nemo program uses the same input parameters as moldft, with only a few restrictions and extensions.
+In addition to the regular moldft input parameters there are the following options (all are optional)
+\begin{description}
+\item[nuclear\_corrfac:]	[\textit{slater x, gaussslater, polynomialN, none}]\\
+with $x>1$ recommended $x=2.0$, and  $3<N<11$, recommended $N=8$. Default is "{}none"{}.
+\item[hessian] if present computes the hessian matrix and vibrational frequencies
+\item[read\_cphf] if present read in the solutions to the CPHF equations from a prior hessian calculation
+\end{description}
+There is no open-shell/spin-polarized version of nemo available.
+
+Note there is a inconsistency with the \texttt{eprec} keyword in the geometry section. 
+Because there is no singular potential in the nemo calculation, the \texttt{eprec} keyword is used to smoothen the derivatives of the nuclear correlation factor (It is a step function).
+Typically a factor of 1e-3 to 1.e-4 will give you micro-Hartree accuracy with respect to the energy of the (regularized) nuclear potential, and about 1 cm-1 accuracy with respect to vibrational frequencies.
+
+\subsection{mp2}
+On top of the HF reference wave function (from nemo or moldft) a MP2 calculation may be performed. 
+The relevant input is contained in the mp2 input section with the following keywords:
+\begin{description}
+\item[econv] \textit{val} energy convergence threshold for the correlation energy. Recommended is 1.e-3 or 1.e-4.
+\item[dconv]  \textit{val}  [optional] residual for the convergence of the MP1 wave function. Default is sqrt(econv)*0.1;
+\item[freeze]  \textit{val}  number of frozen core electrons. Default is 0.
+\item[maxsub]  \textit{val}  size of the subspace of the KAIN solver for the MP1 wave function. Default is 3.
+\end{description}
+Other options like k, L, or the nuclear correlation factor are taken from the reference input section.
+For 6D calculations the polynomial order k must be chosen small to keep calculations reasonably fast, i.e. k=5,6. 
+The \texttt{econv} keyword of the 3D reference will be overriden by mp2 to be 100 times tighter than the 6D correlation.
+Local orbitals may be used.
+
+\section{Example input}
+dft\\
+  xc       hf\\
+  canon\\
+  k        5\\
+  econv    1.00e-05\\
+  dconv    1.00e-04\\
+  maxiter  20\\
+  L        20\\
+  nuclear\_corrfac  slater  2.0\\
+end\\
+\\
+mp2\\
+  econv    1.00e-03\\
+  dconv    3.16e-03\\
+  maxsub   3\\
+  freeze   1\\
+end\\
+\\
+geometry\\
+  eprec 1.e-3\\
+  O  0.0    0.0 0.0\\
+  H  1.4375 0.0 1.15\\
+  H -1.4375 0.0 1.15\\
+end\\
+
+\bibliographystyle{aip}
+\bibliography{references}
+
+
+\end{document}
+

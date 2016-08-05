@@ -929,8 +929,8 @@ void MP2::guess_mp1_3(ElectronPair& pair) const {
 	real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0 * eps), lo,
 			bsh_eps);
 
-	real_function_6d Uphi0 = make_Uphi0(pair);
-	real_function_6d KffKphi0 = make_KffKphi0(pair);
+    real_function_6d Uphi0 = make_Uphi0(pair);
+    real_function_6d KffKphi0 = make_KffKphi0(pair);
 
 //	{
 //		//DEBUG
@@ -1245,6 +1245,7 @@ real_function_6d MP2::apply_exchange(const real_function_6d& f,
 	real_convolution_3d op = CoulombOperator(world, 0.0001,
 			hf->get_calc().param.econv);
 	op.particle() = particle;
+	op.destructive()=true;
 
 	//            if (world.rank()==0) printf("start multiplication before K at time %.1f\n",wall_time());
 

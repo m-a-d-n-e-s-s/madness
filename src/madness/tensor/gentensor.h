@@ -110,11 +110,18 @@
  *   the number of terms on the lhs.
  */
 
-
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/srconf.h>
 #include <madness/tensor/tensortrain.h>
 #include <stdexcept>
+
+
+// you can use low-rank tensors only when you use gentensor
+#if HAVE_GENTENSOR
+#define USE_LRT
+#else
+#undef USE_LRT
+#endif
 
 namespace madness {
 
@@ -135,6 +142,7 @@ namespace madness {
 		static std::string what_am_i(const TensorType& tt) {
 			if (tt==TT_2D) return "TT_2D";
 			if (tt==TT_FULL) return "TT_FULL";
+            if (tt==TT_TENSORTRAIN) return "TT_TENSORTRAIN";
 			return "unknown tensor type";
 		}
 		template <typename Archive>
@@ -177,6 +185,7 @@ namespace madness {
             return result;
         }
 
+        GenTensor convert(const TensorArgs& targs) const {return copy(*this);}
 
 		GenTensor<T> reconstruct_tensor() const {return *this;}
 		GenTensor<T> full_tensor() const {return *this;}
@@ -227,7 +236,8 @@ namespace madness {
 
     /// \ingroup tensor
     template <class T>
-    GenTensor<T> outer(const GenTensor<T>& left, const GenTensor<T>& right) {
+    GenTensor<T> outer(const GenTensor<T>& left, const GenTensor<T>& right,
+            const TensorArgs final_tensor_args) {
         return madness::outer(static_cast<Tensor<T> >(left),static_cast<Tensor<T> >(right));
     }
 
@@ -235,7 +245,8 @@ namespace madness {
 
      /// \ingroup tensor
      template <class T>
-     GenTensor<T> outer_low_rank(const Tensor<T>& left, const Tensor<T>& right) {
+     GenTensor<T> outer(const Tensor<T>& left, const Tensor<T>& right,
+             const TensorArgs final_tensor_args) {
          return madness::outer(left,right);
      }
 
@@ -280,6 +291,7 @@ namespace madness {
 
 #else
 
+#ifndef USE_LRT
 
 	/// A GenTensor is a generalized tensor, possibly in a low rank representation
 
@@ -298,6 +310,13 @@ namespace madness {
 	private:
 
 		friend class SliceGenTensor<T>;
+
+        /// C++ typename of the real type associated with a complex type.
+        typedef typename TensorTypeData<T>::scalar_type scalar_type;
+
+        /// C++ typename of the floating point type associated with scalar real type
+        typedef typename TensorTypeData<T>::float_scalar_type float_scalar_type;
+
 
 		typedef SRConf<T> configT;
 		typedef Tensor<T> tensorT;
@@ -487,7 +506,9 @@ namespace madness {
 
 		/// assign a number
 		GenTensor& operator=(const T& fac) {
-			MADNESS_EXCEPTION("no assignment with a number for GenTensor",0);
+            if (this->tensor_type()==TT_FULL) full_tensor()=fac;
+            else config()=fac;
+            return *this;
 		}
 
 	private:
@@ -519,65 +540,12 @@ namespace madness {
 			if (tensor_type()==TT_FULL) {
 				tensorT a=copy(full_tensor()(s));
 				return gentensorT(configT(a));
-			}
-
-			MADNESS_ASSERT(_ptr->has_structure());
-//			_ptr->make_structure();
-
-			// get dimensions
-			const TensorType tt=this->tensor_type();
-			const int merged_dim=this->_ptr->dim_per_vector();
-			const int dim_eff=this->_ptr->dim_eff();
-			const int rank=this->rank();
-			int k_new=s[0].end-s[0].start+1;
-			if (s[0].end<0) k_new+=this->get_k();
-
-			// get and reshape the vectors, slice and re-reshape again;
-			// this is shallow
-			const gentensorT& sr=*this;
-
-			std::vector<Tensor<T> > vectors(dim_eff,Tensor<T>());
-
-			for (int idim=0; idim<dim_eff; idim++) {
-
-				// assignment from/to slice is deep-copy
-				if (merged_dim==1) {
-					if (rank>0) {
-						vectors[idim]=copy(sr._ptr->ref_vector(idim)(Slice(0,rank-1),s[idim]));
-					} else {
-						vectors[idim]=Tensor<T>(0,s[idim].end-s[idim].start+1);
-					}
-				} else if (merged_dim==2) {
-					if (rank>0) {
-						vectors[idim]=copy(sr._ptr->ref_vector(idim)(Slice(0,rank-1),s[2*idim],s[2*idim+1]));
-					} else {
-						vectors[idim]=tensorT(0,s[2*idim].end-s[2*idim].start+1,
-												s[2*idim+1].end-s[2*idim+1].start+1);
-					}
-				} else if (merged_dim==3) {
-					if (rank>0) {
-						vectors[idim]=copy(sr._ptr->ref_vector(idim)(Slice(0,rank-1),
-								s[3*idim],s[3*idim+1],s[3*idim+2]));
-					} else {
-						vectors[idim]=tensorT(0,s[3*idim].end-s[3*idim].start+1,
-								s[3*idim+1].end-s[3*idim+1].start+1,
-								s[3*idim+2].end-s[3*idim+2].start+1);
-
-					}
-				} else MADNESS_EXCEPTION("unknown number of dimensions in GenTensor::copy_slice()",0);
-			}
-
-			// work-around for rank==0
-			Tensor<double> weights;
-			if (rank>0) {
-				weights=copy(this->_ptr->weights_(Slice(0,rank-1)));
+			} else if (tensor_type()==TT_2D) {
+			    return gentensorT(config().copy_slice(s));
 			} else {
-				weights=Tensor<double>(int(0));
+			    MADNESS_EXCEPTION("fault in GenTensor::copy_slice",1);
+			    return gentensorT();
 			}
-			const configT conf(weights,vectors,this->dim(),k_new,tt);
-
-			return gentensorT(conf);
-
 		}
 
 	public:
@@ -727,7 +695,7 @@ namespace madness {
 		};
 
 		/// returns the Frobenius norm
-		double normf() const {
+		float_scalar_type normf() const {
 			if (has_no_data()) return 0.0;
 			return config().normf();
 		};
@@ -780,11 +748,21 @@ namespace madness {
 
         /// Inplace multiply by corresponding elements of argument Tensor
         GenTensor<T>& emul(const GenTensor<T>& t) {
-        	print("no GenTensor<T>::emul yet");
-        	MADNESS_ASSERT(0);
+            MADNESS_ASSERT(t.tensor_type()==this->tensor_type());
+
+            if (this->tensor_type()==TT_FULL) full_tensor().emul(t.full_tensor());
+            else config().emul(t.config());
+            return *this;
         }
 
-		/// return a Tensor, no matter what
+        GenTensor convert(const TensorArgs& targs) const {
+            GenTensor<T> result=copy(*this);
+            change_tensor_type(result,targs);
+            return result;
+        }
+
+
+        /// return a Tensor, no matter what
 		Tensor<T> full_tensor_copy() const {
 			const TensorType tt=tensor_type();
 			if (tt==TT_NONE) return Tensor<T>();
@@ -826,101 +804,12 @@ namespace madness {
 		/// reconstruct this to return a full tensor
 		Tensor<T> reconstruct_tensor() const {
 
-			/*
-			 * reconstruct the tensor first to the configurational dimension,
-			 * then to the real dimension
-			 */
-
-			// fast return for full rank tensors
 			if (tensor_type()==TT_FULL) return full_tensor();
-
-			// for convenience
-			const unsigned int conf_dim=this->_ptr->dim_eff();
-			const unsigned int conf_k=this->_ptr->kVec();			// possibly k,k*k,..
-			const long rank=this->rank();
-			long d[TENSOR_MAXDIM];
-
-			// fast return if possible
-			if (rank==0) {
-				// reshape the tensor to the really required one
-				const long k=this->get_k();
-				const long dim=this->dim();
-				for (long i=0; i<dim; i++) d[i] = k;
-
-				return Tensor<T> (dim,d,true);
+			else if (tensor_type()==TT_2D) return config().reconstruct();
+			else {
+			    MADNESS_EXCEPTION("you should not be here",1);
 			}
-
-
-			// set up result Tensor (in configurational dimensions)
-			for (long i=0; i<conf_dim; i++) d[i] = conf_k;
-			tensorT s(conf_dim,d,true);
-
-			// flatten this
-			gentensorT sr=*this;
-
-			// and a scratch Tensor
-			Tensor<T>  scr(rank);
-			Tensor<T>  scr1(rank);
-			Tensor<T>  scr2(rank);
-
-			if (conf_dim==1) {
-
-				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=sr._ptr->weights_;
-					//					scr.emul(F[0][i0]);
-					T buffer=scr.sum();
-					s(i0)=buffer;
-				}
-
-			} else if (conf_dim==2) {
-
-
-				//				tensorT weight_matrix(rank,rank);
-				//				for (unsigned int r=0; r<rank; r++) {
-				//					weight_matrix(r,r)=this->weight(r);
-				//				}
-				//				s=inner(weight_matrix,sr._ptr->refVector(0));
-				//				s=inner(s,sr._ptr->refVector(1),0,0);
-//                tensorT sscr=copy(sr._ptr->ref_vector(0)(sr._ptr->c0()));
-				tensorT sscr=copy(sr._ptr->flat_vector(0));
-				for (unsigned int r=0; r<rank; r++) {
-					const double w=_ptr->weights(r);
-					for (unsigned int k=0; k<conf_k; k++) {
-						sscr(r,k)*=w;
-					}
-				}
-				inner_result(sscr,sr._ptr->flat_vector(1),0,0,s);
-
-
-			} else if (conf_dim==3) {
-
-                MADNESS_EXCEPTION("flat/structure issue",1);
-				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=copy(sr._ptr->weights_(Slice(0,sr.rank()-1)));
-					scr.emul(sr._ptr->ref_vector(0)(Slice(0,rank-1),i0));
-					for (unsigned int i1=0; i1<conf_k; i1++) {
-						scr1=copy(scr);
-						scr1.emul(sr._ptr->ref_vector(1)(Slice(0,rank-1),i1));
-						for (unsigned int i2=0; i2<conf_k; i2++) {
-							scr2=copy(scr1);
-							scr2.emul(sr._ptr->ref_vector(2)(Slice(0,rank-1),i2));
-							s(i0,i1,i2)=scr2.sum();
-						}
-					}
-				}
-			} else {
-				print("only config_dim=1,2,3 in GenTensor::reconstructTensor");
-				MADNESS_ASSERT(0);
-			}
-
-
-			// reshape the tensor to the really required one
-			const long k=this->get_k();
-			const long dim=this->dim();
-			for (long i=0; i<dim; i++) d[i] = k;
-
-			Tensor<T> s2=s.reshape(dim,d);
-			return s2;
+            return Tensor<T>();
 		}
 
 		/// append this to rhs, shape must conform
@@ -1271,14 +1160,17 @@ namespace madness {
 
     /// outer product of two Tensors, yielding a low rank tensor
      template <class T, class Q>
-     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2, const GenTensor<Q>& rhs2) {
-     	return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor());
+     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2,
+             const GenTensor<Q>& rhs2, const TensorArgs final_tensor_args) {
+     	return outer(lhs2.full_tensor(),rhs2.full_tensor(), final_tensor_args);
      }
 
      /// outer product of two Tensors, yielding a low rank tensor
      template <class T, class Q>
-     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2, const Tensor<Q>& rhs2) {
+     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const Tensor<T>& lhs2,
+             const Tensor<Q>& rhs2, const TensorArgs final_tensor_args) {
 
+         MADNESS_ASSERT(final_tensor_args.tt==TT_2D);
      	typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
      	// srconf is shallow, do deep copy here
@@ -1301,6 +1193,8 @@ namespace madness {
  		coeff.normalize();
  		return coeff;
      }
+
+#endif /* not USE_LRT */
 
     #endif /* HAVE_GENTENSOR */
 
@@ -1356,7 +1250,187 @@ namespace madness {
     }
 
 
+}   // namespace madness
+
+#if HAVE_GENTENSOR
+#ifdef USE_LRT
+#include <madness/tensor/lowranktensor.h>
+
+namespace madness {
+
+template<typename T>
+class GenTensor : public LowRankTensor<T> {
+
+public:
+
+    using LowRankTensor<T>::LowRankTensor;
+
+    GenTensor<T>() : LowRankTensor<T>() {}
+    GenTensor<T>(const GenTensor<T>& g) : LowRankTensor<T>(g) {}
+    GenTensor<T>(const LowRankTensor<T>& g) : LowRankTensor<T>(g) {}
+    GenTensor<T>(const SRConf<T>& sr1) : LowRankTensor<T>(SVDTensor<T>(sr1)) {
+    }
+
+    operator LowRankTensor<T>() const {return *this;}
+    operator LowRankTensor<T>() {return *this;}
+
+    /// general slicing, shallow; for temporary use only!
+    SliceGenTensor<T> operator()(const std::vector<Slice>& s) {
+        return SliceGenTensor<T>(*this,s);
+    }
+
+    /// general slicing, shallow; for temporary use only!
+    const SliceGenTensor<T> operator()(const std::vector<Slice>& s) const {
+        return SliceGenTensor<T>(*this,s);
+    }
+
+    /// assign a number to this tensor
+    GenTensor<T>& operator=(const T& number) {
+        LowRankTensor<T>& base=*this;
+        base=(number);
+        return *this;
+    }
+
+
+    std::string what_am_i() const {return TensorArgs::what_am_i(this->tensor_type());};
+
+    SRConf<T>& config() const {
+        MADNESS_ASSERT(this->type==TT_2D and (this->impl.svd));
+        return *this->impl.svd.get();
+    }
+    GenTensor<T> get_configs(const int& start, const int& end) const {
+        MADNESS_ASSERT(this->type==TT_2D and (this->impl.svd));
+        return GenTensor<T>(config().get_configs(start,end));
+    }
+
+    /// deep copy of rhs by deep copying rhs.configs
+    friend GenTensor<T> copy(const GenTensor<T>& rhs) {
+        return GenTensor<T>(copy(LowRankTensor<T>(rhs)));
+    }
+
+};
+
+/// implements a slice of a GenTensor
+template <typename T>
+class SliceGenTensor : public SliceLowRankTensor<T> {
+public:
+    using SliceLowRankTensor<T>::SliceLowRankTensor;
+
+    SliceGenTensor<T>(const SliceGenTensor<T>& g) : SliceLowRankTensor<T>(g) {}
+    SliceGenTensor<T>(const SliceLowRankTensor<T>& g) : SliceLowRankTensor<T>(g) {}
+
+    operator SliceLowRankTensor<T>() const {return *this;}
+    operator SliceLowRankTensor<T>() {return *this;}
+
+    /// inplace zero-ing as in g(s)=0.0
+    SliceGenTensor<T>& operator=(const T& number) {
+        SliceLowRankTensor<T>& base=*this;
+        base=number;
+        return *this;
+    }
+
+};
+
+/// add all the GenTensors of a given list
+
+ /// If there are many tensors to add it's beneficial to do a sorted addition and start with
+ /// those tensors with low ranks
+ /// @param[in]  addends     a list with gentensors of same dimensions; will be destroyed upon return
+/// @param[in]  eps         the accuracy threshold
+/// @param[in]  are_optimal flag if the GenTensors in the list are already in SVD format (if TT_2D)
+/// @return     the sum GenTensor of the input GenTensors
+template<typename T>
+GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_optimal=false) {
+    typedef typename std::list<GenTensor<T> >::iterator iterT;
+    GenTensor<T> result=copy(addends.front());
+    for (iterT it=++addends.begin(); it!=addends.end(); ++it) {
+        result+=*it;
+    }
+    result.reduce_rank(eps);
+    return result;
 
 }
 
+/// outer product of two Tensors, yielding a low rank tensor
+ template <class T, class Q>
+ GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2,
+         const GenTensor<Q>& rhs2, const TensorArgs final_tensor_args) {
+//    return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor(), final_tensor_args);
+     typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+     // prepare lo-dim tensors for the outer product
+     TensorArgs targs;
+     targs.thresh=final_tensor_args.thresh;
+     if (final_tensor_args.tt==TT_FULL) targs.tt=TT_FULL;
+     else if (final_tensor_args.tt==TT_2D) targs.tt=TT_FULL;
+     else if (final_tensor_args.tt==TT_TENSORTRAIN) targs.tt=TT_TENSORTRAIN;
+     else {
+         MADNESS_EXCEPTION("confused tensor args in outer_low_rank",1);
+     }
+
+     LowRankTensor<T> lhs=lhs2.convert(targs);
+     LowRankTensor<Q> rhs=rhs2.convert(targs);
+
+     LowRankTensor<resultT> result=outer(lhs,rhs,final_tensor_args);
+     return result;
+
+
+ }
+
+ /// outer product of two Tensors, yielding a low rank tensor
+ template <class T, class Q>
+ GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const Tensor<T>& lhs2,
+         const Tensor<Q>& rhs2, const TensorArgs final_tensor_args) {
+
+     typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+     // prepare lo-dim tensors for the outer product
+     TensorArgs targs;
+     targs.thresh=final_tensor_args.thresh;
+     if (final_tensor_args.tt==TT_FULL) targs.tt=TT_FULL;
+     else if (final_tensor_args.tt==TT_2D) targs.tt=TT_FULL;
+     else if (final_tensor_args.tt==TT_TENSORTRAIN) targs.tt=TT_TENSORTRAIN;
+     else {
+         MADNESS_EXCEPTION("confused tensor args in outer_low_rank",1);
+     }
+
+     LowRankTensor<T> lhs(lhs2,targs);
+     LowRankTensor<Q> rhs(rhs2,targs);
+     LowRankTensor<resultT> result=outer(lhs,rhs,final_tensor_args);
+     return result;
+ }
+
+
+
+namespace archive {
+/// Serialize a tensor
+template <class Archive, typename T>
+struct ArchiveStoreImpl< Archive, GenTensor<T> > {
+
+    friend class GenTensor<T>;
+    /// Stores the GenTensor to an archive
+    static void store(const Archive& ar, const GenTensor<T>& t) {
+        LowRankTensor<T> tt(t);
+        ar & tt;
+    };
+};
+
+
+/// Deserialize a tensor ... existing tensor is replaced
+template <class Archive, typename T>
+struct ArchiveLoadImpl< Archive, GenTensor<T> > {
+
+    friend class GenTensor<T>;
+    /// Replaces this GenTensor with one loaded from an archive
+    static void load(const Archive& ar, GenTensor<T>& t) {
+        LowRankTensor<T> tt;
+        ar & tt;
+        t=tt;
+    };
+};
+};
+
+}
+#endif /* USE_LRT */
+#endif /* HAVE_GENTENSOR */
 #endif /* GENTENSOR_H_ */

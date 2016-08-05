@@ -1,0 +1,6 @@
+include $(top_srcdir)/config/MakeGlobal.am
+
+noinst_PROGRAMS = prog
+ 
+prog_SOURCES = prog.cc 
+prog_LDADD = $(MRALIBS)

@@ -64,12 +64,7 @@ namespace madness {
         {}
 
         double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
-	    return node.coeff().rank();
-//            if (node.is_leaf()) {
-//                return leaf_value;
-//            } else {
-//                return parent_value;
-//            }
+            return node.coeff().size();
         }
     };
 

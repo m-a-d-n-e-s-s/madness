@@ -2046,7 +2046,7 @@ namespace madness {
         template <typename opT>
         void flo_unary_op_node_inplace(const opT& op, bool fence) {
             typedef Range<typename dcT::iterator> rangeT;
-            typedef do_unary_op_value_inplace<opT> xopT;
+//            typedef do_unary_op_value_inplace<opT> xopT;
             world.taskq.for_each<rangeT,opT>(rangeT(coeffs.begin(), coeffs.end()), op);
             if (fence) world.gop.fence();
         }
@@ -2056,7 +2056,7 @@ namespace madness {
         template <typename opT>
         void flo_unary_op_node_inplace(const opT& op, bool fence) const {
             typedef Range<typename dcT::const_iterator> rangeT;
-            typedef do_unary_op_value_inplace<opT> xopT;
+//            typedef do_unary_op_value_inplace<opT> xopT;
             world.taskq.for_each<rangeT,opT>(rangeT(coeffs.begin(), coeffs.end()), op);
             if (fence)
                 world.gop.fence();
@@ -3116,32 +3116,28 @@ namespace madness {
                 coeff1.normalize();
                 const coeffT coeff2=g.get_impl()->parent_to_child(g.coeff(),g.key(),gkey);
 
-                coeffT hcoeff;
+                // multiplication is done in TT_2D
+                coeffT coeff1_2D=coeff1.convert(TensorArgs(h->get_thresh(),TT_2D));
+                coeff1_2D.normalize();
 
-                bool is_leaf=screen(coeff1,coeff2,key);
+                bool is_leaf=screen(coeff1_2D,coeff2,key);
                 if (key.level()<2) is_leaf=false;
 
+                coeffT hcoeff;
                 if (is_leaf) {
 
                     // convert coefficients to values
-                    coeffT hvalues=f.get_impl()->coeffs2values(key,coeff1);
+                    coeffT hvalues=f.get_impl()->coeffs2values(key,coeff1_2D);
                     coeffT gvalues=g.get_impl()->coeffs2values(gkey,coeff2);
 
-                    // multiply one of the two vectors of f with g
-                    // note shallow copy of Tensor<T>
-                    MADNESS_ASSERT(hvalues.tensor_type()==TT_2D);
-                    MADNESS_ASSERT(gvalues.tensor_type()==TT_FULL);
-                    const long rank=hvalues.rank();
-                    const long maxk=h->get_k();
-                    MADNESS_ASSERT(maxk==coeff1.dim(0));
-                    tensorT vec=hvalues.config().ref_vector(particle-1).reshape(rank,maxk,maxk,maxk);
-                    for (long i=0; i<rank; ++i) {
-                        tensorT c=vec(Slice(i,i),_,_,_);
-                        c.emul(gvalues.full_tensor());
-                    }
+                    // perform multiplication
+                    coeffT result_val=h->multiply(hvalues,gvalues,particle-1);
 
-                    // convert values back to coefficients
-                    hcoeff=h->values2coeffs(key,hvalues);
+                    hcoeff=h->values2coeffs(key,result_val);
+
+                    // conversion on coeffs, not on values, because it implies truncation!
+                    if (hcoeff.tensor_type()!=h->get_tensor_type())
+                        hcoeff=hcoeff.convert(h->get_tensor_args());
                 }
 
                 return std::pair<bool,coeffT> (is_leaf,hcoeff);
@@ -3294,8 +3290,7 @@ namespace madness {
                 const coeffT s2=gcoeff(p2.get_impl()->cdata.s0);
 
                 // new coeffs are simply the hartree/kronecker/outer product --
-                coeffT coeff=outer(s1,s2);
-                change_tensor_type(coeff,result->get_tensor_args());
+                coeffT coeff=outer(s1,s2,result->get_tensor_args());
                 // no post-determination
                 //                is_leaf=leaf_op(key,coeff);
                 return std::pair<bool,coeffT>(is_leaf,coeff);
@@ -3695,10 +3690,11 @@ namespace madness {
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
 
+                TensorArgs targs=result->get_tensor_args();
             	// use the ket coeffs if they are there, or make them by hartree product
             	const coeffT coeff_ket_NS = (iaket.get_impl())
                     ? iaket.coeff(key)
-                    : outer(iap1.coeff(key1),iap2.coeff(key2));
+                    : outer(iap1.coeff(key1),iap2.coeff(key2),targs);
 
             	coeffT val_potential1, val_potential2;
             	if (iav1.get_impl()) {
@@ -3712,7 +3708,7 @@ namespace madness {
             	coeffT tmp=coeff_ket_NS(result->get_cdata().s0);
 
                 return result->assemble_coefficients(key,tmp,
-                                                     val_potential1,val_potential2,eri_values(key));
+                         val_potential1,val_potential2,eri_values(key));
             }
 
             /// make the sum coeffs for all children of key
@@ -3720,11 +3716,12 @@ namespace madness {
             	// break key into particles
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
+                TensorArgs targs=result->get_tensor_args();
 
             	// use the ket coeffs if they are there, or make them by hartree product
             	const coeffT coeff_ket_NS = (iaket.get_impl())
                     ? iaket.coeff(key)
-                    : outer(iap1.coeff(key1),iap2.coeff(key2));
+                    : outer(iap1.coeff(key1),iap2.coeff(key2),targs);
 
                 // get the sum coeffs for all children
             	const coeffT coeff_ket_unfiltered=result->unfilter(coeff_ket_NS);
@@ -3756,8 +3753,8 @@ namespace madness {
 
                     // the sum coeffs for this child
                     const tensorT val_eri=eri_values(kit.key());
-                    const coeffT coeff_result=result->assemble_coefficients(kit.key(),coeff_ket,
-                                                                            val_potential1,val_potential2,val_eri);
+                    const coeffT coeff_result=result->assemble_coefficients(
+                            kit.key(),coeff_ket,val_potential1,val_potential2,val_eri);
 
                     // accumulate the sum coeffs of the children here
                     s_coeffs(result->child_patch(kit.key()))+=coeff_result.full_tensor_copy();
@@ -4225,22 +4222,25 @@ namespace madness {
                                 const TensorArgs& apply_targs) {
 
             coeffT result;
-            if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
-            if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
-            //            double result_norm=-1.0;
-            //            if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
-            //            if (result.tensor_type()==TT_FULL) result_norm=result.normf();
-            //            MADNESS_ASSERT(result_norm>-0.5);
+            if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff,
+                    args.tol/args.fac/args.cnorm, args.tol/args.fac);
+            if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff,
+                    args.tol/args.fac/args.cnorm, args.tol/args.fac);
 
             const double result_norm=result.svd_normf();
 
             if (result_norm> 0.3*args.tol/args.fac) {
                 small++;
 
+                double cpu0=cpu_time();
+                if (targs.tt!=result.tensor_type()) result=result.convert(targs);
+                double cpu1=cpu_time();
+                timer_lr_result.accumulate(cpu1-cpu0);
+
                 // accumulate also expects result in SVD form
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
-                //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
+                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
 
             }
             return result_norm;
@@ -4404,8 +4404,16 @@ namespace madness {
             apply_targs.thresh=tol/fac*0.03;
 
             double maxnorm=0.0;
+
             // for the kernel it may be more efficient to do the convolution in full rank
             tensorT coeff_full;
+            // for partial application (exchange operator) it's more efficient to
+            // do SVD tensors instead of tensortrains, because addition in apply
+            // can be done in full form for the specific particle
+            coeffT coeff_SVD=coeff.convert(TensorArgs(-1.0,TT_2D));
+#ifdef USE_LRT
+            coeff_SVD.impl.svd->orthonormalize(tol*LowRankTensor<T>::fac_reduce());
+#endif
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
             const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
@@ -4446,7 +4454,7 @@ namespace madness {
 
                     if (cnorm*opnorm> tol/fac) {
 
-                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
+                        double cost_ratio=op->estimate_costs(source, d, coeff_SVD, tol/fac/cnorm, tol/fac);
                         //                        cost_ratio=1.5;     // force low rank
                         //                        cost_ratio=0.5;     // force full rank
 
@@ -4458,7 +4466,11 @@ namespace madness {
                                 if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
                                 norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
                             } else {
-                                norm=do_apply_kernel3(op,coeff,args,apply_targs);
+                                if (2*opdim==NDIM) {    // apply operator on one particle only
+                                    norm=do_apply_kernel3(op,coeff_SVD,args,apply_targs);
+                                } else {
+                                    norm=do_apply_kernel3(op,coeff,args,apply_targs);
+                                }
                             }
                             maxnorm=std::max(norm,maxnorm);
                         }
@@ -4580,8 +4592,8 @@ namespace madness {
                     // new coeffs are simply the hartree/kronecker/outer product --
                     const std::vector<Slice>& s0=iaf.get_impl()->cdata.s0;
                     const coeffT coeff = (apply_op->modified())
-                        ? outer_low_rank(copy(fcoeff(s0)),copy(gcoeff(s0)))
-                        : outer_low_rank(fcoeff,gcoeff);
+                        ? outer(copy(fcoeff(s0)),copy(gcoeff(s0)),result->targs)
+                        : outer(fcoeff,gcoeff,result->targs);
 
                     // now send off the application
                     tensorT coeff_full;

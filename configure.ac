@@ -456,6 +456,7 @@ AC_CONFIG_FILES([
         src/apps/tdse/Makefile
         src/apps/moldft/Makefile
       src/examples/Makefile
+        src/examples/compiler/Makefile-prog
     doc/Makefile
     doc/doxygen.cfg
     doc/devsamp/Makefile.sample

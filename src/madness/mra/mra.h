@@ -1925,6 +1925,7 @@ namespace madness {
             result.get_impl()->apply(op, *f.get_impl(), fence);
 
         } else {        // general version for higher dimension
+            bool print_timings=true;
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
             result.set_impl(f, true); // ??????????????????
@@ -1942,7 +1943,7 @@ namespace madness {
 
             double time=result.get_impl()->finalize_apply(fence);   // need fence before reconstruction
            	result.world().gop.fence();
-            if (opT::opdim==6) {
+            if (print_timings) {
                 result.get_impl()->print_timer();
                 op.print_timer();
                 if (result.world().rank()==0) print("time in finlize_apply", time);
@@ -1967,10 +1968,11 @@ namespace madness {
     	Function<resultT, NDIM> result;
 
 		MADNESS_ASSERT(not f.is_on_demand());
+		bool print_timings=(NDIM==6);
 
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
-        if (opT::opdim==6) ff.print_size("ff in apply after reconstruct");
+        if (print_timings) ff.print_size("ff in apply after reconstruct");
 
     	if (op.modified()) {
 
@@ -1993,8 +1995,8 @@ namespace madness {
 //    		Function<R,NDIM> fff=copy(ff);
     		Function<R,NDIM> fff=(ff);
             fff.nonstandard(op.doleaves, true);
-            if (opT::opdim==6) fff.print_size("ff in apply after nonstandard");
-            if ((opT::opdim==6) and (f.world().rank()==0)) {
+            if (print_timings) fff.print_size("ff in apply after nonstandard");
+            if ((print_timings) and (f.world().rank()==0)) {
                 fff.get_impl()->timer_filter.print("filter");
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
             }
@@ -2010,7 +2012,7 @@ namespace madness {
         	if (op.is_slaterf12) result=(result-ftrace).scale(-0.5/op.mu());
 
     	}
-        if (opT::opdim==6) result.print_size("result after reconstruction");
+        if (print_timings) result.print_size("result after reconstruction");
         return result;
     }
 
