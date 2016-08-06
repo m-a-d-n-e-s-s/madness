@@ -1431,7 +1431,7 @@ namespace madness {
                 functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
                 dv[atom * 3 + axis] =
                     functionT(
-                              factoryT(world).functor(func).nofence().truncate_on_project());
+                              factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
                 if (param.core_type != ""
                     && molecule.is_potential_defined_atom(atom)) {
                     // core potential contribution
@@ -3606,7 +3606,6 @@ namespace madness {
                 else{
                     drhoa = make_derivative_density( world, amo, aocc, ax_old, ay_old );
                     drhoa.reconstruct();
-                    drhob;
                     if(!param.spin_restricted && param.nbeta != 0) {
                        drhob = make_derivative_density( world, bmo, bocc, bx_old, by_old );
                        drhob.reconstruct();

@@ -49,9 +49,7 @@ To view the latex:
 
 To compile and run the generated program:
 
-   - "make -f trunk/doc/devsamp/Makefile.sample prog"
-
-     where trunk/... refers to the trunk of your MADNESS tree
+   - "make -f Makefile-prog prog"
 
    - "./prog"
 

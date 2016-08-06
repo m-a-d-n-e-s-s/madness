@@ -517,6 +517,14 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const double * restrict rhob = xc_args[enum_rhob].ptr();
             rho  = madness::Tensor<double>(np*2L);
             double * restrict dens = rho.ptr();
+
+            // might happen if there are no beta electrons
+            madness::Tensor<double> dummy;
+            if (rhob==NULL) {
+                dummy=madness::Tensor<double>(np);
+                rhob=dummy.ptr();
+            }
+
             for (long i=0; i<np; i++) {
                 dens[2*i  ] = munge(rhoa[i]);
                 dens[2*i+1] = munge(rhob[i]);

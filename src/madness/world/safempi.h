@@ -585,6 +585,14 @@ namespace SafeMPI {
             return request;
         }
 
+        Request Issend(const void* buf, const int count, const MPI_Datatype datatype, const int dest, const int tag) const {
+            MADNESS_ASSERT(pimpl);
+            SAFE_MPI_GLOBAL_MUTEX;
+            Request request;
+            MADNESS_MPI_TEST(MPI_Issend(const_cast<void*>(buf), count, datatype, dest,tag, pimpl->comm, request));
+            return request;
+        }
+
         Request Irecv(void* buf, const int count, const MPI_Datatype datatype, const int src, const int tag) const {
             MADNESS_ASSERT(pimpl);
             SAFE_MPI_GLOBAL_MUTEX;

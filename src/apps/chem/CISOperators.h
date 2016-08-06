@@ -159,7 +159,7 @@ public:
 			density += bra[i]*ket[i];
 		}
 		if(use_nuclear_correlation_factor_){
-			std::cout << "Making Density*R2" << std::endl;
+			if(debug)std::cout << "Making Density*R2" << std::endl;
 			density = density*R2;
 		}
 		return density;
@@ -215,6 +215,8 @@ public:
 	double make_inner_product(const real_function_3d &bra,
 			const vecfuncT &ket) const;
 
+	/// debug on or off (more output)
+	bool debug=false;
 private:
 	bool use_timer_ = true;
 	World &world;

@@ -1188,7 +1188,7 @@ namespace madness {
         /// @param[in]  coeff   source coeffs in SVD (=optimal!) form, in high dimensionality (FDIM)
         /// @param[in]  source  the source key in low dimensionality (NDIM)
         /// @param[in]  shift   the displacement in low dimensionality (NDIM)
-        /// @param[in]  tol     thresh/#neigh*cnorm
+        /// @param[in]  tol     thresh/(#neigh*cnorm)
         /// @param[in]  tol2    thresh/#neigh
         /// @return     coeff result
         template<typename T>
@@ -1197,6 +1197,11 @@ namespace madness {
 
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
+            // prepare access to the singular vectors
+            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
+            // can't use predefined slices and vectors -- they have the wrong dimension
+            const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
+
             // some checks
             MADNESS_ASSERT(coeff.tensor_type()==TT_2D);           // for now
             MADNESS_ASSERT(not modified());
@@ -1204,12 +1209,8 @@ namespace madness {
             MADNESS_ASSERT(coeff.dim(0)==2*k);
             MADNESS_ASSERT(2*NDIM==coeff.ndim());
 
+            double cpu0=cpu_time();
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
-
-            // prepare access to the singular vectors
-            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
-            // can't use predefined slices and vectors -- they have the wrong dimension
-            const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
 
             // some workspace
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
@@ -1222,6 +1223,11 @@ namespace madness {
             tol = tol/rank*0.01; // Error is per separated term
             tol2= tol2/rank;
 
+            // the operator norm is missing the identity working on the other particle
+            // use as (muop.norm*exchange_norm < tol)
+            // for some reason the screening is not working at all..
+//            double exchange_norm=std::pow(2.0*k,1.5);
+
             for (int r=0; r<coeff.rank(); ++r) {
 
                 // get the appropriate singular vector (left or right depends on particle)
@@ -1229,7 +1235,7 @@ namespace madness {
                 s[0]=Slice(r,r);
                 const Tensor<T> chunk=coeff.config().ref_vector(particle()-1)(s).reshape(2*k,2*k,2*k);
                 const Tensor<T> chunk0=f0.config().ref_vector(particle()-1)(s).reshape(k,k,k);
-//                const double weight=coeff.config().weights(r);
+//                const double weight=std::abs(coeff.config().weights(r));
 
                 // accumulate all terms of the operator for a specific term of the function
                 Tensor<resultT> result(v2k), result0(vk);
@@ -1239,19 +1245,13 @@ namespace madness {
                 at.t_term=source.level()>0;
 
                 // this loop will return on result and result0 the terms [(P+Q) G (P+Q)]_1,
-                // and [P Q P]_1, respectively
+                // and [P G P]_1, respectively
                 for (int mu=0; mu<rank; ++mu) {
                     const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
-
-//                    if (muop.norm > tol2*std::abs(weight)) {
-
-                        Q fac = ops[mu].getfac();
-                        muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
-                                tol/std::abs(fac), fac, work1, work2);
-
-//                    }
+                    Q fac = ops[mu].getfac();
+                    muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
+                            tol/std::abs(fac), fac, work1, work2);
                 }
-
 
                 // reinsert the transformed terms into result, leaving the other particle unchanged
                 MADNESS_ASSERT(final.config().has_structure());
@@ -1265,13 +1265,20 @@ namespace madness {
                 }
 
             }
+            double cpu1=cpu_time();
+            timer_low_transf.accumulate(cpu1-cpu0);
 
+            double cpu00=cpu_time();
+
+            final.reduce_rank(tol2*0.5);
+            final0.reduce_rank(tol2*0.5);
             final(s00)+=final0;
             final.reduce_rank(tol2);
 
+            double cpu11=cpu_time();
+            timer_low_accumulate.accumulate(cpu11-cpu00);
             return final;
         }
-
 
         /// apply this operator on coefficients in low rank form
 
@@ -1429,6 +1436,90 @@ namespace madness {
 //            print("nterms, full, low, full/low", full_cost, low_cost,shift.distsq(), ratio);
             return ratio;
 
+        }
+
+        /// construct the tensortrain representation of the operator
+
+        /// @param[in]  source  source coefficient box
+        /// @param[in]  shift   displacement
+        /// @param[in]  tol     threshold for the TT truncation
+        /// @param[in]  do_R    compute the R term of the operator (2k^d)
+        /// @param[in]  do_T    compute the T term of the operator (k^d), including factor -1
+        /// Both do_R and do_T may be used simultaneously, then the final
+        /// operator will have dimensions (2k^d)
+        TensorTrain<double> make_tt_representation(const Key<NDIM>& source,
+                const Key<NDIM>& shift, double tol, bool do_R, bool do_T) const {
+
+            if (not (do_R or do_T)) {
+                print("no operator requested in make_tt_representation??");
+                MADNESS_EXCEPTION("you're sure you know what you're doing?",1);
+            }
+
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
+
+            // check for significant ranks since the R/T matrices' construction
+            // might have been omitted. Tnorm is always smaller than Rnorm
+            long lo=0,hi=rank;
+            for (int mu=0; mu<rank; ++mu) {
+                double Rnorm=1.0;
+                for (std::size_t d=0; d<NDIM; ++d) Rnorm *= op->muops[mu].ops[d]->Rnorm;
+                if (Rnorm>1.e-20) hi=mu;
+                if ((Rnorm<1.e-20) and (mu<hi)) lo=mu;
+            }
+            hi++;lo++;
+
+            // think about dimensions
+            long rank_eff=(hi-lo);    // R or T matrices
+            long step=1;
+            if (do_R and do_T) {        // R and T matrices
+                rank_eff*=2;
+                step*=2;
+            }
+
+            long k2k=k;             // T matrices
+            if (do_R) k2k=2*k;      // R matrices
+
+
+            // construct empty TT cores and fill them with the significant R/T matrices
+            std::vector<Tensor<double> > cores(NDIM,Tensor<double>(rank_eff,k2k,k2k,rank_eff));
+            cores[0]=Tensor<double>(k2k,k2k,rank_eff);
+            cores[NDIM-1]=Tensor<double>(rank_eff,k2k,k2k);
+
+
+            for (int mu=lo, r=0; mu<hi; ++mu, ++r) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                const Q fac = ops[mu].getfac();
+                const Slice sr0(step*r,  step*r,  0);
+                const Slice sr1(step*r+step-1,step*r+step-1,0);
+                const Slice s00(0,k-1,1);
+
+                if (do_R) {
+                    cores[0](_,  _  ,sr0)=muop.ops[0]->R;
+                    for (std::size_t idim=1; idim<NDIM-1; ++idim) {
+                          cores[idim](sr0,_  ,_  ,sr0)=muop.ops[idim]->R;
+                    }
+                    cores[NDIM-1](sr0,_  ,_  )=muop.ops[NDIM-1]->R*fac;
+                }
+
+                if (do_T) {
+                    cores[0](s00,s00,sr1)=muop.ops[0]->T;
+                    for (std::size_t idim=1; idim<NDIM-1; ++idim) {
+                        cores[idim](sr1,s00,s00,sr1)=muop.ops[idim]->T;
+                    }
+                    cores[NDIM-1](sr1,s00,s00)=muop.ops[NDIM-1]->T*(-fac);
+                }
+            }
+
+            // construct TT representation
+            TensorTrain<double> tt(cores);
+
+            // need to reshape for the TT truncation
+            tt.make_tensor();
+            tt.truncate(tol*GenTensor<double>::fac_reduce());
+            tt.make_operator();
+
+            return tt;
         }
 
     };

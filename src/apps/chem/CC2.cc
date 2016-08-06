@@ -11,128 +11,8 @@ namespace madness {
   /// solve the CC2 ground state equations, returns the correlation energy
   void
   CC2::solve() {
-    //CCOPS.test_energy_functions();
-    //CCOPS.test_projectors();
-    calctype type = parameters.calculation;
-    if(type==CCS_response_) solve_ccs();
-    if(type==MP2_){
-      Pairs<CC_Pair> pairs = initialize_pairs(GROUND_STATE);
-      double mp2_correlation_energy = get_correlation_energy(pairs);
-      if(not parameters.no_compute)mp2_correlation_energy = solve_mp2(pairs);
-      output_section("MP2 Ended");
-      print_results(pairs,initialize_cc2_singles());
-      if(world.rank()==0) std::cout << "MP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << mp2_correlation_energy << "\n";
-    }
-    if(type==experimental_){
-      Pairs<CC_Pair> pairs = initialize_pairs(GROUND_STATE);
-      const double mp2_correlation_energy = solve_mp2_nonorthogonal(pairs);
-      output_section("Nonorthogonal-MP2 Ended");
-      print_results(pairs,initialize_cc2_singles());
-      if(world.rank()==0) std::cout << "MP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << mp2_correlation_energy << "\n";
-    }
-    if(type==CC2_){
-      CC_Timer time_cc2(world,"CC2-Overall-Time");
-      Pairs<CC_Pair> pairs = initialize_pairs(GROUND_STATE);
-      double mp2_correlation_energy = 0.0;
-      if(not parameters.no_compute) mp2_correlation_energy = solve_mp2(pairs);
-      CC_vecfunction singles=initialize_cc2_singles();
-      print_results(pairs,singles);
-      CCOPS.update_intermediates(singles);
-      if(parameters.restart){
-	update_cc2_pair_energies(pairs,singles);
-	double restart_corr = get_correlation_energy(pairs);
-	if(world.rank()==0) std::cout << " Restart Correlation Energy is: " << restart_corr << "\n";
-      }
-      const double cc2_correlation_energy = solve_cc2(pairs,singles);
-      output_section("CC2 Ended");
-      print_results(pairs,singles);
-      if(world.rank()==0){
-	std::cout << "MP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << mp2_correlation_energy << "\n";
-	std::cout << "CC2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << cc2_correlation_energy << "\n";
-      }
-      time_cc2.info();
-    }
-    if(type==CC2_response_ or type==CISpD_){
-      CC_Timer time_cc2(world,"CC2-Overall-Time");
-      CC_Timer time_cc2_gs(world,"CC2-Ground-State-Time");
-      Pairs<CC_Pair> pairs = initialize_pairs(GROUND_STATE);
-
-      double mp2_correlation_energy = 0.0;
-      if(not parameters.no_compute) mp2_correlation_energy = solve_mp2(pairs);
-      else if(type==CISpD_) mp2_correlation_energy = get_correlation_energy(pairs);
-      else output("Restart CC2 -> No MP2 Calculation needed");
-      if(world.rank()==0)std::cout << "\n\n---\nMP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << mp2_correlation_energy << "---\n\n\n";
-
-
-
-      CC_vecfunction singles=initialize_cc2_singles();
-      print_results(pairs,singles);
-      CCOPS.update_intermediates(singles);
-      double cc2_correlation_energy =0.0;
-      if(not parameters.no_compute) cc2_correlation_energy = solve_cc2(pairs,singles);
-      else cc2_correlation_energy = get_correlation_energy(pairs);
-      output_section("CC2 Ground-State Calculation Ended");
-      print_results(pairs,singles);
-      if(world.rank()==0){
-	std::cout << "MP2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << mp2_correlation_energy << "\n";
-	std::cout << "CC2 Correlation Energy is: " << std::fixed << std::setprecision(parameters.output_prec) << cc2_correlation_energy << "\n";
-      }
-      time_cc2_gs.info();
-
-      std::vector<std::pair<CC_vecfunction,double> > cis_results = solve_ccs();
-      size_t i=0;
-      std::vector<std::pair<CC_vecfunction,double> > cc2_results;
-      for(const auto& cistmp:cis_results){
-	double omega_cis = cistmp.second;
-	output_section("Solving Excitation " + std::to_string(i) + " with CIS excitation energy " + std::to_string(omega_cis));
-	CC_vecfunction x(cistmp.first);
-	x.omega = omega_cis;
-	Pairs<CC_Pair> chi = initialize_pairs(EXCITED_STATE,omega_cis);
-	CCOPS.update_response_intermediates(x);
-
-	// reiterate ccs/cis (make shure it converged and make shure the singles potential is stored (needed for fock application)
-	std::vector<Pairs<CC_Pair>> empty_pair_vector;
-	CC_vecfunction empty_vector;
-	if(not iterate_singles(x,empty_vector,empty_pair_vector, CCS_response_)) CCOPS.warning("CCS/CIS not converged!");
-	// update
-	CCOPS.update_response_intermediates(x);
-	omega_cis = x.omega;
-
-	// make CIS(D) as first guess for doubles
-	const double omega_cispd = solve_cispd(chi,pairs,x,omega_cis);
-	singles.omega = omega_cispd;
-
-	output_section("CIS(D) ended");
-	if(world.rank()==0){
-	  std::cout << "Excitation Energy:\n";
-	  std::cout << "CIS   =" << omega_cis << "\n";
-	  std::cout << "CIS(D)=" << omega_cispd << "\n";
-	  std::cout << "Diff  =" << omega_cis - omega_cispd << "\n----------\n";
-	}
-
-	// update singles intermediates (overwritten by CIS(D))
-	CCOPS.update_intermediates(singles);
-	// reiterate cc2 singles (make shure they converged and that the singles potential is stored
-	if(iterate_cc2_singles(pairs,singles)) output("CC2 Singles Converged and Potential is stored");
-	else CCOPS.warning("CC2 Singles are not fully converged --> doubles maybe also not");
-
-	const double cc2_omega = solve_cc2_response(singles,pairs,x,chi);
-	cc2_results.push_back(std::make_pair(x,cc2_omega));
-	if(world.rank()==0) std::cout << " Excitation " << i << "\n" << "Excitation Energy (CIS) " << omega_cis << "\n" << "Excitation Energy (CC2)" << cc2_omega << "\n";
-	i++;
-      }
-      output_section("CC2 Response Ended");
-      if(world.rank()==0) std::cout << "\n\n" << "Results of CC2 Response: CIS | CC2 Excitation Energies:\n";
-      for(size_t i=0;i<cc2_results.size();i++){
-	if(world.rank()==0) std::cout << "Excitation " << i << ": " << cis_results[i].second << " | " << cc2_results[i].second << "\n";
-      }
-
-
-
-      solve_ccs();
-
-      time_cc2.info();
-    }
+    if(parameters.calculation!=LRCCS_) MADNESS_EXCEPTION("Only Linear-Response for CCS possible right now, type keyword: calculation lrccs in the cc2 section",1);
+    solve_ccs();
   }
 
   // Solve the CCS equations for the ground state (debug potential and check HF convergence)
@@ -146,16 +26,16 @@ namespace madness {
       CCS_Solver.solve_guess(guess);
       guess.clear();
     }
-    //    {
-    //      xfunctionsT solve = CCS_Solver.get_converged_xfunctions();
-    //      CCS_Solver.solve(solve);
-    //      solve.clear();
-    //    }
-    //    {
-    //      xfunctionsT final = CCS_Solver.get_converged_xfunctions();
-    //      CCS_Solver.solve_sequential(final);
-    //      final.clear();
-    //    }
+        {
+          xfunctionsT solve = CCS_Solver.get_converged_xfunctions();
+          CCS_Solver.solve(solve);
+          solve.clear();
+        }
+        {
+          xfunctionsT final = CCS_Solver.get_converged_xfunctions();
+          CCS_Solver.solve_sequential(final);
+          final.clear();
+        }
     output_section("SOLVE CCS finished");
     std::vector<std::pair<CC_vecfunction,double>> ccs_vectors;
     {
@@ -255,7 +135,7 @@ namespace madness {
       std::vector<Pairs<CC_Pair> > doubles;
       doubles.push_back(u);
       doubles.push_back(chi);
-      singles_converged=iterate_singles(x,tau,doubles,CC2_response_);
+      singles_converged=iterate_singles(x,tau,doubles,LRCC2_);
       const double new_omega = x.omega;
       const double diff = new_omega - omega;
       bool energy_converged = (fabs(diff)<parameters.econv);
@@ -291,7 +171,7 @@ namespace madness {
 	std::vector<Pairs<CC_Pair> > doubles;
 	doubles.push_back(u);
 	doubles.push_back(chi);
-	iterate_singles(x,tau,doubles,CC2_response_);
+	iterate_singles(x,tau,doubles,LRCC2_);
 	vecfuncT new_x=x.get_vecfunction();
 	vecfuncT difference=sub(world,old_x,new_x);
 	bool full_convergence=true;

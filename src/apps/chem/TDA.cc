@@ -55,6 +55,14 @@ void TDA::solve_guess(xfunctionsT &xfunctions) {
 	TDA_TIMER init(world,"\nfinished to initialize guess excitations ...");
 	// if xfunctions were read in before then xfunctions.empty() will be false
 	if(xfunctions.empty())initialize(xfunctions);
+	if(xfunctions.size()!=parameters.tda_guess_excitations){
+	  if(world.rank()==0){
+	    std::cout << "You demanded " << parameters.tda_guess_excitations
+		<< " Guess excitation vectors to solve but the " << parameters.tda_guess
+		<< " provides only " << xfunctions.size() << " vectors\n";
+	  }
+	  MADNESS_EXCEPTION("Guess has not enough functions",1);
+	}
 	for(size_t i=0;i<10;i++){
 		output("Guess Iteration " + stringify(i));
 		converged_xfunctions_.clear();
@@ -139,7 +147,7 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 
 		// make kain solver
 		sequential_kain_solver kain_solver(TDA_allocator(world,active_mo_.size()),true);
-		kain_solver.set_maxsub(kain_subspace_);
+		kain_solver.set_maxsub(parameters.kain_subspace);
 
 		for(size_t iter =0;iter<iter_max_+1;iter++){
 			TDA_TIMER seq_iter(world,"\nSequential iteration "+ stringify(iter) + " time:");
@@ -170,10 +178,14 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 
 			if(fabs(current_root.error.back())<hard_dconv_ and fabs(current_root.delta.back())<hard_econv_){
 				current_root.converged =true;
+				project_out_occupied_space(current_root.x);
+				normalize(current_root);
 				converged_xfunctions_.push_back(current_root);
 				if(world.rank()==0) std::cout << "\nexcitation " << iroot << " converged!!!\n" << std::endl;
 				break;
 			}else if(iter==iter_max_){
+				project_out_occupied_space(current_root.x);
+				normalize(current_root);
 				current_root.converged=false;
 				converged_xfunctions_.push_back(current_root);
 				if(world.rank()==0) std::cout << "\nexcitation " << iroot << " converged not ...\n" << std::endl;
@@ -183,10 +195,12 @@ void TDA::solve_sequential(xfunctionsT &xfunctions) {
 		}
 	}
 
-
+	truncate_xfunctions(xfunctions);
+	truncate_xfunctions(converged_xfunctions_);
 	plot_vecfunction(active_mo_, "active_mo_");
 	// plot
 	for(size_t i=0;i<converged_xfunctions_.size();i++) {
+		print_size(world,converged_xfunctions_[i].x,"Converged Excitation "+std::to_string(i));
 		plot_vecfunction(converged_xfunctions_[i].x,"final_excitation_"+stringify(i),true);
 	}
 
@@ -355,7 +369,7 @@ void TDA::guess_koala(xfunctionsT &roots)const{
 	}
 	if(koala_mo.size()!=active_mo_.size()) MADNESS_EXCEPTION("ERROR in Koala guess: not the same number of Koala mos and active_mos of MRA",1);
 	// this is the transformation matrix for the rotation
-	guess_phases_=matrix_inner(world,koala_mo,mos_);
+	guess_phases_=matrix_inner(world,koala_mo,nemo_.get_calc()->amo);
 	guess_phases_=guess_phases_(_,Slice(parameters.freeze,nmo-1));
 
 	// compute the inverse of the overlap matrix
@@ -614,9 +628,14 @@ vecfuncT TDA::iterate_one(xfunction & xfunction)const {
 
 	// DEBUG: Check phase
 	const Tensor<double> phase = inner(world,xfunction.x,GVpsi);
-	if(world.rank()==0) std::cout << "<x|x_new> = \n" << phase << "\n";
+	if(world.rank()==0 and parameters.debug) std::cout << "<x|x_new> = \n" << phase << "\n";
 
 	// return Updated x-function
+	// normalize
+	const double norm = CCOPS_.make_inner_product(GVpsi,GVpsi);
+	scale(world,GVpsi,1.0/norm);
+	const double error_with_normalized = norm2(world,(sub(world,GVpsi,xfunction.x)));
+	if(world.rank()==0 and parameters.debug) std::cout << "Error after normalization: " << error_with_normalized << "\n";
 	return GVpsi;
 
 }
@@ -637,7 +656,7 @@ std::string TDA::update_energy(xfunction &xfunction)const {
 
 	  double omega = guess_omega_;
 	  result = "(guess)";
-	  if(fabs(delta) < 1.e-3){
+	  if(false){//if(fabs(delta) < 1.e-3){
 	    omega = xfunction.omega + delta;
 	    result = "(2nd order)";
 	  }
@@ -652,8 +671,8 @@ std::string TDA::update_energy(xfunction &xfunction)const {
 	  }
 
 	  xfunction.omega=omega;
-
-	  return result;
+	  if(world.rank()==0) std::cout << "Updated Energy with " << result << "\n";
+	  return "";
 }
 
 void TDA::normalize(xfunctionsT & xfunctions)const {

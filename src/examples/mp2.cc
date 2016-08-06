@@ -52,6 +52,14 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
+#ifdef MADNESS_GITREVISION
+    const  char* gitrev =  MADNESS_GITREVISION;
+    const std::string gitrevision(gitrev);
+    if (world.rank()==0) {
+        print("    main() git revision ...",gitrevision);
+    }
+#endif
+
     if (world.rank()==0) {
     	print("           git revision ...", info::git_commit());
     }
@@ -64,8 +72,6 @@ int main(int argc, char** argv) {
     }
 
     TensorType tt=TT_2D;
-    FunctionDefaults<6>::set_tensor_type(tt);
-    FunctionDefaults<6>::set_apply_randomize(true);
 
     // get command line parameters (overrides input file)
     bool do_test=false;
@@ -82,8 +88,14 @@ int main(int argc, char** argv) {
         	do_test=true;
         	testfilename=val;
         }
+        if (key=="TT") {
+            if (val=="TT_2D") tt=TT_2D;
+            if (val=="TT_TENSORTRAIN") tt=TT_TENSORTRAIN;
+        }
     }
 
+    FunctionDefaults<6>::set_tensor_type(tt);
+    FunctionDefaults<6>::set_apply_randomize(true);
 
     try {
     	MP2 mp2(world,"input");

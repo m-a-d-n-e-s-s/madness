@@ -207,6 +207,7 @@ namespace madness {
             std::unique_ptr<counterT[]> recv_counters;
             std::size_t max_msg_len_;
             std::size_t nrecv_;
+            std::size_t nssend_;
             std::size_t maxq_;
             std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
             std::unique_ptr<SafeMPI::Request[]> recv_req;
@@ -223,8 +224,12 @@ namespace madness {
             RmiTask();
             virtual ~RmiTask();
 
+            static void set_rmi_task_is_running();   
+
 #if HAVE_INTEL_TBB
             tbb::task* execute() {
+	      set_rmi_task_is_running();
+
                 RMI::set_this_thread_is_server();
                 while (! finished) process_some();
                 finished = false; // ??? why?
@@ -324,28 +329,7 @@ namespace madness {
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
 
-        static void begin() {
-            testsome_backoff_us = 5;
-            const char* buf = getenv("MAD_BACKOFF_US");
-            if (buf) {
-                std::stringstream ss(buf);
-                ss >> testsome_backoff_us;
-                if (testsome_backoff_us < 0) testsome_backoff_us = 0;
-                if (testsome_backoff_us > 100) testsome_backoff_us = 100;
-            }
-
-            MADNESS_ASSERT(task_ptr == nullptr);
-#if HAVE_INTEL_TBB
-            tbb_rmi_parent_task = new( tbb::task::allocate_root() ) tbb::empty_task;
-            tbb_rmi_parent_task->set_ref_count(2);
-
-            task_ptr = new( tbb_rmi_parent_task->allocate_child() ) RmiTask();
-            tbb::task::enqueue(*task_ptr, tbb::priority_high);
-#else
-            task_ptr = new RmiTask();
-            task_ptr->start();
-#endif // HAVE_INTEL_TBB
-        }
+        static void begin();
 
         static void end() {
             if(task_ptr) {

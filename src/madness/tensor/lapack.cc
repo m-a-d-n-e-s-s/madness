@@ -624,15 +624,17 @@ namespace madness {
     template<typename T>
     void qr(Tensor<T>& A, Tensor<T>& R) {
     	TENSOR_ASSERT(A.ndim() == 2, "qr requires a matrix",A.ndim(),&A);
-
-    	TENSOR_ASSERT(A.ndim() == 2, "lq requires a matrix",A.ndim(),&A);
-    	A=transpose(A);
     	integer m=A.dim(0);
     	integer n=A.dim(1);
     	Tensor<T> tau(std::min(n,m));
     	integer lwork=2*n+(n+1)*64;
     	Tensor<T> work(lwork);
 
+        integer r_rows=std::min(m,n);
+        integer r_cols=n;
+        R=Tensor<T>(r_rows,r_cols);
+
+        A=transpose(A);
     	lq_result(A,R,tau,work,true);
 
     	A=transpose(A);
@@ -653,6 +655,10 @@ namespace madness {
     	integer lwork=2*n+(n+1)*64;
     	Tensor<T> work(lwork);
 
+        integer r_rows=std::min(m,n);
+        integer r_cols=m;
+        R=Tensor<T>(r_cols,r_rows);
+
     	lq_result(A,R,tau,work,false);
     }
 
@@ -660,7 +666,8 @@ namespace madness {
 
     /// @param[in,out]	A	on entry the (n,m) matrix to be decomposed
     ///						on exit the Q matrix
-    /// @param[out]		R	the (n,n) matrix L (square form) \todo MGR: Check this.
+    /// @param[in,out]	R	the (n,n) matrix L (square form) \todo MGR: Check this.
+    /// @param[in]      do_qr   do QR instead of LQ
     template<typename T>
     void lq_result(Tensor<T>& A, Tensor<T>& R, Tensor<T>& tau, Tensor<T>& work,
     		bool do_qr) {
@@ -680,14 +687,18 @@ namespace madness {
         integer r_rows= (m>=n) ? n : m;
         integer r_cols=n;
 		if (do_qr) {
-			R=Tensor<T>(r_rows,r_cols);
+//			R=Tensor<T>(r_rows,r_cols);
+	        TENSOR_ASSERT(r_rows==R.dim(0),"confused dimensions 0",r_rows,&R);
+	        TENSOR_ASSERT(r_cols==R.dim(1),"confused dimensions 1",r_cols,&R);
 			for (int i=0; i<r_rows; ++i) {
 				for (int j=i; j<r_cols; ++j) {
 					R(i,j)=A(j,i);	// <- transpose(A)
 				}
 			}
 		} else {
-			R=Tensor<T>(r_cols,r_rows);
+			//R=Tensor<T>(r_cols,r_rows);
+            TENSOR_ASSERT(r_rows==R.dim(1),"confused dimensions 1",r_rows,&R);
+            TENSOR_ASSERT(r_cols==R.dim(0),"confused dimensions 0",r_cols,&R);
 			for (int i=0; i<r_rows; ++i) {
 				for (int j=i; j<r_cols; ++j) {
 					R(j,i)=A(j,i);
@@ -696,7 +707,7 @@ namespace madness {
 		}
 
 		// reconstruction of Q
-    	integer k=tau.size();
+    	integer k=std::min(m,n);//tau.size(); // size of tau is tau(min(m,n))
     	integer q_rows=m;
     	integer q_cols= (m>=n) ? n : m;
     	dorgqr_(&q_rows, &q_cols, &k, A.ptr(), &q_rows, const_cast<T*>(tau.ptr()),
@@ -1039,6 +1050,10 @@ namespace madness {
 
     template
     void lq(Tensor<double>& A, Tensor<double>& L);
+
+    template
+    void lq_result(Tensor<double>& A, Tensor<double>& R, Tensor<double>& tau, Tensor<double>& work,
+    		bool do_qr);
 
 
     template

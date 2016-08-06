@@ -46,7 +46,7 @@ namespace madness {
         if (underline) {
             for (int i=0; i<column; ++i) std::cout << " ";
             for (unsigned int i=0; i<std::strlen(s); ++i) std::cout << "-";
-            std::cout << s << ENDL;
+            std::cout << ENDL;
         }
     }
 

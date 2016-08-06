@@ -458,8 +458,8 @@ namespace madness {
     void test_singles_potential();
 
 
-    vecfuncT get_CCS_response_potential(const CC_vecfunction &x){
-      if(x.type!=RESPONSE) error("get_CCS_response_potential: Wrong type of input singles");
+    vecfuncT get_LRCCS_potential(const CC_vecfunction &x){
+      if(x.type!=RESPONSE) error("get_LRCCS_potential: Wrong type of input singles");
       Pairs<CC_Pair> empty_doubles;
       CC_vecfunction empty_singles(PARTICLE);
       const vecfuncT fock_residue = response_potential_singles(empty_singles,empty_doubles,x,empty_doubles,pot_F3D_);
@@ -690,7 +690,7 @@ namespace madness {
       for(size_t k=0;k<xket.size();k++) kinetic += T(xbra[k],xket[k]);
 
       vecfuncT pot;
-      if(V.empty()) pot = get_CCS_response_potential(x);
+      if(V.empty()) pot = get_LRCCS_potential(x);
       else pot = V;
 
       double eps = 0.0;
@@ -957,7 +957,7 @@ namespace madness {
 	const Pairs<CC_Pair>& chi,
 	const potentialtype_s &name) const {
 
-      const std::string full_name = assign_name(CC2_response_)+":"+assign_name(name);
+      const std::string full_name = assign_name(LRCC2_)+":"+assign_name(name);
       CC_Timer timer(world, full_name);
       CC_data data(full_name);
       if(x.type!=RESPONSE) error("Error in response_potential_singles " + assign_name(name)+" response_singles have wrong type");
@@ -969,7 +969,7 @@ namespace madness {
 	  result = fock_residue_closed_shell(x);
 	  break;
 	case pot_ccs_:
-	  result = ccs_response_potential(tau,x);
+	  result = LRCCS_potential(tau,x);
 	  break;
 	case pot_cis_:
 	  result = cis_response_potential(x);
@@ -1187,7 +1187,7 @@ namespace madness {
     vecfuncT ccs_potential(const CC_vecfunction &tau) const;
     vecfuncT ccs_potential_new(const CC_vecfunction &tau)const;
     vecfuncT ccs_unprojected(const CC_vecfunction &ti, const CC_vecfunction &tk)const;
-    vecfuncT ccs_response_potential(const CC_vecfunction &singles, const CC_vecfunction &response)const;
+    vecfuncT LRCCS_potential(const CC_vecfunction &singles, const CC_vecfunction &response)const;
 
     vecfuncT cis_response_potential(const CC_vecfunction &x)const{
       vecfuncT result;
