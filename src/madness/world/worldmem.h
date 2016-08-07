@@ -36,6 +36,7 @@
 */
 
 #include <madness/madness_config.h>
+#include <string>
 #ifdef WORLD_GATHER_MEM_STATS
 #include <new>
 #endif // WORLD_GATHER_MEM_STATS
@@ -47,7 +48,7 @@ namespace madness {
 
     /// There is currently only one instance of this class in worldmem.cc
     /// that is used by special versions of global new+delete enabled
-    /// by compliling with WORLD_GATHER_MEM_STATS enabled.
+    /// by compiling with WORLD_GATHER_MEM_STATS enabled.
     ///
     /// Default for max_mem_limit is unlimited.
     class WorldMemInfo {
@@ -93,5 +94,13 @@ namespace madness {
 
     /// Returns pointer to internal structure
     WorldMemInfo* world_mem_info();
-}
+
+    /// \brief print memory stats per rank, usually platform specific calls.
+    /// Invoke with rank and tag, optional filenameprefix
+    void print_meminfo(
+        int id, const std::string& tag,
+        const std::string filename_prefix = std::string("MEMORY"));
+
+}  // namespace madness
+
 #endif // MADNESS_WORLD_WORLDMEM_H__INCLUDED

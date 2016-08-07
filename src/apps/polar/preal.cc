@@ -2,6 +2,7 @@
 #include <mra/mra.h>
 #include <linalg/solvers.h>
 #include <tinyxml/tinyxml.h>
+#include <world/worldmem.h>
 
 using namespace madness;
 
