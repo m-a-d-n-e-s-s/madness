@@ -41,6 +41,18 @@
 #include <new>
 #endif // WORLD_GATHER_MEM_STATS
 #include <cstddef>
+#include <fstream>
+#include <sstream>
+
+#if defined(HAVE_IBMBGQ)
+#include <spi/include/kernel/memory.h>
+#elif defined(ON_A_MAC)
+#include <malloc/malloc.h>
+#elif defined(X86_32)
+#include <malloc.h>
+#elif defined(X86_64)
+#include <sys/sysinfo.h>
+#endif
 
 namespace madness {
 
@@ -95,11 +107,83 @@ namespace madness {
     /// Returns pointer to internal structure
     WorldMemInfo* world_mem_info();
 
-    /// \brief print memory stats per rank, usually platform specific calls.
-    /// Invoke with rank and tag, optional filenameprefix
-    void print_meminfo(
-        int id, const std::string& tag,
-        const std::string filename_prefix = std::string("MEMORY"));
+    /// \brief print memory stats to file \c filename_prefix.<rank> , tagged with \c tag
+    /// \param[in] rank process rank
+    /// \param[in] tag record tag as any string type, e.g. \c const char[] , \c std::string , or \c std::wstring
+    /// \param[in] filename_prefix filename prefix; the default value is "MEMORY"
+    /// \note must set global locale properly with \c std::locale::global() if \c tag has
+    ///       nontrivial encoding
+    template <typename String> void print_meminfo(
+        int id, const String& tag,
+        const std::string filename_prefix = std::string("MEMORY")) {
+      using namespace std;
+#if defined(WORLD_MEM_PROFILE_ENABLE)
+      using Char = typename std::iterator_traits<decltype(std::begin(tag))>::value_type;
+      basic_ofstream<Char> memoryfile;
+      ostringstream filename;
+
+      filename << filename_prefix << "." << id;
+
+      memoryfile.open(filename.str().c_str(), ios::out | ios::app);
+      memoryfile << tag << endl;
+
+      const double fac = 1024.0 * 1024.0; /* Convert from bytes to megabytes */
+#if defined(HAVE_IBMBGQ)
+      uint64_t shared, persist, heapavail, stackavail, stack, heap, guard, mmap;
+
+      Kernel_GetMemorySize(KERNEL_MEMSIZE_SHARED, &shared);
+      Kernel_GetMemorySize(KERNEL_MEMSIZE_PERSIST, &persist);
+      Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAPAVAIL, &heapavail);
+      Kernel_GetMemorySize(KERNEL_MEMSIZE_STACKAVAIL, &stackavail);
+      Kernel_GetMemorySize(KERNEL_MEMSIZE_STACK, &stack);
+      Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAP, &heap);
+      Kernel_GetMemorySize(KERNEL_MEMSIZE_GUARD, &guard);
+      Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
+
+      memoryfile << "Heap size (MB): " << (heap / fac)
+                 << ", available: " << (heapavail / fac) << endl;
+      memoryfile << "Stack size (MB): " << (stack / fac)
+                 << ", available: " << (stackavail / fac) << endl;
+      memoryfile << "Memory: shared: " << (shared / fac)
+                 << ", persist: " << (persist / fac)
+                 << ", guard: " << (guard / fac) << ", mmap: " << (mmap / fac)
+                 << endl;
+#elif defined(ON_A_MAC)
+      /* Mac OS X specific hack - un-tested post Snow Leopard */
+      struct malloc_statistics_t mi; /* structure in bytes */
+
+      malloc_zone_statistics(nullptr, &mi);
+
+      memoryfile << "Heap size (MB): " << (mi.size_in_use / fac) << endl;
+#elif defined(X86_32)
+      struct mallinfo mi; /* structure in bytes */
+
+      mi = mallinfo();
+
+      memoryfile << "Non-mmap (MB): " << (mi.arena / fac) << endl;
+      memoryfile << "Mmap (MB): " << (mi.hblkhd / fac) << endl;
+      memoryfile << "Total malloc chunks (MB): " << (mi.uordblks / fac) << endl;
+#elif defined(X86_64)
+      /* Better than nothing, mallinfo unreliable on 64-bit machine due to
+         use of int in mallinfo data structure. Requires Linux
+         kernel. Inaccurate if other processes besides MADNESS are
+         running. Memory differences appear to be reliable. */
+      struct sysinfo si; /* structure in bytes */
+
+      sysinfo(&si);
+
+      memoryfile << "Total RAM (MB): " << (si.totalram / fac) << endl;
+      memoryfile << "Free RAM (MB): " << (si.freeram / fac) << endl;
+      memoryfile << "Buffer (MB): " << (si.bufferram / fac) << endl;
+      memoryfile << "RAM in use (MB): "
+                 << ((si.totalram - si.freeram + si.bufferram) / fac) << endl;
+#endif  // platform specific
+      memoryfile.close();
+#else   // WORLD_MEM_PROFILE_ENABLE
+      return;
+#endif  // WORLD_MEM_PROFILE_ENABLE
+    }
+
 
 }  // namespace madness
 
