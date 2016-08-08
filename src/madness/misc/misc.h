@@ -44,7 +44,6 @@ namespace madness {
     std::istream& position_stream(std::istream& f, const std::string& tag);
     std::string lowercase(const std::string& s);
     void gprofexit(int id, int nproc);
-    void print_meminfo(int id, const std::string& tag);
 }
 
 #endif // MADNESS_MISC_MISC_H__INCLUDED

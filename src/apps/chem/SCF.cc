@@ -43,6 +43,7 @@
 #include <chem/nemo.h>
 #include <chem/SCFOperators.h>
 #include <chem/TDA.h>
+#include <madness/world/worldmem.h>
 
 namespace madness {
     

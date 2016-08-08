@@ -35,7 +35,7 @@
 #include <madness/world/worldmem.h>
 #include <cstdlib>
 //#include <cstdio>
-#include <limits.h>
+#include <climits>
 #include <iostream>
 #include <iomanip>
 
@@ -109,7 +109,7 @@ namespace madness {
         max_num_bytes = 0;
     }
 
-}
+}  // namespace madness
 
 #ifdef WORLD_GATHER_MEM_STATS
 

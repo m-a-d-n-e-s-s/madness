@@ -38,6 +38,7 @@
 
 #include <chem/SCF.h>
 #include <chem/molopt.h>
+#include <madness/world/worldmem.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 #include <sys/types.h>
