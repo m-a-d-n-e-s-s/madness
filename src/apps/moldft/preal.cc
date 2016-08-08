@@ -2,6 +2,7 @@
 #include <madness/mra/mra.h>
 #include <madness/tensor/solvers.h>
 #include <madness/external/tinyxml/tinyxml.h>
+#include <madness/world/worldmem.h>
 
 using namespace madness;
 

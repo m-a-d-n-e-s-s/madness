@@ -53,6 +53,7 @@
 #include <madness/misc/ran.h>
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/distributed_matrix.h>
+#include <madness/world/worldmem.h>
 
 using namespace madness;
 

@@ -95,6 +95,7 @@
 #cmakedefine TENSOR_INSTANCE_COUNT 1
 #cmakedefine USE_SPINLOCKS 1
 #cmakedefine WORLD_GATHER_MEM_STATS 1
+#cmakedefine WORLD_MEM_PROFILE_ENABLE 1
 #cmakedefine WORLD_PROFILE_ENABLE 1
 
 

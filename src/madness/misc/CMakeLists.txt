@@ -2,7 +2,7 @@
 
 set(MADMISC_HEADERS misc.h ran.h phandler.h interpolation_1d.h cfft.h)
 set(MADMISC_SOURCES
-    checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc meminfo.cc)
+    checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc)
 
 # Create the MADmisc library
 add_mad_library(misc MADMISC_SOURCES MADMISC_HEADERS "world" "madness/misc/")
