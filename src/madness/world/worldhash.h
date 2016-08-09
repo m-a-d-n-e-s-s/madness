@@ -206,9 +206,7 @@ namespace madness {
     /// \param t The string to hash
     /// \return The hashed value of the string
     template <typename T>
-    inline hashT hash_value(const std::basic_string<T>& t) {
-        return hash_range(t.c_str(), t.size());
-    }
+    inline hashT hash_value(const std::basic_string<T>& t);
 
     /// Hash functor
 
@@ -350,6 +348,12 @@ namespace madness {
         hash_range(seed, t, n);
         return seed;
     }
+
+    template <typename T>
+    inline hashT hash_value(const std::basic_string<T>& t) {
+        return hash_range(t.c_str(), t.size());
+    }
+    
 
 } // namespace madness
 
