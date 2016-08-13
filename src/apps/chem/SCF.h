@@ -988,11 +988,7 @@ namespace madness {
         functionT make_density(World & world, const tensorT & occ, const vecfuncT & v) const;
         
         functionT make_density(World & world, const tensorT & occ, const cvecfuncT & v);
-        
-        real_function_3d make_sigma(const real_function_3d& rho1,
-                                    const real_function_3d& rho2) const;
-        
-        
+
         std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals) const;
         std::vector<poperatorT> make_gradbsh_operators(World & world,
                                                        const tensorT & evals, const int axis) const;
@@ -1027,28 +1023,7 @@ namespace madness {
                                  const functionT & vlocal, double & exc, double & enl, int ispin);
         
         tensorT derivatives(World & world, const functionT& rho) const;
-        
-        
-        /// compute the three components of \f[\nabla f\f]
-        std::vector<real_function_3d> nabla(const real_function_3d& f,
-                                            const bool do_refine=false) const {
-            World& world=f.world();
-            
-            f.reconstruct();
-            if (do_refine) f.refine();      // refine to make result more precise
-            
-            std::vector< std::shared_ptr< Derivative<double,3> > > grad=
-                gradient_operator<double,3>(world);
-            
-            std::vector<real_function_3d> result(3);
-            for (int i=0; i<3; ++i) {
-                result[i]=apply(*(grad[i]),f,false);
-            }
-            world.gop.fence();
-            return result;
-            
-        }
-        
+
         /// compute the total dipole moment of the molecule
         
         /// @param[in]  rho the total (alpha + beta) density

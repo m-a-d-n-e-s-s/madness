@@ -510,6 +510,39 @@ private:
 
     /// check if the intermediates are initialized
     bool is_initialized() const;
+
+    /// simple structure to take the pointwise logarithm of a function, shifted by +14
+    struct logme{
+        typedef double resultT;
+        struct logme1 {
+            double operator()(const double& val) {return log(std::max(1.e-14,val))+14.0;}
+        };
+        Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
+            Tensor<double> result=copy(val);
+            logme1 op;
+            return result.unaryop(op);
+        }
+
+        template <typename Archive>
+        void serialize(Archive& ar) {}
+    };
+
+    /// simple structure to take the pointwise exponential of a function, shifted by +14
+    struct expme{
+        typedef double resultT;
+        struct expme1 {
+            double operator()(const double& val) {return exp(val-14.0);}
+        };
+        Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
+            Tensor<double> result=copy(val);
+            expme1 op;
+            return result.unaryop(op);
+        }
+
+        template <typename Archive>
+        void serialize(Archive& ar) {}
+
+    };
 };
 
 

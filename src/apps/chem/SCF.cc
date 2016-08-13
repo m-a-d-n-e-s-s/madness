@@ -1206,27 +1206,6 @@ namespace madness {
         return rho;
     }
     
-    real_function_3d SCF::make_sigma(const real_function_3d& rho1,
-            const real_function_3d& rho2) const {
-
-        World& world=rho1.world();
-        const double tight=FunctionDefaults<3>::get_thresh()*0.001;
-        const double thresh=FunctionDefaults<3>::get_thresh();
-        FunctionDefaults<3>::set_thresh(tight);
-
-        // do refine to have sigma more precise ... why does this help????
-        std::vector<real_function_3d> drho1=nabla(rho1,true);
-        std::vector<real_function_3d> drho2=nabla(rho2,true);
-
-        real_function_3d result=real_factory_3d(world).compressed();
-        for (int axis=0; axis<3; ++axis) {
-            result+=drho1[axis]*drho2[axis];
-        }
-
-        FunctionDefaults<3>::set_thresh(thresh);
-        return result;
-    }
-
     std::vector<poperatorT> SCF::make_bsh_operators(World& world, const tensorT& evals) const {
         PROFILE_MEMBER_FUNC(SCF);
         int nmo = evals.dim(0);

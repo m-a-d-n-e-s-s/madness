@@ -494,17 +494,18 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
         }
         else if (is_gga()) {
+            // rho is the density
+            // the reduced density gradient sigma is given by
+            // sigma = rho * rho * chi
             const double * restrict rhoa = xc_args[enum_rhoa].ptr();
-            const double * restrict sigaa = xc_args[enum_saa].ptr();
+            const double * restrict chiaa = xc_args[enum_chi_aa].ptr();
             rho  = madness::Tensor<double>(np);
             sigma  = madness::Tensor<double>(np);
             double * restrict dens = rho.ptr();
             double * restrict sig = sigma.ptr();
             for (long i=0; i<np; i++) {
-                double ra=2.0*rhoa[i], saa=4.0*sigaa[i];
-                munge2(ra, saa, munging);
-                dens[i] = ra;
-                sig[i] = saa;
+                dens[i]=munge(2.0*rhoa[i]);
+                sig[i] = std::max(1.e-14,dens[i]*dens[i] * chiaa[i]);
             }
         }
         else {
@@ -534,19 +535,18 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const double * restrict rhoa  = xc_args[enum_rhoa].ptr();
             const double * restrict rhob  = xc_args[enum_rhob].ptr();
 
-            const double * restrict sigaa = xc_args[enum_saa].ptr();
-            const double * restrict sigab = xc_args[enum_sab].ptr();
-            const double * restrict sigbb = xc_args[enum_sbb].ptr();
-            const double * restrict sigtot = xc_args[enum_sigtot].ptr();
+            const double * restrict chiaa = xc_args[enum_chi_aa].ptr();
+            const double * restrict chiab = xc_args[enum_chi_ab].ptr();
+            const double * restrict chibb = xc_args[enum_chi_bb].ptr();
 
             // might happen if there are no beta electrons
             madness::Tensor<double> dummy;
-            if ((rhob==NULL) or (sigab==NULL) or (sigbb==NULL)) {
+            if ((rhob==NULL) or (chiab==NULL) or (chibb==NULL)) {
                 dummy=madness::Tensor<double>(np);
             }
             if (rhob==NULL) rhob=dummy.ptr();
-            if (sigab==NULL) sigab=dummy.ptr();
-            if (sigbb==NULL) sigbb=dummy.ptr();
+            if (chiab==NULL) chiab=dummy.ptr();
+            if (chibb==NULL) chibb=dummy.ptr();
 
             rho   = madness::Tensor<double>(np*2L);
             sigma = madness::Tensor<double>(np*3L);
@@ -554,16 +554,15 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             double * restrict dens = rho.ptr();
             double * restrict sig  = sigma.ptr();
             for (long i=0; i<np; i++) {
-                double ra=rhoa[i], rb=rhob[i], r=ra+rb;
-                double saa=sigaa[i], sab=sigab[i], sbb=sigbb[i], stot=sigtot[i];
 
-                munge7(ra, rb, r, saa, sab, sbb, stot, munging);
+                double ra=munge(rhoa[i]);
+                double rb=munge(rhob[i]);
+
                 dens[2*i  ] = ra;
                 dens[2*i+1] = rb;
-
-                sig[3*i  ] = saa;
-                sig[3*i+1] = sab;
-                sig[3*i+2] = sbb;
+                sig[3*i  ]  = std::max(1.e-14,ra * ra * chiaa[i]);  // aa
+                sig[3*i+1]  = std::max(1.e-14,ra * rb * chiab[i]);  // ab
+                sig[3*i+2]  = std::max(1.e-14,rb * rb * chibb[i]);  // bb
 
             }
         }
@@ -606,19 +605,14 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         if (spin_polarized) {
             for (long j=0; j<np; j++) {
                 res[j] +=  work[j]*(dens[2*j+1] + dens[2*j])*funcs[i].second;
-                //res[j] +=  work[j]*dens[2*j+ispin]*funcs[i].second;
-                //res[j] +=  work[j];
             }
         }
         else {
             for (long j=0; j<np; j++) {
                 res[j] += work[j]*dens[j]*funcs[i].second;
-//                std::cout << "exc: " << j << " " << res[j] << " " << work[j] << " "
-//                << dens[j] << " " << sig[j] << " " << funcs[i].first << " " << funcs[i].second << std::endl;
             }
         }
     }
-    //std::cout << "result " << result << std::endl;
     return result;
 }
 
@@ -677,14 +671,16 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                         res[j] += vr[nvrho*j+ispin] * funcs[i].second;
                     }
                 }
-                else if (xc_contrib == potential_same_spin) {   // Vsigaa/Vsigbb
+                else if (xc_contrib == potential_same_spin) {   // Vsigaa/Vsigbb * rho
                     for (long j=0; j<np; j++) {
-                        res[j] += vs[nvsig*j + 2*ispin] * funcs[i].second;
+                        res[j] += vs[nvsig*j + 2*ispin] * funcs[i].second       // aa or bb in steps of 3
+                                *dens[nvrho*j + ispin];                         // a or b in steps of 2
                     }
                 }
-                else if (xc_contrib == potential_mixed_spin) {  // Vsigab
+                else if (xc_contrib == potential_mixed_spin) {  // Vsigab * rho_other_spin
                     for (long j=0; j<np; j++) {
-                        res[j] += vs[nvsig*j + 1] * funcs[i].second;
+                        res[j] += vs[nvsig*j + 1] * funcs[i].second             // ab in steps of 3
+                                *dens[nvrho*j + (1-ispin)];                     // b or a in steps of 2
                     }
                 }
                 else {
@@ -699,7 +695,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                 }
                 else if (xc_contrib == potential_same_spin) {   // Vsigaa
                     for (long j=0; j<np; j++) {
-                        res[j] += vs[j]*funcs[i].second;
+                        res[j] += vs[j]*funcs[i].second*dens[j];    // total density
                     }
                 }
                 else {

@@ -46,6 +46,19 @@ public:
     /// the ordering of the intermediates is fixed, but the code can handle
     /// non-initialized functions, so if e.g. no GGA is requested, all the
     /// corresponding vector components may be left empty.
+    ///
+    /// note the additional quantity zeta, which is defined as
+    /// \f$
+    /// \rho = exp(\zeta)
+    /// \f$
+    /// and thus the derivative of rho is given by
+    /// \f$
+    /// \nabla_x\rho = exp(\zeta)\nabla_x\zeta = \rho \nabla_x\zeta
+    /// \f$
+    /// The reduced gradients \sigma may then be expressed as
+    /// \f$
+    ///   \sigma = |\nabla\rho|^2 = |\rho|^2 |\nabla\zeta|^2 = |\rho|^2 chi
+    /// \f$
     enum xc_arg {
         enum_rhoa=0,            ///< alpha density \f$ \rho_\alpha \f$
         enum_rhob=1,            ///< \f$ \rho_\beta \f$
@@ -61,9 +74,18 @@ public:
         enum_sbb=12,            ///< \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
         enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho \f$
         enum_sigma_pta=14,      ///< \f$ \nabla\rho_{\alpha}.\nabla\rho_{pt} \f$
-        enum_sigma_ptb=15       ///< \f$ \nabla\rho_{\beta}.\nabla\rho_{pt} \f$
+        enum_sigma_ptb=15,      ///< \f$ \nabla\rho_{\beta}.\nabla\rho_{pt} \f$
+        enum_zetaa_x=16,        ///< \f$ \partial/{\partial x} ln(rho_a)  \f$
+        enum_zetaa_y=17,        ///< \f$ \partial/{\partial y} ln(rho_a)  \f$
+        enum_zetaa_z=18,        ///< \f$ \partial/{\partial z} ln(rho_a)  \f$
+        enum_zetab_x=19,        ///< \f$ \partial/{\partial x} ln(rho_b)  \f$
+        enum_zetab_y=20,        ///< \f$ \partial/{\partial y} ln(rho_b)  \f$
+        enum_zetab_z=21,        ///< \f$ \partial/{\partial z} ln(rho_b)  \f$
+        enum_chi_aa=22,         ///< \f$ \nabla \zeta{\alpha}.\nabla \zeta{\alpha} \f$
+        enum_chi_ab=23,         ///< \f$ \nabla \zeta{\alpha}.\nabla \zeta{\beta} \f$
+        enum_chi_bb=24          ///< \f$ \nabla \zeta{\beta}.\nabla \zeta{\beta} \f$
     };
-    const static int number_xc_args=16;     ///< max number of intermediates
+    const static int number_xc_args=25;     ///< max number of intermediates
 
 
     /// which contribution is requested from the XCfunctional

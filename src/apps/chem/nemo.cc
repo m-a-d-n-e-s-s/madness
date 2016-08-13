@@ -730,8 +730,8 @@ real_function_3d Nemo::make_sigma(const real_function_3d& rho1,
     FunctionDefaults<3>::set_thresh(tight);
 
     // do refine to have sigma more precise
-    std::vector<real_function_3d> drho1=calc->nabla(rho1,true);
-    std::vector<real_function_3d> drho2=calc->nabla(rho2,true);
+    std::vector<real_function_3d> drho1=grad(rho1,true);
+    std::vector<real_function_3d> drho2=grad(rho2,true);
 
     // first term
     NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(nuclear_correlation.get());
@@ -1461,7 +1461,6 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 vecfuncT Nemo::compute_cphf_parallel_term(const int iatom, const int iaxis) const {
 
     const vecfuncT& nemo=calc->amo;
-    int natom=calc->molecule.natom();
     vecfuncT parallel(nemo.size());
     NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
     const real_function_3d RXR=real_factory_3d(world).functor(rxr_func).truncate_on_project();

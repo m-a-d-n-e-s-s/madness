@@ -1007,6 +1007,22 @@ namespace madness {
         return tmp;
     }
 
+    /// multiply a vector of functions with a function: r[i] = v[i] * a
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator*(const Function<T,NDIM>& a,
+            const std::vector<Function<T,NDIM> >& v) {
+        return mul(v[0].world(),a,v,true);
+    }
+
+
+    /// multiply a vector of functions with a function: r[i] = a * v[i]
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator*(const std::vector<Function<T,NDIM> >& v,
+            const Function<T,NDIM>& a) {
+        return mul(v[0].world(),a,v,true);
+    }
+
+
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
             const std::vector<Function<T,NDIM> >& lhs) {
@@ -1021,7 +1037,55 @@ namespace madness {
         return rhs;
     }
 
+    /// shorthand gradient operator
 
+    /// returns the differentiated function f in all NDIM directions
+    /// @param[in]  f       the function on which the grad operator works on
+    /// @param[in]  refine  refinement before diff'ing makes the result more accurate
+    /// @param[in]  fence   fence after completion; if reconstruction is needed always fence
+    /// @return     the vector \frac{\partial}{\partial x_i} f
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    /// shorthand div operator
+
+    /// returns the dot product of nabla with a vector f
+    /// @param[in]  f       the vector of functions on which the div operator works on
+    /// @param[in]  refine  refinement before diff'ing makes the result more accurate
+    /// @param[in]  fence   fence after completion; currently always fences
+    /// @return     the vector \frac{\partial}{\partial x_i} f
+    /// TODO: add this to operator fusion
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> div(const std::vector<Function<T,NDIM> >& v,
+            bool do_refine=false, bool fence=true) {
+
+        MADNESS_ASSERT(v.size()>0);
+        World& world=v[0].world();
+        reconstruct(world,v);
+        if (do_refine) refine(world,v);      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),v[i],false);
+        world.gop.fence();
+        return sum(world,result,fence);
+    }
 
     /// load a vector of functions
     template<typename T, size_t NDIM>
