@@ -67,6 +67,7 @@
 #include <iostream>
 #include <cstring>
 #include <memory>
+#include <sstream>
 
 #define MADNESS_MPI_TEST(condition) \
     { \
@@ -142,7 +143,7 @@ namespace SafeMPI {
     class Exception : public std::exception {
     private:
         char mpi_error_string_[MPI_MAX_ERROR_STRING];
-
+        std::string mpi_statuses_error_string_;
     public:
 
         Exception(const int mpi_error) throw() {
@@ -151,21 +152,63 @@ namespace SafeMPI {
                 std::strncpy(mpi_error_string_, "UNKNOWN MPI ERROR!", MPI_MAX_ERROR_STRING);
         }
 
+        Exception(const int mpi_error, const int nstatuses,
+                  const int* indices,
+                  MPI_Status* const statuses) noexcept {
+            try {
+                if (mpi_error == MPI_ERR_IN_STATUS) {
+                    std::ostringstream oss;
+                    for(auto s=0; s!=nstatuses; ++s) {
+                        int len = 0;
+                        auto status_error = statuses[indices[s]].MPI_ERROR;
+                        if (status_error != MPI_SUCCESS) {
+                            oss << "request " << indices[s] << ":";
+                            if (MPI_Error_string(status_error, mpi_error_string_, &len) != MPI_SUCCESS)
+                                oss << " unknown error!" << std::endl;
+                            else
+                                oss << mpi_error_string_ << std::endl;
+                        }
+                    }
+                    mpi_statuses_error_string_ = oss.str();
+                }
+            }
+            catch (...) {}
+
+            int len = 0;
+            if(MPI_Error_string(mpi_error, mpi_error_string_, &len) != MPI_SUCCESS)
+                std::strncpy(mpi_error_string_, "UNKNOWN MPI ERROR!", MPI_MAX_ERROR_STRING);
+        }
+
         Exception(const Exception& other) throw() {
             std::strncpy(mpi_error_string_, other.mpi_error_string_, MPI_MAX_ERROR_STRING);
+            try {
+                mpi_statuses_error_string_ = other.mpi_statuses_error_string_;
+            } catch(...) { mpi_statuses_error_string_.clear(); }
         }
 
         Exception& operator=(const Exception& other) {
             std::strncpy(mpi_error_string_, other.mpi_error_string_, MPI_MAX_ERROR_STRING);
+            try {
+                mpi_statuses_error_string_ = other.mpi_statuses_error_string_;
+            } catch(...) { mpi_statuses_error_string_.clear(); }
             return *this;
         }
 
         virtual ~Exception() throw() { }
 
         virtual const char* what() const throw() { return mpi_error_string_; }
+        bool can_elaborate() const noexcept {
+            return !mpi_statuses_error_string_.empty();
+        }
+        const char* elaborate() const noexcept {
+            return mpi_statuses_error_string_.c_str();
+        }
 
         friend std::ostream& operator<<(std::ostream& os, const Exception& e) {
             os << e.what();
+            if (e.can_elaborate()) {
+              os << e.elaborate();
+            }
             return os;
         }
     }; // class Exception
@@ -319,7 +362,14 @@ namespace SafeMPI {
                 mpi_requests[i] = requests[i].request_;
             {
                 SAFE_MPI_GLOBAL_MUTEX;
-                MADNESS_MPI_TEST( MPI_Testsome( incount, mpi_requests.get(), &outcount, indices, mpi_statuses.get()));
+                {  // print out the status vars for the failed requests
+                  auto mpi_error_code =
+                      MPI_Testsome(incount, mpi_requests.get(), &outcount,
+                                   indices, mpi_statuses.get());
+                  if (mpi_error_code != MPI_SUCCESS) {
+                    throw ::SafeMPI::Exception(mpi_error_code, outcount, indices, mpi_statuses.get());
+                  }
+                }
             }
             for(int i = 0; i < incount; ++i) {
                 requests[i] = mpi_requests[i];
@@ -703,6 +753,7 @@ namespace SafeMPI {
         inline void init_comm_world() {
             MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.pimpl->comm, & COMM_WORLD.pimpl->me));
             MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.pimpl->comm, & COMM_WORLD.pimpl->numproc));
+            MADNESS_MPI_TEST(MPI_Errhandler_set(COMM_WORLD.pimpl->comm, MPI_ERRORS_RETURN));
         }
 
     }  // namespace detail
