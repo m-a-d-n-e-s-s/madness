@@ -232,7 +232,8 @@ namespace madness {
 
                 RMI::set_this_thread_is_server();
                 while (! finished) process_some();
-                finished = false; // ??? why?
+                finished = false;  // to ensure that RmiTask::exit() that
+                                   // triggered the exit proceeds to completion
                 return nullptr;
             }
 #else
