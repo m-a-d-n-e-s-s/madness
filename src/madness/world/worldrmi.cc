@@ -450,11 +450,11 @@ namespace madness {
         Request result;
         if (nssend_ && numsent==nssend_) {
             result = comm.Issend(buf, nbyte, MPI_BYTE, dest, tag);
+            numsent %= nssend_;
         }
         else {
             result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
         }
-        numsent %= nssend_;
 
         unlock();
 
