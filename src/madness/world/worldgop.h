@@ -919,7 +919,7 @@ namespace madness {
         /// \param key The sync key
         /// \param op The sync operation to be executed on this process
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c lazy_sync. Keys may be reuse after
+        /// conflict with other calls to \c lazy_sync. Keys may be reused after
         /// the associated operation has finished.
         template <typename keyT, typename opT>
         void lazy_sync(const keyT& key, const opT& op) const {
