@@ -282,7 +282,7 @@ namespace SafeMPI {
     class Request {
         // Note: This class was previously derived from MPI::Request, but this
         // was changed with the removal of the MPI C++ bindings. Now this class
-        // only implements the minumum functionality required by MADNESS. Feel
+        // only implements the minimum functionality required by MADNESS. Feel
         // free to add more functionality as needed.
 
     private:
