@@ -12,8 +12,10 @@ noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat hea
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian lrccs
- 
+ tdhf cc2 nemo helium_exact density_smoothing siam_example gaussian lrccs \
+ copyEx compressEx reconstructEx innerEx fusedEx testFusedEx addEx multiplyEx \
+ derivativeEx matrixInnerEx scm1Ex scm2Ex scm3Ex scM1Ex scM2Ex
+
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
 endif
@@ -22,6 +24,51 @@ thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
 AUTOMAKE_OPTIONS = subdir-objects
+
+scm1Ex_SOURCES = FuseTExamples/SC2016/sc_m1.cc
+scm1Ex_LDADD = $(LIBWORLD) $(MRALIBS)
+
+scm2Ex_SOURCES = FuseTExamples/SC2016/sc_m2.cc
+scm2Ex_LDADD = $(LIBWORLD) $(MRALIBS)
+
+scm3Ex_SOURCES = FuseTExamples/SC2016/sc_m3.cc
+scm3Ex_LDADD = $(LIBWORLD) $(MRALIBS)
+
+scM1Ex_SOURCES = FuseTExamples/SC2016/sc_M1.cc
+scM1Ex_LDADD = $(LIBWORLD) $(MRALIBS) $(LIBCHEM)
+
+scM2Ex_SOURCES = FuseTExamples/SC2016/sc_M2.cc
+scM2Ex_LDADD = $(LIBWORLD) $(MRALIBS) $(LIBCHEM)
+
+copyEx_SOURCES = FuseTExamples/CopyEx.cc
+copyEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+compressEx_SOURCES = FuseTExamples/compress.cc
+compressEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+derivativeEx_SOURCES = FuseTExamples/DerivativeEx.cc
+derivativeEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+matrixInnerEx_SOURCES = FuseTExamples/MatrixInnerEx.cc
+matrixInnerEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+reconstructEx_SOURCES = FuseTExamples/ReconstructEx.cc
+reconstructEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+innerEx_SOURCES = FuseTExamples/InnerEx.cc
+innerEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+multiplyEx_SOURCES = FuseTExamples/MultiplyEx.cc
+multiplyEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+addEx_SOURCES = FuseTExamples/AddEx.cc
+addEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+fusedEx_SOURCES = FuseTExamples/FusedEx.cc
+fusedEx_LDADD = $(LIBWORLD) $(MRALIBS)
+
+testFusedEx_SOURCES = FuseTExamples/Test_FusedEx.cc
+testFusedEx_LDADD = $(LIBWORLD) $(MRALIBS)
 
 pno_SOURCES = pno.cc 
 pno_LDADD = $(LIBCHEM) $(MRALIBS)

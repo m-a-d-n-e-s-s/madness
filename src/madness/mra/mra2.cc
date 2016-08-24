@@ -35,6 +35,10 @@
 #include <madness/world/world_object.h>
 #include <madness/world/worldmutex.h>
 #include <list>
+#include <madness/mra/FuseT/PrimitiveOp.h>
+#include <madness/mra/FuseT/OpExecutor.h>
+#include <madness/mra/FuseT/FusedExecutor.h>
+#include <madness/mra/FuseT/CopyOp.h>
 
 #ifdef FUNCTION_INSTANTIATE_2
 namespace madness {
@@ -83,6 +87,26 @@ namespace madness {
     template class Displacements<2>;
     template class DerivativeBase<double,2>;
     template class DerivativeBase<double_complex,2>;
+
+
+    //FuseT explicit Instantiations
+    template <> volatile std::list<detail::PendingMsg> WorldObject<OpExecutor<double,2> >::pending = std::list<detail::PendingMsg>();
+    template <> Spinlock WorldObject<OpExecutor<double,2> >::pending_mutex(0);
+    template <> volatile std::list<detail::PendingMsg> WorldObject<FusedExecutor<double,2> >::pending = std::list<detail::PendingMsg>();
+    template <> Spinlock WorldObject<FusedExecutor<double,2> >::pending_mutex(0);
+
+    template class PrimitiveOp<double,2>;
+    template class OpExecutor<double,2>;
+    template class FusedExecutor<double,2>;
+    template class CopyOp<double,2>;
+    template class WorldObject<OpExecutor<double,2> >;
+    template class WorldObject<FusedExecutor<double,2> >;
+
+
+
+
+
+
 
 }
 #endif
