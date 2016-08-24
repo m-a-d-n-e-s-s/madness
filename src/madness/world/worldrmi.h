@@ -161,8 +161,7 @@ namespace madness {
 
         static int testsome_backoff_us;
 
-        static void set_this_thread_is_server() {is_server_thread = true;} // std::cout << "setting this is the server thread " << pthread_self() << std::endl;}
-
+        static void set_this_thread_is_server(bool flag = true) {is_server_thread = flag;}
         static bool get_this_thread_is_server() {return is_server_thread;}
 
         static std::list< std::unique_ptr<RMISendReq> > send_req; // List of outstanding world active messages sent by the server
@@ -224,28 +223,33 @@ namespace madness {
             RmiTask();
             virtual ~RmiTask();
 
-            static void set_rmi_task_is_running();   
+            static void set_rmi_task_is_running(bool flag = true);
 
 #if HAVE_INTEL_TBB
             tbb::task* execute() {
-                set_rmi_task_is_running();
+                set_rmi_task_is_running(true);
+                RMI::set_this_thread_is_server(true);
 
-                RMI::set_this_thread_is_server();
                 while (! finished) process_some();
                 finished = false;  // to ensure that RmiTask::exit() that
                                    // triggered the exit proceeds to completion
+
+                RMI::set_this_thread_is_server(false);
+                set_rmi_task_is_running(false);
                 return nullptr;
             }
 #else
             void run() {
-                RMI::set_this_thread_is_server();
+                RMI::set_this_thread_is_server(true);
                 try {
                     while (! finished) process_some();
                     finished = false;
                 } catch(...) {
                     delete this;
+                    RMI::set_this_thread_is_server(false);
                     throw;
                 }
+                RMI::set_this_thread_is_server(false);
                 delete this; // because the task is not actually put into the q
             }
 #endif // HAVE_INTEL_TBB

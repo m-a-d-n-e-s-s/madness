@@ -384,8 +384,8 @@ namespace madness {
         }
 
 
-  void RMI::RmiTask::set_rmi_task_is_running() {
-	      rmi_task_is_running = true; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
+  void RMI::RmiTask::set_rmi_task_is_running(bool flag) {
+	      rmi_task_is_running = flag; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
   }
 
     RMI::Request
