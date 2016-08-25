@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.0.0)
 project(MADNESS CXX C ASM)
 
 # Check CMake version
-if(CMAKE_VERSION VERSION_LESS 3.5.1)  
+if(CMAKE_VERSION VERSION_LESS 3.5.1)
   message("WARNING: If parallel build fails halfway through, reduce the value of the parallel build to 'make -j 4'. Or try upgrading to CMake 3.5.1.")
 endif()
 
@@ -30,9 +30,9 @@ include(FeatureSummary)
 
 # Set install paths ============================================================
 
-set(MADNESS_INSTALL_BINDIR "bin" 
+set(MADNESS_INSTALL_BINDIR "bin"
     CACHE PATH "MADNESS binary install directory")
-set(MADNESS_INSTALL_INCLUDEDIR "include" 
+set(MADNESS_INSTALL_INCLUDEDIR "include"
     CACHE PATH "MADNESS INCLUDE install directory")
 set(MADNESS_INSTALL_LIBDIR "lib"
     CACHE PATH "MADNESS LIB install directory")
@@ -48,9 +48,14 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 
 # Always search for libraries that are 'ON' by default. If a library is not
 # found, it is disable without error. If the library is 'OFF' by default,
-# failure to find the library is an error. 
+# failure to find the library is an error.
 
 option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
+if(NOT ENABLE_MPI)
+  append_flags(CMAKE_C_FLAGS "-DSTUBOUTMPI")
+  append_flags(CMAKE_CXX_FLAGS "-DSTUBOUTMPI")
+endif(NOT ENABLE_MPI)
+
 option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
@@ -103,7 +108,7 @@ set(MADNESS_TASK_PROFILING ${ENABLE_TASK_PROFILER} CACHE BOOL
 
 option(ENABLE_WORLD_PROFILE "Enables profiling" OFF)
 add_feature_info(WORLD_PROFILE ENABLE_WORLD_PROFILE "supports simple profiling of MADworld runtime")
-set(WORLD_PROFILE_ENABLE ${ENABLE_WORLD_PROFILE} CACHE BOOL 
+set(WORLD_PROFILE_ENABLE ${ENABLE_WORLD_PROFILE} CACHE BOOL
     "Enables world profiling")
 
 option(ENABLE_MEM_STATS "Gather memory statistics (expensive)" OFF)
@@ -142,7 +147,7 @@ add_feature_info(NEVER_SPIN ENABLE_NEVER_SPIN
 set(NEVER_SPIN ${ENABLE_NEVER_SPIN} CACHE BOOL
     "Disables use of spinlocks (notably for use inside virtual machines)")
 
-option(ENABLE_BSEND_ACKS 
+option(ENABLE_BSEND_ACKS
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements" ON)
 add_feature_info(BSEND_ACKS ENABLE_BSEND_ACKS
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements")
@@ -253,7 +258,7 @@ check_cxx_source_compiles(
     " HAVE_CRAYXT)
 if(HAVE_CRAYXE)
   set(AMD_QUADCORE_TUNE ON CACHE BOOL "Target for tuning mtxmq kernels")
-  set(USE_SPINLOCKS ON CACHE BOOL 
+  set(USE_SPINLOCKS ON CACHE BOOL
       "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)" FORCE)
   set(MAD_BIND_DEFAULT "1 0 2" CACHE STRING "The default binding for threads" FORCE)
   set(MPI_C_COMPILER cc CACHE STRING "CRAY MPI C compiler")
@@ -279,7 +284,7 @@ check_cxx_source_compiles(
     " HAVE_IBMBGQ)
 
 if(HAVE_IBMBGQ OR HAVE_IBMBGP)
-  set(USE_SPINLOCKS ON CACHE BOOL 
+  set(USE_SPINLOCKS ON CACHE BOOL
       "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)" FORCE)
 endif()
 
@@ -377,8 +382,8 @@ check_cxx_source_compiles(
     "
     #include <cmath>
     #include <cstdlib>
-    long (*absptr)(long) = &std::abs; 
-    long a = -1;  
+    long (*absptr)(long) = &std::abs;
+    long a = -1;
     long b = std::abs(a);
     int main() { return 0; }
     " HAVE_STD_ABS_LONG)
@@ -387,8 +392,8 @@ if(NOT HAVE_STD_ABS_LONG)
       "
       #include <cmath>
       #include <cstdlib>
-      long (*labsptr)(long) = &std::labs; 
-      long a = -1l;  
+      long (*labsptr)(long) = &std::labs;
+      long a = -1l;
       long b = labs(a);
       int main() { return 0; }
       " HAVE_LABS)
@@ -417,12 +422,12 @@ if(NOT DEFINED THREAD_LOCAL_KEYWORD)
       unset(THREAD_LOCAL_SUPPORT CACHE)
     endif()
   endforeach()
-  
+
   if(NOT DEFINED THREAD_LOCAL_SUPPORT)
       set(THREAD_LOCAL_KEYWORD ""
           CACHE STRING "thread local storage keyword, 'thread_local' in C++11")
   endif()
-  
+
   # Print thread_local keyword search results
   message(STATUS "Thread local keyword: ${THREAD_LOCAL_KEYWORD}")
 endif()
@@ -454,7 +459,7 @@ if(NOT DEFINED RESTRICT_KEYWORD)
     set(RESTRICT_KEYWORD ""
         CACHE STRING "C++ equivialent of the C 'restrict' keyword")
   endif()
-  
+
   # Print restrict keyword search results
   message(STATUS "Restrict keyword: ${RESTRICT_KEYWORD}")
 endif()
@@ -553,24 +558,24 @@ export(EXPORT madworld
 configure_package_config_file(cmake/madness-config.cmake.in
     "${MADNESS_BINARY_DIR}/madness-config.cmake"
   INSTALL_DESTINATION "${MADNESS_INSTALL_CMAKEDIR}"
-  PATH_VARS CMAKE_INSTALL_PREFIX MADNESS_INSTALL_BINDIR 
+  PATH_VARS CMAKE_INSTALL_PREFIX MADNESS_INSTALL_BINDIR
             MADNESS_INSTALL_INCLUDEDIR MADNESS_INSTALL_LIBDIR
-            MADNESS_INSTALL_DATADIR MADNESS_INSTALL_DOCDIR 
+            MADNESS_INSTALL_DATADIR MADNESS_INSTALL_DOCDIR
             MADNESS_INSTALL_CMAKEDIR)
 
 # Install config, version, and target files
 install(EXPORT madness
     FILE "madness-targets.cmake"
-    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
+    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}"
     COMPONENT madness-config)
 install(EXPORT madworld
     FILE "madworld-targets.cmake"
-    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
+    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}"
     COMPONENT madness-config)
 install(FILES
     "${MADNESS_BINARY_DIR}/madness-config.cmake"
     "${MADNESS_BINARY_DIR}/madness-config-version.cmake"
-    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
+    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}"
     COMPONENT madness-config)
 add_custom_target(install-config
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
@@ -578,4 +583,3 @@ add_custom_target(install-config
 
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")
-    
