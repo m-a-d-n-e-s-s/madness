@@ -40,7 +40,12 @@
 #include <sstream>
 #include <list>
 #include <memory>
+
+#ifdef STUBOUTMPI
+#include <madness/world/stubmpi.h>
+#else
 #include <mpi.h>
+#endif
 
 namespace madness {
 
