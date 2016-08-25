@@ -60,7 +60,7 @@ namespace madness {
         const bool print_debug_info = RMI::debugging;
 
         if (print_debug_info && n_in_q)
-            std::cerr << rank << ":RMI: about to call Waitsome with "
+            std::cerr << rank << ":RMI: about to call Testsome with "
                       << n_in_q << " messages in the queue" << std::endl;
 
         // If MPI is not safe for simultaneous entry by multiple threads we
