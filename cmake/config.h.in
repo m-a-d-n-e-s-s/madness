@@ -115,7 +115,10 @@
 
 
 /* Define the thread_local key word. */
-#cmakedefine thread_local @THREAD_LOCAL_KEYWORD@
+#cmakedefine THREAD_LOCAL_KEYWORD @THREAD_LOCAL_KEYWORD@
+#if defined(THREAD_LOCAL_KEYWORD)
+# define thread_local THREAD_LOCAL_KEYWORD
+#endif
 
 /* Define to the application path if available */
 #cmakedefine HAVE_XTERM 1
