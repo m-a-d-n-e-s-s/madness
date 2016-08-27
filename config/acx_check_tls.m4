@@ -52,7 +52,7 @@ AC_DEFUN([ACX_CHECK_TLS],[
 #  fi
   
   if test "$acx_check_tls" = no; then
-    AC_DEFINE([thread_local],[],[Define the thread_local key word.])
+    AC_MSG_ERROR(["Unable to detect mandatory support for thread-local storage])])
   fi
 
   

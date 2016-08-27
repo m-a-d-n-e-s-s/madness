@@ -407,9 +407,11 @@ if(NOT DEFINED THREAD_LOCAL_KEYWORD)
         int main() { i = 1; return 0; }
         " THREAD_LOCAL_SUPPORT)
     if(THREAD_LOCAL_SUPPORT AND _thread_local_keyword STREQUAL "thread_local")
+      message(STATUS "Thread local keyword: thread_local")
       unset(THREAD_LOCAL_KEYWORD CACHE)
       break()
     elseif(THREAD_LOCAL_SUPPORT)
+      message(STATUS "Thread local keyword: ${_thread_local_keyword}")
       set(THREAD_LOCAL_KEYWORD "${_thread_local_keyword}"
           CACHE STRING "thread local storage keyword, 'thread_local' in C++11")
       break()
@@ -419,12 +421,8 @@ if(NOT DEFINED THREAD_LOCAL_KEYWORD)
   endforeach()
   
   if(NOT DEFINED THREAD_LOCAL_SUPPORT)
-      set(THREAD_LOCAL_KEYWORD ""
-          CACHE STRING "thread local storage keyword, 'thread_local' in C++11")
+    message(FATAL_ERROR "Unable to detect mandatory support for thread-local storage")
   endif()
-  
-  # Print thread_local keyword search results
-  message(STATUS "Thread local keyword: ${THREAD_LOCAL_KEYWORD}")
 endif()
 
 
