@@ -41,6 +41,10 @@
 #include <madness/tensor/cblas.h>
 #endif
 
+#ifdef MADNESS_USE_LIBXSMM
+#include <libxsmm.h>
+#endif
+
 /// \file tensor/mxm.h
 /// \brief Internal use only
 
@@ -179,7 +183,7 @@ namespace madness {
     }
     
 
-#ifdef HAVE_INTEL_MKL
+#if defined(HAVE_INTEL_MKL)
 
     /// Matrix += Matrix * matrix ... MKL interface version
     
@@ -234,7 +238,7 @@ namespace madness {
     }
 
     /// Matrix = Matrix transpose * matrix ... MKL interface version
-    
+
     /// Does \c C=AT*B whereas mTxm does C=C+AT*B.  
     /// \code
     ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
@@ -620,5 +624,155 @@ namespace madness {
 
 #endif // HAVE_INTEL_MKL
     
+#if defined(MADNESS_USE_LIBXSMM)
+
+    /// LIBXSMM code written by Jeff Hammond, August 2016
+    //
+    /// LIBXSMM interface (https://github.com/hfp/libxsmm/blob/master/README.md):
+    /// Automatically dispatched dense matrix multiplication (single/double-precision, C code).
+    /// libxsmm_?gemm(NULL/*transa*/, NULL/*transb*/, &m/*required*/, &n/*required*/, &k/*required*/,
+    ///               NULL/*alpha*/, a/*required*/, NULL/*lda*/, b/*required*/, NULL/*ldb*/,
+    ///               NULL/*beta*/, c/*required*/, NULL/*ldc*/);
+
+    /// Matrix += Matrix * matrix ... LIBXSMM interface version
+
+    /// Does \c C=C+A*B
+    /// \code
+    ///    c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
+    /// \endcode
+    template <>
+    void mxm(long dimi, long dimj, long dimk,
+             double * restrict c, const double* a, const double* b) {
+        const double one = 1.0;  // alpha in *gemm
+
+        /// const libxsmm_blasint is 'int' in LP64 mode and 'long long' in ILP64 mode.
+#if (0 == LIBXSMM_ILP64)
+        MADNESS_ASSERT(dimi<INT_MAX);
+        MADNESS_ASSERT(dimj<INT_MAX);
+        MADNESS_ASSERT(dimk<INT_MAX);
+#endif
+        const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
+        const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
+        const libxsmm_blasint xdimk = (const libxsmm_blasint)dimk;
+
+        /// MKL cblas::gemm(cblas::NoTrans,cblas::NoTrans,dimj,dimi,dimk,one,b,dimj,a,dimk,one,c,dimj);
+        libxsmm_dgemm("N", "N", &xdimj, &xdimi, &xdimk, &one, b, &xdimj, a, &xdimk, &one, c, &xdimj);
+    }
+
+    /// Matrix += Matrix transpose * matrix ... LIBXSMM interface version
+
+    /// Does \c C=C+AT*B
+    /// \code
+    ///    c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
+    /// \endcode
+    template <>
+    void mTxm(long dimi, long dimj, long dimk,
+              double* restrict c, const double* a, const double* b) {
+        const double one = 1.0;  // alpha in *gemm
+
+#if (0 == LIBXSMM_ILP64)
+        MADNESS_ASSERT(dimi<INT_MAX);
+        MADNESS_ASSERT(dimj<INT_MAX);
+        MADNESS_ASSERT(dimk<INT_MAX);
+#endif
+        const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
+        const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
+        const libxsmm_blasint xdimk = (const libxsmm_blasint)dimk;
+
+        /// MKL cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,dimj,a,dimi,one,c,dimj);
+        libxsmm_dgemm("N", "T", &xdimj, &xdimi, &xdimk, &one, b, &xdimj, a, &xdimi, &one, c, &xdimj);
+    }
+
+    /// Matrix += Matrix * matrix transpose ... LIBXSMM interface version
+
+    /// Does \c C=C+A*BT
+    /// \code
+    ///    c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
+    /// \endcode
+    template <>
+    void mxmT(long dimi, long dimj, long dimk,
+              double* restrict c, const double* a, const double* b) {
+        const double one = 1.0;  // alpha in *gemm
+
+#if (0 == LIBXSMM_ILP64)
+        MADNESS_ASSERT(dimi<INT_MAX);
+        MADNESS_ASSERT(dimj<INT_MAX);
+        MADNESS_ASSERT(dimk<INT_MAX);
+#endif
+        const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
+        const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
+        const libxsmm_blasint xdimk = (const libxsmm_blasint)dimk;
+
+        /// MKL cblas::gemm(cblas::Trans,cblas::NoTrans,dimj,dimi,dimk,one,b,dimk,a,dimk,one,c,dimj);
+        libxsmm_dgemm("T", "N", &xdimj, &xdimi, &xdimk, &one, b, &xdimk, a, &xdimk, &one, c, &xdimj);
+    }
+
+    /// Matrix += Matrix transpose * matrix transpose ... LIBXSMM interface version
+
+    /// Does \c C=C+AT*BT
+    /// \code
+    ///    c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
+    /// \endcode
+    template <>
+    void mTxmT(long dimi, long dimj, long dimk,
+               double* restrict c, const double* a, const double* b) {
+        const double one = 1.0;  // alpha in *gemm
+#if (0 == LIBXSMM_ILP64)
+        MADNESS_ASSERT(dimi<INT_MAX);
+        MADNESS_ASSERT(dimj<INT_MAX);
+        MADNESS_ASSERT(dimk<INT_MAX);
+#endif
+        const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
+        const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
+        const libxsmm_blasint xdimk = (const libxsmm_blasint)dimk;
+
+        /// MKL cblas::gemm(cblas::Trans,cblas::Trans,dimj,dimi,dimk,one,b,dimk,a,dimi,one,c,dimj);
+        libxsmm_dgemm("T", "T", &xdimj, &xdimi, &xdimk, &one, b, &xdimk, a, &xdimi, &one, c, &xdimj);
+    }
+
+    /// Matrix = Matrix transpose * matrix ... LIBXSMM interface version
+
+#if 0
+    /// Does \c C=AT*B whereas mTxm does C=C+AT*B.
+    /// \code
+    ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
+    /// \endcode
+    ///
+    /// \c ldb is the last dimension of b in C storage (the leading dimension
+    /// in fortran storage).  It is here to accomodate multiplying by a matrix
+    /// stored with \c ldb>dimj which happens in madness when transforming with
+    /// low rank matrices.  A matrix in dense storage has \c ldb=dimj which is
+    /// the default for backward compatibility.
+    template <>
+    void mTxmq(long dimi, long dimj, long dimk,
+               double* restrict c, const double* a, const double* b, long ldb=-1) {
+        if (ldb == -1) ldb=dimj;
+        MADNESS_ASSERT(ldb>=dimj);
+
+        if (dimi==0 || dimj==0) return; // nothing to do and *GEMM will complain
+        if (dimk==0) {
+            for (long i=0; i<dimi*dimj; i++) c[i] = 0.0;
+        }
+
+        const double one = 1.0;  // alpha in *gemm
+        const double zero = 0.0; // beta  in *gemm
+#if (0 == LIBXSMM_ILP64)
+        MADNESS_ASSERT(dimi<INT_MAX);
+        MADNESS_ASSERT(dimj<INT_MAX);
+        MADNESS_ASSERT(dimk<INT_MAX);
+        MADNESS_ASSERT(ldb<INT_MAX);
+#endif
+        const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
+        const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
+        const libxsmm_blasint xdimk = (const libxsmm_blasint)dimk;
+        const libxsmm_blasint xldb  = (const libxsmm_blasint)ldb;
+
+        /// MKL cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
+        libxsmm_dgemm("N", "T", &xdimj, &xdimi, &xdimk, &one, b, &xldb, a, &xdimi, &zero, c, &xdimj);
+    }
+#endif
+
+#endif // MADNESS_USE_LIBXSMM
+
 }    
 #endif // MADNESS_TENSOR_MXM_H__INCLUDED
