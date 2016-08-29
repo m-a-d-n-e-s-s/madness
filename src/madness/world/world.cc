@@ -56,6 +56,10 @@ using namespace elem;
 #endif
 #endif
 
+#ifdef MADNESS_USE_LIBXSMM
+# include <libxsmm.h>
+#endif // MADNESS_USE_LIBXSMM
+
 namespace madness {
 
     // File scope variables
@@ -206,6 +210,10 @@ namespace madness {
         elem::Initialize(argc,argv);
 #endif // HAVE_ELEMENTAL
 
+#ifdef MADNESS_USE_LIBXSMM
+        libxsmm_init();
+#endif // MADNESS_USE_LIBXSMM
+
         // Construct the default world
         World::default_world = new World(comm);
 
@@ -223,6 +231,10 @@ namespace madness {
         // Destroy the default world
         delete World::default_world;
         World::default_world = nullptr;
+
+#ifdef MADNESS_USE_LIBXSMM
+        libxsmm_finalize();
+#endif // MADNESS_USE_LIBXSMM
 
 #ifdef MADNESS_HAS_ELEMENTAL
         elem::Finalize();
