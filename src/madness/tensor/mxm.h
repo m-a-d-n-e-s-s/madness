@@ -43,6 +43,7 @@
 
 #ifdef MADNESS_USE_LIBXSMM
 #include <libxsmm.h>
+#include <limits>
 #endif
 
 /// \file tensor/mxm.h
@@ -57,6 +58,11 @@
 
 
 namespace madness {
+
+#ifdef MADNESS_USE_LIBXSMM
+    /// This is better than INT_MAX from <climits>
+    const auto int_max = std::numeric_limits<int>::max();
+#endif
 
     // Start with reference implementations.  Then provide optimized implementations, falling back to reference if not available on specific platforms
 
@@ -647,9 +653,9 @@ namespace madness {
 
         /// const libxsmm_blasint is 'int' in LP64 mode and 'long long' in ILP64 mode.
 #if (0 == LIBXSMM_ILP64)
-        MADNESS_ASSERT(dimi<INT_MAX);
-        MADNESS_ASSERT(dimj<INT_MAX);
-        MADNESS_ASSERT(dimk<INT_MAX);
+        MADNESS_ASSERT(dimi<int_max);
+        MADNESS_ASSERT(dimj<int_max);
+        MADNESS_ASSERT(dimk<int_max);
 #endif
         const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
         const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
@@ -671,9 +677,9 @@ namespace madness {
         const double one = 1.0;  // alpha in *gemm
 
 #if (0 == LIBXSMM_ILP64)
-        MADNESS_ASSERT(dimi<INT_MAX);
-        MADNESS_ASSERT(dimj<INT_MAX);
-        MADNESS_ASSERT(dimk<INT_MAX);
+        MADNESS_ASSERT(dimi<int_max);
+        MADNESS_ASSERT(dimj<int_max);
+        MADNESS_ASSERT(dimk<int_max);
 #endif
         const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
         const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
@@ -695,9 +701,9 @@ namespace madness {
         const double one = 1.0;  // alpha in *gemm
 
 #if (0 == LIBXSMM_ILP64)
-        MADNESS_ASSERT(dimi<INT_MAX);
-        MADNESS_ASSERT(dimj<INT_MAX);
-        MADNESS_ASSERT(dimk<INT_MAX);
+        MADNESS_ASSERT(dimi<int_max);
+        MADNESS_ASSERT(dimj<int_max);
+        MADNESS_ASSERT(dimk<int_max);
 #endif
         const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
         const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
@@ -718,9 +724,9 @@ namespace madness {
                double* restrict c, const double* a, const double* b) {
         const double one = 1.0;  // alpha in *gemm
 #if (0 == LIBXSMM_ILP64)
-        MADNESS_ASSERT(dimi<INT_MAX);
-        MADNESS_ASSERT(dimj<INT_MAX);
-        MADNESS_ASSERT(dimk<INT_MAX);
+        MADNESS_ASSERT(dimi<int_max);
+        MADNESS_ASSERT(dimj<int_max);
+        MADNESS_ASSERT(dimk<int_max);
 #endif
         const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
         const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
@@ -757,10 +763,10 @@ namespace madness {
         const double one = 1.0;  // alpha in *gemm
         const double zero = 0.0; // beta  in *gemm
 #if (0 == LIBXSMM_ILP64)
-        MADNESS_ASSERT(dimi<INT_MAX);
-        MADNESS_ASSERT(dimj<INT_MAX);
-        MADNESS_ASSERT(dimk<INT_MAX);
-        MADNESS_ASSERT(ldb<INT_MAX);
+        MADNESS_ASSERT(dimi<int_max);
+        MADNESS_ASSERT(dimj<int_max);
+        MADNESS_ASSERT(dimk<int_max);
+        MADNESS_ASSERT(ldb<int_max);
 #endif
         const libxsmm_blasint xdimi = (const libxsmm_blasint)dimi;
         const libxsmm_blasint xdimj = (const libxsmm_blasint)dimj;
