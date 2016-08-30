@@ -293,7 +293,10 @@ void XCfunctional::make_libxc_args_old(const std::vector< madness::Tensor<double
 
 void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& xc_args,
            madness::Tensor<double>& rho, madness::Tensor<double>& sigma,
-           const munging_type& munging) const {
+           madness::Tensor<double>& rho_pt, madness::Tensor<double>& sigma_pt,
+           bool need_response) const {
+
+    // number of grid points in this box
     const int np = xc_args[0].size();
 
 
@@ -303,7 +306,18 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const double * restrict rhoa = xc_args[enum_rhoa].ptr();
             double * restrict dens = rho.ptr();
             for (long i=0; i<np; i++) {
-                dens[i] = munge(2.0*rhoa[i]);
+                dens[i] = munge(2.0*rhoa[i]);   // full dens is twice alpha dens
+            }
+
+            // add perturbed density in response calculations
+            // note rho_pt does not depend on the spin
+            if (need_response) {
+                rho_pt  = madness::Tensor<double>(np);
+                const double * restrict rho_pt1 = xc_args[enum_rho_pt].ptr();
+                double * restrict dens_pt = rho_pt.ptr();
+                for (long i=0; i<np; i++) {
+                    dens_pt[i] = binary_munge(rho_pt1[i],rhoa[i]); // no factor 2
+                }
             }
         }
         else if (is_gga()) {
@@ -317,9 +331,29 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             double * restrict dens = rho.ptr();
             double * restrict sig = sigma.ptr();
             for (long i=0; i<np; i++) {
-                dens[i]=munge(2.0*rhoa[i]);
-                sig[i] = std::max(1.e-14,dens[i]*dens[i] * chiaa[i]);
+                dens[i]=munge(2.0*rhoa[i]);     // full dens is twice alpha dens
+                sig[i] = std::max(1.e-14,dens[i]*dens[i] * chiaa[i]);   // 2 factors 2 included in dens
             }
+
+            // add perturbed density and density gradients in response calculations
+            // note rho_pt does not depend on the spin
+            if (need_response) {
+                rho_pt  = madness::Tensor<double>(np);
+                sigma_pt  = madness::Tensor<double>(np);
+
+                const double * restrict rho_pt1 = xc_args[enum_rho_pt].ptr();
+                const double * restrict sig_pt1 = xc_args[enum_sigma_pta_div_rho].ptr();
+
+                double * restrict dens_pt = rho_pt.ptr();
+                double * restrict sig_pt = sigma_pt.ptr();
+                for (long i=0; i<np; i++) {
+                    dens_pt[i] = binary_munge(rho_pt1[i],rhoa[i]);  // no factor 2
+//                    sig_pt[i] = std::max(1.e-14,dens[i]*sig_pt1[i]);
+                    sig_pt[i] = dens[i]*sig_pt1[i];
+                    // dens is munged and includes factor of 2 for full density
+                }
+            }
+
         }
         else {
             MADNESS_EXCEPTION("only LDA and GGA available in xcfunctional",1);
@@ -342,6 +376,9 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             for (long i=0; i<np; i++) {
                 dens[2*i  ] = munge(rhoa[i]);
                 dens[2*i+1] = munge(rhob[i]);
+            }
+            if (need_response) {
+                MADNESS_EXCEPTION("no spin polarized DFT response in xcfunctional",1);
             }
         }
         else if (is_gga()) {
@@ -378,6 +415,9 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 sig[3*i+2]  = std::max(1.e-14,rb * rb * chibb[i]);  // bb
 
             }
+            if (need_response) {
+                MADNESS_EXCEPTION("no spin polarized DFT response in xcfunctional",1);
+            }
         }
         else {
             MADNESS_EXCEPTION("only LDA and GGA available in xcfunctional",1);
@@ -387,8 +427,8 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 
 
 madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const {
-    madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma, xc_potential);
+    madness::Tensor<double> rho, sigma, rho_pt, sigma_pt;
+    make_libxc_args(t, rho, sigma, rho_pt, sigma_pt, false);
 
     const int np = t[0].size();
     const double * restrict dens = rho.ptr();
@@ -432,8 +472,8 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
 
 madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t,
         const int ispin, const xc_contribution xc_contrib) const {
-    madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma, xc_potential);
+    madness::Tensor<double> rho, sigma, dummy;
+    make_libxc_args(t, rho, sigma, dummy, dummy, false);
 
     // number of grid points
     const int np = t[0].size();
@@ -541,8 +581,8 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
     MADNESS_ASSERT(ispin==0);           // for now
 
     // copy quantities from t to rho and sigma
-    Tensor<double> rho,sigma;   // rho=2rho_alpha, sigma=4sigma_alpha
-    make_libxc_args(t, rho, sigma, xc_potential);
+    Tensor<double> rho,sigma, rho_pt, sigma_pt;   // rho=2rho_alpha, sigma=4sigma_alpha
+    make_libxc_args(t, rho, sigma, rho_pt, sigma_pt, true);
 
     // number of grid points
     const int np = t[0].size();
@@ -612,42 +652,20 @@ Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
             MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::fxc",1);
         }
 
-        Tensor<double> result1(3L, t[0].dims());
-
-        // LDA
-        if (xc_contrib == XCfunctional::potential_rho) {  
-            //Tensor<double> dens_pt = copy(t[enum_rhoa]);
-            //munger m(rhotol,rhomin);
-            //dens_pt.unaryop(m);
-
-            //result1 = v2rho2.emul(dens_pt);
-            result1 = copy(v2rho2);
-        }
+        Tensor<double> result1;
         // GGA, requires 3 terms
         // multiply the kernel with the various densities
-        else if (xc_contrib== XCfunctional::kernel_second_local) {  // local terms, second derivative
-            Tensor<double> dens_pt=copy(t[enum_rho_pt]);
-            Tensor<double> sigma_pt=2.0*copy(t[enum_sigma_pta]);   // factor 2 for closed shell
-            munger m(rhotol,rhomin);
-            dens_pt.unaryop(m);
-            sigma_pt.unaryop(m);
+        if (xc_contrib== XCfunctional::kernel_second_local) {  // local terms, second derivative
+            result1=v2rho2.emul(rho_pt);
+            if (is_gga()) result1+=2.0*v2rhosigma.emul(sigma_pt);
 
-            result1=v2rho2.emul(dens_pt);
-            if (is_gga()) result1+= 2.0*v2rhosigma.emul(sigma_pt);
-        } 
-        else if (xc_contrib== XCfunctional::kernel_second_semilocal) {   // semilocal terms, second derivative
-//            const Tensor<double>& dens_pt=t[enum_rho_pt];
-//            const Tensor<double>& sigma_pt=2.0*t[enum_sigma_pta];       // factor 2 for closed shell
-            Tensor<double> dens_pt=copy(t[enum_rho_pt]);
-            Tensor<double> sigma_pt=2.0*copy(t[enum_sigma_pta]);   // factor 2 for closed shell
-            munger m(rhotol,rhomin);
-            dens_pt.unaryop(m);
-            sigma_pt.unaryop(m);
+        } else if (xc_contrib== XCfunctional::kernel_second_semilocal) {   // semilocal terms, second derivative
+            result1=2.0*v2rhosigma.emul(rho_pt) + 4.0*v2sigma2.emul(sigma_pt);
 
-            result1=2.0*v2rhosigma.emul(dens_pt) + 4.0*v2sigma2.emul(sigma_pt);
-        } 
-        else if (xc_contrib== XCfunctional::kernel_first_semilocal) {   // semilocal terms, first derivative
+        } else if (xc_contrib== XCfunctional::kernel_first_semilocal) {   // semilocal terms, first derivative
             result1=2.0*vsigma;
+        } else {
+            MADNESS_EXCEPTION("confused xc_contrib in fxc_apply",1);
         }
 
         // accumulate into result tensor with proper weighting

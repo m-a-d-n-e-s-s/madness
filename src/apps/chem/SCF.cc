@@ -3424,17 +3424,17 @@ namespace madness {
 
                 world.gop.fence(); // NECESSARY
 
-                vf[XCfunctional::enum_saa] = copy(   delrho[0] * delrho[0] 
+                vf[XCfunctional::enum_saa] = copy(   delrho[0] * delrho[0]
                                                    + delrho[1] * delrho[1]
                                                    + delrho[2] * delrho[2]);   // sigma_aa
 
                 if (!param.spin_restricted && param.nbeta != 0)
                 {
-                       vf[XCfunctional::enum_sab] = copy(  delrho[0] * delrho[3] 
+                       vf[XCfunctional::enum_sab] = copy(  delrho[0] * delrho[3]
                                                          + delrho[1] * delrho[4]
                                                          + delrho[2] * delrho[5]); // sigma_ab
 
-                       vf[XCfunctional::enum_sbb] = copy(  delrho[3] * delrho[3] 
+                       vf[XCfunctional::enum_sbb] = copy(  delrho[3] * delrho[3]
                                                          + delrho[4] * delrho[4]
                                                          + delrho[5] * delrho[5]); // sigma_bb
                  }

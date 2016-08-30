@@ -43,11 +43,11 @@ struct xc_lda_potential {
 class XCfunctional {
 public:
 
-    /// the ordering of the intermediates is fixed, but the code can handle
+    /// The ordering of the intermediates is fixed, but the code can handle
     /// non-initialized functions, so if e.g. no GGA is requested, all the
     /// corresponding vector components may be left empty.
     ///
-    /// note the additional quantity zeta, which is defined as
+    /// Note the additional quantities \f$ \zeta \f$ and \f$ \chi \f$, which are defined as
     /// \f$
     /// \rho = exp(\zeta)
     /// \f$
@@ -57,33 +57,48 @@ public:
     /// \f$
     /// The reduced gradients \sigma may then be expressed as
     /// \f$
-    ///   \sigma = |\nabla\rho|^2 = |\rho|^2 |\nabla\zeta|^2 = |\rho|^2 chi
+    ///   \sigma = |\nabla\rho|^2 = |\rho|^2 |\nabla\zeta|^2 = |\rho|^2 \chi
     /// \f$
+    ///
+    /// For conversion to spin-restricted calculations add a factor of 2 for all
+    /// quantities with 1 spin index and a factor 4 for all quantities with 2
+    /// spin indices. Note the perturbed density is spin-independent, and the
+    /// perturbed sigma depends only on 1 spin index. The perturbed sigma is
+    /// reconstructed from the density and the rest
+    /// \f[
+    ///    \sigma_{pt,\alpha} = \nabla \rho_\alpha \cdot \nabla \rho_{pt}
+    ///                       = \rho \left(\zeta_\alpha \cdot \nabla\rho_{pt}\right)
+    /// \f]
+    /// and for RHF
+    /// \f[
+    ///    \sigma_{pt} = 2.0 * \nabla \rho_\alpha \cdot \nabla \rho_{pt}
+    ///                = 2.0 * \rho \left(\zeta_\alpha \cdot \nabla\rho_{pt}\right)
+    /// \f]
     enum xc_arg {
         enum_rhoa=0,            ///< alpha density \f$ \rho_\alpha \f$
-        enum_rhob=1,            ///< \f$ \rho_\beta \f$
+        enum_rhob=1,            ///< beta density \f$ \rho_\beta \f$
         enum_rho_pt=2,          ///< perturbed density (CPHF, TDKS) \f$ \rho_{pt} \f$
-        enum_drhoa_x=4,         ///< \f$ \partial/{\partial x} \rho_{\alpha} \f$
-        enum_drhoa_y=5,         ///< \f$ \partial/{\partial y} \rho_{\alpha} \f$
-        enum_drhoa_z=6,         ///< \f$ \partial/{\partial z} \rho_{\alpha} \f$
-        enum_drhob_x=7,         ///< \f$ \partial/{\partial x} \rho_{\beta} \f$
-        enum_drhob_y=8,         ///< \f$ \partial/{\partial y} \rho_{\beta} \f$
-        enum_drhob_z=9,         ///< \f$ \partial/{\partial z} \rho_{\beta} \f$
+//        enum_drhoa_x=4,         ///< \f$ \partial/{\partial x} \rho_{\alpha} \f$
+//        enum_drhoa_y=5,         ///< \f$ \partial/{\partial y} \rho_{\alpha} \f$
+//        enum_drhoa_z=6,         ///< \f$ \partial/{\partial z} \rho_{\alpha} \f$
+//        enum_drhob_x=7,         ///< \f$ \partial/{\partial x} \rho_{\beta} \f$
+//        enum_drhob_y=8,         ///< \f$ \partial/{\partial y} \rho_{\beta} \f$
+//        enum_drhob_z=9,         ///< \f$ \partial/{\partial z} \rho_{\beta} \f$
         enum_saa=10,            ///< \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
         enum_sab=11,            ///< \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
         enum_sbb=12,            ///< \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
         enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho \f$
-        enum_sigma_pta=14,      ///< \f$ \nabla\rho_{\alpha}.\nabla\rho_{pt} \f$
-        enum_sigma_ptb=15,      ///< \f$ \nabla\rho_{\beta}.\nabla\rho_{pt} \f$
-        enum_zetaa_x=16,        ///< \f$ \partial/{\partial x} ln(rho_a)  \f$
-        enum_zetaa_y=17,        ///< \f$ \partial/{\partial y} ln(rho_a)  \f$
-        enum_zetaa_z=18,        ///< \f$ \partial/{\partial z} ln(rho_a)  \f$
-        enum_zetab_x=19,        ///< \f$ \partial/{\partial x} ln(rho_b)  \f$
-        enum_zetab_y=20,        ///< \f$ \partial/{\partial y} ln(rho_b)  \f$
-        enum_zetab_z=21,        ///< \f$ \partial/{\partial z} ln(rho_b)  \f$
-        enum_chi_aa=22,         ///< \f$ \nabla \zeta{\alpha}.\nabla \zeta{\alpha} \f$
-        enum_chi_ab=23,         ///< \f$ \nabla \zeta{\alpha}.\nabla \zeta{\beta} \f$
-        enum_chi_bb=24          ///< \f$ \nabla \zeta{\beta}.\nabla \zeta{\beta} \f$
+        enum_sigma_pta_div_rho=14,      ///< \f$ \zeta_{\alpha}.\nabla\rho_{pt} \f$
+        enum_sigma_ptb_div_rho=15,      ///< \f$ \zeta_{\beta}.\nabla\rho_{pt} \f$
+        enum_zetaa_x=16,        ///< \f$ \zeta_{a,x}=\partial/{\partial x} \ln(\rho_a)  \f$
+        enum_zetaa_y=17,        ///< \f$ \zeta_{a,y}=\partial/{\partial y} \ln(\rho_a)  \f$
+        enum_zetaa_z=18,        ///< \f$ \zeta_{a,z}=\partial/{\partial z} \ln(\rho_a)  \f$
+        enum_zetab_x=19,        ///< \f$ \zeta_{b,x} = \partial/{\partial x} \ln(\rho_b)  \f$
+        enum_zetab_y=20,        ///< \f$ \zeta_{b,y} = \partial/{\partial y} \ln(\rho_b)  \f$
+        enum_zetab_z=21,        ///< \f$ \zeta_{b,z} = \partial/{\partial z} \ln(\rho_b)  \f$
+        enum_chi_aa=22,         ///< \f$ \chi_{aa} = \nabla \zeta_{\alpha}.\nabla \zeta_{\alpha} \f$
+        enum_chi_ab=23,         ///< \f$ \chi_{ab} = \nabla \zeta_{\alpha}.\nabla \zeta_{\beta} \f$
+        enum_chi_bb=24          ///< \f$ \chi_{bb} = \nabla \zeta_{\beta}.\nabla \zeta_{\beta} \f$
     };
     const static int number_xc_args=25;     ///< max number of intermediates
 
@@ -120,10 +135,31 @@ protected:
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
 
+    /// convert the raw density (gradient) data to be used by the xc operators
+
+    /// involves mainly munging of the densities
+    /// response densities and density gradients are munged based on the
+    /// value of the ground state density, since they may become negative
+    /// and may also be much more diffuse.
+    /// dimensions of the output tensors are for spin-restricted and unrestricted
+    /// (with np the number of grid points in the box):
+    /// rho(np) or rho(2*np)
+    /// sigma(np) sigma(3*np)
+    /// rho_pt(np)
+    /// sigma_pt(2*np)
+    /// @param[in]  t       input density (gradients)
+    /// @param[out] rho     ground state (spin) density, properly munged
+    /// @param[out] sigma   ground state (spin) density gradients, properly munged
+    /// @param[out] rho_pt  response density, properly munged (no spin)
+    /// @param[out] sigma_pt  response (spin) density gradients, properly munged
+    /// @param[in]  need_response   flag if rho_pt and sigma_pt need to be calculated
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
                          madness::Tensor<double>& sigma,
-                         const munging_type& munging) const;
+                         madness::Tensor<double>& rho_pt,
+                         madness::Tensor<double>& sigma_pt,
+                         const bool need_response) const;
+
     void make_libxc_args_old(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
                          madness::Tensor<double>& sigma,
@@ -213,6 +249,17 @@ private:
     /// simple munging for the density only (LDA)
     double munge(double rho) const {
     	if (rho <= rhotol) rho=rhomin;
+        return rho;
+    }
+
+    /// munge rho if refrho is small
+
+    /// special case for perturbed densities, which might be negative and diffuse.
+    /// Munge rho (e.g. the perturbed density) if the reference density refrho
+    /// e.g. the ground state density is small. Only where the reference density
+    /// is large enough DFT is numerically well-defined.
+    double binary_munge(double rho, double refrho) const {
+        if (refrho<rhotol) rho=rhomin;
         return rho;
     }
 
