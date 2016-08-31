@@ -118,9 +118,6 @@ public:
         kernel_first_semilocal      // kernel (2nd derivative)
     };
 
-    /// different munging for potential and for kernel
-    enum munging_type {xc_potential, xc_kernel=1};
-
     double get_rhotol() const {return rhotol;}
     double get_ggatol() const {return ggatol;}
 
@@ -128,9 +125,8 @@ protected:
 
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
-    double rhomin, rhotol, sigmin, sigtol; // See initialize and munge*
+    double rhomin, rhotol; // See initialize and munge*
     double ggatol; // See initialize and munge*
-    double munge_ratio; // See initialize and munge*
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
@@ -159,11 +155,6 @@ protected:
                          madness::Tensor<double>& rho_pt,
                          madness::Tensor<double>& sigma_pt,
                          const bool need_response) const;
-
-    void make_libxc_args_old(const std::vector< madness::Tensor<double> >& t,
-                         madness::Tensor<double>& rho,
-                         madness::Tensor<double>& sigma,
-                         const munging_type& munging) const;
 
     /// the number of xc kernel derivatives (lda: 0, gga: 1, etc)
     int nderiv;
@@ -225,27 +216,6 @@ public:
 
 private:
 
-    struct munger {
-        munger(const double rhotol1, const double rhomin1)
-            : rhotol(rhotol1), rhomin(rhomin1) {}
-        double operator()(double rho) const {
-            // See discussion in madness mailing list on munging.
-            // Per Florian
-            /*
-              The perturbed densities are munged in some parts of the code only,
-              with the unperturbed densities being the munging criteria. The problem
-              is the (higher) derivatives of the potential (especially for GGA),
-              because it becomes so large that multiplying it with even a small
-              number other than exactly zero will make it explode. The final
-              perturbed density will not be munged because it might be physically
-              more extended than the unperturbed density.
-             */
-            if (fabs(rho) <= rhotol) rho=rhomin;
-            return rho;
-        }
-        double rhotol,rhomin;
-    };
-
     /// simple munging for the density only (LDA)
     double munge(double rho) const {
     	if (rho <= rhotol) rho=rhomin;
@@ -261,84 +231,6 @@ private:
     double binary_munge(double rho, double refrho) const {
         if (refrho<rhotol) rho=rhomin;
         return rho;
-    }
-
-    /// similar to the Laura's ratio thresholding, but might be more robust
-    void munge_xc_kernel(double& rho, double& sigma) const {
-        if (sigma<0.0) sigma=sigmin;
-        if (rho < rhotol) rho=rhomin;                   // 1.e-8 or so
-        if (rho < 1.e-2) sigma=munge_ratio*rho*rho;
-    }
-
-    /// new 'ratio' threshold'
-    /// still need to ensure rho and sigma don't go negative
-    void munge_laura(double& rho, double& sigma) const {
-        if (rho < 0.0 || sigma < 0.0 ||
-            (rho<1e-2 && (sigma/(rho*rho)>10000.0))) {
-            rho = rhomin;
-            sigma = sigmin;
-        }
-//        if ((rho<rhotol) or (sigma<(rhotol*rhotol*100))) {
-//            rho=rhomin;
-//            sigma=sigmin;
-//        }
-//        if (sigma<sigtol) sigma=sigmin;
-//        if (sigma/(rho*rho)) {
-//            rho=rhomin;
-//            sigma=sigmin;
-//        }
-    }
-
-    void munge2(double& rho, double& sigma, const munging_type& munging) const {
-        if (munging==xc_potential) {
-            munge_laura(rho,sigma);
-        } else if (munging==xc_kernel) {
-            munge_xc_kernel(rho,sigma);
-        } else {
-            MADNESS_EXCEPTION("unknown munging type in xcfunctional.h",1);
-        }
-        return;
-
-        /*if ( (0.5 * log10(sigma) - 2) > log10(rho) || rho < 0.0 || sigma < 0.0){
-           //std::cout << "rho,sig " << rho << " " << sigma << " " << rhomin << " " << sigmin << std::endl;
-           rho=rhomin;
-           sigma=sigmin;
-        }*/
-    }
-
-    void munge5(double& rhoa, double& rhob, double& saa, double& sab,
-            double& sbb, const munging_type munging) const {
-        munge2(rhoa, saa, munging);
-        munge2(rhob, sbb, munging);
-        if (rhoa==rhomin || rhob==rhomin) sab=sigmin;
-    }
-
-    /// munge rho and sigma to physical values
-
-    /// since we use ratio thresholding we need the ratio of the density
-    /// to the reducued density gradient sigma. There is no such thing
-    /// for the mixed-spin sigma, therefore we use the identity
-    /// \f[
-    ///   \sigma_{total} = \nabla rho . \nabla \rho
-    ///                  = \sigma_{aa} + 2\sigma_{ab} + \sigma_{bb}
-    /// \f]
-    /// so we can reconstruct sigma_ab from the spin densities (and density
-    /// gradients) and the total densities (and density gradients)
-    /// @param[in,out]  rhoa alpha spin density
-    /// @param[in,out]  rhob beta spin density
-    /// @param[in,out]  rho  total density
-    /// @param[in,out]  saa  alpha spin reduced density gradient
-    /// @param[in,out]  sab  mixed spin reduced density gradient
-    /// @param[in,out]  sbb  beta spin reduced density gradient
-    /// @param[in,out]  stot total reduced density gradient
-    /// @param[in]  munging munging type
-    void munge7(double& rhoa, double& rhob, double& rho,
-            double& saa, double& sab, double& sbb, double stot,
-            const munging_type munging) const {
-        munge2(rhoa, saa, munging);
-        munge2(rhob, sbb, munging);
-        munge2(rho, stot, munging);
-        sab=std::max(sigmin,0.5*(stot-saa-sbb));
     }
 
 public:

@@ -689,6 +689,7 @@ real_function_3d XCOperator::apply_xc_kernel(const real_function_3d& dens_pt) co
     // compute the local terms: second_{local} * rho
     real_function_3d result=multiop_values<double, xc_kernel_apply, 3>
             (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_second_local), xc_args);
+    real_function_3d gga_pot=real_factory_3d(world).compressed();
 
     if (xc->is_gga()) {
 
@@ -701,15 +702,14 @@ real_function_3d XCOperator::apply_xc_kernel(const real_function_3d& dens_pt) co
         // compute the semilocal terms, second partial derivatives
         real_function_3d semilocal2a=multiop_values<double, xc_kernel_apply, 3>
                 (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_second_semilocal), xc_args);
-        double tol=xc->get_ggatol();
-        real_function_3d semilocal2=binary_op(semilocal2a,arho,binary_munging(tol));
-        result-=2.0* div(zeta * (arho*semilocal2)); // factor 2 missing in arho
+        double tol=std::max(xc->get_ggatol(),FunctionDefaults<3>::get_thresh()*10.0);
 
         // compute the semilocal terms, first partial derivative
         real_function_3d semilocal1a=multiop_values<double, xc_kernel_apply, 3>
                 (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_first_semilocal), xc_args);
-        real_function_3d semilocal1=binary_op(semilocal1a,arho,binary_munging(tol));
-        result-=div(semilocal1*ddens_pt);
+        gga_pot-=div(semilocal1a*ddens_pt + 2.0*zeta * (arho*semilocal2a), true);
+
+        result+=binary_op(gga_pot,arho,binary_munging(tol));
     }
 
     truncate(world,xc_args);
@@ -802,67 +802,6 @@ void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
     }
     world.gop.fence();
     truncate(world,xc_args,extra_truncation);
-}
-
-
-void XCOperator::prep_xc_args_old(const real_function_3d& arho,
-        const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const {
-
-    delrho.clear();
-    vf.clear();
-
-    arho.reconstruct();
-    if (nbeta != 0 && xc->is_spin_polarized()) brho.reconstruct();
-
-    vf.push_back(arho);
-    if (xc->is_spin_polarized()) vf.push_back(brho);
-
-    if (xc->is_gga()) {
-
-        std::vector< std::shared_ptr<Derivative<double,3> > > gradop =
-                gradient_operator<double,3>(world);
-
-        for (int axis = 0; axis < 3; ++axis)
-            delrho.push_back((*gradop[axis])(arho, false)); // delrho
-        if (xc->is_spin_polarized() && nbeta != 0)
-            for (int axis = 0; axis < 3; ++axis)
-                delrho.push_back((*gradop[axis])(brho, false));
-
-        world.gop.fence(); // NECESSARY
-
-        vf.push_back(delrho[0] * delrho[0] + delrho[1] * delrho[1]
-                  + delrho[2] * delrho[2]);     // sigma_aa
-
-        if (xc->is_spin_polarized()) {
-            if (nbeta != 0) {
-                vf.push_back(delrho[0] * delrho[3] + delrho[1] * delrho[4]
-                           + delrho[2] * delrho[5]); // sigma_ab
-                vf.push_back(delrho[3] * delrho[3] + delrho[4] * delrho[4]
-                           + delrho[5] * delrho[5]); // sigma_bb
-            } else {
-                vf.push_back(real_function_3d());
-                vf.push_back(real_function_3d());
-            }
-        }
-
-        world.gop.fence(); // NECESSARY
-    }
-    if (vf.size()) {
-        reconstruct(world, vf);
-        refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
-    }
-
-//    // this is a nasty hack, just adding something so that make_libxc_args
-//    // receives 5 arguments has to be here or refine_to_common_level(vf) above
-//    // hangs, but we really need a better solution for when nbeta=0
-//    if (xc->is_spin_polarized() && nbeta == 0 && xc->is_gga()){
-//        vf.push_back(brho);
-//        vf.push_back(brho);
-//    }
-}
-
-bool XCOperator::is_initialized() const {
-    return (xc_args.size()>0);
 }
 
 

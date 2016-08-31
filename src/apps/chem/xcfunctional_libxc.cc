@@ -51,16 +51,15 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 //XCfunctional::XCfunctional() {}
 //XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
 XCfunctional::XCfunctional() : hf_coeff(0.0) {
-    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10;
+    rhotol=1e-7; rhomin=0.0;
     ggatol=1.e-4;
-    munge_ratio=10.0;
     nderiv=0;
     spin_polarized=false;
 }
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized,
         World& world, const bool verbose) {
-    rhotol=1e-7; rhomin=0.0; sigtol=1e-10; sigmin=1e-10; // default values
+    rhotol=1e-7; rhomin=0.0; // default values
     ggatol=1.e-4;
 
     bool printit=verbose and (world.rank()==0);
@@ -101,14 +100,8 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
             line >> rhomin;
         } else if (name == "RHOTOL") {
             line >> rhotol;
-        } else if (name == "SIGMIN") {
-            line >> sigmin;
-        } else if (name == "SIGTOL") {
-            line >> sigtol;
         } else if (name == "GGATOL") {
             line >> ggatol;
-        } else if (name == "MUNGERATIO") {
-            line >> munge_ratio;
         } else if (name == "HF" || name == "HF_X") {
             if (! (line >> factor)) factor = 1.0;
             hf_coeff = factor;
@@ -134,9 +127,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         if (hf_coeff>0.0) printf(" %4.3f %s \n",hf_coeff,"HF exchange");
         print("\nscreening parameters");
         print(" rhotol, rhomin",rhotol,rhomin);
-        print(" sigtol, sigmin",sigtol,sigmin);
         print("         ggatol",ggatol);
-        print("    munge_ratio",munge_ratio);
         if (printit) print("polarized ",polarized,"\n");
 
     }
@@ -175,119 +166,6 @@ bool XCfunctional::has_fxc() const
 bool XCfunctional::has_kxc() const
 {
     return false;
-}
-
-
-/// Allocates rho (and if GGA also sigma) and copies data from t[] into rho and sigma.
-
-
-/// Items in the vector argument \c t are interpreted as follows
-///  - Spin un-polarized
-///    - \c t[0] = \f$ \rho_{\alpha} \f$
-///    - \c t[1] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
-///    - \c t[2] = \f$ \tilde \rho \f$ (the (perturbed) density for xc_kernel_apply)
-///  - Spin polarized
-///    - \c t[0] = \f$ \rho_{\alpha} \f$
-///    - \c t[1] = \f$ \rho_{\beta} \f$
-///    - \c t[2] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
-///    - \c t[3] = \f$ \sigma_{\alpha\beta}  = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$ (GGA only)
-///    - \c t[4] = \f$ \sigma_{\beta\beta}   = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$ (GGA only)
-///    - \c t[5] = \f$ \tilde \rho \f$ (the (perturbed) density for xc_kernel_apply)
-///
-/// output
-///  - if spin-unpolarized:
-///    - rho = 2 t[0] ( = 2 rho_alpha)
-///    - sigma = 4 sigma_aa = \nabla \rho . \nabla \rho
-///  - if spin-polarized
-///    - rho[2*npt] = rho[a,b]
-///    - sigma[3*npt] = sigma[aa,ab,bb]
-///    leading dimension is [a,b] and [aa,ab,bb], respectively (why??!)
-void XCfunctional::make_libxc_args_old(const std::vector< madness::Tensor<double> >& t,
-           madness::Tensor<double>& rho, madness::Tensor<double>& sigma,
-           const munging_type& munging) const {
-    const int np = t[0].size();
-    if (spin_polarized) {
-        if (is_lda()) {
-            MADNESS_ASSERT(t.size() == 2);
-            const double * restrict rhoa = t[0].ptr();
-            const double * restrict rhob = t[1].ptr();
-            rho  = madness::Tensor<double>(np*2L);
-            double * restrict dens = rho.ptr();
-            for (long i=0; i<np; i++) {
-                dens[2*i  ] = munge(rhoa[i]);
-                dens[2*i+1] = munge(rhob[i]);
-            }
-        }
-        else if (is_gga()) {
-            MADNESS_ASSERT(t.size() == 5);
-            const double * restrict rhoa  = t[0].ptr();
-            const double * restrict rhob  = t[1].ptr();
-
-            const double * restrict sigaa = t[2].ptr();
-            const double * restrict sigab = t[3].ptr();
-            const double * restrict sigbb = t[4].ptr();
-
-            // might happen if there are no beta electrons
-            madness::Tensor<double> dummy;
-            if ((rhob==NULL) or (sigab==NULL) or (sigbb==NULL)) {
-                dummy=madness::Tensor<double>(np);
-            }
-            if (rhob==NULL) rhob=dummy.ptr();
-            if (sigab==NULL) sigab=dummy.ptr();
-            if (sigbb==NULL) sigbb=dummy.ptr();
-
-            rho   = madness::Tensor<double>(np*2L);
-            sigma = madness::Tensor<double>(np*3L);
-
-            double * restrict dens = rho.ptr();
-            double * restrict sig  = sigma.ptr();
-            for (long i=0; i<np; i++) {
-                double ra=rhoa[i], rb=rhob[i], saa=sigaa[i], sab=sigab[i], sbb=sigbb[i];
-
-                munge5(ra, rb, saa, sab, sbb, munging);
-                dens[2*i  ] = ra;
-                dens[2*i+1] = rb;
-
-                sig[3*i  ] = saa;
-                sig[3*i+1] = sab;
-                sig[3*i+2] = sbb;
-
-            }
-        }
-        else {
-            throw "not yet";
-        }
-    }
-    else {
-        if (is_lda()) {
-            MADNESS_ASSERT(t.size() == 1);
-            rho  = madness::Tensor<double>(np);
-            const double * restrict rhoa = t[0].ptr();
-            double * restrict dens = rho.ptr();
-            for (long i=0; i<np; i++) {
-                dens[i] = munge(2.0*rhoa[i]);
-            }
-        }
-        else if (is_gga()) {
-            MADNESS_ASSERT(t.size() == 2);
-            const double * restrict rhoa = t[0].ptr();
-            const double * restrict sigaa = t[1].ptr();
-            rho  = madness::Tensor<double>(np);
-            sigma  = madness::Tensor<double>(np);
-            double * restrict dens = rho.ptr();
-            double * restrict sig = sigma.ptr();
-            for (long i=0; i<np; i++) {
-                double ra=2.0*rhoa[i], saa=4.0*sigaa[i];
-                //double ra=rhoa[i], saa=sigaa[i];
-                munge2(ra, saa, munging);
-                dens[i] = ra;
-                sig[i] = saa;
-            }
-        }
-        else {
-            throw "not yet";
-        }
-    }
 }
 
 

@@ -499,17 +499,10 @@ private:
     void prep_xc_args_response(const real_function_3d& dens_pt,
             vecfuncT& xc_args, vecfuncT& ddens_pt) const;
 
-    /// compute the intermediates for the XC functionals
-
-    /// @param[in]  arho    density of the alpha orbitals
-    /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
-    /// @param[out] vf      vector of intermediates as described above
-    /// @param[out] delrho  vector of derivatives of the densities as described above
-    void prep_xc_args_old(const real_function_3d& arho,
-            const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const;
-
     /// check if the intermediates are initialized
-    bool is_initialized() const;
+    bool is_initialized() const {
+        return (xc_args.size()>0);
+    }
 
     /// simple structure to take the pointwise logarithm of a function, shifted by +14
     struct logme{
