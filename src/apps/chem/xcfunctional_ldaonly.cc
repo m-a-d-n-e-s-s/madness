@@ -170,5 +170,14 @@ madness::Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double>
 	MADNESS_EXCEPTION("fxc_apply not implemented in xcfunctional_ldaonly.cc... use libxc",1);
 }
 
+void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
+                        madness::Tensor<double>& rho,
+                        madness::Tensor<double>& sigma,
+                        madness::Tensor<double>& rho_pt,
+                        madness::Tensor<double>& sigma_pt,
+                        const bool need_response) const {
+    MADNESS_EXCEPTION("no make_libxc_args without libxc",1);
+}
+
 }
 #endif

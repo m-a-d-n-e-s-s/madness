@@ -5,7 +5,7 @@
 
 /// \file moldft/xcfunctional.h
 /// \brief Defines interface for DFT XC functionals
-/// \ingroup moldft
+/// \ingroup chemistry
 
 #include <madness/tensor/tensor.h>
 #include <vector>
@@ -59,31 +59,10 @@ public:
     /// \f$
     ///   \sigma = |\nabla\rho|^2 = |\rho|^2 |\nabla\zeta|^2 = |\rho|^2 \chi
     /// \f$
-    ///
-    /// For conversion to spin-restricted calculations add a factor of 2 for all
-    /// quantities with 1 spin index and a factor 4 for all quantities with 2
-    /// spin indices. Note the perturbed density is spin-independent, and the
-    /// perturbed sigma depends only on 1 spin index. The perturbed sigma is
-    /// reconstructed from the density and the rest
-    /// \f[
-    ///    \sigma_{pt,\alpha} = \nabla \rho_\alpha \cdot \nabla \rho_{pt}
-    ///                       = \rho \left(\zeta_\alpha \cdot \nabla\rho_{pt}\right)
-    /// \f]
-    /// and for RHF
-    /// \f[
-    ///    \sigma_{pt} = 2.0 * \nabla \rho_\alpha \cdot \nabla \rho_{pt}
-    ///                = 2.0 * \rho \left(\zeta_\alpha \cdot \nabla\rho_{pt}\right)
-    /// \f]
     enum xc_arg {
         enum_rhoa=0,            ///< alpha density \f$ \rho_\alpha \f$
         enum_rhob=1,            ///< beta density \f$ \rho_\beta \f$
         enum_rho_pt=2,          ///< perturbed density (CPHF, TDKS) \f$ \rho_{pt} \f$
-//        enum_drhoa_x=4,         ///< \f$ \partial/{\partial x} \rho_{\alpha} \f$
-//        enum_drhoa_y=5,         ///< \f$ \partial/{\partial y} \rho_{\alpha} \f$
-//        enum_drhoa_z=6,         ///< \f$ \partial/{\partial z} \rho_{\alpha} \f$
-//        enum_drhob_x=7,         ///< \f$ \partial/{\partial x} \rho_{\beta} \f$
-//        enum_drhob_y=8,         ///< \f$ \partial/{\partial y} \rho_{\beta} \f$
-//        enum_drhob_z=9,         ///< \f$ \partial/{\partial z} \rho_{\beta} \f$
         enum_saa=10,            ///< \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
         enum_sab=11,            ///< \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
         enum_sbb=12,            ///< \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
@@ -105,36 +84,45 @@ public:
 
     /// which contribution is requested from the XCfunctional
 
-    /// three types of contributions are required:
+    /// Three types of contributions are required:
     /// those that are second derivatives of the xc kernel and that are local
     /// those that are first/second derivatives of the kernel and of which the
-    /// derivative will be taken later on (-> semi-local)
+    /// derivative will be taken later on (-> semi-local).
+    /// See vxc() and fxc_apply() for more details.
     enum xc_contribution {
-        potential_rho,              // potential df/drho
-        potential_same_spin,        // potential df/dsigma_aa
-        potential_mixed_spin,       // potential df/dsigma_ab
-        kernel_second_local,        // kernel (2nd derivative)
-        kernel_second_semilocal,    // kernel (2nd derivative)
-        kernel_first_semilocal      // kernel (2nd derivative)
+        potential_rho,              ///< potential df/drho
+        potential_same_spin,        ///< potential df/dsigma_aa
+        potential_mixed_spin,       ///< potential df/dsigma_ab
+        kernel_second_local,        ///< kernel (2nd derivative)
+        kernel_second_semilocal,    ///< kernel (2nd derivative)
+        kernel_first_semilocal      ///< kernel (2nd derivative)
     };
 
+    /// return the munging threshold for the density
     double get_rhotol() const {return rhotol;}
+
+    /// return the binary munging threshold for the final result in the GGA potential/kernel
+
+    /// the GGA potential will be munged based on the smallness of the original
+    /// density, which we call binary munging
     double get_ggatol() const {return ggatol;}
 
 protected:
 
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
-    double rhomin, rhotol; // See initialize and munge*
-    double ggatol; // See initialize and munge*
+    double rhomin, rhotol;      ///< See initialize and munge*
+    double ggatol;              ///< See initialize and munge*
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
+#endif
 
     /// convert the raw density (gradient) data to be used by the xc operators
 
-    /// involves mainly munging of the densities
-    /// response densities and density gradients are munged based on the
+    /// Involves mainly munging of the densities and multiplying with 2
+    /// if the calculation is spin-restricted.
+    /// Response densities and density gradients are munged based on the
     /// value of the ground state density, since they may become negative
     /// and may also be much more diffuse.
     /// dimensions of the output tensors are for spin-restricted and unrestricted
@@ -158,7 +146,6 @@ protected:
 
     /// the number of xc kernel derivatives (lda: 0, gga: 1, etc)
     int nderiv;
-#endif
 
 
     /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
@@ -297,38 +284,63 @@ public:
     ///
     /// For unpolarized GGA, matrix elements of the potential are
     /// \f$
-    ///   < \phi | \hat V | \psi > = \int \left( \frac{\partial \epsilon}{\partial \rho_{\alpha}} \phi \psi
-    ///                  +  \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \right) \nabla \rho_{\alpha} . \nabla \left( \phi \psi \right) \right) dx
+    ///   < \phi | \hat V | \psi > = \int \left( \frac{\partial \epsilon}{\partial \rho} \phi \psi
+    ///                  +  \left( 2 \frac{\partial \epsilon}{\partial \sigma} \right)
+    ///                  \nabla \rho \cdot \nabla \left( \phi \psi \right) \right) dx
     /// \f$
     ///
     /// For polarized GGA, matrix elements of the potential are
     /// \f$
     ///   < \phi_{\alpha} | \hat V | \psi_{\alpha} > = \int \left( \frac{\partial \epsilon}{\partial \rho_{\alpha}} \phi \psi
-    ///                  +  \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}  + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right) . \nabla \left( \phi \psi \right) \right) dx
+    ///            +  \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}
+    ///            + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right) . \nabla \left( \phi \psi \right) \right) dx
     /// \f$
     ///
     /// Integrating the above by parts and assuming free-space or periodic boundary conditions
     /// we obtain that the local multiplicative form of the GGA potential is
     /// \f$
-    ///    V_{\alpha} =  \frac{\partial \epsilon}{\partial \rho_{\alpha}} - \left(\nabla . \left(2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}  + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right)  \right)
+    ///    V_{\alpha} =  \frac{\partial \epsilon}{\partial \rho_{\alpha}}
+    ///                  - \left(\nabla . \left(2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}
+    ///                  + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right)  \right)
     /// \f$
     ///
     /// Until we get a madness::Function operation that can produce
     /// multiple results we need to compute components of the
-    /// functional and potential separately:
+    /// functional and potential separately.
+    ///
+    /// Return the following quantities depending on the xc_contribution request.
+    /// note the additional \f$\rho\f$ in some terms.
+    /// \f{align}{
+    ///     \text{potentialrho, RHF}      : &\qquad \frac{\partial \epsilon}{\partial \rho} \\
+    ///     \text{potentialrho, UHF}      : &\qquad \frac{\partial \epsilon}{\partial \rho_{\alpha}} \\
+    ///     \text{potentialsamespin, RHF} : &\qquad \rho \frac{\partial \epsilon}{\partial \sigma} \\
+    ///     \text{potentialsamespin, UHF} : &\qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}}\\
+    ///     \text{potentialotherspin, UHF}: &\qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}}
+    /// \f}
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] ispin Specifies which component of the potential is to be computed as described above
-    /// @return The component specified by the \c ispin parameter
-    /// \todo Matt changed the parameter "what" (no longer listed below) to "ispin". Is this correct?
+    /// @return the requested quantity, based on ispin and xc_contrib
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
 
     /// compute the second derivative of the XC energy wrt the density and apply
 
-    /// apply the kernel on the fly on the provided (response) density
-    /// @param[in] t The input densities and derivatives as required by the functional
-    /// @return The component specified by the \c what parameter
+    /// Return the following quantities depending on the xc_contribution request.
+    /// \f{align}{
+    ///     \text{kernelsecondlocal}      : &\qquad \frac{\partial^2 \epsilon}{\partial \rho^2} \rho_\mathrm{pt}
+    ///                                           + 2.0 * \frac{\partial^2 \epsilon}{\partial \rho\partial\sigma}\sigma_\mathrm{pt}\\
+    ///     \text{kernelfirstsemilocal}   : &\qquad 2.0 * \frac{\partial\epsilon}{\partial\sigma}\\
+    ///     \text{kernelsecondsemilocal}  : &\qquad 2.0 * \frac{\partial^2\epsilon}{\partial\rho\partial\sigma} \rho_\mathrm{pt}
+    ///                                           + 4.0 * \frac{\partial^2\epsilon}{\partial^2\sigma} \sigma_\mathrm{pt}
+    /// \f}
+    /// semilocal means that the functional derivative has to be multiplied with
+    /// the gradient of the (perturbed) density and then the div is taken.
+    /// @param[in]  t   The input densities and derivatives as required by the functional,
+    ///                 as in the xc_arg enum
+    /// @param[in]  ispin not referenced since only RHF is implemented, always 0
+    /// @param[in]  xc_contrib  the contribution of the functional derivatives which is requested
+    /// @return The component specified by the \c xc_contrib parameter
     madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,
             const int ispin, const xc_contribution xc_contrib) const;
 
