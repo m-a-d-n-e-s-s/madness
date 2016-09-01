@@ -433,6 +433,9 @@ public:
         return *this;
     }
 
+    /// set the spin state this operator is acting on
+    void set_ispin(const int i) const {ispin=i;}
+
     /// apply the xc potential on a set of orbitals
     vecfuncT operator()(const vecfuncT& vket) const;
 
@@ -464,7 +467,7 @@ private:
     int nbeta;
 
     /// the XC functionals depend on the spin of the orbitals they act on
-    int ispin;
+    mutable int ispin;
 
     /// functions that are need for the computation of the XC operator
 
