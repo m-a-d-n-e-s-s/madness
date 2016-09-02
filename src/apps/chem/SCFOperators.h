@@ -439,6 +439,13 @@ public:
     /// apply the xc potential on a set of orbitals
     vecfuncT operator()(const vecfuncT& vket) const;
 
+    /// apply the xc potential on an orbitals
+    real_function_3d operator()(const real_function_3d& ket) const {
+        vecfuncT vket(1,ket);
+        vecfuncT vKket=this->operator()(vket);
+        return vKket[0];
+    }
+
     /// compute the xc energy using the precomputed intermediates vf and delrho
     double compute_xc_energy() const;
 

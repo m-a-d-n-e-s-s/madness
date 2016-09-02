@@ -38,6 +38,10 @@
 
 using namespace madness;
 
+bool similar(double val1, double val2, double thresh=1.e-6) {
+    return std::fabs(val1-val2)<thresh;
+}
+
 /// an N-dimensional real-valued Gaussian function
 
 /// the function looks like
@@ -461,11 +465,50 @@ int test_XCOperator(World& world) {
     MADNESS_ASSERT(v[1].tree_size()==v[2].tree_size()); // should be identical
     MADNESS_ASSERT(v[0].tree_size()==0);    // no change here
 
-    /// custom ctor with information about the XC functional
     real_function_3d arho=copy(f1);
-    XCOperator xc(world,"pbe",false,arho,arho);
-    xc.apply_xc_kernel(arho);
+    arho.square();
 
+    // hardwire-check several functionals for their energy, potential, and kernels
+    // for Slater exchange their ratios must be 3/4 and 9/4
+    std::vector<double> refvalues{
+        -1.435302e+00, -1.884266e+00, -5.937228e-01,    // lda energy, pot, kernel
+        -1.295368e+00, -1.727158e+00, -5.757192e-01,    // LDA_X energy, pot, kernel
+        -1.515767e+00, -1.954087e+00, -5.796946e-01,    // pbe energy, pot, kernel
+        -1.541359e+00, -1.972863e+00, -5.764620e-01     // bp energy, pot, kernel
+    };
+
+    std::vector<std::string> xcfuncs{"lda","LDA_X","pbe","bp"};
+#ifndef MADNESS_HAS_LIBXC
+    xcfuncs=std::vector<std::string>(1,"lda");
+#endif
+    int i=0;
+    for (std::string xcfunc : xcfuncs) {
+        /// custom ctor with information about the XC functional
+        XCOperator xc(world,xcfunc,false,arho,arho);
+        print("xc functional ",xcfunc);
+
+        double a0=xc.compute_xc_energy();
+        print("energy ",a0);
+        MADNESS_ASSERT(similar(a0,refvalues[i++]));
+
+        // compare xc potential to hardwired results
+        double a1=2.0*inner(f1,xc(f1)); // factor 2 for RHF
+        real_function_3d lda_pot=xc.make_xc_potential();
+        double a11=2.0*inner(arho,lda_pot);
+        print("potential ",a1);
+        print("potential ",a11);
+        print("ratio ",a0,a1*3.0/4.0);
+        if (xcfunc=="LDA_X") MADNESS_ASSERT(std::fabs(a0-a1*3.0/4.0)<1.e-6);
+        MADNESS_ASSERT(similar(a1,refvalues[i++]));
+
+        // compare xc potential to hardwired results
+        double a2=inner(2.0*f1*f1,xc.apply_xc_kernel(2.0*arho)); // factors 2 for RHF
+        print("kernel ",a2);
+        print("ratio ",a0,a2*9.0/4.0);
+        if (xcfunc=="LDA_X") MADNESS_ASSERT(std::fabs(a0-a2*9.0/4.0)<1.e-6);
+        MADNESS_ASSERT(similar(a2,refvalues[i++]));
+        print("\n");
+    }
     return 0;
 }
 
@@ -720,13 +763,13 @@ int main(int argc, char** argv) {
 
     int result=0;
 
-//    result+=test_kinetic<1>(world);
-//    result+=test_kinetic<2>(world);
-//    result+=test_kinetic<3>(world);
+    result+=test_kinetic<1>(world);
+    result+=test_kinetic<2>(world);
+    result+=test_kinetic<3>(world);
 //    result+=test_kinetic<4>(world);
-//
-//    result+=test_coulomb(world);
-//    result+=test_exchange(world);
+
+    result+=test_coulomb(world);
+    result+=test_exchange(world);
     result+=test_XCOperator(world);
     result+=test_nuclear(world);
     result+=test_dnuclear(world);
