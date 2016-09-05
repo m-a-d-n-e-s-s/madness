@@ -281,7 +281,7 @@ namespace madness {
             int unique_tag() const;
             /// the period of tags returned by unique_tag()
             /// @warning this bounds how many huge messages each RmiTask will be able to process
-            constexpr int unique_tag_period() const { return 2048; }
+            static constexpr int unique_tag_period() { return 2048; }
 
         }; // class RmiTask
 
