@@ -596,6 +596,15 @@ namespace SafeMPI {
             return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc, true)));
         }
 
+        /**
+         * Clones this Intracomm object
+         *
+         * @return a (deep) copy of this Intracomm object
+         */
+        Intracomm Clone() const {
+          return Create(this->Get_group());
+        }
+
         bool operator==(const Intracomm& other) const {
             return (pimpl == other.pimpl) || ((pimpl && other.pimpl) &&
                     Comm_compare(pimpl->comm, other.pimpl->comm));
