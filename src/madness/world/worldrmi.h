@@ -52,7 +52,7 @@
   When MPI is initialized we need to use init_thread with
   multiple required.
 
-  This RMI service operates only in COMM_WORLD.  It easy enough
+  This RMI service operates only in (a clone of) COMM_WORLD.  It easy enough
   to extend to other communicators but the point is to have
   only one server thread for all possible uses.  You just
   have to translate rank_in_comm into rank_in_world by
