@@ -90,11 +90,11 @@ namespace SafeMPI {
     ///
     /// tags in [1024,4095] ... allocated round-robin by unique_tag
     ///
-    /// tags in [4096,MPI::TAG_UB] ... not used/managed by madness
+    /// tags in [4096,8191] ... reserved for huge msg exchange by RMI
+    ///
+    /// tags in [8192,MPI::TAG_UB] ... not used/managed by madness
 
     static const int RMI_TAG = 1023;
-    static const int RMI_HUGE_ACK_TAG = 1022;
-    static const int RMI_HUGE_DAT_TAG = 1021;
     static const int MPIAR_TAG = 1001;
     static const int DEFAULT_SEND_RECV_TAG = 1000;
 
