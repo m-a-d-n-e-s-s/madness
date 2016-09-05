@@ -160,7 +160,7 @@ namespace SafeMPI {
                     std::ostringstream oss;
                     for(auto s=0; s!=nstatuses; ++s) {
                         int len = 0;
-                        auto status_error = statuses[indices[s]].MPI_ERROR;
+                        auto status_error = statuses[s].MPI_ERROR;
                         if (status_error != MPI_SUCCESS) {
                             oss << "request " << indices[s] << ":";
                             if (MPI_Error_string(status_error, mpi_error_string_, &len) != MPI_SUCCESS)
