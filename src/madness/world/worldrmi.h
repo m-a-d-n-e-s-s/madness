@@ -206,7 +206,7 @@ namespace madness {
             std::unique_ptr<counterT[]> recv_counters;
             std::size_t max_msg_len_;
             std::size_t nrecv_;
-            std::size_t nssend_;
+            long nssend_;
             std::size_t maxq_;
             std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
             std::unique_ptr<SafeMPI::Request[]> recv_req;
