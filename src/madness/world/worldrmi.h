@@ -39,6 +39,7 @@
 #include <utility>
 #include <list>
 #include <memory>
+#include <tuple>
 #include <pthread.h>
 
 /*
