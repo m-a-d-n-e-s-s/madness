@@ -39,6 +39,7 @@
 #include <utility>
 #include <list>
 #include <memory>
+#include <tuple>
 #include <pthread.h>
 
 /*
@@ -195,7 +196,8 @@ namespace madness {
                 attrT attr;
             }; // struct header
 
-            std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
+            /// q of huge messages, each msg = {source,nbytes,tag}
+            std::list< std::tuple<int,size_t,int> > hugeq;
 
             SafeMPI::Intracomm comm;
             const int nproc;            // No. of processes in comm world
@@ -271,6 +273,15 @@ namespace madness {
             void post_pending_huge_msg();
 
             void post_recv_buf(int i);
+
+        private:
+
+            /// thread-safely round-robins through tags in [first_tag, first_tag+period) range
+            /// @returns new tag to be used in messaging
+            int unique_tag() const;
+            /// the period of tags returned by unique_tag()
+            /// @warning this bounds how many huge messages each RmiTask will be able to process
+            static constexpr int unique_tag_period() { return 2048; }
 
         }; // class RmiTask
 

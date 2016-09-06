@@ -182,17 +182,20 @@ namespace madness {
     void RMI::RmiTask::post_pending_huge_msg() {
         if (recv_buf[nrecv_]) return;      // Message already pending
         if (!hugeq.empty()) {
-            int src = hugeq.front().first;
-            size_t nbyte = hugeq.front().second;
+            const auto& hugemsg = hugeq.front();
+            const int src = std::get<0>(hugemsg);
+            const size_t nbyte = std::get<1>(hugemsg);
+            const int tag = std::get<2>(hugemsg);
             hugeq.pop_front();
             if (posix_memalign(&recv_buf[nrecv_], ALIGNMENT, nbyte))
                 MADNESS_EXCEPTION("RMI: failed allocating huge message", 1);
-            recv_req[nrecv_] = comm.Irecv(recv_buf[nrecv_], nbyte, MPI_BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
+            recv_req[nrecv_] = comm.Irecv(recv_buf[nrecv_], nbyte, MPI_BYTE, src, tag);
             int nada=0;
+            // make unique tags to ensure that ack msgs do not collide with normal recv msgs
 #ifdef MADNESS_USE_BSEND_ACKS
-            comm.Bsend(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+            comm.Bsend(&nada, sizeof(nada), MPI_BYTE, src, tag + unique_tag_period());
 #else
-            comm.Send(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+            comm.Send(&nada, sizeof(nada), MPI_BYTE, src, tag + unique_tag_period());
 #endif // MADNESS_USE_BSEND_ACKS
         }
     }
@@ -332,10 +335,19 @@ namespace madness {
     void RMI::RmiTask::huge_msg_handler(void *buf, size_t /*nbytein*/) {
         const size_t* info = (size_t *)(buf);
         int nword = HEADER_LEN/sizeof(size_t);
-        int src = info[nword];
-        size_t nbyte = info[nword+1];
+        const int src = info[nword];
+        const size_t nbyte = info[nword+1];
+        const int tag = info[nword+2];
 
-        RMI::task_ptr->hugeq.push_back(std::make_pair(src,nbyte));
+        // extra dose of paranoia: assert that we never process so many huge messages
+        // that the tag wraparound somewhere becomes possible ...
+        // the worst case is where only one node sends huge messages to every node in the communicator
+        // AND it has enough threads to use up all tags
+        // NB list::size() is O(1) in c++11, but O(N) in older libstdc++
+        MADNESS_ASSERT(ThreadPool::size() < RMI::RmiTask::unique_tag_period() ||
+                       RMI::task_ptr->hugeq.size() <
+                           RMI::RmiTask::unique_tag_period() / comm.Get_size());
+        RMI::task_ptr->hugeq.push_back(std::make_tuple(src, nbyte, tag));
         RMI::task_ptr->post_pending_huge_msg();
     }
 
@@ -397,20 +409,21 @@ namespace madness {
             // Huge message protocol ... send message to dest indicating size and origin of huge message.
             // Remote end posts a buffer then acks the request.  This end can then send.
             const int nword = HEADER_LEN/sizeof(size_t);
-            size_t info[nword+2];
+            size_t info[nword+3];
             info[nword  ] = rank;
             info[nword+1] = nbyte;
+            tag = unique_tag();
+            info[nword+2] = tag;
 
             int ack;
-            Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI_BYTE, dest, SafeMPI::RMI_HUGE_ACK_TAG);
+            // make unique tags to ensure that ack msgs do not collide with normal recv msgs
+            Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI_BYTE, dest, tag + unique_tag_period());
             Request req_send = isend(info, sizeof(info), dest, RMI::RmiTask::huge_msg_handler, ATTR_UNORDERED);
 
             MutexWaiter waiter;
             while (!req_send.Test()) waiter.wait();
             waiter.reset();
             while (!req_ack.Test()) waiter.wait();
-
-            tag = SafeMPI::RMI_HUGE_DAT_TAG;
         }
         else if (nbyte < HEADER_LEN) {
             MADNESS_EXCEPTION("RMI::isend --- your buffer is too small to hold the header", static_cast<int>(nbyte));
@@ -458,6 +471,17 @@ namespace madness {
 
         unlock();
 
+        return result;
+    }
+
+    int RMI::RmiTask::unique_tag() const {
+        constexpr int first_tag = 4096;
+        static int tag = first_tag;
+        /// should be able to do this with atomics
+        lock();
+        tag = (tag == first_tag+unique_tag_period()-1) ? first_tag : tag + 1;
+        const int result = tag;
+        unlock();
         return result;
     }
 
