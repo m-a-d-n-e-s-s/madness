@@ -227,7 +227,7 @@ namespace madness {
     static volatile bool rmi_task_is_running = false;
 
     RMI::RmiTask::RmiTask()
-            : comm(SafeMPI::COMM_WORLD)
+            : comm(SafeMPI::COMM_WORLD.Clone())
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , finished(false)
