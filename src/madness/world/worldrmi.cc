@@ -339,6 +339,12 @@ namespace madness {
         const size_t nbyte = info[nword+1];
         const int tag = info[nword+2];
 
+        // extra dose of paranoia: assert that we never process so many huge messages
+        // that the tag wraparound somewhere becomes possible ...
+        // the worst case is where only one node sends huge messages to every node in the communicator
+        // AND it has enough threads to use up all tags
+        // NB list::size() is O(1) in c++11, but O(N) in older libstdc++
+        MADNESS_ASSERT(RMI::task_ptr->hugeq.size() < RMI::RmiTask::unique_tag_period() / comm.Get_size());
         RMI::task_ptr->hugeq.push_back(std::make_tuple(src,nbyte,tag));
         RMI::task_ptr->post_pending_huge_msg();
     }
