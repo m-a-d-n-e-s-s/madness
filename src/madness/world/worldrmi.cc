@@ -344,8 +344,10 @@ namespace madness {
         // the worst case is where only one node sends huge messages to every node in the communicator
         // AND it has enough threads to use up all tags
         // NB list::size() is O(1) in c++11, but O(N) in older libstdc++
-        MADNESS_ASSERT(RMI::task_ptr->hugeq.size() < RMI::RmiTask::unique_tag_period() / comm.Get_size());
-        RMI::task_ptr->hugeq.push_back(std::make_tuple(src,nbyte,tag));
+        MADNESS_ASSERT(ThreadPool::size() < RMI::RmiTask::unique_tag_period() ||
+                       RMI::task_ptr->hugeq.size() <
+                           RMI::RmiTask::unique_tag_period() / comm.Get_size());
+        RMI::task_ptr->hugeq.push_back(std::make_tuple(src, nbyte, tag));
         RMI::task_ptr->post_pending_huge_msg();
     }
 
