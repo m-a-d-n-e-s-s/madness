@@ -177,7 +177,7 @@ namespace madness {
       if (status_stream.good()) {
         basic_string<Char> line;
         while(getline(status_stream, line)) {
-          if (line.find(detail::Vm_cstr<Char>) == 0)
+          if (line.find(detail::Vm_cstr<Char>()) == 0)
             memoryfile << line << endl;
         }
         status_stream.close();
