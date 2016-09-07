@@ -382,7 +382,6 @@ namespace madness {
 	      empty_root->add_ref_count(NEMPTY);
 	      for (int i=0; i<NEMPTY; i++) {
 		tbb::task* empty = new( empty_root->allocate_child() ) tbb::empty_task;
-		empty->set_ref_count(1);
 		tbb::task::enqueue(*empty, tbb::priority_high);
 	      }
 	      myusleep(100000);	    
