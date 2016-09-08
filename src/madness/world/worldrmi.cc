@@ -365,31 +365,44 @@ namespace madness {
             MADNESS_ASSERT(task_ptr == nullptr);
 #if HAVE_INTEL_TBB
 
-	    // Struggle here is to have the RMI task not executed by
-            // the main thread when it first enters fence ... make the task but then 
-	    // system wide wait for the darn thing to be picked up by another thread
+            // Force tne RMI task to be picked up by someone other then main thread
+            // by keeping main thread occupied AND enqueing enough dummy tasks to make
+            // TBB create threads and pick up RmiTask eventually
 
-            tbb_rmi_parent_task = new( tbb::task::allocate_root() ) tbb::empty_task;
+            tbb_rmi_parent_task =
+                new (tbb::task::allocate_root()) tbb::empty_task;
             tbb_rmi_parent_task->set_ref_count(2);
-            task_ptr = new( tbb_rmi_parent_task->allocate_child() ) RmiTask();
+            task_ptr = new (tbb_rmi_parent_task->allocate_child()) RmiTask();
             tbb::task::enqueue(*task_ptr, tbb::priority_high);
 
-	    MPI_Barrier(MPI_COMM_WORLD);
-	    tbb::task* empty_root = new( tbb::task::allocate_root() ) tbb::empty_task;
-	    empty_root->set_ref_count(1);
-	    while (!rmi_task_is_running) {
-	      const int NEMPTY=1000000;
-	      empty_root->add_ref_count(NEMPTY);
-	      for (int i=0; i<NEMPTY; i++) {
-		tbb::task* empty = new( empty_root->allocate_child() ) tbb::empty_task;
-		empty->set_ref_count(1);
-		tbb::task::enqueue(*empty, tbb::priority_high);
-	      }
-	      myusleep(100000);	    
-	    }
-	    empty_root->wait_for_all();
-	    tbb::task::destroy(*empty_root);
-	    MPI_Barrier(MPI_COMM_WORLD);
+            task_ptr->comm.Barrier();
+
+            // repeatedly hit TBB with binges of empty tasks to force it create threads
+            // and pick up RmiTask;
+            // paranoidal sanity-check against too many attempts
+            tbb::task* empty_root =
+                new (tbb::task::allocate_root()) tbb::empty_task;
+            empty_root->set_ref_count(1);
+            int binge_counter = 0;
+            const int max_binges = 10;
+            while (!rmi_task_is_running) {
+              if (binge_counter == max_binges)
+                throw madness::MadnessException("MADWorld failed to launch RMI task",
+                                                "ntries > 10",
+                                                10,__LINE__,__FUNCTION__,__FILE__);
+              const int NEMPTY = 1000000;
+              empty_root->add_ref_count(NEMPTY);
+              for (int i = 0; i < NEMPTY; i++) {
+                tbb::task* empty =
+                    new (empty_root->allocate_child()) tbb::empty_task;
+                tbb::task::enqueue(*empty, tbb::priority_high);
+                ++binge_counter;
+              }
+              myusleep(100000);
+            }
+            empty_root->wait_for_all();
+            tbb::task::destroy(*empty_root);
+            task_ptr->comm.Barrier();
 #else
             task_ptr = new RmiTask();
             task_ptr->start();
