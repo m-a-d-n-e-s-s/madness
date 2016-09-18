@@ -111,7 +111,7 @@ add_feature_info(MEM_STATS ENABLE_MEM_STATS "gather memory statistics (expensive
 set(WORLD_GATHER_MEM_STATS ${ENABLE_MEM_STATS} CACHE BOOL "Gather memory statistics (expensive)")
 
 option(ENABLE_MEM_PROFILE "Turn on instrumented memory profiling (print_meminfo)" OFF)
-add_feature_info(MEM_PROFILE ENABLE_MEM_PROFILE "instrumented memory profiling on")
+add_feature_info(MEM_PROFILE ENABLE_MEM_PROFILE "instrumented memory profiling")
 set(WORLD_MEM_PROFILE_ENABLE ${ENABLE_MEM_PROFILE} CACHE BOOL "Turn on instrumented memory profiling (print_meminfo)")
 
 option(ENABLE_TENSOR_BOUNDS_CHECKING
