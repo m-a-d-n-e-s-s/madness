@@ -3,7 +3,7 @@
 set -e
 
 aclocal -I ./config
-autoconf
+autoreconf --force --install
 autoheader
 if hash glibtoolize 2>/dev/null; then
   glibtoolize
