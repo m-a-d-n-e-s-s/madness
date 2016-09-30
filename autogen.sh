@@ -2,6 +2,8 @@
 
 set -e
 
+export ACLOCAL_PATH=/usr/share/aclocal
+
 aclocal -I ./config
 autoconf
 autoheader
