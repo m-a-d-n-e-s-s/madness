@@ -3498,10 +3498,11 @@ namespace madness {
                         aVy = apply_potential_response(world, dipoleamo, xcop, vlocal, 0);
                         djkamoy = calc_djkmo(world, xc_alda, dipoleamo, dipoleamo, drho, amo, drhoa,  0);
                         ayrhs = calc_rhs(world, amo,  aVy, dipoleamo, djkamoy);
-                        if(!param.spin_restricted && param.nbeta != 0) 
+                        if(!param.spin_restricted && param.nbeta != 0) {
                             bVy = apply_potential_response(world, dipolebmo, xcop, vlocal,  0);
                             djkbmoy = calc_djkmo(world, xc_alda, dipolebmo, dipolebmo, drho, bmo, drhob,  0);
                             byrhs = calc_rhs(world, bmo,  bVy, dipolebmo, djkbmoy);
+                        }
                     } 
                 }
 
