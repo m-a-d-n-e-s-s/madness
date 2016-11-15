@@ -2868,44 +2868,43 @@ namespace madness {
         by = by_new;
     }
 
-    vecfuncT SCF::apply_potential_response(World & world, const tensorT & occ, const vecfuncT & dmo,
-                             const vecfuncT& vf, const vecfuncT& delrho,  const functionT & vlocal,
-                             double & exc, 
-                             int ispin)
+    vecfuncT SCF::apply_potential_response(World & world, const vecfuncT & dmo,
+            const XCOperator& xcop,  const functionT & vlocal, int ispin)
     {
         functionT vloc = copy(vlocal);
-        exc = 0.0;
 
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
 
-            XCOperator xcoperator(world,this,ispin);
-            if (ispin==0) exc=xcoperator.compute_xc_energy();
-            vloc += xcoperator.make_xc_potential();
+//            XCOperator xcoperator(world,this,ispin);
+//            if (ispin==0) exc=xcoperator.compute_xc_energy();
+            xcop.set_ispin(ispin);
+            vloc += xcop.make_xc_potential();
 
-
-#ifdef MADNESS_HAS_LIBXC
-            if (xc.is_gga() ) {
-                
-                functionT vsigaa = xcoperator.make_xc_potential();
-                functionT vsigab;
-		if (xc.is_spin_polarized() && param.nbeta != 0)// V_ab
-                    vsigab = xcoperator.make_xc_potential();                
-
-                for (int axis=0; axis<3; axis++) {
-                    functionT gradn = delrho[axis + 3*ispin];
-                    functionT ddel = vsigaa*gradn;
-	            if (xc.is_spin_polarized() && param.nbeta != 0) {
-                        functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
-                        ddel = ddel + vsab;
-                    }
-                    ddel.scale(xc.is_spin_polarized() ? 2.0 : 4.0);
-                    Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-                    functionT vxc2=D(ddel);
-                    vloc = vloc - vxc2;//.truncate();
-                }
-            }
-#endif
+// TODO: fbischoff thinks this is double-counting the gga potential part
+//
+//#ifdef MADNESS_HAS_LIBXC
+//            if (xc.is_gga() ) {
+//
+//                functionT vsigaa = xcoperator.make_xc_potential();
+//                functionT vsigab;
+//                if (xc.is_spin_polarized() && param.nbeta != 0)// V_ab
+//                    vsigab = xcoperator.make_xc_potential();
+//
+//                for (int axis=0; axis<3; axis++) {
+//                    functionT gradn = delrho[axis + 3*ispin];
+//                    functionT ddel = vsigaa*gradn;
+//                    if (xc.is_spin_polarized() && param.nbeta != 0) {
+//                        functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
+//                        ddel = ddel + vsab;
+//                    }
+//                    ddel.scale(xc.is_spin_polarized() ? 2.0 : 4.0);
+//                    Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+//                    functionT vxc2=D(ddel);
+//                    vloc = vloc - vxc2;//.truncate();
+//                }
+//            }
+//#endif
             END_TIMER(world, "DFT potential");
         }
 
@@ -2914,17 +2913,16 @@ namespace madness {
         START_TIMER(world);
         vecfuncT Vdmo = mul_sparse(world, vloc, dmo, vtol);
         END_TIMER(world, "V*dmo");
-	print_meminfo(world.rank(), "V*dmo");
+        print_meminfo(world.rank(), "V*dmo");
         if(xc.hf_exchange_coefficient()){
             START_TIMER(world);
             vecfuncT Kdmo;
             Exchange K=Exchange(world,this,ispin).small_memory(false).same(false);
-            vecfuncT Kamo=K(amo);
-             if(ispin == 0)
+            if(ispin == 0)
                 Kdmo=K(amo); 
             if(ispin == 1)
                 Kdmo=K(bmo); 
-             //tensorT excv = inner(world, Kdmo, dmo);
+            //tensorT excv = inner(world, Kdmo, dmo);
             //double exchf = 0.0;
             //for(unsigned long i = 0;i < dmo.size();++i){
             //    exchf -= 0.5 * excv[i] * occ[i];
@@ -2940,7 +2938,7 @@ namespace madness {
 
         truncate(world, Vdmo);
 
-	print_meminfo(world.rank(), "Truncate Vdmo");
+        print_meminfo(world.rank(), "Truncate Vdmo");
         world.gop.fence();
         return Vdmo;
     }
@@ -3087,8 +3085,9 @@ namespace madness {
     }
 
 
-    vecfuncT SCF::calc_xc_function(World & world, 
-             const vecfuncT & mo,  const vecfuncT & vf,  const functionT & drho, int & spin)
+    /// param[in]   drho    the perturbed density
+    vecfuncT SCF::calc_xc_function(World & world, XCOperator& xc_alda,
+             const vecfuncT & mo,  const functionT & drho)
     {
         START_TIMER(world);
         reconstruct(world, mo);
@@ -3097,38 +3096,23 @@ namespace madness {
         dJ.truncate();
 
         functionT vloc = dJ;
-        //if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
+
+        // TODO openshell ?
         if (xc.is_dft() && xc.hf_exchange_coefficient() !=1.0) {
-            // ALDA approximation only
-            // use kernel of ground state
-            std::string xc_alda= "LDA";
-            xc.initialize(xc_alda, !param.spin_restricted, world);
-
-            real_function_3d fxc = multiop_values <double, xc_kernel_apply, 3> (xc_kernel_apply(xc, spin, XCfunctional::potential_rho), vf);
-
-            // return to original xc
-            xc.initialize(param.xc_data, !param.spin_restricted, world);
-     
-            vloc =  dJ +  fxc * drho;
-            //vloc = dJ + fxc;     
-     
-            // TODO openshell ?
+            vloc =  dJ +  xc_alda.apply_xc_kernel(drho);
         }
-        else { 
-            vloc =  dJ;
-        } 
+
         vecfuncT Vxcmo = mul_sparse(world, vloc, mo, vtol);
         truncate(world, Vxcmo);
-
 
         END_TIMER(world, "Calc calc_xc_function ");
         print_meminfo(world.rank(), "Calc calc_xc_function");
         return Vxcmo;
     }
     
-    vecfuncT SCF::calc_djkmo(World & world, const vecfuncT & dmo1, 
+    /// @param[in]  drho    the perturbed density
+    vecfuncT SCF::calc_djkmo(World & world, XCOperator& xc_alda, const vecfuncT & dmo1,
                         const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,  
-                        const vecfuncT & vf,
                         const functionT & drhos,
                         int  spin)
     {
@@ -3137,7 +3121,7 @@ namespace madness {
         // TODO becareful with drhos , drho
         // open shell drhoa !=drhob
 
-        vecfuncT dkxcmo = calc_xc_function(world, mo, vf, drho, spin);
+        vecfuncT dkxcmo = calc_xc_function(world, xc_alda, mo, drho);
          //TODO hybrdid functs: not sure if should i have to apply 
         if(xc.hf_exchange_coefficient() == 1.0){
         //if(xc.hf_exchange_coefficient()){
@@ -3223,7 +3207,6 @@ namespace madness {
             int & axis,
             tensorT & Dpolar_total, tensorT & Dpolar_alpha, tensorT & Dpolar_beta)
     {
-        int fflag = 0;
         double Dpolar_average = 0.0;
         double Dpolar_iso = 0.0;
 
@@ -3376,75 +3359,6 @@ namespace madness {
         functionT brho ; 
         functionT rho = make_density_ground(world, arho, brho);
 
-
-        // In order to integrate with Florian's rewrite, need vf to follow this formatting:
-        // 
-        // the ordering of the intermediates is fixed, but the code can handle
-        // non-initialized functions, so if e.g. no GGA is requested, all the
-        // corresponding vector components may be left empty.
-        //  enum xc_arg {
-        //      enum_rhoa=0,            ///< alpha density \f$ \rho_\alpha \f$
-        //      enum_rhob=1,            ///< \f$ \rho_\beta \f$
-        //      enum_rho_pt=2,          ///< perturbed density (CPHF, TDKS) \f$ \rho_{pt} \f$
-        //      enum_drhoa_x=4,         ///< \f$ \partial/{\partial x} \rho_{\alpha} \f$
-        //      enum_drhoa_y=5,         ///< \f$ \partial/{\partial y} \rho_{\alpha} \f$
-        //      enum_drhoa_z=6,         ///< \f$ \partial/{\partial z} \rho_{\alpha} \f$
-        //      enum_drhob_x=7,         ///< \f$ \partial/{\partial x} \rho_{\beta} \f$
-        //      enum_drhob_y=8,         ///< \f$ \partial/{\partial y} \rho_{\beta} \f$
-        //      enum_drhob_z=9,         ///< \f$ \partial/{\partial z} \rho_{\beta} \f$
-        //      enum_saa=10,            ///< \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
-        //      enum_sab=11,            ///< \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
-        //      enum_sbb=12,            ///< \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
-        //      enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho \f$
-        //      enum_sigma_pta=14,      ///< \f$ \nabla\rho_{\alpha}.\nabla\rho_{pt} \f$
-        //      enum_sigma_ptb=15       ///< \f$ \nabla\rho_{\beta}.\nabla\rho_{pt} \f$
-        //
-        //      const static int number_xc_args=16 ///< max number of intermediates
-
-        vecfuncT vf(XCfunctional::number_xc_args);
-        vecfuncT delrho;
-
-        if (xc.is_dft()) {
-            START_TIMER(world);
-            arho.reconstruct();
-            vf[XCfunctional::enum_rhoa] = copy(arho);
-            if(!param.spin_restricted && param.nbeta != 0) {
-                brho.reconstruct();
-                vf[XCfunctional::enum_rhob] = copy(brho);                
-            }
-
-#ifdef MADNESS_HAS_LIBXC
-            if (xc.is_gga()) {
-                for (int axis = 0; axis < 3; ++axis)
-                          delrho.push_back((*gradop[axis])(arho, false)); // delrho
-                if (!param.spin_restricted && param.nbeta != 0)
-                //TODO if (xc.is_spin_polarized() && param.nbeta != 0)
-                          for (int axis = 0; axis < 3; ++axis)
-                                  delrho.push_back((*gradop[axis])(brho, false));
-
-                world.gop.fence(); // NECESSARY
-
-                vf[XCfunctional::enum_saa] = copy(   delrho[0] * delrho[0] 
-                                                   + delrho[1] * delrho[1]
-                                                   + delrho[2] * delrho[2]);   // sigma_aa
-
-                if (!param.spin_restricted && param.nbeta != 0)
-                {
-                       vf[XCfunctional::enum_sab] = copy(  delrho[0] * delrho[3] 
-                                                         + delrho[1] * delrho[4]
-                                                         + delrho[2] * delrho[5]); // sigma_ab
-
-                       vf[XCfunctional::enum_sbb] = copy(  delrho[3] * delrho[3] 
-                                                         + delrho[4] * delrho[4]
-                                                         + delrho[5] * delrho[5]); // sigma_bb
-                 }
-                 world.gop.fence(); // NECESSARY
-            }
-#endif
-        } 
-
-        print_meminfo(world.rank(), "Make delrho");
-
         // vlocal = vnuc + 2*J  
         functionT vlocal;
         {
@@ -3548,37 +3462,45 @@ namespace madness {
             } 
             functionT drho = drhoa + drhob; 
 
+            // construct xc operator only once since the ground state density
+            // will not change during the iterations.
+            XCOperator xcop(world,this,arho,brho);
+
+            // construct xc operator for acting on the perturbed density --
+            // use only the LDA approximation
+            XCOperator xc_alda(world, "LDA", not param.spin_restricted, arho, brho);
+
             for(int iter = 0; iter < param.maxiter; ++iter) {
                 if(world.rank() == 0)
                     printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
                 
                 double residual = 0.0;
-                double exca = 0.0, excb = 0.0;
             
                 if (iter > 0 && update_residual < 0.1) {
                     //do_this_iter = false;
                     param.maxsub = maxsub_save;
                 }
                 
+
                 if(iter == 0) {
                     // iter = 0 initial_guess
-                    aVx = apply_potential_response(world, aocc, dipoleamo, vf, delrho, vlocal, exca,  0);
-                    djkamox = calc_djkmo(world, dipoleamo, dipoleamo, drho, amo, vf, drhoa,  0);
+                    aVx = apply_potential_response(world, dipoleamo, xcop, vlocal,  0);
+                    djkamox = calc_djkmo(world, xc_alda, dipoleamo, dipoleamo, drho, amo, drhoa,  0);
                     axrhs = calc_rhs(world, amo,  aVx, dipoleamo, djkamox);
 
                     if(!param.spin_restricted && param.nbeta != 0) { 
-                        bVx = apply_potential_response(world, bocc, dipolebmo, vf, delrho, vlocal, excb, 0);
-                        djkbmox = calc_djkmo(world, dipolebmo, dipolebmo, drho, bmo, vf, drhob,  0);
+                        bVx = apply_potential_response(world, dipolebmo, xcop, vlocal, 0);
+                        djkbmox = calc_djkmo(world, xc_alda, dipolebmo, dipolebmo, drho, bmo, drhob,  0);
                         bxrhs = calc_rhs(world, bmo,  bVx, dipolebmo, djkbmox);
                     } 
  
                     if(omega != 0.0) {
-                        aVy = apply_potential_response(world, aocc, dipoleamo, vf, delrho, vlocal, exca, 0);
-                        djkamoy = calc_djkmo(world, dipoleamo, dipoleamo, drho, amo, vf, drhoa,  0);
+                        aVy = apply_potential_response(world, dipoleamo, xcop, vlocal, 0);
+                        djkamoy = calc_djkmo(world, xc_alda, dipoleamo, dipoleamo, drho, amo, drhoa,  0);
                         ayrhs = calc_rhs(world, amo,  aVy, dipoleamo, djkamoy);
                         if(!param.spin_restricted && param.nbeta != 0) 
-                            bVy = apply_potential_response(world, bocc, dipolebmo, vf, delrho, vlocal, excb,  0);
-                            djkbmoy = calc_djkmo(world, dipolebmo, dipolebmo, drho, bmo, vf, drhob,  0);
+                            bVy = apply_potential_response(world, dipolebmo, xcop, vlocal,  0);
+                            djkbmoy = calc_djkmo(world, xc_alda, dipolebmo, dipolebmo, drho, bmo, drhob,  0);
                             byrhs = calc_rhs(world, bmo,  bVy, dipolebmo, djkbmoy);
                     } 
                 }
@@ -3595,27 +3517,27 @@ namespace madness {
                     drho = drhoa + drhob; 
 
                     // calculate (dJ-dK)*2*mo
-                    aVx = apply_potential_response(world, aocc, ax_old, vf, delrho, vlocal, exca, 0);
+                    aVx = apply_potential_response(world, ax_old, xcop, vlocal, 0);
                     // make potential * wave function
-                    djkamox = calc_djkmo(world, ax_old, ay_old, drho, amo, vf, drhoa,  0);
+                    djkamox = calc_djkmo(world, xc_alda, ax_old, ay_old, drho, amo, drhoa,  0);
                     // axrhs = -2.0 * (aVx + dipoleamo + duamo)
                     axrhs = calc_rhs(world, amo,  aVx, dipoleamo, djkamox);
 
                     if(!param.spin_restricted && param.nbeta != 0) {
-                        bVx = apply_potential_response(world, bocc, bx_old, vf, delrho, vlocal, excb,  1);
-                        djkbmox = calc_djkmo(world, bx_old, by_old, drho, bmo, vf, drhob , 1);
+                        bVx = apply_potential_response(world, bx_old, xcop, vlocal,  1);
+                        djkbmox = calc_djkmo(world, xc_alda, bx_old, by_old, drho, bmo, drhob , 1);
                         bxrhs = calc_rhs(world, bmo, bVx, dipolebmo, djkbmox);
                     }
 
                     if(omega != 0.0) {
-                        aVy = apply_potential_response(world, aocc, ay_old, vf,  delrho, vlocal, exca, 0);
-                        djkamoy = calc_djkmo(world, ay_old, ax_old,  drho, amo, vf,  drhoa, 0);
+                        aVy = apply_potential_response(world, ay_old, xcop,  vlocal, 0);
+                        djkamoy = calc_djkmo(world, xc_alda, ay_old, ax_old,  drho, amo, drhoa, 0);
                         // bxrhs = -2.0 * (bVx + dipolebmo + dubmo)
                         ayrhs = calc_rhs(world, amo, aVy, dipoleamo, djkamoy);
 
                         if(!param.spin_restricted && param.nbeta != 0) {
-                            bVy = apply_potential_response(world, bocc, by_old, vf,  delrho, vlocal, excb, 1);
-                            djkbmoy = calc_djkmo(world, by_old, bx_old, drho, amo, vf, drhob, 1);
+                            bVy = apply_potential_response(world, by_old, xcop,  vlocal, 1);
+                            djkbmoy = calc_djkmo(world, xc_alda, by_old, bx_old, drho, amo, drhob, 1);
                             byrhs = calc_rhs(world, bmo, bVy, dipolebmo, djkbmoy);
                         }
                     }

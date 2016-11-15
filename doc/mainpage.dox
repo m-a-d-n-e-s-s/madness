@@ -39,6 +39,9 @@
 ///    \defgroup parallel_runtime Parallel programming environment
 ///    \ingroup libraries
 
+///    \defgroup chemistry Chemistry
+///    \ingroup libraries
+
 ///       \defgroup world Distributed computing environment (World and its relations)
 ///       \ingroup parallel_runtime
 

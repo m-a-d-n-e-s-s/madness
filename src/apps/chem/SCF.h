@@ -50,7 +50,7 @@
 #include <chem/xcfunctional.h>
 #include <chem/potentialmanager.h>
 #include <chem/gth_pseudopotential.h> 
-
+#include <chem/SCFOperators.h>
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/distributed_matrix.h>
 
@@ -1052,10 +1052,8 @@ namespace madness {
                                       subspaceT & subspace, tensorT & Q, double & update_residual);
         
         
-        vecfuncT apply_potential_response(World & world, const tensorT & occ, const vecfuncT & dmo,
-                                          const vecfuncT& vf, const vecfuncT& delrho,  const functionT & vlocal,
-                                          double & exc,
-                                          int ispin);
+        vecfuncT apply_potential_response(World & world, const vecfuncT & dmo,
+                                          const XCOperator& xc,  const functionT & vlocal, int ispin);
         void this_axis(World & world, int & axis);
         vecfuncT calc_dipole_mo(World & world,  vecfuncT & mo, int & axis);
         void calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int sign);
@@ -1069,11 +1067,10 @@ namespace madness {
         functionT calc_exchange_function(World & world,  const int & p,
                                          const vecfuncT & dmo1,  const vecfuncT & dmo2,
                                          const vecfuncT & mo, int & spin);
-        vecfuncT calc_xc_function(World & world,
-                                  const vecfuncT & mo,  const vecfuncT & vf,  const functionT & drho, int & spin)     ;
-        vecfuncT calc_djkmo(World & world, const vecfuncT & dmo1,
+        vecfuncT calc_xc_function(World & world, XCOperator& xc_alda,
+                                  const vecfuncT & mo,  const functionT & drho);
+        vecfuncT calc_djkmo(World & world, XCOperator& xc_alda, const vecfuncT & dmo1,
                             const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,     
-                            const vecfuncT & vf,
                             const functionT & drhos,
                             int  spin);
         vecfuncT calc_rhs(World & world, const vecfuncT & mo ,

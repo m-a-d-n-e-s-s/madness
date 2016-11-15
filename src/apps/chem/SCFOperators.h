@@ -433,8 +433,18 @@ public:
         return *this;
     }
 
+    /// set the spin state this operator is acting on
+    void set_ispin(const int i) const {ispin=i;}
+
     /// apply the xc potential on a set of orbitals
     vecfuncT operator()(const vecfuncT& vket) const;
+
+    /// apply the xc potential on an orbitals
+    real_function_3d operator()(const real_function_3d& ket) const {
+        vecfuncT vket(1,ket);
+        vecfuncT vKket=this->operator()(vket);
+        return vKket[0];
+    }
 
     /// compute the xc energy using the precomputed intermediates vf and delrho
     double compute_xc_energy() const;
@@ -464,7 +474,7 @@ private:
     int nbeta;
 
     /// the XC functionals depend on the spin of the orbitals they act on
-    int ispin;
+    mutable int ispin;
 
     /// functions that are need for the computation of the XC operator
 
@@ -499,17 +509,10 @@ private:
     void prep_xc_args_response(const real_function_3d& dens_pt,
             vecfuncT& xc_args, vecfuncT& ddens_pt) const;
 
-    /// compute the intermediates for the XC functionals
-
-    /// @param[in]  arho    density of the alpha orbitals
-    /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
-    /// @param[out] vf      vector of intermediates as described above
-    /// @param[out] delrho  vector of derivatives of the densities as described above
-    void prep_xc_args_old(const real_function_3d& arho,
-            const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const;
-
     /// check if the intermediates are initialized
-    bool is_initialized() const;
+    bool is_initialized() const {
+        return (xc_args.size()>0);
+    }
 
     /// simple structure to take the pointwise logarithm of a function, shifted by +14
     struct logme{

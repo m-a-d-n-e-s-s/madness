@@ -659,7 +659,7 @@ real_function_3d XCOperator::make_xc_potential() const {
 ///        + 2\frac{\partial^2 f_{xc}}{\partial \rho_\alpha\sigma_{\alpha\alpha}}
 ///            \left(\vec\nabla \rho_a\cdot \vec \nabla\tilde\rho\right)
 /// \f]
-//  the second partial derivatives that need to be multiplied with the density gradients
+///  the second partial derivatives that need to be multiplied with the density gradients
 /// \f[
 ///      second_{semilocal} = -\vec\nabla\cdot\left((\vec\nabla\rho)
 ///             \left[2\frac{\partial^2 f_{xc}}{\partial\rho_\alpha\partial\sigma_{\alpha\alpha}}\tilde\rho
@@ -686,48 +686,30 @@ real_function_3d XCOperator::apply_xc_kernel(const real_function_3d& dens_pt) co
 
     // compute the various terms from the xc kernel
 
-    // compute the local terms: second_{local}
+    // compute the local terms: second_{local} * rho
     real_function_3d result=multiop_values<double, xc_kernel_apply, 3>
             (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_second_local), xc_args);
-//    save(result,"local_apply");
+    real_function_3d gga_pot=real_factory_3d(world).compressed();
 
     if (xc->is_gga()) {
+
+        const real_function_3d& arho=xc_args[XCfunctional::enum_rhoa];
+        vecfuncT zeta(3);
+        zeta[0]=xc_args[XCfunctional::enum_zetaa_x];
+        zeta[1]=xc_args[XCfunctional::enum_zetaa_y];
+        zeta[2]=xc_args[XCfunctional::enum_zetaa_z];
+
         // compute the semilocal terms, second partial derivatives
         real_function_3d semilocal2a=multiop_values<double, xc_kernel_apply, 3>
                 (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_second_semilocal), xc_args);
-        save(semilocal2a,"semilocal2a");
-
-        const real_function_3d& rho=xc_args[XCfunctional::enum_rhoa];
-        double tol=xc->get_ggatol();
-        real_function_3d semilocal2=binary_op(semilocal2a,rho,binary_munging(tol));
-//        real_function_3d semilocal2=semilocal2a;
-        save(semilocal2,"semilocal2_ddel");
-
-        for (int idim=0; idim<3; ++idim) {
-            real_function_3d ddens = xc_args[XCfunctional::enum_drhoa_x+idim];
-            real_function_3d ddel = 2.0*semilocal2*ddens;
-            save(ddel,"ddel"+stringify(idim));
-            Derivative<double,3> D = free_space_derivative<double,3>(world, idim);
-            real_function_3d vxc2=D(ddel);
-            save(vxc2,"vxc2"+stringify(idim));
-            result-=vxc2;
-        }
+        double tol=std::max(xc->get_ggatol(),FunctionDefaults<3>::get_thresh()*10.0);
 
         // compute the semilocal terms, first partial derivative
         real_function_3d semilocal1a=multiop_values<double, xc_kernel_apply, 3>
                 (xc_kernel_apply(*xc, ispin, XCfunctional::kernel_first_semilocal), xc_args);
-        real_function_3d semilocal1=binary_op(semilocal1a,rho,binary_munging(tol));
-//        real_function_3d semilocal1=semilocal1a;
-//        save(semilocal1a,"semilocal1a");
+        gga_pot-=div(semilocal1a*ddens_pt + 2.0*zeta * (arho*semilocal2a), true);
 
-        for (int idim=0; idim<3; ++idim) {
-            real_function_3d ddel = semilocal1*ddens_pt[idim];
-            Derivative<double,3> D = free_space_derivative<double,3>(world, idim);
-            real_function_3d vxc2=D(ddel);
-            result-=vxc2;
-        }
-        real_function_3d result1=binary_op(result,rho,binary_munging(tol));
-        result=result1;
+        result+=binary_op(gga_pot,arho,binary_munging(tol));
     }
 
     truncate(world,xc_args);
@@ -758,7 +740,6 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
         xcargs[XCfunctional::enum_zetaa_x]=grada[0];
         xcargs[XCfunctional::enum_zetaa_y]=grada[1];
         xcargs[XCfunctional::enum_zetaa_z]=grada[2];
-//        save(xcargs[XCfunctional::enum_chi_aa],"chi");
 
         if (have_beta) {
             real_function_3d logdensb=unary_op(brho,logme());
@@ -771,10 +752,6 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
             xcargs[XCfunctional::enum_chi_bb]=chib;
             xcargs[XCfunctional::enum_chi_ab]=chiab;
         }
-        //            // this is needed for proper munging of sigma_ab
-        //            xcargs[XCfunctional::enum_sigtot]= xcargs[XCfunctional::enum_saa]
-        //                           +2.0*xcargs[XCfunctional::enum_sab]+xcargs[XCfunctional::enum_sbb];
-
     }
 
     world.gop.fence();
@@ -789,110 +766,42 @@ void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
     const bool have_beta=(xc->is_spin_polarized()) and (nbeta>0);
     World& world=dens_pt.world();
 
-    const real_function_3d& arho=xc_args[XCfunctional::enum_rhoa];
-    const real_function_3d& brho=xc_args[XCfunctional::enum_rhob];
-    ddens_pt=vecfuncT(3);
-
-    // assign the perturbed density (spin-free ??)
+    // assign the perturbed density (spin-free)
     xc_args[XCfunctional::enum_rho_pt]=dens_pt;
     world.gop.fence();
 
     // assign the reduced density gradients with the perturbed density for GGA
+    // \sigma_pt   = 2.0 * \nabla \rho_\alpha \cdot \nabla\tilde\rho
     // \sigma_pt_a = \nabla \rho_\alpha \cdot \nabla\tilde\rho
     // \sigma_pt_b = \nabla \rho_\beta \cdot \nabla\tilde\rho
+    //
+    // using the logarithmic derivatives for rho only we get (alpha and RHF)
+    // \sigma_pt = 2.0 * \rho_\alpha (\nabla\zeta_\alpha \cdot \nabla\tilde\rho)
+    // \sigma_pt_a = \rho_\alpha (\nabla\zeta_\alpha \cdot \nabla\tilde\rho)
+    // we save the functions without multiplying the ground state density rho
     if (xc->is_gga()) {
 
-        std::vector< std::shared_ptr<Derivative<double,3> > > gradop =
-                gradient_operator<double,3>(world);
-        arho.reconstruct(false);
-        brho.reconstruct(false);
-        dens_pt.reconstruct(false);
+        ddens_pt=grad(dens_pt);     // spin free
+
+        std::vector<real_function_3d> zeta(3);
+        zeta[0]=xc_args[XCfunctional::enum_zetaa_x];
+        zeta[1]=xc_args[XCfunctional::enum_zetaa_y];
+        zeta[2]=xc_args[XCfunctional::enum_zetaa_z];
+        xc_args[XCfunctional::enum_sigma_pta_div_rho]=dot(world,zeta,ddens_pt);    // sigma_a
+        // for RHF add factor 2 on rho; will be done in xcfunctional_libxc::make_libxc_args
+        // \sigma_pt = 2 * rho_a * sigma_pta_div_rho
         world.gop.fence();
 
-        std::vector<real_function_3d> ddensa(3),ddensb(3);
-        for (std::size_t i=0; i<3; ++i) {
-            ddensa[i]=(*gradop[i])(arho, false);
-            if (have_beta) ddensb[i]=(*gradop[i])(brho, false);
-            ddens_pt[i]=(*gradop[i])(dens_pt, false);
+        if (have_beta) {
+            zeta[0]=xc_args[XCfunctional::enum_zetab_x];
+            zeta[1]=xc_args[XCfunctional::enum_zetab_y];
+            zeta[2]=xc_args[XCfunctional::enum_zetab_z];
+            xc_args[XCfunctional::enum_sigma_ptb_div_rho]= dot(world,zeta,ddens_pt);  // sigma_b
         }
-        world.gop.fence();
-
-        // autorefine before squaring
-        for (std::size_t i=0; i<3; ++i) {
-            ddensa[i].refine(false);
-            if (have_beta) ddensb[i].refine(false);
-            ddens_pt[i].refine(false);
-        }
-        world.gop.fence();
-
-        xc_args[XCfunctional::enum_sigma_pta]=dot(world,ddensa,ddens_pt);    // sigma_a
-        if (have_beta) xc_args[XCfunctional::enum_sigma_ptb]= dot(world,ddensb,ddens_pt);
-//        save(xc_args[XCfunctional::enum_sigma_pta],"sigma_pt");
         world.gop.fence();
     }
     world.gop.fence();
     truncate(world,xc_args,extra_truncation);
-}
-
-
-void XCOperator::prep_xc_args_old(const real_function_3d& arho,
-        const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const {
-
-    delrho.clear();
-    vf.clear();
-
-    arho.reconstruct();
-    if (nbeta != 0 && xc->is_spin_polarized()) brho.reconstruct();
-
-    vf.push_back(arho);
-    if (xc->is_spin_polarized()) vf.push_back(brho);
-
-    if (xc->is_gga()) {
-
-        std::vector< std::shared_ptr<Derivative<double,3> > > gradop =
-                gradient_operator<double,3>(world);
-
-        for (int axis = 0; axis < 3; ++axis)
-            delrho.push_back((*gradop[axis])(arho, false)); // delrho
-        if (xc->is_spin_polarized() && nbeta != 0)
-            for (int axis = 0; axis < 3; ++axis)
-                delrho.push_back((*gradop[axis])(brho, false));
-
-        world.gop.fence(); // NECESSARY
-
-        vf.push_back(delrho[0] * delrho[0] + delrho[1] * delrho[1]
-                  + delrho[2] * delrho[2]);     // sigma_aa
-
-        if (xc->is_spin_polarized()) {
-            if (nbeta != 0) {
-                vf.push_back(delrho[0] * delrho[3] + delrho[1] * delrho[4]
-                           + delrho[2] * delrho[5]); // sigma_ab
-                vf.push_back(delrho[3] * delrho[3] + delrho[4] * delrho[4]
-                           + delrho[5] * delrho[5]); // sigma_bb
-            } else {
-                vf.push_back(real_function_3d());
-                vf.push_back(real_function_3d());
-            }
-        }
-
-        world.gop.fence(); // NECESSARY
-    }
-    if (vf.size()) {
-        reconstruct(world, vf);
-        refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
-    }
-
-//    // this is a nasty hack, just adding something so that make_libxc_args
-//    // receives 5 arguments has to be here or refine_to_common_level(vf) above
-//    // hangs, but we really need a better solution for when nbeta=0
-//    if (xc->is_spin_polarized() && nbeta == 0 && xc->is_gga()){
-//        vf.push_back(brho);
-//        vf.push_back(brho);
-//    }
-}
-
-bool XCOperator::is_initialized() const {
-    return (xc_args.size()>0);
 }
 
 
