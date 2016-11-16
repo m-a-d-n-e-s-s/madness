@@ -17,12 +17,12 @@ int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 int c_uks_vwn5__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 
 XCfunctional::XCfunctional() : hf_coeff(0.0) {
-    rhotol=1e-7; rhomin=1e-12; sigtol=0.0; sigmin=0.0; // default values
+    rhotol=1e-7; rhomin=1e-12; // default values
 }
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized,
         World& world, bool verbose) {
-    rhotol=1e-7; rhomin=1e-12; sigtol=0.0; sigmin=0.0; // default values
+    rhotol=1e-7; rhomin=1e-12; // default values
 
     spin_polarized = polarized;
 
@@ -40,12 +40,6 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         }
         else if (token == "RHOTOL") {
             s >> rhotol;
-        }
-        else if (token == "SIGMIN") {
-            s >> sigmin;
-        }
-        else if (token == "SIGTOL") {
-            s >> sigtol;
         }
         else if (token == "HF") {
             hf_coeff = 1.0;
@@ -170,7 +164,7 @@ madness::Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double>
 	MADNESS_EXCEPTION("fxc_apply not implemented in xcfunctional_ldaonly.cc... use libxc",1);
 }
 
-void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
+void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                         madness::Tensor<double>& rho,
                         madness::Tensor<double>& sigma,
                         madness::Tensor<double>& rho_pt,
