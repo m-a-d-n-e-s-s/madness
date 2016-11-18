@@ -267,6 +267,9 @@ namespace madness {
         /// \c madness::initialize().
         /// \return A reference to the default \c World.
         static World& get_default() {
+#ifdef MADNESS_DISABLE_WORLD_GET_DEFAULT
+            MADNESS_EXCEPTION("World::get_default() was called while disabled", 0);
+#endif
             MADNESS_ASSERT(default_world);
             return *default_world;
         }
