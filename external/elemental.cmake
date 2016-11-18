@@ -23,6 +23,8 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
         "Path to the Elemental source directory")
   set(ELEMENTAL_BINARY_DIR "${PROJECT_BINARY_DIR}/external/build/elemental" CACHE PATH 
         "Path to the Elemental build directory")
+    set(ELEMENTAL_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH 
+        "Path to the Elemental install directory")
   
   # Set Elemental compile flags
   append_flags(ELEMENTAL_CFLAGS "${CMAKE_C_FLAGS}")
@@ -121,6 +123,26 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
       message(FATAL_ERROR "Failed to create the Elemental build directory.")
     endif()
   endif()
+
+  # Create or clean the install directory
+  if(EXISTS "${ELEMENTAL_INSTALL_DIR}")
+    set(error_code 1)
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E remove -f "./*"
+        WORKING_DIRECTORY ${ELEMENTAL_INSTALL_DIR}
+        RESULT_VARIABLE error_code)
+    if(error_code)
+      message(FATAL_ERROR "Failed to delete existing files the Elemental build directory.")
+    endif()
+  else()
+    set(error_code 1)
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${ELEMENTAL_INSTALL_DIR}"
+        RESULT_VARIABLE error_code)
+    if(error_code)
+      message(FATAL_ERROR "Failed to create the Elemental build directory.")
+    endif()
+  endif()
   
   # since 0.85 package name is 'El', before that it was 'elemental'
   # detect the version by searching the main header
@@ -146,7 +168,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
       COMMAND ${CMAKE_COMMAND}
       ARGS
       ${ELEMENTAL_SOURCE_DIR}
-      -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
+      -DCMAKE_INSTALL_PREFIX=${ELEMENTAL_INSTALL_DIR}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DCMAKE_BUILD_TYPE=${ELEMENTAL_CMAKE_BUILD_TYPE}
       -DMPI_CXX_COMPILER=${MPI_CXX_COMPILER}
@@ -167,9 +189,26 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
     message (STATUS "** Done configuring Elemental")
   endif(error_code)
 
-  set(${ELEMENTAL_PACKAGE_NAME}_DIR ${ELEMENTAL_BINARY_DIR})
-  find_package(${ELEMENTAL_PACKAGE_NAME} REQUIRED
-               COMPONENTS REQUIRED ${ELEMENTAL_PACKAGE_NAME} pmrrr ElSuiteSparse)
+  execute_process(
+      COMMAND mkdir 
+      ARGS
+      -p
+      ${ELEMENTAL_INSTALL_DIR}/CMake
+      WORKING_DIRECTORY "${ELEMENTAL_INSTALL_DIR}"
+      RESULT_VARIABLE error_code)
+
+  execute_process(
+      COMMAND cp
+      ElementalTargets.cmake
+      ${ELEMENTAL_INSTALL_DIR}/CMake
+      WORKING_DIRECTORY "${ELEMENTAL_BINARY_DIR}"
+      RESULT_VARIABLE error_code)
+
+  # This line isn't used anywhere else in this file
+  # set(${ELEMENTAL_PACKAGE_NAME}_DIR ${ELEMENTAL_BINARY_DIR})
+  #LIST(APPEND ${CMAKE_MODULE_PATH} ${ELEMENTAL_BINARY_DIR})
+  find_package(Elemental REQUIRED PATHS ${ELEMENTAL_INSTALL_DIR}
+      COMPONENTS REQUIRED El pmrrr ElSuiteSparse)
   set(ELEMENTAL_FOUND 1)
 
   # Add update-elemental target that will pull updates to the Elemental source
@@ -218,7 +257,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   # WARNING: should only need to satisfy build-elemental to use El, however its cmake config file
   # is inadequate for using from build tree, hence MUST install even for build tree. Solving here will
   # take far too much effort. Will file an issue.
-  add_dependencies(${ELEMENTAL_PACKAGE_NAME} install-elemental)
+  add_dependencies(El install-elemental)
   
   # These build variables are not used anyway
   set(ELEMENTAL_INCLUDE_DIRS
