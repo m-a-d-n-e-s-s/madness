@@ -2494,6 +2494,60 @@ namespace madness {
             world.gop.fence();
         }
 
+        /// Inplace operate on many functions (impl's) with an operator within a certain box
+
+        /// @param[in] key the key of the current function node (box)
+        /// @param[in] op the operator
+        /// @param[in] vin the vector of function impl's on which to be operated
+        /// @param[out] vout the resulting vector of function impl's
+        template <typename opT>
+        void multi_to_multi_op_values_doit(const keyT& key, const opT& op,
+                const std::vector<implT*>& vin, std::vector<implT*>& vout) {
+            std::vector<tensorT> c(vin.size());
+            for (unsigned int i=0; i<vin.size(); i++) {
+                if (vin[i]) {
+                    coeffT cc = coeffs2values(key, vin[i]->coeffs.find(key).get()->second.coeff());
+                    c[i]=cc.full_tensor();
+                }
+            }
+            std::vector<tensorT> r = op(key, c);
+            MADNESS_ASSERT(r.size()==vout.size());
+            for (std::size_t i=0; i<vout.size(); ++i) {
+                vout[i]->coeffs.replace(key, nodeT(coeffT(values2coeffs(key, r[i]),targs),false));
+            }
+        }
+
+        /// Inplace operate on many functions (impl's) with an operator within a certain box
+
+        /// Assumes all functions have been refined down to the same level
+        /// @param[in] op the operator
+        /// @param[in] vin the vector of function impl's on which to be operated
+        /// @param[out] vout the resulting vector of function impl's
+        template <typename opT>
+        void multi_to_multi_op_values(const opT& op, const std::vector<implT*>& vin,
+                std::vector<implT*>& vout, const bool fence=true) {
+            // rough check on refinement level (ignore non-initialized functions
+            for (std::size_t i=1; i<vin.size(); ++i) {
+                if (vin[i] and vin[i-1]) {
+                    MADNESS_ASSERT(vin[i]->coeffs.size()==vin[i-1]->coeffs.size());
+                }
+            }
+            typename dcT::iterator end = vin[0]->coeffs.end();
+            for (typename dcT::iterator it=vin[0]->coeffs.begin(); it!=end; ++it) {
+                const keyT& key = it->first;
+                if (it->second.has_coeff())
+                    world.taskq.add(*this, &implT:: template multi_to_multi_op_values_doit<opT>,
+                            key, op, vin, vout);
+                else {
+                    // fill result functions with empty box in this key
+                    for (implT* it2 : vout) {
+                        it2->coeffs.replace(key, nodeT(coeffT(),true));
+                    }
+                }
+            }
+            if (fence) world.gop.fence();
+        }
+
         /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
         /// @param[in] vright vector of functions (impl's) on which to be transformed
         /// @param[in] c the tensor (matrix) transformer
