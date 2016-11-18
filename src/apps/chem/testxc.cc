@@ -135,9 +135,6 @@ void test_xcfunctional(World& world)
     spin_polarized = false;
 
     int ispin = 0; //alpha=0 beta=1
-
-    XCfunctional::xc_contribution what = XCfunctional::potential_rho ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
-
     int istr = 0;
 
 //vama5     0  "lda_x", 
@@ -233,17 +230,11 @@ void test_xcfunctional(World& world)
 
     print("xc_args_size", xc_args.size());
     print("ispin ", ispin);
-    print("what ", what);
     print("spin polarized ", spin_polarized);
 //vama1  std::cout << "Testing spin-polarized case: " << std::endl << std::endl;
 
-    Tensor<double> vr;
-    if( what == 3){
-    vr = xcfunc.exc(xc_args);
-    }
-    else {
-    vr = xcfunc.vxc(xc_args,ispin, what);
-    }
+    // xc local vr[0] and semilocal vr[1-3] potential
+    std::vector<Tensor<double> > vr =  xcfunc.vxc(xc_args,ispin);
 
 #if 0
     print("\n");
@@ -291,30 +282,28 @@ void test_xcfunctional(World& world)
     print("\n\n");
 #endif
 
-    if(what == 0) {
-        if (xcfunc.is_spin_polarized())
+    if (xcfunc.is_spin_polarized())
+    {
+        printf("%25s %25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa","sigmaab","sigmabb","vrhoa (input)","vr (output)","vrhoa-vr");
+        for (unsigned int idp = 0; idp < dps.size(); idp++)
         {
-          printf("%25s %25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa","sigmaab","sigmabb","vrhoa (input)","vr (output)","vrhoa-vr");
-          for (unsigned int idp = 0; idp < dps.size(); idp++)
-          {
             printf("%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
-                rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],
-                dps[idp].vrhoa, vr[idp],
-                std::abs(dps[idp].vrhoa - vr[idp]));
-          }
+                    rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],
+                    dps[idp].vrhoa, vr[0][idp],
+                    std::abs(dps[idp].vrhoa - vr[0][idp]));
         }
-        else
+    }
+    else
+    {
+        printf("%25s %25s  %25s %25s   %25s\n","#rhoa","sigmaaa","vrhoa (input)","vr (output)","vrhoa-vr");
+        for (unsigned int idp = 0; idp < dps.size(); idp++)
         {
-          printf("%25s %25s  %25s %25s   %25s\n","#rhoa","sigmaaa","vrhoa (input)","vr (output)","vrhoa-vr");
-          for (unsigned int idp = 0; idp < dps.size(); idp++)
-          {
             printf("%25.12e %25.12e  %25.12e %25.12e   %25.12e\n",
-                rhoa_t[idp], sigmaaa_t[idp], dps[idp].vrhoa, vr[idp],
-                std::abs(dps[idp].vrhoa - vr[idp]));
-          }
+                    rhoa_t[idp], sigmaaa_t[idp], dps[idp].vrhoa, vr[0][idp],
+                    std::abs(dps[idp].vrhoa - vr[0][idp]));
         }
-        print("\n\n");
-      }
+    }
+    print("\n\n");
 
 }
 

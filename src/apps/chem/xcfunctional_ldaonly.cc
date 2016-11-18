@@ -116,13 +116,14 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t,
-        const int ispin, const XCfunctional::xc_contribution what) const
+std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t,
+        const int ispin) const
 {
     //MADNESS_ASSERT(what == 0);
     const double* arho = t[0].ptr();
-    madness::Tensor<double> result(3L, t[0].dims(), false);
-    double* f = result.ptr();
+    std::vector<madness::Tensor<double> > result(1);
+    result[0]=madness::Tensor<double>(3L, t[0].dims(), false);
+    double* f = result[0].ptr();
 
     if (spin_polarized) {
         const double* brho = t[1].ptr();
@@ -159,8 +160,8 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
-        const int ispin, const xc_contribution xc_contrib) const{
+std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(const std::vector<Tensor<double> >& t,
+        const int ispin) const{
 	MADNESS_EXCEPTION("fxc_apply not implemented in xcfunctional_ldaonly.cc... use libxc",1);
 }
 
@@ -169,6 +170,8 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                         madness::Tensor<double>& sigma,
                         madness::Tensor<double>& rho_pt,
                         madness::Tensor<double>& sigma_pt,
+                        std::vector<madness::Tensor<double> >& drho,
+                        std::vector<madness::Tensor<double> >& drho_pt,
                         const bool need_response) const {
     MADNESS_EXCEPTION("no make_libxc_args without libxc",1);
 }
