@@ -1391,32 +1391,6 @@ namespace madness {
             return *this;
         }
 
-        /// apply op on the input vector yielding an output vector of functions
-
-        /// (*this) is just a dummy Function to be able to call internal methods in FuncImpl
-        /// @param[in]  op   the operator working on vin
-        /// @param[in]  vin  vector of input Functions
-        /// @param[out] vout vector of output Functions vout = op(vin)
-        template <typename opT>
-        void multi_to_multi_op_values(const opT& op,
-                const std::vector< Function<T,NDIM> >& vin,
-                std::vector< Function<T,NDIM> >& vout,
-                const bool fence=true) {
-            std::vector<implT*> vimplin(vin.size(),NULL);
-            for (unsigned int i=0; i<vin.size(); ++i) {
-                if (vin[i].is_initialized()) vimplin[i] = vin[i].get_impl().get();
-            }
-            std::vector<implT*> vimplout(vout.size(),NULL);
-            for (unsigned int i=0; i<vout.size(); ++i) {
-                if (vout[i].is_initialized()) vimplout[i] = vout[i].get_impl().get();
-            }
-
-            impl->multi_to_multi_op_values(op, vimplin, vimplout, fence);
-            if (VERIFY_TREE) verify_tree();
-
-        }
-
-
         /// Multiplication of function * vector of functions using recursive algorithm of mulxx
         template <typename L, typename R>
         void vmulXX(const Function<L,NDIM>& left,
@@ -1517,7 +1491,7 @@ namespace madness {
         }
     };
 
-    template <typename T, typename opT, std::size_t NDIM>
+    template <typename T, typename opT, int NDIM>
     Function<T,NDIM> multiop_values(const opT& op, const std::vector< Function<T,NDIM> >& vf) {
         Function<T,NDIM> r;
         r.set_impl(vf[0], false);

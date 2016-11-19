@@ -139,6 +139,8 @@ void test_xcfunctional(World& world)
 
     int ispin = 0; //alpha=0 beta=1
 
+    XCfunctional::xc_contribution what = XCfunctional::potential_rho ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
+
     //int istr = 0; // 0-7
 for (int istr=2;istr<3;istr++){
 
@@ -236,12 +238,25 @@ for (int istr=2;istr<3;istr++){
 
     print("xc_args_size", xc_args.size());
     print("ispin ", ispin);
+    print("what ", what);
     print("spin polarized ", spin_polarized);
 //vama1  std::cout << "Testing spin-polarized case: " << std::endl << std::endl;
 
-    // local vr[0] and semilocal vr[1-3] potential
-    std::vector<Tensor<double> > vr = xcfunc.vxc(xc_args,ispin);
+    Tensor<double> vr;
+    if( what == 3){
+      vr = xcfunc.exc(xc_args);
+    }
+    else {
+      vr = xcfunc.vxc(xc_args,ispin,XCfunctional::potential_rho);
+    }
 
+    Tensor<double> vs;
+    if(xcfunc.is_gga()){
+      vs = xcfunc.vxc(xc_args,ispin,XCfunctional::potential_same_spin);
+    }
+    else{
+      vs=vr;
+    }
 
 #if 0
     print("\n");
@@ -292,27 +307,28 @@ for (int istr=2;istr<3;istr++){
     FILE *f=0;
     f = fopen((df_repo_functionals[istr]+".dat").c_str(), "w");
 
-    //if(xcfunc.is_gga()){
-    if (xcfunc.is_spin_polarized())
-    {
-        fprintf(f,"%25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa",
-                "sigmaab","sigmabb","vrhoa ","vsigmaaa * drho_x");
-        for (unsigned int idp = 0; idp < dps.size(); idp++) {
-            fprintf(f,"%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
-                    rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],vr[0][idp], vr[1][idp]);
-        }
-    }
-    else
-    {
-        fprintf(f,"%25s %25s %25s %25s\n","#rho","sigma","vrho ","vsigma*drho_x");
-        for (unsigned int idp = 0; idp < dps.size(); idp++)
+    if(what == XCfunctional::potential_rho) {
+        //if(xcfunc.is_gga()){
+        if (xcfunc.is_spin_polarized())
         {
-            fprintf(f,"%25.12e %25.12e %25.12e %25.12e\n",
-                    rhoa_t[idp], sigmaaa_t[idp], vr[0][idp], vr[1][idp]);
+            fprintf(f,"%25s %25s %25s %25s %25s %25s %25s\n","#rhoa","rhob","sigmaaa","sigmaab","sigmabb","vrhoa","vsigmaaa");
+            for (unsigned int idp = 0; idp < dps.size(); idp++)
+            {
+                fprintf(f,"%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
+                        rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],vr[idp], vs[idp]);
+            }
         }
-    }
-    fprintf(f,"\n\n");
-    /*}
+        else
+        {
+            fprintf(f,"%25s %25s %25s %25s\n","#rho","sigma","vrho","vsigma");
+            for (unsigned int idp = 0; idp < dps.size(); idp++)
+            {
+                fprintf(f,"%25.12e %25.12e %25.12e %25.12e\n",
+                        rhoa_t[idp], sigmaaa_t[idp], vr[idp], vs[idp]);
+            }
+        }
+        fprintf(f,"\n\n");
+      /*}
       else
       {
         if (xcfunc.is_spin_polarized())
@@ -335,6 +351,7 @@ for (int istr=2;istr<3;istr++){
         }
         fprintf(f,"\n\n");
       }*/
+    }
 
     fclose(f);
 
