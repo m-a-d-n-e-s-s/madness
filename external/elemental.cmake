@@ -150,7 +150,8 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   if(EXISTS ${ELEMENTAL_SOURCE_DIR}/include/El.hpp)
     message(STATUS "Looking for the top Elemental header - found El.hpp")
     set(HAVE_EL_H ON CACHE INTERNAL "Have El.hpp" FORCE)
-    set(ELEMENTAL_PACKAGE_NAME El CACHE INTERNAL "Elemental package name (component name is same)" FORCE)
+    set(ELEMENTAL_PACKAGE_NAME El CACHE INTERNAL "Elemental package name" FORCE)
+    set(ELEMENTAL_CONFIG_NAME Elemental CACHE INTERNAL "Elemental configure file prefix" FORCE)
   elseif(EXISTS ${ELEMENTAL_SOURCE_DIR}/include/elemental.hpp)
     message(STATUS "Looking for the top Elemental header - found elemental.hpp")
     set(HAVE_ELEMENTAL_H ON CACHE INTERNAL "Have elemental.hpp" FORCE)
@@ -207,8 +208,8 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   # This line isn't used anywhere else in this file
   # set(${ELEMENTAL_PACKAGE_NAME}_DIR ${ELEMENTAL_BINARY_DIR})
   #LIST(APPEND ${CMAKE_MODULE_PATH} ${ELEMENTAL_BINARY_DIR})
-  find_package(Elemental REQUIRED PATHS ${ELEMENTAL_INSTALL_DIR}
-      COMPONENTS REQUIRED El pmrrr ElSuiteSparse)
+  find_package(${ELEMENTAL_CONFIG_NAME} REQUIRED PATHS ${ELEMENTAL_INSTALL_DIR}
+      COMPONENTS REQUIRED ${ELEMENTAL_PACKAGE_NAME} pmrrr ElSuiteSparse)
   set(ELEMENTAL_FOUND 1)
 
   # Add update-elemental target that will pull updates to the Elemental source
@@ -257,7 +258,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   # WARNING: should only need to satisfy build-elemental to use El, however its cmake config file
   # is inadequate for using from build tree, hence MUST install even for build tree. Solving here will
   # take far too much effort. Will file an issue.
-  add_dependencies(El install-elemental)
+  add_dependencies(${ELEMENTAL_PACKAGE_NAME} install-elemental)
   
   # These build variables are not used anyway
   set(ELEMENTAL_INCLUDE_DIRS
