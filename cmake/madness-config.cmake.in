@@ -86,8 +86,8 @@ if (MADNESS_HAS_ELEMENTAL)
     # elemental package and component name depends on version
     set(ELEMENTAL_PACKAGE_NAME @ELEMENTAL_PACKAGE_NAME@)
     # where to look for elemental cmake config file
-    set(${ELEMENTAL_PACKAGE_NAME}_DIR "${Elemental_BINARY_DIR}")
-    find_package(${ELEMENTAL_PACKAGE_NAME} REQUIRED
+    #set(${ELEMENTAL_PACKAGE_NAME}_DIR "${Elemental_BINARY_DIR}")
+    find_package(${ELEMENTAL_CONFIGURE_NAME} REQUIRED
                  COMPONENTS REQUIRED ${ELEMENTAL_PACKAGE_NAME})
     list(APPEND MADNESS_BUILD_INCLUDE_DIRS
         "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
