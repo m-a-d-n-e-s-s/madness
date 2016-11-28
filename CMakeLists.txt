@@ -490,7 +490,6 @@ if(CCACHE)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${CCACHE})
 endif(CCACHE)
 
-
 # Check for external dependencies ==============================================
 add_custom_target(External)
 include(external/pthread.cmake)
@@ -538,6 +537,15 @@ configure_file(
   ${PROJECT_BINARY_DIR}/doc/doxygen.cfg
   @ONLY
 )
+
+CONFIGURE_FILE(
+  ${PROJECT_SOURCE_DIR}/config/MADNESS.pc.in
+  ${PROJECT_BINARY_DIR}/config/MADNESS.pc
+)
+
+# install config files
+install(FILES ${PROJECT_BINARY_DIR}/config/MADNESS.pc
+    DESTINATION lib/pkgconfig)
 
 # sample CMakeLists.txt
 configure_file(
