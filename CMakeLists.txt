@@ -482,6 +482,15 @@ if(GDB_EXECUTABLE)
 endif()
 find_package(PythonInterp)
 
+# ccache for caching builds
+find_program(CCACHE ccache)
+if(CCACHE)
+    message (STATUS "Found ccache: ${CCACHE}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE})
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${CCACHE})
+endif(CCACHE)
+
+
 # Check for external dependencies ==============================================
 add_custom_target(External)
 include(external/pthread.cmake)
