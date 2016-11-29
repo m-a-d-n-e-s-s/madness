@@ -110,7 +110,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
         WORKING_DIRECTORY ${ELEMENTAL_BINARY_DIR}
         RESULT_VARIABLE error_code)
     if(error_code)
-      message(FATAL_ERROR "Failed to delete existing files the Elemental build directory.")
+      message(FATAL_ERROR "Failed to delete existing files in the Elemental build directory.")
     endif()
   else()
     set(error_code 1)
