@@ -449,26 +449,29 @@ public:
     /// compute the xc energy using the precomputed intermediates vf and delrho
     double compute_xc_energy() const;
 
-    /// return the local xc potential using the precomputed intermediates vf and delrho
+    /// return the local xc potential
     real_function_3d make_xc_potential() const;
-
-    /// return the xc kernel (currently working only for LDA)
-    real_function_3d make_xc_kernel() const;
 
     /// construct the xc kernel and apply it directly on the (response) density
 
     /// the xc kernel is the second derivative of the xc functions wrt the density
     /// @param[in]  density the (response) density on which the kernel is applied
     /// @return     kernel * density
-    real_function_3d apply_xc_kernel(const real_function_3d& density) const;
+    real_function_3d apply_xc_kernel(const real_function_3d& density,
+            const vecfuncT grad_dens_pt=vecfuncT()) const;
 
 private:
 
     /// the world
     World& world;
 
+public:
     /// interface to the actual XC functionals
     std::shared_ptr<XCfunctional> xc;
+
+private:
+    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
+    std::shared_ptr<NuclearCorrelationFactor> ncf;
 
     /// number of beta orbitals
     int nbeta;
@@ -497,9 +500,7 @@ private:
     /// @param[in]  arho    density of the alpha orbitals
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @return xc_args vector of intermediates as described above
-    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho,
-            const std::vector<real_function_3d>& darho,
-            const std::vector<real_function_3d>& dbrho) const;
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
 
     /// compute the intermediates for the XC functionals
 

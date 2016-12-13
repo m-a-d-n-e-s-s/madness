@@ -77,26 +77,12 @@ public:
         enum_zetab_z=21,        ///< \f$ \zeta_{b,z} = \partial/{\partial z} \ln(\rho_b)  \f$
         enum_chi_aa=22,         ///< \f$ \chi_{aa} = \nabla \zeta_{\alpha}.\nabla \zeta_{\alpha} \f$
         enum_chi_ab=23,         ///< \f$ \chi_{ab} = \nabla \zeta_{\alpha}.\nabla \zeta_{\beta} \f$
-        enum_chi_bb=24          ///< \f$ \chi_{bb} = \nabla \zeta_{\beta}.\nabla \zeta_{\beta} \f$
+        enum_chi_bb=24,         ///< \f$ \chi_{bb} = \nabla \zeta_{\beta}.\nabla \zeta_{\beta} \f$
+        enum_ddens_ptx=25,      ///< \f$ \nabla\rho_{pt}\f$
+        enum_ddens_pty=26,      ///< \f$ \nabla\rho_{pt}\f$
+        enum_ddens_ptz=27       ///< \f$ \nabla\rho_{pt}\f$
     };
-    const static int number_xc_args=25;     ///< max number of intermediates
-
-
-    /// which contribution is requested from the XCfunctional
-
-    /// Three types of contributions are required:
-    /// those that are second derivatives of the xc kernel and that are local
-    /// those that are first/second derivatives of the kernel and of which the
-    /// derivative will be taken later on (-> semi-local).
-    /// See vxc() and fxc_apply() for more details.
-    enum xc_contribution {
-        potential_rho,              ///< potential df/drho
-        potential_same_spin,        ///< potential df/dsigma_aa
-        potential_mixed_spin,       ///< potential df/dsigma_ab
-        kernel_second_local,        ///< kernel (2nd derivative)
-        kernel_second_semilocal,    ///< kernel (2nd derivative)
-        kernel_first_semilocal      ///< kernel (2nd derivative)
-    };
+    const static int number_xc_args=28;     ///< max number of intermediates
 
     /// return the munging threshold for the density
     double get_rhotol() const {return rhotol;}
@@ -136,12 +122,16 @@ protected:
     /// @param[out] sigma   ground state (spin) density gradients, properly munged
     /// @param[out] rho_pt  response density, properly munged (no spin)
     /// @param[out] sigma_pt  response (spin) density gradients, properly munged
+    /// @param[out] drho    density derivative, constructed from rho and zeta
+    /// @param[out] drho_pt response density derivative directly from xc_args
     /// @param[in]  need_response   flag if rho_pt and sigma_pt need to be calculated
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
                          madness::Tensor<double>& sigma,
                          madness::Tensor<double>& rho_pt,
                          madness::Tensor<double>& sigma_pt,
+                         std::vector<madness::Tensor<double> >& drho,
+                         std::vector<madness::Tensor<double> >& drho_pt,
                          const bool need_response) const;
 
     /// the number of xc kernel derivatives (lda: 0, gga: 1, etc)
@@ -215,8 +205,11 @@ private:
     /// Munge rho (e.g. the perturbed density) if the reference density refrho
     /// e.g. the ground state density is small. Only where the reference density
     /// is large enough DFT is numerically well-defined.
-    double binary_munge(double rho, double refrho) const {
-        if (refrho<rhotol) rho=rhomin;
+    /// @param[in]  rho     number to be munged
+    /// @param[in]  refrho  reference value for munging
+    /// @param[in]  thresh  threshold for munging
+    double binary_munge(double rho, double refrho, const double thresh) const {
+        if (refrho<thresh) rho=rhomin;
         return rho;
     }
 
@@ -283,66 +276,62 @@ public:
     /// with \f$ \mu, \nu = \alpha\f$ or \f$ \beta \f$.
     ///
     /// For unpolarized GGA, matrix elements of the potential are
-    /// \f$
+    /// \f[
     ///   < \phi | \hat V | \psi > = \int \left( \frac{\partial \epsilon}{\partial \rho} \phi \psi
     ///                  +  \left( 2 \frac{\partial \epsilon}{\partial \sigma} \right)
     ///                  \nabla \rho \cdot \nabla \left( \phi \psi \right) \right) dx
-    /// \f$
+    /// \f]
     ///
     /// For polarized GGA, matrix elements of the potential are
-    /// \f$
+    /// \f[
     ///   < \phi_{\alpha} | \hat V | \psi_{\alpha} > = \int \left( \frac{\partial \epsilon}{\partial \rho_{\alpha}} \phi \psi
     ///            +  \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}
     ///            + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right) . \nabla \left( \phi \psi \right) \right) dx
-    /// \f$
+    /// \f]
     ///
     /// Integrating the above by parts and assuming free-space or periodic boundary conditions
     /// we obtain that the local multiplicative form of the GGA potential is
-    /// \f$
+    /// \f[
     ///    V_{\alpha} =  \frac{\partial \epsilon}{\partial \rho_{\alpha}}
     ///                  - \left(\nabla . \left(2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}
     ///                  + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right)  \right)
-    /// \f$
+    /// \f]
     ///
-    /// Until we get a madness::Function operation that can produce
-    /// multiple results we need to compute components of the
-    /// functional and potential separately.
-    ///
-    /// Return the following quantities depending on the xc_contribution request.
-    /// note the additional \f$\rho\f$ in some terms.
-    /// \f{align}{
-    ///     \text{potentialrho, RHF}      : &\qquad \frac{\partial \epsilon}{\partial \rho} \\
-    ///     \text{potentialrho, UHF}      : &\qquad \frac{\partial \epsilon}{\partial \rho_{\alpha}} \\
-    ///     \text{potentialsamespin, RHF} : &\qquad \rho \frac{\partial \epsilon}{\partial \sigma} \\
-    ///     \text{potentialsamespin, UHF} : &\qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}}\\
-    ///     \text{potentialotherspin, UHF}: &\qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}}
+    /// Return the following quantities for RHF: (see Yanai2005, Eq. (12))
+    /// \f{eqnarray*}{
+    ///     \mbox{result[0]}    &:& \qquad \frac{\partial \epsilon}{\partial \rho} \\
+    ///     \mbox{result[1-3]}  &:& \qquad 2 \rho \frac{\partial \epsilon}{\partial \sigma} \nabla\rho
+    /// \f}
+    /// and for UHF same-spin and other-spin quantities
+    /// \f{eqnarray*}{
+    ///     \mbox{result[0]}    &:& \qquad \frac{\partial \epsilon}{\partial \rho_{\alpha}} \\
+    ///     \mbox{result[1-3]}  &:& \qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla\rho_\alpha\\
+    ///     \mbox{result[4-6]}  &:& \qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla\rho_\beta
     /// \f}
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] ispin Specifies which component of the potential is to be computed as described above
-    /// @return the requested quantity, based on ispin and xc_contrib
-    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t,
-            const int ispin, const xc_contribution xc_contrib) const;
+    /// @return the requested quantity, based on ispin (0: same spin, 1: other spin)
+    std::vector<madness::Tensor<double> > vxc(const std::vector< madness::Tensor<double> >& t,
+            const int ispin) const;
 
 
     /// compute the second derivative of the XC energy wrt the density and apply
 
-    /// Return the following quantities depending on the xc_contribution request.
-    /// \f{align}{
-    ///     \text{kernelsecondlocal}      : &\qquad \frac{\partial^2 \epsilon}{\partial \rho^2} \rho_\mathrm{pt}
-    ///                                           + 2.0 * \frac{\partial^2 \epsilon}{\partial \rho\partial\sigma}\sigma_\mathrm{pt}\\
-    ///     \text{kernelfirstsemilocal}   : &\qquad 2.0 * \frac{\partial\epsilon}{\partial\sigma}\\
-    ///     \text{kernelsecondsemilocal}  : &\qquad 2.0 * \frac{\partial^2\epsilon}{\partial\rho\partial\sigma} \rho_\mathrm{pt}
-    ///                                           + 4.0 * \frac{\partial^2\epsilon}{\partial^2\sigma} \sigma_\mathrm{pt}
+    /// Return the following quantities (RHF only) (see Yanai2005, Eq. (13))
+    /// \f{eqnarray*}{
+    ///     \mbox{result[0]}    &:& \qquad \frac{\partial^2 \epsilon}{\partial \rho^2} \rho_\mathrm{pt}
+    ///                             + 2.0 * \frac{\partial^2 \epsilon}{\partial \rho\partial\sigma}\sigma_\mathrm{pt}\\
+    ///     \mbox{result[1-3]}  &:& \qquad 2.0 * \frac{\partial\epsilon}{\partial\sigma}\nabla\rho_\mathrm{pt}
+    ///                             + 2.0 * \frac{\partial^2\epsilon}{\partial\rho\partial\sigma} \rho_\mathrm{pt}\nabla\rho
+    ///                             + 4.0 * \frac{\partial^2\epsilon}{\partial^2\sigma} \sigma_\mathrm{pt}\nabla\rho
     /// \f}
-    /// semilocal means that the functional derivative has to be multiplied with
-    /// the gradient of the (perturbed) density and then the div is taken.
     /// @param[in]  t   The input densities and derivatives as required by the functional,
     ///                 as in the xc_arg enum
     /// @param[in]  ispin not referenced since only RHF is implemented, always 0
-    /// @param[in]  xc_contrib  the contribution of the functional derivatives which is requested
-    /// @return The component specified by the \c xc_contrib parameter
-    madness::Tensor<double> fxc_apply(const std::vector< madness::Tensor<double> >& t,
-            const int ispin, const xc_contribution xc_contrib) const;
+    /// @return a vector of Functions containing the contributions to the kernel apply
+    std::vector<madness::Tensor<double> > fxc_apply(
+            const std::vector< madness::Tensor<double> >& t, const int ispin) const;
+
 
     /// Crude function to plot the energy and potential functionals
     void plot() const {
@@ -360,10 +349,9 @@ public:
 //        if (is_gga()) t[enum_saa]=madness::Tensor<double>(npt); // sigma_aa=0
         if (is_gga()) t[enum_saa]=0.5*rho; // sigma_aa=0
         madness::Tensor<double> f  = exc(t); //pending UGHHHHH
-        madness::Tensor<double> va = vxc(t,0,XCfunctional::xc_contribution::potential_rho);
-        madness::Tensor<double> vb = vxc(t,0,XCfunctional::xc_contribution::potential_same_spin);
+        std::vector<madness::Tensor<double> > va = vxc(t,0);
         for (long i=0; i<npt; i++) {
-            printf("%.3e %.3e %.3e %.3e\n", rho[i], f[i], va[i], vb[i]);
+            printf("%.3e %.3e %.3e\n", rho[i], f[i], va[0][i]);
         }
     }
 };
@@ -381,20 +369,31 @@ struct xc_functional {
     }
 };
 
+
 /// Class to compute terms of the potential
 struct xc_potential {
     const XCfunctional* xc;
-    const XCfunctional::xc_contribution what;
     const int ispin;
 
-    xc_potential(const XCfunctional& xc, int ispin, XCfunctional::xc_contribution what)
-        : xc(&xc), what(what), ispin(ispin)
+    xc_potential(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin)
     {}
 
-    madness::Tensor<double> operator()(const madness::Key<3> & key,
+    std::size_t get_result_size() const {
+        // local terms, same spin
+        if (xc->is_lda()) return 1;
+        // local terms,  3x semilocal terms (x,y,z)
+        if (xc->is_gga() and (not xc->is_spin_polarized())) return 4;
+        // local terms,  3x semilocal terms (x,y,z) for same spin and opposite spin
+        if (xc->is_gga() and (xc->is_spin_polarized())) return 7;
+
+        MADNESS_EXCEPTION("only lda and gga in xc_potential_multi",1);
+        return 0;
+    }
+
+    std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->vxc(t, ispin, what);
+        std::vector<madness::Tensor<double> > r = xc->vxc(t, ispin);
         return r;
     }
 };
@@ -404,17 +403,23 @@ struct xc_potential {
 struct xc_kernel_apply {
     const XCfunctional* xc;
     const int ispin;
-    const XCfunctional::xc_contribution xc_contrib;
     const FunctionCommonData<double,3>& cdata;
 
-    xc_kernel_apply(const XCfunctional& xc, int ispin,
-            const XCfunctional::xc_contribution xc_contrib)
-        : xc(&xc), ispin(ispin), xc_contrib(xc_contrib), cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())) {}
+    xc_kernel_apply(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin),
+          cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())) {
+        MADNESS_ASSERT(ispin==0);   // closed shell only!
+    }
 
-    madness::Tensor<double> operator()(const madness::Key<3> & key,
+    std::size_t get_result_size() const {
+        // all spin-restricted
+        if (xc->is_gga()) return 4; // local terms,  3x semilocal terms (x,y,z)
+        return 1;   // local terms only
+    }
+
+    std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->fxc_apply(t, ispin, xc_contrib);
+        std::vector<madness::Tensor<double> > r = xc->fxc_apply(t, ispin);
         return r;
     }
 };

@@ -245,6 +245,17 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+    /// Truncates a vector of functions
+
+    /// @return the truncated vector for chaining
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> > truncate(std::vector< Function<T,NDIM> > v,
+                  double tol=0.0, bool fence=true) {
+        if (v.size()>0) truncate(v[0].world(),v,tol,fence);
+        return v;
+    }
+
+
     /// Applies a derivative operator to a vector of functions
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
@@ -976,6 +987,28 @@ namespace madness {
         return size/fac*d;
     }
 
+    /// apply op on the input vector yielding an output vector of functions
+
+    /// @param[in]  op   the operator working on vin
+    /// @param[in]  vin  vector of input Functions; needs to be refined to common level!
+    /// @return vector of output Functions vout = op(vin)
+    template <typename T, typename opT, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > multi_to_multi_op_values(const opT& op,
+            const std::vector< Function<T,NDIM> >& vin,
+            const bool fence=true) {
+        MADNESS_ASSERT(vin.size()>0);
+        MADNESS_ASSERT(vin[0].is_initialized()); // might be changed
+        World& world=vin[0].world();
+        Function<T,NDIM> dummy;
+        dummy.set_impl(vin[0], false);
+        std::vector<Function<T,NDIM> > vout=zero_functions<T,NDIM>(world, op.get_result_size());
+        for (auto& out : vout) out.set_impl(vin[0],false);
+        dummy.multi_to_multi_op_values(op, vin, vout, fence);
+        return vout;
+    }
+
+
+
 
     // convenience operators
 
@@ -1097,6 +1130,19 @@ namespace madness {
         ar & fsize;
         f.resize(fsize);
         for (std::size_t i=0; i<fsize; ++i) ar & f[i];
+    }
+
+    /// save a vector of functions
+    template<typename T, size_t NDIM>
+    void save_function(const std::vector<Function<T,NDIM> >& f, const std::string name) {
+        if (f.size()>0) {
+            World& world=f.front().world();
+            if (world.rank()==0) print("saving vector of functions",name);
+            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+            std::size_t fsize=f.size();
+            ar & fsize;
+            for (std::size_t i=0; i<fsize; ++i) ar & f[i];
+        }
     }
 
 
