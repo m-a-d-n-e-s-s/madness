@@ -1147,6 +1147,7 @@ void test_multi_world(World& world) {
 
     std::cout << "\n\nREPEATING TESTS IN MULTI-WORLD\n\n" << std::endl;
 
+    std::cout << "== multiple worlds created with Intracomm::Create()==" << std::endl;
     std::vector<int> odd, even;
     for (int i=0; i<world.size(); ++i) {
         if (is_odd(i))
@@ -1173,6 +1174,20 @@ void test_multi_world(World& world) {
     }
 
     world.gop.fence();
+
+    // try to do the same but use MPI_Comm_split
+    {
+      std::cout << "== multiple worlds created with Intracomm::Split()==" << std::endl;
+      int color = world.rank() % 2;
+      SafeMPI::Intracomm comm = world.mpi.comm().Split(color, world.rank() / 2);
+      World subworld(comm);
+      if (color == 1)
+        work_odd(subworld);
+      else
+        work_even(subworld);
+    }
+    world.gop.fence();
+
 }
 
 #ifdef HAVE_PARSEC
