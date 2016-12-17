@@ -197,7 +197,7 @@ void Molecule::set_atom_charge(unsigned int i, double zeff) {
   atoms[i].q = zeff;
 }
 
-unsigned int Molecule::get_atom_charge(unsigned int i) {
+unsigned int Molecule::get_atom_charge(unsigned int i) const {
   if (i>=atoms.size()) throw "trying to get charge of invalid atom";
   return atoms[i].q;
 }

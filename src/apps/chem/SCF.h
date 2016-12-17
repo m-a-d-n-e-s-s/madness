@@ -371,7 +371,8 @@ namespace madness {
         bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
         int nv_factor;              ///< factor to multiply number of virtual orbitals with when automatically decreasing nvirt
         int vnucextra; // load balance parameter for nuclear pot.
-        int loadbalparts = 2; // was 6
+        int loadbalparts = 2;            // was 6
+        std::string pcm_data;            ///< do a PCM (solvent) calculation
         
         
         // Next list for response code from a4v4
@@ -395,7 +396,7 @@ namespace madness {
             ar & xc_data & protocol_data;
             ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
                 & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf
-                & purify_hessian & vnucextra & loadbalparts;
+                & purify_hessian & vnucextra & loadbalparts & pcm_data;
         }
         
         CalculationParameters()
@@ -457,6 +458,7 @@ namespace madness {
             , nv_factor(1)
             , vnucextra(12)
             , loadbalparts(2)
+            , pcm_data("none")
             , response(false)
             , response_freq(0.0)
             , response_axis(madness::vector_factory(true, true, true))
@@ -667,6 +669,11 @@ namespace madness {
                     psp_calc = true;
                     pure_ae = false;
                 }
+                else if (s=="pcm") {
+                    char buf[1024];
+                    f.getline(buf,sizeof(buf));
+                    pcm_data = buf;
+                }
                 else if (s == "print_dipole_matels") {
                     print_dipole_matels = true;
                 }
@@ -774,9 +781,12 @@ namespace madness {
             madness::print("     spin restricted ", spin_restricted);
             madness::print("       xc functional ", xc_data);
 #ifdef MADNESS_HAS_LIBXC
-            madness::print("         xc library  ", "libxc");
+            madness::print("          xc library ", "libxc");
 #else
-            madness::print("         xc library  ", "default (lda only)");
+            madness::print("          xc library ", "default (lda only)");
+#endif
+#ifdef MADNESS_HAS_PCM
+            madness::print("          PCM solver ", pcm_data);
 #endif
             if (core_type != "")
                 madness::print("           core type ", core_type);

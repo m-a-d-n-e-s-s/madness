@@ -39,7 +39,7 @@ plotxc_LDADD = libMADchem.la $(MRALIBS)
 
 libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc \
                        corepotential.cc atomutil.cc lda.cc cheminfo.cc \
-                       distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc\
+                       distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc\
                        SCFOperators.cc xcfunctional_ldaonly.cc TDA.cc TDA_XC.cc CC2.cc CCOperators.cc CISOperators.cc \
                        $(thisinclude_HEADERS)
 libMADchem_la_LDFLAGS = -version-info 0:0:0

@@ -53,6 +53,7 @@
 #include <chem/molecular_optimizer.h>
 #include <examples/nonlinsol.h>
 #include <madness/mra/vmra.h>
+#include <chem/pcm.h>
 
 namespace madness {
 
@@ -457,6 +458,9 @@ private:
 	/// a poisson solver
 	std::shared_ptr<real_convolution_3d> poisson;
 
+	/// polarizable continuum model
+	PCM pcm;
+
 	void print_nuclear_corrfac() const;
 
 	/// adapt the thresholds consistently to a common value
@@ -496,10 +500,10 @@ private:
 	/// @param[out]	psi		the reconstructed, full orbitals
 	/// @param[out]	Jnemo	Coulomb operator applied on the nemos
 	/// @param[out]	Knemo	exchange operator applied on the nemos
-	/// @param[out]	Vnemo	nuclear potential applied on the nemos
+	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
 	void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
-			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& Vnemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 
 	/// normalize the nemos
@@ -535,6 +539,8 @@ private:
 	        const vecfuncT& R2nemo, const real_function_3d& rhonemo) const;
 
 	bool is_dft() const {return calc->xc.is_dft();}
+
+	bool do_pcm() const {return calc->param.pcm_data != "none";}
 
 	/// localize the nemo orbitals
 	vecfuncT localize(const vecfuncT& nemo) const;
