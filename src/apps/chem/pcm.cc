@@ -267,7 +267,8 @@ double PCM::compute_pcm_energy() const {
 #else // MADNESS_HAS_PCM
 
 namespace madness {
-real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_potential) const {
+real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_potential,
+        const bool dynamic) const {
     MADNESS_EXCEPTION("no PCMSolver configured and available in MADNESS",1);
     real_function_3d dummy;
     return dummy;
@@ -278,10 +279,11 @@ double PCM::compute_pcm_energy() const {
     return 0.0;
 }
 
-Tensor<double> nuclear_mep(int nr_nuclei, const Tensor<double>& charges,
+Tensor<double> PCM::nuclear_mep(int nr_nuclei, const Tensor<double>& charges,
                          const Tensor<double>& coordinates, const int grid_size,
                          const Tensor<double>& grid) const {
     MADNESS_EXCEPTION("no PCMSolver configured and available in MADNESS",1);
     return Tensor<double>();
 }
+} // namespace madness
 #endif // MADNESS_HAS_PCM
