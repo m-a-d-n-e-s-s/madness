@@ -499,10 +499,10 @@ namespace SafeMPI {
 
             Impl(const MPI_Comm& c, int m, int n, bool o) :
                 comm(c), me(m), numproc(n), owner(o), utag(1024), urtag(1)
-            { }
+            { MADNESS_ASSERT(comm != MPI_COMM_NULL); }
 
             ~Impl() {
-                if(owner && Is_initialized() && !Is_finalized() && !Comm_compare(comm, MPI_COMM_WORLD)) {
+                if(owner && Is_initialized() && !Is_finalized() && !Comm_compare(comm, MPI_COMM_WORLD) && comm != MPI_COMM_NULL) {
                     MPI_Comm_free(&comm);
                 }
             }
@@ -552,6 +552,9 @@ namespace SafeMPI {
         // Not allowed
         Intracomm& operator=(const Intracomm& other);
 
+        // makes an uninitialized ptr
+        Intracomm() : pimpl(nullptr) {}
+
     public:
         struct WorldInitObject;
 
@@ -594,6 +597,35 @@ namespace SafeMPI {
             int me; MADNESS_MPI_TEST(MPI_Comm_rank(group_comm, &me));
             int nproc; MADNESS_MPI_TEST(MPI_Comm_size(group_comm, &nproc));
             return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc, true)));
+        }
+
+        static const int UNDEFINED_COLOR = MPI_UNDEFINED;
+        /**
+         * This collective operation creates a new \c Intracomm using
+         * the MPI_Comm_split. Must be called by all processes that
+         * belong to this communicator. Each caller must provide Color of the new Intracomm
+         * and Key (rank within Intracomm).
+         *
+         * @param Color Specifies the new Intracomm that the calling process is to be assigned to.
+         *              The value of color must be non-negative. If Color=UNDEFINED_COLOR then
+         *              an uninitialized Intracomm object will be produced.
+         * @param Key The relative rank of the calling process in the group of the new Intracomm.
+         *            If omitted, each communicator's ranks will be determined by
+         *            the rank in the host communicator.
+         * @return a new Intracomm object
+         */
+        Intracomm Split(int Color, int Key = 0) const {
+            MADNESS_ASSERT(pimpl);
+            SAFE_MPI_GLOBAL_MUTEX;
+            MPI_Comm group_comm;
+            MADNESS_MPI_TEST(MPI_Comm_split(pimpl->comm, Color, Key, &group_comm));
+            if (group_comm != MPI_COMM_NULL) {
+              int me; MADNESS_MPI_TEST(MPI_Comm_rank(group_comm, &me));
+              int nproc; MADNESS_MPI_TEST(MPI_Comm_size(group_comm, &nproc));
+              return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc, true)));
+            }
+            else
+              return Intracomm();
         }
 
         /**
