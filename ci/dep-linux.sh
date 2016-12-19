@@ -30,9 +30,9 @@ $FC --version
 
 # Install libxc
 if [ ! -d "${HOME}/libxc" ]; then
-    wget -O libxc-2.2.1.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=libxc/libxc-2.2.1.tar.gz"
-    tar -xzf libxc-2.2.1.tar.gz
-    cd libxc-2.2.1
+    wget -O libxc-2.2.0.tar.gz "https://launchpad.net/libxc/2.2/2.2.0/+download/libxc-2.2.0.tar.gz"
+    tar -xzf libxc-2.2.0.tar.gz
+    cd libxc-2.2.0
     autoreconf -i
     ./configure --prefix=${HOME}/libxc --enable-shared --disable-static CFLAGS="-mno-avx" FCFLAGS="-mno-avx"
     make -j2
