@@ -610,9 +610,11 @@ namespace SafeMPI {
          *              The value of color must be non-negative. If Color=UNDEFINED_COLOR then
          *              an uninitialized Intracomm object will be produced.
          * @param Key The relative rank of the calling process in the group of the new Intracomm.
+         *            If omitted, each communicator's ranks will be determined by
+         *            the rank in the host communicator.
          * @return a new Intracomm object
          */
-        Intracomm Split(int Color, int Key) const {
+        Intracomm Split(int Color, int Key = 0) const {
             MADNESS_ASSERT(pimpl);
             SAFE_MPI_GLOBAL_MUTEX;
             MPI_Comm group_comm;
