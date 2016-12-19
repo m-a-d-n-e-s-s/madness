@@ -209,39 +209,48 @@ Tensor<double> PCM::nuclear_mep(int nr_nuclei, const Tensor<double>& charges,
 
 
 
-real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_potential) const {
+real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_potential,
+        const bool dynamic) const {
 
+    MADNESS_ASSERT(coulomb_potential.is_initialized());
     const int grid_size = pcmsolver_get_cavity_size(pcm_context.get());
 
     Tensor<double> grid(3*grid_size);
     pcmsolver_get_centers(pcm_context.get(), grid.ptr());
-    double * areas = (double *)calloc(grid_size, sizeof(double));
-    pcmsolver_get_areas(pcm_context.get(), areas);
 
-    // nuclear_mep takes only non-const arguments..
-    const int natom=charges.size();
-    Tensor<double> mep = nuclear_mep(natom, charges, coordinates, grid_size, grid);
+    // compute the molecular electrostatic potential (mep) from the nuclei
+    Tensor<double> mep = nuclear_mep(charges.size(), charges, coordinates, grid_size, grid);
 
-    // This is the Ag irreducible representation (totally symmetric)
-    int irrep = 0;
-
-    if (not coulomb_potential.is_initialized()) return coulomb_potential;
+    // add the electronic contribution to the mep
     for (int i=0; i<grid_size; ++i) {
         coord_3d evalpoint={grid(3*i),grid(3*i+1),grid(3*i+2)};
         mep[i]-=coulomb_potential(evalpoint);
     }
 
-    pcmsolver_set_surface_function(pcm_context.get(), grid_size, mep.ptr(), mep_lbl.c_str());
-    pcmsolver_compute_asc(pcm_context.get(), mep_lbl.c_str(), asc_lbl.c_str(), irrep);
+    // This is the Ag irreducible representation (totally symmetric)
+    int irrep = 0;
 
-    Tensor<double> asc_Ag(grid_size);
-    pcmsolver_get_surface_function(pcm_context.get(), grid_size, asc_Ag.ptr(), asc_lbl.c_str());
+    Tensor<double> asc(grid_size);
 
-    detail::asc_potential ascpot(grid_size,grid,asc_Ag);
+    // compute the contribution to the response kernel
+    if (dynamic) {
+
+        const std::string mep_neq_lbl="mep_neq_lbl";
+        const std::string asc_neq_lbl="asc_neq_lbl";
+
+        pcmsolver_set_surface_function(pcm_context.get(), grid_size, mep.ptr(), mep_neq_lbl.c_str());
+        pcmsolver_compute_response_asc(pcm_context.get(), mep_neq_lbl.c_str(),asc_neq_lbl.c_str(), irrep);
+        pcmsolver_get_surface_function(pcm_context.get(), grid_size, asc.ptr(), asc_neq_lbl.c_str());
+
+    } else {
+        pcmsolver_set_surface_function(pcm_context.get(), grid_size, mep.ptr(), mep_lbl.c_str());
+        pcmsolver_compute_asc(pcm_context.get(), mep_lbl.c_str(), asc_lbl.c_str(), irrep);
+        pcmsolver_get_surface_function(pcm_context.get(), grid_size, asc.ptr(), asc_lbl.c_str());
+    }
+
+    detail::asc_potential ascpot(grid_size,grid,asc);
     World& world = coulomb_potential.world();
     real_function_3d v=real_factory_3d(world).functor(ascpot);
-
-    free(areas);
 
     return -1.0*v;
 
@@ -258,10 +267,7 @@ double PCM::compute_pcm_energy() const {
 #else // MADNESS_HAS_PCM
 
 namespace madness {
-void PCM::initialize(const Molecule& mol) {
-    MADNESS_EXCEPTION("no PCMSolver configured and available in MADNESS",1);
-}
-real_function_3d PCM::compute_pcm_potential(const std::vector<real_function_3d>& nemo) const {
+real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_potential) const {
     MADNESS_EXCEPTION("no PCMSolver configured and available in MADNESS",1);
     real_function_3d dummy;
     return dummy;
@@ -276,6 +282,6 @@ Tensor<double> nuclear_mep(int nr_nuclei, const Tensor<double>& charges,
                          const Tensor<double>& coordinates, const int grid_size,
                          const Tensor<double>& grid) const {
     MADNESS_EXCEPTION("no PCMSolver configured and available in MADNESS",1);
-    return Tensor<double>;
+    return Tensor<double>();
 }
 #endif // MADNESS_HAS_PCM

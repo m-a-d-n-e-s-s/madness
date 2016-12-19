@@ -66,8 +66,10 @@ public:
     /// compute the potential induced by the surrounding solvent
 
     /// @param[in]  coulomb_potential   the (positive) potential caused by the electron density
+    /// @param[in]  dynamic     compute the contribution to a response kernel
     /// @return     the pcm potential with correct sign: J - K + V_nuc + V_pcm
-    real_function_3d compute_pcm_potential(const real_function_3d& coulomb_potential) const;
+    real_function_3d compute_pcm_potential(const real_function_3d& coulomb_potential,
+            const bool dynamic=false) const;
 
     /// compute the PCM energy based on the most recent call of compute_pcm_potential
     double compute_pcm_energy() const;
