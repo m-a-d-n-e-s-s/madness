@@ -86,7 +86,7 @@ double Nemo::value(const Tensor<double>& x) {
 	}
 
 	if (do_pcm()) {
-	    pcm=PCM(world,this->molecule(),calc->param.pcm_data);
+	    pcm=PCM(world,this->molecule(),calc->param.pcm_data,true);
 	} else {
 	    if (world.rank()==0) print("vacuum calculation ");
 	}

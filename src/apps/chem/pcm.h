@@ -61,7 +61,9 @@ public:
     /// @param[in]  world   the world
     /// @param[in]  mol     the molecule (coordinates and charges of the nuclei)
     /// @param[in]  pcm_data    pcm input data as read from the input file
-    PCM(World& world, const Molecule& mol, const std::string pcm_data);
+    /// @param[in]  verbose print the PCM header
+    PCM(World& world, const Molecule& mol, const std::string pcm_data,
+            const bool verbose);
 
     /// compute the potential induced by the surrounding solvent
 

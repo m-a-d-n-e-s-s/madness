@@ -53,6 +53,7 @@
 #include <chem/SCFOperators.h>
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/distributed_matrix.h>
+#include <chem/pcm.h>
 
 
 
@@ -849,6 +850,7 @@ namespace madness {
         Molecule molecule;
         CalculationParameters param;
         XCfunctional xc;
+        PCM pcm;
         AtomicBasisSet aobasis;
         functionT mask;
         
@@ -1257,6 +1259,11 @@ namespace madness {
             int nvbeta = calc.param.nmo_beta - calc.param.nbeta;
             int nvalpha_start, nv_old;
             
+            // initialize the PCM solver for this geometry
+            if (calc.param.pcm_data != "none") {
+                calc.pcm=PCM(world,calc.molecule,calc.param.pcm_data,true);
+            }
+
             // The below is missing convergence test logic, etc.
             
             // Make the nuclear potential, initial orbitals, etc.

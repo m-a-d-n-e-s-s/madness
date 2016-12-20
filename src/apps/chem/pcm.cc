@@ -105,8 +105,8 @@ void host_writer(const char * message) {
 
 }
 
-PCM::PCM(World& world, const Molecule& mol, const std::string pcm_data)
-    : pcm_context(0), mep_lbl("TotMEP"), asc_lbl("totASC") {
+PCM::PCM(World& world, const Molecule& mol, const std::string pcm_data,
+        const bool verbose) : pcm_context(0), mep_lbl("TotMEP"), asc_lbl("totASC") {
     if (!pcmsolver_is_compatible_library()) {
         fprintf(stderr, "%s\n", "PCMSolver library not compatible");
         exit(EXIT_FAILURE);
@@ -157,7 +157,7 @@ PCM::PCM(World& world, const Molecule& mol, const std::string pcm_data)
                     symmetry_info.ptr(), &host_input, detail::host_writer),
                     pcmsolver_delete);
 
-    if (world.rank()==0) pcmsolver_print(pcm_context.get());
+    if (verbose and (world.rank()==0)) pcmsolver_print(pcm_context.get());
 
 }
 
@@ -267,6 +267,12 @@ double PCM::compute_pcm_energy() const {
 #else // MADNESS_HAS_PCM
 
 namespace madness {
+
+PCM::PCM(World& world, const Molecule& mol, const std::string pcm_data,
+            const bool verbose) {
+    MADNESS_EXCEPTION("no PCMSolver configured and available in MADNESS",1);
+}
+
 real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_potential,
         const bool dynamic) const {
     MADNESS_EXCEPTION("no PCMSolver configured and available in MADNESS",1);
@@ -285,5 +291,6 @@ Tensor<double> PCM::nuclear_mep(int nr_nuclei, const Tensor<double>& charges,
     MADNESS_EXCEPTION("no PCMSolver configured and available in MADNESS",1);
     return Tensor<double>();
 }
+
 } // namespace madness
 #endif // MADNESS_HAS_PCM
