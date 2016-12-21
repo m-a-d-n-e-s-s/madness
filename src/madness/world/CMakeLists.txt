@@ -94,12 +94,14 @@ if(ENABLE_UNITTESTS)
 
   set_tests_properties(world-test_googletest PROPERTIES WILL_FAIL TRUE)
 
-  find_package(CUDA)
-  if (CUDA_FOUND) # no way to make sure PARSEC has CUDA
-                  # so just look for it and hope for the best
-    cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)  
-    target_link_libraries(test_world MADtest_cuda)
-  endif(CUDA_FOUND)
+  if (ENABLE_PARSEC)
+    find_package(CUDA)
+    if (CUDA_FOUND) # no way to make sure PARSEC has CUDA
+                    # so just look for it and hope for the best
+      cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)  
+      target_link_libraries(test_world MADtest_cuda)
+    endif(CUDA_FOUND)
+  endif (ENABLE_PARSEC)
   
 endif()
 
