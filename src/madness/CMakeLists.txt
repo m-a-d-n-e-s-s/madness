@@ -24,7 +24,7 @@ add_library(madness
     $<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
     $<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>)
 
-# Set the dependencies for the MADworld library
+# Set the dependencies for the super-library
 if(CXX11_COMPILE_FLAG)
   target_compile_options(madness INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
 endif()
@@ -71,6 +71,9 @@ if(HAVE_IBMBGQ OR HAVE_IBMBGP)
 endif()
 target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
 target_link_libraries(madness PUBLIC ${CMAKE_THREAD_LIBS_INIT})
+if (WORLD_GET_DEFAULT_DISABLED)
+  target_compile_definitions(madness PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
+endif (WORLD_GET_DEFAULT_DISABLED)
 
 # Add common header files and madness library to the install list
 install(TARGETS madness EXPORT madness

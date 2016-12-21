@@ -79,6 +79,9 @@ if(MPI_FOUND)
   target_link_libraries(MADworld PUBLIC ${MPI_LIBRARIES})
 endif()
 target_link_libraries(MADworld PUBLIC ${CMAKE_THREAD_LIBS_INIT})
+if (WORLD_GET_DEFAULT_DISABLED)
+  target_compile_definitions(MADworld PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
+endif (WORLD_GET_DEFAULT_DISABLED)
 
 if(ENABLE_UNITTESTS)
 

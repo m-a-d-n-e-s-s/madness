@@ -149,6 +149,11 @@ add_feature_info(BSEND_ACKS ENABLE_BSEND_ACKS
 set(MADNESS_USE_BSEND_ACKS ${ENABLE_BSEND_ACKS} CACHE BOOL
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements")
 
+option(DISABLE_WORLD_GET_DEFAULT "Disables World::get_default()" OFF)
+add_feature_info(WORLD_GET_DEFAULT_DISABLE DISABLE_WORLD_GET_DEFAULT "Disables World::get_default()")
+set(WORLD_GET_DEFAULT_DISABLED ${DISABLE_WORLD_GET_DEFAULT} CACHE BOOL 
+    "Disables World::get_default()")
+
 option(ENABLE_UNITTESTS "Enables unit tests targets" ON)
 add_feature_info(UNITTESTS ENABLE_UNITTESTS
     "Enables unit tests targets")
