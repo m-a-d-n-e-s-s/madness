@@ -21,10 +21,10 @@ else()
 endif()
 
 # Create the MADchem library
-add_mad_library(chem MADCHEM_SOURCES MADCHEM_SOURCES "mra" "chem/")
+add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "chem/")
 
 # Add dependencies for MADchem
-target_include_directories(MADworld PUBLIC
+target_include_directories(MADchem PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/apps/>)
 if(LIBXC_FOUND)
   target_include_directories(MADchem PUBLIC ${LIBXC_INCLUDE_DIRS})
