@@ -201,6 +201,8 @@ AC_C_VOLATILE
 AC_C_CONST
 AC_C_INLINE
 AC_CHECK_TYPES([ptrdiff_t])
+AC_CHECK_SIZEOF([void *])
+AC_SUBST([AUTOCONF_SIZEOF_VOID_P],[$ac_cv_sizeof_void_p])
 
 # Library functions
 AC_CHECK_FUNCS([sleep random execv perror gettimeofday memmove memset pow sqrt strchr strdup getenv])
@@ -440,6 +442,7 @@ AC_CONFIG_FILES([
     config/Makefile
     config/MADNESS.pc
     config/madness-config.cmake
+    config/madness-config-version.cmake
     config/madness-project.cmake
     src/Makefile
       src/madness/Makefile
