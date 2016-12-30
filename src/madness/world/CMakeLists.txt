@@ -23,6 +23,10 @@ set(MADWORLD_SOURCES
 # Create the MADworld-obj and MADworld library targets
 add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
 
+if(LINKER_HAS_DISABLEPIE_SUPPORT)
+  target_link_libraries(MADworld PUBLIC "${DISABLEPIE_LINKER_FLAG}")
+endif()
+
 # create an additional, MADworld-only, export
 install(TARGETS MADworld EXPORT madworld
       COMPONENT world

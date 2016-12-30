@@ -471,6 +471,11 @@ check_cxx_source_compiles(
     int main() { return 0; }
     " HAVE_UNQUALIFIED_STATIC_DECL)
 
+# Check linker feature support ===============================================
+
+include(CheckDisablePIESupport)
+check_disablepie_support(LINKER_HAS_DISABLEPIE_SUPPORT DISABLEPIE_LINKER_FLAG)
+
 # Check for applications =======================================================
 
 find_package(Doxygen)
