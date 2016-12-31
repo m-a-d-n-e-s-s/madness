@@ -21,21 +21,6 @@ macro(check_disablepie_support _outvar _disablepie_linker_flags)
     
   endforeach()
 
-  # may need extra linker options to work around compiler strangeness
-  set(${_outvar}_EXTRAFLAGS ON)
-  foreach(_disablepie_extra_test_flag "-nostartfiles")
-    
-    # Try compiling
-    unset(${_outvar}_EXTRAFLAGS)
-    check_cxx_compiler_flag(${_disablepie_extra_test_flag} ${_outvar}_EXTRAFLAGS)
-    
-    if(${_outvar}_EXTRAFLAGS)
-      list(APPEND disablepie_linker_flags "${_disablepie_extra_test_flag}")
-      break()
-    endif()
-      
-  endforeach()
-
   if (disablepie_linker_flags)
     set(${_disablepie_linker_flags} "${disablepie_linker_flags}"
           CACHE STRING "Linker flags required to disable PIE support")
