@@ -24,7 +24,7 @@ set(MADWORLD_SOURCES
 add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
 
 if(LINKER_HAS_DISABLEPIE_SUPPORT)
-  target_link_libraries(MADworld PUBLIC "${DISABLEPIE_LINKER_FLAG}")
+  target_link_libraries(MADworld INTERFACE "${DISABLEPIE_LINKER_FLAG}")
 endif()
 
 # create an additional, MADworld-only, export
