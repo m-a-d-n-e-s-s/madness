@@ -187,10 +187,6 @@ END_TIMER(world, "initialize");
         print(e);
         error("caught a Tensor exception");
       }
-      catch (char* s) {
-        print(s);
-        error("caught a string exception");
-      }
       catch (const char* s) {
         print(s);
         error("caught a string exception");
