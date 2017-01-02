@@ -47,7 +47,7 @@
 #include <chem/SCFOperators.h>
 #include <madness/constants.h>
 #include <chem/vibanal.h>
-
+#include <chem/pcm.h>
 
 
 namespace madness {
@@ -85,6 +85,11 @@ double Nemo::value(const Tensor<double>& x) {
 	    calc->molecule.print();
 	}
 
+	if (do_pcm()) {
+	    pcm=PCM(world,this->molecule(),calc->param.pcm_data,true);
+	} else {
+	    if (world.rank()==0) print("vacuum calculation ");
+	}
 	construct_nuclear_correlation_factor();
 
     // construct the Poisson solver
@@ -177,15 +182,17 @@ vecfuncT Nemo::localize(const vecfuncT& nemo) const {
 /// compute the Fock matrix from scratch
 tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const {
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT psi, Jnemo, Knemo, Vnemo, JKVpsi, Unemo;
+	vecfuncT psi, Jnemo, Knemo, pcmnemo, JKVpsi, Unemo;
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
 
     // compute potentials the Fock matrix: J - K + Vnuc
-	compute_nemo_potentials(nemo, psi, Jnemo, Knemo, Vnemo, Unemo);
+	compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
 
-    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
+//    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
+    vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
+    if (do_pcm()) JKUpsi+=pcmnemo;
     tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
     Kinetic<double,3> T(world);
     fock+=T(R2nemo,nemo);
@@ -204,9 +211,8 @@ double Nemo::solve(const protocol& proto) {
 	// NOTE that nemos are somewhat sensitive to sparse operations (why??)
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
 
-
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT psi, Jnemo, Knemo, Vnemo, Unemo;
+	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
 
 	double energy = 0.0;
 	bool converged = false;
@@ -225,10 +231,12 @@ double Nemo::solve(const protocol& proto) {
 	    truncate(world,R2nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
-		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, Vnemo, Unemo);
+		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
 
 		// compute the fock matrix
-		vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
+//		vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
+		vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
+		if (do_pcm()) JKUpsi+=pcmnemo;
 		tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
 		Kinetic<double,3> T(world);
 		fock+=T(R2nemo,nemo);
@@ -288,7 +296,10 @@ double Nemo::solve(const protocol& proto) {
 
 		// make the potential * nemos term; make sure it's in phase with nemo
 		START_TIMER(world);
-		vecfuncT Vpsi = add(world, sub(world, Jnemo, Knemo), Unemo);
+//		vecfuncT Vpsi = add(world, sub(world, Jnemo, Knemo), Unemo);
+        vecfuncT Vpsi=Unemo+Jnemo-Knemo;
+        if (do_pcm()) Vpsi+=pcmnemo;
+
         if (localized) gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
 		truncate(world,Vpsi);
 		END_TIMER(world, "make Vpsi");
@@ -403,6 +414,7 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 /// given nemos, compute the HF energy using the regularized expressions for T and V
 double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
+    START_TIMER(world);
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
@@ -429,9 +441,12 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
         exc=xcoperator.compute_xc_energy();
     }
 
+    double pcm_energy=0.0;
+    if (do_pcm()) pcm_energy=pcm.compute_pcm_energy();
+
     const double nucrep = calc->molecule.nuclear_repulsion_energy();
 
-    double energy = ke + J + pe + nucrep;
+    double energy = ke + J + pe + nucrep + pcm_energy;
     if (is_dft()) energy+=exc;
     else energy-=K;
 
@@ -443,10 +458,15 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
         } else {
             printf("             exchange %16.8f\n", -K);
         }
+        if (do_pcm()) {
+            printf("   polarization (PCM) %16.8f\n", pcm_energy);
+        }
         printf("    nuclear-repulsion %16.8f\n", nucrep);
         printf("   regularized energy %16.8f\n", energy);
         printf("  buggy if hybrid functionals are used..\n");
     }
+    END_TIMER(world, "compute energy");
+
     return energy;
 }
 
@@ -461,7 +481,7 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
 /// @param[out]	Vnemo	nuclear potential applied on the nemos
 /// @param[out]	Unemo	regularized nuclear potential applied on the nemos
 void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
-		vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& Vnemo,
+		vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 		vecfuncT& Unemo) const {
 
 	// reconstruct the orbitals
@@ -502,12 +522,14 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
         END_TIMER(world, "compute XCnemo "+stringify(size));
     }
 
-//	START_TIMER(world);
-//	const real_function_3d& Vnuc = calc->potentialmanager->vnuclear();
-//	Vnemo = mul(world, Vnuc, nemo);
-//	truncate(world, Vnemo);
-//    double size=get_size(world,Vnemo);
-//	END_TIMER(world, "compute Vnemo "+stringify(size));
+    // compute the solvent (PCM) contribution to the potential
+    if (do_pcm()) {
+        START_TIMER(world);
+        const real_function_3d vpcm = pcm.compute_pcm_potential(J.potential());
+        pcmnemo=vpcm*nemo;
+        double size=get_size(world,pcmnemo);
+        END_TIMER(world, "compute PCMnemo "+stringify(size));
+    }
 
 	START_TIMER(world);
 	Nuclear Unuc(world,this->nuclear_correlation);

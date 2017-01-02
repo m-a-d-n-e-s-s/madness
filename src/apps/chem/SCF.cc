@@ -2431,10 +2431,21 @@ namespace madness {
             functionT vlocal;
             END_TIMER(world, "Coulomb");
             print_meminfo(world.rank(), "Coulomb");
-            
+
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
             vlocal = vcoul + vnuc;
+
+            // compute the contribution of the solvent to the local potential
+            double epcm=0.0;
+            if (param.pcm_data != "none") {
+                START_TIMER(world);
+                functionT vpcm=pcm.compute_pcm_potential(vcoul);
+                vlocal+=vpcm;
+                epcm=pcm.compute_pcm_energy();
+                END_TIMER(world, "PCM");
+                print_meminfo(world.rank(), "PCM");
+            }
             
             vcoul.clear(false);
             vlocal.truncate();
@@ -2475,7 +2486,7 @@ namespace madness {
             double ekinetic = ekina + ekinb;
             double enonlocal = enla + enlb;
             double exc = exca + excb;
-            double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal;
+            double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal + epcm;
             current_energy = etot;
             //esol = etot;
             
@@ -2493,6 +2504,7 @@ namespace madness {
                 printf("         nonlocal psp %16.8f\n", enonlocal);
                 printf("   nuclear attraction %16.8f\n", enuclear);
                 printf("              coulomb %16.8f\n", ecoulomb);
+                printf("                  PCM %16.8f\n", epcm);
                 printf(" exchange-correlation %16.8f\n", exc);
                 printf("    nuclear-repulsion %16.8f\n", enrep);
                 printf("                total %16.8f\n\n", etot);
