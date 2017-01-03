@@ -221,6 +221,9 @@ real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_pote
     // compute the molecular electrostatic potential (mep) from the nuclei
     Tensor<double> mep = nuclear_mep(charges.size(), charges, coordinates, grid_size, grid);
 
+    // nuclear potential is density independent
+    if(dynamic) mep = 0.0;
+
     // add the electronic contribution to the mep
     for (int i=0; i<grid_size; ++i) {
         coord_3d evalpoint={grid(3*i),grid(3*i+1),grid(3*i+2)};
