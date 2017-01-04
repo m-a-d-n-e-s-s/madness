@@ -57,6 +57,9 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     class Function;
 
+        template<typename T, std::size_t NDIM>
+	class DerivativeOp;
+
 }
 
 
@@ -290,6 +293,11 @@ namespace madness {
         Tensor<double> right_r0, right_rp; ///< Blocks of the derivative for the right boundary
         Tensor<double> right_r0t, right_rpt; ///< Blocks of the derivative for the right boundary
         Tensor<double> bv_left, bv_right ; ///< Blocks of the derivative operator for the boundary contribution
+
+    public:
+	const std::size_t get_axis() const{
+	    return this->axis;
+	}
 
         void do_diff2b(const implT* f, implT* df, const keyT& key,
                        const argT& left,

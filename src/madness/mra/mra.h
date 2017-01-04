@@ -127,6 +127,13 @@ namespace madness {
         std::shared_ptr< FunctionImpl<T,NDIM> > impl;
 
     public:
+		std::string _treeName;
+		unsigned long _treeID;
+		
+		void setTreeName(std::string name){
+			_treeName = name;
+		}
+
         bool impl_initialized()const{
         	if(impl==NULL) return false;
         	else return true;
