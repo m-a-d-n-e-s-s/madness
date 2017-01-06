@@ -21,9 +21,9 @@ thisincludedir = $(includedir)/chem
 thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
                       corepotential.h atomutil.h SCF.h xcfunctional.h \
                       mp2.h nemo.h potentialmanager.h gth_pseudopotential.h \
-                      molecular_optimizer.h projector.h TDA.h TDA_XC.h \
-                      TDA_guess.h TDA_exops.h SCFOperators.h CCOperators.h CCStructures.h CC2.h \
-                      electronic_correlation_factor.h CISOperators.h cheminfo.h vibanal.h molopt.h
+                      molecular_optimizer.h projector.h \
+                      SCFOperators.h CCStructures.h \
+                      electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h
 
 testxc_SOURCES = testxc.cc xcfunctional.h
 testxc_LDADD = libMADchem.la $(MRALIBS)
@@ -40,7 +40,7 @@ plotxc_LDADD = libMADchem.la $(MRALIBS)
 libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc \
                        corepotential.cc atomutil.cc lda.cc cheminfo.cc \
                        distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc\
-                       SCFOperators.cc xcfunctional_ldaonly.cc TDA.cc TDA_XC.cc CC2.cc CCOperators.cc CISOperators.cc \
+                       SCFOperators.cc xcfunctional_ldaonly.cc TDHF.cc CCStructures.cc \
                        $(thisinclude_HEADERS)
 libMADchem_la_LDFLAGS = -version-info 0:0:0
                        

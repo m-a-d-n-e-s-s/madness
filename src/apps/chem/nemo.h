@@ -250,6 +250,8 @@ public:
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
+	PCM get_pcm()const{return pcm;}
+
 	/// compute the Fock matrix from scratch
 	tensorT compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const;
 
@@ -475,9 +477,13 @@ private:
 	vecfuncT make_cphf_constant_term(const int iatom, const int iaxis,
 	        const vecfuncT& R2nemo, const real_function_3d& rhonemo) const;
 
+	public:
+
 	bool is_dft() const {return calc->xc.is_dft();}
 
 	bool do_pcm() const {return calc->param.pcm_data != "none";}
+	
+	private:
 
 	/// localize the nemo orbitals
     vecfuncT localize(const vecfuncT& nemo, const double dconv, const bool randomize) const;

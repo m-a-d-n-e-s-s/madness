@@ -50,7 +50,7 @@
   /trunk/src/apps/examples/tdhf.cc>here</a>.
 
  */
-#include <chem/CC2.h>
+#include <chem/TDHF.h>
 
 using namespace madness;
 
@@ -80,8 +80,6 @@ int main(int argc, char** argv) {
 	}
 #endif
 
-typedef std::vector<real_function_3d> vecfuncT;
-
 // Make reference
 const std::string input = "input";
 //SCF calc(world,input.c_str());
@@ -99,8 +97,12 @@ if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF 
 
 
 // Make CC2
-CC2 cc2(world,input,nemo);
-cc2.solve_ccs();
+//CC2 cc2(world,input,nemo);
+//cc2.solve();
+CC_Parameters param(input,nemo.get_calc()->param.lo);
+//CC_Operators ops(world,nemo,param);
+TDHF tdhf(world,param,nemo);
+tdhf.solve_cis();
 
 if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
 world.gop.fence();
