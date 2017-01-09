@@ -42,8 +42,8 @@
 #include <madness/mra/qmprop.h>
 #include <chem/nemo.h>
 #include <chem/SCFOperators.h>
-#include <chem/TDA.h>
 #include <madness/world/worldmem.h>
+#include <chem/projector.h>
 
 namespace madness {
     
