@@ -1,13 +1,5 @@
 /*
- * lrccs.cc
- *
- *  Created on: 4 Jan 2017
- *      Author: kottmanj
- */
-
-/*
-/*
- * lrccs.cc
+ * cc2.cc
  *
  *  Created on: Aug 10, 2015
  *      Author: kottmanj
@@ -57,9 +49,11 @@
   /trunk/src/apps/examples/tdhf.cc>here</a>.
 
  */
-#include <chem/TDHF.h>
+#include <chem/CC2.h>
 
 using namespace madness;
+
+#ifdef USE_GENTENSOR
 
 int main(int argc, char** argv) {
 
@@ -68,8 +62,7 @@ int main(int argc, char** argv) {
 	World world(SafeMPI::COMM_WORLD);
 
 	if (world.rank() == 0) {
-		print("\n  CC2 without Gentensor Flag : Only Linear Response For CCS/CIS  \n");
-		print("!!!DO NOT USE 6D APPLICATIONS HERE!!!");
+		print("\n  CC2: Coupled Cluster approximate Doubles  \n");
 		printf("starting at time %.1f\n", wall_time());
 		print("\nmain() compiled at ",__TIME__," on ",__DATE__);
 
@@ -89,6 +82,11 @@ int main(int argc, char** argv) {
 
 typedef std::vector<real_function_3d> vecfuncT;
 
+// set the tensor type
+TensorType tt=TT_2D;
+FunctionDefaults<6>::set_tensor_type(tt);
+FunctionDefaults<6>::set_apply_randomize(true);
+
 // Make reference
 const std::string input = "input";
 //SCF calc(world,input.c_str());
@@ -104,9 +102,11 @@ if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF 
 		<<"\n current wall-time: " << wall_time()
 		<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";
 
-CCParameters parameters(input,nemo.get_calc()->param.lo);
-TDHF tdhf(world,parameters,nemo);
-tdhf.solve_cis();
+
+// Make CC2
+CC2 cc2(world,input,nemo);
+
+cc2.solve();
 
 if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
 world.gop.fence();
@@ -114,5 +114,28 @@ finalize();
 
 	return 0;
 }// end main
+
+#else
+int main(int argc, char** argv) {
+    initialize(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
+    startup(world,argc,argv);
+    if(world.rank() == 0) {
+
+    	print("\nYou can't run cc2 because you have configured MADNESS ");
+    	print("without the --enable-gentensor flag");
+    	print("You need to reconfigure and recompile\n");
+
+    }
+    world.gop.fence();
+    finalize();
+
+    return 0;
+
+}
+#endif
+
+
+
 
 

@@ -9,25 +9,91 @@
 
 namespace madness {
 
-  TDHF::TDHF(World &world, const CC_Parameters & param, const Nemo & nemo_):
+  // KAIN allocator for vectorfunctions
+  struct TDHF_allocator{
+  	World& world;
+  	const int noct;
+
+  	/// @param[in]	world	the world
+  	/// @param[in]	nnoct	the number of functions in a given vector
+  	/// @todo validate doxygen on `nnoct`
+  	TDHF_allocator(World& world, const int nnoct) : world(world), noct(nnoct) {}
+
+  	vecfuncT operator()(){
+  		return zero_functions<double,3>(world,noct);
+  	}
+  	TDHF_allocator operator=(const TDHF_allocator &other){
+  		TDHF_allocator tmp(world,other.noct);
+  		return tmp;
+  	}
+
+  };
+
+
+
+  /// Project a general 3D polynomial to the MRA Grid
+  struct polynomial_functor : public FunctionFunctorInterface<double,3> {
+  public :
+  	polynomial_functor(const std::string input) : input_string_(input), data_(read_string(input)) {}
+
+  	double operator()(const coord_3d &r)const{
+  		double result =0.0;
+  		for(size_t i=0;i<data_.size();i++){
+  			if(data_[i].size()!=4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, empty data_ entry",1);
+  			result += ( data_[i][3]*pow(r[0],data_[i][0])*pow(r[1],data_[i][1])*pow(r[2],data_[i][2]) );
+  		}
+  		return result;
+  	}
+  private:
+  	const std::string input_string_;
+  	/// The data for the construction of the polynomial chain
+  	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
+  	const std::vector<std::vector<double>> data_;
+  public:
+  	std::vector<std::vector<double> > read_string(const std::string string)const{
+  		std::stringstream line(string);
+  				std::string name;
+  				size_t counter = 0;
+  				std::vector<double> current_data = vector_factory(0.0,0.0,0.0,1.0);
+  				std::vector<std::vector<double> > read_data;
+  				while(line>>name){
+  					if(name=="c") line>>current_data[3];
+  					else if(name=="x") line>>current_data[0];
+  					else if(name=="y") line>>current_data[1];
+  					else if(name=="z") line>>current_data[2];
+  					else if(name==","){
+  						counter++; read_data.push_back(current_data); current_data = vector_factory(0.0,0.0,0.0,1.0);
+  					}
+  				}
+  				// dont forget the last read polynomial
+  				read_data.push_back(current_data);
+  				return read_data;
+  	}
+  	void test(){
+  		std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
+  		std::cout << "\n read data is \n" << data_ << std::endl;
+   	}
+  	std::vector<std::vector<double> > give_data(){return data_;}
+  };
+
+  TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
 						      world(world),
 						      parameters(param),
 						      nemo(nemo_),
-						      g12(world,g12_,param),
+						      g12(world,OT_G12,param),
 						      mo_ket_(make_mo_ket(nemo_)),
 						      mo_bra_(make_mo_bra(nemo_)),
 						      Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
 						      msg(world) {
-    msg.output_subsection("Computing Exchange Intermediate");
-    CC_Timer time(world,"Computing ExIm");
+    msg.debug = parameters.debug;
+    msg.subsection("Computing Exchange Intermediate");
+    CCTimer time(world,"Computing ExIm");
     g12.update_elements(mo_bra_,mo_ket_);
     time.info();
-    // TODO Auto-generated constructor stub
-
   }
 
   void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
-    msg.output_subsection("Calculate Guess");
+    msg.subsection("Calculate Guess");
     std::vector<CC_vecfunction> guess;
     if(parameters.tda_homo_guess) guess= make_homo_guess();
     else guess = make_guess();
@@ -66,12 +132,12 @@ namespace madness {
 
 
   void TDHF::solve_cis(std::vector<CC_vecfunction> &start)const{
-    msg.output_section("SOLVING CIS EQUATIONS");
+    msg.section("SOLVING CIS EQUATIONS");
     parameters.print_tda_parameters(world);
 
     mo_ket_.plot("MOS_");
 
-    CC_Timer time(world,"TDHF/CIS");
+    CCTimer time(world,"TDHF/CIS");
     // decide if a guess calculation is needed
     bool need_guess =false;
     if(start.size()<parameters.tda_guess_excitations) need_guess=true;
@@ -82,21 +148,21 @@ namespace madness {
     }else guess_vectors=start;
 
     std::vector<CC_vecfunction> final_vectors;
-    msg.output_subsection("Iterate Guess Vectors");
+    msg.subsection("Iterate Guess Vectors");
     {
       // do guess iterations
       iterate_cis_guess_vectors(guess_vectors);
       // sort according to excitation energies
       std::sort(guess_vectors.begin(),guess_vectors.end());
       // save
-      for(size_t i=0;i<guess_vectors.size();i++) guess_vectors[i].save(std::to_string(i));
+      for(size_t i=0;i<guess_vectors.size();i++) guess_vectors[i].save_functions(std::to_string(i));
       // truncate again
       for(size_t i=0;i<parameters.tda_excitations;i++) final_vectors.push_back(guess_vectors[i]);
     }
 
-    msg.output_subsection("Iterate Final Vectors");
+    msg.subsection("Iterate Final Vectors");
     iterate_cis_final_vectors(final_vectors);
-    msg.output_section("CIS CALCULATIONS ENDED");
+    msg.section("CIS CALCULATIONS ENDED");
     std::sort(final_vectors.begin(),final_vectors.end());
     // information
     if(world.rank()==0) std::cout << std::setfill('-') << std::setw(25) << "\n" << std::setfill(' ');
@@ -111,13 +177,13 @@ namespace madness {
     // plot final vectors
     for(size_t i=0;i<final_vectors.size();i++) final_vectors[i].plot(std::to_string(i)+"_converged_cis");
     // save final vectors
-    for(size_t i=0;i<final_vectors.size();i++) final_vectors[i].save(std::to_string(i));
+    for(size_t i=0;i<final_vectors.size();i++) final_vectors[i].save_functions(std::to_string(i));
     // assign solution vectors
     start = final_vectors;
   }
 
   void TDHF::solve_tdhf(std::vector<CC_vecfunction> &x)const{
-    msg.output_section("SOLVING TDHF EQUATIONS");
+    msg.section("SOLVING TDHF EQUATIONS");
 
     // first solve CIS as first step
     solve_cis(x);
@@ -133,12 +199,12 @@ namespace madness {
     y = make_y_guess(x,y);
 
     for(size_t macro=0;macro<10;macro++){
-      msg.output_section("TDHF MACROITERATION " + std::to_string(macro));
+      msg.section("TDHF MACROITERATION " + std::to_string(macro));
       // iterate y vectors
-      msg.output_subsection("Iterate y-vectors");
+      msg.subsection("Iterate y-vectors");
       bool yconv = iterate_vectors(y,x,true,parameters.tda_dconv,parameters.tda_econv,parameters.tda_iter_max,true);
       // iterate x vectors
-      msg.output_subsection("Iterate x-vectors");
+      msg.subsection("Iterate x-vectors");
       bool xconv = iterate_vectors(x,y,false,parameters.tda_dconv,parameters.tda_econv,parameters.tda_iter_max,true);
       // check convergence
       if(yconv and xconv) break;
@@ -221,8 +287,8 @@ namespace madness {
       orthonormalize(x,V);
       // save functions (every 5 iterations)
       if(iter%5==0){
-	if(not iterate_y)for(size_t i=0;i<x.size();i++) x[i].save(std::to_string(i));
-	else for(size_t i=0;i<y.size();i++) y[i].save(std::to_string(i));
+	if(not iterate_y)for(size_t i=0;i<x.size();i++) x[i].save_functions(std::to_string(i));
+	else for(size_t i=0;i<y.size();i++) y[i].save_functions(std::to_string(i));
       }
       // make plots if demanded
       if(parameters.plot){
@@ -251,7 +317,7 @@ namespace madness {
 
     std::string msg1 = "Applying Greens Function to vectors";
     if(V.empty()) msg1+=", with recalculated Potentials";
-    CC_Timer time(world,msg1);
+    CCTimer time(world,msg1);
     std::vector<vecfuncT> result;
     for(size_t i=0;i<x.size();i++){
 
@@ -308,7 +374,7 @@ namespace madness {
   }
 
   std::vector<vecfuncT> TDHF::make_potentials(const std::vector<CC_vecfunction> &x)const{
-    CC_Timer time(world,"Make Potentials");
+    CCTimer time(world,"Make Potentials");
     std::vector<vecfuncT> V;
     for(auto& xi:x){
       if(world.rank()==0 and parameters.debug) std::cout << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
@@ -326,8 +392,10 @@ namespace madness {
     const std::string xc_data = nemo.get_calc()->param.xc_data;
     // HF exchange Coefficient
     double hf_coeff = nemo.get_calc()->xc.hf_exchange_coefficient();
+    MADNESS_ASSERT(hf_coeff==1.0);
     // Use the PCMSolver
-    bool pcm=nemo.do_pcm();
+    //bool pcm=nemo.do_pcm();
+    bool pcm = false; // not yet here
     if(parameters.debug){
       if(world.rank()==0) std::cout << "TDA Potential is " << xc_data << ", hf_coeff=" << hf_coeff << ", pcm is=" << pcm <<  "\n";
     }
@@ -356,41 +424,38 @@ namespace madness {
       xc_data = xc_data.erase(xc_data.find_last_not_of(" ")+1);
 
       // Nuclear Potential applied to x
-      CC_Timer timeN(world,"Nx");
+      CCTimer timeN(world,"Nx");
       const vecfuncT Nx=V(x.get_vecfunction());
       timeN.info(parameters.debug);
       // Applied Hartree Potential (J|x>) -> factor two is absorbed into the density for the J Operator
-      CC_Timer timeJ(world,"Jx");
+      CCTimer timeJ(world,"Jx");
       const vecfuncT Jx=J(x.get_vecfunction());
       timeJ.info(parameters.debug);
       // Applied XC Potential
-      CC_Timer timeXCx(world,"XCx");
-      const vecfuncT XCx=xc(x.get_vecfunction());
-      timeXCx.info(parameters.debug);
+      //CCTimer timeXCx(world,"XCx");
+      //const vecfuncT XCx=xc(x.get_vecfunction());
+      //timeXCx.info(parameters.debug);
       // Ground State Potential applied to x, without exchange
-      Vpsi1 = Nx+Jx+XCx;
+      Vpsi1 = Nx+Jx;//+XCx;
       // add exchange if demanded
       if(hf_coeff!=0.0){
-	CC_Timer timeKx(world,"Kx");
+	CCTimer timeKx(world,"Kx");
 	Exchange K=Exchange(world,&nemo,0).small_memory(false);
 	K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo,parameters.thresh_poisson);
 	vecfuncT Kx =K(x.get_vecfunction());
 	scale(world,Kx,hf_coeff);
 	Vpsi1 = sub(world, Vpsi1, Kx);
 	timeKx.info(parameters.debug);
-      }
-      // compute the solvent (PCM) contribution to the potential
-      if (pcm) {
-	CC_Timer timepcm(world,"pcm:gs");
-        const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(J.potential(),false);
-        if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_gs");
-        const vecfuncT pcm_x=vpcm*x.get_vecfunction();
-        timepcm.info(parameters.debug);
-        Vpsi1 = add(world,Vpsi1,pcm_x);
-      }
-
-
-      truncate(world,Vpsi1);
+      } else MADNESS_EXCEPTION("HF Coefficient is 0, DFT is not supported right now",1);
+//      // compute the solvent (PCM) contribution to the potential
+//      if (pcm) {
+//	CCTimer timepcm(world,"pcm:gs");
+//        const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(J.potential(),false);
+//        if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_gs");
+//        const vecfuncT pcm_x=vpcm*x.get_vecfunction();
+//        timepcm.info(parameters.debug);
+//        Vpsi1 = add(world,Vpsi1,pcm_x);
+//      }
     }
 
     // Apply the Perturbed Potential to the Active Ground State Orbitals
@@ -400,20 +465,20 @@ namespace madness {
       const vecfuncT active_mo = get_active_mo_ket();
       const vecfuncT active_bra = get_active_mo_bra();
       // construct perturbed operators
-      CC_Timer timeJ(world,"pXC");
+      CCTimer timeJ(world,"pXC");
       Coulomb Jp(world);
       real_function_3d density_pert=2.0*nemo.make_density(occ,active_bra,x.get_vecfunction());
       Jp.potential()=Jp.compute_potential(density_pert);
       // reconstruct the full perturbed density: do not truncate!
-      real_function_3d gamma=xc.apply_xc_kernel(density_pert);
-      vecfuncT XCp=mul(world,gamma,active_mo);
-      truncate(world,XCp);
+      //real_function_3d gamma=xc.apply_xc_kernel(density_pert);
+      //vecfuncT XCp=mul(world,gamma,active_mo);
+      //truncate(world,XCp);
 
-      Vpsi2 = Jp(active_mo)+XCp;
+      Vpsi2 = Jp(active_mo);//+XCp;
       timeJ.info(parameters.debug);
       // Exchange Part
       if(hf_coeff>0.0){
-	CC_Timer timeK(world,"pK");
+	CCTimer timeK(world,"pK");
 	vecfuncT Kp;
 	// summation over all active indices
 	for(const auto itmp:x.functions){
@@ -428,19 +493,20 @@ namespace madness {
 	scale(world,Kp,hf_coeff);
 	Vpsi2 = sub(world,Vpsi2,Kp);
 	timeK.info(parameters.debug);
+	truncate(world,Vpsi2);
       }
 
-      // compute the solvent (PCM) contribution to the kernel
-      if (pcm) {
-	CC_Timer timepcm(world,"pcm:ex");
-        const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(Jp.potential(),true);
-        if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_ex");
-        const vecfuncT pcm_orbitals=vpcm*active_mo;
-        timepcm.info(parameters.debug);
-        Vpsi2 = add(world,Vpsi2,pcm_orbitals);
-      }
+//      // compute the solvent (PCM) contribution to the kernel
+//      if (pcm) {
+//	CCTimer timepcm(world,"pcm:ex");
+//        const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(Jp.potential(),true);
+//        if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_ex");
+//        const vecfuncT pcm_orbitals=vpcm*active_mo;
+//        timepcm.info(parameters.debug);
+//        Vpsi2 = add(world,Vpsi2,pcm_orbitals);
+//      }
 
-      truncate(Vpsi2);
+      truncate(world,Vpsi2);
     }
     // whole tda potential
     vecfuncT Vpsi = Vpsi1 + Q(Vpsi2);
@@ -464,7 +530,7 @@ namespace madness {
 
 
   void TDHF::orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const{
-    CC_Timer time(world,"Orthonormalization");
+    CCTimer time(world,"Orthonormalization");
     //make the Hamilton matrix for the vectorfunctions
     Tensor<double> F = make_perturbed_fock_matrix(x,V);
 
@@ -505,7 +571,7 @@ namespace madness {
   }
 
   Tensor<double> TDHF::make_overlap_matrix(const std::vector<CC_vecfunction> &x)const{
-    CC_Timer time(world,"Make Overlap Matrix");
+    CCTimer time(world,"Make Overlap Matrix");
     Tensor<double> S(x.size(),x.size());
     for(size_t k=0;k<x.size();k++){
       const vecfuncT kbra = make_bra(x[k]);
@@ -520,16 +586,16 @@ namespace madness {
 
   Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction> &x, const std::vector<vecfuncT> &V)const{
     // Make formated timings
-    CC_Timer timeF(world,"Matrix: F");
-    CC_Timer timeT(world,"Matrix: T");
-    CC_Timer timeV(world,"Matrix: V");
-    CC_Timer timeR(world,"Matrix: e");
+    CCTimer timeF(world,"Matrix: F");
+    CCTimer timeT(world,"Matrix: T");
+    CCTimer timeV(world,"Matrix: V");
+    CCTimer timeR(world,"Matrix: e");
 
     // bra elements of x
     std::vector<vecfuncT> xbra;
 
     {
-      CC_Timer time_bra(world,"Make bra elements");
+      CCTimer time_bra(world,"Make bra elements");
       for(size_t k=0;k<x.size();k++){
 	const vecfuncT xbrak = make_bra(x[k]);
 	xbra.push_back(xbrak);
@@ -624,7 +690,7 @@ namespace madness {
 
   /// Makes the guess functions by exciting active orbitals with excitation operators
   std::vector<CC_vecfunction> TDHF::make_guess()const{
-    CC_Timer time(world,"Making Guess Functions: " + parameters.tda_guess);
+    CCTimer time(world,"Making Guess Functions: " + parameters.tda_guess);
     std::vector<std::string> exop_strings;
     if(parameters.tda_guess=="custom"){
       exop_strings = parameters.tda_exops;
@@ -674,9 +740,15 @@ namespace madness {
 	tmp[tmp.size()-1-k]=xmo;
 	plot_plane(world,xmo,std::to_string(i)+"_cis_guess_"+"_"+std::to_string(vm.size()-k-1+parameters.freeze));
       }
+      {
+	const double norm = sqrt(inner(world,make_bra(tmp),tmp).sum());
+	scale(world,tmp,1.0/norm);
+      }
       tmp = Q(tmp);
-      const double norm = norm2(world,tmp);
-      scale(world,tmp,1.0/norm);
+      {
+	const double norm = sqrt(inner(world,make_bra(tmp),tmp).sum());
+	scale(world,tmp,1.0/norm);
+      }
       CC_vecfunction guess_tmp(tmp,RESPONSE,parameters.freeze);
       guess.push_back(guess_tmp);
     }
@@ -751,13 +823,13 @@ namespace madness {
 
   }
 
-  bool TDHF::initialize_singles(CC_vecfunction &singles,const functype type,const int ex) const {
+  bool TDHF::initialize_singles(CC_vecfunction &singles,const FuncType type,const int ex) const {
     MADNESS_ASSERT(singles.size()==0);
     bool restarted = false;
 
-    std::vector<CC_function> vs;
+    std::vector<CCFunction> vs;
     for(size_t i=parameters.freeze;i<mo_ket_.size();i++){
-      CC_function single_i;
+      CCFunction single_i;
       single_i.type=type;
       single_i.i = i;
       std::string name;
