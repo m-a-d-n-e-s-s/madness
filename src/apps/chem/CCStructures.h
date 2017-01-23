@@ -292,6 +292,9 @@ namespace madness{
     /// For this to be used the tda_guess key has to be "custom"
     /// The strings are given in a format like: "c c1 x x1 y y1 z z1, c c2 x x2 y y2 z z2, ..." which will be interpreted as: c1*x^x1*y^y1*z^z1 + c2*x^x2*y^y2*z^z2 + ....
     std::vector<std::string> tda_exops;
+    /// smoothing exponent
+    /// every exop is multiplied with e^(-exponent*r2) to avoid noise at the boundaries
+    double tda_damping_width;
 
     /// print out the parameters (except the tda parameters)
     void information(World &world)const;

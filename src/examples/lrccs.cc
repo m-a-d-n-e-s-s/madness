@@ -105,6 +105,8 @@ if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF 
 		<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";
 
 CCParameters parameters(input,nemo.get_calc()->param.lo);
+if(world.rank()==0) std::cout << "Setting 3D Thresh to " << parameters.thresh_3D << "\n";
+FunctionDefaults<3>::set_thresh(parameters.thresh_3D);
 TDHF tdhf(world,parameters,nemo);
 tdhf.solve_cis();
 

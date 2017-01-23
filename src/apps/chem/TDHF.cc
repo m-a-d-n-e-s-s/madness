@@ -76,6 +76,23 @@ namespace madness {
   	std::vector<std::vector<double> > give_data(){return data_;}
   };
 
+  /// GaussFunctor so let the exciation operators go to zero at the boundaries
+  /// 1S symmetry: totally symmetric
+  struct gauss_functor : public FunctionFunctorInterface<double,3> {
+  public:
+    gauss_functor(const double width): exponent(1.0/(width*width)){
+      MADNESS_ASSERT(not(width<0.0));
+    }
+    const double exponent;
+    double operator()(const coord_3d &r)const{
+      if(exponent==0.0) return 1.0;
+      return exp(-exponent*(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));
+    }
+
+
+  };
+
+
   TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
 						      world(world),
 						      parameters(param),
@@ -85,10 +102,14 @@ namespace madness {
 						      mo_bra_(make_mo_bra(nemo_)),
 						      Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
 						      msg(world) {
+    msg.section("Initialize TDHF Class");
     msg.debug = parameters.debug;
     msg.subsection("Computing Exchange Intermediate");
     CCTimer time(world,"Computing ExIm");
     g12.update_elements(mo_bra_,mo_ket_);
+    msg.output("Orbital Energies of Reference");
+    const Tensor<double> eps=nemo.get_calc()->aeps;
+    if(world.rank()==0) std::cout << eps << "\n";
     time.info();
   }
 
@@ -313,7 +334,7 @@ namespace madness {
 
 
 
-  std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x, const std::vector<vecfuncT> &V)const{
+  std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const{
 
     std::string msg1 = "Applying Greens Function to vectors";
     if(V.empty()) msg1+=", with recalculated Potentials";
@@ -328,6 +349,13 @@ namespace madness {
       if(x[i].type==RESPONSE) MADNESS_ASSERT(omega>0.0);
       else MADNESS_ASSERT(omega<0.0);
       if(x[i].type==UNDEFINED and V.empty()) msg.warning("Empty V but x is y state from TDHF");
+
+      CCTimer time_N(world,"add nuclear potential");
+      // the potentials still need the nuclear potential
+      const Nuclear V(world,&nemo);
+      vecfuncT VNi = V(x[i].get_vecfunction());
+      Vi += VNi;
+      time_N.info();
 
       // scale potential
       scale(world,Vi,-2.0);
@@ -368,7 +396,11 @@ namespace madness {
 	// Factor 0.5 removes the factor 2 from the scaling before
 	x[i].delta = (0.5 * tmp / tmp2);
       }
+      // clear potential
+      Vi.clear();
     }
+    // clear the potentials
+    V.clear();
     time.info();
     return result;
   }
@@ -416,7 +448,7 @@ namespace madness {
     {
       // construct unperturbed operators
       const Coulomb J(world,&nemo);
-      const Nuclear V(world,&nemo);
+     // const Nuclear V(world,&nemo); // not included in the TDA potential anymore
 
 
       std::string xc_data=nemo.get_calc()->param.xc_data;
@@ -424,9 +456,9 @@ namespace madness {
       xc_data = xc_data.erase(xc_data.find_last_not_of(" ")+1);
 
       // Nuclear Potential applied to x
-      CCTimer timeN(world,"Nx");
-      const vecfuncT Nx=V(x.get_vecfunction());
-      timeN.info(parameters.debug);
+      //CCTimer timeN(world,"Nx");
+      //const vecfuncT Nx=V(x.get_vecfunction());
+      //timeN.info(parameters.debug);
       // Applied Hartree Potential (J|x>) -> factor two is absorbed into the density for the J Operator
       CCTimer timeJ(world,"Jx");
       const vecfuncT Jx=J(x.get_vecfunction());
@@ -436,7 +468,7 @@ namespace madness {
       //const vecfuncT XCx=xc(x.get_vecfunction());
       //timeXCx.info(parameters.debug);
       // Ground State Potential applied to x, without exchange
-      Vpsi1 = Nx+Jx;//+XCx;
+      Vpsi1 = Jx;//+XCx; // Nx removed
       // add exchange if demanded
       if(hf_coeff!=0.0){
 	CCTimer timeKx(world,"Kx");
@@ -531,16 +563,20 @@ namespace madness {
 
   void TDHF::orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const{
     CCTimer time(world,"Orthonormalization");
-    //make the Hamilton matrix for the vectorfunctions
-    Tensor<double> F = make_perturbed_fock_matrix(x,V);
 
     // make the overlap matrix
     Tensor<double> S = make_overlap_matrix(x);
+    if(parameters.debug) std::cout << "The Overlap Matrix\n " << S << "\n";
+
+    //make the Hamilton matrix for the vectorfunctions
+    Tensor<double> F = make_perturbed_fock_matrix(x,V);
 
     // Diagonalize the F Matrix
     Tensor<double> U, evals;
     Tensor<double> dummy(x.size());
     U = nemo.get_calc() -> get_fock_transformation(world, S, F, evals, dummy, 2.0*parameters.thresh_3D);
+
+    if(parameters.debug) std::cout << "Eigenvalues " << evals << "\n";
 
     // Transform the states
     x = transform(x,U);
@@ -587,7 +623,7 @@ namespace madness {
   Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction> &x, const std::vector<vecfuncT> &V)const{
     // Make formated timings
     CCTimer timeF(world,"Matrix: F");
-    CCTimer timeT(world,"Matrix: T");
+    CCTimer timeT(world,"Matrix: T+Vn");
     CCTimer timeV(world,"Matrix: V");
     CCTimer timeR(world,"Matrix: e");
 
@@ -612,21 +648,98 @@ namespace madness {
 	timeT.start();
 	// gradient operator
 	std::vector < std::shared_ptr<real_derivative_3d> > D =gradient_operator<double, 3>(world);
-	for(size_t k=0;k<x.size();k++){
-	  const vecfuncT dkx = apply(world,*(D[0]),xbra[k]);
-	  const vecfuncT dky = apply(world,*(D[1]),xbra[k]);
-	  const vecfuncT dkz = apply(world,*(D[2]),xbra[k]);
-	  for(size_t l=0;l<x.size();l++){
-	    const vecfuncT dlx = apply(world,*(D[0]),x[l].get_vecfunction());
-	    const vecfuncT dly = apply(world,*(D[1]),x[l].get_vecfunction());
-	    const vecfuncT dlz = apply(world,*(D[2]),x[l].get_vecfunction());
-	    T(l,k) = 0.0;
-	    T(l,k) +=0.5*inner(world,dlx,dkx).sum();
-	    T(l,k) +=0.5*inner(world,dly,dky).sum();
-	    T(l,k) +=0.5*inner(world,dlz,dkz).sum();
-	  }
+//	// calculate all gradients
+//	std::vector<vecfuncT> dx(x.size(),zero_functions<double,3>(world,x.front().size()));
+//	std::vector<vecfuncT> dy(x.size(),zero_functions<double,3>(world,x.front().size()));
+//	std::vector<vecfuncT> dz(x.size(),zero_functions<double,3>(world,x.front().size()));
+//	CCTimer time_grad(world,"make gradients");
+//	for(size_t k=0;k<x.size();k++){
+//	    dx[k] = apply(world,*(D[0]),x[k].get_vecfunction(),false);
+//	    dy[k] = apply(world,*(D[1]),x[k].get_vecfunction(),false);
+//	    dz[k] = apply(world,*(D[2]),x[k].get_vecfunction(),false);
+//	}
+//	world.gop.fence();
+//	time_grad.info();
+//
+//	// gradients for nuclear correlation factor: <x|T|x> = <x|R2T|x> = 0.5*<Grad(R2*x)|Gradx> = 0.5<R2*Gradx|Gradx> - 0.5*<2*R2*U1x|Gradx> = 0.5*<R2*Gradx|Gradx> - <U1x|R2*Gradx>
+//	// here we make the U1x functions
+//	std::vector<vecfuncT> U1x(x.size(),zero_functions<double,3>(world,x.front().size()));
+//	std::vector<vecfuncT> U1y(x.size(),zero_functions<double,3>(world,x.front().size()));
+//	std::vector<vecfuncT> U1z(x.size(),zero_functions<double,3>(world,x.front().size()));
+//	CCTimer time_U1(world,"make U1x");
+//	{
+//	  const vecfuncT U1= nemo.nuclear_correlation->U1vec();
+//	  for(size_t k=0;k<U1x.size();k++){
+//	      R2U1x[k] = U1[0]*x[k].get_vecfunction();
+//	      R2U1y[k] = U1[1]*x[k].get_vecfunction();
+//	      R2U1z[k] = U1[2]*x[k].get_vecfunction();
+//	  }
+//	}
+//	time_U1.info();
+//
+//	// make the matrix
+//	CCTimer time_mat(world,"Make T-Matrix");
+//	for(size_t k=0;k<x.size();k++){
+//	    vecfuncT dxk = make_bra(dx[k]);
+//	    vecfuncT dyk = make_bra(dy[k]);
+//	    vecfuncT dzk = make_bra(dz[k]);
+//	    for(size_t l=0;l<x.size();l++){
+//		const double tmp1= 0.5*inner(world,dxk,dx[l]).sum();
+//		const double tmp2= 0.5*inner(world,dyk,dy[l]).sum();
+//		const double tmp3= 0.5*inner(world,dzk,dz[l]).sum();
+//		const double tmp4= -1.0*inner(world,dxk,U1x[l]).sum();
+//		const double tmp5= -1.0*inner(world,dyk,U1y[l]).sum();
+//		const double tmp6= -1.0*inner(world,dzk,U1z[l]).sum();
+//		world.gop.fence();
+//		T(k,l) = tmp1 + tmp2 + tmp3 + tmp4 + tmp5 + tmp6;
+//		// make the nemo part
+//
+//	    }
+//	}
+//	time_mat.info();
+
+
+	real_function_3d Vnuc = nemo.get_calc()->potentialmanager->vnuclear();
+	if(not Vnuc.is_initialized()){
+	  msg.output("Compute Nuclear Potential");
+	  nemo.get_calc()->potentialmanager->make_nuclear_potential(world);
+	  Vnuc = nemo.get_calc()->potentialmanager->vnuclear();
 	}
+
+	const real_function_3d R = nemo.nuclear_correlation -> function();
+	std::vector<vecfuncT> Rx(x.size(),zero_functions<double,3>(world,x.front().size()));
+	CCTimer timeR(world,"make Rx");
+	for(size_t k=0;k<x.size();k++){
+	    Rx[k] = mul(world,R,x[k].get_vecfunction(),false);
+	}
+	world.gop.fence();
+	timeR.info(parameters.debug);
+	std::vector<vecfuncT> dx(x.size(),zero_functions<double,3>(world,x.front().size()));
+	std::vector<vecfuncT> dy(x.size(),zero_functions<double,3>(world,x.front().size()));
+	std::vector<vecfuncT> dz(x.size(),zero_functions<double,3>(world,x.front().size()));
+	CCTimer timeD(world,"make Grad(Rx)");
+	for(size_t k=0;k<x.size();k++){
+	    dx[k] = apply(world,*(D[0]),Rx[k],false);
+	    dy[k] = apply(world,*(D[1]),Rx[k],false);
+	    dz[k] = apply(world,*(D[2]),Rx[k],false);
+	}
+	world.gop.fence();
+	timeD.info(parameters.debug);
+
+	CCTimer time_mat(world,"T+V Mat");
+	for(size_t k=0;k<x.size();k++){
+	   const vecfuncT Vxk = mul(world,Vnuc,x[k].get_vecfunction());
+	   for(size_t l=0;l<x.size();l++){
+	       T(l,k) = inner(world,xbra[l],Vxk).sum();
+	       T(l,k) += 0.5*inner(world,dx[l],dx[k]).sum();
+	       T(l,k) += 0.5*inner(world,dy[l],dy[k]).sum();
+	       T(l,k) += 0.5*inner(world,dz[l],dz[k]).sum();
+	   }
+
+	}
+	time_mat.info(parameters.debug);
 	timeT.stop();
+	if(parameters.debug) std::cout << "T+V Matrix" << T << "\n";
       }
       Tensor<double> MV(x.size(),x.size());
       {
@@ -665,17 +778,21 @@ namespace madness {
 	}
       }
       timeR.stop();
-      if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nKinetik Matrix\n" << T << "\n";
+      if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\n(T+V) Matrix\n" << T << "\n";
       if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nPotential Matrix\n" << MV << "\n";
       if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nPerturbed Fock Matrix\n" << F << "\n";
     }
     timeF.stop();
     if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nPerturbed Fock Matrix\n" << F << "\n";
     //formated timings output
-    if(parameters.debug)timeT.print();
-    if(parameters.debug)timeV.print();
-    if(parameters.debug)timeR.print();
+    timeT.print();
+    timeV.print();
+    timeR.print();
     timeF.print();
+
+    // symmetryze
+    F = 0.5*(F + transpose<double>(F));
+    if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nSymmetrized Perturbed Fock Matrix\n" << F << "\n";
 
     return F;
   }
@@ -706,10 +823,13 @@ namespace madness {
     for(const auto& exs:exop_strings){
       std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(new polynomial_functor(exs));
       real_function_3d exop = real_factory_3d(world).functor(exop_functor);
-      const double norm =exop.norm2();
-      exop=exop.scale(1.0/norm);
-      exop.truncate();
-
+      // do damp
+      if(parameters.tda_damping_width > 0.0){
+	      std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(new gauss_functor(parameters.tda_damping_width));
+	      real_function_3d damp = real_factory_3d(world).functor(damp_functor);
+	      plot_plane(world,damp,"damping_function");
+	      exop = (exop*damp).truncate();
+      }
       exops.push_back(exop);
     }
 

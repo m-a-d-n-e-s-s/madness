@@ -342,7 +342,8 @@ namespace madness{
     tda_store_potential(true),
     tda_iter_max(25),
     tda_iter_guess(10),
-    tda_homo_guess(false)
+    tda_homo_guess(false),
+    tda_damping_width(0.0)
   {
     // get the parameters from the input file
     std::ifstream f(input.c_str());
@@ -449,6 +450,7 @@ namespace madness{
 	else if ( s == "tda_iter_max") f>>tda_iter_max;
 	else if ( s == "tda_iter_guess") f>> tda_iter_guess;
 	else if ( s == "tda_homo_guess") tda_homo_guess=true;
+	else if ( s == "tda_damping_width") f>>tda_damping_width;
 	else if ( s == "tda_exop" or s == "exop"){
         std::string tmp;
 	  char buf[1024];
@@ -549,6 +551,7 @@ namespace madness{
     debug(other.debug),
     plot(other.plot),
     kain(other.kain),
+    kain_subspace(other.kain_subspace),
     freeze(other.freeze),
     test(other.test),
     decompose_Q(other.decompose_Q),
@@ -571,7 +574,8 @@ namespace madness{
     tda_iter_max(other.tda_iter_max),
     tda_iter_guess(other.tda_iter_guess),
     tda_homo_guess(other.tda_homo_guess),
-    tda_exops(other.tda_exops)
+    tda_exops(other.tda_exops),
+    tda_damping_width(other.tda_damping_width)
   {}
 
   void CCParameters::information(World &world)const{
@@ -674,6 +678,7 @@ namespace madness{
 	std::cout << "tda_iter_max             :" << tda_iter_max                << std::endl;
 	std::cout << "tda_iter_guess           :" << tda_iter_guess              << std::endl;
 	std::cout << "tda_homo_guess           :" << tda_homo_guess << std::endl;
+	std::cout << "tda_damping_width   :" << tda_damping_width << std::endl;
 
 	std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
 	std::cout << std::setfill(' ');

@@ -59,11 +59,11 @@ namespace madness {
     bool iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y,bool iterate_y,const double dconv, const double econv, const double iter, const bool kain)const;
     /// Apply the Greens function to a vector of vectorfunction with a given potential
     /// @param[in] x: the vector of vectorfunctions where G will be applied to
-    /// @param[in] V: the vector of potentials to the vectorfunctions
+    /// @param[in] V: the vector of potentials to the vectorfunctions, will be cleared afterwards (potentials are all potentials excpet the nuclear: 2J - K + Q(2pJ - pK)
     /// @param[out] the vectorfunctions after G has been applied
     /// the energy is assumed to be stored in the CC_vecfunctions member omega
     /// the wavefunction error is stored in the CC_vecfunctions member current_error
-    std::vector<vecfuncT> apply_G(std::vector<CC_vecfunction> &x, const std::vector<vecfuncT> &V)const;
+    std::vector<vecfuncT> apply_G(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const;
     /// Guess for TDHF y functions (not ready)
     std::vector<CC_vecfunction> make_y_guess(const std::vector<CC_vecfunction> & x, std::vector<CC_vecfunction> & y)const;
     /// Make the CIS Guess
