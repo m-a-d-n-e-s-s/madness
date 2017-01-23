@@ -337,7 +337,7 @@ namespace madness {
       for(auto& tmp : singles.functions){
 	const double change = (tmp.second.function - old_singles(tmp.first).function).norm2();
 	tmp.second.current_error= change;
-	if(change>parameters.dconv_6D) no_change=false;
+	if(change>parameters.dconv_3D) no_change=false;
 	if(world.rank() == 0) std::cout << "Change of " << tmp.second.name() << "=" << tmp.second.current_error << std::endl;
       }
       // update reg_residues of doubles
@@ -346,7 +346,7 @@ namespace madness {
 
       //CCOPS.plot(singles);
       singles.save_functions();
-      if(no_change) output("Change of Singles was below (0.1*thresh_6D) = " +std::to_string(parameters.dconv_6D*0.1)+"!");
+      if(no_change) output("Change of Singles was below  = " +std::to_string(parameters.dconv_3D)+"!");
       return no_change;
     }
 
