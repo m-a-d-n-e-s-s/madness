@@ -8,92 +8,17 @@
 #ifndef SRC_APPS_CHEM_TDHF_H_
 #define SRC_APPS_CHEM_TDHF_H_
 
-#include <chem/CCStructures.h>
-#include <chem/projector.h>
-#include <chem/nemo.h>
-#include <chem/SCFOperators.h>
-#include <examples/nonlinsol.h>
+#include "CCStructures.h"
+#include "nemo.h"
+#include "projector.h"
+#include "SCFOperators.h"
+#include "electronic_correlation_factor.h"
 
 namespace madness {
 
-  /// this is needed often for KAIN and other functions
-  template <typename T, typename R, std::size_t NDIM>
-  double inner( const std::vector< Function<T,NDIM> >& f,
-	                                            const std::vector< Function<R,NDIM> >& g){
-    MADNESS_ASSERT(f.size()==g.size());
-    if(f.empty()) return 0.0;
-    else return inner(f[0].world(),f,g).sum();
-  }
-
-  // KAIN allocator for vectorfunctions
-  struct TDHF_allocator{
-  	World& world;
-  	const int noct;
-
-  	/// @param[in]	world	the world
-  	/// @param[in]	nnoct	the number of functions in a given vector
-  	/// @todo validate doxygen on `nnoct`
-  	TDHF_allocator(World& world, const int nnoct) : world(world), noct(nnoct) {}
-
-  	vecfuncT operator()(){
-  		return zero_functions<double,3>(world,noct);
-  	}
-  	TDHF_allocator operator=(const TDHF_allocator &other){
-  		TDHF_allocator tmp(world,other.noct);
-  		return tmp;
-  	}
-  };
-
-  /// Project a general 3D polynomial to the MRA Grid
-  /// input can be given as string in the form: "x ex y ey z ez" for the polynomial x^ex y^ey z^ez
-  struct polynomial_functor : public FunctionFunctorInterface<double,3> {
-  public :
-  	polynomial_functor(const std::string input) : input_string_(input), data_(read_string(input)) {}
-
-  	double operator()(const coord_3d &r)const{
-  		double result =0.0;
-  		for(size_t i=0;i<data_.size();i++){
-  			if(data_[i].size()!=4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, empty data_ entry",1);
-  			result += ( data_[i][3]*pow(r[0],data_[i][0])*pow(r[1],data_[i][1])*pow(r[2],data_[i][2]) );
-  		}
-  		return result;
-  	}
-  private:
-  	const std::string input_string_;
-  	/// The data for the construction of the polynomial chain
-  	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
-  	const std::vector<std::vector<double>> data_;
-  public:
-  	std::vector<std::vector<double> > read_string(const std::string string)const{
-  		std::stringstream line(string);
-  				std::string name;
-  				size_t counter = 0;
-  				std::vector<double> current_data = vector_factory(0.0,0.0,0.0,1.0);
-  				std::vector<std::vector<double> > read_data;
-  				while(line>>name){
-  					if(name=="c") line>>current_data[3];
-  					else if(name=="x") line>>current_data[0];
-  					else if(name=="y") line>>current_data[1];
-  					else if(name=="z") line>>current_data[2];
-  					else if(name==","){
-  						counter++; read_data.push_back(current_data); current_data = vector_factory(0.0,0.0,0.0,1.0);
-  					}
-  				}
-  				// dont forget the last read polynomial
-  				read_data.push_back(current_data);
-  				return read_data;
-  	}
-  	void test(){
-  		std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
-  		std::cout << "\n read data is \n" << data_ << std::endl;
-   	}
-  	std::vector<std::vector<double> > give_data(){return data_;}
-  };
-
-  /// Compute the CIS Solutions to a given SCF
   class TDHF{
   public:
-    TDHF(World & world, const CC_Parameters& param,const Nemo &nemo);
+    TDHF(World & world, const CCParameters& param,const Nemo &nemo);
     virtual
     ~TDHF();
     /// Initialize the CIS functions
@@ -117,11 +42,11 @@ namespace madness {
     void solve_tdhf(std::vector<CC_vecfunction>& guess)const;
     /// iterate the CIS guess vectors
     /// @param[in,out] x: on input the guess, on output the iterated guess
-    /// see CC_Structures.h CC_Parameters class for convergence criteria
+    /// see CC_Structures.h CCParameters class for convergence criteria
     bool iterate_cis_guess_vectors(std::vector<CC_vecfunction> &x)const;
     /// iterate the final CIS vectors
     /// @param[in,out] x: on input the guess, on output the iterated guess
-    /// see CC_Structures.h CC_Parameters class for convergence criteria
+    /// see CC_Structures.h CCParameters class for convergence criteria
     bool iterate_cis_final_vectors(std::vector<CC_vecfunction> &x)const;
     /// General function to iterate vectors
     /// @param[in,out] x: the CIS (or TDHF x) functions
@@ -130,19 +55,19 @@ namespace madness {
     /// @param[in] dconv: wavefunction convergence (for the vector norm of the vectorfunction)
     /// @param[in] econv: Energy convergece
     /// @param[in] iter: maximum number of iterations
-    /// @param[in] kain: use kain if true (kainsubspace is controlled over CC_Parameters class)
+    /// @param[in] kain: use kain if true (kainsubspace is controlled over CCParameters class)
     bool iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y,bool iterate_y,const double dconv, const double econv, const double iter, const bool kain)const;
     /// Apply the Greens function to a vector of vectorfunction with a given potential
     /// @param[in] x: the vector of vectorfunctions where G will be applied to
-    /// @param[in] V: the vector of potentials to the vectorfunctions
+    /// @param[in] V: the vector of potentials to the vectorfunctions, will be cleared afterwards (potentials are all potentials excpet the nuclear: 2J - K + Q(2pJ - pK)
     /// @param[out] the vectorfunctions after G has been applied
     /// the energy is assumed to be stored in the CC_vecfunctions member omega
     /// the wavefunction error is stored in the CC_vecfunctions member current_error
-    std::vector<vecfuncT> apply_G(std::vector<CC_vecfunction> &x, const std::vector<vecfuncT> &V)const;
+    std::vector<vecfuncT> apply_G(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const;
     /// Guess for TDHF y functions (not ready)
     std::vector<CC_vecfunction> make_y_guess(const std::vector<CC_vecfunction> & x, std::vector<CC_vecfunction> & y)const;
     /// Make the CIS Guess
-    /// the type of guess is  ontrolled over the tda_guess keyword in the CC_Parameters class (CC_Structures.h)
+    /// the type of guess is  ontrolled over the tda_guess keyword in the CCParameters class (CC_Structures.h)
     std::vector<CC_vecfunction> make_guess()const;
     /// Guess only takes the Homos into account
     /// Guess functions are created from the application of the excitation operators (see tda_guess keyword)
@@ -151,7 +76,7 @@ namespace madness {
     std::vector<CC_vecfunction> make_homo_guess()const;
     /// initialize the excitation functions
     bool
-    initialize_singles(CC_vecfunction &singles,const functype type,const int ex) const;
+    initialize_singles(CC_vecfunction &singles,const FuncType type,const int ex) const;
 
 
     /// Make the potentials to a given vector of vecfunctions (excitations)
@@ -221,9 +146,9 @@ namespace madness {
     }
     /// maybe move this into nuclear_correlation class ?
     vecfuncT make_bra(const vecfuncT &ket)const{
-      CC_Timer time(world,"Make Bra");
+      CCTimer time(world,"Make Bra");
       real_function_3d nucf = nemo.nuclear_correlation ->square();
-      vecfuncT result= nucf*ket;
+      vecfuncT result= mul(world,nucf,ket);
       time.info(parameters.debug);
       return result;
     }
@@ -254,18 +179,18 @@ namespace madness {
     /// The MPI Communicator
     World& world;
     /// The Parameters for the Calculations
-    const CC_Parameters& parameters;
+    const CCParameters& parameters;
     /// The Nemo structure (convenience)
     const Nemo& nemo;
     /// Operator Structure which can handle intermediates (use for exchange with GS orbitals)
-    CC_convolution_operator g12;
+    CCConvolutionOperator g12;
     /// MO bra and ket
     const CC_vecfunction mo_ket_;
     const CC_vecfunction mo_bra_;
     /// the Projector to the virtual space
     const QProjector<double,3> Q;
     /// the messenger IO
-    messenger msg;
+    CCMessenger msg;
   };
 
 } /* namespace madness */

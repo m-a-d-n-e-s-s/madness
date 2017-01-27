@@ -176,6 +176,7 @@ namespace madness {
         static int k;                 ///< Wavelet order
         static double thresh;          ///< Truncation threshold
         static int initial_level;      ///< Initial level for fine scale projection
+        static int special_level;      ///< Minimum level for fine scale projection of special boxes
         static int max_refine_level;   ///< Level at which to stop refinement
         static int truncate_mode;    ///< Truncation method
         static bool refine;            ///< Whether to refine new functions
@@ -239,12 +240,24 @@ namespace madness {
             return initial_level;
         }
 
+        /// Returns the default projection level for special boxes
+        static int get_special_level() {
+            return special_level;
+        }
+
         /// Sets the default initial projection level
 
         /// Existing functions are unaffected
         static void set_initial_level(int value) {
             initial_level=value;
             MADNESS_ASSERT(value>0 && value<MAXLEVEL);
+        }
+
+        /// Existing functions are unaffected
+        static void set_special_level(int value) {
+            special_level=value;
+            MADNESS_ASSERT(value>0 && value<MAXLEVEL);
+            MADNESS_ASSERT(max_refine_level>=special_level);
         }
 
         /// Gets the default maximum adaptive refinement level
@@ -258,6 +271,8 @@ namespace madness {
         static void set_max_refine_level(int value) {
             max_refine_level=value;
             MADNESS_ASSERT(value>0 && value<MAXLEVEL);
+            MADNESS_ASSERT(max_refine_level>=initial_level);
+            MADNESS_ASSERT(max_refine_level>=special_level);
         }
 
         /// Gets the default truncation mode
@@ -366,6 +381,15 @@ namespace madness {
 #endif
         }
 
+        /// adapt the special level to resolve the smallest length scale
+        static int set_length_scale(const double lo,const size_t k=get_k()) {
+          const double dk = (double) k;
+          double Lmax=FunctionDefaults<NDIM>::get_cell_width().max();
+          double lo_sim=lo/Lmax;  // lo in simulation coordinates;
+          const int special_level=Level(-log2(lo_sim*dk));
+          return special_level;
+        }
+
         /// Gets the user cell for the simulation
         static const Tensor<double>& get_cell() {
             return cell;
@@ -436,6 +460,18 @@ namespace madness {
             xsim[i] = (xuser[i] - FunctionDefaults<NDIM>::get_cell()(i,0)) * FunctionDefaults<NDIM>::get_rcell_width()[i];
     }
 
+    /// Returns the box at level n that contains the given point in simulation coordinates
+    /// @param[in] pt point in simulation coordinates
+    /// @param[in] n the level of the box
+    template <typename T, std::size_t NDIM>
+    static inline Key<NDIM> simpt2key(const Vector<T,NDIM>& pt, Level n){
+        Vector<Translation,NDIM> l;
+        double twon = std::pow(2.0, double(n));
+        for (std::size_t i=0; i<NDIM; ++i) {
+            l[i] = Translation(twon*pt[i]);
+        }
+        return Key<NDIM>(n,l);
+    }
 
     /// Convert simulation coords ([0,1]^ndim) to user coords (FunctionDefaults<NDIM>::get_cell())
     template <std::size_t NDIM>

@@ -621,6 +621,16 @@ namespace madness {
         return r;
     }
 
+    /// inner function with right signature for the nonlinear sovler
+    /// this is needed for the KAIN solvers and other functions
+    template <typename T, typename R, std::size_t NDIM>
+    double inner( const std::vector< Function<T,NDIM> >& f,
+	                                            const std::vector< Function<R,NDIM> >& g){
+      MADNESS_ASSERT(f.size()==g.size());
+      if(f.empty()) return 0.0;
+      else return inner(f[0].world(),f,g).sum();
+    }
+
 
     /// Multiplies a function against a vector of functions --- q[i] = a * v[i]
     template <typename T, typename R, std::size_t NDIM>
