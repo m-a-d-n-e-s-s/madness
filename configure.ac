@@ -1,7 +1,7 @@
 AC_PREREQ(2.59)
 # was 2.61 but jaguar is not up to date so backported which
 # involved replacing AC_PROG_SED and UINT*_T type checks.
-AC_INIT([MADNESS], [0.10.1], [https://github.com/m-a-d-n-e-s-s/madness/issues], , [https://github.com/m-a-d-n-e-s-s/madness])
+AC_INIT([MADNESS], [0.11.0], [https://github.com/m-a-d-n-e-s-s/madness/issues], , [https://github.com/m-a-d-n-e-s-s/madness])
 AC_CONFIG_SRCDIR([configure.ac])
 
 # This is where autoconf automatically generated files go

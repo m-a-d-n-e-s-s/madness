@@ -8,8 +8,8 @@ endif()
 
 # Set MADNESS version
 set(MADNESS_MAJOR_VERSION 0)
-set(MADNESS_MINOR_VERSION 10)
-set(MADNESS_MICRO_VERSION 1)
+set(MADNESS_MINOR_VERSION 11)
+set(MADNESS_MICRO_VERSION 0)
 set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS_MICRO_VERSION}")
 
 # Add module directory and modules =============================================
