@@ -17,6 +17,7 @@ typedef struct MPI_Status {
     int MPI_ERROR;
 
 } MPI_Status;
+typedef int MPI_Errhandler;
 #define MPI_STATUS_IGNORE ((MPI_Status *)1)
 #define MPI_STATUSES_IGNORE ((MPI_Status *)1)
 
@@ -29,6 +30,7 @@ typedef int MPI_Comm;
 #define MPI_SUCCESS          0      /* Successful return code */
 #define MPI_ERR_COMM         5      /* Invalid communicator */
 #define MPI_ERR_ARG         12      /* Invalid argument */
+#define MPI_ERR_IN_STATUS   17      /* Look in status for error value */
 #define MPI_MAX_ERROR_STRING 1024
 
 /* Results of the compare operations. */
@@ -44,6 +46,10 @@ typedef int MPI_Comm;
 #define MPI_DATATYPE_NULL   ((MPI_Datatype)0x0c000000)
 #define MPI_REQUEST_NULL    ((MPI_Request)0x2c000000)
 #define MPI_ERRHANDLER_NULL ((MPI_Errhandler)0x14000000)
+
+/* error handler codes */
+#define MPI_ERRORS_ARE_FATAL ((MPI_Errhandler)0x54000000)
+#define MPI_ERRORS_RETURN    ((MPI_Errhandler)0x54000001)
 
 /* MPI thread support levels */
 /* these constants are consistent with MPICH2 mpi.h */
@@ -151,6 +157,7 @@ inline int MPI_Comm_size(MPI_Comm, int* size) { *size = 1; return MPI_SUCCESS; }
 
 // There is only one node so sending messages is not allowed. Always return MPI_ERR_COMM
 inline int MPI_Isend(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request *) { return MPI_ERR_COMM; }
+inline int MPI_Issend(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request *) { return MPI_ERR_COMM; }
 inline int MPI_Send(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
 inline int MPI_Bsend(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
 inline int MPI_Irecv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request*) { return MPI_ERR_COMM; }
@@ -199,6 +206,10 @@ inline int MPI_Comm_compare(MPI_Comm comm1, MPI_Comm comm2, int *result) {
     return MPI_SUCCESS;
 }
 
+inline int MPI_Comm_split(MPI_Comm comm, int /*color*/, int /*key*/, MPI_Comm *newcomm) {
+  *newcomm = MPI_COMM_NULL;
+  return MPI_SUCCESS;
+}
 
 inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
     switch(errorcode) {
@@ -220,6 +231,10 @@ inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
     }
 
     return MPI_SUCCESS;
+}
+
+inline int MPI_Errhandler_set(MPI_Comm comm, MPI_Errhandler errhandler) {
+  return MPI_SUCCESS;
 }
 
 inline double MPI_Wtime() { return madness::wall_time(); }
