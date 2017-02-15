@@ -40,7 +40,7 @@
 #include <sstream>
 #include <list>
 #include <memory>
-#include <mpi.h>
+#include <madness/world/safempi.h>
 
 namespace madness {
 
