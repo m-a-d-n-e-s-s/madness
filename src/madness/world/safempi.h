@@ -695,7 +695,7 @@ namespace SafeMPI {
         void Send(const void* buf, const int count, const MPI_Datatype datatype, int dest, int tag) const {
             MADNESS_ASSERT(pimpl);
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Send(const_cast<void*>(buf), count, datatype, dest, tag, pimpl->comm));
+            MADNESS_MPI_TEST(MPI_Ssend(const_cast<void*>(buf), count, datatype, dest, tag, pimpl->comm));
         }
 
 #ifdef MADNESS_USE_BSEND_ACKS
