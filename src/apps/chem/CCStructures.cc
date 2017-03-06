@@ -20,20 +20,24 @@ namespace madness{
 
   void
   CCMessenger::section(const std::string& msg) const {
-    std::cout << "\n" << std::setw(msg.size() + 10) << std::setfill('*') << "\n";
-    std::setfill(' ');
-    output(msg);
-    std::cout << std::setw(msg.size() + 10) << std::setfill('*') << "\n\n";
-    std::setfill(' ');
+    if(world.rank() == 0){
+      std::cout << "\n" << std::setw(msg.size() + 10) << std::setfill('*') << "\n";
+      std::setfill(' ');
+      output(msg);
+      std::cout << std::setw(msg.size() + 10) << std::setfill('*') << "\n\n";
+      std::setfill(' ');
+    }
   }
 
   void
   CCMessenger::subsection(const std::string& msg) const {
-    std::cout << "\n" << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
-    std::setfill(' ');
-    output(msg);
-    std::cout << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
-    std::setfill(' ');
+    if(world.rank() == 0){
+      std::cout << "\n" << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
+      std::setfill(' ');
+      output(msg);
+      std::cout << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
+      std::setfill(' ');
+    }
   }
 
   void
@@ -203,16 +207,16 @@ namespace madness{
 	real_function_6d ij=CompositeFactory<double, 6, 3>(world).particle1(madness::copy(xx.function)).particle2(madness::copy(yy.function));
 	result=inner(u,ij);
       }
-	break;
+      break;
       case PT_DECOMPOSED: {
 	for(size_t i=0; i < a.size(); i++)
 	  result+=(xx.function.inner(a[i])) * (yy.function.inner(b[i]));
       }
-	break;
+      break;
       case PT_OP_DECOMPOSED: {
 	result=yy.function.inner((*op)(xx,x) * y.function);
       }
-	break;
+      break;
     }
     return result;
   }
@@ -266,7 +270,7 @@ namespace madness{
     else if(f.type == HOLE) output(assign_name(type) + " is zero for HOLE states");
     else MADNESS_EXCEPTION("Potential was not supposed to be stored",1)
 
-    ;
+	;
     if(result.norm2() < FunctionDefaults<3>::get_thresh()) output("WARNING: Potential seems to be zero ||V||=" + std::to_string(double(result.norm2())));
 
     return result;
@@ -289,61 +293,61 @@ namespace madness{
 
   /// ctor reading out the input file
   CCParameters::CCParameters(const std::string& input,const double &low) :
-    calculation(CT_LRCC2),
-    lo(uninitialized),
-    dmin(1.0),
-    thresh_3D(uninitialized),
-    tight_thresh_3D(uninitialized),
-    thresh_6D(uninitialized),
-    tight_thresh_6D(uninitialized),
-    thresh_bsh_3D(uninitialized),
-    thresh_bsh_6D(uninitialized),
-    thresh_poisson(uninitialized),
-    thresh_f12(uninitialized),
-    thresh_Ue(uninitialized),
-    econv(uninitialized),
-    econv_pairs(uninitialized),
-    dconv_3D(uninitialized),
-    dconv_6D(uninitialized),
-    iter_max(4),
-    iter_max_3D(5),
-    iter_max_6D(5),
-    restart(false),
-    no_compute(false),
-    no_compute_gs(false),
-    no_compute_response(false),
-    no_compute_mp2(false),
-    no_compute_cc2(false),
-    no_compute_cispd(false),
-    no_compute_lrcc2(false),
-    corrfac_gamma(1.0),
-    output_prec(8),
-    debug(false),
-    plot(false),
-    kain(false),
-    freeze(0),
-    test(false),
-    decompose_Q(true),
-    QtAnsatz(false),
-    excitations_(0),
-    tda_guess_orbitals(0),
-    tda_guess_mode("uninitialized"),
-    tda_excitations(0),
-    tda_guess_excitations(0),
-    tda_iterating_excitations(0),
-    tda_guess("uninitialized"),
-    tda_energy_guess_factor(uninitialized),
-    tda_dconv_guess(uninitialized),
-    tda_dconv(uninitialized),
-   // tda_dconv_hard(uninitialized),
-    tda_econv_guess(uninitialized),
-    tda_econv(uninitialized),
-    //tda_econv_hard(uninitialized),
-    tda_store_potential(true),
-    tda_iter_max(25),
-    tda_iter_guess(10),
-    tda_homo_guess(false),
-    tda_damping_width(0.0)
+	calculation(CT_LRCC2),
+	lo(uninitialized),
+	dmin(1.0),
+	thresh_3D(uninitialized),
+	tight_thresh_3D(uninitialized),
+	thresh_6D(uninitialized),
+	tight_thresh_6D(uninitialized),
+	thresh_bsh_3D(uninitialized),
+	thresh_bsh_6D(uninitialized),
+	thresh_poisson(uninitialized),
+	thresh_f12(uninitialized),
+	thresh_Ue(uninitialized),
+	econv(uninitialized),
+	econv_pairs(uninitialized),
+	dconv_3D(uninitialized),
+	dconv_6D(uninitialized),
+	iter_max(4),
+	iter_max_3D(5),
+	iter_max_6D(5),
+	restart(false),
+	no_compute(false),
+	no_compute_gs(false),
+	no_compute_response(false),
+	no_compute_mp2(false),
+	no_compute_cc2(false),
+	no_compute_cispd(false),
+	no_compute_lrcc2(false),
+	corrfac_gamma(1.0),
+	output_prec(8),
+	debug(false),
+	plot(false),
+	kain(false),
+	freeze(0),
+	test(false),
+	decompose_Q(true),
+	QtAnsatz(false),
+	excitations_(0),
+	tda_guess_orbitals(0),
+	tda_guess_mode("uninitialized"),
+	tda_excitations(0),
+	tda_guess_excitations(0),
+	tda_iterating_excitations(0),
+	tda_guess("uninitialized"),
+	tda_energy_guess_factor(uninitialized),
+	tda_dconv_guess(uninitialized),
+	tda_dconv(uninitialized),
+	// tda_dconv_hard(uninitialized),
+	tda_econv_guess(uninitialized),
+	tda_econv(uninitialized),
+	//tda_econv_hard(uninitialized),
+	tda_store_potential(true),
+	tda_iter_max(25),
+	tda_iter_guess(10),
+	tda_homo_guess(false),
+	tda_damping_width(0.0)
   {
     // get the parameters from the input file
     std::ifstream f(input.c_str());
@@ -356,112 +360,112 @@ namespace madness{
     double thresh_operators_6D=uninitialized;
 
     while (f >> s) {
-	//std::cout << "input tag is: " << s << std::endl;
-	std::transform(s.begin(),s.end(),s.begin(), ::tolower);
-	//std::cout << "transformed input tag is: " << s << std::endl;
-	if (s == "end") break;
-	else if (s == "calculation"){
-	  std::string tmp;
-	  f>>tmp;
-	  calculation = assign_calctype(tmp);
-	}
-	else if (s == "lo") f >> lo;
-	else if (s == "dmin") f>>dmin;
-	else if (s == "thresh") f >> thresh_6D;
-	else if (s == "thresh_3d") f >> thresh_3D;
-	else if (s == "tight_thresh_3d") f >> tight_thresh_3D;
-	else if (s == "thresh_6d") f >> thresh_6D;
-	else if (s == "tight_thresh_6d") f >> tight_thresh_6D;
-	else if (s == "debug") debug = true;
-	else if (s == "plot") plot = true;
-	else if (s == "econv")f >> econv;
-	else if (s == "econv_pairs")f >> econv_pairs;
-	else if (s == "dconv") f >> dconv_6D;
-	else if (s == "dconv_3d")f >> dconv_3D;
-	else if (s == "dconv_6d")f >> dconv_6D;
-	else if (s == "thresh_operators" or s == "thresh_operator") f>> thresh_operators;
-	else if (s == "thresh_operators_3d" or s == "thresh_operator_3d") f >> thresh_operators_3D;
-	else if (s == "thresh_operators_6d" or s == "thresh_operator_6d") f >> thresh_operators_6D;
-	else if (s == "thresh_bsh_3d") f >> thresh_bsh_3D;
-	else if (s == "thresh_bsh_6d") f >> thresh_bsh_6D;
-	else if (s == "thresh_poisson") f >> thresh_poisson;
-	else if (s == "thresh_f12") f >> thresh_f12;
-	else if (s == "thresh_ue") f >> thresh_Ue;
-	else if (s == "freeze") f >> freeze;
-	else if (s == "iter_max") f >> iter_max;
-	else if (s == "iter_max_3d") f >> iter_max_3D;
-	else if (s == "iter_max_6d") f >> iter_max_6D;
-	else if (s == "kain") kain=true;
-	else if (s == "kain_subspace") f>>kain_subspace;
-	else if (s == "freeze") f>>freeze;
-	else if (s == "test") test =true;
-	else if (s == "corrfac" or s=="corrfac_gamma" or s=="gamma") f>>corrfac_gamma;
-	else if (s == "decompose_q") decompose_Q=true;
-	else if (s == "restart")restart = true;
-	else if (s == "no_compute"){
-	  no_compute = true;
-	  no_compute_gs=true;
-	  no_compute_mp2=true;
-	  no_compute_cispd=true;
-	  no_compute_response=true;
-	}
-	else if (s == "no_compute_gs"){
-	  no_compute_gs=true;
-	  no_compute_mp2=true;
-	  no_compute_cc2=true;
-	}
-	else if (s == "no_compute_response"){
-	  no_compute_response=true;
-	  no_compute_cispd=true;
-	  no_compute_lrcc2=true;
-	}
-	else if (s == "no_compute_cc2") no_compute_cc2=true;
-	else if (s == "no_compute_cispd") no_compute_cispd=true;
-	else if (s == "no_compute_lrcc2") no_compute_lrcc2=true;
-	else if (s == "no_compute_mp2") no_compute_mp2=true;
-	else if (s == "only_pair"){
-	  size_t tmp1,tmp2;
-	  f>>tmp1; f>>tmp2;
-	  std::cout << "found only pair in the world: " << tmp1 <<", "<< tmp2 << "\n";
-	  only_pair = std::make_pair(tmp1,tmp2);
-	  MADNESS_ASSERT(not(tmp1>tmp2));
-	}
-	else if (s == "excitation"){
-	  size_t tmp;
-	  f>>tmp;
-	  excitations_.push_back(tmp);
-	}
-	else if ( s == "qtansatz") QtAnsatz=true;
-	else if ( s == "full_residue") decompose_Q=false;
-	else if ( s == "tda_guess_orbitals") f>>tda_guess_orbitals;
-	else if ( s == "tda_guess_mode") f>>tda_guess_mode;
-	else if ( s == "tda_guess_excitations") f>>tda_guess_excitations;
-	else if ( s == "tda_excitations") f>>tda_excitations;
-	else if ( s == "tda_iterating_excitations") f>>tda_iterating_excitations;
-	else if ( s == "tda_guess") f >> tda_guess;
-	else if ( s == "tda_energy_guess_factor") f >> tda_energy_guess_factor;
-	else if ( s == "tda_dconv_guess") f >> tda_dconv_guess;
-	else if ( s == "tda_dconv") f >> tda_dconv;
-	//else if ( s == "tda_dconv_hard")f >> tda_dconv_hard;
-	else if ( s == "tda_econv_guess") f >> tda_econv_guess;
-	else if ( s == "tda_econv") f >> tda_econv;
-	//else if ( s == "tda_econv_hard") f >> tda_econv_hard;
-	else if ( s == "tda_store_potential") f >> tda_store_potential;
-	else if ( s == "tda_iter_max") f>>tda_iter_max;
-	else if ( s == "tda_iter_guess") f>> tda_iter_guess;
-	else if ( s == "tda_homo_guess") tda_homo_guess=true;
-	else if ( s == "tda_damping_width") f>>tda_damping_width;
-	else if ( s == "tda_exop" or s == "exop"){
-        std::string tmp;
-	  char buf[1024];
-        f.getline(buf,sizeof(buf));
-        tmp = buf;
-        tda_exops.push_back(tmp);
-	}
-	else{
-	  std::cout << "Unknown Keyword: " << s << "\n";
-	  continue;
-	}
+      //std::cout << "input tag is: " << s << std::endl;
+      std::transform(s.begin(),s.end(),s.begin(), ::tolower);
+      //std::cout << "transformed input tag is: " << s << std::endl;
+      if (s == "end") break;
+      else if (s == "calculation"){
+	std::string tmp;
+	f>>tmp;
+	calculation = assign_calctype(tmp);
+      }
+      else if (s == "lo") f >> lo;
+      else if (s == "dmin") f>>dmin;
+      else if (s == "thresh") f >> thresh_6D;
+      else if (s == "thresh_3d") f >> thresh_3D;
+      else if (s == "tight_thresh_3d") f >> tight_thresh_3D;
+      else if (s == "thresh_6d") f >> thresh_6D;
+      else if (s == "tight_thresh_6d") f >> tight_thresh_6D;
+      else if (s == "debug") debug = true;
+      else if (s == "plot") plot = true;
+      else if (s == "econv")f >> econv;
+      else if (s == "econv_pairs")f >> econv_pairs;
+      else if (s == "dconv") f >> dconv_6D;
+      else if (s == "dconv_3d")f >> dconv_3D;
+      else if (s == "dconv_6d")f >> dconv_6D;
+      else if (s == "thresh_operators" or s == "thresh_operator") f>> thresh_operators;
+      else if (s == "thresh_operators_3d" or s == "thresh_operator_3d") f >> thresh_operators_3D;
+      else if (s == "thresh_operators_6d" or s == "thresh_operator_6d") f >> thresh_operators_6D;
+      else if (s == "thresh_bsh_3d") f >> thresh_bsh_3D;
+      else if (s == "thresh_bsh_6d") f >> thresh_bsh_6D;
+      else if (s == "thresh_poisson") f >> thresh_poisson;
+      else if (s == "thresh_f12") f >> thresh_f12;
+      else if (s == "thresh_ue") f >> thresh_Ue;
+      else if (s == "freeze") f >> freeze;
+      else if (s == "iter_max") f >> iter_max;
+      else if (s == "iter_max_3d") f >> iter_max_3D;
+      else if (s == "iter_max_6d") f >> iter_max_6D;
+      else if (s == "kain") kain=true;
+      else if (s == "kain_subspace") f>>kain_subspace;
+      else if (s == "freeze") f>>freeze;
+      else if (s == "test") test =true;
+      else if (s == "corrfac" or s=="corrfac_gamma" or s=="gamma") f>>corrfac_gamma;
+      else if (s == "decompose_q") decompose_Q=true;
+      else if (s == "restart")restart = true;
+      else if (s == "no_compute"){
+	no_compute = true;
+	no_compute_gs=true;
+	no_compute_mp2=true;
+	no_compute_cispd=true;
+	no_compute_response=true;
+      }
+      else if (s == "no_compute_gs"){
+	no_compute_gs=true;
+	no_compute_mp2=true;
+	no_compute_cc2=true;
+      }
+      else if (s == "no_compute_response"){
+	no_compute_response=true;
+	no_compute_cispd=true;
+	no_compute_lrcc2=true;
+      }
+      else if (s == "no_compute_cc2") no_compute_cc2=true;
+      else if (s == "no_compute_cispd") no_compute_cispd=true;
+      else if (s == "no_compute_lrcc2") no_compute_lrcc2=true;
+      else if (s == "no_compute_mp2") no_compute_mp2=true;
+      else if (s == "only_pair"){
+	size_t tmp1,tmp2;
+	f>>tmp1; f>>tmp2;
+	std::cout << "found only pair in the world: " << tmp1 <<", "<< tmp2 << "\n";
+	only_pair = std::make_pair(tmp1,tmp2);
+	MADNESS_ASSERT(not(tmp1>tmp2));
+      }
+      else if (s == "excitation"){
+	size_t tmp;
+	f>>tmp;
+	excitations_.push_back(tmp);
+      }
+      else if ( s == "qtansatz") QtAnsatz=true;
+      else if ( s == "full_residue") decompose_Q=false;
+      else if ( s == "tda_guess_orbitals") f>>tda_guess_orbitals;
+      else if ( s == "tda_guess_mode") f>>tda_guess_mode;
+      else if ( s == "tda_guess_excitations") f>>tda_guess_excitations;
+      else if ( s == "tda_excitations") f>>tda_excitations;
+      else if ( s == "tda_iterating_excitations") f>>tda_iterating_excitations;
+      else if ( s == "tda_guess") f >> tda_guess;
+      else if ( s == "tda_energy_guess_factor") f >> tda_energy_guess_factor;
+      else if ( s == "tda_dconv_guess") f >> tda_dconv_guess;
+      else if ( s == "tda_dconv") f >> tda_dconv;
+      //else if ( s == "tda_dconv_hard")f >> tda_dconv_hard;
+      else if ( s == "tda_econv_guess") f >> tda_econv_guess;
+      else if ( s == "tda_econv") f >> tda_econv;
+      //else if ( s == "tda_econv_hard") f >> tda_econv_hard;
+      else if ( s == "tda_store_potential") f >> tda_store_potential;
+      else if ( s == "tda_iter_max") f>>tda_iter_max;
+      else if ( s == "tda_iter_guess") f>> tda_iter_guess;
+      else if ( s == "tda_homo_guess") tda_homo_guess=true;
+      else if ( s == "tda_damping_width") f>>tda_damping_width;
+      else if ( s == "tda_exop" or s == "exop"){
+	std::string tmp;
+	char buf[1024];
+	f.getline(buf,sizeof(buf));
+	tmp = buf;
+	tda_exops.push_back(tmp);
+      }
+      else{
+	std::cout << "Unknown Keyword: " << s << "\n";
+	continue;
+      }
     }
 
     // set defaults
@@ -519,169 +523,169 @@ namespace madness{
 
   /// copy constructor
   CCParameters::CCParameters(const CCParameters& other) :
-    calculation(other.calculation),
-    lo(other.lo),
-    dmin(other.dmin),
-    thresh_3D(other.thresh_3D),
-    tight_thresh_3D(other.tight_thresh_3D),
-    thresh_6D(other.thresh_6D),
-    tight_thresh_6D(other.tight_thresh_6D),
-    thresh_bsh_3D(other.thresh_bsh_3D),
-    thresh_bsh_6D(other.thresh_bsh_6D),
-    thresh_poisson(other.thresh_poisson),
-    thresh_f12(other.thresh_f12),
-    thresh_Ue(other.thresh_Ue),
-    econv(other.econv),
-    econv_pairs(other.econv_pairs),
-    dconv_3D(other.dconv_3D),
-    dconv_6D(other.dconv_6D),
-    iter_max(other.iter_max),
-    iter_max_3D(other.iter_max_3D),
-    iter_max_6D(other.iter_max_6D),
-    restart(other.restart),
-    no_compute(other.no_compute),
-    no_compute_gs(other.no_compute_gs),
-    no_compute_response(other.no_compute_response),
-    no_compute_mp2(other.no_compute_response),
-    no_compute_cc2(other.no_compute_mp2),
-    no_compute_cispd(other.no_compute_cispd),
-    no_compute_lrcc2(other.no_compute_lrcc2),
-    corrfac_gamma(other.corrfac_gamma),
-    output_prec(other.output_prec),
-    debug(other.debug),
-    plot(other.plot),
-    kain(other.kain),
-    kain_subspace(other.kain_subspace),
-    freeze(other.freeze),
-    test(other.test),
-    decompose_Q(other.decompose_Q),
-    QtAnsatz(other.QtAnsatz),
-    excitations_(other.excitations_),
-    tda_guess_orbitals(0),
-    tda_guess_mode(other.tda_guess_mode),
-    tda_excitations(other.tda_excitations),
-    tda_guess_excitations(other.tda_guess_excitations),
-    tda_iterating_excitations(other.tda_iterating_excitations),
-    tda_guess(other.tda_guess),
-    tda_energy_guess_factor(other.tda_energy_guess_factor),
-    tda_dconv_guess(other.tda_dconv_guess),
-    tda_dconv(other.tda_dconv),
-    tda_dconv_hard(other.tda_dconv_hard),
-    tda_econv_guess(other.tda_econv_guess),
-    tda_econv(other.tda_econv),
-    tda_econv_hard(other.tda_econv_hard),
-    tda_store_potential(other.tda_store_potential),
-    tda_iter_max(other.tda_iter_max),
-    tda_iter_guess(other.tda_iter_guess),
-    tda_homo_guess(other.tda_homo_guess),
-    tda_exops(other.tda_exops),
-    tda_damping_width(other.tda_damping_width)
+	calculation(other.calculation),
+	lo(other.lo),
+	dmin(other.dmin),
+	thresh_3D(other.thresh_3D),
+	tight_thresh_3D(other.tight_thresh_3D),
+	thresh_6D(other.thresh_6D),
+	tight_thresh_6D(other.tight_thresh_6D),
+	thresh_bsh_3D(other.thresh_bsh_3D),
+	thresh_bsh_6D(other.thresh_bsh_6D),
+	thresh_poisson(other.thresh_poisson),
+	thresh_f12(other.thresh_f12),
+	thresh_Ue(other.thresh_Ue),
+	econv(other.econv),
+	econv_pairs(other.econv_pairs),
+	dconv_3D(other.dconv_3D),
+	dconv_6D(other.dconv_6D),
+	iter_max(other.iter_max),
+	iter_max_3D(other.iter_max_3D),
+	iter_max_6D(other.iter_max_6D),
+	restart(other.restart),
+	no_compute(other.no_compute),
+	no_compute_gs(other.no_compute_gs),
+	no_compute_response(other.no_compute_response),
+	no_compute_mp2(other.no_compute_response),
+	no_compute_cc2(other.no_compute_mp2),
+	no_compute_cispd(other.no_compute_cispd),
+	no_compute_lrcc2(other.no_compute_lrcc2),
+	corrfac_gamma(other.corrfac_gamma),
+	output_prec(other.output_prec),
+	debug(other.debug),
+	plot(other.plot),
+	kain(other.kain),
+	kain_subspace(other.kain_subspace),
+	freeze(other.freeze),
+	test(other.test),
+	decompose_Q(other.decompose_Q),
+	QtAnsatz(other.QtAnsatz),
+	excitations_(other.excitations_),
+	tda_guess_orbitals(0),
+	tda_guess_mode(other.tda_guess_mode),
+	tda_excitations(other.tda_excitations),
+	tda_guess_excitations(other.tda_guess_excitations),
+	tda_iterating_excitations(other.tda_iterating_excitations),
+	tda_guess(other.tda_guess),
+	tda_energy_guess_factor(other.tda_energy_guess_factor),
+	tda_dconv_guess(other.tda_dconv_guess),
+	tda_dconv(other.tda_dconv),
+	tda_dconv_hard(other.tda_dconv_hard),
+	tda_econv_guess(other.tda_econv_guess),
+	tda_econv(other.tda_econv),
+	tda_econv_hard(other.tda_econv_hard),
+	tda_store_potential(other.tda_store_potential),
+	tda_iter_max(other.tda_iter_max),
+	tda_iter_guess(other.tda_iter_guess),
+	tda_homo_guess(other.tda_homo_guess),
+	tda_exops(other.tda_exops),
+	tda_damping_width(other.tda_damping_width)
   {}
 
   void CCParameters::information(World &world)const{
     if(world.rank()==0){
-	//			std::cout << "Defaults for 6D and 3D Functions:\n";
-	//			FunctionDefaults<3>::print();
-	//                      FunctionDefaults<6>::print();
+      //			std::cout << "Defaults for 6D and 3D Functions:\n";
+      //			FunctionDefaults<3>::print();
+      //                      FunctionDefaults<6>::print();
 
-	std::cout << "Demanded Calculation is " << assign_name(calculation) << std::endl;
+      std::cout << "Demanded Calculation is " << assign_name(calculation) << std::endl;
 
-	if(calculation != CT_LRCCS and calculation !=CT_TDHF){
+      if(calculation != CT_LRCCS and calculation !=CT_TDHF){
 	std::cout << "The Ansatz for the Pair functions |tau_ij> is: ";
 	if(QtAnsatz) std::cout << "(Qt)f12|titj> and response: (Qt)f12(|tixj> + |xitj>) - (OxQt + QtOx)f12|titj>";
 	else std::cout << "Qf12|titj> and response: Qf12(|xitj> + |tixj>)";
 	std::cout << "Gamma of correlation factor is "<< corrfac_gamma << std::endl;
-	}
-	if(test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
-	std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-	std::cout << std::setfill(' ');
-	std::cout << "\nMRA-Parameters:\n";
-	std::cout << "lo                         :"<< lo << std::endl;
-	std::cout << "dmin                       :"<< dmin << std::endl;
-	std::cout << "k (3D)                     :"<< FunctionDefaults<3>::get_k() << std::endl;
-	std::cout << "k (6D)                     :"<< FunctionDefaults<6>::get_k() << std::endl;
-	std::cout << "thresh_3D demanded         :"<< thresh_3D << std::endl;
-	std::cout << "thresh_3D set              :"<< FunctionDefaults<3>::get_thresh() << std::endl;
-	std::cout << "thresh_6D demanded         :"<< thresh_6D << std::endl;
-	std::cout << "thresh_6D set              :"<< FunctionDefaults<6>::get_thresh() << std::endl;
-	std::cout << "tight_thresh_6D            :"<< tight_thresh_6D << std::endl;
-	std::cout << "tight_thresh_3D            :"<< tight_thresh_3D << std::endl;
-	std::cout << "thresh_bsh_3D              :"<< thresh_bsh_3D << std::endl;
-	std::cout << "thresh_bsh_6D              :"<< thresh_bsh_6D << std::endl;
-	std::cout << "thresh_poisson             :"<< thresh_poisson << std::endl;
-	std::cout << "thresh_f12                 :"<< thresh_f12 << std::endl;
-	std::cout << "thresh_Ue                  :"<< thresh_Ue << std::endl;
-	std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-	std::cout << std::setfill(' ');
-	std::cout << "\nAdvanced-MRA-Parameters:\n";
-	std::cout << "truncation mode 3D         :"<< FunctionDefaults<3>::get_truncate_mode()  <<std::endl;
-	std::cout << "truncation mode 6D         :"<< FunctionDefaults<6>::get_truncate_mode()  <<std::endl;
-	std::cout << "tensor type                :"<< FunctionDefaults<6>::get_tensor_type()  <<std::endl;
-	std::cout << "facReduce                  :"<< GenTensor<double>::fac_reduce()  <<std::endl;
-	std::cout << "max. displacement          :"<< Displacements<6>::bmax_default()  <<std::endl;
-	std::cout << "apply randomize            :"<< FunctionDefaults<6>::get_apply_randomize()  <<std::endl;
-	std::cout << "Cell min width (3D, 6D)    :"<< FunctionDefaults<6>::get_cell_min_width() << ", " << FunctionDefaults<3>::get_cell_min_width()  <<std::endl;
-	std::cout << "Autorefine (3D, 6D)        :"<< FunctionDefaults<6>::get_autorefine() << ", " << FunctionDefaults<3>::get_autorefine()  <<std::endl;
-	std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-	std::cout << std::setfill(' ');
-	std::cout << "\nCC-Parameters:\n";
-	std::cout << "freeze      :"<< freeze << std::endl;
-	std::cout << "restart     :"<< restart << std::endl;
-	std::cout << "econv       :"<< econv << std::endl;
-	std::cout << "econv_pairs :"<< econv_pairs << std::endl;
-	std::cout << "dconv_3D    :"<< dconv_3D << std::endl;
-	std::cout << "dconv_6D    :"<< dconv_6D << std::endl;
-	std::cout << "freeze      :"<< freeze << std::endl;
-	std::cout << "iter_max    :"<< iter_max << std::endl;
-	std::cout << "iter_max_3D :"<< iter_max_3D << std::endl;
-	std::cout << "iter_max_6D :"<< iter_max_6D << std::endl;
-	std::cout << "debug mode  :"<< debug  <<std::endl;
-	std::cout << "Kain        :"; if(kain) std::cout << " on , Subspace size " << kain_subspace << "\n"; else std::cout << "off\n";
-	std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-	std::cout << std::setfill(' ');
-	//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (3D) :" << FunctionDefaults<3>::get_cell_width()  <<std::endl;
-	//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (6D) :" << FunctionDefaults<6>::get_cell_width()  <<std::endl;
+      }
+      if(test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
+      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
+      std::cout << std::setfill(' ');
+      std::cout << "\nMRA-Parameters:\n";
+      std::cout << "lo                         :"<< lo << std::endl;
+      std::cout << "dmin                       :"<< dmin << std::endl;
+      std::cout << "k (3D)                     :"<< FunctionDefaults<3>::get_k() << std::endl;
+      std::cout << "k (6D)                     :"<< FunctionDefaults<6>::get_k() << std::endl;
+      std::cout << "thresh_3D demanded         :"<< thresh_3D << std::endl;
+      std::cout << "thresh_3D set              :"<< FunctionDefaults<3>::get_thresh() << std::endl;
+      std::cout << "thresh_6D demanded         :"<< thresh_6D << std::endl;
+      std::cout << "thresh_6D set              :"<< FunctionDefaults<6>::get_thresh() << std::endl;
+      std::cout << "tight_thresh_6D            :"<< tight_thresh_6D << std::endl;
+      std::cout << "tight_thresh_3D            :"<< tight_thresh_3D << std::endl;
+      std::cout << "thresh_bsh_3D              :"<< thresh_bsh_3D << std::endl;
+      std::cout << "thresh_bsh_6D              :"<< thresh_bsh_6D << std::endl;
+      std::cout << "thresh_poisson             :"<< thresh_poisson << std::endl;
+      std::cout << "thresh_f12                 :"<< thresh_f12 << std::endl;
+      std::cout << "thresh_Ue                  :"<< thresh_Ue << std::endl;
+      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
+      std::cout << std::setfill(' ');
+      std::cout << "\nAdvanced-MRA-Parameters:\n";
+      std::cout << "truncation mode 3D         :"<< FunctionDefaults<3>::get_truncate_mode()  <<std::endl;
+      std::cout << "truncation mode 6D         :"<< FunctionDefaults<6>::get_truncate_mode()  <<std::endl;
+      std::cout << "tensor type                :"<< FunctionDefaults<6>::get_tensor_type()  <<std::endl;
+      std::cout << "facReduce                  :"<< GenTensor<double>::fac_reduce()  <<std::endl;
+      std::cout << "max. displacement          :"<< Displacements<6>::bmax_default()  <<std::endl;
+      std::cout << "apply randomize            :"<< FunctionDefaults<6>::get_apply_randomize()  <<std::endl;
+      std::cout << "Cell min width (3D, 6D)    :"<< FunctionDefaults<6>::get_cell_min_width() << ", " << FunctionDefaults<3>::get_cell_min_width()  <<std::endl;
+      std::cout << "Autorefine (3D, 6D)        :"<< FunctionDefaults<6>::get_autorefine() << ", " << FunctionDefaults<3>::get_autorefine()  <<std::endl;
+      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
+      std::cout << std::setfill(' ');
+      std::cout << "\nCC-Parameters:\n";
+      std::cout << "freeze      :"<< freeze << std::endl;
+      std::cout << "restart     :"<< restart << std::endl;
+      std::cout << "econv       :"<< econv << std::endl;
+      std::cout << "econv_pairs :"<< econv_pairs << std::endl;
+      std::cout << "dconv_3D    :"<< dconv_3D << std::endl;
+      std::cout << "dconv_6D    :"<< dconv_6D << std::endl;
+      std::cout << "freeze      :"<< freeze << std::endl;
+      std::cout << "iter_max    :"<< iter_max << std::endl;
+      std::cout << "iter_max_3D :"<< iter_max_3D << std::endl;
+      std::cout << "iter_max_6D :"<< iter_max_6D << std::endl;
+      std::cout << "debug mode  :"<< debug  <<std::endl;
+      std::cout << "Kain        :"; if(kain) std::cout << " on , Subspace size " << kain_subspace << "\n"; else std::cout << "off\n";
+      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
+      std::cout << std::setfill(' ');
+      //std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (3D) :" << FunctionDefaults<3>::get_cell_width()  <<std::endl;
+      //std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (6D) :" << FunctionDefaults<6>::get_cell_width()  <<std::endl;
 
 
-	if(restart) std::cout << "restart is on";
-	if(no_compute) std::cout << "no_compute for all";
-	if(no_compute_gs) std::cout << "no_compute for ground-state";
-	if(no_compute_response) std::cout << "no_compute for excited-state";
-	std::cout << "Excitations to optimize are:\n";
-	if(excitations_.empty()) std::cout << "All" << "\n";
-	else std::cout << excitations_ <<"\n\n\n";
+      if(restart) std::cout << "restart is on";
+      if(no_compute) std::cout << "no_compute for all";
+      if(no_compute_gs) std::cout << "no_compute for ground-state";
+      if(no_compute_response) std::cout << "no_compute for excited-state";
+      std::cout << "Excitations to optimize are:\n";
+      if(excitations_.empty()) std::cout << "All" << "\n";
+      else std::cout << excitations_ <<"\n\n\n";
     }
   }
 
   void CCParameters::print_tda_parameters(World &world)const{
     if(world.rank()==0){
-	std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-	std::cout << std::setfill(' ');
-	std::cout << "TDA PARAMETERS:\n";
-	std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-	std::cout << std::setfill(' ');
-	std::cout << std::scientific << std::setprecision(2);
-	std::cout << "tda_guess_orbitals       :" << tda_guess_orbitals          << std::endl;
-	//std::cout << "tda_guess_mode           :" << tda_guess_mode              << std::endl;
-	std::cout << "tda_excitations          :" << tda_excitations             << std::endl;
-	std::cout << "tda_guess_excitations    :" << tda_guess_excitations       << std::endl;
-	//std::cout << "tda_iterating_excitations:" << tda_iterating_excitations   << std::endl;
-	std::cout << "tda_guess                :" << tda_guess                   << std::endl;
-	std::cout << "tda_energy_guess_factor  :" << tda_energy_guess_factor     << std::endl;
-	std::cout << "tda_dconv_guess          :" << tda_dconv_guess             << std::endl;
-	std::cout << "tda_dconv                :" << tda_dconv                   << std::endl;
-	//std::cout << "tda_dconv_hard           :" << tda_dconv_hard              << std::endl;
-	std::cout << "tda_econv_guess          :" << tda_econv_guess             << std::endl;
-	std::cout << "tda_econv                :" << tda_econv                   << std::endl;
-	//std::cout << "tda_econv_hard           :" << tda_econv_hard              << std::endl;
-	std::cout << "tda_store_potential      :" << tda_store_potential         << std::endl;
-	std::cout << "tda_iter_max             :" << tda_iter_max                << std::endl;
-	std::cout << "tda_iter_guess           :" << tda_iter_guess              << std::endl;
-	std::cout << "tda_homo_guess           :" << tda_homo_guess << std::endl;
-	std::cout << "tda_damping_width   :" << tda_damping_width << std::endl;
+      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
+      std::cout << std::setfill(' ');
+      std::cout << "TDA PARAMETERS:\n";
+      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
+      std::cout << std::setfill(' ');
+      std::cout << std::scientific << std::setprecision(2);
+      std::cout << "tda_guess_orbitals       :" << tda_guess_orbitals          << std::endl;
+      //std::cout << "tda_guess_mode           :" << tda_guess_mode              << std::endl;
+      std::cout << "tda_excitations          :" << tda_excitations             << std::endl;
+      std::cout << "tda_guess_excitations    :" << tda_guess_excitations       << std::endl;
+      //std::cout << "tda_iterating_excitations:" << tda_iterating_excitations   << std::endl;
+      std::cout << "tda_guess                :" << tda_guess                   << std::endl;
+      std::cout << "tda_energy_guess_factor  :" << tda_energy_guess_factor     << std::endl;
+      std::cout << "tda_dconv_guess          :" << tda_dconv_guess             << std::endl;
+      std::cout << "tda_dconv                :" << tda_dconv                   << std::endl;
+      //std::cout << "tda_dconv_hard           :" << tda_dconv_hard              << std::endl;
+      std::cout << "tda_econv_guess          :" << tda_econv_guess             << std::endl;
+      std::cout << "tda_econv                :" << tda_econv                   << std::endl;
+      //std::cout << "tda_econv_hard           :" << tda_econv_hard              << std::endl;
+      std::cout << "tda_store_potential      :" << tda_store_potential         << std::endl;
+      std::cout << "tda_iter_max             :" << tda_iter_max                << std::endl;
+      std::cout << "tda_iter_guess           :" << tda_iter_guess              << std::endl;
+      std::cout << "tda_homo_guess           :" << tda_homo_guess << std::endl;
+      std::cout << "tda_damping_width   :" << tda_damping_width << std::endl;
 
-	std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-	std::cout << std::setfill(' ');
+      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
+      std::cout << std::setfill(' ');
     }
   }
   void CCParameters::sanity_check(World &world)const{
@@ -711,12 +715,12 @@ namespace madness{
     if(thresh_3D > 0.1*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
     if(kain and kain_subspace ==0) warnings+=warning(world,"Demanded Kain solver but the size of the iterative subspace is set to zero");
     if(warnings >0){
-	if(world.rank()==0) std::cout << warnings <<"Warnings in parameters sanity check!\n\n";
+      if(world.rank()==0) std::cout << warnings <<"Warnings in parameters sanity check!\n\n";
     }else{
-	if(world.rank()==0) std::cout << "Sanity check for parameters passed\n\n" << std::endl;
+      if(world.rank()==0) std::cout << "Sanity check for parameters passed\n\n" << std::endl;
     }
     if(restart == false and no_compute==true){
-	warnings+=warning(world,"no_compute flag detected but no restart flag");
+      warnings+=warning(world,"no_compute flag detected but no restart flag");
     }
   }
 
