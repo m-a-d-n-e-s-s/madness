@@ -314,7 +314,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 		double n1=norm2(world,nemo);
 		double n2=norm2(world,tmp);
-		print("norm of nemo and GVnemo; ratio ",n1,n2,n1/n2);
+		if(world.rank()==0) print("norm of nemo and GVnemo; ratio ",n1,n2,n1/n2);
 
 		// compute the residuals
 		vecfuncT residual = sub(world, nemo, tmp);

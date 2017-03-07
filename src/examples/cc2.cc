@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
 	startup(world,argc,argv);
 	std::cout.precision(6);
 	FunctionDefaults<3>::set_truncate_mode(1);
-	print("Truncate mode set to ",FunctionDefaults<3>::get_truncate_mode());
+	if(world.rank()==0) print("Truncate mode set to ",FunctionDefaults<3>::get_truncate_mode());
 
 #ifdef GITREVISION
 	const  char* gitrev =  GITREVISION;
