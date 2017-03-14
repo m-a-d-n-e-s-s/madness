@@ -571,11 +571,19 @@ namespace madness {
         }
 
         const_iterator begin() const {
+            return cbegin();
+        }
+
+        const_iterator cbegin() const {
             return const_iterator(this,true);
         }
 
         iterator end() {
             return iterator(this,false);
+        }
+
+        const_iterator end() const {
+            return cend();
         }
 
         const_iterator end() const {
