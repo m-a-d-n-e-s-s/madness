@@ -383,6 +383,31 @@ public:
     const std::vector<double>& dbuf_short() const { return dbuf_short_; }
     const std::vector<double>& dbuf_long() const { return dbuf_long_; }
     const std::vector<double>& dbuf() const { return dbuf_long(); }
+
+    // ping-pong via AMs
+    void ping_am(int from, int speed) {
+      madness::print("got an AM ping from proc ", from, " speed=", speed);
+      if (speed < 10)
+        this->send(from, &Foo::pong_am, this->get_world().rank(), speed + 1);
+    }
+    void pong_am(int from, int speed) {
+      madness::print("got an AM pong from proc ", from, " speed=", speed);
+      if (speed < 10)
+        this->send(from, &Foo::ping_am, this->get_world().rank(), speed + 1);
+    }
+
+    // ping-pong via tasks
+    void ping(int from, int speed) {
+      madness::print("got a ping from proc ", from, " speed=", speed);
+      if (speed < 10)
+        this->task(from, &Foo::pong, this->get_world().rank(), speed + 1);
+    }
+    void pong(int from, int speed) {
+      madness::print("got a pong from proc ", from, " speed=", speed);
+      if (speed < 10)
+        this->task(from, &Foo::ping, this->get_world().rank(), speed + 1);
+    }
+
 };
 
 void test6(World& world) {
@@ -439,6 +464,12 @@ void test6(World& world) {
             MADNESS_ASSERT(a.task(p,&Foo::getbuf0c,a.dbuf()).get() == p*100+dbuf_sum);
         }
     } // me == 0
+
+    for(ProcessID p=0; p!=nproc; ++p) {
+      a.send(p, &Foo::ping_am, me, 1);
+      a.task(p, &Foo::ping, me, 1);
+    }
+
     world.gop.fence();
 
     // stress the large message protocol ... off by default
@@ -670,7 +701,7 @@ public:
         return s.str();
     };
 
-    string alan(int i, int j) {
+    string alan(int i, int j, int proc) {
         ostringstream s;
         val += i*j;
         s << "Alan sends greetings: " << i << " " << j << " " << val << endl;
@@ -776,7 +807,7 @@ void test10(World& world) {
     print("main finished making vector of results");
     for (int i=0; i<nproc; ++i) {
         print("main making task",i);
-        results[i] = m.task(i,&Mary::alan,3,4);
+        results[i] = m.task(i,&Mary::alan,3,4,world.rank());
         b[i] = m.send(i,&Mary::get_me_twice,&world,m);
         print("main finished making task",i);
     }
