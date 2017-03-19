@@ -347,7 +347,7 @@ namespace madness {
     /// \tparam Derived The derived class. \c WorldObject is a curiously
     ///     recurring template pattern.
     template <class Derived>
-    class WorldObject {
+    class WorldObject: private NO_DEFAULTS {
     public:
         /// \todo Description needed.
         typedef WorldObject<Derived> objT;
