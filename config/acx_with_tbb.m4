@@ -110,6 +110,7 @@ AC_DEFUN([ACX_WITH_TBB], [
        #include <tbb/tbb.h>
      ]],
      [[tbb::task* empty_root; empty_root->add_ref_count(0);]])],
+     [AC_MSG_RESULT([yes])],
      [AC_MSG_RESULT([no])
       acx_with_tbb=no
      ]
