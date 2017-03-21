@@ -5,15 +5,15 @@ add_definitions(-DMRA_CHEMDATA_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\")
 # Set the CHEM sources and header files
 set(MADCHEM_HEADERS
     correlationfactor.h molecule.h molecularbasis.h corepotential.h atomutil.h
-    SCF.h xcfunctional.h mp2.h nemo.h potentialmanager.h gth_pseudopotential.h
-    molecular_optimizer.h projector.h TDA.h TDA_XC.h TDA_guess.h TDA_exops.h
-    SCFOperators.h CCOperators.h CCStructures.h CC2.h CISOperators.h
+    SCF.h xcfunctional.h mp2.h pcm.h nemo.h potentialmanager.h gth_pseudopotential.h
+    molecular_optimizer.h projector.h
+    SCFOperators.h CCPotentials.h CCStructures.h CC2.h
     electronic_correlation_factor.h cheminfo.h vibanal.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc corepotential.cc
     atomutil.cc lda.cc cheminfo.cc distpm.cc SCF.cc gth_pseudopotential.cc 
-    nemo.cc mp2.cc SCFOperators.cc TDA.cc TDA_XC.cc CC2.cc CCOperators.cc 
-    CISOperators.cc vibanal.cc)
+    nemo.cc mp2.cc pcm.cc SCFOperators.cc CC2.cc CCPotentials.cc CCStructures.cc
+    vibanal.cc)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()
