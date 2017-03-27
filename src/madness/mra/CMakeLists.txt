@@ -8,7 +8,8 @@ set(MADMRA_HEADERS
     funcdefaults.h  key.h  mra.h  power.h  qmprop.h  twoscale.h lbdeux.h
     mraimpl.h  funcplot.h  function_common_data.h function_factory.h
     function_interface.h gfit.h convolution1d.h simplecache.h derivative.h
-    displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h)
+    displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h
+    leafop.h)
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
     twoscale.cc qmprop.cc)
