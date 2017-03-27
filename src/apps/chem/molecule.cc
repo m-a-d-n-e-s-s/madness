@@ -109,15 +109,19 @@ Molecule::Molecule(const std::string& filename) {
 }
 
 void Molecule::read_file(const std::string& filename) {
-    atoms.clear();
-    rcut.clear();
-    eprec = 1e-4;
-    units = atomic;
     std::ifstream f(filename.c_str());
     if(f.fail()) {
         std::string errmsg = std::string("Failed to open file: ") + filename;
         MADNESS_EXCEPTION(errmsg.c_str(), 0);
     }
+    this->read(f);
+}
+
+void Molecule::read(std::istream& f) {
+    atoms.clear();
+    rcut.clear();
+    eprec = 1e-4;
+    units = atomic;
     madness::position_stream(f, "geometry");
     double scale = 1.0; // Default is atomic units
 

@@ -42,6 +42,8 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
+#include <memory>
+
 #include <madness/mra/mra.h>
 
 #include <chem/CalculationParameters.h>
@@ -341,7 +343,11 @@ namespace madness {
         double current_energy;
         //double esol;//etot;
         //double vacuo_energy;
+
+        /// collective constructor for SCF uses contents of file \c filename and broadcasts to all nodes
         SCF(World & world, const char *filename);
+        /// collective constructor for SCF uses contents of stream \c input and broadcasts to all nodes
+        SCF(World & world, std::shared_ptr<std::istream> input);
         
         template<std::size_t NDIM>
         void set_protocol(World & world, double thresh)
