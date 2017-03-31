@@ -71,7 +71,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   endforeach()
   set_target_properties(MAD${_name} PROPERTIES LINK_FLAGS "${LINK_FLAGS}") 
  
-  # default to C++14 for everything. see here for explanation of this choice:
+  # default to C++14 across the board. see here for explanation of this choice:
   # https://github.com/drbenmorgan/cmake-compile-features/blob/master/README.md
   target_compile_features(MAD${_name} INTERFACE cxx_decltype_auto)
 
@@ -124,10 +124,9 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
     endif()
   endforeach()
   
-  # Add compile and linker flags to library
-  if(CXX11_COMPILE_FLAG)
-    target_compile_options(MAD${_name} INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
-  endif()
+  # default to C++14 across the board. see here for explanation of this choice:
+  # https://github.com/drbenmorgan/cmake-compile-features/blob/master/README.md
+  target_compile_features(MAD${_name} INTERFACE cxx_decltype_auto)
   
   set(${_name}_is_mad_hdr_lib TRUE)
 endmacro()
