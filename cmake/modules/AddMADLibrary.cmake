@@ -40,6 +40,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
       COMMENT "Installing ${_name} library components")
   add_dependencies(install-${_name} MAD${_name})
+  add_dependencies(install-${_name} install-common)
   add_dependencies(install-libraries install-${_name})
 
   set(LINK_FLAGS "")
