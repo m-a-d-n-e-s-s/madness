@@ -120,9 +120,9 @@ AC_ARG_ENABLE([all-static],
 AM_CONDITIONAL([LINK_ALL_STATIC], [test $acx_enable_all_static = yes])
 
 ACX_DETECT_CXX
-# Check for C++11 support, and
-# add the -std=c++11 or -std=c++0x flag to CXXFLAGS if necessary.
-AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
+# Check for C++14 support, and
+# add the -std=c++14 or -std=c++1y flag to CXXFLAGS if necessary.
+AX_CXX_COMPILE_STDCXX(14,[noext],[mandatory])
 
 # Set debugging
 ACX_ENABLE_DEBUGGING
@@ -183,7 +183,7 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([limits.h stddef.h stdint.h stdlib.h string.h sys/param.h sys/time.h unistd.h])
 AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
 AC_HEADER_STDBOOL
-# Check c++11 headers
+# Check c++1x headers
 # MUST include CXXFLAGS into CPPFLAGS to choose proper C++ standard switch
 ac_save_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="$CPPFLAGS $CXXFLAGS"
