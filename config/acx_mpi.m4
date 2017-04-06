@@ -3,6 +3,9 @@ AC_DEFUN([ACX_MPI], [
         # be run before we had overridden the compilers which meant that some confdef.h
         # entries were incorrect (specifically std::exit problem with PGI)
 
+        # Disable MPI C++ bindings.
+        CPPFLAGS="$CPPFLAGS -DMPICH_SKIP_MPICXX=1 -DOMPI_SKIP_MPICXX=1"
+        
         AC_ARG_VAR(MPICC,[MPI C compiler command])
         AC_CHECK_PROGS(MPICC, mpicc hcc mpcc mpcc_r mpxlc cmpicc, $CC)
         acx_mpi_save_CC="$CC"

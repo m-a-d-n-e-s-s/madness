@@ -70,8 +70,7 @@ namespace madness {
                                      double gradient_precision)
         : target(tar)
         , tol(tol)
-        , value_precision(value_precision)
-        , gradient_precision(gradient_precision)
+        , f(tol*1e16)
         , gnorm(tol*1e16)
     {
         if (!target->provides_gradient()) throw "Steepest descent requires the gradient";
@@ -111,7 +110,10 @@ namespace madness {
 
     double SteepestDescent::value() const {return f;}
 
-    double QuasiNewton::line_search(double a1, double f0, double dxgrad, const Tensor<double>& x, const Tensor<double>& dx) {
+    double QuasiNewton::line_search(double a1, double f0, double dxgrad,
+            const Tensor<double>& x, const Tensor<double>& dx,
+            std::shared_ptr<OptimizationTargetInterface> target1,
+            double value_precision) {
         double f1, f2p;
         double hess, a2;
         const char* lsmode = "";
@@ -121,7 +123,7 @@ namespace madness {
             a1 = -a1;
         }
 
-        f1 = target->value(x + a1 * dx);
+        f1 = target1->value(x + a1 * dx);
 
         // Fit to a parabola using f0, g0, f1
         hess = 2.0*(f1-f0-a1*dxgrad)/(a1*a1);
@@ -161,11 +163,12 @@ namespace madness {
         return a2;
     }
 
-    void QuasiNewton::hessian_update_sr1(const Tensor<double>& s, const Tensor<double>& y) {
-        Tensor<double> q = y - inner(h,s);
+    void QuasiNewton::hessian_update_sr1(const Tensor<double>& s,
+            const Tensor<double>& y, Tensor<double>& hessian) {
+        Tensor<double> q = y - inner(hessian,s);
         double qds = q.trace(s);
         if (std::abs(qds) > 1e-8 * s.normf() * q.normf()) {
-            h += outer(q,q).scale(1.0/qds);
+            hessian += outer(q,q).scale(1.0/qds);
         }
         else {
             printf("   SR1 not updating\n");
@@ -174,8 +177,7 @@ namespace madness {
 
 
     void QuasiNewton::hessian_update_bfgs(const Tensor<double>& dx,
-                                          const Tensor<double>& dg)
-    {
+                const Tensor<double>& dg, Tensor<double>& hessian) {
         /*
           Apply the BFGS update to the approximate Hessian h[][].
 
@@ -185,17 +187,18 @@ namespace madness {
           dg[]  = gradient difference (dg = g - gp)
         */
 
-        Tensor<double> hdx  = inner(h,dx);
+        Tensor<double> hdx  = inner(hessian,dx);
 
         double dxhdx = dx.trace(hdx);
         double dxdx  = dx.trace(dx);
         double dxdg  = dx.trace(dg);
         double dgdg  = dg.trace(dg);
 
+        const int n=hessian.dim(0);
         if ( (dxdx > 0.0) && (dgdg > 0.0) && (std::abs(dxdg/std::sqrt(dxdx*dgdg)) > 1.e-8) ) {
             for (int i=0; i<n; ++i) {
                 for (int j=0; j<n; ++j) {
-                    h(i,j) += dg[i]*dg[j]/dxdg - hdx[i]*hdx[j]/dxhdx;
+                    hessian(i,j) += dg[i]*dg[j]/dxdg - hdx[i]*hdx[j]/dxhdx;
                 }
             }
         }
@@ -204,7 +207,7 @@ namespace madness {
         }
     }
 
-    Tensor<double> QuasiNewton::new_search_direction(const Tensor<double>& g) {
+    Tensor<double> QuasiNewton::new_search_direction(const Tensor<double>& g) const {
         Tensor<double> dx, s;
         double tol = gradient_precision;
         double trust = 1.0; // This applied in spectral basis
@@ -224,7 +227,7 @@ namespace madness {
                 //e[i] = -2.0*e[i]; // Enforce positive search direction
                 e[i] = -0.1*e[i]; // Enforce positive search direction
             }
-            else if (e[i] < -tol) {
+            else if (e[i] < tol) {
                 if (printtest) printf("   forcing small eigenvalue to be positive %d %.1e\n", i, e[i]);
                 nsmall++;
                 e[i] = tol;
@@ -255,6 +258,7 @@ namespace madness {
         , tol(tol)
         , value_precision(value_precision)
         , gradient_precision(gradient_precision)
+        , f(tol*1e16)
         , gnorm(tol*1e16)
         , n(0)
         , printtest(false)
@@ -266,10 +270,10 @@ namespace madness {
         if (method == "BFGS" || method == "SR1") update=method;
         else throw "QuasiNewton: unknown update mthod";
     }
-     void QuasiNewton::set_test(const bool& test_level) {
-          printtest = test_level;
-   }
 
+    void QuasiNewton::set_test(const bool& test_level) {
+        printtest = test_level;
+    }
 
     bool QuasiNewton::optimize(Tensor<double>& x) {
 //        int maxiter = 20; // !!!!!!!!! dumb
@@ -278,7 +282,7 @@ namespace madness {
             h = Tensor<double>();
         }
 
- 
+
        if(printtest)  target->test_gradient(x, value_precision);
 
         bool h_is_identity = (h.size() == 0);
@@ -287,7 +291,11 @@ namespace madness {
             for (int i=0; i<n; ++i) h(i,i) = 1.0;
         }
 
-        Tensor<double> gp, dx;
+        // the previous gradient
+        Tensor<double> gp;
+        // the displacement
+        Tensor<double> dx;
+
         for (int iter=0; iter<maxiter; ++iter) {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
@@ -302,19 +310,20 @@ namespace madness {
             }
 
             if (iter > 0) {
-                if (update == "BFGS") hessian_update_bfgs(dx, g-gp);
-                else hessian_update_sr1(dx, g-gp);
+                if (update == "BFGS") hessian_update_bfgs(dx, g-gp,h);
+                else hessian_update_sr1(dx, g-gp,h);
             }
 
             dx = new_search_direction(g);
 
-            double step = line_search(1.0, f, dx.trace(g), x, dx);
+            double step = line_search(1.0, f, dx.trace(g), x, dx, target,
+                    value_precision);
 
             dx.scale(step);
             x += dx;
             gp = g;
         }
- 
+
         if (printtest) {
             print("final hessian");
             print(h);

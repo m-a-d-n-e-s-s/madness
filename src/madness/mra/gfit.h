@@ -39,8 +39,16 @@
 /// \brief fit isotropic functions to a set of Gaussians with controlled precision
 
 //#include <iostream>
-#include <madness/tensor/tensor.h>
-#include <madness/constants.h>
+
+#include <cmath>
+#include "../constants.h"
+#include "../tensor/basetensor.h"
+#include "../tensor/slice.h"
+#include "../tensor/tensor.h"
+#include "../tensor/tensor_lapack.h"
+#include "../world/madness_exception.h"
+#include "../world/print.h"
+
 namespace madness {
 
 template<typename T, std::size_t NDIM>
@@ -118,21 +126,21 @@ public:
 				}
 			}
 		} else {
-			// Relies on expnts being in decreasing order
-			int icut = -1;
-			for (int i=0; i<e.dim(0); ++i) {
-				if (e(i) < tcut) {
-					icut = i;
-					break;
-				}
-			}
-			if (icut > 0) {
-				for (int i=icut+1; i<e.dim(0); ++i) {
-					c(icut) += c(i);
-				}
-				c = c(Slice(0,icut));
-				e = e(Slice(0,icut));
-			}
+//			// Relies on expnts being in decreasing order
+//			int icut = -1;
+//			for (int i=0; i<e.dim(0); ++i) {
+//				if (e(i) < tcut) {
+//					icut = i;
+//					break;
+//				}
+//			}
+//			if (icut > 0) {
+//				for (int i=icut+1; i<e.dim(0); ++i) {
+//					c(icut) += c(i);
+//				}
+//				c = c(Slice(0,icut));
+//				e = e(Slice(0,icut));
+//			}
 		}
 	}
 

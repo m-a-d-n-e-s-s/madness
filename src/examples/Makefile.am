@@ -1,29 +1,44 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
+
+# specify the git commit version in the info functions
+GITREV="MADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
+
+# default location for basis sets etc
+AM_CPPFLAGS += -D$(GITREV)
 
 
-GITREV="GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
-SVNREV="SVNREVISION=\"`svnversion $(top_srcdir)`\" "
-
-AM_CPPFLAGS += -D$(GITREV) -D$(SVNREV)
-
-noinst_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
+noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf nemo helium_exact 
+ nemo helium_exact density_smoothing siam_example gaussian lrccs cc2
  
+if MADNESS_HAS_LIBXC
+noinst_PROGRAMS += hefxc
+endif
+
 thisincludedir = $(includedir)/examples
-#thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
+thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
 AUTOMAKE_OPTIONS = subdir-objects
 
+pno_SOURCES = pno.cc 
+pno_LDADD = $(LIBCHEM) $(MRALIBS)
+
+siam_example_SOURCES = siam_example.cc 
+
 mp2_SOURCES = mp2.cc 
+mp2_LDADD = $(LIBCHEM) $(MRALIBS)
 
 helium_exact_SOURCES = helium_exact.cc 
+helium_exact_LDADD = $(LIBCHEM) $(MRALIBS)
 
 oep_SOURCES = oep.cc 
+oep_LDADD = $(LIBCHEM) $(MRALIBS)
 
 tiny_SOURCES = tiny.cc
+tiny_LDADD = $(LIBCHEM) $(MRALIBS)
 
 dataloadbal_SOURCES = dataloadbal.cc
 
@@ -33,24 +48,29 @@ testspectralprop_SOURCES = testspectralprop.cc
 
 testsolver_SOURCES = testsolver.cc
 
-tdhf_SOURCES = tdhf.cc  ../apps/chem/TDA.cc ../apps/chem/TDA_XC.cc
+lrccs_SOURCES = lrccs.cc
+lrccs_LDADD = $(LIBCHEM) $(MRALIBS)
 
-nemo_SOURCES = nemo.cc
+cc2_SOURCES = cc2.cc
+cc2_LDADD = $(LIBCHEM) $(MRALIBS)
+ 
+nemo_SOURCES = nemo.cc 
+nemo_LDADD = $(LIBCHEM) $(MRALIBS)
+
+density_smoothing_SOURCES = density_smoothing.cc
+density_smoothing_LDADD = $(LIBCHEM) $(MRALIBS)
 
 newsolver_SOURCES = newsolver.cc
 
 hedft_SOURCES = hedft.cc 
+hedft_LDADD = $(LIBCHEM) $(MRALIBS)
+
 h2dft_SOURCES = h2dft.cc
+h2dft_LDADD = $(LIBCHEM) $(MRALIBS)
+
 if MADNESS_HAS_LIBXC
-hedft_SOURCES += ../apps/chem/xcfunctional_libxc.cc
-h2dft_SOURCES += ../apps/chem/xcfunctional_libxc.cc
-endif
-if MADNESS_HAS_MADXC
-hedft_SOURCES += ../apps/DFcode/xcfunctional_madxc.cc 
-h2dft_SOURCES += ../apps/DFcode/xcfunctional_madxc.cc 
-else
-hedft_SOURCES += ../apps/chem/xcfunctional_ldaonly.cc 
-h2dft_SOURCES += ../apps/chem/xcfunctional_ldaonly.cc 
+hefxc_SOURCES = hefxc.cc 
+hefxc_LDADD = $(LIBCHEM) $(MRALIBS)
 endif
 
 sininteg_SOURCES = sininteg.cc
@@ -81,7 +101,7 @@ hehf_SOURCES = hehf.cc
 
 # h2hf_SOURCES = h2hf.cc
 
-tdse_SOURCES = tdse.cc
+tdse_example_SOURCES = tdse_example.cc
 
 tdse1d_SOURCES = tdse1d.cc
 
@@ -97,5 +117,8 @@ hatom_1d_SOURCES = hatom_1d.cc
 
 binaryop_SOURCES = binaryop.cc
 
-LDADD = $(LIBCHEM) $(MRALIBS)
+gaussian_SOURCES = gaussian.cc
+
+LDADD = $(MRALIBS)
+#LDADD = $(LIBCHEM) $(MRALIBS)
 

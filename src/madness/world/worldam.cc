@@ -27,13 +27,10 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id: $
 */
 
 #include <madness/world/worldam.h>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/worldmpi.h>
 #include <sstream>
 
@@ -42,10 +39,8 @@ namespace madness {
 
 
     WorldAmInterface::WorldAmInterface(World& world)
-            : msg_len(RMI::max_msg_len() - sizeof(AmArg))
-            , nsend(DEFAULT_NSEND)
-            , managed_send_buf(NULL)
-            , send_req(NULL)
+            : nsend(DEFAULT_NSEND)
+            , send_req(nullptr)
             , worldid(0) // worldid is initialized in the World constructor
             , rank(world.mpi.Get_rank())
             , nproc(world.mpi.Get_size())
@@ -62,18 +57,17 @@ namespace madness {
             std::stringstream ss(mad_send_buffs);
             ss >> nsend;
             // Check that the number of send buffers is reasonable.
-            if(nsend < DEFAULT_NSEND) {
+            if(nsend < 32) {
                 nsend = DEFAULT_NSEND;
-                std::cerr << "!!! WARNING: MAD_SEND_BUFFERS must be at least " << DEFAULT_NSEND << ".\n"
+                std::cerr << "!!! WARNING: MAD_SEND_BUFFERS must be at least 32.\n"
                           << "!!! WARNING: Increasing MAD_SEND_BUFFERS to " << nsend << ".\n";
             }
         }
 
         // Allocate send buffers and requests
-        managed_send_buf.reset(new AmArg* volatile[nsend]);
-        send_req.reset(new RMI::Request[nsend]);
+        send_req.reset(new SendReq[nsend]);
 
-        for (int i=0; i<nsend; ++i) managed_send_buf[i] = NULL;
+        for (int i=0; i<nsend; ++i) send_req[i].set((AmArg*) 0,RMI::Request());
 
         std::vector<int> fred(nproc);
         for (int i=0; i<nproc; ++i) fred[i] = i;
@@ -89,17 +83,10 @@ namespace madness {
     }
 
     WorldAmInterface::~WorldAmInterface() {
-        if(SafeMPI::Is_finalized()) {
-            for(int i=0; i < nsend; ++i)
-                free_managed_send_buf(i);
-        } else {
-            for(int i=0; i < nsend; ++i) {
-                while (!send_req[i].Test()) {
-                    myusleep(100);
-                }
-                free_managed_send_buf(i);
-            }
+        if(!SafeMPI::Is_finalized()) {
+            while (free_managed_buffers() != nsend) myusleep(100);
         }
+        // otherwise the send buffers are freed when the WorldAMInterface::send_req is freed
     }
 
 } // namespace madness

@@ -27,8 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
 */
 
 #ifndef MADNESS_MISC_PHANDLER_H__INCLUDED
@@ -51,7 +49,7 @@
     ...
 */
 
-#include <madness/muParser/muParser.h>
+#include <madness/external/muParser/muParser.h>
 #include <string>
 #include <madness/mra/mra.h>
 

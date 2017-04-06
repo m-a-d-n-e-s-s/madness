@@ -1,0 +1,139 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2015 Stony Brook University
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+*/
+
+/**
+ \file style.dox
+ \brief Coding style guidelines for MADNESS.
+ \addtogroup style
+
+MADNESS code should be documented using doxygen-style comment blocks. More
+information on doxygen can be found at <a href="http://www.doxygen.org">the
+doxygen website</a>. This module illustrates how to document your files with
+doxygen. 
+
+\par General guidelines for doxygen
+
+Every file needs \c \\file and \c \\brief near the top, and usually
+\c \\addtogroup or \c \ingroup. If you have put the file in a group
+then the file-level documentation acts as documentation for that
+module or group, otherwise it acts as documentation for the file.
+Note that doxygen is really picky about placement and association of
+comments so you always have to check what was generated.
+
+Links to known classes (such as \c madness::World), functions (such as
+\c madness::error()), and files (such as madness.h) are made
+automatically.
+
+\par Subsection title
+
+Use the \c \\par directive to make subsections with an
+optional heading.  Doxygen's section and subsection directives
+should not be used for now.
+
+\par Example files
+
+Here is an example header file that appropriately uses doxygen comment blocks.
+\code
+/// \file example_doc.h
+/// \brief Brief description of this file's contents.
+/// \ingroup example_group
+
+// Add your code to a group, if desired, using the \addtogroup command. See doc/mainpage.h for available groups.
+// The @{ and @} commands allow blocks of code to be added to the group.
+/// \addtogroup possibly_different_example_group
+/// @{
+
+/// Every class should be documented (this is the brief line).
+
+/// This is the full text ... no need to be verbose, but without
+/// documentation your class is nearly useless.
+class ExampleClass1 {
+public:
+    int datum; ///< Each member datum needs at least a brief raison d'etre.
+
+    /// Each member function should be documented (this is the brief line).
+
+    /// Full documentation of the member function.
+    ///
+    /// You should document all arguments and return values.
+    /// @param[in] hope Optimism level.
+    /// @param[in] despair Pessimism level.
+    /// @return Cynicism level.
+    int reality(int hope, int despair) const;
+};
+
+/// Brief documentation of a second example class in the group.
+  
+/// Full documentation of the second example class.
+class ExampleClass2 {
+public:
+    /// Brief documentation of a member function.
+
+    /// Full documentation of the member function, including parameters
+    /// and return value.
+    /// @param[in] fud The current level of fear, uncertainty, and doubt.
+    /// @param[in,out] bs The current level of ...
+    /// @return Your state of mind.
+    int morose(int fud, int& bs) {};
+
+    void fred(double mary);    // Fred is documented in example_doc.cc
+    // We recommend, however, placing documentation in header files when possible.
+};
+
+int stuff; ///< Global variable in the example group.
+
+/// Global function in the example group.
+
+/// @param[in] a An input argument.
+/// @return The return value.
+int example_func(int a);
+
+// Closing group membership.
+/// @}
+\endcode
+
+And here's the corresponding implementation file.
+\code
+/// \file example_doc.cc
+/// \brief Illustrates how to split documentation between files.
+/// \ingroup example_group
+
+#include "example_doc.h"
+
+/// Brief documentation of a class member declared in the header file.
+
+/// Full documentation of the class member.
+/// @param[in] mary Mary's current bank balance.
+void ExampleClass2::fred(double mary) {
+    return;
+}
+\endcode
+*/

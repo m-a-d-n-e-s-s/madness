@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 AUTOMAKE_OPTIONS = subdir-objects
 
 if MADNESS_HAS_LIBXC

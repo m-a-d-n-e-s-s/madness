@@ -27,26 +27,25 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
+/**
+ \file fortran_ctypes.h
+ \brief Correspondence between C++ and Fortran types.
+*/
 
 #ifndef FORTRAN_CTYPES_H
 #define FORTRAN_CTYPES_H
-
-/// \file fortran_ctypes.h
-/// \brief Corresponding C and Fortran types
 
 #include <complex>
 #include <stdint.h>
 #include <madness/madness_config.h>
 
-// Fortran integer types
+/// Fortran type for 4-byte integers.
 typedef int32_t integer4;
 #define HAVE_INTEGER4
 # ifdef HAVE_INT64_T
+/// Fortran type for 8-byte integers.
 typedef int64_t integer8;
 #define HAVE_INTEGER8
 # endif // HAVE_INT64_T
@@ -54,39 +53,43 @@ typedef int64_t integer8;
 // Set the default Fortran integer type
 #if (MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE == 8)
 
-// Set the default Fortran integer type to integer*8, if available; otherwise
-// the default integer type will be integer*4.
 #ifdef HAVE_INTEGER8
+/// Set the default Fortran integer type to integer*8.
 typedef integer8 integer;
 #else
+/// Set the default Fortran integer type to integer*4.
 typedef integer4 integer;
 #endif  // HAVE_INT64_T
 
 #else // (MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE == 4)
 
-// Set the default Fortran integer type to integer*4
+/// Set the default Fortran integer type to integer*4.
 typedef integer4 integer;
 
 #endif // (MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE == 8)
 
 
-/// Fortran double precision
+/// Fortran double precision.
 typedef double real8;
-typedef double double_precision ;
+/// Fortran double precision.
+typedef double double_precision;
 
-/// Fortran single precision
+/// Fortran single precision.
 typedef float real4;
+/// Fortran single precision.
 typedef float single_precision;
 
-/// Fortran double complex
+/// Fortran double complex.
 typedef std::complex<double> complex_real8;
+/// Fortran double complex.
 typedef std::complex<double> double_precision_complex;
 
-/// Fortran single complex
+/// Fortran single complex.
 typedef std::complex<float> complex_real4;
+/// Fortran single complex.
 typedef std::complex<float> single_precision_complex;
 
-/// Type of variable appended to argument list for length of fortran character strings
+/// Type of variable appended to argument list for length of fortran character strings.
 typedef int char_len;
 
 

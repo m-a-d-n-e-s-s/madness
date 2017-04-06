@@ -1,0 +1,174 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2015 Stony Brook University
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+*/
+
+/**
+  \file gstart_functions.dox
+  \brief Getting started with MADNESS functions.
+  \addtogroup gstart_functions
+  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
+
+\par Defaults for functions
+
+Default values for all function and operator attributes are stored in the `FunctionDefaults` class. This is actually a template so that different values can be set for functions with different numbers of dimensions. We saw earlier that
+\code
+FunctionDefaults<1>::set_cubic_cell(0,10);
+\endcode
+sets the user's simulation cell as \f$[0,10]\f$. Presently, all functions of a given dimension must share the same cell. Other common attributes are
+- `k` -- the wavelet order. A practical rule of thumb is if the default truncation threshold is \f$10^{-n}\f$, then the order should be chosen as \f$k=n+2\f$. The default is 6.
+- `thresh` -- the truncation threshold. The default is `1e-4`.
+- `bc` -- the boundary conditions. See below for more details. The default is free.
+.
+
+
+\par Boundary conditions
+
+In MADNESS, boundary conditions are associated with operators, not functions, and the boundary conditions are imposed on the surface enclosing the entire simulation volume. That is, they are exterior boundary conditions. For derivative operators the following conditions are understood, and can be imposed separately on each surface
+- `BC_ZERO` -- Zero Dirichlet
+- `BC_PERIODIC` -- Periodic (both left and right surfaces must agree on this value)
+- `BC_FREE` -- Free (default)
+- `BC_DIRICHLET` -- General Dirichlet (requires provision of one or more functions)
+- `BC_ZERONEUMANN` -- Zero Neumann
+- `BC_NEUMANN` -- General Neumann (requires provision of one or more functions)
+.
+For integral operators only periodic and free-space conditions are understood -- `BC_PERIODIC` yields periodic and all other conditions yield free-space.
+
+Example: to make the default boundary conditions in 3D
+\code
+BoundaryConditions<3> bc(BC_FREE);
+\endcode
+
+Example: to make boundary conditions in 3D with zero Dirichlet in \f$x\f$ and \f$y\f$ and periodic in \f$z\f$,
+\code
+BoundaryConditions<3> bc(BC_ZERO);
+
+bc(2,0) = bc(2,1) = BC_PERIODIC;
+\endcode
+
+Example: to override the default boundary conditions with yours in a variable named `bc` in 3D
+\code
+FunctionDefaults<3>::set_bc(bc);
+\endcode
+
+\par Differentiation, multiplication, inner products
+
+We now examine operations such as differentiation, multiplication, and inner products. A relevant simple example is `trunk/src/examples/hatom_energy.cc`.
+
+<em>Differentiation</em>
+
+Differentiation is performed by applying a differential operator to a function. The operator is constructed with desired the boundary conditions and direction for differentiation (directions are indexed starting from zero, so in 3D
+`x=0`, `y=1`, and `z=2`). The operators can be kept for repeated application, or made and discarded after use.
+
+For example, to make the derivative operator in 3D with respect to the first variable using boundary conditions from `FunctionDefaults`, and to apply it to functions `f`, `g` and `h`:
+\code
+real_derivative_3d Dx(world, 0); 
+real_function_3d dfdx = Dx(f); 
+real_function_3d dgdx = Dx(g); 
+real_function_3d dhdx = Dx(h); 
+\endcode
+
+<em>Multiplication, addition, subtraction of functions</em>
+
+Most simple mathematical operations can be composed in MADNESS as they are normally written in standard notation. For instance, if `f`, `g` and `h` are functions the expression
+\f[
+f(x) = 2g(x) + 3h(x) - 7g(x)h(x) + 99
+\f]
+is transcribed as
+\code
+f = 2*g + 3*h - 7*g*h + 99;
+\endcode
+where `*` indicates point-wise multiplication of functions.
+
+\attention Addition and subtraction of functions are exact operations in the sense that the result can be exactly represented in the MADNESS basis. Multiplication is \em inexact since the product of two polynomials of order
+\f$k\f$ is of order \f$2k\f$. The auto-refinement algorithm within MADNESS is still under development -- please refer to the implementation notes for more detail.
+
+<em>Inner products</em>
+
+The inner product of two functions is defined as 
+\f[
+\left( f \left| g \right. \right) = \int f(x)^\textrm{*} g(x) dx,
+\f]
+where \f$\textrm{*}\f$ indicates complex conjugation and the integral is taken over the entire simulation volume. The above is computed for two MADNESS functions `f` and `g` of the same type using
+\code
+inner(f, g);
+\endcode
+If the input functions are real, the result is real; for complex functions the result is complex.
+
+
+\par Integral operators
+
+The Poisson equation
+\f[
+\nabla^{2} u = -4\pi \rho 
+\f]
+is ubiquitous in scientific and engineering simulations. For the sake of simplicity, we assume free-space boundary conditions (zero at infinity), such that the Green's function is just \f$1/\left| r \right|\f$. If the right-hand side of the Poisson equation is `rho`, then the Poisson equation can be solved in MADNESS as
+\code
+real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
+
+real_function_3d result = op(rho);
+\endcode
+
+This is employed by many codes in the `examples` directory. The call to `CoulombOperator` builds a low-separation rank approximation (see the implementation notes) of the Green's function for the Poisson equation. The approximation is accurate to `1e-6` from a smallest length scale of 0.001 to the entire box size.
+
+If you have more complicated boundary conditions which require single or double layer terms please refer the example in `trunk/src/examples/interior_dirichlet.cc` for more details.
+
+
+\par Operations on vectors of functions
+
+The header file `madness/mra/vmra.h` defines operations on vectors of functions. These are convenient in eliminating error-prone loops over arrays/vectors of functions, and the vector operations are much more efficient since many operations can occur in parallel. The example code `trunk/src/examples/vnucso.cc` and the molecular density functional code make extensive use of the vector API (application programming interface) to solve eigenproblems. Let us discuss this in more detail.
+
+Given a subspace defined by a vector of \f$n\f$ functions, \f$f_{i}(x),\; i=0, \ldots, n-1\f$ we can diagonalize the operator \f$\hat{H}\f$ in the subspace by constructing the matrix representations of the operator (\f$\mathbf{H}\f$) and metric (\f$\mathbf{S}\f$):
+\f{eqnarray*}{
+\mathbf{H}_{ij} & = & \left< f_i \left| \hat{H} \right| f_j \right> \\
+\mathbf{S}_{ij} & = & \left< f_i \left|         \right. f_j \right>,
+\f}
+and then solving the generalized eigenvalue problem 
+\f[
+\mathbf{HC}=\mathbf{SC}E
+\f]
+to obtain the eigenvalues and coefficients in the subspace. The eigenfunctions  \f$u_{i}(x)\f$ are obtained by transforming the original basis 
+\f[
+\mathbf{u}=\mathbf{fC} \qquad \mathrm{or} \qquad u_{i}(x) = \sum _{j} f_{j}(x) \mathbf{c}_{ji}
+\f]
+
+Given an STL \c vector of 3D functions, `f`, and another `Hf` containing the result of applying the operator \f$\hat{H}\f$ to the vector, the above is compactly translated into MADNESS as
+\code
+real_tensor H = matrix_inner(f, Hf); 
+real_tensor S = matrix_inner(f, f); 
+real_tensor C, E; 
+
+sygv(H, S, 1, C, E); 
+vector_real_function_3d evec = transform(f, C); 
+\endcode
+
+The `matrix_inner()` routine computes the matrix of inner products (or matrix elements) of two vectors of functions, and the `sygv()` routine (in `linalg/tensor_lapack.h`) is a wrapper around the LAPACK real symmetric and complex Hermitian generalized eigenvalue routines. Finally, the `transform()` routine transforms the basis to compute the eigenfunctions.
+
+Previous: \ref gstart_comp_run; Next: \ref gstart_io
+*/

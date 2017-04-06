@@ -55,12 +55,10 @@ namespace madness {
 
 	/// check for subspace linear dependency
 
-	/// if the subspace is linearly dependent the coefficients in c
-	/// will be highly oscillating.
 	/// @param[in]     Q	the input matrix for KAIN
 	/// @param[in,out] c	the coefficients for constructing the new solution
-   /// @param[in]     rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
-   /// @param[in]     cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
+    /// @param[in]     rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+    /// @param[in]     cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
 	template<typename C>
 	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c, const double rcondtol, const double cabsmax) {
 		double rcond = 1e-12;
@@ -89,11 +87,19 @@ namespace madness {
     /// \ingroup nonlinearsolve
 	template<size_t NDIM>
 	class NonlinearSolverND {
-		const unsigned int maxsub; ///< Maximum size of subspace dimension
+		unsigned int maxsub; ///< Maximum size of subspace dimension
+
 		std::vector<Function<double,NDIM> > ulist, rlist;
 		real_tensor Q;
 
 	public:
+		void set_maxsub(const unsigned int &new_maxsub){
+			maxsub = new_maxsub;
+		}
+		unsigned int get_maxsub()const{
+			const unsigned int tmp = maxsub;
+			return tmp;
+		}
 		bool do_print;
 
 		NonlinearSolverND(unsigned int maxsub = 10) : maxsub(maxsub), do_print(false) {}
@@ -179,16 +185,16 @@ namespace madness {
     public:
         bool do_print;
 
-	XNonlinearSolver(const Alloc& alloc = Alloc())
+	XNonlinearSolver(const Alloc& alloc = Alloc(),bool print=false)
             : maxsub(10)
             , alloc(alloc)
-    		, do_print(false)
+    		, do_print(print)
         {}
 
 	XNonlinearSolver(const XNonlinearSolver& other)
             : maxsub(other.maxsub)
             , alloc(other.alloc)
-			, do_print(false)
+			, do_print(other.do_print)
         {}
 
 

@@ -1,7 +1,8 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/tensor/solvers.h>
-#include <madness/tinyxml/tinyxml.h>
+#include <madness/external/tinyxml/tinyxml.h>
+#include <madness/world/worldmem.h>
 
 using namespace madness;
 
@@ -566,10 +567,10 @@ public:
                 char vxc2_name[25]; sprintf(vxc2_name, "vxc2_%d.dat", iter);
                 char v_name[25]; sprintf(v_name, "v_%d.dat", iter);
                 int ppnts = 5001; 
-                plot_line(rho_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), rho); 
-                plot_line(vxc_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), vxc); 
-                plot_line(vxc2_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), vxc2); 
-                plot_line(v_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), v); 
+                plot_line(rho_name, ppnts, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, rho); 
+                plot_line(vxc_name, ppnts, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vxc); 
+                plot_line(vxc2_name, ppnts, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vxc2); 
+                plot_line(v_name, ppnts, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, v); 
             }*/
    
             auto ke_mat = kinetic_energy_matrix(world, psi);
@@ -648,7 +649,6 @@ int main(int argc, char** argv) {
     Molecule molecule;
 
     //print("Env: MADNESS_HAS_LIBXC =      ", MADNESS_HAS_LIBXC);
-    //print("Env: MADNESS_HAS_MADXC =      ", MADNESS_HAS_MADXC);
 
     // Hydrogen atom
     // Also for hydrogen need to make changes to nmo (set to 1)

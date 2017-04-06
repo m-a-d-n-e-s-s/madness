@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 
@@ -37,7 +34,7 @@
 #define MADNESS_MRA_LEGENDRE_H__INCLUDED
 
 #include <madness/madness_config.h>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 
 namespace madness {
     extern void load_quadrature(World& world, const char* dir);

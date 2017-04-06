@@ -1,0 +1,537 @@
+\documentclass[letterpaper]{book}
+\usepackage{amssymb,amsmath,latexsym,hyperref,graphics,color}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2ex plus 0.5ex minus 0.2ex}
+
+\begin{document}
+
+% Title Page
+\title{MADNESS Molecular electronic structure calculations}
+\date{Last Modification: 7/7/2016}
+\maketitle
+
+% Copyright Page
+\pagestyle{empty}
+\null\vfill
+\noindent
+This file is part of MADNESS.
+
+
+Copyright (C) 2007, 2010 Oak Ridge National Laboratory
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation; either version 2 of the License, or(at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program; if not, write to the Free
+Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+For more information please contact:
+\begin{quote}							
+Robert J. Harrison 				\\
+Oak Ridge National Laboratory 	\\
+One Bethel Valley Road 			\\
+P.O. Box 2008, MS-6367			\\
+Oak Ridge, TN 37831				\\
+								\\
+email: harrisonrj@ornl.gov 		\\
+tel: 865-241-3937				\\
+fax: 865-572-0680	
+\end{quote}		
+\newpage
+
+
+% Table of Contents Pages
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{roman}
+
+\setcounter{tocdepth}{10}
+\renewcommand\contentsname{Table of Contents}
+\tableofcontents
+
+
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{arabic}
+
+\chapter{Overview}
+
+\section{Capabilities}
+
+
+
+\section{Current status}
+
+The software is still in what might best described as pre-production
+quality.  Most things mostly work, but there are enough quirks that
+unfortunately it is far from being a black box like most Gaussian
+codes.
+
+Using the code to do actual science is the most effective mechanism
+for us to find and fix issues, as well as to prioritize implementation
+effort.  Please report problems, issues and functionality requests to the
+MADNESS issue tracker at XXXXXXXXXXXXXXX.
+
+\chapter{Configuring and building}
+
+This is just for LI-red for the purposes of the summer school.
+MADNESS should build out of the box on most Linux and Apple Macintosh
+boxes. Intel MKL is now free so you should alway use that (download
+from Intel), and there is an open source version of Intel TBB (Linux
+distributions should have that in their package managers).  If you are
+building to run on a virtual machine you should configure with the
+never spin option.
+
+\begin{enumerate}
+\item Copy the modules from section \ref{sec:pbslired} below into your
+  \verb+.bashrc+ file.  You will be using the Intel compiler, MPI, MKL
+  and TBB which is the recommended stack when running on a cluster.
+
+\item Clone MADNESS from
+  \url{https://github.com/m-a-d-n-e-s-s/madness}.  I (RJH) used
+  revision {\tt a1b4bae8acf57ae363f24cb8a7ea9e7229a0d95f} for testing.
+
+\item {\tt cd madness}
+
+\item \verb+sh autogen.sh+ --- only need to do this after initial checkout
+
+\item \verb+autoreconf+ --- only need to do this if a configure script has changed
+
+\item Configure with this command
+\begin{verbatim}
+  ./configure --disable-shared \
+       CC=mpiicc CXX=mpiicpc +\verb+ MPICC=mpiicc MPICXX=mpiicpc
+\end{verbatim}
+If you have installed LIBXC you can specify it with option
+\begin{verbatim}
+  --with-libxc=full-path-to-libxc+.
+\end{verbatim}
+
+\item \verb+make -j 10 libraries+ --- using just 10 processes on
+  LI-red is to be social.  Also, if building on your own machine note
+  that some of the files can use over 2GB of memory to compile, so if
+  you have limited memory you may need to restrict the number of
+  processes.  If compiling on {\tt cn-mem} I always use
+  \verb+make -j libraries+ which uses maximum parallelism (since {\tt
+    cn-mem} has 72 cores and 3 TB of memory.
+
+\item \verb+cd src/apps/moldft+
+
+\item \verb+make moldft+
+
+\item \verb+MAD_NUM_THREADS=10 ./moldft+ --- run a quick test (the {\tt input} file by default does LDA water which is quick).
+
+\end{enumerate}
+
+
+\chapter{Execution}
+
+To run {\tt moldft} with a single, multi-threaded process simply
+invoke the name of the executable with the name of the input file on
+the command line.  If the input file is ommited, it defaults to a file
+named {\tt input}.  E.g.,
+
+\begin{verbatim}
+    ./moldft inputfilename
+\end{verbatim}
+
+
+Recommendations:
+\begin{itemize}
+\item Use Intel TBB if it is available since it is more scalable than the old task pool.
+\item By default, MADNESS will create one thread for every core in the
+  computer, but even with TBB it may be more effective to use fewer threads
+  (see the environment variable \verb+MAD_NUM_THREADS+). E.g.,
+\begin{verbatim}
+      MAD_NUM_THREADS=10 ./moldft inputfile
+\end{verbatim}
+\item Oversubscribing the cores can lead to very poor performance due to
+  cache contention and locks/mutexes being held by de-scheduled
+  threads. Oversubscription can happen due to other processes (of yourself or other users)
+  running at the same time, or from use of hyperthreading (which on Intel processors
+  makes one phyiscal core appear to the system as two cores).
+\item Many threads seem to interact badly with how we are using MPI.
+  Thus, it can help both robustness and performance to use multiple
+  MPI processes per node with fewer threads per processes. As a side benefit you
+  can bind the threads associated with each process to execute on the same
+  socket, which improves thread scaling.  See the SeaWulf batch script below
+  for an example.
+\end{itemize}
+
+To run in parallel using MPI to create multiple, multi-threaded
+processes use the command {\tt mpirun} (or on some systems {\tt
+  mpiexec}) --- this is very system dependent so you may need
+additional options to specify where and how many processes are created
+(see below for use on SeaWulf and LI-red).  E.g.,
+
+\begin{verbatim}
+    export MAD_NUM_THREADS=10
+    mpirun -np 12 ./moldft inputfilename
+\end{verbatim}
+
+\subsection{Environment variables}
+
+\verb+MAD_NUM_THREADS+ --- Sets the total number of threads to be used
+by MADNESS.  When running with just one process all threads are
+devoted to computation (1 main thread with the remainder in the thread
+pool).  When running with multiple MPI processes, one of the threads
+is devoted to communication.  If you have 8 or more cores per node, it
+is recommended to leave at least one free for use by the O/S and MPI.
+
+\verb+MRA_DATA_DIR+ --- Full path to the directory containing the MRA
+data files (twoscale and autocorrelation coefficients; Gauss-Legendre
+quadrature weights).  This is usually not needed unless you have moved
+the build/installation directory.
+
+\verb+MAD_BUFFER_SIZE+ --- Sets the buffer size (in bytes) used by the
+active messages (default is 1.5MBytes).  Never needed by moldft?
+
+\verb+MAD_RECV_BUFFERS+ --- Sets the number of receive buffers used by
+the communication thread (default is 128 and a minimum of 32 is
+enforced).  If you are experiencing hangs when running with MPI,
+making this number a bit larger (e.g., 256) can sometimes help. Too
+many buffers can cause performance problems.
+
+\verb+MAD_SEND_BUFFERS+ --- Sets the number of outstanding
+asynchronous send buffers (default 128 and a minimum of 32 is
+enforced).  If you are experiencing hangs when running with MPI try
+making this smaller (to throttle the volume communication).
+
+\verb+MAD_NSSEND+ --- Every \verb+MAD_NSSEND+ messages, MADNESS
+requests a receipt acknowledgment from the receiver in an attempt to
+throttle the volume of communication.  The default is the number of
+send buffers.  Set to the value \verb+1+ to force receipt every
+message to be acknowledged.  This makes things a bit slower but can
+workaround MPI hangs.
+
+\subsection{PBS script for LI-red}
+\label{sec:pbslired}
+
+This example makes a 2 hour job running in the short queue on 8 nodes
+with one process per node and job name {\tt moldft}.  Each process
+will use 20 threads.
+
+\begin{verbatim}
+#!/bin/bash                                                                     
+#PBS -l nodes=8:ppn=1,walltime=02:00:00                                         
+#PBS -q short                                                                   
+#PBS -N moldft                                                                  
+
+export EXE=/home/rjh/madness/src/apps/moldft/moldft
+export INPUT=benzenehf.in
+export OUTPUT=benzenehf.out
+
+export I_MPI_FABRICS=shm:ofa
+export MAD_NUM_THREADS=20
+
+cd $PBS_O_WORKDIR
+
+mpirun -ppn 1 $EXE $INPUT >& $OUTPUT
+\end{verbatim}
+
+The modules I (RJH) used for testing were (put the following in your \verb+.bashrc+)
+\begin{verbatim}
+module load shared                                                              
+module load torque/5.1.0                                                        
+module load maui/3.3.1                                                          
+module load gcc/4.9.2                                                           
+module load intel/compiler/64/16.0.2/2016.2.181                                 
+module load intel/mkl/64/11.3.2/2016.2.181
+module load intel-mpi/64/5.1.2/5.1.2.150.XXX
+module load intel/tbb/64/4.4.3/2016.2.181
+module load intel/vtune/2016/2016.1.1.434111
+\end{verbatim}
+
+\subsection{PBS script for SeaWulf}
+
+On SeaWulf the PBS option {\tt ppn} is presently not consistent with
+that on LI-red --- this will change soon.  In the meantime the script
+is a little more complicated in order to get just two MADNESS
+processes per node with threads able to use all cores.
+
+ASIDE: SeaWulf has 28 cores per node and a 40 Gbit/s InfiniBand
+network whereas LI-red has 24 cores per node and a 56 Gbit/s network.
+Somehow these factors (or others?) combine to make MADNESS execution
+on SeaWulf with 1 MPI process that uses 26 MADNESS threads/node not
+reliable.  Hence, the job below uses two MPI processes per node each
+with 11 MADNESS threads.
+
+\begin{verbatim}
+#!/bin/bash
+#PBS -l nodes=12:ppn=28,walltime=10:00:00
+#PBS -q default
+#PBS -N geomopt
+
+# Probably best to put these in your .bashrc so don't need here
+module load intel/compiler/64/16.0/2016.1.056.XXX
+module load intel/mkl/64/11.3/2016.1.056.XXX
+module load intel-mpi/64/5.1.2/5.1.2.150.XXX
+module load intel/tbb/64/4.4.3/2016.2.181
+export INTEL_LICENSE_FILE=28518@129.49.83.234
+
+# Intel MPI should use shared-memory and OFED for communication
+export I_MPI_FABRICS=shm:ofa
+
+# We will create two processes per node --- bind to separate sockets
+export I_MPI_PIN_DOMAIN=socket
+
+# Should be set elsewhere but may not be
+export I_MPI_HYDRA_BOOTSTRAP=rsh
+
+# 14 cores per socket = Linux+MPI+unknown+madness
+export MAD_NUM_THREADS=11
+
+# Change to the directory from which the job was submitted
+cd $PBS_O_WORKDIR
+
+# Presently SeaWulf is configured so that to get a dedicated node we
+# need to set ppn=28 above which gives us 28 processes per node, but we
+# want two.  So need to make our own host file.
+sort < $PBS_NODEFILE | uniq > $$.hosts
+let NPROC=$PBS_NUM_NODES*2
+
+# Paths to files
+MOLDFT=/gpfs/home/rharrison/madness/src/apps/moldft/moldft
+INPUTFILE=input
+OUTPUTFILE=output
+
+# Redirect output to a file so that can see it while job is running
+
+mpirun -f $$.hosts -ppn 2 -n $NPROC $MOLDFT $INPUTFILE  >& $OUTPUTFILE
+  
+\end{verbatim}
+
+
+\section{Input structure}
+
+Presently the input {\em must} contain both a \verb+dft+ and a
+\verb+geometry+ input block.  The file is scanned for the first such
+block (so you can have multiple blocks in a file --- just the first is
+used). Within these blocks, lines beginning with \verb+#+ are read as comments.
+Outside these blocks, data is ignored.
+
+\section{Reproducibility}
+
+For small molecules, the calculations should usually be fully
+reprodicible from run to run or with different numbers of threads or
+processes.  However, for larger molecules, the different rounding
+error arising from different order of parallel execution can cause
+different execution paths.  So results may vary in the last digit or
+so, and sometimes more especially if additional/fewer iterations are
+made.  However, results at convergence should {\em always} agree to
+the that expected from the truncation and convergence thresholds, and
+the number of iterations between runs should only differ by about one.
+If you are seeing worse behavior than this, then please send the input
+and output to the MADNESS issue tracker.
+
+\chapter{Geometry specification}
+
+\begin{verbatim}
+  geometry
+      units atomic or angstrom (default atomic)
+      eprec precision (default 1e-4)
+      tag x y z
+      pstag x y z charge
+  end
+\end{verbatim}
+
+The units and energy precision ({\tt eprec}) must presently be specified {\em before} coordinates of atoms are specified.
+
+{\tt units} --- E.g., {\tt units angstrom} --- The user input units which can be {\tt atomic} or {\tt angstrom} (default is {\tt atomic}).  Beware --- presently, the output file always contains atomic units.
+
+{\tt eprec} --- E.g., {\tt eprec 1e-5} --- The energy error per atom
+in atomic units due to smoothing the nuclear potential (default is
+{\tt 1e-4}).  The default is adequate for most chemical purposes
+(giving energy differences to at least {\tt 1e-5} atomic units per atom
+and geometries accurate to about {\tt 1e-3} atomic units) unless you
+are doing very high accuracy benchmark studies.  Gradients may get
+noisy if you make {\tt eprec} too small, though we don't have much
+experience with this yet. 
+
+{\tt tag x y z} --- E.g., {\tt Be 0.3 -0.1 3.1} --- Specifies an atom using its atomic symbol (case insensitive) and Cartesian coordinates.
+
+{\tt bqtag x y z charge} --- E.g., {\tt Bq9 20.0 20.0 20.0 -10.0} --- The tag must begin with {\tt Bq} (case insensitive).  It is used to place a charge at an arbitrary location (e.g., to simulate an external field).
+
+{\tt pstag x y z charge} --- E.g., {\tt psBe 0.3 -0.1 3.1} --- The tag must begin with {\tt ps} (case insensitive).  It is used to put a pseudopotential on selected atoms ({\em I think ???????}).
+
+
+\chapter{Ground state molecular DFT and HF}
+
+\begin{verbatim}
+  dft
+      directives/keywords
+  end
+\end{verbatim}
+
+{\tt nopen value} --- E.g., {\tt nopen 3} --- The number of unpaired spin orbitals, $n_\alpha - n_\beta$ (default {\tt 0})
+
+{\tt unrestricted} --- Selects a spin-unrestricted calculation (default is spin restricted)
+
+{\tt xc value} --- E.g., {\tt xc HF} --- Selects the exchange correlation potential (default is {\tt LDA}). See XC section for more details.
+
+{\tt aobasis value} --- E.g., {\tt aobasis sto-3g} --- Sets the atomic orbital basis used for the initial guess.  Options are {\tt sto-3g} (down to Iodine)  or {\tt 6-31g} (down to Zinc, default).  
+
+{\tt charge value} --- E.g., {\tt charge -1.0} --- Total charge (default {\tt 0}) on the molecule. Atomic units.
+
+{\tt nvalpha value} --- E.g., {\tt nvalpha 2} --- The number of alpha spin virtual orbitals to solve for (default {\tt 0}) --- is this working now?
+
+{\tt nvbeta value} --- E.g., {\tt nvbeta 2} --- The number of beta spin virtual orbitals to solve for (default {\tt 0}) --- is this working now?
+
+{\tt no\_orient} --- Do not reorient/translate the molecule to orientation/center.
+
+{\tt core\_type value} --- E.g., {\tt What is available?} Selects the pseudopotential to be used on all atoms (can also do mixed all-electron/pseudopotential calculation).  Not heavily tested and unoptimized. (default is all electron).
+
+{\tt psp\_calc} --- Perform pseusopotential calculation on all atoms.  Not heavily tested and unoptimized. (default is all-electron)
+
+{\tt L value} --- E.g., {\tt L 50} --- Sets the computational box size to $[-L,L]^3$ atomic units (mostly for testing).  Default is to find cube that contains all nuclei and to add 50 atomic units.
+
+\section{XC --- DFT exchange correlation}
+
+Without LIBXC, the code just provides either Hartree-Fock ({\tt xc HF}) or local (spin) density approximation ({\tt xc LDA}, the default).
+
+With LIBXC, in addition to HF and LDA (default) there are wide varity of GGA and hybrid functionals available --- the ones that have been tested (to some extent) have been provided with simple input formats
+\begin{itemize}
+\item Becke-Perdew (91?) --- \verb+xc bp+
+\item Becke-Perdew 86 --- \verb+xc bp86+
+\item PBE --- \verb+xc pbe+
+\item PBE-0 --- \verb+xc pbe0+
+\item B3LYP --- \verb+xc b3lyp+
+\end{itemize}
+
+There is also a more general input format in which you can provide a list of functional names (using LIBXC's naming scheme) and the coefficient by which to scale it.  For instance, to get PBE-0 you could specify
+\verb+xc GGA_X_PBE .75 GGA_C_PBE 1. HF_X .25+.
+
+We have not yet implemented the near linear-scaling algorithm for HF
+exchange, which as a consequence is fairly slow and may require a lot
+of memory (there is low-memory algorithm in the code but I don't think
+it is yet available as an input option).
+
+\section{Restarting}
+
+At completion of an HF or DFT calculation, the molecular orbitals are
+saved in the files \verb+restartdata.*+ (with one file per I/O server
+process).  The projection of the orbtials onto the {\tt sto-3G} AO basis
+set is saved into the file {\tt restartaodata}.
+
+{\tt restart} --- Restart from numerical orbitals from a previous calculation (default is no)
+
+{\tt restartao} --- Restart from projection of orbitals onto AO basis
+set from a previous calculation (default is no unless doing geometry
+optimization).  If a restart file is not found, or the file contains
+incompatible data then the default atomic guess is used.
+
+{\tt save value} --- E.g., {\tt save false} --- Boolean flag to save (or not) orbitals at completion (default is true).
+
+\section{Controlling convergence and accuracy}
+
+The default convergence test is on both the 2-norm of change in density per atom (separately for each spin) between iterations and the residual error in each wave function.
+
+\begin{verbatim}
+  converged = (da < dconv * molecule.natom()) && 
+              (db < dconv * molecule.natom()) &&
+              (conv_only_dens || (max_residual < 5.0 * dconv))
+\end{verbatim}
+
+{\tt dconv value} --- E.g., {\tt dconv 1e-5} --- SCF convergence criterion (default 1e-4 atomic units).  Suggest decreasing this to {\tt 1e-5} for geometry optimization or property calculations.
+
+{\tt canon} --- Solves for canonical orbitals or eigenfunctions (default is localized orbitals except for atoms and diatomics).
+
+{\tt pm} --- Selects use of the Pipek-Mezy localized orbitals (default).
+
+{\tt boys} --- Selects use of the Boys localized orbitals.
+
+{\tt maxrotn value} --- E.g., {\tt maxrotn 0.1} --- Used to restrict maximum rotation of orbitals (default {\tt 0.25})
+
+{\tt maxiter value} --- E.g., {\tt maxiter 20} --- The maximum number of iterations (default is {\tt 20})
+
+{\tt maxsub value} --- E.g., {\tt maxsub 5} --- The size of the iterative subspace (default is {\tt 5}).  Sometimes it helps to make this larger.
+
+{\tt protocol valuelist} --- E.g., {\tt protocol 1e-4 1e-6 1e-8} --- Sets the solution protocol.  The default is `{\tt 1e-4 1e-6} which means solve first using a truncation threshold of {\tt 1e-4} (using $k=6$) and with a threshold of {\tt 1e-6} (using $k=8$).
+
+{\tt orbitalshift} --- E.g., {\tt orbitalshift 0.1} --- Shifts the occupied orbitals down in energy by the given amount (default {\tt 0}).  Is this working?
+
+{\tt k value} --- E.g., {\tt k 8} --- Sets the wavelet order to a fixed value (mostly only used for testing)
+
+{\tt convonlydens} --- Just test on the change in the density for convergence.
+
+
+\section{Geometry optimization}
+
+By default geometry optimization is performed using the BFGS Hessian update algorithm.  The convergence test is on all of the 2-norm of the gradient, the change in the energy between iterations, and the maximum change in Cartesian coordinates (all in atomic units).  The 
+
+For geometry optimization it is recommended to select {\tt dconv 1e-5} to obtain more accurate gradients.
+
+{\tt gopt} --- Requests optimization of the geometry
+
+{\tt gtol value} --- E.g., {\tt gtol 1e-4} --- Sets the convergence threshold for the 2-norm of the gradient (default {\tt 1e-3}).
+
+{\tt gtest value} --- E.g., {\tt gtest 1e-4} --- Sets the convergence threshold for the maximum change in Cartesian coordinates (default {\tt 1e-3} atomic units).
+
+{\tt gval value} --- E.g., {\tt gval 1e-6} --- Sets the available precision in the energy (default is {\tt 1e-5} atomic units).
+
+{\tt gprec value} --- E.g., {\tt gtest 1e-6} --- Sets the available precision in the gradient (default is {\tt 1e-5} atomic units).
+
+{\tt gmaxiter value} --- E.g., {\tt gmaxiter 100} --- Sets the maximum number of geometry optimization iterations (default is 20).
+
+{\tt algopt value} --- E.g., {\tt algopt SR1} --- Selects the quasi-Newton update method (default is ).  Options are {\tt BFGS} (default) or {\tt SR1} (not heavily tested).  Case sensitive.
+
+\section{Properties}
+
+{\tt derivatives} --- Compute the derivates (default is false).
+
+{\tt dipole} --- Compute the molecular dipole moment (default is false --- why?).
+
+{\tt response} --- TBD
+
+{\tt response\_freq} ---  TBD
+
+{\tt response\_axis} --- TBD
+
+{\tt rconv} --- TBD
+
+{\tt efield} --- TBD
+
+{\tt efield\_axis x y z} --- TBD
+
+{\tt print\_dipole\_matels} --- TBD
+
+\section{Plotting}
+
+Plots are generated to OpenDX files.  In the {\tt moldft} source directory are two useful files
+
+\begin{itemize}
+\item {\tt vizit.net} --- An OpenDX visual program that displays a
+  molecule (from file {\tt molecule.dx}) along with positive+negative
+  isosurfaces (with adjustable value)for a scalar field read from a
+  file.
+
+\item {\tt moldx.py} --- A Python program you can run with your {\em
+  output} file as standard input to produce a {\tt molecule.dx} file.
+  It is important to use your output file since {\tt moldft} will (by
+  default) translate and rotate the molecular coordinates.
+  
+\end{itemize}
+
+{\tt plotmos lo hi} --- E.g., {\tt plotmos 10 12} --- Plots the molecular orbitals in the given inclusive range (default is none).  Orbitals are numbered from zero.  Seems like this needs extending to accomodate unrestricted calculations.
+
+{\tt plotdens} --- Plots the total electronic charge density and, if spin unrestricted, the spin density (default is off).
+
+{\tt plotcoul} --- Plots the total (electronic + nuclear) electrostatic potential (default is off).
+
+{\tt plotnpt value } --- E.g., {\tt plotnpt 501} --- Sets the number of plots used per dimension in the cube of points (default 101).
+
+{\tt plotcell xlo xhi ylo yhi zlo zhi} --- E.g., {\tt plotcell -10 10 -15 15 -10 5} --- Sets the cell (in atomic units) used for plotting (default is the entire simulation cell).
+
+\section{Parallel execution}
+
+{\tt loadbal vnucfac parts} --- E.g., {\tt loadbal 12 2} --- Adjusts data/loadbalance when running in parallel with MPI.  {\tt vnucfac} (default 12) is extra weight associated with nuclear potential and {\tt parts} (default 2) is the number of partitions (or subtrees) per node.  SCF
+
+{\tt nio value} --- E.g., {\tt nio 10} --- The number of MPI processes to use as I/O servers (default is 1)
+
+
+\end{document}

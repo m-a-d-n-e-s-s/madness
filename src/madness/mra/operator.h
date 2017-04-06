@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_OPERATOR_H__INCLUDED
 #define MADNESS_MRA_OPERATOR_H__INCLUDED
 
@@ -38,9 +37,9 @@
 
 /// \ingroup function
 
+#include <type_traits>
 #include <limits.h>
 #include <madness/mra/adquad.h>
-#include <madness/tensor/mtxmq.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/constants.h>
@@ -52,7 +51,6 @@
 #include <madness/mra/gfit.h>
 
 namespace madness {
-
 
     /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
     /// Why is this here?? Why don't you just use ConvolutionND in SeparatedConvolutionData??
@@ -221,7 +219,6 @@ namespace madness {
                                   const Tensor<T>& f,
                                   Tensor<R>& work1,
                                   Tensor<R>& work2,
-                                  Tensor<Q>& work3,
                                   const Q mufac,
                                   Tensor<R>& result) const {
 
@@ -232,16 +229,11 @@ namespace madness {
 
             R* restrict w1=work1.ptr();
             R* restrict w2=work2.ptr();
-#ifndef HAVE_IBMBGQ
-            Q* restrict w3=work3.ptr();
-            const Q* U;
-#endif
 
 #ifdef HAVE_IBMBGQ
             mTxmq_padding(dimi, trans[0].r, dimk, dimk, w1, f.ptr(), trans[0].U);
 #else
-            U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
-            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), trans[0].U, dimk);
 #endif
 
             size = trans[0].r * size / dimk;
@@ -250,8 +242,7 @@ namespace madness {
 #ifdef HAVE_IBMBGQ
                 mTxmq_padding(dimi, trans[d].r, dimk, dimk, w2, w1, trans[d].U);
 #else
-                U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
-                mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+                mTxmq(dimi, trans[d].r, dimk, w2, w1, trans[d].U, dimk);
 #endif
                 size = trans[d].r * size / dimk;
                 dimi = size/dimk;
@@ -308,7 +299,6 @@ namespace madness {
                                   const GenTensor<T>& f,
                                   GenTensor<R>& work1,
                                   GenTensor<R>& work2,
-                                  GenTensor<Q>& work3,
                                   const Q mufac,
                                   GenTensor<R>& result) const {
 
@@ -326,17 +316,12 @@ namespace madness {
 
             R* restrict w1=work1.ptr();
             R* restrict w2=work2.ptr();
-            Q* restrict w3=work3.ptr();
 
-            const Q* U;
-
-            U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
-            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), trans[0].U, dimk);
             size = trans[0].r * size / dimk;
             dimi = size/dimk;
             for (std::size_t d=1; d<NDIM; ++d) {
-                U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
-                mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+                mTxmq(dimi, trans[d].r, dimk, w2, w1, trans[d].U, dimk);
                 size = trans[d].r * size / dimk;
                 dimi = size/dimk;
                 std::swap(w1,w2);
@@ -377,8 +362,7 @@ namespace madness {
                          double tol,
                          const Q mufac,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
-                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
-                         Tensor<Q>& work5) const {
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2) const {
 
             //PROFILE_MEMBER_FUNC(SeparatedConvolution); // Too fine grain for routine profiling
             Transformation trans[NDIM];
@@ -400,6 +384,7 @@ namespace madness {
                 else if (NDIM==2) break_even = long(0.6*twok);
                 else if (NDIM==3) break_even=long(0.65*twok);
                 else break_even=long(0.7*twok);
+                bool rank_is_zero = false;
                 for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
                     for (r=0; r<twok; ++r) {
@@ -411,15 +396,22 @@ namespace madness {
                         trans[d].VT = 0;
                     }
                     else {
-                        r += (r&1L);
-                        trans[d].r = std::max(2L,r);
+                        //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+                        if (r == 0) {
+                            rank_is_zero = true;
+                            break;
+                        }
+                        trans[d].r = r;
                         trans[d].U = ops_1d[d]->RU.ptr();
                         trans[d].VT = ops_1d[d]->RVT.ptr();
                     }
                     trans2[d]=ops_1d[d]->R;
                 }
-                apply_transformation(twok, trans, f, work1, work2, work5, mufac, result);
-    //            apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
+
+                if (!rank_is_zero)
+                    apply_transformation(twok, trans, f, work1, work2, mufac, result);
+
+                //            apply_transformation2(n, twok, tol, trans2, f, work1, work2, mufac, result);
 //                apply_transformation3(trans2, f, mufac, result);
             }
 
@@ -434,6 +426,7 @@ namespace madness {
                 else if (NDIM==2) break_even = long(0.6*k);
                 else if (NDIM==3) break_even=long(0.65*k);
                 else break_even=long(0.7*k);
+                bool rank_is_zero = false;
                 for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
                     for (r=0; r<k; ++r) {
@@ -445,15 +438,20 @@ namespace madness {
                         trans[d].VT = 0;
                     }
                     else {
-                        r += (r&1L);
-                        trans[d].r = std::max(2L,r);
+                        //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+                        if (r == 0) {
+                            rank_is_zero = true;
+                            break;
+                        }
+                        trans[d].r = r;
                         trans[d].U = ops_1d[d]->TU.ptr();
                         trans[d].VT = ops_1d[d]->TVT.ptr();
                     }
                     trans2[d]=ops_1d[d]->T;
                 }
-                apply_transformation(k, trans, f0, work1, work2, work5, -mufac, result0);
-//                apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
+                if (!rank_is_zero)
+                    apply_transformation(k, trans, f0, work1, work2, -mufac, result0);
+//                apply_transformation2(n, k, tol, trans2, f0, work1, work2, -mufac, result0);
 //                apply_transformation3(trans2, f0, -mufac, result0);
             }
         }
@@ -469,8 +467,7 @@ namespace madness {
                          double tol,
                          const Q mufac,
                          GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
-                         GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
-                         GenTensor<Q>& work5) const {
+                         GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work2) const {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
 //            Transformation trans[NDIM];
@@ -494,24 +491,24 @@ namespace madness {
 //				else if (NDIM==3) break_even=long(0.65*twok);
 //				else break_even=long(0.7*twok);
 				for (std::size_t d=0; d<NDIM; ++d) {
-					long r;
-					for (r=0; r<twok; ++r) {
-						if (ops_1d[d]->Rs[r] < tol) break;
-					}
+					// long r;
+					// for (r=0; r<twok; ++r) {
+					// 	if (ops_1d[d]->Rs[r] < tol) break;
+					// }
 //					if (r >= break_even) {
 //						trans[d].r = twok;
 //						trans[d].U = ops_1d[d]->R.ptr();
 //						trans[d].VT = 0;
 //					}
 //					else {
-//						r += (r&1L);
-//						trans[d].r = std::max(2L,r);
+//						//r += std::max(2L,r&1L); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+//						trans[d].r = r; 
 //						trans[d].U = ops_1d[d]->RU.ptr();
 //						trans[d].VT = ops_1d[d]->RVT.ptr();
 //					}
 					trans2[d]=ops_1d[d]->R;
 				}
-				apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
+				apply_transformation2(n, twok, tol, trans2, f, work1, work2, mufac, result);
             }
 
             double Tnorm = 1.0;
@@ -525,24 +522,24 @@ namespace madness {
 //                else if (NDIM==3) break_even=long(0.65*k);
 //                else break_even=long(0.7*k);
                 for (std::size_t d=0; d<NDIM; ++d) {
-                    long r;
-                    for (r=0; r<k; ++r) {
-                        if (ops_1d[d]->Ts[r] < tol) break;
-                    }
+                    // long r;
+                    // for (r=0; r<k; ++r) {
+                    //     if (ops_1d[d]->Ts[r] < tol) break;
+                    // }
 //                    if (r >= break_even) {
 //                        trans[d].r = k;
 //                        trans[d].U = ops_1d[d]->T.ptr();
 //                        trans[d].VT = 0;
 //                    }
 //                    else {
-//                        r += (r&1L);
-//                        trans[d].r = std::max(2L,r);
+//                        //r += std::max(2L,r&1L); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+//                        trans[d].r = r; 
 //                        trans[d].U = ops_1d[d]->TU.ptr();
 //                        trans[d].VT = ops_1d[d]->TVT.ptr();
 //                    }
                     trans2[d]=ops_1d[d]->T;
                 }
-                apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
+                apply_transformation2(n, k, tol, trans2, f0, work1, work2, -mufac, result0);
             }
         }
 
@@ -558,7 +555,7 @@ namespace madness {
         ///       ... WITHOUT FACTOR INCLUDED
         /// compute for 1 term, all dim, 1 disp, essentially for SeparatedConvolutionInternal
         double munorm2_ns(Level n, const ConvolutionData1D<Q>* ops[]) const {
-            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            //PROFILE_MEMBER_FUNC(SeparatedConvolution);
             
             double prodR=1.0, prodT=1.0;
             for (std::size_t d=0; d<NDIM; ++d) {
@@ -698,7 +695,7 @@ namespace madness {
                 Translation sx=source.translation()[d];                          // source translation
                 Translation tx=source.translation()[d]+disp.translation()[d];    // target translation
 
-                Key<2> op_key(n,Vector<Translation,2>(vec(sx,tx)));
+                Key<2> op_key(n,Vector<Translation,2>{sx,tx});
                 op.ops[d] = ops[mu].getop(d)->mod_nonstandard(op_key);
             }
 
@@ -1007,11 +1004,13 @@ namespace madness {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
 
             for (int mu=0; mu<rank; ++mu) {
+                double c = std::pow(sqrt(expnt(mu)/madness::constants::pi),static_cast<int>(NDIM)); // Normalization coeff
+                ops[mu].setfac(coeff(mu)/c);
                 for (std::size_t d=0; d<NDIM; ++d) {
-                  Q c = pow(coeff[mu],1.0/NDIM);
-                  std::shared_ptr<GaussianConvolution1D<Q> >
-                      gcptr(new GaussianConvolution1D<Q>(k, c*width[d], expnt(mu)*width[d]*width[d],
-                              0, isperiodicsum, args[d]));
+                  double c2 = sqrt(expnt[mu]*width[d]*width[d]/madness::constants::pi);
+                  std::shared_ptr<GaussianConvolution1D<double_complex> >
+                      gcptr(new GaussianConvolution1D<double_complex>(k, c2, 
+                            expnt(mu)*width[d]*width[d], 0, isperiodicsum, args[d]));
                   ops[mu].setop(d,gcptr);
                 }
             }
@@ -1056,7 +1055,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename disable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        typename std::enable_if<FDIM!=NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
             Key<NDIM> source;
             Key<FDIM-NDIM> dummykey;
@@ -1073,7 +1072,7 @@ namespace madness {
         /// @param[in]	key	hi-dim key
         /// @return		a lo-dim part of key; typically first or second half
         template<size_t FDIM>
-        typename enable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        typename std::enable_if<FDIM==NDIM, Key<NDIM> >::type
         get_source_key(const Key<FDIM> key) const {
         	return key;
         }
@@ -1141,7 +1140,7 @@ namespace madness {
                 }
             }
 
-            tol = tol/rank; // Error is per separated term
+            tol = 0.01*tol/rank; // Error is per separated term
             ApplyTerms at;
             at.r_term=true;
             at.t_term=(source.level()>0);
@@ -1153,13 +1152,11 @@ namespace madness {
 
             Tensor<resultT> r(v2k), r0(vk);
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
-            Tensor<Q> work5(2*k,2*k);
 
             if (modified()) {
                    r=Tensor<resultT>(vk);
                    work1=Tensor<resultT>(vk,false);
                    work2=Tensor<resultT>(vk,false);
-                   work5=Tensor<Q>(k,k);
             }
 
             const Tensor<T> f0 = copy(coeff(s0));
@@ -1170,7 +1167,7 @@ namespace madness {
                     // ops is of ConvolutionND, returns data for 1 term and all dimensions
                     Q fac = ops[mu].getfac();
                     muopxv_fast(at, muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
-                                work1, work2, work5);
+                                work1, work2);
                 }
             }
 
@@ -1191,7 +1188,7 @@ namespace madness {
         /// @param[in]  coeff   source coeffs in SVD (=optimal!) form, in high dimensionality (FDIM)
         /// @param[in]  source  the source key in low dimensionality (NDIM)
         /// @param[in]  shift   the displacement in low dimensionality (NDIM)
-        /// @param[in]  tol     thresh/#neigh*cnorm
+        /// @param[in]  tol     thresh/(#neigh*cnorm)
         /// @param[in]  tol2    thresh/#neigh
         /// @return     coeff result
         template<typename T>
@@ -1200,6 +1197,11 @@ namespace madness {
 
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
+            // prepare access to the singular vectors
+            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
+            // can't use predefined slices and vectors -- they have the wrong dimension
+            const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
+
             // some checks
             MADNESS_ASSERT(coeff.tensor_type()==TT_2D);           // for now
             MADNESS_ASSERT(not modified());
@@ -1207,16 +1209,11 @@ namespace madness {
             MADNESS_ASSERT(coeff.dim(0)==2*k);
             MADNESS_ASSERT(2*NDIM==coeff.ndim());
 
+            double cpu0=cpu_time();
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
-
-            // prepare access to the singular vectors
-            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
-            // can't use predefined slices and vectors -- they have the wrong dimension
-            const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
 
             // some workspace
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
-            Tensor<Q> work5(2*k,2*k);
 
             // sliced input and final result
             const GenTensor<T> f0 = copy(coeff(s00));
@@ -1226,6 +1223,11 @@ namespace madness {
             tol = tol/rank*0.01; // Error is per separated term
             tol2= tol2/rank;
 
+            // the operator norm is missing the identity working on the other particle
+            // use as (muop.norm*exchange_norm < tol)
+            // for some reason the screening is not working at all..
+//            double exchange_norm=std::pow(2.0*k,1.5);
+
             for (int r=0; r<coeff.rank(); ++r) {
 
                 // get the appropriate singular vector (left or right depends on particle)
@@ -1233,7 +1235,7 @@ namespace madness {
                 s[0]=Slice(r,r);
                 const Tensor<T> chunk=coeff.config().ref_vector(particle()-1)(s).reshape(2*k,2*k,2*k);
                 const Tensor<T> chunk0=f0.config().ref_vector(particle()-1)(s).reshape(k,k,k);
-//                const double weight=coeff.config().weights(r);
+//                const double weight=std::abs(coeff.config().weights(r));
 
                 // accumulate all terms of the operator for a specific term of the function
                 Tensor<resultT> result(v2k), result0(vk);
@@ -1243,19 +1245,13 @@ namespace madness {
                 at.t_term=source.level()>0;
 
                 // this loop will return on result and result0 the terms [(P+Q) G (P+Q)]_1,
-                // and [P Q P]_1, respectively
+                // and [P G P]_1, respectively
                 for (int mu=0; mu<rank; ++mu) {
                     const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
-
-//                    if (muop.norm > tol2*std::abs(weight)) {
-
-                        Q fac = ops[mu].getfac();
-                        muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
-                                tol/std::abs(fac), fac, work1, work2, work5);
-
-//                    }
+                    Q fac = ops[mu].getfac();
+                    muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
+                            tol/std::abs(fac), fac, work1, work2);
                 }
-
 
                 // reinsert the transformed terms into result, leaving the other particle unchanged
                 MADNESS_ASSERT(final.config().has_structure());
@@ -1269,13 +1265,20 @@ namespace madness {
                 }
 
             }
+            double cpu1=cpu_time();
+            timer_low_transf.accumulate(cpu1-cpu0);
 
+            double cpu00=cpu_time();
+
+            final.reduce_rank(tol2*0.5);
+            final0.reduce_rank(tol2*0.5);
             final(s00)+=final0;
             final.reduce_rank(tol2);
 
+            double cpu11=cpu_time();
+            timer_low_accumulate.accumulate(cpu11-cpu00);
             return final;
         }
-
 
         /// apply this operator on coefficients in low rank form
 
@@ -1322,14 +1325,11 @@ namespace madness {
 
             GenTensor<resultT> r, r0, result, result0;
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
-            GenTensor<Q> work5(v2k,tt);
 
             if (modified()) {
                 r=GenTensor<resultT>(vk,tt);
                 work1=GenTensor<resultT>(vk,tt);
                 work2=GenTensor<resultT>(vk,tt);
-                work5=GenTensor<Q>();
-
             }
 
             // collect the results of the individual operator terms
@@ -1360,7 +1360,7 @@ namespace madness {
 
                         Q fac = ops[mu].getfac();
                         muopxv_fast2(source.level(), muop.ops, chunk, chunk0, r, r0,
-                                tol/std::abs(fac), fac,	work1, work2, work5);
+                                tol/std::abs(fac), fac,	work1, work2);
                         double cpu1=cpu_time();
                         timer_low_transf.accumulate(cpu1-cpu0);
 
@@ -1438,6 +1438,90 @@ namespace madness {
 
         }
 
+        /// construct the tensortrain representation of the operator
+
+        /// @param[in]  source  source coefficient box
+        /// @param[in]  shift   displacement
+        /// @param[in]  tol     threshold for the TT truncation
+        /// @param[in]  do_R    compute the R term of the operator (2k^d)
+        /// @param[in]  do_T    compute the T term of the operator (k^d), including factor -1
+        /// Both do_R and do_T may be used simultaneously, then the final
+        /// operator will have dimensions (2k^d)
+        TensorTrain<double> make_tt_representation(const Key<NDIM>& source,
+                const Key<NDIM>& shift, double tol, bool do_R, bool do_T) const {
+
+            if (not (do_R or do_T)) {
+                print("no operator requested in make_tt_representation??");
+                MADNESS_EXCEPTION("you're sure you know what you're doing?",1);
+            }
+
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
+
+            // check for significant ranks since the R/T matrices' construction
+            // might have been omitted. Tnorm is always smaller than Rnorm
+            long lo=0,hi=rank;
+            for (int mu=0; mu<rank; ++mu) {
+                double Rnorm=1.0;
+                for (std::size_t d=0; d<NDIM; ++d) Rnorm *= op->muops[mu].ops[d]->Rnorm;
+                if (Rnorm>1.e-20) hi=mu;
+                if ((Rnorm<1.e-20) and (mu<hi)) lo=mu;
+            }
+            hi++;lo++;
+
+            // think about dimensions
+            long rank_eff=(hi-lo);    // R or T matrices
+            long step=1;
+            if (do_R and do_T) {        // R and T matrices
+                rank_eff*=2;
+                step*=2;
+            }
+
+            long k2k=k;             // T matrices
+            if (do_R) k2k=2*k;      // R matrices
+
+
+            // construct empty TT cores and fill them with the significant R/T matrices
+            std::vector<Tensor<double> > cores(NDIM,Tensor<double>(rank_eff,k2k,k2k,rank_eff));
+            cores[0]=Tensor<double>(k2k,k2k,rank_eff);
+            cores[NDIM-1]=Tensor<double>(rank_eff,k2k,k2k);
+
+
+            for (int mu=lo, r=0; mu<hi; ++mu, ++r) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                const Q fac = ops[mu].getfac();
+                const Slice sr0(step*r,  step*r,  0);
+                const Slice sr1(step*r+step-1,step*r+step-1,0);
+                const Slice s00(0,k-1,1);
+
+                if (do_R) {
+                    cores[0](_,  _  ,sr0)=muop.ops[0]->R;
+                    for (std::size_t idim=1; idim<NDIM-1; ++idim) {
+                          cores[idim](sr0,_  ,_  ,sr0)=muop.ops[idim]->R;
+                    }
+                    cores[NDIM-1](sr0,_  ,_  )=muop.ops[NDIM-1]->R*fac;
+                }
+
+                if (do_T) {
+                    cores[0](s00,s00,sr1)=muop.ops[0]->T;
+                    for (std::size_t idim=1; idim<NDIM-1; ++idim) {
+                        cores[idim](sr1,s00,s00,sr1)=muop.ops[idim]->T;
+                    }
+                    cores[NDIM-1](sr1,s00,s00)=muop.ops[NDIM-1]->T*(-fac);
+                }
+            }
+
+            // construct TT representation
+            TensorTrain<double> tt(cores);
+
+            // need to reshape for the TT truncation
+            tt.make_tensor();
+            tt.truncate(tol*GenTensor<double>::fac_reduce());
+            tt.make_operator();
+
+            return tt;
+        }
+
     };
 
 
@@ -1476,7 +1560,8 @@ namespace madness {
                                                    double lo,
                                                    double eps,
                                                    const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
-                                                   int k=FunctionDefaults<3>::get_k())
+
+												   int k=FunctionDefaults<3>::get_k())
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
@@ -1573,6 +1658,58 @@ namespace madness {
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
 
+    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
+    static
+    inline
+    SeparatedConvolution<double_complex,3> PeriodicBSHOperator3D(World& world,
+                                                         Vector<double,3> args,
+                                                         double mu,
+                                                         double lo,
+                                                         double eps,
+                                                         const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                         int k=FunctionDefaults<3>::get_k())
+
+    {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+        return SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k);
+    }
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
+    static
+    inline
+    SeparatedConvolution<double_complex,3>* PeriodicBSHOperatorPtr3D(World& world,
+                                                         Vector<double,3> args,
+                                                         double mu,
+                                                         double lo,
+                                                         double eps,
+                                                         const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                         int k=FunctionDefaults<3>::get_k())
+
+    {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+        return new SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k);
+    }
+
     /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
     static inline SeparatedConvolution<double,3> SlaterF12Operator(World& world,
     		double mu, double lo, double eps,
@@ -1593,6 +1730,79 @@ namespace madness {
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
     }
 
+    /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
+    /// Note that the 1/(2mu) factor of SlaterF12Operator is not included, this is just the exponential function
+    static inline SeparatedConvolution<double,3> SlaterOperator(World& world,
+    		double mu, double lo, double eps,
+    		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+    		int k=FunctionDefaults<3>::get_k()) {
+
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+        SeparatedConvolution<double,3> tmp(world, coeff, expnt, bc, k, false, mu);
+        tmp.is_slaterf12 = false;
+        return tmp;
+    }
+
+    /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
+    static inline SeparatedConvolution<double,3>* SlaterF12OperatorPtr(World& world,
+    		double mu, double lo, double eps,
+    		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+    		int k=FunctionDefaults<3>::get_k()) {
+
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+    }
+
+
+    /// Factory function generating separated kernel for convolution a normalized
+    /// Gaussian (aka a widened delta function)
+    static inline SeparatedConvolution<double,3> SmoothingOperator3D(World& world,
+            double eps,
+            const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+            int k=FunctionDefaults<3>::get_k()) {
+
+        double exponent = 1.0/(2.0*eps);
+        Tensor<double> coeffs(1), exponents(1);
+        exponents(0L) =  exponent;
+        coeffs(0L)=pow(exponent/M_PI,0.5*3.0);  // norm of the gaussian
+        return SeparatedConvolution<double,3>(world, coeffs, exponents);
+
+    }
+
+    /// Factory function generating separated kernel for convolution a normalized
+    /// Gaussian (aka a widened delta function)
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double,NDIM> SmoothingOperator(World& world,
+            double eps,
+            const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+            int k=FunctionDefaults<NDIM>::get_k()) {
+
+        double exponent = 1.0/(2.0*eps);
+        Tensor<double> coeffs(1), exponents(1);
+        exponents(0L) =  exponent;
+        coeffs(0L)=pow(exponent/M_PI,0.5*NDIM);  // norm of the gaussian
+        return SeparatedConvolution<double,NDIM>(world, coeffs, exponents);
+    }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     static
@@ -1672,11 +1882,66 @@ namespace madness {
         return gradG;
     }
 
+    /// Factory function generating operator for convolution with grad(bsh) in 3D
+
+    /// Returns a 3-vector containing the convolution operator for the
+    /// x, y, and z components of grad(bsh)
+    static
+    inline
+    std::vector< std::shared_ptr< SeparatedConvolution<double,3> > >
+    GradBSHOperator(World& world,
+                        double mu,
+                        double lo,
+                        double eps,
+                        const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                        int k=FunctionDefaults<3>::get_k())
+    {
+        typedef SeparatedConvolution<double,3> real_convolution_3d;
+        typedef std::shared_ptr<real_convolution_3d> real_convolution_3d_ptr;
+        const double pi = constants::pi;
+        const Tensor<double> width = FunctionDefaults<3>::get_cell_width();
+        double hi = width.normf(); // Diagonal width of cell
+        const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
+        if (isperiodicsum) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+        Tensor<double> coeff=fit.coeffs();
+        Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
+        }
+
+        int rank = coeff.dim(0);
+
+        std::vector<real_convolution_3d_ptr> gradG(3);
+
+        for (int dir=0; dir<3; dir++) {
+            std::vector< ConvolutionND<double,3> > ops(rank);
+            for (int mu=0; mu<rank; mu++) {
+                // We cache the normalized operator so the factor is the value we must multiply
+                // by to recover the coeff we want.
+                double c = std::pow(sqrt(expnt(mu)/pi),3); // Normalization coeff
+                ops[mu].setfac(coeff(mu)/c/width[dir]);
+
+                for (int d=0; d<3; d++) {
+                    if (d != dir)
+                        ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+                }
+                ops[mu].setop(dir,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
+            }
+            gradG[dir] = real_convolution_3d_ptr(new SeparatedConvolution<double,3>(world, ops));
+        }
+
+        return gradG;
+    }
+
+
     namespace archive {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void load(const Archive& ar, const SeparatedConvolution<T,NDIM>*& ptr) {
-                WorldObject< SeparatedConvolution<T,NDIM> >* p = NULL;
+                WorldObject< SeparatedConvolution<T,NDIM> >* p = nullptr;
                 ar & p;
                 ptr = static_cast< const SeparatedConvolution<T,NDIM>* >(p);
             }

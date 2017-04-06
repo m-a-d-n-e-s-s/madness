@@ -1,4 +1,5 @@
-SUBDIRS = gtest madness apps examples
+SUBDIRS = madness apps examples
+EXTRA_DIST = CMakeLists.txt
 
 thisincludedir = $(includedir)
 thisinclude_HEADERS = madness.h

@@ -27,13 +27,10 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <iostream>
 using std::cout;
 using std::endl;
@@ -43,21 +40,13 @@ using std::endl;
 static std::ofstream fout;
 namespace madness {
     void redirectio(World& world) {
-        //if (world.mpi.rank() != 0) {
         char filename[256];
         std::sprintf(filename,"log.%5.5d",world.mpi.rank());
         
-        // Was using this but it seems as if it does not
-        // redirect C stdio interface (at least on Cygwin).
-        // Switched back to this since it seems to give better
-        // behavior on linux
-        fout.open(filename);
-        cout.rdbuf(fout.rdbuf());
-        std::cerr.rdbuf(fout.rdbuf());
-
-        //if (!freopen(filename, "w", stdout)) MADNESS_EXCEPTION("reopening stdout failed", 0);
-        //if (!freopen(filename, "w", stderr)) MADNESS_EXCEPTION("reopening stderr failed", 0);
-        //}
+        if (!freopen(filename, "w", stdout)) MADNESS_EXCEPTION("reopening stdout failed", 0);
+        if (!freopen(filename, "w", stderr)) MADNESS_EXCEPTION("reopening stderr failed", 0);
+	std::cout.sync_with_stdio(true);
+	std::cerr.sync_with_stdio(true);
     }
 }
 

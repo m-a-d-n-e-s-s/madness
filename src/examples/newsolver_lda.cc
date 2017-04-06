@@ -1,5 +1,6 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#include <type_traits>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include "nonlinsol.h"
@@ -84,7 +85,7 @@ XCfunctional xc;
 //prod
 //prod    /// project f on p: |result> =  | p><p | f>
 //prod    template<std::size_t FDIM>
-//prod    typename enable_if_c<NDIM==FDIM, Function<T,FDIM> >::type
+//prod    typename std::enable_if<NDIM==FDIM, Function<T,FDIM> >::type
 //prod    operator()(const Function<T,FDIM>& f) const {
 //prod
 //prod        const double ovlp=inner(f,p_[0]);
@@ -99,7 +100,7 @@ XCfunctional xc;
 //prod
 //prod    /// project p out of f: |result(1,2)> = sum_p | p(1)><p(1) | f(1,2)>
 //prod    template<std::size_t FDIM>
-//prod    typename enable_if_c<2*NDIM==FDIM, Function<T,FDIM> >::type
+//prod    typename std::enable_if<2*NDIM==FDIM, Function<T,FDIM> >::type
 //prod    operator()(const Function<T,FDIM>& f) const {
 //prod        real_function_6d sum=real_factory_6d(p_.begin()->world());
 //prod        for (unsigned int i=0; i<p_.size(); ++i) {
@@ -383,7 +384,7 @@ int main(int argc, char** argv) {
         print("                       dee ", densii);
     }
 
-//    plot_line("psi.dat", 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), psi);
+//    plot_line("psi.dat", 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, psi);
 
 
     world.gop.fence();
@@ -411,8 +412,8 @@ int main(int argc, char** argv) {
         }
     }
 
-//prod    plot_line("dpsi.dat", 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), dpsi);
-//prod    plot_line("rho.dat", 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), rho);
+//prod    plot_line("dpsi.dat", 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, dpsi);
+//prod    plot_line("rho.dat", 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, rho);
 
     double h1 = 0.0;
     for (int axis=0; axis<3; axis++) {
@@ -472,11 +473,11 @@ int main(int argc, char** argv) {
 
         char fname[32];
         sprintf(fname,"x_%6.4f.dat", omega);
-        plot_line(fname, 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), x);
+        plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, x);
         sprintf(fname,"y_%6.4f.dat", omega);
-        plot_line(fname, 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), y);
+        plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, y);
         sprintf(fname,"drho_%6.4f.dat", omega);
-        plot_line(fname, 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), drho);
+        plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, drho);
     }
 #endif
     

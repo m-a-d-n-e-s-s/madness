@@ -37,6 +37,8 @@
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
 #include <chem/SCF.h>
+#include <chem/molopt.h>
+#include <madness/world/worldmem.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 #include <sys/types.h>
@@ -71,7 +73,7 @@ int main(int argc, char** argv) {
 START_TIMER(world);
       try {
         // Load info for MADNESS numerical routines
-        startup(world,argc,argv);
+        startup(world,argc,argv,true);
 	print_meminfo(world.rank(), "startup");
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 
@@ -113,23 +115,36 @@ END_TIMER(world, "initialize");
 
 
         if ( calc.param.gopt) {
-          print("\n\n Geometry Optimization                      ");
-          print(" ----------------------------------------------------------\n");
-          calc.param.gprint(world);
+          // print("\n\n Geometry Optimization                      ");
+          // print(" ----------------------------------------------------------\n");
+          // calc.param.gprint(world);
 
-          Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
-          QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
-                           calc.param.gmaxiter,
-                           calc.param.gtol,  //tol
-                           calc.param.gval,  //value prec
-                           calc.param.gprec); // grad prec
-          geom.set_update(calc.param.algopt);
-          geom.set_test(calc.param.gtest);
-          long ncoord = calc.molecule.natom()*3;
-          Tensor<double> h(ncoord,ncoord);
-          for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
-          geom.set_hessian(h);
-          geom.optimize(geomcoord);
+          // Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
+          // QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
+          //                  calc.param.gmaxiter,
+          //                  calc.param.gtol,  //tol
+          //                  calc.param.gval,  //value prec
+          //                  calc.param.gprec); // grad prec
+          // geom.set_update(calc.param.algopt);
+          // geom.set_test(calc.param.gtest);
+          // long ncoord = calc.molecule.natom()*3;
+          // Tensor<double> h(ncoord,ncoord);
+          // for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
+          // geom.set_hessian(h);
+          // geom.optimize(geomcoord);
+
+            MolOpt opt(calc.param.gmaxiter,
+                       0.1,
+                       calc.param.gval,
+                       calc.param.gtol,
+                       1e-3, //XTOL
+                       1e-5, //EPREC
+                       calc.param.gprec, 
+                       (world.rank()==0) ? 1 : 0, //print_level
+                       calc.param.algopt);
+
+            MolecularEnergy target(world,calc);
+            opt.optimize(calc.molecule, target);
         }
         else if (calc.param.tdksprop) {
           print("\n\n Propagation of Kohn-Sham equation                      ");
@@ -140,8 +155,16 @@ END_TIMER(world, "initialize");
         else {
           MolecularEnergy E(world, calc);
           E.value(calc.molecule.get_all_coords().flat()); // ugh!
-          if (calc.param.derivatives) calc.derivatives(world);
-          if (calc.param.dipole) calc.dipole(world);
+
+          functionT rho = calc.make_density(world, calc.aocc, calc.amo);
+          functionT brho = rho;
+          if (calc.param.nbeta != 0 && !calc.param.spin_restricted)
+              brho = calc.make_density(world, calc.bocc, calc.bmo);
+          rho.gaxpy(1.0, brho, 1.0);
+
+          if (calc.param.derivatives) calc.derivatives(world,rho);
+          if (calc.param.dipole) calc.dipole(world,rho);
+          if (calc.param.response) calc.polarizability(world);
         }
 
         //        if (calc.param.twoint) {
@@ -163,10 +186,6 @@ END_TIMER(world, "initialize");
       catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-      }
-      catch (char* s) {
-        print(s);
-        error("caught a string exception");
       }
       catch (const char* s) {
         print(s);

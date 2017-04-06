@@ -27,15 +27,21 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
+/**
+ \file archive_type_names.cc
+ \brief Defines archive type names for supported (by default) types.
+ \ingroup serialization
+*/
 
+/// \todo Brief description needed.
 #define MAD_ARCHIVE_TYPE_NAMES_CC
+
+/// \todo Brief description needed.
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
-#include <madness/world/world.h>
+
+#include <madness/world/MADworld.h>
 #include <cstring>
 
 namespace madness {
@@ -46,15 +52,18 @@ namespace madness {
 
         // Forces initialization of type names at startup
         // (breaks on shared libs ?)
+        /// \todo Investigate if this is necessary...
         static BaseArchive fred_and_mary_sitting_under_a_tree;
 
         void archive_initialize_type_names() {
-            static  bool initialized = false;
-            if (initialized) return;
+            static bool initialized = false;
+            if (initialized)
+                return;
             initialized = true;
 
+            for (int i=0; i<255; ++i)
+                archive_type_names[i] = "invalid";
 
-            for (int i=0; i<255; ++i) archive_type_names[i] = "invalid";
             archive_type_names[255] = "unknown/user-defined";
 
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(unsigned char);
@@ -94,7 +103,6 @@ namespace madness {
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor<double>);
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor< std::complex<float> >);
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor< std::complex<double> >);
-
         }
     }
 }

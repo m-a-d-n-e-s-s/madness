@@ -27,17 +27,16 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id: eigen.h 2615 2011-10-23 13:24:06Z jeff.science@gmail.com $
 */
 
+#ifndef MADNESS_TENSOR_ELEM_H__INCLUDED
+#define MADNESS_TENSOR_ELEM_H__INCLUDED
 
 #include <madness/madness_config.h>
+#include <madness/world/MADworld.h>
 
-#ifdef MADNESS_HAS_ELEMENTAL
+#ifdef MADNESS_HAS_ELEMENTAL_EMBEDDED
 
-#include <madness/world/world.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/tensor/distributed_matrix.h>
@@ -45,7 +44,14 @@
 #include <madness/world/binsorter.h>
 
 #include <ctime>
-#include <elemental.hpp>
+#if defined(HAVE_EL_H)
+# include <El.hpp>
+namespace elem = El;
+#elif defined(HAVE_ELEMENTAL_H)
+# include <elemental.hpp>
+#else
+# error "MADNESS_HAS_ELEMENTAL set but neither HAVE_EL_H nor HAVE_ELEMENTAL_H set: file an issue at " MADNESS_PACKAGE_URL
+#endif
 
 namespace madness {
 
@@ -509,6 +515,8 @@ namespace madness {
                const Tensor<T>& a, const Tensor<T>& B, int itype,
                Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
         sygv(a, B, itype, V, e);
+	world.gop.broadcast_serializable(V,0);
+	world.gop.broadcast_serializable(e,0);
     }
     
     // sequential fall back code
@@ -518,4 +526,6 @@ namespace madness {
     }
 }
 
-#endif //MADNESS_HAS_ELEMENTAL
+#endif //MADNESS_HAS_ELEMENTAL_EMBEDDED
+
+#endif // MADNESS_TENSOR_ELEM_H__INCLUDED

@@ -27,18 +27,16 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
  */
 
 #ifndef MADNESS_WORLD_GROUP_H__INCLUDED
 #define MADNESS_WORLD_GROUP_H__INCLUDED
 
-#include <madness/world/dist_keys.h>
-#include <madness/world/worldexc.h>
-#include <madness/world/worldfwd.h>
-#include <madness/world/worldtask.h>
+#include <type_traits>
+#include <madness/world/distributed_id.h>
+#include <madness/world/madness_exception.h>
+#include <madness/world/world.h>
+#include <madness/world/world_task_queue.h>
 
 namespace madness {
 
@@ -114,7 +112,7 @@ namespace madness {
             /// \param v An array object
             /// \return The size of array \c v
             template <typename vectorT>
-            static typename disable_if<std::is_array<vectorT>, std::size_t>::type
+            static typename std::enable_if<!std::is_array<vectorT>::value, std::size_t>::type
             size(const vectorT &v) { return v.size(); }
 
             public:

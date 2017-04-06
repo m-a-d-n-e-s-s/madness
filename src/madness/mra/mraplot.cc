@@ -158,7 +158,7 @@ public:
     std::string read_to_end_of_line(std::istream& input) {
         std::string buf;
         while (1) {
-            int c = input.get();
+            char c = input.get();
             if (c == '\n') break;
             buf.append(1, c);
         }
@@ -467,10 +467,6 @@ int main(int argc, char**argv) {
     catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    }
-    catch (char* s) {
-        print(s);
-        error("caught a c-string exception");
     }
     catch (const char* s) {
         print(s);

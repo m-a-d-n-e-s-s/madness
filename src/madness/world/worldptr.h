@@ -27,32 +27,45 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
+*/
 
-
-  $Id$
+/**
+ \file worldptr.h
+ \brief The \c madness::detail::WorldPtr class for global pointers.
+ \ingroup world
 */
 
 #ifndef MADNESS_WORLD_WORLDPTR_H__INCLUDED
 #define MADNESS_WORLD_WORLDPTR_H__INCLUDED
 
-#include <madness/world/worldexc.h>     // for MADNESS_ASSERT
+#include <madness/world/madness_exception.h>
 #include <madness/world/worldtypes.h>   // for ProcessID
 #include <madness/world/archive.h>      // for wrap_opaque
-#include <madness/world/worldfwd.h>
+#include <madness/world/world.h>
 #include <algorithm>            // for std::swap
 #include <iostream>             // for std::iostream
+
+/// \addtogroup world
+/// @{
 
 namespace madness {
 
     namespace detail {
 
+        /// \todo Brief description needed.
+
+        /// \todo Description needed.
+        /// \tparam U Description needed.
         template<typename U>
         struct ptr_traits {
+            /// \todo Brief description needed.
             typedef U & reference;
         };
 
+        /// Specialization of \c ptr_traits for type \c void.
         template<>
         struct ptr_traits<void> {
+            /// \todo Brief description needed.
             typedef void reference;
         };
 
@@ -60,52 +73,57 @@ namespace madness {
 
         /// Stores a globally addressable pointer. It can be sent to any
         /// process in the world.
-        /// \tparam T The pointer type
+        /// \tparam T The pointer type.
         template <typename T>
         class WorldPtr {
         public:
-            typedef unsigned long worldidT; ///< World ID type
+            typedef unsigned long worldidT; ///< World ID type.
 
         private:
-            World* world_;          ///< A pointer to the world
-            worldidT worldid_;      ///< The world id
-            ProcessID rank_;        ///< The rank of the node that the pointer belongs to
-            T* pointer_;            ///< The pointer being referenced
+            World* world_; ///< A pointer to the world.
+            worldidT worldid_; ///< The world ID.
+            ProcessID rank_; ///< The rank of the node that the pointer belongs to.
+            T* pointer_; ///< The pointer being referenced.
 
             template<typename>
             friend class WorldPtr;
 
-            /// Current local rank
+            /// Current local rank.
 
             /// \return The rank of the current node. If the pointer is not
-            /// not set, then -2.
+            ///     set, then -2.
             /// \note -2 is returned so it is not equal to the null value of -1.
-            /// \throw nothing
-            ProcessID local_rank() const { return (world_ != NULL ? world_->rank() : -2); }
+            ProcessID local_rank() const {
+                return (world_ != nullptr ? world_->rank() : -2);
+            }
 
         public:
 
+            /// Alias for the pointer type.
             typedef T* pointer;
+
+            /// \todo Brief description needed.
             typedef typename ptr_traits<T>::reference reference;
+
 
             /// Default constructor
 
-            /// Creates a NULL pointer. There is no owner (i.e. the owner is set
-            /// to -1).
-            /// \throw nothing
+            /// Creates a \c NULL pointer. There is no owner; i.e. the owner is
+            /// set to -1.
+            /// \todo Would it be worth adding a static constant \c ProcessID equal to -1 to signify an unowned pointer?
             WorldPtr() :
-                world_(NULL),
+                world_(nullptr),
                 worldid_(0),
                 rank_(-1),
-                pointer_(NULL)
+                pointer_(nullptr)
             { }
 
-            /// World pointer constructor
+
+            /// %World pointer constructor.
 
             /// Construct a world pointer form a local pointer.
-            /// \param w A reference to the local world.
-            /// \param p The local pointer.
-            /// \throw nothing
+            /// \param[in] w A reference to the local world.
+            /// \param[in] p The local pointer.
             WorldPtr(World& w, T* p) :
                 world_(&w),
                 worldid_(w.id() + 1),
@@ -113,10 +131,10 @@ namespace madness {
                 pointer_(p)
             { }
 
+
             /// Copy constructor
 
-            /// \param other The world pointer to be copied
-            /// \throw nothing
+            /// \param[in] other The world pointer to be copied.
             WorldPtr(const WorldPtr<T>& other) :
                 world_(other.world_),
                 worldid_(other.worldid_),
@@ -124,13 +142,13 @@ namespace madness {
                 pointer_(other.pointer_)
             { }
 
-            /// Copy conversion constructor
 
-            /// Copy and convert pointer from \c U* to \c T* type.
-            /// \tparam U The pointer type of the \c other pointer
-            /// \param other The world pointer to be copied
-            /// \throw nothing
-            /// \note \c U* must be implicitly convertible to T* type.
+            /// Copy conversion constructor.
+
+            /// Copy and convert a pointer from \c U* to \c T* type.
+            /// \tparam U The pointer type of the \c other pointer.
+            /// \param[in] other The world pointer to be copied.
+            /// \note \c U* must be implicitly convertible to \c T* type.
             template <typename U>
             WorldPtr(const WorldPtr<U>& other) :
                 world_(other.world_),
@@ -139,11 +157,11 @@ namespace madness {
                 pointer_(other.pointer_)
             { }
 
-            /// Copy assignment operator
 
-            /// \param other The world pointer to be copied
-            /// \return A reference to this object
-            /// \throw nothing
+            /// Copy assignment operator.
+
+            /// \param[in] other The world pointer to be copied.
+            /// \return A reference to this object.
             WorldPtr<T>& operator=(const WorldPtr<T>& other) {
                 world_ = other.world_;
                 worldid_ = other.worldid_;
@@ -153,14 +171,14 @@ namespace madness {
                 return *this;
             }
 
-            /// Copy conversion assignment operator
 
-            /// Copy and convert pointer from \c U* to \c T* type.
-            /// \tparam U The pointer type of the \c other pointer
-            /// \param other The world pointer to be copied
-            /// \return A reference to this object
-            /// \throw nothing
-            /// \note \c U* must be implicitly convertible to T* type.
+            /// Copy conversion assignment operator.
+
+            /// Copy and convert a pointer from \c U* to \c T* type.
+            /// \tparam U The pointer type of the \c other pointer.
+            /// \param[in] other The world pointer to be copied.
+            /// \return A reference to this object.
+            /// \note \c U* must be implicitly convertible to \c T* type.
             template <typename U>
             WorldPtr<T>& operator=(const WorldPtr<U>& other) {
                 world_ = other.world_;
@@ -171,105 +189,119 @@ namespace madness {
                 return *this;
             }
 
+
             /// Check that the world pointer references a local pointer.
 
-            /// \return \c true when the pointer points to a local address, and
-            /// \c false when it points to a remote address or is NULL.
-            /// \throw nothing
-            bool is_local() const { return local_rank() == rank_; }
+            /// \return True if the pointer points to a local address; false
+            ///     if it points to a remote address or is NULL.
+            bool is_local() const {
+                return local_rank() == rank_;
+            }
 
-            /// Check that the world pointer has an owner
 
-            /// \return true when the pointer has a valid owner
-            /// \throw nothing
-            bool has_owner() const { return (rank_ != -1) && (world_ != NULL); }
+            /// Check that the world pointer has an owner.
 
-            /// Pointer accessor
+            /// \return True if the pointer has a valid owner; false otherwise.
+            bool has_owner() const {
+                return (rank_ != -1) && (world_ != nullptr);
+            }
 
-            /// Get the pointer of the world pointer. Note: A default initialized
-            /// pointer is not considered to be local because it is not associated
-            /// with a world.
+
+            /// Pointer accessor.
+
+            /// Get the pointer from the world pointer.
+            /// \note A default initialized pointer is not considered to be
+            /// local because it is not associated with a world.
             /// \return The local pointer.
             /// \throw MadnessException When the pointer references a remote
-            /// address.
+            ///     address.
             pointer get() const {
                 // It is not safe to access this pointer remotely unless null.
                 MADNESS_ASSERT(is_local());
                 return pointer_;
             }
 
-            /// Dereference operator
+
+            /// Dereference operator.
 
             /// Dereference the local pointer.
-            /// \return A reference to the local pointer
-            /// \throw MadnessException When the pointer references a remote
-            /// address, or when the pointer is NULL.
+            /// \return A reference to the local pointer.
+            /// \throw MadnessException If the pointer references a remote
+            ///     address, or if the pointer is \c NULL.
             reference operator*() const {
                 // It is not safe to access a NULL pointer with this operator.
-                MADNESS_ASSERT(pointer_ != NULL);
+                MADNESS_ASSERT(pointer_ != nullptr);
                 // It is not safe to access this pointer remotely.
                 MADNESS_ASSERT(is_local());
                 return *pointer_;
             }
 
-            /// Pointer arrow operator
 
-            /// Access members of the pointer
-            /// \return The local pointer
-            /// \throw MadnessException When the pointer references a remote
-            /// address, or when the pointer is NULL.
+            /// Pointer arrow operator.
+
+            /// Access members of the pointer.
+            /// \return The local pointer.
+            /// \throw MadnessException If the pointer references a remote
+            ///     address, or if the pointer is \c NULL.
             pointer operator->() const {
                 // It is not safe to access a NULL pointer with this operator.
-                MADNESS_ASSERT(pointer_ != NULL);
+                MADNESS_ASSERT(pointer_ != nullptr);
                 // It is not safe to access this pointer remotely.
                 MADNESS_ASSERT(is_local());
                 return pointer_;
             }
 
-            /// Boolean conversion operator
 
-            /// \return \c true when the pointer is non-null and \c false otherwise
-            /// \throw nothing
-            operator bool () const { return pointer_; }
+            /// Boolean conversion operator.
 
-            /// Boolean conversion operator
+            /// \return True if the pointer is non-null; false otherwise.
+            operator bool () const {
+                return pointer_;
+            }
 
-            /// \return \c true when the pointer is null and \c false otherwise
-            /// \throw nothing
-            bool operator ! () const { return !pointer_; }
 
-            /// Equality comparison operator
+            /// Boolean conversion (not) operator.
 
-            /// \tparam U Another pointer type
-            /// \return \c true when the pointers refer to the same address from
-            /// the same node in the same world.
-            /// \throw nothing
+            /// \return True if the pointer is null; false otherwise.
+            bool operator ! () const {
+                return !pointer_;
+            }
+
+
+            /// Equality comparison operator.
+
+            /// \tparam U Another pointer type.
+            /// \param[in] other The pointer to compare with.
+            /// \return True if the pointers refer to the same address from
+            ///     the same node in the same world; false otherwise.
             template <typename U>
             bool operator==(const WorldPtr<U>& other) const {
                 return (pointer_ == other.pointer_) && (rank_ == other.rank_)
                     && (worldid_ == other.worldid_);
             }
 
-            /// Inequality comparison operator
 
-            /// \tparam U Another pointer type
-            /// \return \c true when the pointers refer to different addresses or
-            /// different nodes or different worlds.
-            /// \throw nothing
+            /// Inequality comparison operator.
+
+            /// \tparam U Another pointer type.
+            /// \param[in] other The other pointer to compare with.
+            /// \return True if the pointers refer to different addresses or
+            ///     different nodes or different worlds; false otherwise.
             template <typename U>
             bool operator!=(const WorldPtr<U>& other) const {
                 return (pointer_ != other.pointer_) || (rank_ != other.rank_)
                     || (worldid_ != other.worldid_);
             }
 
-            /// Less-than comparison operator
+
+            /// Less-than comparison operator.
 
             /// This operator does a lexicographical comparison of world ID,
             /// rank, and pointer (in that order).
-            /// \tparam U Another pointer type
-            /// \return \c true when the lexicographical comparison of world ID,
-            /// rank, and pointer is true, and false otherwise.
-            /// \throw nothing
+            /// \tparam U Another pointer type.
+            /// \param[in] other The other pointer to compare with.
+            /// \return True if the lexicographical comparison of world ID,
+            ///     rank, and pointer is true; false otherwise.
             template <typename U>
             bool operator<(const WorldPtr<U>& other) const {
                 return (worldid_ < other.worldid_) ||
@@ -277,34 +309,40 @@ namespace madness {
                         ((rank_ == other.rank_) && (pointer_ < other.pointer_))));
             }
 
-            /// World accessor
 
-            /// \return A pointer to the world (may be NULL)
+            /// World accessor.
+
+            /// \return A reference to the world (may be \c NULL).
             /// \throw MadnessException When the pointer world has not been set
-            /// (i.e. When \c has_owner()==false)
+            ///     (i.e. when \c has_owner()==false).
             World& get_world() const {
-                MADNESS_ASSERT(world_ != NULL);
+                MADNESS_ASSERT(world_ != nullptr);
                 return *world_;
             }
 
-            /// World ID accessor
+
+            /// %World ID accessor.
 
             /// \return The world ID of the world that the pointer belongs to.
-            /// \throw nothing
-            worldidT get_worldid() const { return worldid_ - 1; }
+            worldidT get_worldid() const {
+                return worldid_ - 1;
+            }
 
-            /// Rank accessor
 
-            /// If the pointer is not associated with
-            /// \return The rank of the process that owns the pointer
-            /// \throw nothing
-            ProcessID owner() const { return rank_; }
+            /// Rank accessor.
 
-            /// Swap the content of \c this with \c other
+            /// \todo Finish this sentence: If the pointer is not associated with
+            /// \return The rank of the process that owns the pointer.
+            ProcessID owner() const {
+                return rank_;
+            }
 
-            /// \tparam U The other world pointer type
-            /// \throw nothing
-            /// \note \c U* must be implicitly convertible to T* type.
+
+            /// Swap the content of \c this with \c other.
+
+            /// \tparam U The other world pointer type.
+            /// \param[in,out] other The other world pointer.
+            /// \note \c U* must be implicitly convertible to \c T* type.
             template <typename U>
             void swap(WorldPtr<U>& other) {
                 std::swap(world_, other.world_);
@@ -313,22 +351,36 @@ namespace madness {
                 std::swap(pointer_, other.pointer_);
             }
 
-            /// Serialize/deserialize the world pointer.
 
-            /// Serialize/deserialize the world pointer for remote communication
-            /// or write to disk.
+            /// Deserialize the world pointer.
+
+            /// Deserialize the world pointer for remote communication or write
+            /// to disk.
             /// \tparam Archive The archive object type.
+            /// \param[in] ar The archive.
             template <class Archive>
             inline void load_internal_(const Archive& ar) {
                 ar & worldid_ & rank_ & archive::wrap_opaque(pointer_);
-                world_ = (worldid_ != 0 ? World::world_from_id(get_worldid()) : NULL);
+                world_ = (worldid_ != 0 ? World::world_from_id(get_worldid()) : nullptr);
             }
 
+            /// Serialize the world pointer.
+
+            /// Serialize the world pointer for remote communication or write
+            /// to disk.
+            /// \tparam Archive The archive object type.
+            /// \param[in] ar The archive.
             template <class Archive>
             inline void store_internal_(const Archive& ar) const {
                 ar & worldid_ & rank_ & archive::wrap_opaque(pointer_);
             }
 
+            /// Output stream insertion operator for world pointers.
+
+            /// \param[in,out] out The output stream.
+            /// \param[in] p The world pointer.
+            /// \return The output stream.
+            /// \todo Does this \c friend function need to be implemented in the class or can we move it to a \c *.cc file?
             friend std::ostream& operator<<(std::ostream& out, const WorldPtr<T>& p) {
                 out << "WorldPointer(ptr=" << p.pointer_ << ", rank=";
                 if(p.rank_ >= 0)
@@ -345,34 +397,64 @@ namespace madness {
             }
         }; // class WorldPtr
 
-        /// Swap the content of \c l with \c r
 
-        /// \tparam U The other world pointer type
-        /// \throw nothing
-        /// \note \c U* must be implicitly convertible to T* type.
-        //template <typename T, typename U>
-        //void swap(WorldPtr<T>& l, WorldPtr<U>& r) {
+        /// Swap the content of \c l with \c r.
+
+        /// \tparam T The world pointer type.
+        /// \param[in,out] l One world pointer.
+        /// \param[in,out] r The other world pointer.
         template <typename T>
         void swap(WorldPtr<T>& l, WorldPtr<T>& r) {
             l.swap(r);
         }
 
+
+        /// Greater-than comparison operator.
+
+        /// This operator does a lexicographical comparison of world ID,
+        /// rank, and pointer (in that order).
+        /// \tparam T One pointer type.
+        /// \tparam U Another pointer type.
+        /// \param[in] left One pointer.
+        /// \param[in] right The other pointer.
+        /// \return True if the lexicographical comparison of world ID,
+        ///     rank, and pointer is true; false otherwise.
         template <typename T, typename U>
         bool operator>(const WorldPtr<T>& left, const WorldPtr<U>& right) {
             return right < left;
         }
 
+
+        /// Less-than-equal-to comparison operator.
+
+        /// This operator does a lexicographical comparison of world ID,
+        /// rank, and pointer (in that order).
+        /// \tparam T One pointer type.
+        /// \tparam U Another pointer type.
+        /// \param[in] left One pointer.
+        /// \param[in] right The other pointer.
+        /// \return True if the lexicographical comparison of world ID,
+        ///     rank, and pointer is true; false otherwise.
         template <typename T, typename U>
         bool operator<=(const WorldPtr<T>& left, const WorldPtr<U>& right) {
             return !(right < left);
         }
 
+
+        /// Greater-than-equal-to comparison operator.
+
+        /// This operator does a lexicographical comparison of world ID,
+        /// rank, and pointer (in that order).
+        /// \tparam T One pointer type.
+        /// \tparam U Another pointer type.
+        /// \param[in] left One pointer.
+        /// \param[in] right The other pointer.
+        /// \return True if the lexicographical comparison of world ID,
+        ///     rank, and pointer is true; false otherwise.
         template <typename T, typename U>
         bool operator>=(const WorldPtr<T>& left, const WorldPtr<U>& right) {
             return !(left < right);
         }
-
-
 
     } // namespace detail
 
@@ -383,20 +465,43 @@ namespace madness {
         template <typename, typename>
         struct ArchiveStoreImpl;
 
+
+        /// Specialization of \c ArchiveLoadImpl for world pointers.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The world pointer type.
         template <typename Archive, typename T>
         struct ArchiveLoadImpl<Archive, detail::WorldPtr<T> > {
+
+            /// Load a world pointer from the archive.
+
+            /// \param[in] ar The archive.
+            /// \param[out] p The world pointer.
             static inline void load(const Archive& ar, detail::WorldPtr<T>& p) {
                 p.load_internal_(ar);
             }
         };
 
+        /// Specialization of \c ArchiveStoreImpl for world pointers.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The world pointer type.
         template <typename Archive, typename T>
         struct ArchiveStoreImpl<Archive, detail::WorldPtr<T> > {
+
+            /// Store a world pointer from the archive.
+
+            /// \param[in] ar The archive.
+            /// \param[in] p The world pointer.
             static inline void store(const Archive& ar, const detail::WorldPtr<T>& p) {
                 p.store_internal_(ar);
             }
         };
 
     } // namespace archive
+
 } // namespace madness
+
+/// @}
+
 #endif // MADNESS_WORLD_WORLDPTR_H__INCLUDED

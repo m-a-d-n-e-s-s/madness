@@ -1,7 +1,7 @@
 #include <madness/config.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <madness/misc/ran.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/systolic.h>

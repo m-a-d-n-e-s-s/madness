@@ -27,11 +27,7 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #include <iostream>
 using std::cout;
@@ -44,19 +40,19 @@ using std::endl;
 
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
 
-#include <madness/world/textfsar.h>
+#include <madness/world/text_fstream_archive.h>
 using madness::archive::TextFstreamInputArchive;
 using madness::archive::TextFstreamOutputArchive;
 
-#include <madness/world/binfsar.h>
+#include <madness/world/binary_fstream_archive.h>
 using madness::archive::BinaryFstreamInputArchive;
 using madness::archive::BinaryFstreamOutputArchive;
 
-#include <madness/world/vecar.h>
+#include <madness/world/vector_archive.h>
 using madness::archive::VectorInputArchive;
 using madness::archive::VectorOutputArchive;
 
-#include <madness/world/bufar.h>
+#include <madness/world/buffer_archive.h>
 using madness::archive::BufferInputArchive;
 using madness::archive::BufferOutputArchive;
 
@@ -198,6 +194,7 @@ using namespace std;
 using madness::archive::wrap;
 
 typedef std::complex<double> double_complex;
+typedef std::tuple<int,double,std::complex<float>> tuple_int_double_complexfloat;
 
 template <class OutputArchive>
 void test_out(const OutputArchive& oar) {
@@ -216,6 +213,7 @@ void test_out(const OutputArchive& oar) {
     linked_list list(0);
     double pi = atan(1.0)*4.0;
     double e = exp(1.0);
+    tuple_int_double_complexfloat t = std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f));
 
     // Initialize data
     a.a = b.b = c.c = i = 1;
@@ -271,14 +269,17 @@ void test_out(const OutputArchive& oar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " pair<int,double>" << std::endl);
     oar << pp;
     oar & pp;
-    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " map<short,double<complex>>" << std::endl);
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " map<short,complex<double>>" << std::endl);
     oar << m;
     oar & m;
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " tuple<int,double,complex<float>>" << std::endl);
+    oar << t;
+    oar & t;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " string" << std::endl);
     oar << str;
     oar & str;
 
-    oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & str;
+    oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
 }
 
 template <class InputArchive>
@@ -297,6 +298,7 @@ void test_in(const InputArchive& iar) {
     string str(teststr);
     linked_list list;
     double pi = 0.0, e = 0.0;
+    tuple_int_double_complexfloat t;
 
     // Destroy in-core data
     a.a = b.b = c.c = i = 0;
@@ -356,14 +358,17 @@ void test_in(const InputArchive& iar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " pair<int,double>" << std::endl);
     iar & pp;
     iar >> pp;
-    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " map<short,double<complex>>" << std::endl);
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " map<short,complex<double>>" << std::endl);
     iar & m;
     iar >> m;
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " map<int,double,complex<float>>" << std::endl);
+    iar & t;
+    iar >> t;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " string" << std::endl);
     iar & str;
     iar >> str;
 
-    iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & str;
+    iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
     // Test data
     bool status = true;
 
@@ -385,6 +390,7 @@ void test_in(const InputArchive& iar) {
     }
     TEST(pp.first==33 && pp.second==99.0);
     TEST(str == string(teststr));
+    TEST(t == std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f)));
 
 #undef TEST
 

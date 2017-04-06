@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_FUNCPLOT_H__INCLUDED
 #define MADNESS_MRA_FUNCPLOT_H__INCLUDED
 
@@ -512,6 +511,36 @@ namespace madness {
         world.gop.fence();
     }
 
+    template<size_t NDIM>
+    void plot_plane(World& world, const Function<double,NDIM>& function,
+            const std::string name) {
+        typedef std::vector<Function<double,NDIM> > vecfuncT;
+        plot_plane(world,vecfuncT(1,function),name);
+    }
+
+    template<size_t NDIM>
+    void plot_plane(World& world, const Function<double,NDIM>& function1,
+            const Function<double,NDIM>& function2,
+            const std::string name) {
+        typedef std::vector<Function<double,NDIM> > vecfuncT;
+        vecfuncT vf(2);
+        vf[0]=function1;
+        vf[1]=function2;
+        plot_plane(world,vf,name);
+    }
+
+    template<size_t NDIM>
+    void plot_plane(World& world, const Function<double,NDIM>& function1,
+            const Function<double,NDIM>& function2,const Function<double,NDIM>& function3,
+            const std::string name) {
+        typedef std::vector<Function<double,NDIM> > vecfuncT;
+        vecfuncT vf(3);
+        vf[0]=function1;
+        vf[1]=function2;
+        vf[2]=function3;
+        plot_plane(world,vf,name);
+    }
+
 
     /// plot a 2-d slice of a given function and the according MRA structure
     /// FIXME: doesn't work for more than 1 rank
@@ -525,15 +554,15 @@ namespace madness {
     ///   origin 0.0 0.0 0.7
     /// end
     /// @param[in]	world	the world
-    /// @param[in]	function	the function to plot
+    /// @param[in]	vfunction	the function to plot
     /// @param[in]	name		the output name
     template<size_t NDIM>
-    void plot_plane(World& world, const Function<double,NDIM>& function,
+    void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfunction,
     		const std::string name) {
 
 		if (world.size()>1) return;
         // determine the ploting plane
-    	std::string c1, c2;
+    	std::string c1="x1", c2="x2";
 
     	// zoom factor
     	double zoom=1.0;
@@ -548,23 +577,27 @@ namespace madness {
         Vector<double,NDIM> coord(0.0);
         Vector<double,NDIM> origin(0.0);
 
-        std::ifstream f("input");
-        position_stream(f, "plot");
-        std::string s;
-        while (f >> s) {
-        	if (s == "end") {
-        		break;
-        	} else if (s == "plane") {
-        		f >> c1 >> c2;
-        	} else if (s == "zoom") {
-        		f >> zoom;
-        	} else if (s == "output") {
-        		f >> output_type;
-        	} else if (s == "points") {
-        		f >> npoints;
-        	} else if (s == "origin") {
-        		for (std::size_t i=0; i<NDIM; ++i) f >> origin[i];
-        	}
+        try {
+            std::ifstream f("input");
+            position_stream(f, "plot");
+            std::string s;
+            while (f >> s) {
+                if (s == "end") {
+                    break;
+                } else if (s == "plane") {
+                    f >> c1 >> c2;
+                } else if (s == "zoom") {
+                    f >> zoom;
+                } else if (s == "output") {
+                    f >> output_type;
+                } else if (s == "points") {
+                    f >> npoints;
+                } else if (s == "origin") {
+                    for (std::size_t i=0; i<NDIM; ++i) f >> origin[i];
+                }
+            }
+        } catch (...) {
+            print("can't locate plot in file input -- using default values");
         }
     	double scale=1.0/zoom;
     	coord=origin;
@@ -606,8 +639,12 @@ namespace madness {
         			coord[cc2]=lo+origin[cc2]+i1*stepsize;
 
         			// other electron
-        			fprintf(f,"%12.6f %12.6f %12.20f\n",coord[cc1],coord[cc2],
-        					function(coord));
+//        			fprintf(f,"%12.6f %12.6f %12.20f\n",coord[cc1],coord[cc2],
+//        					function(coord));
+                    fprintf(f,"%12.6f %12.6f",coord[cc1],coord[cc2]);
+                    for (std::size_t ivec=0; ivec<vfunction.size(); ++ivec)
+                        fprintf(f,"  %12.20f",vfunction[ivec](coord));
+                    fprintf(f,"\n");
 
         		}
         		// additional blank line between blocks for gnuplot
@@ -617,9 +654,194 @@ namespace madness {
 
         }
 
-        // plot mra structure
-    	filename="mra_structure_"+c1+c2+"_"+name;
-    	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
+//        // plot mra structure
+//    	filename="mra_structure_"+c1+c2+"_"+name;
+//    	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
+    }
+
+    template<size_t NDIM, typename opT>
+    void plot_plane(World& world, const opT& op, const std::string name) {
+
+         if (world.size()>1) return;
+         // determine the ploting plane
+         std::string c1, c2;
+
+         // zoom factor
+         double zoom=1.0;
+
+         // output type: mathematica or gnuplot
+         std::string output_type="gnuplot";
+
+         // number of points in each direction
+         int npoints=200;
+
+         // the coordinates to be plotted
+         Vector<double,NDIM> coord(0.0);
+         Vector<double,NDIM> origin(0.0);
+
+         try {
+             std::ifstream f("input");
+             position_stream(f, "plot");
+             std::string s;
+             while (f >> s) {
+                 if (s == "end") {
+                     break;
+                 } else if (s == "plane") {
+                     f >> c1 >> c2;
+                 } else if (s == "zoom") {
+                     f >> zoom;
+                 } else if (s == "output") {
+                     f >> output_type;
+                 } else if (s == "points") {
+                     f >> npoints;
+                 } else if (s == "origin") {
+                     for (std::size_t i=0; i<NDIM; ++i) f >> origin[i];
+                 }
+             }
+         } catch (...) {
+             print("can't locate plot in file input -- using default values");
+         }
+         double scale=1.0/zoom;
+         coord=origin;
+
+         // convert human to mad form
+         int cc1=0, cc2=1;
+         if (c1=="x1") cc1=0;
+         if (c1=="x2") cc1=1;
+         if (c1=="x3") cc1=2;
+         if (c1=="x4") cc1=3;
+         if (c1=="x5") cc1=4;
+         if (c1=="x6") cc1=5;
+         if (c2=="x1") cc2=0;
+         if (c2=="x2") cc2=1;
+         if (c2=="x3") cc2=2;
+         if (c2=="x4") cc2=3;
+         if (c2=="x5") cc2=4;
+         if (c2=="x6") cc2=5;
+
+         // output file name for the gnuplot data
+         std::string filename="plane_"+c1+c2+"_"+name;
+         // assume a cubic cell
+         double lo=-FunctionDefaults<NDIM>::get_cell_width()[0]*0.5;
+         lo=lo*scale;
+
+         const double stepsize=FunctionDefaults<NDIM>::get_cell_width()[0]*scale/npoints;
+
+         if(world.rank() == 0) {
+
+             // plot 3d plot
+             FILE *f =  0;
+             f=fopen(filename.c_str(), "w");
+             if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+
+             for (int i0=0; i0<npoints; i0++) {
+                 for (int i1=0; i1<npoints; i1++) {
+                     // plot plane
+                     coord[cc1]=lo+origin[cc1]+i0*stepsize;
+                     coord[cc2]=lo+origin[cc2]+i1*stepsize;
+
+                     // other electron
+ //                  fprintf(f,"%12.6f %12.6f %12.20f\n",coord[cc1],coord[cc2],
+ //                          function(coord));
+                     fprintf(f,"%12.6f %12.6f",coord[cc1],coord[cc2]);
+                     fprintf(f,"  %12.20f\n",op(coord));
+
+                 }
+                 // additional blank line between blocks for gnuplot
+                 if (output_type=="gnuplot") fprintf(f,"\n");
+             }
+             fclose(f);
+
+         }
+     }
+
+
+
+    template<size_t NDIM>
+    typename std::enable_if<NDIM==3,void>::type
+    plot_cubefile(World& world, Function<double,NDIM>& f, std::string filename,
+            const std::vector<std::string> molecular_info=std::vector<std::string>()) {
+
+        if (world.size()>1) return;
+        // determine the ploting plane
+        std::string c1="x1", c2="x2";
+
+        // zoom factor
+        double zoom=1.0;
+
+        // number of points in each direction
+        int npoints=200;
+
+        // the coordinates to be plotted
+        Vector<double,NDIM> origin(0.0);
+
+        try {
+            std::ifstream f("input");
+            position_stream(f, "plot");
+            std::string s;
+            while (f >> s) {
+                if (s == "end") {
+                    break;
+                } else if (s == "plane") {
+                    f >> c1 >> c2;
+                } else if (s == "zoom") {
+                    f >> zoom;
+                } else if (s == "points") {
+                    f >> npoints;
+                } else if (s == "origin") {
+                    for (std::size_t i=0; i<NDIM; ++i) f >> origin[i];
+                }
+            }
+        } catch (...) {
+            print("can't locate plot in file input -- using default values");
+        }
+
+        // number of points in each direction
+        std::vector<int> npt(3,npoints);
+
+        Tensor<double> cell=copy(FunctionDefaults<3>::get_cell());
+        cell.scale(1.0/zoom);
+        double xlen=cell(0,1)-cell(0,0);
+        double ylen=cell(1,1)-cell(1,0);
+        double zlen=cell(2,1)-cell(2,0);
+
+        // plot file
+        FILE *file =  0;
+        file=fopen(filename.c_str(), "w");
+        if(!file) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+
+
+        // print header
+        fprintf(file,"cube file from MADNESS\n");
+        fprintf(file,"comment line\n");
+
+        // print the number of atoms if a calculation was provided
+        fprintf(file,"%d %12.8f %12.8f %12.8f \n",int(molecular_info.size()),
+                cell(0,0),cell(1,0),cell(2,0));
+
+        // print the cell constants
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[0],xlen/npt[0],0.0,0.0);
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[1],0.0,ylen/npt[1],0.0);
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[2],0.0,0.0,zlen/npt[2]);
+
+        // print the molecule
+        for (const std::string& s : molecular_info) fprintf(file,"%s",s.c_str());
+
+
+        Tensor<double>grid(npt[0],npt[1],npt[2]);
+        for (int i=0;i<npt[0];++i) {
+            for (int j=0;j<npt[1];++j) {
+                for (int k=0;k<npt[2];++k) {
+                    double x=cell(0,0)+origin[0]+xlen/npt[0]*i;
+                    double y=cell(1,0)+origin[1]+ylen/npt[1]*j;
+                    double z=cell(2,0)+origin[2]+zlen/npt[2]*k;
+                    fprintf(file,"%12.8f",f(x,y,z));
+                }
+            }
+            fprintf(file,"\n");
+        }
+        fclose(file);
+
     }
 
     template<typename T>

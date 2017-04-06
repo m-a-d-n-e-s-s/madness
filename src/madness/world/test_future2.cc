@@ -27,12 +27,11 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
-#include <madness/world/worldobj.h>
+#include <madness/world/MADworld.h>
+#include <madness/world/world_object.h>
 #include <iomanip>
 using namespace std;
 using namespace madness;
@@ -63,12 +62,11 @@ public:
     }
 
     /// Write element i
-    Void write(size_t i, double value) {
+    void write(size_t i, double value) {
         if (owner(i) == get_world().rank())
             v[i-get_world().rank()*v.size()] = value;
         else
             send(owner(i), &Array::write, i, value);
-        return None;
     }
 };
 

@@ -47,7 +47,7 @@ int main() {std::cout << "x86 only\n"; return 0;}
 #include <madness/world/posixmem.h>
 #include <madness/world/safempi.h>
 #include <madness/tensor/cblas.h>
-#include <madness/tensor/mtxmq.h>
+#include <madness/tensor/mxm.h>
 #include <madness/tensor/tensor.h>
 
 typedef std::complex<double> double_complex;

@@ -26,22 +26,35 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
+*/
 
-
-  $Id: worldmpi.h 3011 2012-08-31 12:44:47Z justus.c79@gmail.com $
-
- */
+/**
+ \file worldmpi.cc
+ \brief Several variables needed for \c WorldMPI.
+ \ingroup mpi
+*/
 
 #include <madness/world/worldmpi.h>
 
 namespace madness {
     namespace detail {
 
+        /// \addtogroup mpi
+        /// @{
+
         std::shared_ptr<WorldMpi> WorldMpi::world_mpi;
+
+        /// Flag storing if MADNESS is responsible for MPI.
+
+        /// \todo Verify the above brief description.
         bool WorldMpi::own_mpi = false;
+
 #ifdef MADNESS_USE_BSEND_ACKS
+        /// MPI buffer.
         char* WorldMpi::mpi_ack_buffer[MADNESS_ACK_BUFF_SIZE];
 #endif // MADNESS_USE_BSEND_ACKS
+
+        /// @}
 
     } // namespace detail
 } // namespace madness

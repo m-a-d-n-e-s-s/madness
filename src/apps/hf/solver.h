@@ -27,12 +27,11 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #include <madness/mra/mra.h>
 //#include <madness/mra/lbdeux.h>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <madness/tensor/solvers.h>
 #include <vector>
 #include <madness/fortran_ctypes.h>
@@ -842,8 +841,8 @@ namespace madness
           {
             double TWO_PI = 2.0 * madness::constants::pi;
             double t1 = TWO_PI/_params.L;
-            coordT c1 = vec(0.0,0.0,0.0);
-            coordT c2 = vec(0.5*t1,0.5*t1,0.5*t1);
+            coordT c1 {0.0,0.0,0.0};
+            coordT c2 {0.5*t1,0.5*t1,0.5*t1};
             _kpoints.push_back(KPoint(c1, 0.5));
             _kpoints.push_back(KPoint(c2, 0.5));
           }
@@ -1606,10 +1605,10 @@ namespace madness
 //              for (int k = 0; k < npts; k++)
 //              {
 //                double z = (k*delta)+begin;
-//                coord_3d r1 = vec(x,y,z);
-//                coord_3d r2 = vec(y,x,z);
-//                coord_3d r3 = vec(z,y,x);
-//                coord_3d r4 = vec(x,z,y);
+//                coord_3d r1 {x,y,z};
+//                coord_3d r2 {y,x,z};
+//                coord_3d r3 {z,y,x};
+//                coord_3d r4 {x,z,y};
 //                double_complex pxr2 = ao[2](r2); double_complex pyr1 = ao[3](r1);
 //                double_complex pxr3 = ao[2](r3); double_complex pzr1 = ao[4](r1);
 //                double_complex pyr4 = ao[3](r4);
@@ -2287,7 +2286,7 @@ namespace madness
 //                           vecfuncT& funcsa, vecfuncT& funcsb,
 //                           double& xc)
 //    {
-//      Vector<double,3> q = vec(0.0,0.0,0.0);
+//      Vector<double,3> q {0.0,0.0,0.0};
 //      SeparatedConvolution<double_complex,3> hfexop =
 //          PeriodicHFExchangeOperator(_world, q, _params.lo,
 //              FunctionDefaults<3>::get_thresh() * 0.1);
@@ -2376,12 +2375,12 @@ namespace madness
         {
           functionT phi_j = phisa[j];
           KPoint k_j = find_kpt_from_orb(j);
-          Vector<double,3> q = vec((k_i.k[0]-k_j.k[0])*_params.L,
-                                   (k_i.k[1]-k_j.k[1])*_params.L,
-                                   (k_i.k[2]-k_j.k[2])*_params.L);
-          Vector<double,3> q2 = vec(k_i.k[0]-k_j.k[0],
-                                    k_i.k[1]-k_j.k[1],
-                                    k_i.k[2]-k_j.k[2]);
+          Vector<double,3> q {(k_i.k[0]-k_j.k[0])*_params.L,
+                              (k_i.k[1]-k_j.k[1])*_params.L,
+                              (k_i.k[2]-k_j.k[2])*_params.L};
+          Vector<double,3> q2 {k_i.k[0]-k_j.k[0],
+                               k_i.k[1]-k_j.k[1],
+                               k_i.k[2]-k_j.k[2]};
           functionT cexp =
               factoryT(_world).functor(functorT(new
                   ComplexExp<3>(q2, double_complex(1.0,0.0))));
@@ -3442,14 +3441,14 @@ namespace madness
 //            sprintf(fnamez_y, "orb%2.2d_dz_y.dat",i);
 //            sprintf(fnamez_z, "orb%2.2d_dz_z.dat",i);
 //
-//            coord_3d pt1x = vec(-_params.L/2,0.0,0.0);
-//            coord_3d pt2x = vec( _params.L/2,0.0,0.0);
+//            coord_3d pt1x {-_params.L/2,0.0,0.0};
+//            coord_3d pt2x { _params.L/2,0.0,0.0};
 //
-//            coord_3d pt1y = vec(0.0,-_params.L/2,0.0);
-//            coord_3d pt2y = vec(0.0, _params.L/2,0.0);
+//            coord_3d pt1y {0.0,-_params.L/2,0.0};
+//            coord_3d pt2y {0.0, _params.L/2,0.0};
 //
-//            coord_3d pt1z = vec(0.0,0.0,-_params.L/2);
-//            coord_3d pt2z = vec(0.0,0.0, _params.L/2);
+//            coord_3d pt1z {0.0,0.0,-_params.L/2};
+//            coord_3d pt2z {0.0,0.0, _params.L/2};
 //
 //            plot_line(fname_x,30000,pt1x,pt2x,k_wf[i]);
 //            plot_line(fname_y,30000,pt1y,pt2y,k_wf[i]);

@@ -52,14 +52,8 @@ using std::max;
 
 using madness::Tensor;
 
-#ifdef MADNESS_HAS_EIGEN3
-#  include <madness/tensor/eigen.h>
-#endif
-
-#ifndef MADNESS_HAS_EIGEN3  // ignore lapack+blas
-#  include <madness/tensor/tensor_lapack.h>
-#  include <madness/tensor/clapack.h>
-#endif
+#include <madness/tensor/tensor_lapack.h>
+#include <madness/tensor/clapack.h>
 
 
 
@@ -76,7 +70,6 @@ double tt1, ss1;
 #  define STATIC
 #endif
 
-#ifndef MADNESS_HAS_EIGEN3  // ignore lapack+blas
 /// These oddly-named wrappers enable the generic svd iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
 /// use only.
@@ -244,11 +237,9 @@ STATIC void dorgqr_(integer *m, integer *n, integer *k,
 	 	 complex_real8 *work, integer *lwork, integer *info) {
 	zungqr_(m, n, k, a, m, tau, work, lwork, info);
 }
-#endif //MADNESS_HAS_EIGEN3
 
 namespace madness {
 
-#ifndef MADNESS_HAS_EIGEN3
     static void mask_info(integer& info) {
         if ( (info&0xffffffff) == 0) info = 0;
     }
@@ -360,6 +351,32 @@ namespace madness {
         TENSOR_ASSERT((info == 0), "gesv failed", info, &a);
 
         if (b.ndim() == 2) x = transpose(x);
+    }
+
+    /// invert general square matrix A
+    template<typename T>
+    Tensor<T> inverse(const Tensor<T>& a_in) {
+        Tensor<T> a=copy(a_in);
+        TENSOR_ASSERT(a.ndim() == 2, "inverse requires matrix",a.ndim(),&a);
+        TENSOR_ASSERT(a.dim(0) == a.dim(1), "inverse requires square matrix",a.ndim(),&a);
+        integer n = a.dim(0);;
+
+        Tensor<integer> ipiv(n);
+        integer info;
+
+        // DGETRF computes an LU factorization of a general M-by-N matrix A
+        // using partial pivoting with row interchanges.
+        dgetrf_(&n,&n,a.ptr(),&n,ipiv.ptr(),&info);
+
+        // DGETRI computes the inverse of a matrix using the LU factorization
+        // computed by DGETRF.
+        integer lwork=(10*n);
+        Tensor<T> work(lwork);
+        dgetri_(&n,a.ptr(),&n,ipiv.ptr(),work.ptr(),&lwork,&info);
+
+        mask_info(info);
+        TENSOR_ASSERT((info == 0), "inverse failed", info, &a);
+        return a;
     }
 
     /** \brief  Solve Ax = b for general A using the LAPACK *gelss routines.
@@ -537,7 +554,7 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
         V = transpose(V);
     }
-    
+
     /** \brief  Compute the Cholesky factorization.
 
     Compute the Cholesky factorization of the symmetric positive definite matrix A
@@ -607,15 +624,17 @@ namespace madness {
     template<typename T>
     void qr(Tensor<T>& A, Tensor<T>& R) {
     	TENSOR_ASSERT(A.ndim() == 2, "qr requires a matrix",A.ndim(),&A);
-
-    	TENSOR_ASSERT(A.ndim() == 2, "lq requires a matrix",A.ndim(),&A);
-    	A=transpose(A);
     	integer m=A.dim(0);
     	integer n=A.dim(1);
     	Tensor<T> tau(std::min(n,m));
     	integer lwork=2*n+(n+1)*64;
     	Tensor<T> work(lwork);
 
+        integer r_rows=std::min(m,n);
+        integer r_cols=n;
+        R=Tensor<T>(r_rows,r_cols);
+
+        A=transpose(A);
     	lq_result(A,R,tau,work,true);
 
     	A=transpose(A);
@@ -636,6 +655,10 @@ namespace madness {
     	integer lwork=2*n+(n+1)*64;
     	Tensor<T> work(lwork);
 
+        integer r_rows=std::min(m,n);
+        integer r_cols=m;
+        R=Tensor<T>(r_cols,r_rows);
+
     	lq_result(A,R,tau,work,false);
     }
 
@@ -643,7 +666,8 @@ namespace madness {
 
     /// @param[in,out]	A	on entry the (n,m) matrix to be decomposed
     ///						on exit the Q matrix
-    /// @param[out]		R	the (n,n) matrix L (square form) \todo MGR: Check this.
+    /// @param[in,out]	R	the (n,n) matrix L (square form) \todo MGR: Check this.
+    /// @param[in]      do_qr   do QR instead of LQ
     template<typename T>
     void lq_result(Tensor<T>& A, Tensor<T>& R, Tensor<T>& tau, Tensor<T>& work,
     		bool do_qr) {
@@ -663,14 +687,18 @@ namespace madness {
         integer r_rows= (m>=n) ? n : m;
         integer r_cols=n;
 		if (do_qr) {
-			R=Tensor<T>(r_rows,r_cols);
+//			R=Tensor<T>(r_rows,r_cols);
+	        TENSOR_ASSERT(r_rows==R.dim(0),"confused dimensions 0",r_rows,&R);
+	        TENSOR_ASSERT(r_cols==R.dim(1),"confused dimensions 1",r_cols,&R);
 			for (int i=0; i<r_rows; ++i) {
 				for (int j=i; j<r_cols; ++j) {
 					R(i,j)=A(j,i);	// <- transpose(A)
 				}
 			}
 		} else {
-			R=Tensor<T>(r_cols,r_rows);
+			//R=Tensor<T>(r_cols,r_rows);
+            TENSOR_ASSERT(r_rows==R.dim(1),"confused dimensions 1",r_rows,&R);
+            TENSOR_ASSERT(r_cols==R.dim(0),"confused dimensions 0",r_cols,&R);
 			for (int i=0; i<r_rows; ++i) {
 				for (int j=i; j<r_cols; ++j) {
 					R(j,i)=A(j,i);
@@ -679,7 +707,7 @@ namespace madness {
 		}
 
 		// reconstruction of Q
-    	integer k=tau.size();
+    	integer k=std::min(m,n);//tau.size(); // size of tau is tau(min(m,n))
     	integer q_rows=m;
     	integer q_cols= (m>=n) ? n : m;
     	dorgqr_(&q_rows, &q_cols, &k, A.ptr(), &q_rows, const_cast<T*>(tau.ptr()),
@@ -718,7 +746,6 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "xorgqr: Lapack failed", info, &A);
     }
 
-#endif //MADNESS_HAS_EIGEN3
 
 //     template <typename T>
 //     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, const char* side, const char* transa) {
@@ -769,6 +796,27 @@ namespace madness {
         b -= a;
 
         return b.absmax();
+    }
+
+    /// Example and test code for interface to LAPACK SVD interfae
+    template <typename T>
+    double test_inverse(int n) {
+        Tensor<T> A(n,n);
+
+        A.fillrandom();
+        Tensor<T> Ainv=inverse(A);
+        Tensor<T> id1=inner(A,Ainv);
+        Tensor<T> id2=inner(Ainv,A);
+
+        for (int i=0; i<n; ++i) {
+            id1(i,i)-=1.0;
+            id2(i,i)-=1.0;
+        }
+
+        double error1=id1.normf()/id1.size();
+        double error2=id2.normf()/id2.size();
+
+        return error1+error2;
     }
 
     template <typename T>
@@ -891,7 +939,6 @@ namespace madness {
 
 
     void init_tensor_lapack() {
-#ifndef MADNESS_HAS_EIGEN3
 	char e[] = "e";
 	dlamch_(e,1);
 	slamch_(e,1);
@@ -900,7 +947,6 @@ namespace madness {
 // 	for (int i=0; i<10; ++i) {
 // 	    cout << "init_tensor_lapack: dlamch: " << modes[i] << " = " << dlamch_(modes+i,1) << endl;
 // 	}
-#endif //MADNESS_HAS_EIGEN3
     }
 
 
@@ -909,44 +955,34 @@ namespace madness {
         try {
             cout << "error in float svd " << test_svd<float>(20,30) << endl;
             cout << "error in double svd " << test_svd<double>(30,20) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex svd " << test_svd<float_complex>(23,27) << endl;
             cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
-#endif
             cout << endl;
-            
-            
+
+
             cout << "error in float  gelss " << test_gelss<float>(20,30) << endl;
             cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex gelss " << test_gelss<float_complex>(23,27) << endl;
             cout << "error in double_complex gelss " << test_gelss<double_complex>(37,19) << endl;
-#endif
             cout << endl;
-            
+
             cout << "error in double syev " << test_syev<double>(21) << endl;
             cout << "error in float syev " << test_syev<float>(21) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
             cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
-#endif
             cout << endl;
-            
-            
+
+
             cout << "error in float sygv " << test_sygv<float>(20) << endl;
             cout << "error in double sygv " << test_sygv<double>(20) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
             cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
-#endif
             cout << endl;
-            
+
             cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
             cout << "error in double gesv " << test_gesv<double>(20,30) << endl;
-#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
             cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
-#endif
             cout << endl;
             cout << "error in double cholesky " << test_cholesky<double>(22) << endl;
             cout << endl;
@@ -955,6 +991,9 @@ namespace madness {
             cout << "error in double QR/LQ " << test_qr<double>() << endl;
             cout << endl;
 
+            cout << "error in double inverse " << test_inverse<double>(32) << endl;
+            cout << "error in double inverse " << test_inverse<double>(47) << endl;
+            cout << endl;
         }
 
         catch (TensorException e) {
@@ -971,7 +1010,6 @@ namespace madness {
     //   return 0;
     // }
 
-//#ifndef MADNESS_HAS_EIGEN3
     // GCC 4.4.3 seems to want these explicitly instantiated whereas previous
     // versions were happy with the instantiations caused by the test code above
 
@@ -1005,10 +1043,17 @@ namespace madness {
     void cholesky(Tensor<double>& A);
 
     template
+    Tensor<double> inverse(const Tensor<double>& A);
+
+    template
     void qr(Tensor<double>& A, Tensor<double>& R);
 
     template
     void lq(Tensor<double>& A, Tensor<double>& L);
+
+    template
+    void lq_result(Tensor<double>& A, Tensor<double>& R, Tensor<double>& tau, Tensor<double>& work,
+    		bool do_qr);
 
 
     template
@@ -1070,6 +1115,4 @@ namespace madness {
     void orgqr(Tensor<double_complex>& A, const Tensor<double_complex>& tau);
 
 
-//#endif //MADNESS_HAS_EIGEN
-
-}
+} // namespace madness

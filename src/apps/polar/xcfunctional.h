@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <utility>
 #include <madness/mra/key.h>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
@@ -59,8 +59,8 @@ protected:
     /// \f[
     /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
     ///   \begin{array}{ll}
-    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}
-    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}}
+    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}} \\
+    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\
     ///     x                                      & x_{\mathrm{max}} < x
     ///   \end{array}
     /// \right.

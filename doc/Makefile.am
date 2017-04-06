@@ -1,8 +1,8 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 if CAN_BUILD_DOC
-.PHONY: all
-all:
+.PHONY: docs
+docs:
 	$(DOXYGEN) doxygen.cfg
 
 
@@ -23,7 +23,7 @@ install::
 install_devel::
 
 else
-all:
+docs:
 	doxygen is not available ... cannot build documentation ... sorry
 endif
 

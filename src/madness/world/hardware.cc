@@ -81,12 +81,12 @@ namespace madness {
         size_t len = sizeof(n);
 #  if defined(__APPLE__) && defined(__MACH__)
         /* Apple has deprecated HW_NCPU */
-        int rc = sysctlbyname("hw.logicalcpu", &n, &len, NULL, 0);
+        int rc = sysctlbyname("hw.logicalcpu", &n, &len, nullptr, 0);
         if (rc!=0) 
             MADNESS_EXCEPTION("sysctlbyname failed");
 #  else
         int mib[2] = {CTL_HW, HW_NCPU};
-        int rc = sysctl(mib, 2, &n, &len, NULL, 0);
+        int rc = sysctl(mib, 2, &n, &len, nullptr, 0);
         if (rc!=0) 
             MADNESS_EXCEPTION("sysctl failed");
 #  endif
@@ -107,14 +107,14 @@ namespace madness {
 #  if defined(__APPLE__) && defined(__MACH__)
         long freq = 0;
         size_t len = sizeof(freq);
-        int rc = sysctlbyname("hw.cpufrequency", &freq, &len, NULL, 0);
+        int rc = sysctlbyname("hw.cpufrequency", &freq, &len, nullptr, 0);
         f = (double)freq;
 #  else
         /* this does not work but I don't have an alternative for BSD */
         struct clockinfo c;
         int mib[2] = {CTL_KERN, KERN_CLOCKRATE};
         size_t len = sizeof(c);
-        int rc = sysctl(mib, 2, &c, &len, NULL, 0);
+        int rc = sysctl(mib, 2, &c, &len, nullptr, 0);
         f = (double) c.hz;
 #  endif
         if (rc!=0) 
@@ -137,7 +137,7 @@ namespace madness {
 #elif defined(HARDWARE_USE_SYSCTL)
         size_t len = sizeof(m);
         int mib[2] = {CTL_HW, HW_MEMSIZE};
-        int rc = sysctl(mib, 2, &m, &len, NULL, 0);
+        int rc = sysctl(mib, 2, &m, &len, nullptr, 0);
         if (rc!=0) 
             MADNESS_EXCEPTION("sysctl failed");
 #elif defined(HARDWARE_USE_SYSCONF)

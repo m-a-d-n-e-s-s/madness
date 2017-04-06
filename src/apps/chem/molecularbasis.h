@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_CHEM_MOLECULAR_BASIS_H__INCLUDED
 #define MADNESS_CHEM_MOLECULAR_BASIS_H__INCLUDED
 
@@ -37,7 +36,7 @@
 #include <madness/constants.h>
 #include <chem/molecule.h>
 #include <chem/atomutil.h>
-#include <madness/tinyxml/tinyxml.h>
+#include <madness/external/tinyxml/tinyxml.h>
 #include <madness/tensor/tensor.h>
 
 #include <vector>
@@ -215,7 +214,7 @@ class AtomicBasis {
     std::vector<ContractedGaussianShell> g;
     double rmaxsq;
     int numbf;
-    Tensor<double> dmat, avec, bvec, aocc, bocc;
+    Tensor<double> dmat, dmatpsp, avec, bvec, aocc, bocc, aoccpsp, boccpsp;
 
 public:
     AtomicBasis() : g(), rmaxsq(0.0), numbf(0) {};
@@ -230,14 +229,18 @@ public:
         }
     }
 
-    void set_guess_info(const Tensor<double>& dmat,
+    void set_guess_info(const Tensor<double>& dmat, const Tensor<double>& dmatpsp,
                         const Tensor<double>& avec, const Tensor<double>& bvec,
-                        const Tensor<double>& aocc, const Tensor<double>& bocc) {
+                        const Tensor<double>& aocc, const Tensor<double>& bocc,
+                        const Tensor<double>& aoccpsp, const Tensor<double>& boccpsp) {
         this->dmat = copy(dmat);
+        this->dmatpsp = copy(dmatpsp);
         this->avec = copy(avec);
         this->bvec = copy(bvec);
         this->aocc = copy(aocc);
         this->bocc = copy(bocc);
+        this->aoccpsp = copy(aoccpsp);
+        this->boccpsp = copy(boccpsp);
     }
 
     /// Returns the number of basis functions on the center
@@ -277,14 +280,19 @@ public:
     }
 
     /// Evaluates the guess atomic density at point x, y, z relative to atomic center
-    double eval_guess_density(double x, double y, double z) const {
+    double eval_guess_density(double x, double y, double z, bool pspat) const {
         MADNESS_ASSERT(has_guess_info());
         double rsq = x*x + y*y + z*z;
         if (rsq > rmaxsq) return 0.0;
 
         double bf[numbf];
         eval(x, y, z, bf);
-        const double* p = dmat.ptr();
+        const double* p;
+        // check if pseudo-atom
+        if (pspat){
+            p = dmatpsp.ptr();}
+        else{
+            p = dmat.ptr();}
         double sum = 0.0;
         for (int i=0; i<numbf; ++i, p+=numbf) {
             double sumj = 0.0;
@@ -323,6 +331,17 @@ public:
        dmat = mat;
     };
 
+    bool has_guesspsp_info() const {
+        return dmatpsp.size()>0;
+    }
+
+    const Tensor<double>& get_dmatpsp() const {
+        return dmatpsp;
+    };
+
+    void set_dmatpsp(Tensor<double>& mat) {
+       dmatpsp = mat;
+    };
     const Tensor<double>& get_avec() const {
         return avec;
     };
@@ -347,9 +366,25 @@ public:
        bocc = occ;
     };
 
+    const Tensor<double>& get_aoccpsp() const {
+        return aoccpsp;
+    };
+
+    const Tensor<double>& get_boccpsp() const {
+        return boccpsp;
+    };
+
+    void set_aoccpsp(Tensor<double>& occ) {
+       aoccpsp = occ;
+    };
+
+    void set_boccpsp(Tensor<double>& occ)  {
+       boccpsp = occ;
+    };
+
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & g & rmaxsq & numbf & dmat & avec & bvec & aocc & bocc;
+        ar & g & rmaxsq & numbf & dmat & dmatpsp & avec & bvec & aocc & bocc & aoccpsp & boccpsp;
     }
 
 };
@@ -406,7 +441,11 @@ public:
     }
 
     madness::Vector<double,3> get_coords_vec() const {
-        return madness::vec(xx, yy, zz);
+        return madness::Vector<double,3>{xx, yy, zz};
+    }
+
+    double rangesq() const {
+        return shell.rangesq();
     }
 };
 
@@ -542,10 +581,15 @@ public:
     /// Evaluates the guess density
     double eval_guess_density(const Molecule& molecule, double x, double y, double z) const {
         double sum = 0.0;
+        bool pspat;
         for (int i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
+            if (atom.pseudo_atom){
+                pspat=true;}
+            else{
+                pspat=false;}
             const int atn = atom.atomic_number;
-            sum += ag[atn].eval_guess_density(x-atom.x, y-atom.y, z-atom.z);
+            sum += ag[atn].eval_guess_density(x-atom.x, y-atom.y, z-atom.z, pspat);
         }
         return sum;
     }

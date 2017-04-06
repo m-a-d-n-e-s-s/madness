@@ -40,6 +40,7 @@
  */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/world/info.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/funcplot.h>
@@ -50,6 +51,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/correlationfactor.h>
+#include <chem/electronic_correlation_factor.h>
 
 
 // switch the electronic interaction on or off
@@ -437,21 +439,10 @@ int main(int argc, char** argv) {
 	startup(world, argc, argv);
 	std::cout.precision(6);
 
-#ifdef GITREVISION
-	const char* gitrev = GITREVISION;
-	const std::string gitrevision(gitrev);
 	if (world.rank()==0) {
-		print("           git revision ...",gitrevision);
+		print("           git revision ...", info::git_commit());
 	}
-#endif
 
-#ifdef SVNREVISION
-	const char* svnrev = SVNREVISION;
-	const std::string svnrevision(svnrev);
-	if (world.rank()==0) {
-		print("           svn revision ...",svnrevision);
-	}
-#endif
 	if (world.rank() == 0) {
 		print("main() in helium_exact.cc compiled at ", __TIME__, " on ",
 				__DATE__);

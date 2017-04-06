@@ -158,11 +158,10 @@ int test_opdir(World& world) {
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_autorefine(true);
     FunctionDefaults<3>::set_truncate_mode(1);
-    FunctionDefaults<3>::set_truncate_on_project(false);
+    FunctionDefaults<3>::set_truncate_on_project(true);
 
     real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new Gaussian<double,3>(origin, expnt, coeff)));
-    f.truncate(); // Comment this out to get 20x reduction in error
-    f.reconstruct();
+    f.truncate();
 
     double norm = f.trace();
     double ferr = f.err(Gaussian<double,3>(origin, expnt, coeff));
@@ -173,15 +172,8 @@ int test_opdir(World& world) {
 
     // These from previous computation with k=8 thresh=1e-6
     // (error is consistently reduced as compute with higher accuracy)
-    //
-    // ... seems compiler version sensitive ... sigh.
-//    const double errs[] = {7.0e-07,3.2e-06,1.4e-05,9.2e-07,4.9e-06,1.9e-05,
-//                           1.2e-05,3.8e-05,4.3e-05,3.2e-6,2.3e-05,6.6e-05,
-//                           4.5e-06,3.8e-05,6.3e-05,2.7e-05,7.9e-05,6.2e-05,
-//                           2.2e-05,1.9e-04,2.0e-04,3.1e-05,1.5e-04,1.5e-04,
-//                           1.8e-04,2.5e-04,2.6e-04};
-    const double errs[] = {5.8e-06, 5.0e-06, 1.9e-05, 5.0e-06, 8.1e-06, 2.0e-05,
-                           1.2e-05, 3.1e-05, 4.5e-05, 1.0e-05, 2.8e-05, 5.7e-05,
+    const double errs[] = {5.8e-06, 5.2e-06, 2.1e-05, 5.0e-06, 8.1e-06, 2.0e-05,
+                           1.2e-05, 3.1e-05, 4.5e-05, 1.2e-05, 2.8e-05, 5.7e-05,
                            1.0e-05, 4.2e-05, 5.0e-05, 3.2e-05, 6.0e-05, 5.4e-05,
                            2.3e-05, 1.3e-04, 1.2e-04, 3.1e-05, 1.5e-04, 1.1e-04,
                            1.5e-04, 2.0e-04, 2.5e-04 };

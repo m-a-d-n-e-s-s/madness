@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_WORLD_WORLDHASHMAP_H__INCLUDED
 #define MADNESS_WORLD_WORLDHASHMAP_H__INCLUDED
 
@@ -45,9 +44,8 @@
 // vague compatibility with the TBB API.
 
 #include <madness/world/worldmutex.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 #include <madness/world/worldhash.h>
-#include <madness/world/enable_if.h>
 #include <new>
 #include <stdio.h>
 #include <map>
@@ -189,10 +187,10 @@ namespace madness {
         /// iterator for hash
         template <class hashT> class HashIterator {
         public:
-            typedef typename madness::if_<std::is_const<hashT>,
+            typedef typename std::conditional<std::is_const<hashT>::value,
                     typename std::add_const<typename hashT::entryT>::type,
                     typename hashT::entryT>::type entryT;
-            typedef typename madness::if_<std::is_const<hashT>,
+            typedef typename std::conditional<std::is_const<hashT>::value,
                     typename std::add_const<typename hashT::datumT>::type,
                     typename hashT::datumT>::type datumT;
             typedef std::forward_iterator_tag iterator_category;
@@ -332,10 +330,10 @@ namespace madness {
         class HashAccessor : private NO_DEFAULTS {
             template <class a,class b,class c> friend class madness::ConcurrentHashMap;
         public:
-            typedef typename madness::if_<std::is_const<hashT>,
+            typedef typename std::conditional<std::is_const<hashT>::value,
                     typename std::add_const<typename hashT::entryT>::type,
                     typename hashT::entryT>::type entryT;
-            typedef typename madness::if_<std::is_const<hashT>,
+            typedef typename std::conditional<std::is_const<hashT>::value,
                     typename std::add_const<typename hashT::datumT>::type,
                     typename hashT::datumT>::type datumT;
             typedef datumT value_type;
@@ -573,6 +571,10 @@ namespace madness {
         }
 
         const_iterator begin() const {
+            return cbegin();
+        }
+
+        const_iterator cbegin() const {
             return const_iterator(this,true);
         }
 
@@ -581,6 +583,10 @@ namespace madness {
         }
 
         const_iterator end() const {
+            return cend();
+        }
+
+        const_iterator cend() const {
             return const_iterator(this,false);
         }
 

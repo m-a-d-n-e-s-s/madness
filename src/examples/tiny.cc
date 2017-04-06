@@ -49,11 +49,13 @@
 #include <madness/mra/funcplot.h>
 #include <madness/mra/lbdeux.h>
 
-
 #include <iostream>
 
 using namespace madness;
 
+namespace madness{
+extern std::vector<std::string> cubefile_header(std::string filename="input");
+}
 template<size_t NDIM>
 void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0)  print("loading function ", name);
@@ -111,6 +113,59 @@ void draw_circle(World& world, Function<double,NDIM>& pair, const std::string re
 }
 
 
+void dostuff(World& world) {
+    real_function_3d rho=real_factory_3d(world),rhonemo=real_factory_3d(world),
+            vsigaa,vsigaanemo;
+    real_function_3d sigmanemo=real_factory_3d(world);
+    real_function_3d dens_pt0=real_factory_3d(world);
+
+    load(rho,"rho");
+    load(rhonemo,"rhonemo");
+    load(sigmanemo,"sigmanemo");
+    load(dens_pt0,"dens_pt0");
+
+    FunctionDefaults<3>::set_k(rho.k());
+    FunctionDefaults<3>::set_thresh(rho.thresh());
+
+    rho.reconstruct();
+    rhonemo.reconstruct();
+    std::vector< std::shared_ptr<Derivative<double,3> > > gradop =
+             gradient_operator<double,3>(world);
+
+    // vsig with nemos
+    {
+
+    }
+
+    // vsig with mos
+    {
+        real_function_3d drhoa_x=(*gradop[0])(rho, true).refine();
+        real_function_3d drhoa_y=(*gradop[1])(rho, true).refine();
+        real_function_3d drhoa_z=(*gradop[2])(rho, true).refine();
+        world.gop.fence();
+
+        // assign the reduced densities sigma
+        vsigaa=(drhoa_x * drhoa_x + drhoa_y * drhoa_y + drhoa_z * drhoa_z);
+    }
+
+    double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
+    coord_3d start(0.0); start[0]=-width;
+    coord_3d end(0.0); end[0]=width;
+
+
+    plot_line("line_rho",10000,start,end,rho);
+    plot_line("line_vsigaa",10000,start,end,vsigaa);
+    plot_line("line_dens_pt0",10000,start,end,dens_pt0);
+
+    SeparatedConvolution<double,3> smooth=SmoothingOperator3D(world,0.005);
+    real_function_3d sigmanemo_smooth=smooth(sigmanemo);
+    plot_line("line_sigaanemo_smooth",10000,start,end,sigmanemo_smooth);
+    real_function_3d dens_pt0_smooth=smooth(dens_pt0);
+    plot_line("line_dens_pt0_smooth",10000,start,end,dens_pt0_smooth);
+
+}
+
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
@@ -142,8 +197,7 @@ int main(int argc, char** argv) {
     }
 
     // load the function of interest
-    std::string restart_name;
-    bool restart=false;
+    std::vector<std::string> filenames;
 
     for(int i = 1; i < argc; i++) {
         const std::string arg=argv[i];
@@ -153,9 +207,8 @@ int main(int argc, char** argv) {
         std::string key=arg.substr(0,pos);
         std::string val=arg.substr(pos+1);
 
-        if (key=="restart") {                               // usage: restart=path/to/mo_file
-            restart_name=stringify(val);
-            restart=true;
+        if (key=="file") {                               // usage: restart=path/to/mo_file
+            filenames.push_back(stringify(val));
         }
     }
 
@@ -174,20 +227,40 @@ int main(int argc, char** argv) {
 		print("");
 	}
 
+//	dostuff(world);
 
     try {
         static const size_t NDIM=3;
-        Function<double,NDIM> pair;
-		load_function(world,pair,restart_name);
-		plot_plane(world,pair,restart_name);
-		draw_line(world,pair,restart_name);
+        std::vector<Function<double,NDIM> > vf;
+        for (int i=0; i<filenames.size(); ++i) {
+            real_function_3d tmp;
+            try { // load a single function
+                load_function(world,tmp,filenames[i]);
+                vf.push_back(tmp);
+            } catch (...) { // load a vector of functions
+                std::vector<Function<double,NDIM> > tmp2;
+                load_function(world,tmp2,filenames[i]);
+                for (auto& t : tmp2) vf.push_back(t);
+            }
+        }
+		plot_plane(world,vf,filenames[0]);
+
+		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
+		coord_3d start(0.0); start[0]=-width;
+		coord_3d end(0.0); end[0]=width;
+		plot_line(("line_"+filenames[0]).c_str(),10000,start,end,vf[0]);
+
+		// plot the Gaussian cube file
+		std::vector<std::string> molecular_info=cubefile_header("input");
+		std::string filename=filenames[0]+".cube";
+		plot_cubefile<3>(world,vf[0],filenames[0],molecular_info);
+
     } catch (...) {
         try {
             static const size_t NDIM=6;
-            Function<double,NDIM> pair;
-    		load_function(world,pair,restart_name);
-    		plot_plane(world,pair,restart_name);
-    		draw_line(world,pair,restart_name);
+            std::vector<Function<double,NDIM> > vf(filenames.size());
+            for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
+            plot_plane(world,vf,filenames[0]);
         } catch (...) {
 
         }

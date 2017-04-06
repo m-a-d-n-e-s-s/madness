@@ -2,6 +2,7 @@
 #include <mra/mra.h>
 #include <linalg/solvers.h>
 #include <tinyxml/tinyxml.h>
+#include <world/worldmem.h>
 
 using namespace madness;
 
@@ -390,7 +391,7 @@ int main(int argc, char** argv) {
     ////real_function_3d f2b = real_factory_3d(world).functor(real_functor_3d(new RlmFunctor(1, 0, coord_3d(0.0))));
     //real_function_3d f2 = rlmstore.rlm(1,0)*projstore.nlproj(1,1);
 
-    //coord_3d lo1 = vec(-L,0.0,0.0); coord_3d hi1= vec(L,0.0,0.0);
+    //coord_3d lo1 {-L,0.0,0.0}; coord_3d hi1 {L,0.0,0.0};
     //plot_line("error1.dat", 20001, lo1, hi1, f1);
     //plot_line("error2.dat", 20001, lo1, hi1, f2);
     //double err = (f1-f2).norm2();

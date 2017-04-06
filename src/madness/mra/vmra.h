@@ -121,9 +121,12 @@
 
 #include <madness/mra/mra.h>
 #include <madness/mra/derivative.h>
+#include <madness/tensor/distributed_matrix.h>
 #include <cstdio>
 
 namespace madness {
+
+
 
     /// Compress a vector of functions
     template <typename T, std::size_t NDIM>
@@ -161,6 +164,42 @@ namespace madness {
         if (fence && must_fence) world.gop.fence();
     }
 
+    /// refine the functions according to the autorefine criteria
+    template <typename T, std::size_t NDIM>
+    void refine(World& world, const std::vector<Function<T,NDIM> >& vf,
+            bool fence=true) {
+        for (const auto& f : vf) f.refine(false);
+        if (fence) world.gop.fence();
+    }
+
+    /// refine all functions to a common (finest) level
+
+    /// if functions are not initialized (impl==NULL) they are ignored
+    template <typename T, std::size_t NDIM>
+    void refine_to_common_level(World& world, std::vector<Function<T,NDIM> >& vf,
+            bool fence=true) {
+
+        reconstruct(world,vf);
+        Key<NDIM> key0(0, Vector<Translation, NDIM> (0));
+        std::vector<FunctionImpl<T,NDIM>*> v_ptr;
+
+        // push initialized function pointers into the vector v_ptr
+        for (unsigned int i=0; i<vf.size(); ++i) {
+            if (vf[i].is_initialized()) v_ptr.push_back(vf[i].get_impl().get());
+        }
+
+        // sort and remove duplicates to not confuse the refining function
+        std::sort(v_ptr.begin(),v_ptr.end());
+        typename std::vector<FunctionImpl<T, NDIM>*>::iterator it;
+        it = std::unique(v_ptr.begin(), v_ptr.end());
+        v_ptr.resize( std::distance(v_ptr.begin(),it) );
+
+        std::vector< Tensor<T> > c(v_ptr.size());
+        v_ptr[0]->refine_to_common_level(v_ptr, c, key0);
+        if (fence) v_ptr[0]->world.gop.fence();
+        if (VERIFY_TREE)
+            for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
+    }
 
     /// Generates non-standard form of a vector of functions
     template <typename T, std::size_t NDIM>
@@ -206,6 +245,17 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+    /// Truncates a vector of functions
+
+    /// @return the truncated vector for chaining
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> > truncate(std::vector< Function<T,NDIM> > v,
+                  double tol=0.0, bool fence=true) {
+        if (v.size()>0) truncate(v[0].world(),v,tol,fence);
+        return v;
+    }
+
+
     /// Applies a derivative operator to a vector of functions
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
@@ -244,7 +294,7 @@ namespace madness {
         PROFILE_BLOCK(Vzero_functions);
         std::vector< Function<T,NDIM> > r(n);
         for (int i=0; i<n; ++i)
-  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true));
+  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true).initial_level(1));
 
 	if (n && fence) world.gop.fence();
 
@@ -269,9 +319,8 @@ namespace madness {
         int m = c.dim(1);  // m is the new dimension
         MADNESS_ASSERT(n==c.dim(0));
 
-        std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
+        std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
         compress(world, v);
-        compress(world, vc);
 
         for (int i=0; i<m; ++i) {
             for (int j=0; j<n; ++j) {
@@ -286,20 +335,51 @@ namespace madness {
 
     template <typename L, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
-    transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence) {
+    transform(World& world,  const std::vector< Function<L,NDIM> >& v,
+            const Tensor<R>& c, double tol, bool fence) {
         PROFILE_BLOCK(Vtransform);
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim(0)));
 
-        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim(1));
-        for (int i=0; i<c.dim(1); ++i) {
-            vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
-        }
-        compress(world, v, false);
-        compress(world, vresult, false);
-        world.gop.fence();
+        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult
+            = zero_functions_compressed<TENSOR_RESULT_TYPE(L,R),NDIM>(world, c.dim(1));
+
+        compress(world, v, true);
         vresult[0].vtransform(v, c, vresult, tol, fence);
         return vresult;
     }
+
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
+    transform(World& world,
+              const std::vector< Function<T,NDIM> >& v,
+              const DistributedMatrix<R>& c,
+              bool fence=true) {
+        PROFILE_FUNC;
+
+        typedef TENSOR_RESULT_TYPE(T,R) resultT;
+        long n = v.size();    // n is the old dimension
+        long m = c.rowdim();  // m is the new dimension
+        MADNESS_ASSERT(n==c.coldim());
+
+        // new(i) = sum(j) old(j) c(j,i)
+
+        Tensor<T> tmp(n,m);
+        c.copy_to_replicated(tmp); // for debugging
+        tmp = transpose(tmp);
+
+        std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
+        compress(world, v);
+
+        for (int i=0; i<m; ++i) {
+            for (int j=0; j<n; ++j) {
+                if (tmp(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],tmp(j,i),false);
+            }
+        }
+
+        if (fence) world.gop.fence();
+        return vc;
+    }
+
 
     /// Scales inplace a vector of functions by distinct values
     template <typename T, typename Q, std::size_t NDIM>
@@ -389,6 +469,37 @@ namespace madness {
 //            PoolTaskInterface::make_id(id, *this);
 //        }
 //    }; // struct MatrixInnerTask
+
+
+
+    template <typename T, std::size_t NDIM>
+    DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution& d,
+                                      const std::vector< Function<T,NDIM> >& f,
+                                      const std::vector< Function<T,NDIM> >& g,
+                                      bool sym=false)
+    {
+        PROFILE_FUNC;
+        DistributedMatrix<T> A(d);
+        const int64_t n = A.coldim();
+        const int64_t m = A.rowdim();
+        MADNESS_ASSERT(int64_t(f.size()) == n && int64_t(g.size()) == m);
+
+        // Assume we can always create an ichunk*jchunk matrix locally
+        const int ichunk = 1000;
+        const int jchunk = 1000; // 1000*1000*8 = 8 MBytes
+        for (int64_t ilo=0; ilo<n; ilo+=ichunk) {
+            int64_t ihi = std::min(ilo + ichunk, n);
+            std::vector< Function<T,NDIM> > ivec(f.begin()+ilo, f.begin()+ihi);
+            for (int64_t jlo=0; jlo<m; jlo+=jchunk) {
+                int64_t jhi = std::min(jlo + jchunk, m);
+                std::vector< Function<T,NDIM> > jvec(g.begin()+jlo, g.begin()+jhi);
+
+                Tensor<T> P = matrix_inner(A.get_world(),ivec,jvec);
+                A.copy_from_replicated_patch(ilo, ihi-1, jlo, jhi-1, P);
+            }
+        }
+        return A;
+    }
 
     /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
 
@@ -510,6 +621,16 @@ namespace madness {
         return r;
     }
 
+    /// inner function with right signature for the nonlinear sovler
+    /// this is needed for the KAIN solvers and other functions
+    template <typename T, typename R, std::size_t NDIM>
+    double inner( const std::vector< Function<T,NDIM> >& f,
+	                                            const std::vector< Function<R,NDIM> >& g){
+      MADNESS_ASSERT(f.size()==g.size());
+      if(f.empty()) return 0.0;
+      else return inner(f[0].world(),f,g).sum();
+    }
+
 
     /// Multiplies a function against a vector of functions --- q[i] = a * v[i]
     template <typename T, typename R, std::size_t NDIM>
@@ -565,9 +686,8 @@ namespace madness {
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true) {
         PROFILE_BLOCK(Vmulvv);
-        reconstruct(world, a, false);
-        if (&a != &b) reconstruct(world, b, false);
-        world.gop.fence();
+        reconstruct(world, a, true);
+        if (&a != &b) reconstruct(world, b, true);
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
@@ -717,6 +837,31 @@ namespace madness {
         return r;
     }
 
+    /// Returns new function --- q = sum_i f[i]
+    template <typename T, std::size_t NDIM>
+    Function<T, NDIM> sum(World& world, const std::vector<Function<T,NDIM> >& f,
+        bool fence=true) {
+
+        compress(world, f);
+        Function<T,NDIM> r=real_factory_3d(world).compressed();
+
+        for (unsigned int i=0; i<f.size(); ++i) r.gaxpy(1.0,f[i],1.0,false);
+        if (fence) world.gop.fence();
+        return r;
+    }
+
+
+    /// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]
+    template <typename T, typename R, std::size_t NDIM>
+    Function<TENSOR_RESULT_TYPE(T,R), NDIM>
+    dot(World& world,
+        const std::vector< Function<T,NDIM> >& a,
+        const std::vector< Function<R,NDIM> >& b,
+        bool fence=true) {
+        return sum(world,mul(world,a,b,true),fence);
+    }
+
+
 
     /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i]
     template <typename T, typename Q, typename R, std::size_t NDIM>
@@ -812,6 +957,19 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+    template <typename T, std::size_t NDIM>
+    void print_size(World &world, const std::vector<Function<T,NDIM> > &v, const std::string &msg = "vectorfunction" ){
+    	if(v.empty()){
+    		if(world.rank()==0) std::cout << "print_size: " << msg << " is empty" << std::endl;
+    	}else if(v.size()==1){
+    		v.front().print_size(msg);
+    	}else{
+    		for(auto x:v){
+    			x.print_size(msg);
+    		}
+    	}
+    }
+
     // gives back the size in GB
     template <typename T, std::size_t NDIM>
     double get_size(World& world, const std::vector< Function<T,NDIM> >& v){
@@ -823,12 +981,180 @@ namespace madness {
 
         double size=0.0;
         for(unsigned int i=0;i<v.size();i++){
-        	size+=v[i].size();
+            if (v[i].is_initialized()) size+=v[i].size();
         }
 
         return size/fac*d;
 
     }
+
+    // gives back the size in GB
+    template <typename T, std::size_t NDIM>
+    double get_size(const Function<T,NDIM> & f){
+    	const double d=sizeof(T);
+        const double fac=1024*1024*1024;
+        double size=f.size();
+        return size/fac*d;
+    }
+
+    /// apply op on the input vector yielding an output vector of functions
+
+    /// @param[in]  op   the operator working on vin
+    /// @param[in]  vin  vector of input Functions; needs to be refined to common level!
+    /// @return vector of output Functions vout = op(vin)
+    template <typename T, typename opT, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > multi_to_multi_op_values(const opT& op,
+            const std::vector< Function<T,NDIM> >& vin,
+            const bool fence=true) {
+        MADNESS_ASSERT(vin.size()>0);
+        MADNESS_ASSERT(vin[0].is_initialized()); // might be changed
+        World& world=vin[0].world();
+        Function<T,NDIM> dummy;
+        dummy.set_impl(vin[0], false);
+        std::vector<Function<T,NDIM> > vout=zero_functions<T,NDIM>(world, op.get_result_size());
+        for (auto& out : vout) out.set_impl(vin[0],false);
+        dummy.multi_to_multi_op_values(op, vin, vout, fence);
+        return vout;
+    }
+
+
+
+
+    // convenience operators
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
+            const std::vector<Function<T,NDIM>>& rhs) {
+        return add(lhs[0].world(),lhs,rhs);
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
+            const std::vector<Function<T,NDIM> >& rhs) {
+        return sub(lhs[0].world(),lhs,rhs);
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator*(const double fac,
+            const std::vector<Function<T,NDIM> >& rhs) {
+        std::vector<Function<T,NDIM> > tmp=copy(rhs[0].world(),rhs);
+        scale(tmp[0].world(),tmp,fac);
+        return tmp;
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator*(const std::vector<Function<T,NDIM> >& rhs,
+            const double fac) {
+        std::vector<Function<T,NDIM> > tmp=copy(rhs[0].world(),rhs);
+        scale(tmp[0].world(),tmp,fac);
+        return tmp;
+    }
+
+    /// multiply a vector of functions with a function: r[i] = v[i] * a
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator*(const Function<T,NDIM>& a,
+            const std::vector<Function<T,NDIM> >& v) {
+        return mul(v[0].world(),a,v,true);
+    }
+
+
+    /// multiply a vector of functions with a function: r[i] = a * v[i]
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator*(const std::vector<Function<T,NDIM> >& v,
+            const Function<T,NDIM>& a) {
+        return mul(v[0].world(),a,v,true);
+    }
+
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
+            const std::vector<Function<T,NDIM> >& lhs) {
+        rhs=add(rhs[0].world(),rhs,lhs);
+        return rhs;
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator-=(std::vector<Function<T,NDIM> >& rhs,
+            const std::vector<Function<T,NDIM> >& lhs) {
+        rhs=sub(rhs[0].world(),rhs,lhs);
+        return rhs;
+    }
+
+    /// shorthand gradient operator
+
+    /// returns the differentiated function f in all NDIM directions
+    /// @param[in]  f       the function on which the grad operator works on
+    /// @param[in]  refine  refinement before diff'ing makes the result more accurate
+    /// @param[in]  fence   fence after completion; if reconstruction is needed always fence
+    /// @return     the vector \frac{\partial}{\partial x_i} f
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    /// shorthand div operator
+
+    /// returns the dot product of nabla with a vector f
+    /// @param[in]  f       the vector of functions on which the div operator works on
+    /// @param[in]  refine  refinement before diff'ing makes the result more accurate
+    /// @param[in]  fence   fence after completion; currently always fences
+    /// @return     the vector \frac{\partial}{\partial x_i} f
+    /// TODO: add this to operator fusion
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> div(const std::vector<Function<T,NDIM> >& v,
+            bool do_refine=false, bool fence=true) {
+
+        MADNESS_ASSERT(v.size()>0);
+        World& world=v[0].world();
+        reconstruct(world,v);
+        if (do_refine) refine(world,v);      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),v[i],false);
+        world.gop.fence();
+        return sum(world,result,fence);
+    }
+
+    /// load a vector of functions
+    template<typename T, size_t NDIM>
+    void load_function(World& world, std::vector<Function<T,NDIM> >& f,
+            const std::string name) {
+        if (world.rank()==0) print("loading vector of functions",name);
+        archive::ParallelInputArchive ar(world, name.c_str(), 1);
+        std::size_t fsize=0;
+        ar & fsize;
+        f.resize(fsize);
+        for (std::size_t i=0; i<fsize; ++i) ar & f[i];
+    }
+
+    /// save a vector of functions
+    template<typename T, size_t NDIM>
+    void save_function(const std::vector<Function<T,NDIM> >& f, const std::string name) {
+        if (f.size()>0) {
+            World& world=f.front().world();
+            if (world.rank()==0) print("saving vector of functions",name);
+            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+            std::size_t fsize=f.size();
+            ar & fsize;
+            for (std::size_t i=0; i<fsize; ++i) ar & f[i];
+        }
+    }
+
 
 }
 #endif // MADNESS_MRA_VMRA_H__INCLUDED

@@ -27,13 +27,10 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
-#include <madness/world/world.h>
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <madness/mra/mra.h>
 #include <madness/tensor/tensor.h>
 #include <fstream>

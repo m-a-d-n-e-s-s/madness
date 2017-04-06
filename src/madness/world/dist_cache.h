@@ -27,17 +27,14 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
  */
 
 #ifndef MADNESS_WORLD_DIST_CACHE_H__INCLUDED
 #define MADNESS_WORLD_DIST_CACHE_H__INCLUDED
 
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 #include <madness/world/worldhashmap.h>
-#include <madness/world/worldfut.h>
+#include <madness/world/future.h>
 
 namespace madness {
     namespace detail {
@@ -151,7 +148,7 @@ namespace madness {
 
                 // Retrieve the cached future
                 typename cache_container::accessor acc;
-                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(NULL)))) {
+                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(nullptr)))) {
 
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<value_type>(value);
@@ -188,7 +185,7 @@ namespace madness {
             static void get_cache_value(const keyT& key, madness::Future<valueT>& value) {
                 // Retrieve the cached future
                 typename cache_container::accessor acc;
-                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(NULL)))) {
+                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(nullptr)))) {
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<valueT>(value);
                     acc.release();
@@ -217,7 +214,7 @@ namespace madness {
             static madness::Future<valueT> get_cache_value(const keyT& key) {
                 // Retrieve the cached future
                 typename cache_container::accessor acc;
-                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(NULL)))) {
+                if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(nullptr)))) {
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<valueT>();
                     madness::Future<valueT> value(acc->second->template get<valueT>());

@@ -27,14 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 /// \file testsystolic.cc
 /// systolic example of eigen solver using one-sided Jacobi method.
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <utility>
 #include <madness/tensor/tensor.h>
 #include <ii/systolic.h>
@@ -193,7 +192,7 @@ int main(int argc, char** argv) {
             print("result: size parallel cpu_time wall_time");
             print("check: size max(off-diagonal) max(diagonal) max(V^TAV-lambdaE)");
         }
-        std::srand(time(NULL));
+        std::srand(time(nullptr));
         int64_t pow[2];
         for (int64_t n=2; n<=256; n*=2) {
             // make symmetolic matrix, then distribute it all processes

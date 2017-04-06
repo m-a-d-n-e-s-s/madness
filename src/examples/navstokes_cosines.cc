@@ -119,7 +119,7 @@ struct FunctorInterfaceWrapper : public FunctionFunctorInterface<double,3> {
 template<typename T, int NDIM> //used to simplifying the mirgrating to new bc. use with caution if you change your bc at runtime.
 static Function<T,NDIM> diff(const Function<T,NDIM>& f, int axis) {
 	static Vector<std::shared_ptr<Derivative<T,NDIM> >,NDIM> df;
-	if (df[axis] == NULL) df[axis] = std::shared_ptr<Derivative<T,NDIM> >(new Derivative<T,NDIM>(f.world(), axis));
+	if (df[axis] == nullptr) df[axis] = std::shared_ptr<Derivative<T,NDIM> >(new Derivative<T,NDIM>(f.world(), axis));
 	return (*df[axis])(f);
 }
 

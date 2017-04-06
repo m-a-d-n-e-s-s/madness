@@ -5,7 +5,7 @@
 #include <polar/xcfunctional.h>
 #include <madness/tensor/tensor.h>
 #include <sstream>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 
 namespace madness {
 

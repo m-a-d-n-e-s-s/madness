@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_CHEM_MOLECULE_H__INCLUDED
 #define MADNESS_CHEM_MOLECULE_H__INCLUDED
 
@@ -38,7 +37,7 @@
 
 #include <chem/corepotential.h>
 #include <chem/atomutil.h>
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -56,25 +55,53 @@ class Atom {
 public:
     double x, y, z, q;          ///< Coordinates and charge in atomic units
     unsigned int atomic_number; ///< Atomic number
+    double mass;                ///< Mass
+    bool pseudo_atom;           ///< Indicates if this atom uses a pseudopotential
+
+    explicit Atom(double x, double y, double z, double q, unsigned int atomic_number, bool pseudo_atom)
+            : x(x), y(y), z(z), q(q), atomic_number(atomic_number), pseudo_atom(pseudo_atom) {
+        mass= get_atomic_data(atomic_number).mass;
+
+        if (mass==-1.0) MADNESS_EXCEPTION("faulty element in Atom",1);
+
+        // unstable elements are indicated by negative masses, the mass
+        // is taken from the longest-living element
+        if (mass<0.0) mass*=-1.0;
+
+    }
 
     explicit Atom(double x, double y, double z, double q, unsigned int atomic_number)
-            : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {}
+            : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {
+        mass= get_atomic_data(atomic_number).mass;
 
-    Atom(const Atom& a)
-            : x(a.x), y(a.y), z(a.z), q(a.q), atomic_number(a.atomic_number) {}
+        if (mass==-1.0) MADNESS_EXCEPTION("faulty element in Atom",1);
+
+        // unstable elements are indicated by negative masses, the mass
+        // is taken from the longest-living element
+        if (mass<0.0) mass*=-1.0;
+
+        pseudo_atom = false;
+
+    }
+
+    Atom(const Atom& a) : x(a.x), y(a.y), z(a.z), q(a.q),
+            atomic_number(a.atomic_number), mass(a.mass), pseudo_atom(a.pseudo_atom) {}
 
     /// Default construct makes a zero charge ghost atom at origin
-    Atom()
-            : x(0), y(0), z(0), q(0), atomic_number(0) {}
+    Atom() : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0), pseudo_atom(false) {}
 
+   int get_atomic_number() const {return atomic_number;}
 
     madness::Vector<double,3> get_coords() const {
-        return madness::vec(x, y, z);
+        return madness::Vector<double,3>{x, y, z};
     }
+
+    /// return the mass in atomic units (electron mass = 1 a.u.)
+    double get_mass_in_au() const {return constants::atomic_mass_in_au * mass;}
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & x & y & z & q & atomic_number;
+        ar & x & y & z & q & atomic_number & mass & pseudo_atom;
     }
 };
 
@@ -145,15 +172,21 @@ public:
 
     void add_atom(double x, double y, double z,  double q, int atn);
 
+    void add_atom(double x, double y, double z,  double q, int atn, bool psat);
+
     int natom() const {
         return atoms.size();
     };
 
     void set_atom_charge(unsigned int i, double zeff);
 
-    unsigned int get_atom_charge(unsigned int i);
+    unsigned int get_atom_charge(unsigned int i) const;
 
     unsigned int get_atom_number(unsigned int i);
+
+    void set_pseudo_atom(unsigned int i, bool psat);
+
+    bool get_pseudo_atom(unsigned int i);
 
     void set_atom_coords(unsigned int i, double x, double y, double z);
 
@@ -168,6 +201,8 @@ public:
     void set_eprec(double value);
 
     void set_rcut(double value);
+
+    std::vector<double> get_rcut() const {return rcut;}
 
     void set_core_eprec(double value) {
         core_pot.set_eprec(value);
@@ -185,17 +220,42 @@ public:
 
     const Atom& get_atom(unsigned int i) const;
 
+    const std::vector<Atom> & get_atoms()const{return atoms;}
+
     void print() const;
 
     double inter_atomic_distance(unsigned int i,unsigned int j) const;
 
     double nuclear_repulsion_energy() const;
 
-    double nuclear_repulsion_energy_pseudo() const;
-
     double nuclear_repulsion_derivative(int i, int j) const;
 
-    double nuclear_dipole(int axis, bool psp_calc) const;
+    /// compute the nuclear-nuclear contribution to the second derivatives
+
+    /// @param[in]  iatom   the i-th atom (row of the hessian)
+    /// @param[in]  jatom   the j-th atom (column of the hessian)
+    /// @param[in]  iaxis   the xyz axis of the i-th atom
+    /// @param[in]  jaxis   the xyz axis of the j-th atom
+    /// return the (3*iatom + iaxis, 3*jatom + jaxis) matix element of the hessian
+    double nuclear_repulsion_second_derivative(int iatom, int jatom,
+            int iaxis, int jaxis) const;
+
+    /// return the hessian matrix of the second derivatives d^2/dxdy V
+
+    /// no factor 0.5 included
+    Tensor<double> nuclear_repulsion_hessian() const;
+
+    /// compute the dipole moment of the nuclei
+
+    ///  @param[in] axis the axis (x, y, z)
+    double nuclear_dipole(int axis) const;
+
+    /// compute the derivative of the nuclear dipole wrt a nuclear displacement
+
+    /// @param[in]  atom    the atom which will be displaced
+    /// @param[in]  axis    the axis where the atom will be displaced
+    /// @return     a vector which all 3 components of the dipole derivative
+    Tensor<double> nuclear_dipole_derivative(const int atom, const int axis) const;
 
     double nuclear_charge_density(double x, double y, double z) const;
 
@@ -205,19 +265,57 @@ public:
 
     void identify_point_group();
 
+    /// Moves the center of nuclear charge to the origin
     void center();
+
+    /// rotates the molecule and the external field
+
+    /// @param[in]  D   the rotation matrix
+    void rotate(const Tensor<double>& D);
+
+    /// translate the molecule
+    void translate(const Tensor<double>& translation);
+
+    Tensor<double> center_of_mass() const;
+
+    /// compute the mass-weighting matrix for the hessian
+
+    /// use as
+    /// mass_weighted_hessian=inner(massweights,inner(hessian,massweights));
+    Tensor<double> massweights() const {
+
+        Tensor<double> M(3*natom(),3*natom());
+        for (int i=0; i<natom(); i++) {
+            const double sqrtmass=1.0/sqrt(get_atom(i).get_mass_in_au());
+            M(3*i  ,3*i  )=sqrtmass;
+            M(3*i+1,3*i+1)=sqrtmass;
+            M(3*i+2,3*i+2)=sqrtmass;
+        }
+        return M;
+    }
+
+
+
+    Tensor<double> moment_of_inertia() const;
 
     void orient();
 
     double total_nuclear_charge() const;
 
+    /// nuclear attraction potential for the whole molecule
     double nuclear_attraction_potential(double x, double y, double z) const;
+
+    /// nuclear attraction potential for a specific atom in the molecule
+    double atomic_attraction_potential(int iatom, double x, double y, double z) const;
 
     double molecular_core_potential(double x, double y, double z) const;
 
     double core_potential_derivative(int atom, int axis, double x, double y, double z) const;
 
     double nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const;
+
+    double nuclear_attraction_potential_second_derivative(int atom, int iaxis,
+            int jaxis, double x, double y, double z) const;
 
     template <typename Archive>
     void serialize(Archive& ar) {

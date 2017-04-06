@@ -1,0 +1,76 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2015 Stony Brook University
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+*/
+
+/**
+  \file getting_started.dox
+  \brief An overview of programming with MADNESS.
+  \addtogroup getting_started
+  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
+
+This module aims to satisfy the needs of first-time users of the MADNESS numerical programming environment. Programmers interested in using the parallel programming environment should refer to the \ref parallel_runtime module.
+
+We know there are lots of things missing and that some things do not work as well as we might hope. However, things will improve faster if you get involved. Minimally, let us know of deficiencies, problems, and feature requests. These can be reported on the <a href="\website">MADNESS website</a>. The next step is to contribute documentation, examples, bug fixes or even new functionality. We aren't just a community project, we are a community, and you are welcome.
+
+\par What is MADNESS and what can you do with it?
+
+MADNESS stands for multiresolution adaptive numerical environment for scientific simulation. It is trying to address the following issues
+- raising the level of composition of scientific applications, making it faster/easier to craft robust/correct solutions to new problems,
+- computing using functions and operators instead of just numbers, vectors and matrices,
+- providing fast and accurate solutions for a variety of differential and integral equations in 1 to 6 dimensions
+(and perhaps higher), and
+- facilitating the use of massively parallel computer resources by a wider audience.
+.
+
+In MADNESS, your code is written in terms of functions and operators, using the C++ language, and for this reason it can be thought of as a basis-free method. There is, of course, an underlying representation and approximation using bases and grids, and they adapt and refine automatically to satisfy the requested precision -- but you do not have to think about this until efficiency or memory use become concerns, if ever.
+
+The numerical operations can be regarded as a finite precision equivalent of the mathematical calculus used to express your equations. For example, the code corresponding to
+\f[
+\int \left( \frac{1}{2} \left( \frac{d\psi}{dx} \right)^{2} + V(x)\psi (x)^{2} \right) \mathit{dx}
+\f]
+in three dimensions is just
+\code
+  real_function_3d dpsidx = Dx(psi);
+  double result = 0.5*inner(dpsidx, dpsidx) + inner(V(x), psi*psi); 
+\endcode
+where `psi` is a 3-D function and `Dx(psi)` takes the derivative of `psi` in the  \f$x\f$ direction (see below for how to make the derivative operator). The `inner` method computes the \f$L_{2}\f$ inner product of the functions.
+
+Within MADNESS you can apply both differential operators and integral operators. Important and common convolution
+operators with physically relevant Green functions (e.g., Coulomb, bound-state Helmholtz, free-particle quantum
+propagator) are built in. Many physical problems can be restated in integral form with huge benefits in ease and
+accuracy of solution. Finally, MADNESS hopefully excels at obtaining high-accuracy solutions, efficient computation in
+many dimensions, and use of massively parallel computers.
+
+MADNESS is not good at everything. In particular, if you have complicated boundary conditions, highly oscillatory functions, or only need low precision, then other tools might be more appropriate.
+
+In the following, we introduce MADNESS using problems of increasing complexity to accomplish standard tasks and to discuss topics that are central to effectively using MADNESS.
+
+Next: \ref gstart_basics
+*/

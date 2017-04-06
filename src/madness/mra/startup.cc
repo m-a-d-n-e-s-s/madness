@@ -36,12 +36,32 @@
 /// \file mra/startup.cc
 
 #include <madness/mra/mra.h>
+#include <madness/tensor/tensor.h>
+#include <madness/world/timers.h>
 //#include <madness/mra/mraimpl.h> !!!!!!!!!!!!!!!!  NOOOOOOOOOOOOOOOOOOOOOOOOOO !!!!!!!!!!!!!!!!!!!!!!!
 #include <iomanip>
 #include <cstdlib>
 
 namespace madness {
-    void startup(World& world, int argc, char** argv) {
+
+
+  // Quick check on the performance of both BLAS and fastest/slowest processor
+  static void time_transform(World& world, int& mflopslo, int& mflopshi) {
+    const long N=20, NLOOP=100;
+    Tensor<double> s(N,N,N), r(N,N,N), w(N,N,N), c(N,N);
+    s=1.0; r=1.0; c=1.0;
+    for (long loop=0; loop<10; loop++) fast_transform(s, c, r, w);
+    double used = cpu_time();
+    for (long loop=0; loop<NLOOP; loop++) fast_transform(s, c, r, w);
+    used = cpu_time()-used;
+    mflopslo = mflopshi = int(1e-6*2.0*3.0*N*N*N*N*double(NLOOP)/used);
+    world.gop.max(mflopshi);
+    world.gop.min(mflopslo);
+  }
+
+
+
+    void startup(World& world, int argc, char** argv, bool doprint) {
         const char* data_dir = MRA_DATA_DIR;
 
         // Process command line arguments
@@ -116,11 +136,14 @@ namespace madness {
         MADNESS_ASSERT(gauss_legendre_test());
         MADNESS_ASSERT(test_two_scale_coefficients());
 
+	int mflopslo, mflopshi;
+	time_transform(world, mflopslo, mflopshi);
+
         // print the configuration options
-        if (world.rank() == 0) {
+        if (doprint && world.rank() == 0) {
             print("");
             print("--------------------------------------------");
-            print("   MADNESS",PACKAGE_VERSION, "multiresolution suite");
+            print("   MADNESS",MADNESS_PACKAGE_VERSION, "multiresolution suite");
             print("--------------------------------------------");
             print("");
             print("   number of processors ...", world.size());
@@ -144,10 +167,24 @@ namespace madness {
 #ifdef TENSOR_INSTANCE_COUNT
             print("  tensor instance count ...", "enabled");
 #endif
-#if HAVE_INTEL_TBB
-            print("              Intel TBB ...", "yes ");
+#ifdef STUBOUTMPI
+	    print("                    MPI ...", "stubbed out");
+#elif MADNESS_MPI_THREAD_LEVEL == MPI_THREAD_SERIALIZED
+	    print("                    MPI ...", "serialized");
 #else
-            print("              Intel TBB ...", "no ");
+	    print("                    MPI ...", "multiple");
+#endif
+#if HAVE_INTEL_TBB
+            print(" multi-threaded runtime ...", "Intel TBB");
+#elif defined(HAVE_PARSEC)
+            print(" multi-threaded runtime ...", "PaRSEC");
+#else
+            print(" multi-threaded runtime ...", "MADNESS ThreadPool");
+#endif
+#if HAVE_INTEL_MKL
+            print("                   BLAS ...", "Intel MKL",  mflopslo, mflopshi, "MFLOP/s");
+#else
+            print("                   BLAS ...", "Slow reference",  mflopslo, mflopshi, "MFLOP/s");
 #endif
            	print("               compiled ...",__TIME__," on ",__DATE__);
 

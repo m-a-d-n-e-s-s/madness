@@ -27,20 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
-
 /*!
   \file examples/oep.cc
   \brief optimized effective potentials for DFT
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/oep.cc>here</a>.
-  \todo fix the URL.
 */
 
 #include <chem/mp2.h>
@@ -342,7 +335,7 @@ void plot(const real_function_3d& f, const std::string filename, const long k) {
 
     for (int i=0; i<k; ++i) {
     	double z=0.001+double(i)*0.01;
-    	coord_3d r=vec(0.0,0.0,z);
+    	coord_3d r{0.0,0.0,z};
     	double c=f(r);
     	fprintf(file,"%lf %lf\n",z,c);
     }
@@ -354,7 +347,7 @@ void plot_radial_density(const real_function_3d& rho, const std::string filename
 	FILE* file = fopen(filename.c_str(),"w");
 	for (int i=0; i<grid.dim(0); ++i) {
 		double r=grid(i);
-		coord_3d xyz=vec(0.0,0.0,r);
+		coord_3d xyz{0.0,0.0,r};
 		double c=r*r*rho(xyz);
 		fprintf(file,"%lf %lf\n",r,c);
 	}
@@ -366,7 +359,7 @@ void plot_radial_function(const real_function_3d& rho, const std::string filenam
 	FILE* file = fopen(filename.c_str(),"w");
 	for (int i=0; i<grid.dim(0); ++i) {
 		double r=grid(i);
-		coord_3d xyz=vec(0.0,0.0,r);
+		coord_3d xyz{0.0,0.0,r};
 		double c=rho(xyz);
 		fprintf(file,"%lf %lf\n",r,c);
 	}
@@ -542,14 +535,14 @@ int main(int argc, char** argv) {
 
 		} else {
 			recpot pot_functor("grid.txt","Be_recpot_num_dzp.txt","Be_startpot.txt",4);
-			potential=real_factory_3d(world).functor2(pot_functor).truncate_on_project();
+			potential=real_factory_3d(world).functor(pot_functor).truncate_on_project();
 			potential+=hf.get_calc().potentialmanager->vnuclear();
 			potential.truncate(thresh*0.1);
 			save_function(world,potential,"be_recpot+startpot");
 
 
 			recpot pot_dens("grid.txt","Be_numdens_num.txt");
-			refdens=real_factory_3d(world).functor2(pot_dens).truncate_on_project();
+			refdens=real_factory_3d(world).functor(pot_dens).truncate_on_project();
 			save_function(world,refdens,"be_refdens");
 
 		}

@@ -27,28 +27,31 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
+#include <madness/world/worldhash.h>
 
 using namespace madness;
 using namespace std;
-
 
 struct Key {
     typedef unsigned long ulong;
     ulong n, i, j, k;
     hashT hashval;
 
-    Key() {};  // Empty default constructor for speed - but is therefore junk
+    Key() {}; 
 
     Key(ulong n, ulong i, ulong j, ulong k)
-            : n(n), i(i), j(j), k(k), hashval(madness::hash(&this->n,4,0)) {};
+        : n(n), i(i), j(j), k(k)
+    {
+        hashval = hash_value(n);
+        hash_combine(hashval,i);
+        hash_combine(hashval,j);
+        hash_combine(hashval,k);
+    };
 
     hashT hash() const {
         return hashval;
@@ -84,10 +87,10 @@ public:
             , child(parent.n+1,2*parent.i,2*parent.j,2*parent.k)
             , i(0)
             , j(0)
-            , k(0) {};
+            , k(0) {}
 
     KeyChildIterator& operator++() {
-        if (k == 2) return *this;  // k==2 indicates end
+        if (k == 2) return *this;  // k==2 indicates end 
         i++;
         if (i == 2) {
             i = 0;
@@ -99,15 +102,15 @@ public:
         }
         child = Key(parent.n+1, 2*parent.i+i, 2*parent.j+j, 2*parent.k+k);
         return *this;
-    };
+    }
 
     const Key& key() {
         return child;
-    };
+    }
 
     operator bool() const {
         return k!=2;
-    };
+    }
 };
 
 struct Node;
@@ -117,26 +120,26 @@ struct Node {
     typedef WorldContainer<Key,Node> dcT;
     double value;
     bool isleaf;
-    int nrecvd;
 
-    Node() : value(0.0), isleaf(true), nrecvd(0) {};
-    Node(double value) : value(value), isleaf(true), nrecvd(0) {};
-    Node(const Node& node) : value(node.value), isleaf(node.isleaf) {};
+    Node() : value(0.0), isleaf(true) {}
+    Node(double value) : value(value), isleaf(true) {}
+    Node(const Node& node) : value(node.value), isleaf(node.isleaf) {}
 
-    Void random_insert(const dcT& constd, const Key& key, double valin) {
+    // Invoked on a new Node constructed with default constructor already put in the container with given key.
+    // Need to set the desired value and continue walking down randomly inserting
+    void random_insert(const dcT& constd, const Key& key, double valin) {
         dcT& d = const_cast<dcT&>(constd);
         value = valin;
         isleaf = true;
         if (value > 0.25 && d.size()<40) {
             isleaf = false;
-            World& world = d.world();
+            World& world = d.get_world();
             double ran = world.drand();
             for (KeyChildIterator it(key); it; ++it) {
                 d.task(it.key(),&Node::random_insert, d, it.key(), value*ran);
             }
         }
-        return None;
-    };
+    }
 
     template <class Archive>
     void serialize(Archive& ar) {
@@ -145,23 +148,18 @@ struct Node {
 
     bool is_leaf() const {
         return isleaf;
-    };
+    }
 
     double get() const {
         return value;
-    };
+    }
 
-    Void set(double v) {
+    void set(double v) {
         value = v;
-        return None;
-    };
+    }
 
-    void zero_nrecvd() {
-        nrecvd = 0;
-    };
-
-    Void recursive_print(const dcT& d, const Key& key) const {
-        cout << d.world().rank() << ": RP: ";
+    void recursive_print(const dcT& d, const Key& key) const {
+        cout << d.get_world().rank() << ": RP: ";
         for (unsigned int i=0; i<key.n; ++i) cout << "   ";
         cout << key << " " << *this;
         if (! is_leaf()) {
@@ -169,24 +167,13 @@ struct Node {
                 d.send(it.key(),&Node::recursive_print, d, it.key());
             }
         }
-        return None;
-    };
-
-    Void receive_sum(const dcT& d, const Key& key, double gift) {
-        value += gift;
-        nrecvd++;
-        if (nrecvd == 8 && key.n!=0) {
-            Key parent = key.parent();
-            const_cast<dcT&>(d).send(parent, &Node::receive_sum, d, parent, get());
-        }
-        return None;
-    };
+    }
 
     double do_sum(vector< Future<double> > v) {
-        for (int i=0; i<8; ++i)
-            value += v[i].get();
-        return value;
-    };
+        double sum = value;
+        for (int i=0; i<8; ++i) sum += v[i].get();
+        return sum;
+    }
 
     Future<double> do_sum_spawn(const dcT& d, const Key& key) {
         if (is_leaf()) {
@@ -197,11 +184,11 @@ struct Node {
             int i=0;
             for (KeyChildIterator it(key); it; ++it, ++i) {
                 const Key& child = it.key();
-                v[i] = d.send(child, &Node::do_sum_spawn, d, child);
+                v[i] = d.task(child, &Node::do_sum_spawn, d, child);
             }
             return d.task(key, &Node::do_sum, v);
         }
-    };
+    }
 };
 
 ostream& operator<<(ostream& s, const Node& node) {
@@ -212,6 +199,8 @@ ostream& operator<<(ostream& s, const Node& node) {
 void doit(World& world) {
     ProcessID me = world.rank();
     WorldContainer<Key,Node> d(world);
+    world.gop.fence();
+
     Key root(0,0,0,0);
 
     // First build an oct-tree with random depth
@@ -224,41 +213,29 @@ void doit(World& world) {
     world.gop.fence();
     if (me == 0) print("FINISHED PRINTING");
 
-//     // Now add up the tree
-//     for (WorldContainer<Key,Node>::iterator it=d.begin(); it!=d.end(); ++it) {
-// 	it->second.zero_nrecvd();
-//     }
-//     world.gop.fence();
-//     print("FINISHED ZEROING COUNTERS");
-
-//     for (WorldContainer<Key,Node>::iterator it=d.begin(); it!=d.end(); ++it) {
-// 	const Key& key = it->first;
-// 	Node& node = it->second;
-// 	if (node.is_leaf()) {
-// 	    Key parent = key.parent();
-// 	    d.send(parent, &Node::receive_sum, d, parent, node.get());
-// 	}
-//     }
-//     world.gop.fence();
-//     print("FINISHED SUMMING");
-
+    // Sum up the tree using tasks (send works too ... just testing tasks)
     if (me == 0) {
-        print("AND THE FINAL ANSWER IS", d.send(root, &Node::do_sum_spawn, d, root).get());
+        print("ANSWER SUMMING TREE IS", d.task(root, &Node::do_sum_spawn, d, root).get());
     }
+    // Sum up values just iterating over elements in the container 
+    double sum = 0.0;
+    for (typename WorldContainer<Key,Node>::iterator it=d.begin(); it!=d.end(); ++it) sum += it->second.get();
+    world.gop.sum(sum);
+    if (me == 0) {
+        print("ANSWER BRUTE FORCE IS ", sum);
+    }
+    
     world.gop.fence();
 }
 
 
 int main(int argc, char** argv) {
-    SafeMPI::Init(argc, argv);
+    initialize(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
+
     try {
-        World world(SafeMPI::COMM_WORLD);
         redirectio(world);
-
-        world.args(argc,argv);
-
         doit(world);
-
         world.gop.fence();
         print("done with final fence");
 
@@ -279,8 +256,6 @@ int main(int argc, char** argv) {
         error("caught unhandled exception");
     }
 
-    SafeMPI::Finalize();
-
-
+    finalize();
     return 0;
 }

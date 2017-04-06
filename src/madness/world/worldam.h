@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
  */
 
 #ifndef MADNESS_WORLD_WORLDAM_H__INCLUDED
@@ -38,11 +35,13 @@
 /// \file worldam.h
 /// \brief Implements active message layer for World on top of RMI layer
 
-#include <madness/world/bufar.h>
+#include <madness/world/buffer_archive.h>
 #include <madness/world/worldrmi.h>
-#include <madness/world/worldfwd.h>
+#include <madness/world/world.h>
 #include <vector>
 #include <cstddef>
+#include <memory>
+#include <pthread.h>
 
 namespace madness {
 
@@ -176,6 +175,7 @@ namespace madness {
 
     /// Frees an AmArg allocated with alloc_am_arg
     inline void free_am_arg(AmArg* arg) {
+        //std::cout << " freeing amarg " << (void*)(arg) << " " << pthread_self() << std::endl;
         delete [] arg;
     }
 
@@ -207,8 +207,6 @@ namespace madness {
     class WorldAmInterface : private SCALABLE_MUTEX_TYPE {
         friend class WorldGopInterface;
         friend class World;
-    public:
-        const int msg_len;                  ///< Max length of user payload in message
     private:
 
 #ifdef HAVE_CRAYXT
@@ -217,29 +215,40 @@ namespace madness {
         static const int DEFAULT_NSEND = 128;
 #endif
 
+        class SendReq : public SPINLOCK_TYPE, public RMISendReq {
+            AmArg* buf;
+            RMI::Request req;
+            void free() {if (buf) {free_am_arg(buf); buf=0;}}
+        public:
+            SendReq() : buf(0) {}
+            SendReq(AmArg* b, const RMI::Request& r) : buf(b), req(r) {} // lock is NOT set
+            void set(AmArg* b, const RMI::Request& r) {buf=b; req=r;} // assumes lock held
+            bool TestAndFree() { // assumes lock held if necessary
+                if (buf) {
+                    bool ok = req.Test(); 
+                    if (ok) free(); 
+                    return ok;
+                }
+                else {
+                    return true;
+                }
+            }
+            ~SendReq() {free();}
+        };
+
         // Multiple threads are making their way thru here ... must be careful
         // to ensure updates are atomic and consistent
 
-        int nsend;                    ///< Max no. of pending sends
-        ScopedArray<AmArg* volatile>  managed_send_buf; ///< Managed buffers
-        ScopedArray<RMI::Request> send_req; ///< Tracks in-flight messages
-
-        unsigned long worldid; ///< The world which contains this instance of WorldAmInterface
+        int nsend;                          ///< Max no. of pending sends
+        std::unique_ptr<SendReq []> send_req; ///< Send requests and managed buffers 
+        unsigned long worldid;              ///< The world which contains this instance of WorldAmInterface
         const ProcessID rank;
         const int nproc;
-        volatile int cur_msg; ///< Index of next buffer to attempt to use
-        volatile unsigned long nsent; ///< Counts no. of AM sent for purpose of termination detection
-        volatile unsigned long nrecv; ///< Counts no. of AM received for purpose of termination detection
+        volatile int cur_msg;               ///< Index of next buffer to attempt to use
+        volatile unsigned long nsent;       ///< Counts no. of AM sent for purpose of termination detection
+        volatile unsigned long nrecv;       ///< Counts no. of AM received for purpose of termination detection
 
         std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to SafeMPI::COMM_WORLD
-
-        void free_managed_send_buf(int i) {
-            // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
-            if (managed_send_buf[i]) {
-                free_am_arg(managed_send_buf[i]);
-                managed_send_buf[i] = 0;
-            }
-        }
 
         /// This handles all incoming RMI messages for all instances
         static void handler(void *buf, std::size_t nbyte) {
@@ -253,7 +262,6 @@ namespace madness {
             MADNESS_ASSERT(w);
             MADNESS_ASSERT(func);
             func(*arg);
-            //world->am.nrecv++;  // Must be AFTER execution of the function
             w->am.nrecv++;  // Must be AFTER execution of the function
         }
 
@@ -267,8 +275,9 @@ namespace madness {
 
         /// Sends a managed non-blocking active message
         void send(ProcessID dest, am_handlerT op, const AmArg* arg,
-                const int attr=RMI::ATTR_ORDERED)
+                  const int attr=RMI::ATTR_ORDERED)
         {
+            // Setup the header
             {
                 AmArg* argx = const_cast<AmArg*>(arg);
 
@@ -278,51 +287,81 @@ namespace madness {
                 argx->clear_flags(); // Is this the right place for this?
             }
 
+            // Sanity check
             MADNESS_ASSERT(arg->get_world());
             MADNESS_ASSERT(arg->get_func());
 
             // Map dest from world's communicator to comm_world
             dest = map_to_comm_world[dest];
 
-            lock();    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-            nsent++;
+            // Remaining code refactored to avoid blocking with lock
+            // and to enable finer grained calls into MPI send
 
-            // Wait for oldest request to complete
-            while (!send_req[cur_msg].Test()) {
-                // If the oldest message has still not completed then there is likely
-                // severe network or end-point congestion, so pause for 100us in a rather
-                // arbitrary attempt to decrease the injection rate.  The server thread
-                // is still polling every 1us (which is required to suck data off the net
-                // and by some engines to ensure progress on sends).
+            if (RMI::get_this_thread_is_server()) {
+
+                // The server thread may be executing a handler that
+                // is trying to send a message (e.g., assigning a
+                // remote future).  However, the server must not block
+                // in here.  It also needs to send messages in order,
+                // thus it puts all send_reqs onto a queue which it
+                // processes in its main loop using the RMI::send
+                // interface.
+
+                lock(); nsent++; unlock(); // This world must still keep track of messages
+
+                SendReq* p = new SendReq((AmArg*)(arg), RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr));
+
+                RMI::send_req.push_back(std::unique_ptr<RMISendReq>(p));
+
+                //std::cout << "sending message from server " << (void*)(arg) << " " << pthread_self() << " " << p <<  std::endl;
+
+                return;
+            }
+
+
+            // Find a free buffer oldest first (in order to assist
+            // with flow control).  Exit loop with a lock on buffer.
+
+            // This design will need nsend >= nthreads
+            int i=-1;
+            while (i == -1) {
+                lock();   // << Protect cur_msg and nsent;
+                if (send_req[cur_msg].try_lock()) { // << matching unlock at end of routine
+                    i = cur_msg;
+                    cur_msg = (cur_msg + 1) % nsend;
+                    nsent++;
+                }
+                unlock(); // << Protect cur_msg and nsent;
+            }                
+
+
+            // If the buffer is still in-use wait for it to complete
+            while (!send_req[i].TestAndFree()) {
+                // If the oldest message has still not completed then
+                // there is likely severe network or end-point
+                // congestion, so pause for 100us in a rather
+                // arbitrary attempt to decrease the injection rate.
+                // Both the server thread and this call to Test()
+                // should ensure progress.
                 myusleep(100);
             }
 
-            free_managed_send_buf(cur_msg);
-            const int i = cur_msg;
-            cur_msg = (cur_msg + 1) % nsend;
-
-            send_req[i] = RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr);
-            managed_send_buf[i] = (AmArg*)(arg);
-            unlock();  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // Buffer is now free but still locked by me
+            send_req[i].set((AmArg*)(arg), RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr));
+            send_req[i].unlock(); // << matches try_lock above
         }
 
-        /// Frees as many send buffers as possible
-        void free_managed_buffers() {
-            ScopedArray<int> ind(new int[nsend]);
-            lock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-            int n = SafeMPI::Request::Testsome(nsend, send_req.get(), ind.get());
-            if (n != MPI_UNDEFINED) {
-                for (int i=0; i<n; ++i) {
-                    free_managed_send_buf(ind[i]);
+        /// Frees as many send buffers as possible, returning the number that are free
+        int free_managed_buffers() {
+            int nfree = 0;
+            for (int i=0; i<nsend; i++) {
+                if (send_req[i].try_lock()) { // Someone may be trying to put a message into this buffer
+                    if (send_req[i].TestAndFree()) nfree++;
+                    send_req[i].unlock();     // matching unlock
                 }
             }
-            unlock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            return nfree;
         }
-
-//        RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr) {
-//            std::cerr << "ISEND_ING AM\n";
-//            return isend(dest, op, arg, attr, false);
-//        }
 
     };
 }

@@ -27,11 +27,7 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #ifndef MADNESS_WORLD_WORLDDC_H__INCLUDED
 #define MADNESS_WORLD_WORLDDC_H__INCLUDED
@@ -39,13 +35,15 @@
 /*!
   \file worlddc.h
   \brief Implements WorldContainer
-  \ingroup worlddc
+  \addtogroup worlddc
+  @{
+
 */
 
-#include <madness/world/parar.h>
+#include <madness/world/parallel_archive.h>
 #include <madness/world/worldhashmap.h>
-#include <madness/world/mpiar.h>
-#include <madness/world/worldobj.h>
+#include <madness/world/mpi_archive.h>
+#include <madness/world/world_object.h>
 #include <set>
 
 namespace madness {
@@ -65,8 +63,10 @@ namespace madness {
     template <typename keyT>
     class WorldDCRedistributeInterface {
     public:
+        virtual std::size_t size() const = 0;
         virtual void redistribute_phase1(const std::shared_ptr< WorldDCPmapInterface<keyT> >& newmap) = 0;
         virtual void redistribute_phase2() = 0;
+        virtual void redistribute_phase3() = 0;
 	virtual ~WorldDCRedistributeInterface() {};
     };
 
@@ -112,6 +112,7 @@ namespace madness {
         /// @param[in] world The associated world
         /// @param[in] newpmap The new process map
         void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface<keyT> >& newpmap) {
+            print_data_sizes(world, "before redistributing");
             world.gop.fence();
             for (typename std::set<ptrT>::iterator iter = ptrs.begin();
                  iter != ptrs.end();
@@ -125,7 +126,53 @@ namespace madness {
                 (*iter)->redistribute_phase2();
                 newpmap->register_callback(*iter);
             }
+            world.gop.fence();
+            for (typename std::set<ptrT>::iterator iter = ptrs.begin();
+                 iter != ptrs.end();
+                 ++iter) {
+	         (*iter)->redistribute_phase3();
+            }
+            world.gop.fence();
             ptrs.clear();
+            newpmap->print_data_sizes(world, "after redistributing");
+        }
+
+        /// Counts global number of entries in all containers associated with this process map
+
+        /// Collective operation with global fence
+        std::size_t global_size(World& world) const {
+            world.gop.fence();
+            std::size_t sum = local_size();
+            world.gop.sum(sum);
+            world.gop.fence();
+            return sum;
+        }
+
+        /// Counts local number of entries in all containers associated with this process map
+        std::size_t local_size() const {
+            std::size_t sum = 0;
+            for (typename std::set<ptrT>::iterator iter = ptrs.begin(); iter != ptrs.end(); ++iter) {
+                sum += (*iter)->size();
+            }
+            return sum;
+        }
+
+        /// Prints size info to std::cout
+
+        /// Collective operation with global fence
+        void print_data_sizes(World& world, const std::string msg="") const {
+            world.gop.fence();
+            std::size_t total = global_size(world);
+            std::vector<std::size_t> sizes(world.size());
+            sizes[world.rank()] = local_size();
+            world.gop.sum(&sizes[0],world.size());
+            if (world.rank() == 0) {
+                madness::print("data distribution info", msg);
+                madness::print("   total: ", total);
+                std::cout << "   procs: ";
+                for (int i=0; i<world.size(); i++) std::cout << sizes[i] << " ";
+                std::cout << std::endl;
+            }
             world.gop.fence();
         }
     };
@@ -171,28 +218,28 @@ namespace madness {
     public:
         /// Default constructor makes a local uninitialized value
         explicit WorldContainerIterator()
-                : it(), value(NULL) {}
+                : it(), value(nullptr) {}
 
         /// Initializes from a local iterator
         explicit WorldContainerIterator(const internal_iteratorT& it)
-                : it(it), value(NULL) {}
+                : it(it), value(nullptr) {}
 
         /// Initializes to cache a remote value
         explicit WorldContainerIterator(const value_type& v)
-                : it(), value(NULL)
+                : it(), value(nullptr)
         {
             value = new value_type(v);
         }
 
         WorldContainerIterator(const WorldContainerIterator& other)
-                : it(), value(NULL)
+                : it(), value(nullptr)
         {
             copy(other);
         }
 
         template <class iteratorT>
         WorldContainerIterator(const WorldContainerIterator<iteratorT>& other)
-                : it(), value(NULL)
+                : it(), value(nullptr)
         {
             copy(other);
         }
@@ -253,7 +300,7 @@ namespace madness {
 
         /// Returns true if this is non-local or cached value
         bool is_cached() const {
-            return value != NULL;
+            return value != nullptr;
         }
 
         template <typename Archive>
@@ -274,7 +321,7 @@ namespace madness {
                     it = internal_iteratorT();
                 } else {
                     it = other.it;
-                    value = NULL;
+                    value = nullptr;
                 }
             }
         }
@@ -331,7 +378,7 @@ namespace madness {
         std::vector<keyT>* move_list;            ///< Tempoary used to record data that needs redistributing
 
         /// Handles find request
-        Void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
+        void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
             internal_iteratorT r = local.find(key);
             if (r == local.end()) {
                 //print("find_handler: failure:", key);
@@ -341,27 +388,24 @@ namespace madness {
                 //print("find_handler: success:", key, r->first, r->second);
                 this->send(requestor, &implT::find_success_handler, ref, *r);
             }
-            return None;
         }
 
         /// Handles successful find response
-        Void find_success_handler(const RemoteReference< FutureImpl<iterator> >& ref, const pairT& datum) {
+        void find_success_handler(const RemoteReference< FutureImpl<iterator> >& ref, const pairT& datum) {
             FutureImpl<iterator>* f = ref.get();
             f->set(iterator(datum));
             //print("find_success_handler: success:", datum.first, datum.second, f->get()->first, f->get()->second);
             // Todo: Look at this again.
 //            ref.reset(); // Matching inc() in find() where ref was made
-            return None;
         }
 
         /// Handles unsuccessful find response
-        Void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
+        void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
             FutureImpl<iterator>* f = ref.get();
             f->set(end());
             //print("find_failure_handler");
             // Todo: Look at this again.
 //            ref.reset(); // Matching inc() in find() where ref was made
-            return None;
         }
 
     public:
@@ -406,7 +450,7 @@ namespace madness {
             return local.size();
         }
 
-        Void insert(const pairT& datum) {
+        void insert(const pairT& datum) {
             ProcessID dest = owner(datum.first);
             if (dest == me) {
                 // Was using iterator ... try accessor ?????
@@ -415,9 +459,9 @@ namespace madness {
                 acc->second = datum.second;
             }
             else {
+  	        // Must be send (not task) for sequential consistency (and relies on single-threaded remote server)
                 this->send(dest, &implT::insert, datum);
             }
-            return None;
         }
 
         bool insert_acc(accessor& acc, const keyT& key) {
@@ -435,16 +479,15 @@ namespace madness {
         }
 
 
-        Void erase(const keyT& key) {
+        void erase(const keyT& key) {
             ProcessID dest = owner(key);
             if (dest == me) {
                 local.erase(key);
             }
             else {
-                Void(implT::*eraser)(const keyT&) = &implT::erase;
+                void(implT::*eraser)(const keyT&) = &implT::erase;
                 this->send(dest, eraser, key);
             }
-            return None;
         }
 
         template <typename InIter>
@@ -596,16 +639,39 @@ namespace madness {
             }
         }
 
-        // Second phase moves data and cleans up
+	struct P2Op {
+	  implT * impl;
+	  typedef Range<typename std::vector<keyT>::const_iterator> rangeT;
+	  P2Op(implT* impl) : impl(impl) {}
+    	  P2Op(const P2Op& p) : impl(p.impl) {}
+	  bool operator()(typename rangeT::iterator& iterator) const {
+	    typename internal_containerT::iterator iter = impl->local.find(*iterator);
+	    MADNESS_ASSERT(iter != impl->local.end());
+
+	    //impl->insert(*iter);
+	    impl->task(impl->owner(*iterator), &implT::insert, *iter);
+
+	    impl->local.erase(iter); // delete local copy of the data
+	    return true;
+	  }
+	};
+
+        // Second phase moves data
         void redistribute_phase2() {
-            std::vector<keyT>& mvlist = *move_list;
-            for (unsigned int i=0; i<move_list->size(); ++i) {
-                typename internal_containerT::iterator iter = local.find(mvlist[i]);
-                MADNESS_ASSERT(iter != local.end());
-                insert(*iter);
-                local.erase(iter);
-            }
-            delete move_list;
+	  this->get_world().taskq.for_each(typename P2Op::rangeT(move_list->begin(), move_list->end()), P2Op(this));
+	    //std::vector<keyT>& mvlist = *move_list;
+            //for (unsigned int i=0; i<move_list->size(); ++i) {
+            //    typename internal_containerT::iterator iter = local.find(mvlist[i]);
+            //    MADNESS_ASSERT(iter != local.end());
+            //    insert(*iter);
+            //    local.erase(iter);
+            //}
+            //delete move_list;
+        }
+
+        // Third phase cleans up
+        void redistribute_phase3() {
+	   delete move_list;
         }
     };
 
@@ -1428,12 +1494,12 @@ namespace madness {
 
         /// This just writes/reads the unique id to/from the Buffer*Archive.
         void serialize(const archive::BufferInputArchive& ar) {
-            WorldObject<implT>* ptr = NULL;
+            WorldObject<implT>* ptr = nullptr;
             ar & ptr;
             MADNESS_ASSERT(ptr);
 
 #ifdef MADNESS_DISABLE_SHARED_FROM_THIS
-            p.reset(static_cast<implT*>(ptr), & madness::detail::no_delete<implT>);
+            p.reset(static_cast<implT*>(ptr), [] (implT *p_) -> void {});
 #else
             p = static_cast<implT*>(ptr)->shared_from_this();
 #endif // MADNESS_DISABLE_SHARED_FROM_THIS
@@ -1563,5 +1629,7 @@ namespace madness {
     }
 
 }
+
+///@}
 
 #endif // MADNESS_WORLD_WORLDDC_H__INCLUDED

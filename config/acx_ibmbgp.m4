@@ -29,12 +29,12 @@ AC_DEFUN([ACX_IBMBGP],[
         if test "x$HAVE_IBMBGP" = xyes; then
                 AC_MSG_NOTICE([IBM Blue Gene/P detected])
                 AC_DEFINE(HAVE_IBMBGP,[1],[Defined if we are running on an IBM Blue Gene/P])
+                acx_default_enable_all_static=yes
                 host="powerpc-bgp-linux"
                 host_triplet="powerpc-bgp-linux"
 
                 BIND="-1 -1 -1"
                 AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])
-                CXXFLAGS="$CXXFLAGS -DMPICH_SKIP_MPICXX"
         fi
 ])
 

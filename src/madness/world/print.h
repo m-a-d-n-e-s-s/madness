@@ -27,24 +27,22 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #ifndef MADNESS_WORLD_PRINT_H__INCLUDED
 #define MADNESS_WORLD_PRINT_H__INCLUDED
 
-/// \file print.h
-/// \brief Defines simple templates for printing to std::cout "a la Python"
+/**
+ \file print.h
+ \brief Defines simple templates for printing to \c std::cout "a la Python".
+ \ingroup libraries
+*/
 
-
+#include <type_traits>
 #include <iostream>
 #include <complex>
 #include <list>
 #include <vector>
-#include <madness/world/enable_if.h>
 #include <madness/world/worldmutex.h>
 
 #ifdef BRAINDEAD
@@ -60,21 +58,40 @@
 
 namespace madness {
 
-    /// Easy printing of complex numbers
+    /// \addtogroup libraries
+    /// @{
+
+    /// Easy printing of complex numbers.
+
+    /// \tparam T The "real" type of the complex number.
+    /// \param[in,out] s The output stream.
+    /// \param[in] c The complex number.
+    /// \return The output stream (for chaining).
     template <typename T>
     std::ostream& operator<<(std::ostream& s, const std::complex<T>& c) {
         s << c.real() << "+" << c.imag() << "j";
         return s;
     }
 
-    /// Easy printing of pairs
+    /// Easy printing of pairs.
+
+    /// \tparam T Type 1 of the pair.
+    /// \tparam U Type 2 of the pair.
+    /// \param[in,out] s The output stream.
+    /// \param[in] p The pair.
+    /// \return The output stream (for chaining).
     template <typename T, typename U>
     std::ostream& operator<<(std::ostream& s, const std::pair<T,U>& p) {
         s << "(" << p.first << "," << p.second << ")";
         return s;
     }
 
-    /// Easy printing of lists
+    /// Easy printing of lists.
+
+    /// \tparam T Type stored in the list.
+    /// \param[in,out] s The output stream.
+    /// \param[in] c The list.
+    /// \return The output stream (for chaining).
     template <typename T>
     std::ostream& operator<<(std::ostream& s, const std::list<T>& c) {
         s << "[";
@@ -88,7 +105,12 @@ namespace madness {
         return s;
     }
 
-    /// Easy printing of vectors
+    /// Easy printing of vectors.
+
+    /// \tparam T Type stored in the vector.
+    /// \param[in,out] s The output stream.
+    /// \param[in] c The vector.
+    /// \return The output stream (for chaining).
     template <typename T>
     std::ostream& operator<<(std::ostream& s, const std::vector<T>& c) {
         s << "[";
@@ -102,11 +124,16 @@ namespace madness {
         return s;
     }
 
-    /// Easy printing of fixed dimension arrays
+    /// Easy printing of fixed dimension arrays.
 
-    /// STL I/O already does char.
+    /// STL I/O already does char (thus the \c enable_if business).
+    /// \tparam T Type of data in the array.
+    /// \tparam N Size of the array.
+    /// \param[in,out] s The output stream.
+    /// \param[in] v The array.
+    /// \return The output stream (for chaining).
     template <typename T, std::size_t N>
-    typename disable_if<std::is_same<T,char>, std::ostream&>::type
+    typename std::enable_if<!std::is_same<T,char>::value, std::ostream&>::type
     operator<<(std::ostream& s, const T(&v)[N]) {
         s << "[";
         for (std::size_t i=0; i<N; ++i) {
@@ -117,109 +144,57 @@ namespace madness {
         return s;
     }
 
-    /// Print a single item to std::cout terminating with new line
-    template <class A>
-    void print(const A& a) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << ENDL;
-    }
-
-    /// Print two items separated by spaces to std::cout terminating with new line
-    template <class A, class B>
-    void print(const A& a, const B& b) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << ENDL;
-    }
-
-    /// Print three items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C>
-    void print(const A& a, const B& b, const C& c) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << ENDL;
-    }
-
-    /// Print four items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D>
-    void print(const A& a, const B& b, const C& c, const D& d) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << ENDL;
-    }
-
-    /// Print five items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << ENDL;
-    }
-
-    /// Print six items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << ENDL;
-    }
-
-    /// Print seven items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << ENDL;
-    }
-
-    /// Print eight items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << ENDL;
-    }
-
-    /// Print nine items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << ENDL;
-    }
-
-    /// Print ten items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << ENDL;
-    }
-
-    /// Print eleven items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << ENDL;
-    }
-
-    /// Print twelve items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << ENDL;
-    }
-
-    /// Print thirteen items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L, class M>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l, const M& m) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << " " << m << ENDL;
-    }
-
-    /// Print fourteen items separated by spaces to std::cout terminating with new line
-    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L, class M, class N>
-    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l, const M& m, const N& n) {
-        ScopedMutex<Mutex> safe(detail::printmutex);
-        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << " " << m << " " << n << ENDL;
-    }
-
-    /// Print a string justified on the left to start at the given column with optional underlining
+    /// Print a string justified on the left to start at the given column with optional underlining.
     void print_justified(const char* s, int column=0, bool underline=true);
 
-    /// Print a string centered at the given column with optional underlining
+    /// Print a string centered at the given column with optional underlining.
     void print_centered(const char* s, int column=40, bool underline=true);
+
+
+    // the "print" function and functions to help handle the variadic templates
+
+    /// Helper function for \c print. Base case.
+
+    /// This gets called recursively when there are no items left to print.
+    /// \param[in,out] out Output stream.
+    /// \return The output stream (for chaining).
+    inline std::ostream& print_helper(std::ostream& out) {
+        return out;
+    }
+
+    /// \brief Helper function for \c print. Prints the first item (\c t) and
+    ///    recursively passes on the other items.
+
+    /// \tparam T Type of the item to print in this call.
+    /// \tparam Ts Argument pack type for the remaining items.
+    /// \param[in,out] out Output stream.
+    /// \param[in] t The item to print in this call.
+    /// \param[in] ts The remaining items in the argument pack (they get
+    ///    recursively passed on).
+    /// \return The output stream (for chaining).
+    template <typename T, typename... Ts>
+    inline std::ostream& print_helper(std::ostream& out,
+                                      const T& t, const Ts&... ts) {
+        out << ' ' << t;
+        return print_helper(out, ts...);
+    }
+
+    /// \brief Print items to \c std::cout (items separated by spaces) and
+    ///    terminate with a new line
+
+    /// The first item is printed here so that it isn't preceded by a space.
+    /// \tparam T Type of the first item to be printed.
+    /// \tparam Ts Argument pack type for the items to be printed.
+    /// \param[in] t The first item to be printed.
+    /// \param[in] ts The remaining items to be printed in the argument pack.
+    template<typename T, typename... Ts>
+    void print(const T& t, const Ts&... ts) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
+        std::cout << t;
+        print_helper(std::cout, ts...) << ENDL;
+    }
+
+    /// @}
 
 }
 #endif // MADNESS_WORLD_PRINT_H__INCLUDED

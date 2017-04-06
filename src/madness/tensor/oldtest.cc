@@ -44,7 +44,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
-
+#include <madness/world/print.h>
 
 /// \file tensor/oldtest.cc
 /// \brief Test code for Tensor, TensorIterator, SliceTensor, etc.
@@ -405,8 +405,10 @@ template <class T> void Test7() {
     Tensor<T> george = outer(fred,dave);
 
     ITERATOR4(george,
-              if (std::abs(george(_i,_j,_k,_l) - fred(_i,_j)*dave(_k,_l)) > 1e-7)
-              error("test7: failed",1));
+              if (std::abs(george(_i,_j,_k,_l) - fred(_i,_j)*dave(_k,_l)) > 2e-7) {
+                  madness::print(george(_i,_j,_k,_l)- fred(_i,_j)*dave(_k,_l));
+                  error("test7: failed",1);
+                  });
 
     Tensor<T> mary = inner(fred,dave,-1,-1);
 

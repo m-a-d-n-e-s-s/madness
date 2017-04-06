@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 #AM_CPPFLAGS += -DMRA_DATA_DIR="\"`pwd`\""
 AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
@@ -8,7 +9,7 @@ AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 #        testqm testunaryop testper
 
 TESTS = testbsh.mpi testproj.mpi testpdiff.mpi testper.mpi \
-        testdiff1Db.mpi testdiff1D.mpi testdiff2D.mpi testdiff3D.mpi \
+        testdiff1Db.mpi \
 		testgconv.mpi testopdir.mpi testsuite.mpi testinnerext.mpi \
 		testgaxpyext.mpi testvmra.mpi
 
@@ -30,23 +31,28 @@ AM_LOG_FLAGS =
 
 
 bin_PROGRAMS = mraplot
-noinst_PROGRAMS =  testperiodic.mpi testbc.mpi testproj.mpi testqm test6 $(TESTS)
-lib_LIBRARIES = libMADmra.a
+noinst_PROGRAMS =  testperiodic.mpi testbc.mpi testproj.mpi testqm test6 \
+                   testdiff1D.mpi testdiff2D.mpi testdiff3D.mpi $(TESTS)
+lib_LTLIBRARIES = libMADmra.la
 
-
-data_DATA = autocorr coeffs gaussleg
+mradatadir=${pkgdatadir}/$(PACKAGE_VERSION)/data
+dist_mradata_DATA = autocorr coeffs gaussleg
 
 thisincludedir = $(includedir)/madness/mra
 thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  vmra.h \
                       funcdefaults.h  key.h  mra.h  power.h  qmprop.h  twoscale.h \
-                      lbdeux.h  mraimpl.h  funcplot.h  function_common_data.h
+                      lbdeux.h  mraimpl.h  funcplot.h  function_common_data.h \
+                      function_factory.h function_interface.h gfit.h convolution1d.h \
+                      simplecache.h derivative.h displacements.h functypedefs.h \
+                      sdf_shape_3D.h sdf_domainmask.h vmra1.h
 
 
-LDADD = libMADmra.a $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
+LDADD = libMADmra.la $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
 
-libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
+libMADmra_la_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
                       startup.cc legendre.cc twoscale.cc qmprop.cc \
                       $(thisinclude_HEADERS)
+libMADmra_la_LDFLAGS = -version-info 0:0:0
 
 
 testsuite_mpi_SOURCES = testsuite.cc test_sepop.cc
@@ -83,9 +89,10 @@ testgaxpyext_mpi_SOURCES = testgaxpyext.cc
 #testop2_SOURCES = testop2.cc
 
 
-libraries:	$(lib_LIBRARIES)
+libraries:	$(lib_LTLIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 
-install-libraries: install-libLIBRARIES install-thisincludeHEADERS
+install-libraries: install-libLTLIBRARIES install-thisincludeHEADERS
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 
+MOSTLYCLEANFILES = fplot.dat opf.dat opfplot.dat testline1 testline2 testline3

@@ -27,13 +27,10 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id $
 */
 
 #include <madness/world/worldgop.h>
-#include <madness/world/world.h> // for World, WorldTaskQueue, and WorldAmInterface
+#include <madness/world/MADworld.h>
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
 #include <gperftools/malloc_extension.h>
 #endif
@@ -104,7 +101,7 @@ namespace madness {
             }
 
             // While we are probably idle free unused communication buffers
-            world_.am.free_managed_buffers();
+            //world_.am.free_managed_buffers();
 
             //bool dowork = (npass==0) || (ThreadPool::size()==0);
             bool dowork = true;

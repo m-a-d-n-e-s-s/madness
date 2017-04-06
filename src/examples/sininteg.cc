@@ -27,18 +27,16 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 /*!
   \file examples/sininteg.cc
   \brief Compute the integral sin(x) x=0..10
+  \warning If you change this example, please update the "MADNESS Basics" module in the documentation (doc/getting_started/gstart_basics.dox).
   \defgroup sininteg First example from getting started guide
   \ingroup examples
-
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/sininteg.cc>here</a>.
 
   Computes the integral
   \f[
@@ -46,9 +44,9 @@
   \f]
   by projecting \f$ sin(x) \f$ into the discontinuous spectral element
   basis and using the \c trace() method.
-
  */
 
+#warning If you changed this example, please update the "Getting started with MADNESS" documentation module.
 
 #include <madness/mra/mra.h>
 

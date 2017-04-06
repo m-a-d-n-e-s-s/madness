@@ -34,7 +34,6 @@
   Argonne, IL 60439
 
   email: jhammond@alcf.anl.gov
-
 */
 
 #ifndef MADNESS_WOLRD_HARDWARE_H__INCLUDED
@@ -44,6 +43,9 @@
 #include <stdint.h>
 
 #if defined(__bgp__) || defined(__bgq__)
+#  ifdef STUBOUTMPI
+#    error "stub MPI is used by need MPI on IBM BG"
+#  endif
 #  include <mpi.h>
 #  if defined(__bgp__)
 #    define HARDWARE_RUNS_BGP
@@ -64,7 +66,7 @@
 #  error U R EFFED
 #endif
 
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 
 namespace madness {
 

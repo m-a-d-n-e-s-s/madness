@@ -60,6 +60,29 @@ static inline double distance_sq(double x1, double y1, double z1, double x2, dou
     return xx*xx + yy*yy + zz*zz;
 }
 
+
+/// read molecule from the input file and return part of the header for
+/// a Gaussian cube file.
+/// @param[in]  filename input file name (usually "input")
+std::vector<std::string> cubefile_header(std::string filename) {
+    Molecule molecule;
+    molecule.read_file(filename);
+    molecule.orient();
+    std::vector<std::string> molecular_info;
+    for (unsigned int i=0; i<molecule.natom(); ++i) {
+        std::stringstream ss;
+        const int charge=molecule.get_atom(i).get_atomic_number();
+        ss << charge << " " << charge << " ";
+        ss << std::fixed;
+        ss.precision(8);
+        const Vector<double,3> coord=molecule.get_atom(i).get_coords();
+        ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
+        molecular_info.push_back(ss.str());
+    }
+    return molecular_info;
+}
+
+
 std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     s << "Atom([" << atom.x << ", " << atom.y << ", " << atom.z << "], " << atom.q << "," << atom.atomic_number << ")";
     return s;
@@ -139,7 +162,9 @@ void Molecule::read_file(const std::string& filename) {
             int atn = symbol_to_atomic_number(tag);
             double qq = atn;
             if (atn == 0) ss >> qq; // Charge of ghost atom
-            add_atom(xx,yy,zz,qq,atn);
+            //check if pseudo-atom or not
+            bool psat = check_if_pseudo_atom(tag);
+            add_atom(xx,yy,zz,qq,atn,psat);
         }
     }
     throw "No end to the geometry in the input file";
@@ -147,8 +172,19 @@ finished:
     ;
 }
 
+//version without pseudo-atoms
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
     atoms.push_back(Atom(x,y,z,q,atomic_number));
+    double c = smoothing_parameter(q, eprec); // eprec is error per atom
+    //printf("smoothing param %.6f\n", c);
+    double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
+    atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
+    rcut.push_back(1.0/c);
+}
+
+//version specifying pseudo-atoms
+void Molecule::add_atom(double x, double y, double z, double q, int atomic_number, bool pseudo_atom) {
+    atoms.push_back(Atom(x,y,z,q,atomic_number,pseudo_atom));
     double c = smoothing_parameter(q, eprec); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
@@ -161,14 +197,24 @@ void Molecule::set_atom_charge(unsigned int i, double zeff) {
   atoms[i].q = zeff;
 }
 
-unsigned int Molecule::get_atom_charge(unsigned int i) {
+unsigned int Molecule::get_atom_charge(unsigned int i) const {
   if (i>=atoms.size()) throw "trying to get charge of invalid atom";
   return atoms[i].q;
 }
 
 unsigned int Molecule::get_atom_number(unsigned int i) {
-  if (i>=atoms.size()) throw "trying to get charge of invalid atom";
+  if (i>=atoms.size()) throw "trying to get number of invalid atom";
   return atoms[i].atomic_number;
+}
+
+void Molecule::set_pseudo_atom(unsigned int i, bool psat) {
+  if (i>=atoms.size()) throw "trying to set charge of invalid atom";
+  atoms[i].pseudo_atom = psat;
+}
+
+bool Molecule::get_pseudo_atom(unsigned int i) {
+  if (i>=atoms.size()) throw "trying to get pseudo atom for invalid atom";
+  return atoms[i].pseudo_atom;
 }
 
 void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
@@ -253,11 +299,18 @@ double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
 
 double Molecule::nuclear_repulsion_energy() const {
     double sum = 0.0;
+    unsigned int z1, z2;
     for (unsigned int i=0; i<atoms.size(); ++i) {
-        unsigned int z1 = atoms[i].atomic_number;
+        if (atoms[i].pseudo_atom){
+            z1 = atoms[i].q;}
+        else{
+            z1 = atoms[i].atomic_number;}
         if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
         for (unsigned int j=i+1; j<atoms.size(); ++j) {
-            unsigned int z2 = atoms[j].atomic_number;
+            if (atoms[j].pseudo_atom){
+                z2 = atoms[j].q;}
+            else{
+                z2 = atoms[j].atomic_number;}
             if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
             sum += z1 * z2 / inter_atomic_distance(i,j);
         }
@@ -265,25 +318,11 @@ double Molecule::nuclear_repulsion_energy() const {
     return sum;
 }
 
-double Molecule::nuclear_repulsion_energy_pseudo() const {
-    double sum = 0.0;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        unsigned int z1 = atoms[i].q;
-        if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
-        for (unsigned int j=i+1; j<atoms.size(); ++j) {
-            unsigned int z2 = atoms[j].q;
-            if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
-            sum += z1 * z2 / inter_atomic_distance(i,j);
-        }
-    }
-    return sum;
-}
-
-double Molecule::nuclear_dipole(int axis, bool psp_calc) const {
+double Molecule::nuclear_dipole(int axis) const {
     double sum = 0.0;
     for (unsigned int atom = 0; atom < atoms.size(); ++atom) {
         unsigned int z;
-        if (psp_calc){
+        if (atoms[atom].pseudo_atom){
             z = atoms[atom].q;}
         else{
             z = atoms[atom].atomic_number;}
@@ -298,6 +337,12 @@ double Molecule::nuclear_dipole(int axis, bool psp_calc) const {
         sum += r*z;
     }
     return sum;
+}
+
+Tensor<double> Molecule::nuclear_dipole_derivative(const int atom, const int axis) const{
+    Tensor<double> mu_x(3);
+    mu_x(axis)=atoms[atom].q;
+    return mu_x;
 }
 
 
@@ -320,6 +365,80 @@ double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     return sum;
 }
 
+/// compute the nuclear-nuclear contribution to the molecular hessian
+Tensor<double> Molecule::nuclear_repulsion_hessian() const {
+
+    Tensor<double> hessian(3*natom(),3*natom());
+    for (int iatom=0; iatom<natom(); ++iatom) {
+        for (int iaxis=0; iaxis<3; ++iaxis) {
+            for (int jatom=0; jatom<natom(); ++jatom) {
+                for (int jaxis=0; jaxis<3; ++jaxis) {
+                    hessian(3*iatom+iaxis, 3*jatom+jaxis)=
+                            nuclear_repulsion_second_derivative(iatom,jatom,iaxis,jaxis);
+                }
+            }
+        }
+    }
+    return hessian;
+}
+
+
+/// compute the nuclear-nuclear contribution to the second derivatives
+
+/// @param[in]  iatom   the i-th atom (row of the hessian)
+/// @param[in]  jatom   the j-th atom (column of the hessian)
+/// @param[in]  iaxis   the xyz axis of the i-th atom
+/// @param[in]  jaxis   the xyz axis of the j-th atom
+/// return the (3*iatom + iaxis, 3*jatom + jaxis) matix element
+double Molecule::nuclear_repulsion_second_derivative(int iatom, int jatom,
+        int iaxis, int jaxis) const {
+
+    double sum = 0.0;
+    unsigned int ZA = atoms[iatom].atomic_number;
+    unsigned int ZB = atoms[jatom].atomic_number;
+
+    Tensor<double> RA(3), RB(3);
+    RA(0l)=atoms[iatom].x; RA(1)=atoms[iatom].y; RA(2)=atoms[iatom].z;
+    RB(0l)=atoms[jatom].x; RB(1)=atoms[jatom].y; RB(2)=atoms[jatom].z;
+
+    if (core_pot.is_defined(ZA)) MADNESS_EXCEPTION("no core potentials in the hessian",1);
+    if (core_pot.is_defined(ZB)) MADNESS_EXCEPTION("no core potentials in the hessian",1);
+
+    // first term is (for A\neq B, i.e. iatom/=jatom):
+    // \frac{\partial^2}{\partial X_A\partial Y_B}\frac{Z_AZ_B}{R_{AB}}
+    if (iatom != jatom) {
+        const double RAB = inter_atomic_distance(iatom,jatom);
+        if (iaxis==jaxis) {
+            sum+=(RAB*RAB - 3*std::pow(RA(iaxis)-RB(iaxis),2.0))/std::pow(RAB,5.0);
+        } else {
+            sum-=3*(RA(iaxis)-RB(iaxis))*(RA(jaxis)-RB(jaxis)) /std::pow(RAB,5.0);
+        }
+        sum*=ZA*ZB;
+    }
+
+    // second term is (for A==B, i.e. iatom==jatom):
+    // \sum_{C\neq A}\frac{\partial^2}{\partial X_A\partial X_B}Z_AZ_B\frac{Z_CZ_B}{R_{AC}}
+    if (iatom==jatom) {
+        for (unsigned int katom=0; katom<atoms.size(); ++katom) {
+            double RAC = inter_atomic_distance(iatom,katom);
+            Tensor<double> RC(3);
+            RC(0l)=atoms[katom].x; RC(1)=atoms[katom].y; RC(2)=atoms[katom].z;
+            const unsigned int ZC=atoms[katom].atomic_number;
+
+            if (katom != (unsigned int)(iatom)) {
+                if (iaxis==jaxis) {
+                    sum-=ZA*ZC*(RAC*RAC - 3.0*std::pow(RA(iaxis)-RC(iaxis),2.0))/std::pow(RAC,5.0);
+                } else {
+                    sum+=ZA*ZC*3.0*(RA(iaxis)-RC(iaxis))*(RA(jaxis)-RC(jaxis)) /std::pow(RAC,5.0);
+                }
+
+            }
+        }
+    }
+    return sum;
+}
+
+
 double Molecule::smallest_length_scale() const {
     double rcmax = 0.0;
     for (unsigned int i=0; i<atoms.size(); ++i) {
@@ -341,10 +460,19 @@ void Molecule::center() {
     xx /= qq;
     yy /= qq;
     zz /= qq;
+    Tensor<double> translation(3);
+    translation(0l)=-xx;
+    translation(1l)=-yy;
+    translation(2l)=-zz;
+    translate(translation);
+}
+
+/// translate the molecule
+ void Molecule::translate(const Tensor<double>& translation) {
     for (unsigned int i=0; i<atoms.size(); ++i) {
-        atoms[i].x -= xx;
-        atoms[i].y -= yy;
-        atoms[i].z -= zz;
+        atoms[i].x += translation(0l);
+        atoms[i].y += translation(1l);
+        atoms[i].z += translation(2l);
     }
 }
 
@@ -494,6 +622,35 @@ void Molecule::identify_point_group() {
     pointgroup_ = pointgroup;
 }
 
+/// compute the center of mass
+Tensor<double> Molecule::center_of_mass() const {
+    Tensor<double> com(3);
+    double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
+    for (unsigned int i=0; i<natom(); ++i) {
+        xx += get_atom(i).x*get_atom(i).mass;
+        yy += get_atom(i).y*get_atom(i).mass;
+        zz += get_atom(i).z*get_atom(i).mass;
+        qq += get_atom(i).mass;
+    }
+    com(0l)=xx/qq;
+    com(1l)=yy/qq;
+    com(2l)=zz/qq;
+    return com;
+}
+
+// Align molecule with axes of inertia
+Tensor<double> Molecule::moment_of_inertia() const {
+    madness::Tensor<double> I(3L,3L);
+    for (unsigned int i=0; i<atoms.size(); ++i) {
+        double q = atoms[i].mass, x[3] = {atoms[i].x, atoms[i].y, atoms[i].z};
+        for (int j=0; j<3; ++j) {
+            I(j,j)+=q*(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+            for (int k=0; k<3; ++k)
+                I(j,k) -= q*x[j]*x[k];
+        }
+    }
+    return I;
+}
 
 /// Centers and orients the molecule in a standard manner
 void Molecule::orient() {
@@ -515,18 +672,9 @@ void Molecule::orient() {
     // madness::print(U);
     // madness::print(e);
 
-    madness::Tensor<double> r(3L), rU;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        r[0]=atoms[i].x; r[1]=atoms[i].y, r[2]= atoms[i].z;
-        rU = inner(r,U);
-        atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2];
-    }
+    // rotate the molecule and the external field
+    rotate(U);
 
-    // field rotation
-    rU = inner(field,U);
-    field[0] = rU[0];
-    field[1] = rU[1];
-    field[2] = rU[2];
 
     // Try to resolve degenerate rotations
     double symtol = 1e-2;
@@ -550,6 +698,23 @@ void Molecule::orient() {
     // Figure out what elements are actually present and enforce
     // conventional ordering
     identify_point_group();
+}
+
+/// rotates the molecule and the external field
+
+/// @param[in]  D   the rotation matrix
+void Molecule::rotate(const Tensor<double>& D) {
+    madness::Tensor<double> r(3L), rU;
+    for (unsigned int i=0; i<atoms.size(); ++i) {
+        r[0]=atoms[i].x; r[1]=atoms[i].y, r[2]= atoms[i].z;
+        rU = inner(r,D);
+        atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2];
+    }
+    // field rotation
+    rU = inner(field,D);
+    field[0] = rU[0];
+    field[1] = rU[1];
+    field[2] = rU[2];
 }
 
 /// Returns the half width of the bounding cube
@@ -594,6 +759,9 @@ double Molecule::nuclear_attraction_potential(double x, double y, double z) cons
 
     double sum = 0.0;
     for (unsigned int i=0; i<atoms.size(); ++i) {
+        //make sure this isn't a pseudo-atom
+        if (atoms[i].pseudo_atom) continue;
+
         double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
         //sum -= atoms[i].q/(r+1e-8);
         sum -= atoms[i].q * smoothed_potential(r*rcut[i])*rcut[i];
@@ -604,6 +772,19 @@ double Molecule::nuclear_attraction_potential(double x, double y, double z) cons
 
     return sum;
 }
+
+double Molecule::atomic_attraction_potential(int iatom, double x, double y,
+        double z) const {
+
+    //make sure this isn't a pseudo-atom
+    if (atoms[iatom].pseudo_atom) return 0.0;
+
+    double r = distance(atoms[iatom].x, atoms[iatom].y, atoms[iatom].z, x, y, z);
+    double sum =- atoms[iatom].q * smoothed_potential(r*rcut[iatom])*rcut[iatom];
+
+    return sum;
+}
+
 
 double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const {
     double r = distance(atoms[atom].x, atoms[atom].y, atoms[atom].z, x, y, z);
@@ -624,6 +805,46 @@ double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, dou
     double df = field[axis];
     return dv + df;
 }
+
+/// the second derivative of the (smoothed) nuclear potential Z/r
+
+/// \f[
+/// V(R,r_{el}) -V(r) =\frac{Z}{|R-r_{el}|} \approx Z u(r) \f]
+/// with
+/// \f[
+/// \frac{\partial^2 V}{\partial X_i\partial X_j}
+///   =  Z \left(\frac{\partial^2 u(r)}{\partial r^2} \frac{\partial r}{\partial X_i}
+///      \frac{\partial r}{\partial X_j} + \frac{\partial u}{\partial r}
+///      \frac{\partial^2 r}{\partial X_i \partial X_j}\right)
+/// \f]
+double Molecule::nuclear_attraction_potential_second_derivative(int atom,
+        int iaxis, int jaxis, double x, double y, double z) const {
+
+    const Vector<double,3> rr={x-atoms[atom].x,y-atoms[atom].y,z-atoms[atom].z};
+    double r = rr.normf();
+    double rc = rcut[atom];
+
+    double u=smoothed_potential(r*rc)*rc;
+    double d2u=d2smoothed_potential(r * rc) * (rc * rc * rc);
+//    double rreg=r+1.e-5;
+//    double rinv=1./(rreg);
+//    double r3inv = 1.0/(rreg * rreg* rreg);
+    double rinv=u;
+    double r3inv = 0.5*d2u;
+
+    double di=rr[iaxis]*rinv;
+    double dj=rr[jaxis]*rinv;
+    double term1=3.0*r3inv*di*dj;
+
+//    double term2=-di*dj*r3inv;
+//    if (iaxis==jaxis) term2+=rinv;
+
+    double result=-atoms[atom].q * (term1);
+    if (iaxis==jaxis) return 0.0;
+    return result;
+
+}
+
 
 double Molecule::nuclear_charge_density(double x, double y, double z) const {
   // Only one atom will contribute due to the short range of the nuclear charge density

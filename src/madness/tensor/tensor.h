@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 #ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
@@ -38,13 +35,13 @@
 #include <madness/madness_config.h>
 #include <madness/misc/ran.h>
 #include <madness/world/posixmem.h>
-#include <madness/world/boost_checked_delete_bits.h>
 
 #include <memory>
 #include <complex>
 #include <vector>
 #include <cmath>
 #include <cstdlib>
+#include <cstddef>
 
 #include <madness/world/archive.h>
 // #include <madness/world/print.h>
@@ -60,7 +57,6 @@
 #include <madness/tensor/basetensor.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/mxm.h>
-#include <madness/tensor/mtxmq.h>
 #include <madness/tensor/tensorexcept.h>
 #include <madness/tensor/tensoriter.h>
 
@@ -273,20 +269,57 @@ namespace madness {
 
 
     /// low rank representations of tensors (see gentensor.h)
-	enum TensorType {TT_NONE, TT_FULL, TT_2D};
+	enum TensorType {TT_NONE, TT_FULL, TT_2D, TT_TENSORTRAIN};
 
     static
     inline
     std::ostream& operator << (std::ostream& s, const TensorType& tt) {
-       	std::string str="confused tensor type";
-       	if (tt==TT_FULL) str="full rank tensor";
-       	if (tt==TT_2D) str="low rank tensor 2-way";
-       	if (tt==TT_NONE) str="no tensor type specified";
-       	s << str.c_str();
+        std::string str="confused tensor type";
+        if (tt==TT_FULL) str="full rank tensor";
+        if (tt==TT_2D) str="low rank tensor 2-way";
+        if (tt==TT_TENSORTRAIN) str="tensor train";
+        if (tt==TT_NONE) str="no tensor type specified";
+        s << str.c_str();
         return s;
     }
 
-
+    //#define TENSOR_USE_SHARED_ALIGNED_ARRAY
+#ifdef TENSOR_USE_SHARED_ALIGNED_ARRAY
+#define TENSOR_SHARED_PTR detail::SharedAlignedArray
+    // this code has been tested and seems to work correctly on all
+    // tests and moldft ... however initial testing indicated a hard
+    // to measure improvement in thread scaling (from 20 to 60 threads
+    // on cn-mem) and no change in the modest thread count (20)
+    // execution time with tbballoc.  hence we are not presently using
+    // it but will test more in the future with different allocators
+    namespace detail {
+        // Minimal ref-counted array with data+counter in one alloc
+        template <typename T> class SharedAlignedArray {
+            T* volatile p;
+            AtomicInt* cnt;
+            void dec() {if (p && ((*cnt)-- == 1)) {free(p); p = 0;}}
+            void inc() {if (p) (*cnt)++;}
+        public:
+            SharedAlignedArray() : p(0), cnt(0) {}
+            T* allocate(std::size_t size, unsigned int alignment) {
+                std::size_t offset = (size*sizeof(T)-1)/sizeof(AtomicInt) + 1; // Where the counter will be
+                std::size_t nbyte = (offset+1)*sizeof(AtomicInt);
+                if (posix_memalign((void **) &p, alignment, nbyte)) throw 1;
+                cnt = (AtomicInt*)(p) + offset;
+                *cnt = 1;
+                return p;
+            }
+            SharedAlignedArray<T>& operator=(const SharedAlignedArray<T>& other) {
+                if (this != &other) {dec(); p = other.p; cnt = other.cnt; inc();}
+                return *this;
+            }
+            void reset() {dec(); p = 0;}
+            ~SharedAlignedArray() {dec();}
+        };
+    }
+#else
+#define TENSOR_SHARED_PTR std::shared_ptr
+#endif
 
     /// A tensor is a multidimension array
 
@@ -296,8 +329,7 @@ namespace madness {
 
     protected:
         T* restrict _p;
-        std::shared_ptr<T> _shptr;
-
+        TENSOR_SHARED_PTR <T> _shptr;
 
         void allocate(long nd, const long d[], bool dozero) {
             _id = TensorTypeData<T>::id;
@@ -322,16 +354,26 @@ namespace madness {
 #define TENSOR_ALIGNMENT 16
 #elif HAVE_IBMBGQ
 #define TENSOR_ALIGNMENT 32
+#elif MADNESS_HAVE_AVX2
+/* 32B alignment is best for performance according to
+ * http://www.nas.nasa.gov/hecc/support/kb/haswell-processors_492.html */
+#define TENSOR_ALIGNMENT 32
+#elif MADNESS_HAVE_AVX512
+/* One can infer from the AVX2 case that 64B alignment helps with 512b SIMD. */
+#define TENSOR_ALIGNMENT 64
 #else
-#define TENSOR_ALIGNMENT 16
+// Typical cache line size
+#define TENSOR_ALIGNMENT 64
 #endif
 
-#ifdef WORLD_GATHER_MEM_STATS
-                    _p = new T[size];
+#ifdef TENSOR_USE_SHARED_ALIGNED_ARRAY
+                    _p = _shptr.allocate(_size, TENSOR_ALIGNMENT);
+#elif defined WORLD_GATHER_MEM_STATS
+                    _p = new T[_size];
                     _shptr = std::shared_ptr<T>(_p);
 #else
                     if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
-                    _shptr.reset(_p, &::madness::detail::checked_free<T>);
+                    _shptr.reset(_p, &free);
 #endif
                 }
                 catch (...) {
@@ -2169,8 +2211,10 @@ namespace madness {
         long nd = left.ndim() + right.ndim() - 2;
         TENSOR_ASSERT(nd!=0, "result is a scalar but cannot return one ... use dot",
                       nd, &left);
+
+
         TENSOR_ASSERT(left.dim(k0) == right.dim(k1),"common index must be same length",
-                      right.dim(k1), &left);
+                	right.dim(k1), &left);
 
         TENSOR_ASSERT(nd > 0 && nd <= TENSOR_MAXDIM,
                       "invalid number of dimensions in the result", nd,0);
@@ -2222,7 +2266,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimj = right.stride(0);
                 long dimi = left.stride(0);
-                ::mTxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                mTxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==(left.ndim()-1) && k1==(right.ndim()-1)) {
@@ -2230,7 +2274,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.size()/dimk;
                 long dimj = right.size()/dimk;
-                ::mxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                mxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==0 && k1==(right.ndim()-1)) {
@@ -2238,7 +2282,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.stride(0);
                 long dimj = right.size()/dimk;
-                ::mTxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                mTxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==(left.ndim()-1) && k1==0) {
@@ -2246,7 +2290,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.size()/dimk;
                 long dimj = right.stride(0);
-                ::mxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                mxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
         }
@@ -2340,10 +2384,11 @@ namespace madness {
     /// The input, result and workspace tensors must be distinct.
     ///
     /// All input tensors must be contiguous and fastest execution
-    /// will result if all dimensions are even and data is aligned on
-    /// 16-byte boundaries.  The workspace and the result must be of
-    /// the same size as the input \c t .  The result tensor need not
-    /// be initialized before calling fast_transform.
+    /// will result if all dimensions are approriately aligned and
+    /// multiples of the underlying vector length.  The workspace and
+    /// the result must be of the same size as the input \c t .  The
+    /// result tensor need not be initialized before calling
+    /// fast_transform.
     ///
     /// \code
     ///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...
@@ -2365,35 +2410,9 @@ namespace madness {
         long dimi = 1;
         for (int n=1; n<t.ndim(); ++n) dimi *= dimj;
 
-#ifdef AVX_MTXMQ_TEST
-        // The new AVX code is smokin' fast and has no restrictions
-            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); ++n) {
-                mTxmq(dimi, dimj, dimj, t1, t0, pc);
-                std::swap(t0,t1);
-            }
-#elif HAVE_IBMBGQ
-            long nij = dimi*dimj;
-            if (IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
-                for (long i=0; i<nij; ++i) t0[i] = 0.0;
-                mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
-                for (int n=1; n<t.ndim(); ++n) {
-                    for (long i=0; i<nij; ++i) t1[i] = 0.0;
-                    mTxm(dimi, dimj, dimj, t1, t0, pc);
-                    std::swap(t0,t1);
-                }
-            }
-            else {
-                mTxmq_padding(dimi, dimj, dimj, dimj, t0, t.ptr(), pc);
-                for (int n=1; n<t.ndim(); ++n) {
-                    mTxmq_padding(dimi, dimj, dimj, dimj, t1, t0, pc);
-                    std::swap(t0,t1);
-                }
-            }
-#else
+#if HAVE_IBMBGQ
         long nij = dimi*dimj;
-        if (IS_ODD(dimi) || IS_ODD(dimj) ||
-                IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
+        if (IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
             for (long i=0; i<nij; ++i) t0[i] = 0.0;
             mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
             for (int n=1; n<t.ndim(); ++n) {
@@ -2403,14 +2422,21 @@ namespace madness {
             }
         }
         else {
-         mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-         for (int n=1; n<t.ndim(); ++n) {
-             mTxmq(dimi, dimj, dimj, t1, t0, pc);
-             std::swap(t0,t1);
-         }
+            mTxmq_padding(dimi, dimj, dimj, dimj, t0, t.ptr(), pc);
+            for (int n=1; n<t.ndim(); ++n) {
+                mTxmq_padding(dimi, dimj, dimj, dimj, t1, t0, pc);
+                std::swap(t0,t1);
+            }
+        }
+#else
+        // Now assume no restriction on the use of mtxmq
+        mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+        for (int n=1; n<t.ndim(); ++n) {
+            mTxmq(dimi, dimj, dimj, t1, t0, pc);
+            std::swap(t0,t1);
         }
 #endif
-
+        
         return result;
     }
 
@@ -2468,5 +2494,7 @@ namespace madness {
         return result;
     }
 }
+
+#undef TENSOR_SHARED_PTR
 
 #endif // MADNESS_TENSOR_TENSOR_H__INCLUDED

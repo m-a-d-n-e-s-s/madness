@@ -27,20 +27,18 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 #define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
-#include <madness/world/array.h>
+#include <madness/world/vector.h>
 #include <madness/constants.h>
 #include <limits.h>
 #include <madness/tensor/tensor.h>
 #include <madness/mra/simplecache.h>
 #include <madness/mra/adquad.h>
 #include <madness/mra/twoscale.h>
-#include <madness/tensor/mtxmq.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <algorithm>
@@ -110,37 +108,50 @@ namespace madness {
 
     }
 
-    /// a(i,j) --> b(i,j) for i=0..n-1 and j=0..r-1 noting dimensions are a(n,m) and b(n,r).
+    // /// a(i,j) --> b(i,j) for i=0..n-1 and j=0..r-1 noting dimensions are a(n,m) and b(n,r).
 
-    /// returns b
-    template <typename T>
-    inline T* shrink(long n, long m, long r, const T* a, T* restrict b) {
-        T* result = b;
-        if (r == 2) {
-            for (long i=0; i<n; ++i, a+=m, b+=r) {
-                b[0] = a[0];
-                b[1] = a[1];
-            }
-        }
-        else if (r == 4) {
-            for (long i=0; i<n; ++i, a+=m, b+=r) {
-                b[0] = a[0];
-                b[1] = a[1];
-                b[2] = a[2];
-                b[3] = a[3];
-            }
-        }
-        else {
-            MADNESS_ASSERT((r&0x1L)==0);
-            for (long i=0; i<n; ++i, a+=m, b+=r) {
-                for (long j=0; j<r; j+=2) {
-                    b[j  ] = a[j  ];
-                    b[j+1] = a[j+1];
-                }
-            }
-        }
-        return result;
-    }
+    // /// returns b
+    // template <typename T>
+    // inline T* shrink(long n, long m, long r, const T* a, T* restrict b) {
+    //     T* result = b;
+    //     if (r == 0) {
+    //         ;
+    //     }
+    //     else if (r == 1) {
+    //         for (long i=0; i<n; ++i) {
+    //             b[i] = a[i];
+    //         }
+    //     }
+    //     else if (r == 2) {
+    //         for (long i=0; i<n; ++i, a+=m, b+=2) {
+    //             b[0] = a[0];
+    //             b[1] = a[1];
+    //         }
+    //     }
+    //     else if (r == 3) {
+    //         for (long i=0; i<n; ++i, a+=m, b+=3) {
+    //             b[0] = a[0];
+    //             b[1] = a[1];
+    //             b[2] = a[2];
+    //         }
+    //     }
+    //     else if (r == 4) {
+    //         for (long i=0; i<n; ++i, a+=m, b+=4) {
+    //             b[0] = a[0];
+    //             b[1] = a[1];
+    //             b[2] = a[2];
+    //             b[3] = a[3];
+    //         }
+    //     }
+    //     else {
+    //         for (long i=0; i<n; ++i, a+=m, b+=r) {
+    //             for (long j=0; j<r; j++) {
+    //                 b[j] = a[j];
+    //             }
+    //         }
+    //     }
+    //     return result;
+    // }
 
     /// actual data for 1 dimension and for 1 term and for 1 displacement for a convolution operator
     /// here we keep the transformation matrices
@@ -353,7 +364,7 @@ namespace madness {
             const Translation  t_off=tx%2;
 
             // we cache translation and source offset
-            const Key<2> cache_key(n,Vector<Translation,2>(vec(lx,s_off)));
+            const Key<2> cache_key(n, Vector<Translation,2>{lx, s_off} );
             const ConvolutionData1D<Q>* p = mod_ns_cache.getptr(cache_key);
             if (p) return p;
 
@@ -671,7 +682,7 @@ namespace madness {
         // Returns range of Gaussian for periodic lattice sum in simulation coords
         static int maxR(bool periodic, double expnt) {
             if (periodic) {
-                return std::max(1,int(sqrt(16.0*2.3/expnt)));
+                return std::max(1,int(sqrt(16.0*2.3/expnt)+1));
             }
             else {
                 return 0;
@@ -845,12 +856,12 @@ namespace madness {
             hash_combine(key, int(periodic));
             iterator it = map.find(key);
             if (it == map.end()) {
-                map.insert(datumT(key, std::shared_ptr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
-                                                                                                          Q(sqrt(expnt/constants::pi)),
-                                                                                                          expnt,
-                                                                                                          m,
-                                                                                                          periodic
-                                                                                                          ))));
+                map.insert(datumT(key, std::make_shared< GaussianConvolution1D<Q> >(k,
+                                                                                    Q(sqrt(expnt/constants::pi)),
+                                                                                    expnt,
+                                                                                    m,
+                                                                                    periodic
+                                                                                    )));
                 it = map.find(key);
                 //printf("conv1d: making  %d %.8e\n",k,expnt);
             }

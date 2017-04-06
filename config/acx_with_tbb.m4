@@ -58,7 +58,7 @@ AC_DEFUN([ACX_WITH_TBB], [
           CPPFLAGS="$CPPFLAGS -I$withval/include"
         fi
         if test "$acx_with_tbb_lib" == no; then
-          LIBS="$LIBS -L$withval/lib"
+          LIBS="$LIBS -L$withval/lib/intel64/gcc4.4 -L$withval/lib"
         fi
         acx_with_tbb="yes"
       esac
@@ -103,6 +103,26 @@ AC_DEFUN([ACX_WITH_TBB], [
   fi
 
   if test $acx_with_tbb != "no"; then
+     AC_MSG_CHECKING([if TBB is sufficiently recent (> 4.3.5)])
+     AC_LANG_SAVE
+     AC_LANG([C++])
+     AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+       #include <tbb/tbb.h>
+     ]],
+     [[tbb::task* empty_root; empty_root->add_ref_count(0);]])],
+     [AC_MSG_RESULT([yes])],
+     [AC_MSG_RESULT([no])
+      acx_with_tbb=no
+     ]
+     )
+     AC_LANG_RESTORE
+  fi
+
+  if test $acx_with_tbb != "no"; then
     AC_DEFINE(HAVE_INTEL_TBB, [1], [Define if Intel TBB is available.])
+
+    AC_CHECK_LIB([tbbmalloc_proxy], [__TBB_malloc_proxy], [LIBS="$LIBS -ltbbmalloc_proxy"], 
+                   [AC_MSG_NOTICE(["Unable to link with Intel TBB malloc proxy])])
+
   fi
 ])

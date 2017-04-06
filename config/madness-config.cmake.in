@@ -1,96 +1,101 @@
 # - CMAKE Config file for the MADNESS package
 # The following variables are defined:
-#  Madness_INCLUDE_DIRS         - The MADNESS include directory
-#  Madness_LIBRARIES            - The MADNESS libraries and their dependencies
-#  Madness_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
-#  Madness_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
-#  Madness_COMPILE_FLAGS        - Compile flags required to build with MADNESS
-#  Madness_LINKER_FLAGS         - Linker flags required to link with MADNESS
-#  Madness_VERSION              - MADNESS version number
-#  Madness_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls 
+#  MADNESS_INCLUDE_DIRS         - The MADNESS include directory
+#  MADNESS_LIBRARIES            - The MADNESS libraries and their dependencies
+#  MADNESS_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
+#  MADNESS_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
+#  MADNESS_COMPILE_FLAGS        - Compile flags required to build with MADNESS
+#  MADNESS_LINKER_FLAGS         - Linker flags required to link with MADNESS
+#  MADNESS_VERSION              - MADNESS version number
+#  MADNESS_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls 
 
 # Compute paths
-get_filename_component(Madness_CONFIG_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
-get_filename_component(Madness_DIR "${Madness_CONFIG_DIR}/../../.." ABSOLUTE)
-set(Madness_INCLUDE_DIRS ${Madness_DIR}/include)
-set(Madness_LIBRARY_DIR ${Madness_DIR}/lib)
+get_filename_component(MADNESS_CONFIG_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+set(prefix "@prefix@")
+set(exec_prefix "@exec_prefix@")
+set(MADNESS_DIR "@prefix@")
+set(MADNESS_INCLUDE_DIRS "@includedir@")
+set(MADNESS_LIBRARY "@libdir@")
 
 # Set package version
-set(Madness_VERSION "@PACKAGE_VERSION@")
+set(MADNESS_VERSION "@PACKAGE_VERSION@")
 
 # Set compile and link flags, and remove optimization and debug flags
-string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_COMPILE_FLAGS "@CPPFLAGS@ @CXXFLAGS@")
-string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" Madness_LINKER_FLAGS "@CXXFLAGS@ @LDFLAGS@ @LIBS@")
+string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" MADNESS_COMPILE_FLAGS "@CPPFLAGS@ @CXXFLAGS@")
+string(REGEX REPLACE "-(O[0-9s]|g[0-9]?)([ ]+|$)" "" MADNESS_LINKER_FLAGS "@CXXFLAGS@ @LDFLAGS@")
 
 # Set MADNESS component variables
-set(Madness_DEFAULT_COMPONENT_LIST MADchem MADmra MADtinyxml MADmuparser MADlinalg MADtensor MADmisc MADworld)
-set(Madness_MADchem_DEP_LIST MADmra)
-set(Madness_MADmra_DEP_LIST MADtinyxml MADmuparser MADlinalg)
-set(Madness_MADlinalg_DEP_LIST MADtensor)
-set(Madness_MADtensor_DEP_LIST MADmisc)
-set(Madness_MADmisc_DEP_LIST MADworld)
-set(Madness_MADworld_DEP_LIST)
+set(MADNESS_DEFAULT_COMPONENT_LIST MADchem MADmra MADtinyxml MADmuparser MADlinalg MADtensor MADmisc MADworld)
+set(MADNESS_MADchem_DEP_LIST MADmra)
+set(MADNESS_MADmra_DEP_LIST MADtinyxml MADmuparser MADlinalg)
+set(MADNESS_MADlinalg_DEP_LIST MADtensor)
+set(MADNESS_MADtensor_DEP_LIST MADmisc)
+set(MADNESS_MADmisc_DEP_LIST MADworld)
+set(MADNESS_MADworld_DEP_LIST)
 
 # Check for valid component list
-foreach(_comp ${Madness_FIND_COMPONENTS})
-    if(NOT "${Madness_DEFAULT_COMPONENT_LIST}" MATCHES "${_comp}")
+foreach(_comp ${MADNESS_FIND_COMPONENTS})
+    if(NOT "${MADNESS_DEFAULT_COMPONENT_LIST}" MATCHES "${_comp}")
         message(FATAL_ERROR "Invalid MADNESS component: ${_comp}")
     endif()
 endforeach()
 
 
 # Set MADNESS libraries variable
-foreach(_comp ${Madness_DEFAULT_COMPONENT_LIST})
+foreach(_comp ${MADNESS_DEFAULT_COMPONENT_LIST})
 
-    # Search for Madness library
-    find_library(Madness_${_comp}_LIBRARY ${_comp}
-                 PATHS ${Madness_LIBRARY_DIR}
+    # Search for MADNESS library
+    find_library(MADNESS_${_comp}_LIBRARY ${_comp}
+                 PATHS ${MADNESS_LIBRARY}
                  NO_DEFAULT_PATH)
 
     # Check that the library component was found
-    if(Madness_${_comp}_LIBRARY)
-        set(Madness_${_comp}_FOUND TRUE)
+    if(MADNESS_${_comp}_LIBRARY)
+        set(MADNESS_${_comp}_FOUND TRUE)
     
         # Set MADNESS libraries variable
-        if("${Madness_FIND_COMPONENTS}" MATCHES "${_comp}" OR NOT Madness_FIND_COMPONENTS)
-            list(APPEND Madness_LIBRARIES ${Madness_${_comp}_LIBRARY})
+        if("${MADNESS_FIND_COMPONENTS}" MATCHES "${_comp}" OR NOT MADNESS_FIND_COMPONENTS)
+            list(APPEND MADNESS_LIBRARIES ${MADNESS_${_comp}_LIBRARY})
         endif()
     else()
-        if(Madness_FIND_REQUIRED_${_comp} OR (NOT Madness_FIND_COMPONENTS AND Madness_FIND_REQUIRED))
+        if(MADNESS_FIND_REQUIRED_${_comp} OR (NOT MADNESS_FIND_COMPONENTS AND MADNESS_FIND_REQUIRED))
             # Fail due to missing required component.
-            MESSAGE(FATAL_ERROR "!!ERROR: Madness ${_comp} library is not available.")
+            MESSAGE(FATAL_ERROR "!!ERROR: MADNESS ${_comp} library is not available.")
         endif()
-        set(Madness_${_comp}_FOUND FALSE)
+        set(MADNESS_${_comp}_FOUND FALSE)
     endif()
 
     # Check for dependencies in the component list
-    if("${Madness_FIND_COMPONENTS}" MATCHES "${_comp}")
-        foreach(_comp_dep ${Madness_${_comp}_DEP_LIST})
+    if("${MADNESS_FIND_COMPONENTS}" MATCHES "${_comp}")
+        foreach(_comp_dep ${MADNESS_${_comp}_DEP_LIST})
             # Add dependency to the component list if missing
-            if(NOT "${Madness_FIND_COMPONENTS}" MATCHES "${_comp_dep}")
-                list(APPEND Madness_FIND_COMPONENTS ${_comp_dep})
+            if(NOT "${MADNESS_FIND_COMPONENTS}" MATCHES "${_comp_dep}")
+                list(APPEND MADNESS_FIND_COMPONENTS ${_comp_dep})
             endif()
 
             # Set required flag for component dependencies
-            if(Madness_FIND_REQUIRED_${_comp})
-                set(Madness_FIND_REQUIRED_${_comp_dep} TRUE)
+            if(MADNESS_FIND_REQUIRED_${_comp})
+                set(MADNESS_FIND_REQUIRED_${_comp_dep} TRUE)
             else()
-                set(Madness_FIND_REQUIRED_${_comp_dep} FALSE)
+                set(MADNESS_FIND_REQUIRED_${_comp_dep} FALSE)
             endif()
         endforeach()
     endif()
 
 endforeach()
 
+list(APPEND MADNESS_LIBRARIES "@LIBS@")
+
 # Set Fortran 77 integer size used by MADNESS
-set(Madness_F77_INTEGER_SIZE @MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE@)
+set(MADNESS_F77_INTEGER_SIZE @MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE@)
 
 # Clear local variables
-unset(Madness_DEFAULT_COMPONENT_LIST)
-unset(Madness_MADchem_DEP_LIST)
-unset(Madness_MADmra_DEP_LIST)
-unset(Madness_MADlinalg_DEP_LIST)
-unset(Madness_MADtensor_DEP_LIST)
-unset(Madness_MADmisc_DEP_LIST)
-unset(Madness_MADworld_DEP_LIST)
-
+unset(MADNESS_DEFAULT_COMPONENT_LIST)
+unset(MADNESS_MADchem_DEP_LIST)
+unset(MADNESS_MADmra_DEP_LIST)
+unset(MADNESS_MADlinalg_DEP_LIST)
+unset(MADNESS_MADtensor_DEP_LIST)
+unset(MADNESS_MADmisc_DEP_LIST)
+unset(MADNESS_MADworld_DEP_LIST)
+unset(prefix)
+unset(exec_prefix)

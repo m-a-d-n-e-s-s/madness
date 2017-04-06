@@ -1,4 +1,4 @@
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <madness/mra/mra.h>
 #include <utility>
 #include <ctime>

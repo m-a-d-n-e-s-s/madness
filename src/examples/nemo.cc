@@ -45,8 +45,13 @@
 */
 
 #include <chem/nemo.h>
+#include <chem/molecular_optimizer.h>
+#include <chem/cheminfo.h>
+#include <chem/SCFOperators.h>
+#include <chem/projector.h>
 
 using namespace madness;
+
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -54,43 +59,99 @@ int main(int argc, char** argv) {
     if (world.rank() == 0) {
     	print("\n  NEMO -- Hartree-Fock using numerical exponential molecular orbitals \n");
     	printf("starting at time %.1f\n", wall_time());
-       	print("\nmain() compiled at ",__TIME__," on ",__DATE__);
 
     }
     startup(world,argc,argv);
     std::cout.precision(6);
-    typedef std::vector<functionT> vecfuncT;
 
-#ifdef GITREVISION
-    const  char* gitrev =  GITREVISION;
+#ifdef MADNESS_GITREVISION
+    const  char* gitrev =  MADNESS_GITREVISION;
     const std::string gitrevision(gitrev);
     if (world.rank()==0) {
-    	print("           git revision ...",gitrevision);
+    	print("    main() git revision ...",gitrevision);
     }
 #endif
 
-#ifdef SVNREVISION
-    const  char* svnrev =  SVNREVISION;
-    const std::string svnrevision(svnrev);
     if (world.rank()==0) {
-    	print("           svn revision ...",svnrevision);
+        print("     main() compiled at ...",__TIME__," on ",__DATE__);
+        const std::string gitrevision(info::cheminfo_git_commit());
+        print("   chemlib git revision ...",gitrevision);
     }
-#endif
 
-    // take the HF orbitals to start
-    const std::string input="input";
-	std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
-	if (world.rank()==0) {
-		calc->molecule.print();
-		print("\n");
-		calc->param.print(world);
-	}
-    Nemo nemo(world,calc);
-    const double energy=nemo.value();
-    if (world.rank()==0) {
-    	printf("final energy   %12.8f\n", energy);
-    	printf("finished at time %.1f\n", wall_time());
+    try {
+
+        const std::string input="input";
+        std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
+        if (world.rank()==0) {
+            calc->molecule.print();
+            print("\n");
+            calc->param.print(world);
+        }
+
+        std::shared_ptr<Nemo> nemo(new Nemo(world,calc));
+
+        // optimize the geometry if requested
+        if (calc->param.gopt) {
+            print("\n\n Geometry Optimization                      ");
+            print(" ----------------------------------------------------------\n");
+            calc->param.gprint(world);
+
+            Tensor<double> geomcoord = calc->molecule.get_all_coords().flat();
+//            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
+            MolecularOptimizer geom(nemo,
+                    calc->param.gmaxiter,
+                    calc->param.gtol,  //tol
+                    calc->param.gval,  //value prec
+                    calc->param.gprec); // grad prec
+//            geom.set_update(calc->param.algopt);
+//            geom.set_test(calc->param.gtest);
+
+            // compute initial hessian
+            if (calc->param.ginitial_hessian) {
+                nemo->value();
+                Tensor<double> hess=nemo->hessian(calc->molecule.get_all_coords());
+                geom.set_hessian(hess);
+            }
+            geom.optimize(geomcoord);
+        } else {
+
+            // compute the energy to get converged orbitals
+//            Nemo nemo(world,calc);
+            const double energy=nemo->value();
+            if (world.rank()==0) {
+                printf("final energy   %12.8f\n", energy);
+                printf("finished at time %.1f\n", wall_time());
+            }
+
+        }
+
+        // compute the hessian
+        if (calc->param.hessian) nemo->hessian(calc->molecule.get_all_coords());
+
+
+    } catch (const SafeMPI::Exception& e) {
+        print(e);
+        error("caught an MPI exception");
+    } catch (const madness::MadnessException& e) {
+        print(e);
+        error("caught a MADNESS exception");
+    } catch (const madness::TensorException& e) {
+        print(e);
+        error("caught a Tensor exception");
+    } catch (const char* s) {
+        print(s);
+        error("caught a string exception");
+    } catch (const std::string& s) {
+        print(s);
+        error("caught a string (class) exception");
+    } catch (const std::exception& e) {
+        print(e.what());
+        error("caught an STL exception");
+    } catch (...) {
+        error("caught unhandled exception");
     }
+
+
     finalize();
     return 0;
 }

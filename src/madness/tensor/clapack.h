@@ -40,7 +40,6 @@
 /// \brief C++ prototypes for Fortran LAPACK with associated typedefs and macos
 
 #include <madness/fortran_ctypes.h>
-#include <madness/tensor/lapack_functions.h>
 
 #ifdef FORTRAN_LINKAGE_LC
 #  define sgesvd_ sgesvd
@@ -71,6 +70,8 @@
 #endif
 
 #  define dpotrf_ dpotrf
+#  define dgetrf_ dgetrf
+#  define dgetri_ dgetri
 
 #  define dtrsm_ dtrsm
 
@@ -277,6 +278,15 @@ extern "C"
 
 extern "C"
 void dpotrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer *info, char_len uplo_len);
+
+
+extern "C"
+void dgetrf_(const integer* m, const integer* n, real8 *a, const integer *lda,
+        integer* ipiv, integer *info);
+
+extern "C"
+void dgetri_(const integer* n, real8 *a, const integer *lda, const integer* ipiv,
+        real8 *work, const integer *lwork, integer *info);
 
 extern "C"
 void dtrsm_(const char* side, const char* uplo, const char* transa, const char* diag,

@@ -1,10 +1,12 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 #bin_PROGRAMS = test_hf test_lattice test_coulomb test_hydro test_he test_be test_comm testconv esolver
 #bin_PROGRAMS = test_he esolver test_xc 
-#lib_LIBRARIES = libHartreeFock.a
+#lib_LTLIBRARIES = libHartreeFock.la
 
-#libHartreeFock_a_SOURCES = eigsolver.cc dft.cc dft.h eigsolver.h poperator.h util.h lda.h electronicstructureparams.h
+#libHartreeFock_la_SOURCES = eigsolver.cc dft.cc dft.h eigsolver.h poperator.h util.h lda.h electronicstructureparams.h
+#libHartreeFock_la_LDFLAGS = -version-info 0:0:0
 
 #test_hf_SOURCES = test_hf.cc
 
@@ -26,5 +28,5 @@ include $(top_srcdir)/config/MakeGlobal.am
 
 #esolver_SOURCES = solver_driver.cc mentity.cc mentity.h electronicstructureapp.h solver.h
 
-#LDADD = libHartreeFock.a libxc.a $(MRALIBS)
+#LDADD = libHartreeFock.la libxc.a $(MRALIBS)
 

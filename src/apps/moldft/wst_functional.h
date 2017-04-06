@@ -39,7 +39,8 @@ class WSTFunctional
       if (vf.size()) 
       {
         reconstruct(world, vf);
-        rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//        rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+        refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
       }
     }
     double exc = make_dft_energy(world, xc, vf, 0);

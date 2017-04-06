@@ -91,13 +91,6 @@ void save_function(World& world, Function<double,NDIM>& pair, const std::string 
 
 }
 
-static double r12(const coord_6d& r) {
-    const double x12=r[0]-r[3];
-    const double y12=r[1]-r[4];
-    const double z12=r[2]-r[5];
-    const double r12=sqrt(x12*x12 + y12*y12 + z12*z12);
-    return r12;
-}
 
 static double one_3d(const coord_3d& r) {
 	return 1.0;
@@ -138,26 +131,6 @@ static double gauss_6d(const coord_6d& r) {
     r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
     r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
     return gauss_3d(r1)*gauss_3d(r2);
-}
-
-static double slater_6d(const coord_6d& r) {
-    const double rr=r12(r);
-    const double _gamma=1.0;
-    if (_gamma>0.0) return (1.0-exp(-_gamma*rr))/(2.0*_gamma);
-    return 0.5*rr;
-}
-
-static double slateriii_6d(const coord_6d& r) {
-    coord_3d r1, r2;
-    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
-    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
-
-	const double rr=r12(r);
-    const double _gamma=1.0;
-    const double phi1=gauss_3d(r1);
-    const double phi2=gauss_3d(r2);
-
-    return (1.0-exp(-_gamma*rr))/(2.0*_gamma) * phi1*phi1*phi2;
 }
 
 
@@ -226,48 +199,63 @@ int test_multiply(World& world, const long& k, const double thresh) {
     int nerror=0;
     bool good;
 
-    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
-    real_function_3d phisq=phi*phi;
-    real_function_6d f12=real_factory_6d(world).functor2(&slater_6d).is_on_demand();
+    real_function_6d f12=TwoElectronFactory(world).f12().thresh(thresh).gamma(1.0);
+
+
+    const real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    const real_function_3d phisq=phi*phi;
 
     real_function_6d fii=CompositeFactory<double,6,3>(world)
     	    	.particle1(copy(phi))
     	    	.particle2(copy(phi))
     	    	.g12(f12);
-    real_function_6d fiii=CompositeFactory<double,6,3>(world)
+    real_function_6d fi2i=CompositeFactory<double,6,3>(world)
     	    	.particle1(copy(phisq))
     	    	.particle2(copy(phi))
     	    	.g12(f12);
 
+    real_function_6d fii2=CompositeFactory<double,6,3>(world)
+                .particle1(copy(phi))
+                .particle2(copy(phisq))
+                .g12(f12);
 
-    if (0) {
+
+    if (1) {
     	fii.fill_tree();
     	save_function(world,fii,"fii");
-    	fiii.fill_tree();
-    	save_function(world,fiii,"fiii");
+    	fi2i.fill_tree();
+    	save_function(world,fi2i,"fi2i");
+        fii2.fill_tree();
+        save_function(world,fii2,"fii2");
+
     } else {
     	load_function(world,fii,"fii");
-    	load_function(world,fiii,"fiii");
+        load_function(world,fi2i,"fi2i");
+    	load_function(world,fii2,"fii2");
     }
     fii.print_size("f12 |phi phi>");
-    fiii=real_factory_6d(world).functor2(&slateriii_6d);
-    fiii.print_size("f12 |phi^2 phi>");
-	save_function(world,fiii,"fiii2");
+    fi2i.print_size("f12 |phi^2 phi>");
+    fii2.print_size("f12 |phi phi^2>");
 
 
-//    real_function_6d ij=hartree_product(phi,phi);
-//    real_function_6d iij=hartree_product(phisq,phi);
-//    iij.print_size("hartee product");
-
-    real_function_6d iij2=multiply(copy(fii),phi,1);
-    iij2.print_size("multiply");
-    iij2.truncate().reduce_rank();
-    iij2.print_size("multiply truncated");
-
-//    double err=iij2.err(r2r);
-    double err=(fiii-iij2).norm2();
+    real_function_6d iij1=multiply(copy(fii),phi,1);
+    iij1.print_size("multiply 1");
+    iij1.truncate().reduce_rank();
+    iij1.print_size("multiply 1 truncated");
+    double err=(fi2i-iij1).norm2();
     good=is_small(err,thresh);
     print(ok(good), "multiply f(1,2)*g(1) error:",err);
+
+    {
+        real_function_6d iij2=multiply(copy(fii),phi,2);
+        iij2.print_size("multiply 2");
+        iij2.truncate().reduce_rank();
+        iij2.print_size("multiply 2 truncated");
+        double err=(fii2-iij2).norm2();
+        good=is_small(err,thresh);
+        print(ok(good), "multiply f(1,2)*g(2) error:",err);
+    }
+
 
 
     real_function_6d iij3=CompositeFactory<double,6,3>(world)
@@ -277,12 +265,10 @@ int test_multiply(World& world, const long& k, const double thresh) {
     iij3.truncate();
     iij3.print_size("CompositeFactory truncated");
 
-    double err4=(fiii-iij3).norm2();
-    print("multiply - CompositeFactory",err4);
-
-    double err2=(iij2-iij3).norm2();
-    good=is_small(err2,thresh);
-    print(ok(good), "multiply vs CompositeFactory f(1,2)*g(1) error:",err2);
+    double err4=(fi2i-iij3).norm2();
+    print("error in CompositeFactory 1",err4);
+    good=is_small(err4,thresh);
+    print(ok(good), "CompositeFactory f(1,2)*g(1) error:",err4);
 
 
     if (not good) nerror++;
@@ -648,7 +634,7 @@ int main(int argc, char**argv) {
 
     initialize(argc,argv);
     World world(SafeMPI::COMM_WORLD);
-    srand(time(NULL));
+    srand(time(nullptr));
     startup(world,argc,argv);
 
     // the parameters
@@ -672,6 +658,7 @@ int main(int argc, char**argv) {
         if (key=="TT") {
             if (val=="TT_2D") tt=TT_2D;
             else if (val=="TT_FULL") tt=TT_FULL;
+            else if (val=="TT_TENSORTRAIN") tt=TT_TENSORTRAIN;
             else {
                 print("arg",arg, "key",key,"val",val);
                 MADNESS_EXCEPTION("confused tensor type",0);
@@ -706,13 +693,13 @@ int main(int argc, char**argv) {
     norm=phi2.norm2();
     if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
-//    test(world,k,thresh);
-//    error+=test_hartree_product(world,k,thresh);
+    test(world,k,thresh);
+    error+=test_hartree_product(world,k,thresh);
     error+=test_convolution(world,k,thresh);
-//    error+=test_multiply(world,k,thresh);
+    error+=test_multiply(world,k,thresh);
     error+=test_add(world,k,thresh);
-//    error+=test_exchange(world,k,thresh);
-//    error+=test_inner(world,k,thresh);
+    error+=test_exchange(world,k,thresh);
+    error+=test_inner(world,k,thresh);
 
 
     print(ok(error==0),error,"finished test suite\n");

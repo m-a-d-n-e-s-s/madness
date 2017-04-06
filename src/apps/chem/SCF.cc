@@ -1,5 +1,5 @@
 /*
-/  This file is part of MADNESS.
+  This file is part of MADNESS.
 
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /// \file SCF.cc
@@ -40,47 +37,24 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
-#include <chem/SCF.h>
-
-#include <madness/tensor/elem.h>
-#include <madness/mra/lbdeux.h>
+#include "SCF.h"
+#include <cmath>
 #include <madness/mra/qmprop.h>
-#include <madness/misc/misc.h>
-#include <madness/misc/ran.h>
-#include <madness/tensor/distributed_matrix.h>
+#include <chem/nemo.h>
+#include <chem/SCFOperators.h>
+#include <madness/world/worldmem.h>
+#include <chem/projector.h>
 
 namespace madness {
     
-    // 
-    template <typename T, std::size_t NDIM>
-    DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution& d,
-                                      const std::vector< Function<T,NDIM> >& f,
-                                      const std::vector< Function<T,NDIM> >& g,
-                                      bool sym=false) 
-    {
-        PROFILE_FUNC;
-        DistributedMatrix<T> A(d);
-        const int64_t n = A.coldim();
-        const int64_t m = A.rowdim();
-        MADNESS_ASSERT(int64_t(f.size()) == n && int64_t(g.size()) == m);
-        
-        // Assume we can always create an ichunk*jchunk matrix locally
-        const int ichunk = 1000;
-        const int jchunk = 1000; // 1000*1000*8 = 8 MBytes
-        for (int64_t ilo=0; ilo<n; ilo+=ichunk) {
-            int64_t ihi = std::min(ilo + ichunk, n);
-            std::vector< Function<T,NDIM> > ivec(f.begin()+ilo, f.begin()+ihi);
-            for (int64_t jlo=0; jlo<m; jlo+=jchunk) {
-                int64_t jhi = std::min(jlo + jchunk, m);
-                std::vector< Function<T,NDIM> > jvec(g.begin()+jlo, g.begin()+jhi);
-                
-                Tensor<T> P = matrix_inner(A.get_world(),ivec,jvec);
-                A.copy_from_replicated_patch(ilo, ihi-1, jlo, jhi-1, P);
-            }
-        }
-        return A;
-    }
-    
+//    // moved to vmra.h
+//    template <typename T, std::size_t NDIM>
+//    DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution& d,
+//                                      const std::vector< Function<T,NDIM> >& f,
+//                                      const std::vector< Function<T,NDIM> >& g,
+//                                      bool sym=false)
+
+
   template <typename T, std::size_t NDIM>
   static void verify_tree(World& world, const std::vector< Function<T,NDIM> >& v) {
     for (unsigned int i=0; i<v.size(); i++) {
@@ -88,37 +62,6 @@ namespace madness {
     }
   }
     
-    template <typename T, typename R, std::size_t NDIM>
-    std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
-    transform(World& world,
-              const std::vector< Function<T,NDIM> >& v,
-              const DistributedMatrix<R>& c,
-              bool fence=true) {
-        PROFILE_FUNC;
-        
-        typedef TENSOR_RESULT_TYPE(T,R) resultT;
-        long n = v.size();    // n is the old dimension
-        long m = c.rowdim();  // m is the new dimension
-        MADNESS_ASSERT(n==c.coldim());
-        
-        // new(i) = sum(j) old(j) c(j,i)
-        
-        Tensor<T> tmp(n,m);
-        c.copy_to_replicated(tmp); // for debugging
-        tmp = transpose(tmp);
-        
-        std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
-        compress(world, v);
-        
-        for (int i=0; i<m; ++i) {
-            for (int j=0; j<n; ++j) {
-                if (tmp(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],tmp(j,i),false);
-            }
-        }
-        
-        if (fence) world.gop.fence();
-        return vc;
-    }
     
     template<int NDIM>
     struct unaryexp {
@@ -146,13 +89,20 @@ namespace madness {
         return expV;
     }
     
-    static double ttt, sss;
+    // Timer modified to correctly nest
+    static std::vector<double> ttt, sss;
     static void START_TIMER(World& world) {
-        world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+      world.gop.fence(); ttt.push_back(wall_time()); sss.push_back(cpu_time());
     }
     
+  static double pop(std::vector<double>& v) {
+    double x=v.back();
+    v.pop_back();
+    return x;
+  }
     static void END_TIMER(World& world, const char* msg) {
-        ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+      double wall=wall_time()-pop(ttt), cpu=cpu_time()-pop(sss); 
+      if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
     }
     
     extern void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc);
@@ -213,18 +163,45 @@ namespace madness {
     }
     
     SCF::SCF(World & world, const char *filename) {
+        FunctionDefaults<3>::set_truncate_mode(1);
         PROFILE_MEMBER_FUNC(SCF);
         if (world.rank() == 0) {
             molecule.read_file(filename);
             if (molecule.natom() < 3) param.localize = false; // symmetry confuses orbital localization
             param.read_file(filename);
             
-            //modify atomic charge for PSP calc
-            if (param.psp_calc){
+            //if psp_calc is true, set all atoms to PS atoms
+            //if not, check whether some atoms are PS atoms or if this a pure AE calculation
+            if (param.psp_calc) {
                 for (int iatom = 0; iatom < molecule.natom(); iatom++) {
-                    unsigned int an=molecule.get_atom_number(iatom);
-                    double zeff=get_charge_from_file("gth.xml",an);
-                    molecule.set_atom_charge(iatom,zeff);
+                    molecule.set_pseudo_atom(iatom,true);
+                }
+            }
+            else{
+               for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                   if (molecule.get_pseudo_atom(iatom)){
+                       param.pure_ae=false;
+                       continue;
+                   }
+               }
+            }
+
+            //print list of pseudo-atoms in mixed psp/ae calculation
+            if (!param.psp_calc && !param.pure_ae && world.rank() == 0){
+               for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                   //std::cout << "pseudo-atom " << iatom << "  " << molecule.get_pseudo_atom(iatom) << std::endl;
+                   if (molecule.get_pseudo_atom(iatom)) std::cout << "atom " << iatom << " is a pseudo-atom" <<  std::endl;
+               }
+            }
+
+            //modify atomic charge for complete PSP calc or individual PS atoms
+            if (!param.pure_ae){
+                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                    if (molecule.get_pseudo_atom(iatom)){
+                        unsigned int an=molecule.get_atom_number(iatom);
+                        double zeff=get_charge_from_file("gth.xml",an);
+                        molecule.set_atom_charge(iatom,zeff);
+                    }
                 }
             }
             
@@ -236,6 +213,7 @@ namespace madness {
             }
             
             if(not param.no_orient)molecule.orient();
+
             aobasis.read_file(param.aobasis);
             param.set_molecular_info(molecule, aobasis, n_core);
         }
@@ -243,16 +221,13 @@ namespace madness {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
         
-        xc.initialize(param.xc_data, !param.spin_restricted, world);
+        xc.initialize(param.xc_data, !param.spin_restricted, world,true);
         //xc.plot();
         
         FunctionDefaults < 3 > ::set_cubic_cell(-param.L, param.L);
         set_protocol < 3 > (world, param.econv);
+        FunctionDefaults<3>::set_truncate_mode(1);
 
-        potentialmanager = std::shared_ptr < PotentialManager
-                                             > (new PotentialManager(molecule, param.core_type));
-        gthpseudopotential = std::shared_ptr<GTHPseudopotential<double> 
-                                             >(new GTHPseudopotential<double>(world, molecule));
     }
     
     
@@ -269,6 +244,14 @@ namespace madness {
             ar & beps & bocc & bset;
             for (unsigned int i = 0; i < bmo.size(); ++i)
                 ar & bmo[i];
+        }
+
+        tensorT Saoamo = matrix_inner(world, ao, amo);
+        tensorT Saobmo = (!param.spin_restricted) ? matrix_inner(world, ao, bmo) : tensorT();
+        if (world.rank() == 0) {
+            archive::BinaryFstreamOutputArchive arao("restartaodata");
+            arao << Saoamo << aeps << aocc << aset;
+            if (!param.spin_restricted) arao << Saobmo << beps << bocc << bset;
         }
     }
     
@@ -326,6 +309,8 @@ namespace madness {
                 amo[i] = madness::project(amo[i], k, thresh, false);
             world.gop.fence();
         }
+        set_thresh(world,amo,thresh);
+
         //        normalize(world, amo);
         //        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
         //        truncate(world, amo);
@@ -364,7 +349,8 @@ namespace madness {
                         bmo[i] = madness::project(bmo[i], k, thresh, false);
                     world.gop.fence();
                 }
-                
+                set_thresh(world,amo,thresh);
+
                 //                normalize(world, bmo);
                 //                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);
                 //                truncate(world, bmo);
@@ -378,7 +364,7 @@ namespace madness {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         
-        std::vector<long> npt(3, param.npt_plot);
+        std::vector<long> npt(3, static_cast<long>(param.npt_plot));
         
         if (param.plot_cell.size() == 0)
             param.plot_cell = copy(FunctionDefaults < 3 > ::get_cell());
@@ -445,9 +431,14 @@ namespace madness {
     void SCF::make_nuclear_potential(World & world) {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
-        if (param.psp_calc){
+        potentialmanager = std::shared_ptr < PotentialManager
+                                             > (new PotentialManager(molecule, param.core_type));
+        gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>
+                                             >(new GTHPseudopotential<double>(world, molecule));
+
+        if (!param.pure_ae){
             gthpseudopotential->make_pseudo_potential(world);}
-        else{
+        if (!param.psp_calc) {
             potentialmanager->make_nuclear_potential(world);}
         END_TIMER(world, "Project vnuclear");
     }
@@ -532,145 +523,149 @@ namespace madness {
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i),
                        dip(1, i), dip(2, i), sqrt(rsq(i)));
                 aobasis.print_anal(molecule, C(i, _));
-            }
+            }           
         }
         
     }
     
-    // tensorT SCF::localize_boys(World & world, const vecfuncT & mo,
-    //                            const std::vector<int> & set, const double thresh,
-    //                            const double thetamax, const bool randomize) {
-    //     START_TIMER(world);
-    //     const bool doprint = false;
-    //     long nmo = mo.size();
-    //     tensorT dip(nmo, nmo, 3);
-    //     for (int axis = 0; axis < 3; ++axis) {
-    //         functionT fdip = factoryT(world).functor(
-    //                                                  functorT(new DipoleFunctor(axis))).initial_level(4);
-    //         dip(_, _, axis) = matrix_inner(world, mo,
-    //                                        mul_sparse(world, fdip, mo, vtol), true);
-    //     }
-    //     tensorT U(nmo, nmo);
-    //     if (world.rank() == 0) {
-    //         for (long i = 0; i < nmo; ++i)
-    //             U(i, i) = 1.0;
-            
-    //         double tol = thetamax;
-    //         long ndone = 0;
-    //         bool converged = false;
-    //         for (long iter = 0; iter < 300; ++iter) {
-    //             double sum = 0.0;
-    //             for (long i = 0; i < nmo; ++i) {
-    //                 sum += DIP(dip, i, i, i, i);
-    //             }
-    //             long ndone_iter = 0;
-    //             double maxtheta = 0.0;
-    //             if (doprint)
-    //                 printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum,
-    //                        ndone, tol);
-                
-    //             for (long i = 0; i < nmo; ++i) {
-    //                 for (long j = 0; j < i; ++j) {
-    //                     if (set[i] == set[j]) {
-    //                         double g = DIP(dip, i, j, j, j) - DIP(dip, i, j, i, i);
-    //                         double h = 4.0 * DIP(dip, i, j, i, j)
-    //                             + 2.0 * DIP(dip, i, i, j, j)
-    //                             - DIP(dip, i, i, i, i) - DIP(dip, j, j, j, j);
-    //                         double sij = DIP(dip, i, j, i, j);
-    //                         bool doit = false;
-    //                         if (h >= 0.0) {
-    //                             doit = true;
-    //                             if (doprint)
-    //                                 print("             forcing negative h", i, j,
-    //                                       h);
-                                
-    //                             h = -1.0;
-    //                         }
-    //                         double theta = -g / h;
-    //                         maxtheta = std::max<double>(std::abs(theta), maxtheta);
-    //                         if (fabs(theta) > thetamax) {
-    //                             doit = true;
-    //                             if (doprint)
-    //                                 print("             restricting", i, j);
-                                
-    //                             if (g < 0)
-    //                                 theta = -thetamax;
-                                
-    //                             else
-    //                                 theta = thetamax * 0.8;
-                                
-    //                         }
-    //                         bool randomized = false;
-    //                         if (randomize && iter == 0 && sij > 0.01
-    //                             && fabs(theta) < 0.01) {
-    //                             randomized = true;
-    //                             if (doprint)
-    //                                 print("             randomizing", i, j);
-                                
-    //                             theta += (RandomValue<double>() - 0.5);
-    //                         }
-    //                         if (fabs(theta) >= tol || randomized || doit) {
-    //                             ++ndone_iter;
-    //                             if (doprint)
-    //                                 print("     rotating", i, j, theta);
-                                
-    //                             double c = cos(theta);
-    //                             double s = sin(theta);
-    //                             drot3(nmo, &dip(i, 0, 0), &dip(j, 0, 0), s, c, 1);
-    //                             drot3(nmo, &dip(0, i, 0), &dip(0, j, 0), s, c, nmo);
-    //                             drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
-    //                         }
-    //                     }
-    //                 }
-    //             }
-                
-    //             ndone += ndone_iter;
-    //             if (ndone_iter == 0 && tol == thresh) {
-    //                 if (doprint)
-    //                     print("Boys localization converged in", ndone, "steps");
-                    
-    //                 converged = true;
-    //                 break;
-    //             }
-    //             tol = std::max(0.1 * maxtheta, thresh);
-    //         }
-            
-    //         if (!converged) {
-    //             print("warning: boys localization did not fully converge: ", ndone);
-    //         }
-    //         U = transpose(U);
-            
-    //         bool switched = true;
-    //         while (switched) {
-    //             switched = false;
-    //             for (int i = 0; i < nmo; i++) {
-    //                 for (int j = i + 1; j < nmo; j++) {
-    //                     if (set[i] == set[j]) {
-    //                         double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
-    //                         double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
-    //                         if (snew > sold) {
-    //                             tensorT tmp = copy(U(_, i));
-    //                             U(_, i) = U(_, j);
-    //                             U(_, j) = tmp;
-    //                             switched = true;
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-            
-    //         // Fix phases.
-    //         for (long i = 0; i < nmo; ++i) {
-    //             if (U(i, i) < 0.0)
-    //                 U(_, i).scale(-1.0);
-    //         }
-            
-    //     }
-        
-    //     world.gop.broadcast(U.ptr(), U.size(), 0);
-    //     END_TIMER(world, "Boys localize");
-    //     return U;
-    // }
+  distmatT SCF::localize_boys(World & world, const vecfuncT & mo,
+                           const std::vector<int> & set, const double thresh,
+			     const double thetamax, const bool randomize) {
+    START_TIMER(world);
+    const bool doprint = false;
+    long nmo = mo.size();
+    tensorT dip(nmo, nmo, 3);
+    for (int axis = 0; axis < 3; ++axis) {
+        functionT fdip = factoryT(world).functor(
+                                                 functorT(new DipoleFunctor(axis))).initial_level(4);
+        dip(_, _, axis) = matrix_inner(world, mo,
+                                       mul_sparse(world, fdip, mo, vtol), true);
+    }
+    tensorT U(nmo, nmo);
+    if (world.rank() == 0) {
+        for (long i = 0; i < nmo; ++i)
+            U(i, i) = 1.0;
+     
+        double tol = thetamax;
+        long ndone = 0;
+        bool converged = false;
+        for (long iter = 0; iter < 300; ++iter) {
+            double sum = 0.0;
+            for (long i = 0; i < nmo; ++i) {
+                sum += DIP(dip, i, i, i, i);
+            }
+            long ndone_iter = 0;
+            double maxtheta = 0.0;
+            if (doprint)
+                printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum,
+                       ndone, tol);
+         
+            for (long i = 0; i < nmo; ++i) {
+                for (long j = 0; j < i; ++j) {
+                    if (set[i] == set[j]) {
+                        double g = DIP(dip, i, j, j, j) - DIP(dip, i, j, i, i);
+                        double h = 4.0 * DIP(dip, i, j, i, j)
+                            + 2.0 * DIP(dip, i, i, j, j)
+                            - DIP(dip, i, i, i, i) - DIP(dip, j, j, j, j);
+                        double sij = DIP(dip, i, j, i, j);
+                        bool doit = false;
+                        if (h >= 0.0) {
+                            doit = true;
+                            if (doprint)
+                                print("             forcing negative h", i, j,
+                                      h);
+                         
+                            h = -1.0;
+                        }
+                        double theta = -g / h;
+                        maxtheta = std::max<double>(std::abs(theta), maxtheta);
+                        if (fabs(theta) > thetamax) {
+                            doit = true;
+                            if (doprint)
+                                print("             restricting", i, j);
+                         
+                            if (g < 0)
+                                theta = -thetamax;
+                         
+                            else
+                                theta = thetamax * 0.8;
+                         
+                        }
+                        bool randomized = false;
+                        if (randomize && iter == 0 && sij > 0.01
+                            && fabs(theta) < 0.01) {
+                            randomized = true;
+                            if (doprint)
+                                print("             randomizing", i, j);
+                         
+                            theta += 0.1*(RandomValue<double>() - 0.5);
+                        }
+                        if (fabs(theta) >= tol || randomized || doit) {
+                            ++ndone_iter;
+                            if (doprint)
+                                print("     rotating", i, j, theta);
+                         
+                            double c = cos(theta);
+                            double s = sin(theta);
+                            drot3(nmo, &dip(i, 0, 0), &dip(j, 0, 0), s, c, 1);
+                            drot3(nmo, &dip(0, i, 0), &dip(0, j, 0), s, c, nmo);
+                            drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
+                        }
+                    }
+                }
+            }
+         
+            ndone += ndone_iter;
+            if (ndone_iter == 0 && tol == thresh) {
+                if (doprint)
+                    print("Boys localization converged in", ndone, "steps");
+             
+                converged = true;
+                break;
+            }
+            tol = std::max(0.1 * maxtheta, thresh);
+        }
+     
+        if (!converged) {
+            print("warning: boys localization did not fully converge: ", ndone);
+        }
+        U = transpose(U);
+     
+        bool switched = true;
+        while (switched) {
+            switched = false;
+            for (int i = 0; i < nmo; i++) {
+                for (int j = i + 1; j < nmo; j++) {
+                    if (set[i] == set[j]) {
+                        double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
+                        double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+                        if (snew > sold) {
+                            tensorT tmp = copy(U(_, i));
+                            U(_, i) = U(_, j);
+                            U(_, j) = tmp;
+                            switched = true;
+                        }
+                    }
+                }
+            }
+        }
+     
+        // Fix phases.
+        for (long i = 0; i < nmo; ++i) {
+            if (U(i, i) < 0.0)
+                U(_, i).scale(-1.0);
+        }
+     
+    }
+ 
+    world.gop.broadcast(U.ptr(), U.size(), 0);
+
+    DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
+    dUT.copy_from_replicated(transpose(U));
+
+    END_TIMER(world, "Boys localize");
+    return dUT;
+}
     
     // tensorT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
     //     reconstruct(world, v);
@@ -699,29 +694,65 @@ namespace madness {
         return r;
     }*/
 
-  // this version is faster than the previous version on BG/Q
-     distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
-        PROFILE_MEMBER_FUNC(SCF);
+    // this version is faster than the previous version on BG/Q
+    distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
+         PROFILE_MEMBER_FUNC(SCF);
          int n = v.size();
          distmatT r = column_distributed_matrix<double>(world, n, n);
+	 START_TIMER(world);
          reconstruct(world, v);
+         END_TIMER(world, "KEmat reconstruct");
+	 START_TIMER(world);
          vecfuncT dvx = apply(world, *(gradop[0]), v, false);
          vecfuncT dvy = apply(world, *(gradop[1]), v, false);
          vecfuncT dvz = apply(world, *(gradop[2]), v, false);
          world.gop.fence();
+         END_TIMER(world, "KEmat differentiate");
+	 START_TIMER(world);
          compress(world,dvx,false);
          compress(world,dvy,false);
          compress(world,dvz,false);
          world.gop.fence();
+         END_TIMER(world, "KEmat compress");
+	 START_TIMER(world);
          r += matrix_inner(r.distribution(), dvx, dvx, true);
          r += matrix_inner(r.distribution(), dvy, dvy, true);
          r += matrix_inner(r.distribution(), dvz, dvz, true);
+         END_TIMER(world, "KEmat inner products");
          r *= 0.5;
          //tensorT p(v.size(),v.size());
          //r.copy_to_replicated(p);
          return r;
      }
-    
+
+     distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const {
+         PROFILE_MEMBER_FUNC(SCF);
+         MADNESS_ASSERT(vbra.size() == vket.size());
+         int n = vbra.size();
+         distmatT r = column_distributed_matrix<double>(world, n, n);
+         reconstruct(world, vbra);
+         reconstruct(world, vket);
+         vecfuncT dvx_bra = apply(world, *(gradop[0]), vbra, false);
+         vecfuncT dvy_bra = apply(world, *(gradop[1]), vbra, false);
+         vecfuncT dvz_bra = apply(world, *(gradop[2]), vbra, false);
+         vecfuncT dvx_ket = apply(world, *(gradop[0]), vket, false);
+         vecfuncT dvy_ket = apply(world, *(gradop[1]), vket, false);
+         vecfuncT dvz_ket = apply(world, *(gradop[2]), vket, false);
+         world.gop.fence();
+         compress(world,dvx_bra,false);
+         compress(world,dvy_bra,false);
+         compress(world,dvz_bra,false);
+         compress(world,dvx_ket,false);
+         compress(world,dvy_ket,false);
+         compress(world,dvz_ket,false);
+         world.gop.fence();
+         r += matrix_inner(r.distribution(), dvx_bra, dvx_ket, true);
+         r += matrix_inner(r.distribution(), dvy_bra, dvy_ket, true);
+         r += matrix_inner(r.distribution(), dvz_bra, dvz_ket, true);
+         r *= 0.5;
+         return r;
+     }
+
     vecfuncT SCF::core_projection(World & world, const vecfuncT & psi,
                                   const bool include_Bc) {
         PROFILE_MEMBER_FUNC(SCF);
@@ -804,19 +835,72 @@ namespace madness {
         return r;
     }
     
+    bool SCF::restart_aos(World& world) {
+        tensorT Saoamo, Saobmo;
+        bool OK = true;
+        if (world.rank() == 0) {
+            try {
+                archive::BinaryFstreamInputArchive arao("restartaodata");
+                arao >> Saoamo >> aeps >> aocc >> aset;
+                if (Saoamo.dim(0) != int(ao.size()) || Saoamo.dim(1) != param.nmo_alpha) {
+                    print(" AO alpha restart data size mismatch --- starting from atomic guess instead", Saoamo.dim(0), ao.size(), Saoamo.dim(1), param.nmo_alpha);
+                    OK = false;
+                }
+                if (!param.spin_restricted) {
+                    arao >> Saobmo >> beps >> bocc >> bset;
+                    if (Saobmo.dim(0) != int(ao.size()) || Saobmo.dim(1) != param.nmo_beta) {
+                        print(" AO beta restart data size mismatch --- starting from atomic guess instead", Saobmo.dim(0), ao.size(), Saobmo.dim(1), param.nmo_beta);
+                        OK = false;
+                    }
+                }
+                print("\nRestarting from AO projections on disk\n");
+            }
+            catch (...) {
+                print("\nAO restart file open/reading failed --- starting from atomic guess instead\n");
+                OK=false;
+            }
+        }
+        int fred = OK;
+        world.gop.broadcast(fred, 0);
+        OK = fred;
+        if (!OK) return false;
+        
+        world.gop.broadcast_serializable(Saoamo, 0);
+        if (!param.spin_restricted) world.gop.broadcast_serializable(Saobmo, 0);
+
+        tensorT S = matrix_inner(world, ao, ao), c;
+
+        gesvp(world, S, Saoamo, c);
+        amo = transform(world, ao, c, vtol, true);
+        truncate(world, amo);
+        orthonormalize(world, amo, param.nalpha);
+
+        if (!param.spin_restricted) {
+            gesvp(world, S, Saobmo, c);
+            bmo = transform(world, ao, c, vtol, true);
+            truncate(world, bmo);
+            orthonormalize(world, bmo, param.nbeta);
+        }
+
+        return true;
+    }
+
     void SCF::initial_guess(World & world) {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         if (param.restart) {
             load_mos(world);
         } else {
+            
 
             // recalculate initial guess density matrix without core orbitals
-            if (param.psp_calc){
+            if (!param.pure_ae){
                 for (int iatom = 0; iatom < molecule.natom(); iatom++) {
-                    double zeff=molecule.get_atom_charge(iatom);
-                    int atn=molecule.get_atom_number(iatom);
-                    aobasis.modify_dmat_psp(atn,zeff);
+                    if (molecule.get_pseudo_atom(iatom)){
+                        double zeff=molecule.get_atom_charge(iatom);
+                        int atn=molecule.get_atom_number(iatom);
+                        aobasis.modify_dmat_psp(atn,zeff);
+                    }
                 }
             }
 
@@ -826,7 +910,6 @@ namespace madness {
                                         functorT(
                                                  new MolecularGuessDensityFunctor(molecule,
                                                                                   aobasis))).truncate_on_project();
-
             double nel = rho.trace();
             if (world.rank() == 0)
                 print("guess dens trace", nel);
@@ -838,14 +921,17 @@ namespace madness {
                 real_function_3d vnuc;
                 if (param.psp_calc){
                     vnuc = gthpseudopotential->vlocalpot();}
-                else{
+                else if (param.pure_ae){
                     vnuc = potentialmanager->vnuclear();}
+                else {
+                    vnuc = potentialmanager->vnuclear();
+                    vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 
                 lb.add_tree(vnuc,
-                            lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
+                            lbcost<double, 3>(param.vnucextra * 1.0, param.vnucextra * 8.0), false);
                 lb.add_tree(rho, lbcost<double, 3>(1.0, 8.0), true);
                 
-                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts));
                 END_TIMER(world, "guess loadbal");
             }
             
@@ -856,8 +942,11 @@ namespace madness {
                 real_function_3d vnuc;
                 if (param.psp_calc){
                     vnuc = gthpseudopotential->vlocalpot();}
-                else{
+                else if (param.pure_ae){
                     vnuc = potentialmanager->vnuclear();}
+                else {
+                    vnuc = potentialmanager->vnuclear();
+                    vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 vlocal = vnuc + apply(*coulop, rho);
                 END_TIMER(world, "guess Coulomb potn");
                 bool save = param.spin_restricted;
@@ -871,8 +960,11 @@ namespace madness {
                 real_function_3d vnuc;
                 if (param.psp_calc){
                     vnuc = gthpseudopotential->vlocalpot();}
-                else{
+                else if (param.pure_ae){
                     vnuc = potentialmanager->vnuclear();}
+                else {
+                    vnuc = potentialmanager->vnuclear();
+                    vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 vlocal = vnuc;
             }
             rho.clear();
@@ -883,14 +975,17 @@ namespace madness {
                 real_function_3d vnuc;
                 if (param.psp_calc){
                     vnuc = gthpseudopotential->vlocalpot();}
-                else{
+                else if (param.pure_ae){
                     vnuc = potentialmanager->vnuclear();}
+                else {
+                    vnuc = potentialmanager->vnuclear();
+                    vnuc = vnuc + gthpseudopotential->vlocalpot();}     
                 lb.add_tree(vnuc,
-                            lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
+                            lbcost<double, 3>(param.vnucextra * 1.0, param.vnucextra * 8.0), false);
                 for (unsigned int i = 0; i < ao.size(); ++i) {
                     lb.add_tree(ao[i], lbcost<double, 3>(1.0, 8.0), false);
                 }
-                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+                FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts));
                 END_TIMER(world, "guess loadbal");
             }
             START_TIMER(world);
@@ -909,15 +1004,46 @@ namespace madness {
             reconstruct(world, ao);
             vlocal.reconstruct();
             vecfuncT vpsi;
-            if (param.psp_calc){
+
+            //debug plots:
+            /*{
+                int npt=1001;
+                functionT rhotmp =
+                    factoryT(world).functor(
+                                            functorT(
+                                                     new MolecularGuessDensityFunctor(molecule,
+                                                                                      aobasis))).truncate_on_project();
+                functionT vlda=make_lda_potential(world, rhotmp);
+                functionT coul=apply(*coulop, rhotmp);
+                plot_line("vlocal.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vlocal);
+                plot_line("vcoul.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vcoul);    
+                plot_line("vlda.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vlda);
+                plot_line("dens.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, rhotmp);
+    
+                if (!param.pure_ae && !param.psp_calc){
+                    real_function_3d vloc_ae;
+                    vloc_ae = potentialmanager->vnuclear();
+                    vloc_ae.reconstruct();
+                    plot_line("vlocal_ae.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vloc_ae);
+                    real_function_3d vloc_psp;
+                    vloc_psp = gthpseudopotential->vlocalpot();
+                    vloc_psp.reconstruct();
+                    plot_line("vlocal_psp.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vloc_psp);
+                }
+            }*/
+
+            //vlocal treated in psp includes psp and ae contribution so don't need separate clause for mixed psp/AE
+            if (!param.pure_ae){
                 double enl;
                 tensorT occ = tensorT(ao.size());
-                for(unsigned int i = 0;i < ao.size();++i){
+                for(unsigned int i = 0;i < param.nalpha;++i){
                     occ[i] = 1.0;}
+                for(unsigned int i = param.nalpha;i < ao.size();++i){
+                    occ[i] = 0.0;}
                 vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);}
             else{
                 vpsi = mul_sparse(world, vlocal, ao, vtol);}
-            
+
             compress(world, vpsi);
             truncate(world, vpsi);
             compress(world, ao);
@@ -926,6 +1052,20 @@ namespace madness {
             tensorT fock = kinetic + potential;
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
+
+            //debug printing
+            /*double ep = 0.0;
+            double ek = 0.0;
+            for(int i = 0;i < ao.size();++i){
+                ep += potential(i, i);
+                ek += kinetic(i, i);
+                std::cout << "pot/kin " << i << "  " << potential(i,i) << "  "<< kinetic(i,i) << std::endl;
+            }
+
+            if(world.rank() == 0){
+                printf("\n              epot, ekin, efock %16.8f  %16.8f  %16.8f\n", ek, ep, ek+ep);
+            */
+
             END_TIMER(world, "guess fock");
             
             START_TIMER(world);
@@ -949,8 +1089,8 @@ namespace madness {
             if (param.core_type != "") {
                 ncore = molecule.n_core_orb_all();
             }
-            amo = transform(world, ao,
-                            c(_, Slice(ncore, ncore + param.nmo_alpha - 1)), 0.0, true);
+
+            amo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_alpha - 1)), vtol, true);
             truncate(world, amo);
             normalize(world, amo);
             aeps = e(Slice(ncore, ncore + param.nmo_alpha - 1));
@@ -963,8 +1103,7 @@ namespace madness {
             aset=group_orbital_sets(world,aeps,aocc,param.nmo_alpha);
 
             if (param.nbeta && !param.spin_restricted) {
-                bmo = transform(world, ao,
-                                c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
+                bmo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_beta - 1)), vtol, true);
                 truncate(world, bmo);
                 normalize(world, bmo);
                 beps = e(Slice(ncore, ncore + param.nmo_beta - 1));
@@ -990,7 +1129,7 @@ namespace madness {
     		const tensorT& occ, const int nmo) const {
         PROFILE_MEMBER_FUNC(SCF);
 
-    	std::vector<int> set = std::vector<int>(nmo, 0);
+    	std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
         for (int i = 1; i < nmo; ++i) {
             set[i] = set[i - 1];
             if (eps[i] - eps[i - 1] > 1.5 || occ[i] != 1.0) ++(set[i]);
@@ -1016,11 +1155,14 @@ namespace madness {
         real_function_3d vnuc;
         if (param.psp_calc){
             vnuc = gthpseudopotential->vlocalpot();}
-        else{
+        else if (param.pure_ae){
             vnuc = potentialmanager->vnuclear();}
-        lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0));
+        else {
+            vnuc = potentialmanager->vnuclear();
+            vnuc = vnuc + gthpseudopotential->vlocalpot();}     
+        lb.add_tree(vnuc, lbcost<double, 3>(param.vnucextra * 1.0, param.vnucextra * 8.0));
         
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts));
     }
     
     functionT SCF::make_density(World & world, const tensorT & occ,
@@ -1031,9 +1173,7 @@ namespace madness {
         functionT rho = factoryT(world);
         rho.compress();
         for (unsigned int i = 0; i < vsq.size(); ++i) {
-            if (occ[i])
-                rho.gaxpy(1.0, vsq[i], occ[i], false);
-            
+            if (occ[i]) rho.gaxpy(1.0, vsq[i], occ[i], false);
         }
         world.gop.fence();
         vsq.clear();
@@ -1066,7 +1206,7 @@ namespace madness {
         return rho;
     }
     
-    std::vector<poperatorT> SCF::make_bsh_operators(World& world, const tensorT& evals) {
+    std::vector<poperatorT> SCF::make_bsh_operators(World& world, const tensorT& evals) const {
         PROFILE_MEMBER_FUNC(SCF);
         int nmo = evals.dim(0);
         std::vector < poperatorT > ops(nmo);
@@ -1087,6 +1227,29 @@ namespace madness {
         return ops;
     }
     
+    std::vector<poperatorT> SCF::make_gradbsh_operators(World& world,
+            const tensorT& evals, const int axis) const {
+        PROFILE_MEMBER_FUNC(SCF);
+        int nmo = evals.dim(0);
+        std::vector < poperatorT > ops(nmo);
+        double tol = FunctionDefaults < 3 > ::get_thresh();
+        for (int i = 0; i < nmo; ++i) {
+            double eps = evals(i);
+            if (eps > 0) {
+                if (world.rank() == 0) {
+                    print("bsh: warning: positive eigenvalue", i, eps);
+                }
+                eps = -0.1;
+            }
+
+            ops[i] = GradBSHOperator(world, sqrt(-2.0 * eps),
+                    param.lo, tol)[axis];
+        }
+
+        return ops;
+    }
+
+
     /// apply the HF exchange on a set of orbitals
     
     /// @param[in]  world   the world
@@ -1094,80 +1257,80 @@ namespace madness {
     /// @param[in]  psi     the orbitals in the exchange operator
     /// @param[in]  f       the orbitals |i> that the operator is applied on
     /// @return     a vector of orbitals  K| i>
-    vecfuncT SCF::apply_hf_exchange(World & world, const tensorT & occ,
-                                    const vecfuncT & psi, const vecfuncT & f) const {
-        PROFILE_MEMBER_FUNC(SCF);
-        const bool same = (&psi == &f);
-        int nocc = psi.size();
-        int nf = f.size();
-        double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
-        vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
-        reconstruct(world, psi);
-        norm_tree(world, psi);
-        if (!same) {
-            reconstruct(world, f);
-            norm_tree(world, f);
-        }
-        
-        //         // Smaller memory algorithm ... possible 2x saving using i-j sym
-        //         for(int i=0; i<nocc; ++i){
-        //             if(occ[i] > 0.0){
-        //                 vecfuncT psif = mul_sparse(world, psi[i], f, tol); /// was vtol
-        //                 truncate(world, psif);
-        //                 psif = apply(world, *coulop, psif);
-        //                 truncate(world, psif);
-        //                 psif = mul_sparse(world, psi[i], psif, tol); /// was vtol
-        //                 gaxpy(world, 1.0, Kf, occ[i], psif);
-        //             }
-        //         }
-        
-        // Larger memory algorithm ... use i-j sym if psi==f
-        vecfuncT psif;
-        for (int i = 0; i < nocc; ++i) {
-            int jtop = nf;
-            if (same)
-                jtop = i + 1;
-            for (int j = 0; j < jtop; ++j) {
-                psif.push_back(mul_sparse(psi[i], f[j], tol, false));
-            }
-        }
-        
-        world.gop.fence();
-        truncate(world, psif);
-        psif = apply(world, *coulop, psif);
-        truncate(world, psif, tol);
-        reconstruct(world, psif);
-        norm_tree(world, psif);
-        vecfuncT psipsif = zero_functions<double, 3>(world, nf * nocc);
-        int ij = 0;
-        for (int i = 0; i < nocc; ++i) {
-            int jtop = nf;
-            if (same)
-                jtop = i + 1;
-            for (int j = 0; j < jtop; ++j, ++ij) {
-                psipsif[i * nf + j] = mul_sparse(psif[ij], psi[i], false);
-                if (same && i != j) {
-                    psipsif[j * nf + i] = mul_sparse(psif[ij], psi[j], false);
-                }
-            }
-        }
-        world.gop.fence();
-        psif.clear();
-        world.gop.fence();
-        compress(world, psipsif);
-        for (int i = 0; i < nocc; ++i) {
-            for (int j = 0; j < nf; ++j) {
-                Kf[j].gaxpy(1.0, psipsif[i * nf + j], occ[i], false);
-            }
-        }
-        world.gop.fence();
-        psipsif.clear();
-        world.gop.fence();
-        
-        truncate(world, Kf, tol);
-        return Kf;
-    }
-    
+//    vecfuncT SCF::apply_hf_exchange(World & world, const tensorT & occ,
+//                                    const vecfuncT & psi, const vecfuncT & f) const {
+//        PROFILE_MEMBER_FUNC(SCF);
+//        const bool same = (&psi == &f);
+//        int nocc = psi.size();
+//        int nf = f.size();
+//        double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
+//        vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
+//        reconstruct(world, psi);
+//        norm_tree(world, psi);
+//        if (!same) {
+//            reconstruct(world, f);
+//            norm_tree(world, f);
+//        }
+//
+//        //         // Smaller memory algorithm ... possible 2x saving using i-j sym
+//        //         for(int i=0; i<nocc; ++i){
+//        //             if(occ[i] > 0.0){
+//        //                 vecfuncT psif = mul_sparse(world, psi[i], f, tol); /// was vtol
+//        //                 truncate(world, psif);
+//        //                 psif = apply(world, *coulop, psif);
+//        //                 truncate(world, psif);
+//        //                 psif = mul_sparse(world, psi[i], psif, tol); /// was vtol
+//        //                 gaxpy(world, 1.0, Kf, occ[i], psif);
+//        //             }
+//        //         }
+//
+//        // Larger memory algorithm ... use i-j sym if psi==f
+//        vecfuncT psif;
+//        for (int i = 0; i < nocc; ++i) {
+//            int jtop = nf;
+//            if (same)
+//                jtop = i + 1;
+//            for (int j = 0; j < jtop; ++j) {
+//                psif.push_back(mul_sparse(psi[i], f[j], tol, false));
+//            }
+//        }
+//
+//        world.gop.fence();
+//        truncate(world, psif);
+//        psif = apply(world, *coulop, psif);
+//        truncate(world, psif, tol);
+//        reconstruct(world, psif);
+//        norm_tree(world, psif);
+//        vecfuncT psipsif = zero_functions<double, 3>(world, nf * nocc);
+//        int ij = 0;
+//        for (int i = 0; i < nocc; ++i) {
+//            int jtop = nf;
+//            if (same)
+//                jtop = i + 1;
+//            for (int j = 0; j < jtop; ++j, ++ij) {
+//                psipsif[i * nf + j] = mul_sparse(psif[ij], psi[i], false);
+//                if (same && i != j) {
+//                    psipsif[j * nf + i] = mul_sparse(psif[ij], psi[j], false);
+//                }
+//            }
+//        }
+//        world.gop.fence();
+//        psif.clear();
+//        world.gop.fence();
+//        compress(world, psipsif);
+//        for (int i = 0; i < nocc; ++i) {
+//            for (int j = 0; j < nf; ++j) {
+//                Kf[j].gaxpy(1.0, psipsif[i * nf + j], occ[i], false);
+//            }
+//        }
+//        world.gop.fence();
+//        psipsif.clear();
+//        world.gop.fence();
+//
+//        truncate(world, Kf, tol);
+//        return Kf;
+//    }
+//
     // Used only for initial guess that is always spin-restricted LDA
     functionT SCF::make_lda_potential(World & world, const functionT & arho) {
         PROFILE_MEMBER_FUNC(SCF);
@@ -1178,56 +1341,21 @@ namespace madness {
     }
     
     vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
-                                  const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
+                                  const vecfuncT & amo,
                                   const functionT & vlocal, double & exc, double & enl, int ispin) {
         PROFILE_MEMBER_FUNC(SCF);
-        functionT vloc = vlocal;
+        functionT vloc = copy(vlocal);
         exc = 0.0;
         enl = 0.0;
-        
-        //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
+
+        // compute the local DFT potential for the MOs
         if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
-            
-            if (ispin == 0)
-                exc = make_dft_energy(world, vf, ispin);
             START_TIMER(world);
-            
-            // V_rho
-            vloc = vloc + make_dft_potential(world, vf, ispin, 0);
-            
-#ifdef MADNESS_HAS_LIBXC
-            //
-            // What = 0 : Vrho
-            // What = 1 : Vsigma_ss
-            // What = 2 : Vsigma_ab
-            //
-            // close shell
-            //       v_xc = vrho - Div( 2Vsig_aa * Grad(rho_a))
-            // open shell
-            //       v_xc = vrho - Div( 2*Vsig_aa*Grad(rho)+ Vsig_ab*Grad(rho_b) + Vsig_ba*Grad(rho_a) + 2*Vsig_bb*Grad(rho_b))
-            //
-            
-            if (xc.is_gga() ) {
-                // get Vsigma_aa (if it is the case and Vsigma_bb)
-                functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
-                functionT vsigab;
-		if (xc.is_spin_polarized() && param.nbeta != 0)// V_ab
-                    vsigab = make_dft_potential(world, vf, ispin, 2); //.truncate();
-                
-                for (int axis=0; axis<3; axis++) {
-                    functionT gradn = delrho[axis + 3*ispin];
-                    functionT ddel = vsigaa*gradn;
-	            if (xc.is_spin_polarized() && param.nbeta != 0) {
-                        functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
-                        ddel = ddel + vsab;
-                    }
-                    ddel.scale(xc.is_spin_polarized() ? 2.0 : 4.0);
-                    Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-                    functionT vxc2=D(ddel);
-                    vloc = vloc - vxc2;//.truncate();
-                }
-            } //is gga
-#endif
+
+            XCOperator xcoperator(world,this,ispin);
+            if (ispin==0) exc=xcoperator.compute_xc_energy();
+            vloc+=xcoperator.make_xc_potential();
+
             END_TIMER(world, "DFT potential");
         }
         
@@ -1235,15 +1363,18 @@ namespace madness {
         
         START_TIMER(world);
         vecfuncT Vpsi;
-        if (param.psp_calc){
+        if (!param.pure_ae){
             Vpsi = gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);}
-        else{
+        else {
             Vpsi = mul_sparse(world, vloc, amo, vtol);}
+
         END_TIMER(world, "V*psi");
         print_meminfo(world.rank(), "V*psi");
         if (xc.hf_exchange_coefficient()) {
             START_TIMER(world);
-            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
+//            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
+            Exchange K=Exchange(world,this,ispin).small_memory(false).same(true);
+            vecfuncT Kamo=K(amo);
             tensorT excv = inner(world, Kamo, amo);
             double exchf = 0.0;
             for (unsigned long i = 0; i < amo.size(); ++i) {
@@ -1256,7 +1387,8 @@ namespace madness {
             END_TIMER(world, "HF exchange");
             exc = exchf * xc.hf_exchange_coefficient() + exc;
         }
-        if (!param.psp_calc){
+        // need to come back to this for psp - when is this used?
+        if (param.pure_ae){
             potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);}
         
         START_TIMER(world);
@@ -1267,15 +1399,9 @@ namespace madness {
         return Vpsi;
     }
     
-    tensorT SCF::derivatives(World & world) {
+    tensorT SCF::derivatives(World & world, const functionT& rho) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
-        
-        functionT rho = make_density(world, aocc, amo);
-        functionT brho = rho;
-        if (!param.spin_restricted)
-            brho = make_density(world, bocc, bmo);
-        rho.gaxpy(1.0, brho, 1.0);
         
         vecfuncT dv(molecule.natom() * 3);
         vecfuncT du = zero_functions<double, 3>(world, molecule.natom() * 3);
@@ -1285,7 +1411,7 @@ namespace madness {
                 functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
                 dv[atom * 3 + axis] =
                     functionT(
-                              factoryT(world).functor(func).nofence().truncate_on_project());
+                              factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
                 if (param.core_type != ""
                     && molecule.is_potential_defined_atom(atom)) {
                     // core potential contribution
@@ -1346,24 +1472,51 @@ namespace madness {
         return r;
     }
     
-    tensorT SCF::dipole(World & world) {
+    void SCF::dipole_matrix_elements(World& world, const vecfuncT & mo, const tensorT& occ,
+                              const tensorT& energy, int spin) {
+        START_TIMER(world);
+        int nmo = mo.size();
+        tensorT mat_el(3, nmo, nmo);
+        for (int axis = 0; axis < 3; ++axis) {
+            functionT fdip = factoryT(world).functor(
+                                                     functorT(new DipoleFunctor(axis)));
+                mat_el(axis, _, _) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
+        }
+
+        double ha2ev=27.211396132;
+        FILE *f=0;
+        if (spin==0){
+            f = fopen("mat_els_alpha.dat", "w");}
+        else{
+            f = fopen("mat_els_beta.dat", "w");}
+        fprintf(f, "#initial | Energy (eV) | final  | Energy (eV) | Matrix el.  | Trans. E (eV)\n");
+        fprintf(f, "%4i  %4i\n", nmo, nmo);
+        fprintf(f, "%2i\n", 1);
+        fprintf(f, "%13.8f\n", 0.0);
+        for (int axis = 0; axis < 3; ++axis) {
+            fprintf(f, "# Cartesian component %2i\n", axis+1);
+            for (int i = 0; i < nmo; ++i) {
+                for (int j = 0; j < nmo; ++j) {
+                    fprintf(f, "%4i\t %13.8f\t %4i\t %13.8f\t %13.8f\t %13.8f\n", i+1, energy(i)*ha2ev, j+1, energy(j)*ha2ev, mat_el(axis,i,j), (energy(j)-energy(i))*ha2ev);
+                }
+            }
+        }
+        fclose(f);
+        END_TIMER(world, "Matrix elements");     
+    }
+
+    tensorT SCF::dipole(World & world, const functionT& rho) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
         tensorT mu(3);
+
         for (unsigned int axis = 0; axis < 3; ++axis) {
-            std::vector<int> x(3, 0);
+            std::vector<int> x(3ul, 0);
             x[axis] = true;
-            functionT dipolefunc = factoryT(world).functor(
-                                                           functorT(new MomentFunctor(x)));
-            functionT rho = make_density(world, aocc, amo);
-            if (!param.spin_restricted) {
-                if (param.nbeta)
-                    rho += make_density(world, bocc, bmo);
-            } else {
-                rho.scale(2.0);
-            }
+            functionT dipolefunc = factoryT(world)
+                    .functor(functorT(new MomentFunctor(x)));
             mu[axis] = -dipolefunc.inner(rho);
-            mu[axis] += molecule.nuclear_dipole(axis, param.psp_calc);
+            mu[axis] += molecule.nuclear_dipole(axis);
         }
         
         if (world.rank() == 0) {
@@ -1397,7 +1550,7 @@ namespace madness {
         PROFILE_MEMBER_FUNC(SCF);
         double trantol = vtol / std::min(30.0, double(psi.size()));
         int nmo = psi.size();
-        
+
         tensorT eps(nmo);
         for (int i = 0; i < nmo; ++i) {
             eps(i) = std::min(-0.05, fock(i, i));
@@ -1454,25 +1607,41 @@ namespace madness {
         START_TIMER(world);
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
         END_TIMER(world, "PE matrix");
-        /*START_TIMER(world);
-        LoadBalanceDeux < 3 > lb(world);
-        for (unsigned int i = 0; i < amo.size(); ++i) {
-            lb.add_tree(amo[i], lbcost<double, 3>(1.0, 8.0), false);
+
+        std::shared_ptr< WorldDCPmapInterface< Key<3> > > oldpmap = FunctionDefaults<3>::get_pmap();
+        vecfuncT psicopy=psi; // Functions are shallow copy so this is lightweight
+        if (world.size() > 1) {
+            START_TIMER(world);
+            LoadBalanceDeux < 3 > lb(world);
+            for (unsigned int i = 0; i < psi.size(); ++i) {
+                lb.add_tree(psi[i], lbcost<double, 3>(1.0, 8.0), false);
+            }
+            world.gop.fence();
+            END_TIMER(world, "KE compute loadbal");
+            
+            START_TIMER(world);
+            std::shared_ptr< WorldDCPmapInterface< Key<3> > > newpmap = lb.load_balance(param.loadbalparts);
+            FunctionDefaults<3>::set_pmap(newpmap);
+            
+            world.gop.fence();
+            for (unsigned int i=0; i<psi.size(); ++i) psicopy[i] = copy(psi[i],newpmap,false);
+            world.gop.fence();
+            END_TIMER(world, "KE redist");
         }
-        world.gop.fence();
-        std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmap = FunctionDefaults<3>::get_pmap();
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(2.0)); // 6.0 needs retuning after vnucextra 
-        END_TIMER(world, "KE redist");*/
+            
         START_TIMER(world);
         tensorT ke(psi.size(),psi.size());
         {
-            distmatT k = kinetic_energy_matrix(world, psi);
-            k.copy_to_replicated(ke);
+            distmatT k = kinetic_energy_matrix(world, psicopy);
+            k.copy_to_replicated(ke); // !!!!!!!! ugh
         }
         END_TIMER(world, "KE matrix");
-        /*START_TIMER(world);
-        FunctionDefaults < 3 > ::redistribute(world, pmap);
-        END_TIMER(world, "KE redist");*/
+
+        psicopy.clear();
+        if (world.size() > 1) {
+            FunctionDefaults<3>::set_pmap(oldpmap); // ! DON'T FORGET !
+        }
+
         START_TIMER(world);
         int nocc = occ.size();
         ekinetic = 0.0;
@@ -1670,6 +1839,15 @@ namespace madness {
         tensorT overlap = matrix_inner(world, psi, psi, true);
         tensorT U = get_fock_transformation(world, overlap, fock, evals, occ,
                                             thresh);
+
+        //eliminate mixing between occ and unocc
+        int nmo=U.dim(0);
+        for (int i=0; i<param.nalpha; ++i){
+           //make virt orthog to occ without changing occ states
+           for (int j=param.nalpha; j<nmo; ++j){
+               U(j,i)=0.0;
+           }
+        }
         
         // transform the orbitals and the orbitals times the potential
         Vpsi = transform(world, Vpsi, U, vtol / std::min(30.0, double(psi.size())),
@@ -1681,7 +1859,7 @@ namespace madness {
         truncate(world, Vpsi, vtol, false);
         truncate(world, psi);
         normalize(world, psi);
-        
+
         END_TIMER(world, "Diagonalization rest");
         return U;
     }
@@ -1690,14 +1868,17 @@ namespace madness {
                       functionT & arho_old, functionT & brho_old, subspaceT & subspace) {
         if (world.size() == 1)
             return;
-        
+
         LoadBalanceDeux < 3 > lb(world);
         real_function_3d vnuc;
         if (param.psp_calc){
             vnuc = gthpseudopotential->vlocalpot();}
-        else{
+        else if (param.pure_ae){
             vnuc = potentialmanager->vnuclear();}
-        lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0),
+        else {
+            vnuc = potentialmanager->vnuclear();
+            vnuc = vnuc + gthpseudopotential->vlocalpot();}     
+        lb.add_tree(vnuc, lbcost<double, 3>(param.vnucextra * 1.0, param.vnucextra * 8.0),
                     false);
         lb.add_tree(arho, lbcost<double, 3>(1.0, 8.0), false);
         for (unsigned int i = 0; i < amo.size(); ++i) {
@@ -1711,7 +1892,9 @@ namespace madness {
         }
         world.gop.fence();
         
-        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0)); // 6.0 needs retuning after vnucextra
+        FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(param.loadbalparts)); // 6.0 needs retuning after param.vnucextra
+
+        world.gop.fence();
     }
     
     void SCF::rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
@@ -1765,7 +1948,7 @@ namespace madness {
                 focka(i, i) = tmp;
             }
         }
-        
+  
         vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
         if (param.nbeta != 0 && !param.spin_restricted) {
             for (int i = 0; i < param.nmo_beta; i++) {
@@ -1863,12 +2046,12 @@ namespace madness {
         }
         
         do_step_restriction(world, amo, amo_new, "alpha");
-        orthonormalize(world, amo_new);
+        orthonormalize(world, amo_new, param.nalpha);
         amo = amo_new;
         
         if (!param.spin_restricted && param.nbeta != 0) {
             do_step_restriction(world, bmo, bmo_new, "beta");
-            orthonormalize(world, bmo_new);
+            orthonormalize(world, bmo_new, param.nbeta);
             bmo = bmo_new;
         } else {
             bmo = amo;
@@ -1915,6 +2098,43 @@ namespace madness {
     
     /// @param[in]          world   the world
     /// @param[inout]       amo_new the vectors to be orthonormalized
+    void SCF::orthonormalize(World& world, vecfuncT& amo_new, int nocc) const {
+        PROFILE_MEMBER_FUNC(SCF);
+        START_TIMER(world);
+        double trantol = vtol / std::min(30.0, double(amo_new.size()));
+        normalize(world, amo_new);
+        double maxq;
+        do {
+            tensorT Q = Q2(matrix_inner(world, amo_new, amo_new)); // Q3(matrix_inner(world, amo_new, amo_new))
+            maxq = 0.0;
+            for (int j=1; j<Q.dim(0); j++)
+                for (int i=0; i<j; i++)
+                    maxq = std::max(std::abs(Q(j,i)),maxq);
+            
+            //Q.screen(trantol); // ???? Is this really needed? Just for speed.
+
+            //make virt orthog to occ without changing occ states (is this correct?)
+            for (int j=nocc; j<Q.dim(0); ++j)
+                for (int i=0; i<nocc; ++i)
+                    Q(j,i)=0.0;
+
+            amo_new = transform(world, amo_new,
+                                Q, trantol, true);
+            truncate(world, amo_new);
+            if (world.rank() == 0) print("ORTHOG2a: maxq trantol", maxq, trantol);
+            //print(Q);
+
+        } while (maxq>0.01);
+        normalize(world, amo_new);
+
+        END_TIMER(world, "Orthonormalize");
+
+    }
+
+    /// orthonormalize the vectors
+    
+    /// @param[in]          world   the world
+    /// @param[inout]       amo_new the vectors to be orthonormalized
     void SCF::orthonormalize(World& world, vecfuncT& amo_new) const {
         PROFILE_MEMBER_FUNC(SCF);
         START_TIMER(world);
@@ -1923,16 +2143,16 @@ namespace madness {
         double maxq;
         do {
             tensorT Q = Q2(matrix_inner(world, amo_new, amo_new)); // Q3(matrix_inner(world, amo_new, amo_new))
-            maxq=0.0;
-            for (int i=0; i<Q.dim(0); ++i) 
-                for (int j=0; j<i; ++j)
-                    maxq = std::max(maxq,std::abs(Q(i,j)));
+            maxq = 0.0;
+            for (int j=1; j<Q.dim(0); j++)
+                for (int i=0; i<j; i++)
+                    maxq = std::max(std::abs(Q(j,i)),maxq);
             
-            Q.screen(trantol); // ???? Is this really needed?
+            //Q.screen(trantol); // ???? Is this really needed?
             amo_new = transform(world, amo_new,
                                 Q, trantol, true);
             truncate(world, amo_new);
-            if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+            if (world.rank() == 0) print("ORTHOG2b: maxq trantol", maxq, trantol);
             //print(Q);
             
         } while (maxq>0.01);
@@ -2112,11 +2332,12 @@ namespace madness {
         const double dconv = std::max(FunctionDefaults < 3 > ::get_thresh(),
                                       param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
-        const double tolloc = 1e-3;
+        const double tolloc = std::min(1e-6,0.01*dconv);
         double update_residual = 0.0, bsh_residual = 0.0;
         subspaceT subspace;
         tensorT Q;
         bool do_this_iter = true;
+        bool converged = false;
         // Shrink subspace until stop localizing/canonicalizing
         int maxsub_save = param.maxsub;
         param.maxsub = 2;
@@ -2131,24 +2352,29 @@ namespace madness {
             }
             
             if (param.localize && do_this_iter) {
-                distmatT dUT;
-                dUT = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0, true);
-                dUT.data().screen(trantol);
+	        distmatT dUT;
+		if (param.localize_pm)
+		  dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, true);
+		else 
+		  dUT = localize_boys(world, amo, aset, tolloc, 0.1, iter == 0);
 
+                dUT.data().screen(trantol);
                 START_TIMER(world);
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 normalize(world, amo);
-                ////////////////////////////////////////////rotate_subspace(world, dUT, subspace, 0, amo.size(), trantol);
                 END_TIMER(world, "Rotate subspace");
                 if (!param.spin_restricted && param.nbeta != 0) {
-                    dUT = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0, true);
+		  if (param.localize_pm)
+                    dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, true);
+		  else
+		    dUT = localize_boys(world, bmo, bset, tolloc, 0.1, iter == 0);
+
                     START_TIMER(world);
                     dUT.data().screen(trantol);
                     bmo = transform(world, bmo, dUT);
                     truncate(world, bmo);
                     normalize(world, bmo);
-                    /////////////////////////////////////////////rotate_subspace(world, dUT, subspace, amo.size(), bmo.size(),trantol);
                     END_TIMER(world, "Rotate subspace");
                 }
             }
@@ -2192,8 +2418,11 @@ namespace madness {
             real_function_3d vnuc;
             if (param.psp_calc){
                 vnuc = gthpseudopotential->vlocalpot();}
-            else{
+            else if (param.pure_ae){
                 vnuc = potentialmanager->vnuclear();}
+            else {
+                vnuc = potentialmanager->vnuclear();
+                vnuc = vnuc + gthpseudopotential->vlocalpot();}     
             double enuclear = inner(rho, vnuc);
             END_TIMER(world, "Nuclear energy");
 
@@ -2202,73 +2431,31 @@ namespace madness {
             functionT vlocal;
             END_TIMER(world, "Coulomb");
             print_meminfo(world.rank(), "Coulomb");
-            
+
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
             vlocal = vcoul + vnuc;
+
+            // compute the contribution of the solvent to the local potential
+            double epcm=0.0;
+            if (param.pcm_data != "none") {
+                START_TIMER(world);
+                functionT vpcm=pcm.compute_pcm_potential(vcoul);
+                vlocal+=vpcm;
+                epcm=pcm.compute_pcm_energy();
+                END_TIMER(world, "PCM");
+                print_meminfo(world.rank(), "PCM");
+            }
             
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
-            
-            vecfuncT vf, delrho;
-            if (xc.is_dft()) {
-                START_TIMER(world);
-                arho.reconstruct();
-                if (param.nbeta != 0 && xc.is_spin_polarized())
-                    brho.reconstruct();
-                // brho.reconstruct();
-                
-                vf.push_back(arho);
-                
-                if (xc.is_spin_polarized())
-                    vf.push_back(brho);
-                
-                if (xc.is_gga()) {
-                    
-                    for (int axis = 0; axis < 3; ++axis)
-                        delrho.push_back((*gradop[axis])(arho, false)); // delrho
-			if (xc.is_spin_polarized() && param.nbeta != 0)
-                        for (int axis = 0; axis < 3; ++axis)
-                            delrho.push_back((*gradop[axis])(brho, false));
-                    
-                    world.gop.fence(); // NECESSARY
-                    
-                    vf.push_back(
-                                 delrho[0] * delrho[0] + delrho[1] * delrho[1]
-                                 + delrho[2] * delrho[2]);     // sigma_aa
-                    
-		    if (xc.is_spin_polarized() && param.nbeta != 0)
-                        vf.push_back(
-                                     delrho[0] * delrho[3] + delrho[1] * delrho[4]
-                                     + delrho[2] * delrho[5]); // sigma_ab
-	            if (xc.is_spin_polarized() && param.nbeta != 0)
-                        vf.push_back(
-                                     delrho[3] * delrho[3] + delrho[4] * delrho[4]
-                                     + delrho[5] * delrho[5]); // sigma_bb
-                    
-                    world.gop.fence(); // NECESSARY
-                }
-                if (vf.size()) {
-                    reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-                }
-            
-                // this is a nasty hack, just adding something so that make_libxc_args receives 5 arguments
-                // has to be here or refine_to_common_level(vf) above hangs, but we really need a better solution for when nbeta=0
-		if (xc.is_spin_polarized() && param.nbeta == 0 && xc.is_gga()){
-		        vf.push_back(brho);
-			vf.push_back(brho);}
-                END_TIMER(world, "DFT setup");
-            }
 
             double enla = 0.0, enlb = 0.0;
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal,
-                                             exca, enla, 0);
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, vlocal, exca, enla, 0);
             vecfuncT Vpsib;
             if (!param.spin_restricted && param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb,
-                                        enlb, 1);
+                Vpsib = apply_potential(world, bocc, bmo, vlocal, excb, enlb, 1);
             }
             else if (param.nbeta != 0) {
                 enlb = enla;
@@ -2287,34 +2474,37 @@ namespace madness {
             if (!param.localize && do_this_iter) {
                 tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc,
                                              FunctionDefaults < 3 > ::get_thresh());
-                ////////////////////////////////////////////rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+                //rotate_subspace(world, U, subspace, 0, amo.size(), trantol); ??
                 if (!param.spin_restricted && param.nbeta != 0) {
                     U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc,
                                          FunctionDefaults < 3 > ::get_thresh());
-                    /////////////////////rotate_subspace(world, U, subspace, amo.size(), bmo.size(),
-		    //////////////////////////////////trantol);
+                    //rotate_subspace(world, U, subspace, amo.size(), bmo.size(),trantol);
                 }
             }
             
-            double enrep;
-            if (param.psp_calc){
-                enrep = molecule.nuclear_repulsion_energy_pseudo();           
-            }
-            else{
-                enrep = molecule.nuclear_repulsion_energy();
-            }
+            double enrep = molecule.nuclear_repulsion_energy();
             double ekinetic = ekina + ekinb;
             double enonlocal = enla + enlb;
             double exc = exca + excb;
-            double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal;
+            double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal + epcm;
             current_energy = etot;
             //esol = etot;
             
             if (world.rank() == 0) {
+                //lots of dps for testing Exc stuff
+                /*printf("\n              kinetic %32.24f\n", ekinetic);
+                printf("         nonlocal psp %32.24f\n", enonlocal);
+                printf("   nuclear attraction %32.24f\n", enuclear);
+                printf("              coulomb %32.24f\n", ecoulomb);
+                printf(" exchange-correlation %32.24f\n", exc);
+                printf("    nuclear-repulsion %32.24f\n", enrep);
+                printf("                total %32.24f\n\n", etot);*/
+
                 printf("\n              kinetic %16.8f\n", ekinetic);
                 printf("         nonlocal psp %16.8f\n", enonlocal);
                 printf("   nuclear attraction %16.8f\n", enuclear);
                 printf("              coulomb %16.8f\n", ecoulomb);
+                printf("                  PCM %16.8f\n", epcm);
                 printf(" exchange-correlation %16.8f\n", exc);
                 printf("    nuclear-repulsion %16.8f\n", enrep);
                 printf("                total %16.8f\n\n", etot);
@@ -2323,8 +2513,11 @@ namespace madness {
             if (iter > 0) {
                 //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
                 if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
-                    && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) {
-                    if (world.rank() == 0) {
+                    && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) converged=true;
+
+                // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
+                if (converged || iter==param.maxiter-1) {
+                    if (world.rank() == 0 && converged) {
                         print("\nConverged!\n");
                     }
                     
@@ -2372,6 +2565,34 @@ namespace madness {
                             print("beta eigenvalues");
                             print (beps);
                         }
+
+
+                        // write eigenvalues etc to a file at the same time for plotting DOS etc.
+                        FILE *f=0;
+                        if (param.nbeta != 0 && !param.spin_restricted) {
+                            f = fopen("energies_alpha.dat", "w");}
+                        else{
+                            f = fopen("energies.dat", "w");}
+
+                        long nmo = amo.size();
+                        fprintf(f, "# %8li\n", nmo);
+                        for (long i = 0; i < nmo; ++i) {
+                            fprintf(f, "%13.8f\n", aeps(i));
+                        }
+                        fclose(f);
+
+                        if (param.nbeta != 0 && !param.spin_restricted) {
+                            long nmo = bmo.size();
+                            FILE *f=0;
+                            f = fopen("energies_beta.dat", "w");
+
+                            fprintf(f, "# %8li\n", nmo);
+                            for (long i = 0; i < nmo; ++i) {
+                                fprintf(f, "%13.8f\t", beps(i));
+                            }
+                            fclose(f);
+                        }
+
                     }
                     
                     if (param.localize) {
@@ -2390,9 +2611,18 @@ namespace madness {
             
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q,
                             bsh_residual, update_residual);
+
         }
-        
-        dipole(world);
+
+        // compute the dipole moment
+        functionT rho = make_density(world, aocc, amo);
+        if (!param.spin_restricted) {
+            if (param.nbeta)
+                rho += make_density(world, bocc, bmo);
+        } else {
+            rho.scale(2.0);
+        }
+        dipole(world,rho);
         
         if (world.rank() == 0) {
             if (param.localize)
@@ -2410,7 +2640,1081 @@ namespace madness {
             
             analyze_vectors(world, bmo, bocc, beps);
         }
+
+        if (param.print_dipole_matels) {
+            dipole_matrix_elements(world, amo, aocc, aeps, 0);
+            if (param.nbeta != 0 && !param.spin_restricted) {    
+                dipole_matrix_elements(world, bmo, bocc, beps, 1);
+            }
+        }
+
         
     }        // end solve function
+
+
+
+//vama polarizability
+    void SCF::update_response_subspace(World & world,
+                         vecfuncT & ax, vecfuncT & ay,
+                         vecfuncT & bx, vecfuncT & by,
+                         vecfuncT & rax, vecfuncT & ray,
+                         vecfuncT & rbx, vecfuncT & rby,
+                         subspaceT & subspace, tensorT & Q, double & update_residual)
+    {
+        vecfuncT vm = ax;
+        vm.insert(vm.end(), ay.begin(), ay.end());
+
+        vecfuncT rm = rax;
+        rm.insert(rm.end(), ray.begin(), ray.end());
+
+        if(param.nbeta != 0 && !param.spin_restricted){
+            vm.insert(vm.end(), bx.begin(), bx.end());
+            vm.insert(vm.end(), by.begin(), by.end());
+            rm.insert(rm.end(), rbx.begin(), rbx.end());
+            rm.insert(rm.end(), rby.begin(), rby.end());
+        }
+
+        compress(world, vm, false);
+        compress(world, rm, false);
+        world.gop.fence();
+        subspace.push_back(pairvecfuncT(vm, rm));
+        int m = subspace.size();
+        tensorT ms(m);
+        tensorT sm(m);
+        for(int s = 0;s < m;++s){
+            const vecfuncT & vs = subspace[s].first;
+            const vecfuncT & rs = subspace[s].second;
+            for(unsigned int i = 0;i < vm.size();++i){
+                ms[s] += vm[i].inner_local(rs[i]);
+                sm[s] += vs[i].inner_local(rm[i]);
+            }
+        }
+
+        world.gop.sum(ms.ptr(), m);
+        world.gop.sum(sm.ptr(), m);
+        tensorT newQ(m, m);
+        if(m > 1)
+            newQ(Slice(0, -2), Slice(0, -2)) = Q;
+
+        newQ(m - 1, _) = ms;
+        newQ(_, m - 1) = sm;
+        Q = newQ;
+        //if (world.rank() == 0) { print("kain Q"); print(Q); }
+        tensorT c;
+        if(world.rank() == 0){
+            double rcond = 1e-12;
+            while(1){
+                c = KAIN(Q, rcond);
+                //if (world.rank() == 0) print("kain c:", c);
+                if(std::abs(c[m - 1]) < 3.0){
+                    break;
+                } else if(rcond < 0.01){
+                    print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+                    rcond *= 100;
+                } else {
+                    print("Forcing full step due to subspace malfunction");
+                    c = 0.0;
+                    c[m - 1] = 1.0;
+                    break;
+                }
+            }
+        }
+
+        world.gop.broadcast_serializable(c, 0);
+        if(world.rank() == 0){
+            print("Response Subspace solution", c);
+        }
+        START_TIMER(world);
+        vecfuncT ax_new = zero_functions_compressed<double,3>(world, ax.size());
+        vecfuncT ay_new = zero_functions_compressed<double,3>(world, ay.size());
+        vecfuncT bx_new = zero_functions_compressed<double,3>(world, bx.size());
+        vecfuncT by_new = zero_functions_compressed<double,3>(world, by.size());
+
+        for(unsigned int m = 0;m < subspace.size();++m){
+            const vecfuncT & vm = subspace[m].first;
+            const vecfuncT & rm = subspace[m].second;
+            const vecfuncT vmax(vm.begin(), vm.begin() + ax.size());
+            const vecfuncT rmax(rm.begin(), rm.begin() + rax.size());
+            const vecfuncT vmay(vm.begin() + ax.size(), vm.begin() + ax.size() + ay.size());
+            const vecfuncT rmay(rm.begin() + rax.size(), rm.begin() + rax.size() + ray.size());
+            gaxpy(world, 1.0, ax_new, c(m), vmax, false);
+            gaxpy(world, 1.0, ax_new, -c(m), rmax, false);
+            gaxpy(world, 1.0, ay_new, c(m), vmay, false);
+            gaxpy(world, 1.0, ay_new, -c(m), rmay, false);
+            //if(param.nbeta != 0 && !param.spin_restricted){
+                const vecfuncT vmbx(vm.end() - by.size() - bx.size(), vm.end() - by.size());
+                const vecfuncT rmbx(rm.end() - rby.size() - rbx.size(), rm.end() - rby.size());
+                const vecfuncT vmby(vm.end() - by.size(), vm.end());
+                const vecfuncT rmby(rm.end() - rby.size(), rm.end());
+                gaxpy(world, 1.0, bx_new, c(m), vmbx, false);
+                gaxpy(world, 1.0, bx_new, -c(m), rmbx, false);
+                gaxpy(world, 1.0, by_new, c(m), vmby, false);
+                gaxpy(world, 1.0, by_new, -c(m), rmby, false);
+            //}
+        }
+        world.gop.fence();
+        END_TIMER(world, "Subspace transform");
+        if(param.maxsub <= 1){
+            subspace.clear();
+        } else if(subspace.size() == param.maxsub){
+            subspace.erase(subspace.begin());
+            Q = Q(Slice(1, -1), Slice(1, -1));
+        }
+
+        std::vector<double> axnorm = norm2s(world, sub(world, ax, ax_new));
+        std::vector<double> aynorm = norm2s(world, sub(world, ay, ay_new));
+        std::vector<double> bxnorm = norm2s(world, sub(world, bx, bx_new));
+        std::vector<double> bynorm = norm2s(world, sub(world, by, by_new));
+        int nres = 0;
+        for(unsigned int i = 0;i < ax.size();++i){
+            if(axnorm[i] > param.maxrotn){
+                double s = param.maxrotn / axnorm[i];
+                ++nres;
+                if(world.rank() == 0){
+                    if(nres == 1)
+                        printf("  restricting step for alpha orbitals:");
+
+                    printf(" %d", i);
+                }
+                ax_new[i].gaxpy(s, ax[i], 1.0 - s, false);
+            }
+
+        }
+        if(nres > 0 && world.rank() == 0)
+            printf("\n");
+        
+        nres = 0;
+        for(unsigned int i = 0;i < ay.size();++i){
+            if(aynorm[i] > param.maxrotn){
+                double s = param.maxrotn / aynorm[i];
+                ++nres;
+                if(world.rank() == 0){
+                    if(nres == 1)
+                        printf("  restricting step for alpha orbitals:");
+
+                    printf(" %d", i);
+                }
+                ay_new[i].gaxpy(s, ay[i], 1.0 - s, false);
+            }
+
+        }
+        if(nres > 0 && world.rank() == 0)
+            printf("\n");
+
+        //if(param.nbeta != 0 && !param.spin_restricted){
+            nres = 0;
+            for(unsigned int i = 0;i < bx.size();++i){
+                if(bxnorm[i] > param.maxrotn){
+                    double s = param.maxrotn / bxnorm[i];
+                    ++nres;
+                    if(world.rank() == 0){
+                        if(nres == 1)
+                            printf("  restricting step for  beta orbitals:");
+
+                        printf(" %d", i);
+                    }
+                    bx_new[i].gaxpy(s, bx[i], 1.0 - s, false);
+                }
+
+            }
+            if(nres > 0 && world.rank() == 0)
+                printf("\n");
+
+            nres = 0;
+            for(unsigned int i = 0;i < by.size();++i){
+                if(bynorm[i] > param.maxrotn){
+                    double s = param.maxrotn / bynorm[i];
+                    ++nres;
+                    if(world.rank() == 0){
+                        if(nres == 1)
+                            printf("  restricting step for  beta orbitals:");
+
+                        printf(" %d", i);
+                    }
+                    by_new[i].gaxpy(s, by[i], 1.0 - s, false);
+                }
+
+            }
+            if(nres > 0 && world.rank() == 0)
+                printf("\n");
+        //}
+
+        world.gop.fence();
+        double rms, maxval_x, maxval_y, maxval_b;
+        vector_stats(axnorm, rms, maxval_x);
+        vector_stats(aynorm, rms, maxval_y);
+
+        update_residual = std::max(maxval_x, maxval_y);
+
+        if(bxnorm.size()){
+            vector_stats(bxnorm, rms, maxval_x);
+            vector_stats(bynorm, rms, maxval_y);
+            
+            maxval_b = std::max(maxval_x, maxval_y);
+            update_residual = std::max(update_residual, maxval_b);
+        }
+        //START_TIMER(world);
+        //double trantol = vtol / std::min(30.0, double(ax.size()));
+        //normalize(world, ax_new);
+        //normalize(world, ay_new);
+        //ax_new = transform(world, ax_new, Q3(matrix_inner(world, ax_new, ax_new)), trantol, true);
+        //ay_new = transform(world, ay_new, Q3(matrix_inner(world, ay_new, ay_new)), trantol, true);
+        truncate(world, ax_new);
+        truncate(world, ay_new);
+        //normalize(world, ax_new);
+        //normalize(world, ay_new);
+        if(param.nbeta != 0  && !param.spin_restricted){
+            //normalize(world, bx_new);
+            //normalize(world, by_new);
+            //bx_new = transform(world, bx_new, Q3(matrix_inner(world, bx_new, bx_new)), trantol, true);
+            //by_new = transform(world, by_new, Q3(matrix_inner(world, by_new, by_new)), trantol, true);
+            truncate(world, bx_new);
+            truncate(world, by_new);
+            //normalize(world, bx_new);
+            //normalize(world, by_new);
+        }
+        //END_TIMER(world, "Orthonormalize");
+        ax = ax_new;
+        ay = ay_new;
+        bx = bx_new;
+        by = by_new;
+    }
+
+    vecfuncT SCF::apply_potential_response(World & world, const vecfuncT & dmo,
+            const XCOperator& xcop,  const functionT & vlocal, int ispin)
+    {
+        functionT vloc = copy(vlocal);
+
+        if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
+            START_TIMER(world);
+
+//            XCOperator xcoperator(world,this,ispin);
+//            if (ispin==0) exc=xcoperator.compute_xc_energy();
+            xcop.set_ispin(ispin);
+            vloc += xcop.make_xc_potential();
+
+// TODO: fbischoff thinks this is double-counting the gga potential part
+//
+//#ifdef MADNESS_HAS_LIBXC
+//            if (xc.is_gga() ) {
+//
+//                functionT vsigaa = xcoperator.make_xc_potential();
+//                functionT vsigab;
+//                if (xc.is_spin_polarized() && param.nbeta != 0)// V_ab
+//                    vsigab = xcoperator.make_xc_potential();
+//
+//                for (int axis=0; axis<3; axis++) {
+//                    functionT gradn = delrho[axis + 3*ispin];
+//                    functionT ddel = vsigaa*gradn;
+//                    if (xc.is_spin_polarized() && param.nbeta != 0) {
+//                        functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
+//                        ddel = ddel + vsab;
+//                    }
+//                    ddel.scale(xc.is_spin_polarized() ? 2.0 : 4.0);
+//                    Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+//                    functionT vxc2=D(ddel);
+//                    vloc = vloc - vxc2;//.truncate();
+//                }
+//            }
+//#endif
+            END_TIMER(world, "DFT potential");
+        }
+
+
+
+        START_TIMER(world);
+        vecfuncT Vdmo = mul_sparse(world, vloc, dmo, vtol);
+        END_TIMER(world, "V*dmo");
+        print_meminfo(world.rank(), "V*dmo");
+        if(xc.hf_exchange_coefficient()){
+            START_TIMER(world);
+            vecfuncT Kdmo;
+            Exchange K=Exchange(world,this,ispin).small_memory(false).same(false);
+            if(ispin == 0)
+                Kdmo=K(amo); 
+            if(ispin == 1)
+                Kdmo=K(bmo); 
+            //tensorT excv = inner(world, Kdmo, dmo);
+            //double exchf = 0.0;
+            //for(unsigned long i = 0;i < dmo.size();++i){
+            //    exchf -= 0.5 * excv[i] * occ[i];
+            //}
+            //if (!xc.is_spin_polarized()) exchf *= 2.0;
+            gaxpy(world, 1.0, Vdmo, -xc.hf_exchange_coefficient(), Kdmo);
+            Kdmo.clear();
+            END_TIMER(world, "HF exchange");
+            //exc = exchf* xc.hf_exchange_coefficient() + exc;
+        }
+        if (param.pure_ae)
+            potentialmanager->apply_nonlocal_potential(world, amo, Vdmo);
+
+        truncate(world, Vdmo);
+
+        print_meminfo(world.rank(), "Truncate Vdmo");
+        world.gop.fence();
+        return Vdmo;
+    }
+
+    void SCF::this_axis(World & world, int & axis)
+    {
+        print("\n");
+        if (world.rank() == 0) { 
+            if(axis == 0) 
+                print(" AXIS of frequency = x");
+
+            else if(axis == 1) 
+                print(" AXIS of frequency = y");
+
+            else if(axis == 2) 
+                print(" AXIS of frequency = z");
+        }
+    }
+
+    vecfuncT SCF::calc_dipole_mo(World & world,  vecfuncT & mo, int & axis)
+    {
+        //START_TIMER(world);
+
+        vecfuncT dipolemo = zero_functions<double,3>(world, mo.size());
+        
+        std::vector<int> f(3, 0);
+        f[axis] = true;
+        //print("f = ", f[0]," ",  f[1], " ", f[2]);
+        functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
+        reconstruct(world, mo);  
+
+        // dipolefunc * mo[iter]
+        for(int p=0; p<mo.size(); ++p)
+            dipolemo[p] =  mul_sparse(dipolefunc, mo[p],false);
+
+        //END_TIMER(world, "Make perturbation");
+        print_meminfo(world.rank(), "Make perturbation");
+
+        truncate(world, dipolemo);
+        return dipolemo;
+    }
+
+    void SCF::calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int sign)
+    {
+
+        for(int i=0; i<param.nalpha; ++i){
+            ak[i] = sqrt(-2.0 * (aeps[i] + sign * omega));
+            if (world.rank() == 0)  
+                print(" kxy(alpha) [", i, "] : sqrt(-2 * (eps +/- omega)) = ", ak[i]);
+        }
+        if(!param.spin_restricted && param.nbeta != 0) {
+            for(int i=0; i<param.nbeta; ++i){
+                bk[i] = sqrt(-2.0 * (beps[i] + sign * omega));
+                if (world.rank() == 0)  
+                    if (world.rank() == 0)  
+                        print(" kxy(beta) [", i, "]: sqrt(-2 * (eps +/- omega)) = ", bk[i]);
+            }
+        }
+    }
+
+    void SCF::make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
+            std::vector<poperatorT> & aop, std::vector<poperatorT> & bop)
+    {
+        //START_TIMER(world);
+        double tol = FunctionDefaults < 3 > ::get_thresh();
+
+        for(int i=0; i<param.nalpha; ++i) {
+            // thresh tol : 1e-6
+            aop[i] = poperatorT(BSHOperatorPtr3D(world, ak[i], param.lo , tol));
+        }
+        if(!param.spin_restricted && param.nbeta != 0) {
+            for(int i=0; i<param.nbeta; ++i) {
+                bop[i] = poperatorT(BSHOperatorPtr3D(world, bk[i], param.lo, tol));
+            }
+        }
+        //END_TIMER(world, "Make BSHOp");
+        print_meminfo(world.rank(), "Make BSHOp");
+    }
+
+    functionT SCF::make_density_ground(World & world, functionT & arho, functionT & brho)
+    {
+
+        //START_TIMER(world);            
+
+        functionT rho = factoryT(world);
+
+        arho = make_density(world, aocc, amo);
+        if (!param.spin_restricted) {
+            brho = make_density(world, bocc, bmo);
+        }
+        else {
+            brho = arho;
+        }
+
+        rho = arho + brho;
+        rho.truncate();
+
+        //END_TIMER(world, "Make densities");
+        print_meminfo(world.rank(), "Make densities");
+
+        return rho;
+    }
+
+    functionT SCF::make_derivative_density(World & world, const vecfuncT & mo, 
+                                     const tensorT & occ , 
+                                     const vecfuncT & x, const vecfuncT & y)
+    {
+        functionT drho = factoryT(world);
+        drho.compress();
+        for(int i=0; i<mo.size(); ++i) {
+            functionT rhoi = mo[i] * x[i] + mo[i] * y[i];
+            rhoi.compress();
+            if(occ[i])
+                drho.gaxpy(1.0, rhoi, occ[i], false);
+              // drho += (mo[i] * x[i]) + (mo[i] * y[i]);
+        }
+        world.gop.fence();
+        //drho.truncate();
+        return drho;
+    }
+
+
+    functionT SCF::calc_exchange_function(World & world,  const int & p,
+             const vecfuncT & dmo1,  const vecfuncT & dmo2,
+             const vecfuncT & mo, int & spin)
+    {
+
+        functionT dKmo = factoryT(world);
+        reconstruct(world, mo);
+        reconstruct(world, dmo1);
+        reconstruct(world, dmo2);
+
+        functionT k1 = factoryT(world);
+        functionT k2 = factoryT(world);
+        for(int i=0; i<mo.size(); ++i) {
+            k1 = apply(*coulop, ( mo[i] * mo[p] )) * dmo1[i];
+            k2 = apply(*coulop, ( mo[p] * dmo2[i] )) * mo[i];
+            dKmo = dKmo - (k1 + k2);
+            k1.clear(false);
+            k2.clear(false);
+        }
+        dKmo.truncate();
+        return dKmo;
+    }
+
+
+    /// param[in]   drho    the perturbed density
+    vecfuncT SCF::calc_xc_function(World & world, XCOperator& xc_alda,
+             const vecfuncT & mo,  const functionT & drho)
+    {
+        START_TIMER(world);
+        reconstruct(world, mo);
+
+        functionT dJ = apply(*coulop, drho);
+        dJ.truncate();
+
+        functionT vloc = dJ;
+
+        // TODO openshell ?
+        if (xc.is_dft() && xc.hf_exchange_coefficient() !=1.0) {
+            vloc =  dJ +  xc_alda.apply_xc_kernel(drho);
+        }
+
+        vecfuncT Vxcmo = mul_sparse(world, vloc, mo, vtol);
+        truncate(world, Vxcmo);
+
+        END_TIMER(world, "Calc calc_xc_function ");
+        print_meminfo(world.rank(), "Calc calc_xc_function");
+        return Vxcmo;
+    }
     
+    /// @param[in]  drho    the perturbed density
+    vecfuncT SCF::calc_djkmo(World & world, XCOperator& xc_alda, const vecfuncT & dmo1,
+                        const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,  
+                        const functionT & drhos,
+                        int  spin)
+    {
+
+        vecfuncT djkmo = zero_functions<double,3>(world, mo.size());
+        // TODO becareful with drhos , drho
+        // open shell drhoa !=drhob
+
+        vecfuncT dkxcmo = calc_xc_function(world, xc_alda, mo, drho);
+         //TODO hybrdid functs: not sure if should i have to apply 
+        if(xc.hf_exchange_coefficient() == 1.0){
+        //if(xc.hf_exchange_coefficient()){
+            START_TIMER(world);
+            for(int p=0; p<mo.size(); ++p) {
+                djkmo[p] = calc_exchange_function(world, p, dmo1, dmo2, mo,spin);
+               //add a fraction only
+                djkmo[p].scale(xc.hf_exchange_coefficient());
+            }
+            END_TIMER(world, "Calc calc_exchange_function ");
+            print_meminfo(world.rank(), "Calc calc_exchange_function");
+        }
+        gaxpy(world, 1.0, djkmo, 1.0, dkxcmo);
+        truncate(world, djkmo);
+
+        return djkmo;
+    }
+
+    vecfuncT SCF::calc_rhs(World & world, const vecfuncT & mo , 
+                     const vecfuncT & Vdmo, 
+                     const vecfuncT & dipolemo, const vecfuncT & djkmo )
+    {
+        //START_TIMER(world);
+        vecfuncT rhs;
+
+        // the projector on the unperturbed density
+        Projector<double,3> rho0(mo);
+
+        vecfuncT gp = add(world, dipolemo, djkmo);
+        for (int i=0; i<Vdmo.size(); ++i) {
+            functionT gp1 =  gp[i];
+            gp1 = gp1 - rho0(gp1);
+            gp1 = Vdmo[i] + gp1 ;
+            rhs.push_back(gp1);
+        }
+
+        //END_TIMER(world, "Sum rhs response");
+        print_meminfo(world.rank(), "Sum rhs response");
+        truncate(world, rhs);
+
+        return rhs;
+    }
+
+
+    void SCF::calc_response_function(World & world, vecfuncT & dmo, 
+            std::vector<poperatorT> & op, vecfuncT & rhs)
+    {
+        // new response function
+        // BSHOperatorPrt3D : op
+        dmo = apply(world, op, rhs);
+        scale(world, dmo, -2.0);
+        truncate(world, dmo);
+    }
+
+    // orthogonalization
+    void SCF::orthogonalize_response(World & world, vecfuncT & dmo, vecfuncT & mo )
+    {
+     reconstruct(world, dmo);
+       for(int i=0; i<mo.size(); ++i){
+           for (int j=0; j<mo.size(); ++j){
+               // new_x = new_x - < psi | new_x > * psi
+               dmo[i] = dmo[i] - dmo[i].inner(mo[j])*mo[j];
+           }
+       }
+    }
+
+
+//vama ugly ! alpha_ij(w) = - sum(m occ) [<psi_m(0)|r_i|psi_mj(1)(w)> + <psi_mj(1)(-w)|r_i|psi_m(0)>]
+
+    void SCF::dpolar(World & world, tensorT & polar, functionT & drho, int & axis)
+    {
+        for(int i=0; i<3; ++i) {
+            std::vector<int> f(3, 0);
+            f[i] = true;
+            functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(f)));
+            polar(axis, i) = -2.0 * dipolefunc.inner(drho);
+        }
+    }
+
+    void SCF::calc_dpolar(World & world,  
+            const vecfuncT & ax, const vecfuncT & ay, 
+            const vecfuncT & bx, const vecfuncT & by, 
+            int & axis,
+            tensorT & Dpolar_total, tensorT & Dpolar_alpha, tensorT & Dpolar_beta)
+    {
+        double Dpolar_average = 0.0;
+        double Dpolar_iso = 0.0;
+
+        //START_TIMER(world);
+        // derivative density matrix
+        functionT drhoa = make_derivative_density(world, amo, aocc, ax, ay);
+        functionT drhob;
+        if(!param.spin_restricted) 
+            drhob = make_derivative_density(world, bmo, bocc, bx, by );
+        else 
+            drhob = drhoa;
+
+        functionT drho = drhoa + drhob;
+        
+        dpolar(world, Dpolar_alpha, drhoa, axis);
+        dpolar(world, Dpolar_beta,  drhob, axis);
+        dpolar(world, Dpolar_total, drho,  axis);
+        
+        for(int i=0; i<3; ++i) 
+            Dpolar_total(axis, i) = 0.5 * Dpolar_total(axis, i);
+
+        drhoa.clear(false);
+        drhob.clear(false);
+        drho.clear(false);
+
+
+        if (world.rank() == 0 ) { 
+                printf("Dynamic Polarizability alpha ( Frequency = %.6f, axis %d )\n", param.response_freq, axis);
+                for(unsigned int i=0; i<3; ++i) 
+                printf(" \t %.6f ", Dpolar_alpha(axis,i));   
+                printf("\n");
+
+                
+                if(param.nbeta != 0) {
+                   printf("Dynamic Polarizability beta ( Frequency = %.6f, axis %d )\n", param.response_freq, axis);
+                    for(unsigned int i=0; i<3; ++i) 
+                       printf(" \t %.6f ", Dpolar_beta(axis,i));   
+                   print("\n");
+               }
+                
+        }
+
+        // last round
+        if(axis == 2) {
+            //diagonalize
+            tensorT V, epolar, eapolar, ebpolar;
+            syev(Dpolar_alpha, V, eapolar);
+            syev(Dpolar_total, V, epolar);
+            if(param.nbeta != 0) 
+                  syev(Dpolar_beta, V, ebpolar);
+            for(unsigned int i=0; i<3; ++i)  
+                   Dpolar_average = Dpolar_average + epolar[i];
+            Dpolar_average = Dpolar_average /3.0;
+            Dpolar_iso= sqrt(.5)*sqrt( std::pow(Dpolar_alpha(0,0) -  Dpolar_alpha(1,1),2) + 
+                              std::pow(Dpolar_alpha(1,1) -  Dpolar_alpha(2,2),2) + 
+                              std::pow(Dpolar_alpha(2,2) -  Dpolar_alpha(0,0),2));
+             
+            if (world.rank() == 0) { 
+                print("Total Dynamic Polarizability Tensor ( Frequency = ", param.response_freq, ")\n");
+                print(Dpolar_total);
+                printf("\tEigenvalues = ");
+                printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
+                printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
+                printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
+                printf("\n");
+                printf("\n");
+            }
+        }
+        //END_TIMER(world, "Calc D polar");
+        print_meminfo(world.rank(), "Calc D polar");
+    // end of solving polarizability
+    }
+    double SCF::residual_response(World & world, const vecfuncT & x,const  vecfuncT & y,
+                             const vecfuncT & x_old, const vecfuncT & y_old,
+                             vecfuncT & rx, vecfuncT & ry)
+    {
+        double residual = 0.0;
+        
+        //START_TIMER(world);
+        rx = sub(world, x_old, x);
+        ry = sub(world, y_old, y);
+        std::vector<double> rnormx = norm2s(world, rx);
+        std::vector<double> rnormy = norm2s(world, ry);
+
+        double rms, maxval_x, maxval_y;
+        vector_stats(rnormx, rms, maxval_x);
+        vector_stats(rnormy, rms, maxval_y);
+        residual = std::max(maxval_x, maxval_y);
+        
+        //END_TIMER(world, "Residual X,Y");
+        print_meminfo(world.rank(), "Residual X,Y");
+
+        return residual;
+    }
+
+    /// Calculates the dynamic polarizability of the current system 
+    ///
+    /// This is the only external function for a polarizability calcualtion.
+    /// The input parameters (such as frequency of perturbing radiation) are 
+    /// all input via the input file (which is parsed on creation of a 
+    /// calculation object, see SCF.h), but are listed here for completeness:
+    ///
+    /// bool response;                    // response function calculation
+    /// double response_freq;             // Frequency for calculation response function
+    /// std::vector<bool> response_axis;  // Calculation protocol
+    /// bool nonrotate;                   // If true do not molcule orient
+    /// double rconv;                     // Response convergence
+    /// double efield;                    // eps for finite field
+    /// double efield_axis;               // eps for finite field axis 
+ 
+    void SCF::polarizability(World & world)
+    {
+        if(world.rank() == 0) {
+            print("\n\n\n");
+            print(" ------------------------------------------------------------------------------");
+            print(" |                MADNESS RESPONSE                                            |");
+            print(" ------------------------------------------------------------------------------");
+            print(" \n\n");
+        }
+
+        
+        // TODO move this  X:axis=0, Y:axis=1, Z:axis=2
+        double omega = param.response_freq;
+        
+        if (world.rank() == 0) { 
+            print(" eps_alpha");
+            print(aeps);
+            if(!param.spin_restricted && param.nbeta != 0) print(" eps_beta  = ", beps);
+
+            print(" Frequency for response function (omega)= ", omega);
+            print(" Number of alpha orbitals = ", param.nalpha);
+            print(" Number of beta orbitals = ", param.nbeta);
+        }
+
+        // START_TIMER(world);
+        // Green's function
+        tensorT akx(param.nalpha);
+        tensorT aky(param.nalpha);
+        tensorT bkx(param.nbeta);
+        tensorT bky(param.nbeta);
+
+        // combine frequency term and eigenvalues
+        calc_freq(world, omega, akx, bkx, 1);
+        if(omega != 0.0)
+            calc_freq(world, omega, aky, bky, -1);
+        print_meminfo(world.rank(), "Make frequency term");
+
+        // make density matrix
+        functionT arho ; 
+        functionT brho ; 
+        functionT rho = make_density_ground(world, arho, brho);
+
+        // vlocal = vnuc + 2*J  
+        functionT vlocal;
+        {
+            functionT vnuc;
+            // TODO vnuc = potentialmanager->vnuclear();
+            if (param.psp_calc){
+                vnuc = gthpseudopotential->vlocalpot();
+            }
+            else if (param.pure_ae){ 
+                vnuc = potentialmanager->vnuclear();
+            }
+            else {
+                vnuc = potentialmanager->vnuclear();
+                vnuc = vnuc + gthpseudopotential->vlocalpot();
+            }
+            START_TIMER(world);
+            functionT vcoul = apply(*coulop, rho);
+            vlocal = vcoul + vnuc;
+            END_TIMER(world, "Calc vlocal");
+        } 
+        vlocal.reconstruct();
+        vlocal.truncate();
+
+        // BSHOperatorPtr
+        std::vector<poperatorT> aopx(param.nalpha); 
+        std::vector<poperatorT> bopx(param.nbeta); 
+        std::vector<poperatorT> aopy(param.nalpha); 
+        std::vector<poperatorT> bopy(param.nbeta); 
+        make_BSHOperatorPtr(world, akx, bkx, aopx, bopx);
+
+        if(omega != 0.0)
+              make_BSHOperatorPtr(world, aky, bky, aopy, bopy);
+       
+        tensorT Dpolar_total(3, 3), Dpolar_alpha(3, 3), Dpolar_beta(3, 3);
+
+        double update_residual = 0.0;
+        const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
+        int maxsub_save = param.maxsub;
+
+        for ( int axis=0; axis<param.response_axis.size(); axis++) {
+            if(!param.response_axis[axis]) continue; 
+        
+            subspaceT subspace;
+            tensorT Q;
+            if (world.rank() == 0) {
+                this_axis(world, axis);
+            }
+
+            // perturbation
+            vecfuncT dipoleamo = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT dipolebmo = zero_functions<double,3>(world, param.nbeta);
+
+            // make response function x, y
+            vecfuncT ax = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ay = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bx = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT by = zero_functions<double,3>(world, param.nbeta);
+
+            // old response function
+            vecfuncT ax_old = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ay_old = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bx_old = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT by_old = zero_functions<double,3>(world, param.nbeta);
+
+            vecfuncT axrhs = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT ayrhs = zero_functions<double,3>(world, param.nalpha);
+            vecfuncT bxrhs = zero_functions<double,3>(world, param.nbeta);
+            vecfuncT byrhs = zero_functions<double,3>(world, param.nbeta);
+
+            vecfuncT aVx;
+            vecfuncT bVx;
+
+            vecfuncT aVy;
+            vecfuncT bVy;
+
+            // make (dJ-dK)*2*mo
+            vecfuncT djkamox;
+            vecfuncT djkamoy;
+
+            vecfuncT djkbmox;
+            vecfuncT djkbmoy;
+
+            // ri * psi_0
+            dipoleamo = calc_dipole_mo(world, amo, axis);
+            if(!param.spin_restricted && param.nbeta != 0) {
+                dipolebmo = calc_dipole_mo(world, bmo, axis);
+            }
+            else {
+                dipolebmo = dipoleamo;
+            }
+
+            //guess : drho=rho_0=sum[rho_i]=sum[psi_i^2]
+            functionT drhoa = make_derivative_density( world, amo , aocc, dipoleamo, dipoleamo);
+            drhoa.reconstruct();
+            functionT drhob;
+            if(!param.spin_restricted && param.nbeta != 0) {
+               drhob = make_derivative_density( world, bmo, aocc, dipolebmo, dipolebmo );
+               drhob.reconstruct();
+            } else {
+               drhob = drhoa;
+            } 
+            functionT drho = drhoa + drhob; 
+
+            // construct xc operator only once since the ground state density
+            // will not change during the iterations.
+            XCOperator xcop(world,this,arho,brho);
+
+            // construct xc operator for acting on the perturbed density --
+            // use only the LDA approximation
+            XCOperator xc_alda(world, "LDA", not param.spin_restricted, arho, brho);
+
+            for(int iter = 0; iter < param.maxiter; ++iter) {
+                if(world.rank() == 0)
+                    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
+                
+                double residual = 0.0;
+            
+                if (iter > 0 && update_residual < 0.1) {
+                    //do_this_iter = false;
+                    param.maxsub = maxsub_save;
+                }
+                
+
+                if(iter == 0) {
+                    // iter = 0 initial_guess
+                    aVx = apply_potential_response(world, dipoleamo, xcop, vlocal,  0);
+                    djkamox = calc_djkmo(world, xc_alda, dipoleamo, dipoleamo, drho, amo, drhoa,  0);
+                    axrhs = calc_rhs(world, amo,  aVx, dipoleamo, djkamox);
+
+                    if(!param.spin_restricted && param.nbeta != 0) { 
+                        bVx = apply_potential_response(world, dipolebmo, xcop, vlocal, 0);
+                        djkbmox = calc_djkmo(world, xc_alda, dipolebmo, dipolebmo, drho, bmo, drhob,  0);
+                        bxrhs = calc_rhs(world, bmo,  bVx, dipolebmo, djkbmox);
+                    } 
+ 
+                    if(omega != 0.0) {
+                        aVy = apply_potential_response(world, dipoleamo, xcop, vlocal, 0);
+                        djkamoy = calc_djkmo(world, xc_alda, dipoleamo, dipoleamo, drho, amo, drhoa,  0);
+                        ayrhs = calc_rhs(world, amo,  aVy, dipoleamo, djkamoy);
+                        if(!param.spin_restricted && param.nbeta != 0) {
+                            bVy = apply_potential_response(world, dipolebmo, xcop, vlocal,  0);
+                            djkbmoy = calc_djkmo(world, xc_alda, dipolebmo, dipolebmo, drho, bmo, drhob,  0);
+                            byrhs = calc_rhs(world, bmo,  bVy, dipolebmo, djkbmoy);
+                        }
+                    } 
+                }
+
+                else{
+                    drhoa = make_derivative_density( world, amo, aocc, ax_old, ay_old );
+                    drhoa.reconstruct();
+                    if(!param.spin_restricted && param.nbeta != 0) {
+                       drhob = make_derivative_density( world, bmo, bocc, bx_old, by_old );
+                       drhob.reconstruct();
+                    } else {
+                       drhob = drhoa;
+                    } 
+                    drho = drhoa + drhob; 
+
+                    // calculate (dJ-dK)*2*mo
+                    aVx = apply_potential_response(world, ax_old, xcop, vlocal, 0);
+                    // make potential * wave function
+                    djkamox = calc_djkmo(world, xc_alda, ax_old, ay_old, drho, amo, drhoa,  0);
+                    // axrhs = -2.0 * (aVx + dipoleamo + duamo)
+                    axrhs = calc_rhs(world, amo,  aVx, dipoleamo, djkamox);
+
+                    if(!param.spin_restricted && param.nbeta != 0) {
+                        bVx = apply_potential_response(world, bx_old, xcop, vlocal,  1);
+                        djkbmox = calc_djkmo(world, xc_alda, bx_old, by_old, drho, bmo, drhob , 1);
+                        bxrhs = calc_rhs(world, bmo, bVx, dipolebmo, djkbmox);
+                    }
+
+                    if(omega != 0.0) {
+                        aVy = apply_potential_response(world, ay_old, xcop,  vlocal, 0);
+                        djkamoy = calc_djkmo(world, xc_alda, ay_old, ax_old,  drho, amo, drhoa, 0);
+                        // bxrhs = -2.0 * (bVx + dipolebmo + dubmo)
+                        ayrhs = calc_rhs(world, amo, aVy, dipoleamo, djkamoy);
+
+                        if(!param.spin_restricted && param.nbeta != 0) {
+                            bVy = apply_potential_response(world, by_old, xcop,  vlocal, 1);
+                            djkbmoy = calc_djkmo(world, xc_alda, by_old, bx_old, drho, amo, drhob, 1);
+                            byrhs = calc_rhs(world, bmo, bVy, dipolebmo, djkbmoy);
+                        }
+                    }
+                    aVx.clear();
+                    bVx.clear(); 
+                    aVy.clear();
+                    bVy.clear();
+                    djkamox.clear();
+                    djkamoy.clear();
+                    djkbmox.clear();
+                    djkbmoy.clear();
+
+                }
+
+                //START_TIMER(world);
+                // ax_new = G * axrhs;
+                calc_response_function(world, ax, aopx, axrhs);
+                orthogonalize_response(world, ax, amo);
+                truncate(world, ax);
+                axrhs.clear();
+                if(!param.spin_restricted && param.nbeta != 0) {
+                    // bx_new = G * bxrhs;
+                    calc_response_function(world, bx, bopx, bxrhs);
+                    orthogonalize_response(world, bx, bmo);
+                    truncate(world, bx);
+                    bxrhs.clear();
+                }
+                else {
+                    bx = ax;
+                }
+
+                if(omega != 0.0){
+                    calc_response_function(world, ay, aopy, ayrhs);
+                    orthogonalize_response(world, ay, amo);
+                    truncate(world, ay);
+                    ayrhs.clear();
+
+                    if(!param.spin_restricted && param.nbeta != 0) {
+                        calc_response_function(world, by, bopy, byrhs);
+                        orthogonalize_response(world, by, bmo);
+                        truncate(world, by);
+                        byrhs.clear();
+                    }
+                    else {
+                       by = ay;
+                    }
+                }     
+                else {
+                       ay = ax;
+                       by = bx;
+                }
+                //END_TIMER(world, "Make response func");
+                print_meminfo(world.rank(), "Make response func");
+
+                if(iter > 0) {
+                   // START_TIMER(world);
+                    residual = 0.0;
+                    
+                    vecfuncT rax = zero_functions<double,3>(world, param.nalpha); //residual alpha x
+                    vecfuncT ray = zero_functions<double,3>(world, param.nalpha); //residual alpha y
+                    vecfuncT rbx = zero_functions<double,3>(world, param.nbeta);  //residual beta x
+                    vecfuncT rby = zero_functions<double,3>(world, param.nbeta);  //residual beta y
+
+                    double aresidual =  residual_response(world, ax, ay, ax_old, ay_old, rax, ray);
+                    double bresidual = 0.0;
+                    world.gop.fence(); 
+                    if(!param.spin_restricted && param.nbeta != 0) { 
+                        bresidual = aresidual + residual_response(world, bx, by, bx_old, by_old, rbx, rby);
+                        residual = std::max(aresidual, bresidual);
+                        world.gop.fence(); 
+                    }
+                    else { 
+                      residual = aresidual;
+                    } 
+
+                    if (world.rank() == 0)  
+                        print("\nresiduals_response (first) = ", residual);
+                    residual = 0.0;
+
+                    double nx,ny;
+                    ////////UPDATE
+                    nx=norm2(world, ax);
+                    if (world.rank() == 0) 
+                        print("CURRENT_X_norm2() = ", nx);
+                    update_response_subspace(world, ax, ay, bx, by, rax, ray, rbx, rby, subspace, Q, update_residual); 
+
+                    nx = norm2(world, ax);
+                    ny = norm2(world, ay);
+                    if (world.rank() == 0) { 
+                        print("new X (alpha) norm2() = ", nx);
+                        print("new Y (alpha) norm2() = ", ny);
+                    }
+
+                    aresidual = residual_response(world, ax, ay, ax_old, ay_old, rax, ray);
+                    bresidual = 0.0;
+                    
+                    if(!param.spin_restricted && param.nbeta != 0) { 
+                        bresidual = residual_response(world, bx, by, bx_old, by_old, rbx, rby);
+                        residual = std::max(aresidual, bresidual);
+                    }
+                    else residual = aresidual;
+
+                    double thresh = rconv *(param.nalpha + param.nbeta)*2; 
+                    if (world.rank() == 0) { 
+                        print("\nresiduals_response (final) = ", residual);
+                        print("rconv *(param.nalpha + param.nbeta)*2", thresh);
+                    }
+
+                   //  END_TIMER(world, "Update response func");
+                    print_meminfo(world.rank(), "Update response func");
+                    
+                    if( residual < (rconv *(param.nalpha + param.nbeta)*2))
+                    {
+                        if (world.rank() == 0) { 
+                            print("\nConverged response function!!\n");
+                            print("\n\n\n");
+                            print(" ------------------------------------------------------------------------------");
+                            print(" |                  MADNESS CALCULATION POLARIZABILITY                        |");
+                            print(" ------------------------------------------------------------------------------");
+                            print(" \n\n");
+                        } 
+                        break; 
+                    }
+                }
+
+                ax_old = ax;
+                ay_old = ay;
+                bx_old = bx;
+                by_old = by;
+                ax.clear();
+                ay.clear();
+                bx.clear();
+                by.clear();
+                    
+            } //end iteration
+            //END_TIMER(world, "Make response func");
+            print_meminfo(world.rank(), "Make response func");
+
+            calc_dpolar(world, ax_old, ay_old, bx_old, by_old, axis, Dpolar_total, Dpolar_alpha, Dpolar_beta);
+            
+#if  0
+//hyper polarizability
+            for (int p=0; p < ax_old.size(); p++){
+                axx.push_back(ax_old[p]);
+                ayx.push_back(ay_old[p]);
+                if(!param.spin_restricted && param.nbeta != 0) { 
+                   bxx.push_back(bx_old[p]);
+                   byx.push_back(by_old[p]);
+                }
+            }
+#endif 
+            ax_old.clear();
+            ay_old.clear();
+            bx_old.clear();
+            by_old.clear();
+
+            dipoleamo.clear();
+            dipolebmo.clear();
+        } //end axis
+
+    }
+//vama polarizability
+
+
 }
+
+

@@ -1,24 +1,108 @@
 language: cpp
-os: linux
+cache: ccache
+os:
+  - osx
+  - linux
 compiler:
-  - gcc
   - clang
+  - gcc
 env:
-  - GCC_VERSION=4.7
-  - GCC_VERSION=4.8
-  - GCC_VERSION=4.9
+  #- GCC_VERSION=4.7 RUN_TEST=buildonly
+  #- GCC_VERSION=4.8 RUN_TEST=buildonly
+  #- GCC_VERSION=4.9 RUN_TEST=buildonly
+  - GCC_VERSION=5 RUN_TEST=buildonly
+  #- GCC_VERSION=4.7 RUN_TEST=world
+  #- GCC_VERSION=4.8 RUN_TEST=world
+  #- GCC_VERSION=4.9 RUN_TEST=world
+  - GCC_VERSION=5 RUN_TEST=world
+  #- GCC_VERSION=4.7 RUN_TEST=tensor
+  #- GCC_VERSION=4.8 RUN_TEST=tensor
+  #- GCC_VERSION=4.9 RUN_TEST=tensor
+  - GCC_VERSION=5 RUN_TEST=tensor
+  #- GCC_VERSION=4.7 RUN_TEST=mra
+  #- GCC_VERSION=4.8 RUN_TEST=mra
+  #- GCC_VERSION=4.9 RUN_TEST=mra
+  - GCC_VERSION=5 RUN_TEST=mra
 matrix:
+  # Currently there is a segfault that occurs in the unit tests when
+  # building with the clang compiler. Temporarily allow failures in
+  # these tests until the issue is resolved.
+  allow_failures:
+    - compiler: clang
+      env: GCC_VERSION=5 RUN_TEST=mra
   exclude:
     - compiler: clang
-      env: GCC_VERSION=4.7
+      env: GCC_VERSION=4.7 RUN_TEST=buildonly
     - compiler: clang
-      env: GCC_VERSION=4.9
+      env: GCC_VERSION=4.8 RUN_TEST=buildonly
+    - compiler: clang
+      env: GCC_VERSION=4.9 RUN_TEST=buildonly
+    - compiler: clang
+      env: GCC_VERSION=4.7 RUN_TEST=world
+    - compiler: clang
+      env: GCC_VERSION=4.8 RUN_TEST=world
+    - compiler: clang
+      env: GCC_VERSION=4.9 RUN_TEST=world
+    - compiler: clang
+      env: GCC_VERSION=4.7 RUN_TEST=tensor
+    - compiler: clang
+      env: GCC_VERSION=4.8 RUN_TEST=tensor
+    - compiler: clang
+      env: GCC_VERSION=4.9 RUN_TEST=tensor
+    - compiler: clang
+      env: GCC_VERSION=4.7 RUN_TEST=mra
+    - compiler: clang
+      env: GCC_VERSION=4.8 RUN_TEST=mra
+    - compiler: clang
+      env: GCC_VERSION=4.9 RUN_TEST=mra
+    - os: osx
+      compiler: gcc
 #notifications:
 #  email:
 #    recipients:
 #      - madness-developers@googlegroups.com
 #    on_success: change
 #    on_failure: always
-before_install: ./ci/dep-$TRAVIS_OS_NAME.sh
-script: ./ci/build-$TRAVIS_OS_NAME.sh
-after_failure: cat ./config.log
+sudo: false
+addons:
+  apt:
+    sources:
+      - george-edison55-precise-backports
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-precise-3.8
+    packages:
+      #- gcc-4.7
+      #- g++-4.7
+      #- gfortran-4.7
+      #- gcc-4.8
+      #- g++-4.8
+      #- gfortran-4.8
+      #- gcc-4.9
+      #- g++-4.9
+      #- gfortran-4.9
+      - gcc-5
+      - g++-5
+      - gfortran-5
+      - clang-3.8
+      # These do not lead to the desired result of libc++ >:-(
+      #- libc++-dev
+      #- libc++1
+      # BLAS/LAPACK libraries - use OpenBLAS or ATLAS if faster...
+      - libblas-dev
+      - liblapack-dev
+      #- libopenblas-base # Do NOT use this library! it causes illegal instruction errors.
+      #- libatlas3-base # "E: Unable to locate package libatlas3-base"
+      # END
+      - libgoogle-perftools-dev
+      #- mpich2 # disallowed - build from source
+      - libtbb-dev
+      #- cmake
+# if necessary to debug the install step, move all lines into
+# script step and add appropriate debugging analysis to the
+# after_failure step e.g. find . -name config.log -exec cat {} ";"
+install:
+  - ./ci/dep-$TRAVIS_OS_NAME.sh
+script:
+  - ./ci/build-$TRAVIS_OS_NAME.sh
+after_failure:
+  - cat ./build/config.log

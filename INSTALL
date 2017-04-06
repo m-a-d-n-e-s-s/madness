@@ -7,7 +7,7 @@ MPI, BLAS, LAPACK and other non-standard libraries most machines
 require options passed to configure and build.  More information on
 the MADNESS software environment is available on the wiki at
 
-   http://code.google.com/p/m-a-d-n-e-s-s/wiki/SoftwareEnvironment
+   https://github.com/m-a-d-n-e-s-s/madness
 
 
 Hardware requirements:
@@ -200,6 +200,20 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
        export OMPI_CXX=icpc
 
        ./configure MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx
+
+
+  o  Macintosh Darwin 10.8, mountain lion
+     Tested with Apple LLVM version 5.1 (clang-503.0.40) (based on LLVM 3.4svn)
+     
+       Set the following system variables
+       export OMPI_CC=/usr/bin/clang
+       export OMPI_CXX=/usr/bin/clang++
+
+       ./configure  MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx \
+       LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
+       CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers" \
+       CXXFLAGS="-std=c++11 -stdlib=libc++"
+
 
   o On x86 without SSE3 -- configure with the option CPPFLAGS="-DDISABLE_SSE3", requires autoconf-2.65+, automake-1.11+
     

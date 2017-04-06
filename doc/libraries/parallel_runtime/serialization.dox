@@ -1,0 +1,349 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2015 Stony Brook University
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+*/
+
+/**
+ \file serialization.dox
+ \brief Overview of the interface templates for archives (serialization).
+ \addtogroup serialization
+
+The programmer should not need to include madness/world/archive.h directly. Instead, include the header file for the actual archive (binary file, text/xml file, vector in memory, etc.) that is desired.
+
+\par Background
+
+The interface and implementation are deliberately modelled, albeit loosely, upon the boost serialization class (thanks boost!). The major differences are that this archive class does \em not break cycles and does \em not automatically store unique copies of data referenced by multiple objects. Also, classes are responsbible for managing their own version information. At the lowest level, the interface to an archive also differs to facilitate vectorization and high-bandwidth data transfer. The implementation employs templates that are almost entirely inlined. This should enable low-overhead use of archives in applications, such as interprocess communication.
+
+\par How to use an archive?
+
+An archive is a uni-directional stream of typed data to/from disk, memory, or another process. Whether the stream is for input or for output, you can use the \c & operator to transfer data to/from the stream. If you really want, you can also use the \c << or \c >> for output or input, respectively, but there is no reason to do so. The \c & operator chains just like \c << for \c cout or \c >> for \c cin. You may discover in \c archive.h other interfaces but you should \em not use them --- use the \& operator!  The lower level interfaces will probably not, or only inconsistently, incorporate type information, and may even appear to work when they are not.
+
+Unless type checking has not been implemented by an archive for reasons of efficiency (e.g., message passing) a C-string exception will be thrown on a type-mismatch when deserializing. End-of-file, out-of-memory, and others also generate string exceptions.
+
+Fundamental types (see below), STL complex, vector, strings, pairs and maps, and tensors (int, long, float, double, float_complex, double_complex) all work without you doing anything, as do fixed-dimension arrays of the same (STL allocators are not presently accomodated). For example,
+\code
+  bool finished = false;
+  int info[3] = {1, 33, 2};
+  map<int, double> fred;
+  fred[0] = 55.0; fred[1] = 99.0;
+
+  BinaryFstreamOutputArchive ar('restart.dat');
+  ar & fred & info & finished;
+\endcode
+Deserializing is identical, except that you need to use an input archive, c.f.,
+\code
+  bool finished;
+  int info[3];
+  map<int, double> fred;
+
+  BinaryFstreamInputArchive ar('restart.dat');
+  ar & fred & info & finished;
+\endcode
+
+Variable dimension and dynamically allocated arrays do not have their dimension encoded in their type. The best way to (de)serialize them is to wrap them in an \c archive_array as follows.
+\code
+  int a[n]; // n is not known at compile time
+  double *p = new double[n];
+  ar & wrap(a,n) & wrap(p,n);
+\endcode
+The \c wrap() function template is a factory function to simplify instantiation of a correctly typed \c archive_array template. Note that when deserializing, you must have first allocated the array --- the above code can be used for both serializing and deserializing. If you want the memory to be automatically allocated consider using either an STL vector or a madness tensor.
+
+To transfer the actual value of a pointer to a stream (is this really what you want?) then store an archive_ptr wrapping it. The factory function \c wrap_ptr() assists in doing this, e.g., here for a function pointer
+\code
+ int foo();
+ ar & wrap_ptr(foo);
+\endcode
+
+\par User-defined types
+
+User-defined types require a little more effort. Three cases are distinguished.
+- symmetric load and store
+  - intrusive
+  - non-intrusive
+- non-symmetric load and store
+
+We will examine each in turn, but we first need to discuss a little about the implementation.
+
+When transfering an object \c obj to/from an archive \c ar with `ar & obj`, you need to invoke the templated function
+\code
+  template <class Archive, class T>
+  inline const Archive& operator&(const Archive& ar, T& obj);
+\endcode
+that then invokes other templated functions to redirect to input or output streams as appropriate, manage type checking, etc. We would now like to overload the behavior of these functions in order to accomodate your fancy object.  However, function templates cannot be partially specialized.  Following the technique recommended <a href=http://www.gotw.ca/publications/mill17.htm>here</a> (look for moral#2), each of the templated functions directly calls a member of a templated class. Classes, unlike functions, can be partially specialized, so it is easy to control and predict what is happening. Thus, in order to change the behavior of all archives for an object you just have to provide a partial specialization of the appropriate class(es). Do \em not overload any of the function templates.
+
+<em>Symmetric intrusive method</em>
+
+Many classes can use the same code for serializing and deserializing. If such a class can be modified, the cleanest way of enabling serialization is to add a templated method as follows.
+\code
+  class A {
+      float a;
+
+  public:
+      A(float a = 0.0) : a(a) {}
+
+      template <class Archive>
+      inline void serialize(const Archive& ar) {
+          ar & a;
+      }
+  };
+\endcode
+
+<em>Symmetric non-intrusive method</em>
+
+If a class with symmetric serialization cannot be modified, then you can define an external class template with the following signature in the \c madness::archive namespace (where \c Obj is the name of your type).
+\code
+  namespace madness {
+      namespace archive {
+          template <class Archive>
+          struct ArchiveSerializeImpl<Archive,Obj> {
+              static inline void serialize(const Archive& ar, Obj& obj);
+          };
+      }
+  }
+\endcode
+
+For example,
+\code
+  class B {
+  public:
+      bool b;
+      B(bool b = false)
+          : b(b) {};
+  };
+
+  namespace madness {
+      namespace archive {
+	        template <class Archive>
+	        struct ArchiveSerializeImpl<Archive, B> {
+	            static inline void serialize(const Archive& ar, B& b) {
+                  ar & b.b;
+              };
+	        };
+      }
+  }
+\endcode
+
+<em>Non-symmetric non-intrusive</em>
+
+For classes that do not have symmetric (de)serialization you must define separate partial templates for the functions \c load and \c store with these signatures and again in the \c madness::archive namespace.
+\code
+  namespace madness {
+      namespace archive {
+	        template <class Archive>
+	        struct ArchiveLoadImpl<Archive, Obj> {
+	           static inline void load(const Archive& ar, Obj& obj);
+	        };
+
+	        template <class Archive>
+	        struct ArchiveStoreImpl<Archive, Obj> {
+	           static inline void store(const Archive& ar, const Obj& obj);
+	        };
+      }
+  }
+\endcode
+
+First a simple, but artificial example.
+\code
+  class C {
+  public:
+      long c;
+      C(long c = 0)
+          : c(c) {};
+  };
+
+  namespace madness {
+      namespace archive {
+          template <class Archive>
+	        struct ArchiveLoadImpl<Archive, C> {
+	            static inline void load(const Archive& ar, C& c) {
+                  ar & c.c;
+              }
+          };
+
+	        template <class Archive>
+	        struct ArchiveStoreImpl<Archive, C> {
+	            static inline void store(const Archive& ar, const C& c) {
+                  ar & c.c;
+              }
+	        };
+      }
+  }
+\endcode
+
+Now a more complicated example that genuinely requires asymmetric load and store.First, a class definition for a simple linked list.
+\code
+  class linked_list {
+      int value;
+      linked_list *next;
+
+  public:
+      linked_list(int value = 0)
+          : value(value), next(0) {};
+
+      void append(int value) {
+          if (next)
+              next->append(value);
+          else
+              next = new linked_list(value);
+      };
+
+      void set_value(int val) {
+          value = val;
+      };
+
+      int get_value() const {
+          return value;
+      };
+
+      linked_list* get_next() const {
+          return next;
+      };
+  };
+\endcode
+And this is how you (de)serialize it.
+\code
+  namespace madness {
+      namespace archive {
+	        template <class Archive>
+	        struct ArchiveStoreImpl<Archive, linked_list> {
+	            static void store(const Archive& ar, const linked_list& c) {
+		              ar & c.get_value() & bool(c.get_next());
+		              if (c.get_next())
+                      ar & *c.get_next();
+	            }
+	        };
+
+	        template <class Archive>
+	        struct ArchiveLoadImpl<Archive, linked_list> {
+	            static void load(const Archive& ar, linked_list& c) {
+		              int value;
+                  bool flag;
+
+		              ar & value & flag;
+		              c.set_value(value);
+		              if (flag) {
+		                  c.append(0);
+		                  ar & *c.get_next();
+		              }
+	            }
+	        };
+      }
+  }
+\endcode
+
+Given the above implementation of a linked list, you can (de)serialize an entire list using a single statement.
+\code
+  linked_list list(0);
+  for (int i=1; i<=10; ++i)
+      list.append(i);
+
+  BinaryFstreamOutputArchive ar('list.dat');
+  ar & list;
+\endcode
+
+\par Non-default constructor
+
+There are various options for objects that do not have a default constructor. The most appealing and totally non-intrusive approach is to define load/store functions for a pointer to the object. Then in the load method you can deserialize all of the information necessary to invoke the constructor and return a pointer to a new object.
+
+Things that you know are contiguously stored in memory and are painful to serialize with full type safety can be serialized by wrapping opaquely as byte streams using the \c wrap_opaque() interface. However, this should be regarded as a last resort.
+
+\par Type checking and registering your own types
+
+To enable type checking for user-defined types you must register them with the system. There are 64 empty slots for user types beginning at cookie=128.  Type checked archives (currently all except the MPI archive) store a cookie (byte with value 0-255) with each datum. Unknown (user-defined) types all end up with the same cookie indicating unkown --- i.e., no type checking unless you register.
+
+Two steps are required to register your own types (e.g., here for the types \c %Foo and \c Bar)
+-# In a header file, after including madness/world/archive.h, associate your types and pointers to them with cookie values.
+  \code
+    namespace madness {
+        namespace archive {
+	          ARCHIVE_REGISTER_TYPE_AND_PTR(Foo,128);
+	          ARCHIVE_REGISTER_TYPE_AND_PTR(Bar,129);
+        }
+    }
+  \endcode
+-# In a single source file containing your initialization routine, define a macro to force instantiation of relevant templates.
+  \code
+    #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
+  \endcode
+  Then, in the initalization routine register the name of your types as follows
+  \code
+    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Foo);
+    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Bar);
+  \endcode
+Have a look at the test in \c madness/world/test_ar.cc to see things in action.
+  
+\par Types of archive
+
+Presently provided are
+- madness/world/text_fstream_archive.h --- (text \c std::fstream) a file in text (XML).
+- madness/world/binary_fstream_archive.h --- (binary \c std::fstream) a file in binary.
+- madness/world/vector_archive.h --- binary in memory using an \c std::vector<unsigned_char>.
+- madness/world/buffer_archive.h --- binary in memory buffer (this is rather heavily specialized for internal use, so applications should use a vector instead).
+- madness/world/mpi_archive.h --- binary stream for point-to-point communication using MPI (non-typesafe for efficiency).
+- madness/world/parallel_archive.h --- parallel archive to binary file with multiple readers/writers. This is here mostly to support efficient transfer of large \c WorldContainer (madness/world/worlddc.h) and MADNESS \c Function (mra/mra.h) objects, though any serializable object can employ it.
+
+The buffer and \c vector archives are bitwise identical to the binary file archive.
+
+\par Implementing a new archive
+
+Minimally, an archive must derive from either \c BaseInputArchive or \c BaseOutputArchive and define for arrays of fundamental types either a \c load or \c store method, as appropriate. Additional methods can be provided to manipulate the target stream. Here is a simple, but functional, implementation of a binary file archive.
+\code
+  #include <fstream>
+  #include <madness/world/archive.h>
+  using namespace std;
+
+  class OutputArchive : public BaseOutputArchive {
+      mutable ofstream os;
+
+  public:
+    OutputArchive(const char* filename)
+        : os(filename, ios_base::binary | ios_base::out | ios_base::trunc)
+    {};
+
+    template <class T>
+    void store(const T* t, long n) const {
+        os.write((const char *) t, n*sizeof(T));
+    }
+  };
+
+  class InputArchive : public BaseInputArchive {
+    mutable ifstream is;
+
+  public:
+    InputArchive(const char* filename)
+        : is(filename, ios_base::binary | ios_base::in)
+    {};
+
+    template <class T>
+    void load(T* t, long n) const {
+        is.read((char *) t, n*sizeof(T));
+    }
+  };
+\endcode
+*/

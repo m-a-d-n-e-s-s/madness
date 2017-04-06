@@ -1,10 +1,11 @@
 #ifndef MADNESS_STUBMPI_H
 #define MADNESS_STUBMPI_H
 
+#include <madness/madness_config.h>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <madness/world/worldtime.h>
+#include <madness/world/timers.h>
 
 typedef int MPI_Group;
 typedef int MPI_Request;
@@ -28,6 +29,8 @@ typedef int MPI_Comm;
 #define MPI_SUCCESS          0      /* Successful return code */
 #define MPI_ERR_COMM         5      /* Invalid communicator */
 #define MPI_ERR_ARG         12      /* Invalid argument */
+#define MPI_ERR_IN_STATUS 999999
+#define MPI_ERRORS_RETURN 888888
 #define MPI_MAX_ERROR_STRING 1024
 
 /* Results of the compare operations. */
@@ -95,10 +98,9 @@ typedef int MPI_Op;
 #define MPI_MAXLOC  ((MPI_Op)0x5800000c)
 #define MPI_REPLACE ((MPI_Op)0x5800000d)
 
-/* FIXME This function should agree with http://www.mpich.org/static/docs/v3.1/www3/MPI_Group_translate_ranks.html */
-#warning This is not equivalent to the interface defined by the MPI standard!
-inline int MPI_Group_translate_ranks(const MPI_Group&, int n, const int*, const MPI_Group&, int* ranks2) {
-    *ranks2 = 0;
+inline int MPI_Group_translate_ranks(MPI_Group, int, const int [],
+                            MPI_Group, int ranks2[]) {
+    ranks2[0] = 0;
     return MPI_SUCCESS;
 }
 
@@ -114,24 +116,24 @@ inline int MPI_Group_free(MPI_Group *group) {
 
 // Initialization and finalize functions
 inline int MPI_Init(int *, char ***) { return MPI_SUCCESS; }
-inline int MPI_Init_thread(int *, char ***, int, int *provided) { *provided = MPI_THREAD_SERIALIZED; return MPI_SUCCESS; }
+inline int MPI_Init_thread(int *, char ***, int, int *provided) { *provided = MADNESS_MPI_THREAD_LEVEL; return MPI_SUCCESS; }
 inline int MPI_Initialized(int* flag) { *flag = 1; return MPI_SUCCESS; }
 inline int MPI_Finalize() { return MPI_SUCCESS; }
-inline int MPI_Finalized(int* flag) { *flag = 1; return MPI_SUCCESS; }
-inline int MPI_Query_thread(int *provided) { *provided = MPI_THREAD_SERIALIZED; return MPI_SUCCESS; }
+inline int MPI_Finalized(int* flag) { *flag = 0; return MPI_SUCCESS; }
+inline int MPI_Query_thread(int *provided) { *provided = MADNESS_MPI_THREAD_LEVEL; return MPI_SUCCESS; }
 
 // Buffer functions (do nothing since no messages may be sent)
 inline int MPI_Buffer_attach(void*, int) { return MPI_SUCCESS; }
 inline int MPI_Buffer_detach(void* buffer, int* size) { return MPI_SUCCESS; }
 
 inline int MPI_Test(MPI_Request *, int *flag, MPI_Status *) {
-    *flag = 0;
+    *flag = 1;
     return MPI_SUCCESS;
 }
 
 inline int MPI_Testany(int, MPI_Request[], int* index, int *flag, MPI_Status*) {
     *index = MPI_UNDEFINED;
-    *flag = 0;
+    *flag = 1;
     return MPI_SUCCESS;
 }
 
@@ -147,11 +149,13 @@ inline int MPI_Get_count(MPI_Status *, MPI_Datatype, int *count) {
 
 // Communicator rank and size
 inline int MPI_Comm_rank(MPI_Comm, int* rank) { *rank = 0; return MPI_SUCCESS; }
-inline int MPI_Comm_size(MPI_Comm, int* size) { *size = 1; return MPI_SUCCESS; }
+inline unsigned int MPI_Comm_size(MPI_Comm, int* size) { *size = 1; return MPI_SUCCESS; }
 
 // There is only one node so sending messages is not allowed. Always return MPI_ERR_COMM
 inline int MPI_Isend(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request *) { return MPI_ERR_COMM; }
+inline int MPI_Issend(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request *) { return MPI_ERR_COMM; }
 inline int MPI_Send(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
+inline int MPI_Ssend(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
 inline int MPI_Bsend(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
 inline int MPI_Irecv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request*) { return MPI_ERR_COMM; }
 inline int MPI_Recv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Status*) { return MPI_ERR_COMM; }
@@ -170,6 +174,8 @@ inline int MPI_Allreduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, 
 }
 
 inline int MPI_Comm_get_attr(MPI_Comm, int, void*, int*) { return MPI_ERR_COMM; }
+
+inline int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) { return MPI_ERR_COMM; }
 
 inline int MPI_Abort(MPI_Comm, int code) { exit(code); return MPI_SUCCESS; }
 
@@ -221,6 +227,8 @@ inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
 
     return MPI_SUCCESS;
 }
+
+inline int MPI_Errhandler_set(MPI_Comm comm, int errhandler) {return MPI_SUCCESS;}
 
 inline double MPI_Wtime() { return madness::wall_time(); }
 

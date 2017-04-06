@@ -1,0 +1,126 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2015 Stony Brook University
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+*/
+
+/**
+  \file gstart_think_madness.dox
+  \brief Getting started with MADNESS: "thinking" in MADNESS.
+  \addtogroup gstart_think_madness
+  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
+
+MADNESS is based on multiresolution analysis (MRA) and low-separation rank (LSR) approximations of functions and operators. It can be considered an adaptive spectral element method using a discontinuous and singular multiresolution basis. The representations of differential operators in the wavelet bases are provably similar to adaptive finite difference discretizations. Thus, the process of solving the resulting linear systems has similar behaviors to other adaptive methods. For example, the derivative operator and the Laplacian operator are unbounded operators. Thus the condition number, which often constrains how accurately the linear system can be solved, goes to infinity as the bases or the nets are refined. In order to solve these equations in practice, one has to precondition the system. Effective preconditioners are problem dependent and the theory of their construction is an area of on-going research.
+
+The integral operator, which is the formal inverse associated with the differential operator, is usually bounded. MRA and LSR have been proven to be suitable techniques for effectively applying some of the physically
+important operators and their kernel fast and with ease.
+
+Two of the most important operators that we illustrate in this manual are the Poisson operator, and the Helmholtz operator. The heat equation is ...
+\todo Complete the last sentence.
+
+Herein we discuss techniques for "thinking in MADNESS", which will allow the best utilization of the numerical tools underlying MADNESS (in most cases).
+
+\par Solve the integral equation
+
+In many situations the integral operator associated with the differential operator has an analytic kernel. The simplest examples are convolution operators.
+- The free-space Poisson equation is converted to a convolution
+with the Poisson (or Coulomb) kernel,
+\f[
+\nabla^{2} u = -4\pi\rho \to u=G \ast \rho,
+\f]
+where \f$G(r-r')=\frac{1}{|r-r'|}\f$.
+- The Schr&ouml;dinger equation with potential \f$V\f$ is converted to a Lippman-Schwinger equation using the bound-state Helmholtz kernel,
+\f[
+- \frac{1}{2} \nabla^{2} \psi + V\psi = E \psi \to \psi = -2G \ast V\psi,
+\f]
+where \f$G(r-r')=\frac{e^{-\sqrt{-2E|r-r'|}}}{4\pi |r-r'|} \f$.
+- Duhamel's principle can be appled to write a time-dependent differential equation with linear operator \f$\hat{L}\f$ and a non-linear operator \f$N\f$ as a semi-group equation.
+\f[
+\hat{L}u + N(u,t) = \dot{u} \to u(t) = e^{\hat{L} t} u(0) + \int _{0}^{t} e^{\hat{L} (t-t')} N(u,t') \mathit{d}t'.
+\f]
+
+Most codes, including MADNESS, are bad at solving differential equations to high accuracy -- this is why there is so much emphasis placed on finding a good preconditioner. The problem arises from the spectrum of the differential operator. Consider the Laplacian in 1D acting on a plane wave,
+\f[
+\frac{d^{2}}{\mathit{dx}^{2}}e^{i\omega x}=-\omega ^{2}e^{i\omega x}.
+\f]
+The Laplacian greatly amplify high frequencies \f$\omega\f$ (where most of the numerical error lies), whereas physical applications are primarily interested in lower frequencies. The eigenvalues of the corresponding inverse or integral operator have the opposite effect -- high frequencies are suppressed and lower frequencies are emphasized.
+
+The integral form is potentially better in many ways -- accuracy, speed, robustness, asymptotic behavior, etc. If you really, really, want to solve the differential form, then instead of using the phrase "integral form" say "perfectly preconditioned differential form" so that you can do the right thing.
+
+\par Carefully analyze discontinuities, noise, singularities, and asymptotic forms
+
+Your function needs to be evaluated at close to machine precision. The higher the order of the basis (\f$k\f$) the greater the necessary accuracy, regardless of what threshold you are trying to compute to. The accuracy and convergence of the Gauss-Legendre quadrature rests on the function being smooth (well approximated by a polynomial) at some level of refinement. Discontinuities in the function value or its derivatives, singularities, and/or numerical noise can all cause excessive refinement as MADNESS tries to deliver the requested precision. It's the Gibbs effect in action. <em>The usual symptoms of this problem are unexpectedly slow execution and/or excessive memory use.</em> Here are some
+tips to work with these effects.
+
+Discontinuities and singularities need to be consciously managed. Integrable point singularities might sometimes work unmodified (e.g., \f$1/r\f$ in 3-D) but can unpredictably fail, e.g., if a quadrature point lands very near to the singularity by accident. If possible, arrange for such points/surfaces to coincide with dyadic points (i.e., an integer multiple of some power of two division of the domain) -- this will give the most accurate representation and exploits the discontinuous spectral basis. If you cannot ensure such placement, you must manually or analytically regularize the function. One would usually employ a parameter to control the length scale of any problem modification and to enable systematic demonstration of convergence. E.g., eliminate the cusp in an exponential with
+\f[
+\exp(-r) \to \exp (-\sqrt{r^{2}+\sigma ^{2}}),
+\f]
+or replace a step function with 
+\f[
+\theta(x) \to \theta(x, \lambda) = \frac{1}{2} (1 + \tanh\frac{x}{\lambda}),
+\f]
+or the Coulomb potential in 3-D with
+\f[
+\frac{1}{r} \to u(r,c) = \frac{1}{r} \mathrm{erf} \frac{r}{c} + \frac{1}{c\sqrt{\pi}} e^{-\left( \frac{r}{c} \right)^{2}}
+\f]
+subject to
+\f[
+\int_{0}^{\infty} \left(u(r, c) - r^{-1}\right) r^{2} d\mathit{r} = 0.
+\f]
+The integral indicates that the mean error is zero, independent of \f$c\f$.
+
+Numerical noise can be a problem if your function is evaluated using interpolation or some other approximation scheme, or when switching between representations (e.g., between forms suitable for small or large arguments). If you are observing inefficient projection into the basis, ensure that your approximation is everywhere smooth to circa 1 part in \f$10^{12}\f$ or better.
+
+MADNESS itself computes to a finite precision, and when computing a point-wise function of a function (i.e., \f$g(f(x))\f$, where \f$f(x)\f$ is a MADNESS function and \f$g(s)\f$ is a user-provided function), the user-provided function must tolerate that approximation within tolerance or noise. A classic example is computing the function
+\f[
+V(\rho(x)) = \frac{C}{\rho^{1/3}(x)},
+\f]
+where in the original problem one knows that \f$\rho (x)>0\f$ for all \f$x\f$ but numerically this positivity not guaranteed. In this case an effective smoothing is
+\f{eqnarray*}{
+V(\rho) & \to & V(S(\rho)) \\
+S(s) & = & \left\{ \begin{array}{ll} s_{0}, & s\le 0 \\ q(s, s_{0}, s_{1}), & 0 < s \le s_{1} \\ s, & s > s_{1} \end{array} \right. \\
+q(s, s_{0}, s_{1}) & = & s_{0} - (-2s_{1} + 3s_{0}) \left( \frac{s}{s_{1}} \right)^{2} + (2s_{0} - s_{1}) \left(\frac{s}{s_{1}}\right)^{3}.
+\f}
+The function \f$S(s)\f$ coincides with its argument for \f$s>s_{1}\f$ and, for smaller values, smoothly switches to a minimum value of \f$s_{0}\f$ with a continuous value and derivative at both end points.
+\todo Interesting... The last sentence should start "The function S(s)..." but for some reason, I'm getting the image for g(s).
+
+
+Some computations are intrinsically expensive. For instance, the function \f$ \exp(i\omega r)\f$ is oscillatory everywhere and the number of required coefficients will increase linearly with the solution volume. In a 3-D box of width \f$L\f$, the number of coefficients will be \f$\mathcal{O}\left(\left(Lk\omega \right)^{3}\right)\f$ (where \f$k\f$ is the multiwavelet or polynomial order). For \f$L=1000\f$, \f$k=12\f$ and \f$\omega=3\f$, a few hundred TB of data (i.e., too much!) will be generated. Thus, it is worth making a back of the envelope estimate about the expected cost of computation before
+getting started.
+
+\par Robustly trade precision for speed
+
+\todo "Robustly trade precision for speed" needs to be written.
+
+\par Choice of polynomial order (k)
+
+\todo "Choice of polynomial order (k)" needs to be written.
+
+Previous: \ref gstart_load_balance; Next: \ref gstart_env_var
+*/

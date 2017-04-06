@@ -1,45 +1,57 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
+
+# specify the git commit version in the info functions
+GITREV="MADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
 
 # default location for basis sets etc
-AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\"
+AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\" -D$(GITREV)
 
-noinst_PROGRAMS = testxc
+noinst_PROGRAMS = testxc plotxc test_SCFOperators test_dft
 
-lib_LIBRARIES = libMADchem.a 
+lib_LTLIBRARIES = libMADchem.la
 
-data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
+chemdatadir=$(pkgdatadir)/$(PACKAGE_VERSION)/data
+dist_chemdata_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 
-
-#TESTS = testxc
+TESTS = test_SCFOperators test_dft # testxc 
 
 thisincludedir = $(includedir)/chem
 
-thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h corepotential.h atomutil.h SCF.h xcfunctional.h
+thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
+                      corepotential.h atomutil.h SCF.h xcfunctional.h \
+                      mp2.h nemo.h potentialmanager.h gth_pseudopotential.h \
+                      molecular_optimizer.h projector.h \
+                      SCFOperators.h CCStructures.h \
+                      electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h 
 
+testxc_SOURCES = testxc.cc xcfunctional.h
+testxc_LDADD = libMADchem.la $(MRALIBS)
 
-testxc_SOURCES = testxc.cc xcfunctional.h xcfunctional_ldaonly.cc lda.cc
-testxc_LDADD = libMADchem.a $(LIBMRA) $(LIBWORLD)
+test_dft_SOURCES = test_dft.cc xcfunctional.h
+test_dft_LDADD = libMADchem.la $(MRALIBS)
 
+test_SCFOperators_SOURCES = test_SCFOperators.cc 
+test_SCFOperators_LDADD = libMADchem.la $(MRALIBS)
 
-libMADchem_a_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
-                       corepotential.cc atomutil.cc lda.cc \
-                       distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc\
+plotxc_SOURCES = plotxc.cc xcfunctional.h
+plotxc_LDADD = libMADchem.la $(MRALIBS)
+
+libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc \
+                       corepotential.cc atomutil.cc lda.cc cheminfo.cc \
+                       distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc\
+                       SCFOperators.cc xcfunctional_ldaonly.cc TDHF.cc CCStructures.cc CC2.cc CCPotentials.cc\
                        $(thisinclude_HEADERS)
+libMADchem_la_LDFLAGS = -version-info 0:0:0
                        
 if MADNESS_HAS_LIBXC
-   libMADchem_a_SOURCES += xcfunctional_libxc.cc
-else
-   libMADchem_a_SOURCES += xcfunctional_ldaonly.cc 
+   libMADchem_la_SOURCES += xcfunctional_libxc.cc
 endif
 
 
 
-libraries:	$(lib_LIBRARIES)
+libraries:	$(lib_LTLIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 
-install-libraries: install-libLIBRARIES install-thisincludeHEADERS
+install-libraries: install-libLTLIBRARIES install-thisincludeHEADERS
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
-
-
-LDADD = $(LIBMRA) $(LIBTENSOR) $(LIBWORLD)
-	

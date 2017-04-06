@@ -27,10 +27,7 @@
  email: harrisonrj@ornl.gov
  tel:   865-241-3937
  fax:   865-572-0680
-
-
- $Id$
- */
+*/
 
 #ifndef MADNESS_MRA_KEY_H__INCLUDED
 #define MADNESS_MRA_KEY_H__INCLUDED
@@ -40,8 +37,8 @@
 
 #include <vector>
 #include <madness/mra/power.h>
-#include <madness/world/array.h>
-#include <madness/world/binfsar.h>
+#include <madness/world/vector.h>
+#include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
 #include <stdint.h>
 
@@ -74,135 +71,72 @@ namespace madness {
         hashT hashval;
 
 
-        // Helper function for operator <
-        int
-        encode(int dig) const {
-            int retval = 0;
-            for (std::size_t j = 0; j < NDIM; ++j) {
-                // retval += ((l[j]/2^{n-1-dig}) mod 2) * 2^j
-                retval += ((l[j] >> (n - 1 - dig)) % 2) << j;
-            }
-            return retval;
-        }
-
-        // Helper function for (Level, Translation) constructor
-        Vector<Translation, NDIM>
-        decode(Level level, Translation k) const {
-            Vector<Translation, NDIM> L(0);
-            int twotoD = power<static_cast<int>(NDIM)> ();
-            int powr = 1, divisor = 2;
-            for (Level i = 0; i < level; ++i) {
-                Translation r = k % twotoD;
-                for (int j = 0; j < NDIM; ++j) {
-                    L[NDIM - j - 1] += (r % divisor) * powr;
-                    r /= divisor;
-                }
-                k /= twotoD;
-                powr *= 2;
-            }
-            return L;
-        }
     public:
         /// Default constructor makes an \em uninitialized key
-        Key() {
-        }
+        Key() {}
 
         /// Constructor with given n, l
-        Key(Level n, const Vector<Translation, NDIM>& l) :
-                n(n), l(l) {
+        Key(Level n, const Vector<Translation, NDIM>& l) : n(n), l(l) 
+	{
             rehash();
         }
 
         /// Constructor with given n and l=0
-        Key(int n) :
-                n(n), l(0) {
+        Key(int n) : n(n), l(0) 
+        {
             rehash();
         }
 
-        /// Constructor from lexical index in depth first order
-        Key(Level n, Translation p) :
-                n(n) {
-            l = decode(n, p);
-            rehash();
-        }
-
-        /// easy constructor
-        Key(const int n, const int l0) : n(n) {
-            MADNESS_ASSERT(NDIM==1);
-            l=Vector<Translation, NDIM>(l0);
-            rehash();
-        }
-
-        /// easy constructor
-        Key(const int n, const int l0, const int l1, const int l2) : n(n) {
-            MADNESS_ASSERT(NDIM==3);
-            l=Vector<Translation, NDIM>(0);
-            l[0]=l0; l[1]=l1; l[2]=l2;
-            rehash();
-        }
+        // /// easy constructor ... UGH !!!!!!!!!!!!!!!!!!!!!!
+        // Key(const int n, const int l0, const int l1, const int l2) : n(n) {
+        //     MADNESS_ASSERT(NDIM==3);
+        //     l=Vector<Translation, NDIM>(0);
+        //     l[0]=l0; l[1]=l1; l[2]=l2;
+        //     rehash();
+        // }
 
         /// Returns an invalid key
-        static Key<NDIM>
-        invalid() {
+        static Key<NDIM>  invalid() {
             return Key<NDIM> (-1);
         }
 
         /// Checks if a key is invalid
-        bool
-        is_invalid() const {
+        bool is_invalid() const {
             return n == -1;
         }
 
         /// Checks if a key is valid
-        bool
-        is_valid() const {
+        bool is_valid() const {
             return n != -1;
         }
 
         /// Equality test
-        bool
-        operator==(const Key& other) const {
-            if (hashval != other.hashval)
-                return false;
-            if (n != other.n)
-                return false;
-            bool result = l == other.l;
-            if (result && hashval != other.hashval) {
-                print("!!  keys same but hash is different", hashval,
-                      other.hashval, *this, other);
-                MADNESS_EXCEPTION("Tell HQI not RJ3!",0);
-            }
-            return result;
+        bool  operator==(const Key& other) const {
+            if (hashval != other.hashval) return false;
+	    if (n != other.n) return false;
+	    for (unsigned int i=0; i<NDIM; i++)
+	      if (l[i] != other.l[i]) return false;
+	    return true; // everything is equal
         }
 
-        bool
-        operator!=(const Key& other) const {
+        bool operator!=(const Key& other) const {
             return !(*this == other);
         }
 
-        /// Comparison based upon depth first lexical order
-        bool
-        operator<(const Key& other) const {
-            if (*this == other)
-                return false; // I am not less than self
-            Level nmin;
-            bool retval = false;
+        /// Comparison operator less than to enable storage in STL map
+        bool operator<(const Key& other) const {
+	    if (hashval < other.hashval) return true;
+	    if (hashval > other.hashval) return false;
 
-            if (this->n > other.n) {
-                nmin = other.n;
-                retval = true;
-            }
-            else {
-                nmin = this->n;
-            }
+	    if (n < other.n) return true;
+	    if (n > other.n) return false;
+	    
+	    for (unsigned int i=0; i<NDIM; i++) {
+	      if (l[i] < other.l[i]) return true;
+	      if (l[i] > other.l[i]) return false;
+	    }
 
-            for (Level i = 0; i < nmin; ++i) {
-                int tthis = this->encode(i), tother = other.encode(i);
-                if (tthis != tother) {
-                    return (tthis < tother);
-                }
-            }
-            return retval;
+	    return false; // everything is equal
         }
 
         inline hashT
@@ -372,8 +306,9 @@ namespace madness {
         rehash() {
             //hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
             // default hash is still best
-            hashval = hash_value(l);
-            hash_combine(hashval, n);
+
+	  hashval = hash_value(l);
+	  hash_combine(hashval, n);
         }
     };
 

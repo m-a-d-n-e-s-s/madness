@@ -27,14 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  $Id$
 */
+
 #ifndef HARTREEFOCK_H_
 #define HARTREEFOCK_H_
 
 #include <madness/mra/mra.h>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <vector>
 
 #include "eigsolver.h"

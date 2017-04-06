@@ -35,15 +35,11 @@
   \brief Solves molecular MP2 equations
   \defgroup Solves molecular MP2 equations
   \ingroup examples
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/mp2.cc>here</a>.
-
-
 */
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/world/info.h>
 #include <chem/mp2.h>
 
 using namespace madness;
@@ -56,21 +52,18 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-#ifdef GITREVISION
-    const  char* gitrev =  GITREVISION;
+#ifdef MADNESS_GITREVISION
+    const  char* gitrev =  MADNESS_GITREVISION;
     const std::string gitrevision(gitrev);
     if (world.rank()==0) {
-    	print("           git revision ...",gitrevision);
+        print("    main() git revision ...",gitrevision);
     }
 #endif
 
-#ifdef SVNREVISION
-    const  char* svnrev =  SVNREVISION;
-    const std::string svnrevision(svnrev);
     if (world.rank()==0) {
-    	print("           svn revision ...",svnrevision);
+    	print("           git revision ...", info::git_commit());
     }
-#endif
+
     if (world.rank()==0) {
     	print("main() in mp2.cc compiled at ",__TIME__," on ",__DATE__);
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
@@ -79,8 +72,6 @@ int main(int argc, char** argv) {
     }
 
     TensorType tt=TT_2D;
-    FunctionDefaults<6>::set_tensor_type(tt);
-    FunctionDefaults<6>::set_apply_randomize(true);
 
     // get command line parameters (overrides input file)
     bool do_test=false;
@@ -97,8 +88,14 @@ int main(int argc, char** argv) {
         	do_test=true;
         	testfilename=val;
         }
+        if (key=="TT") {
+            if (val=="TT_2D") tt=TT_2D;
+            if (val=="TT_TENSORTRAIN") tt=TT_TENSORTRAIN;
+        }
     }
 
+    FunctionDefaults<6>::set_tensor_type(tt);
+    FunctionDefaults<6>::set_apply_randomize(true);
 
     try {
     	MP2 mp2(world,"input");

@@ -1,0 +1,48 @@
+plot
+ plane x2 x3
+ zoom 1.0
+ npoints 50
+ origin 0.5 0.0 0.0
+end
+
+dft
+ xc hf
+ k 8
+ econv 1.e-5
+ dconv 1.e-4
+ protocol 1.e-5
+ canon
+ nuclear_corrfac none
+ charge 1
+end
+
+excite
+guess_thresh 1.e-3
+solve_thresh 1.e-4
+solve_seq_thresh 1.e-5
+end
+
+TDA
+ compute_virtuals
+ guess big_fock_3
+ guess_excitations 8
+ iterating_excitations 8
+ excitations 7
+ iter_max 30
+ guess_iter 3
+ solve_iter 4
+ econv 5.e-4
+ dconv 2.e-2
+ guess_econv 5.e-3
+ guess_dconv 5.e-2
+ hard_dconv 1.e-3
+ hard_econv 1.e-4
+no_otf
+end
+
+# also possible:
+guess big_fock_4 , 5, 6
+
+geometry
+b 0.0 0.0 0.0
+end

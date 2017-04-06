@@ -42,7 +42,7 @@
 /// \brief Declaration of utility class and functions for atom
 
 namespace madness {
-struct AtomicData {
+struct AtomicData  {
     // !!! The order of declaration here must match the order in the initializer !!!
 
     // Nuclear info from L. Visscher and K.G. Dyall, Dirac-Fock
@@ -61,15 +61,22 @@ struct AtomicData {
 
     /// Covalent radii stolen without shame from NWChem
     const double covalent_radius;
+    const double mass;              ///< the atomic mass
+
+
 };
 
 const AtomicData& get_atomic_data(unsigned int atn);
 
 unsigned int symbol_to_atomic_number(const std::string& symbol);
+std::string atomic_number_to_symbol(const unsigned int atomic_number);
+
+bool check_if_pseudo_atom(const std::string& symbol);
 
 double smoothing_parameter(double Z, double eprec);
 double smoothed_potential(double r);
 double dsmoothed_potential(double r);
+double d2smoothed_potential(double r);
 double smoothed_density(double r);
 }
 #endif

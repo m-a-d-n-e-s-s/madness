@@ -101,6 +101,7 @@ namespace madness {
             }
             _front = sz/2 - oldsz/2;
             _back = _front + n - 1;
+            delete [] buf;
             buf = nbuf;
             //sanity_check();
         }
@@ -145,7 +146,7 @@ namespace madness {
                 , _back(_front-1) {}
 
         virtual ~DQueue() {
-            delete buf;
+            delete [] buf;
         }
 
         /// Insert value at front of queue

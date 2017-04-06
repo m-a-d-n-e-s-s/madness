@@ -8,7 +8,6 @@
 
 using namespace madness;
 using namespace std;
-//using namespace Eigen;
 
 
 #ifndef SCALAR
@@ -27,12 +26,6 @@ using namespace std;
 typedef double RealX;
 
 namespace madness {
-/*
- The major problem with the interface between
- Eigen3 and Madness is in the transposed copy
- of the matrixes. Then, remember to apply 
- transpose() after a copy.
-*/
     template <typename T>
     void test_syev1(int n) {
         Tensor<T> a(n,n), V;

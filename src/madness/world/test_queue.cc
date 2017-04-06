@@ -1,4 +1,4 @@
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 
 // This program is used to do a simple test of the task queue.
 
@@ -9,7 +9,7 @@ madness::AtomicInt total_count;
 // Global variables for thread local storage
 pthread_key_t thread_key;
 madness::AtomicInt thread_index;
-unsigned long* thread_counters = NULL;
+unsigned long* thread_counters = nullptr;
 
 
 // Access thread local storage
@@ -30,7 +30,7 @@ void init_tls(const unsigned long nthreads) {
     thread_counters = new unsigned long[nthreads];
     for(unsigned int i = 0; i < nthreads; ++i)
         thread_counters[i] = 0;
-    pthread_key_create(&thread_key, NULL);
+    pthread_key_create(&thread_key, nullptr);
 
     get_tls();
 }

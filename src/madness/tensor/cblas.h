@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 
@@ -42,7 +39,7 @@
 
 #include <madness/fortran_ctypes.h>
 #include <madness/madness_config.h>
-#include <madness/world/worldexc.h>
+#include <madness/world/madness_exception.h>
 
 #if defined(FORTRAN_LINKAGE_LC)
 
@@ -50,6 +47,9 @@
 #   define F77_DGEMM dgemm
 #   define F77_CGEMM cgemm
 #   define F77_ZGEMM zgemm
+#ifdef HAVE_INTEL_MKL
+#   define F77_DZGEMM dzgemm
+#endif
 #   define F77_SGEMV sgemv
 #   define F77_DGEMV dgemv
 #   define F77_CGEMV cgemv
@@ -79,6 +79,9 @@
 #   define F77_DGEMM dgemm_
 #   define F77_CGEMM cgemm_
 #   define F77_ZGEMM zgemm_
+#ifdef HAVE_INTEL_MKL
+#   define F77_DZGEMM dzgemm_
+#endif
 #   define F77_SGEMV sgemv_
 #   define F77_DGEMV dgemv_
 #   define F77_CGEMV cgemv_
@@ -108,6 +111,9 @@
 #   define F77_DGEMM  dgemm__
 #   define F77_CGEMM  cgemm__
 #   define F77_ZGEMM  zgemm__
+#ifdef HAVE_INTEL_MKL
+#   define F77_DZGEMM dzgemm__
+#endif
 #   define F77_SGEMV  sgemv__
 #   define F77_DGEMV  dgemv__
 #   define F77_CGEMV  cgemv__
@@ -137,6 +143,9 @@
 #   define F77_DGEMM  DGEMM
 #   define F77_CGEMM  CGEMM
 #   define F77_ZGEMM  ZGEMM
+#ifdef HAVE_INTEL_MKL
+#   define F77_DZGEMM DZGEMM
+#endif
 #   define F77_SGEMV  SGEMV
 #   define F77_DGEMV  DGEMV
 #   define F77_CGEMV  CGEMV
@@ -166,6 +175,9 @@
 #   define F77_DGEMM  DGEMM_
 #   define F77_CGEMM  CGEMM_
 #   define F77_ZGEMM  ZGEMM_
+#ifdef HAVE_INTEL_MKL
+#   define F77_DZGEMM DZGEMM_
+#endif
 #   define F77_SGEMV  SGEMV_
 #   define F77_DGEMV  DGEMV_
 #   define F77_CGEMV  CGEMV_
@@ -212,6 +224,13 @@ extern "C" {
             const integer*, const complex_real8*, const integer*,
             const complex_real8*, complex_real8*, const integer*);
 
+#ifdef HAVE_INTEL_MKL
+    void F77_DZGEMM(const char*, const char*, const integer*, const integer*,
+            const integer*, const complex_real8*, const real8*,
+            const integer*, const complex_real8*, const integer*,
+            const complex_real8*, complex_real8*, const integer*);
+#endif
+
     // BLAS _GEMV declarations
     void F77_SGEMV(const char*, const integer*, const integer*, const float*,
             const float*, const integer*, const float*, const integer*,
@@ -251,16 +270,20 @@ extern "C" {
             const integer*);
     double F77_DDOT(const integer*, const double *, const integer*,
             const double *, const integer*);
-    void F77_CDOTU(const integer*, const complex_real4*, const integer*,
-            const complex_real4*, const integer*, complex_real4*);
-    void F77_ZDOTU(const integer*, const complex_real8*, const integer*,
-            const complex_real8*, const integer*, complex_real8*);
+    void F77_CDOTU(complex_real4*, const integer*, const complex_real4*, const integer*,
+            const complex_real4*, const integer*);
+    void F77_ZDOTU(complex_real8*, const integer*, const complex_real8*, const integer*,
+            const complex_real8*, const integer*);
     //
     // BLAS _AXPY declarations (INTEGER n, NUMERICAL alpha, NUMERICAL x, INTEGER incx, NUMERICAL y, INTEGER incy )
-    void F77_SAXPY(const integer*, const float*        , float*        , const integer*, float*        , const integer*);
-    void F77_DAXPY(const integer*, const double*       , double*       , const integer*, double*       , const integer*);
-    void F77_CAXPY(const integer*, const complex_real4*, complex_real4*, const integer*, complex_real4*, const integer*);
-    void F77_ZAXPY(const integer*, const complex_real8*, complex_real8*, const integer*, complex_real8*, const integer*);
+    void F77_SAXPY(const integer*, const float*, const float*, const integer*,
+            float*, const integer*);
+    void F77_DAXPY(const integer*, const double*, const double*, const integer*,
+            double*, const integer*);
+    void F77_CAXPY(const integer*, const complex_real4*, const complex_real4*,
+            const integer*, complex_real4*, const integer*);
+    void F77_ZAXPY(const integer*, const complex_real8*, const complex_real8*,
+            const integer*, complex_real8*, const integer*);
 }
 
 
@@ -332,6 +355,56 @@ namespace cblas {
       static const char *op[] = { "n","t","c" };
       F77_ZGEMM(op[OpA], op[OpB], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
     }
+
+#ifdef HAVE_INTEL_MKL
+    inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
+                     const integer m, const integer n, const integer k,
+                     const complex_real8 alpha, const complex_real8* a, const integer lda,
+                     const real8* b, const integer ldb, const complex_real8 beta,
+                     complex_real8* c, const integer ldc) {
+        
+        //static const char *op[] = { "n","t","c" };
+        //F77_ZDGEMM(op[OpA], op[OpB], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+        
+        //Don't have ZDGEMM ... only DZGEMM ... so use A*B = (BT * AT)T
+        
+      //complex_real8 ctrans[m*n]; // Here assume matrices are small and can be allocated on the stack
+      complex_real8* ctrans = new complex_real8[m*n];
+        static const char *opT[] = { "t","n","c" }; // Transpose of op ... conj-transpose not working yet
+        MADNESS_ASSERT(OpA!=ConjTrans && OpB!=ConjTrans);
+        const complex_real8 zero = 0.0;
+        F77_DZGEMM(opT[OpB], opT[OpA], &n, &m, &k, &alpha, b, &ldb, a, &lda, &zero, ctrans, &n);
+        
+        // In fortran have CTRANS(N,M) and fortran CTRANS(i,j) maps to C ctrans[j*n+i]
+        
+        if (beta == zero) {
+            for (integer i=0; i<n; i++) {
+                for (integer j=0; j<m; j++) {
+                    c[i*ldc+j] = ctrans[j*n+i];
+                }
+            }
+        }
+        else 
+            for (integer i=0; i<n; i++) {
+                for (integer j=0; j<m; j++) {
+                    c[i*ldc+j] = beta*c[i*ldc+j] + ctrans[j*n+i];
+                }
+            }
+	delete [] ctrans;
+    }
+    
+    inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
+                     const integer m, const integer n, const integer k,
+                     const complex_real8 alpha, const real8* a, const integer lda,
+                     const complex_real8* b, const integer ldb, const complex_real8 beta,
+                     complex_real8* c, const integer ldc) {
+        static const char *op[] = { "n","t","c" };
+        F77_DZGEMM(op[OpA], op[OpB], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+    }
+
+#endif
+
+
     ///@}
 
     /// Multiplies a matrix by a vector
@@ -460,7 +533,7 @@ namespace cblas {
         const integer incx, const complex_real4* y, const integer incy)
     {
         complex_real4 result(0.0, 0.0);
-        F77_CDOTU(&n, x, &incx, y, &incy, &result);
+        F77_CDOTU(&result, &n, x, &incx, y, &incy);
         return result;
     }
 
@@ -468,7 +541,7 @@ namespace cblas {
         const integer incx, const complex_real8* y, const integer incy)
     {
         complex_real8 result(0.0, 0.0);
-        F77_ZDOTU(&n, x, &incx, y, &incy, &result);
+        F77_ZDOTU(&result, &n, x, &incx, y, &incy);
         return result;
     }
     ///@}

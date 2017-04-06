@@ -1,6 +1,6 @@
     // Junk below due to void should be factored out by using the Void
     // class recently introduced in typestuff.h as was done already in
-    // worldobj.h.
+    // world_object.h.
 
     // Internal: This silliness since cannot use a void expression as a void argument
     template <typename resultT>
@@ -457,7 +457,7 @@
         
 //         /// Disabled for pointers to reduce accidental misuse.
 //         template <class T>
-//         typename enable_if_c< !is_pointer<T>::value, void>::type
+//         typename std::enable_if< !is_pointer<T>::value, void>::type
 //         Send(const T& datum, ProcessID dest, Tag tag=1) const {
 //             Send((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
 //         }
@@ -498,7 +498,7 @@
 //         /// Receive datum from process src with default tag=1
 //         template <class T>
             
-//             typename enable_if_c< !is_pointer<T>::value, void>::type
+//             typename std::enable_if< !is_pointer<T>::value, void>::type
 //             Recv(T& buf, ProcessID src, Tag tag=1) const {
 //             Recv(&buf, sizeof(T), MPI::BYTE, src, tag);
 //         }

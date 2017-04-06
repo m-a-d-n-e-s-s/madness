@@ -15,6 +15,6 @@ namespace madness {
 
 #else 
 
-int this_is_not_used_junk_junk_junk;
+/////int this_is_not_used_junk_junk_junk;
 
 #endif //MADNESS_HAS_ELEMENTAL

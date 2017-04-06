@@ -32,13 +32,73 @@
 */
 
 #include <madness/world/worldmutex.h>
-#include <madness/world/worldtime.h>
+#include <errno.h>
 
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable
 
 
 namespace madness {
+
+    namespace detail {
+        void print_mutex_error(int error_number) {
+            switch(error_number) {
+                // The pthread_mutex_lock() and pthread_mutex_trylock()
+                // functions shall fail if:
+
+                // An unlikely case in MADNESS ...
+//                case EINVAL:
+//                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EINVAL\n"
+//                           "!! MADNESS ERROR: The mutex was created with the "
+//                           "protocol attribute having the value PTHREAD_PRIO_PROTECT "
+//                           "and the calling thread's priority is higher than "
+//                           "the mutex's current priority ceiling.\n");
+//                    break;
+
+                // The pthread_mutex_trylock() function shall fail if:
+
+                case EBUSY:
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EBUSY\n"
+                           "!! MADNESS ERROR: The mutex could not be acquired "
+                           "because it was already locked.\n");
+                    break;
+
+                // The pthread_mutex_lock(), pthread_mutex_trylock(), and
+                // pthread_mutex_unlock() functions may fail if:
+
+                case EINVAL:
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EINVAL\n"
+                           "!! MADNESS ERROR: The value specified by mutex does"
+                           " not refer to an initialized mutex object.\n");
+                    break;
+
+                case EAGAIN:
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EAGAIN\n"
+                           "!! MADNESS ERROR: The mutex could not be acquired "
+                           "because the maximum number of recursive locks for "
+                           "mutex has been exceeded.\n");
+                    break;
+
+                // The pthread_mutex_lock() function may fail if:
+
+                case EDEADLK:
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EDEADLK\n"
+                           "!! MADNESS ERROR: The current thread already owns the mutex.\n");
+                    break;
+
+                // The pthread_mutex_unlock() function may fail if:
+
+                case EPERM:
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error EPERM\n"
+                           "!! MADNESS ERROR: The current thread does not own the mutex.\n");
+                    break;
+
+                default:
+                    fprintf(stderr, "!! MADNESS ERROR: Mutex error UNKNOWN\n");
+                    break;
+            }
+        }
+    }
 
     void MutexWaiter::wait() {
         //#ifdef HAVE_CRAYXT

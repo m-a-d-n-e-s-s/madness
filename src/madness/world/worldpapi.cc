@@ -27,13 +27,12 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #include <madness/madness_config.h>
 #ifdef HAVE_PAPI
 #include <papi.h>
-#include <madness/world/worldthread.h>
+#include <madness/world/thread.h>
 #include <madness/world/worldpapi.h>
 namespace madness {
 

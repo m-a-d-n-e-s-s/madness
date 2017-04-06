@@ -9,7 +9,7 @@ AC_DEFUN([ACX_CHECK_TLS],[
   acx_check_tls=no
   
   # Check for the key word thread_local (C++11)
-  AC_LINK_IFELSE(  
+  AC_COMPILE_IFELSE(  
     [
       AC_LANG_PROGRAM(
         [[thread_local int i = 0;]],
@@ -21,7 +21,7 @@ AC_DEFUN([ACX_CHECK_TLS],[
   
   # Check for the key word __thread
   if test "$acx_check_tls" = no; then
-    AC_LINK_IFELSE(
+    AC_COMPILE_IFELSE(
       [
         AC_LANG_PROGRAM(
           [[__thread int i = 0;]],
@@ -37,7 +37,7 @@ AC_DEFUN([ACX_CHECK_TLS],[
   
    # Check for the key word __declspec(thread)
 #  if test "$acx_check_tls" = no; then
-#    AC_LINK_IFELSE(
+#    AC_COMPILE_IFELSE(
 #      [
 #        AC_LANG_PROGRAM(
 #          [[__declspec(thread) int i = 0;]],
@@ -52,7 +52,7 @@ AC_DEFUN([ACX_CHECK_TLS],[
 #  fi
   
   if test "$acx_check_tls" = no; then
-    AC_DEFINE([thread_local],[],[Define the thread_local key word.])
+    AC_MSG_ERROR([Unable to detect mandatory support for thread-local storage])
   fi
 
   

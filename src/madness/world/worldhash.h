@@ -27,11 +27,7 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
-
 
 #ifndef MADNESS_WORLD_WORLDHASH_H__INCLUDED
 #define MADNESS_WORLD_WORLDHASH_H__INCLUDED
@@ -39,6 +35,8 @@
 /*!
  \file worldhash.h
  \brief Defines hash functions for use in distributed containers
+ \addtogroup hashing
+ @{
 
 MADNESS uses hashing functions are modeled after Boost.Functional/Hash. It has
 many similar function calls including hash_value, hash_combine, and hash_range.
@@ -128,10 +126,10 @@ provide the appropriate template parameter to the hashing container.
 */
 
 #include <madness/madness_config.h>
-#include <madness/world/enable_if.h>
 #include <stdint.h>
 #include <cstddef>
 #include <iterator>
+#include <type_traits>
 
 // Bob Jenkin's "lookup v3" hash from http://www.burtleburtle.net/bob/c/lookup3.c.
 extern "C" {
@@ -154,7 +152,7 @@ namespace madness {
     /// \note Use heavily optimized hashword when sizeof(T) is multiple
     /// of sizeof(uint32_t) and presumably correctly aligned.
     template <class T>
-    inline typename enable_if_c<std::is_fundamental<T>::value &&
+    inline typename std::enable_if<std::is_fundamental<T>::value &&
         ((sizeof(T)%sizeof(uint32_t)) == 0),
         hashT>::type
     hash_value(const T t) {
@@ -170,7 +168,7 @@ namespace madness {
     /// \param t The object to hash
     /// \return The hashed value
     template <class T>
-    inline typename madness::enable_if_c<std::is_fundamental<T>::value &&
+    inline typename std::enable_if<std::is_fundamental<T>::value &&
         ((sizeof(T)%sizeof(uint32_t)) != 0),
         hashT>::type
     hash_value(const T t) {
@@ -196,7 +194,7 @@ namespace madness {
     /// \param t The object to hash
     /// \return \c t.hash()
     template <typename T>
-    inline typename enable_if_c<!(std::is_fundamental<T>::value ||
+    inline typename std::enable_if<!(std::is_fundamental<T>::value ||
         std::is_pointer<T>::value || std::is_array<T>::value), hashT>::type
     hash_value(const T& t) {
         return t.hash();
@@ -208,9 +206,7 @@ namespace madness {
     /// \param t The string to hash
     /// \return The hashed value of the string
     template <typename T>
-    inline hashT hash_value(const std::basic_string<T>& t) {
-        return hash_range(t.c_str(), t.size());
-    }
+    inline hashT hash_value(const std::basic_string<T>& t);
 
     /// Hash functor
 
@@ -319,7 +315,7 @@ namespace madness {
     /// \note May use heavily optimized hashword when n * sizeof(T) is multiple
     /// of sizeof(uint32_t) and presumably correctly aligned.
     template <class T>
-    inline typename enable_if<std::is_fundamental<T> >::type
+    inline typename std::enable_if<std::is_fundamental<T>::value >::type
     hash_range(hashT& seed, const T* t, std::size_t n) {
         const std::size_t bytes = n * sizeof(T);
         if((bytes % sizeof(uint32_t)) == 0)
@@ -335,7 +331,7 @@ namespace madness {
     /// \param[in] t A pointer to the beginning of the range to be hashed
     /// \param[in] n The number of elements to hashed
     template <class T>
-    inline typename disable_if<std::is_fundamental<T> >::type
+    inline typename std::enable_if<!std::is_fundamental<T>::value >::type
     hash_range(hashT& seed, const T* t, std::size_t n) {
         hash_range(seed, t, t + n);
     }
@@ -353,7 +349,14 @@ namespace madness {
         return seed;
     }
 
+    template <typename T>
+    inline hashT hash_value(const std::basic_string<T>& t) {
+        return hash_range(t.c_str(), t.size());
+    }
+    
+
 } // namespace madness
 
+///@}
 
 #endif // MADNESS_WORLD_WORLDHASH_H__INCLUDED

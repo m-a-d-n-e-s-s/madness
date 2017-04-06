@@ -1,29 +1,64 @@
 # Define paths for includes (note convention #include <dir/file.h>)
 AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_builddir)/src -I$(top_srcdir)/src/apps
 
+if LINK_ALL_STATIC
+AM_LDFLAGS = -all-static
+endif
+
 # Define directories holding libraries and variables for corresponding libraries
-LIBGTESTDIR=$(top_builddir)/src/gtest
+LIBGTESTDIR=$(top_builddir)/src/madness/external/gtest
 LIBWORLDDIR=$(top_builddir)/src/madness/world
 LIBTENSORDIR=$(top_builddir)/src/madness/tensor
 LIBMISCDIR=$(top_builddir)/src/madness/misc
 LIBMRADIR=$(top_builddir)/src/madness/mra
 LIBCHEMDIR=$(top_builddir)/src/apps/chem
-LIBTINYXMLDIR=$(top_builddir)/src/madness/tinyxml
-LIBMUPARSERDIR=$(top_builddir)/src/madness/muParser
+LIBTINYXMLDIR=$(top_builddir)/src/madness/external/tinyxml
+LIBMUPARSERDIR=$(top_builddir)/src/madness/external/muParser
 
-LIBGTEST=$(LIBGTESTDIR)/libMADgtest.a
-LIBWORLD=$(LIBWORLDDIR)/libMADworld.a
-LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.a
-LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.a
-LIBMISC=$(LIBMISCDIR)/libMADmisc.a
-LIBMRA=$(LIBMRADIR)/libMADmra.a
-LIBCHEM=$(LIBCHEMDIR)/libMADchem.a
-LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.a
-LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.a
+LIBGTEST=$(LIBGTESTDIR)/libMADgtest.la
+LIBWORLD=$(LIBWORLDDIR)/libMADworld.la
+LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.la
+LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.la
+LIBMISC=$(LIBMISCDIR)/libMADmisc.la
+LIBMRA=$(LIBMRADIR)/libMADmra.la
+LIBCHEM=$(LIBCHEMDIR)/libMADchem.la
+LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.la
+LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.la
 
 # Most scientific/numeric applications will link against these libraries
 MRALIBS=$(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
 
-LIBGTEST_CPPFLAGS = $(GTEST_CPPFLAGS) -DGTEST_HAS_PTHREAD=1 -isystem $(top_srcdir)/src/gtest/include $(AM_CPPFLAGS)
+LIBGTEST_CPPFLAGS = $(GTEST_CPPFLAGS) -DGTEST_HAS_PTHREAD=1 -isystem $(top_srcdir)/src/madness/external/gtest/include $(AM_CPPFLAGS)
 LIBGTEST_CXXFLAGS = $(GTEST_CXXFLAGS)  $(AM_CXXFLAGS)
 LIBGTEST_LIBS = $(GTEST_LDFLAGS) $(GTEST_LIBS)
+
+# External library targets
+$(LIBGTEST):
+	$(MAKE) -C $(LIBGTESTDIR) libMADgtest.la
+
+$(LIBTINYXML):
+	$(MAKE) -C $(LIBTINYXMLDIR) libMADtinyxml.la
+
+$(LIBMUPARSER):
+	$(MAKE) -C $(LIBMUPARSERDIR) libMADmuparser.la
+
+# MADNESS library targets
+$(LIBWORLD): 
+	$(MAKE) -C $(LIBWORLDDIR) libMADworld.la
+
+$(LIBMISC): $(LIBWORLD)
+	$(MAKE) -C $(LIBMISCDIR) libMADmisc.la
+
+$(LIBTENSOR): $(LIBMISC)
+	$(MAKE) -C $(LIBTENSORDIR) libMADtensor.la
+
+$(LIBLINALG): $(LIBTENSOR)
+	$(MAKE) -C $(LIBTENSORDIR) libMADlinalg.la
+
+
+$(LIBMRA): $(LIBLINALG)
+	$(MAKE) -C $(LIBMRADIR) libMADmra.la
+
+$(LIBCHEM): $(LIBMRA)
+	$(MAKE) -C $(LIBCHEMDIR) libMADchem.la
+

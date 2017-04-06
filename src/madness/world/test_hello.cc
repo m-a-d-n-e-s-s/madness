@@ -27,11 +27,10 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #include <iostream>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 
 int main(int argc, char** argv) {
     madness::World& world = madness::initialize(argc,argv);

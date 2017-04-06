@@ -1,0 +1,178 @@
+# Introduction
+
+When configuring MADNESS with CMake, you must specify cache variables and the
+path to the MADNESS source directory. To specify a cache variable prefix it with
+the -D command line flag and set it equal to the desired value (see below for a
+valid cache variables). For example, to specify the C/C++ compilers
+
+    $ cmake -D CMAKE_C_COMPILER=gcc -D CMAKE_CXX_COMPILER=g++ \
+        /path/to/madness/source
+
+The resulting build directory will be the current working directory specified
+where the CMake command it run. It is recommended that you configure and build
+MADNESS outside the source tree. Boolean values for cache variables are 
+considered true if the constant is 1, ON, YES, TRUE, Y, or a non-zero number; or
+false if the constant is 0, OFF, NO, FALSE, N, or IGNORE.
+
+# Toolchain files
+
+MADNESS provides toolchain files for select systems. It is recommended that you
+use these files if provided as they contain the platform specific settings
+neccessary to build on the given platform. The toolchain files are included wiht
+the MADNESS source in the cmake/toolchains directory.
+
+* CMAKE_TOOLCHAIN_FILE --- Specifies the path (including the file name) to the
+      toolchain file.
+
+For example, to specify the toolchain file for Mira:
+
+    $ cmake -D CMAKE_TOOLCHAIN_FILE=/path/to/madness/source/cmake/toolchains/mira-gcc-essl.cmake \
+        /path/to/madness/source
+
+Additional cache variables may be specified. 
+
+# Compiler variables
+
+The following CMake cache variables are used to specify the compilers, compiler
+flags, and linker flags.
+
+* CMAKE_C_COMPILER --- C compiler [default=search]
+* CMAKE_CXX_COMPILER --- C++ compiler [default=search]
+* CMAKE_ASM_COMPILER --- Assembly compiler (set only if required) 
+      [default=search]
+* MPI_CXX_COMPILER --- MPI C++ compiler wrapper (required if ENABLE_MPI=ON) 
+      [default=search]
+* MPI_C_COMPILER --- MPI C compiler wrapper (required if ENABLE_MPI=ON) 
+      [default=search]
+      
+You can specify compile flags with the following variables. These cache variables
+are optional, and it is typically not necessary to specify these variables.
+
+* CMAKE_C_FLAGS --- Compile flags passed to the C compiler
+* CMAKE_CXX_FLAGS --- Compile flags passed to the C++ compiler
+* CMAKE_EXE_LINKER_FLAGS --- Linker flags to be used to create executables.
+* CMAKE_STATIC_LINKER_FLAGS --- Linker flags to be used to create static 
+      libraries.
+* CMAKE_SHARED_LINKER_FLAGS --- Linker flags to be used to create shared 
+      libraries.
+
+# Build options
+
+The following CMake cache variables turn MADNESS features on and off.
+
+* ENABLE_GENTENSOR --- Enable generic tensors; only useful if need
+                       compressed 6-d tensors, e.g. in MP2 [default=OFF]
+* ENABLE_TASK_PROFILER - Enable task profiler that collects per-task start and 
+      stop times. [default=OFF]
+* ENABLE_WORLD_PROFILE --- Enables world profiling [default=OFF]
+* ENABLE_MEM_STATS --- Gather memory statistics (expensive) (default=OFF)
+* ENABLE_TENSOR_BOUNDS_CHECKING --- Enable checking of bounds in tensors ... 
+      slow but useful for debugging [default=OFF]
+* ENABLE_TENSOR_INSTANCE_COUNT --- Enable counting of allocated tensors for 
+      memory leak detection [default=OFF]
+* ENABLE_SPINLOCKS --- Enables use of spinlocks instead of mutexes (faster 
+      unless over subscribing processors) [default=ON]
+* ENABLE_NEVER_SPIN --- Disables use of spinlocks (notably for use inside
+      virtual machines [default=OFF]
+* ENABLE_BSEND_ACKS --- Use MPI Send instead of MPI Bsend for huge message 
+      acknowledgements [default=ON]
+* ENABLE_UNITTESTS --- Enables unit tests targets [default=ON]
+* FORTRAN_INTEGER_SIZE --- Set the fortran integer size (4 or 8 bytes) used for 
+      BLAS and LAPACK function calls [default=4]
+* ASSERTION_TYPE --- Define MADNESS assertion behavior
+      (abort|assert|disable|throw) [default=throw]
+* MPI_THREAD --- Thread level for MPI (multiple|serialized)" [default=multiple]
+* BUILD_SHARED_LIBS --- Enable shared libraries. This option is only available
+      if the platform supports shared libraries [default=ON]
+
+# External libraries
+
+The following CMake cache variables enable the use of external libraries with
+MADNESS. If the WITH_* variable is set to "ON" by default, failure to find the
+external library is not an error. If you explicitly set a WITH_* variable to 
+"ON" when the default is set to "OFF," an error will occur if the library is
+not found.
+
+* CMAKE_PREFIX_PATH - A semicolon seperated list of paths that are used when 
+      searching for external libraries and dependencies. You may use this CMake
+      cache variable to specify the prefix for any of the dependencies, or you
+      may specify path for individual components below.
+
+* ENABLE_MPI --- Enable use of MPI, should specify MPI_CXX_COMPILER or MPI_C_COMPILER
+                 explicitly or have them in PATH; if not found will use StubMPI and
+                 be limited to 1 process [default=ON]
+
+In the following section, each optional library privides four variables that
+the user can use to enable cmake to find the correct dependencies: 
+  * ENABLE_<LIB> --- Enable the library feathres (ON|OFF)
+  * <LIB>_ROOT_DIR --- Prefix path used to search for the external library.
+  * <LIB>_INCLUDE_DIR --- The external library include path. By default the
+        include path is ${<LIB>_ROOT_DIR}/include, if <LIB>_ROOT_DIR is
+        specified in the configure command.
+  * <LIB>_LIBRARY --- The external library path. By default the
+        include path is ${<LIB>_ROOT_DIR}/(lib64|lib), if <LIB>_ROOT_DIR is
+        specified in the configure command.
+If the <LIB>_ROOT_DIR, <LIB>_INCLUDE_DIR, and <LIB>_LIBRARY will be used to
+search for specific dependencies. If the external library is not found in these
+given paths, or if the paths are not given, CMake will search the paths in 
+CMAKE_PREFIX_PATH as well as other system paths.
+
+Intel Threading Building Blocks (TBB):
+
+* ENABLE_TBB --- Enables use of Intel TBB as the task scheduler [default=ON]
+* TBB_ROOT_DIR --- The install prefix for TBB
+* TBB_INCLUDE_DIR --- The path to the TBB include directory
+* TBB_LIBRARY --- The path to the TBB library directory. By default, the library
+      search path is ${TBB_ROOT_DIR}/(lib/intel64/gcc4.4|lib) on Linux and
+      ${TBB_ROOT_DIR}/(lib/libc++|lib) on OS X, if TBB_ROOT_DIR is specified in
+      the configure command.
+
+Intel Math Kernel Library (MKL):
+
+* ENABLE_MKL --- Search for Intel MKL for BLAS and LAPACK support [default=ON]
+* MKL_ROOT_DIR --- The install prefix for MKL.
+* MKL_LIBRARY --- The path to the MKL library directory.
+
+AMD Core Math Library (ACML):
+
+* ENABLE_ACML --- Search for AMD math library for BLAS and LAPACK support
+      [default=ON]
+* ACML_ROOT_DIR --- The install prefix for ACML.
+* ACML_LIBRARY --- The path to the ACML library directory.
+
+Google Performance Tools (Gperftools):
+
+* ENABLE_GPERFTOOLS --- Enable use of gperftools, including tcmalloc.
+      [default=ON]
+* ACML_ROOT_DIR --- The install prefix for ACML.
+* ACML_INCLUDE_DIR --- The path to the ACML include directory.
+* ACML_LIBRARY --- The path to the ACML library directory.
+
+Library of Exchange-Correlation DFT functionals (LIBXC):
+
+* ENABLE_LIBXC --- Enables use of the libxc library of density functionals.
+      [default=ON]
+* LIBXC_ROOT_DIR --- The install prefix for LIBXC.
+* LIBXC_INCLUDE_DIR --- The path to the LIBXC include directory.
+* LIBXC_LIBRARY --- The path to the LIBXC library directory.
+
+Performance Application Programming Interface (PAPI):
+
+* ENABLE_PAPI --- Enables use of PAPI [default=OFF]
+* PAPI_ROOT_DIR --- The install prefix for PAPI.
+* PAPI_INCLUDE_DIR --- The path to the PAPI include directory.
+* PAPI_LIBRARY --- The path to the PAPI library directory.
+
+Elemental parallel linear algebra library:
+
+Elemental provides optional distributed-memory linear algebra for some MADNESS application codes.
+MADNESS source includes (modified) Elemental v0.84, which has been validated to work with
+the few MADNESS apps that can use Elemental. You can instruct MADNESS to download and compile
+a more recent version of Elemental, if desired, but the apps will not use Elemental then.
+Such bundling is currently necessary if your code uses the MADworld runtime AND Elemental because
+madness::initialize will call El::initialize() .
+
+* ENABLE_ELEMENTAL --- Enable Elemental [default=OFF].
+* ELEMENTAL_TAG --- specifies the version of Elemental to be downloaded, compiled, and installed alongside
+                    MADNESS (numerical codes of MADNESS will not use Elemental).
+                    If not set, will use the included Elemental source.

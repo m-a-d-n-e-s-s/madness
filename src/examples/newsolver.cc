@@ -208,7 +208,7 @@ int main(int argc, char** argv) {
         print("                    Virial ", virial);
     }
 
-    plot_line("psi.dat", 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), psi);
+    plot_line("psi.dat", 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, psi);
 
     world.gop.fence();
 
@@ -226,8 +226,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    plot_line("dpsi.dat", 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), dpsi);
-    plot_line("rho.dat", 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), rho);
+    plot_line("dpsi.dat", 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, dpsi);
+    plot_line("rho.dat", 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, rho);
 
     double h1 = 0.0;
     for (int axis=0; axis<3; axis++) {
@@ -283,11 +283,11 @@ int main(int argc, char** argv) {
 
         char fname[32];
         sprintf(fname,"x_%6.4f.dat", omega);
-        plot_line(fname, 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), x);
+        plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, x);
         sprintf(fname,"y_%6.4f.dat", omega);
-        plot_line(fname, 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), y);
+        plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, y);
         sprintf(fname,"drho_%6.4f.dat", omega);
-        plot_line(fname, 1001, vec(0.0,0.0,-20.0), vec(0.0,0.0,20.0), drho);
+        plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, drho);
     }
     
     finalize();

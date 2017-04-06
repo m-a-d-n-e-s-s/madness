@@ -27,12 +27,7 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
-
 */
-
 
 #ifndef MADNESS_MRA_MRA_H__INCLUDED
 #define MADNESS_MRA_MRA_H__INCLUDED
@@ -46,7 +41,7 @@
 */
 
 
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 
@@ -63,14 +58,14 @@ static const bool VERIFY_TREE = false; //true
 
 
 namespace madness {
-    void startup(World& world, int argc, char** argv);
+    void startup(World& world, int argc, char** argv, bool doprint=false);
 }
 
 #include <madness/mra/key.h>
 #include <madness/mra/twoscale.h>
 #include <madness/mra/legendre.h>
 #include <madness/mra/indexit.h>
-#include <madness/world/parar.h>
+#include <madness/world/parallel_archive.h>
 #include <madness/world/worlddc.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
@@ -132,6 +127,10 @@ namespace madness {
         std::shared_ptr< FunctionImpl<T,NDIM> > impl;
 
     public:
+        bool impl_initialized()const{
+        	if(impl==NULL) return false;
+        	else return true;
+        }
         typedef FunctionImpl<T,NDIM> implT;
         typedef FunctionNode<T,NDIM> nodeT;
         typedef FunctionFactory<T,NDIM> factoryT;
@@ -518,6 +517,8 @@ namespace madness {
             return impl->size();
         }
 
+        /// Retunrs
+
 
         /// Returns value of autorefine flag.  No communication.
         bool autorefine() const {
@@ -578,7 +579,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return *this;
             verify();
-            if (!is_compressed()) compress();
+//            if (!is_compressed()) compress();
             impl->truncate(tol,fence);
             if (VERIFY_TREE) verify_tree();
             return *this;
@@ -616,6 +617,7 @@ namespace madness {
         template <typename R>
         void set_impl(const Function<R,NDIM>& f, bool zero = true) {
             impl = std::shared_ptr<implT>(new implT(*f.get_impl(), f.get_pmap(), zero));
+	    if (zero) world().gop.fence();
         }
 
         /// Returns the world
@@ -733,11 +735,12 @@ namespace madness {
         ///
         /// Since reconstruction/compression do not discard information we define them
         /// as const ... "logical constness" not "bitwise constness".
-        void reconstruct(bool fence = true) const {
+        const Function<T,NDIM>& reconstruct(bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (!impl || !is_compressed()) return;
+            if (!impl || !is_compressed()) return *this;
             const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+            return *this;
         }
 
 
@@ -770,8 +773,11 @@ namespace madness {
         };
 
         /// Inplace autorefines the function using same test as for squaring.
-        void refine(bool fence = true) {
+
+        /// return this for chaining
+        const Function<T,NDIM>& refine(bool fence = true) const {
             refine_general(autorefine_square_op(), fence);
+            return *this;
         }
 
         /// Inplace broadens support in scaling function basis
@@ -871,6 +877,8 @@ namespace madness {
             verify();
             impl->unary_op_node_inplace(op, fence);
         }
+
+
 
 
         static void doconj(const Key<NDIM>, Tensor<T>& t) {
@@ -1057,15 +1065,16 @@ namespace madness {
         /// @param[in]  g   the function after which the MRA structure is modeled (any basis works)
         template<typename R>
         Function<T,NDIM>& fill_tree(const Function<R,NDIM>& g, bool fence=true) {
-            MADNESS_ASSERT(g.is_initialized());
-            MADNESS_ASSERT(is_on_demand());
+          MADNESS_ASSERT(g.is_initialized());
+          MADNESS_ASSERT(is_on_demand());
 
-            // clear what we have
-            impl->get_coeffs().clear();
+          // clear what we have
+          impl->get_coeffs().clear();
 
-            leaf_op<T,NDIM> gnode_is_leaf(g.get_impl().get());
-            impl->make_Vphi(gnode_is_leaf,fence);
-            return *this;
+          //leaf_op<T,NDIM> gnode_is_leaf(g.get_impl().get());
+          Leaf_op_other<T,NDIM> gnode_is_leaf(g.get_impl().get());
+          impl->make_Vphi(gnode_is_leaf,fence);
+          return *this;
 
         }
 
@@ -1074,26 +1083,80 @@ namespace madness {
         /// @param[in]  op  the convolution operator for screening
         template<typename opT>
         Function<T,NDIM>& fill_tree(const opT& op, bool fence=true) {
-            MADNESS_ASSERT(is_on_demand());
-
-            // clear what we have
-            impl->get_coeffs().clear();
-            op_leaf_op<T,NDIM,opT> leaf_op(&op,this->get_impl().get());
-            impl->make_Vphi(leaf_op,fence);
-            return *this;
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          Specialbox_op<T,NDIM> sbox;
+          Leaf_op<T,NDIM,opT,Specialbox_op<T,NDIM> > leaf_op(this->get_impl().get(),&op,sbox);
+          impl ->make_Vphi(leaf_op,fence);
+          return *this;
         }
 
         /// With this being an on-demand function, fill the MRA tree according to different criteria
         Function<T,NDIM>& fill_tree(bool fence=true) {
-            MADNESS_ASSERT(is_on_demand());
-
-            // clear what we have
-            impl->get_coeffs().clear();
-            error_leaf_op<T,NDIM> leaf_op(this->get_impl().get());
-            impl->make_Vphi(leaf_op,fence);
-            return *this;
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,Specialbox_op<T,NDIM> > leaf_op(this->get_impl().get());
+          impl->make_Vphi(leaf_op,fence);
+          return *this;
         }
 
+        /// Special refinement on 6D boxes where the electrons come closs (meet)
+        /// @param[in]  op  the convolution operator for screening
+        template<typename opT>
+        Function<T,NDIM>& fill_cuspy_tree(const opT& op,const bool fence=true){
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          ElectronCuspyBox_op<T,NDIM> sbox;
+
+          Leaf_op<T,NDIM,opT,ElectronCuspyBox_op<T,NDIM> > leaf_op(this->get_impl().get(),&op,sbox);
+          impl ->make_Vphi(leaf_op,fence);
+
+          return *this;
+        }
+
+        /// Special refinement on 6D boxes where the electrons come closs (meet)
+        Function<T,NDIM>& fill_cuspy_tree(const bool fence=true){
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          ElectronCuspyBox_op<T,NDIM> sbox;
+
+          Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,ElectronCuspyBox_op<T,NDIM> > leaf_op(this->get_impl().get(),sbox);
+          impl ->make_Vphi(leaf_op,fence);
+
+          return *this;
+        }
+
+        /// Special refinement on 6D boxes for the nuclear potentials (regularized with cusp, non-regularized with singularity)
+        /// @param[in]  op  the convolution operator for screening
+        template<typename opT>
+        Function<T,NDIM>& fill_nuclear_cuspy_tree(const opT& op,const size_t particle,const bool fence=true){
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          NuclearCuspyBox_op<T,NDIM> sbox(particle);
+
+          Leaf_op<T,NDIM,opT,NuclearCuspyBox_op<T,NDIM> > leaf_op(this->get_impl().get(),&op,sbox);
+          impl ->make_Vphi(leaf_op,fence);
+
+          return *this;
+        }
+
+        /// Special refinement on 6D boxes for the nuclear potentials (regularized with cusp, non-regularized with singularity)
+        Function<T,NDIM>& fill_nuclear_cuspy_tree(const size_t particle,const bool fence=true){
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          NuclearCuspyBox_op<T,NDIM> sbox(particle);
+
+          Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,NuclearCuspyBox_op<T,NDIM> > leaf_op(this->get_impl().get(),sbox);
+          impl ->make_Vphi(leaf_op,fence);
+
+          return *this;
+        }
 
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM, typename opT>
@@ -1170,8 +1233,8 @@ namespace madness {
         }
 
         /// Return the local part of inner product with external function ... no communication.
-        /// If you are going to be doing a bunch of inner_ext calls, set 
-        /// keep_redundant to true and then manually undo_redundant when you 
+        /// If you are going to be doing a bunch of inner_ext calls, set
+        /// keep_redundant to true and then manually undo_redundant when you
         /// are finished.
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
         /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
@@ -1186,8 +1249,8 @@ namespace madness {
         }
 
         /// Return the inner product with external function ... requires communication.
-        /// If you are going to be doing a bunch of inner_ext calls, set 
-        /// keep_redundant to true and then manually undo_redundant when you 
+        /// If you are going to be doing a bunch of inner_ext calls, set
+        /// keep_redundant to true and then manually undo_redundant when you
         /// are finished.
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
         /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
@@ -1203,17 +1266,32 @@ namespace madness {
             return local;
         }
 
+        /// Return the inner product with external function ... requires communication.
+        /// If you are going to be doing a bunch of inner_ext calls, set
+        /// keep_redundant to true and then manually undo_redundant when you
+        /// are finished.
+        /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
+        /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf nodes
+        /// @return Returns the inner product
+        T inner_adaptive(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f,
+                const bool leaf_refine=true) const {
+            PROFILE_MEMBER_FUNC(Function);
+            reconstruct();
+            T local = impl->inner_adaptive_local(f, leaf_refine);
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
+            return local;
+        }
+
         /// Return the local part of gaxpy with external function, this*alpha + f*beta ... no communication.
         /// @param[in] alpha prefactor for this Function
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
         /// @param[in] beta prefactor for f
-        /// @return Returns local part of the gaxpy, i.e. over the domain of all function nodes on this compute node.
         template <typename L>
-        Void gaxpy_ext(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence=true) const {
+        void gaxpy_ext(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence=true) const {
             PROFILE_MEMBER_FUNC(Function);
             if (left.is_compressed()) left.reconstruct();
             impl->gaxpy_ext(left.get_impl().get(), f, alpha, beta, tol, fence);
-            return None;
         }
 
         /// Returns the inner product for one on-demand function
@@ -1226,26 +1304,27 @@ namespace madness {
         /// @param[in]  g	on-demand function
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_on_demand(const Function<R,NDIM>& g) const {
-        	MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
+          MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
-            this->reconstruct();
+          this->reconstruct();
 
-        	// save for later, will be removed by make_Vphi
-            std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
-            leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
-            g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
+          // save for later, will be removed by make_Vphi
+          std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
+          //leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
+          Leaf_op_other<T,NDIM> fnode_is_leaf(this->get_impl().get());
+          g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
 
-            if (VERIFY_TREE) verify_tree();
-            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
-            impl->world.gop.sum(local);
-            impl->world.gop.fence();
+          if (VERIFY_TREE) verify_tree();
+          TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
+          impl->world.gop.sum(local);
+          impl->world.gop.fence();
 
-            // restore original state
-            g.get_impl()->set_functor(func);
-            g.get_impl()->get_coeffs().clear();
-            g.get_impl()->is_on_demand()=true;
+          // restore original state
+          g.get_impl()->set_functor(func);
+          g.get_impl()->get_coeffs().clear();
+          g.get_impl()->is_on_demand()=true;
 
-            return local;
+          return local;
         }
 
         /// project this on the low-dim function g: h(x) = <f(x,y) | g(y)>
@@ -1277,6 +1356,15 @@ namespace madness {
             return result;
         }
 
+        template<std::size_t LDIM>
+        Function<T,LDIM> dirac_convolution(const bool fence=true) const {
+//        	// this will be the result function
+        	FunctionFactory<T,LDIM> factory=FunctionFactory<T,LDIM>(world()).k(this->k());
+        	Function<T,LDIM> f = factory;
+        	if(this->is_compressed()) this->reconstruct();
+        	this->get_impl()->do_dirac_convolution(f.get_impl().get(),fence);
+        	return f;
+        }
 
         /// Replaces this function with one loaded from an archive using the default processor map
 
@@ -1345,32 +1433,12 @@ namespace madness {
             return r;
         }
 
-        /// Refine vector of functions down to common finest level (reconstructs as necessary, optional fence)
-        void refine_to_common_level(std::vector< Function<T,NDIM> >& vf, bool fence=true) {
-            Key<NDIM> key0(0, Vector<Translation, NDIM> (0));
-            std::vector< Tensor<T> > c(vf.size());
-            std::vector<implT*> v(vf.size());
-            bool mustfence = false;
-            for (unsigned int i=0; i<v.size(); ++i) {
-                if (vf[i].is_compressed()) {
-                    vf[i].reconstruct(false);
-                    mustfence = true;
-                }
-                v[i] = vf[i].get_impl().get();
-            }
-            vf[0].impl->refine_to_common_level(v, c, key0);
-            if (mustfence) vf[0].world().gop.fence();
-            if (fence) vf[0].world().gop.fence();
-            if (VERIFY_TREE)
-	      for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
-        }
-
         /// This is replaced with op(vector of functions) ... private
         template <typename opT>
         Function<T,NDIM>& multiop_values(const opT& op, const std::vector< Function<T,NDIM> >& vf) {
-            std::vector<implT*> v(vf.size());
+            std::vector<implT*> v(vf.size(),NULL);
             for (unsigned int i=0; i<v.size(); ++i) {
-                v[i] = vf[i].get_impl().get();
+                if (vf[i].is_initialized()) v[i] = vf[i].get_impl().get();
             }
             impl->multiop_values(op, v);
             world().gop.fence();
@@ -1378,6 +1446,32 @@ namespace madness {
 
             return *this;
         }
+
+        /// apply op on the input vector yielding an output vector of functions
+
+        /// (*this) is just a dummy Function to be able to call internal methods in FuncImpl
+        /// @param[in]  op   the operator working on vin
+        /// @param[in]  vin  vector of input Functions
+        /// @param[out] vout vector of output Functions vout = op(vin)
+        template <typename opT>
+        void multi_to_multi_op_values(const opT& op,
+                const std::vector< Function<T,NDIM> >& vin,
+                std::vector< Function<T,NDIM> >& vout,
+                const bool fence=true) {
+            std::vector<implT*> vimplin(vin.size(),NULL);
+            for (unsigned int i=0; i<vin.size(); ++i) {
+                if (vin[i].is_initialized()) vimplin[i] = vin[i].get_impl().get();
+            }
+            std::vector<implT*> vimplout(vout.size(),NULL);
+            for (unsigned int i=0; i<vout.size(); ++i) {
+                if (vout[i].is_initialized()) vimplout[i] = vout[i].get_impl().get();
+            }
+
+            impl->multi_to_multi_op_values(op, vimplin, vimplout, fence);
+            if (VERIFY_TREE) verify_tree();
+
+        }
+
 
         /// Multiplication of function * vector of functions using recursive algorithm of mulxx
         template <typename L, typename R>
@@ -1479,7 +1573,7 @@ namespace madness {
         }
     };
 
-    template <typename T, typename opT, int NDIM>
+    template <typename T, typename opT, std::size_t NDIM>
     Function<T,NDIM> multiop_values(const opT& op, const std::vector< Function<T,NDIM> >& vf) {
         Function<T,NDIM> r;
         r.set_impl(vf[0], false);
@@ -1907,34 +2001,39 @@ namespace madness {
     apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-        result.set_impl(f, true);
-        result.get_impl()->apply(op, *f.get_impl(), fence);
+        // specialized version for 3D
+        if (NDIM <= 3) {
+            result.set_impl(f, false);
+            result.get_impl()->apply(op, *f.get_impl(), fence);
+
+        } else {        // general version for higher dimension
+            bool print_timings=true;
+            Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
+
+            result.set_impl(f, true); // ??????????????????
+            r1.set_impl(f, true); // ??????????????????
+
+            result.get_impl()->reset_timer();
+            op.reset_timer();
+
+            result.get_impl()->apply_source_driven(op, *f.get_impl(), fence);
+
+            // recursive_apply is about 20% faster than apply_source_driven
+            //result.get_impl()->recursive_apply(op, f.get_impl().get(),
+            //        r1.get_impl().get(),true);          // will fence here
+
+
+            double time=result.get_impl()->finalize_apply(fence);   // need fence before reconstruction
+           	result.world().gop.fence();
+            if (print_timings) {
+                result.get_impl()->print_timer();
+                op.print_timer();
+                if (result.world().rank()==0) print("time in finlize_apply", time);
+            }
+
+        }
+
         return result;
-
-
-        // PROFILE_FUNC;
-        // Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
-        // Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
-
-        // result.set_impl(f, true);
-        // r1.set_impl(f, true);
-
-        // result.get_impl()->reset_timer();
-        // op.reset_timer();
-
-        // result.get_impl()->apply_source_driven(op, *f.get_impl(), fence);
-        // //        result.get_impl()->recursive_apply(op, f.get_impl().get(),
-        // //        		r1.get_impl().get(),true);			// will fence here
-
-
-	// 	double time=result.get_impl()->finalize_apply(fence);	// need fence before reconstruction
-        // if (opT::opdim==6) {
-        //     result.get_impl()->print_timer();
-        //     op.print_timer();
-    	// 	if (result.world().rank()==0) print("time in finlize_apply", time);
-        // }
-
-        // return result;
     }
 
     /// Apply operator in non-standard form
@@ -1951,10 +2050,11 @@ namespace madness {
     	Function<resultT, NDIM> result;
 
 		MADNESS_ASSERT(not f.is_on_demand());
+		bool print_timings=(NDIM==6);
 
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
-        if (opT::opdim==6) ff.print_size("ff in apply after reconstruct");
+        if (print_timings) ff.print_size("ff in apply after reconstruct");
 
     	if (op.modified()) {
 
@@ -1977,8 +2077,8 @@ namespace madness {
 //    		Function<R,NDIM> fff=copy(ff);
     		Function<R,NDIM> fff=(ff);
             fff.nonstandard(op.doleaves, true);
-            if (opT::opdim==6) fff.print_size("ff in apply after nonstandard");
-            if ((opT::opdim==6) and (f.world().rank()==0)) {
+            if (print_timings) fff.print_size("ff in apply after nonstandard");
+            if ((print_timings) and (f.world().rank()==0)) {
                 fff.get_impl()->timer_filter.print("filter");
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
             }
@@ -1994,7 +2094,7 @@ namespace madness {
         	if (op.is_slaterf12) result=(result-ftrace).scale(-0.5/op.mu());
 
     	}
-        if (opT::opdim==6) result.print_size("result after reconstruction");
+        if (print_timings) result.print_size("result after reconstruction");
         return result;
     }
 
@@ -2032,6 +2132,24 @@ namespace madness {
         PROFILE_FUNC;
         Function<T,NDIM> result;
         return result.mapdim(f,map,fence);
+    }
+
+    /// swap particles 1 and 2
+
+    /// param[in]	f	a function of 2 particles f(1,2)
+    /// return	the input function with particles swapped g(1,2) = f(2,1)
+    template <typename T>
+    Function<T,6>
+    swap_particles(const Function<T,6> & f){
+      // this could be done more efficiently for SVD, but it works decently
+      std::vector<long> map(6);
+      map[0]=3;
+      map[1]=4;
+      map[2]=5;     // 2 -> 1
+      map[3]=0;
+      map[4]=1;
+      map[5]=2;     // 1 -> 2
+      return mapdim(f,map);
     }
 
     /// symmetrize a function
@@ -2078,6 +2196,7 @@ namespace madness {
     }
 
 
+
     /// multiply a high-dimensional function with a low-dimensional function
 
     /// @param[in]  f   NDIM function of 2 particles: f=f(1,2)
@@ -2091,7 +2210,7 @@ namespace madness {
         MADNESS_ASSERT(particle==1 or particle==2);
 
         Function<T,NDIM> result;
-        result.set_impl(f, true);
+        result.set_impl(f, true); // ???????????????????????????????????????????????????
 
         Function<T,NDIM>& ff = const_cast< Function<T,NDIM>& >(f);
         Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
@@ -2151,6 +2270,34 @@ namespace madness {
     TENSOR_RESULT_TYPE(T,R) inner(const Function<T,NDIM>& f, const Function<R,NDIM>& g) {
         PROFILE_FUNC;
         return f.inner(g);
+    }
+
+    /// Computes the scalar/inner product between an MRA function and an external functor
+
+    /// Currently this defaults to inner_adaptive, which might be more expensive
+    /// than inner_ext since it loops over all leaf nodes. If you feel inner_ext
+    /// is more efficient you need to call it directly
+    /// @param[in]  f   MRA function
+    /// @param[in]  g   functor
+    /// @result     inner(f,g)
+    template <typename T, typename opT, std::size_t NDIM>
+    TENSOR_RESULT_TYPE(T,typename opT::value_type) inner(const Function<T,NDIM>& f, const opT& g) {
+        PROFILE_FUNC;
+        std::shared_ptr< FunctionFunctorInterface<double,3> > func(new opT(g));
+        return f.inner_adaptive(func);
+    }
+
+    /// Computes the scalar/inner product between an MRA function and an external functor
+
+    /// Currently this defaults to inner_adaptive, which might be more expensive
+    /// than inner_ext since it loops over all leaf nodes. If you feel inner_ext
+    /// is more efficient you need to call it directly
+    /// @param[in]  g   functor
+    /// @param[in]  f   MRA function
+    /// @result     inner(f,g)
+    template <typename T, typename opT, std::size_t NDIM>
+    TENSOR_RESULT_TYPE(T,typename opT::value_type) inner(const opT& g, const Function<T,NDIM>& f) {
+        return inner(f,g);
     }
 
     template <typename T, typename R, std::size_t NDIM>
@@ -2250,6 +2397,17 @@ namespace madness {
         };
     }
 
+    template <class T, std::size_t NDIM>
+    void save(const Function<T,NDIM>& f, const std::string name) {
+        archive::ParallelOutputArchive ar2(f.world(), name.c_str(), 1);
+        ar2 & f;
+    }
+
+    template <class T, std::size_t NDIM>
+    void load(Function<T,NDIM>& f, const std::string name) {
+        archive::ParallelInputArchive ar2(f.world(), name.c_str(), 1);
+        ar2 & f;
+    }
 
 }
 /* @} */

@@ -61,6 +61,6 @@ main(int argc, char* argv[]) {
     bool testok = test_tensor_lapack();
     std::cout << "Test " << (testok ? "passed" : "did not pass") << std::endl;
 
-    return 0;
+    return int(!testok);
 }
 

@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /// \file corepotential.cc
@@ -38,7 +35,7 @@
 #include <madness/madness_config.h>
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
-#include <madness/tinyxml/tinyxml.h>
+#include <madness/external/tinyxml/tinyxml.h>
 #include <chem/corepotential.h>
 #include <cstdio>
 #include <cmath>
@@ -331,7 +328,7 @@ static AtomCore read_atom(TiXmlElement* e, unsigned int atn, double eprec) {
 
 void CorePotentialManager::read_file(string filename, std::set<unsigned int> atomset, double eprec) {
 
-	char* data_dir=NULL;
+	char* data_dir=nullptr;
 	if (getenv("MRA_DATA_DIR")) data_dir = getenv("MRA_DATA_DIR");
 	std::string datadir(data_dir);
 	datadir+="/"+dir;

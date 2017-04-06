@@ -1,5 +1,5 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <madness/world/binsorter.h>
 
 using namespace madness;

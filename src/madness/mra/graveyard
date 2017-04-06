@@ -986,7 +986,7 @@ template class LBTree<6,MyProcmap<6> >;
 #ifndef LOADBAL_H
 #define LOADBAL_H
 
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 #include <madness/mra/key.h>
 #include <madness/mra/mra.h>
 using namespace std;

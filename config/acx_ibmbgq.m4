@@ -20,6 +20,7 @@ AC_DEFUN([ACX_IBMBGQ],[
                 AC_MSG_NOTICE([IBM Blue Gene/Q detected])
                 HAVE_IBMBGQ=yes
                 AC_DEFINE(HAVE_IBMBGQ,[1],[Defined if we are running on an IBM Blue Gene/Q])
+                acx_default_enable_all_static=yes
         fi
         /bin/rm __bgq__.cc
         if test "x$HAVE_IBMBGQ" = xyes; then

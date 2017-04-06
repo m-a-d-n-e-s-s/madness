@@ -35,7 +35,7 @@
 #include <madness/world/worldmem.h>
 #include <cstdlib>
 //#include <cstdio>
-#include <limits.h>
+#include <climits>
 #include <iostream>
 #include <iomanip>
 
@@ -109,7 +109,7 @@ namespace madness {
         max_num_bytes = 0;
     }
 
-}
+}  // namespace madness
 
 #ifdef WORLD_GATHER_MEM_STATS
 
@@ -172,4 +172,12 @@ void operator delete(void *p) throw() {
     free(actual_pointer);
 }
 
-#endif
+#endif  // defined(WORLD_GATHER_MEM_STATS)
+
+namespace madness {
+  namespace detail {
+    template <> const char* Vm_cstr<char>() { return "Vm"; }
+    template <> const wchar_t* Vm_cstr<wchar_t>() { return L"Vm"; }
+  }  // namespace detail
+}  // namespace madness
+

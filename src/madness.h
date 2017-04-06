@@ -27,12 +27,56 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
+*/
 
+/**
+ \file madness.h
+ \brief General header file for using MADNESS.
+ \ingroup applications
 */
 
 #ifndef MADNESS_H__INCLUDED
 #define MADNESS_H__INCLUDED
 
 #include <madness/mra/mra.h>
+
+// Documentation for MADNESS namespaces.
+
+/// Namespace for all elements and tools of MADNESS.
+namespace madness {
+
+    /// Namespace for I/O tools.
+    namespace archive { 
+    }
+
+    /// \todo Description needed
+    namespace cblas {
+    }
+
+    /// Namespace storing mathematical and physical constants.
+    namespace constants {
+    }
+
+    /// \todo Description needed
+    namespace detail {
+    }
+
+    /// \todo Description needed
+    namespace Hash_private {
+    }
+
+    /// Runtime details on the configuration and version of MADNESS.
+    namespace info {
+    }
+
+    /// \todo Description needed
+    namespace profiling {
+    }
+
+    /// \todo Description needed
+    namespace tr1 {
+    }
+
+} // namespace madness
 
 #endif // MADNESS_H__INCLUDED

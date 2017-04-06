@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
+EXTRA_DIST = CMakeLists.txt
 
 bin_PROGRAMS     = projPsi test hello lineplot wfSlice toDX
 projPsi_SOURCES  = projPsi.cc extra.cc extra.h wavef.cc wavef.h hyp.cc hyp.h mpreal.cc 

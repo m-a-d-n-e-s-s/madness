@@ -132,8 +132,8 @@ class EmbeddedDirichlet : public FunctionFunctorInterface<double, 3> {
         /// Also sets the FunctionDefaults for the appropriate dimension.
         EmbeddedDirichlet(double penalty_prefact, std::string penalty_name,
             double eps, int k, double thresh, Mask mask)
-            : k(k), thresh(thresh), penalty_name(penalty_name), dmi(NULL),
-              sdfi(NULL), penalty_prefact(penalty_prefact), eps(eps),
+            : k(k), thresh(thresh), penalty_name(penalty_name), dmi(nullptr),
+              sdfi(nullptr), penalty_prefact(penalty_prefact), eps(eps),
               fop(DIRICHLET_RHS) {
 
             // calculate some nice initial projection level
@@ -160,9 +160,9 @@ class EmbeddedDirichlet : public FunctionFunctorInterface<double, 3> {
         }
 
         virtual ~EmbeddedDirichlet() {
-            if(sdfi != NULL)
+            if(sdfi != nullptr)
                 delete sdfi;
-            if(dmi != NULL)
+            if(dmi != nullptr)
                 delete dmi;
         }
 

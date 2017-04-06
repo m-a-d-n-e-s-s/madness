@@ -37,6 +37,7 @@
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <type_traits>
 #include <madness/mra/mra.h>
 
 #include <polar/molecule.h>
@@ -52,6 +53,7 @@
 #include <madness/misc/ran.h>
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/distributed_matrix.h>
+#include <madness/world/worldmem.h>
 
 using namespace madness;
 
@@ -287,7 +289,7 @@ public:
 
     /// project f on p: |result> =  | p><p | f>
     template<std::size_t FDIM>
-    typename enable_if_c<NDIM==FDIM, Function<T,FDIM> >::type
+    typename std::enable_if<NDIM==FDIM, Function<T,FDIM> >::type
     operator()(const Function<T,FDIM>& f) const {
 
         const double ovlp=inner(f,p_[0]);
@@ -302,7 +304,7 @@ public:
 
 //prod    /// project p out of f: |result(1,2)> = sum_p | p(1)><p(1) | f(1,2)>
 //prod    template<std::size_t FDIM>
-//prod    typename enable_if_c<2*NDIM==FDIM, Function<T,FDIM> >::type
+//prod    typename std::enable_if<2*NDIM==FDIM, Function<T,FDIM> >::type
 //prod    operator()(const Function<T,FDIM>& f) const {
 //prod        real_function_6d sum=real_factory_6d(p_.begin()->world());
 //prod        for (unsigned int i=0; i<p_.size(); ++i) {
@@ -3661,7 +3663,8 @@ struct Calculation {
                 }
                 if (vf.size()) {
                     reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                    refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
                 }
             }
 
@@ -4820,7 +4823,8 @@ struct Calculation {
             }
             if (vf.size()) {
                 reconstruct(world, vf);
-                arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//                arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
             }
 
             // this is a nasty hack, just adding something so that make_libxc_args receives 5 arguments

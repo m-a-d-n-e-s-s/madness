@@ -33,41 +33,52 @@
 
 #include <madness/world/worldrmi.h>
 #include <madness/world/posixmem.h>
-#include <madness/world/worldtime.h>
+#include <madness/world/timers.h>
 #include <iostream>
 #include <algorithm>
 #include <utility>
 #include <sstream>
+#include <list>
+#include <memory>
+#include <madness/world/safempi.h>
 
 namespace madness {
 
-    RMI::RmiTask* RMI::task_ptr = NULL;
+    RMI::RmiTask* RMI::task_ptr = nullptr;
     RMIStats RMI::stats;
     volatile bool RMI::debugging = false;
+    std::list< std::unique_ptr<RMISendReq> > RMI::send_req;
+
+    thread_local bool RMI::is_server_thread = false;
 
 #if HAVE_INTEL_TBB
-    tbb::task* RMI::tbb_rmi_parent_task = NULL;
+    tbb::task* RMI::tbb_rmi_parent_task = nullptr;
 #endif
-  
+
     void RMI::RmiTask::process_some() {
-      
+
         const bool print_debug_info = RMI::debugging;
 
         if (print_debug_info && n_in_q)
-            std::cerr << rank << ":RMI: about to call Waitsome with "
+            std::cerr << rank << ":RMI: about to call Testsome with "
                       << n_in_q << " messages in the queue" << std::endl;
 
         // If MPI is not safe for simultaneous entry by multiple threads we
         // cannot call Waitsome ... have to poll via Testsome
+
+        // Now that the server thread doing other stuff (including being
+        // responsible for its own outbound messages) we have to poll.
         int narrived = 0, iterations = 0;
 
         MutexWaiter waiter;
         while((narrived == 0) && (iterations < 1000)) {
 	  narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
+          if (narrived) break;
 	  ++iterations;
+          clear_send_req();
 	  myusleep(RMI::testsome_backoff_us);
         }
-	
+
 #ifndef HAVE_CRAYXT
         waiter.reset();
 #endif
@@ -163,23 +174,28 @@ namespace madness {
             n_in_q = nleftover;
 
             post_pending_huge_msg();
+
+            clear_send_req();
         }
     }
 
     void RMI::RmiTask::post_pending_huge_msg() {
         if (recv_buf[nrecv_]) return;      // Message already pending
         if (!hugeq.empty()) {
-            int src = hugeq.front().first;
-            size_t nbyte = hugeq.front().second;
+            const auto& hugemsg = hugeq.front();
+            const int src = std::get<0>(hugemsg);
+            const size_t nbyte = std::get<1>(hugemsg);
+            const int tag = std::get<2>(hugemsg);
             hugeq.pop_front();
             if (posix_memalign(&recv_buf[nrecv_], ALIGNMENT, nbyte))
                 MADNESS_EXCEPTION("RMI: failed allocating huge message", 1);
-            recv_req[nrecv_] = comm.Irecv(recv_buf[nrecv_], nbyte, MPI_BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
+            recv_req[nrecv_] = comm.Irecv(recv_buf[nrecv_], nbyte, MPI_BYTE, src, tag);
             int nada=0;
+            // make unique tags to ensure that ack msgs do not collide with normal recv msgs
 #ifdef MADNESS_USE_BSEND_ACKS
-            comm.Bsend(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+            comm.Bsend(&nada, sizeof(nada), MPI_BYTE, src, tag + unique_tag_period());
 #else
-            comm.Send(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+            comm.Send(&nada, sizeof(nada), MPI_BYTE, src, tag + unique_tag_period());
 #endif // MADNESS_USE_BSEND_ACKS
         }
     }
@@ -208,13 +224,15 @@ namespace madness {
         //for (int i=0; i<nrecv_; ++i) free(recv_buf[i]);
     }
 
+    static volatile bool rmi_task_is_running = false;
+
     RMI::RmiTask::RmiTask()
-            : comm(SafeMPI::COMM_WORLD)
+            : comm(SafeMPI::COMM_WORLD.Clone())
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , finished(false)
-            , send_counters(new unsigned short[nproc])
-            , recv_counters(new unsigned short[nproc])
+            , send_counters(new volatile counterT[nproc])
+            , recv_counters(new counterT[nproc])
             , max_msg_len_(DEFAULT_MAX_MSG_LEN)
             , nrecv_(DEFAULT_NRECV)
             , maxq_(DEFAULT_NRECV + 1)
@@ -267,12 +285,26 @@ namespace madness {
             std::stringstream ss(mad_recv_buffs);
             ss >> nrecv_;
             // Check that the number of receive buffers is reasonable.
-            if(nrecv_ < (int)DEFAULT_NRECV) {
+            if(nrecv_ < 32) {
                 nrecv_ = DEFAULT_NRECV;
-                std::cerr << "!!! WARNING: MAD_RECV_BUFFERS must be at least " << DEFAULT_NRECV << ".\n"
+                std::cerr << "!!! WARNING: MAD_RECV_BUFFERS must be at least 32.\n"
                           << "!!! WARNING: Increasing MAD_RECV_BUFFERS to " << nrecv_ << ".\n";
             }
             maxq_ = nrecv_ + 1;
+        }
+
+        // Get environment variable controlling use of synchronous send (MAD_NSSEND)
+        // negative=sends synchronous message every MAD_RECV_BUFFER sends (default)
+        //        0=never send synchronous message
+        //      n>0=sends synchronous message every n sends (n=1 always uses ssend)
+        nssend_ = nrecv_;
+        const char* mad_nssend = getenv("MAD_NSSEND");
+        if (mad_nssend) {
+            std::stringstream ss(mad_nssend);
+            ss >> nssend_;
+            if (nssend_ < 0) {
+                nssend_ = nrecv_;
+            }
         }
 
         // Allocate memory for receive buffer and requests
@@ -288,7 +320,7 @@ namespace madness {
         ind.reset(new int[maxq_]);
         q.reset(new qmsg[maxq_]);
 
-        // Allocate recive buffers
+        // Allocate receive buffers
         if(nproc > 1) {
             for(int i = 0; i < (int)nrecv_; ++i) {
                 if(posix_memalign(&recv_buf[i], ALIGNMENT, max_msg_len_))
@@ -303,35 +335,108 @@ namespace madness {
     void RMI::RmiTask::huge_msg_handler(void *buf, size_t /*nbytein*/) {
         const size_t* info = (size_t *)(buf);
         int nword = HEADER_LEN/sizeof(size_t);
-        int src = info[nword];
-        size_t nbyte = info[nword+1];
+        const int src = info[nword];
+        const size_t nbyte = info[nword+1];
+        const int tag = info[nword+2];
 
-        RMI::task_ptr->hugeq.push_back(std::make_pair(src,nbyte));
+        // extra dose of paranoia: assert that we never process so many huge messages
+        // that the tag wraparound somewhere becomes possible ...
+        // the worst case is where only one node sends huge messages to every node in the communicator
+        // AND it has enough threads to use up all tags
+        // NB list::size() is O(1) in c++11, but O(N) in older libstdc++
+        MADNESS_ASSERT(ThreadPool::size() < RMI::RmiTask::unique_tag_period() ||
+                       RMI::task_ptr->hugeq.size() <
+                       std::size_t(RMI::RmiTask::unique_tag_period() / RMI::task_ptr->comm.Get_size()));
+        RMI::task_ptr->hugeq.push_back(std::make_tuple(src, nbyte, tag));
         RMI::task_ptr->post_pending_huge_msg();
     }
+
+    void RMI::begin() {
+            testsome_backoff_us = 5;
+            const char* buf = getenv("MAD_BACKOFF_US");
+            if (buf) {
+                std::stringstream ss(buf);
+                ss >> testsome_backoff_us;
+                if (testsome_backoff_us < 0) testsome_backoff_us = 0;
+                if (testsome_backoff_us > 100) testsome_backoff_us = 100;
+            }
+
+            MADNESS_ASSERT(task_ptr == nullptr);
+#if HAVE_INTEL_TBB
+
+            // Force tne RMI task to be picked up by someone other then main thread
+            // by keeping main thread occupied AND enqueing enough dummy tasks to make
+            // TBB create threads and pick up RmiTask eventually
+
+            tbb_rmi_parent_task =
+                new (tbb::task::allocate_root()) tbb::empty_task;
+            tbb_rmi_parent_task->set_ref_count(2);
+            task_ptr = new (tbb_rmi_parent_task->allocate_child()) RmiTask();
+            tbb::task::enqueue(*task_ptr, tbb::priority_high);
+
+            task_ptr->comm.Barrier();
+
+            // repeatedly hit TBB with binges of empty tasks to force it create threads
+            // and pick up RmiTask;
+            // paranoidal sanity-check against too many attempts
+            tbb::task* empty_root =
+                new (tbb::task::allocate_root()) tbb::empty_task;
+            empty_root->set_ref_count(1);
+            int binge_counter = 0;
+            const int max_binges = 10;
+            while (!rmi_task_is_running) {
+              if (binge_counter == max_binges)
+                throw madness::MadnessException("MADWorld failed to launch RMI task",
+                                                "ntries > 10",
+                                                10,__LINE__,__FUNCTION__,__FILE__);
+              const int NEMPTY = 1000000;
+              empty_root->add_ref_count(NEMPTY);
+              for (int i = 0; i < NEMPTY; i++) {
+                tbb::task* empty =
+                    new (empty_root->allocate_child()) tbb::empty_task;
+                tbb::task::enqueue(*empty, tbb::priority_high);
+                ++binge_counter;
+              }
+              myusleep(100000);
+            }
+            empty_root->wait_for_all();
+            tbb::task::destroy(*empty_root);
+            task_ptr->comm.Barrier();
+#else
+            task_ptr = new RmiTask();
+            task_ptr->start();
+#endif // HAVE_INTEL_TBB
+        }
+
+
+  void RMI::RmiTask::set_rmi_task_is_running(bool flag) {
+	      rmi_task_is_running = flag; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
+  }
 
     RMI::Request
     RMI::RmiTask::RmiTask::isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
         int tag = SafeMPI::RMI_TAG;
+        static std::size_t numsent = 0; // for tracking synchronous sends
 
         if (nbyte > max_msg_len_) {
             // Huge message protocol ... send message to dest indicating size and origin of huge message.
             // Remote end posts a buffer then acks the request.  This end can then send.
             const int nword = HEADER_LEN/sizeof(size_t);
-            size_t info[nword+2];
+            size_t info[nword+3];
             info[nword  ] = rank;
             info[nword+1] = nbyte;
+            tag = unique_tag();
+            info[nword+2] = tag;
 
             int ack;
-            Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI_BYTE, dest, SafeMPI::RMI_HUGE_ACK_TAG);
+            // make unique tags to ensure that ack msgs do not collide with normal recv msgs
+            Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI_BYTE, dest, tag + unique_tag_period());
             Request req_send = isend(info, sizeof(info), dest, RMI::RmiTask::huge_msg_handler, ATTR_UNORDERED);
 
             MutexWaiter waiter;
             while (!req_send.Test()) waiter.wait();
             waiter.reset();
             while (!req_ack.Test()) waiter.wait();
-
-            tag = SafeMPI::RMI_HUGE_DAT_TAG;
         }
         else if (nbyte < HEADER_LEN) {
             MADNESS_EXCEPTION("RMI::isend --- your buffer is too small to hold the header", static_cast<int>(nbyte));
@@ -366,11 +471,30 @@ namespace madness {
         ++(RMI::stats.nmsg_sent);
         RMI::stats.nbyte_sent += nbyte;
 
-        Request result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
 
-        //if (is_ordered(attr)) unlock();
+        numsent++;
+        Request result;
+        if (nssend_ && numsent==std::size_t(nssend_)) {
+            result = comm.Issend(buf, nbyte, MPI_BYTE, dest, tag);
+            numsent %= nssend_;
+        }
+        else {
+            result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
+        }
+
         unlock();
 
+        return result;
+    }
+
+    int RMI::RmiTask::unique_tag() const {
+        constexpr int first_tag = 4096;
+        static int tag = first_tag;
+        /// should be able to do this with atomics
+        lock();
+        tag = (tag == first_tag+unique_tag_period()-1) ? first_tag : tag + 1;
+        const int result = tag;
+        unlock();
         return result;
     }
 

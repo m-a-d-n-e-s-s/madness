@@ -27,17 +27,15 @@
  email: harrisonrj@ornl.gov
  tel:   865-241-3937
  fax:   865-572-0680
-
-
- $Id $
- */
+*/
 
 #ifndef MADNESS_WORLD_TASKFN_H__INCLUDED
 #define MADNESS_WORLD_TASKFN_H__INCLUDED
 
-#include <madness/world/worlddep.h>
-#include <madness/world/worldthread.h>
-#include <madness/world/worldfut.h>
+#include <type_traits>
+#include <madness/world/dependency_interface.h>
+#include <madness/world/thread.h>
+#include <madness/world/future.h>
 
 namespace madness {
 
@@ -229,35 +227,35 @@ namespace madness {
         // selected.
 
         template <typename fnT>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
         { fn(); result.set(); }
 
         template <typename fnT, typename a1T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1,
                 const voidT&, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
         { fn(a1); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 const voidT&, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&)
         { fn(a1, a2); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, const voidT&, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&)
         { fn(a1, a2, a3); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&)
@@ -265,7 +263,7 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, const voidT&, const voidT&,
                 const voidT&, const voidT&)
@@ -273,7 +271,7 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, a6T& a6, const voidT&, const voidT&,
                 const voidT&)
@@ -281,7 +279,7 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, const voidT&,
                 const voidT&)
@@ -289,48 +287,48 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, const voidT&)
         { fn(a1, a2, a3, a4, a5, a6, a7, a8); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-        inline typename enable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, a9T& a9)
         { fn(a1, a2, a3, a4, a5, a6, a7, a8, a9); result.set(); }
 
         template <typename fnT>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, const voidT&, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&, const voidT&)
         { result.set(fn()); }
 
         template <typename fnT, typename a1T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&, const voidT&)
         { result.set(fn(a1)); }
 
         template <typename fnT, typename a1T, typename a2T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
         { result.set(fn(a1, a2)); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
         { result.set(fn(a1, a2, a3)); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
@@ -338,7 +336,7 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, const voidT&,
                 const voidT&, const voidT&, const voidT&)
@@ -346,7 +344,7 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
                 const voidT&, const voidT&, const voidT&)
@@ -354,7 +352,7 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
                 a7T& a7, const voidT&, const voidT&)
@@ -362,7 +360,7 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
                 a7T& a7, a8T& a8, const voidT&)
@@ -370,7 +368,7 @@ namespace madness {
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-        inline typename disable_if<std::is_void<typename detail::result_of<fnT>::type> >::type
+        inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
                 a7T& a7, a8T& a8, a9T& a9)
@@ -471,9 +469,6 @@ namespace madness {
 
         /// Future<void> is always ready => no op
         inline void check_dependency(const Future<void>&) { }
-
-        /// Future<void> is always ready => no op
-        inline void check_dependency(const Future<Void>&) { }
 
         /// Check dependencies and register callbacks where necessary
         void check_dependencies() {
@@ -618,7 +613,7 @@ namespace madness {
         virtual tbb::task* execute() {
             detail::run_function(result_, func_, arg1_, arg2_, arg3_, arg4_,
                     arg5_, arg6_, arg7_, arg8_, arg9_);
-            return NULL;
+            return nullptr;
         }
 #else
       protected:

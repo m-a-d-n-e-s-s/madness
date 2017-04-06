@@ -27,16 +27,15 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  $Id$
 */
+
 #ifndef MOLECULAR_BASIS_H
 #define MOLECULAR_BASIS_H
 
 #include <madness/madness_config.h>
 #include <madness/constants.h>
 #include "mentity.h"
-#include <madness/tinyxml/tinyxml.h>
+#include <madness/external/tinyxml/tinyxml.h>
 #include <madness/tensor/tensor.h>
 using namespace madness;
 

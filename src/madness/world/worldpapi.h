@@ -27,9 +27,8 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  $Id$
 */
+
 #ifndef MADNESS_WORLD_WORLDPAPI_H__INCLUDED
 #define MADNESS_WORLD_WORLDPAPI_H__INCLUDED
 

@@ -95,28 +95,31 @@ namespace madness {
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
 
-#ifdef MADNESS_HAS_ELEMENTAL
     class World; // UGH!
     /// Solves symmetric or Hermitian generalized eigenvalue problem
     
-    /// \ingroup linalg
-    template <typename T>
-    void sygvp(World& world, const Tensor<T>& A, const Tensor<T>& B, int itype,
-              Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
 
-    /// Solves linear equations
+    // !!!!!!!!!! sygvp and gesvp are now in the ELEMENTAL inteface
+    // /// \ingroup linalg
+    // template <typename T>
+    // void sygvp(World& world, const Tensor<T>& A, const Tensor<T>& B, int itype,
+    //           Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
+
+    // /// Solves linear equations
     
-    /// \ingroup linalg
-    template <typename T>
-    void gesvp(World& world, const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
-
-#endif
+    // /// \ingroup linalg
+    // template <typename T>
+    // void gesvp(World& world, const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
 
     /// Cholesky factorization
     
     /// \ingroup linalg
     template <typename T>
     void cholesky(Tensor<T>& A);
+
+    /// \ingroup linalg
+    template <typename T>
+    Tensor<T> inverse(const Tensor<T>& A);
 
     /// QR decomposition
     template<typename T>
@@ -125,6 +128,9 @@ namespace madness {
     /// LQ decomposition
     template<typename T>
     void lq(Tensor<T>& A, Tensor<T>& L);
+    /// LQ decomposition
+    template<typename T>
+    void lq_result(Tensor<T>& A, Tensor<T>& R, Tensor<T>& tau, Tensor<T>& work,bool do_qr);
 
     template <typename T>
     void geqp3(Tensor<T>& A, Tensor<T>& tau, Tensor<integer>& jpvt);
@@ -156,4 +162,7 @@ namespace madness {
     /// \ingroup linalg
     void init_tensor_lapack();
 }
+
+#include <madness/tensor/elem.h>
+
 #endif // MADNESS_LINALG_TENSOR_LAPACK_H__INCLUDED

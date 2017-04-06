@@ -27,8 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
 #include <madness/madness_config.h>
@@ -37,8 +35,8 @@
 //#define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 0
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/worldref.h>
-#include <madness/world/world.h>
-#include <madness/world/worldobj.h>
+#include <madness/world/MADworld.h>
+#include <madness/world/world_object.h>
 #include <gtest/gtest.h>
 
 madness::World* pworld;
@@ -68,7 +66,7 @@ namespace {
 
         template <typename T>
         class XferRef : public madness::WorldObject<XferRef<T> > {
-            madness::Void set_ptr(const RemoteReference<T>& r, bool away) {
+            void set_ptr(const RemoteReference<T>& r, bool away) {
                 if(away) {
                     //std::cout << pworld->rank() << ": Set remote_ref = " << r << "\n";
                     remote_ref.set(r);
@@ -76,7 +74,6 @@ namespace {
                     //std::cout << pworld->rank() << ": Set return_ref = " << r << "\n";
                     return_ref.set(r);
                 }
-                return madness::None;
             }
         public:
             madness::Future<RemoteReference<T> > remote_ref;

@@ -27,9 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
 /// \file corepotential.cc
@@ -38,7 +35,7 @@
 #include <madness/madness_config.h>
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
-#include <madness/tinyxml/tinyxml.h>
+#include <madness/external/tinyxml/tinyxml.h>
 #include <polar/corepotential.h>
 #include <cstdio>
 #include <cmath>

@@ -27,8 +27,6 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
 
 #include <madness/madness_config.h>
@@ -38,9 +36,9 @@
 #define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 0
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/worldptr.h>
-#include <madness/world/world.h>
-#include <madness/world/worldobj.h>
-#include <madness/world/bufar.h>
+#include <madness/world/MADworld.h>
+#include <madness/world/world_object.h>
+#include <madness/world/buffer_archive.h>
 
 #include <gtest/gtest.h>
 
@@ -83,12 +81,11 @@ namespace {
 
         template <typename T>
         class XferPtr : public madness::WorldObject<XferPtr<T> > {
-            madness::Void set_ptr(const WorldPtr<T>& p, const madness::uniqueidT & id, bool away) {
+            void set_ptr(const WorldPtr<T>& p, const madness::uniqueidT & id, bool away) {
                 if(away)
                     remote_ptr.set(p);
                 else
                     return_ptr.set(p);
-                return madness::None;
             }
         public:
             madness::Future<WorldPtr<T> > remote_ptr;

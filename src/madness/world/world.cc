@@ -27,51 +27,52 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
-#include <madness/world/worldfwd.h>
+/**
+ \file world.cc
+ \brief Implementation of the \c World class and associated functions.
+ \ingroup world
+*/
+
+#include <madness/world/world.h>
 #include <madness/world/worldmem.h>
-#include <madness/world/worldtime.h>
+#include <madness/world/timers.h>
 #include <madness/world/worldam.h>
-#include <madness/world/worldtask.h>
+#include <madness/world/world_task_queue.h>
 #include <madness/world/worldgop.h>
 #include <cstdlib>
 #include <sstream>
 
-/// \file worldstuff.cc
-/// \brief Static variables/functions that must be linked in
-
 #ifdef MADNESS_HAS_ELEMENTAL
-#include <elemental.hpp>
+#if defined(HAVE_EL_H)
+# include <El.hpp>
+namespace elem = El;
+#elif defined(HAVE_ELEMENTAL_H)
+# include <elemental.hpp>
+using namespace elem;
+#else
+# error "MADNESS_HAS_ELEMENTAL set but neither HAVE_EL_H nor HAVE_ELEMENTAL_H set: file an issue at " MADNESS_PACKAGE_URL
 #endif
-
-
-#ifdef __CYGWIN__
-#include <windows.h>
 #endif
 
 namespace madness {
 
     // File scope variables
     namespace {
-        double start_cpu_time;
-        double start_wall_time;
-        bool madness_initialized_ = false;
+        double start_cpu_time; ///< \todo Documentation needed.
+        double start_wall_time; ///< \todo Documentation needed.
+        bool madness_initialized_ = false;  ///< Tracks if MADNESS has been initialized.
     } // namespace
 
     // World static member variables
-    std::list<World*> World::worlds;
-    World* World::default_world = NULL;
-    unsigned long World::idbase = 0;
+    std::list<World*> World::worlds; ///< List of \c World pointers in the parallel runtime.
+    World* World::default_world = nullptr; ///< The default \c World.
+    unsigned long World::idbase = 0; ///< \todo Verify: Base unique ID for objects in the runtime.
 
     bool initialized() {
       return madness_initialized_;
     }
-
-    const Future<void> Future<void>::value = Future<void>();
 
     World::World(const SafeMPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
@@ -98,8 +99,11 @@ namespace madness {
         if(rank() == 0) {
             _id = idbase++;
         }
-        gop.broadcast(_id);
-        gop.barrier();
+        // Use MPI for broadcast as incoming messages may try to access an
+        // uninitialized world.
+        mpi.Bcast(_id, 0);
+//        gop.broadcast(_id);
+//        gop.barrier();
         am.worldid = _id;
 
         //std::cout << "JUST MADE WORLD " << id() << " with "
@@ -167,28 +171,32 @@ namespace madness {
         ThreadBase::set_affinity(0);         // The main thread is logical thread 0
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
-	// HPM Profiler
-	// Convention for thread IDs is a bit odd, but reflects their 
-	// internal labeling in the code.
-	// HPM_THREAD_ID = -10, all threads and aggregates
-	// HPM_THREAD_ID =  -2, main thread
-	// HPM_THREAD_ID =  -1, threads not in pool, i.e. communication
-	// HPM_THREAD_ID = 0..MAD_NUM_THREADS - 2, threads in the pool
-	int hpm_thread_id;
-	char *chpm_thread_id = getenv("HPM_THREAD_ID");
-	if (chpm_thread_id) {
-	  int result = sscanf(chpm_thread_id, "%d", &hpm_thread_id);
-	  if (result != 1)
-	    MADNESS_EXCEPTION("HPM_THREAD_ID is not an integer", result);
-	}
-	ThreadBase::set_hpm_thread_env(hpm_thread_id);
+        // HPM Profiler
+        // Convention for thread IDs is a bit odd, but reflects their
+        // internal labeling in the code.
+        // HPM_THREAD_ID = -10, all threads and aggregates
+        // HPM_THREAD_ID =  -2, main thread
+        // HPM_THREAD_ID =  -1, threads not in pool, i.e. communication
+        // HPM_THREAD_ID = 0..MAD_NUM_THREADS - 2, threads in the pool
+        int hpm_thread_id;
+        char *chpm_thread_id = getenv("HPM_THREAD_ID");
+        if (chpm_thread_id) {
+            int result = sscanf(chpm_thread_id, "%d", &hpm_thread_id);
+            if (result != 1)
+                MADNESS_EXCEPTION("HPM_THREAD_ID is not an integer", result);
+        }
+        ThreadBase::set_hpm_thread_env(hpm_thread_id);
 #endif
         detail::WorldMpi::initialize(argc, argv, MADNESS_MPI_THREAD_LEVEL);
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
         ThreadPool::begin();        // Must have thread pool before any AM arrives
-        if(SafeMPI::COMM_WORLD.Get_size() > 1)
+        if(SafeMPI::COMM_WORLD.Get_size() > 1) {
             RMI::begin();           // Must have RMI while still running single threaded
+            // N.B. sync everyone up before messages start flying
+            // this is needed to avoid hangs with some MPIs, e.g. Intel MPI on commodity hardware
+            comm.Barrier();
+        }
 
 #ifdef HAVE_PAPI
         begin_papi_measurement();
@@ -214,7 +222,7 @@ namespace madness {
 
         // Destroy the default world
         delete World::default_world;
-        World::default_world = NULL;
+        World::default_world = nullptr;
 
 #ifdef MADNESS_HAS_ELEMENTAL
         elem::Finalize();
@@ -225,81 +233,6 @@ namespace madness {
         ThreadPool::end();
         detail::WorldMpi::finalize();
         madness_initialized_ = false;
-    }
-
-    // Enables easy printing of MadnessExceptions
-    std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
-        out << "MadnessException : ";
-        if (e.msg) out << "msg=" << e.msg << " : ";
-        if (e.assertion) out << "assertion=" << e.assertion << " : ";
-        out << "value=" << e.value << " : ";
-        if (e.line) out << "line=" << e.line << " : ";
-        if (e.function) out << "function=" << e.function << " : ";
-        if (e.filename) out << "filename='" << e.filename << "'";
-        out << std::endl;
-        return out;
-    }
-
-    void exception_break(bool message) {
-        if(message)
-            std::cerr << "A madness exception occurred. Place a break point at madness::exception_break to debug.\n";
-    }
-
-    double wall_time() {
-#ifdef __CYGWIN__
-        static bool initialized = false;
-        static double rfreq;
-        if (!initialized) {
-            _LARGE_INTEGER freq;
-            if (QueryPerformanceFrequency(&freq))
-                rfreq = 1.0/double(freq.QuadPart);
-            else
-                rfreq = 0.0;
-            initialized = true;
-        }
-        _LARGE_INTEGER ins;
-        QueryPerformanceCounter(&ins);
-        return double(ins.QuadPart)*rfreq;
-#else
-        static bool first_call = true;
-        static double start_time;
-
-        struct timeval tv;
-        gettimeofday(&tv,0);
-        double now = tv.tv_sec + 1e-6*tv.tv_usec;
-
-        if (first_call) {
-            first_call = false;
-            start_time = now;
-        }
-        return now - start_time;
-#endif
-    }
-
-    double cpu_frequency() {
-        static double freq = -1.0;
-        if (freq == -1.0) {
-            double used = wall_time();
-            uint64_t ins = cycle_count();
-            if (ins == 0) return 0;
-            while ((cycle_count()-ins) < 100000000);  // 100M cycles at 1GHz = 0.1s
-            ins = cycle_count() - ins;
-            used = wall_time() - used;
-            freq = ins/used;
-        }
-        return freq;
-    }
-
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<void>& f) {
-        out << "<void>";
-        return out;
-    }
-
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<Void>& f) {
-        out << "<Void>";
-        return out;
     }
 
     void print_stats(World& world) {
@@ -320,28 +253,34 @@ namespace madness {
         double nmsg_recv = rmi.nmsg_recv;
         double nbyte_sent = rmi.nbyte_sent;
         double nbyte_recv = rmi.nbyte_recv;
+        double server_q = rmi.max_serv_send_q;
         world.gop.sum(nmsg_sent);
         world.gop.sum(nmsg_recv);
         world.gop.sum(nbyte_sent);
         world.gop.sum(nbyte_recv);
+        world.gop.sum(server_q);
 
         double max_nmsg_sent = rmi.nmsg_sent;
         double max_nmsg_recv = rmi.nmsg_recv;
         double max_nbyte_sent = rmi.nbyte_sent;
         double max_nbyte_recv = rmi.nbyte_recv;
+        double max_server_q = rmi.max_serv_send_q;
         world.gop.max(max_nmsg_sent);
         world.gop.max(max_nmsg_recv);
         world.gop.max(max_nbyte_sent);
         world.gop.max(max_nbyte_recv);
+        world.gop.max(max_server_q);
 
         double min_nmsg_sent = rmi.nmsg_sent;
         double min_nmsg_recv = rmi.nmsg_recv;
         double min_nbyte_sent = rmi.nbyte_sent;
         double min_nbyte_recv = rmi.nbyte_recv;
+        double min_server_q = rmi.max_serv_send_q;
         world.gop.min(min_nmsg_sent);
         world.gop.min(min_nmsg_recv);
         world.gop.min(min_nbyte_sent);
         world.gop.min(min_nbyte_recv);
+        world.gop.min(min_server_q);
 
         double npush_back = q.npush_back;
         double npush_front = q.npush_front;
@@ -403,6 +342,8 @@ namespace madness {
 
             printf("  RMI message statistics (min / avg / max)\n");
             printf("  ----------------------\n");
+            printf("   #messages in server q    %.2e / %.2e / %.2e\n",
+                   min_server_q, server_q/world.size(), max_server_q);
             printf(" #messages sent per node    %.2e / %.2e / %.2e\n",
                    min_nmsg_sent, nmsg_sent/world.size(), max_nmsg_sent);
             printf("    #bytes sent per node    %.2e / %.2e / %.2e\n",

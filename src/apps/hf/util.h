@@ -27,14 +27,13 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  $Id$
 */
+
 #ifndef UTIL_H_
 #define UTIL_H_
 
 #include <madness/mra/mra.h>
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 
 namespace madness {
 //  void printfunc(const World& world, Function<double,3> f, int npts)
@@ -68,7 +67,7 @@ namespace madness {
 }
 //
 //#include <madness/mra/mra.h>
-//#include <madness/world/world.h>
+//#include <madness/world/MADworld.h>
 //#include <vector>
 //
 //namespace madness

@@ -56,11 +56,13 @@ AC_DEFUN([ACX_WITH_MKL], [
         acx_mkl_int_type="ilp64"
       fi
       
+      AC_DEFINE([HAVE_INTEL_MKL], [1], [Define if using Intel MKL math library])                         
+
       # Add MKL libraries to the LIBS variable
       if test $ON_A_MAC = "no"; then
-        LIBS="$LIBS -Wl,--start-group $acx_mkl_root/lib/intel64/libmkl_intel_$acx_mkl_int_type.a $acx_mkl_root/lib/intel64/libmkl_core.a $acx_mkl_root/lib/intel64/libmkl_sequential.a -Wl,--end-group -lpthread -lm -ldl"
+        LIBS="$LIBS -L$acx_mkl_root/lib/intel64 -Wl,--start-group -lmkl_intel_$acx_mkl_int_type -lmkl_core -lmkl_sequential -Wl,--end-group -lpthread -lm -ldl"
       else
-        LIBS="$LIBS $acx_mkl_root/lib/libmkl_intel_$acx_mkl_int_type.a $acx_mkl_root/lib/libmkl_core.a $acx_mkl_root/lib/libmkl_sequential.a -lpthread -lm"
+        LIBS="$LIBS -L$acx_mkl_root/lib -lmkl_intel_$acx_mkl_int_type -lmkl_core -lmkl_sequential -lpthread -lm"
       fi
     else
       # Return an error if not checking

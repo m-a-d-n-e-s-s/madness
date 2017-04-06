@@ -27,12 +27,11 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
 #ifndef MADNESS_SYSTOLIC_H
 #define MADNESS_SYSTOLIC_H
-#include <madness/world/world.h>
+#include <madness/world/MADworld.h>
 
 #include <utility>
 #include <madness/tensor/tensor.h>

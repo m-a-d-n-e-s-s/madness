@@ -53,76 +53,95 @@ namespace madness {
     Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double,NDIM>&), const Tensor<double>&);
 
 
+
 	/// Abstract base class interface required for functors used as input to Functions
 	template<typename T, std::size_t NDIM>
 	class FunctionFunctorInterface {
 	public:
 
-		typedef GenTensor<T> coeffT;
-		typedef Key<NDIM> keyT;
+	    typedef GenTensor<T> coeffT;
+	    typedef Key<NDIM> keyT;
+	    typedef T value_type;
 
-                /// Can we screen this function based on the bounding box information?
-                virtual bool screened(const Vector<double,NDIM>& c1, const Vector<double,NDIM>& c2) const {
-                  return false;
-                }
-             
-                /// Does the interface support a vectorized operator()?
-                virtual bool supports_vectorized() const {return false;}
+	    Level special_level_;
 
-                virtual void operator()(const Vector<double*,1>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    FunctionFunctorInterface() : special_level_(6) {}
 
-                virtual void operator()(const Vector<double*,2>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    /// adapt the special level to resolve the smallest length scale
+	    void set_length_scale(double lo) {
+	        double Lmax=FunctionDefaults<NDIM>::get_cell_width().max();
+	        double lo_sim=lo/Lmax;  // lo in simulation coordinates;
+	        special_level_=Level(-log2(lo_sim));
+	    }
 
-                virtual void operator()(const Vector<double*,3>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    /// Can we screen this function based on the bounding box information?
+	    virtual bool screened(const Vector<double,NDIM>& c1, const Vector<double,NDIM>& c2) const {
+	        return false;
+	    }
 
-                virtual void operator()(const Vector<double*,4>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    /// Does the interface support a vectorized operator()?
+	    virtual bool supports_vectorized() const {return false;}
 
-                virtual void operator()(const Vector<double*,5>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    virtual void operator()(const Vector<double*,1>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-                virtual void operator()(const Vector<double*,6>& xvals, T* fvals, int npts) const {
-                    MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
-                }
+	    virtual void operator()(const Vector<double*,2>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-		/// You should implement this to return \c f(x)
-		virtual T operator()(const Vector<double, NDIM>& x) const = 0;
+	    virtual void operator()(const Vector<double*,3>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-		/// Override this to return list of special points to be refined more deeply
-		virtual std::vector< Vector<double,NDIM> > special_points() const {
-			return std::vector< Vector<double,NDIM> >();
-		}
+	    virtual void operator()(const Vector<double*,4>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-		/// Override this change level refinement for special points (default is 6)
-		virtual Level special_level() {return 6;}
+	    virtual void operator()(const Vector<double*,5>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-		virtual ~FunctionFunctorInterface() {}
+	    virtual void operator()(const Vector<double*,6>& xvals, T* fvals, int npts) const {
+	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
+	    }
 
-		virtual coeffT coeff(const keyT&) const {
-			MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
-			return coeffT();
-		}
+	    /// You should implement this to return \c f(x)
+	    virtual T operator()(const Vector<double, NDIM>& x) const = 0;
 
-        virtual coeffT values(const keyT& key, const Tensor<double>& tensor) const {
-            MADNESS_EXCEPTION("implement values for FunctionFunctorInterface",0);
-            return coeffT();
-        }
+	    /// Override this to return list of special points to be refined more deeply
+	    virtual std::vector< Vector<double,NDIM> > special_points() const {
+	        return std::vector< Vector<double,NDIM> >();
+	    }
 
-		/// does this functor directly provide sum coefficients? or only function values?
-		virtual bool provides_coeff() const {
-			return false;
-		}
+	    /// Override this change level refinement for special points (default is 6)
+	    virtual Level special_level() {return special_level_;}
+
+	    virtual ~FunctionFunctorInterface() {}
+
+	    virtual coeffT coeff(const keyT&) const {
+	        MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
+	        return coeffT();
+	    }
+
+	    virtual coeffT values(const keyT& key, const Tensor<double>& tensor) const {
+	        MADNESS_EXCEPTION("implement values for FunctionFunctorInterface",0);
+	        return coeffT();
+	    }
+
+	    /// does this functor directly provide sum coefficients? or only function values?
+	    virtual bool provides_coeff() const {
+	        return false;
+	    }
 
 	};
 
+
+
+	///forward declaration
+	template <typename T, std::size_t NDIM>
+	//    void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
+	void fcube(const Key<NDIM>& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, Tensor<T>& fval);
 
 	/// CompositeFunctorInterface implements a wrapper of holding several functions and functors
 
@@ -451,7 +470,6 @@ namespace madness {
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
 		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
-
 			initialize(eps);
 		}
 
@@ -506,31 +524,32 @@ namespace madness {
 		}
 	};
 
-	/// a function like f(x) = (1 - exp(-mu x))/x
-	class FGInterface : public TwoElectronInterface<double,6> {
-	public:
-
-		/// constructor: cf the Coulomb kernel
-
-		/// @param[in]	mu		the exponent of the Slater function
-		/// @param[in]	lo		the smallest length scale to be resolved
-		/// @param[in]	eps		the accuracy threshold
-		FGInterface(double mu, double lo, double eps,
-				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
-				int kk=FunctionDefaults<6>::get_k())
-		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
-
-			initialize(eps);
-		}
-
-	private:
-
-		double mu;
-
-		GFit<double,3> fit(const double eps) const {
-			return GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-		}
-	};
+// Not right
+//	/// a function like f(x) = (1 - exp(-mu x))/x
+//	class FGInterface : public TwoElectronInterface<double,6> {
+//	public:
+//
+//		/// constructor: cf the Coulomb kernel
+//
+//		/// @param[in]	mu		the exponent of the Slater function
+//		/// @param[in]	lo		the smallest length scale to be resolved
+//		/// @param[in]	eps		the accuracy threshold
+//		FGInterface(double mu, double lo, double eps,
+//				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
+//				int kk=FunctionDefaults<6>::get_k())
+//		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
+//
+//			initialize(eps);
+//		}
+//
+//	private:
+//
+//		double mu;
+//
+//		GFit<double,3> fit(const double eps) const {
+//			return GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+//		}
+//	};
 
 
 #if 0

@@ -27,19 +27,25 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
-  $Id$
 */
 
+#include <vector>
+#include <numeric>
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/world.h>
-#include <madness/world/worldobj.h>
+#include <madness/world/MADworld.h>
+#include <madness/world/world_object.h>
 #include <madness/world/worlddc.h>
 
 #if MADNESS_CATCH_SIGNALS
 # include <csignal>
+#endif
+
+#ifdef HAVE_PARSEC
+# include <dague_config.h>
+# ifdef DAGUE_HAVE_CUDA
+#  include <cuda_runtime.h>
+# endif
 #endif
 
 using namespace madness;
@@ -78,9 +84,8 @@ class B {
     long b;
 public:
     B(long b=0) : b(b) {};
-    Void set(long value) {
+    void set(long value) {
         b=value;
-        return None;
     };
     long get() const {
         return b;
@@ -99,9 +104,6 @@ typedef std::complex<double> double_complex;
 
 class TestTask : public TaskInterface {
 public:
-#if defined(__INTEL_COMPILER) || defined(__PGI)
-  using madness::TaskInterface::run;
-#endif
     void run(World& world) {
         print("Hi, I am running!");
     }
@@ -113,9 +115,8 @@ private:
 public:
     TTT() : state(0) {};
 
-    static Void fred() {
+    static void fred() {
         print("Oops-a-daisy!");
-        return None;
     };
 
     static int mary() {
@@ -316,11 +317,17 @@ void test_multi(World& world) {
 
 class Foo : public WorldObject<Foo> {
     int a;
+    std::vector<double> dbuf_short_;
+    std::vector<double> dbuf_long_;
 public:
     Foo(World& world, int a)
             : WorldObject<Foo>(world)
             , a(a) {
-        process_pending();
+      process_pending();
+      dbuf_short_.reserve((world.nproc() > 1 ? RMI::max_msg_len() : 1024)/sizeof(double)-5);
+      std::generate_n(std::back_inserter(dbuf_short_), dbuf_short_.capacity(), []() { return rand()/(double)RAND_MAX; } );
+      dbuf_long_.reserve((world.nproc() > 1 ? RMI::max_msg_len() : 1024)/sizeof(double)+5);
+      std::generate_n(std::back_inserter(dbuf_long_), dbuf_long_.capacity(), []() { return rand()/(double)RAND_MAX; } );
     }
 
     virtual ~Foo() { }
@@ -343,6 +350,9 @@ public:
     int get5(int a1, char a2, short a3, long a4, short a5) {
         return a+a1+a2+a3+a4+a5;
     }
+    double getbuf0(const std::vector<double>& buf) {
+        return (double)a + std::accumulate(buf.begin(), buf.end(), 0.0);
+    }
 
     int get0c() const {
         return a;
@@ -362,10 +372,42 @@ public:
     int get5c(int a1, char a2, short a3, long a4, short a5) const {
         return a+a1+a2+a3+a4+a5;
     }
+    double getbuf0c(const std::vector<double>& buf) const {
+        return (double)a + std::accumulate(buf.begin(), buf.end(), 0.0);
+    }
 
     Future<int> get0f() {
         return Future<int>(a);
     }
+
+    const std::vector<double>& dbuf_short() const { return dbuf_short_; }
+    const std::vector<double>& dbuf_long() const { return dbuf_long_; }
+    const std::vector<double>& dbuf() const { return dbuf_long(); }
+
+    // ping-pong via AMs
+    void ping_am(int from, int speed) {
+      madness::print("got an AM ping from proc ", from, " speed=", speed);
+      if (speed < 10)
+        this->send(from, &Foo::pong_am, this->get_world().rank(), speed + 1);
+    }
+    void pong_am(int from, int speed) {
+      madness::print("got an AM pong from proc ", from, " speed=", speed);
+      if (speed < 10)
+        this->send(from, &Foo::ping_am, this->get_world().rank(), speed + 1);
+    }
+
+    // ping-pong via tasks
+    void ping(int from, int speed) {
+      madness::print("got a ping from proc ", from, " speed=", speed);
+      if (speed < 10)
+        this->task(from, &Foo::pong, this->get_world().rank(), speed + 1);
+    }
+    void pong(int from, int speed) {
+      madness::print("got a pong from proc ", from, " speed=", speed);
+      if (speed < 10)
+        this->task(from, &Foo::ping, this->get_world().rank(), speed + 1);
+    }
+
 };
 
 void test6(World& world) {
@@ -373,6 +415,7 @@ void test6(World& world) {
     ProcessID me = world.rank();
     ProcessID nproc = world.nproc();
     Foo a(world, me*100);
+    const auto dbuf_sum = std::accumulate(a.dbuf().begin(), a.dbuf().end(), 0.0);
 
     if (me == 0) {
         print(a.id());
@@ -398,6 +441,8 @@ void test6(World& world) {
             MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
             MADNESS_ASSERT(a.task(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
 
+            MADNESS_ASSERT(a.task(p,&Foo::getbuf0,a.dbuf()).get() == p*100+dbuf_sum);
+
             MADNESS_ASSERT(a.send(p,&Foo::get0c).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0c).get() == p*100);
 
@@ -415,10 +460,42 @@ void test6(World& world) {
 
             MADNESS_ASSERT(a.send(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
             MADNESS_ASSERT(a.task(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
+
+            MADNESS_ASSERT(a.task(p,&Foo::getbuf0c,a.dbuf()).get() == p*100+dbuf_sum);
         }
+    } // me == 0
+
+    for(ProcessID p=0; p!=nproc; ++p) {
+      a.send(p, &Foo::ping_am, me, 1);
+      a.task(p, &Foo::ping, me, 1);
     }
+
     world.gop.fence();
 
+    // stress the large message protocol ... off by default
+    if (0) {
+      const auto dbuf_sum_long = std::accumulate(a.dbuf_long().begin(), a.dbuf_long().end(), 0.0);
+      const auto dbuf_sum_short = std::accumulate(a.dbuf_short().begin(), a.dbuf_short().end(), 0.0);
+#if 0 // uncomment to STRESS the large msg protocol
+      const size_t nmsg = 128;
+#else
+      const size_t nmsg = 1;
+#endif
+      std::vector<Future<double>> results;
+      std::vector<double> results_ref;
+      for(size_t m=0; m!=nmsg; ++m) {
+        for (ProcessID p=0; p<nproc; ++p) {
+          results.push_back(a.task(p,&Foo::getbuf0c,a.dbuf_long()));
+          results_ref.push_back(p*100+dbuf_sum_long);
+          results.push_back(a.task(p,&Foo::getbuf0c,a.dbuf_short()));
+          results_ref.push_back(p*100+dbuf_sum_short);
+        }
+      }
+      world.gop.fence();
+      for(size_t r=0; r!=results.size(); r += 2) {
+        MADNESS_ASSERT(results[r].get() == results_ref[r]);
+      }
+    }
 
     print("test 6 (world object active message and tasks) seems to be working");
 }
@@ -523,16 +600,14 @@ void test8(World& world) {
     archive::VectorOutputArchive arout(v);
     arout & &world;
 
-    World* p = NULL;
+    World* p = nullptr;
     archive::VectorInputArchive arin(v);
     arin & p;
     MADNESS_ASSERT(p==&world);
     if (world.rank() == 0) print("test8 (serializing world pointer) OK");
 }
 
-Void null_func() {
-    return None;
-}
+void null_func() { }
 
 int val_func() {
     return 1;
@@ -605,17 +680,14 @@ private:
 public:
     Mary() : val(0) {}
 
-    Void inc() const {
+    void inc() const {
         val++;
-        return None;
-    };
-    Void add(int i) {
+    }
+    void add(int i) {
         val += i;
-        return None;
-    };
-    Void fred(int i, double j) {
+    }
+    void fred(int i, double j) {
         val += i*(int)j;
-        return None;
     };
 
     string cary0() {
@@ -629,7 +701,7 @@ public:
         return s.str();
     };
 
-    string alan(int i, int j) {
+    string alan(int i, int j, int proc) {
         ostringstream s;
         val += i*j;
         s << "Alan sends greetings: " << i << " " << j << " " << val << endl;
@@ -660,10 +732,9 @@ public:
     }
 };
 
-Void pounder(const WorldContainer<int,Mary>& m, int ind) {
+void pounder(const WorldContainer<int,Mary>& m, int ind) {
     for (int i=0; i<1000; ++i)
         m.send(ind, &Mary::inc);
-    return None;
 }
 
 void test10(World& world) {
@@ -736,7 +807,7 @@ void test10(World& world) {
     print("main finished making vector of results");
     for (int i=0; i<nproc; ++i) {
         print("main making task",i);
-        results[i] = m.task(i,&Mary::alan,3,4);
+        results[i] = m.task(i,&Mary::alan,3,4,world.rank());
         b[i] = m.send(i,&Mary::get_me_twice,&world,m);
         print("main finished making task",i);
     }
@@ -817,13 +888,13 @@ struct Node {
         dcT& d;
         double value;
         do_random_insert(dcT& d, double value)
-                : d(d), value(value) {};
+                : d(d), value(value) {}
         void operator()(const Key& key) const {
             d.task(key,&Node::random_insert,d, key, value);
-        };
+        }
     };
 
-    Void random_insert(const dcT& constd, const Key& keyin, double valin) {
+    void random_insert(const dcT& constd, const Key& keyin, double valin) {
         dcT& d = const_cast<dcT&>(constd);
         //print("inserting",keyin,valin);
         key = keyin;
@@ -835,8 +906,7 @@ struct Node {
             double ran = world.drand();
             key.foreach_child(do_random_insert(d,value*ran));
         }
-        return None;
-    };
+    }
 
     template <class Archive>
     void serialize(Archive& ar) {
@@ -845,16 +915,15 @@ struct Node {
 
     bool is_leaf() const {
         return isleaf;
-    };
+    }
 
     double get() const {
         return value;
-    };
+    }
 
-    Void set(double v) {
+    void set(double v) {
         value = v;
-        return None;
-    };
+    }
 };
 
 ostream& operator<<(ostream& s, const Node& node) {
@@ -1109,6 +1178,7 @@ void test_multi_world(World& world) {
 
     std::cout << "\n\nREPEATING TESTS IN MULTI-WORLD\n\n" << std::endl;
 
+    std::cout << "== multiple worlds created with Intracomm::Create()==" << std::endl;
     std::vector<int> odd, even;
     for (int i=0; i<world.size(); ++i) {
         if (is_odd(i))
@@ -1135,7 +1205,38 @@ void test_multi_world(World& world) {
     }
 
     world.gop.fence();
+
+    // try to do the same but use MPI_Comm_split
+    {
+      std::cout << "== multiple worlds created with Intracomm::Split()==" << std::endl;
+      int color = world.rank() % 2;
+      SafeMPI::Intracomm comm = world.mpi.comm().Split(color, world.rank() / 2);
+      World subworld(comm);
+      if (color == 1)
+        work_odd(subworld);
+      else
+        work_even(subworld);
+    }
+    world.gop.fence();
+
 }
+
+#ifdef HAVE_PARSEC
+# ifdef DAGUE_HAVE_CUDA
+
+extern void __cuda_hello_world(); // in hello_world.cu
+class GPUHelloWorldTask : public TaskInterface {
+public:
+    void run(World& world) {
+      __cuda_hello_world();
+    }
+};
+
+void test_cuda0(World& world) {
+  world.taskq.add(new GPUHelloWorldTask());
+}
+# endif
+#endif
 
 #if  MADNESS_CATCH_SIGNALS
 void mad_signal_handler( int signum ) {
@@ -1192,6 +1293,10 @@ int main(int argc, char** argv) {
           print("REPETITION",i);
           test_multi_world(world);
         }
+
+#ifdef DAGUE_HAVE_CUDA
+        test_cuda0(world);
+#endif
     }
     catch (SafeMPI::Exception e) {
         print(e);

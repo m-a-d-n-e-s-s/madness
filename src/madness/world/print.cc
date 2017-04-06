@@ -27,9 +27,14 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-  $Id$
 */
+
+/**
+ \file print.cc
+ \brief Implementation of functions defined in print.h.
+ \ingroup libraries
+*/
+
 #include <madness/world/print.h>
 #include <cstring>
 
@@ -41,7 +46,7 @@ namespace madness {
         if (underline) {
             for (int i=0; i<column; ++i) std::cout << " ";
             for (unsigned int i=0; i<std::strlen(s); ++i) std::cout << "-";
-            std::cout << s << ENDL;
+            std::cout << ENDL;
         }
     }
 
@@ -49,4 +54,4 @@ namespace madness {
         print_justified(s, column-std::strlen(s)/2, underline);
     }
 
-}
+} // namespace madness
