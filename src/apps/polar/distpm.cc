@@ -22,7 +22,7 @@ typedef Function<double,3> functionT;
 typedef std::vector<functionT> vecfuncT;
 
 /// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
-void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
+void drot(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c, long inc) {
     if (inc == 1) {
         for (long i=0; i<n; ++i) {
             double aa = a[i]*c - b[i]*s;
@@ -68,7 +68,7 @@ void matrix_inner(DistributedMatrix<T>& A,
 }
 
 // Computes sum(mu,nu on atom a) C[mu,i] S[mu,nu] C[nu,j]
-static inline double PM_q(const tensorT & S, const double * restrict Ci, const double * restrict Cj, int lo, int nbf)
+static inline double PM_q(const tensorT & S, const double * MADNESS_RESTRICT Ci, const double * MADNESS_RESTRICT Cj, int lo, int nbf)
 {
     double qij = 0.0;
     if (nbf == 1) { // H atom in STO-3G ... often lots of these!
@@ -112,7 +112,7 @@ public:
         return nswitched == 0;
     }
 
-    void kernel(int i, int j, double * restrict Ui, double * restrict Uj) {
+    void kernel(int i, int j, double * MADNESS_RESTRICT Ui, double * MADNESS_RESTRICT Uj) {
         const int m = get_rowdim();
         double sold = Ui[i]*Ui[i] + Uj[j]*Uj[j];
         double snew = Ui[j]*Ui[j] + Uj[i]*Uj[i];
@@ -153,8 +153,8 @@ class SystolicPMOrbitalLocalize : public SystolicMatrixAlgorithm<double> {
 
     // Applies rotation between orbitals i and j for Pipek Mezy
     void localize_PM_ij(const int seti, const int setj, 
-                        double * restrict Ci, double * restrict Cj, 
-                        double * restrict Ui, double * restrict Uj)
+                        double * MADNESS_RESTRICT Ci, double * MADNESS_RESTRICT Cj, 
+                        double * MADNESS_RESTRICT Ui, double * MADNESS_RESTRICT Uj)
     {
         if(seti == setj){
             std::vector<double> Qi(natom), Qj(natom);
@@ -259,12 +259,12 @@ public:
         return (ndone_iter == 0 && tol == thresh);
     }
 
-    void kernel(int i, int j, double * restrict rowi, double * restrict rowj) {
+    void kernel(int i, int j, double * MADNESS_RESTRICT rowi, double * MADNESS_RESTRICT rowj) {
 
-        double * restrict Ci = rowi;
-        double * restrict Cj = rowj;
-        double * restrict Ui = Ci + nao;
-        double * restrict Uj = Cj + nao;
+        double * MADNESS_RESTRICT Ci = rowi;
+        double * MADNESS_RESTRICT Cj = rowj;
+        double * MADNESS_RESTRICT Ui = Ci + nao;
+        double * MADNESS_RESTRICT Uj = Cj + nao;
  
         localize_PM_ij(set[i], set[j],
                        Ci, Cj,
