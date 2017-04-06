@@ -22,6 +22,7 @@
 
 
 #include <chem/xcfunctional.h>
+#include <chem/SCFOperators.h>
 
 
 using namespace madness;
@@ -51,17 +52,17 @@ static const double thresh = 1e-5; // precision
 //XCfunctional xc;
 std::vector< std::shared_ptr<real_derivative_3d> > gradop;
 
-functionT make_dft_potential(World & world, XCfunctional& xc, const vecfuncT& vf,
-        int ispin, XCfunctional::xc_contribution what)
-{
-	return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
-}
-
-double make_dft_energy(World & world, XCfunctional& xc, const vecfuncT& vf, int ispin)
-{
-	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
-	return vlda.trace();
-}
+//functionT make_dft_potential(World & world, XCfunctional& xc, const vecfuncT& vf,
+//        int ispin, XCfunctional::xc_contribution what)
+//{
+//	return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
+//}
+//
+//double make_dft_energy(World & world, XCfunctional& xc, const vecfuncT& vf, int ispin)
+//{
+//	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
+//	return vlda.trace();
+//}
 
 static double guess(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
@@ -121,8 +122,8 @@ int main(int argc, char** argv) {
 	//xc_data="GGA_X_PBE 1.";
 	//xc_data="GGA_C_PBE 1.";
 	//xc_data="GGA_X_B88 1.";
-	XCfunctional xc;
-	xc.initialize(xc_data, false, world);
+//	XCfunctional xc;
+//	xc.initialize(xc_data, false, world);
 
 	poperatorT coulop;
 	coulop = poperatorT(CoulombOperatorPtr(world, 1e-10, thresh));
@@ -136,48 +137,50 @@ int main(int argc, char** argv) {
 	        functionT rho = square(psi).truncate();
 
 	        rho.reconstruct();
-	        vecfuncT delrho;
-	        vecfuncT vf(XCfunctional::number_xc_args);
-
-	        vf[XCfunctional::enum_rhoa]=rho;
-	        // ADD SIGMA
-	        if (xc.is_gga()) {
-	            for(int axis = 0;axis < 3;++axis){
-	                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-	                delrho.push_back(D(rho));
-	            }
-	            functionT saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
-	            vf[XCfunctional::enum_saa]=(saa); // sigma_aa
-	            if (vf.size()) {
-	                reconstruct(world, vf);
-	                refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
-	            }
-	        }
-	        //double exc = make_dft_energy(world,xc, vf, 0);
-	        //print("exc=",exc );
-
-	        real_function_3d vxc =  make_dft_potential(world,xc, vf, 0, XCfunctional::potential_rho);
-
-	        if (xc.is_gga()) {
-	            functionT vsigaa = make_dft_potential(world,xc, vf, 0, XCfunctional::potential_same_spin).truncate();
-
-	            for (int axis=0; axis<1; axis++) {
-	                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-	                real_function_3d  gradn = D(rho);
-	                real_function_3d  ddel = vsigaa*gradn;
-	                ddel.scale(2.0);
-
-	                real_function_3d vxc2=D(ddel).truncate();
-	                vxc = vxc - vxc2;
-	            }
-	        }
+//	        vecfuncT delrho;
+//	        vecfuncT vf(XCfunctional::number_xc_args);
+//
+//	        vf[XCfunctional::enum_rhoa]=rho;
+//	        // ADD SIGMA
+//	        if (xc.is_gga()) {
+//	            for(int axis = 0;axis < 3;++axis){
+//	                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+//	                delrho.push_back(D(rho));
+//	            }
+//	            functionT saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
+//	            vf[XCfunctional::enum_saa]=(saa); // sigma_aa
+//	            if (vf.size()) {
+//	                reconstruct(world, vf);
+//	                refine_to_common_level(world,vf); // Ugly but temporary (I hope!)
+//	            }
+//	        }
+//	        //double exc = make_dft_energy(world,xc, vf, 0);
+//	        //print("exc=",exc );
+//
+//	        real_function_3d vxc =  make_dft_potential(world,xc, vf, 0, XCfunctional::potential_rho);
+//
+//	        if (xc.is_gga()) {
+//	            functionT vsigaa = make_dft_potential(world,xc, vf, 0, XCfunctional::potential_same_spin).truncate();
+//
+//	            for (int axis=0; axis<1; axis++) {
+//	                Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+//	                real_function_3d  gradn = D(rho);
+//	                real_function_3d  ddel = vsigaa*gradn;
+//	                ddel.scale(2.0);
+//
+//	                real_function_3d vxc2=D(ddel).truncate();
+//	                vxc = vxc - vxc2;
+//	            }
+//	        }
+	        XCOperator xc(world,xc_data,false,rho,rho);
+	        real_function_3d vxc=xc.make_xc_potential();
 
 
 	        if(iter == 1000){
 	            coord_3d r(0.0);
 	            for (int i=0; i<201; i++) {
 	                r[2] = -L/2. + L*i/200.0;
-	                print(r[2], vf[XCfunctional::enum_rhoa](r));
+	                print(r[2], rho(r));
 	                //print(r[2], vsigaa(r));
 	                //print(r[0], vxc(r)*r[0]*2.);
 	            }
@@ -198,9 +201,14 @@ int main(int argc, char** argv) {
 	real_function_3d rho = square(psi);
 	double two_electron_energy = 2*inner(op(rho),rho); // <u|rho> = <phi phi | 1/r12 | phi phi>
 	rho.reconstruct();
-	vecfuncT vf;
-	vf.push_back(rho);
-	double exc=make_dft_energy(world,xc, vf, 0); // Exc
+
+//	vecfuncT vf;
+//	vf.push_back(rho);
+//	double exc=make_dft_energy(world,xc, vf, 0); // Exc
+    XCOperator xc(world,xc_data,false,rho,rho);
+    real_function_3d vxc=xc.make_xc_potential();
+    double exc=xc.compute_xc_energy();
+
 	double nuclear_repulsion_energy = 1.0/R;
 	double nuclear_attraction_energy = 2.0*inner(Vnuc,rho); // <V|rho> = <phi|V|phi>
 	double total_energy = kinetic_energy + two_electron_energy +

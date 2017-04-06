@@ -75,9 +75,6 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   if(CXX11_COMPILE_FLAG)
     target_compile_options(MAD${_name} INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
   endif()
-  if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-    target_link_libraries(MAD${_name} PUBLIC "-Wl,-no_pie")
-  endif()
 
 endmacro()
 

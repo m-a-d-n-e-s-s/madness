@@ -90,11 +90,11 @@ namespace SafeMPI {
     ///
     /// tags in [1024,4095] ... allocated round-robin by unique_tag
     ///
-    /// tags in [4096,MPI::TAG_UB] ... not used/managed by madness
+    /// tags in [4096,8191] ... reserved for huge msg exchange by RMI
+    ///
+    /// tags in [8192,MPI::TAG_UB] ... not used/managed by madness
 
     static const int RMI_TAG = 1023;
-    static const int RMI_HUGE_ACK_TAG = 1022;
-    static const int RMI_HUGE_DAT_TAG = 1021;
     static const int MPIAR_TAG = 1001;
     static const int DEFAULT_SEND_RECV_TAG = 1000;
 
@@ -160,7 +160,7 @@ namespace SafeMPI {
                     std::ostringstream oss;
                     for(auto s=0; s!=nstatuses; ++s) {
                         int len = 0;
-                        auto status_error = statuses[indices[s]].MPI_ERROR;
+                        auto status_error = statuses[s].MPI_ERROR;
                         if (status_error != MPI_SUCCESS) {
                             oss << "request " << indices[s] << ":";
                             if (MPI_Error_string(status_error, mpi_error_string_, &len) != MPI_SUCCESS)
@@ -499,10 +499,10 @@ namespace SafeMPI {
 
             Impl(const MPI_Comm& c, int m, int n, bool o) :
                 comm(c), me(m), numproc(n), owner(o), utag(1024), urtag(1)
-            { }
+            { MADNESS_ASSERT(comm != MPI_COMM_NULL); }
 
             ~Impl() {
-                if(owner && Is_initialized() && !Is_finalized() && !Comm_compare(comm, MPI_COMM_WORLD)) {
+                if(owner && Is_initialized() && !Is_finalized() && !Comm_compare(comm, MPI_COMM_WORLD) && comm != MPI_COMM_NULL) {
                     MPI_Comm_free(&comm);
                 }
             }
@@ -552,6 +552,9 @@ namespace SafeMPI {
         // Not allowed
         Intracomm& operator=(const Intracomm& other);
 
+        // makes an uninitialized ptr
+        Intracomm() : pimpl(nullptr) {}
+
     public:
         struct WorldInitObject;
 
@@ -594,6 +597,44 @@ namespace SafeMPI {
             int me; MADNESS_MPI_TEST(MPI_Comm_rank(group_comm, &me));
             int nproc; MADNESS_MPI_TEST(MPI_Comm_size(group_comm, &nproc));
             return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc, true)));
+        }
+
+        static const int UNDEFINED_COLOR = MPI_UNDEFINED;
+        /**
+         * This collective operation creates a new \c Intracomm using
+         * the MPI_Comm_split. Must be called by all processes that
+         * belong to this communicator. Each caller must provide Color of the new Intracomm
+         * and Key (rank within Intracomm).
+         *
+         * @param Color Specifies the new Intracomm that the calling process is to be assigned to.
+         *              The value of color must be non-negative. If Color=UNDEFINED_COLOR then
+         *              an uninitialized Intracomm object will be produced.
+         * @param Key The relative rank of the calling process in the group of the new Intracomm.
+         *            If omitted, each communicator's ranks will be determined by
+         *            the rank in the host communicator.
+         * @return a new Intracomm object
+         */
+        Intracomm Split(int Color, int Key = 0) const {
+            MADNESS_ASSERT(pimpl);
+            SAFE_MPI_GLOBAL_MUTEX;
+            MPI_Comm group_comm;
+            MADNESS_MPI_TEST(MPI_Comm_split(pimpl->comm, Color, Key, &group_comm));
+            if (group_comm != MPI_COMM_NULL) {
+              int me; MADNESS_MPI_TEST(MPI_Comm_rank(group_comm, &me));
+              int nproc; MADNESS_MPI_TEST(MPI_Comm_size(group_comm, &nproc));
+              return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc, true)));
+            }
+            else
+              return Intracomm();
+        }
+
+        /**
+         * Clones this Intracomm object
+         *
+         * @return a (deep) copy of this Intracomm object
+         */
+        Intracomm Clone() const {
+          return Create(this->Get_group());
         }
 
         bool operator==(const Intracomm& other) const {
@@ -654,7 +695,7 @@ namespace SafeMPI {
         void Send(const void* buf, const int count, const MPI_Datatype datatype, int dest, int tag) const {
             MADNESS_ASSERT(pimpl);
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Send(const_cast<void*>(buf), count, datatype, dest, tag, pimpl->comm));
+            MADNESS_MPI_TEST(MPI_Ssend(const_cast<void*>(buf), count, datatype, dest, tag, pimpl->comm));
         }
 
 #ifdef MADNESS_USE_BSEND_ACKS

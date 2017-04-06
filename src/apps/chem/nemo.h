@@ -49,10 +49,12 @@
 #include <madness/mra/operator.h>
 #include <madness/mra/lbdeux.h>
 #include <chem/SCF.h>
+#include <chem/SCFProtocol.h>
 #include <chem/correlationfactor.h>
 #include <chem/molecular_optimizer.h>
 #include <examples/nonlinsol.h>
 #include <madness/mra/vmra.h>
+#include <chem/pcm.h>
 
 namespace madness {
 
@@ -141,70 +143,6 @@ class Nemo: public MolecularOptimizationTargetInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
 
-    /// struct for running a protocol of subsequently tightening precision
-    struct protocol {
-        protocol(const Nemo& nemo) : world(nemo.world), start_prec(1.e-4),
-                current_prec(start_prec), end_prec(nemo.get_calc()->param.econv),
-                thresh(1.e-4), econv(1.e-4), dconv(1.e-3), user_dconv(1.e-20) {
-            user_dconv=nemo.calc->param.dconv;
-
-        }
-
-        World& world;
-        double start_prec;   ///< starting precision, typically 1.e-4
-        double current_prec;   ///< current precision
-        double end_prec;     ///< final precision
-
-        double thresh;  ///< numerical precision of representing functions
-        double econv;   ///< energy convergence of SCF calculations
-        double dconv;   ///< density convergence of SCF calculations
-        double user_dconv;   ///< density convergence provided by user
-
-        void initialize() {
-            current_prec=start_prec;
-            infer_thresholds(current_prec);
-            if (world.rank()==0) {
-                printf("\nstarting protocol at time %8.1fs \n",wall_time());
-                print("precision steps ",start_prec," --> ",end_prec);
-                print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
-            }
-        }
-
-        bool finished() const {
-            return current_prec<0.0;
-            return current_prec*0.9999<end_prec;   // account for noise
-        }
-
-        /// go to the next level
-        protocol& operator++() {
-            if (current_prec*0.9999>end_prec) {
-                current_prec*=0.1;
-                if (current_prec<end_prec) current_prec=end_prec;
-                infer_thresholds(current_prec);
-                print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
-            } else {
-                current_prec=-1.0;
-                printf("\nending protocol at time %8.1fs \n",wall_time());
-
-            }
-            return *this;
-        }
-
-        /// infer thresholds starting from a target precision
-        void infer_thresholds(const double prec) {
-            econv=prec;
-            thresh=econv;
-//            dconv=std::min(1.e-3,sqrt(econv)*0.1);
-            dconv=std::min(1.e-3,econv*10.0);
-            if (approx(current_prec,end_prec)) dconv=user_dconv;    // respect the user
-        }
-
-        /// compare two positive doubles to be equal
-        bool approx(const double a, const double b) const {
-            return (std::abs(a/b-1.0)<1.e-12);
-        }
-    };
-
 public:
 
 	/// ctor
@@ -272,7 +210,7 @@ public:
 	vecfuncT solve_cphf(const int iatom, const int iaxis, const Tensor<double> fock,
 	        const vecfuncT& guess, const vecfuncT& rhsconst,
 	        const Tensor<double> incomplete_hessian, const vecfuncT& parallel,
-	        const protocol& p) const;
+	        const SCFProtocol& p, const std::string& xc_data) const;
 
 	/// solve the CPHF equation for all displacements
 
@@ -311,6 +249,8 @@ public:
             const vecfuncT& dens_pt) const;
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
+
+	PCM get_pcm()const{return pcm;}
 
 	/// compute the Fock matrix from scratch
 	tensorT compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const;
@@ -457,6 +397,9 @@ private:
 	/// a poisson solver
 	std::shared_ptr<real_convolution_3d> poisson;
 
+	/// polarizable continuum model
+	PCM pcm;
+
 	void print_nuclear_corrfac() const;
 
 	/// adapt the thresholds consistently to a common value
@@ -478,7 +421,7 @@ private:
     }
 
 	/// solve the HF equations
-	double solve(const protocol& proto);
+	double solve(const SCFProtocol& proto);
 
 	/// given nemos, compute the HF energy
 	double compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
@@ -496,10 +439,10 @@ private:
 	/// @param[out]	psi		the reconstructed, full orbitals
 	/// @param[out]	Jnemo	Coulomb operator applied on the nemos
 	/// @param[out]	Knemo	exchange operator applied on the nemos
-	/// @param[out]	Vnemo	nuclear potential applied on the nemos
+	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
 	void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
-			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& Vnemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 
 	/// normalize the nemos
@@ -534,10 +477,16 @@ private:
 	vecfuncT make_cphf_constant_term(const int iatom, const int iaxis,
 	        const vecfuncT& R2nemo, const real_function_3d& rhonemo) const;
 
+	public:
+
 	bool is_dft() const {return calc->xc.is_dft();}
 
+	bool do_pcm() const {return calc->param.pcm_data != "none";}
+	
+	private:
+
 	/// localize the nemo orbitals
-	vecfuncT localize(const vecfuncT& nemo) const;
+    vecfuncT localize(const vecfuncT& nemo, const double dconv, const bool randomize) const;
 
 	/// return the threshold for vanishing elements in orbital rotations
     double trantol() const {

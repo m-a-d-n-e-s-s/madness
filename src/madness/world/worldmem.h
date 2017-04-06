@@ -51,7 +51,10 @@
 #elif defined(X86_32)
 #include <malloc.h>
 #elif defined(X86_64)
+#include <sys/types.h>
+#include <unistd.h>
 #include <sys/sysinfo.h>
+#include <string>
 #endif
 
 namespace madness {
@@ -107,6 +110,10 @@ namespace madness {
     /// Returns pointer to internal structure
     WorldMemInfo* world_mem_info();
 
+    namespace detail {
+      template <typename Char> const Char* Vm_cstr();
+    }
+
     /// \brief print memory stats to file \c filename_prefix.<rank> , tagged with \c tag
     /// \param[in] rank process rank
     /// \param[in] tag record tag as any string type, e.g. \c const char[] , \c std::string , or \c std::wstring
@@ -155,7 +162,7 @@ namespace madness {
       malloc_zone_statistics(nullptr, &mi);
 
       memoryfile << "Heap size (MB): " << (mi.size_in_use / fac) << endl;
-#elif defined(X86_32)
+#elif defined(X86_32) // 32-bit Linux
       struct mallinfo mi; /* structure in bytes */
 
       mi = mallinfo();
@@ -163,20 +170,33 @@ namespace madness {
       memoryfile << "Non-mmap (MB): " << (mi.arena / fac) << endl;
       memoryfile << "Mmap (MB): " << (mi.hblkhd / fac) << endl;
       memoryfile << "Total malloc chunks (MB): " << (mi.uordblks / fac) << endl;
-#elif defined(X86_64)
-      /* Better than nothing, mallinfo unreliable on 64-bit machine due to
-         use of int in mallinfo data structure. Requires Linux
-         kernel. Inaccurate if other processes besides MADNESS are
-         running. Memory differences appear to be reliable. */
-      struct sysinfo si; /* structure in bytes */
+#elif defined(X86_64) // 64-bit Linux
+      // try parsing /proc/PID/status first, fallback on sysinfo
+      string status_fname = string("/proc/") + to_string(getpid()) + string("/status");
+      basic_ifstream<Char> status_stream(status_fname);
+      if (status_stream.good()) {
+        basic_string<Char> line;
+        while(getline(status_stream, line)) {
+          if (line.find(detail::Vm_cstr<Char>()) == 0)
+            memoryfile << line << endl;
+        }
+        status_stream.close();
+      }
+      else {
+        /* Better than nothing, mallinfo unreliable on 64-bit machine due to
+           use of int in mallinfo data structure. Requires Linux
+           kernel. Inaccurate if other processes besides MADNESS are
+           running. Memory differences appear to be reliable. */
+        struct sysinfo si; /* structure in bytes */
 
-      sysinfo(&si);
+        sysinfo(&si);
 
-      memoryfile << "Total RAM (MB): " << (si.totalram / fac) << endl;
-      memoryfile << "Free RAM (MB): " << (si.freeram / fac) << endl;
-      memoryfile << "Buffer (MB): " << (si.bufferram / fac) << endl;
-      memoryfile << "RAM in use (MB): "
-                 << ((si.totalram - si.freeram + si.bufferram) / fac) << endl;
+        memoryfile << "Total RAM (MB): " << (si.totalram / fac) << endl;
+        memoryfile << "Free RAM (MB): " << (si.freeram / fac) << endl;
+        memoryfile << "Buffer (MB): " << (si.bufferram / fac) << endl;
+        memoryfile << "RAM in use (MB): "
+                   << ((si.totalram - si.freeram + si.bufferram) / fac) << endl;
+      }
 #endif  // platform specific
       memoryfile.close();
 #else   // WORLD_MEM_PROFILE_ENABLE

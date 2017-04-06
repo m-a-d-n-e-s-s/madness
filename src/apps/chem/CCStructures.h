@@ -10,121 +10,95 @@
 #ifndef CCSTRUCTURES_H_
 #define CCSTRUCTURES_H_
 
-//#include <chem/SCFOperators.h>
-#include "electronic_correlation_factor.h"
-#include <algorithm> // tolower function for strings
-#include <examples/nonlinsol.h>
-
+#include <madness/mra/mra.h>
+#include <algorithm>
+#include <iomanip>
 
 namespace madness{
+  /// FuncTypes used by the CC_function_6d structure
+  enum PairFormat {PT_UNDEFINED, PT_FULL, PT_DECOMPOSED, PT_OP_DECOMPOSED};
+  /// Operatortypes used by the CCConvolutionOperator Class
+  enum OpType {OT_UNDEFINED,OT_G12,OT_F12};
+  /// Calculation Types used by CC2
+  enum CalcType {CT_UNDEFINED,CT_MP2, CT_CC2, CT_LRCCS, CT_LRCC2, CT_CISPD,CT_ADC2, CT_TDHF , CT_TEST};
+  /// Types of Functions used by CC_function class
+  enum FuncType {UNDEFINED,HOLE,PARTICLE,MIXED,RESPONSE};
+  /// Type of Pairs used by CC_Pair2 class
+  enum CCState {CCSTATE_UNDEFINED,GROUND_STATE,EXCITED_STATE};
+  /// CC2 Singles Potentials
+  enum PotentialType {POT_UNDEFINED,
+    POT_F3D_,
+    POT_s3a_,
+    POT_s3b_,
+    POT_s3c_,
+    POT_s5a_,
+    POT_s5b_,
+    POT_s5c_,
+    POT_s2b_,
+    POT_s2c_,
+    POT_s4a_,
+    POT_s4b_,
+    POT_s4c_,
+    POT_s6_,
+    POT_ccs_,
+    POT_cis_,
+    POT_singles_};
 
-  enum functype_6d {pure_, decomposed_, op_decomposed_};
-  enum optype {g12_,f12_};
-  enum calctype {MP2_, CC2_, LRCCS_, LRCC2_, CISpD_,ADC2_ , experimental_};
-  enum functype {HOLE,PARTICLE,MIXED,RESPONSE,UNDEFINED};
-  enum pairtype {GROUND_STATE,EXCITED_STATE};
-  enum potentialtype_s {pot_F3D_, pot_s2b_, pot_s2c_, pot_s4a_, pot_s4b_, pot_s4c_, pot_S2b_u_, pot_S2c_u_, pot_S4a_u_, pot_S4b_u_, pot_S4c_u_,pot_S2b_r_, pot_S2c_r_, pot_S4a_r_, pot_S4b_r_, pot_S4c_r_, pot_ccs_,pot_cis_,pot_singles_};
-  enum potentialtype_d {pot_F6D_, pot_cc2_coulomb_,pot_cc2_residue_};
-  // The pair function is:  \tau = u + Qf(|titj>), FULL means that \tau is calculated in 6D form, DECOMPOSED means that u is used in 6D and the rest is tried to solve in 3D whenever possible
-  enum pair_function_form{DECOMPOSED, FULL};
+  /// Assigns strings to enums for formated output
+  std::string
+  assign_name(const PairFormat& input);
+  /// Assigns strings to enums for formated output
+  std::string
+  assign_name(const CCState& input);
+  /// Assigns strings to enums for formated output
+  std::string
+  assign_name(const OpType& input);
+  /// Assigns enum to string
+  CalcType
+  assign_calctype(const std::string name);
+  /// Assigns strings to enums for formated output
+  std::string
+  assign_name(const CalcType& inp);
+  /// Assigns strings to enums for formated output
+  std::string
+  assign_name(const PotentialType& inp);
+  /// Assigns strings to enums for formated output
+  std::string
+  assign_name(const FuncType& inp);
 
-  static std::string assign_name(const pairtype &input){
-    switch(input){
-      case GROUND_STATE : return "Ground State";
-      case EXCITED_STATE: return "Excited State";
+  // Little structure for formated output and to collect warnings
+  struct CCMessenger{
+    CCMessenger(World &world) : world(world), output_prec(10), scientific(true), debug(false){}
+    World & world;
+    size_t output_prec;
+    bool scientific;
+    bool debug;
+    void operator()(const std::string &msg)const{output(msg);}
+    void debug_output(const std::string &msg)const{
+      if(debug) output(msg);
     }
-    MADNESS_EXCEPTION("assign_name:pairtype, should not end up here",1);
-    return "unknown pairtype";
-  }
-
-  static std::string assign_name(const optype &input){
-    switch(input){
-      case g12_ : return "g12";
-      case f12_ : return "f12";
+    void
+    output(const std::string& msg) const;
+    void
+    section(const std::string& msg) const;
+    void
+    subsection(const std::string& msg) const;
+    void
+    warning(const std::string& msg) const;
+    void print_warnings()const{
+      for(const auto& x:warnings) if(world.rank()==0) std::cout << x << "\n";
     }
-    MADNESS_EXCEPTION("assign_name:optype, should not end up here",1);
-    return "unknown operatortype";
-  }
-
-  static calctype assign_calctype(const std::string name){
-    if(name=="mp2") return MP2_;
-    else if(name=="cc2") return CC2_;
-    else if(name=="lrcc2" or name=="cc2_response") return LRCC2_;
-    else if(name=="cispd") return CISpD_;
-    else if(name=="cis" or name=="ccs" or name=="ccs_response" or name=="lrccs") return LRCCS_;
-    else if(name=="experimental") return experimental_;
-    else if(name=="adc2" or name=="adc(2)") return ADC2_;
-    else{
-      std::string msg= "CALCULATION OF TYPE: " + name + " IS NOT KNOWN!!!!";
-      MADNESS_EXCEPTION(msg.c_str(),1);
-    }
-  }
-  static std::string assign_name(const calctype &inp){
-    switch(inp){
-      case CC2_ : return "CC2";
-      case MP2_ : return "MP2";
-      case LRCC2_ : return "LRCC2";
-      case CISpD_ : return "CISpD";
-      case LRCCS_: return "LRCCS";
-      case ADC2_: return "ADC2";
-      case experimental_: return "experimental";
-    }
-    return "unknown";
-  }
-  static std::string assign_name(const potentialtype_s &inp){
-    switch(inp){
-      case pot_F3D_ : return "F3D";
-      case pot_s2b_ : return "s2b";
-      case pot_s2c_ : return "s2c";
-      case pot_s4a_ : return "s4a";
-      case pot_s4b_ : return "s4b";
-      case pot_s4c_ : return "s4c";
-      case pot_S2b_u_ : return "S2b_u_part";
-      case pot_S2c_u_ : return "S2c_u_part";
-      case pot_S4a_u_ : return "S4a_u_part";
-      case pot_S4b_u_ : return "S4b_u_part";
-      case pot_S4c_u_ : return "S4c_u_part";
-      case pot_S2b_r_ : return "S2b_r_part";
-      case pot_S2c_r_ : return "S2c_r_part";
-      case pot_S4a_r_ : return "S4a_r_part";
-      case pot_S4b_r_ : return "S4b_r_part";
-      case pot_S4c_r_ : return "S4c_r_part";
-      case pot_ccs_ : return "ccs";
-      case pot_cis_ : return "cis-potential";
-      case pot_singles_: return "singles potential";
-    }
-    return "undefined";
-  }
-
-  static std::string assign_name(const potentialtype_d &inp){
-    switch(inp){
-      case pot_F6D_ : return "Fock-Residue-6D";
-      case pot_cc2_coulomb_ : return "CC2-Coulomb";
-      case pot_cc2_residue_ : return "CC2-Residue";
-    }
-    return "undefined";
-  }
-
-  static std::string assign_name(const functype &inp){
-    switch(inp){
-      case HOLE : return "Hole";
-      case PARTICLE : return "Particle";
-      case MIXED : return "Mixed";
-      case RESPONSE: return "Response";
-      case UNDEFINED : return "Undefined";
-    }
-    return "???";
-  }
-
+    mutable std::vector<std::string> warnings;
+  };
 
   typedef std::vector<Function<double, 3> > vecfuncT;
 
-  // Timer Structure
-  struct CC_Timer{
+  /// Timer Structure
+  struct CCTimer{
     /// TDA_TIMER contructor
     /// @param[in] world the world
     /// @param[in] msg	a string that contains the desired printout when info function is called
-    CC_Timer(World &world,std::string msg) : world(world),start_wall(wall_time()),start_cpu(cpu_time()),operation(msg),end_wall(0.0), end_cpu(0.0), time_wall(-1.0), time_cpu(-1.0) {}
+    CCTimer(World &world,std::string msg) : world(world),start_wall(wall_time()),start_cpu(cpu_time()),operation(msg),end_wall(0.0), end_cpu(0.0), time_wall(-1.0), time_cpu(-1.0) {}
     World & world;
     double start_wall;
     double start_cpu;
@@ -138,18 +112,9 @@ namespace madness{
       time_cpu = cpu_time()-start_cpu;
     }
   public:
-    /// print out information about the passed time since the TDA_TIMER object was created
-    void info(const bool debug = true, const double norm=12345.6789){
-      if(debug==true){
-	update_time();
-	std::string s_norm = "";
-	if(norm!=12345.6789) s_norm=", ||result||="+std::to_string(norm);
-	if(world.rank()==0){
-	  std::cout << std::setfill(' ') << std::scientific << std::setprecision(2)
-	  << "Timer: " << time_wall << " (Wall), " << time_cpu << " (CPU)" << s_norm << ", (" +operation+")" <<  "\n";
-	}
-      }
-    }
+    /// print out information about the passed time since the CC_TIMER object was created
+    void
+    info(const bool debug=true,const double norm=12345.6789);
 
     void start(){
       start_wall = wall_time();
@@ -174,274 +139,42 @@ namespace madness{
     double current_wall(){return current_time().first;}
     double current_cpu(){return current_time().second;}
 
+    void print(){
+      print(current_time());
+    }
+
+    void print()const{
+      print(std::make_pair(time_wall,time_cpu));
+    }
+
     void print(const std::pair<double,double> &times)const{
-      if(world.rank()==0) std::cout<< std::setw(20) << std::setfill(' ')  << "Timer: " << std::setw(60)<< operation+" : "<< std::setfill(' ') << std::scientific << std::setprecision(1)
-      << times.first << "s (wall) "<< times.second << "s (cpu)" << std::endl;
+      if(world.rank()==0){
+      	  std::cout << std::setfill(' ') << std::scientific << std::setprecision(2)
+      	  << "Timer: " << times.first << " (Wall), " << times.second << " (CPU)" << ", (" +operation+")" <<  "\n";
+      	}
     }
 
 
   };
 
-  struct CC_Parameters{
+  /// Calculation Parameters for CC2 and TDA calculations
+  /// Maybe merge this with calculation_parameters of SCF at some point, or split into TDA and CC
+  struct CCParameters{
     // default constructor
     //	CC_Parameters():
     //	{return CC_Parameters("default constructor")}
 
     const double uninitialized = 123.456;
 
-    // copy constructor
-    CC_Parameters(const CC_Parameters& other) :
-      calculation(other.calculation),
-      lo(other.lo),
-      dmin(other.dmin),
-      thresh_3D(other.thresh_3D),
-      tight_thresh_3D(other.tight_thresh_3D),
-      thresh_6D(other.thresh_6D),
-      tight_thresh_6D(other.tight_thresh_6D),
-      thresh_bsh_3D(other.thresh_bsh_3D),
-      thresh_bsh_6D(other.thresh_bsh_6D),
-      thresh_poisson(other.thresh_poisson),
-      thresh_f12(other.thresh_f12),
-      thresh_Ue(other.thresh_Ue),
-      econv(other.econv),
-      econv_pairs(other.econv_pairs),
-      dconv_3D(other.dconv_3D),
-      dconv_6D(other.dconv_6D),
-      iter_max_3D(other.iter_max_3D),
-      iter_max_6D(other.iter_max_6D),
-      restart(other.restart),
-      no_compute(other.no_compute),
-      no_compute_gs(other.no_compute_gs),
-      no_compute_response(other.no_compute_response),
-      no_compute_mp2(other.no_compute_response),
-      no_compute_cc2(other.no_compute_mp2),
-      no_compute_cispd(other.no_compute_cispd),
-      no_compute_lrcc2(other.no_compute_lrcc2),
-      corrfac_gamma(other.corrfac_gamma),
-      output_prec(other.output_prec),
-      debug(other.debug),
-      kain(other.kain),
-      freeze(other.freeze),
-      test(other.test),
-      decompose_Q(other.decompose_Q),
-      QtAnsatz(other.QtAnsatz),
-      excitations_(other.excitations_),
-      tda_guess_mode("uninitialized"),
-      tda_excitations(0),
-      tda_guess_excitations(0),
-      tda_iterating_excitations(0),
-      tda_guess("uninitialized"),
-      tda_energy_guess_factor(uninitialized),
-      tda_dconv_guess(uninitialized),
-      tda_dconv(uninitialized),
-      tda_dconv_hard(uninitialized),
-      tda_econv_guess(uninitialized),
-      tda_econv(uninitialized),
-      tda_econv_hard(uninitialized)
-    {}
+    /// copy constructor
+    CCParameters(const CCParameters& other);
 
-    // read parameters from input
     /// ctor reading out the input file
-    CC_Parameters(const std::string& input,const double &low) :
-      calculation(LRCC2_),
-      lo(uninitialized),
-      dmin(1.0),
-      thresh_3D(uninitialized),
-      tight_thresh_3D(uninitialized),
-      thresh_6D(uninitialized),
-      tight_thresh_6D(uninitialized),
-      thresh_bsh_3D(uninitialized),
-      thresh_bsh_6D(uninitialized),
-      thresh_poisson(uninitialized),
-      thresh_f12(uninitialized),
-      thresh_Ue(uninitialized),
-      econv(uninitialized),
-      econv_pairs(uninitialized),
-      dconv_3D(uninitialized),
-      dconv_6D(uninitialized),
-      iter_max_3D(10),
-      iter_max_6D(10),
-      restart(false),
-      no_compute(false),
-      no_compute_gs(false),
-      no_compute_response(false),
-      no_compute_mp2(false),
-      no_compute_cc2(false),
-      no_compute_cispd(false),
-      no_compute_lrcc2(false),
-      corrfac_gamma(1.0),
-      output_prec(8),
-      debug(false),
-      kain(false),
-      freeze(0),
-      test(false),
-      decompose_Q(false),
-      QtAnsatz(false),
-      excitations_(0),
-      tda_guess_mode("uninitialized"),
-      tda_excitations(0),
-      tda_guess_excitations(0),
-      tda_iterating_excitations(0),
-      tda_guess("uninitialized"),
-      tda_energy_guess_factor(uninitialized),
-      tda_dconv_guess(uninitialized),
-      tda_dconv(uninitialized),
-      tda_dconv_hard(uninitialized),
-      tda_econv_guess(uninitialized),
-      tda_econv(uninitialized),
-      tda_econv_hard(uninitialized)
-    {
-      // get the parameters from the input file
-      std::ifstream f(input.c_str());
-      position_stream(f, "cc2");
-      std::string s;
-
-      // general operators thresh
-      double thresh_operators=uninitialized;
-      double thresh_operators_3D=uninitialized;
-      double thresh_operators_6D=uninitialized;
-
-      while (f >> s) {
-	//std::cout << "input tag is: " << s << std::endl;
-	std::transform(s.begin(),s.end(),s.begin(), ::tolower);
-	//std::cout << "transformed input tag is: " << s << std::endl;
-	if (s == "end") break;
-	else if (s == "calculation"){
-	  std::string tmp;
-	  f>>tmp;
-	  calculation = assign_calctype(tmp);
-	}
-	else if (s == "lo") f >> lo;
-	else if (s == "dmin") f>>dmin;
-	else if (s == "thresh") f >> thresh_6D;
-	else if (s == "thresh_3d") f >> thresh_3D;
-	else if (s == "tight_thresh_3d") f >> tight_thresh_3D;
-	else if (s == "thresh_6d") f >> thresh_6D;
-	else if (s == "tight_thresh_6d") f >> tight_thresh_6D;
-	else if (s == "debug") debug = true;
-	else if (s == "econv")f >> econv;
-	else if (s == "econv_pairs")f >> econv_pairs;
-	else if (s == "dconv") f >> dconv_6D;
-	else if (s == "dconv_3d")f >> dconv_3D;
-	else if (s == "dconv_6d")f >> dconv_6D;
-	else if (s == "thresh_operators" or s == "thresh_operator") f>> thresh_operators;
-	else if (s == "thresh_operators_3d" or s == "thresh_operator_3d") f >> thresh_operators_3D;
-	else if (s == "thresh_operators_6d" or s == "thresh_operator_6d") f >> thresh_operators_6D;
-	else if (s == "thresh_bsh_3d") f >> thresh_bsh_3D;
-	else if (s == "thresh_bsh_6d") f >> thresh_bsh_6D;
-	else if (s == "thresh_poisson") f >> thresh_poisson;
-	else if (s == "thresh_f12") f >> thresh_f12;
-	else if (s == "thresh_ue") f >> thresh_Ue;
-	else if (s == "freeze") f >> freeze;
-	else if (s == "iter_max_3d") f >> iter_max_3D;
-	else if (s == "iter_max_6d") f >> iter_max_6D;
-	else if (s == "kain") kain=true;
-	else if (s == "kain_subspace") f>>kain_subspace;
-	else if (s == "freeze") f>>freeze;
-	else if (s == "test") test =true;
-	else if (s == "corrfac" or s=="corrfac_gamma" or s=="gamma") f>>corrfac_gamma;
-	else if (s == "decompose_q") decompose_Q=true;
-	else if (s == "restart")restart = true;
-	else if (s == "no_compute"){
-	  no_compute = true;
-	  no_compute_gs=true;
-	  no_compute_mp2=true;
-	  no_compute_cispd=true;
-	  no_compute_response=true;
-	}
-	else if (s == "no_compute_gs"){
-	  no_compute_gs=true;
-	  no_compute_mp2=true;
-	  no_compute_cc2=true;
-	}
-	else if (s == "no_compute_response"){
-	  no_compute_response=true;
-	  no_compute_cispd=true;
-	  no_compute_lrcc2=true;
-	}
-	else if (s == "no_compute_cc2") no_compute_cc2=true;
-	else if (s == "no_compute_cispd") no_compute_cispd=true;
-	else if (s == "no_compute_lrcc2") no_compute_lrcc2=true;
-	else if (s == "no_compute_mp2") no_compute_mp2=true;
-	else if (s == "excitation"){
-	  size_t tmp;
-	  f>>tmp;
-	  excitations_.push_back(tmp);
-	}
-	else if ( s == "qtansatz") QtAnsatz=true;
-	else if ( s == "tda_guess_mode") f>>tda_guess_mode;
-	else if ( s == "tda_guess_excitations") f>>tda_guess_excitations;
-	else if ( s == "tda_excitations") f>>tda_excitations;
-	else if ( s == "tda_iterating_excitations") f>>tda_iterating_excitations;
-	else if ( s == "tda_guess") f >> tda_guess;
-	else if ( s == "tda_energy_guess_factor") f >> tda_energy_guess_factor;
-	else if ( s == "tda_dconv_guess") f >> tda_dconv_guess;
-	else if ( s == "tda_dconv") f >> tda_dconv;
-	else if ( s == "tda_dconv_hard")f >> tda_dconv_hard;
-	else if ( s == "tda_econv_guess") f >> tda_econv_guess;
-	else if ( s == "tda_econv") f >> tda_econv;
-	else if ( s == "tda_econv_hard") f >> tda_econv_hard;
-	else{
-	  std::cout << "Unknown Keyword: " << s << "\n";
-	  continue;
-	}
-      }
-
-      // set defaults
-      if(not kain) kain_subspace = 0;
-
-      // set all parameters that were not explicitly given
-      if(lo==uninitialized) lo = 1.e-7;
-      if(thresh_6D==uninitialized) thresh_6D = 1.e-3;
-      if(tight_thresh_6D==uninitialized) tight_thresh_6D = thresh_6D*0.1;
-      if(thresh_3D==uninitialized) thresh_3D = thresh_6D*0.01;
-      if(tight_thresh_3D==uninitialized) tight_thresh_3D = thresh_3D*0.1;
-      if(thresh_operators==uninitialized) thresh_operators = 1.e-6;
-      if(thresh_operators_3D==uninitialized) thresh_operators_3D = thresh_operators;
-      if(thresh_operators_6D==uninitialized) thresh_operators_6D = thresh_operators;
-      if(thresh_bsh_3D==uninitialized) thresh_bsh_3D = thresh_operators_3D;
-      if(thresh_bsh_6D==uninitialized) thresh_bsh_6D = thresh_operators_6D;
-      if(thresh_poisson==uninitialized) thresh_poisson = thresh_operators_3D;
-      if(thresh_f12==uninitialized) thresh_f12 = thresh_operators_3D;
-      if(thresh_Ue==uninitialized) thresh_Ue = tight_thresh_6D;
-      if(dconv_6D==uninitialized) dconv_6D = thresh_6D;
-      if(dconv_3D==uninitialized) dconv_3D = dconv_6D;
-      if(econv ==uninitialized) econv = 0.1*dconv_6D;
-      if(econv_pairs ==uninitialized) econv_pairs = econv;
-      if(iter_max_6D==uninitialized) iter_max_6D = 10;
-      if(iter_max_3D==uninitialized) iter_max_3D = iter_max_6D;
-
-      // set the thresholds
-      FunctionDefaults<3>::set_thresh(thresh_3D);
-      FunctionDefaults<6>::set_thresh(thresh_6D);
-      if(thresh_3D < 1.1e-1) output_prec = 3;
-      if(thresh_3D < 1.1e-2) output_prec = 4;
-      if(thresh_3D < 1.1e-3) output_prec = 5;
-      if(thresh_3D < 1.1e-4) output_prec = 6;
-      if(thresh_3D < 1.1e-5) output_prec = 7;
-      if(thresh_3D < 1.1e-6) output_prec = 8;
-      std::cout.precision(output_prec);
-
-      // set the default TDA parameters
-      if(tda_guess=="uninitialized") tda_guess = "big_fock_3";
-      if(tda_guess_mode=="uninitialized") tda_guess_mode = "projected";
-      if(tda_excitations==0) tda_excitations = 4;
-      if(tda_guess_excitations==0) tda_guess_excitations = tda_excitations;
-      if(tda_iterating_excitations==0) tda_iterating_excitations=tda_guess_excitations;
-      if(tda_energy_guess_factor==uninitialized) tda_energy_guess_factor=0.99;
-      if(tda_dconv_guess==uninitialized) tda_dconv_guess = 1.0;
-      if(tda_dconv==uninitialized) tda_dconv = 1.0;
-      if(tda_dconv_hard==uninitialized) tda_dconv_hard = 10.0*thresh_3D;
-      if(tda_econv_guess==uninitialized) tda_econv_guess = 1.e-1;
-      if(tda_econv==uninitialized) tda_econv =1.e-2;
-      if(tda_econv_hard==uninitialized) tda_econv_hard = thresh_3D;
-
-      if(no_compute==true and restart ==false) restart = true;
-    }
+    CCParameters(const std::string& input,const double &low);
 
 
     // the demanded calculation: possibilities are MP2_, CC2_, CIS_, CCS_ (same as CIS), CISpD_
-    calctype calculation;
+    CalcType calculation;
     double lo;
     // the finest length to be resolved by 6D operators which needs special refinement
     // this will define the depth of the special level (default is 1.0 bohr)
@@ -469,11 +202,13 @@ namespace madness{
     // Convergence for CC-Doubles
     double dconv_6D;
     // iterations
+    size_t iter_max;
     size_t iter_max_3D;
     size_t iter_max_6D;
     // restart
     bool restart;
     bool no_compute;
+    std::pair<std::size_t,std::size_t> only_pair;
     bool no_compute_gs;
     bool no_compute_response;
     bool no_compute_mp2;
@@ -486,6 +221,8 @@ namespace madness{
     size_t output_prec;
     // debug mode
     bool debug;
+    // make additional plots
+    bool plot;
     // use kain
     bool kain;
     size_t kain_subspace;
@@ -509,17 +246,20 @@ namespace madness{
 
     // Parameters for the TDA Algorithm
 
+    /// The number of orbitals which are not zero in the guess (default is one, so the guess is just homo)
+    std::size_t tda_guess_orbitals;
+
     /// Guess mode for TDA:
     /// "numerical" use the std numerical occupied orbitals to create the guess for the excited states
     /// "projected" use the projected occupied orbitals (projected to guess gauss basis) and avoid noise for high guess polynomials
     std::string tda_guess_mode;
 
     /// The number of excitation vectors for which the alorithm will solve
-    std::size_t tda_excitations;
+    size_t tda_excitations;
     /// The number of guess_excitation vectors for the first iterations
-    std::size_t tda_guess_excitations;
+    size_t tda_guess_excitations;
     /// The number of excitation vectors which will be iterated parallel
-    std::size_t tda_iterating_excitations;
+    size_t tda_iterating_excitations;
 
     /// the guess which will be applied
     /// see the file guess.h
@@ -530,112 +270,39 @@ namespace madness{
     /// the factor has to be between ]0,1[
     double tda_energy_guess_factor;
 
-    /// convergence for the excitation vectors in the guess, solve and solve_sequential mode
+    /// convergence for the excitation vectors
     double tda_dconv_guess;
     double tda_dconv;
     double tda_dconv_hard;
-    /// convergence for the excitation energy in the guess, solve and solve_sequential mode
+    /// convergence for the excitation energy
     double tda_econv_guess;
     double tda_econv;
     double tda_econv_hard;
 
+    /// store the potential for orthogonalizations or recalculate it (doubles the time but saves memory)
+    bool tda_store_potential;
 
-    // print out the parameters
-    // the TDA parameters are printed out in the TDA section of the program, so no need here
-    void information(World &world)const{
-      if(world.rank()==0){
-	//			std::cout << "Defaults for 6D and 3D Functions:\n";
-	//			FunctionDefaults<3>::print();
-	FunctionDefaults<6>::print();
-	std::cout << "THE DEMANDED CALCULATION IS " << assign_name(calculation) << std::endl;
-	if(no_compute) warning(world,"no computation demanded");
-	std::cout << "The Ansatz for the Pair functions |tau_ij> is: ";
-	if(QtAnsatz) std::cout << "(Qt)f12|titj> and response: (Qt)f12(|tixj> + |xitj>) - (OxQt + QtOx)f12|titj>";
-	else std::cout << "Qf12|titj> and response: Qf12(|xitj> + |tixj>)";
-	std::cout << "\n\nThe" <<  assign_name(calculation) << " Parameters are:\n";
-	std::cout << std::setw(20) << std::setfill(' ') << "Corrfac. Gamma :"           << corrfac_gamma << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "freeze :"           << freeze << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "restart :"           << restart << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "lo :"                << lo << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "dmin :"                << dmin << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "k (3D) :"                << FunctionDefaults<3>::get_k() << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "k (6D) :"                << FunctionDefaults<6>::get_k() << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_3D demanded :"         << thresh_3D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_3D set :"         << FunctionDefaults<3>::get_thresh() << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D demanded :"         << thresh_6D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_6D set :"         << FunctionDefaults<6>::get_thresh() << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "tight_thresh_6D :"     << tight_thresh_6D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "tight_thresh_3D :"     << tight_thresh_3D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_3D :"     << thresh_bsh_3D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_bsh_6D :"     << thresh_bsh_6D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_poisson :" << thresh_poisson << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_f12 :"        << thresh_f12 << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "thresh_Ue :"        << thresh_Ue << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "econv :"             << econv << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "econv_pairs :"             << econv_pairs << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "dconv_3D :"          << dconv_3D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "dconv_6D :"          << dconv_6D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "freeze :"           << freeze << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "iter_max_3D :"           << iter_max_3D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "iter_max_6D :"           << iter_max_6D << std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "truncation mode 3D :" << FunctionDefaults<3>::get_truncate_mode()  <<std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "truncation mode 6D :" << FunctionDefaults<6>::get_truncate_mode()  <<std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "tensor type: " << FunctionDefaults<6>::get_tensor_type()  <<std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "facReduce:" << GenTensor<double>::fac_reduce()  <<std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "max. displacement:" << Displacements<6>::bmax_default()  <<std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "apply randomize:" << FunctionDefaults<6>::get_apply_randomize()  <<std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "Cell min width (3D, 6D) :" << FunctionDefaults<6>::get_cell_min_width() << ", " << FunctionDefaults<3>::get_cell_min_width()  <<std::endl;
-	//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (3D) :" << FunctionDefaults<3>::get_cell_width()  <<std::endl;
-	//std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (6D) :" << FunctionDefaults<6>::get_cell_width()  <<std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "Autorefine (3D, 6D) :" << FunctionDefaults<6>::get_autorefine() << ", " << FunctionDefaults<3>::get_autorefine()  <<std::endl;
-	std::cout << std::setw(20) << std::setfill(' ') << "debug mode is: " << debug  <<std::endl;
-	if(kain) std::cout << std::setw(20) << std::setfill(' ') << "Kain subspace: " << kain_subspace << std::endl;
-	if(test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
-	if(restart) std::cout << "restart is on";
-	if(no_compute) std::cout << "no_compute for all";
-	if(no_compute_gs) std::cout << "no_compute for ground-state";
-	if(no_compute_response) std::cout << "no_compute for excited-state";
-	std::cout << "Excitations to optimize are:\n";
-	if(excitations_.empty()) std::cout << "All" << "\n";
-	else std::cout << excitations_ <<"\n";
-      }
-    }
+    /// maximum number of iterations in the final iterations
+    size_t tda_iter_max;
+    /// maximum number of guess iterations (mostly more than the final ones and always without KAIN)
+    size_t tda_iter_guess;
+    /// specify if for the guess only the homo orbitals (or Homo untill homo-N controlled over guess_orbitals parameter) are used
+    bool tda_homo_guess;
+    /// Vector of strings which contains the polynomial excitation operators
+    /// For this to be used the tda_guess key has to be "custom"
+    /// The strings are given in a format like: "c c1 x x1 y y1 z z1, c c2 x x2 y y2 z z2, ..." which will be interpreted as: c1*x^x1*y^y1*z^z1 + c2*x^x2*y^y2*z^z2 + ....
+    std::vector<std::string> tda_exops;
+    /// smoothing exponent
+    /// every exop is multiplied with e^(-exponent*r2) to avoid noise at the boundaries
+    double tda_damping_width;
 
-    void sanity_check(World &world)const{
-      size_t warnings = 0;
-      if(FunctionDefaults<3>::get_thresh() > 0.01*FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"3D Thresh is too low, should be 0.01*6D_thresh");
-      if(FunctionDefaults<3>::get_thresh() > 0.1*FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"3D Thresh is way too low, should be 0.01*6D_thresh");
-      if(FunctionDefaults<3>::get_cell_min_width() != FunctionDefaults<6>::get_cell_min_width()) warnings+=warning(world,"3D and 6D Cell sizes differ");
-      if(FunctionDefaults<3>::get_k() != FunctionDefaults<6>::get_k()) warnings+=warning(world, "k-values of 3D and 6D differ ");
-      if(FunctionDefaults<3>::get_truncate_mode()!=3) warnings+=warning(world,"3D Truncate mode is not 3");
-      if(FunctionDefaults<6>::get_truncate_mode()!=3) warnings+=warning(world,"6D Truncate mode is not 3");
-      if(dconv_3D < FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"Demanded higher convergence than threshold for 3D");
-      if(dconv_6D < FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher convergence than threshold for 6D");
-      if(thresh_3D != FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"3D thresh set unequal 3D thresh demanded");
-      if(thresh_6D != FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"6D thresh set unequal 6D thresh demanded");
-      if(econv < FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 3D");
-      if(econv < FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 6D");
-      if(econv < 0.1*FunctionDefaults<3>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 3D (more than factor 10 difference)");
-      if(econv < 0.1*FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"Demanded higher energy convergence than threshold for 6D (more than factor 10 difference)");
-      // Check if the 6D thresholds are not too high
-      if(thresh_6D < 1.e-3) warnings+=warning(world,"thresh_6D is smaller than 1.e-3");
-      if(thresh_6D < tight_thresh_6D) warnings+=warning(world,"tight_thresh_6D is larger than thresh_6D");
-      if(thresh_6D < tight_thresh_3D) warnings+=warning(world,"tight_thresh_3D is larger than thresh_3D");
-      if(thresh_6D < 1.e-3) warnings+=warning(world,"thresh_6D is smaller than 1.e-3");
-      if(thresh_Ue < 1.e-4) warnings+=warning(world,"thresh_Ue is smaller than 1.e-4");
-      if(thresh_Ue > 1.e-4) warnings+=warning(world,"thresh_Ue is larger than 1.e-4");
-      if(thresh_3D > 0.01*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
-      if(thresh_3D > 0.1*thresh_6D) warnings+=warning(world,"Demanded 6D thresh is to precise compared with the 3D thresh");
-      if(kain and kain_subspace ==0) warnings+=warning(world,"Demanded Kain solver but the size of the iterative subspace is set to zero");
-      if(warnings >0){
-	if(world.rank()==0) std::cout << warnings <<"Warnings in parameters sanity check!\n\n";
-      }else{
-	if(world.rank()==0) std::cout << "Sanity check for parameters passed\n\n" << std::endl;
-      }
-      if(restart == false and no_compute==true){
-	warnings+=warning(world,"no_compute flag detected but no restart flag");
-      }
-    }
+    /// print out the parameters (except the tda parameters)
+    void information(World &world)const;
+
+    /// print all the parameters for a TDA calculation
+    void print_tda_parameters(World &world)const;
+    /// check if parameters are set correct
+    void sanity_check(World &world)const;
 
     void error(World& world,const std::string &msg)const{
       if(world.rank()==0) std::cout << "\n\n\n\n\n!!!!!!!!!\n\nERROR IN CC_PARAMETERS:\n    ERROR MESSAGE IS: " << msg << "\n\n\n!!!!!!!!" << std::endl;
@@ -647,105 +314,10 @@ namespace madness{
     }
   };
 
-  /// enhanced POD for the pair functions
-  class CC_Pair: public archive::ParallelSerializableObject {
 
-  public:
-
-    /// default ctor; initialize energies with a large number
-    CC_Pair(const pairtype type) : type(type),i(-1), j(-1){}
-
-    /// ctor; initialize energies with a large number
-    CC_Pair(const int i, const int j,const pairtype type) : type(type),i(i), j(j){}
-    /// ctor; initialize energies with a large number
-    CC_Pair(const real_function_6d &f,const int i, const int j,const pairtype type) : type(type),i(i), j(j),function(f) {}
-
-
-    // print information
-    void info()const{
-      if(function.world().rank()==0){
-	std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " Current Information about Electron Pair " << name() << std::endl;
-	if(function.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||u||    : "      <<std::setprecision(4)<<std::scientific<< function.norm2() << std::endl;
-	if(constant_term.impl_initialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " ||const||: " <<std::setprecision(4)<<std::scientific<< constant_term.norm2() << std::endl;
-	if(current_error != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|  : " << current_error << std::endl;
-	if(current_energy_difference != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |deltaE|  : " << current_energy_difference << std::endl;
-	if(current_energy != uninitialized()) std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << "  omega   : " <<std::setprecision(10)<<std::fixed<< current_energy << std::endl;
-	//if(epsilon == uninitialized()) std::cout << "WARNING: BSH-epsilon is not initialized" << std::endl;
-      }
-    }
-
-    std::string name()const{
-      std::string name = "???";
-      if(type==GROUND_STATE) name ="u";
-      if(type==EXCITED_STATE) name = "chi";
-      return name+stringify(i)+stringify(j);
-    }
-
-    static double uninitialized() {
-      return 1.e10;
-    }
-
-    const pairtype type;
-
-    const size_t i, j;                       ///< orbitals i and j
-    real_function_6d function; ///< pair function for a specific pair w/o correlation factor part
-    real_function_6d constant_term;	///< the first order contribution to the MP1 wave function
-
-    double constant_energy= uninitialized(); /// the energy from <ij|gQf|ij> in MP2 or corresponsing terms with singles in CC2 (singles are kept constant during doubles interations)
-
-    double current_error= uninitialized();;			///< error of the last iteration: ||function_old - function||_L2
-    double current_energy_difference= uninitialized();;/// difference of current_energy and energy of the last iteration
-    double current_energy = uninitialized(); /// < the correlation energy of the last iteration
-
-
-    /// serialize this CC_Pair
-
-    /// store the function only if it has been initialized
-    /// load the function only if there is one
-    /// don't serialize recomputable intermediates r12phi, Uphi, KffKphi
-    template<typename Archive> void serialize(Archive& ar) {
-      bool fexist = function.is_initialized();
-      bool cexist = constant_term.is_initialized();
-      ar & fexist & cexist;
-      if (fexist)
-	ar & function;
-      if (cexist)
-	ar & constant_term;
-    }
-
-    bool load_pair(World& world, const std::string &msg = "") {
-      const std::string name_ = msg+name();
-      bool exists = archive::ParallelInputArchive::exists(world,
-							  name_.c_str());
-      if (exists) {
-	if (world.rank() == 0)
-	  printf("loading pair %s", name_.c_str());
-	archive::ParallelInputArchive ar(world, name_.c_str(), 1);
-	ar & *this;
-	if (world.rank() == 0)
-	  function.set_thresh(FunctionDefaults<6>::get_thresh());
-	constant_term.set_thresh(FunctionDefaults<6>::get_thresh());
-      } else {
-	if (world.rank() == 0) std::cout << "pair " << name_ << " not found " << std::endl;
-      }
-      return exists;
-    }
-
-    void store_pair(World& world, const std::string &msg ="")const{
-      const std::string name_ = msg+name();
-      CC_Timer time(world,"Storing pair " + name_);
-      if (world.rank() == 0)
-	printf("storing CC_Pair %s\n", name_.c_str());
-      archive::ParallelOutputArchive ar(world, name_.c_str(), 1);
-      ar & *this;
-      time.info();
-    }
-
-  };
-
-
-  // TAKEN FROM MP2.h
   /// POD holding all electron pairs with easy access
+  /// Similar strucutre than the Pair structure from MP2 but with some additional features (merge at some point)
+  /// This structure will also be used for intermediates
   template<typename T>
   struct Pairs {
 
@@ -783,282 +355,548 @@ namespace madness{
     }
   };
 
+  /// f12 and g12 intermediates of the form <f1|op|f2> (with op=f12 or op=g12) will be saved using the pair structure
   typedef Pairs<real_function_3d> intermediateT;
-  static double size_of(const intermediateT &im){
-    double size=0.0;
-    for(const auto & tmp:im.allpairs){
-      size += get_size<double,3>(tmp.second);
-    }
-    return size;
-  }
+
+  /// Returns the size of an intermediate
+  double
+  size_of(const intermediateT& im);
 
 
-  // structure for a CC Function 3D which holds an index and a type
-  struct CC_function{
-    CC_function(): current_error(99),i(99), type(UNDEFINED){};
-    CC_function(const real_function_3d &f): current_error(99),function(f), i(99),type(UNDEFINED){};
-    CC_function(const real_function_3d &f,const size_t &ii): current_error(99), function(f), i(ii), type(UNDEFINED){};
-    CC_function(const real_function_3d &f,const size_t &ii, const functype &type_): current_error(99),function(f), i(ii), type(type_){};
-    CC_function(const CC_function &other): current_error(other.current_error),function(other.function), i(other.i), type(other.type){};
+  /// structure for a CC Function 3D which holds an index and a type
+  // the type is defined by the enum FuncType (definition at the start of this file)
+  struct CCFunction{
+    CCFunction(): current_error(99),i(99), type(UNDEFINED){};
+    CCFunction(const real_function_3d &f): current_error(99),function(f), i(99),type(UNDEFINED){};
+    CCFunction(const real_function_3d &f,const size_t &ii): current_error(99), function(f), i(ii), type(UNDEFINED){};
+    CCFunction(const real_function_3d &f,const size_t &ii, const FuncType &type_): current_error(99),function(f), i(ii), type(type_){};
+    CCFunction(const CCFunction &other): current_error(other.current_error),function(other.function), i(other.i), type(other.type){};
     double current_error;
     real_function_3d function;
     real_function_3d get()const{return function;}
     real_function_3d f()const{return function;}
     void set(const real_function_3d &other){function=other;}
     size_t i;
-    functype type;
-    void info(World &world,const std::string &msg = " ")const{
-      if(world.rank()==0){
-	std::cout <<"Information about 3D function: " << name() << " " << msg << std::endl;
-	std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |f|    : " << function.norm2() << std::endl;
-	std::cout <<std::setw(10) << std::setfill(' ')<<std::setw(50) << " |error|: " << current_error << std::endl;
-      }
-    }
-    std::string name()const{
-      if(type==HOLE){return "phi"+stringify(i);}
-      else if(type==PARTICLE){return "tau"+stringify(i);}
-      else if(type==MIXED){return "t"+stringify(i);}
-      else if(type==RESPONSE){return "x"+stringify(i);}
-      else{return "function"+stringify(i);}
-    }
-    double inner(const CC_function &f)const{
+    FuncType type;
+    void info(World& world,const std::string& msg=" ") const;
+    std::string name() const;
+    double inner(const CCFunction &f)const{
       return inner(f.function);
     }
     double inner(const real_function_3d &f)const{
       return function.inner(f);
     }
 
-    CC_function operator*(const CC_function &f)const{
-      real_function_3d product = function*f.function;
-      return CC_function(product,999,UNDEFINED);
-    }
-    CC_function operator+(const CC_function &f)const{
-      real_function_3d sum = function+f.function;
-      return CC_function(sum,i,combine_types(f));
+    /// scalar multiplication
+    CCFunction operator*(const double &fac)const{
+      real_function_3d fnew = fac*function;
+      return CCFunction(fnew,i,type);
     }
 
-    functype combine_types(const CC_function &f)const{
-      if(type == UNDEFINED or f.type == UNDEFINED) return UNDEFINED;
-      if(i==f.i){
-	if(type == f.type) return type;
-	else return MIXED;
-      }
-      else return UNDEFINED;
+    // for convenience
+    bool operator ==(const CCFunction &other)const{
+      if(i==other.i and type==other.type) return true;
+      else return false;
     }
 
-
+    /// plotting
+    void plot(const std::string &msg="")const{
+      plot_plane(function.world(),function,msg+name());
+    }
   };
 
 
+
   // structure for CC Vectorfunction
+  /// A helper structure which holds a map of functions
   struct CC_vecfunction{
 
-    CC_vecfunction(): type(UNDEFINED),omega(0.0){}
-    CC_vecfunction(const functype type_): type(type_),omega(0.0){}
-    CC_vecfunction(const vecfuncT &v): type(UNDEFINED),omega(0.0){
+    CC_vecfunction(): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9), delta(0.0){}
+    CC_vecfunction(const FuncType type_): type(type_),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){}
+    CC_vecfunction(const vecfuncT &v): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
       for(size_t i=0;i<v.size();i++){
-	CC_function tmp(v[i],i,type);
+	CCFunction tmp(v[i],i,type);
 	functions.insert(std::make_pair(i,tmp));
       }
     }
-    CC_vecfunction(const std::vector<CC_function> &v): type(UNDEFINED),omega(0.0){
+    CC_vecfunction(const std::vector<CCFunction> &v): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
       for(size_t i=0;i<v.size();i++){
 	functions.insert(std::make_pair(v[i].i,v[i]));
       }
     }
-    CC_vecfunction(const vecfuncT &v,const functype &type): type(type),omega(0.0){
+    CC_vecfunction(const vecfuncT &v,const FuncType &type): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
       for(size_t i=0;i<v.size();i++){
-	CC_function tmp(v[i],i,type);
+	CCFunction tmp(v[i],i,type);
 	functions.insert(std::make_pair(i,tmp));
       }
     }
-    CC_vecfunction(const vecfuncT &v,const functype &type,const size_t &freeze): type(type),omega(0.0){
+    CC_vecfunction(const vecfuncT &v,const FuncType &type,const size_t &freeze): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
       for(size_t i=0;i<v.size();i++){
-	CC_function tmp(v[i],freeze+i,type);
+	CCFunction tmp(v[i],freeze+i,type);
 	functions.insert(std::make_pair(freeze+i,tmp));
       }
     }
-    CC_vecfunction(const std::vector<CC_function> &v,const functype type_): type(type_),omega(0.0){
+    CC_vecfunction(const std::vector<CCFunction> &v,const FuncType type_): type(type_),omega(0.0),excitation(-1),current_error(99.9),delta(0.0){
       for(auto x:v){
 	functions.insert(std::make_pair(x.i,x));
       }
     }
-    CC_vecfunction(const CC_vecfunction &other) : functions(other.functions),type(other.type), omega(other.omega) {}
+    CC_vecfunction(const CC_vecfunction &other) : functions(other.functions),type(other.type), omega(other.omega),excitation(other.excitation),current_error(other.current_error),delta(other.delta) {}
 
-    typedef std::map<std::size_t, CC_function> CC_functionmap;
+    typedef std::map<std::size_t, CCFunction> CC_functionmap;
     CC_functionmap functions;
 
     /// returns a deep copy (void shallow copy errors)
-    CC_vecfunction copy()const{
-      std::vector<CC_function> vn;
-      for(auto x:functions){
-	const CC_function fn(madness::copy(x.second.function),x.second.i,x.second.type);
-	vn.push_back(fn);
-      }
-      return CC_vecfunction(vn,type);
-    }
+    CC_vecfunction
+    copy() const;
 
 
-    functype type;
-    double omega; // excitation energy
-    std::string name()const{
-      if (type==PARTICLE) return "tau";
-      else if(type==HOLE) return "phi";
-      else if(type==MIXED) return "t";
-      else if(type==RESPONSE) return "x";
-      else return "UNKNOWN";
-    }
+    FuncType type;
+    double omega; /// excitation energy
+    int excitation; /// the excitation number
+    double current_error;
+    double delta; // Last difference in Energy
+
+    std::string
+    name() const;
 
     /// getter
-    const CC_function& operator()(const CC_function &i) const {
+    const CCFunction& operator()(const CCFunction &i) const {
       return functions.find(i.i)->second;
     }
 
     /// getter
-    const CC_function& operator()(const size_t &i) const {
+    const CCFunction& operator()(const size_t &i) const {
       return functions.find(i)->second;
     }
 
     /// getter
-    CC_function& operator()(const CC_function &i) {
+    CCFunction& operator()(const CCFunction &i) {
       return functions[i.i];
     }
 
     /// getter
-    CC_function& operator()(const size_t &i) {
+    CCFunction& operator()(const size_t &i) {
       return functions[i];
     }
 
     /// setter
-    void insert(const size_t &i, const CC_function &f) {
+    void insert(const size_t &i, const CCFunction &f) {
       functions.insert(std::make_pair(i, f));
     }
 
+    /// setter
+    void set_functions(const vecfuncT & v, const FuncType& type, const size_t& freeze){
+      functions.clear();
+      for(size_t i=0;i<v.size();i++){
+	CCFunction tmp(v[i],freeze+i,type);
+	functions.insert(std::make_pair(freeze+i,tmp));
+      }
+    }
+
+    /// Returns all the functions of the map as vector
     vecfuncT get_vecfunction()const{
       vecfuncT tmp;
       for(auto x:functions) tmp.push_back(x.second.function);
       return tmp;
     }
 
+    /// Get the size vector (number of functions in the map)
     size_t size()const{
       return functions.size();
     }
 
-    void print_size(const std::string &msg="!?not assigned!?")const{
-      if(functions.size()==0){
-	std::cout << "CC_vecfunction " << msg << " is empty\n";
+    /// Print the memory of which is used by all the functions in the map
+    void
+    print_size(const std::string& msg="!?not assigned!?") const;
+
+    /// scalar multiplication
+    CC_vecfunction operator*(const double &fac)const{
+      vecfuncT vnew = fac*get_vecfunction();
+      const size_t freeze = functions.cbegin()->first;
+      return CC_vecfunction(vnew,type,freeze);
+    }
+
+    /// scaling (inplace)
+    void scale(const double& factor){
+      for(auto& ktmp:functions){
+	ktmp.second.function.scale(factor);
+      }
+    }
+
+    /// operator needed for sort operation (sorted by omega values)
+    bool operator<=(const CC_vecfunction &b)const{return omega<=b.omega;}
+    /// operator needed for sort operation (sorted by omega values)
+    bool operator< (const CC_vecfunction &b)const{return omega<b.omega;}
+
+    /// store functions on disc
+    void save_functions(const std::string msg="")const{
+      std::string pre_name = "";
+      if(msg!="") pre_name = msg+"_";
+      for(const auto&tmp:functions) save<double,3>(tmp.second.function,pre_name+tmp.second.name());
+    }
+
+    // plotting
+    void plot(const std::string &msg="")const{
+      for(auto& ktmp:functions){
+	ktmp.second.plot(msg);
+      }
+    }
+
+  };
+
+  /// Helper Structure that carries out operations on CC_functions
+  /// The structure can hold intermediates for g12 and f12 of type : <mo_bra_k|op|type> with type=HOLE,PARTICLE or RESPONSE
+  /// some 6D operations are also included
+  /// The structure does not know if nuclear correlation facors are used, so the corresponding bra states have to be prepared beforehand
+  struct CCConvolutionOperator{
+    /// @param[in] world
+    /// @param[in] optype: the operatortype (can be g12_ or f12_)
+    /// @param[in] param: the parameters of the current CC-Calculation (including function and operator thresholds and the exponent for f12)
+    CCConvolutionOperator(World &world,const OpType type, const CCParameters &param):parameters(param),world(world),operator_type(type),op(init_op(type,param)){}
+
+    /// @param[in] f: a 3D function
+    /// @param[out] the convolution op(f), no intermediates are used
+    real_function_3d operator()(const real_function_3d &f)const {return ((*op)(f)).truncate();}
+
+    /// @param[in] bra a CC_vecfunction
+    /// @param[in] ket a CC_function
+    /// @param[out] vector[i] = <bra[i]|op|ket>
+    vecfuncT operator()(const CC_vecfunction & bra, const CCFunction &ket)const{
+      vecfuncT result;
+      if(bra.type==HOLE){
+	for(const auto& ktmp:bra.functions){
+	  const CCFunction &brai = ktmp.second;
+	  const real_function_3d tmpi = this->operator ()(brai,ket);
+	  result.push_back(tmpi);
+	}
       }else{
-	std::string msg2;
-	if(msg=="!?not assigned!?") msg2 = "";
-	else msg2 = "_("+msg+")";
-	for(auto x:functions){
-	  x.second.function.print_size(x.second.name()+msg2);
-	}
+	vecfuncT tmp=mul(world,ket.function,bra.get_vecfunction());
+	result=apply(world,(*op),tmp);
+	truncate(world,result);
       }
+      return result;
     }
 
+    // @param[in] f: a vector of 3D functions
+    // @param[out] the convolution of op with each function, no intermeditates are used
+    vecfuncT operator()(const vecfuncT &f)const{
+      return apply<double,double,3>(world,(*op),f);
+    }
 
+    // @param[in] bra: a 3D CC_function, if nuclear-correlation factors are used they have to be applied before
+    // @param[in] ket: a 3D CC_function,
+    // @param[in] use_im: default is true, if false then no intermediates are used
+    // @param[out] the convolution <bra|op|ket> = op(bra*ket), if intermediates were calculated before the operator uses them
+    real_function_3d operator()(const CCFunction &bra, const CCFunction &ket, const bool use_im=true)const;
+
+    // @param[in] u: a 6D-function
+    // @param[out] the convolution \int g(r,r') u(r,r') dr' (if particle==2) and g(r,r') u(r',r) dr' (if particle==1)
+    // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
+    real_function_6d operator()(const real_function_6d &u, const size_t particle)const;
+
+    // @param[in] bra: a 3D-CC_function, if nuclear-correlation factors are used they have to be applied before
+    // @param[in] u: a 6D-function
+    // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
+    // @param[out] the convolution <bra|g12|u>_particle
+    real_function_3d operator()(const CCFunction &bra,const real_function_6d &u, const size_t particle)const;
+
+    /// @param[in] bra: a vector of CC_functions, the type has to be HOLE
+    /// @param[in] ket: a vector of CC_functions, the type can be HOLE,PARTICLE,RESPONSE
+    /// updates intermediates of the type <bra|op|ket>
+    void update_elements(const CC_vecfunction &bra, const CC_vecfunction &ket);
+
+    /// @param[out] prints the name of the operator (convenience) which is g12 or f12 or maybe other things like gf in the future
+    std::string name()const{return assign_name(operator_type);}
+
+    /// @param[in] the type of which intermediates will be deleted
+    /// e.g if(type==HOLE) then all intermediates of type <mo_bra_k|op|HOLE> will be deleted
+    void clear_intermediates(const FuncType &type);
+    /// name speaks for itself
+    void clear_all_intermediates(){
+      clear_intermediates(HOLE);
+      clear_intermediates(PARTICLE);
+      clear_intermediates(RESPONSE);
+    }
+    /// prints out information (operatorname, number of stored intermediates ...)
+    size_t info()const;
+
+    /// sanity check .. doens not do so much
+    void sanity()const{print_intermediate(HOLE);}
+
+    /// @param[in] type: the type of intermediates which will be printed, can be HOLE,PARTICLE or RESPONSE
+    void print_intermediate(const FuncType type)const{
+      if(type==HOLE)for(const auto& tmp:imH.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|H"+std::to_string(tmp.first.second)+"> intermediate");
+      else if(type==PARTICLE)for(const auto& tmp:imP.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|P"+std::to_string(tmp.first.second)+"> intermediate");
+      else if(type==RESPONSE)for(const auto& tmp:imR.allpairs)tmp.second.print_size("<H"+std::to_string(tmp.first.first)+"|"+assign_name(operator_type)+"|R"+std::to_string(tmp.first.second)+"> intermediate");
+    }
+
+    /// create a TwoElectronFactory with the operatorkernel
+    TwoElectronFactory get_kernel()const{
+      if(type()==OT_G12) return TwoElectronFactory(world).dcut(1.e-7);
+      else if(type()==OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma());
+      else error("no kernel of type " + name() +" implemented");
+      return TwoElectronFactory(world);
+    }
+
+    const OpType type()const {return operator_type;}
+    const CCParameters& parameters;
+  private:
+    /// the world
+    World &world;
+    /// the operatortype, currently this can be g12_ or f12_
+    const OpType operator_type;
+    /// @param[in] optype: can be f12_ or g12_ depending on which operator shall be intitialzied
+    /// @param[in] parameters: parameters (thresholds etc)
+    /// initializes the operators
+    SeparatedConvolution<double,3>* init_op(const OpType &type,const CCParameters &parameters)const;
+    const std::shared_ptr<real_convolution_3d> op;
+    intermediateT imH;
+    intermediateT imP;
+    intermediateT imR;
+    /// @param[in] msg: output message
+    /// the function will throw an MADNESS_EXCEPTION
+    void error(const std::string &msg)const{
+      if(world.rank()==0) std::cout <<"\n\n!!!!ERROR in CCConvolutionOperator " << assign_name(operator_type) << ": " << msg <<"!!!!!\n\n"<< std::endl;
+      MADNESS_EXCEPTION(msg.c_str(),1);
+    }
   };
 
-  // data structure which contains information about performances of a functions
-  struct CC_data{
-    CC_data(): name("UNDEFINED"), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
-    CC_data(const std::string &name_):name(name_), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
-    CC_data(const potentialtype_s &name_):name(assign_name(name_)), time(std::make_pair(999.999,999.999)), result_size(999.999), result_norm(999.999){}
-    CC_data(const CC_data &other) : name(other.name), time(other.time), result_size(other.result_size), result_norm(other.result_norm), warnings(other.warnings){}
-    const std::string name;
-    std::pair<double,double> time; // overall time
-    double result_size;
-    double result_norm;
-    std::vector<std::string> warnings;
+  /// Helper structure for the coupling potential of CC Singles and Doubles
+  /// because of the regularization of the CC-Wavefunction (for CC2: |tauij> = |uij> + Qt12*f12*|titj>)
+  /// we have 6D-functions in std format |u> : type==pure_
+  /// we have 6D-functions in sepparated format: type==decomposed_ (e.g O1*f12*|titj> = |xy> with x=|k> and y=<k|f12|ti>*|tj>)
+  /// we have 6D-function like f12|xy> which are not needed to be represented on the 6D MRA-Grid, type==op_decomposed_
+  struct CCPairFunction{
 
-    void info(World & world)const{
-      if(world.rank()==0) info();
-    }
-    void info(const bool &x)const{
-      if(x) info();
-      else return;
-    }
+  public:
+    CCPairFunction(World&world,const real_function_6d &ket):world(world), type(PT_FULL), a(),b(), op(0),u(ket) {}
+    CCPairFunction(World&world,const vecfuncT &f1,const vecfuncT &f2):world(world), type(PT_DECOMPOSED), a(f1),b(f2), op(0),u() {}
+    CCPairFunction(World&world,const std::pair<vecfuncT,vecfuncT> &f):world(world), type(PT_DECOMPOSED), a(f.first),b(f.second), op(0),u() {}
+    CCPairFunction(World&world,const CCConvolutionOperator *op_,const CCFunction &f1, const CCFunction &f2):world(world), type(PT_OP_DECOMPOSED), a(),b(), op(op_),x(f1),y(f2),u() {}
+    CCPairFunction(const CCPairFunction &other): world(other.world),type(other.type),a(other.a),b(other.b),op(other.op),x(other.x),y(other.y),u(other.u) {}
+
+    CCPairFunction
+    operator =(CCPairFunction& other);
+
     void info()const{
-      std::cout << std::setw(25) <<name << std::setfill(' ') << ", ||f||=" <<std::fixed << std::setprecision(6) << result_norm
-	  <<std::scientific << std::setprecision(2) << ", (" << result_size << ") GB, " << time.first << "s (Wall), " << time.second << "s (CPU)\n";
-      if(not warnings.empty()){
-	std::cout << "!!!Problems were detected in " << name <<"!!!\n";
-	std::cout << warnings << std::endl;
-      }
+      if(world.rank()==0) std::cout << "Information about Pair " << name() << "\n";
+      print_size();
     }
+
+    /// deep copy
+    CCPairFunction
+    copy() const;
+
+
+    /// make a deep copy and invert the sign
+    /// deep copy necessary otherwise: shallow copy errors
+    CCPairFunction
+    invert_sign();
+
+    CCPairFunction operator*(const double fac)const{
+      if(type==PT_FULL) return CCPairFunction(world,fac*u);
+      else if(type==PT_DECOMPOSED) return CCPairFunction(world,fac*a,b);
+      else if(type==PT_OP_DECOMPOSED) return CCPairFunction(world,op,x*fac,y);
+      else  MADNESS_EXCEPTION("wrong type in CCPairFunction scale",1);
+    }
+
+
+    /// @param[in]: Nuclear correlation factor
+    /// @param[out]: 6D self_overlap: <u|R(1)R(2)|u>
+    double
+    self_overlap(const real_function_3d& R) const;
+
+    /// print the size of the functions
+    void
+    print_size() const;
+
+    std::string name()const{
+      if(type==PT_FULL) return "|u>";
+      else if(type==PT_DECOMPOSED) return "|ab>";
+      else if(type==PT_OP_DECOMPOSED) return op->name()+"|xy>";
+      return "???";
+    }
+
+
+    /// @param[in] f: a 3D-CC_function
+    /// @param[in] particle: the particle on which the operation acts
+    /// @param[out] <f|u>_particle (projection from 6D to 3D)
+    real_function_3d project_out(const CCFunction &f,const size_t particle)const;
+
+    // result is: <x|op12|f>_particle
+    /// @param[in] x: a 3D-CC_function
+    /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
+    /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
+    /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
+    real_function_3d dirac_convolution(const CCFunction &x, const CCConvolutionOperator &op, const size_t particle)const;
+
+    /// @param[out] particles are interchanged, if the function was u(1,2) the result is u(2,1)
+    CCPairFunction swap_particles()const;
+
+    /// @param[in] the Greens operator
+    /// @param[out] the Greens operator is applied to the function: G(u)
+    real_function_6d apply_G(const real_convolution_6d &G)const;
+
+
+
+    double
+    make_xy_u(const CCFunction& xx,const CCFunction& yy) const;
+
+  public:
+    /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
+
+    World &world;
+    /// the type of the given 6D-function
+    const PairFormat type;
+    /// if type==decomposed this is the first particle
+    vecfuncT a;
+    /// if type==decomposed this is the second particle
+    vecfuncT b;
+    /// if type==op_decomposed_ this is the symmetric 6D-operator (g12 or f12) in u=op12|xy>
+    const CCConvolutionOperator* op;
+    /// if type==op_decomposed_ this is the first particle in u=op12|xy>
+    CCFunction x;
+    /// if type==op_decomposed_ this is the second particle in u=op12|xy>
+    CCFunction y;
+    /// if type=pure_ this is just the MRA 6D-function
+    real_function_6d u;
+
+    /// @param[in] f: a 3D-CC_function
+    /// @param[in] particle: the particle on which the operation acts
+    /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=|ab> so <f|u>_particle = <f|a>*|b> if particle==1
+    real_function_3d project_out_decomposed(const real_function_3d &f,const size_t particle)const;
+
+    /// @param[in] f: a 3D-CC_function
+    /// @param[in] particle: the particle on which the operation acts
+    /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=op|xy> so <f|u>_particle = <f|op|x>*|y> if particle==1
+    real_function_3d project_out_op_decomposed(const CCFunction &f, const size_t particle)const;
+
+    /// @param[in] x: a 3D-CC_function
+    /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
+    /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
+    /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
+    /// in this case u=|ab> and the result is <x|op|u>_1 = <x|op|a>*|b> for particle==1
+    real_function_3d dirac_convolution_decomposed(const CCFunction &x, const CCConvolutionOperator &op, const size_t particle)const;
+
+    /// small helper function that gives back (a,b) or (b,a) depending on the value of particle
+    const std::pair<vecfuncT,vecfuncT> assign_particles(const size_t particle)const;
+
+    /// swap particle function if type==pure_
+    CCPairFunction swap_particles_pure() const;
+    /// swap particle function if type==decomposed_
+    CCPairFunction swap_particles_decomposed()const;
+    /// swap particle function if type==op_decomposed_ (all ops are assumed to be symmetric)
+    CCPairFunction swap_particles_op_decomposed()const;
   };
 
-  // structure which holds all CC_data structures sorted by name of the function and iteration
-  struct CC_performance{
+  class CCPair: public archive::ParallelSerializableObject{
+  public:
+    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c): type(t), ctype(c), i(ii),j(jj), bsh_eps(12345.6789) {};
+    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c, const std::vector<CCPairFunction> &f): type(t), ctype(c), i(ii),j(jj), functions(f), bsh_eps(12345.6789) {};
+    CCPair(const CCPair &other): type(other.type), ctype(other.ctype), i(other.i), j(other.j), functions(other.functions), constant_part(other.constant_part), bsh_eps(other.bsh_eps) {};
 
-    CC_performance():current_iteration(0){}
+    const CCState type;
+    const CalcType ctype;
+    const size_t i;
+    const size_t j;
+    int excitation=-1;
 
-    typedef std::map<std::pair<std::string, std::size_t>, CC_data> datamapT;
-    datamapT data;
-
-    /// getter
-    const CC_data& operator()(const std::string &name, const size_t &iter) const {
-      return data.find(std::make_pair(name, iter))->second;
+    /// gives back the pure 6D part of the pair function
+    real_function_6d function()const{
+      MADNESS_ASSERT(not functions.empty());
+      MADNESS_ASSERT(functions[0].type==PT_FULL);
+      return functions[0].u;
     }
 
-    /// getter
-    const CC_data& operator()(const std::string &name) const {
-      return data.find(std::make_pair(name, current_iteration))->second;
+    /// updates the pure 6D part of the pair function
+    void update_u(const real_function_6d &u){
+      MADNESS_ASSERT(not functions.empty());
+      MADNESS_ASSERT(functions[0].type==PT_FULL);
+      CCPairFunction tmp(u.world(),u);
+      functions[0] = tmp;
     }
 
+    /// the functions which belong to the pair
+    std::vector<CCPairFunction> functions;
 
-    /// getter
-    CC_data& operator()(const std::string &name, const std::size_t &iter) {
-      return data[std::make_pair(name, iter)];
+    /// the constant part
+    real_function_6d constant_part;
+
+    /// Energy for the BSH Operator
+    /// Ground State: e_i + e_j
+    /// Excited State: e_i + e_j + omega
+    double bsh_eps;
+
+    std::string name()const{
+      std::string name = "???";
+      if(type==GROUND_STATE) name = assign_name(ctype) + "_pair_u_";
+      if(type==EXCITED_STATE) name = assign_name(ctype) + "_pair_x_";
+      return name+stringify(i)+stringify(j);
     }
 
-    /// getter
-    CC_data& operator()(const std::string &name) {
-      return data[std::make_pair(name, current_iteration)];
-    }
+    void
+    info() const;
 
-    /// setter
-    void insert(const std::string &name, const CC_data &new_data) {
-      std::pair<std::string, std::size_t> key = std::make_pair(name, current_iteration);
-      data.insert(std::make_pair(key, new_data));
-    }
-
-    mutable std::size_t current_iteration;
-
-    void info()const{
-      std::cout << "CC2 Performance information: Iteration \n";
-      for(auto x:data) x.second.info();
-    }
-
-    void info(const std::size_t &iter)const{
-      std::cout << "CC2 Performance information: Iteration" << iter << "\n";
-      for(auto x:data){
-	if(x.first.second == iter) x.second.info();
-      }
-    }
-
-    void info_last_iter()const {
-      if(current_iteration !=0)info(current_iteration -1);
-      else info(0);
-    }
-
-    std::pair<double,double> get_average_time(const std::string &name)const{
-      double overall_time_cpu = 0.0;
-      double overall_time_wall = 0.0;
-      size_t iterations = 0;
-      for(auto x:data){
-	if(x.first.first == name){
-	  overall_time_wall += x.second.time.first;
-	  overall_time_cpu += x.second.time.second;
-	  iterations++;
-	}
-      }
-      if(iterations==0) return std::make_pair(0.0,0.0);
-      double iter = (double) iterations;
-      return std::make_pair(overall_time_wall/iter,overall_time_cpu/iter);
-    }
   };
+
+  /// little helper structure which manages the stored singles potentials
+  struct CCIntermediatePotentials{
+    CCIntermediatePotentials(World&world, const CCParameters& p): world(world), parameters(p) {};
+
+    /// fetches the correct stored potential or throws an exception
+    vecfuncT
+    operator ()(const CC_vecfunction& f,const PotentialType& type) const;
+
+    /// fetch the potential for a single function
+    real_function_3d
+    operator ()(const CCFunction& f,const PotentialType& type) const;
+
+    vecfuncT get_unprojected_cc2_projector_response()const{return unprojected_cc2_projector_response_;}
+    void add_unprojected_cc2_projector_response(const vecfuncT& tmp){unprojected_cc2_projector_response_=copy(world,tmp);}
+
+    /// deltes all stored potentials
+    void clear_all(){
+      current_singles_potential_gs_.clear();
+      current_singles_potential_ex_.clear();
+      current_s2b_potential_gs_.clear();
+      current_s2b_potential_ex_.clear();
+      current_s2c_potential_gs_.clear();
+      current_s2c_potential_ex_.clear();
+    }
+    /// clears only potentials of the response
+    void clear_response(){
+      current_singles_potential_ex_.clear();
+      current_s2b_potential_ex_.clear();
+      current_s2c_potential_ex_.clear();
+    }
+    /// insert potential
+    void
+    insert(const vecfuncT& potential,const CC_vecfunction& f,const PotentialType& type);
+
+  private:
+    World &world;
+    const CCParameters& parameters;
+    /// whole ground state singles potential without fock-residue
+    vecfuncT current_singles_potential_gs_;
+    /// whole excited state singles potential without fock-residue
+    vecfuncT current_singles_potential_ex_;
+    /// s2b_potential for the pure 6D-part of the ground-state (expensive and constant during singles iterations)
+    vecfuncT current_s2b_potential_gs_;
+    /// s2b_potential for the pure 6D-part of the excited-state (expensive and constant during singles iterations)
+    vecfuncT current_s2b_potential_ex_;
+    /// s2c_potential for the pure 6D-part of the ground-state (expensive and constant during singles iterations)
+    vecfuncT current_s2c_potential_gs_;
+    /// s2c_potential for the pure 6D-part of the excited_state (expensive and constant during singles iterations)
+    vecfuncT current_s2c_potential_ex_;
+    /// unprojected S3c + S5c + S2b + S2c potential of CC2 singles
+    /// for the projector response of the CC2 singles potential
+    vecfuncT unprojected_cc2_projector_response_;
+    /// structured output
+    void output(const std::string &msg)const{if(world.rank()==0 and parameters.debug) std::cout << "Intermediate Potential Manager: " << msg << "\n";}
+  };
+
+
 
 }//namespace madness
 

@@ -172,4 +172,12 @@ void operator delete(void *p) throw() {
     free(actual_pointer);
 }
 
-#endif
+#endif  // defined(WORLD_GATHER_MEM_STATS)
+
+namespace madness {
+  namespace detail {
+    template <> const char* Vm_cstr<char>() { return "Vm"; }
+    template <> const wchar_t* Vm_cstr<wchar_t>() { return L"Vm"; }
+  }  // namespace detail
+}  // namespace madness
+

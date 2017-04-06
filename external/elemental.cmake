@@ -110,7 +110,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
         WORKING_DIRECTORY ${ELEMENTAL_BINARY_DIR}
         RESULT_VARIABLE error_code)
     if(error_code)
-      message(FATAL_ERROR "Failed to delete existing files the Elemental build directory.")
+      message(FATAL_ERROR "Failed to delete existing files in the Elemental build directory.")
     endif()
   else()
     set(error_code 1)
@@ -121,14 +121,15 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
       message(FATAL_ERROR "Failed to create the Elemental build directory.")
     endif()
   endif()
-  
+
   # since 0.85 package name is 'El', before that it was 'elemental'
   # detect the version by searching the main header
   message(STATUS "Looking for the top Elemental header")
   if(EXISTS ${ELEMENTAL_SOURCE_DIR}/include/El.hpp)
     message(STATUS "Looking for the top Elemental header - found El.hpp")
     set(HAVE_EL_H ON CACHE INTERNAL "Have El.hpp" FORCE)
-    set(ELEMENTAL_PACKAGE_NAME El CACHE INTERNAL "Elemental package name (component name is same)" FORCE)
+    set(ELEMENTAL_PACKAGE_NAME El CACHE INTERNAL "Elemental package name" FORCE)
+    set(ELEMENTAL_CONFIG_NAME Elemental CACHE INTERNAL "Elemental configure file prefix" FORCE)
   elseif(EXISTS ${ELEMENTAL_SOURCE_DIR}/include/elemental.hpp)
     message(STATUS "Looking for the top Elemental header - found elemental.hpp")
     set(HAVE_ELEMENTAL_H ON CACHE INTERNAL "Have elemental.hpp" FORCE)
@@ -167,9 +168,19 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
     message (STATUS "** Done configuring Elemental")
   endif(error_code)
 
-  set(${ELEMENTAL_PACKAGE_NAME}_DIR ${ELEMENTAL_BINARY_DIR})
-  find_package(${ELEMENTAL_PACKAGE_NAME} REQUIRED
-               COMPONENTS REQUIRED ${ELEMENTAL_PACKAGE_NAME} pmrrr ElSuiteSparse)
+  file(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/CMake)
+
+  # execute_process(
+  #     COMMAND cp
+  #     ElementalTargets.cmake
+  #     ${ELEMENTAL_INSTALL_DIR}/CMake
+  #     WORKING_DIRECTORY "${ELEMENTAL_BINARY_DIR}"
+  #     RESULT_VARIABLE error_code)
+
+  file(COPY ${ELEMENTAL_BINARY_DIR}/ElementalTargets.cmake DESTINATION ${CMAKE_INSTALL_PREFIX}/CMake)
+
+  find_package(${ELEMENTAL_CONFIG_NAME} REQUIRED PATHS ${CMAKE_INSTALL_PREFIX}
+      COMPONENTS REQUIRED ${ELEMENTAL_PACKAGE_NAME} pmrrr ElSuiteSparse)
   set(ELEMENTAL_FOUND 1)
 
   # Add update-elemental target that will pull updates to the Elemental source

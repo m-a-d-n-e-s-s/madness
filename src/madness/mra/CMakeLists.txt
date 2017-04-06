@@ -21,9 +21,7 @@ add_executable(mraplot mraplot.cc)
 target_link_libraries(mraplot MADmra)
 
 # Install the MADmra library
-install(TARGETS mraplot EXPORT madness
-    RUNTIME DESTINATION "${MADNESS_INSTALL_BINDIR}"
-    COMPONENT mra)
+install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
 install(FILES autocorr coeffs gaussleg
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT mra)

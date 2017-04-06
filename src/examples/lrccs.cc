@@ -1,4 +1,11 @@
 /*
+ * lrccs.cc
+ *
+ *  Created on: 4 Jan 2017
+ *      Author: kottmanj
+ */
+
+/*
 /*
  * lrccs.cc
  *
@@ -50,7 +57,7 @@
   /trunk/src/apps/examples/tdhf.cc>here</a>.
 
  */
-#include <chem/CC2.h>
+#include <chem/TDHF.h>
 
 using namespace madness;
 
@@ -97,10 +104,11 @@ if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF 
 		<<"\n current wall-time: " << wall_time()
 		<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";
 
-
-// Make CC2
-CC2 cc2(world,input,nemo);
-cc2.solve_ccs();
+CCParameters parameters(input,nemo.get_calc()->param.lo);
+if(world.rank()==0) std::cout << "Setting 3D Thresh to " << parameters.thresh_3D << "\n";
+FunctionDefaults<3>::set_thresh(parameters.thresh_3D);
+TDHF tdhf(world,parameters,nemo);
+tdhf.solve_cis();
 
 if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
 world.gop.fence();
@@ -108,10 +116,5 @@ finalize();
 
 	return 0;
 }// end main
-
-
-
-
-
 
 

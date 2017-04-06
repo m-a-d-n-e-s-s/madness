@@ -1065,15 +1065,16 @@ namespace madness {
         /// @param[in]  g   the function after which the MRA structure is modeled (any basis works)
         template<typename R>
         Function<T,NDIM>& fill_tree(const Function<R,NDIM>& g, bool fence=true) {
-            MADNESS_ASSERT(g.is_initialized());
-            MADNESS_ASSERT(is_on_demand());
+          MADNESS_ASSERT(g.is_initialized());
+          MADNESS_ASSERT(is_on_demand());
 
-            // clear what we have
-            impl->get_coeffs().clear();
+          // clear what we have
+          impl->get_coeffs().clear();
 
-            leaf_op<T,NDIM> gnode_is_leaf(g.get_impl().get());
-            impl->make_Vphi(gnode_is_leaf,fence);
-            return *this;
+          //leaf_op<T,NDIM> gnode_is_leaf(g.get_impl().get());
+          Leaf_op_other<T,NDIM> gnode_is_leaf(g.get_impl().get());
+          impl->make_Vphi(gnode_is_leaf,fence);
+          return *this;
 
         }
 
@@ -1082,26 +1083,80 @@ namespace madness {
         /// @param[in]  op  the convolution operator for screening
         template<typename opT>
         Function<T,NDIM>& fill_tree(const opT& op, bool fence=true) {
-            MADNESS_ASSERT(is_on_demand());
-
-            // clear what we have
-            impl->get_coeffs().clear();
-            op_leaf_op<T,NDIM,opT> leaf_op(&op,this->get_impl().get());
-            impl->make_Vphi(leaf_op,fence);
-            return *this;
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          Specialbox_op<T,NDIM> sbox;
+          Leaf_op<T,NDIM,opT,Specialbox_op<T,NDIM> > leaf_op(this->get_impl().get(),&op,sbox);
+          impl ->make_Vphi(leaf_op,fence);
+          return *this;
         }
 
         /// With this being an on-demand function, fill the MRA tree according to different criteria
         Function<T,NDIM>& fill_tree(bool fence=true) {
-            MADNESS_ASSERT(is_on_demand());
-
-            // clear what we have
-            impl->get_coeffs().clear();
-            error_leaf_op<T,NDIM> leaf_op(this->get_impl().get());
-            impl->make_Vphi(leaf_op,fence);
-            return *this;
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,Specialbox_op<T,NDIM> > leaf_op(this->get_impl().get());
+          impl->make_Vphi(leaf_op,fence);
+          return *this;
         }
 
+        /// Special refinement on 6D boxes where the electrons come closs (meet)
+        /// @param[in]  op  the convolution operator for screening
+        template<typename opT>
+        Function<T,NDIM>& fill_cuspy_tree(const opT& op,const bool fence=true){
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          ElectronCuspyBox_op<T,NDIM> sbox;
+
+          Leaf_op<T,NDIM,opT,ElectronCuspyBox_op<T,NDIM> > leaf_op(this->get_impl().get(),&op,sbox);
+          impl ->make_Vphi(leaf_op,fence);
+
+          return *this;
+        }
+
+        /// Special refinement on 6D boxes where the electrons come closs (meet)
+        Function<T,NDIM>& fill_cuspy_tree(const bool fence=true){
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          ElectronCuspyBox_op<T,NDIM> sbox;
+
+          Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,ElectronCuspyBox_op<T,NDIM> > leaf_op(this->get_impl().get(),sbox);
+          impl ->make_Vphi(leaf_op,fence);
+
+          return *this;
+        }
+
+        /// Special refinement on 6D boxes for the nuclear potentials (regularized with cusp, non-regularized with singularity)
+        /// @param[in]  op  the convolution operator for screening
+        template<typename opT>
+        Function<T,NDIM>& fill_nuclear_cuspy_tree(const opT& op,const size_t particle,const bool fence=true){
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          NuclearCuspyBox_op<T,NDIM> sbox(particle);
+
+          Leaf_op<T,NDIM,opT,NuclearCuspyBox_op<T,NDIM> > leaf_op(this->get_impl().get(),&op,sbox);
+          impl ->make_Vphi(leaf_op,fence);
+
+          return *this;
+        }
+
+        /// Special refinement on 6D boxes for the nuclear potentials (regularized with cusp, non-regularized with singularity)
+        Function<T,NDIM>& fill_nuclear_cuspy_tree(const size_t particle,const bool fence=true){
+          MADNESS_ASSERT(is_on_demand());
+          // clear what we have
+          impl->get_coeffs().clear();
+          NuclearCuspyBox_op<T,NDIM> sbox(particle);
+
+          Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,NuclearCuspyBox_op<T,NDIM> > leaf_op(this->get_impl().get(),sbox);
+          impl ->make_Vphi(leaf_op,fence);
+
+          return *this;
+        }
 
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM, typename opT>
@@ -1249,26 +1304,27 @@ namespace madness {
         /// @param[in]  g	on-demand function
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_on_demand(const Function<R,NDIM>& g) const {
-        	MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
+          MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
-            this->reconstruct();
+          this->reconstruct();
 
-        	// save for later, will be removed by make_Vphi
-            std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
-            leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
-            g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
+          // save for later, will be removed by make_Vphi
+          std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
+          //leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
+          Leaf_op_other<T,NDIM> fnode_is_leaf(this->get_impl().get());
+          g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
 
-            if (VERIFY_TREE) verify_tree();
-            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
-            impl->world.gop.sum(local);
-            impl->world.gop.fence();
+          if (VERIFY_TREE) verify_tree();
+          TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
+          impl->world.gop.sum(local);
+          impl->world.gop.fence();
 
-            // restore original state
-            g.get_impl()->set_functor(func);
-            g.get_impl()->get_coeffs().clear();
-            g.get_impl()->is_on_demand()=true;
+          // restore original state
+          g.get_impl()->set_functor(func);
+          g.get_impl()->get_coeffs().clear();
+          g.get_impl()->is_on_demand()=true;
 
-            return local;
+          return local;
         }
 
         /// project this on the low-dim function g: h(x) = <f(x,y) | g(y)>
@@ -1391,6 +1447,32 @@ namespace madness {
             return *this;
         }
 
+        /// apply op on the input vector yielding an output vector of functions
+
+        /// (*this) is just a dummy Function to be able to call internal methods in FuncImpl
+        /// @param[in]  op   the operator working on vin
+        /// @param[in]  vin  vector of input Functions
+        /// @param[out] vout vector of output Functions vout = op(vin)
+        template <typename opT>
+        void multi_to_multi_op_values(const opT& op,
+                const std::vector< Function<T,NDIM> >& vin,
+                std::vector< Function<T,NDIM> >& vout,
+                const bool fence=true) {
+            std::vector<implT*> vimplin(vin.size(),NULL);
+            for (unsigned int i=0; i<vin.size(); ++i) {
+                if (vin[i].is_initialized()) vimplin[i] = vin[i].get_impl().get();
+            }
+            std::vector<implT*> vimplout(vout.size(),NULL);
+            for (unsigned int i=0; i<vout.size(); ++i) {
+                if (vout[i].is_initialized()) vimplout[i] = vout[i].get_impl().get();
+            }
+
+            impl->multi_to_multi_op_values(op, vimplin, vimplout, fence);
+            if (VERIFY_TREE) verify_tree();
+
+        }
+
+
         /// Multiplication of function * vector of functions using recursive algorithm of mulxx
         template <typename L, typename R>
         void vmulXX(const Function<L,NDIM>& left,
@@ -1491,7 +1573,7 @@ namespace madness {
         }
     };
 
-    template <typename T, typename opT, int NDIM>
+    template <typename T, typename opT, std::size_t NDIM>
     Function<T,NDIM> multiop_values(const opT& op, const std::vector< Function<T,NDIM> >& vf) {
         Function<T,NDIM> r;
         r.set_impl(vf[0], false);
@@ -2050,6 +2132,24 @@ namespace madness {
         PROFILE_FUNC;
         Function<T,NDIM> result;
         return result.mapdim(f,map,fence);
+    }
+
+    /// swap particles 1 and 2
+
+    /// param[in]	f	a function of 2 particles f(1,2)
+    /// return	the input function with particles swapped g(1,2) = f(2,1)
+    template <typename T>
+    Function<T,6>
+    swap_particles(const Function<T,6> & f){
+      // this could be done more efficiently for SVD, but it works decently
+      std::vector<long> map(6);
+      map[0]=3;
+      map[1]=4;
+      map[2]=5;     // 2 -> 1
+      map[3]=0;
+      map[4]=1;
+      map[5]=2;     // 1 -> 2
+      return mapdim(f,map);
     }
 
     /// symmetrize a function

@@ -139,7 +139,8 @@ int test_bsh(World& world) {
         if (world.rank() == 0) print("err in f", ferr);
         
         // here we are testing bsh, not the initial projection
-        if ((opferr>ferr) and (opferr>FunctionDefaults<3>::get_thresh())) success++;
+        //if ((opferr>ferr) and (opferr>FunctionDefaults<3>::get_thresh())) success++;
+        if (opferr>2*ferr) success++;
 
         // //opf.truncate();
         // Function<T,3> opinvopf = opf*(mu*mu);

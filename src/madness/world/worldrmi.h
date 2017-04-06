@@ -39,6 +39,7 @@
 #include <utility>
 #include <list>
 #include <memory>
+#include <tuple>
 #include <pthread.h>
 
 /*
@@ -52,7 +53,7 @@
   When MPI is initialized we need to use init_thread with
   multiple required.
 
-  This RMI service operates only in COMM_WORLD.  It easy enough
+  This RMI service operates only in (a clone of) COMM_WORLD.  It easy enough
   to extend to other communicators but the point is to have
   only one server thread for all possible uses.  You just
   have to translate rank_in_comm into rank_in_world by
@@ -195,7 +196,8 @@ namespace madness {
                 attrT attr;
             }; // struct header
 
-            std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
+            /// q of huge messages, each msg = {source,nbytes,tag}
+            std::list< std::tuple<int,size_t,int> > hugeq;
 
             SafeMPI::Intracomm comm;
             const int nproc;            // No. of processes in comm world
@@ -206,7 +208,7 @@ namespace madness {
             std::unique_ptr<counterT[]> recv_counters;
             std::size_t max_msg_len_;
             std::size_t nrecv_;
-            std::size_t nssend_;
+            long nssend_;
             std::size_t maxq_;
             std::unique_ptr<void*[]> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
             std::unique_ptr<SafeMPI::Request[]> recv_req;
@@ -250,7 +252,6 @@ namespace madness {
                     throw;
                 }
                 RMI::set_this_thread_is_server(false);
-                delete this; // because the task is not actually put into the q
             }
 #endif // HAVE_INTEL_TBB
 
@@ -271,6 +272,15 @@ namespace madness {
             void post_pending_huge_msg();
 
             void post_recv_buf(int i);
+
+        private:
+
+            /// thread-safely round-robins through tags in [first_tag, first_tag+period) range
+            /// @returns new tag to be used in messaging
+            int unique_tag() const;
+            /// the period of tags returned by unique_tag()
+            /// @warning this bounds how many huge messages each RmiTask will be able to process
+            static constexpr int unique_tag_period() { return 2048; }
 
         }; // class RmiTask
 
@@ -342,6 +352,8 @@ namespace madness {
 #if HAVE_INTEL_TBB
                 tbb_rmi_parent_task->wait_for_all();
                 tbb::task::destroy(*tbb_rmi_parent_task);
+#else
+                delete task_ptr;
 #endif // HAVE_INTEL_TBB
                 task_ptr = nullptr;
             }

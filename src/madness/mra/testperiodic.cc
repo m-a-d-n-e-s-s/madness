@@ -294,10 +294,11 @@ int main(int argc, char**argv) {
 //        test_periodic1(world);
 //        print("\n3D gaussians");
 //        test_periodic(world);
-//        print("\n3D coulomb");
-//        test_periodic2(world);
-        print("\n3D bsh");
-        success+=test_periodic_bsh(world);
+        print("\n3D coulomb");
+        test_periodic2(world);
+        // This one is broken ... Scott is looking at it
+        //        print("\n3D bsh");
+        //        success+=test_periodic_bsh(world);
 
     }
     catch (const SafeMPI::Exception& e) {

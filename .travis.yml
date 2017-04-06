@@ -1,4 +1,5 @@
 language: cpp
+cache: ccache
 os:
   - osx
   - linux
@@ -27,8 +28,6 @@ matrix:
   # building with the clang compiler. Temporarily allow failures in
   # these tests until the issue is resolved.
   allow_failures:
-    - compiler: clang
-      env: GCC_VERSION=5 RUN_TEST=tensor
     - compiler: clang
       env: GCC_VERSION=5 RUN_TEST=mra
   exclude:
@@ -70,7 +69,7 @@ addons:
     sources:
       - george-edison55-precise-backports
       - ubuntu-toolchain-r-test
-      #- llvm-toolchain-precise-3.7
+      - llvm-toolchain-precise-3.8
     packages:
       #- gcc-4.7
       #- g++-4.7
@@ -84,7 +83,7 @@ addons:
       - gcc-5
       - g++-5
       - gfortran-5
-      #- clang-3.7
+      - clang-3.8
       # These do not lead to the desired result of libc++ >:-(
       #- libc++-dev
       #- libc++1

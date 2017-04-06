@@ -468,10 +468,6 @@ int main(int argc, char**argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
     catch (const char* s) {
         print(s);
         error("caught a c-string exception");

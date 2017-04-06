@@ -679,7 +679,13 @@ real_function_6d MP2::make_Uphi0(ElectronPair& pair) const {
 	//  [T,f]
 	const double eps = this->zeroth_order_energy(i, j);
 	std::cout << "eps=" << eps <<std::endl;
-	Uphi0 = corrfac.apply_U(hf->nemo(i), hf->nemo(j), eps);
+	{
+		real_convolution_6d op_mod = BSHOperator<6>(world,
+				sqrt(-2 * eps), 0.0001, 1e-5);
+		op_mod.modified() = true;
+		Uphi0 = corrfac.apply_U(hf->nemo(i), hf->nemo(j), op_mod);
+	}
+
 	{
 		real_function_6d tmp =
 				CompositeFactory<double, 6, 3>(world).particle1(
@@ -706,7 +712,7 @@ real_function_6d MP2::make_Uphi0(ElectronPair& pair) const {
 		const double thresh=FunctionDefaults<6>::get_thresh();
 		for (int axis = 0; axis < 3; axis++) {
 
-			double tight_thresh = std::min(thresh, 1.e-4);
+			double tight_thresh = thresh;// std::min(thresh, 1.e-4); // not nec. anymore bc. of fill_cuspy_tree instead of fill_tree
 
 			real_convolution_6d op_mod = BSHOperator<6>(world,
 					sqrt(-2 * eps), 0.0001, 1e-5);
@@ -729,7 +735,7 @@ real_function_6d MP2::make_Uphi0(ElectronPair& pair) const {
 					CompositeFactory<double, 6, 3>(world).g12(u1_el).particle1(
 							copy(u1_nuc_nemo_i)).particle2(
 									copy(hf->nemo(j))).thresh(tight_thresh);
-			U1_mix1.fill_tree(op_mod);
+			U1_mix1.fill_cuspy_tree(op_mod);
 			U1_mix1.set_thresh(thresh);
 			U1_mix1.print_size("U1_mix1");
 			//						plot_plane(world,U1_mix1,"U1_mix1");
@@ -738,7 +744,7 @@ real_function_6d MP2::make_Uphi0(ElectronPair& pair) const {
 					CompositeFactory<double, 6, 3>(world).g12(u1_el).particle1(
 							copy(hf->nemo(i))).particle2(
 									copy(u1_nuc_nemo_j)).thresh(tight_thresh);
-			U1_mix2.fill_tree(op_mod);
+			U1_mix2.fill_cuspy_tree(op_mod);
 			U1_mix2.set_thresh(thresh);
 			U1_mix2.print_size("U1_mix2");
 			//						plot_plane(world,U1_mix2,"U1_mix2");
