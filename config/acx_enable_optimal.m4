@@ -92,7 +92,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
       ;;
 
       Intel)
-        acx_enable_optimal_flags="$acx_enable_optimal_flags -ip -no-prec-div -mkl=sequential -ansi -xHOST"
+        acx_enable_optimal_flags="$acx_enable_optimal_flags -ip -no-prec-div -mkl=sequential -xHOST"
         if test $enable_cpp0x = "yes"; then
           acx_enable_optimal_flags="$acx_enable_optimal_flags -std=c++0x"
         fi
