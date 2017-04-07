@@ -29,6 +29,8 @@ typedef int MPI_Comm;
 #define MPI_SUCCESS          0      /* Successful return code */
 #define MPI_ERR_COMM         5      /* Invalid communicator */
 #define MPI_ERR_ARG         12      /* Invalid argument */
+#define MPI_ERR_IN_STATUS 999999
+#define MPI_ERRORS_RETURN 888888
 #define MPI_MAX_ERROR_STRING 1024
 
 /* Results of the compare operations. */
@@ -147,11 +149,13 @@ inline int MPI_Get_count(MPI_Status *, MPI_Datatype, int *count) {
 
 // Communicator rank and size
 inline int MPI_Comm_rank(MPI_Comm, int* rank) { *rank = 0; return MPI_SUCCESS; }
-inline int MPI_Comm_size(MPI_Comm, int* size) { *size = 1; return MPI_SUCCESS; }
+inline unsigned int MPI_Comm_size(MPI_Comm, int* size) { *size = 1; return MPI_SUCCESS; }
 
 // There is only one node so sending messages is not allowed. Always return MPI_ERR_COMM
 inline int MPI_Isend(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request *) { return MPI_ERR_COMM; }
+inline int MPI_Issend(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request *) { return MPI_ERR_COMM; }
 inline int MPI_Send(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
+inline int MPI_Ssend(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
 inline int MPI_Bsend(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
 inline int MPI_Irecv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request*) { return MPI_ERR_COMM; }
 inline int MPI_Recv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Status*) { return MPI_ERR_COMM; }
@@ -170,6 +174,8 @@ inline int MPI_Allreduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, 
 }
 
 inline int MPI_Comm_get_attr(MPI_Comm, int, void*, int*) { return MPI_ERR_COMM; }
+
+inline int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) { return MPI_ERR_COMM; }
 
 inline int MPI_Abort(MPI_Comm, int code) { exit(code); return MPI_SUCCESS; }
 
@@ -221,6 +227,8 @@ inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
 
     return MPI_SUCCESS;
 }
+
+inline int MPI_Errhandler_set(MPI_Comm comm, int errhandler) {return MPI_SUCCESS;}
 
 inline double MPI_Wtime() { return madness::wall_time(); }
 

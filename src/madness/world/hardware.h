@@ -43,6 +43,9 @@
 #include <stdint.h>
 
 #if defined(__bgp__) || defined(__bgq__)
+#  ifdef STUBOUTMPI
+#    error "stub MPI is used by need MPI on IBM BG"
+#  endif
 #  include <mpi.h>
 #  if defined(__bgp__)
 #    define HARDWARE_RUNS_BGP

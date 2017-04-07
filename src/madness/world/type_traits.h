@@ -41,7 +41,6 @@
 #include <cstddef>
 #include <stdint.h>
 #include <madness/madness_config.h>
-#include <madness/world/type_traits.h>
 #include <madness/world/function_traits.h>
 
 namespace madness {

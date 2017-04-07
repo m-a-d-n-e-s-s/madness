@@ -84,6 +84,32 @@ namespace madness {
             return result;
         }
 
+        /// apply 3D Projector to one particle of a 6D function
+        /// \f[
+        /// |result> = \sum_p |p(particle)> <p(particle)|f(1,2)>_{particle}
+        /// \f]
+        /// @param[in] f the 6D function to be projected
+        /// @param[in] the particle that is projected (1 or 2)
+        /// @return the projected function
+        real_function_6d operator()(const real_function_6d&f, const size_t particle)const{
+          real_function_6d result = real_factory_6d(f.world());
+          MADNESS_ASSERT(particle==1 or particle==2);
+          for(size_t i=0;i<mo_ket_.size();i++){
+            real_function_3d tmp1 = mo_ket_[i];
+            real_function_3d tmp2 = f.project_out(mo_bra_[i],particle-1);
+            real_function_6d tmp12;
+            if(particle==1){
+              tmp12 = CompositeFactory<double,6,3>(f.world()).particle1(copy(tmp1)).particle2(copy(tmp2));
+              tmp12.fill_tree();
+            }else{
+              tmp12 = CompositeFactory<double,6,3>(f.world()).particle1(copy(tmp2)).particle2(copy(tmp1));
+              tmp12.fill_tree();
+            }
+            result += tmp12;
+          }
+          return result;
+        }
+
     };
 
 

@@ -180,7 +180,7 @@ public:
 
     void set_atom_charge(unsigned int i, double zeff);
 
-    unsigned int get_atom_charge(unsigned int i);
+    unsigned int get_atom_charge(unsigned int i) const;
 
     unsigned int get_atom_number(unsigned int i);
 

@@ -24,6 +24,25 @@ template <> float_complex complexify<float_complex>(float_complex c) {
     return c*float_complex(c.real(),c.real()*c.real());
 }
 
+/// struct to test the multi_to_multi_op_values
+template<std::size_t NDIM>
+struct many_to_many_op {
+
+    many_to_many_op() : result_size(2) {}
+
+    std::size_t result_size;
+    std::size_t get_result_size() const {return result_size;}
+
+    std::vector<madness::Tensor<double> > operator()(const madness::Key<NDIM> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
+        std::vector<madness::Tensor<double> > result(result_size);
+        result[0]=2.0*t[0];
+        result[1]=t[1]+t[2];
+        return result;
+    }
+};
+
+
 template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
@@ -121,6 +140,49 @@ void test_inner(World& world) {
         print("error norm",(rold-rnew).normf(),"\n");
 }
 
+template <std::size_t NDIM>
+void test_multi_to_multi_op(World& world) {
+
+    typedef Function<double,NDIM> functionT;
+    typedef std::vector<Function<double,NDIM> > vecfuncT;
+    typedef std::shared_ptr< FunctionFunctorInterface<double,NDIM> > ffunctorT;
+
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+
+    many_to_many_op<NDIM> op;
+    vecfuncT vin(3);
+
+    for (functionT& in : vin) {
+        ffunctorT f(RandomGaussian<double,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+        in=FunctionFactory<double,NDIM>(world).functor(f);
+    }
+    refine_to_common_level(world,vin);
+
+    vecfuncT vout=multi_to_multi_op_values(op, vin);
+
+    std::vector<functionT> result(2);
+    result[0]=2.0*vin[0]-vout[0];
+    result[1]=vout[1]-vin[1]-vin[2];
+
+    double norm_in=norm2(world,vin);
+    double norm_out=norm2(world,vout);
+    double error=norm2(world,result);
+    if (world.rank()==0) print("error in multi_to_multi ",error,norm_in,norm_out);
+
+}
+
 int main(int argc, char**argv) {
     initialize(argc, argv);
 
@@ -130,6 +192,9 @@ int main(int argc, char**argv) {
 
         test_inner<double,double,1,false>(world);
         test_inner<double,double,1,true>(world);
+        test_multi_to_multi_op<1>(world);
+        test_multi_to_multi_op<2>(world);
+        test_multi_to_multi_op<3>(world);
 #if !HAVE_GENTENSOR
         test_inner<double,std::complex<double>,1,false>(world);
         test_inner<std::complex<double>,double,1,false>(world);

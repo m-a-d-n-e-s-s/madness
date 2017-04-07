@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
 	startup(world,argc,argv);
 	std::cout.precision(6);
 	FunctionDefaults<3>::set_truncate_mode(1);
-	print("Truncate mode set to ",FunctionDefaults<3>::get_truncate_mode());
+	if(world.rank()==0) print("Truncate mode set to ",FunctionDefaults<3>::get_truncate_mode());
 
 #ifdef GITREVISION
 	const  char* gitrev =  GITREVISION;
@@ -87,10 +87,18 @@ TensorType tt=TT_2D;
 FunctionDefaults<6>::set_tensor_type(tt);
 FunctionDefaults<6>::set_apply_randomize(true);
 
-// Make reference
-const std::string input = "input";
+// Process 0 reads input information and broadcasts
+const char * inpname = "input";
+for (int i=1; i<argc; i++) {
+    if (argv[i][0] != '-') {
+        inpname = argv[i];
+        break;
+    }
+}
+if (world.rank() == 0) print("input filename: ", inpname);
+
 //SCF calc(world,input.c_str());
-std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
+std::shared_ptr<SCF> calc(new SCF(world,inpname));
 Nemo nemo(world,calc);
 if (world.rank()==0) {
     calc->molecule.print();
@@ -104,7 +112,7 @@ if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF 
 
 
 // Make CC2
-CC2 cc2(world,input,nemo);
+CC2 cc2(world,inpname,nemo);
 
 cc2.solve();
 

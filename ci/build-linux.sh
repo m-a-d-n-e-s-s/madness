@@ -23,18 +23,14 @@ if [ "$CXX" = "g++" ]; then
     export CXX=/usr/bin/g++-$GCC_VERSION
 else
     # Assume CXX = clang
-    export CC=/usr/bin/clang-3.7
-    export CXX=/usr/bin/clang++-3.7
+    export CC=/usr/bin/clang-3.8
+    export CXX=/usr/bin/clang++-3.8
     #export CXXFLAGS="-stdlib=libc++"
     #export LDFLAGS="-fdefine-sized-deallocation"
     # clang-3.6 gives this error:
     #       clang: error: unknown argument: '-fdefine-sized-deallocation'
 fi
 export F77=/usr/bin/gfortran-$GCC_VERSION
-# Jeff: these are unnecessary because MPICH has been compiler
-#       from source with these compilers.
-#export MPICH_CC=$CC
-#export MPICH_CXX=$CXX
 export MPICC=$HOME/mpich/bin/mpicc
 export MPICXX=$HOME/mpich/bin/mpicxx
 export LD_LIBRARY_PATH=/usr/lib/lapack:/usr/lib/libblas:$LD_LIBRARY_PATH

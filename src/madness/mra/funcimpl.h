@@ -49,6 +49,8 @@
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
 
+#include "leafop.h"
+
 namespace madness {
     template <typename T, std::size_t NDIM>
     class DerivativeBase;
@@ -421,66 +423,6 @@ namespace madness {
         return s;
     }
 
-
-
-    /// returns true if the function has a leaf node at key (works only locally)
-    template<typename T, std::size_t NDIM>
-    struct leaf_op {
-        typedef FunctionImpl<T,NDIM> implT;
-        const implT* f;
-        bool do_error_leaf_op() const {return false;}
-
-        leaf_op() {}
-        leaf_op(const implT* f) : f(f) {}
-
-        /// pre/post-determination is the same here
-        bool operator()(const Key<NDIM>& key, const GenTensor<T>& coeff=GenTensor<T>()) const {
-            MADNESS_ASSERT(f->get_coeffs().is_local(key));
-            return (not f->get_coeffs().find(key).get()->second.has_children());
-        }
-
-        template <typename Archive> void serialize (Archive& ar) {
-            ar & f;
-        }
-    };
-
-
-    /// returns true if the node is well represented compared to its parent
-    template<typename T, std::size_t NDIM>
-    struct error_leaf_op {
-        typedef FunctionImpl<T,NDIM> implT;
-        typedef GenTensor<T> coeffT;
-        const implT* f;
-
-        bool do_error_leaf_op() const {return true;}	// no double call
-        error_leaf_op() {}
-        error_leaf_op(const implT* f) : f(f) {}
-
-        /// no pre-determination
-        bool operator()(const Key<NDIM>& key) const {return true;}
-
-        /// no post-determination
-        bool operator()(const Key<NDIM>& key, const GenTensor<T>& coeff) const {return false;}
-
-        /// post-determination
-
-        /// @param[in]  key the FunctionNode which we want to determine if it's a leaf node
-        /// @param[in]  coeff   the coeffs of key
-        /// @param[in]  parent  the coeffs of key's parent node
-        /// @return is the FunctionNode of key a leaf node?
-        bool operator()(const Key<NDIM>& key, const coeffT& coeff, const coeffT& parent) const {
-            if (parent.has_no_data()) return false;
-            if (key.level()<2) return false;
-            coeffT upsampled=f->upsample(key,parent);
-            upsampled.scale(-1.0);
-            upsampled+=coeff;
-            const double dnorm=upsampled.normf();
-            const bool is_leaf=(dnorm<f->truncate_tol(f->get_thresh(),key.level()));
-            return is_leaf;
-        }
-
-        template <typename Archive> void serialize (Archive& ar) {ar & f;}
-    };
 
     /// returns true if the result of a hartree_product is a leaf node (compute norm & error)
     template<typename T, size_t NDIM>
@@ -909,10 +851,17 @@ namespace madness {
 
         World& world;
 
+        /// getter
+        const int get_initial_level()const{return initial_level;}
+        const int get_special_level()const{return special_level;}
+        const std::vector<Vector<double,NDIM> >& get_special_points()const{return special_points;}
+
     private:
         int k; ///< Wavelet order
         double thresh; ///< Screening threshold
         int initial_level; ///< Initial level for refinement
+        int special_level; ///< Minimium level for refinement on special points
+        std::vector<Vector<double,NDIM> > special_points; ///< special points for further refinement (needed for composite functions or multiplication)
         int max_refine_level; ///< Do not refine below this level
         int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 1=(|d|<thresh/4^n);
         bool autorefine; ///< If true, autorefine where appropriate
@@ -950,6 +899,8 @@ namespace madness {
             , k(factory._k)
             , thresh(factory._thresh)
             , initial_level(factory._initial_level)
+	    , special_level(factory._special_level)
+	    , special_points(factory._special_points)
             , max_refine_level(factory._max_refine_level)
             , truncate_mode(factory._truncate_mode)
             , autorefine(factory._autorefine)
@@ -1012,6 +963,8 @@ namespace madness {
             , k(other.k)
             , thresh(other.thresh)
             , initial_level(other.initial_level)
+	    , special_level(other.special_level)
+	    , special_points(other.special_points)
             , max_refine_level(other.max_refine_level)
             , truncate_mode(other.truncate_mode)
                          , autorefine(other.autorefine)
@@ -1608,11 +1561,6 @@ namespace madness {
         /// @return 	coeffs in NS form
         coeffT parent_to_child_NS(const keyT& child, const keyT& parent,
                                   const coeffT& coeff) const;
-
-        /// Returns the box at level n that contains the given point in simulation coordinates
-        /// @param[in] pt point in simulation coordinates
-        /// @param[in] n the level of the box
-        Key<NDIM> simpt2key(const coordT& pt, Level n) const;
 
         /// Get the scaling function coeffs at level n starting from NS form
         // N=2^n, M=N/q, q must be power of 2
@@ -2492,6 +2440,60 @@ namespace madness {
                     coeffs.replace(key, nodeT(coeffT(),true));
             }
             world.gop.fence();
+        }
+
+        /// Inplace operate on many functions (impl's) with an operator within a certain box
+
+        /// @param[in] key the key of the current function node (box)
+        /// @param[in] op the operator
+        /// @param[in] vin the vector of function impl's on which to be operated
+        /// @param[out] vout the resulting vector of function impl's
+        template <typename opT>
+        void multi_to_multi_op_values_doit(const keyT& key, const opT& op,
+                const std::vector<implT*>& vin, std::vector<implT*>& vout) {
+            std::vector<tensorT> c(vin.size());
+            for (unsigned int i=0; i<vin.size(); i++) {
+                if (vin[i]) {
+                    coeffT cc = coeffs2values(key, vin[i]->coeffs.find(key).get()->second.coeff());
+                    c[i]=cc.full_tensor();
+                }
+            }
+            std::vector<tensorT> r = op(key, c);
+            MADNESS_ASSERT(r.size()==vout.size());
+            for (std::size_t i=0; i<vout.size(); ++i) {
+                vout[i]->coeffs.replace(key, nodeT(coeffT(values2coeffs(key, r[i]),targs),false));
+            }
+        }
+
+        /// Inplace operate on many functions (impl's) with an operator within a certain box
+
+        /// Assumes all functions have been refined down to the same level
+        /// @param[in] op the operator
+        /// @param[in] vin the vector of function impl's on which to be operated
+        /// @param[out] vout the resulting vector of function impl's
+        template <typename opT>
+        void multi_to_multi_op_values(const opT& op, const std::vector<implT*>& vin,
+                std::vector<implT*>& vout, const bool fence=true) {
+            // rough check on refinement level (ignore non-initialized functions
+            for (std::size_t i=1; i<vin.size(); ++i) {
+                if (vin[i] and vin[i-1]) {
+                    MADNESS_ASSERT(vin[i]->coeffs.size()==vin[i-1]->coeffs.size());
+                }
+            }
+            typename dcT::iterator end = vin[0]->coeffs.end();
+            for (typename dcT::iterator it=vin[0]->coeffs.begin(); it!=end; ++it) {
+                const keyT& key = it->first;
+                if (it->second.has_coeff())
+                    world.taskq.add(*this, &implT:: template multi_to_multi_op_values_doit<opT>,
+                            key, op, vin, vout);
+                else {
+                    // fill result functions with empty box in this key
+                    for (implT* it2 : vout) {
+                        it2->coeffs.replace(key, nodeT(coeffT(),true));
+                    }
+                }
+            }
+            if (fence) world.gop.fence();
         }
 
         /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
@@ -3538,263 +3540,279 @@ namespace madness {
         template<typename opT, size_t LDIM>
         struct Vphi_op_NS {
 
-            bool randomize() const {return true;}
+          bool randomize() const {return true;}
 
-            typedef Vphi_op_NS<opT,LDIM> this_type;
-            typedef CoeffTracker<T,NDIM> ctT;
-            typedef CoeffTracker<T,LDIM> ctL;
+          typedef Vphi_op_NS<opT,LDIM> this_type;
+          typedef CoeffTracker<T,NDIM> ctT;
+          typedef CoeffTracker<T,LDIM> ctL;
 
-            implT* result;  		///< where to construct Vphi, no need to track parents
-            opT leaf_op;    	    ///< deciding if a given FunctionNode will be a leaf node
-            ctT iaket;				///< the ket of a pair function (exclusive with p1, p2)
-            ctL iap1, iap2;			///< the particles 1 and 2 (exclusive with ket)
-            ctL iav1, iav2;			///< potentials for particles 1 and 2
-            const implT* eri;		///< 2-particle potential, must be on-demand
+          implT* result;  		///< where to construct Vphi, no need to track parents
+          opT leaf_op;    	    ///< deciding if a given FunctionNode will be a leaf node
+          ctT iaket;				///< the ket of a pair function (exclusive with p1, p2)
+          ctL iap1, iap2;			///< the particles 1 and 2 (exclusive with ket)
+          ctL iav1, iav2;			///< potentials for particles 1 and 2
+          const implT* eri;		///< 2-particle potential, must be on-demand
 
-            // ctor
-            Vphi_op_NS() {}
-            Vphi_op_NS(implT* result, const opT& leaf_op, const ctT& iaket,
-                       const ctL& iap1, const ctL& iap2, const ctL& iav1, const ctL& iav2,
-                       const implT* eri)
-                : result(result), leaf_op(leaf_op), iaket(iaket), iap1(iap1), iap2(iap2)
-                , iav1(iav1), iav2(iav2), eri(eri) {
+          // ctor
+          Vphi_op_NS() {}
+          Vphi_op_NS(implT* result, const opT& leaf_op, const ctT& iaket,
+		     const ctL& iap1, const ctL& iap2, const ctL& iav1, const ctL& iav2,
+		     const implT* eri)
+          : result(result), leaf_op(leaf_op), iaket(iaket), iap1(iap1), iap2(iap2)
+          , iav1(iav1), iav2(iav2), eri(eri) {
 
-            	// 2-particle potential must be on-demand
-            	if (eri) MADNESS_ASSERT(eri->is_on_demand());
+            // 2-particle potential must be on-demand
+            if (eri) MADNESS_ASSERT(eri->is_on_demand());
+          }
+
+          /// make and insert the coefficients into result's tree
+          std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+
+
+            if(leaf_op.do_pre_screening()){
+        	// this means that we only construct the boxes which are leaf boxes from the other function in the leaf_op
+        	if(leaf_op.pre_screening(key)){
+        	    // construct sum_coefficients, insert them and leave
+        	    const coeffT sum_coeff=make_sum_coeffs(key);
+        	    result->get_coeffs().replace(key,nodeT(sum_coeff,false));
+        	    return std::pair<bool,coeffT> (true,coeffT());
+        	}else{
+        	    result->get_coeffs().replace(key,nodeT(coeffT(),true));
+        	    return continue_recursion(std::vector<bool>(1<<NDIM,false),tensorT(),key);
+        	}
+            }else{
+        	// this means that the function has to be completely constructed and not mirrored by another function
+
+        	// if the initial level is not reached then this must not be a leaf box
+        	size_t il = result->get_initial_level();
+        	if(FunctionDefaults<NDIM>::get_refine()) il+=1;
+        	if(key.level()<il){
+        	    //std::cout << "n=" +  std::to_string(key.level()) + " below initial level " + std::to_string(result->get_initial_level()) + "\n";
+        	    // insert empty coeffs for this box and send off jobs for the children
+        	    result->get_coeffs().replace(key,nodeT(coeffT(),true));
+        	    return continue_recursion(std::vector<bool>(1<<NDIM,false),tensorT(),key);
+        	}
+        	// if further refinement is needed (because we are at a special box, special point)
+        	// and the special_level is not reached then this must not be a leaf box
+        	if(key.level()<result->get_special_level() and leaf_op.special_refinement_needed(key)){
+        	    //std::cout << "special refinement for n=" + std::to_string(key.level()) + "\n";
+        	    // insert empty coeffs for this box and send off jobs for the children
+        	    result->get_coeffs().replace(key,nodeT(coeffT(),true));
+        	    return continue_recursion(std::vector<bool>(1<<NDIM,false),tensorT(),key);
+        	}
+
+
+        	coeffT sum_coeff=make_sum_coeffs(key);
+
+        	if(leaf_op.post_screening(key,sum_coeff)){
+        	    result->get_coeffs().replace(key,nodeT(sum_coeff,false));
+        	    //std::cout << "n=" + std::to_string(key.level()) + " is leaf by post_screening\n";
+        	    return std::pair<bool,coeffT> (true,coeffT());
+        	}
+
+        	// do the conventional error-measurement and use the computed child coeffs to determine if they will be leafs
+        	tensorT children_sum_coeffs=make_childrens_sum_coeffs(key);
+        	tensorT d=result->filter(children_sum_coeffs);
+
+        	// since they will be better anyway (those are only the s coeffs, not the d)
+        	sum_coeff=coeffT(copy(d(result->get_cdata().s0)),result->get_tensor_args());
+
+        	// delte s coeffs from the children tensor to get the d coeffs and the error
+        	d(result->get_cdata().s0)=0.0;
+        	double error=d.normf();
+
+        	if(error<result->truncate_tol(result->get_thresh(),key)){
+        	    result->get_coeffs().replace(key,nodeT(sum_coeff,false));
+        	    //std::cout << "n=" + std::to_string(key.level()) + " is leaf by conventional error measurement (" + std::to_string(error)+ ")\n";
+        	    return std::pair<bool,coeffT> (true,coeffT());
+        	}
+
+        	// at this point the current box will not become a leaf anymore, but we can pre-screen the chidren
+        	// if no screening is enabled then the child boxes are compared to the downsampled parent boxes, if they are represented well they will be leaves
+        	std::vector<bool> child_is_leaf(1<<NDIM);
+        	std::size_t i=0;
+        	for (KeyChildIterator<NDIM> kit(key); kit; ++kit, ++i) {
+        	    // post-determination for this child's coeffs
+        	    coeffT child_coeff=coeffT(copy(children_sum_coeffs(result->child_patch(kit.key()))),
+					      result->get_tensor_args());
+        	    child_is_leaf[i]=leaf_op.post_screening(kit.key(),child_coeff);
+
+        	    // compare to parent sum coeffs (failsafe)
+        	    child_is_leaf[i]=(child_is_leaf[i] or leaf_op.compare_to_parent(kit.key(),child_coeff,sum_coeff));
+        	}
+        	// insert empty sum coeffs for this box and
+        	// send off the tasks for those children that might not be leaves;
+        	result->get_coeffs().replace(key,nodeT(coeffT(),true));
+        	//std::cout << "n=" + std::to_string(key.level()) + " is no leaf\n";
+        	return continue_recursion(child_is_leaf,children_sum_coeffs,key);
             }
 
-            /// make and insert the coefficients into result's tree
-            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+            MADNESS_EXCEPTION("you should not be here",1);
+            return std::pair<bool,coeffT> (true,coeffT());
+          }
 
-            	// use an error measure to determine if a box is a leaf
-            	const bool do_error_measure=leaf_op.do_error_leaf_op();
 
-                // pre-determination: insert empty node and continue recursion on all children
-                bool is_leaf=leaf_op(key);
-                if (not is_leaf) {
-                    result->get_coeffs().replace(key,nodeT(coeffT(),not is_leaf));
-                    return continue_recursion(std::vector<bool>(1<<NDIM,false),tensorT(),key);
-                }
+          /// loop over all children and either insert their sum coeffs or continue the recursion
 
-            	// make the sum coeffs for this box (the parent box)
-                coeffT sum_coeff=make_sum_coeffs(key);
+          /// @param[in]	child_is_leaf	for each child: is it a leaf?
+          /// @param[in]	coeffs	coefficient tensor with 2^N sum coeffs (=unfiltered NS coeffs)
+          /// @param[in]	key		the key for the NS coeffs (=parent key of the children)
+          /// @return		to avoid recursion outside this return: std::pair<is_leaf,coeff> = true,coeffT()
+          std::pair<bool,coeffT> continue_recursion(const std::vector<bool> child_is_leaf,
+						    const tensorT& coeffs, const keyT& key) const {
+            std::size_t i=0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit, ++i) {
+        	keyT child=kit.key();
+        	bool is_leaf=child_is_leaf[i];
 
-                // post-determination: insert s-coeffs and stop recursion
-                is_leaf=leaf_op(key,sum_coeff);
-                if (is_leaf) {
-                    result->get_coeffs().replace(key,nodeT(sum_coeff,not is_leaf));
-                    return std::pair<bool,coeffT> (true,coeffT());
-                }
+        	if (is_leaf) {
+        	    // insert the sum coeffs
+        	    insert_op<T,NDIM> iop(result);
+        	    iop(child,coeffT(copy(coeffs(result->child_patch(child))),result->get_tensor_args()),is_leaf);
+        	} else {
+        	    this_type child_op=this->make_child(child);
+        	    noop<T,NDIM> no;
+        	    // spawn activation where child is local
+        	    ProcessID p=result->get_coeffs().owner(child);
 
-                if (do_error_measure) {
-                    // make the sum coeffs for all children, accumulated on s_coeffs
-                    tensorT s_coeffs=make_childrens_sum_coeffs(key);
-
-                    // now check if sum coeffs are leaves according to the d coefficient norm
-                    tensorT d=result->filter(s_coeffs);
-                    sum_coeff=coeffT(copy(d(result->get_cdata().s0)),result->get_tensor_args());
-
-                    d(result->get_cdata().s0)=0.0;
-                    double error=d.normf();
-                    is_leaf=(error<result->truncate_tol(result->get_thresh(),key));
-
-                    // if this is a leaf insert sum coeffs and stop recursion
-                    if (is_leaf) {
-                        result->get_coeffs().replace(key,nodeT(sum_coeff,not is_leaf));
-                        result->large++;
-                        //						print("is leaf acc to d coeffs",key);
-                        return std::pair<bool,coeffT> (true,coeffT());
-                    } else {
-
-                        // determine for each child if it is a leaf by comparing to the sum coeffs
-                        std::vector<bool> child_is_leaf(1<<NDIM);
-                        std::size_t i=0;
-                        for (KeyChildIterator<NDIM> kit(key); kit; ++kit, ++i) {
-                            // post-determination for this child's coeffs
-                            coeffT child_coeff=coeffT(copy(s_coeffs(result->child_patch(kit.key()))),
-                                                      result->get_tensor_args());
-                            child_is_leaf[i]=leaf_op(kit.key(),child_coeff);
-
-                            // compare to parent sum coeffs
-                            error_leaf_op<T,NDIM> elop(result);
-                            child_is_leaf[i]=child_is_leaf[i] or elop(kit.key(),child_coeff,sum_coeff);
-                            if (child_is_leaf[i]) result->small++;
-                            //							else result->large++;
-                        }
-                        // insert empty sum coeffs for this box and
-                        // send off the tasks for those children that might not be leaves;
-                        result->get_coeffs().replace(key,nodeT(coeffT(),not is_leaf));
-                        if (not is_leaf) return continue_recursion(child_is_leaf,s_coeffs,key);
-                    }
-                } else {
-                    return continue_recursion(std::vector<bool>(1<<NDIM,false),tensorT(),key);
-                }
-                MADNESS_EXCEPTION("you should not be here",1);
-                return std::pair<bool,coeffT> (true,coeffT());
+        	    void (implT::*ft)(const Vphi_op_NS<opT,LDIM>&, const noop<T,NDIM>&, const keyT&) const = &implT:: template forward_traverse< Vphi_op_NS<opT,LDIM>, noop<T,NDIM> >;
+        	    result->task(p, ft, child_op, no, child);
+        	}
             }
+            // return e sum coeffs; also return always is_leaf=true:
+            // the recursion is continued within this struct, not outside in traverse_tree!
+            return std::pair<bool,coeffT> (true,coeffT());
+          }
 
+          /// return the values of the 2-particle potential
 
-            /// loop over all children and either insert their sum coeffs or continue the recursion
-
-            /// @param[in]	child_is_leaf	for each child: is it a leaf?
-            /// @param[in]	coeffs	coefficient tensor with 2^N sum coeffs (=unfiltered NS coeffs)
-            /// @param[in]	key		the key for the NS coeffs (=parent key of the children)
-            /// @return		to avoid recursion outside this return: std::pair<is_leaf,coeff> = true,coeffT()
-            std::pair<bool,coeffT> continue_recursion(const std::vector<bool> child_is_leaf,
-                                                      const tensorT& coeffs, const keyT& key) const {
-                std::size_t i=0;
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit, ++i) {
-                    keyT child=kit.key();
-                    bool is_leaf=child_is_leaf[i];
-
-                    if (is_leaf) {
-                        // insert the sum coeffs
-                        insert_op<T,NDIM> iop(result);
-                        iop(child,coeffT(copy(coeffs(result->child_patch(child))),result->get_tensor_args()),is_leaf);
-                    } else {
-                        this_type child_op=this->make_child(child);
-                        noop<T,NDIM> no;
-                        // spawn activation where child is local
-                        ProcessID p=result->get_coeffs().owner(child);
-
-                        void (implT::*ft)(const Vphi_op_NS<opT,LDIM>&, const noop<T,NDIM>&, const keyT&) const = &implT:: template forward_traverse< Vphi_op_NS<opT,LDIM>, noop<T,NDIM> >;
-                        result->task(p, ft, child_op, no, child);
-                    }
-                }
-                // return e sum coeffs; also return always is_leaf=true:
-                // the recursion is continued within this struct, not outside in traverse_tree!
-                return std::pair<bool,coeffT> (true,coeffT());
+          /// @param[in]	key		the key for which the values are requested
+          /// @return		val_eri	the values in full tensor form
+          tensorT eri_values(const keyT& key) const {
+            tensorT val_eri;
+            if (eri and eri->is_on_demand()) {
+        	if (eri->get_functor()->provides_coeff()) {
+        	    val_eri=eri->coeffs2values(
+        		key,eri->get_functor()->coeff(key).full_tensor());
+        	} else {
+        	    val_eri=tensorT(eri->cdata.vk);
+        	    eri->fcube(key,*(eri->get_functor()),eri->cdata.quad_x,val_eri);
+        	}
             }
+            return val_eri;
+          }
 
-            /// return the values of the 2-particle potential
+          /// make the sum coeffs for key
+          coeffT make_sum_coeffs(const keyT& key) const {
+            // break key into particles
+            Key<LDIM> key1, key2;
+            key.break_apart(key1,key2);
 
-            /// @param[in]	key		the key for which the values are requested
-            /// @return		val_eri	the values in full tensor form
-            tensorT eri_values(const keyT& key) const {
-                tensorT val_eri;
-                if (eri and eri->is_on_demand()) {
-                    if (eri->get_functor()->provides_coeff()) {
-                        val_eri=eri->coeffs2values(
-                                                   key,eri->get_functor()->coeff(key).full_tensor());
-                    } else {
-                        val_eri=tensorT(eri->cdata.vk);
-                        eri->fcube(key,*(eri->get_functor()),eri->cdata.quad_x,val_eri);
-                    }
-                }
-                return val_eri;
+            TensorArgs targs=result->get_tensor_args();
+            // use the ket coeffs if they are there, or make them by hartree product
+            const coeffT coeff_ket_NS = (iaket.get_impl())
+                    			    ? iaket.coeff(key)
+                    				: outer(iap1.coeff(key1),iap2.coeff(key2),targs);
+
+            coeffT val_potential1, val_potential2;
+            if (iav1.get_impl()) {
+        	coeffT tmp=iav1.coeff(key1)(iav1.get_impl()->get_cdata().s0);
+        	val_potential1=iav1.get_impl()->coeffs2values(key1,tmp);
             }
-
-            /// make the sum coeffs for key
-            coeffT make_sum_coeffs(const keyT& key) const {
-            	// break key into particles
-                Key<LDIM> key1, key2;
-                key.break_apart(key1,key2);
-
-                TensorArgs targs=result->get_tensor_args();
-            	// use the ket coeffs if they are there, or make them by hartree product
-            	const coeffT coeff_ket_NS = (iaket.get_impl())
-                    ? iaket.coeff(key)
-                    : outer(iap1.coeff(key1),iap2.coeff(key2),targs);
-
-            	coeffT val_potential1, val_potential2;
-            	if (iav1.get_impl()) {
-                    coeffT tmp=iav1.coeff(key1)(iav1.get_impl()->get_cdata().s0);
-                    val_potential1=iav1.get_impl()->coeffs2values(key1,tmp);
-                }
-            	if (iav2.get_impl()) {
-                    coeffT tmp=iav2.coeff(key2)(iav2.get_impl()->get_cdata().s0);
-                    val_potential2=iav2.get_impl()->coeffs2values(key2,tmp);
-                }
-            	coeffT tmp=coeff_ket_NS(result->get_cdata().s0);
-
-                return result->assemble_coefficients(key,tmp,
-                         val_potential1,val_potential2,eri_values(key));
+            if (iav2.get_impl()) {
+        	coeffT tmp=iav2.coeff(key2)(iav2.get_impl()->get_cdata().s0);
+        	val_potential2=iav2.get_impl()->coeffs2values(key2,tmp);
             }
+            coeffT tmp=coeff_ket_NS(result->get_cdata().s0);
 
-            /// make the sum coeffs for all children of key
-            tensorT make_childrens_sum_coeffs(const keyT& key) const {
-            	// break key into particles
-                Key<LDIM> key1, key2;
-                key.break_apart(key1,key2);
-                TensorArgs targs=result->get_tensor_args();
+            return result->assemble_coefficients(key,tmp,
+						 val_potential1,val_potential2,eri_values(key));
+          }
 
-            	// use the ket coeffs if they are there, or make them by hartree product
-            	const coeffT coeff_ket_NS = (iaket.get_impl())
-                    ? iaket.coeff(key)
-                    : outer(iap1.coeff(key1),iap2.coeff(key2),targs);
+          /// make the sum coeffs for all children of key
+          tensorT make_childrens_sum_coeffs(const keyT& key) const {
+            // break key into particles
+            Key<LDIM> key1, key2;
+            key.break_apart(key1,key2);
+            TensorArgs targs=result->get_tensor_args();
 
-                // get the sum coeffs for all children
-            	const coeffT coeff_ket_unfiltered=result->unfilter(coeff_ket_NS);
-                const coeffT coeff_v1_unfiltered=(iav1.get_impl())
-                    ? iav1.get_impl()->unfilter(iav1.coeff(key1)) : coeffT();
-                const coeffT coeff_v2_unfiltered=(iav2.get_impl())
-                    ? iav2.get_impl()->unfilter(iav2.coeff(key2)) : coeffT();
+            // use the ket coeffs if they are there, or make them by hartree product
+            const coeffT coeff_ket_NS = (iaket.get_impl())
+                    			    ? iaket.coeff(key)
+                    				: outer(iap1.coeff(key1),iap2.coeff(key2),targs);
 
-                // result sum coeffs of all children
-                tensorT s_coeffs(result->cdata.v2k);
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+            // get the sum coeffs for all children
+            const coeffT coeff_ket_unfiltered=result->unfilter(coeff_ket_NS);
+            const coeffT coeff_v1_unfiltered=(iav1.get_impl())
+                    			    ? iav1.get_impl()->unfilter(iav1.coeff(key1)) : coeffT();
+            const coeffT coeff_v2_unfiltered=(iav2.get_impl())
+                    			    ? iav2.get_impl()->unfilter(iav2.coeff(key2)) : coeffT();
 
-                    // break key into particles
-                    Key<LDIM> child1, child2;
-                    kit.key().break_apart(child1,child2);
+            // result sum coeffs of all children
+            tensorT s_coeffs(result->cdata.v2k);
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
 
-                    // make the values of the potentials for each child
-                    // transform the child patch of s coeffs to values
-                    coeffT val_potential1, val_potential2;
-                    if (iav1.get_impl()) {
-                        coeffT tmp=coeff_v1_unfiltered(iav1.get_impl()->child_patch(child1));
-                        val_potential1=iav1.get_impl()->coeffs2values(child1,tmp);
-                    }
-                    if (iav2.get_impl()) {
-                        coeffT tmp=coeff_v2_unfiltered(iav2.get_impl()->child_patch(child2));
-                        val_potential2=iav2.get_impl()->coeffs2values(child2,tmp);
-                    }
-                    const coeffT coeff_ket=coeff_ket_unfiltered(result->child_patch(kit.key()));
+        	// break key into particles
+        	Key<LDIM> child1, child2;
+        	kit.key().break_apart(child1,child2);
 
-                    // the sum coeffs for this child
-                    const tensorT val_eri=eri_values(kit.key());
-                    const coeffT coeff_result=result->assemble_coefficients(
-                            kit.key(),coeff_ket,val_potential1,val_potential2,val_eri);
+        	// make the values of the potentials for each child
+        	// transform the child patch of s coeffs to values
+        	coeffT val_potential1, val_potential2;
+        	if (iav1.get_impl()) {
+        	    coeffT tmp=coeff_v1_unfiltered(iav1.get_impl()->child_patch(child1));
+        	    val_potential1=iav1.get_impl()->coeffs2values(child1,tmp);
+        	}
+        	if (iav2.get_impl()) {
+        	    coeffT tmp=coeff_v2_unfiltered(iav2.get_impl()->child_patch(child2));
+        	    val_potential2=iav2.get_impl()->coeffs2values(child2,tmp);
+        	}
+        	const coeffT coeff_ket=coeff_ket_unfiltered(result->child_patch(kit.key()));
 
-                    // accumulate the sum coeffs of the children here
-                    s_coeffs(result->child_patch(kit.key()))+=coeff_result.full_tensor_copy();
-                }
-                return s_coeffs;
+        	// the sum coeffs for this child
+        	const tensorT val_eri=eri_values(kit.key());
+        	const coeffT coeff_result=result->assemble_coefficients(kit.key(),coeff_ket,
+									val_potential1,val_potential2,val_eri);
 
+        	// accumulate the sum coeffs of the children here
+        	s_coeffs(result->child_patch(kit.key()))+=coeff_result.full_tensor_copy();
             }
+            return s_coeffs;
 
-            this_type make_child(const keyT& child) const {
+          }
 
-                // break key into particles
-                Key<LDIM> key1, key2;
-                child.break_apart(key1,key2);
+          this_type make_child(const keyT& child) const {
 
-                return this_type(result,leaf_op,iaket.make_child(child),
-                                 iap1.make_child(key1),iap2.make_child(key2),
-                                 iav1.make_child(key1),iav2.make_child(key2),eri);
-            }
+            // break key into particles
+            Key<LDIM> key1, key2;
+            child.break_apart(key1,key2);
 
-            Future<this_type> activate() const {
-            	Future<ctT> iaket1=iaket.activate();
-            	Future<ctL> iap11=iap1.activate();
-            	Future<ctL> iap21=iap2.activate();
-            	Future<ctL> iav11=iav1.activate();
-            	Future<ctL> iav21=iav2.activate();
-                return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
-                                               &this_type::forward_ctor),result,leaf_op,
-                                               iaket1,iap11,iap21,iav11,iav21,eri);
-            }
+            return this_type(result,leaf_op,iaket.make_child(child),
+			     iap1.make_child(key1),iap2.make_child(key2),
+			     iav1.make_child(key1),iav2.make_child(key2),eri);
+          }
 
-            this_type forward_ctor(implT* result1, const opT& leaf_op, const ctT& iaket1,
-                                   const ctL& iap11, const ctL& iap21, const ctL& iav11, const ctL& iav21,
-                                   const implT* eri1) {
-            	return this_type(result1,leaf_op,iaket1,iap11,iap21,iav11,iav21,eri1);
-            }
+          Future<this_type> activate() const {
+            Future<ctT> iaket1=iaket.activate();
+            Future<ctL> iap11=iap1.activate();
+            Future<ctL> iap21=iap2.activate();
+            Future<ctL> iav11=iav1.activate();
+            Future<ctL> iav21=iav2.activate();
+            return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
+							       &this_type::forward_ctor),result,leaf_op,
+					   iaket1,iap11,iap21,iav11,iav21,eri);
+          }
 
-            /// serialize this (needed for use in recursive_op)
-            template <typename Archive> void serialize(const Archive& ar) {
-                ar & iaket & eri & result & leaf_op & iap1 & iap2 & iav1 & iav2;
-            }
+          this_type forward_ctor(implT* result1, const opT& leaf_op, const ctT& iaket1,
+				 const ctL& iap11, const ctL& iap21, const ctL& iav11, const ctL& iav21,
+				 const implT* eri1) {
+            return this_type(result1,leaf_op,iaket1,iap11,iap21,iav11,iav21,eri1);
+          }
+
+          /// serialize this (needed for use in recursive_op)
+          template <typename Archive> void serialize(const Archive& ar) {
+            ar & iaket & eri & result & leaf_op & iap1 & iap2 & iav1 & iav2;
+          }
         };
 
         /// assemble the function V*phi using V and phi given from the functor
@@ -3807,83 +3825,84 @@ namespace madness {
         template<typename opT>
         void make_Vphi(const opT& leaf_op, const bool fence=true) {
 
-            const size_t LDIM=3;
+          const size_t LDIM=3;
 
-            // keep the functor available, but remove it from the result
-            // result will return false upon is_on_demand(), which is necessary for the
-            // CoeffTracker to track the parent coeffs correctly for error_leaf_op
-            std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func2(this->get_functor());
-            this->unset_functor();
+          // keep the functor available, but remove it from the result
+          // result will return false upon is_on_demand(), which is necessary for the
+          // CoeffTracker to track the parent coeffs correctly for error_leaf_op
+          std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func2(this->get_functor());
+          this->unset_functor();
 
-            CompositeFunctorInterface<T,NDIM,LDIM>* func=
-                dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(&(*func2));
-            MADNESS_ASSERT(func);
+          CompositeFunctorInterface<T,NDIM,LDIM>* func=
+              dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(&(*func2));
+          MADNESS_ASSERT(func);
 
-            coeffs.clear();
-            const keyT& key0=cdata.key0;
+          coeffs.clear();
+          const keyT& key0=cdata.key0;
 
 
-            FunctionImpl<T,NDIM>* ket=func->impl_ket.get();
-            const FunctionImpl<T,NDIM>* eri=func->impl_eri.get();
-            FunctionImpl<T,LDIM>* v1=func->impl_m1.get();
-            FunctionImpl<T,LDIM>* v2=func->impl_m2.get();
-            FunctionImpl<T,LDIM>* p1=func->impl_p1.get();
-            FunctionImpl<T,LDIM>* p2=func->impl_p2.get();
+          FunctionImpl<T,NDIM>* ket=func->impl_ket.get();
+          const FunctionImpl<T,NDIM>* eri=func->impl_eri.get();
+          FunctionImpl<T,LDIM>* v1=func->impl_m1.get();
+          FunctionImpl<T,LDIM>* v2=func->impl_m2.get();
+          FunctionImpl<T,LDIM>* p1=func->impl_p1.get();
+          FunctionImpl<T,LDIM>* p2=func->impl_p2.get();
 
-            if (ket) ket->undo_redundant(false);
-            if (v1) v1->undo_redundant(false);
-            if (v2) v2->undo_redundant(false);
-            if (p1) p1->undo_redundant(false);
-            if (p2) p2->undo_redundant(false);	// fence here
-            world.gop.fence();
+          if (ket) ket->undo_redundant(false);
+          if (v1) v1->undo_redundant(false);
+          if (v2) v2->undo_redundant(false);
+          if (p1) p1->undo_redundant(false);
+          if (p2) p2->undo_redundant(false);	// fence here
+          world.gop.fence();
 
-            if (ket) ket->compress(true,true,false,false);
-            if (v1) v1->compress(true,true,false,false);
-            if (v2) v2->compress(true,true,false,false);
-            if (p1) p1->compress(true,true,false,false);
-            if (p2) p2->compress(true,true,false,false);	// fence here
-            world.gop.fence();
-            small=0;
-            large=0;
+          if (ket) ket->compress(true,true,false,false);
+          if (v1) v1->compress(true,true,false,false);
+          if (v2) v2->compress(true,true,false,false);
+          if (p1) p1->compress(true,true,false,false);
+          if (p2) p2->compress(true,true,false,false);	// fence here
+          world.gop.fence();
+          small=0;
+          large=0;
 
-            if (world.rank() == coeffs.owner(key0)) {
+          if (world.rank() == coeffs.owner(key0)) {
 
-                // insert an empty internal node for comparison
-                this->coeffs.replace(key0,nodeT(coeffT(),true));
+              // insert an empty internal node for comparison
+              this->coeffs.replace(key0,nodeT(coeffT(),true));
 
-                // prepare the CoeffTracker
-                CoeffTracker<T,NDIM> iaket(ket);
-                CoeffTracker<T,LDIM> iap1(p1);
-                CoeffTracker<T,LDIM> iap2(p2);
-                CoeffTracker<T,LDIM> iav1(v1);
-                CoeffTracker<T,LDIM> iav2(v2);
+              // prepare the CoeffTracker
+              CoeffTracker<T,NDIM> iaket(ket);
+              CoeffTracker<T,LDIM> iap1(p1);
+              CoeffTracker<T,LDIM> iap2(p2);
+              CoeffTracker<T,LDIM> iav1(v1);
+              CoeffTracker<T,LDIM> iav2(v2);
 
-                // the operator making the coefficients
-                typedef Vphi_op_NS<opT,LDIM> coeff_opT;
-                coeff_opT coeff_op(this,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
+              // the operator making the coefficients
+              typedef Vphi_op_NS<opT,LDIM> coeff_opT;
+              coeff_opT coeff_op(this,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
 
-                // this operator simply inserts the coeffs into this' tree
-                typedef noop<T,NDIM> apply_opT;
-                apply_opT apply_op;
+              // this operator simply inserts the coeffs into this' tree
+              typedef noop<T,NDIM> apply_opT;
+              apply_opT apply_op;
 
-                woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
-                          coeff_op, apply_op, cdata.key0);
-            }
+              woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
+			coeff_op, apply_op, cdata.key0);
+          }
 
-            world.gop.fence();
+          world.gop.fence();
 
-            // remove internal coefficients
-            this->redundant=true;
-            this->undo_redundant(false);
+          // remove internal coefficients
+          this->redundant=true;
+          this->undo_redundant(false);
 
-            // set right state
-            this->compressed=false;
-            this->on_demand=false;
-            this->redundant=false;
-            this->nonstandard=false;
-            if (fence) world.gop.fence();
+          // set right state
+          this->compressed=false;
+          this->on_demand=false;
+          this->redundant=false;
+          this->nonstandard=false;
+          if (fence) world.gop.fence();
 
         }
+
 
 
         /// Permute the dimensions of f according to map, result on this

@@ -697,17 +697,6 @@ namespace madness {
         return result;
     }
 
-    /// Returns the box at level n that contains the given point in simulation coordinates
-    template <typename T, std::size_t NDIM>
-    Key<NDIM> FunctionImpl<T,NDIM>::simpt2key(const coordT& pt, Level n) const {
-        Vector<Translation,NDIM> l;
-        double twon = std::pow(2.0, double(n));
-        for (std::size_t i=0; i<NDIM; ++i) {
-            l[i] = Translation(twon*pt[i]);
-        }
-        return Key<NDIM>(n,l);
-    }
-
     /// Get the scaling function coeffs at level n starting from NS form
     // N=2^n, M=N/q, q must be power of 2
     // q=0 return coeffs [N,k] for direct sum
@@ -3300,6 +3289,7 @@ namespace madness {
         k = 6;
         thresh = 1e-4;
         initial_level = 2;
+        special_level = 3;
         max_refine_level = 30;
         truncate_mode = 0;
         refine = true;
@@ -3325,6 +3315,7 @@ namespace madness {
     		std::cout << "                               k" <<  ": " << k << std::endl;
     		std::cout << "                          thresh" <<  ": " << thresh << std::endl;
     		std::cout << "                   initial_level" <<  ": " << initial_level << std::endl;
+    		std::cout << "                   special_level" <<  ": " << special_level << std::endl;
     		std::cout << "                max_refine_level" <<  ": " << max_refine_level << std::endl;
     		std::cout << "                   truncate_mode" <<  ": " << truncate_mode << std::endl;
     		std::cout << "                          refine" <<  ": " << refine << std::endl;
@@ -3344,6 +3335,7 @@ namespace madness {
     template <std::size_t NDIM> int FunctionDefaults<NDIM>::k;
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::thresh;
     template <std::size_t NDIM> int FunctionDefaults<NDIM>::initial_level;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::special_level;
     template <std::size_t NDIM> int FunctionDefaults<NDIM>::max_refine_level;
     template <std::size_t NDIM> int FunctionDefaults<NDIM>::truncate_mode;
     template <std::size_t NDIM> bool FunctionDefaults<NDIM>::refine;
