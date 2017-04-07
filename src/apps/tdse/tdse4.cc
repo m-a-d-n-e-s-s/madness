@@ -798,9 +798,6 @@ int main(int argc, char** argv) {
     } catch (const madness::TensorException& e) {
         print(e); std::cout.flush();
         error("caught a Tensor exception");
-    } catch (char* s) {
-        print(s); std::cout.flush();
-        error("caught a c-string exception");
     } catch (const char* s) {
         print(s); std::cout.flush();
         error("caught a c-string exception");

@@ -31,13 +31,8 @@ set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc)
 set(MADCLAPACK_HEADERS cblas.h clapack.h)  # this part of MADlinalg is purely independent of MADtensor
 
 # Source lists for MADlinalg
-set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h solvers.h)
-set(MADLINALG_SOURCES lapack.cc solvers.cc)
-# elem.h && elem.cc have not been adapted to recent Elemental yet
-if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
-  list(APPEND MADLINALG_HEADERS elem.h)
-  list(APPEND MADLINALG_SOURCES elem.cc)
-endif()
+set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h solvers.h elem.h)
+set(MADLINALG_SOURCES lapack.cc solvers.cc elem.cc)
 
 # Create libraries MADtensor and MADlinalg
 add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor")

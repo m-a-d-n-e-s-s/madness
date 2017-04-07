@@ -40,7 +40,7 @@
 #include <sstream>
 #include <list>
 #include <memory>
-#include <mpi.h>
+#include <madness/world/safempi.h>
 
 namespace madness {
 
@@ -346,8 +346,7 @@ namespace madness {
         // NB list::size() is O(1) in c++11, but O(N) in older libstdc++
         MADNESS_ASSERT(ThreadPool::size() < RMI::RmiTask::unique_tag_period() ||
                        RMI::task_ptr->hugeq.size() <
-                           RMI::RmiTask::unique_tag_period() /
-                               RMI::task_ptr->comm.Get_size());
+                       std::size_t(RMI::RmiTask::unique_tag_period() / RMI::task_ptr->comm.Get_size()));
         RMI::task_ptr->hugeq.push_back(std::make_tuple(src, nbyte, tag));
         RMI::task_ptr->post_pending_huge_msg();
     }
@@ -475,7 +474,7 @@ namespace madness {
 
         numsent++;
         Request result;
-        if (nssend_ && numsent==nssend_) {
+        if (nssend_ && numsent==std::size_t(nssend_)) {
             result = comm.Issend(buf, nbyte, MPI_BYTE, dest, tag);
             numsent %= nssend_;
         }

@@ -78,9 +78,11 @@ public:
 
     /// apply Kutzelnigg's regularized potential to an orbital product
     real_function_6d apply_U(const real_function_3d& phi_i, const real_function_3d& phi_j,
-            const double eps) const {
-//        const double bsh_thresh=FunctionDefaults<6>::get_thresh*0.1;
-        const double bsh_thresh=1.e-7;
+            const real_convolution_6d op_mod, const bool symmetric=false) const {
+	  if(not op_mod.modified()) MADNESS_EXCEPTION("ElectronicCorrelationFactor::apply_U, op_mod must be in modified_NS form",1);
+	  const double thresh = FunctionDefaults<6>::get_thresh();
+	  const bool debug = false;
+	  if(symmetric) MADNESS_ASSERT((phi_i-phi_j).norm2() < FunctionDefaults<3>::get_thresh());
 
 //        if(world.rank()==0){
 //        	std::cout << "apply_U debug output:\n"
@@ -94,16 +96,18 @@ public:
 
         real_function_6d result=real_factory_6d(world);
 
-        real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), lo,bsh_thresh);
-        op_mod.modified()=true;
-
         for (int axis=0; axis<3; ++axis) {
             //if (world.rank()==0) print("working on axis",axis);
             real_derivative_3d D = free_space_derivative<double,3>(world, axis);
             const real_function_3d Di=(D(phi_i)).truncate();
-            const real_function_3d Dj=(D(phi_j)).truncate();
+            real_function_3d Dj;
+            if(symmetric) Dj=madness::copy(Di);
+            else Dj=(D(phi_j)).truncate();
 
-            const real_function_6d u=U1(axis);
+            real_function_6d u=U1(axis);
+//            u.fill_tree(op_mod);
+//            plot_plane(world,u,"u");
+//            std::cout<<"plotted u\n";
 
 //            if(world.rank()==0){
 //            	std::cout << "apply_U debug output:\n"
@@ -114,12 +118,17 @@ public:
 //            }
 
             real_function_6d tmp1=CompositeFactory<double,6,3>(world)
-                        .g12(u).particle1(copy(Di)).particle2(copy(phi_j));
-            tmp1.fill_tree(op_mod).truncate();
-            real_function_6d tmp2=CompositeFactory<double,6,3>(world)
-                        .g12(u).particle1(copy(phi_i)).particle2(copy(Dj));
-            tmp2.fill_tree(op_mod).truncate();
-           // if (world.rank()==0) print("done with fill_tree");
+                        .g12(u).particle1(copy(Di)).particle2(copy(phi_j)).thresh(thresh);
+            tmp1.fill_cuspy_tree(op_mod).truncate();
+
+            real_function_6d tmp2;
+            if(symmetric) tmp2 = -1.0*swap_particles(tmp1);
+            else{
+            tmp2=CompositeFactory<double,6,3>(world)
+                                    .g12(u).particle1(copy(phi_i)).particle2(copy(Dj)).thresh(thresh);
+            tmp2.fill_cuspy_tree(op_mod).truncate();
+            }
+            // if (world.rank()==0) print("done with fill_tree");
 
            // plot_plane(world,tmp1,"tmp1");
            // plot_plane(world,tmp2,"tmp2");
@@ -161,13 +170,13 @@ public:
             fg_ func(_gamma,dcut);
             real_function_6d fg3=real_factory_6d(world).functor(func).is_on_demand();
             real_function_6d mul=CompositeFactory<double,6,3>(world)
-                                .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j));
-            mul.fill_tree(op_mod).truncate();
+                                .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j)).thresh(thresh);;
+            mul.fill_cuspy_tree(op_mod).truncate();
            // mul.print_size("mul");
 
             result=(result+mul).truncate().reduce_rank();
         }
-       // result.print_size("U * |ij>");
+        if(debug) result.print_size("Ue|ij>");
         return result;
     }
 
@@ -402,11 +411,11 @@ public:
 
             real_function_6d tmp1=CompositeFactory<double,6,3>(world)
                                  .g12(u1).ket(copy(Drhs1));
-            tmp1.fill_tree(op_mod).truncate();
+            tmp1.fill_cuspy_tree(op_mod).truncate();
 
             real_function_6d tmp2=CompositeFactory<double,6,3>(world)
                                  .g12(u1).ket(copy(Drhs2));
-            tmp2.fill_tree(op_mod).truncate();
+            tmp2.fill_cuspy_tree(op_mod).truncate();
            // if (world.rank()==0) print("done with fill_tree");
 
             result=result+(tmp1-tmp2).truncate();

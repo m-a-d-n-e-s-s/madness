@@ -252,7 +252,6 @@ namespace madness {
                     throw;
                 }
                 RMI::set_this_thread_is_server(false);
-                delete this; // because the task is not actually put into the q
             }
 #endif // HAVE_INTEL_TBB
 
@@ -353,6 +352,8 @@ namespace madness {
 #if HAVE_INTEL_TBB
                 tbb_rmi_parent_task->wait_for_all();
                 tbb::task::destroy(*tbb_rmi_parent_task);
+#else
+                delete task_ptr;
 #endif // HAVE_INTEL_TBB
                 task_ptr = nullptr;
             }

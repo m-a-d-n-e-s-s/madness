@@ -149,6 +149,11 @@ add_feature_info(BSEND_ACKS ENABLE_BSEND_ACKS
 set(MADNESS_USE_BSEND_ACKS ${ENABLE_BSEND_ACKS} CACHE BOOL
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements")
 
+option(DISABLE_WORLD_GET_DEFAULT "Disables World::get_default()" OFF)
+add_feature_info(WORLD_GET_DEFAULT_DISABLE DISABLE_WORLD_GET_DEFAULT "Disables World::get_default()")
+set(WORLD_GET_DEFAULT_DISABLED ${DISABLE_WORLD_GET_DEFAULT} CACHE BOOL 
+    "Disables World::get_default()")
+
 option(ENABLE_UNITTESTS "Enables unit tests targets" ON)
 add_feature_info(UNITTESTS ENABLE_UNITTESTS
     "Enables unit tests targets")
@@ -466,6 +471,11 @@ check_cxx_source_compiles(
     int main() { return 0; }
     " HAVE_UNQUALIFIED_STATIC_DECL)
 
+# Check linker feature support ===============================================
+
+include(CheckDisablePIESupport)
+check_disablepie_support(LINKER_HAS_DISABLEPIE_SUPPORT DISABLEPIE_LINKER_FLAG)
+
 # Check for applications =======================================================
 
 find_package(Doxygen)
@@ -481,6 +491,14 @@ if(GDB_EXECUTABLE)
   message(STATUS "Found gdb: ${GDB_EXECUTABLE}")
 endif()
 find_package(PythonInterp)
+
+# ccache for caching builds
+find_program(CCACHE ccache)
+if(CCACHE)
+    message (STATUS "Found ccache: ${CCACHE}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE})
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${CCACHE})
+endif(CCACHE)
 
 # Check for external dependencies ==============================================
 add_custom_target(External)
@@ -529,6 +547,15 @@ configure_file(
   ${PROJECT_BINARY_DIR}/doc/doxygen.cfg
   @ONLY
 )
+
+CONFIGURE_FILE(
+  ${PROJECT_SOURCE_DIR}/config/MADNESS.pc.in
+  ${PROJECT_BINARY_DIR}/config/MADNESS.pc
+)
+
+# install config files
+install(FILES ${PROJECT_BINARY_DIR}/config/MADNESS.pc
+    DESTINATION lib/pkgconfig)
 
 # sample CMakeLists.txt
 configure_file(

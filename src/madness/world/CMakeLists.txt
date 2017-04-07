@@ -23,6 +23,10 @@ set(MADWORLD_SOURCES
 # Create the MADworld-obj and MADworld library targets
 add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
 
+if(LINKER_HAS_DISABLEPIE_SUPPORT)
+  target_link_libraries(MADworld INTERFACE "${DISABLEPIE_LINKER_FLAG}")
+endif()
+
 # create an additional, MADworld-only, export
 install(TARGETS MADworld EXPORT madworld
       COMPONENT world
@@ -79,6 +83,9 @@ if(MPI_FOUND)
   target_link_libraries(MADworld PUBLIC ${MPI_LIBRARIES})
 endif()
 target_link_libraries(MADworld PUBLIC ${CMAKE_THREAD_LIBS_INIT})
+if (WORLD_GET_DEFAULT_DISABLED)
+  target_compile_definitions(MADworld PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
+endif (WORLD_GET_DEFAULT_DISABLED)
 
 if(ENABLE_UNITTESTS)
 
@@ -94,12 +101,14 @@ if(ENABLE_UNITTESTS)
 
   set_tests_properties(world-test_googletest PROPERTIES WILL_FAIL TRUE)
 
-  find_package(CUDA)
-  if (CUDA_FOUND) # no way to make sure PARSEC has CUDA
-                  # so just look for it and hope for the best
-    cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)  
-    target_link_libraries(test_world MADtest_cuda)
-  endif(CUDA_FOUND)
+  if (ENABLE_PARSEC)
+    find_package(CUDA)
+    if (CUDA_FOUND) # no way to make sure PARSEC has CUDA
+                    # so just look for it and hope for the best
+      cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)  
+      target_link_libraries(test_world MADtest_cuda)
+    endif(CUDA_FOUND)
+  endif (ENABLE_PARSEC)
   
 endif()
 

@@ -37,6 +37,34 @@
 #include <pthread.h>
 #include <cstdio>
 #ifdef ON_A_MAC
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+
+#include <os/lock.h>
+#include <type_traits>
+
+typedef std::remove_pointer<os_unfair_lock_t>::type pthread_spinlock_t;
+
+inline void pthread_spin_init(pthread_spinlock_t* p, int /*mode*/) {
+    *p = OS_UNFAIR_LOCK_INIT;
+}
+inline int pthread_spin_trylock(pthread_spinlock_t* p) {
+    return !os_unfair_lock_trylock(p);
+}
+inline int pthread_spin_lock(pthread_spinlock_t* p) {
+    os_unfair_lock_lock(p);
+    return 0;
+}
+inline int pthread_spin_unlock(pthread_spinlock_t* p) {
+    os_unfair_lock_lock(p);
+    return 0;
+}
+
+inline int pthread_spin_destroy(pthread_spinlock_t*) {
+    return 0;
+}
+
+#else
+
 #include <libkern/OSAtomic.h>
 typedef OSSpinLock pthread_spinlock_t;
 
@@ -55,7 +83,8 @@ inline int pthread_spin_unlock(pthread_spinlock_t* p) {
     return 0;
 }
 inline void pthread_spin_destroy(pthread_spinlock_t* /*p*/) {}
-#endif
+#endif // __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+#endif // ON_A_MAC
 
 
 #include <madness/world/nodefaults.h>

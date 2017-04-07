@@ -11,8 +11,8 @@ case "$CXX" in
         export CXX=/usr/bin/g++-$GCC_VERSION
         ;;
     clang++)
-        export CC=/usr/bin/clang-3.7
-        export CXX=/usr/bin/clang++-3.7
+        export CC=/usr/bin/clang-3.8
+        export CXX=/usr/bin/clang++-3.8
         export CXXFLAGS="-std=c++11"
         ;;
     *)
@@ -30,7 +30,7 @@ $FC --version
 
 # Install libxc
 if [ ! -d "${HOME}/libxc" ]; then
-    wget -O libxc-2.2.1.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=libxc/libxc-2.2.1.tar.gz"
+    wget -O libxc-2.2.1.tar.gz "https://github.com/m-a-d-n-e-s-s/madness/files/661744/libxc-2.2.1.tar.gz"
     tar -xzf libxc-2.2.1.tar.gz
     cd libxc-2.2.1
     autoreconf -i

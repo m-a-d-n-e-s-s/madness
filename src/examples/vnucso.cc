@@ -551,9 +551,6 @@ int main(int argc, char** argv) {
     } catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    } catch (char* s) {
-        print(s);
-        error("caught a string exception");
     } catch (const char* s) {
         print(s);
         error("caught a string exception");

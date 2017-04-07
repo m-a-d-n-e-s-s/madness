@@ -52,3 +52,4 @@ cmake/cmake-*
 cmake/bin
 cmake/doc
 cmake/share
+Makefile-prog.in

@@ -433,38 +433,51 @@ public:
         return *this;
     }
 
+    /// set the spin state this operator is acting on
+    void set_ispin(const int i) const {ispin=i;}
+
     /// apply the xc potential on a set of orbitals
     vecfuncT operator()(const vecfuncT& vket) const;
+
+    /// apply the xc potential on an orbitals
+    real_function_3d operator()(const real_function_3d& ket) const {
+        vecfuncT vket(1,ket);
+        vecfuncT vKket=this->operator()(vket);
+        return vKket[0];
+    }
 
     /// compute the xc energy using the precomputed intermediates vf and delrho
     double compute_xc_energy() const;
 
-    /// return the local xc potential using the precomputed intermediates vf and delrho
+    /// return the local xc potential
     real_function_3d make_xc_potential() const;
-
-    /// return the xc kernel (currently working only for LDA)
-    real_function_3d make_xc_kernel() const;
 
     /// construct the xc kernel and apply it directly on the (response) density
 
     /// the xc kernel is the second derivative of the xc functions wrt the density
     /// @param[in]  density the (response) density on which the kernel is applied
     /// @return     kernel * density
-    real_function_3d apply_xc_kernel(const real_function_3d& density) const;
+    real_function_3d apply_xc_kernel(const real_function_3d& density,
+            const vecfuncT grad_dens_pt=vecfuncT()) const;
 
 private:
 
     /// the world
     World& world;
 
+public:
     /// interface to the actual XC functionals
     std::shared_ptr<XCfunctional> xc;
+
+private:
+    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
+    std::shared_ptr<NuclearCorrelationFactor> ncf;
 
     /// number of beta orbitals
     int nbeta;
 
     /// the XC functionals depend on the spin of the orbitals they act on
-    int ispin;
+    mutable int ispin;
 
     /// functions that are need for the computation of the XC operator
 
@@ -487,9 +500,7 @@ private:
     /// @param[in]  arho    density of the alpha orbitals
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @return xc_args vector of intermediates as described above
-    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho,
-            const std::vector<real_function_3d>& darho,
-            const std::vector<real_function_3d>& dbrho) const;
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
 
     /// compute the intermediates for the XC functionals
 
@@ -499,17 +510,10 @@ private:
     void prep_xc_args_response(const real_function_3d& dens_pt,
             vecfuncT& xc_args, vecfuncT& ddens_pt) const;
 
-    /// compute the intermediates for the XC functionals
-
-    /// @param[in]  arho    density of the alpha orbitals
-    /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
-    /// @param[out] vf      vector of intermediates as described above
-    /// @param[out] delrho  vector of derivatives of the densities as described above
-    void prep_xc_args_old(const real_function_3d& arho,
-            const real_function_3d& brho, vecfuncT& delrho, vecfuncT& vf) const;
-
     /// check if the intermediates are initialized
-    bool is_initialized() const;
+    bool is_initialized() const {
+        return (xc_args.size()>0);
+    }
 
     /// simple structure to take the pointwise logarithm of a function, shifted by +14
     struct logme{
