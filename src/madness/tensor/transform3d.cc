@@ -78,10 +78,10 @@ Tensor<T> transform3d(const Tensor<T>& t, const Tensor<T>& c) {
 #endif
     T* tmp = new T[d0_cubed];
 
-    T* restrict r_p = result.ptr();
-    T* restrict t_p = t.ptr();
-    T* restrict c_p = c.ptr();
-    T* restrict tmp_p = tmp;
+    T* MADNESS_RESTRICT r_p = result.ptr();
+    T* MADNESS_RESTRICT t_p = t.ptr();
+    T* MADNESS_RESTRICT c_p = c.ptr();
+    T* MADNESS_RESTRICT tmp_p = tmp;
 
     for (long i=0; i<d0_cubed; ++i)
         tmp[i] = (T)0;
@@ -263,12 +263,12 @@ Tensor<T> transform3d_3c(const Tensor<T>& t,
 #endif
     T* tmp = new T[d0_cubed];
 
-    T* restrict r_p = result.ptr();
-    T* restrict t_p = t.ptr();
-    T* restrict c0_p = c0.ptr();
-    T* restrict c1_p = c1.ptr();
-    T* restrict c2_p = c2.ptr();
-    T* restrict tmp_p = tmp;
+    T* MADNESS_RESTRICT r_p = result.ptr();
+    T* MADNESS_RESTRICT t_p = t.ptr();
+    T* MADNESS_RESTRICT c0_p = c0.ptr();
+    T* MADNESS_RESTRICT c1_p = c1.ptr();
+    T* MADNESS_RESTRICT c2_p = c2.ptr();
+    T* MADNESS_RESTRICT tmp_p = tmp;
 
     for (long i=0; i<d0_cubed; ++i)
         tmp[i] = (T)0;

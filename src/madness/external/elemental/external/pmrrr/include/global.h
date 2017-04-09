@@ -52,7 +52,7 @@
 #else
  /* C89 with or without Amendment 1, see H&S p.53 */
 
-#define restrict /*nothing*/
+#define MADNESS_RESTRICT /*nothing*/
 #define inline   /*nothing*/
 
 #define fmax(a,b) ( (a) > (b) ? (a) : (b) )
@@ -72,7 +72,7 @@ typedef int    bool;
   * see Harbison and Steele p. 89*/
 #define const /*nothing*/
 #define volatile /*nothing*/
-#define restrict /*nothing*/
+#define MADNESS_RESTRICT /*nothing*/
 
 #define fmax(a,b) ( (a) > (b) ? (a) : (b) )
 #define fmin(a,b) ( (a) < (b) ? (a) : (b) )

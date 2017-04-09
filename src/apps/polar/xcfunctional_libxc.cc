@@ -334,10 +334,10 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
     if (spin_polarized) {
         if (is_lda()) {
             MADNESS_ASSERT(t.size() == 2);
-            const double * restrict rhoa = t[0].ptr();
-            const double * restrict rhob = t[1].ptr();
+            const double * MADNESS_RESTRICT rhoa = t[0].ptr();
+            const double * MADNESS_RESTRICT rhob = t[1].ptr();
             rho  = madness::Tensor<double>(np*2L);
-            double * restrict dens = rho.ptr();
+            double * MADNESS_RESTRICT dens = rho.ptr();
             for (long i=0; i<np; i++) {
                 dens[2*i  ] = munge(rhoa[i]);
                 dens[2*i+1] = munge(rhob[i]);
@@ -345,19 +345,19 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
         }
         else if (is_gga()) {
             MADNESS_ASSERT(t.size() == 5);
-            const double * restrict rhoa  = t[0].ptr();
-            const double * restrict rhob  = t[1].ptr();
+            const double * MADNESS_RESTRICT rhoa  = t[0].ptr();
+            const double * MADNESS_RESTRICT rhob  = t[1].ptr();
 
-            const double * restrict sigaa = t[2].ptr();
-            const double * restrict sigab = t[3].ptr();
-            const double * restrict sigbb = t[4].ptr();
+            const double * MADNESS_RESTRICT sigaa = t[2].ptr();
+            const double * MADNESS_RESTRICT sigab = t[3].ptr();
+            const double * MADNESS_RESTRICT sigbb = t[4].ptr();
 
 
             rho   = madness::Tensor<double>(np*2L);
             sigma = madness::Tensor<double>(np*3L);
 
-            double * restrict dens = rho.ptr();
-            double * restrict sig  = sigma.ptr();
+            double * MADNESS_RESTRICT dens = rho.ptr();
+            double * MADNESS_RESTRICT sig  = sigma.ptr();
             for (long i=0; i<np; i++) {
                 double ra=rhoa[i], rb=rhob[i], saa=sigaa[i], sab=sigab[i], sbb=sigbb[i];
 
@@ -379,20 +379,20 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
         if (is_lda()) {
             MADNESS_ASSERT(t.size() == 1);
             rho  = madness::Tensor<double>(np);
-            const double * restrict rhoa = t[0].ptr();
-            double * restrict dens = rho.ptr();
+            const double * MADNESS_RESTRICT rhoa = t[0].ptr();
+            double * MADNESS_RESTRICT dens = rho.ptr();
             for (long i=0; i<np; i++) {
                 dens[i] = munge(2.0*rhoa[i]);
             }
         }
         else if (is_gga()) {
             MADNESS_ASSERT(t.size() == 2);
-            const double * restrict rhoa = t[0].ptr();
-            const double * restrict sigaa = t[1].ptr();
+            const double * MADNESS_RESTRICT rhoa = t[0].ptr();
+            const double * MADNESS_RESTRICT sigaa = t[1].ptr();
             rho  = madness::Tensor<double>(np);
             sigma  = madness::Tensor<double>(np);
-            double * restrict dens = rho.ptr();
-            double * restrict sig = sigma.ptr();
+            double * MADNESS_RESTRICT dens = rho.ptr();
+            double * MADNESS_RESTRICT sig = sigma.ptr();
             for (long i=0; i<np; i++) {
                 double ra=2.0*rhoa[i], saa=4.0*sigaa[i];
                 //double ra=rhoa[i], saa=sigaa[i];
@@ -414,16 +414,16 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     make_libxc_args(t, rho, sigma);
 
     const int np = t[0].size();
-    const double * restrict dens = rho.ptr();
-    const double * restrict sig = sigma.ptr();
+    const double * MADNESS_RESTRICT dens = rho.ptr();
+    const double * MADNESS_RESTRICT sig = sigma.ptr();
 
     madness::Tensor<double> result(3L, t[0].dims());
-    double * restrict res = result.ptr();
+    double * MADNESS_RESTRICT res = result.ptr();
     for (long j=0; j<np; j++) res[j] = 0.0;
 
     for (unsigned int i=0; i<funcs.size(); i++) {
         madness::Tensor<double> zk(3L, t[0].dims(), false);
-        double * restrict work = zk.ptr();
+        double * MADNESS_RESTRICT work = zk.ptr();
 
         switch(funcs[i].first->info->family) {
         case XC_FAMILY_LDA:
@@ -473,8 +473,8 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     }
 
     madness::Tensor<double> result(3L, t[0].dims());
-    double * restrict res = result.ptr();
-    const double * restrict dens = rho.ptr();
+    double * MADNESS_RESTRICT res = result.ptr();
+    const double * MADNESS_RESTRICT dens = rho.ptr();
 	for (long j=0; j<np; j++) 
     			res[j] = 0.0;
 
@@ -483,7 +483,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
        	     case XC_FAMILY_LDA:
                 {
                 madness::Tensor<double> vrho(nvrho*np);
-    		double * restrict vr = vrho.ptr();
+    		double * MADNESS_RESTRICT vr = vrho.ptr();
     		xc_lda_vxc(funcs[i].first, np, dens, vr);
              	if (what < 2) {
                      for (long j=0; j<np; j++) {
@@ -498,9 +498,9 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
              case XC_FAMILY_GGA:
     		{
     	        madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
-                double * restrict vr = vrho.ptr();
-                double * restrict vs = vsig.ptr();
-    	        const double * restrict sig = sigma.ptr();
+                double * MADNESS_RESTRICT vr = vrho.ptr();
+                double * MADNESS_RESTRICT vs = vsig.ptr();
+    	        const double * MADNESS_RESTRICT sig = sigma.ptr();
 	    	xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
 	    	if (spin_polarized) {
         		if (what == 0) {
@@ -551,9 +551,9 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     	{
     				throw "ouch";
     		madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
-    		double * restrict vr = vrho.ptr();
-    		double * restrict vs = vsig.ptr();
-    		const double * restrict sig = sigma.ptr();
+    		double * MADNESS_RESTRICT vr = vrho.ptr();
+    		double * MADNESS_RESTRICT vs = vsig.ptr();
+    		const double * MADNESS_RESTRICT sig = sigma.ptr();
     		xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
 	    	if (spin_polarized) {
         		if (what == 0) {
@@ -626,8 +626,8 @@ madness::Tensor<double> XCfunctional::fxc(const std::vector< madness::Tensor<dou
     }
 
     madness::Tensor<double> result(3L, t[0].dims());
-    double * restrict res = result.ptr();
-    const double * restrict dens = rho.ptr();
+    double * MADNESS_RESTRICT res = result.ptr();
+    const double * MADNESS_RESTRICT dens = rho.ptr();
     for (long j=0; j<np; j++) 
     			res[j] = 0.0;
 
@@ -643,7 +643,7 @@ madness::Tensor<double> XCfunctional::fxc(const std::vector< madness::Tensor<dou
        	     case XC_FAMILY_LDA:
                 {
                 madness::Tensor<double> vrho(nvrho*np);
-    		double * restrict vr = vrho.ptr();
+    		double * MADNESS_RESTRICT vr = vrho.ptr();
     		xc_lda_fxc(funcs[i].first, np, dens, vr);
              	if (what < 2) {
                      for (long j=0; j<np; j++) {

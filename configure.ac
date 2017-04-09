@@ -124,6 +124,9 @@ ACX_DETECT_CXX
 # add the -std=c++11 or -std=c++0x flag to CXXFLAGS if necessary.
 AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 
+# Detect which version of (__)restrict(__) is supported and define MADNESS_RESTRICT to it
+ACX_CXX_RESTRICT
+
 # Set debugging
 ACX_ENABLE_DEBUGGING
 
@@ -133,7 +136,7 @@ ACX_ENABLE_OPTIMIZATION
 # Set warning flags by compiler vendor
 ACX_ENABLE_WARN
 
-# Selelect best compilation flags
+# Select best compilation flags
 ACX_ENABLE_OPTIMAL
 
 # Get optional external libraries inplace so that building will partially check them
@@ -192,7 +195,6 @@ CPPFLAGS="$ac_save_CPPFLAGS"
 
 # Types
 AC_TYPE_PID_T
-AC_C_RESTRICT
 ACX_CHECK_TLS
 AC_TYPE_SIZE_T
 #AC_TYPE_UINT64_T

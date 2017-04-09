@@ -72,7 +72,7 @@ namespace madness {
     template <typename T, typename Q>
     static
     inline
-    void aligned_axpy(long n, T* restrict a, const T* restrict b, Q s) {
+    void aligned_axpy(long n, T* MADNESS_RESTRICT a, const T* MADNESS_RESTRICT b, Q s) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         for (long i=0; i<n4; i+=4,a+=4,b+=4) {
@@ -93,7 +93,7 @@ namespace madness {
     template <>
     //static
     inline
-    void aligned_axpy(long n, double * restrict a, const double * restrict b, double s) {
+    void aligned_axpy(long n, double * MADNESS_RESTRICT a, const double * MADNESS_RESTRICT b, double s) {
         madness::cblas::axpy((integer)n, s, (double*)b, 1, (double*)a, 1);
     }
 
@@ -102,14 +102,14 @@ namespace madness {
     template <>
     //static
     inline
-    void aligned_axpy(long n, double_complex * restrict a, const double_complex * restrict b, double_complex s) {
+    void aligned_axpy(long n, double_complex * MADNESS_RESTRICT a, const double_complex * MADNESS_RESTRICT b, double_complex s) {
         madness::cblas::axpy((integer)n, (complex_real8)s, (complex_real8*)b, 1, (complex_real8*)a, 1);
     }
 
     template <>
     //static
     inline
-    void aligned_axpy(long n, double_complex * restrict a, const double_complex * restrict b, double s) {
+    void aligned_axpy(long n, double_complex * MADNESS_RESTRICT a, const double_complex * MADNESS_RESTRICT b, double s) {
         complex_real8 cs(s,0.0); // turn real into complex
         madness::cblas::axpy((integer)n, cs, (complex_real8*)b, 1, (complex_real8*)a, 1);
     }
@@ -117,7 +117,7 @@ namespace madness {
     template <typename T, typename Q>
     static
     inline
-    void aligned_add(long n, T* restrict a, const Q* restrict b) {
+    void aligned_add(long n, T* MADNESS_RESTRICT a, const Q* MADNESS_RESTRICT b) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         for (long i=0; i<n4; i+=4,a+=4,b+=4) {
@@ -132,7 +132,7 @@ namespace madness {
     template <typename T, typename Q>
     static
     inline
-    void aligned_sub(long n, T* restrict a, const Q* restrict b) {
+    void aligned_sub(long n, T* MADNESS_RESTRICT a, const Q* MADNESS_RESTRICT b) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         for (long i=0; i<n4; i+=4,a+=4,b+=4) {

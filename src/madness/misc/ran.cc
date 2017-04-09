@@ -45,8 +45,8 @@ namespace madness {
     void Random::generate() {
         // Assume we have the lock when we come in here
 
-        double * restrict ur = const_cast<double*>(u);
-        double * restrict us = const_cast<double*>(u)+r-s;
+        double * MADNESS_RESTRICT ur = const_cast<double*>(u);
+        double * MADNESS_RESTRICT us = const_cast<double*>(u)+r-s;
         for (int i=0; i<s; ++i) {
             double t = ur[i] + beta*us[i];
             ur[i] = t - int(t);
@@ -128,7 +128,7 @@ namespace madness {
 
 
     //     // Might be faster than the one-byte-per-word version
-    //     void getbytes(int n, unsigned char * restrict v) {
+    //     void getbytes(int n, unsigned char * MADNESS_RESTRICT v) {
     //         const double two24 = 16777216.0;
     //         int n6 = n%6;
     //         n -= n6;
@@ -151,7 +151,7 @@ namespace madness {
     //         for (int i=0; i<n6; ++i) *v++ = (unsigned char) (256*get());
     //     };
 
-    void Random::getbytes(int n, unsigned char * restrict v) {
+    void Random::getbytes(int n, unsigned char * MADNESS_RESTRICT v) {
         ScopedMutex<Mutex> safe(this);
         while (n) {
             if (cur >= r) generate();
