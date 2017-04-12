@@ -2446,7 +2446,7 @@ void mTxmq(long dimi, long dimj, long dimk,
 
     //template<>
     void mTxmqdjflkjsalkf(const long dimi, const long dimj, const long dimk,
-               double* restrict c, const double* a, const double* b) {
+               double* MADNESS_RESTRICT c, const double* a, const double* b) {
         //PROFILE_BLOCK(mTxmq_double_asm);
         //std::cout << "IN DOUBLE ASM VERSION " << dimi << " " << dimj << " " << dimk << "\n";
 
@@ -2644,7 +2644,7 @@ void mTxmq(long dimi, long dimj, long dimk,
 namespace madness {
     template <>
     void mTxmq(const long dimi, const long dimj, const long dimk,
-               double_complex* restrict c, const double_complex* a, const double_complex* b) {
+               double_complex* MADNESS_RESTRICT c, const double_complex* a, const double_complex* b) {
 
         //PROFILE_BLOCK(mTxmq_complex_asm);
         const long dimi16 = dimi<<4;
@@ -2676,7 +2676,7 @@ namespace madness {
         const double_complex* asave = a;
         for (long jlo=0; jlo<dimj; jlo+=jtile,c+=jtile,b+=jtile) {
             long nj = std::min(dimj-jlo,jtile);
-            double_complex* restrict ci = c;
+            double_complex* MADNESS_RESTRICT ci = c;
             a = asave;
             for (long i=0; i<dimi; ++i,ci+=dimj,++a) {
                 const double_complex *ai = a;
@@ -3092,7 +3092,7 @@ namespace madness {
 // #ifndef __INTEL_COMPILER
 //     template <>
 //     void mTxmq(const long dimi, const long dimj, const long dimk,
-//                double_complex* restrict c, const double_complex* a, const double* b)
+//                double_complex* MADNESS_RESTRICT c, const double_complex* a, const double* b)
 //     {
 //       const long itile = 14;
 //       for (long ilo = 0; ilo < dimi; ilo += itile, a+=itile, c+=itile*dimj)
