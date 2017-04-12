@@ -165,7 +165,7 @@ namespace madness {
         };
 
 
-        /// A wrapper object for holding task function objects
+        /// A wrapper object for holding task function argument objects
         template <typename Arg>
         class ArgHolder : private NO_DEFAULTS{
         private:
