@@ -182,6 +182,7 @@ namespace madness {
 
             operator Arg&() { return arg_; }
             operator const Arg&() const { return arg_; }
+            explicit operator Arg&&() { return std::move(arg_); }
         }; // class ArgHolder
 
         template <typename T>
@@ -227,35 +228,48 @@ namespace madness {
         // arg_holder::decay converts an argument holder to the corresponding argument (reference)
         namespace arg_holder {
 
-        // specialization for ArgHolder
+        // specialization for ArgHolder<>&
         template <typename T>
         T& decay(ArgHolder<T>& arg_holder) {
           return arg_holder;
         }
 
-        // specialization for const ArgHolder
+        // specialization for const ArgHolder<>&
         template <typename T>
         const T& decay(const ArgHolder<T>& arg_holder) {
           return arg_holder;
         }
 
-        // specialization for Future
+        // specialization for ArgHolder<>&&
+        template <typename T>
+        T&& decay(ArgHolder<T>&& arg_holder) {
+          return static_cast<T&&>(arg_holder);
+        }
+
+
+        // specialization for Future<>&
         template <typename T>
         T& decay(Future<T>& arg_holder) {
           return arg_holder;
         }
 
-        // specialization for const Future
+        // specialization for const Future<>&
         template <typename T>
         const T& decay(const Future<T>& arg_holder) {
           return arg_holder;
+        }
+
+        // specialization for Future<>&&
+        template <typename T>
+        T&& decay(Future<T>&& arg_holder) {
+          return static_cast<T&&>(arg_holder);
         }
 
         // specialization for non-Future non-ArgHolder argument
         template <typename T>
         auto decay(T&& arg_holder) -> typename std::enable_if<
         !is_future<T>::value && !is_arg_holder<T>::value, decltype(arg_holder)>::type{
-          return arg_holder;
+          return std::forward<T>(arg_holder);
         }
 
         }  // namespace arg_holder
