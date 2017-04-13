@@ -7,54 +7,30 @@ compiler:
   - clang
   - gcc
 env:
-  #- GCC_VERSION=4.7 RUN_TEST=buildonly
-  #- GCC_VERSION=4.8 RUN_TEST=buildonly
-  #- GCC_VERSION=4.9 RUN_TEST=buildonly
   - GCC_VERSION=5 RUN_TEST=buildonly
-  #- GCC_VERSION=4.7 RUN_TEST=world
-  #- GCC_VERSION=4.8 RUN_TEST=world
-  #- GCC_VERSION=4.9 RUN_TEST=world
+  - GCC_VERSION=6 RUN_TEST=buildonly
   - GCC_VERSION=5 RUN_TEST=world
-  #- GCC_VERSION=4.7 RUN_TEST=tensor
-  #- GCC_VERSION=4.8 RUN_TEST=tensor
-  #- GCC_VERSION=4.9 RUN_TEST=tensor
+  - GCC_VERSION=6 RUN_TEST=world
   - GCC_VERSION=5 RUN_TEST=tensor
-  #- GCC_VERSION=4.7 RUN_TEST=mra
-  #- GCC_VERSION=4.8 RUN_TEST=mra
-  #- GCC_VERSION=4.9 RUN_TEST=mra
+  - GCC_VERSION=6 RUN_TEST=tensor
   - GCC_VERSION=5 RUN_TEST=mra
+  - GCC_VERSION=6 RUN_TEST=mra
 matrix:
-  # Currently there is a segfault that occurs in the unit tests when
-  # building with the clang compiler. Temporarily allow failures in
-  # these tests until the issue is resolved.
+  # Currently there is a bunch of exceptions in some (but not all) MRA tests with clang on OS X
   allow_failures:
     - compiler: clang
-      env: GCC_VERSION=5 RUN_TEST=mra
+      os: osx
+      env: GCC_VERSION=6 RUN_TEST=mra
+  # avoid some duplicates in the matrix
   exclude:
     - compiler: clang
-      env: GCC_VERSION=4.7 RUN_TEST=buildonly
+      env: GCC_VERSION=5 RUN_TEST=buildonly
     - compiler: clang
-      env: GCC_VERSION=4.8 RUN_TEST=buildonly
+      env: GCC_VERSION=5 RUN_TEST=world
     - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=buildonly
+      env: GCC_VERSION=5 RUN_TEST=tensor
     - compiler: clang
-      env: GCC_VERSION=4.7 RUN_TEST=world
-    - compiler: clang
-      env: GCC_VERSION=4.8 RUN_TEST=world
-    - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=world
-    - compiler: clang
-      env: GCC_VERSION=4.7 RUN_TEST=tensor
-    - compiler: clang
-      env: GCC_VERSION=4.8 RUN_TEST=tensor
-    - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=tensor
-    - compiler: clang
-      env: GCC_VERSION=4.7 RUN_TEST=mra
-    - compiler: clang
-      env: GCC_VERSION=4.8 RUN_TEST=mra
-    - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=mra
+      env: GCC_VERSION=5 RUN_TEST=mra
     - os: osx
       compiler: gcc
 #notifications:
@@ -71,18 +47,12 @@ addons:
       - ubuntu-toolchain-r-test
       - llvm-toolchain-precise-3.8
     packages:
-      #- gcc-4.7
-      #- g++-4.7
-      #- gfortran-4.7
-      #- gcc-4.8
-      #- g++-4.8
-      #- gfortran-4.8
-      #- gcc-4.9
-      #- g++-4.9
-      #- gfortran-4.9
       - gcc-5
       - g++-5
       - gfortran-5
+      - gcc-6
+      - g++-6
+      - gfortran-6
       - clang-3.8
       # These do not lead to the desired result of libc++ >:-(
       #- libc++-dev
