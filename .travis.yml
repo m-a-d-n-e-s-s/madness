@@ -105,4 +105,4 @@ install:
 script:
   - ./ci/build-$TRAVIS_OS_NAME.sh
 after_failure:
-  - cat ./build/config.log
+  - find . -name config.log -exec grep -L "configure: exit 0" {} ";" | xargs cat
