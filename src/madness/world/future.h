@@ -633,6 +633,12 @@ namespace madness {
             return get();
         }
 
+        /// Same as \c get().
+
+        /// \return The value.
+        inline explicit operator T&&() {
+            return std::move(get());
+        }
 
         /// Returns a structure used to pass references to another process.
 
