@@ -165,6 +165,17 @@ namespace madness {
         /// \todo Brief description needed.
 
         /// \todo Descriptions needed.
+        /// \tparam fnT Description needed.
+        template <typename callableT, typename Enabler = void>
+        struct callable_enabler;
+        template <typename callableT>
+        struct callable_enabler<callableT,
+        std::enable_if_t<callable_traits<callableT>::value>>
+        { using type = typename callable_traits<callableT>::result_type; };
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
         /// \tparam objT Description needed.
         /// \tparam memfnT Description needed.
         /// \tparam enableT Description needed.
@@ -576,7 +587,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT()>::type
         add(fnT fn, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT> taskT;
             return add(new taskT(typename taskT::futureT(),
@@ -596,7 +607,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT, typename a1T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T)>::type
         add(fnT fn, const a1T& a1, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT, a1T> taskT;
             return add(new taskT(typename taskT::futureT(),
@@ -618,7 +629,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT, a1T, a2T> taskT;
             return add(new taskT(typename taskT::futureT(),
@@ -642,7 +653,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
             const TaskAttributes& attr=TaskAttributes())
         {
@@ -670,7 +681,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const TaskAttributes& attr=TaskAttributes())
         {
@@ -701,7 +712,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const TaskAttributes& attr=TaskAttributes())
         {
@@ -734,7 +745,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T, a6T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const a6T& a6, const TaskAttributes& attr=TaskAttributes())
         {
@@ -769,7 +780,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T, a6T, a7T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const a6T& a6, const a7T& a7,
             const TaskAttributes& attr=TaskAttributes())
@@ -807,7 +818,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T, typename a8T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8,
             const TaskAttributes& attr=TaskAttributes())
@@ -847,7 +858,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8, const a9T& a9,
             const TaskAttributes& attr=TaskAttributes())
