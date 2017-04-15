@@ -40,6 +40,7 @@
 
 #include <type_traits>
 #include <iostream>
+#include <madness/world/meta.h>
 #include <madness/world/nodefaults.h>
 #include <madness/world/range.h>
 #include <madness/world/timers.h>
@@ -575,7 +576,44 @@ namespace madness {
             return result;
         }
 
+#if MADNESS_TASKQ_VARIADICS
 
+        /// Create a local task with one argument.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
+        template <typename fnT, typename... argsT,
+                  typename = std::enable_if_t<
+                      std::is_same<std::decay_t<typename meta::last_type<argsT...>::type>,
+                                   TaskAttributes>::value>>
+        typename meta::drop_last_param_and_apply_callable<detail::function_enabler, fnT, argsT...>::type::type
+        add(
+            fnT&& fn, argsT&&... args) {
+          using taskT = typename meta::drop_last_param_and_apply<TaskFn, std::decay_t<fnT>, std::decay_t<argsT>...>::type;
+          return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
+                               std::forward<argsT>(args)...));
+        }
+
+        template <typename fnT, typename... argsT,
+                  typename = std::enable_if_t<
+                      !std::is_same<std::decay_t<typename meta::last_type<argsT...>::type>,
+                                   TaskAttributes>::value>>
+        typename detail::function_enabler<fnT(argsT...)>::type add(
+            fnT&& fn, argsT&&... args) {
+          using taskT = TaskFn<std::decay_t<fnT>, std::decay_t<argsT>...>;
+          return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
+                               std::forward<argsT>(args)..., TaskAttributes()));
+        }
+
+#else
         /// Create a local task with no arguments.
 
         /// Creates a task in this process. An argument that is a future may be
@@ -867,7 +905,7 @@ namespace madness {
             return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, a4, a5, a6, a7, a8, a9, attr));
         }
-
+#endif
 
         /// Create a remote task.
 
