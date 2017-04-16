@@ -31,54 +31,57 @@ struct last_type<T0, T1, Ts...> : last_type<T1, Ts...> {};
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <template <typename...> class MetaFn, typename T, typename... P>
-struct drop_last_param_and_apply_impl;
+template <template <typename...> class MetaFn, typename CurrentTypelist,
+          typename... RestOfTypes>
+struct drop_last_arg_and_apply_impl;
 
-template <template <typename...> class MetaFn, typename... P1, typename T,
-          typename... P2>
-struct drop_last_param_and_apply_impl<MetaFn, typelist<P1...>, T, P2...> {
+template <template <typename...> class MetaFn, typename... UpToT, typename T,
+          typename... Rest>
+struct drop_last_arg_and_apply_impl<MetaFn, typelist<UpToT...>, T, Rest...> {
   using type =
-      typename drop_last_param_and_apply_impl<MetaFn, typelist<P1..., T>,
-                                              P2...>::type;
+      typename drop_last_arg_and_apply_impl<MetaFn, typelist<UpToT..., T>,
+                                            Rest...>::type;
 };
 
-template <template <typename...> class MetaFn, typename... P1, typename T,
-          typename L>
-struct drop_last_param_and_apply_impl<MetaFn, typelist<P1...>, T, L> {
-  using type = MetaFn<P1..., T>;
+template <template <typename...> class MetaFn, typename... UpToLast,
+          typename Last>
+struct drop_last_arg_and_apply_impl<MetaFn, typelist<UpToLast...>, Last> {
+  using type = MetaFn<UpToLast...>;
 };
 
-template <template <typename...> class MetaFn, typename... P>
-struct drop_last_param_and_apply {
+template <template <typename...> class MetaFn, typename... Args>
+struct drop_last_arg_and_apply {
   using type =
-      typename drop_last_param_and_apply_impl<MetaFn, typelist<>, P...>::type;
+      typename drop_last_arg_and_apply_impl<MetaFn, typelist<>, Args...>::type;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <template <typename...> class MetaFn, typename T, typename... P>
-struct drop_last_param_and_apply_callable_impl;
+template <template <typename...> class MetaFn, typename Callable,
+          typename CurrentTypelist, typename... RestOfTypes>
+struct drop_last_arg_and_apply_callable_impl;
 
 template <template <typename...> class MetaFn, typename Callable,
-          typename... P1, typename T, typename... P2>
-struct drop_last_param_and_apply_callable_impl<MetaFn, Callable,
-                                               typelist<P1...>, T, P2...> {
-  using type = typename drop_last_param_and_apply_callable_impl<
-      MetaFn, Callable, typelist<P1..., T>, P2...>::type;
+          typename... UpToT, typename T, typename... Rest>
+struct drop_last_arg_and_apply_callable_impl<MetaFn, Callable,
+                                             typelist<UpToT...>, T, Rest...> {
+  using type = typename drop_last_arg_and_apply_callable_impl<
+      MetaFn, Callable, typelist<UpToT..., T>, Rest...>::type;
 };
 
 template <template <typename...> class MetaFn, typename Callable,
-          typename... P1, typename T, typename L>
-struct drop_last_param_and_apply_callable_impl<MetaFn, Callable,
-                                               typelist<P1...>, T, L> {
-  using type = MetaFn<Callable(P1..., T)>;
+          typename... UpToLast, typename Last>
+struct drop_last_arg_and_apply_callable_impl<MetaFn, Callable,
+                                             typelist<UpToLast...>, Last> {
+  using type = MetaFn<Callable(UpToLast...)>;
 };
 
-template <template <typename...> class MetaFn, typename Callable, typename... P>
-struct drop_last_param_and_apply_callable {
+template <template <typename...> class MetaFn, typename Callable,
+          typename... Args>
+struct drop_last_arg_and_apply_callable {
   using type =
-      typename drop_last_param_and_apply_callable_impl<MetaFn, Callable,
-                                                       typelist<>, P...>::type;
+      typename drop_last_arg_and_apply_callable_impl<MetaFn, Callable,
+                                                     typelist<>, Args...>::type;
 };
 
 }  // namespace meta

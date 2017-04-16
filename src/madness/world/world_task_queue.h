@@ -58,6 +58,14 @@ namespace madness {
     template <typename> struct TaskFunction;
     template <typename> struct TaskMemfun;
 
+    namespace meta {
+    template <typename ... argsT>
+    struct taskattr_is_last_arg : public std::integral_constant<bool, std::is_same<std::decay_t<typename meta::last_type<argsT...>::type>,
+    TaskAttributes>::value> {};
+    template <>
+    struct taskattr_is_last_arg<> : public std::false_type {};
+    }
+
     namespace detail {
 
         // a few more forward decls
@@ -578,6 +586,8 @@ namespace madness {
 
 #if MADNESS_TASKQ_VARIADICS
 
+        ///////////////////////////////////////////////////////////////////////////////
+
         /// Create a local task with one argument.
 
         /// Creates a task in this process. An argument that is a future may be
@@ -592,23 +602,20 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename... argsT,
                   typename = std::enable_if_t<
-                      std::is_same<std::decay_t<typename meta::last_type<argsT...>::type>,
-                                   TaskAttributes>::value>>
-        typename meta::drop_last_param_and_apply_callable<detail::function_enabler, fnT, argsT...>::type::type
-        add(
-            fnT&& fn, argsT&&... args) {
-          using taskT = typename meta::drop_last_param_and_apply<TaskFn, std::decay_t<fnT>, std::decay_t<argsT>...>::type;
+                  meta::taskattr_is_last_arg<argsT...>::value>>
+        typename meta::drop_last_arg_and_apply_callable<detail::function_enabler, fnT, remove_future_t<argsT>...>::type::type
+        add(fnT&& fn, argsT&&... args) {
+          using taskT = typename meta::drop_last_arg_and_apply<TaskFn, std::decay_t<fnT>, remove_fcvr_t<argsT>...>::type;
           return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
                                std::forward<argsT>(args)...));
         }
 
         template <typename fnT, typename... argsT,
                   typename = std::enable_if_t<
-                      !std::is_same<std::decay_t<typename meta::last_type<argsT...>::type>,
-                                   TaskAttributes>::value>>
-        typename detail::function_enabler<fnT(argsT...)>::type add(
+                      !meta::taskattr_is_last_arg<argsT...>::value>>
+        typename detail::function_enabler<fnT(remove_future_t<argsT>...)>::type add(
             fnT&& fn, argsT&&... args) {
-          using taskT = TaskFn<std::decay_t<fnT>, std::decay_t<argsT>...>;
+          using taskT = TaskFn<std::decay_t<fnT>, remove_fcvr_t<argsT>...>;
           return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
                                std::forward<argsT>(args)..., TaskAttributes()));
         }
