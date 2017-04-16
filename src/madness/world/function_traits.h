@@ -20,7 +20,7 @@ namespace madness {
         template <typename memfuncT>
         struct memfunc_traits : public std::false_type { };
 
-        /// Function traits in the spirit of boost function traits
+        /// Function trait specialization for a free function pointer
         template <typename resultT, typename... argTs>
         struct function_traits<resultT(*)(argTs...), void> {
           static const bool value = true;
@@ -28,7 +28,6 @@ namespace madness {
           using result_type = resultT;
         };
 
-        /// Function traits in the spirit of boost function traits
         /// Function trait specialization for a *reference* to a free function pointer
         template <typename resultT, typename... argTs>
         struct function_traits<resultT(*&)(argTs...), void> {
@@ -37,6 +36,7 @@ namespace madness {
           using result_type = resultT;
         };
 
+        /// Function trait specialization for a callable (can be a function, a (generic) lambda, etc.)
         template <typename fnT, typename... argTs>
         struct function_traits<fnT(argTs...), typename std::enable_if_t<is_type<std::result_of_t<fnT(argTs...)>>::value>> {
             static const bool value = true;
