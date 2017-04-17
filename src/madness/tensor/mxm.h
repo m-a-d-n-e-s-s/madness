@@ -59,8 +59,8 @@ namespace madness {
     /// Matrix \c += Matrix * matrix reference implementation (slow but correct)
     template <typename T, typename Q, typename S>
     static inline void mxm_reference(long dimi, long dimj, long dimk,
-                                     T* restrict c, const Q* restrict a,
-                                     const S* restrict b) {
+                                     T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
+                                     const S* MADNESS_RESTRICT b) {
         /*
           c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
           
@@ -82,8 +82,8 @@ namespace madness {
     template <typename T, typename Q, typename S>
     static inline
     void mTxm_reference(long dimi, long dimj, long dimk,
-                        T* restrict c, const Q* restrict a,
-                        const S* restrict b) {
+                        T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
+                        const S* MADNESS_RESTRICT b) {
         /*
           c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
           
@@ -105,8 +105,8 @@ namespace madness {
     /// Matrix \c += Matrix * matrix transpose ... reference implementation (slow but correct)
     template <typename T, typename Q, typename S>
     static inline void mxmT_reference (long dimi, long dimj, long dimk,
-                                       T* restrict c, const Q* restrict a,
-                                       const S* restrict b) {
+                                       T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
+                                       const S* MADNESS_RESTRICT b) {
         /*
           c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
           
@@ -130,8 +130,8 @@ namespace madness {
     /// Matrix \c += Matrix transpose * matrix transpose reference implementation (slow but correct)
     template <typename T, typename Q, typename S>
     static inline void mTxmT_reference(long dimi, long dimj, long dimk,
-                                       T* restrict c, const Q* restrict a,
-                                       const S* restrict b) {
+                                       T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
+                                       const S* MADNESS_RESTRICT b) {
         /*
           c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
           
@@ -162,7 +162,7 @@ namespace madness {
     /// the default for backward compatibility.
     template <typename aT, typename bT, typename cT>
     void mTxmq_reference(long dimi, long dimj, long dimk,
-                         cT* restrict c, const aT* a, const bT* b, long ldb=-1) {
+                         cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb=-1) {
         if (ldb == -1) ldb=dimj;
         MADNESS_ASSERT(ldb>=dimj);
         //std::cout << "IN GENERIC mTxmq " << tensor_type_names[TensorTypeData<aT>::id] << " " << tensor_type_names[TensorTypeData<bT>::id] << " " << tensor_type_names[TensorTypeData<cT>::id] << "\n";
@@ -189,7 +189,7 @@ namespace madness {
     /// \endcode
     template <typename aT, typename bT, typename cT>
     void mxm(long dimi, long dimj, long dimk,
-              cT* restrict c, const aT* a, const bT* b) {
+              cT* MADNESS_RESTRICT c, const aT* a, const bT* b) {
         const cT one = 1.0;  // alpha in *gemm
         cblas::gemm(cblas::NoTrans,cblas::NoTrans,dimj,dimi,dimk,one,b,dimj,a,dimk,one,c,dimj);
     }
@@ -202,7 +202,7 @@ namespace madness {
     /// \endcode
     template <typename aT, typename bT, typename cT>
     void mTxm(long dimi, long dimj, long dimk,
-              cT* restrict c, const aT* a, const bT* b) {
+              cT* MADNESS_RESTRICT c, const aT* a, const bT* b) {
         const cT one = 1.0;  // alpha in *gemm
         cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,dimj,a,dimi,one,c,dimj);
     }
@@ -215,7 +215,7 @@ namespace madness {
     /// \endcode
     template <typename aT, typename bT, typename cT>
     void mxmT(long dimi, long dimj, long dimk,
-              cT* restrict c, const aT* a, const bT* b) {
+              cT* MADNESS_RESTRICT c, const aT* a, const bT* b) {
         const cT one = 1.0;  // alpha in *gemm
         cblas::gemm(cblas::Trans,cblas::NoTrans,dimj,dimi,dimk,one,b,dimk,a,dimk,one,c,dimj);
     }
@@ -228,7 +228,7 @@ namespace madness {
     /// \endcode
     template <typename aT, typename bT, typename cT>
     void mTxmT(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b) {
+               cT* MADNESS_RESTRICT c, const aT* a, const bT* b) {
         const cT one = 1.0;  // alpha in *gemm
         cblas::gemm(cblas::Trans,cblas::Trans,dimj,dimi,dimk,one,b,dimk,a,dimi,one,c,dimj);
     }
@@ -247,7 +247,7 @@ namespace madness {
     /// the default for backward compatibility.
     template <typename aT, typename bT, typename cT>
     void mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b, long ldb=-1) {
+               cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb=-1) {
         if (ldb == -1) ldb=dimj;
         MADNESS_ASSERT(ldb>=dimj);
 
@@ -267,36 +267,36 @@ namespace madness {
 
     template <typename T, typename Q, typename S>
     static inline void mxm(long dimi, long dimj, long dimk,
-                           T* restrict c, const Q* restrict a,
-                           const S* restrict b) {
+                           T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
+                           const S* MADNESS_RESTRICT b) {
         mxm_reference(dimi, dimj, dimk, c, a, b);
     }
     
     template <typename T, typename Q, typename S>
     static inline
     void mTxm(long dimi, long dimj, long dimk,
-              T* restrict c, const Q* restrict a,
-              const S* restrict b) {
+              T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
+              const S* MADNESS_RESTRICT b) {
         mTxm_reference(dimi, dimj, dimk, c, a, b);
     }
 
     template <typename T, typename Q, typename S>
     static inline void mxmT(long dimi, long dimj, long dimk,
-                            T* restrict c, const Q* restrict a,
-                            const S* restrict b) {
+                            T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
+                            const S* MADNESS_RESTRICT b) {
         mxmT_reference(dimi, dimj, dimk, c, a, b);
     }
     
     template <typename T, typename Q, typename S>
     static inline void mTxmT(long dimi, long dimj, long dimk,
-                             T* restrict c, const Q* restrict a,
-                             const S* restrict b) {
+                             T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
+                             const S* MADNESS_RESTRICT b) {
         mTxmT_reference(dimi, dimj, dimk, c, a, b);
     }
 
     template <typename aT, typename bT, typename cT>
     void mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b, long ldb=-1) {
+               cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb=-1) {
         mTxmq_reference(dimi, dimj, dimk, c, a, b, ldb);
     }
 
@@ -306,8 +306,8 @@ namespace madness {
     
     template <>
     inline void mTxm(long dimi, long dimj, long dimk,
-                     double* restrict c, const double* restrict a,
-                     const double* restrict b) {
+                     double* MADNESS_RESTRICT c, const double* MADNESS_RESTRICT a,
+                     const double* MADNESS_RESTRICT b) {
         /*
           c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)  <--- NOTE ACCUMULATION INTO C
           
@@ -353,8 +353,8 @@ namespace madness {
     
     template <>
     inline void mxmT(long dimi, long dimj, long dimk,
-                     double* restrict c,
-                     const double* restrict a, const double* restrict b) {
+                     double* MADNESS_RESTRICT c,
+                     const double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b) {
         /*
           c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
           
@@ -371,8 +371,8 @@ namespace madness {
         for (long i=0; i<dimi2; i+=2) {
             const double* ai0 = a+i*dimk;
             const double* ai1 = a+i*dimk+dimk;
-            double* restrict ci0 = c+i*dimj;
-            double* restrict ci1 = c+i*dimj+dimj;
+            double* MADNESS_RESTRICT ci0 = c+i*dimj;
+            double* MADNESS_RESTRICT ci1 = c+i*dimj+dimj;
             for (long j=0; j<dimj; ++j) {
                 double sum0 = 0;
                 double sum1 = 0;
@@ -387,7 +387,7 @@ namespace madness {
         }
         for (long i=dimi2; i<dimi; ++i) {
             const double* ai = a+i*dimk;
-            double* restrict ci = c+i*dimj;
+            double* MADNESS_RESTRICT ci = c+i*dimj;
             for (long j=0; j<dimj; ++j) {
                 double sum = 0;
                 const double* bj = b+j*dimk;
@@ -402,7 +402,7 @@ namespace madness {
     /// Matrix * matrix (hand unrolled version)
     template <>
     inline void mxm(long dimi, long dimj, long dimk,
-                    double* restrict c, const double* restrict a, const double* restrict b) {
+                    double* MADNESS_RESTRICT c, const double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b) {
         /*
           c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
           
@@ -441,7 +441,7 @@ namespace madness {
     /// Matrix transpose * matrix transpose (hand tiled and unrolled)
     template <>
     inline void mTxmT(long dimi, long dimj, long dimk,
-                      double* restrict csave, const double* restrict asave, const double* restrict b) {
+                      double* MADNESS_RESTRICT csave, const double* MADNESS_RESTRICT asave, const double* MADNESS_RESTRICT b) {
         /*
           c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
           
@@ -460,8 +460,8 @@ namespace madness {
             if (khi > dimk) khi = dimk;
             long nk = khi-klo;
             
-            const double *restrict a = asave;
-            double *restrict c = csave;
+            const double * MADNESS_RESTRICT a = asave;
+            double * MADNESS_RESTRICT c = csave;
             for (long i=0; i<dimi; ++i,c+=dimj,++a) {
                 const double* q = a;
                 for (long k=0; k<nk; ++k,q+=dimi) ai[k] = *q;
@@ -582,40 +582,40 @@ namespace madness {
             bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
         }
 #elif defined(HAVE_IBMBGP)
-    extern void bgpmTxmq(long ni, long nj, long nk, double* restrict c, 
+    extern void bgpmTxmq(long ni, long nj, long nk, double* MADNESS_RESTRICT c, 
                          const double* a, const double* b);
-    extern void bgpmTxmq(long ni, long nj, long nk, double_complex* restrict c, 
+    extern void bgpmTxmq(long ni, long nj, long nk, double_complex* MADNESS_RESTRICT c, 
                          const double_complex* a, const double_complex* b);
  
     template <>
-    inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
+    inline void mTxmq(long ni, long nj, long nk, double* MADNESS_RESTRICT c, const double* a, const double* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);
     }
 
     template <>
-    inline void mTxmq(long ni, long nj, long nk, double_complex* restrict c, const double_complex* a, const double_complex* b) {
+    inline void mTxmq(long ni, long nj, long nk, double_complex* MADNESS_RESTRICT c, const double_complex* a, const double_complex* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);
     }
 
 // #elif defined(X86_64) && !defined(DISABLE_SSE3)
 //     template <>
 //     void mTxmq(long dimi, long dimj, long dimk,
-//                double* restrict c, const double* a, const double* b);
+//                double* MADNESS_RESTRICT c, const double* a, const double* b);
 
 //     template <>
 //     void mTxmq(long dimi, long dimj, long dimk,
-//                double_complex* restrict c, const double_complex* a, const double_complex* b);
+//                double_complex* MADNESS_RESTRICT c, const double_complex* a, const double_complex* b);
 
 // #ifndef __INTEL_COMPILER
 //     template <>
 //     void mTxmq(long dimi, long dimj, long dimk,
-//                double_complex* restrict c, const double_complex* a, const double* b);
+//                double_complex* MADNESS_RESTRICT c, const double_complex* a, const double* b);
 // #endif
 
 // #elif defined(X86_32)
 //     template <>
 //     void mTxmq(long dimi, long dimj, long dimk,
-//                double* restrict c, const double* a, const double* b);
+//                double* MADNESS_RESTRICT c, const double* a, const double* b);
 #endif // HAVE_IBMBGQ
 
 #endif // HAVE_INTEL_MKL

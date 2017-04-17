@@ -36,6 +36,9 @@
 #include <madness/world/dependency_interface.h>
 #include <madness/world/thread.h>
 #include <madness/world/future.h>
+#include <madness/world/meta.h>
+
+#define MADNESS_TASKQ_VARIADICS 1
 
 namespace madness {
 
@@ -165,14 +168,19 @@ namespace madness {
         };
 
 
-        /// A wrapper object for holding task function objects
+        /// A wrapper object for holding task function argument objects
         template <typename Arg>
         class ArgHolder : private NO_DEFAULTS{
         private:
             Arg arg_;
         public:
 
-            ArgHolder(const Arg& arg) : arg_(arg) { }
+            template <typename Arg_ = Arg,
+            typename = std::enable_if_t<
+              !std::is_same<std::decay_t<Arg_>,
+                            archive::BufferInputArchive>::value
+            >>
+            ArgHolder(Arg_&& arg) : arg_(arg) { }
 
             ArgHolder(const archive::BufferInputArchive& input_arch) :
                 arg_()
@@ -180,9 +188,15 @@ namespace madness {
                 input_arch & arg_;
             }
 
-            operator Arg&() { return arg_; }
+            operator Arg&() & { return arg_; }
+            operator const Arg&() const& { return arg_; }
+            explicit operator Arg&&() && { return std::move(arg_); }
         }; // class ArgHolder
 
+        template <typename T>
+        struct is_arg_holder : public std::false_type {};
+        template <typename T>
+        struct is_arg_holder<ArgHolder<T>> : public std::true_type {};
 
         template <typename T>
         struct task_arg {
@@ -219,6 +233,56 @@ namespace madness {
         /// unused arguments.
         typedef Future<void> voidT;
 
+        // arg_holder::decay converts an argument holder to the corresponding argument (reference)
+        namespace arg_holder {
+
+        // specialization for ArgHolder<>&
+        template <typename T>
+        T& decay(ArgHolder<T>& arg_holder) {
+          return arg_holder;
+        }
+
+        // specialization for const ArgHolder<>&
+        template <typename T>
+        const T& decay(const ArgHolder<T>& arg_holder) {
+          return arg_holder;
+        }
+
+        // specialization for ArgHolder<>&&
+        template <typename T>
+        T&& decay(ArgHolder<T>&& arg_holder) {
+          return static_cast<T&&>(arg_holder);
+        }
+
+
+        // specialization for Future<>&
+        template <typename T>
+        T& decay(Future<T>& arg_holder) {
+          return arg_holder;
+        }
+
+        // specialization for const Future<>&
+        template <typename T>
+        const T& decay(const Future<T>& arg_holder) {
+          return arg_holder;
+        }
+
+        // specialization for Future<>&&
+        template <typename T>
+        T&& decay(Future<T>&& arg_holder) {
+          return static_cast<T&&>(arg_holder);
+        }
+
+        // specialization for non-Future non-ArgHolder argument
+        template <typename T>
+        auto decay(T&& arg_holder) -> typename std::enable_if<
+        !is_future<T>::value && !is_arg_holder<T>::value, decltype(arg_holder)>::type{
+          return std::forward<T>(arg_holder);
+        }
+
+        }  // namespace arg_holder
+
+        using arg_holder::decay;
 
         // These functions are used to differentiate the task function calls
         // based on the number of arguments and return type.
@@ -238,28 +302,28 @@ namespace madness {
         run_function(Future<void>& result, fnT fn, a1T& a1,
                 const voidT&, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
-        { fn(a1); result.set(); }
+        { fn(decay(a1)); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T>
         inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 const voidT&, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&)
-        { fn(a1, a2); result.set(); }
+        { fn(decay(a1), decay(a2)); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T>
         inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, const voidT&, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&)
-        { fn(a1, a2, a3); result.set(); }
+        { fn(decay(a1), decay(a2), decay(a3)); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
         inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&)
-        { fn(a1, a2, a3, a4); result.set(); }
+        { fn(decay(a1), decay(a2), decay(a3), decay(a4)); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T>
@@ -267,7 +331,7 @@ namespace madness {
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, const voidT&, const voidT&,
                 const voidT&, const voidT&)
-        { fn(a1, a2, a3, a4, a5); result.set(); }
+        { fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5)); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T>
@@ -275,7 +339,7 @@ namespace madness {
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, a6T& a6, const voidT&, const voidT&,
                 const voidT&)
-        { fn(a1, a2, a3, a4, a5, a6); result.set(); }
+        { fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5), decay(a6)); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T>
@@ -283,21 +347,21 @@ namespace madness {
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, const voidT&,
                 const voidT&)
-        { fn(a1, a2, a3, a4, a5, a6, a7); result.set(); }
+        { fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5), decay(a6), decay(a7)); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T>
         inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, const voidT&)
-        { fn(a1, a2, a3, a4, a5, a6, a7, a8); result.set(); }
+        { fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5), decay(a6), decay(a7), decay(a8)); result.set(); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
         inline typename std::enable_if<std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
                 a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, a9T& a9)
-        { fn(a1, a2, a3, a4, a5, a6, a7, a8, a9); result.set(); }
+        { fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5), decay(a6), decay(a7), decay(a8), decay(a9)); result.set(); }
 
         template <typename fnT>
         inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
@@ -311,28 +375,28 @@ namespace madness {
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&, const voidT&)
-        { result.set(fn(a1)); }
+        { result.set(fn(decay(a1))); }
 
         template <typename fnT, typename a1T, typename a2T>
         inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, const voidT&, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
-        { result.set(fn(a1, a2)); }
+        { result.set(fn(decay(a1), decay(a2))); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T>
         inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, const voidT&, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
-        { result.set(fn(a1, a2, a3)); }
+        { result.set(fn(decay(a1), decay(a2), decay(a3))); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
         inline typename std::enable_if<!std::is_void<typename detail::result_of<fnT>::type>::value >::type
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, const voidT&,
                 const voidT&, const voidT&, const voidT&, const voidT&)
-        { result.set(fn(a1, a2, a3, a4)); }
+        { result.set(fn(decay(a1), decay(a2), decay(a3), decay(a4))); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T>
@@ -340,7 +404,7 @@ namespace madness {
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, const voidT&,
                 const voidT&, const voidT&, const voidT&)
-        { result.set(fn(a1, a2, a3, a4, a5)); }
+        { result.set(fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5))); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T>
@@ -348,7 +412,7 @@ namespace madness {
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
                 const voidT&, const voidT&, const voidT&)
-        { result.set(fn(a1, a2, a3, a4, a5, a6)); }
+        { result.set(fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5), decay(a6))); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T>
@@ -356,7 +420,7 @@ namespace madness {
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
                 a7T& a7, const voidT&, const voidT&)
-        { result.set(fn(a1, a2, a3, a4, a5, a6, a7)); }
+        { result.set(fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5), decay(a6), decay(a7))); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T>
@@ -364,7 +428,7 @@ namespace madness {
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
                 a7T& a7, a8T& a8, const voidT&)
-        { result.set(fn(a1, a2, a3, a4, a5, a6, a7, a8)); }
+        { result.set(fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5), decay(a6), decay(a7), decay(a8))); }
 
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
@@ -372,7 +436,7 @@ namespace madness {
         run_function(typename task_result_type<fnT>::futureT& result,
                 fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
                 a7T& a7, a8T& a8, a9T& a9)
-        { result.set(fn(a1, a2, a3, a4, a5, a6, a7, a8, a9)); }
+        { result.set(fn(decay(a1), decay(a2), decay(a3), decay(a4), decay(a5), decay(a6), decay(a7), decay(a8), decay(a9))); }
 
     } // namespace detail
 
@@ -489,6 +553,132 @@ namespace madness {
 
     public:
 
+#if MADNESS_TASKQ_VARIADICS
+
+        // what this look like ... but need extra MP functionality
+//        template <typename ... argsT>
+//        TaskFn(const futureT& result, functionT func, argsT&& ... args) :
+//            TaskInterface(attr), result_(result), func_(func), arg1_(), arg2_(),
+//            arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+//            {
+//          MADNESS_ASSERT(arity == 0u);
+//          check_dependencies();
+//            }
+        TaskFn(const futureT& result, functionT func, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(), arg2_(),
+            arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 0u);
+            check_dependencies();
+        }
+
+        template <typename a1T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1,
+                const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(),
+            arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 1u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 2u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 3u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 4u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 5u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
+                typename a6T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, a6T&& a6,
+                const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(std::forward<a6T>(a6)), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 6u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
+                typename a6T, typename a7T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, a6T&& a6,
+                a7T&& a7, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(std::forward<a6T>(a6)), arg7_(std::forward<a7T>(a7)), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 7u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
+                typename a6T, typename a7T, typename a8T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, a6T&& a6, a7T&& a7,
+                a8T&& a8, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(std::forward<a6T>(a6)), arg7_(std::forward<a7T>(a7)), arg8_(std::forward<a8T>(a8)), arg9_()
+        {
+            MADNESS_ASSERT(arity == 8u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
+                typename a6T, typename a7T, typename a8T, typename a9T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, a6T&& a6,
+                a7T&& a7, a8T&& a8, a9T&& a9, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(std::forward<a6T>(a6)), arg7_(std::forward<a7T>(a7)), arg8_(std::forward<a8T>(a8)), arg9_(std::forward<a9T>(a9))
+        {
+            MADNESS_ASSERT(arity == 9u);
+            check_dependencies();
+        }
+
+        TaskFn(const futureT& result, functionT func, const TaskAttributes& attr,
+                archive::BufferInputArchive& input_arch) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(input_arch),
+            arg2_(input_arch), arg3_(input_arch), arg4_(input_arch), arg5_(input_arch),
+            arg6_(input_arch), arg7_(input_arch), arg8_(input_arch), arg9_(input_arch)
+        {
+            // No need to check dependencies since the arguments are from an archive
+        }
+#else  // MADNESS_TASKQ_VARIADICS
         TaskFn(const futureT& result, functionT func, const TaskAttributes& attr) :
             TaskInterface(attr), result_(result), func_(func), arg1_(), arg2_(),
             arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
@@ -603,6 +793,7 @@ namespace madness {
         {
             // No need to check dependencies since the arguments are from an archive
         }
+#endif  // MADNESS_TASKQ_VARIADICS
 
         virtual ~TaskFn() { }
 

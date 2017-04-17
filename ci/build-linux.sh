@@ -9,11 +9,10 @@ case "$MACHINE" in
     x86_64)
         # assume all Intel hardware supports AVX,
         # which was introduced in SNB (2011Q1)
-        export CXXFLAGS="-std=c++11"
         ;;
     *)
         # probably not Intel, hence no SSE or AVX
-        export CXXFLAGS="-std=c++11 -mno-avx"
+        export CXXFLAGS="-mno-avx"
         export CPPFLAGS=-DDISABLE_SSE3
         ;;
 esac

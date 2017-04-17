@@ -105,7 +105,7 @@ namespace madness {
       if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
     }
     
-    extern void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc);
+    extern void drot(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c, long inc);
     
     
     /// Given overlap matrix, return rotation with 3rd order error to orthonormalize the vectors
@@ -124,7 +124,7 @@ namespace madness {
     
     
     
-    void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
+    void drot3(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c, long inc) {
         if (inc == 1) {
             n*=3;
             for (long i=0; i<n; i+=3) {

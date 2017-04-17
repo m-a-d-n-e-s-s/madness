@@ -227,8 +227,8 @@ namespace madness {
             for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
             long dimi = size/dimk;
 
-            R* restrict w1=work1.ptr();
-            R* restrict w2=work2.ptr();
+            R* MADNESS_RESTRICT w1=work1.ptr();
+            R* MADNESS_RESTRICT w2=work2.ptr();
 
 #ifdef HAVE_IBMBGQ
             mTxmq_padding(dimi, trans[0].r, dimk, dimk, w1, f.ptr(), trans[0].U);
@@ -314,8 +314,8 @@ namespace madness {
             for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
             long dimi = size/dimk;
 
-            R* restrict w1=work1.ptr();
-            R* restrict w2=work2.ptr();
+            R* MADNESS_RESTRICT w1=work1.ptr();
+            R* MADNESS_RESTRICT w2=work2.ptr();
 
             mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), trans[0].U, dimk);
             size = trans[0].r * size / dimk;
