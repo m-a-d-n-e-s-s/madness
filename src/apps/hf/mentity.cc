@@ -328,7 +328,7 @@ void MolecularEntity::read_file(const std::string& filename, bool fractional = f
             ss >> xx >> yy >> zz;
             if (fractional)
             {
-              // If using fractional coordinates, the restrict x, y, and z to be between 0.0 and 1.0
+              // If using fractional coordinates, the constrain x, y, and z to be between 0.0 and 1.0
               MADNESS_ASSERT(xx <= 1.0);
               MADNESS_ASSERT(yy <= 1.0);
               MADNESS_ASSERT(zz <= 1.0);

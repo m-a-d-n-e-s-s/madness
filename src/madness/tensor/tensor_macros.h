@@ -262,7 +262,7 @@ for (long _i=0; _i<__xd0; ++_i) { \
 #define UNARYITERATOR1(X,x,exp) do { \
         long __xd0=x.dim(0);         \
         long __xs0=x.stride(0);      \
-X* restrict _p0=x.ptr(); \
+X* MADNESS_RESTRICT _p0=x.ptr(); \
 for (long _i=0; _i<__xd0; ++_i,_p0+=__xs0) { \
   exp; \
 } } while(0)
@@ -270,9 +270,9 @@ for (long _i=0; _i<__xd0; ++_i,_p0+=__xs0) { \
 #define UNARYITERATOR2(X,x,exp) do { \
         long __xd0=x.dim(0), __xd1=x.dim(1);   \
         long __xs0=x.stride(0), __xs1=x.stride(1);      \
-X* restrict __xp0=x.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
-  X* restrict _p0=__xp0; \
+  X* MADNESS_RESTRICT _p0=__xp0; \
   for (long _j=0; _j<__xd1; ++_j, _p0+=__xs1) { \
     exp; \
   } } } while(0)
@@ -280,11 +280,11 @@ for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
 #define UNARYITERATOR3(X,x,exp) do { \
         long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2);        \
         long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2);   \
-X* restrict __xp0=x.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
-  X* restrict __xp1=__xp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1) { \
-    X* restrict _p0=__xp1; \
+    X* MADNESS_RESTRICT _p0=__xp1; \
     for (long _k=0; _k<__xd2; ++_k, _p0+=__xs2) { \
        exp; \
     } } } } while(0)
@@ -294,13 +294,13 @@ for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
             __xd3=x.dim(3);                                         \
         long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),   \
             __xs3=x.stride(3);                                          \
-X* restrict __xp0=x.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
-  X* restrict __xp1=__xp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1) { \
-    X* restrict __xp2=__xp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2) { \
-       X* restrict _p0=__xp2; \
+       X* MADNESS_RESTRICT _p0=__xp2; \
        for (long _l=0; _l<__xd3; ++_l, _p0+=__xs3) { \
           exp; \
        } } } } } while(0)
@@ -310,15 +310,15 @@ for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
             __xd3=x.dim(3), __xd4=x.dim(4);                         \
         long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),   \
             __xs3=x.stride(3), __xs4=x.stride(4);                       \
-X* restrict __xp0=x.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
-  X* restrict __xp1=__xp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1) { \
-    X* restrict __xp2=__xp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2) { \
-       X* restrict __xp3=__xp2; \
+       X* MADNESS_RESTRICT __xp3=__xp2; \
        for (long _l=0; _l<__xd3; ++_l, __xp3+=__xs3) { \
-          X* restrict _p0 =__xp3; \
+          X* MADNESS_RESTRICT _p0 =__xp3; \
           for (long _m=0; _m<__xd4; ++_m, _p0+=__xs4) { \
             exp; \
           } } } } } } while(0)
@@ -328,17 +328,17 @@ for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
             __xd3=x.dim(3), __xd4=x.dim(4), __xd5=x.dim(5);         \
         long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),   \
             __xs3=x.stride(3), __xs4=x.stride(4), __xs5=x.stride(5);    \
-X* restrict __xp0=x.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; ++_i,__xp0+=__xs0) { \
-  X* restrict __xp1=__xp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1) { \
-    X* restrict __xp2=__xp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2) { \
-       X* restrict __xp3=__xp2; \
+       X* MADNESS_RESTRICT __xp3=__xp2; \
        for (long _l=0; _l<__xd3; ++_l, __xp3+=__xs3) { \
-          X* restrict __xp4=__xp3; \
+          X* MADNESS_RESTRICT __xp4=__xp3; \
           for (long _m=0; _m<__xd4; ++_m, __xp4+=__xs4) { \
-            X* restrict _p0=__xp4; \
+            X* MADNESS_RESTRICT _p0=__xp4; \
             for (long _n=0; _n<__xd5; ++_n, _p0+=__xs5) { \
               exp; \
           } } } } } } } while(0)
@@ -360,8 +360,8 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
  long __xd0=x.dim(0);                                                   \
  long __xs0=x.stride(0);                                                \
  long __ys0=y.stride(0);                                                \
-X* restrict _p0=x.ptr(); \
-Y* restrict _p1=y.ptr(); \
+X* MADNESS_RESTRICT _p0=x.ptr(); \
+Y* MADNESS_RESTRICT _p1=y.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, _p0+=__xs0, _p1+=__ys0) { \
    exp; \
 } } while(0)
@@ -371,11 +371,11 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
  long __xd0=x.dim(0), __xd1=x.dim(1);                                   \
  long __xs0=x.stride(0), __xs1=x.stride(1);                             \
  long __ys0=y.stride(0), __ys1=y.stride(1);                             \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* restrict _p0=__xp0; \
-  Y* restrict _p1=__yp0; \
+  X* MADNESS_RESTRICT _p0=__xp0; \
+  Y* MADNESS_RESTRICT _p1=__yp0; \
   for (long _j=0; _j<__xd1; ++_j, _p0+=__xs1, _p1+=__ys1) { \
      exp; \
   } } } while(0)
@@ -385,14 +385,14 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
  long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2);                   \
  long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2);          \
  long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2);          \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* restrict __xp1=__xp0; \
-  Y* restrict __yp1=__yp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
+  Y* MADNESS_RESTRICT __yp1=__yp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1, __yp1+=__ys1) { \
-    X* restrict _p0=__xp1; \
-    Y* restrict _p1=__yp1; \
+    X* MADNESS_RESTRICT _p0=__xp1; \
+    Y* MADNESS_RESTRICT _p1=__yp1; \
     for (long _k=0; _k<__xd2; ++_k, _p0+=__xs2, _p1+=__ys2) { \
        exp; \
     } } } } while(0)
@@ -405,17 +405,17 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
      __xs3=x.stride(3);                                                 \
  long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
      __ys3=y.stride(3);                                                 \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* restrict __xp1=__xp0; \
-  Y* restrict __yp1=__yp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
+  Y* MADNESS_RESTRICT __yp1=__yp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1, __yp1+=__ys1) { \
-    X* restrict __xp2=__xp1; \
-    Y* restrict __yp2=__yp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
+    Y* MADNESS_RESTRICT __yp2=__yp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2, __yp2+=__ys2) { \
-      X* restrict _p0=__xp2; \
-      Y* restrict _p1=__yp2; \
+      X* MADNESS_RESTRICT _p0=__xp2; \
+      Y* MADNESS_RESTRICT _p1=__yp2; \
       for (long _l=0; _l<__xd3; ++_l, _p0+=__xs3, _p1+=__ys3) { \
          exp; \
       } } } } } while(0)
@@ -428,20 +428,20 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
      __xs3=x.stride(3), __xs4=x.stride(4);                              \
  long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
      __ys3=y.stride(3), __ys4=y.stride(4);                              \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* restrict __xp1=__xp0; \
-  Y* restrict __yp1=__yp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
+  Y* MADNESS_RESTRICT __yp1=__yp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1, __yp1+=__ys1) { \
-    X* restrict __xp2=__xp1; \
-    Y* restrict __yp2=__yp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
+    Y* MADNESS_RESTRICT __yp2=__yp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2, __yp2+=__ys2) { \
-      X* restrict __xp3=__xp2; \
-      Y* restrict __yp3=__yp2; \
+      X* MADNESS_RESTRICT __xp3=__xp2; \
+      Y* MADNESS_RESTRICT __yp3=__yp2; \
       for (long _l=0; _l<__xd3; ++_l, __xp3+=__xs3, __yp3+=__ys3) { \
-        X* restrict _p0=__xp3; \
-        Y* restrict _p1=__yp3; \
+        X* MADNESS_RESTRICT _p0=__xp3; \
+        Y* MADNESS_RESTRICT _p1=__yp3; \
         for (long _m=0; _m<__xd4; ++_m, _p0+=__xs4, _p1+=__ys4) { \
            exp; \
         } } } } } } while(0)
@@ -454,23 +454,23 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
      __xs3=x.stride(3), __xs4=x.stride(4), __xs5=x.stride(5);           \
  long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
      __ys3=y.stride(3), __ys4=y.stride(4), __ys5=y.stride(5);           \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* restrict __xp1=__xp0; \
-  Y* restrict __yp1=__yp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
+  Y* MADNESS_RESTRICT __yp1=__yp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1, __yp1+=__ys1) { \
-    X* restrict __xp2=__xp1; \
-    Y* restrict __yp2=__yp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
+    Y* MADNESS_RESTRICT __yp2=__yp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2, __yp2+=__ys2) { \
-      X* restrict __xp3=__xp2; \
-      Y* restrict __yp3=__yp2; \
+      X* MADNESS_RESTRICT __xp3=__xp2; \
+      Y* MADNESS_RESTRICT __yp3=__yp2; \
       for (long _l=0; _l<__xd3; ++_l, __xp3+=__xs3, __yp3+=__ys3) { \
-        X* restrict __xp4=__xp3; \
-        Y* restrict __yp4=__yp3; \
+        X* MADNESS_RESTRICT __xp4=__xp3; \
+        Y* MADNESS_RESTRICT __yp4=__yp3; \
         for (long _m=0; _m<__xd4; ++_m, __xp4+=__xs4, __yp4+=__ys4) { \
-          X* restrict _p0=__xp4; \
-          Y* restrict _p1=__yp4; \
+          X* MADNESS_RESTRICT _p0=__xp4; \
+          Y* MADNESS_RESTRICT _p1=__yp4; \
           for (long _n=0; _n<__xd5; ++_n, _p0+=__xs5, _p1+=__ys5) { \
              exp; \
           } } } } } } } while(0)
@@ -495,9 +495,9 @@ TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
  long __xs0=x.stride(0);                                                \
  long __ys0=y.stride(0);                                                \
  long __zs0=z.stride(0);                                                \
-X* restrict _p0=x.ptr(); \
-Y* restrict _p1=y.ptr(); \
-Z* restrict _p2=z.ptr(); \
+X* MADNESS_RESTRICT _p0=x.ptr(); \
+Y* MADNESS_RESTRICT _p1=y.ptr(); \
+Z* MADNESS_RESTRICT _p2=z.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, _p0+=__xs0, _p1+=__ys0, _p2+=__zs0) { \
   exp; \
 } } while(0)
@@ -509,13 +509,13 @@ TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
  long __xs0=x.stride(0), __xs1=x.stride(1);                             \
  long __ys0=y.stride(0), __ys1=y.stride(1);                             \
  long __zs0=z.stride(0), __zs1=z.stride(1);                             \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
-Z* restrict __zp0=z.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
+Z* MADNESS_RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* restrict _p0=__xp0; \
-  Y* restrict _p1=__yp0; \
-  Z* restrict _p2=__zp0; \
+  X* MADNESS_RESTRICT _p0=__xp0; \
+  Y* MADNESS_RESTRICT _p1=__yp0; \
+  Z* MADNESS_RESTRICT _p2=__zp0; \
   for (long _j=0; _j<__xd1; ++_j, _p0+=__xs1, _p1+=__ys1, _p2+=__zs1) { \
     exp; \
   } } } while(0)
@@ -527,17 +527,17 @@ TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
  long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2);          \
  long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2);          \
  long __zs0=z.stride(0), __zs1=z.stride(1), __zs2=z.stride(2);          \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
-Z* restrict __zp0=z.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
+Z* MADNESS_RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* restrict __xp1=__xp0; \
-  Y* restrict __yp1=__yp0; \
-  Z* restrict __zp1=__zp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
+  Y* MADNESS_RESTRICT __yp1=__yp0; \
+  Z* MADNESS_RESTRICT __zp1=__zp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1, __yp1+=__ys1, __zp1+=__zs1) { \
-    X* restrict _p0=__xp1; \
-    Y* restrict _p1=__yp1; \
-    Z* restrict _p2=__zp1; \
+    X* MADNESS_RESTRICT _p0=__xp1; \
+    Y* MADNESS_RESTRICT _p1=__yp1; \
+    Z* MADNESS_RESTRICT _p2=__zp1; \
     for (long _k=0; _k<__xd2; ++_k, _p0+=__xs2, _p1+=__ys2, _p2+=__zs2) { \
       exp; \
     } } } } while(0)
@@ -553,21 +553,21 @@ TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
      __ys3=y.stride(3);                                                 \
  long __zs0=z.stride(0), __zs1=z.stride(1), __zs2=z.stride(2),          \
      __zs3=z.stride(3);                                                 \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
-Z* restrict __zp0=z.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
+Z* MADNESS_RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* restrict __xp1=__xp0; \
-  Y* restrict __yp1=__yp0; \
-  Z* restrict __zp1=__zp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
+  Y* MADNESS_RESTRICT __yp1=__yp0; \
+  Z* MADNESS_RESTRICT __zp1=__zp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1, __yp1+=__ys1, __zp1+=__zs1) { \
-    X* restrict __xp2=__xp1; \
-    Y* restrict __yp2=__yp1; \
-    Z* restrict __zp2=__zp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
+    Y* MADNESS_RESTRICT __yp2=__yp1; \
+    Z* MADNESS_RESTRICT __zp2=__zp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2, __yp2+=__ys2, __zp2+=__zs2) { \
-      X* restrict _p0=__xp2; \
-      Y* restrict _p1=__yp2; \
-      Z* restrict _p2=__zp2; \
+      X* MADNESS_RESTRICT _p0=__xp2; \
+      Y* MADNESS_RESTRICT _p1=__yp2; \
+      Z* MADNESS_RESTRICT _p2=__zp2; \
       for (long _l=0; _l<__xd3; ++_l, _p0+=__xs3, _p1+=__ys3, _p2+=__zs3) { \
         exp; \
       } } } } } while(0)
@@ -583,25 +583,25 @@ TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
      __ys3=y.stride(3), __ys4=y.stride(4);                              \
  long __zs0=z.stride(0), __zs1=z.stride(1), __zs2=z.stride(2),          \
      __zs3=z.stride(3), __zs4=z.stride(4);                              \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
-Z* restrict __zp0=z.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
+Z* MADNESS_RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* restrict __xp1=__xp0; \
-  Y* restrict __yp1=__yp0; \
-  Z* restrict __zp1=__zp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
+  Y* MADNESS_RESTRICT __yp1=__yp0; \
+  Z* MADNESS_RESTRICT __zp1=__zp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1, __yp1+=__ys1, __zp1+=__zs1) { \
-    X* restrict __xp2=__xp1; \
-    Y* restrict __yp2=__yp1; \
-    Z* restrict __zp2=__zp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
+    Y* MADNESS_RESTRICT __yp2=__yp1; \
+    Z* MADNESS_RESTRICT __zp2=__zp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2, __yp2+=__ys2, __zp2+=__zs2) { \
-      X* restrict __xp3=__xp2; \
-      Y* restrict __yp3=__yp2; \
-      Z* restrict __zp3=__zp2; \
+      X* MADNESS_RESTRICT __xp3=__xp2; \
+      Y* MADNESS_RESTRICT __yp3=__yp2; \
+      Z* MADNESS_RESTRICT __zp3=__zp2; \
       for (long _l=0; _l<__xd3; ++_l, __xp3+=__xs3, __yp3+=__ys3, __zp3+=__zs3) { \
-        X* restrict _p0=__xp3; \
-        Y* restrict _p1=__yp3; \
-        Z* restrict _p2=__zp3; \
+        X* MADNESS_RESTRICT _p0=__xp3; \
+        Y* MADNESS_RESTRICT _p1=__yp3; \
+        Z* MADNESS_RESTRICT _p2=__zp3; \
         for (long _m=0; _m<__xd4; ++_m, _p0+=__xs4, _p1+=__ys4, _p2+=__zs4) { \
           exp; \
         } } } } } } while(0)
@@ -617,29 +617,29 @@ TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
      __ys3=y.stride(3), __ys4=y.stride(4), __ys5=y.stride(5);           \
  long __zs0=z.stride(0), __zs1=z.stride(1), __zs2=z.stride(2),          \
      __zs3=z.stride(3), __zs4=z.stride(4), __zs5=z.stride(5);           \
-X* restrict __xp0=x.ptr(); \
-Y* restrict __yp0=y.ptr(); \
-Z* restrict __zp0=z.ptr(); \
+X* MADNESS_RESTRICT __xp0=x.ptr(); \
+Y* MADNESS_RESTRICT __yp0=y.ptr(); \
+Z* MADNESS_RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* restrict __xp1=__xp0; \
-  Y* restrict __yp1=__yp0; \
-  Z* restrict __zp1=__zp0; \
+  X* MADNESS_RESTRICT __xp1=__xp0; \
+  Y* MADNESS_RESTRICT __yp1=__yp0; \
+  Z* MADNESS_RESTRICT __zp1=__zp0; \
   for (long _j=0; _j<__xd1; ++_j, __xp1+=__xs1, __yp1+=__ys1, __zp1+=__zs1) { \
-    X* restrict __xp2=__xp1; \
-    Y* restrict __yp2=__yp1; \
-    Z* restrict __zp2=__zp1; \
+    X* MADNESS_RESTRICT __xp2=__xp1; \
+    Y* MADNESS_RESTRICT __yp2=__yp1; \
+    Z* MADNESS_RESTRICT __zp2=__zp1; \
     for (long _k=0; _k<__xd2; ++_k, __xp2+=__xs2, __yp2+=__ys2, __zp2+=__zs2) { \
-      X* restrict __xp3=__xp2; \
-      Y* restrict __yp3=__yp2; \
-      Z* restrict __zp3=__zp2; \
+      X* MADNESS_RESTRICT __xp3=__xp2; \
+      Y* MADNESS_RESTRICT __yp3=__yp2; \
+      Z* MADNESS_RESTRICT __zp3=__zp2; \
       for (long _l=0; _l<__xd3; ++_l, __xp3+=__xs3, __yp3+=__ys3, __zp3+=__zs3) { \
-        X* restrict __xp4=__xp3; \
-        Y* restrict __yp4=__yp3; \
-        Z* restrict __zp4=__zp3; \
+        X* MADNESS_RESTRICT __xp4=__xp3; \
+        Y* MADNESS_RESTRICT __yp4=__yp3; \
+        Z* MADNESS_RESTRICT __zp4=__zp3; \
         for (long _m=0; _m<__xd4; ++_m, __xp4+=__xs4, __yp4+=__ys4, __zp4+=__zs4) { \
-          X* restrict _p0=__xp4; \
-          Y* restrict _p1=__yp4; \
-          Z* restrict _p2=__zp4; \
+          X* MADNESS_RESTRICT _p0=__xp4; \
+          Y* MADNESS_RESTRICT _p1=__yp4; \
+          Z* MADNESS_RESTRICT _p2=__zp4; \
           for (long _n=0; _n<__xd5; ++_n, _p0+=__xs5, _p1+=__ys5, _p2+=__zs5) { \
             exp; \
           } } } } } } } while(0)
@@ -657,13 +657,13 @@ for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 
 #define UNARY_OPTIMIZED_ITERATOR(X,x,exp) do { \
   if (x.iscontiguous()) { \
-    X* restrict _p0 = x.ptr(); \
+    X* MADNESS_RESTRICT _p0 = x.ptr(); \
     for (long _j=0; _j<x.size(); ++_j,++_p0) {exp;} \
   } \
   else { \
     for (TensorIterator<REMCONST(X)> iter=x.unary_iterator(1); iter._p0; ++iter) { \
       long _dimj = iter.dimj; \
-      X* restrict _p0 = iter._p0; \
+      X* MADNESS_RESTRICT _p0 = iter._p0; \
       long _s0 = iter._s0; \
       for (long _j=0; _j<_dimj; ++_j, _p0+=_s0) { \
         exp; \
@@ -678,7 +678,7 @@ for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 #define UNARY_UNOPTIMIZED_ITERATOR(X,x,exp) do { \
     for (TensorIterator<REMCONST(X)> iter=x.unary_iterator(1,false,false); iter._p0; ++iter) { \
     long _dimj = iter.dimj; \
-    X* restrict _p0 = iter._p0; \
+    X* MADNESS_RESTRICT _p0 = iter._p0; \
     long _s0 = iter._s0; \
     for (long _j=0; _j<_dimj; ++_j, _p0+=_s0) { \
       exp; \
@@ -691,7 +691,7 @@ for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 #define UNARY_UNOPTIMIZED_ITERATOR_NESTED(X,x,exp) do { \
     for (TensorIterator<REMCONST(X)> iter2=x.unary_iterator(1,false,false); iter2._p0; ++iter2) { \
     long _dimj2 = iter2.dimj; \
-    X* restrict _q0 = iter2._p0; \
+    X* MADNESS_RESTRICT _q0 = iter2._p0; \
     long _s20 = iter2._s0; \
     for (long _j2=0; _j2<_dimj2; ++_j2, _q0+=_s20) { \
       exp; \
@@ -700,15 +700,15 @@ for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 
 #define BINARY_OPTIMIZED_ITERATOR(X,x,Y,y,exp) do { \
   if (x.iscontiguous() && y.iscontiguous() && x.size()==y.size()) { \
-    X* restrict _p0 = x.ptr(); \
-    Y* restrict _p1 = y.ptr(); \
+    X* MADNESS_RESTRICT _p0 = x.ptr(); \
+    Y* MADNESS_RESTRICT _p1 = y.ptr(); \
     for (long _j=0; _j<x.size(); ++_j,++_p0,++_p1) {exp;} \
   } \
   else { \
     for (TensorIterator<REMCONST(X),REMCONST(Y)> iter=x.binary_iterator(y,1); iter._p0; ++iter) { \
         long _dimj = iter.dimj; \
-        X* restrict _p0 = iter._p0; \
-        Y* restrict _p1 = iter._p1; \
+        X* MADNESS_RESTRICT _p0 = iter._p0; \
+        Y* MADNESS_RESTRICT _p1 = iter._p1; \
         long _s0 = iter._s0; \
         long _s1 = iter._s1; \
         for (long _j=0; _j<_dimj; ++_j, _p0+=_s0, _p1+=_s1) { \
@@ -718,17 +718,17 @@ for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 
 #define TERNARY_OPTIMIZED_ITERATOR(X,x,Y,y,Z,z,exp) do { \
   if (x.iscontiguous() && y.iscontiguous() && z.iscontiguous() && x.size()==y.size() && x.size()==z.size()) { \
-    X* restrict _p0 = x.ptr(); \
-    Y* restrict _p1 = y.ptr(); \
-    Z* restrict _p2 = z.ptr(); \
+    X* MADNESS_RESTRICT _p0 = x.ptr(); \
+    Y* MADNESS_RESTRICT _p1 = y.ptr(); \
+    Z* MADNESS_RESTRICT _p2 = z.ptr(); \
     for (long _j=0; _j<x.size(); ++_j,++_p0,++_p1,++_p2) {exp;} \
   } \
   else { \
     for (TensorIterator<REMCONST(X),REMCONST(Y),REMCONST(Z)> iter=x.ternary_iterator(y,z,1); iter._p0; ++iter) { \
         long _dimj = iter.dimj; \
-        X* restrict _p0 = iter._p0; \
-        Y* restrict _p1 = iter._p1; \
-        Z* restrict _p2 = iter._p2; \
+        X* MADNESS_RESTRICT _p0 = iter._p0; \
+        Y* MADNESS_RESTRICT _p1 = iter._p1; \
+        Z* MADNESS_RESTRICT _p2 = iter._p2; \
         long _s0 = iter._s0; \
         long _s1 = iter._s1; \
         long _s2 = iter._s2; \

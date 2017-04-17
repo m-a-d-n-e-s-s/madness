@@ -328,7 +328,7 @@ namespace madness {
         template <class U> friend class SliceTensor;
 
     protected:
-        T* restrict _p;
+        T* MADNESS_RESTRICT _p;
         TENSOR_SHARED_PTR <T> _shptr;
 
         void allocate(long nd, const long d[], bool dozero) {
@@ -1790,8 +1790,8 @@ namespace madness {
         /// Inplace generalized saxpy ... this = this*alpha + other*beta
         Tensor<T>& gaxpy(T alpha, const Tensor<T>& t, T beta) {
             if (iscontiguous() && t.iscontiguous()) {
-                T* restrict a = ptr();
-                const T* restrict b = t.ptr();
+                T* MADNESS_RESTRICT a = ptr();
+                const T* MADNESS_RESTRICT b = t.ptr();
                 if (alpha == T(1.0)) {
                     for (long i=0; i<_size; ++i) a[i] += b[i]*beta;
                 }
@@ -2300,11 +2300,11 @@ namespace madness {
 
         for (TensorIterator<T> iter0=left.unary_iterator(1,false,false,k0);
                 iter0._p0; ++iter0) {
-            T* restrict xp0 = iter0._p0;
+            T* MADNESS_RESTRICT xp0 = iter0._p0;
             long s0 = iter0._s0;
             for (iter1.reset(); iter1._p0; ++iter1) {
-                T* restrict p0 = xp0;
-                Q* restrict p1 = iter1._p0;
+                T* MADNESS_RESTRICT p0 = xp0;
+                Q* MADNESS_RESTRICT p1 = iter1._p0;
                 long s1 = iter1._s0;
                 resultT sum = 0;
                 for (long j=0; j<dimj; ++j,p0+=s0,p1+=s1) {

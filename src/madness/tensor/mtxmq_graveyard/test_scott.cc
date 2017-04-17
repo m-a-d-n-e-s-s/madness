@@ -48,7 +48,7 @@
 using namespace madness;
 
 void mtxmGooberSaysHey(long dimi, long dimj, long dimk,
-                       std::complex<double>* restrict c,
+                       std::complex<double>* MADNESS_RESTRICT c,
                        const std::complex<double>* a, const double* b)
 {
   const long itile = 14;
@@ -198,7 +198,7 @@ void mtxmGooberSaysHey(long dimi, long dimj, long dimk,
 }
 
 void mTxmSCOTT(long dimi, long dimj, long dimk,
-           std::complex<double>* restrict c, const std::complex<double>* a, const double* b) {
+           std::complex<double>* MADNESS_RESTRICT c, const std::complex<double>* a, const double* b) {
 
     const long jtile = 14;
     for (long i=0; i<dimi; ++i) {

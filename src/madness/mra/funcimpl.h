@@ -4995,8 +4995,9 @@ namespace madness {
                                     const typename mapT::iterator lend,
                                     typename FunctionImpl<R,NDIM>::mapT* rmap_ptr,
                                     const bool sym,
-                                    Tensor< TENSOR_RESULT_TYPE(T,R) >& result,
+                                    Tensor< TENSOR_RESULT_TYPE(T,R) >* result_ptr,
                                     Mutex* mutex) {
+            Tensor< TENSOR_RESULT_TYPE(T,R) >& result = *result_ptr;
             Tensor< TENSOR_RESULT_TYPE(T,R) > r(result.dim(0),result.dim(1));
             for (typename mapT::iterator lit=lstart; lit!=lend; ++lit) {
                 const keyT& key = lit->first;
@@ -5073,7 +5074,7 @@ namespace madness {
             while (lstart != lmap.end()) {
                 typename mapT::iterator lend = lstart;
                 advance(lend,chunk);
-                left[0]->world.taskq.add(&FunctionImpl<T,NDIM>::do_inner_localX<R>, lstart, lend, rmap_ptr, sym, r, &mutex);
+                left[0]->world.taskq.add(&FunctionImpl<T,NDIM>::do_inner_localX<R>, lstart, lend, rmap_ptr, sym, &r, &mutex);
                 lstart = lend;
             }
             left[0]->world.taskq.fence();
