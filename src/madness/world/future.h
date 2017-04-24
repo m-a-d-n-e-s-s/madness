@@ -621,7 +621,7 @@ namespace madness {
         /// Same as \c get().
 
         /// \return The value.
-        inline operator T&() {
+        inline operator T&() & {
             return get();
         }
 
@@ -629,14 +629,14 @@ namespace madness {
         /// Same as `get() const`.
 
         /// \return The value.
-        inline operator const T&() const {
+        inline operator const T&() const& {
             return get();
         }
 
         /// Same as \c get().
 
         /// \return The value.
-        inline explicit operator T&&() {
+        inline explicit operator T&&() && {
             return std::move(get());
         }
 
