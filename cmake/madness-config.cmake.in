@@ -11,6 +11,8 @@
 #  MADNESS_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
 #  MADNESS_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
 #  MADNESS_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls 
+#  MADNESS_DISABLEPIE_LINKER_FLAG  - The flag to pass to the linker of executable targets using MADNESS
+#                                 via target_link_libraries
 #
 # Additionally MADNESS exports the following variables from its dependent packages:
 # = LAPACK =
@@ -121,6 +123,9 @@ endforeach()
 
 # Set the Fortran 77 integer size (4 or 8)
 set(MADNESS_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
+
+# Set the disable PIE linker flag, if any
+set(MADNESS_DISABLEPIE_LINKER_FLAG "@DISABLEPIE_LINKER_FLAG@")
 
 check_required_components(${MADNESS_TARGET_COMPONENT})
 

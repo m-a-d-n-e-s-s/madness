@@ -39,7 +39,7 @@
 using namespace madness;
 using namespace std;
 
-void drot(long n, double* restrict a, double* restrict b, double s, double c) {
+void drot(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c) {
     for (long i=0; i<n; ++i) {
         double aa = a[i]*c + b[i]*s;
         double bb = b[i]*c - a[i]*s;

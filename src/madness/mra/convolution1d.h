@@ -50,13 +50,13 @@
 
 namespace madness {
 
-    void aligned_add(long n, double* restrict a, const double* restrict b);
-    void aligned_sub(long n, double* restrict a, const double* restrict b);
-    void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b);
-    void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b);
+    void aligned_add(long n, double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b);
+    void aligned_sub(long n, double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b);
+    void aligned_add(long n, double_complex* MADNESS_RESTRICT a, const double_complex* MADNESS_RESTRICT b);
+    void aligned_sub(long n, double_complex* MADNESS_RESTRICT a, const double_complex* MADNESS_RESTRICT b);
 
     template <typename T>
-    static void copy_2d_patch(T* restrict out, long ldout, const T* restrict in, long ldin, long n, long m) {
+    static void copy_2d_patch(T* MADNESS_RESTRICT out, long ldout, const T* MADNESS_RESTRICT in, long ldin, long n, long m) {
         for (long i=0; i<n; ++i, out+=ldout, in+=ldin) {
             for (long j=0; j<m; ++j) {
                 out[j] = in[j];
@@ -66,7 +66,7 @@ namespace madness {
 
     /// a(n,m) --> b(m,n) ... optimized for smallish matrices
     template <typename T>
-    inline void fast_transpose(long n, long m, const T* a, T* restrict b) {
+    inline void fast_transpose(long n, long m, const T* a, T* MADNESS_RESTRICT b) {
         // n will always be k or 2k (k=wavelet order) and m will be anywhere
         // from 2^(NDIM-1) to (2k)^(NDIM-1).
 
@@ -88,7 +88,7 @@ namespace madness {
             const T* a1 = a0+m;
             const T* a2 = a1+m;
             const T* a3 = a2+m;
-            T* restrict bi = b+i;
+            T* MADNESS_RESTRICT bi = b+i;
             for (long j=0; j<m; ++j, bi+=n) {
                 T tmp0 = a0[j];
                 T tmp1 = a1[j];
@@ -112,7 +112,7 @@ namespace madness {
 
     // /// returns b
     // template <typename T>
-    // inline T* shrink(long n, long m, long r, const T* a, T* restrict b) {
+    // inline T* shrink(long n, long m, long r, const T* a, T* MADNESS_RESTRICT b) {
     //     T* result = b;
     //     if (r == 0) {
     //         ;

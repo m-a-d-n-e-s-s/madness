@@ -28,9 +28,13 @@ add_library(madness
 if(CXX11_COMPILE_FLAG)
   target_compile_options(madness INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
 endif()
-if(LINKER_HAS_DISABLEPIE_SUPPORT)
-  target_link_libraries(madness INTERFACE "${DISABLEPIE_LINKER_FLAG}")
-endif()
+# DISABLEPIE flag can break linking of dependent libraries (e.g. on Linux using gcc6)
+# instead for each dependent executable target T do:
+# target_link_libraries(T MADNESS_DISABLEPIE_LINKER_FLAGS)
+#
+#if(LINKER_HAS_DISABLEPIE_SUPPORT)
+#  target_link_libraries(madness INTERFACE "${DISABLEPIE_LINKER_FLAG}")
+#endif()
 if(GPERFTOOLS_FOUND)
   target_include_directories(madness PUBLIC ${GPERFTOOLS_INCLUDE_DIRS})
   target_link_libraries(madness PUBLIC ${GPERFTOOLS_LIBRARIES})

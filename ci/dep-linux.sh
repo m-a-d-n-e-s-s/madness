@@ -13,7 +13,6 @@ case "$CXX" in
     clang++)
         export CC=/usr/bin/clang-3.8
         export CXX=/usr/bin/clang++-3.8
-        export CXXFLAGS="-std=c++11"
         ;;
     *)
         echo "Unknown C++ compiler:"
