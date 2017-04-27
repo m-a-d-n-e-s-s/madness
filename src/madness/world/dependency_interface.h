@@ -38,11 +38,13 @@
 #ifndef MADNESS_WORLD_DEPENDENCY_INTERFACE_H__INCLUDED
 #define MADNESS_WORLD_DEPENDENCY_INTERFACE_H__INCLUDED
 
+#include <atomic>
+#include <typeinfo>
+
 #include <madness/world/stack.h>
 #include <madness/world/worldmutex.h>
 #include <madness/world/atomicint.h>
 #include <madness/world/world.h>
-#include <typeinfo>
 
 namespace madness {
 
@@ -60,9 +62,10 @@ namespace madness {
     /// Provides an interface for tracking dependencies.
     class DependencyInterface : public CallbackInterface, private Spinlock {
     private:
-        // Replaced atomic counter with critical section so that all
-        // data (callbacks and counter) were being consistently managed.
-        volatile int ndepend; ///< Counts dependencies.
+        // Dependency counter is still atomic to allow fast(er) probing from outside critical sections
+        // note that all *updates* to this counter will occur from critical sections
+        // thus this is for lock-free probing only
+        std::atomic<int> ndepend; ///< Counts dependencies.
 
         static const int MAXCALLBACKS = 8; ///< Maximum number of callbacks.
         using callbackT = Stack<CallbackInterface*,MAXCALLBACKS>; ///< \todo Brief description needed.
@@ -94,10 +97,12 @@ namespace madness {
         /// \return The number of unsatisfied dependencies.
         int ndep() const { return ndepend; }
 
-        /// Returns true if `ndepend == 0` (no unsatisfied dependencies).
+        /// Returns true if all dependencies are satisfied (i.e. `ndep() == 0`).
 
         /// \return True if there are no unsatisfied dependencies.
-        bool probe() const { return ndep() == 0; }
+        bool probe() const {
+          return ndep() == 0;
+        }
 
         /// Invoked by callbacks to notify of dependencies being satisfied.
         void notify() { dec(); }
@@ -121,7 +126,7 @@ namespace madness {
         /// Increment the number of dependencies.
         void inc() {
             ScopedMutex<Spinlock> obolus(this);
-            ndepend++;
+            ++ndepend;
         }
 
         /// Decrement the number of dependencies and invoke the callback if `ndepend==0`.
