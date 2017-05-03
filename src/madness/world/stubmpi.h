@@ -100,6 +100,10 @@ typedef int MPI_Op;
 #define MPI_MAXLOC  ((MPI_Op)0x5800000c)
 #define MPI_REPLACE ((MPI_Op)0x5800000d)
 
+/* function type given to MPI_Op_create */
+typedef void (MPI_User_function) ( void * a,
+               void * b, int * len, MPI_Datatype * );
+
 inline int MPI_Group_translate_ranks(MPI_Group, int, const int [],
                             MPI_Group, int ranks2[]) {
     ranks2[0] = 0;
@@ -233,5 +237,13 @@ inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
 inline int MPI_Comm_set_errhandler(MPI_Comm comm, MPI_Errhandler errhandler) {return MPI_SUCCESS;}
 
 inline double MPI_Wtime() { return madness::wall_time(); }
+
+inline int MPI_Op_create(MPI_User_function *user_fn, int commute, MPI_Op *op) {
+  return MPI_SUCCESS;
+}
+
+inline int MPI_Op_free(MPI_Op *op) {
+  return MPI_SUCCESS;
+}
 
 #endif

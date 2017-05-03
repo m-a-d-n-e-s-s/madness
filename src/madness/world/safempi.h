@@ -882,6 +882,19 @@ namespace SafeMPI {
         MPI_Buffer_detach(&buffer, &size);
         return size;
     }
+
+    /// Analogous to MPI_Op_create
+    inline MPI_Op Op_create(MPI_User_function *user_fn, int commute) {
+      MPI_Op result;
+      MADNESS_MPI_TEST(MPI_Op_create(user_fn, commute, &result));
+      return result;
+    }
+
+    /// Analogous to MPI_Op_free
+    inline void Op_free(MPI_Op op) {
+      MADNESS_MPI_TEST(MPI_Op_free(&op));
+    }
+
 } // namespace SafeMPI
 
 #endif // MADNESS_WORLD_SAFEMPI_H__INCLUDED
