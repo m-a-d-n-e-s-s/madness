@@ -92,6 +92,14 @@ public:
 
 };
 
+/// helper struct for computing the moments
+struct xyz {
+    int direction;
+    xyz(int direction) : direction(direction) {}
+    double operator()(const coord_3d& r) const {
+        return r[direction];
+    }
+};
 
 TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
 						    		  world(world),
@@ -193,6 +201,7 @@ void TDHF::solve_cis(std::vector<CC_vecfunction> &start)const{
 				<< std::fixed << std::setprecision(10) << final_vectors[i].omega
 				<< std::scientific << std::setprecision(2)  << ", " << final_vectors[i].current_error << "\n";
 	}
+	analyze(final_vectors);
 	if(world.rank()==0) std::cout << std::setfill('-') << std::setw(25) << "\n" << std::setfill(' ');
 	time.info();
 	// plot final vectors
@@ -1087,6 +1096,88 @@ std::vector<std::string> TDHF::make_predefined_guess_strings(const std::string w
 	}else if(what == "big_fock_9"){exop_strings = make_auto_polynom_guess(9);
 	}else std::cout << "Keyword " << what << " is not known" << std::endl;
 	return exop_strings;
+}
+
+
+/// compute the oscillator strength in the length representation
+
+/// the oscillator strength is given by
+/// \f[
+/// f = 2/3 * \omega |<x | \vec \mu | i >| ^2 * 2
+/// \f]
+/// where \f$ x \f$ is the excited state, and \f$ i \f$ is the ground state
+/// @param[in]  root    a converged root
+double TDHF::oscillator_strength_length(const CC_vecfunction& x) const {
+	Tensor<double> mu_if(3);
+	for (int idim=0; idim<3; idim++) {
+		real_function_3d ri = real_factory_3d(world).functor(xyz(idim));
+		vecfuncT amo_times_x=ri*get_active_mo_bra();
+		Tensor<double> a=inner(world,amo_times_x,x.get_vecfunction());
+		mu_if(idim)=a.sum();
+	}
+	const double f= 2.0/3.0 * x.omega * mu_if.sumsq() * 2.0;
+	return f;
+}
+
+/// compute the oscillator strength in the velocity representation
+
+/// the oscillator strength is given by
+/// \f[
+/// f = 2/(3 * \omega) |<x | \vec p | i >| ^2 * 2
+/// \f]
+/// where \f$ x \f$ is the excited state, and \f$ i \f$ is the ground state
+/// @param[in]  root    a converged root
+double TDHF::oscillator_strength_velocity(const CC_vecfunction& x) const {
+	Tensor<double> p_if(3);
+	// compute the derivatives of the MOs in all 3 directions
+	const vecfuncT Rroot=nemo.R*x.get_vecfunction();
+	const vecfuncT Rnemo=nemo.R*get_active_mo_ket();
+
+	for (int idim=0; idim<3; idim++) {
+		real_derivative_3d D = free_space_derivative<double,3>(world, idim);
+		vecfuncT Damo=apply(world,D,Rnemo);
+		Tensor<double> a=inner(world,Damo,Rroot);
+		p_if(idim)=a.sum();
+	}
+	const double f= 2.0/(3.0 * x.omega) * p_if.sumsq() * 2.0;
+	return f;
+}
+
+
+/// analyze the root: oscillator strength and contributions from occ
+void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
+
+	const size_t noct=get_active_mo_ket().size();
+
+	for (const CC_vecfunction& root : x) {
+
+		const vecfuncT Rroot=nemo.R*root.get_vecfunction(); // reintroduce the nuclear correlation factor
+		std::vector<double> norms=norm2s(world,Rroot);
+
+		// compute the oscillator strengths
+		double osl=this->oscillator_strength_length(root);
+		double osv=this->oscillator_strength_velocity(root);
+
+		std::cout << std::scientific << std::setprecision(10) << std::setw(20);
+		if (world.rank()==0) {
+			std::cout.width(10); std::cout.precision(8);
+			print("excitation energy for root ",root.excitation,": ",root.omega);
+			print("oscillator strength (length)    ", osl);
+			print("oscillator strength (velocity)  ", osv);
+
+			// print out the most important amplitudes
+			print("\n  dominant contributions ");
+
+			for (std::size_t p=0; p<noct; ++p) {
+				const double amplitude=norms[p]*norms[p];
+				if (amplitude > 0.1) {
+					std::cout << "  norm(x_"<<p<<") **2  ";
+					std::cout.width(10); std::cout.precision(6);
+					std::cout << amplitude << std::endl;
+				}
+			}
+		}
+	}
 }
 
 

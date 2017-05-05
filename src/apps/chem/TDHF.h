@@ -176,6 +176,32 @@ namespace madness {
       return result;
     }
 
+    /// compute the oscillator strength in the length representation
+
+    /// the oscillator strength is given by
+    /// \f[
+    /// f = 2/3 * \omega |<x | \vec \mu | i >| ^2 * 2
+    /// \f]
+    /// where \f$ x \f$ is the excited state, and \f$ i \f$ is the ground state
+    /// @param[in]  root    a converged root
+    double oscillator_strength_length(const CC_vecfunction& x) const;
+
+    /// compute the oscillator strength in the velocity representation
+
+    /// the oscillator strength is given by
+    /// \f[
+    /// f = 2/(3 * \omega) |<x | \vec p | i >| ^2 * 2
+    /// \f]
+    /// where \f$ x \f$ is the excited state, and \f$ i \f$ is the ground state
+    /// @param[in]  root    a converged root
+    double oscillator_strength_velocity(const CC_vecfunction& x) const;
+
+    /// analyze the root: oscillator strength and contributions from occupied orbitals
+    void analyze(const std::vector<CC_vecfunction> &x) const;
+
+
+
+
     /// The MPI Communicator
     World& world;
     /// The Parameters for the Calculations
