@@ -243,7 +243,7 @@ namespace madness {
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
         ar & current_energy & param.spin_restricted;
         ar & (unsigned int) (amo.size());
-        ar & aeps & aocc & aset;
+        ar & aeps & aocc & aset & param.L & param.k & molecule;
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
         if (!param.spin_restricted) {
@@ -283,6 +283,9 @@ namespace madness {
           Tensor<double> aeps;
           Tensor<double> aocc;
           vector<int> aset;
+          double L;
+          int k;
+          Molecule momlecule;
           for i from 0 to nalpha-1:
           .   Function<double,3> amo[i]
           
@@ -296,7 +299,7 @@ namespace madness {
         
         ar & nmo;
         MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
-        ar & aeps & aocc & aset;
+        ar & aeps & aocc & aset & param.L & param.k & molecule;
         amo.resize(nmo);
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
