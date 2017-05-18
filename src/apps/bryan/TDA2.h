@@ -51,9 +51,6 @@
 #include <complex>
 #include <cmath>
 #include "../chem/molecule.h"
-#include "../chem/potentialmanager.h"
-#include "../chem/projector.h" // For easy calculation of (1 - \hat{\rho}^0)
-#include "../../examples/nonlinsol.h" // For the KAIN solver
 
 
 using namespace madness;
@@ -130,9 +127,12 @@ class TDA
 
       // Information that is loaded from input file
       std::vector<real_function_3d> tda_orbitals;         // Ground state orbitals
+      std::vector<real_function_3d> tda_act_orbitals;     // Ground state orbitals being used in calculation
       bool tda_spinrestricted;                            // Indicates open or closed shell
       Tensor<double> tda_ground_energies;                 // Ground state energies
+      Tensor<double> tda_act_ground_energies;             // Ground state energies being used for calculation
       unsigned int tda_num_orbitals;                      // Number of ground state orbitals
+      unsigned int tda_act_num_orbitals;                  // Number of ground state orbitals being used in calculation
       Tensor<double> tda_occ;                             // Occupied orbital occupation numbers
       double tda_L;                                       // Box size
       int tda_order;                                      // Wavelet order
@@ -149,6 +149,7 @@ class TDA
 
       // User input variables
       double tda_energy_threshold;
+      double tda_range;
       int tda_max_iterations;
       int tda_num_excited; 
       int tda_print_level;    // Controls the amount and style of printing. Higher values print more
@@ -200,36 +201,16 @@ class TDA
                                                                     int m,
                                                                     int n);
 
-      // Returns the given function raised to the power n
-      real_function_3d power_function(World & world,
-                                      real_function_3d & f,
-                                      int n);
-
       // Returns a list of symmetry related functions for correct
       // pointgroup of the provided molecule
       std::vector<real_function_3d> symmetry(World & world);
-
-      // Chebyshev polynomials for guess generation
-      std::vector<real_function_3d> chebyshev(World & world,
-                                              int k);
-
+     
       // Returns initial response functions
-      std::vector<std::vector<real_function_3d>> create_trial_functions1(World & world,
-                                                                         int k,
-                                                                         std::vector<real_function_3d> & orbitals,
-                                                                         int axis,      // Axis of perturbation
-                                                                         int print_level);
-      
-      // Returns initial response functions
-      std::vector<std::vector<real_function_3d>> create_trial_functions2(World & world,
-                                                                         int k,
-                                                                         std::vector<real_function_3d> & orbitals,
-                                                                         int print_level);
-      // Returns initial response functions
-      std::vector<std::vector<real_function_3d>> create_trial_functions3(World & world,
-                                                                         int k,
-                                                                         std::vector<real_function_3d> & orbitals,
-                                                                         int print_level);
+      std::vector<std::vector<real_function_3d>> create_trial_functions(World & world,
+                                                                        int k,
+                                                                        Tensor<double> energies,
+                                                                        std::vector<real_function_3d> & orbitals,
+                                                                        int print_level);
 
       // Returns the derivative of the coulomb operator, applied to ground state orbitals
       std::vector<std::vector<real_function_3d>> create_coulomb_derivative(World & world,
@@ -305,19 +286,20 @@ class TDA
                                                              std::vector<std::vector<real_function_3d>> & f,
                                                              int print_level);
                                                              
-      // Returns the matrix "A", equation 45 from the paper
-      Tensor<double> create_A(World & world,
-                              std::vector<std::vector<real_function_3d>> & gamma,
-                              std::vector<std::vector<real_function_3d>> & V,
-                              std::vector<std::vector<real_function_3d>> & f,
-                              std::vector<real_function_3d> & ground_orbitals,
-                              Tensor<double> & energies,
-                              int print_level);
+      // Returns the hamiltonian matrix, equation 45 from the paper
+      Tensor<double> create_hamiltonian(World & world,
+                                        std::vector<std::vector<real_function_3d>> & gamma,
+                                        std::vector<std::vector<real_function_3d>> & V,
+                                        std::vector<std::vector<real_function_3d>> & f,
+                                        std::vector<real_function_3d> & ground_orbitals,
+                                        std::vector<real_function_3d> & full_ground_orbitals,
+                                        Tensor<double> & energies,
+                                        int print_level);
 
       // Overloaded to get default parameters correct
-      Tensor<double> create_A(World & world,
-                              std::vector<std::vector<real_function_3d>> & gamma,
-                              std::vector<std::vector<real_function_3d>> & V);
+      Tensor<double> create_hamiltonian(World & world,
+                                        std::vector<std::vector<real_function_3d>> & gamma,
+                                        std::vector<std::vector<real_function_3d>> & V);
 
       // Returns the shift needed for each orbital to make sure
       // -2.0 * (ground_state_energy + excited_state_energy) is positive
@@ -344,15 +326,15 @@ class TDA
 
 
       // Returns a vector of BSH operators
-      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> make_bsh_operators(World & world,
-                                                                                        Tensor<double> & shift,
-                                                                                        Tensor<double> & ground,
-                                                                                        Tensor<double> & omega,
-                                                                                        double small,
-                                                                                        double thresh);
+      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> create_bsh_operators(World & world,
+                                                                                          Tensor<double> & shift,
+                                                                                          Tensor<double> & ground,
+                                                                                          Tensor<double> & omega,
+                                                                                          double small,
+                                                                                          double thresh);
       // Overloaded for parameter defaults 
-      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> make_bsh_operators(World & world,
-                                                                                        Tensor<double> & shift);
+      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> create_bsh_operators(World & world,
+                                                                                          Tensor<double> & shift);
 
       // Returns the second order update to the energy
       Tensor<double> calculate_energy_update(World & world,
@@ -370,6 +352,11 @@ class TDA
       // Returns the max norm of the given vector of functions
       double calculate_max_residual(World & world, 
                                     std::vector<std::vector<real_function_3d>> & f);
+
+      // Selects the 'active' orbitals from ground state orbitals to be used in the calculation (based on energy distance
+      // from the HOMO.) Function has knowledge of tda_orbitals and tda_ground_energies. Function sets tda_act_orbitals and
+      // tda_num_act_orbitals.
+      void select_active_subspace(World & world);
 
       // Selects from a list of functions and energies the k functions with the lowest 
       // energy
@@ -394,22 +381,31 @@ class TDA
                                       Tensor<double> & fock,
                                       std::vector<std::vector<real_function_3d>> & psi,
                                       std::vector<std::vector<real_function_3d>> & Vpsi,                     
+                                      std::vector<std::vector<real_function_3d>> & gamma,                     
                                       Tensor<double> & evals,
                                       Tensor<double> & overlap,
                                       const double thresh); 
 
-      // Transforms the given matrix of functions according to the given 
+      // Transforms the given matrix of functions according to the given
       // transformation matrix. Used to update orbitals / potentials
       std::vector<std::vector<real_function_3d>> transform(World & world,
                                                            std::vector<std::vector<real_function_3d>> & f,
-                                                           Tensor<double> & U);  
+                                                           Tensor<double> & U);
+
+      // Need to calculate: \sum_{j \neq k} x_p^{(j)} \Omega_{jk}
+      // and add to RHS before BSH to allow correct for the rotated
+      // potentials. Omega here is simply the Hamiltonian matrix.
+      std::vector<std::vector<real_function_3d>> rotation_correction_term(World & world,
+                                                                          std::vector<std::vector<real_function_3d>> f,
+                                                                          Tensor<double> A,
+                                                                          int print_level);
 
       // Sorts the given Tensor and vector of functions in place
-      void sort(World & world,
-                Tensor<double> & vals,
-                Tensor<double> & vals_residuals,
-                std::vector<std::vector<real_function_3d>> & f, 
-                std::vector<std::vector<real_function_3d>> & f_diff); 
+      Tensor<int> sort(World & world,
+                       Tensor<double> & vals,
+                       Tensor<double> & vals_residuals,
+                       std::vector<std::vector<real_function_3d>> & f, 
+                       std::vector<std::vector<real_function_3d>> & f_diff); 
 
       // Prints iterate headers, used in default printing
       void print_iterate_headers(World & world);
@@ -422,6 +418,7 @@ class TDA
                              std::vector<std::vector<real_function_3d>> & f,
                              Tensor<double> & omega,
                              std::vector<real_function_3d> & orbitals,
+                             std::vector<real_function_3d> & full_orbitals,
                              Tensor<double> & energies,
                              double thresh,
                              double small,
