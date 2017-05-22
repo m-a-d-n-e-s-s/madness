@@ -178,7 +178,7 @@ void TDA::print_madness_params(World &world)
    {
       print("\n   MADNESS Calculation Parameters");
       print("   ------------------------------");
-      print("\n            Box Width: ", 2.0 * tda_L); 
+      print("\n            Box Width: ", tda_L); 
       print("        Wavelet Order: ", FunctionDefaults<3>::get_k());
       print(" Refinement Threshold: ", pow(10,-FunctionDefaults<3>::get_k()+2));
       print("Convergence Tolerance: ", FunctionDefaults<3>::get_thresh(), "\n");     
@@ -317,7 +317,7 @@ std::vector<real_function_3d> TDA::chebyshev(World & world,
    // Inputs to functor are (center, exponent, powers of x,y,z in front of gaussian)
    // Coefficients here are for normalization
    real_function_3d gaussian = real_factory_3d(world).functor(GaussianGuess<3>(Vector<double,3>(0.0), 0.5, std::vector<int>{0,0,0}));
-   gaussian.scale(1.0/(sqrt(10) * sqrt(3.14159265359)));
+   gaussian.scale(1.0/(sqrt(10) * sqrt(constants::pi)));
 
    // The function r 
    real_function_3d r = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{1,1,1})));
@@ -976,7 +976,6 @@ std::vector<std::vector<real_function_3d>> TDA::create_fock(World & world,
    {
       if(world.rank() == 0) print("   Kinetic norms:");
       if(world.rank() == 0) print(m_m_inner(world, f, fock));
-      if(world.rank() == 0) print(m_m_inner(world, f, fock));
       if(world.rank() == 0) print("   Potential norms:"); 
       if(world.rank() == 0) print(m_m_inner(world, f, V));
    }
@@ -1035,12 +1034,9 @@ Tensor<double> TDA::create_A(World & world,
          temp[j] = ground_state_density(temp[j]);
 
          // Run over all occupied orbitals to get their contribution
-         // to the part of A we're calculating 
-         for(int p = 0; p < n; p++)
-         {            
-            // Finally calculate \int dr x_p^k * temp
-            A(k,j) += inner(f[k][p], temp[j][p]); 
-         }
+         // to the part of A we're calculating . Finally calculate 
+         // \int dr x_p^k * temp (using vectors to do so in parallel)
+         A(k,j) += inner(f[k], temp[j]); 
       }
    }
 
