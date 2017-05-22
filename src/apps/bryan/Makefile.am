@@ -4,6 +4,7 @@ EXTRA_DIST = CMakeLists.txt
 
 bin_PROGRAMS = driver driver2 test_ops
 
+
 driver_SOURCES = driver.cc TDA.cc 
 driver_LDADD = $(LIBCHEM) $(MRALIBS)
 
