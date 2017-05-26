@@ -286,10 +286,10 @@ class TDA
                                std::vector<real_function_3d> & a,
                                std::vector<std::vector<real_function_3d>> & b);
 
-      // Returns a tensor, where entry (i,j) = inner(a[i][j], b[i][j])
-      Tensor<double> m_m_inner(World & world,
-                               std::vector<std::vector<real_function_3d>> & a,
-                               std::vector<std::vector<real_function_3d>> & b);
+      // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
+      Tensor<double> expectation(World & world,
+                                 std::vector<std::vector<real_function_3d>> & a,
+                                 std::vector<std::vector<real_function_3d>> & b);
  
       // Returns the overlap matrix of the given response functions
       Tensor<double> create_S(World & world,
@@ -370,11 +370,6 @@ class TDA
       // Returns the max norm of the given vector of functions
       double calculate_max_residual(World & world, 
                                     std::vector<std::vector<real_function_3d>> & f);
-
-      // Applies step restriction if neccessary
-      std::vector<std::vector<real_function_3d>> step_restriction(World & world,
-                                                                  std::vector<std::vector<real_function_3d>> & old_f,
-                                                                  std::vector<std::vector<real_function_3d>> & new_f);
 
       // Selects from a list of functions and energies the k functions with the lowest 
       // energy
