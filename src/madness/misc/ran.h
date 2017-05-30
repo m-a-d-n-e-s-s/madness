@@ -94,7 +94,7 @@ namespace madness {
 
         /// Returns a vector of uniform doubles in [0,1)
         template <typename T>
-        void getv(int n, T * restrict v) {
+        void getv(int n, T * MADNESS_RESTRICT v) {
             ScopedMutex<Mutex> safe(this);
             while (n) {
                 if (cur >= r) generate();
@@ -108,7 +108,7 @@ namespace madness {
         }
 
         /// Returns vector of random bytes in [0,256)
-        void getbytes(int n, unsigned char * restrict v);
+        void getbytes(int n, unsigned char * MADNESS_RESTRICT v);
 
         /// Returns full state of the generator
         RandomState getstate() const;

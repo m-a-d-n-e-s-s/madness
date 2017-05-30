@@ -19,9 +19,9 @@ typedef std::shared_ptr<real_convolution_3d> poperatorT;
 
 static std::vector<int> at_to_bf, at_nbf;
 
-extern void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc);
+extern void drot(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c, long inc);
 
-void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
+void drot3(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c, long inc) {
     if (inc == 1) {
         n*=3;
         for (long i=0; i<n; i+=3) {

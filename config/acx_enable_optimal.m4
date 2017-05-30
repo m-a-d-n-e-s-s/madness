@@ -82,7 +82,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
       ;;
 
       Portland)
-        acx_enable_optimal_flags="$acx_enable_optimal_flags -fastsse -Mflushz -Mcache_align -Drestrict=__restrict" 
+        acx_enable_optimal_flags="$acx_enable_optimal_flags -fastsse -Mflushz -Mcache_align"
         AC_MSG_NOTICE([Appending -pgf90libs to LIBS so can link against Fortran BLAS/linalg])
         LIBS="$LIBS -pgf90libs"
         if test "x$HAVE_CRAYXT" = xyes; then
@@ -92,7 +92,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
       ;;
 
       Intel)
-        acx_enable_optimal_flags="$acx_enable_optimal_flags -ip -no-prec-div -mkl=sequential -ansi -xHOST"
+        acx_enable_optimal_flags="$acx_enable_optimal_flags -ip -no-prec-div -mkl=sequential -xHOST"
         if test $enable_cpp0x = "yes"; then
           acx_enable_optimal_flags="$acx_enable_optimal_flags -std=c++0x"
         fi

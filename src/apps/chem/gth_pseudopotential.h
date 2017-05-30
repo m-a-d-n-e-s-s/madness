@@ -214,7 +214,7 @@ public:
         }
     }
  
-    virtual void operator()(const Vector<double*,3>& xvals, double* restrict fvals, int npts) const {
+    virtual void operator()(const Vector<double*,3>& xvals, double* MADNESS_RESTRICT fvals, int npts) const {
         
         double* x = new double[npts];
         double* y = new double[npts];
