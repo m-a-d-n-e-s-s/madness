@@ -42,7 +42,7 @@
 using namespace madness;
 using namespace std;
 
-// void aligned_add(long n, double* restrict a, const double* restrict b) {
+// void aligned_add(long n, double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b) {
 //     long n4 = (n>>2)<<2;
 //     long rem = n-n4;
 //     for (long i=0; i<n4; i+=4,a+=4,b+=4) {
@@ -54,7 +54,7 @@ using namespace std;
 //     for (long i=0; i<rem; ++i) *a++ += *b++;
 // }
 
-// void aligned_sub(long n, double* restrict a, const double* restrict b) {
+// void aligned_sub(long n, double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b) {
 //     long n4 = (n>>2)<<2;
 //     long rem = n-n4;
 //     for (long i=0; i<n4; i+=4,a+=4,b+=4) {

@@ -54,7 +54,7 @@ namespace madness {
     /// This is the SLOW reference implementation
     template <typename aT, typename bT, typename cT>
     void mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b) {
+               cT* MADNESS_RESTRICT c, const aT* a, const bT* b) {
         const cT one = 1.0;  // alpha in *gemm
         const cT zero = 0.0; // beta  in *gemm
         //std::cout << "IN MKL version mTxmq " << tensor_type_names[TensorTypeData<aT>::id] << " " << tensor_type_names[TensorTypeData<bT>::id] << " " << tensor_type_names[TensorTypeData<cT>::id] << "\n";
@@ -71,7 +71,7 @@ namespace madness {
     /// \endcode
     template <typename aT, typename bT, typename cT>
     void mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b) {
+               cT* MADNESS_RESTRICT c, const aT* a, const bT* b) {
         //std::cout << "IN GENERIC mTxmq " << tensor_type_names[TensorTypeData<aT>::id] << " " << tensor_type_names[TensorTypeData<bT>::id] << " " << tensor_type_names[TensorTypeData<cT>::id] << "\n";
         for (long i=0; i<dimi; ++i,c+=dimj,++a) {
             for (long j=0; j<dimj; ++j) c[j] = 0.0;
@@ -178,40 +178,40 @@ namespace madness {
             bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
         }
 #elif defined(HAVE_IBMBGP)
-    extern void bgpmTxmq(long ni, long nj, long nk, double* restrict c, 
+    extern void bgpmTxmq(long ni, long nj, long nk, double* MADNESS_RESTRICT c, 
                          const double* a, const double* b);
-    extern void bgpmTxmq(long ni, long nj, long nk, double_complex* restrict c, 
+    extern void bgpmTxmq(long ni, long nj, long nk, double_complex* MADNESS_RESTRICT c, 
                          const double_complex* a, const double_complex* b);
  
     template <>
-    inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
+    inline void mTxmq(long ni, long nj, long nk, double* MADNESS_RESTRICT c, const double* a, const double* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);
     }
 
     template <>
-    inline void mTxmq(long ni, long nj, long nk, double_complex* restrict c, const double_complex* a, const double_complex* b) {
+    inline void mTxmq(long ni, long nj, long nk, double_complex* MADNESS_RESTRICT c, const double_complex* a, const double_complex* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);
     }
 
 // #elif defined(X86_64) && !defined(DISABLE_SSE3)
 //     template <>
 //     void mTxmq(long dimi, long dimj, long dimk,
-//                double* restrict c, const double* a, const double* b);
+//                double* MADNESS_RESTRICT c, const double* a, const double* b);
 
 //     template <>
 //     void mTxmq(long dimi, long dimj, long dimk,
-//                double_complex* restrict c, const double_complex* a, const double_complex* b);
+//                double_complex* MADNESS_RESTRICT c, const double_complex* a, const double_complex* b);
 
 // #ifndef __INTEL_COMPILER
 //     template <>
 //     void mTxmq(long dimi, long dimj, long dimk,
-//                double_complex* restrict c, const double_complex* a, const double* b);
+//                double_complex* MADNESS_RESTRICT c, const double_complex* a, const double* b);
 // #endif
 
 // #elif defined(X86_32)
 //     template <>
 //     void mTxmq(long dimi, long dimj, long dimk,
-//                double* restrict c, const double* a, const double* b);
+//                double* MADNESS_RESTRICT c, const double* a, const double* b);
 #endif
 
 }
