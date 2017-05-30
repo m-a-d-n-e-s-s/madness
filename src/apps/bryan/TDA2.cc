@@ -410,7 +410,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions2(World & 
       // Run over each occupied orbital
       for(int p = 0; p < n; p++)
       {
-         temp[p] = symm[i];// * orbitals[p];
+         temp[p] = symm[i] * orbitals[p];
       } 
 
       // Run over ground state functions
@@ -978,8 +978,13 @@ Tensor<double> TDA::create_A(World & world,
 
    // Need to calculate energy * x_response
    std::vector<std::vector<real_function_3d>> energy_x_resp = scale_column(f, energies); 
-   print("here:");
-   print(expectation(world, f, energy_x_resp));
+
+   if(print_level >= 2) 
+   {
+      if(world.rank() == 0) print("   Energy scaled response orbitals:");
+      Tensor<double> temp2 = expectation(world,f,energy_x_resp);
+      if(world.rank() == 0) print(temp2);
+   }
 
    // Construct intermediary
    std::vector<std::vector<real_function_3d>> temp = gamma + fock_x_resp - energy_x_resp;
