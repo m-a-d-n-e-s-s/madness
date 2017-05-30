@@ -910,10 +910,7 @@ namespace madness {
 
         /// \return True if all futures have been assigned; false otherwise.
         bool probe() const {
-            for(typename std::vector< Future<T> >::const_iterator it = v.begin(); it != v.end(); ++it)
-                if(! it->probe())
-                    return false;
-            return true;
+            return DependencyInterface::probe();
         }
 
     }; // class Future< std::vector< Future<T> > >

@@ -55,7 +55,7 @@ inline int pthread_spin_lock(pthread_spinlock_t* p) {
     return 0;
 }
 inline int pthread_spin_unlock(pthread_spinlock_t* p) {
-    os_unfair_lock_lock(p);
+    os_unfair_lock_unlock(p);
     return 0;
 }
 
