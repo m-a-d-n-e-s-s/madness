@@ -20,6 +20,9 @@
 *.out
 *.app
 
+# Restart files
+*.00000
+
 .cproject
 .project
 .settings
