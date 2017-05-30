@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.0.0)
+cmake_minimum_required (VERSION 3.1.0)
 project(MADNESS CXX C ASM)
 
 # Check CMake version
@@ -16,7 +16,6 @@ set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
 include(AppendFlags)
-include(CheckCXX11Support)
 include(CheckIncludeFile)
 include(CheckTypeSize)
 include(CheckCXXSourceCompiles)
@@ -311,14 +310,9 @@ endif()
 
 # Check compiler feature support ===============================================
 
-check_cxx11_support(COMPILER_HAS_CXX11_SUPPORT CXX11_COMPILE_FLAG)
-if(COMPILER_HAS_CXX11_SUPPORT)
-  if(CXX11_COMPILE_FLAG)
-    append_flags(CMAKE_CXX_FLAGS "${CXX11_COMPILE_FLAG}")
-  endif()
-else()
-  message(FATAL_ERROR "${CMAKE_CXX_COMPILER} does not support C++11.")
-endif()
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Check for system include files
 check_include_file(sys/stat.h HAVE_SYS_STAT_H)
@@ -418,7 +412,7 @@ if(NOT DEFINED THREAD_LOCAL_KEYWORD)
     elseif(THREAD_LOCAL_SUPPORT)
       message(STATUS "Thread local keyword: ${_thread_local_keyword}")
       set(THREAD_LOCAL_KEYWORD "${_thread_local_keyword}"
-          CACHE STRING "thread local storage keyword, 'thread_local' in C++11")
+          CACHE STRING "thread local storage keyword, 'thread_local' in C++>11")
       break()
     else()
       unset(THREAD_LOCAL_SUPPORT CACHE)

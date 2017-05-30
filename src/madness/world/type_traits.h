@@ -41,7 +41,6 @@
 #include <cstddef>
 #include <stdint.h>
 #include <madness/madness_config.h>
-#include <madness/world/type_traits.h>
 #include <madness/world/function_traits.h>
 
 namespace madness {
@@ -56,6 +55,8 @@ namespace madness {
         typedef typename remove_future<typename std::remove_cv<
                    typename std::remove_reference<T>::type>::type>::type type;
     };
+    template <typename T>
+    using remove_fcvr_t = typename remove_fcvr<T>::type;
 
     /// This defines stuff that is serialiable by default rules ... basically anything contiguous
     template <typename T>

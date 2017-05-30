@@ -571,6 +571,10 @@ namespace madness {
         }
 
         const_iterator begin() const {
+            return cbegin();
+        }
+
+        const_iterator cbegin() const {
             return const_iterator(this,true);
         }
 
@@ -579,6 +583,10 @@ namespace madness {
         }
 
         const_iterator end() const {
+            return cend();
+        }
+
+        const_iterator cend() const {
             return const_iterator(this,false);
         }
 

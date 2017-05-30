@@ -110,10 +110,10 @@ public:
             current_prec*=0.1;
             if (current_prec<end_prec) current_prec=end_prec;
             infer_thresholds(current_prec);
-            print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
+            if(world.rank()==0) print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
         } else {
             current_prec=-1.0;
-            printf("\nending protocol at time %8.1fs \n",wall_time());
+            if(world.rank()==0) printf("\nending protocol at time %8.1fs \n",wall_time());
         }
 
         // update restart data on file

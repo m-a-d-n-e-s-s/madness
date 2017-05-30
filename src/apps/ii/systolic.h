@@ -675,7 +675,7 @@ namespace madness {
         volatile double maxtheta; // max rotation angle
         const bool randomized, doprint;
 
-        void drot(T restrict a[], T restrict b[], double sin, double cos);
+        void drot(T MADNESS_RESTRICT a[], T MADNESS_RESTRICT b[], double sin, double cos);
         inline T DIP(const T ij[], const T kl[]) const;
         inline T inner(const T a[], const T b[] ) const;
     };
@@ -787,7 +787,7 @@ namespace madness {
     }
     /// rotate matrix using sin and cos
     template <typename T>
-    void LocalizeBoys<T>::drot(T restrict a[], T restrict b[], double sin, double cos)
+    void LocalizeBoys<T>::drot(T MADNESS_RESTRICT a[], T MADNESS_RESTRICT b[], double sin, double cos)
     {
         for ( long i=0; i<this->nmo; i++ ) {
             T aa = a[i]*cos - b[i]*sin;

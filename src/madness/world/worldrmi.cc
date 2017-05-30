@@ -346,8 +346,7 @@ namespace madness {
         // NB list::size() is O(1) in c++11, but O(N) in older libstdc++
         MADNESS_ASSERT(ThreadPool::size() < RMI::RmiTask::unique_tag_period() ||
                        RMI::task_ptr->hugeq.size() <
-                           RMI::RmiTask::unique_tag_period() /
-                               RMI::task_ptr->comm.Get_size());
+                       std::size_t(RMI::RmiTask::unique_tag_period() / RMI::task_ptr->comm.Get_size()));
         RMI::task_ptr->hugeq.push_back(std::make_tuple(src, nbyte, tag));
         RMI::task_ptr->post_pending_huge_msg();
     }
@@ -365,7 +364,7 @@ namespace madness {
             MADNESS_ASSERT(task_ptr == nullptr);
 #if HAVE_INTEL_TBB
 
-            // Force tne RMI task to be picked up by someone other then main thread
+            // Force the RMI task to be picked up by someone other then main thread
             // by keeping main thread occupied AND enqueing enough dummy tasks to make
             // TBB create threads and pick up RmiTask eventually
 
@@ -475,7 +474,7 @@ namespace madness {
 
         numsent++;
         Request result;
-        if (nssend_ && numsent==nssend_) {
+        if (nssend_ && numsent==std::size_t(nssend_)) {
             result = comm.Issend(buf, nbyte, MPI_BYTE, dest, tag);
             numsent %= nssend_;
         }

@@ -120,9 +120,12 @@ AC_ARG_ENABLE([all-static],
 AM_CONDITIONAL([LINK_ALL_STATIC], [test $acx_enable_all_static = yes])
 
 ACX_DETECT_CXX
-# Check for C++11 support, and
-# add the -std=c++11 or -std=c++0x flag to CXXFLAGS if necessary.
-AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
+# Check for C++14 support, and
+# add the -std=c++14 or -std=c++1y flag to CXXFLAGS if necessary.
+AX_CXX_COMPILE_STDCXX(14,[noext],[mandatory])
+
+# Detect which version of (__)restrict(__) is supported and define MADNESS_RESTRICT to it
+ACX_CXX_RESTRICT
 
 # Set debugging
 ACX_ENABLE_DEBUGGING
@@ -133,7 +136,7 @@ ACX_ENABLE_OPTIMIZATION
 # Set warning flags by compiler vendor
 ACX_ENABLE_WARN
 
-# Selelect best compilation flags
+# Select best compilation flags
 ACX_ENABLE_OPTIMAL
 
 # Get optional external libraries inplace so that building will partially check them
@@ -183,7 +186,7 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([limits.h stddef.h stdint.h stdlib.h string.h sys/param.h sys/time.h unistd.h])
 AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
 AC_HEADER_STDBOOL
-# Check c++11 headers
+# Check c++1x headers
 # MUST include CXXFLAGS into CPPFLAGS to choose proper C++ standard switch
 ac_save_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="$CPPFLAGS $CXXFLAGS"
@@ -192,7 +195,6 @@ CPPFLAGS="$ac_save_CPPFLAGS"
 
 # Types
 AC_TYPE_PID_T
-AC_C_RESTRICT
 ACX_CHECK_TLS
 AC_TYPE_SIZE_T
 #AC_TYPE_UINT64_T

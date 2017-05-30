@@ -256,7 +256,7 @@ namespace madness {
         /// Existing functions are unaffected
         static void set_special_level(int value) {
             special_level=value;
-            MADNESS_ASSERT(value>0 && value<MAXLEVEL);
+            MADNESS_ASSERT(value>=0 && value<MAXLEVEL);
             MADNESS_ASSERT(max_refine_level>=special_level);
         }
 

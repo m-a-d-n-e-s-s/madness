@@ -79,9 +79,9 @@ Function<double_complex,3> make_exp(double t, const Function<double,3>& v) {
     return expV;
 }
 
-extern void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc);
+extern void drot(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c, long inc);
 
-void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
+void drot3(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c, long inc) {
     if (inc == 1) {
         n*=3;
         for (long i=0; i<n; i+=3) {
@@ -1243,7 +1243,7 @@ struct Calculation {
 	print_meminfo(world.rank(), "project ao basis");
     }
 
-    double PM_q(const tensorT & S, const double * restrict Ci, const double * restrict Cj, int lo, int nbf)
+    double PM_q(const tensorT & S, const double * MADNESS_RESTRICT Ci, const double * MADNESS_RESTRICT Cj, int lo, int nbf)
     {
         double qij = 0.0;
         if (nbf == 1) { // H atom in STO-3G ... often lots of these!
@@ -1269,9 +1269,9 @@ struct Calculation {
                         const std::vector<tensorT>& Svec, 
                         const std::vector<int>& at_to_bf, const std::vector<int>& at_nbf, 
                         long& ndone_iter, double& maxtheta, 
-                        double * restrict Qi, double * restrict Qj,  
-                        double * restrict Ci, double * restrict Cj, 
-                        double * restrict Ui, double * restrict Uj)
+                        double * MADNESS_RESTRICT Qi, double * MADNESS_RESTRICT Qj,  
+                        double * MADNESS_RESTRICT Ci, double * MADNESS_RESTRICT Cj, 
+                        double * MADNESS_RESTRICT Ui, double * MADNESS_RESTRICT Uj)
     {
         if(seti == setj){
             // Q could be recomputed for each ij, but by saving it we reduce computation by a factor

@@ -54,7 +54,7 @@ class PCM {
 public:
 
     /// default ctor
-    PCM() : pcm_context(0) {}
+    PCM() = default;
 
     /// constructor for the interface to PCM
 
@@ -83,8 +83,6 @@ private:
 
     /// default input generator
     PCMInput pcmsolver_input() const;
-#else
-    void* pcm_context;
 #endif
 
     /// compute the molecular electrostatic potential from the nuclei

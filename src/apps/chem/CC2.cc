@@ -625,13 +625,17 @@ namespace madness {
       else if(pair.type==EXCITED_STATE) omega_new = CCOPS.compute_excited_pair_energy(pair,singles);
       delta = omega - omega_new;
 
+      const double current_norm = pair.function().norm2();
+
       omega = omega_new;
-      if(world.rank()==0) std::cout<< std::fixed
+      if(world.rank()==0){
+	  std::cout<< std::fixed
 	  << std::setw(50) << std::setfill('#')
-      << "\n" << "Iteration " << iter <<" of pair " << pair.name()
-      << std::setprecision(4) << "||u|| = " << pair.function().norm2()
-      << "\n"<< std::setprecision(10) << "error = " << error <<"\nomega = " << omega << "\ndelta = " << delta << "\n"
-      << std::setw(50) << std::setfill('#') << "\n";
+	  << "\n" << "Iteration " << iter <<" of pair " << pair.name()
+	  << std::setprecision(4) << "||u|| = " << current_norm
+	  << "\n"<< std::setprecision(10) << "error = " << error <<"\nomega = " << omega << "\ndelta = " << delta << "\n"
+	  << std::setw(50) << std::setfill('#') << "\n";
+      }
 
 
 
