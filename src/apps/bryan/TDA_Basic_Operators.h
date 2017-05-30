@@ -284,7 +284,8 @@ std::vector<std::vector<real_function_3d>> scale_column(std::vector<std::vector<
                                                         Tensor<double> b)
 {
    MADNESS_ASSERT(a.size() > 0);
-   MADNESS_ASSERT(a[0].size() > 0);   
+   MADNESS_ASSERT(a[0].size() > 0);
+   MADNESS_ASSERT(a[0].size() == b.size()); 
  
    std::vector<std::vector<real_function_3d>> result;
 
