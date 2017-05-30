@@ -106,7 +106,7 @@ void host_writer(const char * message) {
 }
 
 PCM::PCM(World& world, const Molecule& mol, const std::string pcm_data,
-        const bool verbose) : pcm_context(0), mep_lbl("TotMEP"), asc_lbl("totASC") {
+        const bool verbose) : mep_lbl("TotMEP"), asc_lbl("totASC") {
     if (!pcmsolver_is_compatible_library()) {
         fprintf(stderr, "%s\n", "PCMSolver library not compatible");
         exit(EXIT_FAILURE);

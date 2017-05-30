@@ -470,7 +470,7 @@ namespace madness {
 
             t->set_info(&world, this);       // Stuff info
 
-            if (t->ndep() == 0) {
+            if (t->probe()) {
                 ThreadPool::add(t); // If no dependencies directly submit
             } else {
                 // With dependencies must use the callback to avoid race condition
