@@ -337,7 +337,6 @@ namespace madness {
 #ifndef MADNESS_DISABLE_SHARED_FROM_THIS
         , public std::enable_shared_from_this<WorldContainerImpl<keyT, valueT, hashfunT> >
 #endif // MADNESS_DISABLE_SHARED_FROM_THIS
-        , private NO_DEFAULTS
     {
     public:
         typedef typename std::pair<const keyT,valueT> pairT;
