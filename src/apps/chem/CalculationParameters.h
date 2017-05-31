@@ -211,9 +211,14 @@ struct CalculationParameters {
     , efield_axis(0)
     {}
 
-
+    // initializes CalculationParameters using the contents of file \c filename
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
+        read(f);
+    }
+
+    // initializes CalculationParameters using the contents of stream \c f
+    void read(std::istream& f) {
         position_stream(f, "dft");
         std::string s;
         xc_data = "lda";

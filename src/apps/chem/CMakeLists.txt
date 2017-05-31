@@ -8,8 +8,9 @@ set(MADCHEM_HEADERS
     corepotential.h atomutil.h SCF.h xcfunctional.h
     mp2.h nemo.h potentialmanager.h gth_pseudopotential.h
     molecular_optimizer.h projector.h
-    SCFOperators.h CCStructures.h
-    electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h)
+    SCFOperators.h CCStructures.h CalculationParameters.h
+    electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
+    pcm.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
     corepotential.cc atomutil.cc lda.cc cheminfo.cc
