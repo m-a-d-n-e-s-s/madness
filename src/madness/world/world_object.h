@@ -347,10 +347,15 @@ namespace madness {
     /// \tparam Derived The derived class. \c WorldObject is a curiously
     ///     recurring template pattern.
     template <class Derived>
-    class WorldObject: private NO_DEFAULTS {
+    class WorldObject {
     public:
         /// \todo Description needed.
         typedef WorldObject<Derived> objT;
+
+        // copy ctor must be enabled to permit RVO; in C++17 will not need this
+        WorldObject(const WorldObject& other) : world(other.world) { abort(); }
+        // no copy
+        WorldObject& operator=(const WorldObject&) = delete;
 
     private:
         /// \todo Description needed.
