@@ -11,10 +11,11 @@
 #include "../chem/molecule.h"
 #include "../chem/potentialmanager.h"
 #include "../chem/projector.h"          // For easy calculation of (1 - \hat{\rho}^0)
-#include "../../examples/nonlinsol.h"   // For the KAIN solver
 #include "TDA2.h"
 #include "TDA_Basic_Operators.h"
 #include "Plot_VTK.h"                   // The plotting function I wrote
+#include "../../examples/nonlinsol.h"   // The kain solver
+#include <algorithm>  // For sort()
 
 using namespace madness;
 
@@ -916,17 +917,6 @@ std::vector<std::vector<real_function_3d>> TDA::create_fock(World & world,
    std::vector<std::vector<real_function_3d>> dvy2 = apply(world, Dy, dvy); 
    std::vector<std::vector<real_function_3d>> dvz2 = apply(world, Dz, dvz); 
 
-   // Debugging output
-   if(print_level >= 2) 
-   {
-      if(world.rank() == 0) print("   Norms of d^2/dx (response functions):");
-      print_norms(world, dvx2);
-      if(world.rank() == 0) print("   Norms of d^2/dy (response functions):");
-      print_norms(world, dvy2);
-      if(world.rank() == 0) print("   Norms of d^2/dz (response functions):");
-      print_norms(world, dvz2);
-   }
-
    // Add together derivatives
    fock = scale((dvx2 + dvy2 + dvz2), -0.5);
 
@@ -1367,6 +1357,39 @@ std::vector<std::vector<real_function_3d>> TDA::select_trial_functions(World & w
    return answer;
 }
 
+// Selects from a list of functions and energies the k functions with the lowest energy
+std::vector<std::vector<real_function_3d>> TDA::select_trial_functions2(World & world,
+                                                                        std::vector<std::vector<real_function_3d>> & f,
+                                                                        Tensor<double> & energies,
+                                                                        int k,
+                                                                        int print_level)
+{
+   // Container for result
+   std::vector<std::vector<real_function_3d>> answer;
+
+   // Basic output
+   if(print_level >= 0)
+   {
+      if(world.rank() == 0) print("\n   Guess functions created. Selecting the", k, "lowest energy states.\n");
+   }
+
+   // No updates or differences, so create dummies
+   Tensor<double> dummy(energies.size());
+   std::vector<std::vector<real_function_3d>> dummy2 = tda_zero_functions(world, f.size(), f[0].size());
+
+   // Sort by the energy
+   sort(world, energies, dummy, f, dummy2);
+
+   print("sorted (?) energies:");
+   print(energies);
+
+   // Now just take the first k functions
+   for(int i = 0; i < k; i++) answer.push_back(copy(world, f[i]));
+
+   // Done
+   return answer;
+}
+
 // Calculate the exponentiation of a matrix through first order (I think)
 Tensor<double> TDA::matrix_exponential(const Tensor<double> & A)
 {
@@ -1472,18 +1495,30 @@ Tensor<double> TDA::get_fock_transformation(World & world,
       if (nclus > 1) 
       {
          Tensor<double> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
-          
+
+         // Polar Decomposition
+         Tensor<double> VH(nclus, nclus);
+         Tensor<double> W(nclus, nclus);
+         Tensor<double> sigma(nclus);
+
+         svd(q, W, sigma, VH);
+         q = transpose(inner(W,VH));  // Should be conj. tranpose if complex
+         U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
+
+
+         //  Robert's Rotations
+         //          
          // Iteratively construct unitary rotation by
          // exponentiating the antisymmetric part of the matrix
          // ... is quadratically convergent so just do 3
          // iterations
-         Tensor<double> rot = matrix_exponential(-0.5 * (q - transpose(q)));
-         q = inner(q, rot);
-         Tensor<double> rot2 = matrix_exponential(-0.5 * (q - transpose(q)));
-         q = inner(q, rot2);
-         Tensor<double> rot3 = matrix_exponential(-0.5 * (q - transpose(q)));
-         q = inner(rot, inner(rot2, rot3));
-         U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
+         //Tensor<double> rot = matrix_exponential(-0.5 * (q - transpose(q)));
+         //q = inner(q, rot);
+         //Tensor<double> rot2 = matrix_exponential(-0.5 * (q - transpose(q)));
+         //q = inner(q, rot2);
+         //Tensor<double> rot3 = matrix_exponential(-0.5 * (q - transpose(q)));
+         //q = inner(rot, inner(rot2, rot3));
+         //U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
       }
       ilo = ihi + 1;
    }
@@ -1510,6 +1545,7 @@ Tensor<double> TDA::diag_fock_matrix(World & world,
                                      Tensor<double> & fock,
                                      std::vector<std::vector<real_function_3d>> & psi,
                                      std::vector<std::vector<real_function_3d>> & Vpsi,
+                                     std::vector<std::vector<real_function_3d>> & gamma,
                                      Tensor<double> & evals,
                                      Tensor<double> & overlap,
                                      const double thresh) 
@@ -1518,12 +1554,14 @@ Tensor<double> TDA::diag_fock_matrix(World & world,
     // the fock matrix
     Tensor<double> U = get_fock_transformation(world, overlap, fock, evals, thresh);
 
-    // transform the orbitals and the orbitals times the potential
-    Vpsi = transform(world, Vpsi, U);    
+    // transform the orbitals and the potential
+    //Vpsi = transform(world, Vpsi, U);    
+    //gamma = transform(world, gamma, U);    
     psi = transform(world, psi, U);
 
     // truncate
-    truncate(world, Vpsi);
+    //truncate(world, Vpsi);
+    truncate(world, gamma);
     truncate(world, psi);
     normalize(world, psi);
 
@@ -1559,6 +1597,7 @@ std::vector<std::vector<real_function_3d>> TDA::transform(World & world,
    return result;
 } 
 
+
 // Sorts the given Tensor of energies and vector of functions
 // in place
 void TDA::sort(World & world,
@@ -1576,40 +1615,32 @@ void TDA::sort(World & world,
    for(int i = 0; i < k; i++) f_copy.push_back(f[i]);
    std::vector<std::vector<real_function_3d>> f_diff_copy; 
    for(int i = 0; i < k; i++) f_diff_copy.push_back(f_diff[i]);
-   Tensor<double> vals_copy = copy(vals);
+   std::vector<double> vals_copy;
+   for(int i = 0; i < k; i++) vals_copy.push_back(vals[i]);
+   Tensor<double> vals_copy2 = copy(vals);
    Tensor<double> val_residuals_copy = copy(val_residuals);
 
-   // Container to hold the ordering of energies
-   Tensor<int> ordering(k);   
 
-   // Initial order
-   for(int i = 0; i < k; i++) ordering(i) = i;
+   // Clear the vectors
+   f.clear();
+   f_diff.clear();
 
-   // Now sort 
+   // Now sort vals_copy
+   std::sort(vals_copy.begin(), vals_copy.end());
+
+   // Now sort the rest of the things, using the sorted energy list
+   // to find the correct indices 
    for(int i = 0; i < k; i++)
    {
-      // Compare that energy to rest of bloc
-      // to sort
-      for(int j = i + 1; j < k; j++)
-      {
-         // Check if switch is needed
-         if(vals(j) < vals(i))
-         {
-            // Switch 
-            int temp = ordering(i);
-            ordering(i) = ordering(j);
-            ordering(j) = temp;
-         }
-      }
-   }
+      // Find matching index in sorted vals_copy
+      int j = 0;
+      while(fabs(vals_copy[i] - vals_copy2[j]) > 1e-6 && j < k) j++;
 
-   // Now pull out the states listed in ordering and put into tda_x_response
-   for(int i = 0; i < k; i++)
-   {
-      f[i] = f_copy[ordering(i)];
-      f_diff[i] = f_diff_copy[ordering(i)];
-      vals[i] = vals_copy[ordering(i)];
-      val_residuals[i] = val_residuals_copy[ordering(i)];
+      // Put the rest in order
+      f.push_back(f_copy[j]);
+      f_diff.push_back(f_diff_copy[j]);
+      vals(i) =  vals_copy[i];
+      val_residuals[i] = val_residuals_copy(j);
    }
 }
 
@@ -1666,19 +1697,14 @@ void TDA::iterate(World & world)
 
       // Create gamma      
       gamma = create_gamma(world);
+      //if(iteration == 0) gamma = create_gamma(world);
 
       // Project out ground state
       for(int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
-      // Debugging output
-      if(tda_print_level >= 2) 
-      {
-         if(world.rank() == 0) print("   Norms of gamma after projecting out ground state:");
-         print_norms(world, gamma);
-      }
-
       // Create \hat{V}^0 applied to tda_x_response
       V_response = create_potential(world);
+      //if(iteration == 0) V_response = create_potential(world);
 
       // Basic output
       if(tda_print_level >= 1) 
@@ -1693,11 +1719,9 @@ void TDA::iterate(World & world)
       Tensor<double> A = create_A(world, gamma, V_response);
 
       // Solve Ax = Sxw
-      Tensor<double> U;
-      if(iteration == 0) sygvp(world, A, S, 1.0, U, tda_omega);
-      //transform(world, tda_x_response, U);
-
-      //diag_fock_matrix(world, A, tda_x_response, V_response, tda_omega, S, tda_thresh);              
+      //Tensor<double> U;
+      //if(iteration == 0) sygvp(world, A, S, 1.0, U, tda_omega);
+      diag_fock_matrix(world, A, tda_x_response, V_response, gamma, tda_omega, S, tda_thresh);              
 
       // Basic output
       if(tda_print_level >= 1) 
@@ -1758,11 +1782,12 @@ void TDA::iterate(World & world)
 
       // Calculate energy correction
       // NOTE: full formula is calculated, so just add to omega to update 
+      // Doing this for convergence testing only
       energy_updates = calculate_energy_update(world, rhs, differences, new_x_response, tda_print_level);
 
       // Update energies now
       // Just using the energy from diagonalization now
-      tda_omega += energy_updates;
+      //tda_omega += energy_updates;
 
       // Basic output
       //if(tda_print_level >= 1) 
@@ -1775,10 +1800,9 @@ void TDA::iterate(World & world)
  
       // KAIN solver update
       //new_x_response = kain.update(new_x_response, differences); 
-      //temp = kain.update(new_x_response, differences); 
 
       // Check if random noise should be added
-      // (Basically only when iterations havent' changed much
+      // (Basically only when iterations haven't changed much
       // but we are still 'far' from convergence)
       // Testing with doing this every 10 if previous 5 iterations 
       // are all over 1 for energy residual
@@ -1867,7 +1891,7 @@ void TDA::diagonalize_guess(World & world,
    Tensor<double> A = create_A(world, gamma, V_response, f, orbitals, energies, print_level);
 
    // Solve Ax = Sxw  
-   diag_fock_matrix(world, A, f, V_response, omega, S, thresh);             
+   diag_fock_matrix(world, A, f, V_response, gamma, omega, S, thresh);             
 }
 
 
@@ -1945,27 +1969,6 @@ void TDA::solve(World & world)
    if(world.rank() == 0) print("   Ground state energies:\n", tda_ground_energies);
    print_response_params(world);
 
-   // FOR DEBUGGING ONLY
-   // FORCING GROUND STATE ORBITAL FOR H2 TO BE SUM OF TWO GAUSSIANS CENTERED ON ATOMS
-       // First get atoms
-   //   const std::vector<Atom> atoms = tda_molecule.get_atoms(); 
-   //   Vector<double,3> coords1 = atoms[0].get_coords();
-   //   Vector<double,3> coords2 = atoms[1].get_coords();
-   //   real_function_3d gaussian1 = real_factory_3d(world).functor(GaussianGuess<3>(coords1, 0.5, std::vector<int>{0,0,0}));
-   //   real_function_3d gaussian2 = real_factory_3d(world).functor(GaussianGuess<3>(coords2, 0.5, std::vector<int>{0,0,0}));
-   //   real_function_3d x = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{1,0,0})));
-   //   real_function_3d y = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{0,1,0})));
-   //   real_function_3d z = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{0,0,1})));
-   //   std::vector<std::vector<real_function_3d>> guesses;
-   //   std::vector<real_function_3d> temp;
-   //   std::vector<real_function_3d> temp2;
-   //   temp.push_back(z * (gaussian1 + gaussian2));
-   //   guesses.push_back(temp);
-   //   temp2.push_back(y * (gaussian1 + gaussian2));
-   //   guesses.push_back(temp2);
-       
-      
-
    // Plotting input orbitals
    //if(world.rank() == 0) print("\n   Plotting ground state densities.\n");
    //do_vtk_plots(world, 202, tda_L/2.0, 0, tda_num_orbitals, tda_molecule, square(world, tda_orbitals), "ground");
@@ -2010,7 +2013,7 @@ void TDA::solve(World & world)
    }
 
    // Now we need to choose the tda_num_excited lowest energy states
-   tda_x_response = select_trial_functions(world, guesses, guess_omega, tda_num_excited, tda_print_level);
+   tda_x_response = select_trial_functions2(world, guesses, guess_omega, tda_num_excited, tda_print_level);
 
    // Ready to iterate!
    iterate(world);

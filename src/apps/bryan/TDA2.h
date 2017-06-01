@@ -51,9 +51,6 @@
 #include <complex>
 #include <cmath>
 #include "../chem/molecule.h"
-#include "../chem/potentialmanager.h"
-#include "../chem/projector.h" // For easy calculation of (1 - \hat{\rho}^0)
-#include "../../examples/nonlinsol.h" // For the KAIN solver
 
 
 using namespace madness;
@@ -379,6 +376,12 @@ class TDA
                                                                         int k,
                                                                         int print_level); 
 
+      std::vector<std::vector<real_function_3d>> select_trial_functions2(World & world,
+                                                                        std::vector<std::vector<real_function_3d>> & f,
+                                                                        Tensor<double> & energies,
+                                                                        int k,
+                                                                        int print_level); 
+
       // Calculates the exponentiation of a matrix through first order (I think)
       Tensor<double> matrix_exponential(const Tensor<double> & A);
 
@@ -394,6 +397,7 @@ class TDA
                                       Tensor<double> & fock,
                                       std::vector<std::vector<real_function_3d>> & psi,
                                       std::vector<std::vector<real_function_3d>> & Vpsi,                     
+                                      std::vector<std::vector<real_function_3d>> & gamma,                     
                                       Tensor<double> & evals,
                                       Tensor<double> & overlap,
                                       const double thresh); 

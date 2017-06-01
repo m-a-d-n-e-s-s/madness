@@ -7,7 +7,7 @@ driver_SOURCES = driver.cc TDA.cc
 driver_LDADD = $(LIBCHEM) $(MRALIBS)
 
 
-driver2_SOURCES = driver2.cc TDA2.cc 
+driver2_SOURCES = driver2.cc TDA2.cc
 driver2_LDADD = $(LIBCHEM) $(MRALIBS)
 
 test_ops_SOURCES = test_ops.cc

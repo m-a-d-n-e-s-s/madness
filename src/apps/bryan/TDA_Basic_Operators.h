@@ -2,6 +2,8 @@
 #ifndef MADNESS_APPS_TDA_OPS_H_INCLUDED
 #define MADNESS_APPS_TDA_OPS_H_INCLUDED
 
+using namespace madness;
+
 // Addition of a vector and a scalar g[i] = a[i] + b
 std::vector<real_function_3d> operator+(std::vector<real_function_3d> a,
                                         double b)
@@ -94,25 +96,6 @@ std::vector<std::vector<real_function_3d>> operator+(std::vector<std::vector<rea
    return result;
 }
 
-// Addition of vector of vectors and vector g[i][j] = a[i][j] + b[j]
-//std::vector<std::vector<real_function_3d>> add(std::vector<std::vector<real_function_3d>> a,
-//                                               std::vector<real_function_3d> b)
-//{
-//   MADNESS_ASSERT(a.size() > 0);
-// 
-//   std::vector<std::vector<real_function_3d>> result;
-//
-//   for(int i = 0; i < a.size(); i++)
-//   {
-//      // Using vmra.h definitions
-//      result.push_back(a[i] + b);
-//   }
-//
-//   return result;
-//}
-
-
-
 // Addition of vector of vectors and scalar (both sides of operand) g[i][j] = a[i][j] + b
 std::vector<std::vector<real_function_3d>> operator+(std::vector<std::vector<real_function_3d>> a,
                                                      double b)
@@ -148,24 +131,6 @@ std::vector<std::vector<real_function_3d>> operator+(double a,
 
    return result;
 }
-
-// Subtraction of vector of vector and vector (both sides of operand) g[i][j] = a[i][j] - b[j]
-//std::vector<std::vector<real_function_3d>> subtract(std::vector<std::vector<real_function_3d>> a,
-//                                                    std::vector<real_function_3d> b)
-//{
-//   MADNESS_ASSERT(a.size() > 0);
-// 
-//   std::vector<std::vector<real_function_3d>> result;
-//
-//   for(int i = 0; i < a.size(); i++)
-//   {
-//      // Using vmra.h definitions
-//      result.push_back(a[i] - b);
-//   }
-//
-//   return result;
-//}
-
 
 // Subtraction of vector of vector and scalar (both sides of operand) g[i][j] = a[i][j] - b
 std::vector<std::vector<real_function_3d>> operator-(std::vector<std::vector<real_function_3d>> a,
@@ -304,6 +269,7 @@ std::vector<std::vector<real_function_3d>> scale_column(std::vector<std::vector<
 
    return result;
 }
+
 // Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b
 std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_function_3d>> a,
                                                  double b)
@@ -413,13 +379,13 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
 
 /*
  *
- *  These functions are all in the madness namespace so that the KAIN solver is happy
+ *  These functions are here so that the KAIN solver is happy
  *
  */
 
 // Subtraction of two vectors of vectors g[i][j] = a[i][j] - b[i][j]
 std::vector<std::vector<real_function_3d>> operator-(const std::vector<std::vector<real_function_3d>> a,
-                                                              const std::vector<std::vector<real_function_3d>> b)
+                                                     const std::vector<std::vector<real_function_3d>> b)
 {
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a.size() == b.size());
@@ -437,7 +403,7 @@ std::vector<std::vector<real_function_3d>> operator-(const std::vector<std::vect
 
 // Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b(i)
 std::vector<std::vector<real_function_3d>> operator*(std::vector<std::vector<real_function_3d>> a,
-                                                              double b)
+                                                     double b)
 {
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a[0].size() > 0);   
@@ -455,7 +421,7 @@ std::vector<std::vector<real_function_3d>> operator*(std::vector<std::vector<rea
 
 // Addition in place of a vector of vector of functions
 void operator+=(std::vector<std::vector<real_function_3d>> & a,
-                         std::vector<std::vector<real_function_3d>> b)
+                std::vector<std::vector<real_function_3d>> b)
 {
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a.size() == b.size()); 
@@ -465,13 +431,11 @@ void operator+=(std::vector<std::vector<real_function_3d>> & a,
       // Using vmra.h definitions
       a[i] += b[i]; 
    }
-
-   return;
 }
 
 // Inner product for std::vector<std::vector<real_function_3d>> and std::vector<std::vector<real_function_3d>>
 double inner(std::vector<std::vector<real_function_3d>> a,
-                      std::vector<std::vector<real_function_3d>> b)
+             std::vector<std::vector<real_function_3d>> b)
 {
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a.size() == b.size());
