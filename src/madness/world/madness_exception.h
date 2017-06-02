@@ -139,7 +139,8 @@ namespace madness {
 #endif
 
 #ifdef MADNESS_ASSERTIONS_DISABLE
-#  define MADNESS_ASSERT(condition)
+// this avoid unused variqble warnings, see http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
+#  define MADNESS_ASSERT(condition) do { (void)sizeof(condition);} while (0)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_ASSERT
