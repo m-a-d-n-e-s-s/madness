@@ -1342,7 +1342,8 @@ namespace madness {
         for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
             const keyT& key = it->first;
             typename dcT::accessor acc;
-            MADNESS_ASSERT(coeffs.find(acc,key));
+            const auto found = coeffs.find(acc,key);
+            MADNESS_ASSERT(found);
             nodeT& node = acc->second;
             if (node.has_coeff() &&
                 node.get_norm_tree() != -1.0 &&
@@ -1595,7 +1596,8 @@ namespace madness {
 
         // compute the wavelet coefficients from the child nodes
         typename dcT::accessor acc;
-        MADNESS_ASSERT(coeffs.find(acc, key));
+        const auto found = coeffs.find(acc, key);
+        MADNESS_ASSERT(found);
         int i=0;
         tensorT d(cdata.v2k);
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
@@ -1652,7 +1654,8 @@ namespace madness {
         cpu0=cpu1;
 
         typename dcT::accessor acc;
-        MADNESS_ASSERT(coeffs.find(acc, key));
+        const auto found = coeffs.find(acc, key);
+        MADNESS_ASSERT(found);
 
         if (acc->second.has_coeff()) {
             print(" stuff in compress_op");
@@ -1705,7 +1708,8 @@ namespace madness {
 
         // insert sum coefficients into tree
         typename dcT::accessor acc;
-        MADNESS_ASSERT(coeffs.find(acc, key));
+        const auto found = coeffs.find(acc, key);
+        MADNESS_ASSERT(found);
         MADNESS_ASSERT(not (acc->second.has_coeff()));
         acc->second.set_coeff(s);
 
