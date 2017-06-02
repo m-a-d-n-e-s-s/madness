@@ -219,7 +219,7 @@ class TDA
       
       // Returns initial response functions
       std::vector<std::vector<real_function_3d>> create_trial_functions2(World & world,
-                                                                         int k,
+                                                                         Tensor<double> energies,
                                                                          std::vector<real_function_3d> & orbitals,
                                                                          int print_level);
       // Returns initial response functions
@@ -371,12 +371,6 @@ class TDA
       // Selects from a list of functions and energies the k functions with the lowest 
       // energy
       std::vector<std::vector<real_function_3d>> select_trial_functions(World & world,
-                                                                        std::vector<std::vector<real_function_3d>> & f,
-                                                                        Tensor<double> & energies,
-                                                                        int k,
-                                                                        int print_level); 
-
-      std::vector<std::vector<real_function_3d>> select_trial_functions2(World & world,
                                                                         std::vector<std::vector<real_function_3d>> & f,
                                                                         Tensor<double> & energies,
                                                                         int k,

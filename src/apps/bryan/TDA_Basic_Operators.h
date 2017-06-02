@@ -261,7 +261,7 @@ std::vector<std::vector<real_function_3d>> scale_column(std::vector<std::vector<
 
       for(int j = 0; j < a[0].size(); j++)
       { 
-         temp.push_back(a[i][j] * b(j));
+         temp.push_back(a[i][j] * b[j]);
       }
      
       result.push_back(temp);

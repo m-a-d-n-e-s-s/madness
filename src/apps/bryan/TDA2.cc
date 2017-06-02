@@ -373,7 +373,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions1(World & 
    // Debugging output
    if(print_level >= 2) 
    {
-      if(world.rank() == 0) print("Norms of guess functions:");
+      if(world.rank() == 0) print("   Norms of guess functions:");
       print_norms(world, trials); 
    }
 
@@ -388,75 +388,34 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions1(World & 
 // Probably needs a lot of work on how to do this intelligently
 // Currently: Producing each combination of symmetry function on the orbitals
 std::vector<std::vector<real_function_3d>> TDA::create_trial_functions2(World & world,
-                                                                        int k,
+                                                                        Tensor<double> energies,
                                                                         std::vector<real_function_3d> & orbitals,
                                                                         int print_level)
 {
    // Get size
    int n = orbitals.size();
 
-   // Container to return 
-   std::vector<std::vector<real_function_3d>> trials;
-
    // Create a vector of correct symmetry relate polynomials
    // Only going through the d symmetry functions
    std::vector<real_function_3d> symm = symmetry(world);
 
-   // Default case of symm.size() > k
+   // Container to return 
+   std::vector<std::vector<real_function_3d>> trials = tda_zero_functions(world, n*symm.size(), n);
+
    // Run over symmetry functions
    for(int i = 0; i < symm.size(); i++)
    {
-      std::vector<real_function_3d> temp(n);
-
       // Run over each occupied orbital
       for(int p = 0; p < n; p++)
       {
-         temp[p] = symm[i] * orbitals[p];
+         trials[i*n + p][p] = symm[i] * orbitals[p];
       } 
-
-      // Run over ground state functions
-      trials.push_back(temp);      
    } 
-
-   // Case when symmetry doesn't provide enough guesses
-   // Add in powers of r times previous guesses
-   // until we get to k guesses. Add in entire sets
-   // per step
-   if(trials.size() < k)
-   {
-      // The functor used to make function r
-      real_function_3d r = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{1,1,1})));
-
-      // Counter (used for power generation)
-      int z = 0;
-
-      while(trials.size() < k)
-      {
-         // Run over symmetry functions
-         for(int i = 0; i < symm.size(); i++)
-         {
-            std::vector<real_function_3d> temp(n);
-
-            // Run over each occupied orbital
-            for(int p = 0; p < n; p++)
-            {
-               // z/symm.size() should let us have r * all trials already created
-               // then have r^2 * all trials, etc.
-               temp[p] = power_function(world, r, z/symm.size()) * trials[z][p];
-            } 
-
-            // Run over ground state functions
-            trials.push_back(temp);
-         }
-         // Iterate z
-         z++;
-      } 
-   }
 
    // Debugging output
    if(print_level >= 2) 
    {
-      if(world.rank() == 0) print("Norms of guess functions:");
+      if(world.rank() == 0) print("   Norms of guess functions:");
       print_norms(world, trials); 
    }
 
@@ -503,7 +462,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions3(World & 
    // Debugging output
    if(print_level >= 2) 
    {
-      if(world.rank() == 0) print("Norms of guess functions:");
+      if(world.rank() == 0) print("   Norms of guess functions:");
       print_norms(world, trials); 
    }
 
@@ -649,9 +608,9 @@ std::vector<std::vector<real_function_3d>> TDA::create_gamma(World &world,
    // Debugging output
    if (print_level >= 2)
    {
-      if(world.rank() == 0) print("Coulomb Deriv matrix:");
+      if(world.rank() == 0) print("   Coulomb Deriv matrix:");
       if(world.rank() == 0) print(expectation(world, f, deriv_J));
-      if(world.rank() == 0) print("Exchange Deriv matrix:");
+      if(world.rank() == 0) print("   Exchange Deriv matrix:");
       if(world.rank() == 0) print(expectation(world, f, deriv_K));
    }
 
@@ -937,7 +896,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_fock(World & world,
 }
 
 
-// Creating matrix A for first guess at omega
+// Construct the Hamiltonian
 Tensor<double> TDA::create_A(World & world,
                              std::vector<std::vector<real_function_3d>> & gamma,
                              std::vector<std::vector<real_function_3d>> & V,
@@ -1259,8 +1218,6 @@ double TDA::calculate_max_residual(World & world,
    // Done
    return max;
 }
-
- 
  
 // Selects from a list of functions and energies the k functions with the lowest energy
 std::vector<std::vector<real_function_3d>> TDA::select_trial_functions(World & world,
@@ -1278,110 +1235,12 @@ std::vector<std::vector<real_function_3d>> TDA::select_trial_functions(World & w
       if(world.rank() == 0) print("\n   Guess functions created. Selecting the", k, "lowest energy states.\n");
    }
 
-   // Container to hold the ordering of energies
-   Tensor<int> ordering(k);   
-
-   // Simple sorting thing
-   // Copy first tda_num_excited 
-   for(int i = 0; i < k; i++)
-   {
-      ordering(i) = i;
-   }
-
-   // Now sort 
-   // Run over first bloc of requested states
-   for(int i = 0; i < k; i++)
-   {
-      // Compare that energy to rest of bloc
-      // to sort
-      for(int j = i + 1; j < k; j++)
-      {
-         // Check if switch is needed
-         if(energies(j) < energies(i))
-         {
-            // Switch 
-            int temp = ordering(i);
-            ordering(i) = ordering(j);
-            ordering(j) = temp;
-         }
-      }
-   }
-
-   // Now go through the rest of guesses and put them in the right 
-   // spot if lower in energy
-   for(int i = k; i < energies.size(); i++)
-   {
-      // Run over the guesses already selected
-      for(int j = 0; j < k; j++)
-      {
-         // See if new guess should be kept
-         if(energies(i) < energies(ordering(j)))
-         {
-            // It should be kept. Need to move all 
-            // guesses after this one up one and
-            // remove last one
-            int temp = ordering(j);
-            ordering(j) = i;             
-
-            for(int a = j+1; a < k; a++)
-            {
-               int temp2 = ordering(a);
-               ordering(a) = temp;
-               temp = temp2; 
-            }
-         }
-        
-         // Need to break the j indexed for loop
-         break;
-      }
-   }
-
-   if(print_level >= 2)
-   {
-      if(world.rank() == 0) print("   These functions were chosen:");
-      if(world.rank() == 0) print(ordering);
-      if(world.rank() == 0) print("   And they have energies (use the above indices in the following array):");
-      if(world.rank() == 0) print(energies);
-   }
-
-   // Now pull out the states listed in ordering and put into tda_x_response
-   for(int i = 0; i < ordering.size(); i++) answer.push_back(f[ordering(i)]);
-
-   if(print_level >= 2)
-   {
-      if(world.rank() == 0) print("   Initial guess norms:");
-      print_norms(world, answer); 
-   }
-   
-   // Done
-   return answer;
-}
-
-// Selects from a list of functions and energies the k functions with the lowest energy
-std::vector<std::vector<real_function_3d>> TDA::select_trial_functions2(World & world,
-                                                                        std::vector<std::vector<real_function_3d>> & f,
-                                                                        Tensor<double> & energies,
-                                                                        int k,
-                                                                        int print_level)
-{
-   // Container for result
-   std::vector<std::vector<real_function_3d>> answer;
-
-   // Basic output
-   if(print_level >= 0)
-   {
-      if(world.rank() == 0) print("\n   Guess functions created. Selecting the", k, "lowest energy states.\n");
-   }
-
    // No updates or differences, so create dummies
    Tensor<double> dummy(energies.size());
    std::vector<std::vector<real_function_3d>> dummy2 = tda_zero_functions(world, f.size(), f[0].size());
 
    // Sort by the energy
    sort(world, energies, dummy, f, dummy2);
-
-   print("sorted (?) energies:");
-   print(energies);
 
    // Now just take the first k functions
    for(int i = 0; i < k; i++) answer.push_back(copy(world, f[i]));
@@ -1894,39 +1753,6 @@ void TDA::diagonalize_guess(World & world,
    diag_fock_matrix(world, A, f, V_response, gamma, omega, S, thresh);             
 }
 
-
-// Calculates the full polarizability tensor given the 
-Tensor<double> TDA::polarizability(World & world,
-                                   std::vector<std::vector<std::vector<real_function_3d>>> & f)
-{
-   // Return container
-   Tensor<double> polarizability(3,3);
-
-   // Run over all axes
-   //for(int axis1 = 0; axis1 < 3; axis1++)
-   //{
-   //   // Now get the density of each perturbation wave function
-   //   real_function_3d density = sum(world, f[axis1]);
-
-   //   // Now run over each dipole operator
-   //   for(int axis2 = 0; axis2 < 3; axis2++)
-   //   {
-   //      // Tells functor which axis to use
-   //      std::vector<int> f(3,0);
-   //      f[axis1] = true;
-
-   //      // Creating the functor  
-   //      real_function_3d r = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
-
-   //      // Calculate the polarizability tensor values
-   //      polarizability(axis1, axis2) = -inner(density, r*density); 
-   //   }
-   //}
-   
-   // Done
-   return polarizability;
-}
-
 // Adds in random noise to a vector of vector of functions
 std::vector<std::vector<real_function_3d>> TDA::add_randomness(World & world,
                                                                std::vector<std::vector<real_function_3d>> & f)
@@ -1983,9 +1809,7 @@ void TDA::solve(World & world)
    }      
 
    // Create large number of symmetry included guesses 
-   //std::vector<std::vector<real_function_3d>> guesses = create_trial_functions1(world, tda_num_excited, tda_orbitals, 2, tda_print_level);
-   std::vector<std::vector<real_function_3d>> guesses = create_trial_functions2(world, tda_num_excited, tda_orbitals, tda_print_level);
-   //std::vector<std::vector<real_function_3d>> guesses = create_trial_functions3(world, tda_num_excited, tda_orbitals, tda_print_level);   
+   std::vector<std::vector<real_function_3d>> guesses = create_trial_functions2(world, tda_ground_energies, tda_orbitals, tda_print_level);
 
    // Normalize
    normalize(world, guesses); 
@@ -1998,7 +1822,7 @@ void TDA::solve(World & world)
    //do_vtk_plots(world, 150, tda_L, 0, gd.size(), tda_molecule, gd, "guess");
 
    // Basic output
-   if(world.rank() == 0) print("\n   Diagonalizing trial functions for an improved initial guess.");
+   if(world.rank() == 0) print("\n   Diagonalizing trial functions for an improved initial guess.\n");
 
    // Diagonalize
    // Inplace modificaiton of guesses and guess_omega
@@ -2013,12 +1837,11 @@ void TDA::solve(World & world)
    }
 
    // Now we need to choose the tda_num_excited lowest energy states
-   tda_x_response = select_trial_functions2(world, guesses, guess_omega, tda_num_excited, tda_print_level);
+   tda_x_response = select_trial_functions(world, guesses, guess_omega, tda_num_excited, tda_print_level);
 
    // Ready to iterate!
    iterate(world);
 
-   // Any post processing would go here? 
    // Plot the response function
    // Need to sum contributions to get actual orbital first
    //std::vector<real_function_3d> densities = zero_functions<double, 3>(world, tda_num_excited);
