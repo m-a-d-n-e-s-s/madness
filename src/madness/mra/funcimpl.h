@@ -1339,7 +1339,6 @@ namespace madness {
                 double x,y,z,x1,y1,z1,val;
 
                 // get the key
-                //				MADNESS_ASSERT(std::getline(kfile,kline));
                 long nn;
                 Translation l1,l2,l3;
                 // line looks like: # key:      n      l1   l2   l3
@@ -1366,8 +1365,8 @@ namespace madness {
                             for (int k=0; k<npt; ++k) {
                                 c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
                                 //								fprintf(pFile,"%18.12f %18.12f %18.12f\n",c[0],c[1],c[2]);
-                                MADNESS_ASSERT(std::getline(gfile,gline));
-                                MADNESS_ASSERT(std::getline(kfile,kline));
+                                auto& success1 = std::getline(gfile,gline); MADNESS_ASSERT(success1);
+                                auto& success2 = std::getline(kfile,kline); MADNESS_ASSERT(success2);
                                 std::istringstream(gline) >> x >> y >> z >> val;
                                 std::istringstream(kline) >> x1 >> y1 >> z1;
                                 MADNESS_ASSERT(std::fabs(x-c[0])<1.e-4);
@@ -1467,7 +1466,8 @@ namespace madness {
                             for (int k=0; k<npt; ++k) {
                                 c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
 
-                                MADNESS_ASSERT(std::getline(gfile,gline));
+                                auto& success = std::getline(gfile,gline);
+                                MADNESS_ASSERT(success);
                                 std::istringstream(gline) >> x1 >> y1 >> z1 >> val;
                                 MADNESS_ASSERT(std::fabs(x1-c[0])<1.e-4);
                                 MADNESS_ASSERT(std::fabs(y1-c[1])<1.e-4);
@@ -3993,7 +3993,8 @@ namespace madness {
             // Must allow for someone already having autorefined the coeffs
             // and we get a write accessor just in case they are already executing
             typename dcT::accessor acc;
-            MADNESS_ASSERT(coeffs.find(acc,key));
+            const auto found = coeffs.find(acc,key);
+            MADNESS_ASSERT(found);
             nodeT& node = acc->second;
             if (node.has_coeff() && key.level() < max_refine_level && op(this, key, node)) {
                 coeffT d(cdata.v2k,targs);
