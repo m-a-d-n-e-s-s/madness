@@ -36,6 +36,9 @@
 #include <madness/world/dependency_interface.h>
 #include <madness/world/thread.h>
 #include <madness/world/future.h>
+#include <madness/world/meta.h>
+
+#define MADNESS_TASKQ_VARIADICS 1
 
 namespace madness {
 
@@ -172,7 +175,12 @@ namespace madness {
             Arg arg_;
         public:
 
-            ArgHolder(const Arg& arg) : arg_(arg) { }
+            template <typename Arg_ = Arg,
+            typename = std::enable_if_t<
+              !std::is_same<std::decay_t<Arg_>,
+                            archive::BufferInputArchive>::value
+            >>
+            ArgHolder(Arg_&& arg) : arg_(arg) { }
 
             ArgHolder(const archive::BufferInputArchive& input_arch) :
                 arg_()
@@ -180,9 +188,9 @@ namespace madness {
                 input_arch & arg_;
             }
 
-            operator Arg&() { return arg_; }
-            operator const Arg&() const { return arg_; }
-            explicit operator Arg&&() { return std::move(arg_); }
+            operator Arg&() & { return arg_; }
+            operator const Arg&() const& { return arg_; }
+            explicit operator Arg&&() && { return std::move(arg_); }
         }; // class ArgHolder
 
         template <typename T>
@@ -545,6 +553,132 @@ namespace madness {
 
     public:
 
+#if MADNESS_TASKQ_VARIADICS
+
+        // what this look like ... but need extra MP functionality
+//        template <typename ... argsT>
+//        TaskFn(const futureT& result, functionT func, argsT&& ... args) :
+//            TaskInterface(attr), result_(result), func_(func), arg1_(), arg2_(),
+//            arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+//            {
+//          MADNESS_ASSERT(arity == 0u);
+//          check_dependencies();
+//            }
+        TaskFn(const futureT& result, functionT func, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(), arg2_(),
+            arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 0u);
+            check_dependencies();
+        }
+
+        template <typename a1T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1,
+                const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(),
+            arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 1u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 2u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 3u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 4u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 5u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
+                typename a6T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, a6T&& a6,
+                const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(std::forward<a6T>(a6)), arg7_(), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 6u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
+                typename a6T, typename a7T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, a6T&& a6,
+                a7T&& a7, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(std::forward<a6T>(a6)), arg7_(std::forward<a7T>(a7)), arg8_(), arg9_()
+        {
+            MADNESS_ASSERT(arity == 7u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
+                typename a6T, typename a7T, typename a8T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, a6T&& a6, a7T&& a7,
+                a8T&& a8, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(std::forward<a6T>(a6)), arg7_(std::forward<a7T>(a7)), arg8_(std::forward<a8T>(a8)), arg9_()
+        {
+            MADNESS_ASSERT(arity == 8u);
+            check_dependencies();
+        }
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
+                typename a6T, typename a7T, typename a8T, typename a9T>
+        TaskFn(const futureT& result, functionT func, a1T&& a1, a2T&& a2,
+                a3T&& a3, a4T&& a4, a5T&& a5, a6T&& a6,
+                a7T&& a7, a8T&& a8, a9T&& a9, const TaskAttributes& attr) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(std::forward<a1T>(a1)), arg2_(std::forward<a2T>(a2)),
+            arg3_(std::forward<a3T>(a3)), arg4_(std::forward<a4T>(a4)), arg5_(std::forward<a5T>(a5)), arg6_(std::forward<a6T>(a6)), arg7_(std::forward<a7T>(a7)), arg8_(std::forward<a8T>(a8)), arg9_(std::forward<a9T>(a9))
+        {
+            MADNESS_ASSERT(arity == 9u);
+            check_dependencies();
+        }
+
+        TaskFn(const futureT& result, functionT func, const TaskAttributes& attr,
+                archive::BufferInputArchive& input_arch) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(input_arch),
+            arg2_(input_arch), arg3_(input_arch), arg4_(input_arch), arg5_(input_arch),
+            arg6_(input_arch), arg7_(input_arch), arg8_(input_arch), arg9_(input_arch)
+        {
+            // No need to check dependencies since the arguments are from an archive
+        }
+#else  // MADNESS_TASKQ_VARIADICS
         TaskFn(const futureT& result, functionT func, const TaskAttributes& attr) :
             TaskInterface(attr), result_(result), func_(func), arg1_(), arg2_(),
             arg3_(), arg4_(), arg5_(), arg6_(), arg7_(), arg8_(), arg9_()
@@ -659,6 +793,7 @@ namespace madness {
         {
             // No need to check dependencies since the arguments are from an archive
         }
+#endif  // MADNESS_TASKQ_VARIADICS
 
         virtual ~TaskFn() { }
 

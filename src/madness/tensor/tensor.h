@@ -139,7 +139,7 @@
   of the data, it is automatically freed.
 
   There are only two ways to actually copy the underlying data.  A
-  new, complete, and contigous copy of a tensor and its data may be
+  new, complete, and contiguous copy of a tensor and its data may be
   generated with the \c copy() function.  Or, to copy data from one tensor
   into the data viewed by another tensor, you must use a Slice.
 

@@ -162,13 +162,20 @@ namespace madness {
         }
     }
     
-    SCF::SCF(World & world, const char *filename) {
+    SCF::SCF(World & world, const char *filename) : SCF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr)){
+    }
+
+    /// collective constructor, reads \c input on rank 0, broadcasts to all
+    SCF::SCF(World & world, std::shared_ptr<std::istream> input) {
         FunctionDefaults<3>::set_truncate_mode(1);
         PROFILE_MEMBER_FUNC(SCF);
         if (world.rank() == 0) {
-            molecule.read_file(filename);
+            if (input->fail()) {
+                MADNESS_EXCEPTION("SCF failed to open stream", 0);
+            }
+            molecule.read(*input);
             if (molecule.natom() < 3) param.localize = false; // symmetry confuses orbital localization
-            param.read_file(filename);
+            param.read(*input);
             
             //if psp_calc is true, set all atoms to PS atoms
             //if not, check whether some atoms are PS atoms or if this a pure AE calculation

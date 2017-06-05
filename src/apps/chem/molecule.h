@@ -139,7 +139,10 @@ public:
 
     Molecule(const std::string& filename);
 
+    // initializes Molecule using the contents of file \c filename
     void read_file(const std::string& filename);
+    // initializes Molecule using the contents of stream \c f
+    void read(std::istream& f);
 
     void read_core_file(const std::string& filename);
 
