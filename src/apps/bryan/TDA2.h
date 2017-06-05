@@ -396,18 +396,26 @@ class TDA
                                       Tensor<double> & overlap,
                                       const double thresh); 
 
-      // Transforms the given matrix of functions according to the given 
+      // Transforms the given matrix of functions according to the given
       // transformation matrix. Used to update orbitals / potentials
       std::vector<std::vector<real_function_3d>> transform(World & world,
                                                            std::vector<std::vector<real_function_3d>> & f,
-                                                           Tensor<double> & U);  
+                                                           Tensor<double> & U);
+
+      // Need to calculate: \sum_{j \neq k} x_p^{(j)} \Omega_{jk}
+      // and add to RHS before BSH to allow correct for the rotated
+      // potentials. Omega here is simply the Hamiltonian matrix.
+      std::vector<std::vector<real_function_3d>> rotation_correction_term(World & world,
+                                                                          std::vector<std::vector<real_function_3d>> f,
+                                                                          Tensor<double> A,
+                                                                          int print_level);
 
       // Sorts the given Tensor and vector of functions in place
-      void sort(World & world,
-                Tensor<double> & vals,
-                Tensor<double> & vals_residuals,
-                std::vector<std::vector<real_function_3d>> & f, 
-                std::vector<std::vector<real_function_3d>> & f_diff); 
+      Tensor<int> sort(World & world,
+                       Tensor<double> & vals,
+                       Tensor<double> & vals_residuals,
+                       std::vector<std::vector<real_function_3d>> & f, 
+                       std::vector<std::vector<real_function_3d>> & f_diff); 
 
       // Prints iterate headers, used in default printing
       void print_iterate_headers(World & world);

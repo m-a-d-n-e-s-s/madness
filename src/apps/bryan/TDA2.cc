@@ -944,10 +944,6 @@ Tensor<double> TDA::create_A(World & world,
       // Need another run over excited states
       for(int j = 0; j < m; j++)
       {
-         // Project out all overlap with ground state orbitals
-         // Should do nothing. Check.
-         //temp[j] = ground_state_density(temp[j]);
-
          // Run over all occupied orbitals to get their contribution
          // to the part of A we're calculating . Finally calculate 
          // \int dr x_p^k * temp (using vectors to do so in parallel)
@@ -1119,9 +1115,9 @@ Tensor<double> TDA::calculate_energy_update(World & world,
     *                                   { \sum_p \left| \left| \~{x}_p^{(k)} \right| \right|^2 }
     */
   
+   // Basic output
    if(print_level >= 1) 
    { 
-      // Basic output
       if(world.rank() == 0) print("   Calculating energy residy residuals");
    }   
 
@@ -1240,7 +1236,18 @@ std::vector<std::vector<real_function_3d>> TDA::select_trial_functions(World & w
    std::vector<std::vector<real_function_3d>> dummy2 = tda_zero_functions(world, f.size(), f[0].size());
 
    // Sort by the energy
-   sort(world, energies, dummy, f, dummy2);
+   Tensor<int> selected = sort(world, energies, dummy, f, dummy2);
+
+   // Pull out first k from selected.
+   Tensor<int> k_selected(k);
+   for(int i = 0; i < k; i++) k_selected(i) = selected(i);
+
+   // Basic output
+   if(print_level >= 0)
+   {
+      if(world.rank() == 0) print("   The selected states are:");
+      if(world.rank() == 0) print(k_selected);
+   }
 
    // Now just take the first k functions
    for(int i = 0; i < k; i++) answer.push_back(copy(world, f[i]));
@@ -1414,12 +1421,12 @@ Tensor<double> TDA::diag_fock_matrix(World & world,
     Tensor<double> U = get_fock_transformation(world, overlap, fock, evals, thresh);
 
     // transform the orbitals and the potential
-    //Vpsi = transform(world, Vpsi, U);    
-    //gamma = transform(world, gamma, U);    
+    Vpsi = transform(world, Vpsi, U);        
+    gamma = transform(world, gamma, U);    
     psi = transform(world, psi, U);
 
-    // truncate
-    //truncate(world, Vpsi);
+    // truncate all and normalize psi
+    truncate(world, Vpsi);
     truncate(world, gamma);
     truncate(world, psi);
     normalize(world, psi);
@@ -1447,27 +1454,30 @@ std::vector<std::vector<real_function_3d>> TDA::transform(World & world,
       {
          gaxpy(world, 1.0, temp, U(j,i), f[j]);
       }
-      
+
       // Add to temp to result
       result.push_back(temp);
    }
 
-   // Done?
+   // Done
    return result;
 } 
 
 
 // Sorts the given Tensor of energies and vector of functions
 // in place
-void TDA::sort(World & world,
-               Tensor<double> & vals,
-               Tensor<double> & val_residuals,
-               std::vector<std::vector<real_function_3d>> & f,
-               std::vector<std::vector<real_function_3d>> & f_diff)
+Tensor<int> TDA::sort(World & world,
+                      Tensor<double> & vals,
+                      Tensor<double> & val_residuals,
+                      std::vector<std::vector<real_function_3d>> & f,
+                      std::vector<std::vector<real_function_3d>> & f_diff)
 
 {
    // Get relevant sizes
    int k = vals.size();
+
+   // Tensor to hold selection order
+   Tensor<int> selected(k);
 
    // Copy everything
    std::vector<std::vector<real_function_3d>> f_copy;
@@ -1478,7 +1488,6 @@ void TDA::sort(World & world,
    for(int i = 0; i < k; i++) vals_copy.push_back(vals[i]);
    Tensor<double> vals_copy2 = copy(vals);
    Tensor<double> val_residuals_copy = copy(val_residuals);
-
 
    // Clear the vectors
    f.clear();
@@ -1494,13 +1503,65 @@ void TDA::sort(World & world,
       // Find matching index in sorted vals_copy
       int j = 0;
       while(fabs(vals_copy[i] - vals_copy2[j]) > 1e-6 && j < k) j++;
+    
+      // Add in to list which one we're taking
+      selected(i) = j;
 
       // Put the rest in order
       f.push_back(f_copy[j]);
       f_diff.push_back(f_diff_copy[j]);
       vals(i) =  vals_copy[i];
       val_residuals[i] = val_residuals_copy(j);
+
+      // Change the value of vals_copy2[j] to help deal with duplicates?
+      vals_copy2[j] = 10000.0;
    }
+
+   // Done
+   return selected;
+}
+
+// Need to calculate:
+//
+//   \sum_{j \neq k} x_p^{(j)} \Omega_{jk}
+//
+// and add to RHS before BSH to allow correct for
+// the rotated potentials. Omega here is simply
+// the Hamiltonian matrix.
+std::vector<std::vector<real_function_3d>> TDA::rotation_correction_term(World & world,
+                                                                         std::vector<std::vector<real_function_3d>> f,
+                                                                         Tensor<double> A,
+                                                                         int print_level)
+{
+   // Get sizes
+   int m = f.size();
+   int n = f[0].size();
+
+   // Construct a zero matrix to be rerturned
+   std::vector<std::vector<real_function_3d>> correction = tda_zero_functions(world, m, n);
+
+   // Add to correction as needed
+   for(int k = 0; k < m; k++)
+   {
+      for(int p = 0; p < n; p++)
+      {
+         // Finally contract over inner index
+         for(int j = 0; j < m; j++)
+         {
+            if(j != k) correction[k][p] += f[j][p] * A(j,k);
+         }
+      }
+   } 
+
+   // Debugging output
+   if(print_level >= 2)
+   {
+      if(world.rank() == 0) print("   Rotation correction term:"); 
+      Tensor<double> temp2 = expectation(world, correction, correction);
+      if(world.rank() == 0) print(temp2);
+   }
+
+   return correction; 
 }
 
 // Prints headers for standard output of iterate()
@@ -1525,12 +1586,13 @@ void TDA::iterate(World & world)
    int n = tda_num_orbitals;                                                     // Number of ground state orbitals
    int m = tda_num_excited;                                                      // Number of excited states
    bool converged = false;                                                       // For convergence
-   Tensor<double> energy_updates;                                                // Holds energy corrections
-   Tensor<double> max_residuals(tda_max_iterations);                             // Holds list of all energy max residuals
+   Tensor<double> old_energy(m);                                                 // Holds previous iteration's energy
+   Tensor<double> energy_residuals;                                              // Holds energy residuals 
    std::vector<std::vector<real_function_3d>> differences;                       // Holds wave function corrections
    std::vector<std::vector<real_function_3d>> temp;                              // Used for step restriction 
    std::vector<std::vector<real_function_3d>> gamma;
    std::vector<std::vector<real_function_3d>> V_response;
+   std::vector<std::vector<real_function_3d>> shifted_V_response;
 
    // The KAIN solver
    XNonlinearSolver<std::vector<std::vector<real_function_3d>>, double, TDA_allocator> kain(TDA_allocator(world, m, n), tda_print_level);  
@@ -1547,6 +1609,9 @@ void TDA::iterate(World & world)
    // Now to iterate
    while( iteration < tda_max_iterations  && !converged)
    {
+      // Start a timer
+      Tensor<double> iter_time = end_timer(world);
+
       // Basic output
       if(tda_print_level >= 1)
       {
@@ -1556,14 +1621,12 @@ void TDA::iterate(World & world)
 
       // Create gamma      
       gamma = create_gamma(world);
-      //if(iteration == 0) gamma = create_gamma(world);
 
       // Project out ground state
       for(int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
       // Create \hat{V}^0 applied to tda_x_response
       V_response = create_potential(world);
-      //if(iteration == 0) V_response = create_potential(world);
 
       // Basic output
       if(tda_print_level >= 1) 
@@ -1580,7 +1643,24 @@ void TDA::iterate(World & world)
       // Solve Ax = Sxw
       //Tensor<double> U;
       //if(iteration == 0) sygvp(world, A, S, 1.0, U, tda_omega);
-      diag_fock_matrix(world, A, tda_x_response, V_response, gamma, tda_omega, S, tda_thresh);              
+      Tensor<double> U = diag_fock_matrix(world, A, tda_x_response, V_response, gamma, tda_omega, S, tda_thresh);              
+
+      // Debugging output
+      if(tda_print_level >= 2)
+      {
+         if(world.rank() == 0) print("   Eigenvector coefficients from diagonalization:");
+         if(world.rank() == 0) print(U);
+      }
+
+      //  Calculates shifts needed for potential / energies
+      //  If none needed, the zero tensor is returned
+      Tensor<double> shifts = create_shift(world);  
+
+      // Apply the shifts
+      shifted_V_response = apply_shift(world, shifts, V_response);
+
+      // Construct RHS of equation
+      std::vector<std::vector<real_function_3d>> rhs = gamma + shifted_V_response + rotation_correction_term(world, tda_x_response, A, tda_print_level);
 
       // Basic output
       if(tda_print_level >= 1) 
@@ -1589,15 +1669,6 @@ void TDA::iterate(World & world)
          if(world.rank() == 0) print(tda_omega);
       }
 
-      //  Calculates shifts needed for potential / energies
-      //  If none needed, the zero tensor is returned
-      Tensor<double> shifts = create_shift(world);  
-
-      // Apply the shifts
-      V_response = apply_shift(world, shifts, V_response);
-
-      // Construct RHS of equation
-      std::vector<std::vector<real_function_3d>> rhs = gamma + V_response;
 
       // Debugging output
       if(tda_print_level >= 2) 
@@ -1639,15 +1710,6 @@ void TDA::iterate(World & world)
          print_norms(world, differences);
       }
 
-      // Calculate energy correction
-      // NOTE: full formula is calculated, so just add to omega to update 
-      // Doing this for convergence testing only
-      energy_updates = calculate_energy_update(world, rhs, differences, new_x_response, tda_print_level);
-
-      // Update energies now
-      // Just using the energy from diagonalization now
-      //tda_omega += energy_updates;
-
       // Basic output
       //if(tda_print_level >= 1) 
       //{
@@ -1660,27 +1722,23 @@ void TDA::iterate(World & world)
       // KAIN solver update
       //new_x_response = kain.update(new_x_response, differences); 
 
-      // Check if random noise should be added
-      // (Basically only when iterations haven't changed much
-      // but we are still 'far' from convergence)
-      // Testing with doing this every 10 if previous 5 iterations 
-      // are all over 1 for energy residual
-      if(iteration > 9 && iteration % 10 == 0 && max_residuals[iteration  ] > 1.0 && 
-                                                 max_residuals[iteration-1] > 1.0 && 
-                                                 max_residuals[iteration-2] > 1.0 && 
-                                                 max_residuals[iteration-3] > 1.0 && 
-                                                 max_residuals[iteration-4] > 1.0)
-      {
-         // Basic output
-         if(tda_print_level >= 1) if(world.rank() == 0) print("   Determined convergence to be stale. Adding random noise.");
-         tda_x_response = add_randomness(world, tda_x_response); 
-      }
-
       // Save new orbitals
       tda_x_response = new_x_response;
 
+      // Calculate energy residual and update old_energy 
+      energy_residuals = abs(tda_omega - old_energy);
+      old_energy = tda_omega;
+
+      // Basic output
+      if(tda_print_level >= 1) 
+      {
+         if(world.rank() == 0) print("   Energy residuals:");
+         if(world.rank() == 0) print(energy_residuals);
+      }
+
+
       // Check convergence
-      if(energy_updates.absmax() < tda_energy_threshold) converged = true;
+      if(iteration >= 1 && energy_residuals.absmax() < tda_energy_threshold) converged = true;
 
       // Update counter
       iteration += 1;
@@ -1689,32 +1747,53 @@ void TDA::iterate(World & world)
       if(tda_print_level == 0) 
       {
          Tensor<double> current_time = end_timer(world);
-         if(world.rank() == 0) printf("%6d      % 10.6e   % 10.6e    %5.2f\n", iteration, energy_updates.absmax(), calculate_max_residual(world, differences), current_time[0] - initial_time[0]);
+         if(world.rank() == 0) printf("%6d      % 10.6e   % 10.6e    %5.2f\n", iteration, energy_residuals.absmax(), calculate_max_residual(world, differences), current_time[0] - initial_time[0]);
       }
 
-      // Add max residual to tensor of max residuals (for random addition check)
-      max_residuals[iteration] = energy_updates.absmax();
-
-      // Done with the iteration.. normalize and truncate?
+      // Done with the iteration.. normalize and truncate
       normalize(world, tda_x_response);
       truncate(world, tda_x_response);
+
+      // Basic output
+      if(tda_print_level >= 1)
+      {
+         // Precision is set to 10 coming in, drop it to 2
+         std::cout.precision(2);
+         std::cout << std::fixed;
+
+         Tensor<double> current_time = end_timer(world);
+         if(world.rank() == 0) print("   Time this iteration:", current_time[0] - iter_time[0]);
+         if(world.rank() == 0) print("   Total time in iterations:", current_time[0] - initial_time[0],"\n"); 
+
+         // Reset precision
+         std::cout.precision(10);
+         std::cout << std::scientific;
+      }
    }
    
    if(world.rank() == 0) print("\n");
 
    // Did we converge?
-   if(iteration == tda_max_iterations && energy_updates.absmax() > tda_energy_threshold) print("\n  ***  Ran out of iterations  ***\n");
+   if(iteration == tda_max_iterations && energy_residuals.absmax() > tda_energy_threshold)
+   {
+      if(world.rank() == 0) print("\n   Finished TDA Calculation");
+      if(world.rank() == 0) print("   ------------------------");
+      if(world.rank() == 0) print("   Failed to converge. Reason:");
+      if(world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
+   }
+   else
+   {
+      // Sort values and functions into ascending order based on values
+      sort(world, tda_omega, energy_residuals, tda_x_response, differences);
 
-   // Sort values and functions into ascending order based on values
-   sort(world, tda_omega, energy_updates, tda_x_response, differences);
-
-   // Print final things
-   if(world.rank() == 0) print(" Final energies:\n"); 
-   if(world.rank() == 0) print(tda_omega);
-   if(world.rank() == 0) print(" Final energy residuals:");
-   if(world.rank() == 0) print(energy_updates);
-   if(world.rank() == 0) print(" Final response function residuals:");
-   print_norms(world, differences);   
+      // Print final things
+      if(world.rank() == 0) print(" Final energies:\n"); 
+      if(world.rank() == 0) print(tda_omega);
+      if(world.rank() == 0) print(" Final energy residuals:");
+      if(world.rank() == 0) print(energy_residuals);
+      if(world.rank() == 0) print(" Final response function residuals:");
+      print_norms(world, differences);   
+   }
 
    // Done with iterate
 }
