@@ -126,10 +126,12 @@ TDA::TDA(World & world,
 
       // User input things
       // Currently set at defaults
+      // Eventually will be set from an input file
       tda_num_excited = k;
       tda_print_level = print_level;
-      tda_max_iterations = 300;
+      tda_max_iterations = 100;
       tda_energy_threshold = tda_thresh; 
+      tda_range = 0.10; 
 }
 
 // Normalizes a response matrix of functions
@@ -248,24 +250,6 @@ std::vector<std::vector<real_function_3d>> TDA::tda_zero_functions(World & world
    return results;
 }
 
-
-// Returns the given function f raised to power n
-real_function_3d TDA::power_function(World & world,
-                                     real_function_3d & f,
-                                     int n)
-{
-   MADNESS_ASSERT(n > 0);
-
-   // Container to return
-   real_function_3d result = copy(f);
-
-   // Now multiply for each n-1 times needed
-   for(int i = 0; i < n-1; i++) result = result * f;
-
-   // Done
-   return result;
-}
-
 // Returns a list of symmetry related functions for the correct
 // pointgroup of the provided molecule
 std::vector<real_function_3d> TDA::symmetry(World & world)
@@ -298,99 +282,14 @@ std::vector<real_function_3d> TDA::symmetry(World & world)
    return result;
 }
 
-// Base case for generating chebyshev guesses
-std::vector<real_function_3d> TDA::chebyshev(World & world,
-                                             int k)
-{
-   // Basic output
-   if(tda_print_level >= 0)
-   {
-      if(world.rank() == 0) print("   Creating Chebyshev polynomials.");
-   }
-
-   // Create an empty vector of functions to return
-   std::vector<real_function_3d> T;
-
-   // A zero function
-   real_function_3d zero = real_factory_3d(world);
-
-   // A diffuse guassian (to keep values near boundary managable)
-   // Inputs to functor are (center, exponent, powers of x,y,z in front of gaussian)
-   // Coefficients here are for normalization
-   real_function_3d gaussian = real_factory_3d(world).functor(GaussianGuess<3>(Vector<double,3>(0.0), 0.5, std::vector<int>{0,0,0}));
-   gaussian.scale(1.0/(sqrt(10) * sqrt(constants::pi)));
-
-   // The function r 
-   real_function_3d r = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{1,1,1})));
-
-   // If k >= 2, add in first 2
-   if(k >= 1) T.push_back(zero.add_scalar(1.0));
-   if(k >= 2) T.push_back(r);
- 
-   while(T.size() < k)
-   {
-      // Add in next polynomial
-      // Formula is T_{n+1} = x * T_n - T_{n-1}
-      // Remember: T[1] = x, so use that to get
-      // T_{n+1} = T[1] * T_n - T_{n-1}
-      // Also note: should only get here if T[1]
-      // already exists
-      T.push_back(T[1] * T[T.size() - 1] - T[T.size() - 2]);
-   }
-
-   // Multiply each function by the gaussian created above to minimize values
-   // near the edge of the box
-   for(int i = 0; i < k; i++) T[i] = T[i] * gaussian;
-
-   // Done
-   return T;
-}
-
-// Returns initial guess functions
-// Probably needs a lot of work on how to do this intelligently
-std::vector<std::vector<real_function_3d>> TDA::create_trial_functions1(World & world,
-                                                                        int k,
-                                                                        std::vector<real_function_3d> & orbitals,
-                                                                        int axis,
-                                                                        int print_level)
-{
-   // Holder for r*orbitals
-   std::vector<std::vector<real_function_3d>> trials;
-
-   // Tells functor which axis to use
-   std::vector<int> f(3,0);
-   f[axis] = true;
-
-   // Creating the functor  
-   real_function_3d r = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
-
-   // Create k functions
-   for(int i = 0; i < k; i++)
-   {
-      trials.push_back(power_function(world, r, i+1) * tda_orbitals);      
-   }
-
-   // Debugging output
-   if(print_level >= 2) 
-   {
-      if(world.rank() == 0) print("   Norms of guess functions:");
-      print_norms(world, trials); 
-   }
-
-   // Truncate 
-   truncate(world, trials);
-
-   // Done?
-   return trials;    
-}
-
 // Returns initial guess functions
 // Probably needs a lot of work on how to do this intelligently
 // Currently: Producing each combination of symmetry function on the orbitals
-std::vector<std::vector<real_function_3d>> TDA::create_trial_functions2(World & world,
-                                                                        Tensor<double> energies,
-                                                                        std::vector<real_function_3d> & orbitals,
-                                                                        int print_level)
+std::vector<std::vector<real_function_3d>> TDA::create_trial_functions(World & world,
+                                                                       int k,
+                                                                       Tensor<double> energies,
+                                                                       std::vector<real_function_3d> & orbitals,
+                                                                       int print_level)
 {
    // Get size
    int n = orbitals.size();
@@ -399,8 +298,14 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions2(World & 
    // Only going through the d symmetry functions
    std::vector<real_function_3d> symm = symmetry(world);
 
+   // Determine how many functions will be created
+   int size = n * symm.size() > k ? n * symm.size() : (k/symm.size() + 1) * symm.size();  
+
    // Container to return 
-   std::vector<std::vector<real_function_3d>> trials = tda_zero_functions(world, n*symm.size(), n);
+   std::vector<std::vector<real_function_3d>> trials = tda_zero_functions(world, size, n);
+
+   // Counter for number of trials created
+   int count = 0;
 
    // Run over symmetry functions
    for(int i = 0; i < symm.size(); i++)
@@ -408,55 +313,29 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions2(World & 
       // Run over each occupied orbital
       for(int p = 0; p < n; p++)
       {
-         trials[i*n + p][p] = symm[i] * orbitals[p];
+         trials[count/n][p] = symm[i] * orbitals[p];
+         count++;
       } 
    } 
 
-   // Debugging output
-   if(print_level >= 2) 
+   // Make sure we have at least k functions by adding in powers of r times
+   // the functions already created
+   real_function_3d r = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{1,1,1})));
+   while(count < k )
    {
-      if(world.rank() == 0) print("   Norms of guess functions:");
-      print_norms(world, trials); 
-   }
-
-   // Truncate 
-   truncate(world, trials);
-
-   // Done?
-   return trials;    
-}
-
-// Constructing guesses from Chebyshev polynomials
-std::vector<std::vector<real_function_3d>> TDA::create_trial_functions3(World & world,
-                                                                        int k,
-                                                                        std::vector<real_function_3d> & orbitals,
-                                                                        int print_level)
-{
-   // Get size from input orbitals
-   int n = orbitals.size();
-   
-   // Container to return 
-   std::vector<std::vector<real_function_3d>> trials;
-
-   // Create a vector of the first k chebyshev polynomials   
-   // The +1 is so we don't use the first chebyshev polynomial,
-   // which is just 1 
-   std::vector<real_function_3d> cheby = chebyshev(world, k+1); 
-
-   // Make an outer product between chebyshev and orbitals 
-   for(int i = 1; i < cheby.size(); i++)
-   {
-      // Container for the row
-      std::vector<real_function_3d> temp(n);
-
-      for(int p = 0; p < n; p++)
+      // Run over symmetry functions
+      for(int i = 0; i < symm.size(); i++)
       {
-         // Create the row
-         temp[p] = cheby[i] * orbitals[p];
-      }
+         // Run over each occupied orbital
+         for(int p = 0; p < n; p++)
+         {
+            trials[count/n][p] = r * symm[i] * orbitals[p];
+            count++;
+         } 
+      } 
 
-      // Save the row
-      trials.push_back(temp);
+      // Increase power of r
+      r = r * r; 
    }
 
    // Debugging output
@@ -469,7 +348,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions3(World & 
    // Truncate 
    truncate(world, trials);
 
-   // Done?
+   // Done
    return trials;    
 }
 
@@ -519,7 +398,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_coulomb_derivative(World 
 // Overloaded to get defaults correct
 std::vector<std::vector<real_function_3d>> TDA::create_coulomb_derivative(World &world)
 {
-   return create_coulomb_derivative(world, tda_x_response, tda_orbitals, tda_small, tda_thresh);
+   return create_coulomb_derivative(world, tda_x_response, tda_act_orbitals, tda_small, tda_thresh);
 }
 
 
@@ -572,7 +451,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_exchange_derivative(World
 // Overloaded to get default values right
 std::vector<std::vector<real_function_3d>> TDA::create_exchange_derivative(World &world)
 {
-  return create_exchange_derivative(world, tda_x_response, tda_orbitals, tda_small, tda_thresh); 
+  return create_exchange_derivative(world, tda_x_response, tda_act_orbitals, tda_small, tda_thresh); 
 }
 
 // Computes gamma(r) given the ground state orbitals and response functions
@@ -634,7 +513,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_gamma(World &world,
 // Overloaded to get defaults right
 std::vector<std::vector<real_function_3d>> TDA::create_gamma(World &world)
 {
-   return create_gamma(world, tda_x_response, tda_orbitals, tda_small, tda_thresh, tda_print_level);
+   return create_gamma(world, tda_x_response, tda_act_orbitals, tda_small, tda_thresh, tda_print_level);
 }
 
 // Calculates ground state coulomb potential 
@@ -897,13 +776,14 @@ std::vector<std::vector<real_function_3d>> TDA::create_fock(World & world,
 
 
 // Construct the Hamiltonian
-Tensor<double> TDA::create_A(World & world,
-                             std::vector<std::vector<real_function_3d>> & gamma,
-                             std::vector<std::vector<real_function_3d>> & V,
-                             std::vector<std::vector<real_function_3d>> & f,
-                             std::vector<real_function_3d> & ground_orbitals,
-                             Tensor<double> & energies,
-                             int print_level)
+Tensor<double> TDA::create_hamiltonian(World & world,
+                                       std::vector<std::vector<real_function_3d>> & gamma,
+                                       std::vector<std::vector<real_function_3d>> & V,
+                                       std::vector<std::vector<real_function_3d>> & f,
+                                       std::vector<real_function_3d> & ground_orbitals,
+                                       std::vector<real_function_3d> & full_ground_orbitals,
+                                       Tensor<double> & energies,
+                                       int print_level)
 {
    // Sizes inferred from V and gamma
    int m = V.size();
@@ -912,7 +792,7 @@ Tensor<double> TDA::create_A(World & world,
    Tensor<double> A(m,m); 
 
    // Projector on the unperturbed density
-   QProjector<double,3> ground_state_density(world, ground_orbitals);
+   QProjector<double,3> ground_state_density(world, full_ground_orbitals);
    
    // Create the ground-state fock operator on response orbitals
    std::vector<std::vector<real_function_3d>> fock_x_resp = create_fock(world, V, f, print_level);
@@ -944,17 +824,20 @@ Tensor<double> TDA::create_A(World & world,
       // Need another run over excited states
       for(int j = 0; j < m; j++)
       {
+         // Project out ground state densities
+         temp[j] = ground_state_density(temp[j]);
+
          // Run over all occupied orbitals to get their contribution
          // to the part of A we're calculating . Finally calculate 
          // \int dr x_p^k * temp (using vectors to do so in parallel)
-         A(k,j) += inner(f[k], temp[j]); 
+         A(k,j) = inner(f[k], temp[j]); 
       }
    }
 
-   // Debugging output
-   if(print_level >= 2) 
+   // Basic output
+   if(print_level >= 1) 
    {
-      if(world.rank() == 0) print("   A matrix:");
+      if(world.rank() == 0) print("   Hamiltonian matrix:");
       if(world.rank() == 0) print(A);
    }
 
@@ -963,11 +846,11 @@ Tensor<double> TDA::create_A(World & world,
 }
 
 // Overloaded to get default parameters right
-Tensor<double> TDA::create_A(World & world,
+Tensor<double> TDA::create_hamiltonian(World & world,
                              std::vector<std::vector<real_function_3d>> & gamma,
                              std::vector<std::vector<real_function_3d>> & V)
 {
-   return create_A(world, gamma, V, tda_x_response, tda_orbitals, tda_ground_energies, tda_print_level);
+   return create_hamiltonian(world, gamma, V, tda_x_response, tda_act_orbitals, tda_orbitals, tda_act_ground_energies, tda_print_level);
 }
 
 
@@ -997,9 +880,9 @@ Tensor<double> TDA::create_shift(World & world,
             // which was arbitrary (same as moldft)
             result(k,p) = -(ground(p) + omega(k) + 0.05);
 
+            // Basic output
             if(print_level >= 1) 
             {
-               // Let user know whats up
                if(world.rank() == 0) print("   Shift needed for transition from ground orbital", p);
                if(world.rank() == 0) print("   to response orbital", k, ".");
                if(world.rank() == 0) print("   Ground energy =", ground(p));
@@ -1018,7 +901,7 @@ Tensor<double> TDA::create_shift(World & world,
 // Overloaded for default parameters
 Tensor<double> TDA::create_shift(World & world)
 {
-   return create_shift(world, tda_num_excited, tda_num_orbitals, tda_ground_energies, tda_omega, tda_print_level);
+   return create_shift(world, tda_num_excited, tda_act_num_orbitals, tda_act_ground_energies, tda_omega, tda_print_level);
 }
 
 // Returns the given shift applied to the given potential
@@ -1058,12 +941,12 @@ std::vector<std::vector<real_function_3d>> TDA::apply_shift(World & world,
 
 // Function to make a vector of BSH operators using ground and excited
 // state energies
-std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDA::make_bsh_operators(World & world,
-                                                                                        Tensor<double> & shift,
-                                                                                        Tensor<double> & ground,
-                                                                                        Tensor<double> & omega,
-                                                                                        double small,
-                                                                                        double thresh)
+std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDA::create_bsh_operators(World & world,
+                                                                                         Tensor<double> & shift,
+                                                                                         Tensor<double> & ground,
+                                                                                         Tensor<double> & omega,
+                                                                                         double small,
+                                                                                         double thresh)
 {
    // Sizes inferred from ground and omega
    int n = ground.size();
@@ -1094,10 +977,10 @@ std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDA::make_bsh_ope
 }
 
 // Overloaded for function defaults 
-std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDA::make_bsh_operators(World & world,
-                                                                                       Tensor<double> & shift)
+std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDA::create_bsh_operators(World & world,
+                                                                                         Tensor<double> & shift)
 {
-   return make_bsh_operators(world, shift, tda_ground_energies, tda_omega, tda_small, tda_thresh);
+   return create_bsh_operators(world, shift, tda_act_ground_energies, tda_omega, tda_small, tda_thresh);
 }
 
 
@@ -1214,7 +1097,51 @@ double TDA::calculate_max_residual(World & world,
    // Done
    return max;
 }
+
+// Selects the 'active' orbitals from ground state orbitals to be used in the calculation (based on energy distance
+// from the HOMO). Function has knowledge of tda_orbitals and tda_ground_energies. Function sets tda_act_orbitals and
+// tda_num_act_orbitals.
+void TDA::select_active_subspace(World & world)
+{
+   // Default output
+   if( tda_print_level >= 0)
+   {
+      if(world.rank() == 0) print("   Selecting ground state subspace to excite from.");
+      if(world.rank() == 0) print("   This is all orbitals within", tda_range, "hartree of the HOMO.");
+   }
+
+   // List of orbitals to be active
+   std::vector<int> active;
+
+   // Get the HOMO energy
+   double HOMO = tda_ground_energies(tda_num_orbitals - 1); // Assuming only occupied orbitals
+                                                            // (which is the case from moldft)
+   // Determine active orbitals based on energy differences 
+   // from HOMO
+   for(int i = 0; i < tda_num_orbitals; i++) 
+   {
+      if(fabs(tda_ground_energies(i) - HOMO) < tda_range)
+      {
+         // This orbital should be active, so add to list
+         active.push_back(i);
+      }
+   }
+
+   // Now that we know size, allocate tda_act_ground_energies
+   tda_act_ground_energies = Tensor<double>(active.size()); 
+
+   // Now to pull the functions and energies and add to tda_act_orbitals and tda_act_ground_energies
+   for(int i = 0; i < active.size(); i++)
+   {
+      tda_act_orbitals.push_back(tda_orbitals[active[i]]);
+      tda_act_ground_energies(i) = tda_ground_energies(active[i]);
+   }
+
+   // Also set the active size
+   tda_act_num_orbitals = tda_act_orbitals.size();
+}
  
+
 // Selects from a list of functions and energies the k functions with the lowest energy
 std::vector<std::vector<real_function_3d>> TDA::select_trial_functions(World & world,
                                                                        std::vector<std::vector<real_function_3d>> & f,
@@ -1537,7 +1464,7 @@ std::vector<std::vector<real_function_3d>> TDA::rotation_correction_term(World &
    int m = f.size();
    int n = f[0].size();
 
-   // Construct a zero matrix to be rerturned
+   // Construct a zero matrix to be returned
    std::vector<std::vector<real_function_3d>> correction = tda_zero_functions(world, m, n);
 
    // Add to correction as needed
@@ -1547,8 +1474,9 @@ std::vector<std::vector<real_function_3d>> TDA::rotation_correction_term(World &
       {
          // Finally contract over inner index
          for(int j = 0; j < m; j++)
-         {
-            if(j != k) correction[k][p] += f[j][p] * A(j,k);
+         {            
+            //if(j != k) correction[k][p] += f[j][p] * A(j,k); // original
+            if(j != k) correction[k][p] += f[j][p] * A(k,j); 
          }
       }
    } 
@@ -1623,7 +1551,7 @@ void TDA::iterate(World & world)
       gamma = create_gamma(world);
 
       // Project out ground state
-      for(int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
+      //for(int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
       // Create \hat{V}^0 applied to tda_x_response
       V_response = create_potential(world);
@@ -1637,12 +1565,13 @@ void TDA::iterate(World & world)
       // Constructing S
       Tensor<double> S = create_S(world);
       
-      // Constructing A
-      Tensor<double> A = create_A(world, gamma, V_response);
+      // Constructing hamiltonian 
+      Tensor<double> A = create_hamiltonian(world, gamma, V_response);
+
+      // Copy A for rotation correction term
+      Tensor<double> copy_A = copy(A);
 
       // Solve Ax = Sxw
-      //Tensor<double> U;
-      //if(iteration == 0) sygvp(world, A, S, 1.0, U, tda_omega);
       Tensor<double> U = diag_fock_matrix(world, A, tda_x_response, V_response, gamma, tda_omega, S, tda_thresh);              
 
       // Debugging output
@@ -1660,7 +1589,7 @@ void TDA::iterate(World & world)
       shifted_V_response = apply_shift(world, shifts, V_response);
 
       // Construct RHS of equation
-      std::vector<std::vector<real_function_3d>> rhs = gamma + shifted_V_response + rotation_correction_term(world, tda_x_response, A, tda_print_level);
+      std::vector<std::vector<real_function_3d>> rhs = gamma + shifted_V_response; //+ rotation_correction_term(world, tda_x_response, copy_A, tda_print_level);
 
       // Basic output
       if(tda_print_level >= 1) 
@@ -1678,7 +1607,7 @@ void TDA::iterate(World & world)
       }
 
       // Construct BSH operators
-      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_operators = make_bsh_operators(world, shifts);
+      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_operators = create_bsh_operators(world, shifts);
 
       // Apply BSH operators to RHS of equation
       if(tda_print_level >= 1) 
@@ -1704,7 +1633,7 @@ void TDA::iterate(World & world)
       differences = tda_x_response - new_x_response;
 
       // Debugging output
-      if(tda_print_level >= 2) 
+      if(tda_print_level >= 1) 
       {
          if(world.rank() == 0) print("   Response function residuals:");
          print_norms(world, differences);
@@ -1787,15 +1716,15 @@ void TDA::iterate(World & world)
       sort(world, tda_omega, energy_residuals, tda_x_response, differences);
 
       // Print final things
-      if(world.rank() == 0) print(" Final energies:\n"); 
+      if(world.rank() == 0) print(" Final energies:"); 
       if(world.rank() == 0) print(tda_omega);
       if(world.rank() == 0) print(" Final energy residuals:");
       if(world.rank() == 0) print(energy_residuals);
       if(world.rank() == 0) print(" Final response function residuals:");
       print_norms(world, differences);   
    }
-
-   // Done with iterate
+   
+   // Done with iterate. 
 }
 
 
@@ -1804,14 +1733,14 @@ void TDA::diagonalize_guess(World & world,
                             std::vector<std::vector<real_function_3d>> & f,
                             Tensor<double> & omega,
                             std::vector<real_function_3d> & orbitals,
+                            std::vector<real_function_3d> & full_orbitals,
                             Tensor<double> & energies,
                             double thresh,
                             double small,
                             int print_level)
 {
-   // Variables needed to iterate
-   QProjector<double, 3> projector(world, orbitals);    // Projector to project out ground state
-   int m = f.size();                                    // Number of guess orbitals (symmetry functions * ground state) 
+   // Number of guess orbitals 
+   int m = f.size();  
 
    // Create gamma 
    std::vector<std::vector<real_function_3d>> gamma = create_gamma(world, f, orbitals, small, thresh, print_level);
@@ -1819,14 +1748,11 @@ void TDA::diagonalize_guess(World & world,
    // Create \hat{V}^0 applied to guess functions 
    std::vector<std::vector<real_function_3d>> V_response = create_potential(world, f, print_level);
 
-   // Project out ground state
-   for(int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
-
    // Constructing S
    Tensor<double> S = create_S(world, f, print_level);
 
-   // Constructing A
-   Tensor<double> A = create_A(world, gamma, V_response, f, orbitals, energies, print_level);
+   // Constructing hamiltonian
+   Tensor<double> A = create_hamiltonian(world, gamma, V_response, f, orbitals, full_orbitals, energies, print_level);
 
    // Solve Ax = Sxw  
    diag_fock_matrix(world, A, f, V_response, gamma, omega, S, thresh);             
@@ -1867,6 +1793,9 @@ std::vector<std::vector<real_function_3d>> TDA::add_randomness(World & world,
 // Main function, makes sure everything happens in correcct order
 void TDA::solve(World & world)
 {
+   // Get start time
+   Tensor<double> start_time = end_timer(world);
+
    // Welcome user (future ASCII art of Robert goes here) 
    if(world.rank() == 0) print("\n   Preparing to solve the TDA equations.\n");
    print_madness_params(world);
@@ -1887,18 +1816,14 @@ void TDA::solve(World & world)
       print("   Creating trial functions.");
    }      
 
+   // Create the active subspace (select which ground state orbitals to calculate excitations from)
+   select_active_subspace(world);
+
    // Create large number of symmetry included guesses 
-   std::vector<std::vector<real_function_3d>> guesses = create_trial_functions2(world, tda_ground_energies, tda_orbitals, tda_print_level);
+   std::vector<std::vector<real_function_3d>> guesses = create_trial_functions(world, tda_num_excited, tda_act_ground_energies, tda_act_orbitals, tda_print_level);
 
    // Normalize
    normalize(world, guesses); 
-
-   // Plot the guesses from orbital 0
-   //if(world.rank() == 0) print("\n   Plotting trial functions.\n");
-   //std::vector<real_function_3d> gd;
-   //for(int i = 0; i < guesses.size(); i++) gd.push_back(tda_orbitals[i] * guesses[i][0]); // Transition densities
-   //normalize(world, gd);
-   //do_vtk_plots(world, 150, tda_L, 0, gd.size(), tda_molecule, gd, "guess");
 
    // Basic output
    if(world.rank() == 0) print("\n   Diagonalizing trial functions for an improved initial guess.\n");
@@ -1906,7 +1831,7 @@ void TDA::solve(World & world)
    // Diagonalize
    // Inplace modificaiton of guesses and guess_omega
    Tensor<double> guess_omega(guesses.size());
-   diagonalize_guess(world, guesses, guess_omega, tda_orbitals, tda_ground_energies, tda_thresh, tda_small, tda_print_level);
+   diagonalize_guess(world, guesses, guess_omega, tda_act_orbitals, tda_orbitals, tda_act_ground_energies, tda_thresh, tda_small, tda_print_level);
 
    // Basic output
    if(tda_print_level >= 0)
@@ -1926,15 +1851,23 @@ void TDA::solve(World & world)
    //std::vector<real_function_3d> densities = zero_functions<double, 3>(world, tda_num_excited);
    //for(int i = 0; i < tda_num_excited; i++)
    //{
-   //   for(int j = 0; j < tda_num_orbitals; j++)
+   //   for(int j = 0; j < tda_act_num_orbitals; j++)
    //   {
-   //      densities[i] = densities[i] + tda_orbitals[j] * tda_x_response[i][j];
+   //      densities[i] = densities[i] + tda_act_orbitals[j] * tda_x_response[i][j];
    //   }
    //}
 
    //// Now plot
    //if(world.rank() == 0) print("\n   Plotting excited state densities.\n");
    //do_vtk_plots(world, 150, tda_L, 0, tda_num_excited, tda_molecule, densities, "excited");
+
+   // Print total time
+   // Precision is set to 10 coming in, drop it to 2
+   std::cout.precision(2);
+   std::cout << std::fixed;
+
+   Tensor<double> current_time = end_timer(world);
+   if(world.rank() == 0) print("   Total time:", current_time[0] - start_time[0],"\n"); 
 }
 
 
