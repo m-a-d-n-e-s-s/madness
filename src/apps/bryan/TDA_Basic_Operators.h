@@ -13,7 +13,7 @@ std::vector<real_function_3d> operator+(std::vector<real_function_3d> a,
  
    std::vector<real_function_3d> result;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(a[i] + b);
@@ -31,7 +31,7 @@ std::vector<real_function_3d> operator+(double a,
  
    std::vector<real_function_3d> result;
 
-   for(int i = 0; i < b.size(); i++)
+   for(unsigned int i = 0; i < b.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(a + b[i]);
@@ -49,7 +49,7 @@ std::vector<real_function_3d> operator-(std::vector<real_function_3d> a,
  
    std::vector<real_function_3d> result;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(a[i] - b);
@@ -67,7 +67,7 @@ std::vector<real_function_3d> operator-(double a,
  
    std::vector<real_function_3d> result;
 
-   for(int i = 0; i < b.size(); i++)
+   for(unsigned int i = 0; i < b.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(a - b[i]);
@@ -87,7 +87,7 @@ std::vector<std::vector<real_function_3d>> operator+(std::vector<std::vector<rea
  
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(a[i] + b[i]); 
@@ -96,117 +96,6 @@ std::vector<std::vector<real_function_3d>> operator+(std::vector<std::vector<rea
    return result;
 }
 
-// Addition of vector of vectors and scalar (both sides of operand) g[i][j] = a[i][j] + b
-std::vector<std::vector<real_function_3d>> operator+(std::vector<std::vector<real_function_3d>> a,
-                                                     double b)
-{
-   MADNESS_ASSERT(a.size() > 0);
-   MADNESS_ASSERT(a[0].size() > 0);   
- 
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(int i = 0; i < a.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a[i] + b);
-   }
-
-   return result;
-}
-
-// Reverse operands g[i][j] = b[i][j] + a
-std::vector<std::vector<real_function_3d>> operator+(double a,
-                                                     std::vector<std::vector<real_function_3d>> b)
-{
-   MADNESS_ASSERT(b.size() > 0);
-   MADNESS_ASSERT(b[0].size() > 0);   
- 
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(int i = 0; i < b.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a + b[i]);
-   }
-
-   return result;
-}
-
-// Subtraction of vector of vector and scalar (both sides of operand) g[i][j] = a[i][j] - b
-std::vector<std::vector<real_function_3d>> operator-(std::vector<std::vector<real_function_3d>> a,
-                                                     double b)
-{
-   MADNESS_ASSERT(a.size() > 0);
-   MADNESS_ASSERT(a[0].size() > 0);   
- 
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(int i = 0; i < a.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a[i] - b);
-   }
-
-   return result;
-}
-
-// Reverse operands g[i][j] = b[i][j] - a
-std::vector<std::vector<real_function_3d>> operator-(double a,
-                                                     std::vector<std::vector<real_function_3d>> b)
-{
-   MADNESS_ASSERT(b.size() > 0);
-   MADNESS_ASSERT(b[0].size() > 0);   
- 
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(int i = 0; i < b.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a - b[i]);
-   }
-
-   return result;
-}
-
-
-
-// Multiplication of two vectors of vectors (THIS IS NOT MATRIX MATRIX MULTIPLICATION)
-// g[i][j] = a[i][j] * b[i][j]
-std::vector<std::vector<real_function_3d>> multiply(std::vector<std::vector<real_function_3d>> a,
-                                                    std::vector<std::vector<real_function_3d>> b)
-{
-   MADNESS_ASSERT(a.size() > 0);   
-   MADNESS_ASSERT(a.size() == b.size());
- 
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(int i = 0; i < a.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(mul(a[i][0].world(), a[i], b[i]));
-   }
-
-   return result;
-}
-
-// Multiplication of a vector of vectors by a vector of functions (THIS IS NOT MATRIX VECTOR MULTIPLICATION)
-// g[i][j] = a[i][j] * b[j]
-std::vector<std::vector<real_function_3d>> multiply(std::vector<std::vector<real_function_3d>> a,
-                                                    std::vector<real_function_3d> b)
-{
-   MADNESS_ASSERT(a.size() > 0);   
-   MADNESS_ASSERT(a[0].size() == b.size());
- 
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(int i = 0; i < a.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(mul(a[i][0].world(), a[i], b));
-   }
-	
-   return result;
-}
 
 // Multiplication of a vector of vectors by a function g[i][j] = a[i][j] * b 
 std::vector<std::vector<real_function_3d>> multiply(std::vector<std::vector<real_function_3d>> a,
@@ -217,7 +106,7 @@ std::vector<std::vector<real_function_3d>> multiply(std::vector<std::vector<real
 
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(mul(a[i][0].world(), b, a[i]));
@@ -226,40 +115,22 @@ std::vector<std::vector<real_function_3d>> multiply(std::vector<std::vector<real
    return result;
 }
 
-// Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b(i)
+// Multiplication of a vector of vectors by a scalar column wise g[i][j] = a[i][j] * b(j)
 std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_function_3d>> a,
                                                  Tensor<double> b)
 {
    MADNESS_ASSERT(a.size() > 0);
-   MADNESS_ASSERT(a[0].size() > 0);   
- 
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(int i = 0; i < a.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a[i] * b(i));
-   }
-
-   return result;
-}
-
-// Multiplication of a vector of vectors by a scalar column wise g[i][j] = a[i][j] * b(j)
-std::vector<std::vector<real_function_3d>> scale_column(std::vector<std::vector<real_function_3d>> a,
-                                                        Tensor<double> b)
-{
-   MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a[0].size() > 0);
-   MADNESS_ASSERT(a[0].size() == b.size()); 
+   MADNESS_ASSERT(a[0].size() == (unsigned int)b.size()); 
  
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Intermediary
       std::vector<real_function_3d> temp;
 
-      for(int j = 0; j < a[0].size(); j++)
+      for(unsigned int j = 0; j < a[0].size(); j++)
       { 
          temp.push_back(a[i][j] * b[j]);
       }
@@ -279,7 +150,7 @@ std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_fu
  
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(a[i] * b);
@@ -297,7 +168,7 @@ void truncate(World & world,
    MADNESS_ASSERT(v.size() > 0);
    MADNESS_ASSERT(v[0].size() > 0);
 
-   for(int i = 0; i < v.size(); i++)
+   for(unsigned int i = 0; i < v.size(); i++)
    {
       truncate(world, v[i], tol, fence);
    }
@@ -315,7 +186,7 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
 
    std::vector<std::vector<real_function_3d>> result(f.size());
    
-   for(int i = 0; i < f.size(); i++)
+   for(unsigned int i = 0; i < f.size(); i++)
    {
       // Using vmra.h function, line 889
       result[i] = apply(world, op[i], f[i]);
@@ -334,7 +205,7 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
 
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < f.size(); i++)
+   for(unsigned int i = 0; i < f.size(); i++)
    {
       // Using vmra.h function
       result.push_back(apply(world, *op[i], f[i]));
@@ -352,7 +223,7 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
 
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < f.size(); i++)
+   for(unsigned int i = 0; i < f.size(); i++)
    {
       result.push_back(apply(world, op, f[i]));
    }
@@ -369,8 +240,9 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
 
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < f.size(); i++)
+   for(unsigned int i = 0; i < f.size(); i++)
    {
+      print("i=",i);
       result.push_back(apply(world, op, f[i]));
    }
 
@@ -392,7 +264,7 @@ std::vector<std::vector<real_function_3d>> operator-(const std::vector<std::vect
  
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(a[i] - b[i]);
@@ -410,7 +282,7 @@ std::vector<std::vector<real_function_3d>> operator*(std::vector<std::vector<rea
  
    std::vector<std::vector<real_function_3d>> result;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
       result.push_back(a[i] * b);
@@ -426,7 +298,7 @@ void operator+=(std::vector<std::vector<real_function_3d>> & a,
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a.size() == b.size()); 
  
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
       a[i] += b[i]; 
@@ -444,7 +316,7 @@ double inner(std::vector<std::vector<real_function_3d>> a,
 
    double value = 0.0;
 
-   for(int i = 0; i < a.size(); i++)
+   for(unsigned int i = 0; i < a.size(); i++)
    {
       // vmra.h function, line 580 
       value += inner(a[i][0].world(), a[i], b[i]).sum();

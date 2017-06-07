@@ -117,7 +117,7 @@ TDA::TDA(World & world,
       FunctionDefaults<3>::set_k(tda_order);
  
       // Read in ground state orbitals
-      for(int i = 0; i < tda_num_orbitals; i++)
+      for(unsigned int i = 0; i < tda_num_orbitals; i++)
       {
            real_function_3d reader;
            input & reader;
@@ -141,7 +141,7 @@ void TDA::normalize(World & world,
                     std::vector<std::vector<real_function_3d>> & f)
 {
    // Run over rows
-   for(int i = 0; i < f.size(); i++)
+   for(unsigned int i = 0; i < f.size(); i++)
    {
       // Get the normalization constant
       // (Sum included inside inner) 
@@ -161,9 +161,9 @@ void TDA::print_norms(World & world,
    Tensor<double> norms(f.size(),f[0].size());
    
    // Calc the norms
-   for(int i = 0; i < f.size(); i++)
+   for(unsigned int i = 0; i < f.size(); i++)
    {
-      for(int j = 0; j < f[0].size(); j++)
+      for(unsigned int j = 0; j < f[0].size(); j++)
       {
          norms(i,j) = f[i][j].norm2();
       }
@@ -299,7 +299,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions(World & w
    std::vector<real_function_3d> symm = symmetry(world);
 
    // Determine how many functions will be created
-   int size = n * symm.size() > k ? n * symm.size() : (k/symm.size() + 1) * symm.size();  
+   int size = (int)(n * symm.size()) > k ? n * symm.size() : (k/symm.size() + 1) * symm.size();  
 
    // Container to return 
    std::vector<std::vector<real_function_3d>> trials = tda_zero_functions(world, size, n);
@@ -308,7 +308,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions(World & w
    int count = 0;
 
    // Run over symmetry functions
-   for(int i = 0; i < symm.size(); i++)
+   for(unsigned int i = 0; i < symm.size(); i++)
    {
       // Run over each occupied orbital
       for(int p = 0; p < n; p++)
@@ -324,7 +324,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions(World & w
    while(count < k )
    {
       // Run over symmetry functions
-      for(int i = 0; i < symm.size(); i++)
+      for(unsigned int i = 0; i < symm.size(); i++)
       {
          // Run over each occupied orbital
          for(int p = 0; p < n; p++)
@@ -806,7 +806,7 @@ Tensor<double> TDA::create_hamiltonian(World & world,
    }
 
    // Need to calculate energy * x_response
-   std::vector<std::vector<real_function_3d>> energy_x_resp = scale_column(f, energies); 
+   std::vector<std::vector<real_function_3d>> energy_x_resp = scale(f, energies); 
 
    if(print_level >= 2) 
    {
@@ -1085,9 +1085,9 @@ double TDA::calculate_max_residual(World & world,
    double max = 0.0;
 
    // Run over all functions in f
-   for(int i = 0; i < f.size(); i++)
+   for(unsigned int i = 0; i < f.size(); i++)
    {
-      for(int j = 0; j < f[0].size(); j++)
+      for(unsigned int j = 0; j < f[0].size(); j++)
       {
          double temp = f[i][j].norm2();
          if( temp > max) max = temp;
@@ -1118,7 +1118,7 @@ void TDA::select_active_subspace(World & world)
                                                             // (which is the case from moldft)
    // Determine active orbitals based on energy differences 
    // from HOMO
-   for(int i = 0; i < tda_num_orbitals; i++) 
+   for(unsigned int i = 0; i < tda_num_orbitals; i++) 
    {
       if(fabs(tda_ground_energies(i) - HOMO) < tda_range)
       {
@@ -1131,7 +1131,7 @@ void TDA::select_active_subspace(World & world)
    tda_act_ground_energies = Tensor<double>(active.size()); 
 
    // Now to pull the functions and energies and add to tda_act_orbitals and tda_act_ground_energies
-   for(int i = 0; i < active.size(); i++)
+   for(unsigned int i = 0; i < active.size(); i++)
    {
       tda_act_orbitals.push_back(tda_orbitals[active[i]]);
       tda_act_ground_energies(i) = tda_ground_energies(active[i]);
@@ -1372,12 +1372,12 @@ std::vector<std::vector<real_function_3d>> TDA::transform(World & world,
    std::vector<std::vector<real_function_3d>> result;
 
    // Go element by element 
-   for(int i = 0; i < f.size(); i++)
+   for(unsigned int i = 0; i < f.size(); i++)
    {
       // Temp for the result of one row
       std::vector<real_function_3d> temp = zero_functions_compressed<double,3>(world, f[0].size());
 
-      for(int j = 0; j < f.size(); j++)
+      for(unsigned int j = 0; j < f.size(); j++)
       {
          gaxpy(world, 1.0, temp, U(j,i), f[j]);
       }
@@ -1739,9 +1739,6 @@ void TDA::diagonalize_guess(World & world,
                             double small,
                             int print_level)
 {
-   // Number of guess orbitals 
-   int m = f.size();  
-
    // Create gamma 
    std::vector<std::vector<real_function_3d>> gamma = create_gamma(world, f, orbitals, small, thresh, print_level);
    
@@ -1758,13 +1755,14 @@ void TDA::diagonalize_guess(World & world,
    diag_fock_matrix(world, A, f, V_response, gamma, omega, S, thresh);             
 }
 
+
 // Adds in random noise to a vector of vector of functions
 std::vector<std::vector<real_function_3d>> TDA::add_randomness(World & world,
                                                                std::vector<std::vector<real_function_3d>> & f)
 {
    // Copy input functions
    std::vector<std::vector<real_function_3d>> f_copy;
-   for(int i = 0; i < f.size(); i++) f_copy.push_back(copy(world, f[i])); 
+   for(unsigned int i = 0; i < f.size(); i++) f_copy.push_back(copy(world, f[i])); 
 
    // Lambda function to add in noise
    auto lambda = [](const Key<3> & key, Tensor<double> & x) mutable 
@@ -1776,9 +1774,9 @@ std::vector<std::vector<real_function_3d>> TDA::add_randomness(World & world,
    };
 
    // Go through each function in f_copy and add in random noise
-   for(int i = 0; i < f_copy.size(); i++)
+   for(unsigned int i = 0; i < f_copy.size(); i++)
    {
-      for(int j = 0; j < f_copy[0].size(); j++)
+      for(unsigned int j = 0; j < f_copy[0].size(); j++)
       {
          // Add in random noise using rng and a the defined lambda function
          f_copy[i][j].unaryop(lambda);
