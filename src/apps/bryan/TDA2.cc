@@ -756,7 +756,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_fock(World & world,
    std::vector<std::vector<real_function_3d>> dvz2 = apply(world, Dz, dvz); 
 
    // Add together derivatives
-   fock = scale((dvx2 + dvy2 + dvz2), -0.5);
+   fock = scale((dvx2 + dvy2 + dvz2), -0.5); 
 
    // Debugging output   
    if(tda_print_level >= 2) 

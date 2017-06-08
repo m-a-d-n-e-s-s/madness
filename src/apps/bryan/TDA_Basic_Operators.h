@@ -180,6 +180,7 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
                                                  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> & op,
                                                  std::vector<std::vector<real_function_3d>> & f)
 {
+print("another ptr");
    MADNESS_ASSERT(f.size() > 0);
    MADNESS_ASSERT(f.size() == op.size());
    MADNESS_ASSERT(f[0].size() == op[0].size());
@@ -200,6 +201,7 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
                                                  std::vector<std::shared_ptr<real_convolution_3d>> & op,
                                                  std::vector<std::vector<real_function_3d>> f)
 {
+print("shared_ptr");
    MADNESS_ASSERT(f.size() > 0);
    MADNESS_ASSERT(op.size() == f.size());
 
@@ -219,6 +221,7 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
                                                  real_convolution_3d op,
                                                  std::vector<std::vector<real_function_3d>> f)
 {
+print("Convolution");
    MADNESS_ASSERT(f.size() > 0);
 
    std::vector<std::vector<real_function_3d>> result;
@@ -236,6 +239,7 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
                                                  real_derivative_3d op,
                                                  std::vector<std::vector<real_function_3d>> f)
 {
+print("Derivative");
    MADNESS_ASSERT(f.size() > 0);
 
    std::vector<std::vector<real_function_3d>> result;
