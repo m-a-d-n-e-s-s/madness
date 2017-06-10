@@ -682,7 +682,7 @@ namespace madness {
 
         /// Same as \c get().
 
-        /// \return An const lvalue reference to the value.
+        /// \return An lvalue reference to the value.
         inline operator T&() & {
             return get();
         }
