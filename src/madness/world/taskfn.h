@@ -255,11 +255,11 @@ namespace madness {
         }
 
 
-        // specialization for Future<>&
-        template <typename T>
-        T& decay(Future<T>& arg_holder) {
-          return arg_holder;
-        }
+        // // specialization for Future<>&
+        // template <typename T>
+        // T& decay(Future<T>& arg_holder) {
+        //   return arg_holder;
+        // }
 
         // specialization for const Future<>&
         template <typename T>

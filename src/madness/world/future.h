@@ -395,23 +395,23 @@ namespace madness {
         /// \attention Throws an error if not local.
         /// \todo Description needed.
         /// \return Description needed.
-        T& get() {
+        const T& get() const {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
             World::await([this] () -> bool { return this->probe(); });
             return *const_cast<T*>(&t);
         }
 
 
-        /// Gets/forces the value, waiting if necessary.
+        // /// Gets/forces the value, waiting if necessary.
 
-        /// \attention Throws an error if not local.
-        /// \todo Description needed.
-        /// \return Description needed.
-        const T& get() const {
-            MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await([this] () -> bool { return this->probe(); });
-            return *const_cast<const T*>(&t);
-        }
+        // /// \attention Throws an error if not local.
+        // /// \todo Description needed.
+        // /// \return Description needed.
+        // const T& get() const {
+        //     MADNESS_ASSERT(! remote_ref);  // Only for local futures
+        //     World::await([this] () -> bool { return this->probe(); });
+        //     return *const_cast<const T*>(&t);
+        // }
 
         /// \todo Brief description needed.
 
@@ -656,9 +656,11 @@ namespace madness {
 
         /// \attention Throws an error if this is not a local future.
         /// \return The value.
-        inline T& get() {
+        inline const T& get() {
             MADNESS_ASSERT(f || value); // Check that future is not default initialized
-            return (f ? f->get() : *value);
+            if (f) return f->get();
+            else return *value;
+            // return (f ? f->get() : *value);
         }
 
 
@@ -668,7 +670,9 @@ namespace madness {
         /// \return The value.
         inline const T& get() const {
             MADNESS_ASSERT(f || value); // Check that future is not default initialized
-            return (f ? f->get() : *value);
+            if (f) return f->get();
+            else return *value;
+            // return (f ? f->get() : *value);
         }
 
 
@@ -683,17 +687,17 @@ namespace madness {
         /// Same as \c get().
 
         /// \return An lvalue reference to the value.
-        inline operator T&() & {
+        inline operator const T&() const & {
             return get();
         }
 
 
-        /// Same as `get() const`.
+        // /// Same as `get() const`.
 
-        /// \return An const lvalue reference to the value.
-        inline operator const T&() const& {
-            return get();
-        }
+        // /// \return An const lvalue reference to the value.
+        // inline operator const T&() const& {
+        //     return get();
+        // }
 
         /// An rvalue analog of \c get().
 
@@ -899,7 +903,7 @@ namespace madness {
         /// Access the vector of futures.
 
         /// \return The vector of futures.
-        vectorT& get() {
+        const vectorT& get() {
             return v;
         }
 
@@ -915,17 +919,17 @@ namespace madness {
         /// Access the vector of futures.
 
         /// \return The vector of futures.
-        operator vectorT& () {
-            return get();
-        }
-
-
-        /// Access the const vector of futures.
-
-        /// \return The vector of futures.
         operator const vectorT& () const {
             return get();
         }
+
+
+        // /// Access the const vector of futures.
+
+        // /// \return The vector of futures.
+        // operator const vectorT& () const {
+        //     return get();
+        // }
 
 
         /// Check if all of the futures in the vector have been assigned.
