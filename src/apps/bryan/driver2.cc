@@ -18,6 +18,8 @@ int main(int argc, char** argv)
    // Have it iterate to convergence
    my_calc.solve(world);
 
+   world.gop.fence();
    finalize();
+
    return 0; 
 }

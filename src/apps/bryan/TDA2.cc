@@ -68,8 +68,8 @@ double TDA:: pop(std::vector<double>& v)
 Tensor<double> TDA::end_timer(World& world)
 {
      Tensor<double> times(2);
-     times[0] = wall_time() - pop(tda_ttt);
-     times[1] = cpu_time() - pop(tda_sss);
+     if(world.rank() == 0) times[0] = wall_time() - pop(tda_ttt);
+     if(world.rank() == 0) times[1] = cpu_time() - pop(tda_sss);
      return times;
 }
 
@@ -131,7 +131,7 @@ TDA::TDA(World & world,
       tda_print_level = print_level;
       tda_max_iterations = 100;
       tda_energy_threshold = tda_thresh; 
-      tda_range = 0.10; 
+      tda_range = 1.00; 
 }
 
 // Normalizes a response matrix of functions
@@ -313,7 +313,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions(World & w
       // Run over each occupied orbital
       for(int p = 0; p < n; p++)
       {
-         trials[count/n][p] = symm[i] * orbitals[p];
+         trials[count][p] = symm[i] * orbitals[p];
          count++;
       } 
    } 
@@ -329,7 +329,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_trial_functions(World & w
          // Run over each occupied orbital
          for(int p = 0; p < n; p++)
          {
-            trials[count/n][p] = r * symm[i] * orbitals[p];
+            trials[count][p] = r * symm[i] * orbitals[p];
             count++;
          } 
       } 
@@ -792,7 +792,7 @@ Tensor<double> TDA::create_hamiltonian(World & world,
    Tensor<double> A(m,m); 
 
    // Projector on the unperturbed density
-   QProjector<double,3> ground_state_density(world, full_ground_orbitals);
+   //QProjector<double,3> ground_state_density(world, full_ground_orbitals);
    
    // Create the ground-state fock operator on response orbitals
    std::vector<std::vector<real_function_3d>> fock_x_resp = create_fock(world, V, f, print_level);
@@ -825,7 +825,7 @@ Tensor<double> TDA::create_hamiltonian(World & world,
       for(int j = 0; j < m; j++)
       {
          // Project out ground state densities
-         temp[j] = ground_state_density(temp[j]);
+         //temp[j] = ground_state_density(temp[j]);
 
          // Run over all occupied orbitals to get their contribution
          // to the part of A we're calculating . Finally calculate 
@@ -1106,9 +1106,17 @@ void TDA::select_active_subspace(World & world)
    // Default output
    if( tda_print_level >= 0)
    {
+      // Set print output to something reasonable
+      std::cout.precision(2);
+      std::cout << std::fixed;
+
       if(world.rank() == 0) print("   Selecting ground state subspace to excite from.");
       if(world.rank() == 0) print("   This is all orbitals within", tda_range, "hartree of the HOMO.");
-   }
+ 
+      // Reset precision
+      std::cout.precision(10);
+      std::cout << std::scientific;
+  }
 
    // List of orbitals to be active
    std::vector<int> active;
@@ -1551,6 +1559,7 @@ void TDA::iterate(World & world)
       gamma = create_gamma(world);
 
       // Project out ground state
+      // Should be done already
       //for(int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
       // Create \hat{V}^0 applied to tda_x_response
@@ -1820,6 +1829,10 @@ void TDA::solve(World & world)
    // Create large number of symmetry included guesses 
    std::vector<std::vector<real_function_3d>> guesses = create_trial_functions(world, tda_num_excited, tda_act_ground_energies, tda_act_orbitals, tda_print_level);
 
+   // Project out groundstate from guesses
+   QProjector<double, 3> projector(world, tda_orbitals);
+   for(int i = 0; i < guesses.size(); i++) guesses[i] = projector(guesses[i]);
+
    // Normalize
    normalize(world, guesses); 
 
@@ -1864,8 +1877,8 @@ void TDA::solve(World & world)
    std::cout.precision(2);
    std::cout << std::fixed;
 
-   Tensor<double> current_time = end_timer(world);
-   if(world.rank() == 0) print("   Total time:", current_time[0] - start_time[0],"\n"); 
+   //Tensor<double> current_time = end_timer(world);
+   //if(world.rank() == 0) print("   Total time:", current_time[0] - start_time[0],"\n"); 
 }
 
 
