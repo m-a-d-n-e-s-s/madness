@@ -1,17 +1,22 @@
-/*
-   Iteratively solves the linear response HF equations 
+/*!
+   \file TDA2.h
+   \brief Header file for the TDA class, which iteratively solves the linear response HF equations in the Tamm-Dancoff approximation.
+   \ingroup response
+   \addtogroup response
+
+   \par Introduction
 
    Building on the work presented in the paper from Yanai:
       Yanai, Fann, Beylkin, Harrison; Phys. Chem. Chem. Phys., 2015, 17, 31405-31416
 
    Solving equation 37 from Yanai (latex formatting):
-
+   \f$
       \~{x}_p(r) = -2[-\nabla^2 - 2(\epsilon_p^0 + \omega)]^{-1} [\hat{V}^0 x_p(r) + (1 - \hat{\rho}^0) \Gamma_p(r)]
-
+   \f$
       with
-
+   \f$
       \Gamma_p(r) = \{ \frac{\partial \hat{g}}{\partial \rho}[\rho^0] \times (\sum_i^{occ} x_i(r) \phi_i^\dagger(r'))\} \phi_p(r)
-
+   \f$
  
    He lists 12 steps to solve these equations:
       1.  Obtain ground state orbitals {\phi_p} and energies {\epsilon_p}
@@ -19,23 +24,17 @@
       3.  Create guess response functions
     
     [ 4.  Compute transition density (sum of products of occupied orbitals with guess response functions)
-    [ 5.  Obtain {\Gamma_p(r)} for current density
-    [ 6.  Compute \hat{V}^0 x_p^{(k)} (does contain HF potential, but rest is static as its the ground state values)
-    [ 7.  In the first iteration only, obtain initial eigenvalues \omega^k from a matrix diagonalization of
-    [        A x = S x \omega
+    [ 5.  Obtain \f$\Gamma_p(r)\f$ for current density
+    [ 6.  Compute \f$\hat{V}^0 x_p^{(k)}\f$ (does contain HF potential, but rest is static as its the ground state values)
+    [ 7.  Obtain initial eigenvalues \f$\omega^k\f$ from a matrix diagonalization of
+    [     \f$   A x = S x \omega \f$
     [     where S is the overlap matrix of the response functions, and A has the form
-    [        A_{ij} = \sum_p \int dr x_p^{(i}}(1 - \hat{\rho}^0)[(\hat{F}^0 - \epsilon_p^0) x_p^{(j)}(r) +
-    [                 \Gamma_p^{(j)}(r) \phi_p(r)]
-    [        S_{ij} = \sum_p \int dr x_p^{(i)}(r) x_p^{(j)}(r)
-    [ 8.  Compute the projection (1 - \hat{\rho}^0) \Gamma_p^{(k)}
+    [     \f$   A_{ij} = \sum_p \int dr x_p^{(i}}(1 - \hat{\rho}^0)[(\hat{F}^0 - \epsilon_p^0) x_p^{(j)}(r) +
+    [                 \Gamma_p^{(j)}(r) \phi_p(r)] \f$
+    [     \f$   S_{ij} = \sum_p \int dr x_p^{(i)}(r) x_p^{(j)}(r)\f$
+    [ 8.  Rotate the gamma and potential functions according to eigenvectors of the Hamiltonian.
     [ 9.  Apply BSH integral operator to the integral equations (eq. 37)
-    [ 10. Correct trial response functions according to
-             \delta \omega^{(k)} = - \frac{ \sum_p\left< \hat{V}^0 x_p^{(k)}(r) + (1 - \hat{\rho}^0) \Gamma_p^{(k)}(r)\right|
-                                                \left. x_p^{(k)} - \~{x}_p^{(k)} \right> }
-                                          { \sum_p \left| \left| \~{x}_p^{(k)} \right| \right|^2 }
-    [ 11. Apply Gram-Schmidt orthonormalization to the response functions
-
-      12. Repeat steps 4-11 until the residual is within your tolerance
+      10. Repeat steps 4-9 until the residual is within your tolerance
 */
 
 #ifndef MADNESS_APPS_TDA_H_INCLUDED
