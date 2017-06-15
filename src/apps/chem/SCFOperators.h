@@ -555,8 +555,9 @@ public:
     Fock(World& world, const SCF* calc, std::shared_ptr<NuclearCorrelationFactor> ncf);
 
     real_function_3d operator()(const real_function_3d& ket) const {
-        real_function_3d result;
-        return result;
+      MADNESS_EXCEPTION("Fock(ket) not yet implemented",1);
+      real_function_3d result;
+      return result;
     }
     double operator()(const real_function_3d& bra, const real_function_3d ket) const {
         double J_00 = J(bra,ket);
