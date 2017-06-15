@@ -19,7 +19,7 @@ noinst_PROGRAMS += hefxc
 endif
 
 thisincludedir = $(includedir)/examples
-thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
+thisinclude_HEADERS = molecularmask.h  spectralprop.h
 
 AUTOMAKE_OPTIONS = subdir-objects
 

@@ -3,7 +3,7 @@
 #include <type_traits>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
-#include "nonlinsol.h"
+#include <madness/mra/nonlinsol.h>
 
 #include <madness/mra/lbdeux.h>
 #include <madness/mra/qmprop.h>
