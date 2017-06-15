@@ -55,7 +55,7 @@ $Id$
 #include <ctime>
 #include <madness/tensor/solvers.h>
 #include <madness/mra/funcplot.h>
-#include "nonlinsol.h"
+#include <madness/mra/nonlinsol.h>
 using namespace madness;
 typedef real_function_3d realfunc;
 //define parameter

@@ -52,7 +52,7 @@
 #include <chem/SCFProtocol.h>
 #include <chem/correlationfactor.h>
 #include <chem/molecular_optimizer.h>
-#include <examples/nonlinsol.h>
+#include <madness/mra/nonlinsol.h>
 #include <madness/mra/vmra.h>
 #include <chem/pcm.h>
 

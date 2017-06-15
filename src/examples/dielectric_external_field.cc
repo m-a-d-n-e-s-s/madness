@@ -98,7 +98,7 @@
 #include <madness/mra/funcplot.h>
 #include <madness/tensor/solvers.h>
 #include "molecularmask.h"
-#include "nonlinsol.h"
+#include <madness/mra/nonlinsol.h>
 #include <madness/constants.h>
 #include <vector>
 
