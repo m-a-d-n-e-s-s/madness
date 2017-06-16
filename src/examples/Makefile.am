@@ -8,7 +8,7 @@ GITREV="MADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\
 AM_CPPFLAGS += -D$(GITREV)
 
 
-noinst_PROGRAMS = pno h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt \
+noinst_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
@@ -22,9 +22,6 @@ thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  spectralprop.h
 
 AUTOMAKE_OPTIONS = subdir-objects
-
-pno_SOURCES = pno.cc 
-pno_LDADD = $(LIBCHEM) $(MRALIBS)
 
 siam_example_SOURCES = siam_example.cc 
 
