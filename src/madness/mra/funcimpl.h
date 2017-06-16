@@ -852,8 +852,8 @@ namespace madness {
         World& world;
 
         /// getter
-        const int get_initial_level()const{return initial_level;}
-        const int get_special_level()const{return special_level;}
+        int get_initial_level()const{return initial_level;}
+        int get_special_level()const{return special_level;}
         const std::vector<Vector<double,NDIM> >& get_special_points()const{return special_points;}
 
     private:

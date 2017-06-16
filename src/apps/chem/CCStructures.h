@@ -639,7 +639,7 @@ namespace madness{
       return TwoElectronFactory(world);
     }
 
-    const OpType type()const {return operator_type;}
+    OpType type()const {return operator_type;}
     const CCParameters& parameters;
   private:
     /// the world
