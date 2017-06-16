@@ -204,7 +204,7 @@ void TDA::print_molecule(World &world)
       // Now print
       print("\n   Geometry Information");
       print("   --------------------\n");
-      print("   Atomic units\n");
+      print("   Units: a.u.\n");
       print(" Atom            x                 y                 z");
       print("----------------------------------------------------------------");
       for(int j = 0; j < num_atoms; j++)
@@ -684,10 +684,10 @@ Tensor<double> TDA::expectation(World &world,
    return result;
 }
 
-// Creating matrix S for first guess at omega
-Tensor<double> TDA::create_S(World & world,
-                             std::vector<std::vector<real_function_3d>> & f,
-                             int print_level)
+// Creating overlap matrix for given function f
+Tensor<double> TDA::create_overlap(World & world,
+                                   std::vector<std::vector<real_function_3d>> & f,
+                                   int print_level)
 {
    // Get sizes
    int m = f.size();
@@ -710,7 +710,7 @@ Tensor<double> TDA::create_S(World & world,
    // Debugging output
    if(print_level >= 2) 
    {
-      if(world.rank() == 0) print("   S matrix:");
+      if(world.rank() == 0) print("   Overlap matrix:");
       if(world.rank() == 0) print(S);
    }
  
@@ -720,9 +720,9 @@ Tensor<double> TDA::create_S(World & world,
 
 // Creating matrix S for first guess at omega
 // Overloaded for default parameters
-Tensor<double> TDA::create_S(World & world)
+Tensor<double> TDA::create_overlap(World & world)
 {
-   return create_S(world, tda_x_response, tda_print_level);
+   return create_overlap(world, tda_x_response, tda_print_level);
 }
 
 // Returns the ground state fock operator applied to response functions
@@ -867,12 +867,14 @@ Tensor<double> TDA::create_hamiltonian(World & world,
 // is negative. Please note: The same shift needs to 
 // be applied to the potential.
 Tensor<double> TDA::create_shift(World & world,
-                                 int m,
-                                 int n,
                                  Tensor<double> & ground,
                                  Tensor<double> & omega,
                                  int print_level)
 {
+   // Get sizes
+   int m = omega.size();
+   int n = ground.size();
+
    // Container to hold shift
    Tensor<double> result(m,n);
  
@@ -892,7 +894,7 @@ Tensor<double> TDA::create_shift(World & world,
             if(print_level >= 1) 
             {
                if(world.rank() == 0) print("   Shift needed for transition from ground orbital", p);
-               if(world.rank() == 0) print("   to response orbital", k, ".");
+               if(world.rank() == 0) print("   to response orbital", k);
                if(world.rank() == 0) print("   Ground energy =", ground(p));
                if(world.rank() == 0) print("   Excited energy =", omega(k));
                if(world.rank() == 0) print("   Shifting by", result(k,p));
@@ -909,7 +911,7 @@ Tensor<double> TDA::create_shift(World & world,
 // Overloaded for default parameters
 Tensor<double> TDA::create_shift(World & world)
 {
-   return create_shift(world, tda_num_excited, tda_act_num_orbitals, tda_act_ground_energies, tda_omega, tda_print_level);
+   return create_shift(world, tda_act_ground_energies, tda_omega, tda_print_level);
 }
 
 // Returns the given shift applied to the given potential
@@ -1056,8 +1058,7 @@ std::vector<std::vector<real_function_3d>> TDA::gram_schmidt(World & world,
    int m = f.size();
 
    // Return container
-   std::vector<std::vector<real_function_3d>> result(m);
-   for(int i = 0; i < m; i++) result[i] = copy(world, f[i]);
+   std::vector<std::vector<real_function_3d>> result = copy(world, f);
 
    // Orthogonalize
    for(int j = 0; j < m; j++)
@@ -1179,7 +1180,7 @@ std::vector<std::vector<real_function_3d>> TDA::select_trial_functions(World & w
    std::vector<std::vector<real_function_3d>> dummy2 = tda_zero_functions(world, f.size(), f[0].size());
 
    // Sort by the energy
-   // NOTE: sort() modifies in all its arguments in place
+   // NOTE: sort() modifies in all its arguments 
    Tensor<int> selected = sort(world, energies, dummy, f, dummy2);
 
    // Pull out first k from selected.
@@ -1423,14 +1424,10 @@ Tensor<int> TDA::sort(World & world,
    // Tensor to hold selection order
    Tensor<int> selected(k);
 
-   // Copy everything... need containers
-   std::vector<std::vector<real_function_3d>> f_copy;
-   std::vector<std::vector<real_function_3d>> f_diff_copy; 
+   // Copy everything... 
+   std::vector<std::vector<real_function_3d>> f_copy = copy(world, f);
+   std::vector<std::vector<real_function_3d>> f_diff_copy = copy(world, f_diff);
    std::vector<double> vals_copy;
-
-   // Now copy
-   for(int i = 0; i < k; i++) f_copy.push_back(f[i]);
-   for(int i = 0; i < k; i++) f_diff_copy.push_back(f_diff[i]);
    for(int i = 0; i < k; i++) vals_copy.push_back(vals[i]);
    Tensor<double> vals_copy2 = copy(vals);
    Tensor<double> val_residuals_copy = copy(val_residuals);
@@ -1578,7 +1575,7 @@ void TDA::iterate(World & world)
 
       // Create \hat{V}^0 applied to tda_x_response
       V_response = create_potential(world);
-
+if(iteration == 0){
       // Basic output
       if(tda_print_level >= 1) 
       {
@@ -1586,7 +1583,7 @@ void TDA::iterate(World & world)
       }
 
       // Constructing S
-      Tensor<double> S = create_S(world);
+      Tensor<double> S = create_overlap(world);
       
       // Constructing hamiltonian 
       Tensor<double> A = create_hamiltonian(world, gamma, V_response);
@@ -1600,7 +1597,7 @@ void TDA::iterate(World & world)
          if(world.rank() == 0) print("   Eigenvector coefficients from diagonalization:");
          if(world.rank() == 0) print(U);
       }
-
+}
       //  Calculates shifts needed for potential / energies
       //  If none needed, the zero tensor is returned
       shifts = create_shift(world);  
@@ -1672,11 +1669,11 @@ void TDA::iterate(World & world)
 
       // Save new orbitals
       tda_x_response = new_x_response;
-
+tda_omega = tda_omega + calculate_energy_update(world, rhs, differences,tda_x_response,tda_print_level );
       // Calculate energy residual and update old_energy 
       energy_residuals = abs(tda_omega - old_energy);
       old_energy = tda_omega;
-
+tda_x_response = gram_schmidt(world, tda_x_response);
       // Basic output
       if(tda_print_level >= 1) 
       {
@@ -1720,12 +1717,12 @@ void TDA::iterate(World & world)
    }
    
    if(world.rank() == 0) print("\n");
-
+   if(world.rank() == 0) print("\n   Finished TDA Calculation");
+   if(world.rank() == 0) print("   ------------------------");
+ 
    // Did we converge?
    if(iteration == tda_max_iterations && energy_residuals.absmax() > tda_energy_threshold)
    {
-      if(world.rank() == 0) print("\n   Finished TDA Calculation");
-      if(world.rank() == 0) print("   ------------------------");
       if(world.rank() == 0) print("   Failed to converge. Reason:");
       if(world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
    }
@@ -1765,7 +1762,7 @@ void TDA::diagonalize_guess(World & world,
    std::vector<std::vector<real_function_3d>> V_response = create_potential(world, f, print_level);
 
    // Constructing S
-   Tensor<double> S = create_S(world, f, print_level);
+   Tensor<double> S = create_overlap(world, f, print_level);
 
    // Constructing hamiltonian
    Tensor<double> A = create_hamiltonian(world, gamma, V_response, f, orbitals, full_orbitals, energies, print_level);
@@ -1780,8 +1777,7 @@ std::vector<std::vector<real_function_3d>> TDA::add_randomness(World & world,
                                                                std::vector<std::vector<real_function_3d>> & f)
 {
    // Copy input functions
-   std::vector<std::vector<real_function_3d>> f_copy;
-   for(unsigned int i = 0; i < f.size(); i++) f_copy.push_back(copy(world, f[i])); 
+   std::vector<std::vector<real_function_3d>> f_copy = copy(world, f);
 
    // Lambda function to add in noise
    auto lambda = [](const Key<3> & key, Tensor<double> & x) mutable 
@@ -1839,7 +1835,9 @@ void TDA::solve(World & world)
 
    // Create large number of symmetry included guesses 
    std::vector<std::vector<real_function_3d>> guesses = create_trial_functions(world, tda_num_excited, tda_act_ground_energies, tda_act_orbitals, tda_print_level); 
-
+   //std::vector<std::vector<real_function_3d>> guesses = tda_zero_functions(world, tda_num_excited, tda_act_num_orbitals);
+   //guesses = add_randomness(world, guesses); 
+   
    // Project out groundstate from guesses
    QProjector<double, 3> projector(world, tda_orbitals);
    for(unsigned int i = 0; i < guesses.size(); i++) guesses[i] = projector(guesses[i]);

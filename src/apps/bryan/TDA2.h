@@ -272,12 +272,12 @@ class TDA
                                  std::vector<std::vector<real_function_3d>> & b);
  
       // Returns the overlap matrix of the given response functions
-      Tensor<double> create_S(World & world,
-                              std::vector<std::vector<real_function_3d>> & f,
-                              int print_level);
+      Tensor<double> create_overlap(World & world,
+                                    std::vector<std::vector<real_function_3d>> & f,
+                                    int print_level);
 
       // Overloaded to get default parameters correct 
-      Tensor<double> create_S(World & world);
+      Tensor<double> create_overlap(World & world);
 
       // Returns the ground state fock operator applied to response functions
       std::vector<std::vector<real_function_3d>> create_fock(World & world,
@@ -303,8 +303,6 @@ class TDA
       // Returns the shift needed for each orbital to make sure
       // -2.0 * (ground_state_energy + excited_state_energy) is positive
       Tensor<double> create_shift(World & world,
-                                  int m,
-                                  int n,
                                   Tensor<double> & ground,
                                   Tensor<double> & omega,
                                   int print_level);

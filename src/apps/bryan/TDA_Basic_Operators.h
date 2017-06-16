@@ -4,80 +4,6 @@
 
 using namespace madness;
 
-// Addition of a vector and a scalar g[i] = a[i] + b
-std::vector<real_function_3d> operator+(std::vector<real_function_3d> a,
-                                        double b)
-{
-   MADNESS_ASSERT(a.size() > 0);
-   MADNESS_ASSERT(a[0].size() > 0);   
- 
-   std::vector<real_function_3d> result;
-
-   for(unsigned int i = 0; i < a.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a[i] + b);
-   }
-
-   return result;
-}
-
-// Reverse operands g[i] = b[i] + a
-std::vector<real_function_3d> operator+(double a,
-                                        std::vector<real_function_3d> b)
-{
-   MADNESS_ASSERT(b.size() > 0);
-   MADNESS_ASSERT(b[0].size() > 0);   
- 
-   std::vector<real_function_3d> result;
-
-   for(unsigned int i = 0; i < b.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a + b[i]);
-   }
-
-   return result;
-}
-
-// Subtraction of a vector and a scalar g[i] = a[i] - b
-std::vector<real_function_3d> operator-(std::vector<real_function_3d> a,
-                                        double b)
-{
-   MADNESS_ASSERT(a.size() > 0);
-   MADNESS_ASSERT(a[0].size() > 0);   
- 
-   std::vector<real_function_3d> result;
-
-   for(unsigned int i = 0; i < a.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a[i] - b);
-   }
-
-   return result;
-}
-
-// Reverse operands g[i] = b[i] - a
-std::vector<real_function_3d> operator-(double a,
-                                        std::vector<real_function_3d> b)
-{
-   MADNESS_ASSERT(b.size() > 0);
-   MADNESS_ASSERT(b[0].size() > 0);   
- 
-   std::vector<real_function_3d> result;
-
-   for(unsigned int i = 0; i < b.size(); i++)
-   {
-      // Using vmra.h definitions
-      result.push_back(a - b[i]);
-   }
-
-   return result;
-}
-
-
-
 // Addition of two vectors of vectors g[i][j] = a[i][j] + b[i][j]
 std::vector<std::vector<real_function_3d>> operator+(std::vector<std::vector<real_function_3d>> a,
                                                      std::vector<std::vector<real_function_3d>> b)
@@ -174,8 +100,22 @@ void truncate(World & world,
    }
 }
 
+// Returns a deep copy of a vector of vector of functions
+std::vector<std::vector<real_function_3d>> copy(World & world,
+                                                std::vector<std::vector<real_function_3d>> f)
+{
+   MADNESS_ASSERT(f.size() > 0);
 
-// Apply a vector of vector of operator to a vector of vector of functions g[i][j] = op[i][j](f[i][j])
+
+   int m = f.size();
+   std::vector<std::vector<real_function_3d>> answer;
+
+   for(int i = 0; i < m; i++) answer.push_back(copy(world,f[i]));
+
+   return answer;
+}
+
+// Apply a vector of vector of operators to a vector of vector of functions g[i][j] = op[i][j](f[i][j])
 std::vector<std::vector<real_function_3d>> apply(World & world,
                                                  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> & op,
                                                  std::vector<std::vector<real_function_3d>> & f)
@@ -190,42 +130,6 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
    {
       // Using vmra.h function, line 889
       result[i] = apply(world, op[i], f[i]);
-   }
-
-   return result;
-}
-
-// Apply a vector of operators to a vector of vector of functions g[i][j] = op[i](f[i][j])
-std::vector<std::vector<real_function_3d>> apply(World & world,
-                                                 std::vector<std::shared_ptr<real_convolution_3d>> & op,
-                                                 std::vector<std::vector<real_function_3d>> f)
-{
-   MADNESS_ASSERT(f.size() > 0);
-   MADNESS_ASSERT(op.size() == f.size());
-
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(unsigned int i = 0; i < f.size(); i++)
-   {
-      // Using vmra.h function
-      result.push_back(apply(world, *op[i], f[i]));
-   }
-
-   return result;
-}
-
-// Apply an operator to a vector of vector of functions g[i][j] = op(f[i][j])
-std::vector<std::vector<real_function_3d>> apply(World & world,
-                                                 real_convolution_3d & op,
-                                                 std::vector<std::vector<real_function_3d>> f)
-{
-   MADNESS_ASSERT(f.size() > 0);
-
-   std::vector<std::vector<real_function_3d>> result;
-
-   for(unsigned int i = 0; i < f.size(); i++)
-   {
-      result.push_back(apply(world, op, f[i]));
    }
 
    return result;
