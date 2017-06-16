@@ -1719,6 +1719,7 @@ tda_x_response = gram_schmidt(world, tda_x_response);
    if(world.rank() == 0) print("\n");
    if(world.rank() == 0) print("\n   Finished TDA Calculation");
    if(world.rank() == 0) print("   ------------------------");
+   if(world.rank() == 0) print("\n");
  
    // Did we converge?
    if(iteration == tda_max_iterations && energy_residuals.absmax() > tda_energy_threshold)
