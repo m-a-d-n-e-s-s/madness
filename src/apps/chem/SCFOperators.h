@@ -563,7 +563,7 @@ public:
       return result;
     }
     double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
-        const auto compute_K = (scale_K == 0.0);
+        const auto compute_K = (scale_K != 0.0);
         double J_00 = J(bra,ket);
         double K_00 = compute_K ? (scale_K == 1. ? K(bra,ket) : scale_K * K(bra,ket)) : 0;
         double T_00 = T(bra,ket);
@@ -572,7 +572,7 @@ public:
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        const auto compute_K = (scale_K == 0.0);
+        const auto compute_K = (scale_K != 0.0);
         double wtime=-wall_time(); double ctime=-cpu_time();
         Tensor<double> kmat= compute_K ? (scale_K == 1. ? K(vbra,vket) : scale_K * K(vbra,vket)) : Tensor<double>(vbra.size(), vket.size());
         Tensor<double> jmat=J(vbra,vket);
