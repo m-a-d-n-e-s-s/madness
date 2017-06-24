@@ -72,7 +72,7 @@ public:
         return vket;
     }
 
-    T operator()(const functionT& bra, const functionT ket) const {
+    T operator()(const functionT& bra, const functionT& ket) const {
         vecfuncT vbra(1,bra), vket(1,ket);
         Tensor<T> tmat=this->operator()(vbra,vket);
         return tmat(0l,0l);
@@ -124,7 +124,7 @@ public:
         return dvket;
     }
 
-    T operator()(const functionT& bra, const functionT ket) const {
+    T operator()(const functionT& bra, const functionT& ket) const {
         vecfuncT vbra(1,bra), vket(1,ket);
         Tensor<T> tmat=this->operator()(vbra,vket);
         return tmat(0l,0l);
@@ -213,7 +213,7 @@ public:
         return tmp;
     }
 
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
+    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
         return inner(bra,vcoul*ket);
     }
 
@@ -361,7 +361,7 @@ public:
 
     /// @param[in]  bra    real_funtion_3d, the bra state
     /// @param[in]  ket    real_funtion_3d, the ket state
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
+    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
         return inner(bra,this->operator()(ket));
     }
 
@@ -559,7 +559,7 @@ public:
       real_function_3d result;
       return result;
     }
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
+    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
         double J_00 = J(bra,ket);
         double K_00 = K(bra,ket);
         double T_00 = T(bra,ket);
