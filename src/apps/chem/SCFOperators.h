@@ -549,10 +549,13 @@ private:
     };
 };
 
-
+/// Computes matrix representation of the Fock operator
 class Fock {
 public:
-    Fock(World& world, const SCF* calc, std::shared_ptr<NuclearCorrelationFactor> ncf);
+    /// \param[in] scale_K scaling factor for the Hartree-Fock exchange operator (the default is 1, i.e. include
+    ///            the full exchange; setting scale_K to 0 excludes the exchange operator, and its computation is skipped)
+    Fock(World& world, const SCF* calc, std::shared_ptr<NuclearCorrelationFactor> ncf,
+         double scale_K = 1);
 
     real_function_3d operator()(const real_function_3d& ket) const {
       MADNESS_EXCEPTION("Fock(ket) not yet implemented",1);
@@ -560,16 +563,18 @@ public:
       return result;
     }
     double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+        const auto compute_K = (scale_K == 0.0);
         double J_00 = J(bra,ket);
-        double K_00 = K(bra,ket);
+        double K_00 = compute_K ? (scale_K == 1. ? K(bra,ket) : scale_K * K(bra,ket)) : 0;
         double T_00 = T(bra,ket);
         double V_00 = V(bra,ket);
         return T_00 + J_00 - K_00 + V_00;
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto compute_K = (scale_K == 0.0);
         double wtime=-wall_time(); double ctime=-cpu_time();
-        Tensor<double> kmat=K(vbra,vket);
+        Tensor<double> kmat= compute_K ? (scale_K == 1. ? K(vbra,vket) : scale_K * K(vbra,vket)) : Tensor<double>(vbra.size(), vket.size());
         Tensor<double> jmat=J(vbra,vket);
         Tensor<double> tmat=T(vbra,vket);
         Tensor<double> vmat=V(vbra,vket);
@@ -586,6 +591,7 @@ private:
     Exchange K;
     Kinetic<double,3> T;
     Nuclear V;
+    const double scale_K;
 };
 
 }

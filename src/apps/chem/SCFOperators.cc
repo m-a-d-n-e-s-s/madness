@@ -710,12 +710,14 @@ void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
 
 
 Fock::Fock(World& world, const SCF* calc,
-        std::shared_ptr<NuclearCorrelationFactor> ncf )
+           std::shared_ptr<NuclearCorrelationFactor> ncf,
+           double scale_K)
     : world(world),
       J(world,calc),
       K(world,calc,0),
       T(world),
-      V(world,ncf) {
+      V(world,ncf),
+      scale_K(scale_K) {
 }
 
 
