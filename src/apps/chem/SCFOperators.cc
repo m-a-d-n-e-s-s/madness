@@ -77,6 +77,7 @@ DistributedMatrix<T> Kinetic<T,NDIM>::kinetic_energy_matrix(World & world,
     DistributedMatrix<T> r = column_distributed_matrix<T>(world, n, m);
     reconstruct(world, vbra);
     reconstruct(world, vket);
+    const auto bra_equiv_ket = &vbra == &vket;
 
     // apply the derivative operator on each function for each dimension
     std::vector<vecfuncT> dvbra(NDIM),dvket(NDIM);
@@ -91,7 +92,7 @@ DistributedMatrix<T> Kinetic<T,NDIM>::kinetic_energy_matrix(World & world,
     }
     world.gop.fence();
     for (std::size_t i=0; i<NDIM; ++i) {
-        r += matrix_inner(r.distribution(), dvbra[i], dvket[i], false);
+        r += matrix_inner(r.distribution(), dvbra[i], dvket[i], bra_equiv_ket);
     }
     r *= 0.5;
     return r;

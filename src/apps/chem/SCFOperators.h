@@ -131,8 +131,9 @@ public:
     }
 
     tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT dvket=this->operator()(vket);
-        return matrix_inner(world,vbra,dvket);
+        return matrix_inner(world,vbra,dvket, bra_equiv_ket);
     }
 
 private:
@@ -218,11 +219,12 @@ public:
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vJket;
         for (std::size_t i=0; i<vket.size(); ++i) {
             vJket.push_back(this->operator()(vket[i]));
         }
-        return matrix_inner(world,vbra,vJket);
+        return matrix_inner(world,vbra,vJket,bra_equiv_ket);
     }
 
     /// getter for the Coulomb potential
@@ -280,8 +282,9 @@ public:
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vVket=this->operator()(vket);
-        return matrix_inner(world,vbra,vVket);
+        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 
 private:
@@ -316,8 +319,9 @@ public:
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vVket=this->operator()(vket);
-        return matrix_inner(world,vbra,vVket);
+        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 
 private:
@@ -371,8 +375,9 @@ public:
     /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
     /// @return K_ij
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vKket=this->operator()(vket);
-        return matrix_inner(world,vbra,vKket);
+        return matrix_inner(world,vbra,vKket,bra_equiv_ket);
     }
 
     bool& small_memory() {return small_memory_;}
