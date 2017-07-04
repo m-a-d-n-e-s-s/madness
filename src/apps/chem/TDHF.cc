@@ -419,158 +419,149 @@ namespace madness {
     return V;
   }
 
-vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
-	// XC information
-	const std::string xc_data = nemo.get_calc()->param.xc_data;
-	// HF exchange Coefficient
-	double hf_coeff = nemo.get_calc()->xc.hf_exchange_coefficient();
-	// Use the PCMSolver
-	bool pcm=nemo.do_pcm();
-	if(parameters.debug){
-		if(world.rank()==0) std::cout << "TDA Potential is " << xc_data << ", hf_coeff=" << hf_coeff << ", pcm is=" << pcm <<  "\n";
-	}
-	if(hf_coeff<0.0) msg.warning("hf_exchange_coefficient is negative");
+  vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
+    // XC information
+    const std::string xc_data = nemo.get_calc()->param.xc_data;
+    // HF exchange Coefficient
+    double hf_coeff = nemo.get_calc()->xc.hf_exchange_coefficient();
 
-	// Occupation numbers
-	const Tensor<double> occ=nemo.get_calc()->get_aocc();
-	// Closed shell full density of the nemo orbitals (without any nuclear cusps)
-	const real_function_3d nemo_density=2.0*nemo.make_density(occ,mo_ket_.get_vecfunction());
-	// Real Alpha density (with nuclear cusps)
-	const real_function_3d alpha_density=0.5*nemo.R_square*nemo_density;
+    // Use the PCMSolver
+    //bool pcm=nemo.do_pcm();
+    bool pcm = false; // not yet here
+    if(parameters.debug){
+      if(world.rank()==0) std::cout << "TDA Potential is " << xc_data << ", hf_coeff=" << hf_coeff << ", pcm is=" << pcm <<  "\n";
+    }
+    if(hf_coeff<0.0) msg.warning("hf_exchange_coefficient is negative");
 
-	// XC Potential
-	//const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
-	const XCOperator xc(world, &nemo, 0);
+    // Occupation numbers
+    const Tensor<double> occ=nemo.get_calc()->get_aocc();
+    // Closed shell full density of the nemo orbitals (without any nuclear cusps)
+    const real_function_3d nemo_density=2.0*nemo.make_density(occ,mo_ket_.get_vecfunction());
+    // Real Alpha density (with nuclear cusps)
+    const real_function_3d alpha_density=0.5*nemo.R_square*nemo_density;
 
-	// Apply Ground State Potential to x-states
-	vecfuncT Vpsi1;
-	{
-		// construct unperturbed operators
-		const Coulomb J(world,&nemo);
-		const Nuclear V(world,&nemo);
+    // XC Potential
+    const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
+
+    // Apply Ground State Potential to x-states
+    vecfuncT Vpsi1;
+    {
+      // construct unperturbed operators
+      const Coulomb J(world,&nemo);
+     // const Nuclear V(world,&nemo); // not included in the TDA potential anymore
 
 
-		std::string xc_data=nemo.get_calc()->param.xc_data;
-		xc_data = xc_data.erase(0,xc_data.find_first_not_of(" "));
-		xc_data = xc_data.erase(xc_data.find_last_not_of(" ")+1);
+      std::string xc_data=nemo.get_calc()->param.xc_data;
+      xc_data = xc_data.erase(0,xc_data.find_first_not_of(" "));
+      xc_data = xc_data.erase(xc_data.find_last_not_of(" ")+1);
 
-		// Nuclear Potential applied to x
-		CCTimer timeN(world,"Nx");
-		const vecfuncT Nx=V(x.get_vecfunction());
-		timeN.info(parameters.debug);
-		// Applied Hartree Potential (J|x>) -> factor two is absorbed into the density for the J Operator
-		CCTimer timeJ(world,"Jx");
-		const vecfuncT Jx=J(x.get_vecfunction());
-		timeJ.info(parameters.debug);
-		// Applied XC Potential
+      // Nuclear Potential applied to x
+      //CCTimer timeN(world,"Nx");
+      //const vecfuncT Nx=V(x.get_vecfunction());
+      //timeN.info(parameters.debug);
+      // Applied Hartree Potential (J|x>) -> factor two is absorbed into the density for the J Operator
+      CCTimer timeJ(world,"Jx");
+      const vecfuncT Jx=J(x.get_vecfunction());
+      timeJ.info(parameters.debug);
+      // Applied XC Potential
 		CCTimer timeXCx(world,"XCx");
 		real_function_3d xc_pot = xc.make_xc_potential();
 
-        // compute the asymptotic correction of exchange-correlation potential
-        if(nemo.do_ac()) {
-        	double charge = double(nemo.molecule().total_nuclear_charge());
-        	real_function_3d scaledJ = -1.0/charge*J.potential()*(1.0-hf_coeff);
-        	xc_pot = nemo.get_ac().apply(xc_pot, scaledJ);
-        }
+      // compute the asymptotic correction of exchange-correlation potential
+      if(nemo.do_ac()) {
+      	double charge = double(nemo.molecule().total_nuclear_charge());
+      	real_function_3d scaledJ = -1.0/charge*J.potential()*(1.0-hf_coeff);
+      	xc_pot = nemo.get_ac().apply(xc_pot, scaledJ);
+      }
 
-        const vecfuncT XCx=mul(world, xc_pot, x.get_vecfunction());
-		//const vecfuncT XCx=xc(x.get_vecfunction());
-		timeXCx.info(parameters.debug);
-		// Ground State Potential applied to x, without exchange
-		Vpsi1 = Nx+Jx+XCx;
-		// add exchange if demanded
-		if(hf_coeff!=0.0){
-			CCTimer timeKx(world,"Kx");
-			Exchange K=Exchange(world,&nemo,0).small_memory(false);
-			K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo,parameters.thresh_poisson);
-			vecfuncT Kx =K(x.get_vecfunction());
-			scale(world,Kx,hf_coeff);
-			Vpsi1 = sub(world, Vpsi1, Kx);
-			timeKx.info(parameters.debug);
-		}
-		// compute the solvent (PCM) contribution to the potential
-		if (pcm) {
-			CCTimer timepcm(world,"pcm:gs");
-			const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(J.potential(),false);
-			if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_gs");
-			const vecfuncT pcm_x=vpcm*x.get_vecfunction();
-			timepcm.info(parameters.debug);
-			Vpsi1 = add(world,Vpsi1,pcm_x);
-		}
+      const vecfuncT XCx=mul(world, xc_pot, x.get_vecfunction());
+      // Ground State Potential applied to x, without exchange
+      Vpsi1 = Jx+XCx; // Nx removed
+      // add exchange if demanded
+      if(hf_coeff!=0.0){
+	CCTimer timeKx(world,"Kx");
+	Exchange K=Exchange(world,&nemo,0).small_memory(false);
+	K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo,parameters.thresh_poisson);
+	vecfuncT Kx =K(x.get_vecfunction());
+	scale(world,Kx,hf_coeff);
+	Vpsi1 = sub(world, Vpsi1, Kx);
+	timeKx.info(parameters.debug);
+      } else MADNESS_EXCEPTION("HF Coefficient is 0, DFT is not supported right now",1);
+      // compute the solvent (PCM) contribution to the potential
+      if (pcm) {
+	CCTimer timepcm(world,"pcm:gs");
+        const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(J.potential(),false);
+        if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_gs");
+        const vecfuncT pcm_x=vpcm*x.get_vecfunction();
+        timepcm.info(parameters.debug);
+        Vpsi1 = add(world,Vpsi1,pcm_x);
+      }
+    }
 
+    // Apply the Perturbed Potential to the Active Ground State Orbitals
+    vecfuncT Vpsi2;
+    {
+      // active mo
+      const vecfuncT active_mo = get_active_mo_ket();
+      const vecfuncT active_bra = get_active_mo_bra();
+      // construct perturbed operators
+      CCTimer timeJ(world,"pXC");
+      Coulomb Jp(world);
+      real_function_3d density_pert=2.0*nemo.make_density(occ,active_bra,x.get_vecfunction());
+      Jp.potential()=Jp.compute_potential(density_pert);
+      // reconstruct the full perturbed density: do not truncate!
+      real_function_3d gamma=xc.apply_xc_kernel(density_pert);
+      vecfuncT XCp=mul(world,gamma,active_mo);
+      truncate(world,XCp);
 
-		truncate(world,Vpsi1);
+      Vpsi2 = Jp(active_mo)+XCp;
+      timeJ.info(parameters.debug);
+      // Exchange Part
+      if(hf_coeff>0.0){
+	CCTimer timeK(world,"pK");
+	vecfuncT Kp;
+	// summation over all active indices
+	for(const auto itmp:x.functions){
+	  const size_t i=itmp.first;
+	  real_function_3d Ki=real_factory_3d(world);
+	  for(const auto ktmp:x.functions){
+	    const size_t k=ktmp.first;
+	    Ki+=(g12(mo_bra_(k),mo_ket_(i))*x(k).function).truncate();
+	  }
+	  Kp.push_back(Ki);
 	}
+	scale(world,Kp,hf_coeff);
+	Vpsi2 = sub(world,Vpsi2,Kp);
+	timeK.info(parameters.debug);
+	truncate(world,Vpsi2);
+      }
 
-	// Apply the Perturbed Potential to the Active Ground State Orbitals
-	vecfuncT Vpsi2;
-	{
-		// active mo
-		const vecfuncT active_mo = get_active_mo_ket();
-		const vecfuncT active_bra = get_active_mo_bra();
-		// construct perturbed operators
-		CCTimer timeJ(world,"pXC");
-		Coulomb Jp(world);
-		real_function_3d density_pert=2.0*nemo.make_density(occ,active_bra,x.get_vecfunction());
-		Jp.potential()=Jp.compute_potential(density_pert);
-		// reconstruct the full perturbed density: do not truncate!
-		real_function_3d gamma=xc.apply_xc_kernel(density_pert);
+      // compute the solvent (PCM) contribution to the kernel
+      if (pcm) {
+	CCTimer timepcm(world,"pcm:ex");
+        const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(Jp.potential(),true);
+        if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_ex");
+        const vecfuncT pcm_orbitals=vpcm*active_mo;
+        timepcm.info(parameters.debug);
+        Vpsi2 = add(world,Vpsi2,pcm_orbitals);
+      }
 
-		plot_plane(world, gamma, "gamma");
-		plot_plane(world, Jp.potential(), "Jp");
+      truncate(world,Vpsi2);
+    }
+    // whole tda potential
+    vecfuncT Vpsi = Vpsi1 + Q(Vpsi2);
+    truncate(world,Vpsi);
 
-		vecfuncT XCp=mul(world,gamma,active_mo);
-		truncate(world,XCp);
+    // debug output
+    if(parameters.debug or parameters.plot){
+    plot_plane(world,Vpsi,"Vpsi");
+    plot_plane(world,Vpsi1,"Vpsi1");
+    plot_plane(world,Vpsi2,"Vpsi2");
+    }
 
-		if(parameters.tda_triplet) Vpsi2 = XCp;
-		else Vpsi2 = Jp(active_mo)+XCp;
-		//Vpsi2 = Jp(active_mo)+XCp;
-		timeJ.info(parameters.debug);
-		// Exchange Part
-		if(hf_coeff>0.0){
-			CCTimer timeK(world,"pK");
-			vecfuncT Kp;
-			// summation over all active indices
-			for(const auto itmp:x.functions){
-				const size_t i=itmp.first;
-				real_function_3d Ki=real_factory_3d(world);
-				for(const auto ktmp:x.functions){
-					const size_t k=ktmp.first;
-					Ki+=(g12(mo_bra_(k),mo_ket_(i))*x(k).function).truncate();
-				}
-				Kp.push_back(Ki);
-			}
-			scale(world,Kp,hf_coeff);
-			Vpsi2 = sub(world,Vpsi2,Kp);
-			timeK.info(parameters.debug);
-		}
+    return Vpsi;
 
-		// compute the solvent (PCM) contribution to the kernel
-		if (pcm) {
-			CCTimer timepcm(world,"pcm:ex");
-			const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(Jp.potential(),true);
-			if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_ex");
-			const vecfuncT pcm_orbitals=vpcm*active_mo;
-			timepcm.info(parameters.debug);
-			Vpsi2 = add(world,Vpsi2,pcm_orbitals);
-		}
-
-		truncate(Vpsi2);
-	}
-	// whole tda potential
-	vecfuncT Vpsi = Vpsi1 + Q(Vpsi2);
-	truncate(world,Vpsi);
-
-	// debug output
-	if(parameters.debug or parameters.plot){
-		plot_plane(world,Vpsi,"Vpsi");
-		plot_plane(world,Vpsi1,"Vpsi1");
-		plot_plane(world,Vpsi2,"Vpsi2");
-	}
-
-	return Vpsi;
-
-}
+  }
 
   std::vector<vecfuncT> TDHF::make_tdhf_potentials(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y)const{
     MADNESS_EXCEPTION("NOT IMPLEMENTED",1);
@@ -887,7 +878,6 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	scale(world,tmp,1.0/norm);
       }
       CC_vecfunction guess_tmp(tmp,RESPONSE,parameters.freeze);
-      guess_tmp.omega = -1.0*nemo.get_calc()->aeps(mo_ket_.size()-1)*parameters.tda_energy_guess_factor;
       guess.push_back(guess_tmp);
     }
 
