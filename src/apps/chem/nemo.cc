@@ -142,6 +142,8 @@ double Nemo::value(const Tensor<double>& x) {
 	save(rhonemo,"rhonemo");
 	calc->dipole(world,rho);
 
+	if(world.rank()==0) std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
+
 	return energy;
 }
 
@@ -314,7 +316,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 		double n1=norm2(world,nemo);
 		double n2=norm2(world,tmp);
-		if(world.rank()==0) print("norm of nemo and GVnemo; ratio ",n1,n2,n1/n2);
+		print("norm of nemo and GVnemo; ratio ",n1,n2,n1/n2);
 
 		// compute the residuals
 		vecfuncT residual = sub(world, nemo, tmp);
@@ -512,11 +514,23 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
         double exc=0.0;
         if (ispin==0) exc=xcoperator.compute_xc_energy();
         print("exc",exc);
-        Knemo=sub(world,Knemo,xcoperator(nemo));   // minus times minus gives plus
+        // copy???
+        real_function_3d xc_pot = xcoperator.make_xc_potential();
+
+        // compute the asymptotic correction of exchange-correlation potential
+        if(do_ac()) {
+        	std::cout << "Computing asymtotic correction!\n";
+        	double charge = double(molecule().total_nuclear_charge())-calc->param.charge;
+        	real_function_3d scaledJ = -1.0/charge*J.potential()*(1.0-calc->xc.hf_exchange_coefficient());
+        	xc_pot = ac.apply(xc_pot, scaledJ);
+        }
+
+        Knemo=sub(world,Knemo,mul(world,xc_pot,nemo));   // minus times minus gives plus
         truncate(world,Knemo);
         double size=get_size(world,Knemo);
         END_TIMER(world, "compute XCnemo "+stringify(size));
     }
+
 
     // compute the solvent (PCM) contribution to the potential
     if (do_pcm()) {

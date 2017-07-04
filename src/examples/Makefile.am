@@ -12,7 +12,7 @@ noinst_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 c
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- nemo helium_exact density_smoothing siam_example gaussian lrccs cc2
+ nemo helium_exact density_smoothing siam_example gaussian lrccs cc2 ac_corr
  
 if MADNESS_HAS_LIBXC
 noinst_PROGRAMS += hefxc
@@ -24,6 +24,9 @@ thisinclude_HEADERS = molecularmask.h  spectralprop.h
 AUTOMAKE_OPTIONS = subdir-objects
 
 siam_example_SOURCES = siam_example.cc 
+
+ac_corr_SOURCES = ac_corr.cc
+ac_corr_LDADD = $(LIBCHEM) $(MRALIBS)
 
 mp2_SOURCES = mp2.cc 
 mp2_LDADD = $(LIBCHEM) $(MRALIBS)

@@ -115,7 +115,7 @@ struct CalculationParameters {
     int vnucextra; // load balance parameter for nuclear pot.
     int loadbalparts = 2; // was 6
     std::string pcm_data;            ///< do a PCM (solvent) calculation
-
+    std::string ac_data;             ///< do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)
 
     // Next list for response code from a4v4
     bool response;                    ///< response function calculation
@@ -138,7 +138,7 @@ struct CalculationParameters {
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
         & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf & restart_cphf
-        & purify_hessian & vnucextra & loadbalparts & pcm_data;
+        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data;
     }
 
     CalculationParameters()
@@ -202,6 +202,7 @@ struct CalculationParameters {
     , vnucextra(12)
     , loadbalparts(2)
     , pcm_data("none")
+    , ac_data("none")
     , response(false)
     , response_freq(0.0)
     , response_axis(madness::vector_factory(true, true, true))
@@ -424,6 +425,11 @@ struct CalculationParameters {
                 char buf[1024];
                 f.getline(buf,sizeof(buf));
                 pcm_data = buf;
+            }
+            else if (s=="ac") {
+                char buf[1024];
+                f.getline(buf,sizeof(buf));
+                ac_data = buf;
             }
             else if (s == "print_dipole_matels") {
                 print_dipole_matels = true;
