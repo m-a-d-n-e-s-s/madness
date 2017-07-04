@@ -427,8 +427,8 @@ public:
    AC(ACParameters<NDIM> ac_param): ac_param_(ac_param) {}
 
    AC(std::shared_ptr<SCF> calc): ac_param_(calc->molecule, calc->param.ac_data, 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge){
-	   ac_param_.print();
-    	   if(calc->param.ac_data!="none") ac_param_.check();
+//	   	   ac_param_.print();
+//    	   if(calc->param.ac_data!="none") ac_param_.check();
    }
 
    AC(const AC& other): ac_param_(other.ac_param_){}
