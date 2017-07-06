@@ -47,13 +47,12 @@ std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_fu
 {
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a[0].size() > 0);
-   MADNESS_ASSERT(a[0].size() == (unsigned int)b.size()); 
- 
+   MADNESS_ASSERT(a[0].size() == (unsigned int)b.size());    
+
    std::vector<std::vector<real_function_3d>> result;
 
    for(unsigned int i = 0; i < a.size(); i++)
-   {
-      // Intermediary
+   {   
       std::vector<real_function_3d> temp;
 
       for(unsigned int j = 0; j < a[0].size(); j++)
@@ -67,6 +66,26 @@ std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_fu
    return result;
 }
 
+// Multiplication of a vector of vectors by a scalar column wise g[i][k] = a[i][j] * b(j,k)
+// NOTE: NO BOUNDS CHECKING ON THE TENSOR b!!!!
+// Used for localized orbital scaling
+std::vector<std::vector<real_function_3d>> scale_2d(World & world,
+                                                    std::vector<std::vector<real_function_3d>> a,
+                                                    Tensor<double> b)
+{
+   MADNESS_ASSERT(a.size() > 0);
+   MADNESS_ASSERT(a[0].size() > 0);
+
+   std::vector<std::vector<real_function_3d>> result;
+
+   for(unsigned int i = 0; i < a.size(); i++)
+   {
+      // Using vmra.h definitions
+      result.push_back(transform(world, a[i], b));
+   }
+
+   return result;
+}
 // Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b
 std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_function_3d>> a,
                                                  double b)

@@ -130,6 +130,8 @@ class TDA
       bool tda_spinrestricted;                            // Indicates open or closed shell
       Tensor<double> tda_ground_energies;                 // Ground state energies
       Tensor<double> tda_act_ground_energies;             // Ground state energies being used for calculation
+      Tensor<double> tda_active_hamiltonian;              // Ground state hamiltonian of active ground state orbitals
+                                                          //    (Used when localized orbitals are given)
       unsigned int tda_num_orbitals;                      // Number of ground state orbitals
       unsigned int tda_act_num_orbitals;                  // Number of ground state orbitals being used in calculation
       Tensor<double> tda_occ;                             // Occupied orbital occupation numbers
@@ -138,6 +140,11 @@ class TDA
       Molecule tda_molecule;                              // The molecule object from ground state calculation
       double tda_thresh;                                  // Derived from 'order' (thresh = 10^(-order + 2))
       double tda_small;                                   // Just chose 1e-4 (arbitrary, smallest distance to resolve)
+
+      // Implemented properties
+      // These will simply be booleans controlling which
+      // term is added to perturbed Hamiltonian
+      bool tda_polarizability; // STILL A WORK IN PROGRESS
 
       // Functions
       std::vector<std::vector<real_function_3d>> tda_x_response;   // Excited states to be solved for. 
@@ -149,8 +156,11 @@ class TDA
       // User input variables
       double tda_energy_threshold;
       double tda_range;
+      bool tda_plot;
       int tda_max_iterations;
       int tda_num_excited; 
+      bool tda_localized;
+      bool tda_random_start;
       int tda_print_level;    // Controls the amount and style of printing. Higher values print more
                               //   Values |   What gets printed
                               //   ----------------------------
@@ -176,6 +186,7 @@ class TDA
           char* input_file,        // File with converged ground-state orbitals
                                    //    Note: You need to leave off the .00000 for this to work
           int k,                   // Number of desired response functions
+          double range,            // Energy range for acceptable ground orbitals to excite from (range from HOMO)
           int print_level);        // Specifies how much printing should be done (see above)
 
       // Normalizes in the response sense
@@ -206,8 +217,7 @@ class TDA
      
       // Returns initial response functions
       std::vector<std::vector<real_function_3d>> create_trial_functions(World & world,
-                                                                        int k,
-                                                                        Tensor<double> energies,
+                                                                        int k, 
                                                                         std::vector<real_function_3d> & orbitals,
                                                                         int print_level);
 
@@ -410,6 +420,9 @@ class TDA
       // Iterates the trial functions until covergence or it runs out of iterations
       void iterate(World & world);
 
+      // Constructs and prints a more detailed analysis of response functions
+      void analysis(World & world);
+
       // Diagonalizes the given functions
       void diagonalize_guess(World & world,
                              std::vector<std::vector<real_function_3d>> & f,
@@ -428,6 +441,12 @@ class TDA
       // Adds random noise to function f
       std::vector<std::vector<real_function_3d>> add_randomness(World & world,
                                                                 std::vector<std::vector<real_function_3d>> & f);
+
+      // Creates the ground state hamiltonian for the orbitals in the active subspace
+      // (aka the orbitals in tda_act_orbitals) 
+      void create_ground_hamiltonian(World &world,
+                                     std::vector<real_function_3d> f,
+                                     int print_level);
 
       // Solves the response equations
       void solve(World & world);

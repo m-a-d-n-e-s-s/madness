@@ -13,7 +13,8 @@ int main(int argc, char** argv)
    TDA my_calc(world,           // Communicator
                argv[1],         // Contains restart file
                atoi(argv[2]),   // Number of requested states
-               atoi(argv[3]));  // Print level
+               atof(argv[3]),   // Energy range of acceptable orbitals to excite from (energy from HOMO)
+               atoi(argv[4]));  // Print level
 
    // Have it iterate to convergence
    my_calc.solve(world);
