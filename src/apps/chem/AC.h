@@ -46,6 +46,11 @@ struct atom_information{
 		return distance;
 	}
 
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        ar &  coord, R1, R2, charge;
+    }
+
 };
 
 /// collection of slater radii needed to calculate R1 and R2; The Journal of Chemical Physics 41, 3199 (1964); doi: 10.1063/1.1725697
@@ -73,21 +78,30 @@ struct ACParameters{
 	double R1_; /// lower boundary interpolation area
 	double R2_; /// upper boundary for interpolation area
 	double dft_coefficient_; /// dft coefficient for hybrid functionals (=1.0 for non hybrid)
-	double num_elec_; /// number of electrons
+	int num_elec_; /// number of electrons
 	std::string interpolation_scheme_; /// scheme for interpolation between xc-functional and 1/r-potential
 
-	ACParameters(){}
 
-	ACParameters(Molecule molecule, std::string ac_data, double dft_coeff, double tot_charge){
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        ar & atoms_ & e_ion_ & eh_ & R1_ & R2_ & dft_coefficient_ & num_elec_ & interpolation_scheme_;
+    }
 
+	ACParameters(){
 		use_mult_ = false;
 		e_ion_ = 0.0;
 		eh_ = 0.0;
 		R1_ = 3.0;
 		R2_ = 4.0;
-		dft_coefficient_ = dft_coeff;
 		interpolation_scheme_ = "linear";
-		// get data from input line
+		num_elec_=-1;
+		dft_coefficient_=0.0;
+	}
+
+	void initialize(Molecule molecule, std::string ac_data, double dft_coeff, double tot_charge){
+
+		dft_coefficient_ = dft_coeff;
+
 		std::stringstream sac_data(ac_data);
 		std::string word;
 
@@ -112,7 +126,6 @@ struct ACParameters{
 		}
 		atoms_ = make_atom_vec(molecule, R1_, R2_);
 		num_elec_ = molecule.total_nuclear_charge() - tot_charge;
-
 	}
 
 	ACParameters(const ACParameters &other)
@@ -120,7 +133,8 @@ struct ACParameters{
 	  eh_(other.eh_), R1_(other.R1_), R2_(other.R2_), dft_coefficient_(other.dft_coefficient_),
 	  num_elec_(other.num_elec_), interpolation_scheme_(other.interpolation_scheme_) {}
 
-	void print(){
+	void print(World& world){
+		if(world.rank()==0){
 		std::cout << "\nAsymptotic correction parameters\n";
 		std::cout << "---------------------------------------\n";
 		std::cout << "Atom vector is not empty: " << !atoms_.empty() << "\n";
@@ -132,9 +146,10 @@ struct ACParameters{
 		std::cout << "R2 = " << R2_ << "\n";
 		std::cout << "DFT coefficient = " << dft_coefficient_ << "\n";
 		std::cout << "Interpolation scheme = " << interpolation_scheme_ << "\n";
+		}
 	}
 
-	void check(){
+	void check(World& world){
 		if(atoms_.empty()) { MADNESS_EXCEPTION("Failed to initialize AC object!",1); }
 		else if(num_elec_ <0) { MADNESS_EXCEPTION("Negative number of electrons!",1); }
 		else if(e_ion_ < 0) { MADNESS_EXCEPTION("Ionisation energy is negative!",1); }
@@ -143,7 +158,7 @@ struct ACParameters{
 		else if(dft_coefficient_ < 0.0) { MADNESS_EXCEPTION("DFT coefficient is negative!",1); }
 		else if(dft_coefficient_ == 0.0) { MADNESS_EXCEPTION("DFT coefficient is zero. This is no DFT calculation!\n",1); }
 		else if(interpolation_scheme_ != "linear" and interpolation_scheme_ != "constant") std::cout << "\n\nWARNING: Unknown interpolation scheme, using linear interpolation instead\n\n!";
-		else std::cout << "AC object was initialized succesfully!\n\n";
+		else if(world.rank()==0) std::cout << "AC object was initialized succesfully!\n\n";
 	}
 
 };
@@ -426,9 +441,15 @@ public:
 
    AC(ACParameters<NDIM> ac_param): ac_param_(ac_param) {}
 
-   AC(std::shared_ptr<SCF> calc): ac_param_(calc->molecule, calc->param.ac_data, 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge){
-//	   	   ac_param_.print();
-//    	   if(calc->param.ac_data!="none") ac_param_.check();
+   AC(std::shared_ptr<SCF> calc){
+	   if(calc->amo.empty()) MADNESS_EXCEPTION("AC:No electrons",1);
+	   World& world = calc->amo.front().world();
+	   if(world.rank()==0){
+		   ac_param_.initialize(calc->molecule, calc->param.ac_data, 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge);
+	   }
+	   world.gop.broadcast_serializable(ac_param_, 0);
+	   ac_param_.print(world);
+	   if(calc->param.ac_data!="none") ac_param_.check(world);
    }
 
    AC(const AC& other): ac_param_(other.ac_param_){}
