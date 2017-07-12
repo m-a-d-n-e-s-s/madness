@@ -151,7 +151,7 @@ public:
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
-			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0), ac(calc) {}
+			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {}
 
 	void construct_nuclear_correlation_factor() {
 		// construct the nuclear potential
