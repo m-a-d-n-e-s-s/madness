@@ -24,7 +24,7 @@ double slater_radius(int atomic_number){
 	}
 }
 
-std::vector<atom_information<3> > make_atom_vec(const Molecule& molecule, double R1_, double R2_) {
+std::vector<atom_information<3> >make_atom_vec(const Molecule& molecule, double R1_, double R2_) {
 	std::vector< atom_information<3> > atom_vec;
 	for(const auto& x:molecule.get_atoms()){
 		atom_information<3> tmp;

@@ -18,6 +18,8 @@
 
 namespace madness {
 
+
+
 /// Needed information about atom to compute asymptotic correction
 template<unsigned long int NDIM>
 struct atom_information{
@@ -48,15 +50,10 @@ struct atom_information{
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar &  coord, R1, R2, charge;
+        ar &  coord& R1&  R2& charge;
     }
 
 };
-
-/// collection of slater radii needed to calculate R1 and R2; The Journal of Chemical Physics 41, 3199 (1964); doi: 10.1063/1.1725697
-/// @param[in] atomic_number: atomic_number of atom
-/// @param[out] : slater radius corresponding to atomic_number
-double slater_radius(int atomic_number);
 
 /// Creates vector of atom_information for the given molecule
 /// @param[in] molecule: the molecule
@@ -67,6 +64,14 @@ std::vector<atom_information<3> > make_atom_vec(const Molecule& molecule, double
 /// @param[in] input: file with geometry of molecule
 /// @param[out] : the vector containing the atom_information for each atom in the molecule
 std::vector<atom_information<3> > make_atom_vec(const std::string& input);
+
+/// collection of slater radii needed to calculate R1 and R2; The Journal of Chemical Physics 41, 3199 (1964); doi: 10.1063/1.1725697
+/// @param[in] atomic_number: atomic_number of atom
+/// @param[out] : slater radius corresponding to atomic_number
+double slater_radius(int atomic_number);
+
+
+
 
 /// Contains all the parameters for the asymptotic correction
 template<unsigned long int NDIM>
