@@ -296,6 +296,9 @@ namespace madness{
     /// every exop is multiplied with e^(-exponent*r2) to avoid noise at the boundaries
     double tda_damping_width;
 
+/// calculate triplet excitation energies (only works for CIS)
+	bool tda_triplet;
+
     /// print out the parameters (except the tda parameters)
     void information(World &world)const;
 
