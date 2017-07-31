@@ -12,8 +12,13 @@
 #
 
 # Compilers
-set(CMAKE_C_COMPILER mpicc)
-set(CMAKE_CXX_COMPILER mpicxx)
+
+if(NOT CMAKE_C_COMPILER)
+  set(CMAKE_C_COMPILER mpicc)
+endif()
+if(NOT CMAKE_CXX_COMPILER)
+  set(CMAKE_CXX_COMPILER mpicxx)
+endif()
 set(MPI_C_COMPILER mpicc)
 set(MPI_CXX_COMPILER mpicxx)
 

@@ -600,10 +600,15 @@ namespace madness {
         /// \return A future to the result. If the task function return
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
+        /// \note future_to_ref_t is used instead of remove_future_t so that
+        ///       argument Future's convert to refs so that X(Y&) can invoked by add(X, Future<T>);
+        ///       if remove_future_t were used, X(Y) would be expected instead.
+        ///       This is reasonable if we remember the shallow copy semantics of Futures: they act
+        ///       as refs.
         template <typename fnT, typename... argsT,
                   typename = std::enable_if_t<
                   meta::taskattr_is_last_arg<argsT...>::value>>
-        typename meta::drop_last_arg_and_apply_callable<detail::function_enabler, fnT, remove_future_t<argsT>...>::type::type
+        typename meta::drop_last_arg_and_apply_callable<detail::function_enabler, fnT, future_to_ref_t<argsT>...>::type::type
         add(fnT&& fn, argsT&&... args) {
           using taskT = typename meta::drop_last_arg_and_apply<TaskFn, std::decay_t<fnT>, std::decay_t<argsT>...>::type;
           return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
@@ -613,7 +618,7 @@ namespace madness {
         template <typename fnT, typename... argsT,
                   typename = std::enable_if_t<
                       !meta::taskattr_is_last_arg<argsT...>::value>>
-        typename detail::function_enabler<fnT(remove_future_t<argsT>...)>::type add(
+        typename detail::function_enabler<fnT(future_to_ref_t<argsT>...)>::type add(
             fnT&& fn, argsT&&... args) {
           using taskT = TaskFn<std::decay_t<fnT>, std::decay_t<argsT>...>;
           return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),

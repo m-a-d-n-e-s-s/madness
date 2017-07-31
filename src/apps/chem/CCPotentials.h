@@ -67,29 +67,29 @@ namespace madness {
     const Nemo& get_nemo()const{return nemo_;}
 
     /// returns a vector of all orbital energies
-    const std::vector<double> get_orbital_energies()const{return orbital_energies_;}
+    std::vector<double> get_orbital_energies()const{return orbital_energies_;}
 
     /// returns epsilon_i + epsilon_j (needed for bsh operator of pairs)
-    const double get_epsilon(const size_t i, const size_t j)const{
+    double get_epsilon(const size_t i, const size_t j)const{
       return orbital_energies_[i] + orbital_energies_[j];
     }
 
     /// returns a vector of all active mos without nuclear correlation factor (nemos)
-    const vecfuncT get_active_mo_ket()const{
+    vecfuncT get_active_mo_ket()const{
       vecfuncT result;
       for(size_t i=parameters.freeze;i<mo_ket_.size();i++) result.push_back(mo_ket_(i).function);
       return result;
     }
 
     /// returns a vector of all active mos multiplied with the squared nuclear currelation factor: mo_bra = R^2*mo_ket
-    const vecfuncT get_active_mo_bra()const{
+    vecfuncT get_active_mo_bra()const{
       vecfuncT result;
       for(size_t i=parameters.freeze;i<mo_bra_.size();i++) result.push_back(mo_bra_(i).function);
       return result;
     }
 
     /// get the corresponding mo bra vectors to a ket vector
-    const vecfuncT get_mo_bra(const CC_vecfunction& ket)const{
+    vecfuncT get_mo_bra(const CC_vecfunction& ket)const{
       vecfuncT result;
       for(const auto ktmp:ket.functions){
 	result.push_back(mo_bra_(ktmp.first).function);
@@ -103,22 +103,22 @@ namespace madness {
     }
 
     /// returns a specific mo
-    const CCFunction mo_ket(const size_t &i) const {
+    CCFunction mo_ket(const size_t &i) const {
       return mo_ket_(i);
     }
 
     // returns constant mo_ket_
-    const CC_vecfunction mo_ket() const {
+    CC_vecfunction mo_ket() const {
       return mo_ket_;
     }
 
     /// returns a specific mo multiplied with the squared nuclear correlation factor
-    const CCFunction mo_bra(const size_t &i) const {
+    CCFunction mo_bra(const size_t &i) const {
       return mo_bra_(i);
     }
 
     // returns constant mo_bra_
-    const CC_vecfunction mo_bra() const {
+    CC_vecfunction mo_bra() const {
       return mo_bra_;
     }
 

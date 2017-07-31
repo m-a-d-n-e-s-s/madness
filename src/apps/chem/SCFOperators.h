@@ -72,7 +72,7 @@ public:
         return vket;
     }
 
-    T operator()(const functionT& bra, const functionT ket) const {
+    T operator()(const functionT& bra, const functionT& ket) const {
         vecfuncT vbra(1,bra), vket(1,ket);
         Tensor<T> tmat=this->operator()(vbra,vket);
         return tmat(0l,0l);
@@ -124,15 +124,16 @@ public:
         return dvket;
     }
 
-    T operator()(const functionT& bra, const functionT ket) const {
+    T operator()(const functionT& bra, const functionT& ket) const {
         vecfuncT vbra(1,bra), vket(1,ket);
         Tensor<T> tmat=this->operator()(vbra,vket);
         return tmat(0l,0l);
     }
 
     tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT dvket=this->operator()(vket);
-        return matrix_inner(world,vbra,dvket);
+        return matrix_inner(world,vbra,dvket, bra_equiv_ket);
     }
 
 private:
@@ -213,16 +214,17 @@ public:
         return tmp;
     }
 
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
+    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
         return inner(bra,vcoul*ket);
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vJket;
         for (std::size_t i=0; i<vket.size(); ++i) {
             vJket.push_back(this->operator()(vket[i]));
         }
-        return matrix_inner(world,vbra,vJket);
+        return matrix_inner(world,vbra,vJket,bra_equiv_ket);
     }
 
     /// getter for the Coulomb potential
@@ -280,8 +282,9 @@ public:
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vVket=this->operator()(vket);
-        return matrix_inner(world,vbra,vVket);
+        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 
 private:
@@ -316,8 +319,9 @@ public:
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vVket=this->operator()(vket);
-        return matrix_inner(world,vbra,vVket);
+        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 
 private:
@@ -361,7 +365,7 @@ public:
 
     /// @param[in]  bra    real_funtion_3d, the bra state
     /// @param[in]  ket    real_funtion_3d, the ket state
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
+    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
         return inner(bra,this->operator()(ket));
     }
 
@@ -371,8 +375,9 @@ public:
     /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
     /// @return K_ij
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vKket=this->operator()(vket);
-        return matrix_inner(world,vbra,vKket);
+        return matrix_inner(world,vbra,vKket,bra_equiv_ket);
     }
 
     bool& small_memory() {return small_memory_;}
@@ -549,26 +554,32 @@ private:
     };
 };
 
-
+/// Computes matrix representation of the Fock operator
 class Fock {
 public:
-    Fock(World& world, const SCF* calc, std::shared_ptr<NuclearCorrelationFactor> ncf);
+    /// \param[in] scale_K scaling factor for the Hartree-Fock exchange operator (the default is 1, i.e. include
+    ///            the full exchange; setting scale_K to 0 excludes the exchange operator, and its computation is skipped)
+    Fock(World& world, const SCF* calc, std::shared_ptr<NuclearCorrelationFactor> ncf,
+         double scale_K = 1);
 
     real_function_3d operator()(const real_function_3d& ket) const {
-        real_function_3d result;
-        return result;
+      MADNESS_EXCEPTION("Fock(ket) not yet implemented",1);
+      real_function_3d result;
+      return result;
     }
-    double operator()(const real_function_3d& bra, const real_function_3d ket) const {
+    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+        const auto compute_K = (scale_K != 0.0);
         double J_00 = J(bra,ket);
-        double K_00 = K(bra,ket);
+        double K_00 = compute_K ? (scale_K == 1. ? K(bra,ket) : scale_K * K(bra,ket)) : 0;
         double T_00 = T(bra,ket);
         double V_00 = V(bra,ket);
         return T_00 + J_00 - K_00 + V_00;
     }
 
     Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto compute_K = (scale_K != 0.0);
         double wtime=-wall_time(); double ctime=-cpu_time();
-        Tensor<double> kmat=K(vbra,vket);
+        Tensor<double> kmat= compute_K ? (scale_K == 1. ? K(vbra,vket) : scale_K * K(vbra,vket)) : Tensor<double>(vbra.size(), vket.size());
         Tensor<double> jmat=J(vbra,vket);
         Tensor<double> tmat=T(vbra,vket);
         Tensor<double> vmat=V(vbra,vket);
@@ -585,6 +596,7 @@ private:
     Exchange K;
     Kinetic<double,3> T;
     Nuclear V;
+    const double scale_K;
 };
 
 }

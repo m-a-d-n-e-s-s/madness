@@ -489,7 +489,7 @@ namespace madness {
     order.  s/dsyev are used for real symmetric matrices; c/zheev are used
     for complex Hermitian.
 
-    The reults will satisfy A*V(_,i) = V(_,i)*e(i).
+    The results will satisfy A*V(_,i) = V(_,i)*e(i).
     */
     template <typename T>
     void syev(const Tensor<T>& A,
