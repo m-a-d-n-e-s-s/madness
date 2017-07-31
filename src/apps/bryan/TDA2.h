@@ -132,6 +132,7 @@ class TDA
       Tensor<double> tda_act_ground_energies;             // Ground state energies being used for calculation
       Tensor<double> tda_active_hamiltonian;              // Ground state hamiltonian of active ground state orbitals
                                                           //    (Used when localized orbitals are given)
+      std::vector<int> tda_active;                        // The labels of orbitals selected as "active"
       unsigned int tda_num_orbitals;                      // Number of ground state orbitals
       unsigned int tda_act_num_orbitals;                  // Number of ground state orbitals being used in calculation
       Tensor<double> tda_occ;                             // Occupied orbital occupation numbers
@@ -398,14 +399,6 @@ class TDA
       std::vector<std::vector<real_function_3d>> transform(World & world,
                                                            std::vector<std::vector<real_function_3d>> & f,
                                                            Tensor<double> & U);
-
-      // Need to calculate: \sum_{j \neq k} x_p^{(j)} \Omega_{jk}
-      // and add to RHS before BSH to allow correct for the rotated
-      // potentials. Omega here is simply the Hamiltonian matrix.
-      std::vector<std::vector<real_function_3d>> rotation_correction_term(World & world,
-                                                                          std::vector<std::vector<real_function_3d>> f,
-                                                                          Tensor<double> A,
-                                                                          int print_level);
 
       // Sorts the given Tensor and vector of functions in place
       Tensor<int> sort(World & world,

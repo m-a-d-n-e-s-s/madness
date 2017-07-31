@@ -134,7 +134,7 @@ TDA::TDA(World & world,
       tda_energy_threshold = tda_thresh; 
       tda_range = range; 
       tda_localized = true;
-      tda_random_start = true;
+      tda_random_start = false;
 
       // Which property to calculate
       // Should be a single property at a time
@@ -588,7 +588,10 @@ std::vector<std::vector<real_function_3d>> TDA::exchange(World& world,
          }
       }
    }      
-   
+  
+   // Truncate
+   truncate(world, result);
+ 
    // Done!
    return result;
 }
@@ -655,6 +658,8 @@ std::vector<std::vector<real_function_3d>> TDA::create_potential(World & world,
       if(world.rank() == 0) print("   Total Potential Energy matrix:");
       if(world.rank() == 0) print(expectation(world, f, V_x_resp));      
    }
+
+   truncate(world, V_x_resp);
 
    // Done
    return V_x_resp;
@@ -790,6 +795,8 @@ std::vector<std::vector<real_function_3d>> TDA::create_fock(World & world,
 
    // Add in potential
    fock = fock + V; 
+
+   truncate(world, fock);
 
    // Done
    return fock;
@@ -953,6 +960,8 @@ std::vector<std::vector<real_function_3d>> TDA::apply_shift(World & world,
       }
    }
 
+   truncate(world, shifted_V);
+
    // Done
    return shifted_V;
 }
@@ -1098,6 +1107,8 @@ std::vector<std::vector<real_function_3d>> TDA::gram_schmidt(World & world,
       }
    }
 
+   truncate(world, result);
+
    // Done
    return result;
 }
@@ -1144,7 +1155,7 @@ void TDA::select_active_subspace(World & world)
   }
 
    // List of orbitals to be active
-   std::vector<int> active;
+   //std::vector<int> active;
 
    // Get the HOMO energy
    double HOMO = tda_ground_energies(tda_num_orbitals - 1); // Assuming only occupied orbitals
@@ -1156,18 +1167,19 @@ void TDA::select_active_subspace(World & world)
       if(fabs(tda_ground_energies(i) - HOMO) < tda_range)
       {
          // This orbital should be active, so add to list
-         active.push_back(i);
+         //active.push_back(i);
+         tda_active.push_back(i);
       }
    }
 
    // Now that we know size, allocate tda_act_ground_energies
-   tda_act_ground_energies = Tensor<double>(active.size()); 
+   tda_act_ground_energies = Tensor<double>(tda_active.size()); 
 
    // Now to pull the functions and energies and add to tda_act_orbitals and tda_act_ground_energies
-   for(unsigned int i = 0; i < active.size(); i++)
+   for(unsigned int i = 0; i < tda_active.size(); i++)
    {
-      tda_act_orbitals.push_back(tda_orbitals[active[i]]);
-      tda_act_ground_energies(i) = tda_ground_energies(active[i]); // Put energies on diagonal
+      tda_act_orbitals.push_back(tda_orbitals[tda_active[i]]);
+      tda_act_ground_energies(i) = tda_ground_energies(tda_active[i]); // Put energies on diagonal
    }
 
    // Also set the active size
@@ -1212,6 +1224,8 @@ std::vector<std::vector<real_function_3d>> TDA::select_trial_functions(World & w
 
    // Now just take the first k functions
    for(int i = 0; i < k; i++) answer.push_back(copy(world, f[i]));
+
+   truncate(world, answer);
    
    // Done
    return answer;
@@ -1420,6 +1434,8 @@ std::vector<std::vector<real_function_3d>> TDA::transform(World & world,
       result.push_back(temp);
    }
 
+   truncate(world, result);
+
    // Done
    return result;
 } 
@@ -1479,51 +1495,6 @@ Tensor<int> TDA::sort(World & world,
 
    // Done
    return selected;
-}
-
-// Need to calculate:
-//
-//   \sum_{j \neq k} x_p^{(j)} \Omega_{jk}
-//
-// and add to RHS before BSH to allow correct for
-// the rotated potentials. Omega here is simply
-// the Hamiltonian matrix.
-// NOTE: Only do this if you don't diagonalize.
-//       Will always be zero if you diagonalize.
-std::vector<std::vector<real_function_3d>> TDA::rotation_correction_term(World & world,
-                                                                         std::vector<std::vector<real_function_3d>> f,
-                                                                         Tensor<double> A,
-                                                                         int print_level)
-{
-   // Get sizes
-   int m = f.size();
-   int n = f[0].size();
-
-   // Construct a zero matrix to be returned
-   std::vector<std::vector<real_function_3d>> correction = tda_zero_functions(world, m, n);
-
-   // Add to correction as needed
-   for(int k = 0; k < m; k++)
-   {
-      for(int p = 0; p < n; p++)
-      {
-         // Finally contract over inner index
-         for(int j = 0; j < m; j++)
-         {            
-            if(j != k) correction[k][p] += f[j][p] * A(j,k);
-         }
-      }
-   } 
-
-   // Debugging output
-   if(print_level >= 2)
-   {
-      if(world.rank() == 0) print("   Rotation correction term:"); 
-      Tensor<double> temp2 = expectation(world, correction, correction);
-      if(world.rank() == 0) print(temp2);
-   }
-
-   return correction; 
 }
 
 // Prints headers for standard output of iterate
@@ -1797,7 +1768,7 @@ void TDA::analysis(World & world)
 
          for(unsigned int j = 0; j < tda_act_num_orbitals; j++)
          {
-            printf("   Occupied %d  --->  Virtual %d   %7.8f\n", j, i, norms(i,j));
+            printf("   Occupied %d  --->  Virtual %d   %7.8f\n", tda_active[j], i, norms(i,j));
          }
        
          print("\n");
@@ -1942,10 +1913,12 @@ void TDA::solve(World & world)
 
    // Create large number of symmetry included guesses 
    std::vector<std::vector<real_function_3d>> guesses;
-   if(tda_random_start) guesses = tda_zero_functions(world, tda_num_excited, tda_act_num_orbitals);
+   if(tda_random_start)
+   {
+      guesses = tda_zero_functions(world, tda_num_excited, tda_act_num_orbitals);
+      guesses = add_randomness(world, guesses);
+   }
    else guesses = create_trial_functions(world, tda_num_excited, tda_act_orbitals, tda_print_level); 
-
-   guesses = add_randomness(world, guesses); 
    
    // Project out groundstate from guesses
    QProjector<double, 3> projector(world, tda_orbitals);
@@ -1959,8 +1932,10 @@ void TDA::solve(World & world)
 
    // Diagonalize
    // Inplace modificaiton of guesses and guess_omega
+   // Only do this if using the constructed guess (not random)
    Tensor<double> guess_omega(guesses.size());
-   diagonalize_guess(world, guesses, guess_omega, tda_act_orbitals, tda_orbitals, tda_active_hamiltonian, tda_thresh, tda_small, tda_print_level);
+   
+   if(!tda_random_start) diagonalize_guess(world, guesses, guess_omega, tda_act_orbitals, tda_orbitals, tda_active_hamiltonian, tda_thresh, tda_small, tda_print_level);
 
    // Basic output
    if(tda_print_level >= 0)
@@ -1972,10 +1947,8 @@ void TDA::solve(World & world)
    // Now we need to choose the tda_num_excited lowest energy states
    tda_x_response = select_trial_functions(world, guesses, guess_omega, tda_num_excited, tda_print_level);
 
-   // Ready to iterate!
-   // Call the correct function to solve based on which property
-   if(tda_polarizability) print("Polarizabilities are not yet implemented."); //polarizability(world);
-   else iterate(world);
+   // Ready to iterate! 
+   iterate(world);
 
    // Plot the response function if desired
    if(tda_plot)
