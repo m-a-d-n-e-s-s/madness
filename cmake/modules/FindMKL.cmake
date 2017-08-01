@@ -38,7 +38,7 @@ if(NOT MKL_FOUND)
   
   if(FORTRAN_INTEGER_SIZE EQUAL 4)
     set(MKL_INT_TYPE "lp64")
-  else(FORTRAN_INTEGER_SIZE EQUAL 8)
+  elseif(FORTRAN_INTEGER_SIZE EQUAL 8)
     set(MKL_INT_TYPE "ilp64")
   else()
     set(MKL_INT_TYPE "lp64")
@@ -57,7 +57,7 @@ if(NOT MKL_FOUND)
       
   # Get MKL version
   if(MKL_INCLUDE_DIRS)
-    file(READ "${MKL_INCLUDE_DIRS}/mkl.h" _mkl_version_file)
+    file(READ "${MKL_INCLUDE_DIRS}/mkl_version.h" _mkl_version_file)
     string(REGEX REPLACE ".*#define __INTEL_MKL__ ([0-9]+).*" "\\1"
             MKL_VERSION_MAJOR "${_mkl_version_file}")
     string(REGEX REPLACE ".*#define __INTEL_MKL_MINOR__ ([0-9]+).*" "\\1"
@@ -86,12 +86,13 @@ if(NOT MKL_FOUND)
   endforeach()
   
   # Set LAPACK_LIBRARIES variable if MKL was found
-  if(MKL_FOUND)
+  if(MKL_mkl_core_FOUND)
+    set(MKL_FOUND TRUE)
     if(UNIX AND BLA_STATIC)
-      set(MKL_LIBRARIES -Wl,--start-group ${MKL_LIBRARIES} -Wl,--end-group -lm
+      set(MKL_LIBRARIES -Wl,--start-group ${MKL_LIBRARIES} -Wl,--end-group -lm -ldl
           CACHE STRING "The Intel MKL libraries")
     else()
-      set(MKL_LIBRARIES ${MKL_LIBRARIES} -lm
+      set(MKL_LIBRARIES ${MKL_LIBRARIES} -lm -ldl
           CACHE STRING "The Intel MKL libraries")
     endif()
   endif()
