@@ -92,6 +92,14 @@ public:
 
 };
 
+/// helper struct for computing the moments
+struct xyz {
+    int direction;
+    xyz(int direction) : direction(direction) {}
+    double operator()(const coord_3d& r) const {
+        return r[direction];
+    }
+};
 
 TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
 						    		  world(world),
@@ -104,18 +112,38 @@ TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
 									  msg(world) {
 	msg.section("Initialize TDHF Class");
 	msg.debug = parameters.debug;
-	msg.subsection("Computing Exchange Intermediate");
-	CCTimer time(world,"Computing ExIm");
-	g12.update_elements(mo_bra_,mo_ket_);
-	msg.output("Orbital Energies of Reference");
-	const Tensor<double> eps=nemo.get_calc()->aeps;
-	if(world.rank()==0) std::cout << eps << "\n";
-	time.info();
+	if (not param.no_compute_response) {
+		msg.subsection("Computing Exchange Intermediate");
+		CCTimer time(world,"Computing ExIm");
+		g12.update_elements(mo_bra_,mo_ket_);
+		msg.output("Orbital Energies of Reference");
+		const Tensor<double> eps=nemo.get_calc()->aeps;
+		if(world.rank()==0) std::cout << eps << "\n";
+		time.info();
+	}
 }
 
+std::vector<CC_vecfunction> TDHF::read_vectors() const {
+
+	std::vector<CC_vecfunction> restart_vectors;
+
+	// check for existing functions
+	msg.subsection("Check for existing functions");
+	for (int i=0; i<parameters.tda_guess_excitations; i++) {
+		CC_vecfunction tmp;
+		if (initialize_singles(tmp, RESPONSE, i)) {
+			restart_vectors.push_back(tmp);
+		}
+	}
+	return restart_vectors;
+}
+
+
 void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
-	msg.subsection("Calculate Guess");
+
 	std::vector<CC_vecfunction> guess;
+
+	msg.subsection("Calculate Guess");
 	if(parameters.tda_homo_guess) guess= make_homo_guess();
 	else guess = make_guess();
 
@@ -242,7 +270,8 @@ bool TDHF::iterate_cis_final_vectors(std::vector<CC_vecfunction> &x)const{
 	std::vector<CC_vecfunction> dummy;
 	return iterate_vectors(x,dummy,false,parameters.tda_dconv,parameters.tda_econv,parameters.tda_iter_max, parameters.kain);
 }
-bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y,const bool iterate_y,const double dconv, const double econv, const double iter_max, const bool kain)const{
+bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y,
+		const bool iterate_y,const double dconv, const double econv, const double iter_max, const bool kain)const{
 	if(iterate_y) MADNESS_ASSERT(x.size()==y.size());
 
 	// set up the kain solvers ... if needed or not
@@ -660,56 +689,6 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 			timeT.start();
 			// gradient operator
 			std::vector < std::shared_ptr<real_derivative_3d> > D =gradient_operator<double, 3>(world);
-			//	// calculate all gradients
-			//	std::vector<vecfuncT> dx(x.size(),zero_functions<double,3>(world,x.front().size()));
-			//	std::vector<vecfuncT> dy(x.size(),zero_functions<double,3>(world,x.front().size()));
-			//	std::vector<vecfuncT> dz(x.size(),zero_functions<double,3>(world,x.front().size()));
-			//	CCTimer time_grad(world,"make gradients");
-			//	for(size_t k=0;k<x.size();k++){
-			//	    dx[k] = apply(world,*(D[0]),x[k].get_vecfunction(),false);
-			//	    dy[k] = apply(world,*(D[1]),x[k].get_vecfunction(),false);
-			//	    dz[k] = apply(world,*(D[2]),x[k].get_vecfunction(),false);
-			//	}
-			//	world.gop.fence();
-			//	time_grad.info();
-			//
-			//	// gradients for nuclear correlation factor: <x|T|x> = <x|R2T|x> = 0.5*<Grad(R2*x)|Gradx> = 0.5<R2*Gradx|Gradx> - 0.5*<2*R2*U1x|Gradx> = 0.5*<R2*Gradx|Gradx> - <U1x|R2*Gradx>
-			//	// here we make the U1x functions
-			//	std::vector<vecfuncT> U1x(x.size(),zero_functions<double,3>(world,x.front().size()));
-			//	std::vector<vecfuncT> U1y(x.size(),zero_functions<double,3>(world,x.front().size()));
-			//	std::vector<vecfuncT> U1z(x.size(),zero_functions<double,3>(world,x.front().size()));
-			//	CCTimer time_U1(world,"make U1x");
-			//	{
-			//	  const vecfuncT U1= nemo.nuclear_correlation->U1vec();
-			//	  for(size_t k=0;k<U1x.size();k++){
-			//	      R2U1x[k] = U1[0]*x[k].get_vecfunction();
-			//	      R2U1y[k] = U1[1]*x[k].get_vecfunction();
-			//	      R2U1z[k] = U1[2]*x[k].get_vecfunction();
-			//	  }
-			//	}
-			//	time_U1.info();
-			//
-			//	// make the matrix
-			//	CCTimer time_mat(world,"Make T-Matrix");
-			//	for(size_t k=0;k<x.size();k++){
-			//	    vecfuncT dxk = make_bra(dx[k]);
-			//	    vecfuncT dyk = make_bra(dy[k]);
-			//	    vecfuncT dzk = make_bra(dz[k]);
-			//	    for(size_t l=0;l<x.size();l++){
-			//		const double tmp1= 0.5*inner(world,dxk,dx[l]).sum();
-			//		const double tmp2= 0.5*inner(world,dyk,dy[l]).sum();
-			//		const double tmp3= 0.5*inner(world,dzk,dz[l]).sum();
-			//		const double tmp4= -1.0*inner(world,dxk,U1x[l]).sum();
-			//		const double tmp5= -1.0*inner(world,dyk,U1y[l]).sum();
-			//		const double tmp6= -1.0*inner(world,dzk,U1z[l]).sum();
-			//		world.gop.fence();
-			//		T(k,l) = tmp1 + tmp2 + tmp3 + tmp4 + tmp5 + tmp6;
-			//		// make the nemo part
-			//
-			//	    }
-			//	}
-			//	time_mat.info();
-
 
 			real_function_3d Vnuc = nemo.get_calc()->potentialmanager->vnuclear();
 			if(not Vnuc.is_initialized()){
@@ -968,6 +947,7 @@ bool TDHF::initialize_singles(CC_vecfunction &singles,const FuncType type,const 
 		if(ex<0) name = single_i.name();
 		else name = std::to_string(ex)+"_"+single_i.name();
 		real_function_3d tmpi = real_factory_3d(world);
+		print("trying to load function ",name);
 		const bool found=load_function<double,3>(tmpi,name);
 		if(found) restarted = true;
 		else msg.output("Initialized " + single_i.name()+" of type " + assign_name(type) +" as zero-function");
@@ -1087,6 +1067,100 @@ std::vector<std::string> TDHF::make_predefined_guess_strings(const std::string w
 	}else if(what == "big_fock_9"){exop_strings = make_auto_polynom_guess(9);
 	}else std::cout << "Keyword " << what << " is not known" << std::endl;
 	return exop_strings;
+}
+
+
+/// compute the oscillator strength in the length representation
+
+/// the oscillator strength is given by
+/// \f[
+/// f = 2/3 * \omega |<x | \vec \mu | i >| ^2 * 2
+/// \f]
+/// where \f$ x \f$ is the excited state, and \f$ i \f$ is the ground state
+/// @param[in]  root    a converged root
+double TDHF::oscillator_strength_length(const CC_vecfunction& x) const {
+	Tensor<double> mu_if(3);
+	for (int idim=0; idim<3; idim++) {
+		real_function_3d ri = real_factory_3d(world).functor(xyz(idim));
+		vecfuncT amo_times_x=ri*get_active_mo_bra();
+		Tensor<double> a=inner(world,amo_times_x,x.get_vecfunction());
+		mu_if(idim)=a.sum();
+	}
+	const double f= 2.0/3.0 * x.omega * mu_if.sumsq() * 2.0;
+	return f;
+}
+
+/// compute the oscillator strength in the velocity representation
+
+/// the oscillator strength is given by
+/// \f[
+/// f = 2/(3 * \omega) |<x | \vec p | i >| ^2 * 2
+/// \f]
+/// where \f$ x \f$ is the excited state, and \f$ i \f$ is the ground state
+/// @param[in]  root    a converged root
+double TDHF::oscillator_strength_velocity(const CC_vecfunction& x) const {
+	Tensor<double> p_if(3);
+	// compute the derivatives of the MOs in all 3 directions
+	const vecfuncT Rroot=nemo.R*x.get_vecfunction();
+	const vecfuncT Rnemo=nemo.R*get_active_mo_ket();
+
+	for (int idim=0; idim<3; idim++) {
+		real_derivative_3d D = free_space_derivative<double,3>(world, idim);
+		vecfuncT Damo=apply(world,D,Rnemo);
+		Tensor<double> a=inner(world,Damo,Rroot);
+		p_if(idim)=a.sum();
+	}
+	const double f= 2.0/(3.0 * x.omega) * p_if.sumsq() * 2.0;
+	return f;
+}
+
+
+/// analyze the root: oscillator strength and contributions from occ
+void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
+
+	const size_t noct=get_active_mo_ket().size();
+
+	for (const CC_vecfunction& root : x) {
+
+		const vecfuncT Rroot=nemo.R*root.get_vecfunction(); // reintroduce the nuclear correlation factor
+		std::vector<double> norms=norm2s(world,Rroot);
+
+		// compute the oscillator strengths and dominant contributions
+		double osl=this->oscillator_strength_length(root);
+		double osv=this->oscillator_strength_velocity(root);
+
+		std::cout << std::scientific << std::setprecision(10) << std::setw(20);
+		if (world.rank()==0) {
+			std::cout << "excitation energy for root "
+					<< std::fixed << std::setprecision(1) << root.excitation <<": "
+					<< std::fixed << std::setprecision(10) << root.omega << " Eh         "
+					<< root.omega*constants::hartree_electron_volt_relationship << " eV\n";
+            std::cout << std::scientific;
+			print("  oscillator strength (length)    ", osl);
+			print("  oscillator strength (velocity)  ", osv);
+			// print out the most important amplitudes
+			print("  dominant contributions ");
+		}
+		for (std::size_t p=0; p<noct; ++p) {
+			const double amplitude=norms[p]*norms[p];
+			if (world.rank()==0 and (amplitude > 0.1)) {
+				std::cout << "    norm(x_"<<p+parameters.freeze<<") **2  ";
+				std::cout.width(10); std::cout.precision(6);
+				std::cout << amplitude << std::endl;
+			}
+		}
+		if (world.rank()==0) print(" ");
+	}
+
+	// compute the transition densities
+	const vecfuncT bra_oct=get_active_mo_bra();
+	for (std::size_t i=0; i<x.size(); ++i) {
+		const vecfuncT root=x[i].get_vecfunction();
+		const real_function_3d td=dot(world,root,bra_oct);
+		const double trace=td.trace();
+		if (world.rank()==0) print("trace over transition density",i,trace);
+		save(td,"transition_density_"+std::to_string(i));
+	}
 }
 
 
