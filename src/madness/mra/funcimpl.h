@@ -178,7 +178,7 @@ namespace madness {
         template<typename Q>
         FunctionNode<Q, NDIM>
         convert() const {
-            return FunctionNode<Q, NDIM> (copy(coeff()), _has_children);
+            return FunctionNode<Q, NDIM> (madness::convert<Q,T>(coeff()), _has_children);
         }
 
         /// Returns true if there are coefficients in this node
@@ -1000,7 +1000,7 @@ namespace madness {
                  it!=end; ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
-                coeffs.replace(key,node. template convert<Q>());
+                coeffs.replace(key,node. template convert<T>());
             }
             if (fence)
                 world.gop.fence();
