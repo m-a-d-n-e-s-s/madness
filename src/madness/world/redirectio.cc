@@ -39,14 +39,15 @@ using std::endl;
 
 static std::ofstream fout;
 namespace madness {
-    void redirectio(World& world) {
+    void redirectio(const World& world, bool split) {
         char filename[256];
         std::sprintf(filename,"log.%5.5d",world.mpi.rank());
-        
-        if (!freopen(filename, "w", stdout)) MADNESS_EXCEPTION("reopening stdout failed", 0);
-        if (!freopen(filename, "w", stderr)) MADNESS_EXCEPTION("reopening stderr failed", 0);
-	std::cout.sync_with_stdio(true);
-	std::cerr.sync_with_stdio(true);
+        char errfilename[256];
+        std::sprintf(errfilename,"%s.%5.5d", (split ? "err" : "log"), world.mpi.rank());
+        if (!freopen(   filename, "w", stdout)) MADNESS_EXCEPTION("reopening stdout failed", 0);
+        if (!freopen(errfilename, "w", stderr)) MADNESS_EXCEPTION("reopening stderr failed", 0);
+	      std::cout.sync_with_stdio(true);
+	      std::cerr.sync_with_stdio(true);
     }
 }
 
