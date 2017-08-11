@@ -61,7 +61,7 @@ namespace madness {
     /// This defines stuff that is serialiable by default rules ... basically anything contiguous
     template <typename T>
     struct is_serializable {
-        static const bool value = std::is_fundamental<T>::value || std::is_member_function_pointer<T>::value || std::is_function<T>::value  || std::is_function<typename std::remove_pointer<T>::type>::value;
+        static const bool value = std::is_fundamental<T>::value || std::is_member_function_pointer<T>::value || std::is_function<T>::value  || std::is_function<typename std::remove_pointer<T>::type>::value || std::is_pod<T>::value;
     };
 
 

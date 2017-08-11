@@ -205,7 +205,8 @@ void test_out(const OutputArchive& oar) {
     int i, in[n];
     double *p = new double[n];
     A *q = new A[n];
-    vector<int> v(3);
+    vector<int> v(n);
+    vector<vector<int>> vv(n);
     pair<int,double> pp(33,99.0);
     map<short,double_complex> m;
     const char* teststr = "hello \n dude !";
@@ -219,6 +220,7 @@ void test_out(const OutputArchive& oar) {
     a.a = b.b = c.c = i = 1;
     for (int k=0; k<n; ++k) {
         p[k] = q[k].a = an[k].a = v[k] = cn[k].c = in[k] = k;
+        vv[k] = {k+1, k+2, k+3, k+4};
         bn[k].b = k&1;
         m[k] = double_complex(k,k);
         list.append(k+1);
@@ -266,6 +268,9 @@ void test_out(const OutputArchive& oar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " vector<int>" << std::endl);
     oar << v;
     oar & v;
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " vector<vector<int>>" << std::endl);
+    oar << vv;
+    oar & vv;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " pair<int,double>" << std::endl);
     oar << pp;
     oar & pp;
@@ -291,7 +296,8 @@ void test_in(const InputArchive& iar) {
     int i, in[n];
     double *p = new double[n];
     A *q = new A[n];
-    vector<int> v(3);
+    vector<int> v(n);
+    vector<vector<int>> vv(n);
     pair<int,double> pp(33,99.0);
     map<short,double_complex> m;
     const char* teststr = "hello \n dude !";
@@ -304,6 +310,7 @@ void test_in(const InputArchive& iar) {
     a.a = b.b = c.c = i = 0;
     for (int k=0; k<n; ++k) {
         p[k] = q[k].a = an[k].a = v[k] = cn[k].c = in[k] = -1;
+        vv[k] = {};
         bn[k].b = (k+1)&1;
         m[k] = double_complex(0,0);
     }
@@ -355,6 +362,9 @@ void test_in(const InputArchive& iar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " vector<int>" << std::endl);
     iar & v;
     iar >> v;
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " vector<vector<int>>" << std::endl);
+    iar & vv;
+    iar >> vv;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " pair<int,double>" << std::endl);
     iar & pp;
     iar >> pp;
@@ -386,6 +396,11 @@ void test_in(const InputArchive& iar) {
         TEST(p[k] == k);
         TEST(q[k].a == k);
         TEST(v[k] == k);
+        TEST(vv[k].size() == 4);
+        TEST(vv[k][0] == k+1);
+        TEST(vv[k][1] == k+2);
+        TEST(vv[k][2] == k+3);
+        TEST(vv[k][3] == k+4);
         TEST(m[k] == double_complex(k,k));
     }
     TEST(pp.first==33 && pp.second==99.0);
