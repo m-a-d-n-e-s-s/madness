@@ -114,6 +114,25 @@ namespace madness {
     }
 }
 
+// POD can be serialized to most (except text stream) archives without any effort
+struct D {
+  int32_t i;
+  int64_t l;
+};
+
+// to serialize a POD to a text stream just overload stream redirection operators
+struct F {
+  int32_t i;
+  int64_t l;
+};
+std::ostream& operator<<(std::ostream& os, const F& data) {
+  os << data.i << " " << data.l;
+  return os;
+}
+std::istream& operator>>(std::istream& os, F& data) {
+  os >> data.i >> data.l;
+  return os;
+}
 
 // A better example of a class with asym load/store
 class linked_list {
@@ -196,12 +215,32 @@ using madness::archive::wrap;
 typedef std::complex<double> double_complex;
 typedef std::tuple<int,double,std::complex<float>> tuple_int_double_complexfloat;
 
+template <typename Archive, typename POD, typename Disabler = std::enable_if_t<std::is_same<std::decay_t<Archive>,TextFstreamOutputArchive>::value>>
+void pod_serialize_dispatch(Archive&& ar, const POD& pod) {
+}
+template <typename Archive, typename POD>
+void pod_serialize_dispatch(Archive&& ar, const POD& pod, std::enable_if_t<!std::is_same<std::decay_t<Archive>,TextFstreamOutputArchive>::value>* = nullptr) {
+  ar & pod;
+  ar << pod;
+}
+
+template <typename Archive, typename POD, typename Disabler = std::enable_if_t<std::is_same<std::decay_t<Archive>,TextFstreamInputArchive>::value>>
+void pod_deserialize_dispatch(Archive&& ar, POD&& pod) {
+}
+template <typename Archive, typename POD>
+void pod_deserialize_dispatch(Archive&& ar, POD&& pod, std::enable_if_t<!std::is_same<std::decay_t<Archive>,TextFstreamInputArchive>::value>* = nullptr) {
+  ar & pod;
+  ar >> pod;
+}
+
 template <class OutputArchive>
 void test_out(const OutputArchive& oar) {
     const int n = 3;
     A a, an[n];
     B b, bn[n];
     C c, cn[n];
+    D d, dn[n];
+    F f, fn[n];
     int i, in[n];
     double *p = new double[n];
     A *q = new A[n];
@@ -218,8 +257,14 @@ void test_out(const OutputArchive& oar) {
 
     // Initialize data
     a.a = b.b = c.c = i = 1;
+    d.i = 1;  d.l = 2;
+    f.i = 1;  f.l = 2;
     for (int k=0; k<n; ++k) {
         p[k] = q[k].a = an[k].a = v[k] = cn[k].c = in[k] = k;
+        dn[k].i = k+1;
+        dn[k].l = k+2;
+        fn[k].i = k+3;
+        fn[k].l = k+4;
         vv[k] = {k+1, k+2, k+3, k+4};
         bn[k].b = k&1;
         m[k] = double_complex(k,k);
@@ -247,6 +292,14 @@ void test_out(const OutputArchive& oar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " C" << std::endl);
     oar & c;
     oar << c;
+    // all but text archives should work with POD
+    if (!std::is_same<OutputArchive, TextFstreamOutputArchive>::value) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl << " D" << std::endl);
+      pod_serialize_dispatch(oar, d);
+    }
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F" << std::endl);
+    oar & f;
+    oar << f;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " int[]" << std::endl);
     oar & in;
     oar << in;
@@ -259,6 +312,13 @@ void test_out(const OutputArchive& oar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " C[]" << std::endl);
     oar << cn;
     oar & cn;
+    if (!std::is_same<OutputArchive, TextFstreamOutputArchive>::value) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl << " D[]" << std::endl);
+      pod_serialize_dispatch(oar, dn);
+    }
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F[]" << std::endl);
+    oar << fn;
+    oar & fn;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " double *p wrapped" << std::endl);
     oar << wrap(p,n);
     oar & wrap(p,n);
@@ -284,7 +344,11 @@ void test_out(const OutputArchive& oar) {
     oar << str;
     oar & str;
 
-    oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    oar & 1.0 & i & a & b & c & f & in & an & bn & cn & fn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    if (!std::is_same<OutputArchive, TextFstreamOutputArchive>::value) {
+      pod_serialize_dispatch(oar, d);
+      pod_serialize_dispatch(oar, dn);
+    }
 }
 
 template <class InputArchive>
@@ -293,6 +357,8 @@ void test_in(const InputArchive& iar) {
     A a, an[n];
     B b, bn[n];
     C c, cn[n];
+    D d, dn[n];
+    F f, fn[n];
     int i, in[n];
     double *p = new double[n];
     A *q = new A[n];
@@ -308,8 +374,14 @@ void test_in(const InputArchive& iar) {
 
     // Destroy in-core data
     a.a = b.b = c.c = i = 0;
+    d.i = -1;  d.l = -1;
+    f.i = -1;  f.l = -1;
     for (int k=0; k<n; ++k) {
         p[k] = q[k].a = an[k].a = v[k] = cn[k].c = in[k] = -1;
+        dn[k].i = -1;
+        dn[k].l = -1;
+        fn[k].i = -1;
+        fn[k].l = -1;
         vv[k] = {};
         bn[k].b = (k+1)&1;
         m[k] = double_complex(0,0);
@@ -341,6 +413,13 @@ void test_in(const InputArchive& iar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " C" << std::endl);
     iar & c;
     iar >> c;
+    if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl << " D" << std::endl);
+      pod_deserialize_dispatch(iar, d);
+    }
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F" << std::endl);
+    iar & f;
+    iar >> f;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " int[]" << std::endl);
     iar & in;
     iar >> in;
@@ -353,6 +432,13 @@ void test_in(const InputArchive& iar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " C[]" << std::endl);
     iar & cn;
     iar >> cn;
+    if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl << " D[]" << std::endl);
+      pod_deserialize_dispatch(iar, dn);
+    }
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F[]" << std::endl);
+    iar & fn;
+    iar >> fn;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " double *p wrapped" << std::endl);
     iar & wrap(p,n);
     iar >> wrap(p,n);
@@ -378,7 +464,11 @@ void test_in(const InputArchive& iar) {
     iar & str;
     iar >> str;
 
-    iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    iar & 1.0 & i & a & b & c & f & in & an & bn & cn & fn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+      pod_deserialize_dispatch(iar, d);
+      pod_deserialize_dispatch(iar, dn);
+    }
     // Test data
     bool status = true;
 
@@ -387,11 +477,23 @@ void test_in(const InputArchive& iar) {
     TEST(a.a == 1);
     TEST(b.b == 1);
     TEST(c.c == 1);
+    if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+      TEST(d.i == 1);
+      TEST(d.l == 2);
+    }
+    TEST(f.i == 1);
+    TEST(f.l == 2);
     TEST(i == 1);
     for (int k=0; k<n; ++k) {
         TEST(an[k].a == k);
         TEST(bn[k].b == (k&1));
         TEST(cn[k].c == k);
+        if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+          TEST(dn[k].i == k+1);
+          TEST(dn[k].l == k+2);
+        }
+        TEST(fn[k].i == k+3);
+        TEST(fn[k].l == k+4);
         TEST(in[k] == k);
         TEST(p[k] == k);
         TEST(q[k].a == k);
