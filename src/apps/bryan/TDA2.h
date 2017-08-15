@@ -43,19 +43,24 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/constants.h>
+#include <madness/mra/nonlinsol.h>  // The kain solver
 #include <vector>
-#include <math.h> 
-#include <stdio.h> 
+#include <math.h>
+#include <stdio.h>
 #include <iomanip>
 #include <complex>
 #include <cmath>
+#include <random>
+#include <algorithm> 
 #include "../chem/molecule.h"
+
+
 
 
 using namespace madness;
 
 // Functor from SCF.cc (it wasn't linking right, no idea why, so just copied and renamed here)
-/// A copy of a MADNESS functor to compute the cartesian moment x^i * y^j * z^k (i, j, k integer and >= 0)
+// A copy of a MADNESS functor to compute the cartesian moment x^i * y^j * z^k (i, j, k integer and >= 0)
 class BS_MomentFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const int i, j, k;
@@ -162,6 +167,7 @@ class TDA
       int tda_num_excited; 
       bool tda_localized;
       bool tda_random_start;
+      bool tda_kain;
       int tda_print_level;    // Controls the amount and style of printing. Higher values print more
                               //   Values |   What gets printed
                               //   ----------------------------
@@ -446,4 +452,4 @@ class TDA
 };
 #endif
 
-// Dueces
+// Deuces

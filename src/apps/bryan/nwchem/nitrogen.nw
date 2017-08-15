@@ -1,0 +1,37 @@
+start
+
+permanent_dir /gpfs/scratch/bsundahl
+scratch_dir /gpfs/scratch/bsundahl
+
+title "Nitrogen"
+
+memory stack 400 mb heap 800 mb global 4000 mb
+
+echo
+ 
+geometry units atomic noautosym
+  N             0.00000000           0.00000000           1.00660955
+  N             0.00000000           0.00000000          -1.00660955
+end
+
+basis spherical 
+ * library aug-cc-pvqz
+end
+
+driver
+ maxiter 200
+end
+
+dft 
+ xc hfexch
+ noio                         # turns off IO in charge fitting
+ grid nodisk                  # turns off IO in grid
+ direct                       # forces incore integrals
+ maxiter 200
+end
+
+tddft
+ nroots 10
+end
+ 
+task tddft energy

@@ -1,4 +1,7 @@
-// Some basic operators for std::vector<std::vector<real_function_3d>> objects
+/*
+ * Some basic operators for std::vector<std::vector<real_function_3d>> objects
+ */
+
 #ifndef MADNESS_APPS_TDA_OPS_H_INCLUDED
 #define MADNESS_APPS_TDA_OPS_H_INCLUDED
 
@@ -35,13 +38,18 @@ std::vector<std::vector<real_function_3d>> multiply(std::vector<std::vector<real
    for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
-      result.push_back(mul(a[i][0].world(), b, a[i]));
+      // TESTING!!!!!!!!!!! (the false)
+      result.push_back(mul(a[i][0].world(), b, a[i], false));
    }
-	
+
+   // TESTING!!!!!!!!!!
+   // Not needed ??????	
+   a[0][0].world().gop.fence();
+
    return result;
 }
 
-// Multiplication of a vector of vectors by a scalar column wise g[i][j] = a[i][j] * b(j)
+// Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b(j)
 std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_function_3d>> a,
                                                  Tensor<double> b)
 {
@@ -66,7 +74,7 @@ std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_fu
    return result;
 }
 
-// Multiplication of a vector of vectors by a scalar column wise g[i][k] = a[i][j] * b(j,k)
+// Multiplication of a vector of vectors by a scalar g[i][k] = a[i][j] * b(j,k)
 // NOTE: NO BOUNDS CHECKING ON THE TENSOR b!!!!
 // Used for localized orbital scaling
 std::vector<std::vector<real_function_3d>> scale_2d(World & world,
@@ -86,6 +94,7 @@ std::vector<std::vector<real_function_3d>> scale_2d(World & world,
 
    return result;
 }
+
 // Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b
 std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_function_3d>> a,
                                                  double b)
@@ -178,8 +187,8 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
  */
 
 // Subtraction of two vectors of vectors g[i][j] = a[i][j] - b[i][j]
-std::vector<std::vector<real_function_3d>> operator-(const std::vector<std::vector<real_function_3d>> a,
-                                                     const std::vector<std::vector<real_function_3d>> b)
+std::vector<std::vector<real_function_3d>> operator-(std::vector<std::vector<real_function_3d>> a,
+                                                     std::vector<std::vector<real_function_3d>> b)
 {
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a.size() == b.size());
@@ -248,3 +257,5 @@ double inner(std::vector<std::vector<real_function_3d>> a,
 }
 
 #endif
+
+// Deuces

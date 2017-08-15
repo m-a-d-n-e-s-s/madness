@@ -10,6 +10,10 @@
  *       densities -  vector of densities to be ploted
  *       name      -  name you would like for orbital plots
  */ 
+
+#ifndef MADNESS_APPS_TDA_PLOT_VTK
+#define MADNESS_APPS_TDA_PLOT_VTK
+
 void do_vtk_plots(World& world, 
                   int npt_plot, 
                   double L, 
@@ -75,3 +79,6 @@ void do_vtk_plots(World& world,
     plotvtk_data<double, 3>(rho, "total-electrondensity", world, filename, box_lo, box_hi, points, true, false);
     plotvtk_end<3>(world, filename, true);       
 }
+#endif
+
+// Dueces

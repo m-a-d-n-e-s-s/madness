@@ -1,0 +1,1190 @@
+ argument  1 = water.nw
+ 
+
+
+============================== echo of input deck ==============================
+start
+
+permanent_dir /gpfs/scratch/bsundahl
+scratch_dir /gpfs/scratch/bsundahl
+
+title "Water"
+
+memory stack 400 mb heap 800 mb global 4000 mb
+
+echo
+
+geometry units atomic noautosym
+  O  0.0    0.0 0.0
+  H  1.4375 0.0 1.15
+  H -1.4375 0.0 1.15
+end
+
+basis spherical
+ * library aug-cc-pvqz
+end
+
+driver
+ maxiter 200
+end
+
+dft
+ xc hfexch
+ noio                         # turns off IO in charge fitting
+ grid nodisk                  # turns off IO in grid
+ direct                       # forces incore integrals
+ maxiter 200
+end
+
+tddft
+ nroots 10
+end
+
+task tddft energy
+================================================================================
+
+
+                                         
+                                         
+ 
+ 
+              Northwest Computational Chemistry Package (NWChem) 6.6
+              ------------------------------------------------------
+ 
+ 
+                    Environmental Molecular Sciences Laboratory
+                       Pacific Northwest National Laboratory
+                                Richland, WA 99352
+ 
+                              Copyright (c) 1994-2015
+                       Pacific Northwest National Laboratory
+                            Battelle Memorial Institute
+ 
+             NWChem is an open-source computational chemistry package
+                        distributed under the terms of the
+                      Educational Community License (ECL) 2.0
+             A copy of the license is included with this distribution
+                              in the LICENSE.TXT file
+ 
+                                  ACKNOWLEDGMENT
+                                  --------------
+
+            This software and its documentation were developed at the
+            EMSL at Pacific Northwest National Laboratory, a multiprogram
+            national laboratory, operated for the U.S. Department of Energy
+            by Battelle under Contract Number DE-AC05-76RL01830. Support
+            for this work was provided by the Department of Energy Office
+            of Biological and Environmental Research, Office of Basic
+            Energy Sciences, and the Office of Advanced Scientific Computing.
+
+
+           Job information
+           ---------------
+
+    hostname        = sn037
+    program         = nwchem
+    date            = Wed Aug  9 10:58:01 2017
+
+    compiled        = Mon_Apr_10_13:22:52_2017
+    source          = /gpfs/home/bsundahl/nwchem-6.6
+    nwchem branch   = 6.6
+    nwchem revision = 27746
+    ga revision     = 10594
+    input           = water.nw
+    prefix          = water.
+    data base       = /gpfs/scratch/bsundahl/water.db
+    status          = startup
+    nproc           =       28
+    time left       =     -1s
+
+
+
+           Memory information
+           ------------------
+
+    heap     =  104857594 doubles =    800.0 Mbytes
+    stack    =   52428799 doubles =    400.0 Mbytes
+    global   =  524288000 doubles =   4000.0 Mbytes (distinct from heap & stack)
+    total    =  681574393 doubles =   5200.0 Mbytes
+    verify   = yes
+    hardfail = no 
+
+
+           Directory information
+           ---------------------
+ 
+  0 permanent = /gpfs/scratch/bsundahl
+  0 scratch   = /gpfs/scratch/bsundahl
+ 
+ 
+ 
+ 
+                                NWChem Input Module
+                                -------------------
+ 
+ 
+                                       Water
+                                       -----
+
+          ------
+          auto-z
+          ------
+ 
+ 
+                             Geometry "geometry" -> ""
+                             -------------------------
+ 
+ Output coordinates in a.u. (scale by  1.000000000 to convert to a.u.)
+ 
+  No.       Tag          Charge          X              Y              Z
+ ---- ---------------- ---------- -------------- -------------- --------------
+    1 O                    8.0000     0.00000000     0.00000000    -0.23000000
+    2 H                    1.0000     1.43750000     0.00000000     0.92000000
+    3 H                    1.0000    -1.43750000     0.00000000     0.92000000
+ 
+      Atomic Mass 
+      ----------- 
+ 
+      O                 15.994910
+      H                  1.007825
+ 
+
+ Effective nuclear repulsion energy (a.u.)       9.0392354442
+
+            Nuclear Dipole moment (a.u.) 
+            ----------------------------
+        X                 Y               Z
+ ---------------- ---------------- ----------------
+     0.0000000000     0.0000000000     0.0000000000
+ 
+
+
+                                Z-matrix (autoz)
+                                -------- 
+
+ Units are Angstrom for bonds and degrees for angles
+ 
+      Type          Name      I     J     K     L     M      Value
+      ----------- --------  ----- ----- ----- ----- ----- ----------
+    1 Stretch                  1     2                       0.97416
+    2 Stretch                  1     3                       0.97416
+    3 Bend                     2     1     3               102.68038
+ 
+ 
+            XYZ format geometry
+            -------------------
+     3
+ geometry
+ O                     0.00000000     0.00000000    -0.12171077
+ H                     0.76069230     0.00000000     0.48684307
+ H                    -0.76069230     0.00000000     0.48684307
+ 
+ ==============================================================================
+                                internuclear distances
+ ------------------------------------------------------------------------------
+       center one      |      center two      | atomic units |       a.u.
+ ------------------------------------------------------------------------------
+    2 H                |   1 O                |     1.84090  |     1.84090
+    3 H                |   1 O                |     1.84090  |     1.84090
+ ------------------------------------------------------------------------------
+                         number of included internuclear distances:          2
+ ==============================================================================
+
+
+
+ ==============================================================================
+                                 internuclear angles
+ ------------------------------------------------------------------------------
+        center 1       |       center 2       |       center 3       |  degrees
+ ------------------------------------------------------------------------------
+    2 H                |   1 O                |   3 H                |   102.68
+ ------------------------------------------------------------------------------
+                            number of included internuclear angles:          1
+ ==============================================================================
+
+
+
+
+
+ Summary of "ao basis" -> "" (spherical)
+ ------------------------------------------------------------------------------
+       Tag                 Description            Shells   Functions and Types
+ ---------------- ------------------------------  ------  ---------------------
+ *                        aug-cc-pvqz                 on all atoms 
+
+
+  xc_inp: hfexch multiplicative factor not found.
+ 
+                                 NWChem DFT Module
+                                 -----------------
+ 
+ 
+                                       Water
+ 
+ 
+                      Basis "ao basis" -> "ao basis" (spherical)
+                      -----
+  O (Oxygen)
+  ----------
+            Exponent  Coefficients 
+       -------------- ---------------------------------------------------------
+  1 S  6.14200000E+04  0.000090
+  1 S  9.19900000E+03  0.000698
+  1 S  2.09100000E+03  0.003664
+  1 S  5.90900000E+02  0.015218
+  1 S  1.92300000E+02  0.052423
+  1 S  6.93200000E+01  0.145921
+  1 S  2.69700000E+01  0.305258
+  1 S  1.11000000E+01  0.398508
+  1 S  4.68200000E+00  0.216980
+ 
+  2 S  6.14200000E+04 -0.000020
+  2 S  9.19900000E+03 -0.000159
+  2 S  2.09100000E+03 -0.000829
+  2 S  5.90900000E+02 -0.003508
+  2 S  1.92300000E+02 -0.012156
+  2 S  6.93200000E+01 -0.036261
+  2 S  2.69700000E+01 -0.082992
+  2 S  1.11000000E+01 -0.152090
+  2 S  4.68200000E+00 -0.115331
+ 
+  3 S  1.42800000E+00  1.000000
+ 
+  4 S  5.54700000E-01  1.000000
+ 
+  5 S  2.06700000E-01  1.000000
+ 
+  6 S  6.95900000E-02  1.000000
+ 
+  7 P  6.34200000E+01  0.006044
+  7 P  1.46600000E+01  0.041799
+  7 P  4.45900000E+00  0.161143
+ 
+  8 P  1.53100000E+00  1.000000
+ 
+  9 P  5.30200000E-01  1.000000
+ 
+ 10 P  1.75000000E-01  1.000000
+ 
+ 11 P  5.34800000E-02  1.000000
+ 
+ 12 D  3.77500000E+00  1.000000
+ 
+ 13 D  1.30000000E+00  1.000000
+ 
+ 14 D  4.44000000E-01  1.000000
+ 
+ 15 D  1.54000000E-01  1.000000
+ 
+ 16 F  2.66600000E+00  1.000000
+ 
+ 17 F  8.59000000E-01  1.000000
+ 
+ 18 F  3.24000000E-01  1.000000
+ 
+ 19 G  1.84600000E+00  1.000000
+ 
+ 20 G  7.14000000E-01  1.000000
+ 
+  H (Hydrogen)
+  ------------
+            Exponent  Coefficients 
+       -------------- ---------------------------------------------------------
+  1 S  8.26400000E+01  0.002006
+  1 S  1.24100000E+01  0.015343
+  1 S  2.82400000E+00  0.075579
+ 
+  2 S  7.97700000E-01  1.000000
+ 
+  3 S  2.58100000E-01  1.000000
+ 
+  4 S  8.98900000E-02  1.000000
+ 
+  5 S  2.36300000E-02  1.000000
+ 
+  6 P  2.29200000E+00  1.000000
+ 
+  7 P  8.38000000E-01  1.000000
+ 
+  8 P  2.92000000E-01  1.000000
+ 
+  9 P  8.48000000E-02  1.000000
+ 
+ 10 D  2.06200000E+00  1.000000
+ 
+ 11 D  6.62000000E-01  1.000000
+ 
+ 12 D  1.90000000E-01  1.000000
+ 
+ 13 F  1.39700000E+00  1.000000
+ 
+ 14 F  3.60000000E-01  1.000000
+ 
+
+
+ Summary of "ao basis" -> "ao basis" (spherical)
+ ------------------------------------------------------------------------------
+       Tag                 Description            Shells   Functions and Types
+ ---------------- ------------------------------  ------  ---------------------
+ O                        aug-cc-pvqz               20       80   6s5p4d3f2g
+ H                        aug-cc-pvqz               14       46   5s4p3d2f
+
+
+
+
+ Summary of "ao basis" -> "ao basis" (spherical)
+ ------------------------------------------------------------------------------
+       Tag                 Description            Shells   Functions and Types
+ ---------------- ------------------------------  ------  ---------------------
+ O                        aug-cc-pvqz               20       80   6s5p4d3f2g
+ H                        aug-cc-pvqz               14       46   5s4p3d2f
+
+
+  Caching 1-el integrals 
+ 
+            General Information
+            -------------------
+          SCF calculation type: DFT
+          Wavefunction type:  closed shell.
+          No. of atoms     :     3
+          No. of electrons :    10
+           Alpha electrons :     5
+            Beta electrons :     5
+          Charge           :     0
+          Spin multiplicity:     1
+          Use of symmetry is: off; symmetry adaption is: off
+          Maximum number of iterations: 200
+          This is a Direct SCF calculation.
+          AO basis - number of functions:   172
+                     number of shells:    48
+          Convergence on energy requested: 1.00D-06
+          Convergence on density requested: 1.00D-05
+          Convergence on gradient requested: 5.00D-04
+ 
+              XC Information
+              --------------
+                     Hartree-Fock (Exact) Exchange  1.000          
+ 
+          Convergence Information
+          -----------------------
+          Convergence aids based upon iterative change in 
+          total energy or number of iterations. 
+          Levelshifting, if invoked, occurs when the 
+          HOMO/LUMO gap drops below (HL_TOL): 1.00D-02
+          DIIS, if invoked, will attempt to extrapolate 
+          using up to (NFOCK): 10 stored Fock matrices.
+
+                    Damping( 0%)  Levelshifting(0.5)       DIIS
+                  --------------- ------------------- ---------------
+          dE  on:    start            ASAP                start   
+          dE off:    2 iters        200 iters           200 iters 
+
+ 
+      Screening Tolerance Information
+      -------------------------------
+          Density screening/tol_rho: 1.00D-10
+          AO Gaussian exp screening on grid/accAOfunc:  14
+          CD Gaussian exp screening on grid/accCDfunc:  20
+          XC Gaussian exp screening on grid/accXCfunc:  20
+          Schwarz screening/accCoul: 1.00D-08
+
+ 
+      Superposition of Atomic Density Guess
+      -------------------------------------
+ 
+ Sum of atomic energies:         -75.78561874
+ 
+      Non-variational initial energy
+      ------------------------------
+
+ Total energy =     -75.919486
+ 1-e energy   =    -121.494345
+ 2-e energy   =      36.535623
+ HOMO         =      -0.476013
+ LUMO         =       0.008071
+ 
+   Time after variat. SCF:      0.3
+   Time prior to 1st pass:      0.3
+
+           Memory utilization after 1st SCF pass: 
+           Heap Space remaining (MW):      104.85           104852610
+          Stack Space remaining (MW):       52.43            52427836
+
+   convergence    iter        energy       DeltaE   RMS-Dens  Diis-err    time
+ ---------------- ----- ----------------- --------- --------- ---------  ------
+ d= 0,ls=0.0,diis     1    -76.0287602113 -8.51D+01  1.62D-03  3.58D-01     0.7
+ d= 0,ls=0.0,diis     2    -76.0533493031 -2.46D-02  5.74D-04  1.38D-01     1.1
+ d= 0,ls=0.0,diis     3    -76.0639274187 -1.06D-02  7.96D-05  1.34D-03     1.5
+ d= 0,ls=0.0,diis     4    -76.0641023874 -1.75D-04  2.83D-05  8.42D-05     1.9
+ d= 0,ls=0.0,diis     5    -76.0641205397 -1.82D-05  8.17D-06  3.88D-06     2.3
+  Resetting Diis
+ d= 0,ls=0.0,diis     6    -76.0641217877 -1.25D-06  2.06D-06  1.60D-07     2.7
+ d= 0,ls=0.0,diis     7    -76.0641218459 -5.82D-08  2.10D-07  4.16D-09     3.1
+
+
+         Total DFT energy =      -76.064121845933
+      One electron energy =     -122.778333973300
+           Coulomb energy =       46.602811631884
+    Exchange-Corr. energy =       -8.927834948752
+ Nuclear repulsion energy =        9.039235444235
+
+ Numeric. integr. density =        0.000000000000
+
+     Total iterative time =      2.7s
+
+
+ 
+                       DFT Final Molecular Orbital Analysis
+                       ------------------------------------
+ 
+ Vector    1  Occ=2.000000D+00  E=-2.056850D+01
+              MO Center=  2.4D-16, -2.8D-19, -1.2D-01, r^2= 1.5D-02
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     1      0.992414  1 O  s          
+ 
+ Vector    2  Occ=2.000000D+00  E=-1.345575D+00
+              MO Center= -2.2D-16, -8.0D-16,  4.7D-02, r^2= 5.0D-01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     4      0.485891  1 O  s                  2      0.314950  1 O  s          
+     3      0.247416  1 O  s                  5      0.236273  1 O  s          
+ 
+ Vector    3  Occ=2.000000D+00  E=-7.051374D-01
+              MO Center=  7.0D-15, -4.2D-17,  9.6D-02, r^2= 7.7D-01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    13      0.309868  1 O  px                10      0.257696  1 O  px         
+    83      0.172030  2 H  s                129     -0.172030  3 H  s          
+ 
+ Vector    4  Occ=2.000000D+00  E=-5.853105D-01
+              MO Center=  9.6D-16,  5.7D-17, -1.5D-01, r^2= 7.3D-01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    15      0.349332  1 O  pz                12      0.281987  1 O  pz         
+     5     -0.277995  1 O  s                  4     -0.214187  1 O  s          
+    18      0.173932  1 O  pz                 9      0.155155  1 O  pz         
+    83      0.153808  2 H  s                129      0.153808  3 H  s          
+ 
+ Vector    5  Occ=2.000000D+00  E=-5.096697D-01
+              MO Center=  2.6D-16, -3.1D-16, -8.1D-02, r^2= 6.7D-01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    14      0.414316  1 O  py                11      0.324146  1 O  py         
+    17      0.250325  1 O  py                 8      0.177899  1 O  py         
+ 
+ Vector    6  Occ=0.000000D+00  E= 2.665963D-02
+              MO Center= -3.6D-12, -3.6D-15,  8.1D-01, r^2= 1.4D+01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     6      3.287638  1 O  s                  5      1.471141  1 O  s          
+    84     -1.395900  2 H  s                130     -1.395900  3 H  s          
+    85     -0.887786  2 H  s                131     -0.887786  3 H  s          
+    83     -0.601706  2 H  s                129     -0.601706  3 H  s          
+    18      0.593146  1 O  pz                95      0.302531  2 H  px         
+ 
+ Vector    7  Occ=0.000000D+00  E= 4.311850D-02
+              MO Center=  2.5D-12, -2.8D-17,  8.9D-01, r^2= 2.1D+01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    85      3.841183  2 H  s                131     -3.841183  3 H  s          
+    84      2.299659  2 H  s                130     -2.299659  3 H  s          
+    19     -1.463707  1 O  px                16     -0.984982  1 O  px         
+    83      0.674164  2 H  s                129     -0.674164  3 H  s          
+    97     -0.484039  2 H  pz               143      0.484039  3 H  pz         
+ 
+ Vector    8  Occ=0.000000D+00  E= 1.138446D-01
+              MO Center= -2.2D-12,  1.9D-14, -3.3D-01, r^2= 1.2D+01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     6      9.416369  1 O  s                 84     -4.740915  2 H  s          
+   130     -4.740915  3 H  s                  5      3.007863  1 O  s          
+    21      2.321031  1 O  pz                95      0.983004  2 H  px         
+   141     -0.983004  3 H  px                18      0.914529  1 O  pz         
+    83     -0.861592  2 H  s                129     -0.861592  3 H  s          
+ 
+ Vector    9  Occ=0.000000D+00  E= 1.343028D-01
+              MO Center=  1.1D-13, -6.4D-15, -6.4D-01, r^2= 9.1D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    20      2.130781  1 O  py                96     -0.766867  2 H  py         
+   142     -0.766867  3 H  py                38      0.366734  1 O  d -1       
+    17      0.198121  1 O  py         
+ 
+ Vector   10  Occ=0.000000D+00  E= 1.510122D-01
+              MO Center= -1.8D-11, -2.2D-15,  3.3D-03, r^2= 1.1D+01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     6      5.520441  1 O  s                  5      3.067350  1 O  s          
+    84     -1.967447  2 H  s                130     -1.967447  3 H  s          
+    97      1.371795  2 H  pz               143      1.371795  3 H  pz         
+    21     -1.177176  1 O  pz                95      1.156288  2 H  px         
+   141     -1.156288  3 H  px                83     -0.962334  2 H  s          
+ 
+ Vector   11  Occ=0.000000D+00  E= 1.588725D-01
+              MO Center=  2.0D-11,  5.3D-15,  3.7D-01, r^2= 1.5D+01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    84      7.123677  2 H  s                130     -7.123677  3 H  s          
+    19     -4.338781  1 O  px                85      3.994964  2 H  s          
+   131     -3.994964  3 H  s                 16     -2.908203  1 O  px         
+    83      2.034193  2 H  s                129     -2.034193  3 H  s          
+    97     -1.561113  2 H  pz               143      1.561113  3 H  pz         
+ 
+ Vector   12  Occ=0.000000D+00  E= 1.840521D-01
+              MO Center=  7.9D-13,  3.0D-15, -2.1D-02, r^2= 9.2D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    19      2.178660  1 O  px                95     -1.979978  2 H  px         
+   141     -1.979978  3 H  px                16      1.647020  1 O  px         
+    40     -1.322699  1 O  d  1              97     -1.191145  2 H  pz         
+   143      1.191145  3 H  pz                83     -1.058948  2 H  s          
+   129      1.058948  3 H  s                 84      0.755399  2 H  s          
+ 
+ Vector   13  Occ=0.000000D+00  E= 1.966920D-01
+              MO Center=  2.1D-13,  3.3D-15,  3.8D-01, r^2= 8.7D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     6      3.076034  1 O  s                 84     -1.589194  2 H  s          
+   130     -1.589194  3 H  s                 97      1.432269  2 H  pz         
+   143      1.432269  3 H  pz                95     -1.304663  2 H  px         
+   141      1.304663  3 H  px                18     -1.142673  1 O  pz         
+    39     -1.008207  1 O  d  0               5      0.991856  1 O  s          
+ 
+ Vector   14  Occ=0.000000D+00  E= 2.095494D-01
+              MO Center= -1.0D-12, -5.3D-15,  6.2D-01, r^2= 8.4D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    96      2.481221  2 H  py               142     -2.481221  3 H  py         
+    37     -1.194087  1 O  d -2              93      0.960737  2 H  py         
+   139     -0.960737  3 H  py               108     -0.526308  2 H  d -2       
+   154     -0.526308  3 H  d -2              32     -0.453057  1 O  d -2       
+   109     -0.447150  2 H  d -1             155      0.447150  3 H  d -1       
+ 
+ Vector   15  Occ=0.000000D+00  E= 2.356464D-01
+              MO Center=  8.9D-13, -8.8D-15,  5.2D-01, r^2= 8.1D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    17      3.515770  1 O  py                20      2.587484  1 O  py         
+    96     -2.550439  2 H  py               142     -2.550439  3 H  py         
+    93     -0.975637  2 H  py               139     -0.975637  3 H  py         
+    38      0.926202  1 O  d -1             108      0.560077  2 H  d -2       
+   154     -0.560077  3 H  d -2              14      0.485684  1 O  py         
+ 
+ Vector   16  Occ=0.000000D+00  E= 2.565115D-01
+              MO Center= -3.7D-13,  5.6D-16, -7.3D-02, r^2= 8.3D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     6      7.987475  1 O  s                 18      4.430651  1 O  pz         
+    84     -3.607515  2 H  s                130     -3.607515  3 H  s          
+    83     -3.048830  2 H  s                129     -3.048830  3 H  s          
+    21      2.847303  1 O  pz                 5      2.473957  1 O  s          
+    97     -1.478044  2 H  pz               143     -1.478044  3 H  pz         
+ 
+ Vector   17  Occ=0.000000D+00  E= 2.914544D-01
+              MO Center= -1.0D-12, -5.8D-15,  4.8D-01, r^2= 1.0D+01
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    84      6.614138  2 H  s                130     -6.614138  3 H  s          
+    95     -5.995131  2 H  px               141     -5.995131  3 H  px         
+    19      4.334490  1 O  px                97      2.770173  2 H  pz         
+   143     -2.770173  3 H  pz                16      1.345178  1 O  px         
+    92     -1.006184  2 H  px               138     -1.006184  3 H  px         
+ 
+ Vector   18  Occ=0.000000D+00  E= 3.548618D-01
+              MO Center= -1.6D-11,  7.2D-15,  7.1D-01, r^2= 8.8D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     6     16.585024  1 O  s                 84     -9.942136  2 H  s          
+   130     -9.942136  3 H  s                  5      8.011355  1 O  s          
+    95      2.853575  2 H  px               141     -2.853575  3 H  px         
+    97      2.447595  2 H  pz               143      2.447595  3 H  pz         
+    21      1.296107  1 O  pz                18      1.213665  1 O  pz         
+ 
+ Vector   19  Occ=0.000000D+00  E= 3.870337D-01
+              MO Center=  1.8D-11,  5.0D-15,  9.0D-01, r^2= 8.3D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    84     14.185720  2 H  s                130    -14.185720  3 H  s          
+    16     -4.077401  1 O  px                95     -4.008045  2 H  px         
+   141     -4.008045  3 H  px                19     -3.225266  1 O  px         
+    97     -2.987841  2 H  pz               143      2.987841  3 H  pz         
+    85      2.528208  2 H  s                131     -2.528208  3 H  s          
+ 
+ Vector   20  Occ=0.000000D+00  E= 4.688971D-01
+              MO Center= -6.0D-13,  1.3D-14, -5.6D-01, r^2= 6.5D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+    84     10.676631  2 H  s                130    -10.676631  3 H  s          
+    16     -7.497691  1 O  px                83      5.391854  2 H  s          
+   129     -5.391854  3 H  s                 40      3.794734  1 O  d  1       
+    19     -3.463025  1 O  px                95     -1.687378  2 H  px         
+   141     -1.687378  3 H  px                85      1.417391  2 H  s          
+ 
+ Vector   21  Occ=0.000000D+00  E= 5.087324D-01
+              MO Center=  9.3D-13, -3.2D-14,  5.9D-01, r^2= 5.1D+00
+   Bfn.  Coefficient  Atom+Function         Bfn.  Coefficient  Atom+Function  
+  ----- ------------  ---------------      ----- ------------  ---------------
+     6      7.409007  1 O  s                  5      5.556567  1 O  s          
+    84     -4.355607  2 H  s                130     -4.355607  3 H  s          
+    83     -2.760002  2 H  s                129     -2.760002  3 H  s          
+    41      2.397196  1 O  d  2              94      1.598818  2 H  pz         
+   140      1.598818  3 H  pz                39     -1.343236  1 O  d  0       
+ 
+
+ center of mass
+ --------------
+ x =   0.00000000 y =   0.00000000 z =  -0.10129787
+
+ moments of inertia (a.u.)
+ ------------------
+           2.367365900984           0.000000000000           0.000000000000
+           0.000000000000           6.532517658797           0.000000000000
+           0.000000000000           0.000000000000           4.165151757812
+ 
+     Multipole analysis of the density
+     ---------------------------------
+ 
+     L   x y z        total         alpha         beta         nuclear
+     -   - - -        -----         -----         ----         -------
+     0   0 0 0     -0.000000     -5.000000     -5.000000     10.000000
+ 
+     1   1 0 0     -0.000000     -0.000000     -0.000000      0.000000
+     1   0 1 0      0.000000      0.000000      0.000000      0.000000
+     1   0 0 1      0.796499      0.398250      0.398250      0.000000
+ 
+     2   2 0 0     -3.184868     -3.658840     -3.658840      4.132812
+     2   1 1 0     -0.000000     -0.000000     -0.000000      0.000000
+     2   1 0 1      0.000000      0.000000      0.000000      0.000000
+     2   0 2 0     -5.641563     -2.820782     -2.820782      0.000000
+     2   0 1 1      0.000000      0.000000      0.000000      0.000000
+     2   0 0 2     -4.602631     -3.359316     -3.359316      2.116000
+ 
+                                NWChem TDDFT Module
+                                -------------------
+ 
+ 
+                                       Water
+ 
+ 
+            General Information
+            -------------------
+           No. of orbitals :   344
+            Alpha orbitals :   172
+             Beta orbitals :   172
+        Alpha frozen cores :     0
+         Beta frozen cores :     0
+     Alpha frozen virtuals :     0
+      Beta frozen virtuals :     0
+         Spin multiplicity :     1
+    Number of AO functions :   172
+        Use of symmetry is : off
+      Symmetry adaption is : off
+         Schwarz screening : 0.10D-07
+ 
+              XC Information
+              --------------
+              Hartree-Fock (Exact) Exchange   1.00          
+ 
+             TDDFT Information
+             -----------------
+          Calculation type : TDHF              
+         Wavefunction type : Restricted singlets & triplets
+          No. of electrons :    10
+           Alpha electrons :     5
+            Beta electrons :     5
+              No. of roots :    10
+          Max subspacesize :  6000
+            Max iterations :   100
+               Target root :     1
+           Target symmetry : none
+      Symmetry restriction : off
+                 Algorithm : Optimal
+        Davidson threshold : 0.10D-03
+ 
+            Memory Information
+            ------------------
+          Available GA space size is       14680034416 doubles
+          Available MA space size is         157280868 doubles
+          Length of a trial vector is          835
+          Algorithm : Incore multiple tensor contraction
+          Estimated peak GA usage is          22541756 doubles
+          Estimated peak MA usage is             71000 doubles
+ 
+   10 smallest eigenvalue differences (eV) 
+--------------------------------------------------------
+  No. Spin  Occ  Vir  Irrep   E(Occ)    E(Vir)   E(Diff)
+--------------------------------------------------------
+    1    1    5    6 a        -0.510     0.027    14.594
+    2    1    5    7 a        -0.510     0.043    15.042
+    3    1    4    6 a        -0.585     0.027    16.653
+    4    1    5    8 a        -0.510     0.114    16.967
+    5    1    4    7 a        -0.585     0.043    17.100
+    6    1    5    9 a        -0.510     0.134    17.523
+    7    1    5   10 a        -0.510     0.151    17.978
+    8    1    5   11 a        -0.510     0.159    18.192
+    9    1    5   12 a        -0.510     0.184    18.877
+   10    1    4    8 a        -0.585     0.114    19.025
+--------------------------------------------------------
+
+  Entering Davidson iterations
+  Restricted singlet excited states
+
+  Iter   NTrls   NConv    DeltaV     DeltaE      Time   
+  ----  ------  ------  ---------  ---------  --------- 
+    1     10       0     0.20E+00   0.10+100        1.6
+    2     30       0     0.71E-01   0.37E-01        1.8
+    3     50       0     0.95E-01   0.79E-02        1.8
+    4     70       0     0.44E-01   0.51E-02        1.8
+    5     90       2     0.17E-01   0.14E-02        1.8
+    6    106       5     0.18E-02   0.47E-04        1.7
+    7    116       8     0.84E-03   0.20E-05        1.7
+    8    120       9     0.34E-03   0.43E-06        1.4
+    9    122       9     0.18E-03   0.72E-07        1.4
+   10    124      10     0.69E-04   0.14E-07        1.4
+  ----  ------  ------  ---------  ---------  --------- 
+  Convergence criterion met
+ 
+  Ground state a         -76.064121845933 a.u.
+ 
+  ----------------------------------------------------------------------------
+  Root   1 singlet a              0.313514937 a.u.                8.5312 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X  0.00000   Y  0.45921   Z -0.00000
+     Transition Moments   XX -0.00000  XY  0.00000  XZ  0.00000
+     Transition Moments   YY -0.00000  YZ  0.25106  ZZ -0.00000
+     Dipole Oscillator Strength                         0.04407
+ 
+     Occ.    5  a   ---  Virt.    6  a    0.74434 X
+     Occ.    5  a   ---  Virt.    8  a   -0.41356 X
+     Occ.    5  a   ---  Virt.   10  a   -0.42057 X
+     Occ.    5  a   ---  Virt.   18  a    0.28663 X
+     Occ.    5  a   ---  Virt.   34  a   -0.10738 X
+  ----------------------------------------------------------------------------
+  Root   2 singlet a              0.374860748 a.u.               10.2005 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X  0.00000   Y  0.00000   Z  0.00000
+     Transition Moments   XX -0.00000  XY -0.61263  XZ  0.00000
+     Transition Moments   YY -0.00000  YZ -0.00000  ZZ -0.00000
+     Dipole Oscillator Strength                         0.00000
+ 
+     Occ.    5  a   ---  Virt.    7  a    0.67006 X
+     Occ.    5  a   ---  Virt.   11  a   -0.55353 X
+     Occ.    5  a   ---  Virt.   12  a   -0.29801 X
+     Occ.    5  a   ---  Virt.   19  a    0.35827 X
+     Occ.    5  a   ---  Virt.   20  a   -0.06611 X
+     Occ.    5  a   ---  Virt.   35  a   -0.13660 X
+  ----------------------------------------------------------------------------
+  Root   3 singlet a              0.399787586 a.u.               10.8788 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X  0.00000   Y  0.00000   Z  0.60564
+     Transition Moments   XX  0.33516  XY  0.00000  XZ  0.00000
+     Transition Moments   YY -0.57210  YZ  0.00000  ZZ  0.38240
+     Dipole Oscillator Strength                         0.09776
+ 
+     Occ.    4  a   ---  Virt.    6  a    0.75107 X
+     Occ.    4  a   ---  Virt.    8  a   -0.33096 X
+     Occ.    4  a   ---  Virt.   10  a   -0.41993 X
+     Occ.    4  a   ---  Virt.   16  a   -0.06881 X
+     Occ.    4  a   ---  Virt.   18  a    0.22503 X
+     Occ.    4  a   ---  Virt.   34  a   -0.07228 X
+     Occ.    5  a   ---  Virt.    9  a    0.25938 X
+     Occ.    5  a   ---  Virt.   15  a   -0.11528 X
+     Occ.    5  a   ---  Virt.   27  a    0.05187 X
+  ----------------------------------------------------------------------------
+  Root   4 singlet a              0.424161056 a.u.               11.5420 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X -0.00000   Y -0.18915   Z  0.00000
+     Transition Moments   XX  0.00000  XY -0.00000  XZ -0.00000
+     Transition Moments   YY -0.00000  YZ  0.65018  ZZ  0.00000
+     Dipole Oscillator Strength                         0.01012
+ 
+     Occ.    5  a   ---  Virt.    6  a   -0.38295 X
+     Occ.    5  a   ---  Virt.    8  a   -0.80200 X
+     Occ.    5  a   ---  Virt.   10  a    0.26014 X
+     Occ.    5  a   ---  Virt.   13  a   -0.06721 X
+     Occ.    5  a   ---  Virt.   16  a    0.27042 X
+     Occ.    5  a   ---  Virt.   18  a    0.21621 X
+     Occ.    5  a   ---  Virt.   31  a   -0.07840 X
+     Occ.    5  a   ---  Virt.   34  a   -0.09063 X
+  ----------------------------------------------------------------------------
+  Root   5 singlet a              0.444181019 a.u.               12.0868 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X -0.00000   Y  0.00000   Z -0.13383
+     Transition Moments   XX -0.26328  XY  0.00000  XZ  0.00000
+     Transition Moments   YY -1.78695  YZ -0.00000  ZZ -0.18401
+     Dipole Oscillator Strength                         0.00530
+ 
+     Occ.    3  a   ---  Virt.   11  a    0.07296 X
+     Occ.    3  a   ---  Virt.   19  a   -0.07684 X
+     Occ.    4  a   ---  Virt.    6  a   -0.27191 X
+     Occ.    4  a   ---  Virt.   10  a    0.16876 X
+     Occ.    4  a   ---  Virt.   16  a    0.08318 X
+     Occ.    5  a   ---  Virt.    9  a    0.89533 X
+     Occ.    5  a   ---  Virt.   15  a   -0.23687 X
+     Occ.    5  a   ---  Virt.   27  a    0.07212 X
+     Occ.    5  a   ---  Virt.   36  a    0.05619 X
+  ----------------------------------------------------------------------------
+  Root   6 singlet a              0.457005492 a.u.               12.4358 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X -0.00000   Y  0.00451   Z  0.00000
+     Transition Moments   XX  0.00000  XY  0.00000  XZ -0.00000
+     Transition Moments   YY  0.00000  YZ -0.32858  ZZ  0.00000
+     Dipole Oscillator Strength                         0.00001
+ 
+     Occ.    5  a   ---  Virt.    6  a   -0.53266 X
+     Occ.    5  a   ---  Virt.   10  a   -0.77627 X
+     Occ.    5  a   ---  Virt.   13  a    0.17591 X
+     Occ.    5  a   ---  Virt.   16  a   -0.07020 X
+     Occ.    5  a   ---  Virt.   18  a    0.23761 X
+     Occ.    5  a   ---  Virt.   21  a   -0.07669 X
+     Occ.    5  a   ---  Virt.   25  a    0.06354 X
+     Occ.    5  a   ---  Virt.   31  a    0.06594 X
+     Occ.    5  a   ---  Virt.   34  a   -0.05713 X
+  ----------------------------------------------------------------------------
+  Root   7 singlet a              0.457712637 a.u.               12.4550 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X  0.00000   Y -0.00000   Z -0.00000
+     Transition Moments   XX -0.00000  XY -0.18916  XZ -0.00000
+     Transition Moments   YY -0.00000  YZ -0.00000  ZZ -0.00000
+     Dipole Oscillator Strength                         0.00000
+ 
+     Occ.    5  a   ---  Virt.    7  a    0.65332 X
+     Occ.    5  a   ---  Virt.   11  a    0.19094 X
+     Occ.    5  a   ---  Virt.   12  a    0.60930 X
+     Occ.    5  a   ---  Virt.   19  a   -0.33351 X
+     Occ.    5  a   ---  Virt.   20  a    0.18668 X
+     Occ.    5  a   ---  Virt.   35  a    0.12210 X
+  ----------------------------------------------------------------------------
+  Root   8 singlet a              0.460565921 a.u.               12.5326 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X  0.31172   Y  0.00000   Z -0.00000
+     Transition Moments   XX -0.00000  XY -0.00000  XZ  0.81882
+     Transition Moments   YY -0.00000  YZ -0.00000  ZZ  0.00000
+     Dipole Oscillator Strength                         0.02984
+ 
+     Occ.    4  a   ---  Virt.    7  a   -0.73900 X
+     Occ.    4  a   ---  Virt.   11  a    0.54611 X
+     Occ.    4  a   ---  Virt.   12  a    0.22107 X
+     Occ.    4  a   ---  Virt.   19  a   -0.28768 X
+     Occ.    4  a   ---  Virt.   35  a    0.09715 X
+     Occ.    5  a   ---  Virt.   14  a    0.08546 X
+  ----------------------------------------------------------------------------
+  Root   9 singlet a              0.497523867 a.u.               13.5383 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X  0.00000   Y  0.00000   Z  0.00000
+     Transition Moments   XX  0.00000  XY -0.46289  XZ -0.00000
+     Transition Moments   YY  0.00000  YZ -0.00000  ZZ -0.00000
+     Dipole Oscillator Strength                         0.00000
+ 
+     Occ.    5  a   ---  Virt.    7  a   -0.35123 X
+     Occ.    5  a   ---  Virt.   11  a   -0.67973 X
+     Occ.    5  a   ---  Virt.   12  a    0.59643 X
+     Occ.    5  a   ---  Virt.   17  a   -0.08997 X
+     Occ.    5  a   ---  Virt.   19  a    0.11495 X
+     Occ.    5  a   ---  Virt.   20  a    0.18262 X
+  ----------------------------------------------------------------------------
+  Root  10 singlet a              0.502938987 a.u.               13.6857 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments    X  0.00000   Y  0.17178   Z -0.00000
+     Transition Moments   XX  0.00000  XY  0.00000  XZ  0.00000
+     Transition Moments   YY  0.00000  YZ -0.42854  ZZ  0.00000
+     Dipole Oscillator Strength                         0.00989
+ 
+     Occ.    4  a   ---  Virt.    9  a    0.52044 X
+     Occ.    4  a   ---  Virt.   15  a   -0.15445 X
+     Occ.    4  a   ---  Virt.   27  a    0.06879 X
+     Occ.    5  a   ---  Virt.    6  a   -0.08410 X
+     Occ.    5  a   ---  Virt.   10  a   -0.13499 X
+     Occ.    5  a   ---  Virt.   13  a   -0.79358 X
+     Occ.    5  a   ---  Virt.   16  a   -0.08897 X
+     Occ.    5  a   ---  Virt.   21  a    0.15750 X
+     Occ.    5  a   ---  Virt.   22  a   -0.06992 X
+ 
+              Target root =      1
+          Target symmetry = none
+      Ground state energy =    -76.064121845933
+        Excitation energy =      0.313514936584
+     Excited state energy =    -75.750606909348
+ 
+ 
+   10 smallest eigenvalue differences (eV) 
+--------------------------------------------------------
+  No. Spin  Occ  Vir  Irrep   E(Occ)    E(Vir)   E(Diff)
+--------------------------------------------------------
+    1    1    5    6 a        -0.510     0.027    14.594
+    2    1    5    7 a        -0.510     0.043    15.042
+    3    1    4    6 a        -0.585     0.027    16.653
+    4    1    5    8 a        -0.510     0.114    16.967
+    5    1    4    7 a        -0.585     0.043    17.100
+    6    1    5    9 a        -0.510     0.134    17.523
+    7    1    5   10 a        -0.510     0.151    17.978
+    8    1    5   11 a        -0.510     0.159    18.192
+    9    1    5   12 a        -0.510     0.184    18.877
+   10    1    4    8 a        -0.585     0.114    19.025
+--------------------------------------------------------
+
+  Entering Davidson iterations
+  Restricted triplet excited states
+
+  Iter   NTrls   NConv    DeltaV     DeltaE      Time   
+  ----  ------  ------  ---------  ---------  --------- 
+    1     10       0     0.14E+00   0.10+100        1.6
+    2     30       0     0.99E-01   0.66E-01        1.8
+    3     50       0     0.73E-01   0.25E-01        1.8
+    4     70       0     0.40E-01   0.71E-02        1.8
+    5     90       0     0.89E-01   0.77E-02        1.8
+    6    110       3     0.74E-01   0.12E-01        1.8
+    7    124       7     0.20E-01   0.24E-02        1.7
+    8    130       8     0.54E-02   0.12E-03        1.5
+    9    134       8     0.27E-02   0.20E-04        1.4
+   10    138       9     0.70E-03   0.22E-05        1.4
+   11    140       9     0.11E-03   0.86E-07        1.4
+   12    141      10     0.93E-04   0.18E-08        1.3
+  ----  ------  ------  ---------  ---------  --------- 
+  Convergence criterion met
+ 
+  Ground state a         -76.064121845933 a.u.
+ 
+  ----------------------------------------------------------------------------
+  Root   1 triplet a              0.284632543 a.u.                7.7452 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    5  a   ---  Virt.    6  a    0.67511 X
+     Occ.    5  a   ---  Virt.    8  a   -0.41560 X
+     Occ.    5  a   ---  Virt.   10  a   -0.46237 X
+     Occ.    5  a   ---  Virt.   16  a   -0.05181 X
+     Occ.    5  a   ---  Virt.   18  a    0.35144 X
+     Occ.    5  a   ---  Virt.   25  a    0.05769 X
+     Occ.    5  a   ---  Virt.   34  a   -0.14747 X
+  ----------------------------------------------------------------------------
+  Root   2 triplet a              0.356622502 a.u.                9.7042 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    2  a   ---  Virt.   18  a   -0.05415 X
+     Occ.    3  a   ---  Virt.    7  a    0.05194 X
+     Occ.    3  a   ---  Virt.   11  a   -0.08748 X
+     Occ.    3  a   ---  Virt.   12  a   -0.08557 X
+     Occ.    3  a   ---  Virt.   19  a    0.12129 X
+     Occ.    3  a   ---  Virt.   20  a   -0.05048 X
+     Occ.    3  a   ---  Virt.   35  a   -0.06537 X
+     Occ.    4  a   ---  Virt.    6  a   -0.63609 X
+     Occ.    4  a   ---  Virt.    8  a    0.43366 X
+     Occ.    4  a   ---  Virt.   10  a    0.43884 X
+     Occ.    4  a   ---  Virt.   18  a   -0.36361 X
+     Occ.    4  a   ---  Virt.   25  a   -0.05778 X
+     Occ.    4  a   ---  Virt.   34  a    0.15746 X
+     Occ.    5  a   ---  Virt.    9  a    0.06207 X
+     Occ.    5  a   ---  Virt.   15  a   -0.05262 X
+  ----------------------------------------------------------------------------
+  Root   3 triplet a              0.357487155 a.u.                9.7277 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    5  a   ---  Virt.    7  a   -0.58151 X
+     Occ.    5  a   ---  Virt.   11  a    0.56386 X
+     Occ.    5  a   ---  Virt.   12  a    0.33409 X
+     Occ.    5  a   ---  Virt.   19  a   -0.42839 X
+     Occ.    5  a   ---  Virt.   20  a    0.09207 X
+     Occ.    5  a   ---  Virt.   35  a    0.17963 X
+  ----------------------------------------------------------------------------
+  Root   4 triplet a              0.397528321 a.u.               10.8173 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    3  a   ---  Virt.   11  a   -0.05517 X
+     Occ.    3  a   ---  Virt.   19  a    0.06421 X
+     Occ.    4  a   ---  Virt.    6  a    0.12050 X
+     Occ.    4  a   ---  Virt.   10  a   -0.10560 X
+     Occ.    4  a   ---  Virt.   16  a   -0.07780 X
+     Occ.    5  a   ---  Virt.    9  a    0.86816 X
+     Occ.    5  a   ---  Virt.   15  a   -0.36537 X
+     Occ.    5  a   ---  Virt.   26  a    0.08041 X
+     Occ.    5  a   ---  Virt.   27  a    0.18646 X
+     Occ.    5  a   ---  Virt.   36  a    0.15017 X
+  ----------------------------------------------------------------------------
+  Root   5 triplet a              0.414541190 a.u.               11.2802 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    3  a   ---  Virt.    6  a    0.27832 X
+     Occ.    3  a   ---  Virt.    8  a   -0.22561 X
+     Occ.    3  a   ---  Virt.   10  a   -0.23704 X
+     Occ.    3  a   ---  Virt.   18  a    0.23011 X
+     Occ.    3  a   ---  Virt.   25  a    0.05230 X
+     Occ.    3  a   ---  Virt.   34  a   -0.11145 X
+     Occ.    4  a   ---  Virt.    7  a   -0.42130 X
+     Occ.    4  a   ---  Virt.   11  a    0.45976 X
+     Occ.    4  a   ---  Virt.   12  a    0.35113 X
+     Occ.    4  a   ---  Virt.   19  a   -0.41711 X
+     Occ.    4  a   ---  Virt.   20  a    0.14305 X
+     Occ.    4  a   ---  Virt.   35  a    0.18625 X
+  ----------------------------------------------------------------------------
+  Root   6 triplet a              0.415827792 a.u.               11.3153 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    4  a   ---  Virt.    9  a    0.09703 X
+     Occ.    5  a   ---  Virt.    6  a    0.37627 X
+     Occ.    5  a   ---  Virt.    8  a    0.76091 X
+     Occ.    5  a   ---  Virt.   10  a   -0.28909 X
+     Occ.    5  a   ---  Virt.   13  a    0.06018 X
+     Occ.    5  a   ---  Virt.   16  a   -0.32310 X
+     Occ.    5  a   ---  Virt.   18  a   -0.22323 X
+     Occ.    5  a   ---  Virt.   31  a    0.10527 X
+     Occ.    5  a   ---  Virt.   34  a    0.10601 X
+  ----------------------------------------------------------------------------
+  Root   7 triplet a              0.446785040 a.u.               12.1576 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    5  a   ---  Virt.    6  a   -0.61396 X
+     Occ.    5  a   ---  Virt.    8  a    0.05300 X
+     Occ.    5  a   ---  Virt.   10  a   -0.69865 X
+     Occ.    5  a   ---  Virt.   13  a    0.17230 X
+     Occ.    5  a   ---  Virt.   16  a   -0.07388 X
+     Occ.    5  a   ---  Virt.   18  a    0.25133 X
+     Occ.    5  a   ---  Virt.   21  a   -0.09315 X
+     Occ.    5  a   ---  Virt.   25  a    0.07624 X
+     Occ.    5  a   ---  Virt.   31  a    0.08091 X
+     Occ.    5  a   ---  Virt.   34  a   -0.07139 X
+  ----------------------------------------------------------------------------
+  Root   8 triplet a              0.450539836 a.u.               12.2598 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    5  a   ---  Virt.    7  a   -0.72996 X
+     Occ.    5  a   ---  Virt.   11  a   -0.11142 X
+     Occ.    5  a   ---  Virt.   12  a   -0.54431 X
+     Occ.    5  a   ---  Virt.   19  a    0.31632 X
+     Occ.    5  a   ---  Virt.   20  a   -0.19063 X
+     Occ.    5  a   ---  Virt.   35  a   -0.12717 X
+  ----------------------------------------------------------------------------
+  Root   9 triplet a              0.470139006 a.u.               12.7931 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    2  a   ---  Virt.   19  a   -0.05083 X
+     Occ.    3  a   ---  Virt.    6  a    0.52858 X
+     Occ.    3  a   ---  Virt.    8  a   -0.33489 X
+     Occ.    3  a   ---  Virt.   10  a   -0.39682 X
+     Occ.    3  a   ---  Virt.   18  a    0.30740 X
+     Occ.    3  a   ---  Virt.   25  a    0.05650 X
+     Occ.    3  a   ---  Virt.   34  a   -0.12790 X
+     Occ.    4  a   ---  Virt.    7  a    0.44568 X
+     Occ.    4  a   ---  Virt.   11  a   -0.29687 X
+     Occ.    4  a   ---  Virt.   12  a   -0.06741 X
+     Occ.    4  a   ---  Virt.   19  a    0.13269 X
+     Occ.    5  a   ---  Virt.   14  a   -0.10716 X
+  ----------------------------------------------------------------------------
+  Root  10 triplet a              0.476099641 a.u.               12.9553 eV 
+  ----------------------------------------------------------------------------
+     Transition Moments                    Spin forbidden
+     Oscillator Strength                   Spin forbidden
+ 
+     Occ.    3  a   ---  Virt.    7  a    0.08608 X
+     Occ.    3  a   ---  Virt.   11  a   -0.12568 X
+     Occ.    3  a   ---  Virt.   12  a   -0.09831 X
+     Occ.    3  a   ---  Virt.   19  a    0.13748 X
+     Occ.    3  a   ---  Virt.   35  a   -0.06956 X
+     Occ.    4  a   ---  Virt.    6  a    0.41187 X
+     Occ.    4  a   ---  Virt.    8  a    0.65154 X
+     Occ.    4  a   ---  Virt.   10  a   -0.34395 X
+     Occ.    4  a   ---  Virt.   16  a   -0.33017 X
+     Occ.    4  a   ---  Virt.   18  a   -0.21280 X
+     Occ.    4  a   ---  Virt.   31  a    0.13211 X
+     Occ.    4  a   ---  Virt.   34  a    0.12156 X
+     Occ.    5  a   ---  Virt.    9  a   -0.17469 X
+     Occ.    5  a   ---  Virt.   15  a    0.06235 X
+ 
+              Target root =      1
+          Target symmetry = none
+      Ground state energy =    -76.064121845933
+        Excitation energy =      0.284632542882
+     Excited state energy =    -75.779489303050
+ 
+
+ Task  times  cpu:       39.3s     wall:       43.7s
+ 
+ 
+                                NWChem Input Module
+                                -------------------
+ 
+ 
+ Summary of allocated global arrays
+-----------------------------------
+  No active global arrays
+
+
+
+                         GA Statistics for process    0
+                         ------------------------------
+
+       create   destroy   get      put      acc     scatter   gather  read&inc
+calls: 2167     2167     1.98e+06 1.46e+05 1.14e+06  795        0     1129     
+number of processes/call 1.26e+00 1.63e+00 1.26e+00 0.00e+00 0.00e+00
+bytes total:             4.75e+09 7.49e+07 3.17e+09 8.60e+03 0.00e+00 9.03e+03
+bytes remote:            4.46e+09 2.39e+07 3.03e+09 0.00e+00 0.00e+00 0.00e+00
+Max memory consumed for GA by this process: 5561600 bytes
+ 
+MA_summarize_allocated_blocks: starting scan ...
+MA_summarize_allocated_blocks: scan completed: 0 heap blocks, 0 stack blocks
+MA usage statistics:
+
+	allocation statistics:
+					      heap	     stack
+					      ----	     -----
+	current number of blocks	         0	         0
+	maximum number of blocks	        20	        35
+	current total bytes		         0	         0
+	maximum total bytes		     80152	  43873688
+	maximum total K-bytes		        81	     43874
+	maximum total M-bytes		         1	        44
+ 
+ 
+                                     CITATION
+                                     --------
+                Please cite the following reference when publishing
+                           results obtained with NWChem:
+ 
+                 M. Valiev, E.J. Bylaska, N. Govind, K. Kowalski,
+              T.P. Straatsma, H.J.J. van Dam, D. Wang, J. Nieplocha,
+                        E. Apra, T.L. Windus, W.A. de Jong
+                 "NWChem: a comprehensive and scalable open-source
+                  solution for large scale molecular simulations"
+                      Comput. Phys. Commun. 181, 1477 (2010)
+                           doi:10.1016/j.cpc.2010.04.018
+ 
+                                      AUTHORS
+                                      -------
+          E. Apra, E. J. Bylaska, W. A. de Jong, N. Govind, K. Kowalski,
+       T. P. Straatsma, M. Valiev, H. J. J. van Dam, D. Wang, T. L. Windus,
+        J. Hammond, J. Autschbach, K. Bhaskaran-Nair, J. Brabec, K. Lopata,
+       S. A. Fischer, S. Krishnamoorthy, W. Ma, M. Klemm, O. Villa, Y. Chen,
+    V. Anisimov, F. Aquino, S. Hirata, M. T. Hackler, T. Risthaus, M. Malagoli,
+       A. Marenich, A. Otero-de-la-Roza, J. Mullin, P. Nichols, R. Peverati,
+     J. Pittner, Y. Zhao, P.-D. Fan, A. Fonari, M. Williamson, R. J. Harrison,
+       J. R. Rehr, M. Dupuis, D. Silverstein, D. M. A. Smith, J. Nieplocha,
+        V. Tipparaju, M. Krishnan, B. E. Van Kuiken, A. Vazquez-Mayagoitia,
+        L. Jensen, M. Swart, Q. Wu, T. Van Voorhis, A. A. Auer, M. Nooijen,
+      L. D. Crosby, E. Brown, G. Cisneros, G. I. Fann, H. Fruchtl, J. Garza,
+        K. Hirao, R. A. Kendall, J. A. Nichols, K. Tsemekhman, K. Wolinski,
+     J. Anchell, D. E. Bernholdt, P. Borowski, T. Clark, D. Clerc, H. Dachsel,
+   M. J. O. Deegan, K. Dyall, D. Elwood, E. Glendening, M. Gutowski, A. C. Hess,
+         J. Jaffe, B. G. Johnson, J. Ju, R. Kobayashi, R. Kutteh, Z. Lin,
+   R. Littlefield, X. Long, B. Meng, T. Nakajima, S. Niu, L. Pollack, M. Rosing,
+   K. Glaesemann, G. Sandrone, M. Stave, H. Taylor, G. Thomas, J. H. van Lenthe,
+                               A. T. Wong, Z. Zhang.
+
+ Total times  cpu:       39.3s     wall:       43.8s
