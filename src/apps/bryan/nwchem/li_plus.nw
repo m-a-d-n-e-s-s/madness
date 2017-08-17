@@ -1,0 +1,38 @@
+start
+
+permanent_dir /gpfs/scratch/bsundahl
+scratch_dir /gpfs/scratch/bsundahl
+
+title "Methane"
+
+memory stack 400 mb heap 800 mb global 4000 mb
+
+echo
+ 
+geometry units atomic noautosym
+  Li 0.0 0.0 0.0 
+end
+
+charge 1
+
+basis spherical 
+ * library aug-cc-pvqz
+end
+
+driver
+ maxiter 200
+end
+
+dft 
+ xc hfexch
+ noio                         # turns off IO in charge fitting
+ grid nodisk                  # turns off IO in grid
+ direct                       # forces incore integrals
+ maxiter 200
+end
+
+tddft
+ nroots 10
+end
+ 
+task tddft energy

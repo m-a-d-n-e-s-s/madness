@@ -135,7 +135,7 @@ class TDA
       bool tda_spinrestricted;                            // Indicates open or closed shell
       Tensor<double> tda_ground_energies;                 // Ground state energies
       Tensor<double> tda_act_ground_energies;             // Ground state energies being used for calculation
-      Tensor<double> tda_active_hamiltonian;              // Ground state hamiltonian of active ground state orbitals
+      Tensor<double> tda_hamiltonian;                     // Ground state hamiltonian tensor 
                                                           //    (Used when localized orbitals are given)
       std::vector<int> tda_active;                        // The labels of orbitals selected as "active"
       unsigned int tda_num_orbitals;                      // Number of ground state orbitals
@@ -161,7 +161,8 @@ class TDA
 
       // User input variables
       double tda_energy_threshold;
-      double tda_range;
+      double tda_range_low;
+      double tda_range_high;
       bool tda_plot;
       int tda_max_iterations;
       int tda_num_excited; 
@@ -193,7 +194,6 @@ class TDA
           char* input_file,        // File with converged ground-state orbitals
                                    //    Note: You need to leave off the .00000 for this to work
           int k,                   // Number of desired response functions
-          double range,            // Energy range for acceptable ground orbitals to excite from (range from HOMO)
           int print_level);        // Specifies how much printing should be done (see above)
 
       // Normalizes in the response sense
@@ -235,18 +235,12 @@ class TDA
                                                                            double small,
                                                                            double thresh);
 
-      // Overloaded to get default values correct
-      std::vector<std::vector<real_function_3d>> create_coulomb_derivative(World & world);
-
       // Returns the derivative of the exchange operator, applied to the ground state orbitals
       std::vector<std::vector<real_function_3d>> create_exchange_derivative(World & world,
                                                                             std::vector<std::vector<real_function_3d>> & f,
                                                                             std::vector<real_function_3d> & orbitals,
                                                                             double small,
                                                                             double thresh);
-
-      // Overloaded to get default values correct
-      std::vector<std::vector<real_function_3d>> create_exchange_derivative(World & world);
 
       // Returns gamma (the perturbed 2 electron piece)
       std::vector<std::vector<real_function_3d>> create_gamma(World & world,
@@ -256,9 +250,6 @@ class TDA
                                                               double thresh,
                                                               int print_level);
 
-      // Overloaded to get default values correct 
-      std::vector<std::vector<real_function_3d>> create_gamma(World & world);
-
       // Returns the coulomb potential of the ground state
       // Note: No post multiplication involved here
       real_function_3d coulomb(World & world);
@@ -266,9 +257,6 @@ class TDA
       // Returns the result of ground state exchange applied to response functions
       std::vector<std::vector<real_function_3d>> exchange(World & world,
                                                           std::vector<std::vector<real_function_3d>> & f);
-
-      // Overloaded to get defaults right 
-      std::vector<std::vector<real_function_3d>> exchange(World & world);
 
       // Returns the ground state potential applied to response functions
       std::vector<std::vector<real_function_3d>> create_potential(World & world,
@@ -293,9 +281,6 @@ class TDA
                                     std::vector<std::vector<real_function_3d>> & f,
                                     int print_level);
 
-      // Overloaded to get default parameters correct 
-      Tensor<double> create_overlap(World & world);
-
       // Returns the ground state fock operator applied to response functions
       std::vector<std::vector<real_function_3d>> create_fock(World & world,
                                                              std::vector<std::vector<real_function_3d>> & V,
@@ -312,11 +297,6 @@ class TDA
                                         Tensor<double> & energies,
                                         int print_level);
 
-      // Overloaded to get default parameters correct
-      Tensor<double> create_hamiltonian(World & world,
-                                        std::vector<std::vector<real_function_3d>> & gamma,
-                                        std::vector<std::vector<real_function_3d>> & V);
-
       // Returns the shift needed for each orbital to make sure
       // -2.0 * (ground_state_energy + excited_state_energy) is positive
       Tensor<double> create_shift(World & world,
@@ -324,19 +304,11 @@ class TDA
                                   Tensor<double> & omega,
                                   int print_level);
 
-      // Overloaded for parameter defaults
-      Tensor<double> create_shift(World & world);
-
       // Returns the given shift applied to the given potentials
       std::vector<std::vector<real_function_3d>> apply_shift(World & world,
                                                              Tensor<double> & shifts,
                                                              std::vector<std::vector<real_function_3d>> & V,
                                                              std::vector<std::vector<real_function_3d>> & f);
-
-      // Overloaded for default parameters 
-      std::vector<std::vector<real_function_3d>> apply_shift(World & world,
-                                                             Tensor<double> & shifts,
-                                                             std::vector<std::vector<real_function_3d>> & V);
 
 
       // Returns a vector of BSH operators
@@ -346,9 +318,6 @@ class TDA
                                                                                           Tensor<double> & omega,
                                                                                           double small,
                                                                                           double thresh);
-      // Overloaded for parameter defaults 
-      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> create_bsh_operators(World & world,
-                                                                                          Tensor<double> & shift);
 
       // Returns the second order update to the energy
       Tensor<double> calculate_energy_update(World & world,
