@@ -14,7 +14,7 @@
 #include <exception>
 #include <iterator>
 #include <list>
-#include <apps/chem/SCF.h>
+#include <chem/SCF.h>
 
 namespace madness {
 

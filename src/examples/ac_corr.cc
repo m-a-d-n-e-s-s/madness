@@ -11,9 +11,9 @@
 #include <exception>
 #include <iterator>
 #include <list>
-//#include <apps/chem/molecule.h>
+//#include <chem/molecule.h>
 #include <madness/world/info.h>
-#include <apps/chem/AC.h>
+#include <chem/AC.h>
 
 
 

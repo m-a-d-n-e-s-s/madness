@@ -12,7 +12,7 @@
 
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
-#include <apps/chem/molecule.h>
+#include <chem/molecule.h>
 #include <iomanip>
 
 namespace madness {
