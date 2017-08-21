@@ -147,7 +147,6 @@ TDA::TDA(World & world,
       tda_energy_threshold = tda_thresh; 
       tda_range_low = tda_ground_energies[0]; 
       tda_range_high = tda_ground_energies[tda_num_orbitals-1];
-      tda_localized = true;
       tda_random_start = false;
       tda_kain = false;
 
@@ -260,7 +259,6 @@ void TDA::print_response_params(World & world)
       //print("     Energy Range End:", tda_range_high);
       print(" Random Initial Guess:", tda_random_start);
       print("          KAIN Solver:", tda_kain);
-      print("   Localized Orbitals:", tda_localized);
       print("       Max Iterations:", tda_max_iterations);
       print("  Plot Final Orbitals:", tda_plot);
    }
@@ -526,7 +524,7 @@ std::vector<std::vector<real_function_3d>> TDA::create_gamma(World &world,
    // This is the spin restricted, singlet excitation coefficients
    gamma = scale(deriv_J, 2.0) - deriv_K; 
   
-   // Project out groundstate TO DO
+   // Project out groundstate 
    QProjector<double, 3> projector(world, tda_orbitals);           // Projector to project out ground state
    for(int i = 0; i<m; i++) gamma[i] = projector(gamma[i]);
 
@@ -831,11 +829,6 @@ Tensor<double> TDA::create_hamiltonian(World & world,
    // Container for A
    Tensor<double> A(m,m); 
 
-   // Projector on the unperturbed density
-   //QProjector<double,3> ground_state_density(world, full_ground_orbitals);
-  
-   // FIX
- 
    // Create the ground-state fock operator on response orbitals
    std::vector<std::vector<real_function_3d>> fock_x_resp = create_fock(world, V, f, print_level);
 
@@ -921,8 +914,7 @@ Tensor<double> TDA::create_shift(World & world,
             // Basic output
             if(print_level >= 1) 
             {
-               if(world.rank() == 0) print("   Shift needed for transition from ground orbital", p);
-               if(world.rank() == 0) print("   to response orbital", k);
+               if(world.rank() == 0) print("   Shift needed for transition from ground orbital", p, "to response orbital", k);
                if(world.rank() == 0) print("   Ground energy =", ground(p));
                if(world.rank() == 0) print("   Excited energy =", omega(k));
                if(world.rank() == 0) print("   Shifting by", result(k,p));
@@ -1895,7 +1887,7 @@ void TDA::create_ground_hamiltonian(World & world,
       gaxpy(world, 1.0, Kf, 1.0, psif);
    }
 
-   // TESTING
+   // DEBUGGING
    //for(int i=0; i<m; i++)
    //{
    //   for(int j=0; j<m; j++)
@@ -1906,24 +1898,24 @@ void TDA::create_ground_hamiltonian(World & world,
    //   }
    //}
 
-   std::vector<real_function_3d> vcf = v_coul * f;
-   std::vector<real_function_3d> vnf = v_nuc * f;
+   //std::vector<real_function_3d> vcf = v_coul * f;
+   //std::vector<real_function_3d> vnf = v_nuc * f;
 
-   Tensor<double> nuc = matrix_inner(world, f, vnf);
-   Tensor<double> cou = matrix_inner(world, f, vcf);
-   Tensor<double> exc = matrix_inner(world, f, Kf);
+   //Tensor<double> nuc = matrix_inner(world, f, vnf);
+   //Tensor<double> cou = matrix_inner(world, f, vcf);
+   //Tensor<double> exc = matrix_inner(world, f, Kf);
 
-   if(world.rank() == 0)
-   {
-      print("   Kinetic matrix:");
-      print(T);
-      print("   Nuclear matrix:");
-      print(nuc); 
-      print("   Coulomb matrix:");
-      print(cou);
-      print("   Exchange matrix:");
-      print(exc);
-   }
+   //if(world.rank() == 0)
+   //{
+   //   print("   Kinetic matrix:");
+   //   print(T);
+   //   print("   Nuclear matrix:");
+   //   print(nuc); 
+   //   print("   Coulomb matrix:");
+   //   print(cou);
+   //   print("   Exchange matrix:");
+   //   print(exc);
+   //}
   
    // Construct V
    Tensor<double> V = matrix_inner(world, f, vf) - matrix_inner(world, f, Kf);

@@ -166,7 +166,6 @@ class TDA
       bool tda_plot;
       int tda_max_iterations;
       int tda_num_excited; 
-      bool tda_localized;
       bool tda_random_start;
       bool tda_kain;
       int tda_print_level;    // Controls the amount and style of printing. Higher values print more
