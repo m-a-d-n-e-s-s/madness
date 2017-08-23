@@ -1146,7 +1146,14 @@ namespace madness {
     /// \attention You must instantiate the pool while running with just one
     /// thread.
     class ThreadPool {
-    private:
+    public:
+      // non-copyable and non-movable
+      ThreadPool(const ThreadPool&) = delete;
+      ThreadPool(ThreadPool&&) = delete;
+      void operator=(const ThreadPool&) = delete;
+      void operator=(ThreadPool&&) = delete;
+
+     private:
         friend class WorldTaskQueue;
 
         // Thread pool data
@@ -1170,11 +1177,6 @@ namespace madness {
         /// \todo Description needed.
         /// \param[in] nthread Description needed.
         ThreadPool(int nthread=-1);
-
-        /// \todo Could we use C++11's `= delete` to hide this?
-        ThreadPool(const ThreadPool&);           // Verboten
-        /// \todo Could we use C++11's `= delete` to hide this?
-        void operator=(const ThreadPool&);       // Verboten
 
         /// Get the number of threads from the environment.
 
