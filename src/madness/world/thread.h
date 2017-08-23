@@ -1062,7 +1062,7 @@ namespace madness {
         /// \throw std::bad_alloc Description needed.
         /// \param[in] size Description needed.
         /// \return Description needed.
-        static inline void * operator new(std::size_t size) throw(std::bad_alloc) {
+        static inline void * operator new(std::size_t size) {
              return ::operator new(size, tbb::task::allocate_root());
         }
 
@@ -1071,7 +1071,7 @@ namespace madness {
         /// \param[in,out] p Pointer to the task object (or array of task
         ///     objects) to be destroyed.
         /// \param[in] size The size of the array.
-        static inline void operator delete(void* p, std::size_t size) throw() {
+        static inline void operator delete(void* p, std::size_t size) noexcept {
             if(p != nullptr) {
                 tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
             }
