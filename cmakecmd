@@ -1,0 +1,7 @@
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/generic-mkl-tbb.cmake \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DBUILD_SHARED_LIBS=OFF \
+      ..
+
+#      -DBLA_STATIC=TRUE 
+

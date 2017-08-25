@@ -33,6 +33,7 @@
 #define MADNESS_DERIVATIVE_H__INCLUDED
 
 #include <iostream>
+#include <fstream>
 #include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/print.h>
@@ -282,6 +283,8 @@ namespace madness {
         const functionT g1;  ///< Function describing the boundary condition on the right side
         const functionT g2;  ///< Function describing the boundary condition on the left side
 
+        bool is_second;
+
         // Tensors for holding the modified coefficients
         Tensor<double> rm, r0, rp        ; ///< Blocks of the derivative operator
         Tensor<double> rmt, r0t, rpt     ; ///< Blocks of the derivative operator, transposed
@@ -290,6 +293,15 @@ namespace madness {
         Tensor<double> right_r0, right_rp; ///< Blocks of the derivative for the right boundary
         Tensor<double> right_r0t, right_rpt; ///< Blocks of the derivative for the right boundary
         Tensor<double> bv_left, bv_right ; ///< Blocks of the derivative operator for the boundary contribution
+
+
+        // Tensors for the bspline smoothed central difference operator
+        Tensor<double> r0_bsp; 
+        Tensor<double> rm_bsp; 
+        Tensor<double> rp_bsp; 
+        Tensor<double> r0_bsp_t; 
+        Tensor<double> rm_bsp_t; 
+        Tensor<double> rp_bsp_t; 
 
         void do_diff2b(const implT* f, implT* df, const keyT& key,
                        const argT& left,
@@ -318,7 +330,10 @@ namespace madness {
                 d+=transform_dir(tensor_center,right_r0t,this->axis);
             }
 
-            d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev));
+            double fac = FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev);
+            if (is_second) fac *= fac;
+        
+            d.scale(fac);
             d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
 
@@ -409,7 +424,10 @@ namespace madness {
             d+=transform_dir(tensor_center,r0t,this->axis);
             d+=transform_dir(tensor_right,rmt,this->axis);
 
-            d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
+            double fac = FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level());
+            if (is_second) fac *= fac;
+        
+            d.scale(fac);
             d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
 
@@ -418,6 +436,8 @@ namespace madness {
         }
 
         void initCoefficients()  {
+            is_second = false;
+            
             r0 = Tensor<double>(this->k,this->k);
             rp = Tensor<double>(this->k,this->k);
             rm = Tensor<double>(this->k,this->k);
@@ -431,7 +451,6 @@ namespace madness {
             // These are the coefficients for the boundary contribution
             bv_left  = Tensor<double>(this->k);
             bv_right = Tensor<double>(this->k);
-
 
             int bc_left  = this->bc(this->axis,0);
             int bc_right = this->bc(this->axis,1);
@@ -579,6 +598,58 @@ namespace madness {
         }
 
         virtual ~Derivative() { }
+
+        // void use_bsp_transpose() {
+        //     r0=r0_bsp_t; r0t=r0_bsp; left_r0=r0_bsp_t; left_r0t=r0_bsp; right_r0=r0_bsp_t; right_r0t=r0_bsp;
+            
+        //     rp=rp_bsp_t; rpt=rp_bsp; right_rp=rp_bsp_t; right_rpt=rp_bsp;
+            
+        //     rm=rm_bsp_t; rmt=rm_bsp; left_rm=rm_bsp_t; left_rmt=rm_bsp;
+        // }
+
+        void set_is_second(bool value=true) {is_second = value;}
+
+        void read_from_file(const std::string& filename) {
+
+            Tensor<double> r0_bsp(this->k,this->k);
+            Tensor<double> rp_bsp(this->k,this->k);
+            Tensor<double> rm_bsp(this->k,this->k);
+
+            std::ifstream f(filename);
+            bool found=false;
+            for (int m; f >> m; ) {
+                if (m == this->k) {
+                    for (int i=0; i<m; i++)
+                        for (int j=0; j<m; j++)
+                            MADNESS_ASSERT(f >> rp_bsp(i,j));
+                    for (int i=0; i<m; i++)
+                        for (int j=0; j<m; j++)
+                            MADNESS_ASSERT(f >> r0_bsp(i,j));
+                    for (int i=0; i<m; i++)
+                        for (int j=0; j<m; j++)
+                            MADNESS_ASSERT(f >> rm_bsp(i,j));
+                    found = true;
+                    break;
+                }
+                else {
+                    double junk;
+                    for (int i=0; i<3*m*m; i++)
+                        MADNESS_ASSERT(f >> junk);
+                }
+            }
+            MADNESS_ASSERT(found);
+            Tensor<double> r0_bsp_t = transpose(r0_bsp);
+            Tensor<double> rp_bsp_t = transpose(rp_bsp);
+            Tensor<double> rm_bsp_t = transpose(rm_bsp);
+            
+            r0=r0_bsp; r0t=r0_bsp_t; left_r0=r0_bsp; left_r0t=r0_bsp_t; right_r0=r0_bsp; right_r0t=r0_bsp_t;
+            
+            rp=rp_bsp; rpt=rp_bsp_t; right_rp=rp_bsp; right_rpt=rp_bsp_t;
+            
+            rm=rm_bsp; rmt=rm_bsp_t; left_rm=rm_bsp; left_rmt=rm_bsp_t;
+        }
+
+        
     };
 
 
