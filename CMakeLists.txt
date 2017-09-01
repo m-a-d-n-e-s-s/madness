@@ -15,6 +15,7 @@ set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS
 # Add module directory and modules =============================================
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
+include(AddOptions)
 include(AppendFlags)
 include(CheckIncludeFile)
 include(CheckTypeSize)
@@ -26,6 +27,10 @@ include(AddMADLibrary)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
+
+# workaround for cmake bug: CheckCXXSourceCompiles does not respect CXX_STANDARD
+# see https://github.com/OPM/opm-common/blob/master/cmake/Modules/FindCXX11Features.cmake
+add_options(CXX ALL_BUILDS ${CMAKE_CXX14_STANDARD_COMPILE_OPTION})
 
 # Set install paths ============================================================
 
