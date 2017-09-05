@@ -396,7 +396,7 @@ namespace madness {
                         trans[d].VT = 0;
                     }
                     else {
-                        //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+                        r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
                         if (r == 0) {
                             rank_is_zero = true;
                             break;
@@ -438,7 +438,7 @@ namespace madness {
                         trans[d].VT = 0;
                     }
                     else {
-                        //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+                        r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
                         if (r == 0) {
                             rank_is_zero = true;
                             break;

@@ -1,0 +1,22 @@
+To calculate CC2 ground-state and excitation energies:
+
+Changes in operator.h are needed! (on all  branches except cc2-paper-2017 or cc2 tag)
+See the corresponding commit on the cc2-paper-2017 branch or the comment at the end of this file
+
+Configure Madness with Gentensor!
+Autotools: '--enable-gentensor' 
+Cmake: -D ENABLE_GENTENSOR=ON
+-- autotools is recommended for this commit -- 
+
+Compile Madness Libraries
+Compile cc2 in the src/examples directory
+
+Execute cc2 in the src/examples directory
+(example input file can be found in the examples directory as well (only on the cc2-paper-2017 branch).
+
+
+If you check out the current (September 2017 and before)  version of madness and not the cc2-tag or cc2-paper-2017 branch:
+In oder to get the 6D Operations to work properly you need to change 2 lines in src/madness/mra/operator.h
+which both look like:
+//r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+-> comment this back in

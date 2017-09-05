@@ -1,0 +1,44 @@
+plot
+ plane x1 x2
+ zoom 1.0
+ npoints 50
+ origin 0.0 0.0 0.0
+end
+
+dft
+ xc hf
+ k 5
+ econv 1.0e-5
+ dconv 3.0e-5
+ protocol 1.0e-5
+ canon
+ L 30
+ nuclear_corrfac slater
+ no_orient
+end
+
+# CC2 Input: further keywords:
+# no_compute_gs if gs is already computed and the files are in the exec directory
+# calculation lrccs, mp2, cc2, cispd for CIS, MP2, CC2(ground state), CIS(D) 
+
+cc2
+ QtAnsatz
+ calculation lrcc2
+ thresh_6D 1.0e-3
+ thresh_3D 1.0e-5
+ dconv_3D 5.e-4
+ econv 5.e-5
+ kain
+ kain_subspace 3
+ freeze 1
+ iter_max 5
+ iter_max_3D 10
+ iter_max_6D 5
+ excitation 0
+end
+
+geometry
+o   0.00000000000000      0.00000000000000     -0.74803583254128  
+h   1.43358660382183      0.00000000000000      0.37401791627063  
+h  -1.43358660382183      0.00000000000000      0.37401791627063  
+end
