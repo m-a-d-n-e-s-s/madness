@@ -5,7 +5,8 @@ set(EXAMPLE_SOURCES
     sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio 
     dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver
     testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver
-    cc2 nemo helium_exact density_smoothing siam_example lrccs ac_corr testd)
+    cc2 nemo helium_exact density_smoothing siam_example lrccs ac_corr testd
+    mshf_mra2016)    
  
 if(LIBXC_FOUND)
   list(APPEND EXAMPLE_SOURCES hefxc)
