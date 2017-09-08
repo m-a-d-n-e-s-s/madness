@@ -96,6 +96,7 @@ namespace madness {
     }
     
   static double pop(std::vector<double>& v) {
+    MADNESS_ASSERT(v.size());
     double x=v.back();
     v.pop_back();
     return x;
@@ -2363,7 +2364,6 @@ namespace madness {
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 normalize(world, amo);
-                END_TIMER(world, "Rotate subspace");
                 if (!param.spin_restricted && param.nbeta != 0) {
 		  if (param.localize_pm)
                     dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, true);
