@@ -24,6 +24,8 @@ typedef int MPI_Comm;
 #define MPI_COMM_WORLD (0x44000000)
 #define MPI_UNDEFINED      (-32766)
 
+typedef MPI_Errhandler int;
+
 /* MPI's error classes */
 /* these constants are consistent with MPICH2 mpi.h */
 #define MPI_SUCCESS          0      /* Successful return code */
@@ -228,7 +230,7 @@ inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
     return MPI_SUCCESS;
 }
 
-inline int MPI_Errhandler_set(MPI_Comm comm, int errhandler) {return MPI_SUCCESS;}
+inline int MPI_Comm_set_errhandler(MPI_Comm comm, MPI_Errhandler errhandler) {return MPI_SUCCESS;}
 
 inline double MPI_Wtime() { return madness::wall_time(); }
 

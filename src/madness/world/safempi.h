@@ -794,7 +794,7 @@ namespace SafeMPI {
         inline void init_comm_world() {
             MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.pimpl->comm, & COMM_WORLD.pimpl->me));
             MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.pimpl->comm, & COMM_WORLD.pimpl->numproc));
-            MADNESS_MPI_TEST(MPI_Errhandler_set(COMM_WORLD.pimpl->comm, MPI_ERRORS_RETURN));
+            MADNESS_MPI_TEST(MPI_Comm_set_errhandler(COMM_WORLD.pimpl->comm, MPI_ERRORS_RETURN));
         }
 
     }  // namespace detail
