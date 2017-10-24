@@ -386,7 +386,27 @@ namespace madness {
             double safety = 0.1;
             vtol = FunctionDefaults<NDIM>::get_thresh() * safety;
             coulop = poperatorT(CoulombOperatorPtr(world, param.lo, thresh));
+
+            // Bryan's edits for derivative testing
             gradop = gradient_operator<double,3>(world);
+            // Didn't know how to do this intelligently...
+            if(param.deriv == "bspline")
+            {
+               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/deriv-bsp.k=m+1.n=m+1");
+            }
+            else if(param.deriv == "ph1")
+            { 
+               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv.txt");
+            }
+            else if(param.deriv == "ph2")
+            { 
+               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv-2.txt");
+            }
+            else if(param.deriv == "prolate")
+            { 
+               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-joel");
+            }
+
             mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
             if(world.rank() == 0){
                 print("\nSolving NDIM=",NDIM," with thresh", thresh, "    k",

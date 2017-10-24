@@ -126,6 +126,10 @@ struct CalculationParameters {
     double efield;                    ///< eps for finite field
     double efield_axis;               ///< eps for finite field axis
 
+    // Bryan's modifications for new derivative testing
+    // Also added these to serialize
+    std::string deriv;       ///< Which method of derivative should be used for the KE matrix
+    std::string dft_deriv;    ///< Which method of derivative should be used for dft functional
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -138,7 +142,7 @@ struct CalculationParameters {
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
         & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf & restart_cphf
-        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data;
+        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data & deriv & dft_deriv;
     }
 
     CalculationParameters()
@@ -210,6 +214,8 @@ struct CalculationParameters {
     , rconv(1e-6)
     , efield(0.0)
     , efield_axis(0)
+    , deriv("abgv")
+    , dft_deriv("abgv")
     {}
 
     // initializes CalculationParameters using the contents of file \c filename
@@ -474,6 +480,19 @@ struct CalculationParameters {
                 else if (axis == "none")
                     efield_axis = -1;
             }
+
+            // Bryan edit for derivative
+            // Available options are:
+            //   bspline  -->  uses robert's bsplines
+            //   ph1      -->  uses whatever is in ph-spline-deriv.txt
+            //   ph2      -->  uses whatever is in ph-spline-deriv-2.txt
+            //   prolate  -->  uses whatever is in prolates-joel
+            else if (s == "deriv") {
+               f >> deriv;
+            }
+            else if (s == "dft_deriv") {
+               f >> dft_deriv;
+            }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -556,6 +575,9 @@ struct CalculationParameters {
         madness::print("    polynomial order ", k);
         madness::print("       truncate mode ", FunctionDefaults<3>::get_truncate_mode());
         madness::print("  maximum iterations ", maxiter);
+        // Bryan edit
+        madness::print("  KE derivative type ", deriv);
+        madness::print(" DFT derivative type ", dft_deriv);
         if (conv_only_dens)
             madness::print(" Convergence criterion is only density delta.");
         else

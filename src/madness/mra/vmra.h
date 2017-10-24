@@ -1099,10 +1099,96 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         std::vector<Function<T,NDIM> > result(NDIM);
-        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
         if (fence) world.gop.fence();
         return result;
     }
+    // Bryan's edits for derivatives... the next 4 functions
+    // Function 1: bspline derivative
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_bspline(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/deriv-bsp.k=m+1.n=m+1");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Function 2: ph1 derivative 
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_ph1(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv.txt");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Function 3: ph2 derivative
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_ph2(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv-2.txt");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Function 4: prolate derivative
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_prolate(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-joel");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+
 
     /// shorthand div operator
 

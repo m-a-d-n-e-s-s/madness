@@ -408,10 +408,13 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
 
 }
 
+// Bryan's edits added in std::string deriv to 3 of the following constructors
+
 /// custom ctor with information about the XC functional
 XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polarized,
-        const real_function_3d& arho, const real_function_3d& brho)
-    : world(world), nbeta(0), ispin(0), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
+        const real_function_3d& arho, const real_function_3d& brho, std::string deriv)
+    : world(world), nbeta(0), ispin(0), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01),
+      dft_deriv(deriv) {
 
     nbeta=(brho.norm2()>0.0);   // does this make sense
 
@@ -421,8 +424,8 @@ XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polari
     xc_args=prep_xc_args(arho,brho);
 }
 
-XCOperator::XCOperator(World& world, const SCF* calc, int ispin) : world(world),
-        ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
+XCOperator::XCOperator(World& world, const SCF* calc, int ispin, std::string deriv) : world(world),
+        ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01), dft_deriv(deriv) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(calc->param.xc_data, !calc->param.spin_restricted, world);
     nbeta=calc->param.nbeta;
@@ -466,9 +469,9 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
 
 
 XCOperator::XCOperator(World& world, const SCF* calc, const real_function_3d& arho,
-        const real_function_3d& brho, int ispin)
+        const real_function_3d& brho, int ispin, std::string deriv)
         : world(world), nbeta(calc->param.nbeta), ispin(ispin),
-          extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
+          extra_truncation(FunctionDefaults<3>::get_thresh()*0.01), dft_deriv(deriv) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(calc->param.xc_data, !calc->param.spin_restricted, world);
     xc_args=prep_xc_args(arho,brho);
@@ -634,7 +637,13 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
     if (xc->is_gga()) {
 
         real_function_3d logdensa=unary_op(arho,logme());
-        vecfuncT grada=grad(logdensa);
+        // Bryan's edits for derivatives
+        vecfuncT grada;
+        if(dft_deriv == "bspline") grada=grad_bspline(logdensa);       // b-spline
+        else if(dft_deriv == "ph1") grada=grad_ph1(logdensa);          // whatever ph1 is
+        else if(dft_deriv == "ph2") grada=grad_ph2(logdensa);          // whatever ph2 is
+        else if(dft_deriv == "prolate") grada=grad_prolate(logdensa);  // prolates
+        else grada=grad(logdensa);                                     // Default is abgv
         real_function_3d chi=dot(world,grada,grada);
         xcargs[XCfunctional::enum_chi_aa]=chi;
         xcargs[XCfunctional::enum_zetaa_x]=grada[0];
@@ -643,7 +652,13 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
 
         if (have_beta) {
             real_function_3d logdensb=unary_op(brho,logme());
-            vecfuncT gradb=grad(logdensb);
+            // Bryan's edits for derivatives
+            vecfuncT gradb;
+            if(dft_deriv == "bspline") gradb=grad_bspline(logdensa);       // b-spline
+            else if(dft_deriv == "ph1") gradb=grad_ph1(logdensa);          // whatever ph1 is
+            else if(dft_deriv == "ph2") gradb=grad_ph2(logdensa);          // whatever ph2 is
+            else if(dft_deriv == "prolate") gradb=grad_prolate(logdensa);  // prolates
+            else gradb=grad(logdensa);                                     // Default is abgv 
             real_function_3d chib=dot(world,gradb,gradb);
             real_function_3d chiab=dot(world,grada,gradb);
             xcargs[XCfunctional::enum_zetab_x]=gradb[0];

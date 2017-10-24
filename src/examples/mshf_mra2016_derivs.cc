@@ -39,6 +39,10 @@
 
 // #include <mpreal.h>
 
+const char* DATA_PATH =    "/gpfs/projects/rjh/mad-der/src/madness/mra/deriv-bsp.k=m+1.n=m+1";
+//const char* DATA_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv.txt";
+//const char* DATA_PATH=   "/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-joel";
+
 using namespace madness;
 
 // Definitions of functions, function-vectors, operators
@@ -940,6 +944,10 @@ const comp_vecfuncT& uu, const comp_vecfuncT& ud)
     comp_functionT lapl = comp_factoryT(world);
     complex_derivative_3d Dx(world, 0);
 
+    // Bryan's edit
+    // Change derivative type
+    Dx.read_from_file(DATA_PATH);
+ 
     comp_vecfuncT duc = conj(world, dux);
     comp_vecfuncT ddc = conj(world, ddx);
 
@@ -981,6 +989,11 @@ const comp_vecfuncT& uu, const comp_vecfuncT& ud)
     compress(world, term);
 
     complex_derivative_3d Dy(world, 1);
+
+    // Bryan's edit
+    // Change derivative type
+    Dy.read_from_file(DATA_PATH);
+
     duc = conj(world, duy);
     ddc = conj(world, ddy);
 
@@ -995,6 +1008,11 @@ const comp_vecfuncT& uu, const comp_vecfuncT& ud)
     compress(world, term);
 
     complex_derivative_3d Dz(world, 2);
+
+    // Bryan's edit
+    // Change derivative type
+    Dz.read_from_file(DATA_PATH);
+  
     duc = conj(world, duz);
     ddc = conj(world, ddz);
     compress(world, duc);
@@ -1033,6 +1051,11 @@ const comp_vecfuncT& uu, const comp_vecfuncT& ud)
     comp_functionT laplz = comp_factoryT(world);
 
     complex_derivative_3d Dx(world, 0);
+
+    // Bryan's edit
+    // Change derivative type
+    Dx.read_from_file(DATA_PATH);
+
     comp_vecfuncT termx = mul(world, conj(world, dux), uu);
     compress(world, termx);
     world.gop.fence();
@@ -1045,6 +1068,11 @@ const comp_vecfuncT& uu, const comp_vecfuncT& ud)
     comp_vecfuncT Dtermx = apply(world, Dx, termx);
 
     complex_derivative_3d Dy(world, 1);
+
+    // Bryan's edit
+    // Change derivative type
+    Dy.read_from_file(DATA_PATH);
+
     comp_vecfuncT termy = mul(world, conj(world, duy), uu);
     compress(world, termy);
     world.gop.fence();
@@ -1057,6 +1085,11 @@ const comp_vecfuncT& uu, const comp_vecfuncT& ud)
     comp_vecfuncT Dtermy = apply(world, Dy, termy);
 
     complex_derivative_3d Dz(world, 2);
+
+    // Bryan's edit
+    // Change derivative type
+    Dz.read_from_file(DATA_PATH);
+
     comp_vecfuncT termz = mul(world, conj(world, duz), uu);
     compress(world, termz);
     world.gop.fence();
@@ -1100,13 +1133,31 @@ real_functionT laplacian(World& world, const real_functionT& u, const double bra
 {
     double ntol = FunctionDefaults<3>::get_thresh() * prec;
 
-    real_functionT dux = real_derivative_3d(world,0)(u);
-    real_functionT duy = real_derivative_3d(world,1)(u);
-    real_functionT duz = real_derivative_3d(world,2)(u);
+    // Bryan's edits
+    //real_functionT dux = real_derivative_3d(world,0)(u);
+    //real_functionT duy = real_derivative_3d(world,1)(u);
+    //real_functionT duz = real_derivative_3d(world,2)(u);
 
-    real_functionT d2ux = real_derivative_3d(world,0)(dux); 
-    real_functionT d2uy = real_derivative_3d(world,1)(duy); 
-    real_functionT d2uz = real_derivative_3d(world,2)(duz); 
+    //real_functionT d2ux = real_derivative_3d(world,0)(dux); 
+    //real_functionT d2uy = real_derivative_3d(world,1)(duy); 
+    //real_functionT d2uz = real_derivative_3d(world,2)(duz); 
+
+    real_derivative_3d Dx(world, 0);
+    Dx.read_from_file(DATA_PATH);
+
+    real_derivative_3d Dy(world, 1);
+    Dy.read_from_file(DATA_PATH);
+ 
+    real_derivative_3d Dz(world, 2);
+    Dz.read_from_file(DATA_PATH);
+
+    real_functionT dux = Dx(u);
+    real_functionT duy = Dy(u);
+    real_functionT duz = Dz(u);
+
+    real_functionT d2ux = Dx(dux);
+    real_functionT d2uy = Dy(duy);
+    real_functionT d2uz = Dz(duz); 
 
     real_functionT lap  = d2ux + d2uy + d2uz;
     lap.truncate(ntol);
@@ -1138,9 +1189,15 @@ const comp_vecfuncT& ddx, const comp_vecfuncT& ddy, const comp_vecfuncT& ddz)
     compress(world, Vu);
     compress(world, Vd);
 
+    // Bryan's edits
     complex_derivative_3d Dx(world, 0);
+    Dx.read_from_file(DATA_PATH);
+
     complex_derivative_3d Dy(world, 1);
+    Dy.read_from_file(DATA_PATH);
+
     complex_derivative_3d Dz(world, 2); 
+    Dz.read_from_file(DATA_PATH);
 
     comp_vecfuncT Ueff1u = apply(world, Dx, mul(world, B, dux));
     comp_vecfuncT Ueff2u = apply(world, Dy, mul(world, B, duy));
@@ -1206,13 +1263,32 @@ const comp_vecfuncT& ddy, const comp_vecfuncT& duz, const comp_vecfuncT& ddz)
     W.reconstruct();
     world.gop.fence();      // FENCE
 
-    real_functionT Wx = real_derivative_3d(world,0)(W);
-    real_functionT Wy = real_derivative_3d(world,1)(W);
-    real_functionT Wz = real_derivative_3d(world,2)(W);
-  
-    complex_derivative_3d Dx(world, 0);
+    // Bryan's edits change D type here  
+    //real_functionT Wx = real_derivative_3d(world,0)(W);
+    //real_functionT Wy = real_derivative_3d(world,1)(W);
+    //real_functionT Wz = real_derivative_3d(world,2)(W);
+
+    real_derivative_3d derx(world, 0);
+    derx.read_from_file(DATA_PATH);
+
+    real_derivative_3d dery(world, 1);
+    dery.read_from_file(DATA_PATH);
+ 
+    real_derivative_3d derz(world, 2);
+    derz.read_from_file(DATA_PATH);
+
+    real_functionT Wx = derx(W);
+    real_functionT Wy = dery(W);
+    real_functionT Wz = derz(W);
+
+    complex_derivative_3d Dx(world, 0); 
     complex_derivative_3d Dy(world, 1);
     complex_derivative_3d Dz(world, 2);
+
+    // Bryan's edits
+    Dx.read_from_file(DATA_PATH);
+    Dy.read_from_file(DATA_PATH);
+    Dz.read_from_file(DATA_PATH);
 
     compress(world, Vu);
     compress(world, Vv);
@@ -1276,6 +1352,11 @@ const comp_vecfuncT& ddy, const comp_vecfuncT& duz, const comp_vecfuncT& ddz)
     complex_derivative_3d Dy(world, 1);
     complex_derivative_3d Dz(world, 2);
 
+    // Bryan's edits
+    Dx.read_from_file(DATA_PATH);
+    Dy.read_from_file(DATA_PATH);
+    Dz.read_from_file(DATA_PATH);
+
     temp_u = apply(world, Dx, dux);                            
     truncate(world, temp_u, ntol);                              // IS
     gaxpy(world, one, temp_u, double_complex(1,0), apply(world, Dy, duy));
@@ -1324,6 +1405,11 @@ const comp_vecfuncT& u, const comp_vecfuncT& v)
     complex_derivative_3d Dx(world, 0);
     complex_derivative_3d Dy(world, 1);
     complex_derivative_3d Dz(world, 2);
+
+    // Bryan's edits
+    Dx.read_from_file(DATA_PATH);
+    Dy.read_from_file(DATA_PATH);
+    Dz.read_from_file(DATA_PATH);
 
     comp_vecfuncT dJ = mul(world, conj(world, dux), duy);
     truncate(world, dJ, ntol);
@@ -1589,6 +1675,11 @@ void iterate(World& world,
     complex_derivative_3d Dy(world, 1);
     complex_derivative_3d Dz(world, 2);
     
+    // Bryan's edits
+    Dx.read_from_file(DATA_PATH);
+    Dy.read_from_file(DATA_PATH);
+    Dz.read_from_file(DATA_PATH);
+    
     comp_vecfuncT dux = apply(world, Dx, uu);
     truncate(world, dux, ntol);                       
     comp_vecfuncT duy = apply(world, Dy, uu);
@@ -1827,7 +1918,7 @@ double Ebinding(World& world, const real_functionT& rho_p, const real_functionT&
             fprintf(fid1,"%s \t%u\n","Iteration:",iter);
             fprintf(fid1,"%s\n","Energies integrated from density functional: ");
             fprintf(fid1,"\n");
-            fprintf(fid1,"%s \t%16.8f,\t%s \t%16.8f,\t%s \t%16.8f\n","E0 part:",E0,"E1 part:",E1,"E2 part:",E2);
+            fprintf(fid1,"%s \t%16.8f,\t%s \t%16.8f,\t%s \t%18.8f\n","E0 part:",E0,"E1 part:",E1,"E2 part:",E2);
             fprintf(fid1,"%s \t%16.8f,\t%s \t%16.8f\n","E3 part:",E3,"E4 part:",E4);
             fprintf(fid1,"%s \t%16.8f,\t%s \t%16.8f,\t%s \t%16.8f\n","Coulomb:",Ec + Eex,"Direct:",Ec,"Exchange:",Eex);
             fprintf(fid1,"%s \t%16.8f\n","Kinetic:",Ekin);
@@ -1970,6 +2061,11 @@ void Potential(World& world,
 
     if(world.rank() == 0){print("   Make derivatives 1");}
     complex_derivative_3d Dx(world, 0);
+    
+    // Bryan's edits
+    // Change derivative type
+    Dx.read_from_file(DATA_PATH);
+ 
     comp_vecfuncT dpux = apply(world, Dx, pu); 
     comp_vecfuncT dpdx = apply(world, Dx, pd);
 //    truncate(world, dpux, ntol);                      // IS
@@ -1977,6 +2073,11 @@ void Potential(World& world,
 
     if(world.rank() == 0){print("   Make derivatives 2");}
     complex_derivative_3d Dy(world, 1);
+
+    // Bryan's edits
+    // Change derivative type
+    Dy.read_from_file(DATA_PATH);
+
     comp_vecfuncT dpuy = apply(world, Dy, pu);
     comp_vecfuncT dpdy = apply(world, Dy, pd);
 //    truncate(world, dpuy, ntol);                      // IS
@@ -1985,6 +2086,11 @@ void Potential(World& world,
 
     if(world.rank() == 0){print("   Make derivatives 3");}
     complex_derivative_3d Dz(world, 2);
+
+    // Bryan's edits
+    // Change derivative type
+    Dz.read_from_file(DATA_PATH);
+
     comp_vecfuncT dpuz = apply(world, Dz, pu);
     comp_vecfuncT dpdz = apply(world, Dz, pd);
 //    truncate(world, dpuz, ntol);                      // IS
@@ -2785,6 +2891,8 @@ int main(int argc, char** argv)
   try {
     startup(world,argc,argv);
     //print_meminfo(world.rank(), "startup");
+
+    print("Deriv type:", DATA_PATH);
 
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
     std::cout.precision(8);
