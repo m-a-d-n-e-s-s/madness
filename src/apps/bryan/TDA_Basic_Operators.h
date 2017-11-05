@@ -89,9 +89,12 @@ std::vector<std::vector<real_function_3d>> scale_2d(World & world,
    for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
-      result.push_back(transform(world, a[i], b));
+      // TESTING the false!!!!!!!!!!!!!!1
+      result.push_back(transform(world, a[i], b, false));
    }
 
+   // TESTING the fence!!!!!!!!!!!!!!!
+   a[0][0].world().gop.fence();
    return result;
 }
 
@@ -187,8 +190,8 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
  */
 
 // Subtraction of two vectors of vectors g[i][j] = a[i][j] - b[i][j]
-std::vector<std::vector<real_function_3d>> operator-(std::vector<std::vector<real_function_3d>> a,
-                                                     std::vector<std::vector<real_function_3d>> b)
+std::vector<std::vector<real_function_3d>> operator-(const std::vector<std::vector<real_function_3d>> & a,
+                                                     const std::vector<std::vector<real_function_3d>> & b) 
 {
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a.size() == b.size());
@@ -204,8 +207,8 @@ std::vector<std::vector<real_function_3d>> operator-(std::vector<std::vector<rea
    return result;
 }
 
-// Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b(i)
-std::vector<std::vector<real_function_3d>> operator*(std::vector<std::vector<real_function_3d>> a,
+// Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b
+std::vector<std::vector<real_function_3d>> operator*(std::vector<std::vector<real_function_3d>> & a,
                                                      double b)
 {
    MADNESS_ASSERT(a.size() > 0);
@@ -224,7 +227,7 @@ std::vector<std::vector<real_function_3d>> operator*(std::vector<std::vector<rea
 
 // Addition in place of a vector of vector of functions
 void operator+=(std::vector<std::vector<real_function_3d>> & a,
-                std::vector<std::vector<real_function_3d>> b)
+                const std::vector<std::vector<real_function_3d>> & b)
 {
    MADNESS_ASSERT(a.size() > 0);
    MADNESS_ASSERT(a.size() == b.size()); 

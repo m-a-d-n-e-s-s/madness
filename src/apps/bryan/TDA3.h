@@ -53,14 +53,14 @@
 #include <random>
 #include <algorithm> 
 #include "../chem/molecule.h"
-
-
+#include "ResponseParameters.h"
+#include "GroundParameters.h"
 
 
 using namespace madness;
 
 // Functor from SCF.cc (it wasn't linking right, no idea why, so just copied and renamed here)
-// A copy of a MADNESS functor to compute the cartesian moment x^i * y^j * z^k (i, j, k integer and >= 0)
+// A copy of a MADNESS functor to compute the cartesian moment x^i * y^j * z^k (i, j, k integer a    nd >= 0)
 class BS_MomentFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const int i, j, k;
@@ -113,6 +113,9 @@ public:
     }
 };
 
+
+
+
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
 class TDA 
@@ -120,67 +123,42 @@ class TDA
    private:
       // Member variables
 
-      // For timers
-      std::vector<double> tda_ttt;
-      std::vector<double> tda_sss;
+      // ResponseParameter object to hold all user input variables
+      ResponseParameters Rparams;
+
+      // GroundParameter object to hold all variables needed from
+      // ground state calculation. Read from an archive
+      GroundParameters Gparams;
+
+      // Timer variables
+      std::vector<double> sss, ttt;
 
       // Tensors for holding energies 
       // residuals, and shifts
-      Tensor<double> tda_omega;        // Energies of response functions
-      Tensor<double> tda_e_residuals;  // Residuals of energies
+      Tensor<double> omega;        // Energies of response functions
+      Tensor<double> e_residuals;  // Residuals of energies
 
-      // Information that is loaded from input file
-      std::vector<real_function_3d> tda_orbitals;         // Ground state orbitals
-      std::vector<real_function_3d> tda_act_orbitals;     // Ground state orbitals being used in calculation
-      bool tda_spinrestricted;                            // Indicates open or closed shell
-      Tensor<double> tda_ground_energies;                 // Ground state energies
-      Tensor<double> tda_act_ground_energies;             // Ground state energies being used for calculation
-      Tensor<double> tda_hamiltonian;                     // Ground state hamiltonian tensor 
-                                                          //    (Used when localized orbitals are given)
-      std::vector<int> tda_active;                        // The labels of orbitals selected as "active"
-      unsigned int tda_num_orbitals;                      // Number of ground state orbitals
-      unsigned int tda_act_num_orbitals;                  // Number of ground state orbitals being used in calculation
-      Tensor<double> tda_occ;                             // Occupied orbital occupation numbers
-      double tda_L;                                       // Box size
-      int tda_order;                                      // Wavelet order
-      Molecule tda_molecule;                              // The molecule object from ground state calculation
-      double tda_thresh;                                  // Derived from 'order' (thresh = 10^(-order + 2))
-      double tda_small;                                   // Just chose 1e-4 (arbitrary, smallest distance to resolve)
+      // Information that is inferred from input file
+      std::vector<real_function_3d> act_orbitals;     // Ground state orbitals being used in calculation
+      Tensor<double> act_ground_energies;             // Ground state energies being used for calculation
+      Tensor<double> hamiltonian;                     // Ground state hamiltonian tensor 
+                                                      //    (Used when localized orbitals are given)
+      std::vector<int> active;                        // The labels of orbitals selected as "active"
+      unsigned int act_num_orbitals;                  // Number of ground state orbitals being used in calculation
 
       // Functions
-      std::vector<std::vector<real_function_3d>> tda_x_response;   // Excited states to be solved for. 
-                                                                   //    Note on storage: The response functions are calculated
-                                                                   //    by calculating each transition of occupied --> virtual,
-                                                                   //    and thus the actual response function is a sum of of all
-                                                                   //    contributions to a specific virtual.
+      std::vector<std::vector<real_function_3d>> x_response;   // Excited states to be solved for. 
+                                                               //    Note on storage: The response functions are calculated
+                                                               //    by calculating each transition of occupied --> virtual,
+                                                               //    and thus the actual response function is a sum of of all
+                                                               //    contributions to a specific virtual.
                                                                    
-      std::vector<std::vector<real_function_3d>> tda_stored_potential;   // The ground state potential, stored only if tda_store_potential
-                                                                         // is true (default is true). Holds the integrals 
-                                                                         //   \int dr \frac{\phi_i^\dagger phi_j}{\left| r - r' \right|}
-
-      // User input variables
-      double tda_energy_threshold;
-      double tda_range_low;
-      double tda_range_high;
-      bool tda_plot_initial;
-      bool tda_plot_final;
-      int tda_max_iterations;
-      int tda_num_excited; 
-      bool tda_random_start;
-      bool tda_kain;
-      bool tda_store_potential;
-      int tda_print_level;    // Controls the amount and style of printing. Higher values print more
-                              //   Values |   What gets printed
-                              //   ----------------------------
-                              //     0    |   Only convergence information from
-                              //          |   each iteration. Default level.
-                              //   ----------------------------
-                              //     1    |   Changes style to print out each step
-                              //          |   in the calculation, along with timings
-                              //   ----------------------------
-                              //     2    |   Debug level. Prints EVERYTHING!!!
+      std::vector<std::vector<real_function_3d>> stored_potential;   // The ground state potential, stored only if store_potential
+                                                                     // is true (default is false). Holds the integrals 
+                                                                     //   \int dr \frac{\phi_i^\dagger phi_j}{\left| r - r' \right|}
 
    public:
+
       // Start a timer
       void start_timer(World & world);
 
@@ -190,42 +168,37 @@ class TDA
       // Stop a timer
       Tensor<double> end_timer(World & world);
 
-      // Constructor, everything is initialized inside here
-      TDA(World & world,           // MADNESS world object
-          char* input_file,        // File with converged ground-state orbitals
-                                   //    Note: You need to leave off the .00000 for this to work
-          int k,                   // Number of desired response functions
-          int print_level);        // Specifies how much printing should be done (see above)
+      // Collective constructor for response uses contents of file \c filename and broadcasts to all nodes
+      TDA(World & world,            // MADNESS world object
+          const char* input_file);  // Input file 
+
+      // Collective constructor for Response uses contens of steream \c input and broadcasts to all nodes
+      TDA(World & world,                        // MADNESS world object
+          std::shared_ptr<std::istream> input); // Pointer to input stream
 
       // Normalizes in the response sense
       void normalize(World & world,
-                     std::vector<std::vector<real_function_3d>> & f); 
+                     std::vector<std::vector<real_function_3d>> & f);
 
       // Prints norms of the given vector 
       void print_norms(World & world,
-                       std::vector<std::vector<real_function_3d>> function); 
-
-      // Prints relevant MADNESS parameters
-      void print_madness_params(World & world);
+                       std::vector<std::vector<real_function_3d>> function);
 
       // Prints molecule geometry
       void print_molecule(World & world);
 
-      // Prints response information
-      void print_response_params(World & world);
-
       // Returns a set of vector of vector of real_function_3d of proper size, initialized to zero
-      std::vector<std::vector<real_function_3d>> tda_zero_functions(World & world,
-                                                                    int m,
-                                                                    int n);
+      std::vector<std::vector<real_function_3d>> response_zero_functions(World & world,
+                                                                         int m,
+                                                                         int n);
 
       // Returns a list of symmetry related functions for correct
       // pointgroup of the provided molecule
       std::vector<real_function_3d> symmetry(World & world);
-     
+
       // Returns initial response functions
       std::vector<std::vector<real_function_3d>> create_trial_functions(World & world,
-                                                                        int k, 
+                                                                        int k,
                                                                         std::vector<real_function_3d> & orbitals,
                                                                         int print_level);
 
@@ -264,19 +237,11 @@ class TDA
                                                                   std::vector<std::vector<real_function_3d>> & f,
                                                                   int print_level);
 
-      // Returns the ground state potential applied to response functions
-      std::vector<std::vector<real_function_3d>> create_potential(World & world);
-      
-      // Returns a tensor, where entry (i,j) = inner(a[i], b[i,j])
-      Tensor<double> v_m_inner(World & world,
-                               std::vector<real_function_3d> & a,
-                               std::vector<std::vector<real_function_3d>> & b);
-
       // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
       Tensor<double> expectation(World & world,
                                  std::vector<std::vector<real_function_3d>> & a,
                                  std::vector<std::vector<real_function_3d>> & b);
- 
+
       // Returns the overlap matrix of the given response functions
       Tensor<double> create_overlap(World & world,
                                     std::vector<std::vector<real_function_3d>> & f,
@@ -287,7 +252,7 @@ class TDA
                                                              std::vector<std::vector<real_function_3d>> & V,
                                                              std::vector<std::vector<real_function_3d>> & f,
                                                              int print_level);
-                                                             
+
       // Returns the hamiltonian matrix, equation 45 from the paper
       Tensor<double> create_hamiltonian(World & world,
                                         std::vector<std::vector<real_function_3d>> & gamma,
@@ -334,12 +299,12 @@ class TDA
                                                               std::vector<std::vector<real_function_3d>> & f);
 
       // Returns the max norm of the given vector of functions
-      double calculate_max_residual(World & world, 
+      double calculate_max_residual(World & world,
                                     std::vector<std::vector<real_function_3d>> & f);
 
       // Selects the 'active' orbitals from ground state orbitals to be used in the calculation (based on energy distance
-      // from the HOMO.) Function has knowledge of tda_orbitals and tda_ground_energies. Function sets tda_act_orbitals and
-      // tda_num_act_orbitals.
+      // from the HOMO.) Function needs knowledge of Gparams.orbitals and Gparams.ground_energies. Function sets act_orbitals
+      // and num_act_orbitals.
       void select_active_subspace(World & world);
 
       // Selects from a list of functions and energies the k functions with the lowest 
@@ -348,7 +313,7 @@ class TDA
                                                                         std::vector<std::vector<real_function_3d>> & f,
                                                                         Tensor<double> & energies,
                                                                         int k,
-                                                                        int print_level); 
+                                                                        int print_level);
 
       // Calculates the exponentiation of a matrix through first order (I think)
       Tensor<double> matrix_exponential(const Tensor<double> & A);
@@ -364,11 +329,11 @@ class TDA
       Tensor<double> diag_fock_matrix(World & world,
                                       Tensor<double> & fock,
                                       std::vector<std::vector<real_function_3d>> & psi,
-                                      std::vector<std::vector<real_function_3d>> & Vpsi,                     
-                                      std::vector<std::vector<real_function_3d>> & gamma,                     
+                                      std::vector<std::vector<real_function_3d>> & Vpsi,
+                                      std::vector<std::vector<real_function_3d>> & gamma,
                                       Tensor<double> & evals,
                                       Tensor<double> & overlap,
-                                      const double thresh); 
+                                      const double thresh);
 
       // Transforms the given matrix of functions according to the given
       // transformation matrix. Used to update orbitals / potentials
@@ -380,8 +345,8 @@ class TDA
       Tensor<int> sort(World & world,
                        Tensor<double> & vals,
                        Tensor<double> & vals_residuals,
-                       std::vector<std::vector<real_function_3d>> & f, 
-                       std::vector<std::vector<real_function_3d>> & f_diff); 
+                       std::vector<std::vector<real_function_3d>> & f,
+                       std::vector<std::vector<real_function_3d>> & f_diff);
 
       // Prints iterate headers, used in default printing
       void print_iterate_headers(World & world);
@@ -403,10 +368,6 @@ class TDA
                              double small,
                              int print_level);
 
-      // Calculate polarizability tensor from response orbitals
-      Tensor<double> polarizability(World & world,
-                                    std::vector<std::vector<std::vector<real_function_3d>>> & f); 
-
       // Adds random noise to function f
       std::vector<std::vector<real_function_3d>> add_randomness(World & world,
                                                                 std::vector<std::vector<real_function_3d>> & f);
@@ -419,7 +380,11 @@ class TDA
 
       // Solves the response equations
       void solve(World & world);
+
 };
+
+
 #endif
 
 // Deuces
+
