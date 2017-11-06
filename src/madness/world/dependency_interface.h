@@ -130,7 +130,8 @@ namespace madness {
         void inc() {
             ScopedMutex<Spinlock> obolus(this);
 #if !defined(NDEBUG)
-            if (used_once) error("DependencyInterface::inc() called after all dependencies have been satisfied");
+            if (used_once)
+              assert(false && "DependencyInterface::inc() called after all dependencies have been satisfied");
 #endif
             ndepend++;
         }
@@ -142,10 +143,10 @@ namespace madness {
                 ScopedMutex<Spinlock> obolus(this);
                 MADNESS_ASSERT(ndepend > 0);
                 if (--ndepend == 0) {
-                    cb = std::move(const_cast<callbackT&>(callbacks));
 #if !defined(NDEBUG)
-                    used_once = true;
+                    if (!callbacks.empty()) used_once = true;
 #endif
+                    cb = std::move(const_cast<callbackT&>(callbacks));
                 }
             }
             do_callbacks(cb);
