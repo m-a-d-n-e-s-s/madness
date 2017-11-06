@@ -67,6 +67,9 @@ namespace madness {
         static const int MAXCALLBACKS = 8; ///< Maximum number of callbacks.
         using callbackT = Stack<CallbackInterface*,MAXCALLBACKS>; ///< \todo Brief description needed.
         mutable volatile callbackT callbacks; ///< Called ONCE by \c dec() when `ndepend==0`.
+#if !defined(NDEBUG)
+        mutable volatile bool used_once = false;  ///< Set to true when ndepend seaches 0.
+#endif
 
         /// \todo Brief description needed.
 
@@ -121,6 +124,9 @@ namespace madness {
         /// Increment the number of dependencies.
         void inc() {
             ScopedMutex<Spinlock> obolus(this);
+#if !defined(NDEBUG)
+            if (used_once) error("DependencyInterface::inc() called after all dependencies have been satisfied");
+#endif
             ndepend++;
         }
 
@@ -129,8 +135,12 @@ namespace madness {
             callbackT cb;
             {
                 ScopedMutex<Spinlock> obolus(this);
+                MADNESS_ASSERT(ndepend > 0);
                 if (--ndepend == 0) {
                     cb = std::move(const_cast<callbackT&>(callbacks));
+#if !defined(NDEBUG)
+                    used_once = true;
+#endif
                 }
             }
             do_callbacks(cb);
