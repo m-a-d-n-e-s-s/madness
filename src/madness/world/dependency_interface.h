@@ -57,23 +57,28 @@ namespace madness {
 
         /// Same as notify(), but tracks how many times called from each \c caller
         virtual void notify_debug(const char* caller) {
-#if !defined(NDEBUG)
-          {
-            mx_.lock();
-            const auto caller_str = caller;
-            auto it = callers_.find(caller_str);
-            if (it != callers_.end())
-              it->second += 1;
-            else
-              callers_[caller] = 1;
-            mx_.unlock();
-          }
-#endif          
+          notify_debug_impl(caller);
           this->notify();
         }
 
 //        virtual ~CallbackInterface() = default;
         virtual ~CallbackInterface() {};
+
+    protected:
+      virtual void notify_debug_impl(const char* caller) {
+#if !defined(NDEBUG)
+        {
+          mx_.lock();
+          const auto caller_str = caller;
+          auto it = callers_.find(caller_str);
+          if (it != callers_.end())
+            it->second += 1;
+          else
+            callers_[caller] = 1;
+          mx_.unlock();
+        }
+#endif
+      }
 
     private:
 #if !defined(NDEBUG)
@@ -141,7 +146,9 @@ namespace madness {
 
         /// Overload of CallbackInterface::notify_debug(), updates dec()
         void notify_debug(const char* caller) {
-          CallbackInterface::notify_debug(caller);
+#if !defined(NDEBUG)
+          CallbackInterface::notify_debug_impl(caller);
+#endif
           this->dec_debug(caller);
         }
 
