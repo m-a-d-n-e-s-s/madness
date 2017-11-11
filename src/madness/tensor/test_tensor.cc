@@ -100,7 +100,7 @@ namespace {
     TYPED_TEST_CASE(TensorTest, TensorTestTypes);
 
     TYPED_TEST(TensorTest, Basic) {
-        for (int ndim=0; ndim<=TENSOR_MAXDIM; ++ndim) {
+        for (int ndim=1; ndim<=TENSOR_MAXDIM; ++ndim) {
             try {
                 std::vector<long> dim(ndim);
                 for (int pass=0; pass<10; ++pass) {
