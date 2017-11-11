@@ -42,7 +42,10 @@
 #include <madness/world/worldmutex.h>
 #include <madness/world/atomicint.h>
 #include <madness/world/world.h>
+
+#include <mutex>
 #include <typeinfo>
+#include <unordered_map>
 
 namespace madness {
 
@@ -52,8 +55,31 @@ namespace madness {
         /// Invoked by the callback to notify when a dependency is satisfied.
         virtual void notify() = 0;
 
+        /// Same as notify(), but tracks how many times called from each \c caller
+        virtual void notify_debug(const char* caller) {
+#if !defined(NDEBUG)
+          {
+            mx_.lock();
+            const auto caller_str = caller;
+            auto it = callers_.find(caller_str);
+            if (it != callers_.end())
+              it->second += 1;
+            else
+              callers_[caller] = 1;
+            mx_.unlock();
+          }
+#endif          
+          this->notify();
+        }
+
 //        virtual ~CallbackInterface() = default;
         virtual ~CallbackInterface() {};
+
+    private:
+#if !defined(NDEBUG)
+        std::unordered_map<std::string,int> callers_;
+        std::mutex mx_;
+#endif
     };
 
 
@@ -92,6 +118,14 @@ namespace madness {
         /// \param[in] ndep The number of unsatisfied dependencies.
         DependencyInterface(int ndep = 0) : ndepend(ndep) {}
 
+        /// Same as ctor above, but keeps track of \c caller
+        /// \param[in] ndep The number of unsatisfied dependencies.
+        DependencyInterface(int ndep, const char* caller) : ndepend(ndep) {
+#if !defined(NDEBUG)
+          callers_[caller] = ndep;
+#endif
+        }
+
         /// Returns the number of unsatisfied dependencies.
 
         /// \return The number of unsatisfied dependencies.
@@ -104,6 +138,12 @@ namespace madness {
 
         /// Invoked by callbacks to notify of dependencies being satisfied.
         void notify() { dec(); }
+
+        /// Overload of CallbackInterface::notify_debug(), updates dec()
+        void notify_debug(const char* caller) {
+          CallbackInterface::notify_debug(caller);
+          this->dec_debug(caller);
+        }
 
         /// \brief Registers a callback for when `ndepend==0`; immediately invoked
         ///    if `ndepend==0`.
@@ -147,6 +187,50 @@ namespace madness {
             do_callbacks(cb);
         }
 
+        /// Same as inc(), but keeps track of \c caller; calling dec_debug() will signal error if no matching inc_debug() had been invoked        
+        void inc_debug(const char* caller) {
+          ScopedMutex<Spinlock> obolus(this);
+#if !defined(NDEBUG)
+          {
+            const auto caller_str = caller;
+            auto it = callers_.find(caller_str);
+            if (it != callers_.end())
+              it->second += 1;
+            else
+              callers_[caller] = 1;
+          }
+          if (used_once)
+              assert(false && "DependencyInterface::inc_debug() called after all dependencies have been satisfied");
+#endif
+          ndepend++;
+        }
+
+        void dec_debug(const char* caller) {
+            callbackT cb;
+            {
+                ScopedMutex<Spinlock> obolus(this);
+                MADNESS_ASSERT(ndepend > 0);
+#if !defined(NDEBUG)
+                const auto caller_str = caller;
+                auto it = callers_.find(caller_str);
+                if (it != callers_.end()) {
+                  MADNESS_ASSERT(it->second > 0);
+                  it->second -= 1;
+                }
+                else {
+                  assert(false && "DependencyInterface::dec_debug() called without matching inc_debug()");
+                }
+#endif
+                if (--ndepend == 0) {
+#if !defined(NDEBUG)
+                    if (!callbacks.empty()) used_once = true;
+#endif
+                    cb = std::move(const_cast<callbackT&>(callbacks));
+                }
+            }
+            do_callbacks(cb);
+        }
+
         /// Destructor.
         virtual ~DependencyInterface() {
 #ifdef MADNESS_ASSERTIONS_THROW
@@ -157,6 +241,10 @@ namespace madness {
 #endif
         }
 
+private:
+#if !defined(NDEBUG)
+        std::unordered_map<std::string, int> callers_;
+#endif
     };
 }
 #endif // MADNESS_WORLD_DEPENDENCY_INTERFACE_H__INCLUDED
