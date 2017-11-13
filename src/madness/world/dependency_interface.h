@@ -43,6 +43,7 @@
 #include <madness/world/atomicint.h>
 #include <madness/world/world.h>
 
+#include <cassert>
 #include <iterator>
 #include <numeric>
 #include <mutex>
