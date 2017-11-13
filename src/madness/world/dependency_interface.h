@@ -142,6 +142,7 @@ namespace madness {
         /// \return The number of unsatisfied dependencies.
         int ndep() const { return ndepend; }
 
+#if !defined(NDEBUG)
         /// Returns the number of unsatisfied dependencies tracked by the debugging instrumentation.
 
         /// \return The number of unsatisfied dependencies tracked via _debug calls (or debug ctor).
@@ -149,6 +150,7 @@ namespace madness {
           return std::accumulate(cbegin(callers_), cend(callers_), 0,
                                  [](int partial_sum, auto& x) { return partial_sum + x.second; });
         }
+#endif
 
         /// Returns true if `ndepend == 0` (no unsatisfied dependencies).
 
