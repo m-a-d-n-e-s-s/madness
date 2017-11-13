@@ -143,7 +143,7 @@ namespace madness {
 
         /// \return The number of unsatisfied dependencies tracked via _debug calls (or debug ctor).
         int ndep_debug() const {
-          return std::accumulate(cbegin(callers_), cend(callers_), 0,
+          return std::accumulate(begin(callers_), end(callers_), 0,
                                  [](int partial_sum, auto& x) { return partial_sum + x.second; });
         }
 #endif
