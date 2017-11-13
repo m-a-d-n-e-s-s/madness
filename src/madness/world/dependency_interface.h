@@ -47,6 +47,7 @@
 #include <madness/world/atomicint.h>
 #include <madness/world/world.h>
 
+#include <numeric>
 #include <mutex>
 #include <typeinfo>
 #include <unordered_map>
@@ -66,7 +67,7 @@ namespace madness {
         }
 
 //        virtual ~CallbackInterface() = default;
-        virtual ~CallbackInterface() {};
+        virtual ~CallbackInterface() {}
 
     protected:
       virtual void notify_debug_impl(const char* caller) {
@@ -141,7 +142,15 @@ namespace madness {
         /// \return The number of unsatisfied dependencies.
         int ndep() const { return ndepend; }
 
-        /// Returns true if all dependencies are satisfied (i.e. `ndep() == 0`).
+        /// Returns the number of unsatisfied dependencies tracked by the debugging instrumentation.
+
+        /// \return The number of unsatisfied dependencies tracked via _debug calls (or debug ctor).
+        int ndep_debug() const {
+          return std::accumulate(cbegin(callers_), cend(callers_), 0,
+                                 [](int partial_sum, auto& x) { return partial_sum + x.second; });
+        }
+
+        /// Returns true if `ndepend == 0` (no unsatisfied dependencies).
 
         /// \return True if there are no unsatisfied dependencies.
         bool probe() const {
@@ -194,6 +203,7 @@ namespace madness {
                 if (--ndepend == 0) {
 #if !defined(NDEBUG)
                     if (!callbacks.empty()) used_once = true;
+                    if (!callers_.empty()) error("DependencyInterface::dec() causes callback execution, but debug interface had been used", "");
 #endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
                 }
@@ -214,9 +224,13 @@ namespace madness {
               callers_[caller] = 1;
           }
           if (used_once)
-              assert(false && "DependencyInterface::inc_debug() called after all dependencies have been satisfied");
+              error("DependencyInterface::inc_debug() called after all dependencies have been satisfied: caller =", caller);
 #endif
           ndepend++;
+#if !defined(NDEBUG)
+          if (ndep() != ndep_debug())
+              error("DependencyInterface::inc_debug(): ndepend != ndepend_debug, caller = ", caller);
+#endif
         }
 
         void dec_debug(const char* caller) {
@@ -240,6 +254,10 @@ namespace madness {
                     if (!callbacks.empty()) used_once = true;
 #endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
+#if !defined(NDEBUG)
+                    if (ndep() != ndep_debug())
+                         error("DependencyInterface::dec_debug(): ndepend != ndepend_debug, caller = ", caller);
+#endif
                 }
             }
             do_callbacks(cb);
@@ -252,6 +270,14 @@ namespace madness {
                 error("DependencyInterface::~DependencyInterface(): ndepend =", ndepend);
 #else
             MADNESS_ASSERT(ndepend == 0);
+#endif
+#if !defined(NDEBUG)
+          for(const auto& c: callers_) {
+            if (c.second != 0) {
+              const auto error_msg = std::string("ndepend=") + std::to_string(c.second) + " for caller " + c.first;
+              error("DependencyInterface::~DependencyInterface(): ", error_msg);
+            }
+          }
 #endif
         }
 
