@@ -211,6 +211,9 @@ int test_bsh(World& world) {
  
            // Output data of interest
            printf("%4d %16s %20.8f %20.8f %20.8f %20.8f %20.8f\n", k, deriv_type.c_str(), opinvof_norm, error_norm, g_norm, derror, com_norm);
+
+           // Line plots of op(f), opinv(f), op(opinv(f)), opinv(op(f)), analytic versions of same
+           
        }
     }
         

@@ -45,12 +45,18 @@ int main(int argc,char** argv)
    std::cout.precision(17);
 
    int k = 4;
-   double thresh = 1e-6;
+   double thresh = 1e-8;
 
    // More MADNESS boiler plate
    FunctionDefaults<1>::set_k(k);
    FunctionDefaults<1>::set_thresh(thresh);
    FunctionDefaults<1>::set_cubic_cell(-6,6);
+
+   // Printing parameters
+   print("\n          k =", FunctionDefaults<1>::get_k());
+   print("     thresh =", FunctionDefaults<1>::get_thresh());
+   print(" Boundaries =", FunctionDefaults<1>::get_cell());
+   print("\n");
 
    // Make sure truncate on project is off
    FunctionDefaults<1>::set_truncate_on_project(false);
@@ -76,10 +82,10 @@ int main(int argc,char** argv)
    real_function_1d df = apply(Dx, f);
 
    // Second derivative
-   real_function_1d d2f = apply(Dx, df);
-   double integral = -inner(f,d2f);
-   print("integral =", integral);
-   print("sqrt(pi/2) =", sqrt(constants::pi/2.0));
+   //real_function_1d d2f = apply(Dx, df);
+   //double integral = -inner(f,d2f);
+   //print("integral =", integral);
+   //print("sqrt(pi/2) =", sqrt(constants::pi/2.0));
 
    // Test orthogonality between functions
    double eps_ftrunc = inner(eps, ftrunc);
@@ -89,6 +95,9 @@ int main(int argc,char** argv)
    double dftrunc_dftrunc = inner(dftrunc, dftrunc);
    double dftrunc_deps = inner(dftrunc, deps);
    double deps_deps = inner(deps, deps);
+   double ftrunc_ftrunc = inner(ftrunc, ftrunc);
+   double eps_eps = inner(eps, eps);
+   double f_f = inner(f,f);
 
    // Output 
    print("\n< eps | ftrunc > =", eps_ftrunc);
@@ -100,7 +109,11 @@ int main(int argc,char** argv)
    print("\n< dftrunc | deps > =", dftrunc_deps);
    print("\n< deps | dftrunc > =", deps_dftrunc);
    print("\n< deps | deps > =", deps_deps);
-
+   print("");
+   print("\n< ftrunc | ftrunc > =", ftrunc_ftrunc);
+   print("\n< eps | eps > =", eps_eps);
+   print("\n< f | f > =", f_f);
+  
    // Line plots
    int npts = 1001;
    const Vector<double,1> lo(0.0);
