@@ -109,6 +109,16 @@ namespace madness {
                 , submit(this)
         {}
 
+        /// Create a new task with ndepend dependencies (default 0) and given attributes,
+        /// keep track of \c caller for debugging purposes.
+        TaskInterface(int ndepend, const char* caller, const TaskAttributes attr = TaskAttributes())
+                : PoolTaskInterface(attr)
+                , DependencyInterface(ndepend, caller)
+                , world(0)
+                , completion(0)
+                , submit(this)
+        {}
+
         /// Create a new task with zero dependencies and given attributes
         explicit TaskInterface(const TaskAttributes& attr)
                 : PoolTaskInterface(attr)
