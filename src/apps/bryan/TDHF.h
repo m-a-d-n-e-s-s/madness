@@ -1,6 +1,6 @@
 /*!
-   \file TDA2.h
-   \brief Header file for the TDA class, which iteratively solves the linear response HF equations in the Tamm-Dancoff approximation.
+   \file TDHF2.h
+   \brief Header file for the TDHF class, which iteratively solves the linear response HF equations in the Tamm-Dancoff approximation.
    \ingroup response
    \addtogroup response
 
@@ -37,8 +37,8 @@
       10. Repeat steps 4-9 until the residual is within your tolerance
 */
 
-#ifndef MADNESS_APPS_TDA_H_INCLUDED
-#define MADNESS_APPS_TDA_H_INCLUDED
+#ifndef MADNESS_APPS_TDHF_H_INCLUDED
+#define MADNESS_APPS_TDHF_H_INCLUDED
 
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
@@ -118,7 +118,7 @@ public:
 
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
-class TDA 
+class TDHF 
 {
    private:
       // Member variables
@@ -135,8 +135,10 @@ class TDA
 
       // Tensors for holding energies 
       // residuals, and shifts
-      Tensor<double> omega;        // Energies of response functions
-      Tensor<double> e_residuals;  // Residuals of energies
+      Tensor<double> x_omega;        // Energies of response functions
+      Tensor<double> y_omega;        // Energies of response functions
+      Tensor<double> x_e_residuals;  // Residuals of energies
+      Tensor<double> y_e_residuals;  // Residuals of energies
 
       // Information that is inferred from input file
       std::vector<real_function_3d> act_orbitals;     // Ground state orbitals being used in calculation
@@ -148,6 +150,12 @@ class TDA
 
       // Functions
       std::vector<std::vector<real_function_3d>> x_response;   // Excited states to be solved for. 
+                                                               //    Note on storage: The response functions are calculated
+                                                               //    by calculating each transition of occupied --> virtual,
+                                                               //    and thus the actual response function is a sum of of all
+                                                               //    contributions to a specific virtual.
+       
+      std::vector<std::vector<real_function_3d>> y_response;   // De-excitation states to be solved for. 
                                                                //    Note on storage: The response functions are calculated
                                                                //    by calculating each transition of occupied --> virtual,
                                                                //    and thus the actual response function is a sum of of all
@@ -169,11 +177,11 @@ class TDA
       Tensor<double> end_timer(World & world);
 
       // Collective constructor for response uses contents of file \c filename and broadcasts to all nodes
-      TDA(World & world,            // MADNESS world object
+      TDHF(World & world,            // MADNESS world object
           const char* input_file);  // Input file 
 
       // Collective constructor for Response uses contens of steream \c input and broadcasts to all nodes
-      TDA(World & world,                        // MADNESS world object
+      TDHF(World & world,                        // MADNESS world object
           std::shared_ptr<std::istream> input); // Pointer to input stream
 
       // Normalizes in the response sense
@@ -222,7 +230,8 @@ class TDA
                                                               std::vector<real_function_3d> & orbitals,
                                                               double small,
                                                               double thresh,
-                                                              int print_level);
+                                                              int print_level,
+                                                              std::string xy);
 
       // Returns the coulomb potential of the ground state
       // Note: No post multiplication involved here
@@ -235,7 +244,8 @@ class TDA
       // Returns the ground state potential applied to response functions
       std::vector<std::vector<real_function_3d>> create_potential(World & world,
                                                                   std::vector<std::vector<real_function_3d>> & f,
-                                                                  int print_level);
+                                                                  int print_level,
+                                                                  std::string xy);
 
       // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
       Tensor<double> expectation(World & world,
@@ -245,13 +255,15 @@ class TDA
       // Returns the overlap matrix of the given response functions
       Tensor<double> create_overlap(World & world,
                                     std::vector<std::vector<real_function_3d>> & f,
-                                    int print_level);
+                                    int print_level,
+                                    std::string xy);
 
       // Returns the ground state fock operator applied to response functions
       std::vector<std::vector<real_function_3d>> create_fock(World & world,
                                                              std::vector<std::vector<real_function_3d>> & V,
                                                              std::vector<std::vector<real_function_3d>> & f,
-                                                             int print_level);
+                                                             int print_level,
+                                                             std::string xy);
 
       // Returns the hamiltonian matrix, equation 45 from the paper
       Tensor<double> create_hamiltonian(World & world,
@@ -261,14 +273,16 @@ class TDA
                                         std::vector<real_function_3d> & ground_orbitals,
                                         std::vector<real_function_3d> & full_ground_orbitals,
                                         Tensor<double> & energies,
-                                        int print_level);
+                                        int print_level,
+                                        std::string xy);
 
       // Returns the shift needed for each orbital to make sure
       // -2.0 * (ground_state_energy + excited_state_energy) is positive
       Tensor<double> create_shift(World & world,
                                   Tensor<double> & ground,
                                   Tensor<double> & omega,
-                                  int print_level);
+                                  int print_level,
+                                  std::string xy);
 
       // Returns the given shift applied to the given potentials
       std::vector<std::vector<real_function_3d>> apply_shift(World & world,
@@ -290,7 +304,8 @@ class TDA
                                              std::vector<std::vector<real_function_3d>> & gamma,
                                              std::vector<std::vector<real_function_3d>> & f_residuals,
                                              std::vector<std::vector<real_function_3d>> & new_f,
-                                             int print_level);
+                                             int print_level,
+                                             std::string xy);
 
       // Returns response functions that have been orthonormalized via
       // modified Gram-Schmidt. Note: This is specifically designed for
@@ -348,14 +363,14 @@ class TDA
                        std::vector<std::vector<real_function_3d>> & f,
                        std::vector<std::vector<real_function_3d>> & f_diff);
 
-      // Prints iterate headers, used in default printing
-      void print_iterate_headers(World & world);
-
       // Iterates the trial functions until covergence or it runs out of iterations
       void iterate(World & world);
 
       // Constructs and prints a more detailed analysis of response functions
-      void analysis(World & world);
+      void analysis(World & world,
+                    std::vector<std::vector<real_function_3d>> f,
+                    Tensor<double> energeis,
+                    std::string xy);
 
       // Diagonalizes the given functions
       void diagonalize_guess(World & world,
@@ -366,7 +381,8 @@ class TDA
                              Tensor<double> & energies,
                              double thresh,
                              double small,
-                             int print_level);
+                             int print_level,
+                             std::string xy);
 
       // Adds random noise to function f
       std::vector<std::vector<real_function_3d>> add_randomness(World & world,

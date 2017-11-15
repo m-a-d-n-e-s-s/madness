@@ -18,11 +18,8 @@ namespace madness
       int print_level;             ///< Controls the amount and style of printing. Higher values print more
                                    ///<   Values |   What gets printed
                                    ///<   ----------------------------
-                                   ///<     0    |   Only convergence information from
-                                   ///<          |   each iteration. Default level.
-                                   ///<   ----------------------------
-                                   ///<     1    |   Changes style to print out each step
-                                   ///<          |   in the calculation, along with timings
+                                   ///<     1    |   Print out each step in the calculation,
+                                   ///<          |   along with timings
                                    ///<   ----------------------------
                                    ///<     2    |   Debug level. Prints EVERYTHING!!!
 
@@ -57,7 +54,7 @@ namespace madness
       ResponseParameters()
       : states(1)
       , print_level(0)
-      , tda(true)
+      , tda(false)
       , plot(false)
       , max_iter(20)
       , econv(1e-4)
