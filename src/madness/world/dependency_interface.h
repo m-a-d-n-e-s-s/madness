@@ -42,6 +42,7 @@
 #include <madness/world/worldmutex.h>
 #include <madness/world/atomicint.h>
 #include <madness/world/world.h>
+#include <madness/world/print.h>
 
 #include <cassert>
 #include <iterator>
@@ -103,6 +104,7 @@ namespace madness {
         mutable volatile callbackT callbacks; ///< Called ONCE by \c dec() when `ndepend==0`.
 #if !defined(NDEBUG)
         mutable volatile bool used_once = false;  ///< Set to true when ndepend seaches 0.
+        volatile int max_ndepend; ///< max value of \c ndepend
 #endif
 
         /// \todo Brief description needed.
@@ -126,11 +128,18 @@ namespace madness {
         /// \param[in] ndep The number of unsatisfied dependencies.
         DependencyInterface(int ndep = 0) : ndepend(ndep) {}
 
-        /// Same as ctor above, but keeps track of \c caller
+        /// Same as ctor above, but keeps track of \c caller . If a given object was constructed
+        /// via this ctor, or DependencyInterface::inc_debug() had been called once, debugging variants
+        /// of mutating calls ( \c {inc/dec/notify}_debug ) must be used for the rest of this object's lifetime.
         /// \param[in] ndep The number of unsatisfied dependencies.
-        DependencyInterface(int ndep, const char* caller) : ndepend(ndep) {
+        DependencyInterface(int ndep, const char* caller) : ndepend(ndep)
+#if !defined(NDEBUG)
+            , max_ndepend(ndep)
+#endif
+        {
 #if !defined(NDEBUG)
           callers_[caller] = ndep;
+          print("DependencyInterface debug ctor: this=", this, " caller=", caller, " ndepend=", ndepend);
 #endif
         }
 
@@ -173,6 +182,10 @@ namespace madness {
             callbackT cb;
             {
                 ScopedMutex<Spinlock> obolus(this);
+#if !defined(NDEBUG)
+                if (!callers_.empty())
+                  print("DependencyInterface::register_callback: this=", this, " ndepend=", ndepend);
+#endif
                 const_cast<callbackT&>(callbacks).push(callback);
                 if (probe()) {
                     cb = std::move(const_cast<callbackT&>(callbacks));
@@ -186,9 +199,13 @@ namespace madness {
             ScopedMutex<Spinlock> obolus(this);
 #if !defined(NDEBUG)
             if (used_once)
-              assert(false && "DependencyInterface::inc() called after all dependencies have been satisfied");
+              error("DependencyInterface::inc() called after all dependencies have been satisfied");
 #endif
             ndepend++;
+#if !defined(NDEBUG)
+            if (!callers_.empty())
+              error("DependencyInterface::inc() called for an object that is being debugged", "");
+#endif
         }
 
         /// Decrement the number of dependencies and invoke the callback if `ndepend==0`.
@@ -225,8 +242,10 @@ namespace madness {
 #endif
           ndepend++;
 #if !defined(NDEBUG)
+          max_ndepend = std::max(max_ndepend, ndepend);
           if (ndep() != ndep_debug())
-              error("DependencyInterface::inc_debug(): ndepend != ndepend_debug, caller = ", caller);
+            error("DependencyInterface::inc_debug(): ndepend != ndepend_debug, caller = ", caller);
+          print("DependencyInterface::inc_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
 #endif
         }
 
@@ -256,6 +275,9 @@ namespace madness {
                          error("DependencyInterface::dec_debug(): ndepend != ndepend_debug, caller = ", caller);
 #endif
                 }
+#if !defined(NDEBUG)
+                print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
+#endif
             }
             do_callbacks(cb);
         }
@@ -267,6 +289,12 @@ namespace madness {
                 error("DependencyInterface::~DependencyInterface(): ndepend =", ndepend);
 #else
             MADNESS_ASSERT(ndepend == 0);
+#endif
+#if !defined(NDEBUG)
+            if (!callers_.empty()) {
+              MADNESS_ASSERT(max_ndepend > 0);
+              print("DependencyInterface dtor: this=", this, " max_ndepend=", max_ndepend);
+            }
 #endif
 #if !defined(NDEBUG)
           for(const auto& c: callers_) {
