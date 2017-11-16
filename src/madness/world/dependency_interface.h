@@ -225,12 +225,13 @@ namespace madness {
                 if (!callers_.empty())
                   error("DependencyInterface::dec() called for an object that is being debugged", "");
 #endif
-                if (--ndepend == 0) {
+                if (ndepend == 1) {
 #if !defined(NDEBUG)
                     if (!callbacks.empty()) used_once = true;
 #endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
                 }
+                --ndepend;
             }
             do_callbacks(cb);
         }
@@ -239,19 +240,17 @@ namespace madness {
         void inc_debug(const char* caller) {
           ScopedMutex<Spinlock> obolus(this);
 #if !defined(NDEBUG)
-          {
-            const auto caller_str = caller;
-            auto it = callers_.find(caller_str);
-            if (it != callers_.end())
-              it->second += 1;
-            else
-              callers_[caller] = 1;
-          }
           if (used_once)
               error("DependencyInterface::inc_debug() called after all dependencies have been satisfied: caller =", caller);
 #endif
-          ndepend++;
+          ++ndepend;
 #if !defined(NDEBUG)
+          const auto caller_str = caller;
+          auto it = callers_.find(caller_str);
+          if (it != callers_.end())
+            it->second += 1;
+          else
+            callers_[caller] = 1;
           max_ndepend = std::max(max_ndepend, ndepend);
           if (ndep() != ndep_debug())
             error("DependencyInterface::inc_debug(): ndepend != ndepend_debug, caller = ", caller);
@@ -269,26 +268,30 @@ namespace madness {
                 auto it = callers_.find(caller_str);
                 if (it != callers_.end()) {
                   MADNESS_ASSERT(it->second > 0);
-                  it->second -= 1;
                 }
                 else {
                   assert(false && "DependencyInterface::dec_debug() called without matching inc_debug()");
                 }
 #endif
-                if (--ndepend == 0) {
+                if (ndepend == 1) {
 #if !defined(NDEBUG)
                     if (!callbacks.empty()) used_once = true;
 #endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
 #if !defined(NDEBUG)
-                    print("DependencyInterface::dec_debug: callback spawned, this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
                     if (ndep() != ndep_debug())
-                         error("DependencyInterface::dec_debug(): ndepend != ndepend_debug, caller = ", caller);
+                      error("DependencyInterface::dec_debug(): ndepend != ndepend_debug, caller = ", caller);
+                    print("DependencyInterface::dec_debug: callback spawned, this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
 #endif
                 }
 #if !defined(NDEBUG)
-                else { print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend); }
+                else { print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1); }
 #endif
+                // commit the changes now, not safe to use this object after ndepend is decremented as it might get destroyed
+#if !defined(NDEBUG)
+                it->second -= 1;
+#endif
+                --ndepend;
             }
             do_callbacks(cb);
         }
