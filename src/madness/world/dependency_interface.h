@@ -207,12 +207,10 @@ namespace madness {
 #if !defined(NDEBUG)
             if (used_once)
               error("DependencyInterface::inc() called after all dependencies have been satisfied");
-#endif
-            ndepend++;
-#if !defined(NDEBUG)
             if (!callers_.empty())
               error("DependencyInterface::inc() called for an object that is being debugged", "");
 #endif
+            ndepend++;
         }
 
         /// Decrement the number of dependencies and invoke the callback if `ndepend==0`.
@@ -221,10 +219,15 @@ namespace madness {
             {
                 ScopedMutex<Spinlock> obolus(this);
                 MADNESS_ASSERT(ndepend > 0);
+#if !defined(NDEBUG)
+                if (used_once)
+                  error("DependencyInterface::dec() called after all dependencies have been satisfied");
+                if (!callers_.empty())
+                  error("DependencyInterface::dec() called for an object that is being debugged", "");
+#endif
                 if (--ndepend == 0) {
 #if !defined(NDEBUG)
                     if (!callbacks.empty()) used_once = true;
-                    if (!callers_.empty()) error("DependencyInterface::dec() causes callback execution, but debug interface had been used", "");
 #endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
                 }
@@ -278,12 +281,13 @@ namespace madness {
 #endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
 #if !defined(NDEBUG)
+                    print("DependencyInterface::dec_debug: callback spawned, this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
                     if (ndep() != ndep_debug())
                          error("DependencyInterface::dec_debug(): ndepend != ndepend_debug, caller = ", caller);
 #endif
                 }
 #if !defined(NDEBUG)
-                print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
+                else { print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend); }
 #endif
             }
             do_callbacks(cb);
