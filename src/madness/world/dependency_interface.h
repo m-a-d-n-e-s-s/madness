@@ -144,7 +144,7 @@ namespace madness {
         {
 #if !defined(NDEBUG)
           callers_[caller] = ndep;
-          print("DependencyInterface debug ctor: this=", this, " caller=", caller, " ndepend=", ndepend);
+          //print("DependencyInterface debug ctor: this=", this, " caller=", caller, " ndepend=", ndepend);
 #endif
         }
 
@@ -190,8 +190,8 @@ namespace madness {
             {
                 ScopedMutex<Spinlock> obolus(this);
 #if !defined(NDEBUG)
-                if (!callers_.empty())
-                  print("DependencyInterface::register_callback: this=", this, " ndepend=", ndepend);
+                //if (!callers_.empty())
+                //  print("DependencyInterface::register_callback: this=", this, " ndepend=", ndepend);
 #endif
                 const_cast<callbackT&>(callbacks).push(callback);
                 if (probe()) {
@@ -231,6 +231,7 @@ namespace madness {
 #endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
                 }
+                // commit the changes now, not safe to use this object after ndepend is decremented as it might get destroyed
                 --ndepend;
             }
             do_callbacks(cb);
@@ -254,7 +255,7 @@ namespace madness {
           max_ndepend = std::max(max_ndepend, ndepend);
           if (ndep() != ndep_debug())
             error("DependencyInterface::inc_debug(): ndepend != ndepend_debug, caller = ", caller);
-          print("DependencyInterface::inc_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
+          //print("DependencyInterface::inc_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
 #endif
         }
 
@@ -281,11 +282,13 @@ namespace madness {
 #if !defined(NDEBUG)
                     if (ndep() != ndep_debug())
                       error("DependencyInterface::dec_debug(): ndepend != ndepend_debug, caller = ", caller);
-                    print("DependencyInterface::dec_debug: callback spawned, this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
+                    //print("DependencyInterface::dec_debug: callback spawned, this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
 #endif
                 }
 #if !defined(NDEBUG)
-                else { print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1); }
+                else {
+                  //print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
+                }
 #endif
                 // commit the changes now, not safe to use this object after ndepend is decremented as it might get destroyed
 #if !defined(NDEBUG)
@@ -307,7 +310,7 @@ namespace madness {
 #if !defined(NDEBUG)
             if (!callers_.empty()) {
               MADNESS_ASSERT(max_ndepend > 0);
-              print("DependencyInterface dtor: this=", this, " max_ndepend=", max_ndepend);
+              //print("DependencyInterface dtor: this=", this, " max_ndepend=", max_ndepend);
             }
 #endif
 #if !defined(NDEBUG)
