@@ -450,21 +450,13 @@ namespace madness {
 
             t->set_info(&world, this);       // Stuff info
 
-            // EFV the original code below has a race (perhaps the race was introduced by the changes in how DependencyInterface operates)
-            //     consider a task that creates its prerequisites in a ctor, hence it has not been added to the queue yet.
-            //     if the last prerequisite *just* updated t's ndepend to 0 (via DependencyInterface::dec()) this will submit t immediately. If this task
-            //     gets executed and destroyed before prerequisite's call to DependencyInterface::dec() completes (note that callback move can
-            //     take a few tics, or we are oversubscribed) we have a race.
-            //
-            //if (t->ndep() == 0) {
-            //    ThreadPool::add(t); // If no dependencies directly submit
-            //} else {
-            //  // With dependencies must use the callback to avoid race condition
-            //  t->register_submit_callback();
-            //  //t->dec();
-            //}
-
-            t->register_submit_callback();
+            if (t->ndep() == 0) {
+                ThreadPool::add(t); // If no dependencies directly submit
+            } else {
+              // With dependencies must use the callback to avoid race condition
+              t->register_submit_callback();
+              //t->dec();
+            }
         }
 
         /// \todo Brief description needed.
