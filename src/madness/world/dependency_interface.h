@@ -193,7 +193,9 @@ namespace madness {
                 const_cast<callbackT&>(callbacks).push(callback);
                 if (probe()) {
                     cb = std::move(const_cast<callbackT&>(callbacks));
+#if !defined(NDEBUG)
                     used_once = true;
+#endif
                 }
             }
             do_callbacks(cb);
