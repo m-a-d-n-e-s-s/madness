@@ -92,7 +92,7 @@ namespace madness {
         }
 
         /// Adds call back to schedule task when outstanding dependencies are satisfied
-        void register_submit_callback() { register_callback(&submit); }
+        void register_submit_callback() { register_final_callback(&submit); }
 
     protected:
         virtual void run(const TaskThreadEnv& env);

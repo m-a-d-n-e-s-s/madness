@@ -108,7 +108,7 @@ namespace madness {
         using callbackT = Stack<CallbackInterface*,MAXCALLBACKS>; ///< \todo Brief description needed.
         mutable volatile callbackT callbacks; ///< Called ONCE by \c dec() when `ndepend==0`.
 #if !defined(NDEBUG)
-        mutable volatile bool used_once = false;  ///< Set to true when ndepend seaches 0.
+        mutable volatile bool finalized = false;  ///< Set to true when register_final_callback is called; not safe to execute any callbacks after the final callback
         volatile int max_ndepend; ///< max value of \c ndepend
         constexpr static const bool print_debug = false;  // change to true to log state changes in {inc,dec,notify}_debug, (debug) ctor, and dtor
 #endif
@@ -183,7 +183,7 @@ namespace madness {
           this->dec_debug(caller);
         }
 
-        /// \brief Registers a callback for when `ndepend==0`; immediately invoked
+        /// \brief Registers a callback that will be executed when `ndepend==0`; immediately invoked
         ///    if `ndepend==0`.
 
         /// \param[in] callback The callback to use.
@@ -194,26 +194,52 @@ namespace madness {
 #if !defined(NDEBUG)
                 if (print_debug && !callers_.empty())
                   print("DependencyInterface::register_callback: this=", this, " ndepend=", ndepend);
-                if (used_once)
-                  error("DependencyInterface::register_callback() called after object already used once");
+                if (finalized)
+                  error("DependencyInterface::register_callback() cannot be called after register_final_callback");
 #endif
                 const_cast<callbackT&>(callbacks).push(callback);
                 if (probe()) {
                     cb = std::move(const_cast<callbackT&>(callbacks));
-#if !defined(NDEBUG)
-                    used_once = true;
-#endif
                 }
             }
             do_callbacks(cb);
+        }
+
+
+        /// \brief Registers the final callback to be executed when `ndepend==0`; immediately invoked
+        ///    if `ndepend==0`.
+
+        /// No additional callbacks can be registered after this call since execution
+        ///  of the final callback can cause destruction of this object.
+        /// \param[in] callback The callback to use.
+        void register_final_callback(CallbackInterface* callback) {
+          callbackT cb;
+          {
+            ScopedMutex<Spinlock> obolus(this);
+#if !defined(NDEBUG)
+            MADNESS_ASSERT(finalized == false);
+            if (print_debug && !callers_.empty())
+              print("DependencyInterface::register_final_callback: this=", this, " ndepend=", ndepend);
+            if (finalized)
+              error("DependencyInterface::register_final_callback() called more than once");
+#endif
+            const_cast<callbackT&>(callbacks).push(callback);
+            if (probe()) {
+              cb = std::move(const_cast<callbackT&>(callbacks));
+#if !defined(NDEBUG)
+              finalized = true;
+#endif
+            }
+          }
+          do_callbacks(cb);
         }
 
         /// Increment the number of dependencies.
         void inc() {
             ScopedMutex<Spinlock> obolus(this);
 #if !defined(NDEBUG)
-            if (used_once)
-              error("DependencyInterface::inc() called after all dependencies have been satisfied");
+            if (finalized && callbacks.empty())
+              error("DependencyInterface::inc() called after the final callback had been executed");
             if (!callers_.empty())
               error("DependencyInterface::inc() called for an object that is being debugged", "");
 #endif
@@ -227,15 +253,12 @@ namespace madness {
                 ScopedMutex<Spinlock> obolus(this);
                 MADNESS_ASSERT(ndepend > 0);
 #if !defined(NDEBUG)
-                if (used_once)
-                  error("DependencyInterface::dec() called after all dependencies have been satisfied");
+                if (finalized && callbacks.empty())
+                  error("DependencyInterface::dec() called after the final callback had been executed");
                 if (!callers_.empty())
                   error("DependencyInterface::dec() called for an object that is being debugged", "");
 #endif
                 if (ndepend == 1) {
-#if !defined(NDEBUG)
-                    if (!callbacks.empty()) used_once = true;
-#endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
                 }
                 // NB safe to update ndepend now, was not safe to do that before since that makes it observable and
@@ -249,8 +272,8 @@ namespace madness {
         void inc_debug(const char* caller) {
           ScopedMutex<Spinlock> obolus(this);
 #if !defined(NDEBUG)
-          if (used_once)
-              error("DependencyInterface::inc_debug() called after all dependencies have been satisfied: caller =", caller);
+          if (finalized && callbacks.empty())
+              error("DependencyInterface::inc_debug() called after the final callback had been executed: caller =", caller);
 #endif
           ++ndepend;
 #if !defined(NDEBUG)
@@ -260,7 +283,7 @@ namespace madness {
             it->second += 1;
           else
             callers_[caller] = 1;
-          max_ndepend = std::max(max_ndepend, ndepend);
+          max_ndepend = std::max(static_cast<int>(max_ndepend), static_cast<int>(ndepend));
           if (ndep() != ndep_debug())
             error("DependencyInterface::inc_debug(): ndepend != ndepend_debug, caller = ", caller);
           if (print_debug)
@@ -284,9 +307,6 @@ namespace madness {
                 }
 #endif
                 if (ndepend == 1) {
-#if !defined(NDEBUG)
-                    if (!callbacks.empty()) used_once = true;
-#endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
 #if !defined(NDEBUG)
                     if (ndep() != ndep_debug())
