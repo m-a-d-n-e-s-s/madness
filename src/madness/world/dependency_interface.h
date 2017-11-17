@@ -205,7 +205,7 @@ namespace madness {
             if (!callers_.empty())
               error("DependencyInterface::inc() called for an object that is being debugged", "");
 #endif
-            ndepend++;
+            ++ndepend;
         }
 
         /// Decrement the number of dependencies and invoke the callback if `ndepend==0`.
