@@ -187,10 +187,13 @@ namespace madness {
 #if !defined(NDEBUG)
                 if (print_debug && !callers_.empty())
                   print("DependencyInterface::register_callback: this=", this, " ndepend=", ndepend);
+                if (used_once)
+                  error("DependencyInterface::register_callback() called after object already used once");
 #endif
                 const_cast<callbackT&>(callbacks).push(callback);
                 if (probe()) {
                     cb = std::move(const_cast<callbackT&>(callbacks));
+                    used_once = true;
                 }
             }
             do_callbacks(cb);
