@@ -224,7 +224,8 @@ namespace madness {
 #endif
                     cb = std::move(const_cast<callbackT&>(callbacks));
                 }
-                // commit the changes now, not safe to use this object after ndepend is decremented as it might get destroyed
+                // NB safe to update ndepend now, was not safe to do that before since that makes it observable and
+                //    e.g. result in its destruction before all changes to state are done
                 --ndepend;
             }
             do_callbacks(cb);
@@ -283,7 +284,8 @@ namespace madness {
                   //print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
                 }
 #endif
-                // commit the changes now, not safe to use this object after ndepend is decremented as it might get destroyed
+                // NB safe to update ndepend now, was not safe to do that before since that makes it observable and
+                //    e.g. result in its destruction before all changes to state are done
 #if !defined(NDEBUG)
                 it->second -= 1;
 #endif
