@@ -483,10 +483,11 @@ struct CalculationParameters {
 
             // Bryan edit for derivative
             // Available options are:
-            //   bspline  -->  uses robert's bsplines
-            //   ph1      -->  uses whatever is in ph-spline-deriv.txt
-            //   ph2      -->  uses whatever is in ph-spline-deriv-2.txt
-            //   prolate  -->  uses whatever is in prolates-joel
+            //   bspline       -->  uses robert's bsplines
+            //   ph1           -->  uses whatever is in ph-spline-deriv.txt
+            //   ph2           -->  uses whatever is in ph-spline-deriv-2.txt
+            //   prolate       -->  uses whatever is in prolates-joel
+            //   prolate-greg  -->  uses whatever is in prolates-joel
             else if (s == "deriv") {
                f >> deriv;
             }

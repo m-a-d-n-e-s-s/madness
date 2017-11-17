@@ -33,6 +33,7 @@
 #define MADNESS_DERIVATIVE_H__INCLUDED
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
@@ -565,6 +566,45 @@ namespace madness {
             left_r0t = transpose(left_r0);
 
 
+            // Printing to look at them
+            //std::cout << std::setprecision(16); 
+            //print("abgv r0:");
+            ////print(r0);
+            //for(int i=0; i<this->k; i++)
+            //{
+            //   for(int j=0; j<this->k; j++)
+            //   {
+            //      std::cout << r0(i,j) << "  ";
+            //   }
+            //   std::cout << std::endl;
+            //}
+            //print("");
+
+            //print("abgv rp:");
+            ////print(rp);
+            //for(int i=0; i<this->k; i++)
+            //{
+            //   for(int j=0; j<this->k; j++)
+            //   {
+            //      std::cout << rp(i,j) << "  ";
+            //   }
+            //   std::cout << std::endl;
+            //}
+            //print("");
+
+            //print("abgv rm:");
+            ////print(rm);
+            //for(int i=0; i<this->k; i++)
+            //{
+            //   for(int j=0; j<this->k; j++)
+            //   {
+            //      std::cout << rm(i,j) << "  ";
+            //   }
+            //   std::cout << std::endl;
+            //}
+            //print("");
+
+
             //print(rm.normf(),r0.normf(),rp.normf(),left_rm.normf(),left_r0.normf(),right_r0.normf(),right_rp.normf(),bv_left.normf(),bv_right.normf());
         }
 
@@ -647,6 +687,45 @@ namespace madness {
             rp=rp_bsp; rpt=rp_bsp_t; right_rp=rp_bsp; right_rpt=rp_bsp_t;
             
             rm=rm_bsp; rmt=rm_bsp_t; left_rm=rm_bsp; left_rmt=rm_bsp_t;
+
+            // Printing just to see what they look like
+            //std::cout << std::setprecision(16); 
+            //print(filename, "r0:");
+            ////print(r0);
+            //for(int i=0; i<this->k; i++)
+            //{
+            //   for(int j=0; j<this->k; j++)
+            //   {
+            //      std::cout << r0(i,j) << "  ";
+            //   }
+            //   std::cout << std::endl;
+            //}
+            //print("");
+
+            //print(filename, "rp:");
+            ////print(rp);
+            //for(int i=0; i<this->k; i++)
+            //{
+            //   for(int j=0; j<this->k; j++)
+            //   {
+            //      std::cout << rp(i,j) << "  ";
+            //   }
+            //   std::cout << std::endl;
+            //}
+            //print("");
+
+            //print(filename, "rm:");
+            ////print(rm);
+            //for(int i=0; i<this->k; i++)
+            //{
+            //   for(int j=0; j<this->k; j++)
+            //   {
+            //      std::cout << rm(i,j) << "  ";
+            //   }
+            //   std::cout << std::endl;
+            //}
+            //print("");
+            
         }
 
         

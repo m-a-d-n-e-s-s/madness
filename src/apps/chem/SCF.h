@@ -406,6 +406,11 @@ namespace madness {
             { 
                for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-joel");
             }
+            else if(param.deriv == "prolate-greg")
+            { 
+               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-greg");
+            }
+
 
             mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
             if(world.rank() == 0){

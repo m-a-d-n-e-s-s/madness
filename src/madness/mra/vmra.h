@@ -1188,6 +1188,26 @@ namespace madness {
         return result;
     }
 
+    // Function 5: prolate derivative
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_prolate_greg(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-greg");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
 
 
     /// shorthand div operator

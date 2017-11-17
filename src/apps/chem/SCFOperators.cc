@@ -639,11 +639,12 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
         real_function_3d logdensa=unary_op(arho,logme());
         // Bryan's edits for derivatives
         vecfuncT grada;
-        if(dft_deriv == "bspline") grada=grad_bspline(logdensa);       // b-spline
-        else if(dft_deriv == "ph1") grada=grad_ph1(logdensa);          // whatever ph1 is
-        else if(dft_deriv == "ph2") grada=grad_ph2(logdensa);          // whatever ph2 is
-        else if(dft_deriv == "prolate") grada=grad_prolate(logdensa);  // prolates
-        else grada=grad(logdensa);                                     // Default is abgv
+        if(dft_deriv == "bspline") grada=grad_bspline(logdensa);                 // b-spline
+        else if(dft_deriv == "ph1") grada=grad_ph1(logdensa);                    // whatever ph1 is
+        else if(dft_deriv == "ph2") grada=grad_ph2(logdensa);                    // whatever ph2 is
+        else if(dft_deriv == "prolate") grada=grad_prolate(logdensa);            // prolates-joel
+        else if(dft_deriv == "prolate-greg") grada=grad_prolate_greg(logdensa);  // prolates-greg
+        else grada=grad(logdensa);                                               // Default is abgv
         real_function_3d chi=dot(world,grada,grada);
         xcargs[XCfunctional::enum_chi_aa]=chi;
         xcargs[XCfunctional::enum_zetaa_x]=grada[0];
@@ -654,11 +655,12 @@ vecfuncT XCOperator::prep_xc_args(const real_function_3d& arho,
             real_function_3d logdensb=unary_op(brho,logme());
             // Bryan's edits for derivatives
             vecfuncT gradb;
-            if(dft_deriv == "bspline") gradb=grad_bspline(logdensa);       // b-spline
-            else if(dft_deriv == "ph1") gradb=grad_ph1(logdensa);          // whatever ph1 is
-            else if(dft_deriv == "ph2") gradb=grad_ph2(logdensa);          // whatever ph2 is
-            else if(dft_deriv == "prolate") gradb=grad_prolate(logdensa);  // prolates
-            else gradb=grad(logdensa);                                     // Default is abgv 
+            if(dft_deriv == "bspline") gradb=grad_bspline(logdensa);                 // b-spline
+            else if(dft_deriv == "ph1") gradb=grad_ph1(logdensa);                    // whatever ph1 is
+            else if(dft_deriv == "ph2") gradb=grad_ph2(logdensa);                    // whatever ph2 is
+            else if(dft_deriv == "prolate") gradb=grad_prolate(logdensa);            // prolates-joel
+            else if(dft_deriv == "prolate-greg") gradb=grad_prolate_greg(logdensa);  // prolates-greg
+            else gradb=grad(logdensa);                                               // Default is abgv 
             real_function_3d chib=dot(world,gradb,gradb);
             real_function_3d chiab=dot(world,grada,gradb);
             xcargs[XCfunctional::enum_zetab_x]=gradb[0];
