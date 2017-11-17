@@ -105,6 +105,7 @@ namespace madness {
 #if !defined(NDEBUG)
         mutable volatile bool used_once = false;  ///< Set to true when ndepend seaches 0.
         volatile int max_ndepend; ///< max value of \c ndepend
+        constexpr static const bool print_debug = false;  // change to true to log state changes in {inc,dec,notify}_debug, (debug) ctor, and dtor
 #endif
 
         /// \todo Brief description needed.
@@ -139,7 +140,8 @@ namespace madness {
         {
 #if !defined(NDEBUG)
           callers_[caller] = ndep;
-          //print("DependencyInterface debug ctor: this=", this, " caller=", caller, " ndepend=", ndepend);
+          if (print_debug)
+            print("DependencyInterface debug ctor: this=", this, " caller=", caller, " ndepend=", ndepend);
 #endif
         }
 
@@ -183,8 +185,8 @@ namespace madness {
             {
                 ScopedMutex<Spinlock> obolus(this);
 #if !defined(NDEBUG)
-                //if (!callers_.empty())
-                //  print("DependencyInterface::register_callback: this=", this, " ndepend=", ndepend);
+                if (print_debug && !callers_.empty())
+                  print("DependencyInterface::register_callback: this=", this, " ndepend=", ndepend);
 #endif
                 const_cast<callbackT&>(callbacks).push(callback);
                 if (probe()) {
@@ -249,7 +251,8 @@ namespace madness {
           max_ndepend = std::max(max_ndepend, ndepend);
           if (ndep() != ndep_debug())
             error("DependencyInterface::inc_debug(): ndepend != ndepend_debug, caller = ", caller);
-          //print("DependencyInterface::inc_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
+          if (print_debug)
+            print("DependencyInterface::inc_debug: this=", this, " caller=", caller, " ndep=", callers_[caller], " ndepend=", ndepend);
 #endif
         }
 
@@ -276,12 +279,14 @@ namespace madness {
 #if !defined(NDEBUG)
                     if (ndep() != ndep_debug())
                       error("DependencyInterface::dec_debug(): ndepend != ndepend_debug, caller = ", caller);
-                    //print("DependencyInterface::dec_debug: callback spawned, this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
+                    if (print_debug)
+                      print("DependencyInterface::dec_debug: callback spawned, this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
 #endif
                 }
 #if !defined(NDEBUG)
                 else {
-                  //print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
+                  if (print_debug)
+                    print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
                 }
 #endif
                 // NB safe to update ndepend now, was not safe to do that before since that makes it observable and
@@ -305,7 +310,8 @@ namespace madness {
 #if !defined(NDEBUG)
             if (!callers_.empty()) {
               MADNESS_ASSERT(max_ndepend > 0);
-              //print("DependencyInterface dtor: this=", this, " max_ndepend=", max_ndepend);
+              if (print_debug)
+                print("DependencyInterface dtor: this=", this, " max_ndepend=", max_ndepend);
             }
 #endif
 #if !defined(NDEBUG)
