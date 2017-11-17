@@ -470,12 +470,12 @@ namespace madness {
 
             t->set_info(&world, this);       // Stuff info
 
-            if (t->ndep() == 0) {
+            // NB race-free: once t->probe() becomes true it's safe to submit t (see DependencyInterface::dec for more details)
+            if (t->probe()) {
                 ThreadPool::add(t); // If no dependencies directly submit
             } else {
               // With dependencies must use the callback to avoid race condition
               t->register_submit_callback();
-              //t->dec();
             }
         }
 
