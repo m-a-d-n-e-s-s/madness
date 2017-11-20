@@ -162,6 +162,12 @@ option(ENABLE_UNITTESTS "Enables unit tests targets" ON)
 add_feature_info(UNITTESTS ENABLE_UNITTESTS
     "Enables unit tests targets")
 
+option(ENABLE_TASK_DEBUG_TRACE
+        "Enable task debug tracing." OFF)
+add_feature_info(TASK_DEBUG_TRACE ENABLE_TASK_DEBUG_TRACE "supports debug trace of task engine")
+set(MADNESS_TASK_DEBUG_TRACE ${ENABLE_TASK_DEBUG_TRACE} CACHE BOOL
+        "Enable task debug tracing.")
+
 set(FORTRAN_INTEGER_SIZE 4 CACHE STRING "The fortran integer size (4 or 8 bytes) used for BLAS and LAPACK function calls")
 if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))
   message(FATAL_ERROR "Incorrect fortran integer size '${FORTRAN_INTEGER_SIZE}'\n"
