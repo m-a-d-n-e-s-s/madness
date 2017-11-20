@@ -344,7 +344,7 @@ namespace madness {
         /// Destructor.
         virtual ~DependencyInterface() {
 #ifdef MADNESS_ASSERTIONS_THROW
-            if(ndepend != 0)
+            if(ndepend > 0)
                 error("DependencyInterface::~DependencyInterface(): ndepend =", ndepend);
 #else
             MADNESS_ASSERT(ndepend <= 0);  // ensure no outstanding dependencies
