@@ -74,7 +74,7 @@ namespace madness {
 
     protected:
       virtual void notify_debug_impl(const char* caller) {
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
         {
           mx_.lock();
           const auto caller_str = caller;
@@ -89,7 +89,7 @@ namespace madness {
       }
 
     private:
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
         std::unordered_map<std::string,int> callers_;
         std::mutex mx_;
 #endif
@@ -102,13 +102,14 @@ namespace madness {
         // Dependency counter is still atomic to allow fast(er) probing from outside critical sections
         // note that all *updates* to this counter will occur from critical sections
         // thus this is for lock-free probing only
-        std::atomic<int> ndepend; ///< Counts dependencies.
+        std::atomic<int> ndepend; ///< Counts dependencies. For a valid object \c ndepend >= 0, after the final callback is executed ndepend is set to a negative value and the object becomes invalid.
 
         static const int MAXCALLBACKS = 8; ///< Maximum number of callbacks.
         using callbackT = Stack<CallbackInterface*,MAXCALLBACKS>; ///< \todo Brief description needed.
         mutable volatile callbackT callbacks; ///< Called ONCE by \c dec() when `ndepend==0`.
-#if !defined(NDEBUG)
-        mutable volatile bool finalized = false;  ///< Set to true when register_final_callback is called; not safe to execute any callbacks after the final callback
+
+        mutable volatile CallbackInterface* final_callback;  ///< The "final" callback can destroy the task, always invoked last, the object is in an invalid state (ndepend set to -1) after its execution
+#ifdef MADNESS_TASK_DEBUG_TRACE
         volatile int max_ndepend; ///< max value of \c ndepend
         constexpr static const bool print_debug = false;  // change to true to log state changes in {inc,dec,notify}_debug, (debug) ctor, and dtor
 #endif
@@ -132,18 +133,21 @@ namespace madness {
         /// \todo Constructor that...
 
         /// \param[in] ndep The number of unsatisfied dependencies.
-        DependencyInterface(int ndep = 0) : ndepend(ndep) {}
+        DependencyInterface(int ndep = 0) : ndepend(ndep), final_callback(nullptr) {
+          MADNESS_ASSERT(ndepend >= 0);
+        }
 
         /// Same as ctor above, but keeps track of \c caller . If a given object was constructed
         /// via this ctor, or DependencyInterface::inc_debug() had been called once, debugging variants
         /// of mutating calls ( \c {inc/dec/notify}_debug ) must be used for the rest of this object's lifetime.
         /// \param[in] ndep The number of unsatisfied dependencies.
-        DependencyInterface(int ndep, const char* caller) : ndepend(ndep)
-#if !defined(NDEBUG)
+        DependencyInterface(int ndep, const char* caller) : ndepend(ndep), final_callback(nullptr)
+#ifdef MADNESS_TASK_DEBUG_TRACE
             , max_ndepend(ndep)
 #endif
         {
-#if !defined(NDEBUG)
+          MADNESS_ASSERT(ndepend >= 0);
+#ifdef MADNESS_TASK_DEBUG_TRACE
           callers_[caller] = ndep;
           if (print_debug)
             print("DependencyInterface debug ctor: this=", this, " caller=", caller, " ndepend=", ndepend);
@@ -153,9 +157,12 @@ namespace madness {
         /// Returns the number of unsatisfied dependencies.
 
         /// \return The number of unsatisfied dependencies.
-        int ndep() const { return ndepend; }
+        int ndep() const {
+          MADNESS_ASSERT(ndepend >= 0);  // ensure we are valid
+          return ndepend;
+        }
 
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
         /// Returns the number of unsatisfied dependencies tracked by the debugging instrumentation.
 
         /// \return The number of unsatisfied dependencies tracked via _debug calls (or debug ctor).
@@ -173,11 +180,15 @@ namespace madness {
         }
 
         /// Invoked by callbacks to notify of dependencies being satisfied.
-        void notify() { dec(); }
+        void notify() {
+          MADNESS_ASSERT(ndepend >= 0);  // ensure we are valid
+          dec();
+        }
 
         /// Overload of CallbackInterface::notify_debug(), updates dec()
         void notify_debug(const char* caller) {
-#if !defined(NDEBUG)
+          MADNESS_ASSERT(ndepend >= 0);
+#ifdef MADNESS_TASK_DEBUG_TRACE
           CallbackInterface::notify_debug_impl(caller);
 #endif
           this->dec_debug(caller);
@@ -191,15 +202,18 @@ namespace madness {
             callbackT cb;
             {
                 ScopedMutex<Spinlock> obolus(this);
-#if !defined(NDEBUG)
+                MADNESS_ASSERT(ndepend >= 0);  // ensure we are valid
+#ifdef MADNESS_TASK_DEBUG_TRACE
                 if (print_debug && !callers_.empty())
                   print("DependencyInterface::register_callback: this=", this, " ndepend=", ndepend);
-                if (finalized)
-                  error("DependencyInterface::register_callback() cannot be called after register_final_callback");
 #endif
                 const_cast<callbackT&>(callbacks).push(callback);
                 if (probe()) {
                     cb = std::move(const_cast<callbackT&>(callbacks));
+                    if (final_callback) {
+                      cb.push((CallbackInterface*)final_callback);
+                      ndepend = -1;
+                    }
                 }
             }
             do_callbacks(cb);
@@ -216,19 +230,18 @@ namespace madness {
           callbackT cb;
           {
             ScopedMutex<Spinlock> obolus(this);
-#if !defined(NDEBUG)
-            MADNESS_ASSERT(finalized == false);
+            MADNESS_ASSERT(ndepend >= 0);  // ensure we are valid
+            MADNESS_ASSERT(final_callback == nullptr);
+#ifdef MADNESS_TASK_DEBUG_TRACE
             if (print_debug && !callers_.empty())
               print("DependencyInterface::register_final_callback: this=", this, " ndepend=", ndepend);
-            if (finalized)
-              error("DependencyInterface::register_final_callback() called more than once");
 #endif
-            const_cast<callbackT&>(callbacks).push(callback);
+            final_callback = callback;
             if (probe()) {
               cb = std::move(const_cast<callbackT&>(callbacks));
-#if !defined(NDEBUG)
-              finalized = true;
-#endif
+              cb.push((CallbackInterface*)final_callback);
+              // make object invalid
+              ndepend = -1;
             }
           }
           do_callbacks(cb);
@@ -237,9 +250,8 @@ namespace madness {
         /// Increment the number of dependencies.
         void inc() {
             ScopedMutex<Spinlock> obolus(this);
-#if !defined(NDEBUG)
-            if (finalized && callbacks.empty())
-              error("DependencyInterface::inc() called after the final callback had been executed");
+            MADNESS_ASSERT(ndepend >= 0);  // ensure we are valid
+#ifdef MADNESS_TASK_DEBUG_TRACE
             if (!callers_.empty())
               error("DependencyInterface::inc() called for an object that is being debugged", "");
 #endif
@@ -251,15 +263,18 @@ namespace madness {
             callbackT cb;
             {
                 ScopedMutex<Spinlock> obolus(this);
-                MADNESS_ASSERT(ndepend > 0);
-#if !defined(NDEBUG)
-                if (finalized && callbacks.empty())
-                  error("DependencyInterface::dec() called after the final callback had been executed");
+                MADNESS_ASSERT(ndepend > 0);  // ensure we are valid and decrement can succeed
+#ifdef MADNESS_TASK_DEBUG_TRACE
                 if (!callers_.empty())
                   error("DependencyInterface::dec() called for an object that is being debugged", "");
 #endif
                 if (ndepend == 1) {
-                    cb = std::move(const_cast<callbackT&>(callbacks));
+                  cb = std::move(const_cast<callbackT&>(callbacks));
+                  if (final_callback) {
+                    cb.push((CallbackInterface*)final_callback);
+                    // make object invalid by setting ndepend to -1
+                    ndepend = -1;
+                  }
                 }
                 // NB safe to update ndepend now, was not safe to do that before since that makes it observable and
                 //    e.g. result in its destruction before all changes to state are done
@@ -271,12 +286,9 @@ namespace madness {
         /// Same as inc(), but keeps track of \c caller; calling dec_debug() will signal error if no matching inc_debug() had been invoked        
         void inc_debug(const char* caller) {
           ScopedMutex<Spinlock> obolus(this);
-#if !defined(NDEBUG)
-          if (finalized && callbacks.empty())
-              error("DependencyInterface::inc_debug() called after the final callback had been executed: caller =", caller);
-#endif
+          MADNESS_ASSERT(ndepend >= 0);  // ensure we are valid
           ++ndepend;
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
           const auto caller_str = caller;
           auto it = callers_.find(caller_str);
           if (it != callers_.end())
@@ -295,8 +307,8 @@ namespace madness {
             callbackT cb;
             {
                 ScopedMutex<Spinlock> obolus(this);
-                MADNESS_ASSERT(ndepend > 0);
-#if !defined(NDEBUG)
+                MADNESS_ASSERT(ndepend > 0);  // ensure we are valid and decrement can succeed
+#ifdef MADNESS_TASK_DEBUG_TRACE
                 const auto caller_str = caller;
                 auto it = callers_.find(caller_str);
                 if (it != callers_.end()) {
@@ -308,14 +320,19 @@ namespace madness {
 #endif
                 if (ndepend == 1) {
                     cb = std::move(const_cast<callbackT&>(callbacks));
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
                     if (ndep() != ndep_debug())
                       error("DependencyInterface::dec_debug(): ndepend != ndepend_debug, caller = ", caller);
                     if (print_debug)
                       print("DependencyInterface::dec_debug: callback spawned, this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
 #endif
+                    if (final_callback) {
+                      cb.push((CallbackInterface*)final_callback);
+                      // make object invalid
+                      ndepend = -1;
+                    }
                 }
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
                 else {
                   if (print_debug)
                     print("DependencyInterface::dec_debug: this=", this, " caller=", caller, " ndep=", it->second-1, " ndepend=", ndepend-1);
@@ -323,7 +340,7 @@ namespace madness {
 #endif
                 // NB safe to update ndepend now, was not safe to do that before since that makes it observable and
                 //    e.g. result in its destruction before all changes to state are done
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
                 it->second -= 1;
 #endif
                 --ndepend;
@@ -337,16 +354,16 @@ namespace madness {
             if(ndepend != 0)
                 error("DependencyInterface::~DependencyInterface(): ndepend =", ndepend);
 #else
-            MADNESS_ASSERT(ndepend == 0);
+            MADNESS_ASSERT(ndepend <= 0);  // ensure no outstanding dependencies
 #endif
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
             if (!callers_.empty()) {
               MADNESS_ASSERT(max_ndepend > 0);
               if (print_debug)
                 print("DependencyInterface dtor: this=", this, " max_ndepend=", max_ndepend);
             }
 #endif
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
           for(const auto& c: callers_) {
             if (c.second != 0) {
               const auto error_msg = std::string("ndepend=") + std::to_string(c.second) + " for caller " + c.first;
@@ -357,7 +374,7 @@ namespace madness {
         }
 
 private:
-#if !defined(NDEBUG)
+#ifdef MADNESS_TASK_DEBUG_TRACE
         std::unordered_map<std::string, int> callers_;
 #endif
     };
