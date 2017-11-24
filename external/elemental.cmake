@@ -40,6 +40,9 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   if (NOT DEFINED ELEMENTAL_CMAKE_BUILD_TYPE)
     set(ELEMENTAL_CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
   endif (NOT DEFINED ELEMENTAL_CMAKE_BUILD_TYPE)
+  if (${ELEMENTAL_CMAKE_BUILD_TYPE} STREQUAL "Debug")
+    message(WARNING "Compiling Elemental with in Debug mode will make many calls non-reentrant! Set ELEMENTAL_CMAKE_BUILD_TYPE=Release to avoid")
+  endif()
   
   # Set the configuration variables used by elemental
   if((ENABLE_SPINLOCKS OR NOT ENABLE_NEVER_SPIN) AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
@@ -169,15 +172,6 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   endif(error_code)
 
   file(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/CMake)
-
-  # execute_process(
-  #     COMMAND cp
-  #     ElementalTargets.cmake
-  #     ${ELEMENTAL_INSTALL_DIR}/CMake
-  #     WORKING_DIRECTORY "${ELEMENTAL_BINARY_DIR}"
-  #     RESULT_VARIABLE error_code)
-
-  file(COPY ${ELEMENTAL_BINARY_DIR}/ElementalTargets.cmake DESTINATION ${CMAKE_INSTALL_PREFIX}/CMake)
 
   find_package(${ELEMENTAL_CONFIG_NAME} REQUIRED PATHS ${CMAKE_INSTALL_PREFIX}
       COMPONENTS REQUIRED ${ELEMENTAL_PACKAGE_NAME} pmrrr ElSuiteSparse)
