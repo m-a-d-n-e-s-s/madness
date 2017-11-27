@@ -50,7 +50,13 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   else()
     set(ELEMENTAL_HAVE_SPINLOCKS OFF)
   endif()
-  
+
+  # Override BLAS+LAPACK selection by Elemental
+  # unless ELEMENTAL_MATH_LIBS is given by the user, use LAPACK_LIBRARIES as the default value for Elemental's MATH_LIBS
+  if (NOT ELEMENTAL_MATH_LIBS)
+    string(REPLACE ";" " " ELEMENTAL_MATH_LIBS "${LAPACK_LIBRARIES}")
+  endif()
+
   #
   # Obtain Elemental source **only** if needed (that's why not using ExternalProject)
   #
