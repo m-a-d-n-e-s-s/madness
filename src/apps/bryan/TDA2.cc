@@ -147,7 +147,7 @@ TDA::TDA(World & world,
       tda_energy_threshold = 1e-4; 
       tda_range_low = tda_ground_energies[0]; 
       tda_range_high = tda_ground_energies[tda_num_orbitals-1];
-      tda_random_start = false;
+      tda_random_start = true;
       tda_kain = false;
       tda_plot_initial = false;
       tda_plot_final = false;

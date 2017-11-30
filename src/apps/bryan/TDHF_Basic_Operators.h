@@ -74,7 +74,7 @@ std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_fu
    return result;
 }
 
-// Multiplication of a vector of vectors by a scalar g[i][k] = a[i][j] * b(j,k)
+// Multiplication of a vector of vectors by a scalar g[i][k] = \sum_{j} a[i][j] * b(j,k)
 // NOTE: NO BOUNDS CHECKING ON THE TENSOR b!!!!
 // Used for localized orbital scaling
 std::vector<std::vector<real_function_3d>> scale_2d(World & world,

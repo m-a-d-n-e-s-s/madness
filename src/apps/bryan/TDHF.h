@@ -218,20 +218,41 @@ class TDHF
                                                                            double thresh);
 
       // Returns the derivative of the exchange operator, applied to the ground state orbitals
+      // This is the function for TDA only
       std::vector<std::vector<real_function_3d>> create_exchange_derivative(World & world,
                                                                             std::vector<std::vector<real_function_3d>> & f,
                                                                             std::vector<real_function_3d> & orbitals,
                                                                             double small,
                                                                             double thresh);
 
+      // Returns the derivative of the exchange operator, applied to the ground state orbitals
+      // This is the function for TDHF only
+      std::vector<std::vector<real_function_3d>> create_exchange_derivative_tdhf(World & world,
+                                                                                 std::vector<std::vector<real_function_3d>> & x,
+                                                                                 std::vector<std::vector<real_function_3d>> & y,
+                                                                                 std::vector<real_function_3d> & orbitals,
+                                                                                 double small,
+                                                                                 double thresh);
+
       // Returns gamma (the perturbed 2 electron piece)
+      // This is the function for TDA only
       std::vector<std::vector<real_function_3d>> create_gamma(World & world,
                                                               std::vector<std::vector<real_function_3d>> & f,
                                                               std::vector<real_function_3d> & orbitals,
                                                               double small,
                                                               double thresh,
-                                                              int print_level,
-                                                              std::string xy);
+                                                              int print_level);
+
+      // Returns gamma (the perturbed 2 electron piece)
+      // This is the function for TDHF only
+      std::vector<std::vector<real_function_3d>> create_gamma_tdhf(World & world,
+                                                                   std::vector<std::vector<real_function_3d>> & x,
+                                                                   std::vector<std::vector<real_function_3d>> & y,
+                                                                   std::vector<real_function_3d> & orbitals,
+                                                                   double small,
+                                                                   double thresh,
+                                                                   int print_level,
+                                                                   std::string xy);
 
       // Returns the coulomb potential of the ground state
       // Note: No post multiplication involved here
@@ -367,10 +388,16 @@ class TDHF
       void iterate(World & world);
 
       // Constructs and prints a more detailed analysis of response functions
-      void analysis(World & world,
-                    std::vector<std::vector<real_function_3d>> f,
-                    Tensor<double> energeis,
-                    std::string xy);
+      void analysis_tda(World & world,
+                        std::vector<std::vector<real_function_3d>> f, 
+                        Tensor<double> energeis);
+
+
+      // Constructs and prints a more detailed analysis of response functions
+      void analysis_tdhf(World & world,
+                         std::vector<std::vector<real_function_3d>> f,
+                         std::vector<std::vector<real_function_3d>> g,
+                         Tensor<double> energeis);
 
       // Diagonalizes the given functions
       void diagonalize_guess(World & world,
