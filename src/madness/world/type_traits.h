@@ -58,15 +58,16 @@ namespace madness {
     template <typename T>
     using remove_fcvr_t = typename remove_fcvr<T>::type;
 
-    /// This defines stuff that is serialiable by default rules ... basically anything contiguous
+    /// This defines stuff that is serialiable by bitwise copy N.B. This reports true
+    /// for \c T that is an aggregate type (struct or array) that includes pointers.
     template <typename T>
     struct is_serializable {
-        static const bool value = \
-            std::is_fundamental<T>::value || \
-            std::is_member_function_pointer<T>::value || \
-            std::is_function<T>::value  || \
-            std::is_function<typename std::remove_pointer<T>::type>::value || \
-            (std::is_pod<T>::value && !std::is_pointer<T>::value);
+      static const bool value = \
+        std::is_arithmetic<T>::value || \
+        std::is_member_function_pointer<T>::value || \
+        std::is_function<T>::value  || \
+        std::is_function<typename std::remove_pointer<T>::type>::value || \
+        ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
 
 
