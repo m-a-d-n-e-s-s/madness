@@ -92,6 +92,7 @@ namespace madness {
         std::is_member_function_pointer<T>::value || \
         std::is_function<T>::value  || \
         std::is_function<typename std::remove_pointer<T>::type>::value || \
+//        (std::is_pod<T>::value && !std::is_pointer<T>::value);
         ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
 
