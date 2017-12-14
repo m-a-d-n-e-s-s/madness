@@ -104,7 +104,7 @@ namespace madness {
             /// \param[in] n The number of data items to receive.
             template <class T>
             inline
-            typename std::enable_if< std::is_fundamental<T>::value, void >::type
+            typename std::enable_if< is_trivially_serializable<T>::value, void >::type
             load(T* t, long n) const {
                 world->mpi.Recv(t, n, src, tag);
             }
@@ -139,7 +139,7 @@ namespace madness {
             /// \param[in] n Number of data items to serialize.
             template <class T>
             inline
-            typename std::enable_if< std::is_fundamental<T>::value, void >::type
+            typename std::enable_if< is_trivially_serializable<T>::value, void >::type
             store(const T* t, long n) const {
                 if (v.size() > bufsize) flush();
                 var.store(t,n);

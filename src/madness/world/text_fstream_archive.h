@@ -98,7 +98,7 @@ namespace madness {
             /// \param[in] t Location of the data to be written.
             /// \param[in] n The number of data items to be written.
             template <class T>
-            typename std::enable_if< madness::is_trivially_serializable<T>::value >::type
+            typename std::enable_if< madness::is_ostreammable<T>::value >::type
             store(const T* t, long n) const {
                 for (long i=0; i<n; ++i)
                     os << t[i] << std::endl;
@@ -203,7 +203,7 @@ namespace madness {
             /// \param[out] t Where to put the loaded data.
             /// \param[in] n The number of data items to be loaded.
             template <class T>
-            typename std::enable_if< madness::is_trivially_serializable<T>::value >::type
+            typename std::enable_if< madness::is_istreammable<T>::value >::type
             load(T* t, long n) const {
                 for (long i=0; i<n; ++i) is >> t[i];
                 eat_eol();

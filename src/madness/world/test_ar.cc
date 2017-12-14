@@ -69,7 +69,6 @@ public:
     }
 };
 
-
 // B is a class without a serialize method but with symmetric serialization.
 class B {
 public:
@@ -133,6 +132,15 @@ std::istream& operator>>(std::istream& os, F& data) {
   os >> data.i >> data.l;
   return os;
 }
+
+static_assert(!madness::is_ostreammable<A>::value, "A is not ostreammable");
+static_assert(madness::is_ostreammable<F>::value, "F is ostreammable");
+static_assert(madness::is_ostreammable<bool>::value, "bool is ostreammable");
+static_assert(madness::is_ostreammable<int>::value, "int is ostreammable");
+static_assert(!madness::is_istreammable<A>::value, "A is not istreammable");
+static_assert(madness::is_istreammable<F>::value, "F is istreammable");
+static_assert(madness::is_istreammable<bool>::value, "bool is istreammable");
+static_assert(madness::is_istreammable<int>::value, "int is istreammable");
 
 // A better example of a class with asym load/store
 class linked_list {

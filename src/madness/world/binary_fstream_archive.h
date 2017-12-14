@@ -75,7 +75,7 @@ namespace madness {
             /// \param[in] n The number of data items to be written.
             template <class T>
             inline
-            typename std::enable_if< madness::is_trivially_serializable<T>::value, void >::type
+            typename std::enable_if< is_trivially_serializable<T>::value, void >::type
             store(const T* t, long n) const {
                 os.write((const char *) t, n*sizeof(T));
             }
@@ -119,7 +119,7 @@ namespace madness {
             /// \param[in] n The number of data items to be loaded.
             template <class T>
             inline
-            typename std::enable_if< madness::is_trivially_serializable<T>::value, void >::type
+            typename std::enable_if< is_trivially_serializable<T>::value, void >::type
             load(T* t, long n) const {
                 is.read((char *) t, n*sizeof(T));
             }

@@ -33,15 +33,40 @@
 #define MADNESS_WORLD_TYPE_TRAITS_H__INCLUDED
 
 #include <madness/madness_config.h>
-#  include <type_traits>
+#include <type_traits>
 
 /// \file typestuff.h
-/// \brief Grossly simplified Boost-like type traits and templates
+/// \brief type traits and templates
 
 #include <cstddef>
-#include <stdint.h>
+#include <cstdint>
 #include <madness/madness_config.h>
 #include <madness/world/function_traits.h>
+
+#include <type_traits>
+
+namespace std {
+
+// C++17 features
+#if __cplusplus <= 201402L
+
+// GNU stdlibc++ provides void_t if -gnu++11 or -gnu++14 are given
+#if __GNUC__ && defined(__GLIBCXX__) && !__STRICT_ANSI__ && __cplusplus >= 201103L
+#define HAVE_VOID_T
+#endif
+
+#ifndef HAVE_VOID_T
+template <typename... Ts>
+struct make_void {
+  using type = void;
+};
+template <typename... Ts>
+using void_t = typename make_void<Ts...>::type;
+#endif
+
+#endif  // C++17 features
+
+}  // namespace std
 
 namespace madness {
 
@@ -70,6 +95,66 @@ namespace madness {
         ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
 
+    /// True for types that are "serialiable" to a std::ostream
+    template <typename T, typename = void>
+    struct is_ostreammable : std::false_type {};
+    template <typename T>
+    struct is_ostreammable<T, std::void_t<decltype(std::declval<std::ostream&>() << std::declval<const T&>())>> : std::true_type {};
+    /// True for types that are "deserialiable" from an std::istream
+    template <typename T, typename = void>
+    struct is_istreammable : std::false_type {};
+    template <typename T>
+    struct is_istreammable<T, std::void_t<decltype(std::declval<std::istream&>() >> std::declval<T&>())>> : std::true_type {};
+
+    template <typename T> constexpr bool is_always_serializable =
+    std::is_arithmetic<T>::value || \
+    std::is_same<std::nullptr_t, typename std::remove_cv<T>::type>::value || \
+    std::is_member_function_pointer<T>::value || \
+    std::is_function<T>::value  || \
+    std::is_function<typename std::remove_pointer<T>::type>::value;
+
+    template <typename Archive, typename T, typename = void>
+    struct is_serializable : std::false_type {};
+
+    // forward declare archives to provide archive-specific overloads
+    namespace archive {
+    class BinaryFstreamOutputArchive;
+    class BinaryFstreamInputArchive;
+    class BufferOutputArchive;
+    class BufferInputArchive;
+    class VectorOutputArchive;
+    class VectorInputArchive;
+    class TextFstreamOutputArchive;
+    class TextFstreamInputArchive;
+    class MPIRawOutputArchive;
+    class MPIRawInputArchive;
+    class MPIOutputArchive;
+    class MPIInputArchive;
+    }
+    template <typename T>
+    struct is_serializable<archive::BinaryFstreamOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::BinaryFstreamInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::BufferOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::BufferInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::VectorOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::VectorInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_ostreammable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::TextFstreamInputArchive, T, std::enable_if_t<is_istreammable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::MPIRawOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::MPIRawInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
 
     /* Macros to make some of this stuff more readable */
 
