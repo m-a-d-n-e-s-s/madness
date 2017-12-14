@@ -48,7 +48,7 @@ if(ENABLE_UNITTESTS)
   
   foreach(_test ${MRA_OTHER_TESTS})  
     add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
-    target_link_libraries(${_test} MADmra)
+    target_link_libraries(${_test} MADmra "${DISABLEPIE_LINKER_FLAG}")
   endforeach()
   
 endif()
