@@ -45,6 +45,7 @@
 #ifndef MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
 #define MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
 
+#include <cstdlib>
 #include <iosfwd>
 #include <exception>
 #include <madness/madness_config.h>
@@ -135,7 +136,7 @@ namespace madness {
 
 #ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_ASSERT(condition) \
-     do {if (!(condition)) ((void (*)())0)();} while(0)
+     if (!(condition)) { std::abort(); }
 #endif
 
 #ifdef MADNESS_ASSERTIONS_DISABLE
