@@ -61,7 +61,7 @@ namespace madness {
     /// This defines stuff that is serialiable by bitwise copy N.B. This reports true
     /// for \c T that is an aggregate type (struct or array) that includes pointers.
     template <typename T>
-    struct is_serializable {
+    struct is_trivially_serializable {
       static const bool value = \
         std::is_arithmetic<T>::value || \
         std::is_member_function_pointer<T>::value || \

@@ -74,7 +74,7 @@ namespace madness {
             /// \return Description needed.
             template <class T>
             inline
-            typename std::enable_if< madness::is_serializable<T>::value, void >::type
+            typename std::enable_if< madness::is_trivially_serializable<T>::value, void >::type
             store(const T* t, long n) const {
                 const unsigned char* ptr = (unsigned char*) t;
                 v->insert(v->end(),ptr,ptr+n*sizeof(T));
@@ -116,7 +116,7 @@ namespace madness {
             /// \param[in] n The number of data items to be loaded.
             template <class T>
             inline
-            typename std::enable_if< madness::is_serializable<T>::value, void >::type
+            typename std::enable_if< madness::is_trivially_serializable<T>::value, void >::type
             load(T* t, long n) const {
                 std::size_t m = n*sizeof(T);
                 if (m+i >  v->size()) MADNESS_EXCEPTION("VectorInputArchive: reading past end", m+1);

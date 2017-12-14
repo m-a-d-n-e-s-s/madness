@@ -84,7 +84,7 @@ namespace madness {
             /// \param[in] n Size of data to be stored (counted).
             template <typename T>
             inline
-            typename std::enable_if< madness::is_serializable<T>::value, void >::type
+            typename std::enable_if< madness::is_trivially_serializable<T>::value, void >::type
             store(const T* t, long n) const {
                 std::size_t m = n*sizeof(T);
                 if (countonly) {
@@ -151,7 +151,7 @@ namespace madness {
             /// \param[in] n Size of data to be read.
             template <class T>
             inline
-            typename std::enable_if< madness::is_serializable<T>::value, void >::type
+            typename std::enable_if< madness::is_trivially_serializable<T>::value, void >::type
             load(T* t, long n) const {
                 std::size_t m = n*sizeof(T);
                 MADNESS_ASSERT(m+i <=  nbyte);
