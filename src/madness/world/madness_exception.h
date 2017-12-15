@@ -136,7 +136,7 @@ namespace madness {
 
 #ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_ASSERT(condition) \
-     if (!(condition)) { std::abort(); }
+     do {if (!(condition)) { std::abort(); }} while (0)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_DISABLE
