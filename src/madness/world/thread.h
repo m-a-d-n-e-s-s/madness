@@ -1414,6 +1414,12 @@ namespace madness {
         /// \return Queue statistics.
         static const DQStats& get_stats();
 
+        /// Access the pool thread array
+        /// \return ptr to the pool thread array, its size is given by \c size()
+        static const ThreadPoolThread* get_threads() {
+          return const_cast<const ThreadPoolThread*>(instance()->threads);
+        }
+
         /// Gracefully wait for a condition to become true, executing any tasks in the queue.
 
         /// Probe should be an object that, when called, returns the status.
