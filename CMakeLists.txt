@@ -15,6 +15,7 @@ set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS
 # Add module directory and modules =============================================
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
+include(AddOptions)
 include(AppendFlags)
 include(CheckIncludeFile)
 include(CheckTypeSize)
@@ -26,6 +27,10 @@ include(AddMADLibrary)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
+
+# workaround for cmake bug: CheckCXXSourceCompiles does not respect CXX_STANDARD
+# see https://github.com/OPM/opm-common/blob/master/cmake/Modules/FindCXX11Features.cmake
+add_options(CXX ALL_BUILDS ${CMAKE_CXX14_STANDARD_COMPILE_OPTION})
 
 # Set install paths ============================================================
 
@@ -157,6 +162,12 @@ option(ENABLE_UNITTESTS "Enables unit tests targets" ON)
 add_feature_info(UNITTESTS ENABLE_UNITTESTS
     "Enables unit tests targets")
 
+option(ENABLE_TASK_DEBUG_TRACE
+        "Enable task debug tracing." OFF)
+add_feature_info(TASK_DEBUG_TRACE ENABLE_TASK_DEBUG_TRACE "supports debug trace of task engine")
+set(MADNESS_TASK_DEBUG_TRACE ${ENABLE_TASK_DEBUG_TRACE} CACHE BOOL
+        "Enable task debug tracing.")
+
 set(FORTRAN_INTEGER_SIZE 4 CACHE STRING "The fortran integer size (4 or 8 bytes) used for BLAS and LAPACK function calls")
 if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))
   message(FATAL_ERROR "Incorrect fortran integer size '${FORTRAN_INTEGER_SIZE}'\n"
@@ -207,11 +218,14 @@ get_property(SUPPORTS_SHARED GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS)
 cmake_dependent_option(BUILD_SHARED_LIBS "Enable shared libraries" ON
       "SUPPORTS_SHARED" OFF)
 if(BUILD_SHARED_LIBS)
-  set(BLA_STATIC FALSE)
+  set(BLA_STATIC_DEFAULT FALSE)
   set(CMAKE_MACOSX_RPATH TRUE)
 else()
-  set(BLA_STATIC TRUE)
+  set(BLA_STATIC_DEFAULT TRUE)
   set(CMAKE_MACOSX_RPATH FALSE)
+endif()
+if (NOT DEFINED BLA_STATIC)
+  set(BLA_STATIC ${BLA_STATIC_DEFAULT})
 endif()
 
 set(CMAKE_SKIP_RPATH FALSE)

@@ -196,7 +196,7 @@
   a(Slice(0,-1,1),Slice(0,-1,1)) = b; // Copy all data from b to a
   a(_,_) = b(_,_);                    // Copy all data from b to a
   a(___) = b(___);                    // Copy all data from b to a
-  a(Slice(1,2),Slice(1,2) = b;        // Error, do not conform
+  a(Slice(1,2),Slice(1,2)) = b;       // Error, do not conform
   \endcode
   Special slice values \c _ ,\c  _reverse, and \c  ___ have
   been defined to refer to all elements in a dimension, all
@@ -1957,6 +1957,23 @@ namespace madness {
             return Tensor<T>();
         }
     }
+
+    /// Returns a new contiguous tensor of type Q that is a deep copy of the input
+
+    /// \ingroup tensor
+    /// @result Returns a new contiguous tensor that is a deep copy of the input
+    template <class Q, class T>
+    Tensor<Q> convert(const Tensor<T>& t) {
+        if (t.size()) {
+            Tensor<Q> result = Tensor<Q>(t.ndim(),t.dims(),false);
+            BINARY_OPTIMIZED_ITERATOR(Q, result, const T, t, *_p0 = *_p1);
+            return result;
+        }
+        else {
+            return Tensor<Q>();
+        }
+    }
+
 
     /// Transforms one dimension of the tensor t by the matrix c, returns new contiguous tensor
 

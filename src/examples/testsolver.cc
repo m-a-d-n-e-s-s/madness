@@ -1,5 +1,5 @@
 #include <iostream>
-#include "nonlinsol.h"
+#include <madness/mra/nonlinsol.h>
 #include <cmath>
 
 using namespace madness;

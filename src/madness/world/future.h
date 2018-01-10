@@ -155,6 +155,28 @@ namespace madness {
     template <typename T>
     using remove_future_t = typename remove_future< T >::type;
 
+    /// Similar to remove_future , but future_to_ref<Future<T>> evaluates to T& ,whereas
+    /// remove_future<Future<T>> evaluates to T .
+    /// \tparam T The type to have future removed; in this case, do nothing.
+    template <typename T>
+    struct future_to_ref {
+        typedef T type;
+    };
+    template <typename T>
+    struct future_to_ref<Future<T>> {
+      typedef T& type;
+    };
+    template <typename T>
+    struct future_to_ref<Future<T>&> {
+      typedef T& type;
+    };
+    template <typename T>
+    struct future_to_ref<const Future<T>&> {
+      typedef const T& type;
+    };
+    template <typename T>
+    using future_to_ref_t = typename future_to_ref< T >::type;
+
     /// Human readable printing of a \c Future to a stream.
 
     /// \tparam T The type of future.
@@ -660,7 +682,7 @@ namespace madness {
 
         /// Same as \c get().
 
-        /// \return An const lvalue reference to the value.
+        /// \return An lvalue reference to the value.
         inline operator T&() & {
             return get();
         }

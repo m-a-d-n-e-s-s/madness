@@ -43,7 +43,7 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include <chem/SCF.h>
-#include <examples/nonlinsol.h>
+#include <madness/mra/nonlinsol.h>
 #include <chem/projector.h>
 #include <chem/correlationfactor.h>
 #include <chem/electronic_correlation_factor.h>

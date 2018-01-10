@@ -282,13 +282,15 @@ namespace madness {
                 , quad_w(npt)
                 , arg(arg)
         {
-
-            MADNESS_ASSERT(autoc(k,&c));
+            auto success = autoc(k,&c);
+            MADNESS_ASSERT(success);
 
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
-            MADNESS_ASSERT(two_scale_hg(k,&hg));
+            success = two_scale_hg(k,&hg);
+            MADNESS_ASSERT(success);
             hgT = transpose(hg);
-            MADNESS_ASSERT(two_scale_hg(2*k,&hgT2k));
+            success = two_scale_hg(2*k,&hgT2k);
+            MADNESS_ASSERT(success);
             hgT2k = transpose(hgT2k);
 
             // Cannot construct the coefficients here since the

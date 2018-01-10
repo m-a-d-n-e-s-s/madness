@@ -34,11 +34,11 @@
 /// \defgroup chem The molecular density functional and Hartree-Fock code
 
 
-#include <apps/chem/SCFOperators.h>
-#include <apps/chem/SCF.h>
-#include <apps/chem/nemo.h>
-#include <apps/chem/correlationfactor.h>
-#include <apps/chem/xcfunctional.h>
+#include <chem/SCFOperators.h>
+#include <chem/SCF.h>
+#include <chem/nemo.h>
+#include <chem/correlationfactor.h>
+#include <chem/xcfunctional.h>
 
 using namespace madness;
 
@@ -77,6 +77,7 @@ DistributedMatrix<T> Kinetic<T,NDIM>::kinetic_energy_matrix(World & world,
     DistributedMatrix<T> r = column_distributed_matrix<T>(world, n, m);
     reconstruct(world, vbra);
     reconstruct(world, vket);
+    const auto bra_equiv_ket = &vbra == &vket;
 
     // apply the derivative operator on each function for each dimension
     std::vector<vecfuncT> dvbra(NDIM),dvket(NDIM);
@@ -91,7 +92,7 @@ DistributedMatrix<T> Kinetic<T,NDIM>::kinetic_energy_matrix(World & world,
     }
     world.gop.fence();
     for (std::size_t i=0; i<NDIM; ++i) {
-        r += matrix_inner(r.distribution(), dvbra[i], dvket[i], false);
+        r += matrix_inner(r.distribution(), dvbra[i], dvket[i], bra_equiv_ket);
     }
     r *= 0.5;
     return r;
@@ -710,12 +711,14 @@ void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
 
 
 Fock::Fock(World& world, const SCF* calc,
-        std::shared_ptr<NuclearCorrelationFactor> ncf )
+           std::shared_ptr<NuclearCorrelationFactor> ncf,
+           double scale_K)
     : world(world),
       J(world,calc),
       K(world,calc,0),
       T(world),
-      V(world,ncf) {
+      V(world,ncf),
+      scale_K(scale_K) {
 }
 
 

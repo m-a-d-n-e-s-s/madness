@@ -12,18 +12,35 @@
 #
 
 # Compilers
-set(CMAKE_C_COMPILER mpicc)
-set(CMAKE_CXX_COMPILER mpicxx)
-set(MPI_C_COMPILER mpicc)
-set(MPI_CXX_COMPILER mpicxx)
 
-# Compile flags
-set(CMAKE_C_FLAGS_INIT             "-std=c99" CACHE STRING "Inital C compile flags")
+if(NOT CMAKE_C_COMPILER)
+  set(CMAKE_C_COMPILER mpicc)
+endif()
+if(NOT CMAKE_CXX_COMPILER)
+  set(CMAKE_CXX_COMPILER mpicxx)
+endif()
+if (NOT MPI_C_COMPILER)
+  set(MPI_C_COMPILER mpicc)
+endif()
+if (NOT MPI_CXX_COMPILER)
+  set(MPI_CXX_COMPILER mpicxx)
+endif()
+
+# Specify the GNU compilers to use with Intel C/C++
+set(GCC_ROOT_DIR "$ENV{GCC_DIR}")
+set(GCC_SUFFIX "$ENV{GCC_SUFFIX}")
+if (CMAKE_CXX_COMPILER_ID EQUAL "Intel" AND GCC_ROOT_DIR)
+  set(CMAKE_C_FLAGS_INIT             "-std=c99 -gcc-name=${GCC_ROOT_DIR}/bin/gcc${GCC_SUFFIX}" CACHE STRING "Inital C compile flags")
+  set(CMAKE_CXX_FLAGS_INIT           "-gxx-name=${GCC_ROOT_DIR}/bin/g++${GCC_SUFFIX}" CACHE STRING "Initial C++ compile flags")
+else()
+  set(CMAKE_C_FLAGS_INIT             "-std=c99" CACHE STRING "Inital C compile flags")
+  set(CMAKE_CXX_FLAGS_INIT           "" CACHE STRING "Initial C++ compile flags")
+endif()
+
 set(CMAKE_C_FLAGS_DEBUG            "-g -Wall" CACHE STRING "Inital C debug compile flags")
 set(CMAKE_C_FLAGS_MINSIZEREL       "-Os -march=native -DNDEBUG" CACHE STRING "Inital C minimum size release compile flags")
 set(CMAKE_C_FLAGS_RELEASE          "-O3 -march=native -DNDEBUG" CACHE STRING "Inital C release compile flags")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO   "-O2 -g -Wall" CACHE STRING "Inital C release with debug info compile flags")
-set(CMAKE_CXX_FLAGS_INIT           "" CACHE STRING "Inital C++ compile flags")
 set(CMAKE_CXX_FLAGS_DEBUG          "-g -Wall" CACHE STRING "Inital C++ debug compile flags")
 set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -march=native -DNDEBUG" CACHE STRING "Inital C++ minimum size release compile flags")
 set(CMAKE_CXX_FLAGS_RELEASE        "-O3 -march=native -DNDEBUG" CACHE STRING "Inital C++ release compile flags")

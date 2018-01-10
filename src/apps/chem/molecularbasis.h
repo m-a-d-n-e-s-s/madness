@@ -461,7 +461,8 @@ class AtomicBasisSet {
         std::istringstream s(child->GetText());
         std::vector<T> r(n);
         for (int i=0; i<n; ++i) {
-            MADNESS_ASSERT(s >> r[i]);
+            s >> r[i];
+            MADNESS_ASSERT(s);
         }
         return r;
     }
@@ -474,7 +475,8 @@ class AtomicBasisSet {
         Tensor<T> r(n,m);
         for (int i=0; i<n; ++i) {
             for (int j=0; j<m; ++j) {
-                MADNESS_ASSERT(s >> r(i,j));
+                s >> r(i,j);
+                MADNESS_ASSERT(s);
             }
         }
         return r;
