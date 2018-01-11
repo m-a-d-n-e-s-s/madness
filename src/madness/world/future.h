@@ -709,6 +709,14 @@ namespace madness {
             return std::move(get());
         }
 
+        /// An rvalue analog of \c get().
+
+        /// \return An rvalue reference to the value.
+        /// \internal Rationale: this makes possible to move the value from a mutable assigned future.
+        inline explicit operator T&&() & {
+            return std::move(get());
+        }
+
         /// Returns a structure used to pass references to another process.
 
         /// This is used for passing pointers/references to another
