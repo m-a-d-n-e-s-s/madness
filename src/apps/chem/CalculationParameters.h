@@ -117,6 +117,7 @@ struct CalculationParameters {
     std::string pcm_data;            ///< do a PCM (solvent) calculation
     std::string ac_data;             ///< do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)
 
+
     // Next list for response code from a4v4
     bool response;                    ///< response function calculation
     double response_freq;             ///< Frequency for calculation response function
@@ -126,6 +127,8 @@ struct CalculationParameters {
     double efield;                    ///< eps for finite field
     double efield_axis;               ///< eps for finite field axis
 
+    // Keyword to use nwchem output for initial guess
+    std::string nwfile;              ///< base name of nwchem output files (.out and .movecs extensions) to read from
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -138,7 +141,7 @@ struct CalculationParameters {
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
         & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf & restart_cphf
-        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data;
+        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data & nwfile;
     }
 
     CalculationParameters()
@@ -210,6 +213,7 @@ struct CalculationParameters {
     , rconv(1e-6)
     , efield(0.0)
     , efield_axis(0)
+    , nwfile("")
     {}
 
     // initializes CalculationParameters using the contents of file \c filename
@@ -474,6 +478,9 @@ struct CalculationParameters {
                 else if (axis == "none")
                     efield_axis = -1;
             }
+            else if (s=="nwfile") {
+                f >> nwfile;
+            }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -586,6 +593,8 @@ struct CalculationParameters {
             madness::print(" psp or all electron ", "all electron");
         else
             madness::print(" psp or all electron ", "mixed psp/AE");
+        if (nwfile != "")
+            madness::print("    nwchem file name", nwfile);
     }
 
     void gprint(World& world) const {
