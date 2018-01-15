@@ -32,6 +32,7 @@
 */
 
 #include <chem/molecularbasis.h>
+#include "NWChem.h"
 
 namespace madness {
 
@@ -192,6 +193,35 @@ foundit:
     }
 
 }
+
+void AtomicBasisSet::read_nw_file(std::string filename) {
+
+    // Construct the slymer object that contains interface
+    std::ostream bad(nullptr);
+    slymer::NWChem_Interface nwchem(filename, bad);
+
+    // Read in the basis info
+    nwchem.read(slymer::ES_Interface::Properties::Basis);
+
+    // Let madness know a basis exists on each atom...
+    for(const slymer::Atom &atom : nwchem.atoms) {
+        int atn = symbol_to_atomic_number(atom.symbol);
+ 
+        // We need to add to ag[atn] so madness doesn't baulk
+        // These functions will not be used in anyway. Need 
+        // to add at least the number of orbitals to work
+        if (ag[atn].nbf() == 0) {
+            std::vector<ContractedGaussianShell> g;
+            for(unsigned int i = 0; i < nwchem.basis_set.size(); i++) {
+               g.push_back(ContractedGaussianShell(0,{{1}},{{1}}));
+               g.push_back(ContractedGaussianShell(1,{{2}},{{2}}));
+            }
+            ag[atn] = AtomicBasis(g);
+        }
+    }
+}
+
+
 
 void AtomicBasisSet::modify_dmat_psp(int atn, double zeff){
     static const bool debug = false;

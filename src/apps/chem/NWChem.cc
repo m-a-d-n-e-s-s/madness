@@ -100,10 +100,12 @@ void NWChem_Interface::read_atoms(std::istream &in) {
     }
 
     else if(reading && std::regex_search(line, matches, atomline)) {
-      err.get() << matches[1] << " at (" << matches[2] << ", " << matches[3] << ", " << matches[4] << ")." << std::endl;
+      err.get() << matches[1] << " at (" << std::stod(matches[2])/0.529177 << ", " << std::stod(matches[3])/0.529177 << ", " << std::stod(matches[4])/0.529177 << ")." << std::endl;
       Atom addme;
       addme.symbol = matches[1];
-      addme.position = {{std::stod(matches[2]), std::stod(matches[3]), std::stod(matches[4])}};
+      addme.position = {{std::stod(matches[2])/0.529177,   // Convert to bohr
+                         std::stod(matches[3])/0.529177,   // Convert to bohr
+                         std::stod(matches[4])/0.529177}}; // Convert to bohr
       my_atoms.emplace_back(std::move(addme));
     }
 
@@ -175,7 +177,6 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
         spherical = true;
 
       err.get() << "Using " << (spherical ? "spherical" : "Cartesian") << " orbitals." << std::endl;
-      err.get() << "Note that exponents are printed in angstrom^-2, but are bohr^-2 in NWChem." << std::endl;
     }
 
     // Are we done reading orbitals?
@@ -222,9 +223,7 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
         else if(curfunc.type != type[0])
           throw std::runtime_error("Inconsistent orbital types while reading NWChem basis set.");
 
-        // the exponent for the orbital is in (bohr)^-2 and we need it in (angstrom)^-2
-        // to be consistent with other functions.
-        curfunc.exps.push_back(std::stod(matches[3]) / 0.529177 / 0.529177);
+        curfunc.exps.push_back(std::stod(matches[3]));
         curfunc.coeffs.push_back(std::stod(matches[4]));
       }
       else
@@ -793,8 +792,6 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
       throw errmess;
     }
   }
-  err.get() << "We have " << nsets << " \"sets\"." << std::endl;
-  err.get() << "We have " << nmo[nsets - 1] << " MOs." << std::endl;
 
   // allocate space to store the occupation numbers, the eigenvalues, and the
   // eigenvectors (MO vectors), as desired by the request
@@ -810,13 +807,10 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
   }
   if(do_MOs)
   {
-    madness::Tensor<double> todothis((nmo[nsets - 1], nmo[nsets - 1]));
+    madness::Tensor<double> todothis(nmo[nsets - 1], nmo[nsets - 1]);
     temp_MOs = copy(todothis);
   }
-  err.get() << "Size of temp_occupancies: " << temp_occupancies.size() << std::endl;
-  err.get() << "Size of temp_energies: " << temp_energies.size() << std::endl;
-  err.get() << "Size of temp_MOs: " << temp_MOs.size() << std::endl;
- 
+
   // go through the sets
   for(unsigned set = 0; set < nsets; ++set) {
     // first read the occupancies
@@ -858,7 +852,7 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
       err.get() << "Error reading energies for set " << set << '.' << std::endl;
       throw errmess;
     }
-
+    
     // finally, read the MO vectors, which were written vector-by-vector
     for(unsigned mo = 0; mo < nmo[set]; ++mo) {
       // bookend size of the vector
@@ -870,7 +864,7 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
       }
       if(do_MOs && set == nsets - 1)
         for(unsigned coeff = 0; coeff < nbasis; ++coeff)
-          temp_MOs(coeff, mo) = read_endian<double>(in, swap_endian);
+          temp_MOs(coeff, mo) = read_endian<double>(in, swap_endian); 
       else
         in.seekg(num[0], std::ios_base::cur); // just buzz past the MO
       // bookend size of the vector

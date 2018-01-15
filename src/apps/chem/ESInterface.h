@@ -26,7 +26,7 @@ namespace slymer {
 /// An atom (symbol and position).
 struct Atom {
   std::string symbol; ///< The atom's symbol.
-  std::array<double, 3> position; ///< The atom's location, in angstroms.
+  std::array<double, 3> position; ///< The atom's location, in bohrs.
 };
 
 /// A set of atoms.

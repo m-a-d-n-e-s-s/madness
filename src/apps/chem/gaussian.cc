@@ -343,16 +343,16 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
 
   // Cartesian g orbitals
   else if(type == GaussianType::gxxxx) {
-    PolynomialCoeffs prefactor(4); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{4,0,0}}] =  1.;
     prefactor[{{3,0,0}}] = -4. * center[0];
     prefactor[{{2,0,0}}] =  6. * center[0] * center[0];
     prefactor[{{1,0,0}}] = -4. * pow(center[0], 3); 
     prefactor[{{0,0,0}}] =  pow(center[0], 4);
-    prefactor *= 16./sqrt(105) * pow(ec, 11./4) * pow(2./pi, 0.75); 
+    prefactor *= 16./sqrt(105.) * pow(ec, 2.75) * pow(2./pi, 0.75); 
   }
   else if(type == GaussianType::gxxxy) {
-    PolynomialCoeffs prefactor(3); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{3,1,0}}] =  1.;
     prefactor[{{2,1,0}}] = -3. * center[0];
     prefactor[{{1,1,0}}] =  3. * center[0] * center[0];
@@ -361,10 +361,10 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{2,0,0}}] =  3. * center[0] * center[1];
     prefactor[{{1,0,0}}] = -3. * center[0] * center[0] * center[1];
     prefactor[{{0,0,0}}] =  pow(center[0], 3) * center[1];
-    prefactor *= 16./sqrt(15) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor *= 16./sqrt(15.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gxxxz) {
-    PolynomialCoeffs prefactor(3); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{3,0,1}}] =  1.;
     prefactor[{{2,0,1}}] = -3. * center[0];
     prefactor[{{1,0,1}}] =  3. * center[0] * center[0];
@@ -373,10 +373,10 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{2,0,0}}] =  3. * center[0] * center[2];
     prefactor[{{1,0,0}}] = -3. * center[0] * center[0] * center[2];
     prefactor[{{0,0,0}}] =  pow(center[0], 3) * center[2];
-    prefactor *= 16./sqrt(15) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor *= 16./sqrt(15.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gxxyy) {
-    PolynomialCoeffs prefactor(2); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{2,2,0}}] =  1.;
     prefactor[{{1,2,0}}] = -2. * center[0];
     prefactor[{{0,2,0}}] =  center[0] * center[0];
@@ -385,11 +385,11 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,1,0}}] = -2. * center[0] * center[0] * center[1];
     prefactor[{{2,0,0}}] =  center[1] * center[1];
     prefactor[{{1,0,0}}] = -2. * center[0] * center[1] * center[1];
-    prefactor[{{0,0,0}}] =  pow(center[0], 2) * pow(center[1],2);
-    prefactor *= 16./3 * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor[{{0,0,0}}] =  center[0] * center[0] * center[1] * center[1];
+    prefactor *= 16./3. * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gxxyz) {
-    PolynomialCoeffs prefactor(2); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{2,1,1}}] =  1.;
     prefactor[{{1,1,1}}] = -2. * center[0];
     prefactor[{{0,1,1}}] =  center[0] * center[0];
@@ -401,11 +401,11 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,1,0}}] = -center[0] * center[0] * center[2];
     prefactor[{{2,0,0}}] =  center[1] * center[2];
     prefactor[{{1,0,0}}] = -2. * center[0] * center[1] * center[2];
-    prefactor[{{0,0,0}}] =  pow(center[0], 2) * pow(center[1],2);
-    prefactor *= 16./sqrt(3) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor[{{0,0,0}}] =  center[0] * center[0] * center[1] * center[2];
+    prefactor *= 16./sqrt(3.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gxxzz) {
-    PolynomialCoeffs prefactor(2); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{2,0,2}}] =  1.;
     prefactor[{{1,0,2}}] = -2. * center[0];
     prefactor[{{0,0,2}}] =  center[0] * center[0];
@@ -414,11 +414,11 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,0,1}}] = -2. * center[0] * center[0] * center[2];
     prefactor[{{2,0,0}}] =  center[2] * center[2];
     prefactor[{{1,0,0}}] = -2. * center[0] * center[2] * center[2];
-    prefactor[{{0,0,0}}] =  pow(center[0], 2) * pow(center[2],2);
-    prefactor *= 16./3 * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor[{{0,0,0}}] =  center[0] * center[0] * center[2] * center[2];
+    prefactor *= 16./3. * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gxyyy) {
-    PolynomialCoeffs prefactor(3); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{1,3,0}}] =  1.;
     prefactor[{{0,3,0}}] = -center[0];
     prefactor[{{1,2,0}}] = -3. * center[1];
@@ -427,10 +427,10 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,1,0}}] = -3. * center[0] * center[1] * center[1];
     prefactor[{{1,0,0}}] = -pow(center[1], 3);
     prefactor[{{0,0,0}}] =  center[0] * pow(center[1], 3);
-    prefactor *= 16./sqrt(15) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor *= 16./sqrt(15.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gxyyz) {
-    PolynomialCoeffs prefactor(2); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{1,2,1}}] =  1.;
     prefactor[{{0,2,1}}] = -center[0];
     prefactor[{{1,1,1}}] = -2. * center[1];
@@ -442,11 +442,11 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{1,1,0}}] =  2. * center[1] * center[2];
     prefactor[{{0,1,0}}] = -2. * center[0] * center[1] * center[2];
     prefactor[{{1,0,0}}] = -center[1] * center[1] * center[2];
-    prefactor[{{0,0,0}}] =  center[0] * pow(center[1], 2) * center[2];
-    prefactor *= 16./sqrt(3) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor[{{0,0,0}}] =  center[0] * center[1] * center[1] * center[2];
+    prefactor *= 16./sqrt(3.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gxyzz) {
-    PolynomialCoeffs prefactor(2); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{1,1,2}}] =  1.;
     prefactor[{{0,1,2}}] = -center[0]; 
     prefactor[{{1,0,2}}] = -center[1];
@@ -458,11 +458,11 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{1,1,0}}] =  center[2] * center[2];
     prefactor[{{0,1,0}}] = -center[0] * center[2] * center[2];
     prefactor[{{1,0,0}}] = -center[1] * center[2] * center[2];
-    prefactor[{{0,0,0}}] =  center[0] * center[1] * pow(center[2], 2);
-    prefactor *= 16./sqrt(3) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor[{{0,0,0}}] =  center[0] * center[1] * center[2] * center[2];
+    prefactor *= 16./sqrt(3.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gxzzz) {
-    PolynomialCoeffs prefactor(3); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{1,0,3}}] =  1.;
     prefactor[{{0,0,3}}] = -center[0];
     prefactor[{{1,0,2}}] = -3. * center[2];
@@ -471,19 +471,19 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,0,1}}] = -3. * center[0] * center[2] * center[2];
     prefactor[{{1,0,0}}] = -pow(center[2], 3);
     prefactor[{{0,0,0}}] =  center[0] * pow(center[2], 3);
-    prefactor *= 16./sqrt(15) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor *= 16./sqrt(15.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gyyyy) {
-    PolynomialCoeffs prefactor(4); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{0,4,0}}] = 1.;
     prefactor[{{0,3,0}}] = -4. * center[1];
     prefactor[{{0,2,0}}] =  6. * center[1] * center[1];
     prefactor[{{0,1,0}}] = -4. * pow(center[1], 3); 
     prefactor[{{0,0,0}}] = + pow(center[1], 4);
-    prefactor *= 16./sqrt(105) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor *= 16./sqrt(105.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gyyyz) {
-    PolynomialCoeffs prefactor(3); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{0,3,1}}] =  1.;
     prefactor[{{0,2,1}}] = -3. * center[1];
     prefactor[{{0,1,1}}] =  3. * center[1] * center[1];
@@ -492,10 +492,10 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,2,0}}] =  3. * center[1] * center[2];
     prefactor[{{0,1,0}}] = -3. * center[1] * center[1] * center[2];
     prefactor[{{0,0,0}}] =  pow(center[1], 3) * center[2];
-    prefactor *= 16./sqrt(15) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor *= 16./sqrt(15.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gyyzz) {
-    PolynomialCoeffs prefactor(2); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{0,2,2}}] =  1.;
     prefactor[{{0,1,2}}] = -2. * center[1];
     prefactor[{{0,0,2}}] =  center[1] * center[1];
@@ -504,11 +504,11 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,0,1}}] = -2. * center[1] * center[1] * center[2];
     prefactor[{{0,2,0}}] =  center[2] * center[2];
     prefactor[{{0,1,0}}] = -2. * center[1] * center[2] * center[2];
-    prefactor[{{0,0,0}}] =  pow(center[1], 2) * pow(center[2],2);
-    prefactor *= 16./3 * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor[{{0,0,0}}] =  center[1] * center[1] * center[2] * center[2];
+    prefactor *= 16./3. * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gyzzz) {
-    PolynomialCoeffs prefactor(3); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{0,1,3}}] =  1.;
     prefactor[{{0,0,3}}] = -center[1];
     prefactor[{{0,1,2}}] = -3. * center[2];
@@ -516,17 +516,17 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,1,1}}] =  3. * center[2] * center[2];
     prefactor[{{0,0,1}}] = -3. * center[1] * center[2] * center[2];
     prefactor[{{0,1,0}}] = -pow(center[2], 3);
-    prefactor[{{0,0,0}}] =  center[0] * pow(center[2], 3);
-    prefactor *= 16./sqrt(15) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor[{{0,0,0}}] =  center[1] * pow(center[2], 3);
+    prefactor *= 16./sqrt(15.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::gzzzz) {
-    PolynomialCoeffs prefactor(4); 
+    prefactor = PolynomialCoeffs(4);
     prefactor[{{0,0,4}}] = 1.;
     prefactor[{{0,0,3}}] = -4. * center[2];
     prefactor[{{0,0,2}}] =  6. * center[2] * center[2];
     prefactor[{{0,0,1}}] = -4. * pow(center[2], 3); 
-    prefactor[{{0,0,0}}] = + pow(center[2], 4);
-    prefactor *= 16./sqrt(105) * pow(ec, 11./4) * pow(2./pi, 0.75);
+    prefactor[{{0,0,0}}] = pow(center[2], 4);
+    prefactor *= 16./sqrt(105.) * pow(ec, 2.75) * pow(2./pi, 0.75);
   }
 
   // spherical g orbitals
@@ -726,229 +726,229 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
 
   // Cartesian h orbitals
   else if(type == GaussianType::hxxxxx) {
-    PolynomialCoeffs prefactor(5); 
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{5,0,0}}] =  1.;
     prefactor[{{4,0,0}}] = -5. * center[0];
-    prefactor[{{3,0,0}}] =  10. * pow(center[0], 2);
+    prefactor[{{3,0,0}}] =  10. * center[0] * center[0];
     prefactor[{{2,0,0}}] = -10. * pow(center[0], 3);
     prefactor[{{1,0,0}}] =  5. * pow(center[0], 4); 
     prefactor[{{0,0,0}}] = -pow(center[0], 5);
-    prefactor *= 32./(3.*sqrt(105)) * pow(ec, 13./4) * pow(2./pi, 0.75); 
+    prefactor *= 32./(3.*sqrt(105.)) * pow(ec, 3.25) * pow(2./pi, 0.75); 
   }
   else if(type == GaussianType::hxxxxy) {
-    PolynomialCoeffs prefactor(4);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{4,1,0}}] =  1.;
     prefactor[{{3,1,0}}] = -4. * center[0];
-    prefactor[{{2,1,0}}] =  6. * pow(center[0], 2);
+    prefactor[{{2,1,0}}] =  6. * center[0] * center[0];
     prefactor[{{1,1,0}}] = -4. * pow(center[0], 3);
     prefactor[{{0,1,0}}] =  pow(center[0], 4);
     prefactor[{{4,0,0}}] = -1. * center[1];
     prefactor[{{3,0,0}}] =  4. * center[0] * center[1];
-    prefactor[{{2,0,0}}] = -6. * pow(center[0], 2) * center[1];
+    prefactor[{{2,0,0}}] = -6. * center[0] * center[0] * center[1];
     prefactor[{{1,0,0}}] =  4. * pow(center[0], 3) * center[1];
     prefactor[{{0,0,0}}] = -pow(center[0], 4) * center[1];
-    prefactor *= 32./sqrt(105) * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor *= 32./sqrt(105.) * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxxxxz) {
-    PolynomialCoeffs prefactor(4);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{4,0,1}}] =  1.;
     prefactor[{{3,0,1}}] = -4. * center[0];
-    prefactor[{{2,0,1}}] =  6. * pow(center[0], 2);
+    prefactor[{{2,0,1}}] =  6. * center[0] * center[0];
     prefactor[{{1,0,1}}] = -4. * pow(center[0], 3);
     prefactor[{{0,0,1}}] =  pow(center[0], 4);
     prefactor[{{4,0,0}}] = -center[2];
     prefactor[{{3,0,0}}] =  4. * center[0] * center[2];
-    prefactor[{{2,0,0}}] = -6. * pow(center[0], 2) * center[2];
+    prefactor[{{2,0,0}}] = -6. * center[0] * center[0] * center[2];
     prefactor[{{1,0,0}}] =  4. * pow(center[0], 3) * center[2];
     prefactor[{{0,0,0}}] = -pow(center[0], 4) * center[2];
-    prefactor *= 32./sqrt(105) * pow(ec, 13./4) * pow(2./pi, 0.75);    
+    prefactor *= 32./sqrt(105.) * pow(ec, 3.25) * pow(2./pi, 0.75);    
   }
   else if(type == GaussianType::hxxxyy) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{3,2,0}}] =  1.;
     prefactor[{{2,2,0}}] = -3. * center[0];
-    prefactor[{{1,2,0}}] =  3. * pow(center[0], 2);
+    prefactor[{{1,2,0}}] =  3. * center[0] * center[0];
     prefactor[{{0,2,0}}] = -pow(center[0], 3);
     prefactor[{{3,1,0}}] = -2. * center[1];
     prefactor[{{2,1,0}}] =  6. * center[0] * center[1];
-    prefactor[{{1,1,0}}] = -6. * pow(center[0], 2) * center[1];
+    prefactor[{{1,1,0}}] = -6. * center[0] * center[0] * center[1];
     prefactor[{{0,1,0}}] =  2. * pow(center[0], 3) * center[1];
-    prefactor[{{3,0,0}}] =  pow(center[0], 2);
-    prefactor[{{2,0,0}}] = -3. * center[0] * pow(center[1], 2);
-    prefactor[{{1,0,0}}] =  3. * pow(center[0], 2) * pow(center[1], 2);
-    prefactor[{{0,0,0}}] = -pow(center[0], 3) * pow(center[1], 2);
-    prefactor *= 32./(3.*sqrt(5)) * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor[{{3,0,0}}] =  center[1] * center[1];
+    prefactor[{{2,0,0}}] = -3. * center[0] * center[1] * center[1];
+    prefactor[{{1,0,0}}] =  3. * center[0] * center[0] * center[1] * center[1];
+    prefactor[{{0,0,0}}] = -pow(center[0], 3) * center[1] * center[1];
+    prefactor *= 32./(3.*sqrt(5.)) * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxxxyz) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{3,1,1}}] =  1.;
     prefactor[{{2,1,1}}] = -3. * center[0];
-    prefactor[{{1,1,1}}] =  3. * pow(center[0], 2);
+    prefactor[{{1,1,1}}] =  3. * center[0] * center[0];
     prefactor[{{0,1,1}}] = -pow(center[0], 3);
     prefactor[{{3,0,1}}] = -center[1];
     prefactor[{{2,0,1}}] =  3. * center[0] * center[1];
-    prefactor[{{1,0,1}}] = -3. * pow(center[0], 2) * center[1];
+    prefactor[{{1,0,1}}] = -3. * center[0] * center[0] * center[1];
     prefactor[{{0,0,1}}] =  pow(center[0], 3) * center[1];
     prefactor[{{3,1,0}}] = -center[2];
     prefactor[{{2,1,0}}] =  3. * center[0] * center[2];
-    prefactor[{{1,1,0}}] = -3. * pow(center[0], 2) * center[2];
+    prefactor[{{1,1,0}}] = -3. * center[0] * center[0] * center[2];
     prefactor[{{0,1,0}}] =  pow(center[0], 3) * center[2];
     prefactor[{{3,0,0}}] =  center[1] * center[2];
     prefactor[{{2,0,0}}] = -3. * center[0] * center[1] * center[2];
-    prefactor[{{1,0,0}}] =  3. * pow(center[0], 2) * center[1] * center[2];
+    prefactor[{{1,0,0}}] =  3. * center[0] * center[0] * center[1] * center[2];
     prefactor[{{0,0,0}}] = -pow(center[0], 3) * center[1] * center[2];
-    prefactor *= 32./sqrt(15) * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor *= 32./sqrt(15.) * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxxxzz) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{3,0,2}}] =  1.;
     prefactor[{{2,0,2}}] = -3. * center[0];
-    prefactor[{{1,0,2}}] =  3. * pow(center[0], 2);
+    prefactor[{{1,0,2}}] =  3. * center[0] * center[0];
     prefactor[{{0,0,2}}] = -pow(center[0], 3);
     prefactor[{{3,0,1}}] = -2. * center[2];
     prefactor[{{2,0,1}}] =  6. * center[0] * center[2];
-    prefactor[{{1,0,1}}] = -6. * pow(center[0], 2) * center[2];
+    prefactor[{{1,0,1}}] = -6. * center[0] * center[0] * center[2];
     prefactor[{{0,0,1}}] =  2. * pow(center[0], 3) * center[2];
-    prefactor[{{3,0,0}}] =  pow(center[0], 2);
-    prefactor[{{2,0,0}}] = -3. * center[0] * pow(center[2], 2);
-    prefactor[{{1,0,0}}] =  3. * pow(center[0], 2) * pow(center[2], 2);
-    prefactor[{{0,0,0}}] = -pow(center[0], 3) * pow(center[2], 2);
-    prefactor *= 32./(3.*sqrt(5)) * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor[{{3,0,0}}] =  center[2] * center[2];
+    prefactor[{{2,0,0}}] = -3. * center[0] * center[2] * center[2];
+    prefactor[{{1,0,0}}] =  3. * center[0] * center[0] * center[2] * center[2];
+    prefactor[{{0,0,0}}] = -pow(center[0], 3) * center[2] * center[2];
+    prefactor *= 32./(3.*sqrt(5.)) * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxxyyy) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{2,3,0}}] =  1.;
     prefactor[{{1,3,0}}] = -2. * center[0];
-    prefactor[{{0,3,0}}] =  pow(center[0], 2);
+    prefactor[{{0,3,0}}] =  center[0] * center[0];
     prefactor[{{2,2,0}}] = -3. * center[1];
     prefactor[{{1,2,0}}] =  6. * center[0] * center[1];
-    prefactor[{{0,2,0}}] = -3. * pow(center[0], 2) * center[1];
-    prefactor[{{2,1,0}}] =  3. * pow(center[1], 2);
-    prefactor[{{1,1,0}}] = -6. * center[0] * pow(center[1], 2);
-    prefactor[{{0,1,0}}] =  3. * pow(center[0], 2) * pow(center[1], 2);
+    prefactor[{{0,2,0}}] = -3. * center[0] * center[0] * center[1];
+    prefactor[{{2,1,0}}] =  3. * center[1] * center[1];
+    prefactor[{{1,1,0}}] = -6. * center[0] * center[1] * center[1];
+    prefactor[{{0,1,0}}] =  3. * center[0] * center[0] * center[1] * center[1];
     prefactor[{{2,0,0}}] = -pow(center[1], 3);
     prefactor[{{1,0,0}}] =  2. * center[0] * pow(center[1], 3);
-    prefactor[{{0,0,0}}] = -pow(center[0], 2) * pow(center[1], 3);
+    prefactor[{{0,0,0}}] = -center[0] * center[0] * pow(center[1], 3);
     prefactor *= 32./(3.*sqrt(5)) * pow(ec, 13./4) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxxyyz) {
-    PolynomialCoeffs prefactor(2);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{2,2,1}}] =  1.;
     prefactor[{{1,2,1}}] = -2. * center[0];
-    prefactor[{{0,2,1}}] =  pow(center[0], 2);
+    prefactor[{{0,2,1}}] =  center[0] * center[0];
     prefactor[{{2,1,1}}] = -2. * center[1];
     prefactor[{{1,1,1}}] =  4. * center[0] * center[1];
-    prefactor[{{0,1,1}}] = -2. * pow(center[0], 2) * center[1];
-    prefactor[{{2,0,1}}] =  pow(center[1], 2);
-    prefactor[{{1,0,1}}] = -2. * center[0] * pow(center[1], 2);
-    prefactor[{{0,0,1}}] =  pow(center[0], 2) * pow(center[1], 2);
+    prefactor[{{0,1,1}}] = -2. * center[0] * center[0] * center[1];
+    prefactor[{{2,0,1}}] =  center[1] * center[1];
+    prefactor[{{1,0,1}}] = -2. * center[0] * center[1] * center[1];
+    prefactor[{{0,0,1}}] =  center[0] * center[0] * center[1] * center[1];
     prefactor[{{2,2,0}}] = -center[2];
     prefactor[{{1,2,0}}] =  2. * center[0] * center[2];
-    prefactor[{{0,2,0}}] = -pow(center[0], 2) * center[2];
+    prefactor[{{0,2,0}}] = -center[0] * center[0] * center[2];
     prefactor[{{2,1,0}}] =  2. * center[1] * center[2];
     prefactor[{{1,1,0}}] = -4. * center[0] * center[1] * center[2];
-    prefactor[{{0,1,0}}] =  2. * pow(center[0], 2) * center[1] * center[2];
-    prefactor[{{2,0,0}}] = -pow(center[1], 2) * center[2];
-    prefactor[{{1,0,0}}] =  2. * center[0] * pow(center[1], 2) * center[2];
-    prefactor[{{0,0,0}}] = -pow(center[0], 2) * pow(center[1], 2) * center[2];
-    prefactor *= 32./3 * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor[{{0,1,0}}] =  2. * center[0] * center[0] * center[1] * center[2];
+    prefactor[{{2,0,0}}] = -center[1] * center[1] * center[2];
+    prefactor[{{1,0,0}}] =  2. * center[0] * center[1] * center[1] * center[2];
+    prefactor[{{0,0,0}}] = -center[0] * center[0] * center[1] * center[1] * center[2];
+    prefactor *= 32./3. * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxxyzz) {
-    PolynomialCoeffs prefactor(2);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{2,1,2}}] =  1.;
     prefactor[{{1,1,2}}] = -2. * center[0];
-    prefactor[{{0,1,2}}] =  pow(center[0], 2);
+    prefactor[{{0,1,2}}] =  center[0] * center[0];
     prefactor[{{2,0,2}}] = -center[1];
     prefactor[{{1,0,2}}] =  2. * center[0] * center[1];
-    prefactor[{{0,0,2}}] = -pow(center[0], 2) * center[1];
+    prefactor[{{0,0,2}}] = -center[0] * center[0] * center[1];
     prefactor[{{2,1,1}}] = -2. * center[2];
     prefactor[{{1,1,1}}] =  4. * center[0] * center[2];
-    prefactor[{{0,1,1}}] = -2. * pow(center[0], 2) * center[2];
+    prefactor[{{0,1,1}}] = -2. * center[0] * center[0] * center[2];
     prefactor[{{2,0,1}}] =  2. * center[1] * center[2];
     prefactor[{{1,0,1}}] = -4. * center[0] * center[1] * center[2];
-    prefactor[{{0,0,1}}] =  2. * pow(center[0], 2) * center[1] * center[2];
-    prefactor[{{2,1,0}}] =  pow(center[2], 2);
+    prefactor[{{0,0,1}}] =  2. * center[0] * center[0] * center[1] * center[2];
+    prefactor[{{2,1,0}}] =  center[2] * center[2];
     prefactor[{{1,1,0}}] = -2. * center[0] * pow(center[2], 2);
-    prefactor[{{0,1,0}}] =  pow(center[0], 2) * pow(center[2], 2);
-    prefactor[{{2,0,0}}] = -center[1] * pow(center[2], 2);
-    prefactor[{{1,0,0}}] =  2. * center[0] * center[1] * pow(center[2], 2);
-    prefactor[{{0,0,0}}] =  pow(center[0], 2) * center[1] * pow(center[2], 2);
-    prefactor *= 32./3 * pow(ec, 13./4) * pow(2./pi, 0.75); 
+    prefactor[{{0,1,0}}] =  center[0] * center[0] * center[2] * center[2];
+    prefactor[{{2,0,0}}] = -center[1] * center[2] * center[2];
+    prefactor[{{1,0,0}}] =  2. * center[0] * center[1] * center[2] * center[2];
+    prefactor[{{0,0,0}}] = -center[0] * center[0] * center[1] * center[2] * center[2];
+    prefactor *= 32./3. * pow(ec, 3.25) * pow(2./pi, 0.75); 
   }
   else if(type == GaussianType::hxxzzz) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{2,0,3}}] =  1.;
     prefactor[{{1,0,3}}] = -2. * center[0];
-    prefactor[{{0,0,3}}] =  pow(center[0], 2);
+    prefactor[{{0,0,3}}] =  center[0] * center[0];
     prefactor[{{2,0,2}}] = -3. * center[2];
     prefactor[{{1,0,2}}] =  6. * center[0] * center[2];
-    prefactor[{{0,0,2}}] = -3. * pow(center[0], 2) * center[2];
-    prefactor[{{2,0,1}}] =  3. * pow(center[2], 2);
-    prefactor[{{1,0,1}}] = -6. * center[0] * pow(center[2], 2);
-    prefactor[{{0,0,1}}] =  3. * pow(center[0], 2) * pow(center[2], 2);
+    prefactor[{{0,0,2}}] = -3. * center[0] * center[0] * center[2];
+    prefactor[{{2,0,1}}] =  3. * center[2] * center[2];
+    prefactor[{{1,0,1}}] = -6. * center[0] * center[2] * center[2];
+    prefactor[{{0,0,1}}] =  3. * center[0] * center[0] * center[2] * center[2];
     prefactor[{{2,0,0}}] = -pow(center[2], 3);
     prefactor[{{1,0,0}}] =  2. * center[0] * pow(center[2], 3);
-    prefactor[{{0,0,0}}] = -pow(center[0], 2) * pow(center[2], 3);
-    prefactor *= 32./(3.*sqrt(5)) * pow(ec, 13./4) * pow(2./pi, 0.75); 
+    prefactor[{{0,0,0}}] = -center[0] * center[0] * pow(center[2], 3);
+    prefactor *= 32./(3.*sqrt(5.)) * pow(ec, 3.25) * pow(2./pi, 0.75); 
   }
   else if(type == GaussianType::hxyyyy) {
-    PolynomialCoeffs prefactor(4);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{1,4,0}}] =  1.;
     prefactor[{{0,4,0}}] = -center[0];
     prefactor[{{1,3,0}}] = -4. * center[1];
     prefactor[{{0,3,0}}] =  4. * center[0] * center[1];
-    prefactor[{{1,2,0}}] =  6. * pow(center[1], 2);
-    prefactor[{{0,2,0}}] = -6. * center[0] * pow(center[1], 2);
+    prefactor[{{1,2,0}}] =  6. * center[1] * center[1];
+    prefactor[{{0,2,0}}] = -6. * center[0] * center[1] * center[1];
     prefactor[{{1,1,0}}] = -4. * pow(center[1], 3);
     prefactor[{{0,1,0}}] =  4. * center[0] * pow(center[1], 3);
     prefactor[{{1,0,0}}] =  pow(center[1], 4);
     prefactor[{{0,0,0}}] = -center[0] * pow(center[1], 4);
-    prefactor *= 32./sqrt(105) * pow(ec, 13./4) * pow(2./pi, 0.75); 
+    prefactor *= 32./sqrt(105.) * pow(ec, 3.25) * pow(2./pi, 0.75); 
   }
   else if(type == GaussianType::hxyyyz) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{1,3,1}}] =  1.;
     prefactor[{{0,3,1}}] = -center[0];
     prefactor[{{1,2,1}}] = -3. * center[1];
     prefactor[{{0,2,1}}] =  3. * center[0] * center[1];
-    prefactor[{{1,1,1}}] =  3. * pow(center[1], 2);
-    prefactor[{{0,1,1}}] = -3. * center[0] * pow(center[1], 2);
+    prefactor[{{1,1,1}}] =  3. * center[1] * center[1];
+    prefactor[{{0,1,1}}] = -3. * center[0] * center[1] * center[1];
     prefactor[{{1,0,1}}] = -pow(center[1], 3);
     prefactor[{{0,0,1}}] =  center[0] * pow(center[1], 3);
     prefactor[{{1,3,0}}] = -center[2];
     prefactor[{{0,3,0}}] =  center[0] * center[2];
     prefactor[{{1,2,0}}] =  3. * center[1] * center[2];
     prefactor[{{0,2,0}}] = -3. * center[0] * center[1] * center[2];
-    prefactor[{{1,1,0}}] = -3. * pow(center[1], 2) * center[2];
-    prefactor[{{0,1,0}}] =  3. * center[0] * pow(center[1], 2) * center[2];
-    prefactor[{{1,0,0}}] =  pow(center[1], 3);
+    prefactor[{{1,1,0}}] = -3. * center[1] * center[1] * center[2];
+    prefactor[{{0,1,0}}] =  3. * center[0] * center[1] * center[1] * center[2];
+    prefactor[{{1,0,0}}] =  pow(center[1], 3) * center[2];
     prefactor[{{0,0,0}}] = -center[0] * pow(center[1], 3) * center[2];
-    prefactor *= 32./sqrt(15) * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor *= 32./sqrt(15.) * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxyyzz) {
-    PolynomialCoeffs prefactor(2);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{1,2,2}}] =  1.;
     prefactor[{{0,2,2}}] = -center[0];
     prefactor[{{1,1,2}}] = -2. * center[1];
     prefactor[{{0,1,2}}] =  2. * center[0] * center[1];
-    prefactor[{{1,0,2}}] =  pow(center[1], 2);
+    prefactor[{{1,0,2}}] =  center[1] * center[1];
     prefactor[{{0,0,2}}] = -center[0] * pow(center[1], 2);
     prefactor[{{1,2,1}}] = -2. * center[2];
     prefactor[{{0,2,1}}] =  2. * center[0] * center[2];
     prefactor[{{1,1,1}}] =  4. * center[1] * center[2];
     prefactor[{{0,1,1}}] = -4. * center[0] * center[1] * center[2];
-    prefactor[{{1,0,1}}] = -2. * pow(center[1], 2) * center[2];
-    prefactor[{{0,0,1}}] =  2. * center[0] * pow(center[1], 2) * center[2];
-    prefactor[{{1,2,0}}] =  pow(center[2], 2);
-    prefactor[{{0,2,0}}] = -center[0] * pow(center[2], 2);
-    prefactor[{{1,1,0}}] = -2. * center[1] * pow(center[2], 2);
-    prefactor[{{0,1,0}}] =  2. * center[0] * center[1] * pow(center[2], 2);
-    prefactor[{{1,0,0}}] =  pow(center[1], 2) * pow(center[2], 2);
-    prefactor[{{0,0,0}}] = -center[0] * pow(center[1], 2) * pow(center[2], 2);
-    prefactor *= 32./3 * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor[{{1,0,1}}] = -2. * center[1] * center[1] * center[2];
+    prefactor[{{0,0,1}}] =  2. * center[0] * center[1] * center[1] * center[2];
+    prefactor[{{1,2,0}}] =  center[2] * center[2];
+    prefactor[{{0,2,0}}] = -center[0] * center[2] * center[2];
+    prefactor[{{1,1,0}}] = -2. * center[1] * center[2] * center[2];
+    prefactor[{{0,1,0}}] =  2. * center[0] * center[1] * center[2] * center[2];
+    prefactor[{{1,0,0}}] =  center[1] * center[1] * center[2] * center[2];
+    prefactor[{{0,0,0}}] = -center[0] * center[1] * center[1] * center[2] * center[2];
+    prefactor *= 32./3. * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxyzzz) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{1,1,3}}] =  1.;
     prefactor[{{0,1,3}}] = -center[0];
     prefactor[{{1,0,3}}] = -center[1];
@@ -957,110 +957,110 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,1,2}}] =  3. * center[0] * center[2];
     prefactor[{{1,0,2}}] =  3. * center[1] * center[2];
     prefactor[{{0,0,2}}] = -3. * center[0] * center[1] * center[2];
-    prefactor[{{1,1,1}}] =  3. * pow(center[2], 2);
-    prefactor[{{0,1,1}}] = -3. * center[0] * pow(center[2], 2);
-    prefactor[{{0,0,1}}] =  3. * center[0] * center[1] * pow(center[2], 2);
+    prefactor[{{1,1,1}}] =  3. * center[2] * center[2];
+    prefactor[{{0,1,1}}] = -3. * center[0] * center[2] * center[2];
+    prefactor[{{1,0,1}}] = -3. * center[1] * center[2] * center[2];
+    prefactor[{{0,0,1}}] =  3. * center[0] * center[1] * center[2] * center[2];
     prefactor[{{1,1,0}}] = -pow(center[2], 3);
-    prefactor[{{0,1,0}}] = center[0] * pow(center[2], 3);
-    prefactor[{{1,0,0}}] = center[1] * pow(center[2], 3);
-    prefactor[{{0,0,0}}] = center[0] * center[1] * pow(center[2], 3);
-    prefactor *= 32./sqrt(15) * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor[{{0,1,0}}] =  center[0] * pow(center[2], 3);
+    prefactor[{{1,0,0}}] =  center[1] * pow(center[2], 3);
+    prefactor[{{0,0,0}}] = -center[0] * center[1] * pow(center[2], 3);
+    prefactor *= 32./sqrt(15.) * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
   else if(type == GaussianType::hxzzzz) {
-    PolynomialCoeffs prefactor(4);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{1,0,4}}] =  1.;
     prefactor[{{0,0,4}}] = -center[0];
     prefactor[{{1,0,3}}] = -4. * center[2];
     prefactor[{{0,0,3}}] =  4. * center[0] * center[2];
-    prefactor[{{1,0,2}}] =  6. * pow(center[2], 2);
-    prefactor[{{0,0,2}}] = -6. * center[0] * pow(center[2], 2);
+    prefactor[{{1,0,2}}] =  6. * center[2] * center[2];
+    prefactor[{{0,0,2}}] = -6. * center[0] * center[2] * center[2];
     prefactor[{{1,0,1}}] = -4. * pow(center[2], 3);
     prefactor[{{0,0,1}}] =  4. * center[0] * pow(center[2], 3);
     prefactor[{{1,0,0}}] =  pow(center[2], 4);
     prefactor[{{0,0,0}}] = -center[0] * pow(center[2], 4);
-    prefactor *= 32./sqrt(105) * pow(ec, 13./4) * pow(2./pi, 0.75);  
+    prefactor *= 32./sqrt(105.) * pow(ec, 3.25) * pow(2./pi, 0.75);  
   }
   else if(type == GaussianType::hyyyyy) {
-    PolynomialCoeffs prefactor(5);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{0,5,0}}] =  1.;
     prefactor[{{0,4,0}}] = -5. * center[1];
-    prefactor[{{0,3,0}}] =  10. * pow(center[1], 2);
+    prefactor[{{0,3,0}}] =  10. * center[1] * center[1];
     prefactor[{{0,2,0}}] = -10. * pow(center[1], 3);
     prefactor[{{0,1,0}}] =  5. * pow(center[1], 4); 
     prefactor[{{0,0,0}}] = -pow(center[1], 5);
-    prefactor *= 32./(3.*sqrt(105)) * pow(ec, 13./4) * pow(2./pi, 0.75);  
+    prefactor *= 32./(3.*sqrt(105.)) * pow(ec, 3.25) * pow(2./pi, 0.75);  
   }
   else if(type == GaussianType::hyyyyz) {
-    PolynomialCoeffs prefactor(4);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{0,4,1}}] =  1.;
     prefactor[{{0,3,1}}] = -4. * center[1];
-    prefactor[{{0,2,1}}] =  6. * pow(center[1], 2);
+    prefactor[{{0,2,1}}] =  6. * center[1] * center[1];
     prefactor[{{0,1,1}}] = -4. * pow(center[1], 3);
     prefactor[{{0,0,1}}] =  pow(center[1], 4);
     prefactor[{{0,4,0}}] = -center[2];
     prefactor[{{0,3,0}}] =  4. * center[1] * center[2];
-    prefactor[{{0,2,0}}] = -6. * pow(center[1], 2) * center[2];
+    prefactor[{{0,2,0}}] = -6. * center[1] * center[1] * center[2];
     prefactor[{{0,1,0}}] =  4. * pow(center[1], 3) * center[2];
     prefactor[{{0,0,0}}] = -pow(center[1], 4) * center[2];
-    prefactor *= 32./sqrt(105) * pow(ec, 13./4) * pow(2./pi, 0.75);     
+    prefactor *= 32./sqrt(105.) * pow(ec, 3.25) * pow(2./pi, 0.75);     
   }
   else if(type == GaussianType::hyyyzz) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{0,3,2}}] =  1.;
     prefactor[{{0,2,2}}] = -3. * center[1];
-    prefactor[{{0,1,2}}] =  3. * pow(center[1], 2);
+    prefactor[{{0,1,2}}] =  3. * center[1] * center[1];
     prefactor[{{0,0,2}}] = -pow(center[1], 3);
     prefactor[{{0,3,1}}] = -2. * center[2];
     prefactor[{{0,2,1}}] =  6. * center[1] * center[2];
-    prefactor[{{0,1,1}}] = -6. * pow(center[1], 2) * center[2];
+    prefactor[{{0,1,1}}] = -6. * center[1] * center[1] * center[2];
     prefactor[{{0,0,1}}] =  2. * pow(center[1], 3) * center[2];
-    prefactor[{{0,3,0}}] =  pow(center[1], 2);
-    prefactor[{{0,2,0}}] = -3. * center[1] * pow(center[2], 2);
-    prefactor[{{0,1,0}}] =  3. * pow(center[1], 2) * pow(center[2], 2);
-    prefactor[{{0,0,0}}] = -pow(center[1], 3) * pow(center[2], 2);
-    prefactor *= 32./(3.*sqrt(5)) * pow(ec, 13./4) * pow(2./pi, 0.75); 
+    prefactor[{{0,3,0}}] =  center[2] * center[2];
+    prefactor[{{0,2,0}}] = -3. * center[1] * center[2] * center[2];
+    prefactor[{{0,1,0}}] =  3. * center[1] * center[1] * center[2] * center[2];
+    prefactor[{{0,0,0}}] = -pow(center[1], 3) * center[2] * center[2];
+    prefactor *= 32./(3.*sqrt(5.)) * pow(ec, 3.25) * pow(2./pi, 0.75); 
   }
   else if(type == GaussianType::hyyzzz) {
-    PolynomialCoeffs prefactor(3);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{0,2,3}}] =  1.;
     prefactor[{{0,1,3}}] = -2. * center[1];
-    prefactor[{{0,0,3}}] =  pow(center[1], 2);
+    prefactor[{{0,0,3}}] =  center[1] * center[1];
     prefactor[{{0,2,2}}] = -3. * center[2];
     prefactor[{{0,1,2}}] =  6. * center[1] * center[2];
-    prefactor[{{0,0,2}}] = -3. * pow(center[1], 2) * center[2];
-    prefactor[{{0,2,1}}] =  3. * pow(center[2], 2);
+    prefactor[{{0,0,2}}] = -3. * center[1] * center[1] * center[2];
+    prefactor[{{0,2,1}}] =  3. * center[2] * center[2];
     prefactor[{{0,1,1}}] = -6. * center[1] * pow(center[2], 2);
-    prefactor[{{0,0,1}}] =  3. * pow(center[1], 2) * pow(center[2], 2);
+    prefactor[{{0,0,1}}] =  3. * center[1] * center[1] * center[2] * center[2];
     prefactor[{{0,2,0}}] = -pow(center[2], 3);
     prefactor[{{0,1,0}}] =  2. * center[1] * pow(center[2], 3);
-    prefactor[{{0,0,0}}] = -pow(center[1], 2) * pow(center[2], 3);
-    prefactor *= 32./(3.*sqrt(5)) * pow(ec, 13./4) * pow(2./pi, 0.75);  
+    prefactor[{{0,0,0}}] = -center[1] * center[1] * pow(center[2], 3);
+    prefactor *= 32./(3.*sqrt(5.)) * pow(ec, 3.25) * pow(2./pi, 0.75);  
   }
   else if(type == GaussianType::hyzzzz) {
-    PolynomialCoeffs prefactor(4);
+    prefactor = PolynomialCoeffs(5);
     prefactor[{{0,1,4}}] =  1.;
     prefactor[{{0,0,4}}] = -center[1];
     prefactor[{{0,1,3}}] = -4. * center[2];
     prefactor[{{0,0,3}}] =  4. * center[1] * center[2];
-    prefactor[{{0,1,2}}] =  6. * pow(center[2], 2);
-    prefactor[{{0,0,2}}] = -6. * center[1] * pow(center[2], 2);
+    prefactor[{{0,1,2}}] =  6. * center[2] * center[2];
+    prefactor[{{0,0,2}}] = -6. * center[1] * center[2] * center[2];
     prefactor[{{0,1,1}}] = -4. * pow(center[2], 3);
     prefactor[{{0,0,1}}] =  4. * center[1] * pow(center[2], 3);
     prefactor[{{0,1,0}}] =  pow(center[2], 4);
     prefactor[{{0,0,0}}] = -center[1] * pow(center[2], 4);
-    prefactor *= 32./sqrt(105) * pow(ec, 13./4) * pow(2./pi, 0.75);   
+    prefactor *= 32./sqrt(105.) * pow(ec, 3.25) * pow(2./pi, 0.75);   
   }
   else if(type == GaussianType::hzzzzz) {
-    PolynomialCoeffs prefactor(5);
-    prefactor[{{0,5,0}}] =  1.;
-    prefactor[{{0,4,0}}] = -5. * center[1];
-    prefactor[{{0,3,0}}] =  10. * pow(center[1], 2);
-    prefactor[{{0,2,0}}] = -10. * pow(center[1], 3);
-    prefactor[{{0,1,0}}] =  5. * pow(center[1], 4); 
-    prefactor[{{0,0,0}}] = -pow(center[1], 5);
-    prefactor *= 32./(3.*sqrt(105)) * pow(ec, 13./4) * pow(2./pi, 0.75);
+    prefactor = PolynomialCoeffs(5);
+    prefactor[{{0,0,5}}] =  1.;
+    prefactor[{{0,0,4}}] = -5. * center[2];
+    prefactor[{{0,0,3}}] =  10. * center[2] * center[2];
+    prefactor[{{0,0,2}}] = -10. * pow(center[2], 3);
+    prefactor[{{0,0,1}}] =  5. * pow(center[2], 4); 
+    prefactor[{{0,0,0}}] = -pow(center[2], 5);
+    prefactor *= 32./(3.*sqrt(105.)) * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
-
   // h sphericals
   // (l,m) = (5,-5) 
   else if(type == GaussianType::hm5) {

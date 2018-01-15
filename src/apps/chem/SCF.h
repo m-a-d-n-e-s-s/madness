@@ -762,9 +762,9 @@ namespace madness {
                     
                     calc.set_protocol<3>(world,calc.param.protocol_data[proto]);
                     calc.make_nuclear_potential(world);
-                    
+ 
                     if (calc.param.restartao) calc.param.aobasis = "sto-3g"; // since this was used for the projection
-                    calc.project_ao_basis(world);
+                    if (calc.param.nwfile == "") calc.project_ao_basis(world);
                     
                     if (proto == 0 && nv == nvalpha_start) {
                         if (calc.param.restart) {
@@ -800,8 +800,9 @@ namespace madness {
                     // If the basis for the inital guess was not sto-3g
                     // switch to sto-3g since this is needed for analysis
                     // of the MOs and orbital localization
-                    
-                    if (calc.param.aobasis != "sto-3g") {
+                    // Only do this if not starting from NWChem. No 
+                    // is will be done on NWChem orbitals.
+                    if (calc.param.aobasis != "sto-3g" && calc.param.nwfile == "") {
                         calc.param.aobasis = "sto-3g";
                         calc.project_ao_basis(world);
                     }

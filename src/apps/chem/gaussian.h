@@ -19,6 +19,7 @@
 #include <utility>
 #include "basis.h"
 #include "polynomial.h"
+#include <madness/mra/mra.h>
 
 #ifdef DEBUG
 // forward declare the test functions that need to be friends
@@ -245,6 +246,17 @@ public:
   virtual double operator() (const std::array<double, 3> &x) const override;
 
   /**
+   * \brief Evaluate the Gaussian function at the specified point.
+   *
+   * \param[in] x The point as a madness construct.
+   * \return The Gaussian function evaluated at the point x.
+   */
+  double operator() (const madness::coord_3d& r) const {
+     return operator()(std::array<double, 3>{{r[0], r[1], r[2]}});
+  }
+
+
+  /**
    * \brief Additive inverse of the GaussianFunction (deep copy).
    *
    * \return The negated function.
@@ -364,6 +376,17 @@ public:
 inline GaussianFunction operator*(const double lhs, const GaussianFunction &rhs) {
   return rhs * lhs;
 }
+
+class Gaussian_Functor : public madness::FunctionFunctorInterface<double, 3> {
+private:
+    GaussianFunction func;
+public:
+    Gaussian_Functor(GaussianFunction func) : func(func) {}
+
+    double operator()(const madness::coord_3d& r) const {
+        return func(r);
+    }
+};
 
 } // namespace slymer
 

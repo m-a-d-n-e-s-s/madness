@@ -594,7 +594,7 @@ struct CalculationParameters {
         else
             madness::print(" psp or all electron ", "mixed psp/AE");
         if (nwfile != "")
-            madness::print("    nwchem file name", nwfile);
+            madness::print("    nwchem file name ", nwfile);
     }
 
     void gprint(World& world) const {
