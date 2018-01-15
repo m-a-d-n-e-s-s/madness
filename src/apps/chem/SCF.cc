@@ -1174,15 +1174,7 @@ namespace madness {
               // the transform function, then take only 
               // the occupied orbitals.
               print("\nCreating MADNESS functions from the NWChem orbitals.\n");
-              //vector_real_function_3d temp1(nwchem.basis_set.size());
-              //for (int i = 0; i < nwchem.basis_set.size(); i++)
-              //{
-              //    // Cast the 'basis_set' into a gaussian type
-              //    // and iterate over it 
-              //    for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set))
-              //        temp1[i] = factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get()))); 
-              //}
-              
+                            
               // Cast the 'basis_set' into a gaussian type
               // and iterate over it 
               vector_real_function_3d temp1;
