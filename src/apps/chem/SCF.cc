@@ -1139,7 +1139,11 @@ namespace madness {
 
               // Construct interfact object from slymer namespace
               slymer::NWChem_Interface nwchem(param.nwfile, std::cout);
-              
+              if(world.rank() != 0) {
+                 std::ostream dev_null(nullptr);
+                 nwchem.err = dev_null;
+              }              
+
               // Read in basis set
               nwchem.read(slymer::ES_Interface::Properties::Basis);
 
