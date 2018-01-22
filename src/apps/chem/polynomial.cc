@@ -101,15 +101,12 @@ PolynomialCoeffs PolynomialCoeffs::operator* (const PolynomialCoeffs &rhs) const
 
   // go through all combinations for the product
   for(unsigned x1 = 0; x1 <= degree; ++x1)
-    for(unsigned y1 = 0; y1 <= degree; ++y1)
-      for(unsigned z1 = 0; z1 <= degree; ++z1) {
-        if(x1 + y1 + z1 > degree) continue;
+    for(unsigned y1 = 0; y1 <= degree - x1; ++y1)
+      for(unsigned z1 = 0; z1 <= degree - x1 - y1; ++z1) {
 
         for(unsigned x2 = 0; x2 <= rhs.degree; ++x2)
-          for(unsigned y2 = 0; y2 <= rhs.degree; ++y2)
-            for(unsigned z2 = 0; z2 <= rhs.degree; ++z2) {
-              if(x2 + y2 + z2 > rhs.degree) continue;
-
+          for(unsigned y2 = 0; y2 <= rhs.degree - x2; ++y2)
+            for(unsigned z2 = 0; z2 <= rhs.degree - x2 - y2; ++z2) {
               ret[{{x1+x2, y1+y2, z1+z2}}] +=
                 operator[]({{x1, y1, z1}}) * rhs[{{x2, y2, z2}}];
             }

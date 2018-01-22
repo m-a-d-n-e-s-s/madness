@@ -23,48 +23,47 @@ namespace slymer {
 
 // helper functions
 
-void NWChem_Interface::read(const Properties props) {
+void NWChem_Interface::read(Properties::Properties props) {
   // figure out which properties we need to read:
   // 1) Work out dependencies (for instance, basis needs atoms).
   // 2) Omit ones that are already read. That is, we need properties that are
   //    specified in props (post step 1), but not already read (in my_properties).
   //    ... bitwise and props with (not my_properties) -- has to be requested and
   //    not read.
-  unsigned flags = static_cast<unsigned>(props);
 
   // basis requires atoms
-  if(flags & static_cast<unsigned>(Properties::Basis))
-    flags |= static_cast<unsigned>(Properties::Atoms);
+  if((props & Properties::Basis).any())
+    props |= Properties::Atoms;
 
   // if we're doing the MO expansion coefficients, we might as well do the
   // energies
-  if(flags & static_cast<unsigned>(Properties::MOs))
-    flags |= static_cast<unsigned>(Properties::Energies);
+  if((props & Properties::MOs).any())
+    props |= Properties::Energies;
 
   // skip things we've already read
-  flags &= ~static_cast<unsigned>(my_properties);
+  props &= ~my_properties;
 
   // do we need to open and read fname.out?
-  if((flags & static_cast<unsigned>(Properties::Atoms)) ||
-     (flags & static_cast<unsigned>(Properties::Basis))) {
+  if((props & Properties::Atoms).any() ||
+     (props & Properties::Basis).any()) {
 
     // open the NWChem log file: fname.out
     std::ifstream in(fname + ".out");
     if(!in)
       throw std::invalid_argument("Cannot open " + fname + ".out for reading.");
 
-    if(flags & static_cast<unsigned>(Properties::Atoms))
+    if((props & Properties::Atoms).any())
       read_atoms(in);
-    if(flags & static_cast<unsigned>(Properties::Basis))
+    if((props & Properties::Basis).any())
       read_basis_set(in);
 
     in.close();
   }
 
   // do we need to open and read fname.movecs?
-  if((flags & static_cast<unsigned>(Properties::Energies)) ||
-     (flags & static_cast<unsigned>(Properties::MOs)) ||
-     (flags & static_cast<unsigned>(Properties::Occupancies))) {
+  if((props & Properties::Energies).any() ||
+     (props & Properties::MOs).any() ||
+     (props & Properties::Occupancies).any()) {
 
     // open the NWChem movecs file: fname.movecs
     // this file is binary
@@ -73,7 +72,7 @@ void NWChem_Interface::read(const Properties props) {
       throw std::invalid_argument("Cannot open " + fname + ".movecs for reading.");
     in.unsetf(std::ios::skipws);
 
-    read_movecs(static_cast<Properties>(flags), in);
+    read_movecs(props, in);
 
     in.close();
   }
@@ -85,9 +84,11 @@ void NWChem_Interface::read_atoms(std::istream &in) {
   // state variables
   std::string line; // current line of the NWChem output
   bool reading = false; // are we in the block of text where we can read basis functions?
-  
+  double unitcf = 1.; // Conversion factor to go from units in the NWChem file to angstroms
+
   // regex search strings
   std::regex startline{R"(Geometry)"},
+             unitline{R"(Output coordinates in (a.u.|angstroms|nanometer|picometer|.+) \(scale)"},
              atomline{R"([[:digit:]]+[[:space:]]+([[:alpha:]]+)[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]+)[[:space:]]+([^[:space:]]+)[[:space:]]+([^[:space:]]+))"},
              doneline{R"(Atomic Mass)"};
   std::smatch matches;
@@ -99,16 +100,37 @@ void NWChem_Interface::read_atoms(std::istream &in) {
       reading = true;
     }
 
+    // in what units are the atomic positions?
+    else if(reading && std::regex_search(line, matches, unitline)) {
+      bool doprint = true;
+      if(matches[1] == "angstroms")
+        unitcf = 1./0.529177;
+      else if(matches[1] == "a.u.")
+        unitcf = 1.0;
+      else if(matches[1] == "nanometer")
+        unitcf = 10./0.529177;
+      else if(matches[1] == "picometer")
+        unitcf = 0.01/0.529177;
+      else {
+        err.get() << "Unknown units: " << matches[1] << ". Assuming angstroms." << std::endl;
+        unitcf = 1.;
+        doprint = false;
+      }
+      if(doprint)
+        err.get() << "NWChem uses " << matches[1] << ". Conversion to a.u. is "
+          << unitcf << '.' << std::endl;
+    }
+
+    // does this line have an atomic position?
     else if(reading && std::regex_search(line, matches, atomline)) {
-      err.get() << matches[1] << " at (" << std::stod(matches[2])/0.529177 << ", " << std::stod(matches[3])/0.529177 << ", " << std::stod(matches[4])/0.529177 << ")." << std::endl;
+      err.get() << matches[1] << " at (" << matches[2] << ", " << matches[3] << ", " << matches[4] << ")." << std::endl;
       Atom addme;
       addme.symbol = matches[1];
-      addme.position = {{std::stod(matches[2])/0.529177,   // Convert to bohr
-                         std::stod(matches[3])/0.529177,   // Convert to bohr
-                         std::stod(matches[4])/0.529177}}; // Convert to bohr
+      addme.position = {{std::stod(matches[2]) * unitcf, std::stod(matches[3]) * unitcf, std::stod(matches[4]) * unitcf}};
       my_atoms.emplace_back(std::move(addme));
     }
 
+    // are we done?
     else if(reading && std::regex_search(line, doneline)) {
       break;
     }
@@ -176,7 +198,7 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
       else if(matches[1] == "spherical")
         spherical = true;
 
-      err.get() << "Using " << (spherical ? "spherical" : "Cartesian") << " orbitals." << std::endl;
+      err.get() << "Using " << (spherical ? "spherical" : "Cartesian") << " orbitals." << std::endl; 
     }
 
     // Are we done reading orbitals?
@@ -608,16 +630,18 @@ static T read_endian(std::istream &in, const bool swap) {
   return ret;
 }
 
-void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
+void NWChem_Interface::read_movecs(const Properties::Properties props,
+  std::istream &in)
+{
   int32_t num[2];
   bool swap_endian = false;
   unsigned nsets, nbasis;
   const std::runtime_error errmess("Error reading NWChem movecs file.");
 
   // what properties are we storing? (all will be read from the movecs file)
-  const bool do_occupancies = (props & Properties::Occupancies) != Properties::None;
-  const bool do_energies = (props & Properties::Energies) != Properties::None;
-  const bool do_MOs = (props & Properties::MOs) != Properties::None;
+  const bool do_occupancies = (props & Properties::Occupancies).any();
+  const bool do_energies = (props & Properties::Energies).any();
+  const bool do_MOs = (props & Properties::MOs).any();
 
   // temporary storage places (in case errors pop up while/after reading)
   madness::Tensor<double> temp_occupancies, temp_energies;
@@ -795,20 +819,17 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
 
   // allocate space to store the occupation numbers, the eigenvalues, and the
   // eigenvectors (MO vectors), as desired by the request
-  if(do_occupancies)
-  {
-    madness::Tensor<double> stupid(nmo[nsets - 1]);
-    temp_occupancies = copy(stupid);
+  if(do_occupancies) {
+    madness::Tensor<double> one(nmo[nsets-1]);
+    temp_occupancies = copy(one);
   }
-  if(do_energies)
-  {
-    madness::Tensor<double> way(nmo[nsets - 1]);
-    temp_energies = copy(way);
+  if(do_energies) {
+    madness::Tensor<double> two(nmo[nsets - 1]);
+    temp_energies = copy(two);
   }
-  if(do_MOs)
-  {
-    madness::Tensor<double> todothis(nmo[nsets - 1], nmo[nsets - 1]);
-    temp_MOs = copy(todothis);
+  if(do_MOs) {
+    madness::Tensor<double> three(nmo[nsets - 1], nmo[nsets - 1]);
+    temp_MOs = copy(three);
   }
 
   // go through the sets
@@ -832,6 +853,7 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
       throw errmess;
     }
 
+
     // next up are the eigenvalues (energies)
     // number of bits bookend (8 for double * nmo[set]);
     num[0] = read_endian<int32_t>(in, swap_endian);
@@ -841,10 +863,9 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
       throw errmess;
     }
     if(do_energies && set == nsets - 1)
-      for(unsigned j = 0; j < nmo[set]; ++j) {
-        // NWChem reports energies in Hartrees
-        temp_energies[j] = read_endian<double>(in, swap_endian);
-      }
+      for(unsigned j = 0; j < nmo[set]; ++j)
+        // NWChem reports energies in Hartrees, we want eV.
+        temp_energies[j] = read_endian<double>(in, swap_endian) * 27.21138602;
     else
       in.seekg(num[0], std::ios_base::cur); // just buzz past them.
     num[1] = read_endian<int32_t>(in, swap_endian);
@@ -852,7 +873,8 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
       err.get() << "Error reading energies for set " << set << '.' << std::endl;
       throw errmess;
     }
-    
+
+
     // finally, read the MO vectors, which were written vector-by-vector
     for(unsigned mo = 0; mo < nmo[set]; ++mo) {
       // bookend size of the vector
@@ -864,7 +886,7 @@ void NWChem_Interface::read_movecs(const Properties props, std::istream &in) {
       }
       if(do_MOs && set == nsets - 1)
         for(unsigned coeff = 0; coeff < nbasis; ++coeff)
-          temp_MOs(coeff, mo) = read_endian<double>(in, swap_endian); 
+          temp_MOs(coeff, mo) = read_endian<double>(in, swap_endian);
       else
         in.seekg(num[0], std::ios_base::cur); // just buzz past the MO
       // bookend size of the vector

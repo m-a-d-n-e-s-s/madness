@@ -8,6 +8,7 @@
  * \brief Implementation of Gaussian basis function API and routines.
  */
 
+#include "../../madness.h"
 #include "gaussian.h"
 #include <cmath>
 #include <limits>
@@ -544,7 +545,7 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     yy[{{0,2,0}}] = 1.;
     yy[{{0,1,0}}] = -2. * center[1];
     yy[{{0,0,0}}] = center[1] * center[1];
-    double norm = 8. / sqrt(3.) * pow(ec, 11./4) * pow(2./pi, 3./4);
+    double norm = 8./sqrt(3.) * pow(ec, 2.75) * pow(2./pi, 0.75);
     prefactor = norm * x * y * (xx + (-1. * yy));
   }
   // (l,m) = (4,-3)
@@ -561,7 +562,7 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     yy[{{0,2,0}}] = 1.;
     yy[{{0,1,0}}] = -2. * center[1];
     yy[{{0,0,0}}] = center[1] * center[1];
-    double norm = 8. / sqrt(3.) * pow(ec, 11./4) * pow( 2., 1./4) * pow( 1./pi, 3./4);
+    double norm = 8./sqrt(3.) * pow(ec, 2.75) * pow(2., 0.25) * pow(1./pi, 0.75);
     prefactor = norm * y * z * (3. * xx + (-1. * yy));
   }
   // (l,m) = (4,-2)
@@ -582,7 +583,7 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     rr[{{0,0,2}}] = 1.;
     rr[{{0,0,1}}] = -2. * center[2];
     rr[{{0,0,0}}] = center[0] * center[0] + center[1] * center[1] + center[2] * center[2];
-    double norm = 8./ sqrt(21.) * pow(ec, 11./4) * pow(2./pi, 3./4);
+    double norm = 8./sqrt(21.) * pow(ec, 2.75) * pow(2./pi, 0.75);
     prefactor = norm * x * y * (7. * zz + (-1. * rr));
   }
   // (l,m) = (4,-1)
@@ -603,7 +604,7 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     rr[{{0,0,2}}] = 1.;
     rr[{{0,0,1}}] = -2. * center[2];
     rr[{{0,0,0}}] = center[0] * center[0] + center[1] * center[1] + center[2] * center[2];
-    double norm = 8./sqrt(21.) * pow(2., 1./4) * pow(ec, 11./4) * pow(1./pi, 3./4);
+    double norm = 8./sqrt(21.) * pow(2., 0.25) * pow(ec, 2.75) * pow(1./pi, 0.75);
     prefactor = norm * y * z * (7. * zz + (-3. * rr));
   }
   // (l,m) = (4,0)
@@ -634,7 +635,7 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     zz[{{0,0,2}}] =  1.;
     zz[{{0,0,1}}] = -2. * center[2];
     zz[{{0,0,0}}] =  pow(center[2], 2);
-    double norm = 2./sqrt(105) * pow(ec, 11./4) * pow(2./pi, 3./4); 
+    double norm = 2./sqrt(105.) * pow(ec, 2.75) * pow(2./pi, 0.75); 
     prefactor = norm * (3.*x4 + 3.*y4 + 8.*z4 + 6.*xx*yy + (-24.*xx*zz) + (-24.*yy*zz)); 
   }
   // (l,m) = (4,1)
@@ -655,7 +656,7 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     rr[{{0,0,2}}] = 1.;
     rr[{{0,0,1}}] = -2. * center[2];
     rr[{{0,0,0}}] = center[0] * center[0] + center[1] * center[1] + center[2] * center[2];
-    double norm = 8./sqrt(21.) * pow(2, 1./4) * pow(ec, 11./4) * pow(1./pi, 3./4);
+    double norm = 8./sqrt(21.) * pow(2, 0.25) * pow(ec, 2.75) * pow(1./pi, 0.75);
     // Testing shows nwchem uses the negative
     prefactor = (-1.) * norm * x * z * (7.*zz + (-3.*rr)); 
   }
@@ -679,7 +680,7 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     rr[{{0,0,2}}] = 1.;
     rr[{{0,0,1}}] = -2. * center[2];
     rr[{{0,0,0}}] = center[0] * center[0] + center[1] * center[1] + center[2] * center[2];
-    double norm = 4./sqrt(21) * pow(ec, 11./4) * pow(2./pi, 3./4);
+    double norm = 4./sqrt(21.) * pow(ec, 2.75) * pow(2./pi, 0.75);
     prefactor = norm * (xx + (-1*yy)) * (7.*zz + (-1.*rr));  
   }
   // (l,m) = (4,3)
@@ -696,9 +697,9 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     yy[{{0,2,0}}] = 1.;
     yy[{{0,1,0}}] = -2. * center[1];
     yy[{{0,0,0}}] = center[1] * center[1];
-    double norm = 8./sqrt(3) * pow(2., 1./4) * pow(ec, 11./4) * pow(1./pi, 3./4);
+    double norm = 8./sqrt(3.) * pow(2., 0.25) * pow(ec, 2.75) * pow(1./pi, 0.75);
     // Testing shows nwchem uses the negative
-    prefactor = (-1.) * norm * x * z * (xx + (-3.*yy)); 
+    prefactor = norm * x * z * (3.*yy + -1.*xx); 
   }
   // (l,m) = (4,4)
   else if(type == GaussianType::gx4mx2y2py4) {
@@ -706,21 +707,21 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     PolynomialCoeffs x4(4), y4(4), xx(2), yy(2);
     x4[{{4,0,0}}] =  1.;
     x4[{{3,0,0}}] = -4. * center[0];
-    x4[{{2,0,0}}] =  6. * pow(center[0], 2);
+    x4[{{2,0,0}}] =  6. * center[0] * center[0];
     x4[{{1,0,0}}] = -4. * pow(center[0], 3);
     x4[{{0,0,0}}] =  pow(center[0], 4);
     y4[{{0,4,0}}] =  1.;
     y4[{{0,3,0}}] = -4 * center[1];
-    y4[{{0,2,0}}] =  6. * pow(center[1], 2);
+    y4[{{0,2,0}}] =  6. * center[1] * center[1];
     y4[{{0,1,0}}] = -4. * pow(center[1], 3);
     y4[{{0,0,0}}] =  pow(center[1], 4);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.; 
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
-    double norm = 2./sqrt(3) * pow(ec, 11./4) * pow(2./pi, 3./4);     
+    yy[{{0,0,0}}] =  center[1] * center[1];
+    double norm = 2./sqrt(3.) * pow(ec, 2.75) * pow(2./pi, 0.75);     
     prefactor = norm * (x4 + (-6.*xx*yy) + y4); 
   }
 
@@ -1061,6 +1062,7 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     prefactor[{{0,0,0}}] = -pow(center[2], 5);
     prefactor *= 32./(3.*sqrt(105.)) * pow(ec, 3.25) * pow(2./pi, 0.75);
   }
+
   // h sphericals
   // (l,m) = (5,-5) 
   else if(type == GaussianType::hm5) {
@@ -1070,21 +1072,21 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     y[{{0,0,0}}]  = -center[1];
     x4[{{4,0,0}}]  =  1.;
     x4[{{3,0,0}}]  = -4. * center[0];
-    x4[{{2,0,0}}]  =  6. * pow(center[0], 2);
+    x4[{{2,0,0}}]  =  6. * center[0] * center[0];
     x4[{{1,0,0}}]  = -4. * pow(center[0], 3);
     x4[{{0,0,0}}]  =  pow(center[0], 4);
     y4[{{0,4,0}}]  =  1.;
     y4[{{0,3,0}}]  = -4. * center[1];
-    y4[{{0,2,0}}]  =  6. * pow(center[1], 2);
+    y4[{{0,2,0}}]  =  6. * center[1] * center[1];
     y4[{{0,1,0}}]  = -4. * pow(center[1], 3);
     y4[{{0,0,0}}]  =  pow(center[1], 4);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.; 
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
-    double norm =  4./sqrt(15) * pow(2., 1./4) * pow(ec, 13./4) * pow(1./pi, 3./4);
+    yy[{{0,0,0}}] =  center[1] * center[1];
+    double norm =  4./sqrt(15.) * pow(2., 0.25) * pow(ec, 3.25) * pow(1./pi, 0.75);
     prefactor = norm * y * (5.*x4 + (-10.*xx*yy) + y4);
     }
   // (l,m) = (5,-4)
@@ -1099,11 +1101,11 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     z[{{0,0,0}}] = -center[2];
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.;
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
-    double norm = 16./sqrt(3) * pow(ec, 13./4) * pow(2./pi, 3./4);
+    yy[{{0,0,0}}] =  center[1] * center[1];
+    double norm = 16./sqrt(3.) * pow(ec, 3.25) * pow(2./pi, 0.75);
     prefactor = norm * x * y * z * (xx + (-1.*yy));
   }
   // (l,m) = (5,-3)
@@ -1112,16 +1114,16 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     PolynomialCoeffs xx(2), yy(2), zz(2), y(1);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.;
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
+    yy[{{0,0,0}}] =  center[1] * center[1];
     zz[{{0,0,2}}] =  1.;
     zz[{{0,0,1}}] = -2. * center[2];
-    zz[{{0,0,0}}] =  pow(center[2], 2);
+    zz[{{0,0,0}}] =  center[2] * center[2];
     y[{{0,1,0}}] =  1.;
     y[{{0,0,0}}] = -center[1];
-    double norm = 4./(3.*sqrt(3)) * pow(2., 1./4) * pow(ec, 13./4) * pow(1./pi, 3./4);
+    double norm = 4./(3.*sqrt(3.)) * pow(2., 0.25) * pow(ec, 3.25) * pow(1./pi, 0.75);
     prefactor = norm * y * (3.*xx + (-1.*yy)) * (8.*zz + (-1.*xx) + (-1.*yy));
   }
   // (l,m) = (5,-2)
@@ -1130,20 +1132,20 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     PolynomialCoeffs xx(2), yy(2), zz(2), x(1), y(1), z(1);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.;
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
+    yy[{{0,0,0}}] =  center[1] * center[1];
     zz[{{0,0,2}}] =  1.;
     zz[{{0,0,1}}] = -2. * center[2];
-    zz[{{0,0,0}}] =  pow(center[2], 2);
+    zz[{{0,0,0}}] =  center[2] * center[2];
     x[{{1,0,0}}] =  1.;
     x[{{0,0,0}}] = -center[0];
     y[{{0,1,0}}] =  1.; 
     y[{{0,0,0}}] = -center[1];
     z[{{0,0,1}}] =  1.;
     z[{{0,0,0}}] = -center[2];
-    double norm = 16./3 * pow(ec, 13./4) * pow(2./pi, 3./4);
+    double norm = 16./3. * pow(ec, 3.25) * pow(2./pi, 0.75);
     prefactor = norm * x * y * z * (2.*zz + (-1.*xx) + (-1.*yy)); 
   }
   // (l,m) = (5,-1)
@@ -1153,31 +1155,31 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     PolynomialCoeffs x4(4), xx(2), yy(2), y4(4), zz(2), z4(4), y(1);
     x4[{{4,0,0}}] =  1.;
     x4[{{3,0,0}}] = -4. * center[0];
-    x4[{{2,0,0}}] =  6. * pow(center[0], 2);
+    x4[{{2,0,0}}] =  6. * center[0] * center[0];
     x4[{{1,0,0}}] = -4. * pow(center[0], 3);
     x4[{{0,0,0}}] =  1. * pow(center[0], 4);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     zz[{{0,0,2}}] =  1.;
     zz[{{0,0,1}}] = -2. * center[2];
-    zz[{{0,0,0}}] =  pow(center[2], 2);
+    zz[{{0,0,0}}] =  center[2] * center[2];
     y4[{{0,4,0}}] =  1.;
     y4[{{0,3,0}}] = -4. * center[1];
-    y4[{{0,2,0}}] =  6. * pow(center[1], 2);
+    y4[{{0,2,0}}] =  6. * center[1] * center[1];
     y4[{{0,1,0}}] = -4. * pow(center[1], 3);
     y4[{{0,0,0}}] =  1. * pow(center[1], 4);
     yy[{{0,2,0}}] =  1.;
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
+    yy[{{0,0,0}}] =  center[1] * center[1];
     z4[{{0,0,4}}] =  1.;
     z4[{{0,0,3}}] = -4. * center[2];
-    z4[{{0,0,2}}] =  6. * pow(center[2], 2);
+    z4[{{0,0,2}}] =  6. * center[2] * center[2];
     z4[{{0,0,1}}] = -4. * pow(center[2], 3);
     z4[{{0,0,0}}] =  1. * pow(center[2], 4);
     y[{{0,1,0}}] =  1.;
     y[{{0,0,0}}] = -center[1];
-    double norm = 4./(3.*sqrt(7)) * pow(ec, 13./4) * pow(2./pi, 3./4);
+    double norm = 4./(3.*sqrt(7.)) * pow(ec, 3.25) * pow(2./pi, 0.75);
     prefactor = norm * y * (x4 + 2.*xx*yy + (-12.*xx*zz) + y4 + (-12.*yy*zz) + 8.*z4);
   }
   // (l,m) = (5,0)
@@ -1187,18 +1189,18 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     PolynomialCoeffs x4(4), xx(2), zz(2), y4(4), yy(2), z4(4), z(1);
     x4[{{4,0,0}}] =  1.;
     x4[{{3,0,0}}] = -4. * center[0];
-    x4[{{2,0,0}}] =  6. * pow(center[0], 2);
+    x4[{{2,0,0}}] =  6. * center[0] * center[0];
     x4[{{1,0,0}}] = -4. * pow(center[0], 3);
     x4[{{0,0,0}}] =  1. * pow(center[0], 4);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     zz[{{0,0,2}}] =  1.;
     zz[{{0,0,1}}] = -2. * center[2];
-    zz[{{0,0,0}}] =  pow(center[2], 2);
+    zz[{{0,0,0}}] =  center[2] * center[2];
     y4[{{0,4,0}}] =  1.;
     y4[{{0,3,0}}] = -4. * center[1];
-    y4[{{0,2,0}}] =  6. * pow(center[1], 2);
+    y4[{{0,2,0}}] =  6. * center[1] * center[1];
     y4[{{0,1,0}}] = -4. * pow(center[1], 3);
     y4[{{0,0,0}}] =  1. * pow(center[1], 4);
     yy[{{0,2,0}}] =  1.;
@@ -1206,12 +1208,12 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     yy[{{0,0,0}}] =  pow(center[1], 2);
     z4[{{0,0,4}}] =  1.;
     z4[{{0,0,3}}] = -4. * center[2];
-    z4[{{0,0,2}}] =  6. * pow(center[2], 2);
+    z4[{{0,0,2}}] =  6. * center[2] * center[2];
     z4[{{0,0,1}}] = -4. * pow(center[2], 3);
     z4[{{0,0,0}}] =  1. * pow(center[2], 4);
     z[{{0,0,1}}] =  1.;
     z[{{0,0,0}}] = -center[2];
-    double norm = 4./(3.*sqrt(105)) * pow(ec, 13./4) * pow(2./pi, 3./4);
+    double norm = 4./(3.*sqrt(105.)) * pow(ec, 3.25) * pow(2./pi, 0.75);
     prefactor = norm * z * (15.*x4 + 30.*xx*yy + (-40.*xx*zz) + 15.*y4 + (-40.*yy*zz) + 8.*z4); 
   }
   // (l,m) = (5,1)
@@ -1221,31 +1223,31 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     PolynomialCoeffs x4(4), xx(2), zz(2), y4(4), yy(2), z4(4), x(1);
     x4[{{4,0,0}}] =  1.;
     x4[{{3,0,0}}] = -4. * center[0];
-    x4[{{2,0,0}}] =  6. * pow(center[0], 2);
+    x4[{{2,0,0}}] =  6. * center[0] * center[0];
     x4[{{1,0,0}}] = -4. * pow(center[0], 3);
     x4[{{0,0,0}}] =  1. * pow(center[0], 4);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     zz[{{0,0,2}}] =  1.;
     zz[{{0,0,1}}] = -2. * center[2];
-    zz[{{0,0,0}}] =  pow(center[2], 2);
+    zz[{{0,0,0}}] =  center[2] * center[2];
     y4[{{0,4,0}}] =  1.;
     y4[{{0,3,0}}] = -4. * center[1];
-    y4[{{0,2,0}}] =  6. * pow(center[1], 2);
+    y4[{{0,2,0}}] =  6. * center[1] * center[1];
     y4[{{0,1,0}}] = -4. * pow(center[1], 3);
     y4[{{0,0,0}}] =  1. * pow(center[1], 4);
     yy[{{0,2,0}}] =  1.;
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
+    yy[{{0,0,0}}] =  center[1] * center[1];
     z4[{{0,0,4}}] =  1.;
     z4[{{0,0,3}}] = -4. * center[2];
-    z4[{{0,0,2}}] =  6. * pow(center[2], 2);
+    z4[{{0,0,2}}] =  6. * center[2] * center[2];
     z4[{{0,0,1}}] = -4. * pow(center[2], 3);
     z4[{{0,0,0}}] =  1. * pow(center[2], 4);
     x[{{1,0,0}}] =  1.;
     x[{{0,0,0}}] = -center[0];
-    double norm = 4./(3.*sqrt(7)) * pow(ec, 13./4) * pow(2./pi, 3./4);;
+    double norm = 4./(3.*sqrt(7.)) * pow(ec, 3.25) * pow(2./pi, 0.75);
     // Testing shows nwchem uses the negative of this
     prefactor = (-1.) * norm * x * (x4 + 2.*xx*yy + (-12.*xx*zz) + y4 + (-12.*yy*zz) + 8.*z4);
   }
@@ -1255,16 +1257,16 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     PolynomialCoeffs xx(2), yy(2), zz(2), z(1);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.;
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
+    yy[{{0,0,0}}] =  center[1] * center[1];
     zz[{{0,0,2}}] =  1.;
     zz[{{0,0,1}}] = -2. * center[2];
-    zz[{{0,0,0}}] =  pow(center[2], 2);
+    zz[{{0,0,0}}] =  center[2] * center[2];
     z[{{0,0,1}}] =  1.;
     z[{{0,0,0}}] = -center[2];
-    double norm = 8./3 * pow(ec, 13./4) * pow(2./pi, 3./4);
+    double norm = 8./3. * pow(ec, 3.25) * pow(2./pi, 0.75);
     prefactor = norm * z * (xx + (-1.*yy)) * (2.*zz + (-1.*xx) + (-1.*yy)); 
   }
   // (l,m) = (5,3)
@@ -1274,16 +1276,16 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     PolynomialCoeffs xx(2), yy(2), zz(2), x(1);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.;
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
+    yy[{{0,0,0}}] =  center[1] * center[1];
     zz[{{0,0,2}}] =  1.;
     zz[{{0,0,1}}] = -2. * center[2];
-    zz[{{0,0,0}}] =  pow(center[2], 2);
+    zz[{{0,0,0}}] =  center[2] * center[2];
     x[{{1,0,0}}] =  1.;
     x[{{0,0,0}}] = -center[0];
-    double norm = 4./(3*sqrt(3)) * pow(2., 1./4) * pow(ec, 13./4) * pow(1./pi, 3./4);
+    double norm = 4./(3.*sqrt(3.)) * pow(2., 0.25) * pow(ec, 3.25) * pow(1./pi, 0.75);
     // Testing shows nwchem uses the negative of this
     prefactor = (-1.) * norm * x * (xx + (-3.*yy)) * (8.*zz + (-1.*xx) + (-1.*yy)); 
   } 
@@ -1295,21 +1297,21 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     z[{{0,0,0}}]  = -center[2];
     x4[{{4,0,0}}]  =  1.;
     x4[{{3,0,0}}]  = -4. * center[0];
-    x4[{{2,0,0}}]  =  6. * pow(center[0], 2);
+    x4[{{2,0,0}}]  =  6. * center[0] * center[0];
     x4[{{1,0,0}}]  = -4. * pow(center[0], 3);
     x4[{{0,0,0}}]  =  pow(center[0], 4);
     y4[{{0,4,0}}]  =  1.;
     y4[{{0,3,0}}]  = -4. * center[1];
-    y4[{{0,2,0}}]  =  6. * pow(center[1], 2);
+    y4[{{0,2,0}}]  =  6. * center[1] * center[1];
     y4[{{0,1,0}}]  = -4. * pow(center[1], 3);
     y4[{{0,0,0}}]  =  pow(center[1], 4);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.; 
     yy[{{0,1,0}}] = -2. *center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
-    double norm = 4./sqrt(3) * pow(ec, 13./4) * pow(2./pi, 3./4);
+    yy[{{0,0,0}}] =  center[1] * center[1];
+    double norm = 4./sqrt(3.) * pow(ec, 3.25) * pow(2./pi, 0.75);
     prefactor = norm * z * (x4 + (-6.*xx*yy) + y4); 
   }
   // (l,m) = (5,5)
@@ -1320,21 +1322,21 @@ PrimitiveGaussian::PrimitiveGaussian(const GaussianType &type,
     x[{{0,0,0}}]  = -center[0];
     x4[{{4,0,0}}]  =  1.;
     x4[{{3,0,0}}]  = -4. * center[0];
-    x4[{{2,0,0}}]  =  6. * pow(center[0], 2);
+    x4[{{2,0,0}}]  =  6. * center[0] * center[0];
     x4[{{1,0,0}}]  = -4. * pow(center[0], 3);
     x4[{{0,0,0}}]  =  pow(center[0], 4);
     y4[{{0,4,0}}]  =  1.;
     y4[{{0,3,0}}]  = -4. * center[1];
-    y4[{{0,2,0}}]  =  6. * pow(center[1], 2);
+    y4[{{0,2,0}}]  =  6. * center[1] * center[1];
     y4[{{0,1,0}}]  = -4. * pow(center[1], 3);
     y4[{{0,0,0}}]  =  pow(center[1], 4);
     xx[{{2,0,0}}] =  1.;
     xx[{{1,0,0}}] = -2. * center[0];
-    xx[{{0,0,0}}] =  pow(center[0], 2);
+    xx[{{0,0,0}}] =  center[0] * center[0];
     yy[{{0,2,0}}] =  1.; 
     yy[{{0,1,0}}] = -2. * center[1];
-    yy[{{0,0,0}}] =  pow(center[1], 2);
-    double norm = 4./sqrt(15) * pow(2., 1./4) * pow(ec, 13./4) * pow(1./pi, 3./4);
+    yy[{{0,0,0}}] =  center[1] * center[1];
+    double norm = 4./sqrt(15.) * pow(2., 0.25) * pow(ec, 3.25) * pow(1./pi, 0.75);
     // Testing shows nwchem uses the negative of this
     prefactor = (-1.) * norm * x * (x4 + (-10.*xx*yy) + 5.*y4);
   }

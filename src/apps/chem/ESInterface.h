@@ -16,6 +16,7 @@
 
 #include <madness/mra/mra.h>
 #include <array>
+#include <bitset>
 #include <functional>
 #include <ostream>
 #include <string>
@@ -26,50 +27,76 @@ namespace slymer {
 /// An atom (symbol and position).
 struct Atom {
   std::string symbol; ///< The atom's symbol.
-  std::array<double, 3> position; ///< The atom's location, in bohrs.
+  std::array<double, 3> position; ///< The atom's location, in angstroms.
 };
 
 /// A set of atoms.
 using Atoms = std::vector<Atom>;
 
-/// Abstract base class for interfacing with electronic structure codes.
-
-/// \todo Create a copy and move constructor, since they're deleted (by default) due to the presence of the references.
-class ES_Interface {
-public:
+namespace Properties {
   /**
    * \brief Different properties that can be read from electronic structure codes.
+   *
+   * C-style bitflags via (\c std::bitset) are used for specifying the properties.
    *
    * Some properties might require reading others, and this framework is designed
    * to facilitate reading multiple properties in one go through the output file(s).
    */
-  enum class Properties : unsigned {
-    None = 0,
-    Basis = 1,
-    Atoms = 2,
-    Energies = 4,
-    MOs = 8,
-    Occupancies = 16
-  };
+  using Properties = std::bitset<5>;
 
+  constexpr Properties None = 0; ///< No properties.
+  constexpr Properties Basis = 1 << 0; ///< The basis set.
+  constexpr Properties Atoms = 1 << 1; ///< The atoms & positions.
+  constexpr Properties Energies = 1 << 2; ///< The MO energies.
+  constexpr Properties MOs = 1 << 3; ///< The MO vector coefficients.
+  constexpr Properties Occupancies = 1 << 4; ///< MO occupancies.
+} // namespace Properties
+
+/// Abstract base class for interfacing with electronic structure codes.
+class ES_Interface {
 protected:
-  Properties my_properties; ///< The properties that have been read.
+  Properties::Properties my_properties; ///< The properties that have been read.
   BasisSet my_basis_set; ///< The basis set.
   Atoms my_atoms; ///< The atoms (symbols and positions, in angstroms).
   madness::Tensor<double> my_energies; ///< Molecular orbital energies (in eV).
   madness::Tensor<double> my_MOs; ///< Molecular orbital expansions coefficients. Column is the MO, row is the basis function.
   madness::Tensor<double> my_occupancies; ///< Molecular orbital occupancies.
-
+ 
 public:
   std::reference_wrapper<std::ostream> err; ///< Output stream for messages.
-  const Properties &properties; ///< Publically accessible list of read properties.
+  const Properties::Properties &properties; ///< Publically accessible list of read properties.
   const BasisSet &basis_set; ///< Publicly accessible basis set.
   const Atoms &atoms; ///< Publically accessible list of atoms.
   const madness::Tensor<double> &energies; ///< Publically accessible list of MO energies (in eV).
   const madness::Tensor<double> &MOs; ///< Publically accessible MO expansions coefficients. Column is the MO, row is the basis function.
   const madness::Tensor<double> &occupancies; ///< Publically accessible list of MO occupancies (in eV).
 
+  /// No default constructor.
   ES_Interface() = delete;
+
+  /**
+   * \brief Move constructor.
+   *
+   * \param[in] es The existing interface to move.
+   */
+  ES_Interface(ES_Interface &&es)
+    : my_properties{std::move(es.my_properties)}, my_energies{std::move(es.my_energies)},
+      my_MOs{std::move(es.my_MOs)}, my_occupancies{std::move(es.my_occupancies)},
+      err(es.err), properties(my_properties), basis_set(my_basis_set), atoms(my_atoms),
+      energies(my_energies), MOs(my_MOs), occupancies(my_occupancies)
+  {}
+
+  /**
+   * \brief Copy constructor.
+   *
+   * \param[in] es The existing interface to copy.
+   */
+  ES_Interface(const ES_Interface &es)
+    : my_properties{es.my_properties}, my_energies{es.my_energies},
+      my_MOs{es.my_MOs}, my_occupancies{es.my_occupancies},
+      err(es.err), properties(my_properties), basis_set(my_basis_set), atoms(my_atoms),
+      energies(my_energies), MOs(my_MOs), occupancies(my_occupancies)
+  {}
 
   /** 
    * \brief Constructor that sets the error/warning stream and the references.
@@ -79,7 +106,7 @@ public:
   ES_Interface(std::ostream &err_)
     : my_properties{Properties::None}, my_energies(1), my_MOs(1, 1),
       my_occupancies(1), err(err_), properties(my_properties), 
-      basis_set(my_basis_set), atoms(my_atoms), energies(my_energies), 
+      basis_set(my_basis_set), atoms(my_atoms), energies(my_energies),
       MOs(my_MOs), occupancies(my_occupancies)
   {}
 
@@ -92,7 +119,7 @@ protected:
     my_basis_set.clear();
     my_atoms.clear();
     my_energies.reshape(1);
-    my_MOs.reshape(1,1);
+    my_MOs.reshape(1, 1);
     my_occupancies.reshape(1);
   }
 
@@ -102,19 +129,9 @@ public:
    *
    * \param[in] props The properties to be read, using a bit flag combination.
    */
-  virtual void read(const Properties props) = 0;
+  virtual void read(Properties::Properties props) = 0;
 
 };
-
-/// \cond nodoc
-inline ES_Interface::Properties operator| (ES_Interface::Properties lhs, ES_Interface::Properties rhs) {
-  return static_cast<ES_Interface::Properties>(static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
-}
-
-inline ES_Interface::Properties operator& (ES_Interface::Properties lhs, ES_Interface::Properties rhs) {
-  return static_cast<ES_Interface::Properties>(static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
-}
-/// \endcond
 
 } // namespace slymer
 

@@ -19,13 +19,8 @@
 #include <utility>
 #include "basis.h"
 #include "polynomial.h"
+#include "ESInterface.h"
 #include <madness/mra/mra.h>
-
-#ifdef DEBUG
-// forward declare the test functions that need to be friends
-void testPrimitiveGaussian();
-void testGaussianFunction();
-#endif
 
 namespace slymer {
 
@@ -84,9 +79,6 @@ class GaussianFunction;
  * (https://en.wikipedia.org/wiki/Multivariate_normal_distribution).
  */
 class PrimitiveGaussian {
-#ifdef DEBUG
-  friend void ::testPrimitiveGaussian();
-#endif
 
 protected:
   /// Polynomial prefactor (\f$p\f$ in the class description).
@@ -172,9 +164,6 @@ public:
  * centers do not have to be the same).
  */
 class GaussianFunction : public BasisFunction {
-  #ifdef DEBUG
-    friend void ::testGaussianFunction();
-  #endif
 
 protected:
   /// Helper class for storing terms in the sum of Gaussian primitives.
@@ -248,13 +237,12 @@ public:
   /**
    * \brief Evaluate the Gaussian function at the specified point.
    *
-   * \param[in] x The point as a madness construct.
+   * \param[in] x The point.
    * \return The Gaussian function evaluated at the point x.
    */
   double operator() (const madness::coord_3d& r) const {
      return operator()(std::array<double, 3>{{r[0], r[1], r[2]}});
-  }
-
+  };
 
   /**
    * \brief Additive inverse of the GaussianFunction (deep copy).
@@ -380,14 +368,22 @@ inline GaussianFunction operator*(const double lhs, const GaussianFunction &rhs)
 class Gaussian_Functor : public madness::FunctionFunctorInterface<double, 3> {
 private:
     GaussianFunction func;
+    std::vector<madness::coord_3d> centers;    
 public:
-    Gaussian_Functor(GaussianFunction func) : func(func) {}
+    Gaussian_Functor(GaussianFunction func, std::vector<madness::coord_3d> centers) : func(func), centers(centers) {}
 
     double operator()(const madness::coord_3d& r) const {
         return func(r);
     }
+   
+    std::vector<madness::coord_3d> special_points() const {
+       return centers;       
+    }
+
+    madness::Level special_level() const {
+       return 8;
+    }
 };
 
 } // namespace slymer
-
 #endif

@@ -1145,20 +1145,27 @@ namespace madness {
               }              
 
               // Read in basis set
-              nwchem.read(slymer::ES_Interface::Properties::Basis);
+              nwchem.read(slymer::Properties::Basis);
 
               // Read in the molecular orbital coefficients, energies,
               // and occupancies
-              nwchem.read(slymer::ES_Interface::Properties::Energies);
-              nwchem.read(slymer::ES_Interface::Properties::MOs);
-              nwchem.read(slymer::ES_Interface::Properties::Occupancies);
-             
+              nwchem.read(slymer::Properties::Energies);
+              nwchem.read(slymer::Properties::MOs);
+              nwchem.read(slymer::Properties::Occupancies);
+
               // Pull out occupation numbers
+              // NWChem orders occupied orbitals to be first
               aocc = tensorT(param.nalpha);
               for (int i = 0; i < param.nalpha; i++) {
+                 // NWChem stores closed shell calculations
+                 // as the alpha orbital set with occupation 2.
                  if (nwchem.occupancies[i] == 2.0)
+                     // Madness instead stores 2 identical sets
+                     // (alpha and beta) with occupation 1
                      aocc[i] = 1.0;
                  else
+                     // This should also take care of fractional
+                     // occupations as well
                      aocc[i] = nwchem.occupancies[i];
               }
               
@@ -1168,39 +1175,63 @@ namespace madness {
                  aeps[i] = nwchem.energies[i];
               }
               
+              // Funtions need the atom centers defined as special
+              // points below, so converting the atom centers into
+              // a std::vector of madness coord_3d points
+              std::vector<coord_3d> centers;
+              for(auto atom : nwchem.atoms) {
+                 coord_3d r;
+                 r[0] = atom.position[0];
+                 r[1] = atom.position[1];
+                 r[2] = atom.position[2];
+                 centers.push_back(r);
+              }
+
               // Create the orbitals as madness functions
               // Just create the vector of atomic orbitals
               // and use the vector of MO coefficients and
               // the transform function, then take only 
               // the occupied orbitals.
-              print("\nCreating MADNESS functions from the NWChem orbitals.\n");
+              print("\nCreating MADNESS functions from the NWChem orbitals.");
                             
-              // Cast the 'basis_set' into a gaussian type
+              // Cast the 'basis_set' into a gaussian basis
               // and iterate over it 
               vector_real_function_3d temp1;
-              for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set))
-                  temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get())))); 
-              
+              int i = 0; 
+              for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) { 
+                  temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get(), centers)))); 
+                  double norm2 = temp1[i].norm2();
+                  print("function", i, "has norm", norm2);
+                  i++;
+              } 
 
+              // Overlap matrix
+              Tensor<double> s = matrix_inner(world, temp1, temp1);
+              print("ao overlap:\n", s);
+
+              // Normalize ao's
+              normalize(world, temp1);
+              
               // Transform ao's now
               vector_real_function_3d temp = transform(world, temp1, nwchem.MOs, vtol, true); 
 
               // Now only take the occupied ao and amo
-              for(int i = 0; i < param.nalpha; i++) {
-                  ao.push_back(copy(temp1[i]));
-                  amo.push_back(copy(temp[i]));
+              for(int i = 0; i < temp1.size(); i++) {
+                  if(nwchem.occupancies[i] > 0) {
+                      ao.push_back(copy(temp1[i]));
+                      amo.push_back(copy(temp[i]));
+                  }
               }
 
               // Clean up
               truncate(world, amo);
               normalize(world, amo);
 
-              if (world.rank()==0) print("grouping alpha orbitals into sets");
+              if (world.rank()==0) print("\ngrouping alpha orbitals into sets");
               aset=group_orbital_sets(world,aeps,aocc,param.nmo_alpha);
  
               END_TIMER(world, "read nwchem file");
            }
-
         }
     }   
  

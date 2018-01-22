@@ -67,7 +67,7 @@ public:
    *
    * \param[in] props The properties to be read, using a bit flag combination.
    */
-  virtual void read(const Properties props) override;
+  virtual void read(Properties::Properties props) override;
 
 protected:
   /**
@@ -94,7 +94,7 @@ protected:
    * \param[in] props Properties to store from the read (from the list above).
    * \param[in,out] in The stream for the NWChem output movecs file.
    */
-  void read_movecs(const Properties props, std::istream &in);
+  void read_movecs(const Properties::Properties props, std::istream &in);
 };
 
 } // namespace slymer

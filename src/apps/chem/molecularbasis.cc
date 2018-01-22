@@ -200,8 +200,8 @@ void AtomicBasisSet::read_nw_file(std::string filename) {
     std::ostream bad(nullptr);
     slymer::NWChem_Interface nwchem(filename, bad);
 
-    // Read in the basis info
-    nwchem.read(slymer::ES_Interface::Properties::Basis);
+    // Read in the molecule info
+    nwchem.read(slymer::Properties::Atoms);
 
     // Let madness know a basis exists on each atom...
     for(const slymer::Atom &atom : nwchem.atoms) {
@@ -209,10 +209,12 @@ void AtomicBasisSet::read_nw_file(std::string filename) {
  
         // We need to add to ag[atn] so madness doesn't baulk
         // These functions will not be used in anyway. Need 
-        // to add at least the number of orbitals to work
+        // to add at least the number of orbitals to work.
+        // Adding in 2 basis functions per electron, just to 
+        // be safe.
         if (ag[atn].nbf() == 0) {
             std::vector<ContractedGaussianShell> g;
-            for(unsigned int i = 0; i < nwchem.basis_set.size(); i++) {
+            for(int i = 0; i < atn; i++) {
                g.push_back(ContractedGaussianShell(0,{{1}},{{1}}));
                g.push_back(ContractedGaussianShell(1,{{2}},{{2}}));
             }
