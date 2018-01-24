@@ -793,47 +793,74 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
   }
 
   // read the number of vectors in each set (nmo)
+  //std::vector<unsigned> nmo(nsets);
+  //for(unsigned j = 0; j < nsets; ++j) {
+  //  num[0] = read_endian<int32_t>(in, swap_endian);
+  //  if(num[0] == 4) {
+  //    int32_t temp;
+  //    temp = read_endian<int32_t>(in, swap_endian);
+  //    nmo[j] = static_cast<unsigned>(temp);
+  //  }
+  //  else if(num[0] == 8) {
+  //    int64_t temp;
+  //    temp = read_endian<int64_t>(in, swap_endian);
+  //    nmo[j] = static_cast<unsigned>(temp);
+  //  }
+  //  else {
+  //    err.get() << "Unknown or unimplemented integer type for nmo[" << j << "] in header." << std::endl;
+  //    throw errmess;
+  //  }
+  //  num[1] = read_endian<int32_t>(in, swap_endian);
+  //  if(num[0] != num[1]) {
+  //    err.get() << "Error reading nmo[" << j << "] in header." << std::endl;
+  //    throw errmess;
+  //  }
+  //}
+  
+  // Fix ?
   std::vector<unsigned> nmo(nsets);
-  for(unsigned j = 0; j < nsets; ++j) {
-    num[0] = read_endian<int32_t>(in, swap_endian);
-    if(num[0] == 4) {
-      int32_t temp;
-      temp = read_endian<int32_t>(in, swap_endian);
-      nmo[j] = static_cast<unsigned>(temp);
-    }
-    else if(num[0] == 8) {
-      int64_t temp;
+  num[0] = read_endian<int32_t>(in, swap_endian);
+  if(num[0] == 4) {
+    int32_t temp;
+    temp = read_endian<int32_t>(in, swap_endian);
+    nmo[0] = static_cast<unsigned>(temp);
+  }
+  if(num[0] == 8) {
+    int64_t temp;
+    temp = read_endian<int64_t>(in, swap_endian);
+    nmo[0] = static_cast<unsigned>(temp);
+  } 
+  else if(num[0] > 8) {
+    int64_t temp;
+    for(unsigned j = 0; j < nsets; ++j) {
       temp = read_endian<int64_t>(in, swap_endian);
       nmo[j] = static_cast<unsigned>(temp);
     }
-    else {
-      err.get() << "Unknown or unimplemented integer type for nmo[" << j << "] in header." << std::endl;
-      throw errmess;
-    }
-    num[1] = read_endian<int32_t>(in, swap_endian);
-    if(num[0] != num[1]) {
-      err.get() << "Error reading nmo[" << j << "] in header." << std::endl;
-      throw errmess;
-    }
   }
-
-  // allocate space to store the occupation numbers, the eigenvalues, and the
-  // eigenvectors (MO vectors), as desired by the request
-  if(do_occupancies) {
-    madness::Tensor<double> one(nmo[nsets-1]);
-    temp_occupancies = copy(one);
+  num[1] = read_endian<int32_t>(in, swap_endian);
+  if(num[0] != num[1]) {
+    err.get() << "Error reading nmo sizes in header." << std::endl;
+    throw errmess;
   }
-  if(do_energies) {
-    madness::Tensor<double> two(nmo[nsets - 1]);
-    temp_energies = copy(two);
-  }
-  if(do_MOs) {
-    madness::Tensor<double> three(nmo[nsets - 1], nmo[nsets - 1]);
-    temp_MOs = copy(three);
-  }
-
+ 
   // go through the sets
-  for(unsigned set = 0; set < nsets; ++set) {
+  for(unsigned set = 0; set < nsets; ++set) { 
+    // Doing this inside so that temp variables get reset correctly
+    // allocate space to store the occupation numbers, the eigenvalues, and the
+    // eigenvectors (MO vectors), as desired by the request
+    if(do_occupancies) {
+      madness::Tensor<double> one(nmo[nsets-1]);
+      temp_occupancies = copy(one);
+    }
+    if(do_energies) {
+      madness::Tensor<double> two(nmo[nsets - 1]);
+      temp_energies = copy(two);
+    }
+    if(do_MOs) {
+      madness::Tensor<double> three(nmo[nsets - 1], nmo[nsets - 1]);
+      temp_MOs = copy(three);
+    }
+
     // first read the occupancies
     // number of bits bookend (8 for double * nmo[set]);
     num[0] = read_endian<int32_t>(in, swap_endian);
@@ -842,7 +869,7 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
         << std::endl;
       throw errmess;
     }
-    if(do_occupancies && set == nsets - 1)
+    if(do_occupancies)
       for(unsigned j = 0; j < nmo[set]; ++j)
         temp_occupancies[j] = read_endian<double>(in, swap_endian);
     else
@@ -853,7 +880,6 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
       throw errmess;
     }
 
-
     // next up are the eigenvalues (energies)
     // number of bits bookend (8 for double * nmo[set]);
     num[0] = read_endian<int32_t>(in, swap_endian);
@@ -862,10 +888,10 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
         << std::endl;
       throw errmess;
     }
-    if(do_energies && set == nsets - 1)
+    if(do_energies)
       for(unsigned j = 0; j < nmo[set]; ++j)
-        // NWChem reports energies in Hartrees, we want eV.
-        temp_energies[j] = read_endian<double>(in, swap_endian) * 27.21138602;
+        // NWChem reports energies in Hartrees
+        temp_energies[j] = read_endian<double>(in, swap_endian);
     else
       in.seekg(num[0], std::ios_base::cur); // just buzz past them.
     num[1] = read_endian<int32_t>(in, swap_endian);
@@ -873,7 +899,6 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
       err.get() << "Error reading energies for set " << set << '.' << std::endl;
       throw errmess;
     }
-
 
     // finally, read the MO vectors, which were written vector-by-vector
     for(unsigned mo = 0; mo < nmo[set]; ++mo) {
@@ -884,7 +909,7 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
           << set << '.' << std::endl;
         throw errmess;
       }
-      if(do_MOs && set == nsets - 1)
+      if(do_MOs)
         for(unsigned coeff = 0; coeff < nbasis; ++coeff)
           temp_MOs(coeff, mo) = read_endian<double>(in, swap_endian);
       else
@@ -901,14 +926,14 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
     // move/swap the placeholders into the class's storage space
     // ALPHA
     if(do_occupancies && set == 0) {
-      my_occupancies = std::move(temp_occupancies);
+      my_occupancies = std::move(temp_occupancies); 
       my_properties = my_properties | Properties::Occupancies;
     }
     if(do_energies && set == 0) {
       my_energies = std::move(temp_energies);
       my_properties = my_properties | Properties::Energies;
     }
-    if(do_MOs && set == 0) {
+    if(do_MOs && set == 0) { 
       my_MOs = std::move(temp_MOs);
       my_properties = my_properties | Properties::MOs;
     }
@@ -916,14 +941,14 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
     // move/swap the placeholders into the class's storage space
     // BETA
     if(do_occupancies && set == 1) {
-      my_beta_occupancies = std::move(temp_occupancies);
+      my_beta_occupancies = std::move(temp_occupancies); 
       my_properties = my_properties | Properties::Occupancies;
     }
     if(do_energies && set == 1) {
       my_beta_energies = std::move(temp_energies);
       my_properties = my_properties | Properties::Energies;
     }
-    if(do_MOs && set == 1) {
+    if(do_MOs && set == 1) {  
       my_beta_MOs = std::move(temp_MOs);
       my_properties = my_properties | Properties::MOs;
     }

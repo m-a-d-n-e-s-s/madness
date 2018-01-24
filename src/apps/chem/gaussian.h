@@ -186,8 +186,12 @@ protected:
   }
 
 public:
+
+  /// The center of the gaussian
+  std::array<double, 3> center;
+
   /// Default constructor: Make the function 0.
-  GaussianFunction() : terms(0) {}
+  GaussianFunction() : terms(0), center({{0,0,0}}) {}
 
   /**
    * \brief Create a Gaussian orbital (uncontracted or contracted) from
@@ -381,7 +385,7 @@ public:
     }
 
     madness::Level special_level() {
-       return 8;
+       return 14;
     }
 };
 

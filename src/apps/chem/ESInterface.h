@@ -116,10 +116,10 @@ public:
    */
   ES_Interface(std::ostream &err_)
     : my_properties{Properties::None}, my_energies(1), my_MOs(1, 1),
-      my_occupancies(1), err(err_), properties(my_properties), 
-      basis_set(my_basis_set), atoms(my_atoms), energies(my_energies),
-      MOs(my_MOs), occupancies(my_occupancies), beta_energies(my_beta_energies),
-      beta_MOs(my_beta_MOs), beta_occupancies(my_beta_occupancies)
+      my_occupancies(1), my_beta_energies(1), my_beta_MOs(1,1), my_beta_occupancies(1),
+      err(err_), properties(my_properties), basis_set(my_basis_set), 
+      atoms(my_atoms), energies(my_energies), MOs(my_MOs), occupancies(my_occupancies), 
+      beta_energies(my_beta_energies), beta_MOs(my_beta_MOs), beta_occupancies(my_beta_occupancies)
   {}
 
   virtual ~ES_Interface() = default;

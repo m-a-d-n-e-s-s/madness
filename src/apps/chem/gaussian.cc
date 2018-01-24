@@ -1395,6 +1395,9 @@ GaussianFunction::GaussianFunction(const GaussianType type,
 
   // prune any small terms in the expansion
   removeSmallTerms();
+
+  // store the center
+  this->center = center;
 }
 
 double GaussianFunction::operator() (const std::array<double, 3> &x) const {

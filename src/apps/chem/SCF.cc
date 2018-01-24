@@ -1049,7 +1049,7 @@ namespace madness {
                if (!param.pure_ae){
                    double enl;
                    tensorT occ = tensorT(ao.size());
-                   for(unsigned int i = 0;i < param.nalpha;++i){
+                   for(int i = 0;i < param.nalpha;++i){
                        occ[i] = 1.0;}
                    for(unsigned int i = param.nalpha;i < ao.size();++i){
                        occ[i] = 0.0;}
@@ -1139,6 +1139,9 @@ namespace madness {
 
               // Construct interfact object from slymer namespace
               slymer::NWChem_Interface nwchem(param.nwfile, std::cout);
+              
+              // For parallel runs, silencing all but 1 slymer
+              // instance
               if(world.rank() != 0) {
                  std::ostream dev_null(nullptr);
                  nwchem.err = dev_null;
@@ -1149,9 +1152,7 @@ namespace madness {
 
               // Read in the molecular orbital coefficients, energies,
               // and occupancies
-              nwchem.read(slymer::Properties::Energies);
-              nwchem.read(slymer::Properties::MOs);
-              nwchem.read(slymer::Properties::Occupancies);
+              nwchem.read(slymer::Properties::Energies | slymer::Properties::MOs | slymer::Properties::Occupancies);
 
               // Pull out occupation numbers
               // NWChem orders occupied orbitals to be first
@@ -1159,14 +1160,10 @@ namespace madness {
               for (int i = 0; i < param.nalpha; i++) {
                  // NWChem stores closed shell calculations
                  // as the alpha orbital set with occupation 2.
-                 if (nwchem.occupancies[i] == 2.0)
+                 if (nwchem.occupancies[i] == 2.0 or nwchem.occupancies[i] == 1.0)
                      // Madness instead stores 2 identical sets
                      // (alpha and beta) with occupation 1
                      aocc[i] = 1.0;
-                 else
-                     // This should also take care of fractional
-                     // occupations as well
-                     aocc[i] = nwchem.occupancies[i];
               }
               
               // Pull out energies
@@ -1198,7 +1195,14 @@ namespace madness {
               // and iterate over it 
               vector_real_function_3d temp1;
               int i = 0; 
-              for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) { 
+              for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) {
+                  // Get the center of gaussian as its special point
+                  std::vector<coord_3d> centers;
+                  coord_3d r;
+                  r[0] = basis.get().center[0]; r[1] = basis.get().center[1]; r[2] = basis.get().center[2];
+                  centers.push_back(r);
+
+                  // Now make the function
                   temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get(), centers)))); 
                   double norm2 = temp1[i].norm2();
                   if(world.rank() == 0) print("function", i, "has norm", norm2);
@@ -1216,9 +1220,12 @@ namespace madness {
               vector_real_function_3d temp = transform(world, temp1, nwchem.MOs, vtol, true); 
 
               // Now only take the occupied and amo
-              for(int i = 0; i < temp1.size(); i++) {
+              for(unsigned int i = 0; i < temp1.size(); i++) {
+                  // Save all AOs
+                  ao.push_back(copy(temp1[i]));
+
+                  // Only save occupied AMOs
                   if(nwchem.occupancies[i] > 0) {
-                      ao.push_back(copy(temp1[i]));
                       amo.push_back(copy(temp[i]));
                   }
               }
@@ -1231,7 +1238,40 @@ namespace madness {
               aset=group_orbital_sets(world,aeps,aocc,param.nmo_alpha);
 
               // Now for betas
- 
+              if (param.nbeta && !param.spin_restricted) {
+
+                  // Pull out occupation numbers
+                  // NWChem orders occupied orbitals to be first
+                  bocc = tensorT(param.nbeta);
+                  for (int i = 0; i < param.nbeta; i++) {
+                     if (nwchem.beta_occupancies[i] == 1.0)
+                         bocc[i] = 1.0;
+                  }
+                  
+                  // Pull out energies
+                  beps = tensorT(param.nbeta);
+                  for (int i = 0; i < param.nbeta; i++) {
+                     beps[i] = nwchem.beta_energies[i];
+                  }
+                   
+                  // Transform ao's now
+                  temp = transform(world, temp1, nwchem.beta_MOs, vtol, true); 
+
+                  // Now only take the occupied bmo
+                  for(unsigned int i = 0; i < temp1.size(); i++) { 
+                      if(nwchem.beta_occupancies[i] > 0) { 
+                          bmo.push_back(copy(temp[i]));
+                      }
+                  }
+
+                  // Clean up
+                  truncate(world, bmo);
+                  normalize(world, bmo);
+
+                  if (world.rank()==0) print("\ngrouping beta orbitals into sets");
+                  bset=group_orbital_sets(world,beps,bocc,param.nmo_beta);
+              }
+
               END_TIMER(world, "read nwchem file");
            }
         }
@@ -2486,12 +2526,12 @@ namespace madness {
 		  else
 		    dUT = localize_boys(world, bmo, bset, tolloc, 0.1, iter == 0);
 
-                    START_TIMER(world);
-                    dUT.data().screen(trantol);
-                    bmo = transform(world, bmo, dUT);
-                    truncate(world, bmo);
-                    normalize(world, bmo);
-                    END_TIMER(world, "Rotate subspace");
+                  START_TIMER(world);
+                  dUT.data().screen(trantol);
+                  bmo = transform(world, bmo, dUT);
+                  truncate(world, bmo);
+                  normalize(world, bmo);
+                  END_TIMER(world, "Rotate subspace");
                 }
             }
 
@@ -3100,7 +3140,7 @@ namespace madness {
         reconstruct(world, mo);  
 
         // dipolefunc * mo[iter]
-        for(int p=0; p<mo.size(); ++p)
+        for(unsigned int p=0; p<mo.size(); ++p)
             dipolemo[p] =  mul_sparse(dipolefunc, mo[p],false);
 
         //END_TIMER(world, "Make perturbation");
@@ -3177,7 +3217,7 @@ namespace madness {
     {
         functionT drho = factoryT(world);
         drho.compress();
-        for(int i=0; i<mo.size(); ++i) {
+        for(unsigned int i=0; i<mo.size(); ++i) {
             functionT rhoi = mo[i] * x[i] + mo[i] * y[i];
             rhoi.compress();
             if(occ[i])
@@ -3202,7 +3242,7 @@ namespace madness {
 
         functionT k1 = factoryT(world);
         functionT k2 = factoryT(world);
-        for(int i=0; i<mo.size(); ++i) {
+        for(unsigned int i=0; i<mo.size(); ++i) {
             k1 = apply(*coulop, ( mo[i] * mo[p] )) * dmo1[i];
             k2 = apply(*coulop, ( mo[p] * dmo2[i] )) * mo[i];
             dKmo = dKmo - (k1 + k2);
@@ -3255,7 +3295,7 @@ namespace madness {
         if(xc.hf_exchange_coefficient() == 1.0){
         //if(xc.hf_exchange_coefficient()){
             START_TIMER(world);
-            for(int p=0; p<mo.size(); ++p) {
+            for(unsigned int p=0; p<mo.size(); ++p) {
                 djkmo[p] = calc_exchange_function(world, p, dmo1, dmo2, mo,spin);
                //add a fraction only
                 djkmo[p].scale(xc.hf_exchange_coefficient());
@@ -3280,7 +3320,7 @@ namespace madness {
         Projector<double,3> rho0(mo);
 
         vecfuncT gp = add(world, dipolemo, djkmo);
-        for (int i=0; i<Vdmo.size(); ++i) {
+        for (unsigned int i=0; i<Vdmo.size(); ++i) {
             functionT gp1 =  gp[i];
             gp1 = gp1 - rho0(gp1);
             gp1 = Vdmo[i] + gp1 ;
@@ -3309,8 +3349,8 @@ namespace madness {
     void SCF::orthogonalize_response(World & world, vecfuncT & dmo, vecfuncT & mo )
     {
      reconstruct(world, dmo);
-       for(int i=0; i<mo.size(); ++i){
-           for (int j=0; j<mo.size(); ++j){
+       for(unsigned int i=0; i<mo.size(); ++i){
+           for (unsigned int j=0; j<mo.size(); ++j){
                // new_x = new_x - < psi | new_x > * psi
                dmo[i] = dmo[i] - dmo[i].inner(mo[j])*mo[j];
            }
@@ -3527,7 +3567,7 @@ namespace madness {
         const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
         int maxsub_save = param.maxsub;
 
-        for ( int axis=0; axis<param.response_axis.size(); axis++) {
+        for (int axis=0; axis<param.response_axis.size(); axis++) {
             if(!param.response_axis[axis]) continue; 
         
             subspaceT subspace;
