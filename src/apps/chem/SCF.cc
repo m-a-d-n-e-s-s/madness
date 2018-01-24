@@ -1192,7 +1192,7 @@ namespace madness {
               // and use the vector of MO coefficients and
               // the transform function, then take only 
               // the occupied orbitals.
-              print("\nCreating MADNESS functions from the NWChem orbitals.");
+              if(world.rank() == 0) print("\nCreating MADNESS functions from the NWChem orbitals.");
                             
               // Cast the 'basis_set' into a gaussian basis
               // and iterate over it 
@@ -1201,13 +1201,13 @@ namespace madness {
               for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) { 
                   temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get(), centers)))); 
                   double norm2 = temp1[i].norm2();
-                  print("function", i, "has norm", norm2);
+                  if(world.rank() == 0) print("function", i, "has norm", norm2);
                   i++;
               } 
 
               // Overlap matrix
-              Tensor<double> s = matrix_inner(world, temp1, temp1);
-              print("ao overlap:\n", s);
+              //Tensor<double> s = matrix_inner(world, temp1, temp1);
+              //print("ao overlap:\n", s);
 
               // Normalize ao's
               normalize(world, temp1);
@@ -1215,7 +1215,7 @@ namespace madness {
               // Transform ao's now
               vector_real_function_3d temp = transform(world, temp1, nwchem.MOs, vtol, true); 
 
-              // Now only take the occupied ao and amo
+              // Now only take the occupied and amo
               for(int i = 0; i < temp1.size(); i++) {
                   if(nwchem.occupancies[i] > 0) {
                       ao.push_back(copy(temp1[i]));
@@ -1229,6 +1229,8 @@ namespace madness {
 
               if (world.rank()==0) print("\ngrouping alpha orbitals into sets");
               aset=group_orbital_sets(world,aeps,aocc,param.nmo_alpha);
+
+              // Now for betas
  
               END_TIMER(world, "read nwchem file");
            }

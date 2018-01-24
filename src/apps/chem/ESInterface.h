@@ -58,18 +58,25 @@ protected:
   Properties::Properties my_properties; ///< The properties that have been read.
   BasisSet my_basis_set; ///< The basis set.
   Atoms my_atoms; ///< The atoms (symbols and positions, in angstroms).
-  madness::Tensor<double> my_energies; ///< Molecular orbital energies (in eV).
-  madness::Tensor<double> my_MOs; ///< Molecular orbital expansions coefficients. Column is the MO, row is the basis function.
-  madness::Tensor<double> my_occupancies; ///< Molecular orbital occupancies.
+  madness::Tensor<double> my_energies; ///< Alpha molecular orbital energies 
+  madness::Tensor<double> my_MOs; ///< Alpha molecular orbital expansions coefficients. Column is the MO, row is the basis function.
+  madness::Tensor<double> my_occupancies; ///< Alpha molecular orbital occupancies.
+  madness::Tensor<double> my_beta_energies; ///< Beta molecular orbital energies 
+  madness::Tensor<double> my_beta_MOs; ///< Beta molecular orbital expansions coefficients. Column is the MO, row is the basis function.
+  madness::Tensor<double> my_beta_occupancies; ///< Beta molecular orbital occupancies.
  
 public:
   std::reference_wrapper<std::ostream> err; ///< Output stream for messages.
   const Properties::Properties &properties; ///< Publically accessible list of read properties.
   const BasisSet &basis_set; ///< Publicly accessible basis set.
   const Atoms &atoms; ///< Publically accessible list of atoms.
-  const madness::Tensor<double> &energies; ///< Publically accessible list of MO energies (in eV).
-  const madness::Tensor<double> &MOs; ///< Publically accessible MO expansions coefficients. Column is the MO, row is the basis function.
-  const madness::Tensor<double> &occupancies; ///< Publically accessible list of MO occupancies (in eV).
+  const madness::Tensor<double> &energies; ///< Publically accessible list of alpha MO energies.
+  const madness::Tensor<double> &MOs; ///< Publically accessible alpha MO expansions coefficients. Column is the MO, row is the basis function.
+  const madness::Tensor<double> &occupancies; ///< Publically accessible list of alpha MO occupancies (in eV).
+  const madness::Tensor<double> &beta_energies; ///< Publically accessible list of beta MO energies (in eV).
+  const madness::Tensor<double> &beta_MOs; ///< Publically accessible beta MO expansions coefficients. Column is the MO, row is the basis function.
+  const madness::Tensor<double> &beta_occupancies; ///< Publically accessible list of beta MO occupancies (in eV).
+
 
   /// No default constructor.
   ES_Interface() = delete;
@@ -82,8 +89,10 @@ public:
   ES_Interface(ES_Interface &&es)
     : my_properties{std::move(es.my_properties)}, my_energies{std::move(es.my_energies)},
       my_MOs{std::move(es.my_MOs)}, my_occupancies{std::move(es.my_occupancies)},
-      err(es.err), properties(my_properties), basis_set(my_basis_set), atoms(my_atoms),
-      energies(my_energies), MOs(my_MOs), occupancies(my_occupancies)
+      my_beta_energies{std::move(es.my_beta_energies)}, my_beta_MOs{std::move(es.my_beta_MOs)},
+      my_beta_occupancies{std::move(es.my_beta_occupancies)}, err(es.err), properties(my_properties), 
+      basis_set(my_basis_set), atoms(my_atoms), energies(my_energies), MOs(my_MOs), occupancies(my_occupancies),
+      beta_energies(my_beta_energies), beta_MOs(my_beta_MOs), beta_occupancies(my_beta_occupancies)
   {}
 
   /**
@@ -93,9 +102,11 @@ public:
    */
   ES_Interface(const ES_Interface &es)
     : my_properties{es.my_properties}, my_energies{es.my_energies},
-      my_MOs{es.my_MOs}, my_occupancies{es.my_occupancies},
+      my_MOs{es.my_MOs}, my_occupancies{es.my_occupancies}, my_beta_energies{es.my_beta_energies},
+      my_beta_MOs{es.my_beta_MOs}, my_beta_occupancies{es.my_occupancies},
       err(es.err), properties(my_properties), basis_set(my_basis_set), atoms(my_atoms),
-      energies(my_energies), MOs(my_MOs), occupancies(my_occupancies)
+      energies(my_energies), MOs(my_MOs), occupancies(my_occupancies), beta_energies(my_beta_energies),
+      beta_MOs(my_beta_MOs), beta_occupancies(my_beta_occupancies)
   {}
 
   /** 
@@ -107,7 +118,8 @@ public:
     : my_properties{Properties::None}, my_energies(1), my_MOs(1, 1),
       my_occupancies(1), err(err_), properties(my_properties), 
       basis_set(my_basis_set), atoms(my_atoms), energies(my_energies),
-      MOs(my_MOs), occupancies(my_occupancies)
+      MOs(my_MOs), occupancies(my_occupancies), beta_energies(my_beta_energies),
+      beta_MOs(my_beta_MOs), beta_occupancies(my_beta_occupancies)
   {}
 
   virtual ~ES_Interface() = default;
@@ -121,6 +133,9 @@ protected:
     my_energies.reshape(1);
     my_MOs.reshape(1, 1);
     my_occupancies.reshape(1);
+    my_beta_energies.reshape(1);
+    my_beta_MOs.reshape(1, 1);
+    my_beta_occupancies.reshape(1);
   }
 
 public:

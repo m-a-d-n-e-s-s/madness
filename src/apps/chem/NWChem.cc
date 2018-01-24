@@ -758,10 +758,10 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
     err.get() << "Error reading number of sets in header." << std::endl;
     throw errmess;
   }
-  if(nsets != 1) {
-    err.get() << "The read_MOs basis has only been tested for movecs files that have a single set.\n" <<
+  if(nsets > 2) {
+    err.get() << "The read_MOs basis has only been tested for movecs files that have a one or two sets.\n" <<
       "The results from this function need to be verified before use (" << nsets << " sets).\n"
-      "Only the last set will be kept." << std::endl;
+      "Only the last two sets will be kept." << std::endl;
   }
 
   // size of the basis set (NBF in the mov2asc script)
@@ -897,6 +897,36 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
         throw errmess;
       }
     }
+
+    // move/swap the placeholders into the class's storage space
+    // ALPHA
+    if(do_occupancies && set == 0) {
+      my_occupancies = std::move(temp_occupancies);
+      my_properties = my_properties | Properties::Occupancies;
+    }
+    if(do_energies && set == 0) {
+      my_energies = std::move(temp_energies);
+      my_properties = my_properties | Properties::Energies;
+    }
+    if(do_MOs && set == 0) {
+      my_MOs = std::move(temp_MOs);
+      my_properties = my_properties | Properties::MOs;
+    }
+
+    // move/swap the placeholders into the class's storage space
+    // BETA
+    if(do_occupancies && set == 1) {
+      my_beta_occupancies = std::move(temp_occupancies);
+      my_properties = my_properties | Properties::Occupancies;
+    }
+    if(do_energies && set == 1) {
+      my_beta_energies = std::move(temp_energies);
+      my_properties = my_properties | Properties::Energies;
+    }
+    if(do_MOs && set == 1) {
+      my_beta_MOs = std::move(temp_MOs);
+      my_properties = my_properties | Properties::MOs;
+    }
   }
 
   // at the very end of the movecs file is the total energy and nuclear repulsion
@@ -912,20 +942,6 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
   if(num[1] != 16) {
     err.get() << "Error reading the footer." << std::endl;
     throw errmess;
-  }
-
-  // move/swap the placeholders into the class's storage space
-  if(do_occupancies) {
-    my_occupancies = std::move(temp_occupancies);
-    my_properties = my_properties | Properties::Occupancies;
-  }
-  if(do_energies) {
-    my_energies = std::move(temp_energies);
-    my_properties = my_properties | Properties::Energies;
-  }
-  if(do_MOs) {
-    my_MOs = std::move(temp_MOs);
-    my_properties = my_properties | Properties::MOs;
   }
 }
 

@@ -380,7 +380,7 @@ public:
        return centers;       
     }
 
-    madness::Level special_level() const {
+    madness::Level special_level() {
        return 8;
     }
 };
