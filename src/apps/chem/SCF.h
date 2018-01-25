@@ -800,8 +800,8 @@ namespace madness {
                     // If the basis for the inital guess was not sto-3g
                     // switch to sto-3g since this is needed for analysis
                     // of the MOs and orbital localization
-                    // Only do this if not starting from NWChem. No 
-                    // is will be done on NWChem orbitals.
+                    // Only do this if not starting from NWChem. No
+                    // analysis will be done on NWChem orbitals.
                     if (calc.param.aobasis != "sto-3g" && calc.param.nwfile == "") {
                         calc.param.aobasis = "sto-3g";
                         calc.project_ao_basis(world);

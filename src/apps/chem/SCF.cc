@@ -256,12 +256,16 @@ namespace madness {
                 ar & bmo[i];
         }
 
-        tensorT Saoamo = matrix_inner(world, ao, amo);
-        tensorT Saobmo = (!param.spin_restricted) ? matrix_inner(world, ao, bmo) : tensorT();
-        if (world.rank() == 0) {
-            archive::BinaryFstreamOutputArchive arao("restartaodata");
-            arao << Saoamo << aeps << aocc << aset;
-            if (!param.spin_restricted) arao << Saobmo << beps << bocc << bset;
+        // Do not make a restartaodata file if nwchem orbitals used,
+        // as no aoamo/aobmo overlap matrix can be computed
+        if (param.nwfile == "") {
+          tensorT Saoamo = matrix_inner(world, ao, amo);
+          tensorT Saobmo = (!param.spin_restricted) ? matrix_inner(world, ao, bmo) : tensorT();
+          if (world.rank() == 0) {
+              archive::BinaryFstreamOutputArchive arao("restartaodata");
+              arao << Saoamo << aeps << aocc << aset;
+              if (!param.spin_restricted) arao << Saobmo << beps << bocc << bset;
+          }
         }
     }
     
@@ -1172,18 +1176,6 @@ namespace madness {
                  aeps[i] = nwchem.energies[i];
               }
               
-              // Funtions need the atom centers defined as special
-              // points below, so converting the atom centers into
-              // a std::vector of madness coord_3d points
-              std::vector<coord_3d> centers;
-              for(auto atom : nwchem.atoms) {
-                 coord_3d r;
-                 r[0] = atom.position[0];
-                 r[1] = atom.position[1];
-                 r[2] = atom.position[2];
-                 centers.push_back(r);
-              }
-
               // Create the orbitals as madness functions
               // Just create the vector of atomic orbitals
               // and use the vector of MO coefficients and
@@ -1219,7 +1211,7 @@ namespace madness {
               // Transform ao's now
               vector_real_function_3d temp = transform(world, temp1, nwchem.MOs, vtol, true); 
 
-              // Now only take the occupied and amo
+              // Now save all aos and only the occupied amo
               for(unsigned int i = 0; i < temp1.size(); i++) {
                   // Save all AOs
                   ao.push_back(copy(temp1[i]));
@@ -1270,6 +1262,14 @@ namespace madness {
 
                   if (world.rank()==0) print("\ngrouping beta orbitals into sets");
                   bset=group_orbital_sets(world,beps,bocc,param.nmo_beta);
+              }
+
+              // PM localization requires the AO basis, which we can't use,
+              // so turning off PM here and turning on Boys
+              if(param.localize_pm && param.localize) {
+                  print("\nPM localization requested, but is unsuported with NWChem orbitals.\nUsing Boys localization instead.\n");
+                  param.localize_pm = false;
+                  param.localize = true;
               }
 
               END_TIMER(world, "read nwchem file");
@@ -2790,12 +2790,12 @@ namespace madness {
         }
         
         if (param.nwfile == "") {
-        analyze_vectors(world, amo, aocc, aeps);
+          analyze_vectors(world, amo, aocc, aeps);
             if (param.nbeta != 0 && !param.spin_restricted) {
-                if (world.rank() == 0)
-                    print("Analysis of beta MO vectors");
+              if (world.rank() == 0)
+                print("Analysis of beta MO vectors");
                 
-                analyze_vectors(world, bmo, bocc, beps);
+              analyze_vectors(world, bmo, bocc, beps);
             }
         }
         if (param.print_dipole_matels) {
