@@ -175,7 +175,12 @@ namespace madness {
                 MADNESS_EXCEPTION("SCF failed to open stream", 0);
             }
             molecule.read(*input);
-            if (molecule.natom() < 3) param.localize = false; // symmetry confuses orbital localization
+            // symmetry confuses orbital localization
+            if (molecule.natom() < 3){
+		param.localize = false; 
+		if(world.rank()==0) std::cout << "Less than 3 Atoms: Deactivated localization!\n";
+	    }
+
             param.read(*input);
             
             //if psp_calc is true, set all atoms to PS atoms

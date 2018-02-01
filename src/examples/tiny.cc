@@ -54,7 +54,7 @@
 using namespace madness;
 
 namespace madness{
-extern std::vector<std::string> cubefile_header(std::string filename="input");
+extern std::vector<std::string> cubefile_header(std::string filename="input", const bool& no_orient=false);
 }
 template<size_t NDIM>
 void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
@@ -175,6 +175,7 @@ int main(int argc, char** argv) {
 
     // determine the box size L
     double L=-1.0;
+    bool no_orient=false;
     std::ifstream f("input");
     position_stream(f, "dft");
     std::string s;
@@ -183,7 +184,9 @@ int main(int argc, char** argv) {
     		break;
     	} else if (s == "L") {
     		f >> L;
-    	}
+        } else if (s == "no_orient") {
+                no_orient=true;
+        }
     }
     if (L<0.0) MADNESS_EXCEPTION("box size indetermined",1);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
@@ -224,6 +227,7 @@ int main(int argc, char** argv) {
 		print("max displacement   ", Displacements<6>::bmax_default());
 		print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());
 		print("world.size()       ", world.size());
+		print("no_orient          ", no_orient);
 		print("");
 	}
 
@@ -251,7 +255,7 @@ int main(int argc, char** argv) {
 		plot_line(("line_"+filenames[0]).c_str(),10000,start,end,vf[0]);
 
 		// plot the Gaussian cube file
-		std::vector<std::string> molecular_info=cubefile_header("input");
+		std::vector<std::string> molecular_info=cubefile_header("input",no_orient);
 		std::string filename=filenames[0]+".cube";
 		plot_cubefile<3>(world,vf[0],filename,molecular_info);
 
