@@ -401,7 +401,11 @@ namespace madness {
                 if (obj->ready || arg.is_pending()) return true;
             }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-var-template"
+
             ScopedMutex<Spinlock> lock(pending_mutex); // BEGIN CRITICAL SECTION
+
             if (!obj) obj = static_cast<objT*>(arg.get_world()->template ptr_from_id<Derived>(id));
 
             if (obj) {
@@ -410,6 +414,8 @@ namespace madness {
             }
             const_cast<AmArg&>(arg).set_pending();
             const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
+
+#pragma clang diagnostic pop
 
             return false; // END CRITICAL SECTION
         }
@@ -621,6 +627,9 @@ namespace madness {
             while (!ready) {
                 pendingT tmp;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-var-template"
+
                 pending_mutex.lock(); // BEGIN CRITICAL SECTION
                 pendingT& nv = const_cast<pendingT&>(pending);
                 for (pendingT::iterator it=nv.begin(); it!=nv.end();) {
@@ -635,6 +644,8 @@ namespace madness {
                 }
                 if (tmp.size() == 0) ready=true;
                 pending_mutex.unlock(); // END CRITICAL SECTION
+
+#pragma clang diagnostic pop
 
                 while (tmp.size()) {
                     tmp.front().invokehandler();

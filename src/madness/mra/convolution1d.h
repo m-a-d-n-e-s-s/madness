@@ -856,6 +856,10 @@ namespace madness {
             hash_combine(key, k);
             hash_combine(key, m);
             hash_combine(key, int(periodic));
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-var-template"
+
             iterator it = map.find(key);
             if (it == map.end()) {
                 map.insert(datumT(key, std::make_shared< GaussianConvolution1D<Q> >(k,
@@ -871,6 +875,9 @@ namespace madness {
                 //printf("conv1d: reusing %d %.8e\n",k,expnt);
             }
             return it->second;
+
+#pragma clang diagnostic pop
+
         }
     };
 }

@@ -205,7 +205,10 @@ namespace madness {
 
     public:
 
-        /// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-var-template"
+
+      /// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
         static void set_defaults(World& world);
 
         static void print();
@@ -412,7 +415,7 @@ namespace madness {
             recompute_cell_info();
         }
 
-        /// Returns the width of each user cell dimension
+      /// Returns the width of each user cell dimension
         static const Tensor<double>& get_cell_width() {
             return cell_width;
         }
@@ -432,7 +435,7 @@ namespace madness {
             return cell_volume;
         }
 
-        /// Returns the default process map
+      /// Returns the default process map
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
             return pmap;
         }
@@ -449,6 +452,8 @@ namespace madness {
             pmap->redistribute(world,newpmap);
             pmap = newpmap;
         }
+
+#pragma clang diagnostic pop
 
     };
 
