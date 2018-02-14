@@ -1,0 +1,9 @@
+response
+ archive archives/be-canon
+ states 2 
+ tda 
+ random
+ max_iter 10 
+ store_potential
+ print_level 1 
+end

@@ -37,6 +37,9 @@ namespace madness
       double range_low;            ///< Energy range (lower end) for orbitals to excite from
       double range_high;           ///< Energy range (upper end) for orbitals to excite from
       bool plot_initial;           ///< Flag to plot the ground state orbitals read in from archive
+      bool localized;              ///< Flag to use localized orbitals or not. MUST BE TRUE IF USING LOCALIZED
+      bool restart;                ///< Flag to restart from file
+      std::string resp_archive;    ///< Response restart archive
 
       // NOT YET IMPLEMENTED
       std::string xc_data;
@@ -47,13 +50,13 @@ namespace madness
       void serialize(Archive& ar)
       {
          ar & archive & states & print_level & tda & max_iter & small & thresh & random & store_potential
-            & e_window & range_low & range_high & plot_initial;
+            & e_window & range_low & range_high & plot_initial & restart & resp_archive;
       }
 
       // Default constructor
       ResponseParameters()
       : states(1)
-      , print_level(0)
+      , print_level(1)
       , tda(false)
       , plot(false)
       , max_iter(20)
@@ -66,6 +69,8 @@ namespace madness
       , range_low(0.0)
       , range_high(1.0)
       , plot_initial(false)
+      , localized(false)
+      , restart(false)
       {}
 
       // Initializes ResponseParameters using the contents of file \c filename
@@ -92,6 +97,11 @@ namespace madness
             else if (s == "archive")
             {
                f >> archive;
+            }
+            else if (s == "restart")
+            {
+               restart = true;
+               f >> resp_archive;
             }
             else if (s == "states")
             {
@@ -120,7 +130,7 @@ namespace madness
                   t >> d;
                   plot_data.push_back(std::stoi(d));
                   t >> d;
-                  for(int z = plot_data[0]; z < std::stoi(d); z++) plot_data.push_back(z);
+                  for(int z = plot_data[0]+1; z < std::stoi(d); z++) plot_data.push_back(z);
                }
                else
                {
@@ -156,6 +166,10 @@ namespace madness
             else if (s == "store_potential")
             {
                store_potential = true;
+            }
+            else if (s == "localized")
+            {
+               localized = true;
             }
             else if (s == "range")
             {
@@ -195,6 +209,7 @@ namespace madness
          madness::print("           Ground State File:", archive);
          madness::print("            States Requested:", states);
          madness::print("           TDA Approximation:", tda);
+         madness::print("          Localized Orbitals:", localized);
          madness::print("               Energy Window:", e_window, " (Not yet implemented)");
          if(e_window) madness::print("          Energy Range Start:", range_low);
          if(e_window) madness::print("            Energy Range End:", range_high);

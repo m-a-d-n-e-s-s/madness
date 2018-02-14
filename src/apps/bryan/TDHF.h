@@ -116,6 +116,7 @@ public:
 
 
 
+
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
 class TDHF 
@@ -144,9 +145,12 @@ class TDHF
       std::vector<real_function_3d> act_orbitals;     // Ground state orbitals being used in calculation
       Tensor<double> act_ground_energies;             // Ground state energies being used for calculation
       Tensor<double> hamiltonian;                     // Ground state hamiltonian tensor 
-                                                      //    (Used when localized orbitals are given)
+      Tensor<double> ham_no_diag;                     // Ground state ham. without diagonal (Used when localized orbitals are given)
       std::vector<int> active;                        // The labels of orbitals selected as "active"
       unsigned int act_num_orbitals;                  // Number of ground state orbitals being used in calculation
+
+      // Mask function to handle boundary conditions
+      real_function_3d mask;
 
       // Functions
       std::vector<std::vector<real_function_3d>> x_response;   // Excited states to be solved for. 
@@ -181,8 +185,15 @@ class TDHF
           const char* input_file);  // Input file 
 
       // Collective constructor for Response uses contens of steream \c input and broadcasts to all nodes
-      TDHF(World & world,                        // MADNESS world object
+      TDHF(World & world,                       // MADNESS world object
           std::shared_ptr<std::istream> input); // Pointer to input stream
+
+      // Saves a response calculation
+      void save(World & world);
+
+      // Loads a response calculation
+      //void load(World & world,
+      //          std::string archive);
 
       // Normalizes in the response sense
       void normalize(World & world,
@@ -225,34 +236,21 @@ class TDHF
                                                                             double small,
                                                                             double thresh);
 
-      // Returns the derivative of the exchange operator, applied to the ground state orbitals
-      // This is the function for TDHF only
-      std::vector<std::vector<real_function_3d>> create_exchange_derivative_tdhf(World & world,
-                                                                                 std::vector<std::vector<real_function_3d>> & x,
-                                                                                 std::vector<std::vector<real_function_3d>> & y,
-                                                                                 std::vector<real_function_3d> & orbitals,
-                                                                                 double small,
-                                                                                 double thresh);
+      // Returns the off diagonal (letter B) elements of response matrix       
+      std::vector<std::vector<real_function_3d>> create_B(World & world,
+                                                          std::vector<std::vector<real_function_3d>> & f,
+                                                          std::vector<real_function_3d> & orbitals,
+                                                          double small,
+                                                          double thresh);
 
-      // Returns gamma (the perturbed 2 electron piece)
-      // This is the function for TDA only
+      // Returns gamma (the perturbed 2 electron piece) 
       std::vector<std::vector<real_function_3d>> create_gamma(World & world,
                                                               std::vector<std::vector<real_function_3d>> & f,
                                                               std::vector<real_function_3d> & orbitals,
                                                               double small,
                                                               double thresh,
-                                                              int print_level);
-
-      // Returns gamma (the perturbed 2 electron piece)
-      // This is the function for TDHF only
-      std::vector<std::vector<real_function_3d>> create_gamma_tdhf(World & world,
-                                                                   std::vector<std::vector<real_function_3d>> & x,
-                                                                   std::vector<std::vector<real_function_3d>> & y,
-                                                                   std::vector<real_function_3d> & orbitals,
-                                                                   double small,
-                                                                   double thresh,
-                                                                   int print_level,
-                                                                   std::string xy);
+                                                              int print_level,
+                                                              std::string xy);
 
       // Returns the coulomb potential of the ground state
       // Note: No post multiplication involved here
@@ -287,15 +285,30 @@ class TDHF
                                                              std::string xy);
 
       // Returns the hamiltonian matrix, equation 45 from the paper
-      Tensor<double> create_hamiltonian(World & world,
-                                        std::vector<std::vector<real_function_3d>> & gamma,
-                                        std::vector<std::vector<real_function_3d>> & V,
-                                        std::vector<std::vector<real_function_3d>> & f,
-                                        std::vector<real_function_3d> & ground_orbitals,
-                                        std::vector<real_function_3d> & full_ground_orbitals,
-                                        Tensor<double> & energies,
-                                        int print_level,
-                                        std::string xy);
+      Tensor<double> create_response_matrix(World & world,
+                                            std::vector<std::vector<real_function_3d>> & gamma,
+                                            std::vector<std::vector<real_function_3d>> & V,
+                                            std::vector<std::vector<real_function_3d>> & f,
+                                            std::vector<real_function_3d> & ground_orbitals,
+                                            Tensor<double> & energies,
+                                            int print_level,
+                                            std::string xy);
+
+      // Constructs full response matrix of
+      // [ A  B ] [ X ] = w [ X ]
+      // [-B -A ] [ Y ]     [ Y ]
+      Tensor<double> create_full_response_matrix(World & world, 
+                                                 std::vector<std::vector<real_function_3d>> x_b,
+                                                 std::vector<std::vector<real_function_3d>> Vx,
+                                                 std::vector<std::vector<real_function_3d>> x,
+                                                 std::vector<std::vector<real_function_3d>> y_b,
+                                                 std::vector<std::vector<real_function_3d>> Vy,
+                                                 std::vector<std::vector<real_function_3d>> y,
+                                                 std::vector<real_function_3d> ground_orbitals,
+                                                 Tensor<double> ground_ham,
+                                                 double small,
+                                                 double thresh,
+                                                 int print_level);
 
       // Returns the shift needed for each orbital to make sure
       // -2.0 * (ground_state_energy + excited_state_energy) is positive
@@ -377,12 +390,37 @@ class TDHF
                                                            std::vector<std::vector<real_function_3d>> & f,
                                                            Tensor<double> & U);
 
+      // Diagonalize the full response matrix, taking care of degenerate states
+      Tensor<double> diag_full_response(World & world,
+                                        Tensor<double> & full_response,
+                                        std::vector<std::vector<real_function_3d>> & x,
+                                        std::vector<std::vector<real_function_3d>> & Vx,
+                                        std::vector<std::vector<real_function_3d>> & x_g,
+                                        std::vector<std::vector<real_function_3d>> & y,
+                                        std::vector<std::vector<real_function_3d>> & Vy,
+                                        std::vector<std::vector<real_function_3d>> & y_g,
+                                        Tensor<double> & x_evals, 
+                                        Tensor<double> & y_evals,
+                                        const double thresh);
+
+      // Similar to what robert did above in "get_fock_transformation"
+      Tensor<double> get_full_response_transformation(World& world,
+                                                      Tensor<double>& overlap,
+                                                      Tensor<double>& full_response,
+                                                      Tensor<double>& evals,
+                                                      const double thresh)   ; 
+
       // Sorts the given Tensor and vector of functions in place
       Tensor<int> sort(World & world,
                        Tensor<double> & vals,
                        Tensor<double> & vals_residuals,
                        std::vector<std::vector<real_function_3d>> & f,
                        std::vector<std::vector<real_function_3d>> & f_diff);
+
+      // Sorts the given Tensors 
+      Tensor<int> sort_eigenvalues(World & world,
+                                   Tensor<double> & vals,
+                                   Tensor<double> & vecs);
 
       // Iterates the trial functions until covergence or it runs out of iterations
       void iterate(World & world);
@@ -404,7 +442,6 @@ class TDHF
                              std::vector<std::vector<real_function_3d>> & f,
                              Tensor<double> & omega,
                              std::vector<real_function_3d> & orbitals,
-                             std::vector<real_function_3d> & full_orbitals,
                              Tensor<double> & energies,
                              double thresh,
                              double small,
