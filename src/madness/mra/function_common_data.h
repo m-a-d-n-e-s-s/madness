@@ -110,8 +110,14 @@ namespace madness {
         static const FunctionCommonData<T, NDIM>&
         get(int k) {
             MADNESS_ASSERT(k > 0 && k <= MAXK);
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-var-template"
+
             if (!data[k-1]) data[k-1] = new FunctionCommonData<T,NDIM>(k);
             return *(data[k-1]);
+
+#pragma clang diagnostic pop
         }
 
         /// Initialize the quadrature information

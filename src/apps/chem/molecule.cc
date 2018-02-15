@@ -64,10 +64,10 @@ static inline double distance_sq(double x1, double y1, double z1, double x2, dou
 /// read molecule from the input file and return part of the header for
 /// a Gaussian cube file.
 /// @param[in]  filename input file name (usually "input")
-std::vector<std::string> cubefile_header(std::string filename) {
+std::vector<std::string> cubefile_header(std::string filename, const bool& no_orient=false) {
     Molecule molecule;
     molecule.read_file(filename);
-    molecule.orient();
+    if(no_orient==false) molecule.orient();
     std::vector<std::string> molecular_info;
     for (unsigned int i=0; i<molecule.natom(); ++i) {
         std::stringstream ss;
