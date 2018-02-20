@@ -64,10 +64,10 @@ static inline double distance_sq(double x1, double y1, double z1, double x2, dou
 /// read molecule from the input file and return part of the header for
 /// a Gaussian cube file.
 /// @param[in]  filename input file name (usually "input")
-std::vector<std::string> cubefile_header(std::string filename) {
+std::vector<std::string> cubefile_header(std::string filename, const bool& no_orient=false) {
     Molecule molecule;
     molecule.read_file(filename);
-    molecule.orient();
+    if(no_orient==false) molecule.orient();
     std::vector<std::string> molecular_info;
     for (unsigned int i=0; i<molecule.natom(); ++i) {
         std::stringstream ss;
@@ -109,15 +109,19 @@ Molecule::Molecule(const std::string& filename) {
 }
 
 void Molecule::read_file(const std::string& filename) {
-    atoms.clear();
-    rcut.clear();
-    eprec = 1e-4;
-    units = atomic;
     std::ifstream f(filename.c_str());
     if(f.fail()) {
         std::string errmsg = std::string("Failed to open file: ") + filename;
         MADNESS_EXCEPTION(errmsg.c_str(), 0);
     }
+    this->read(f);
+}
+
+void Molecule::read(std::istream& f) {
+    atoms.clear();
+    rcut.clear();
+    eprec = 1e-4;
+    units = atomic;
     madness::position_stream(f, "geometry");
     double scale = 1.0; // Default is atomic units
 

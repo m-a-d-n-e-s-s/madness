@@ -40,6 +40,7 @@
 
 #include <type_traits>
 #include <iostream>
+#include <madness/world/meta.h>
 #include <madness/world/nodefaults.h>
 #include <madness/world/range.h>
 #include <madness/world/timers.h>
@@ -56,6 +57,14 @@ namespace madness {
     class WorldTaskQueue;
     template <typename> struct TaskFunction;
     template <typename> struct TaskMemfun;
+
+    namespace meta {
+    template <typename ... argsT>
+    struct taskattr_is_last_arg : public std::integral_constant<bool, std::is_same<std::decay_t<typename meta::last_type<argsT...>::type>,
+    TaskAttributes>::value> {};
+    template <>
+    struct taskattr_is_last_arg<> : public std::false_type {};
+    }
 
     namespace detail {
 
@@ -161,6 +170,17 @@ namespace madness {
                 function_traits<fnT>::value || is_functor<fnT>::value,
                 task_result_type<fnT> >
         { };
+
+        /// \todo Brief description needed.
+
+        /// \todo Descriptions needed.
+        /// \tparam fnT Description needed.
+        template <typename callableT, typename Enabler = void>
+        struct callable_enabler;
+        template <typename callableT>
+        struct callable_enabler<callableT,
+        std::enable_if_t<callable_traits<callableT>::value>>
+        { using type = typename callable_traits<callableT>::result_type; };
 
         /// \todo Brief description needed.
 
@@ -450,13 +470,8 @@ namespace madness {
 
             t->set_info(&world, this);       // Stuff info
 
-            if (t->ndep() == 0) {
-                ThreadPool::add(t); // If no dependencies directly submit
-            } else {
-                // With dependencies must use the callback to avoid race condition
-                t->register_submit_callback();
-                //t->dec();
-            }
+            // Always use the callback to avoid race condition
+            t->register_submit_callback();
         }
 
         /// \todo Brief description needed.
@@ -564,7 +579,48 @@ namespace madness {
             return result;
         }
 
+#if MADNESS_TASKQ_VARIADICS
 
+        ///////////////////////////////////////////////////////////////////////////////
+
+        /// Create a local task with one argument.
+
+        /// Creates a task in this process. An argument that is a future may be
+        /// used to carry dependencies.
+        /// \tparam fnT A function pointer or functor.
+        /// \tparam a1T Type of argument 1.
+        /// \param[in,out] fn The function to be called in the task.
+        /// \param[in] a1 Argument 1.
+        /// \param[in] attr The task attributes.
+        /// \return A future to the result. If the task function return
+        ///     type is \c void, a \c Future<void> object is returned that may
+        ///     be ignored.
+        /// \note future_to_ref_t is used instead of remove_future_t so that
+        ///       argument Future's convert to refs so that X(Y&) can invoked by add(X, Future<T>);
+        ///       if remove_future_t were used, X(Y) would be expected instead.
+        ///       This is reasonable if we remember the shallow copy semantics of Futures: they act
+        ///       as refs.
+        template <typename fnT, typename... argsT,
+                  typename = std::enable_if_t<
+                  meta::taskattr_is_last_arg<argsT...>::value>>
+        typename meta::drop_last_arg_and_apply_callable<detail::function_enabler, fnT, future_to_ref_t<argsT>...>::type::type
+        add(fnT&& fn, argsT&&... args) {
+          using taskT = typename meta::drop_last_arg_and_apply<TaskFn, std::decay_t<fnT>, std::decay_t<argsT>...>::type;
+          return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
+                               std::forward<argsT>(args)...));
+        }
+
+        template <typename fnT, typename... argsT,
+                  typename = std::enable_if_t<
+                      !meta::taskattr_is_last_arg<argsT...>::value>>
+        typename detail::function_enabler<fnT(future_to_ref_t<argsT>...)>::type add(
+            fnT&& fn, argsT&&... args) {
+          using taskT = TaskFn<std::decay_t<fnT>, std::decay_t<argsT>...>;
+          return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
+                               std::forward<argsT>(args)..., TaskAttributes()));
+        }
+
+#else
         /// Create a local task with no arguments.
 
         /// Creates a task in this process. An argument that is a future may be
@@ -576,7 +632,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT()>::type
         add(fnT fn, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT> taskT;
             return add(new taskT(typename taskT::futureT(),
@@ -596,7 +652,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT, typename a1T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T)>::type
         add(fnT fn, const a1T& a1, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT, a1T> taskT;
             return add(new taskT(typename taskT::futureT(),
@@ -618,7 +674,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT, a1T, a2T> taskT;
             return add(new taskT(typename taskT::futureT(),
@@ -642,7 +698,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
             const TaskAttributes& attr=TaskAttributes())
         {
@@ -670,7 +726,7 @@ namespace madness {
         ///     type is \c void, a \c Future<void> object is returned that may
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const TaskAttributes& attr=TaskAttributes())
         {
@@ -701,7 +757,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const TaskAttributes& attr=TaskAttributes())
         {
@@ -734,7 +790,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T, a6T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const a6T& a6, const TaskAttributes& attr=TaskAttributes())
         {
@@ -769,7 +825,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T, a6T, a7T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const a6T& a6, const a7T& a7,
             const TaskAttributes& attr=TaskAttributes())
@@ -807,7 +863,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T, typename a8T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8,
             const TaskAttributes& attr=TaskAttributes())
@@ -847,7 +903,7 @@ namespace madness {
         ///     be ignored.
         template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
             typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-        typename detail::function_enabler<fnT>::type
+        typename detail::function_enabler<fnT(a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T)>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
             const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8, const a9T& a9,
             const TaskAttributes& attr=TaskAttributes())
@@ -856,7 +912,7 @@ namespace madness {
             return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, a4, a5, a6, a7, a8, a9, attr));
         }
-
+#endif
 
         /// Create a remote task.
 

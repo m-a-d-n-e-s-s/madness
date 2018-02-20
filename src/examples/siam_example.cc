@@ -49,7 +49,7 @@
 
 #include <madness/mra/mra.h>
 #include <madness/constants.h>
-#include "nonlinsol.h"
+#include <madness/mra/nonlinsol.h>
 
 using namespace madness;
 using namespace std;

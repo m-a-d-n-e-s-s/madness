@@ -52,9 +52,10 @@
 #include <chem/SCFProtocol.h>
 #include <chem/correlationfactor.h>
 #include <chem/molecular_optimizer.h>
-#include <examples/nonlinsol.h>
+#include <madness/mra/nonlinsol.h>
 #include <madness/mra/vmra.h>
 #include <chem/pcm.h>
+#include <chem/AC.h>
 
 namespace madness {
 
@@ -150,7 +151,7 @@ public:
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
-			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0) {}
+			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {}
 
 	void construct_nuclear_correlation_factor() {
 		// construct the nuclear potential
@@ -397,8 +398,27 @@ private:
 	/// a poisson solver
 	std::shared_ptr<real_convolution_3d> poisson;
 
+//	/// asymptotic correction for DFT
+//	AC<3> ac;
+//
+//    /// apply the AC scheme of Tozer/Handy with the multipole approximation
+//    Function<double,3> apply_ac(const Function<double,3>& vxc)const{
+//    	return ac.apply(vxc);
+//    }
+//
+//    /// apply the AC scheme of Tozer/Handy using the hartree potential
+//    Function<double,3> apply_ac(const Function<double,3>& vxc, const Function<double,3>& vhartree)const{
+//    	return ac.apply(vxc,vhartree);
+//    }
+//
+//    /// apply the AC scheme of Tozer/Handy
+//    Function<double,3> apply_ac_excited(Function<double,3>& vxc, const Function<double,3>& vhartree)const{
+//    	return ac.apply_potential(vxc,vhartree);
+//    }
+
 	/// polarizable continuum model
 	PCM pcm;
+	AC<3> ac;
 
 	void print_nuclear_corrfac() const;
 
@@ -483,6 +503,10 @@ private:
 
 	bool do_pcm() const {return calc->param.pcm_data != "none";}
 	
+	bool do_ac() const {return calc->param.ac_data != "none";}
+
+	AC<3> get_ac() const {return ac;}
+
 	private:
 
 	/// localize the nemo orbitals

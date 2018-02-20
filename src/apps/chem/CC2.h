@@ -18,7 +18,7 @@
 #include <madness/mra/lbdeux.h>
 #include <madness/misc/ran.h>
 #include <chem/TDHF.h>
-#include <examples/nonlinsol.h>
+#include <madness/mra/nonlinsol.h>
 
 namespace madness {
 

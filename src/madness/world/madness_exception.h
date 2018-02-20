@@ -45,6 +45,7 @@
 #ifndef MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
 #define MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
 
+#include <cstdlib>
 #include <iosfwd>
 #include <exception>
 #include <madness/madness_config.h>
@@ -135,11 +136,12 @@ namespace madness {
 
 #ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_ASSERT(condition) \
-     do {if (!(condition)) ((void (*)())0)();} while(0)
+     do {if (!(condition)) { std::abort(); }} while (0)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_DISABLE
-#  define MADNESS_ASSERT(condition)
+// this avoid unused variqble warnings, see http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
+#  define MADNESS_ASSERT(condition) do { (void)sizeof(condition);} while (0)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_ASSERT

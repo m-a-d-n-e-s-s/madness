@@ -24,12 +24,6 @@ env:
   #- GCC_VERSION=4.9 RUN_TEST=mra
   - GCC_VERSION=5 RUN_TEST=mra
 matrix:
-  # Currently there is a segfault that occurs in the unit tests when
-  # building with the clang compiler. Temporarily allow failures in
-  # these tests until the issue is resolved.
-  allow_failures:
-    - compiler: clang
-      env: GCC_VERSION=5 RUN_TEST=mra
   exclude:
     - compiler: clang
       env: GCC_VERSION=4.7 RUN_TEST=buildonly

@@ -770,6 +770,23 @@ public:
 };
 
 
+/// type conversion implies a deep copy
+
+/// @result Returns a new tensor that is a deep copy of the input
+template <class Q, class T>
+LowRankTensor<Q> convert(const LowRankTensor<T>& other) {
+	LowRankTensor<Q> result;
+	result.type=other.type;
+    if (other.type==TT_FULL)
+        result.impl.full=std::shared_ptr<Tensor<Q> >(new Tensor<Q>(convert<Q,T>(*other.impl.full)));
+    if (other.type==TT_2D)
+        MADNESS_EXCEPTION("no type conversion for SVDTensors",1);
+    if (other.type==TT_TENSORTRAIN)
+        MADNESS_EXCEPTION("no type conversion for TensorTrain",1);
+    return result;
+}
+
+
 template <class T, class Q>
 LowRankTensor< TENSOR_RESULT_TYPE(T,Q) > transform(const LowRankTensor<Q>& t, const Tensor<T>& c) {
     return t.transform(c);

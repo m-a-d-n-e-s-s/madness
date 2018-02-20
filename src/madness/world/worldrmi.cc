@@ -351,7 +351,40 @@ namespace madness {
         RMI::task_ptr->post_pending_huge_msg();
     }
 
+    namespace detail {
+    void compare_fn_addresses(void* addresses_in, void* addresses_inout,
+                              int* len, MPI_Datatype* type) {
+      MADNESS_ASSERT(*type == MPI_UNSIGNED_LONG);
+      unsigned long* in = static_cast<unsigned long*>(addresses_in);
+      unsigned long* inout = static_cast<unsigned long*>(addresses_inout);
+      int n = *len;
+      // produce zero if addresses do not match; zero address trumps everything else
+      for(size_t i=0; i!=n; ++i) {
+        if (in[i] == 0 || inout[i] == 0 || in[i] != inout[i]) inout[i] = 0;
+      }
+    }
+    }  // namespace detail
+
+    void RMI::assert_aslr_off() {
+      unsigned long my_address = reinterpret_cast<unsigned long>(&assert_aslr_off);
+      MADNESS_ASSERT(my_address != 0ul);
+      MPI_Op compare_fn_addresses_op = SafeMPI::Op_create(&detail::compare_fn_addresses, 1);
+      unsigned long zero_if_addresses_differ;
+      SafeMPI::COMM_WORLD.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_UNSIGNED_LONG, compare_fn_addresses_op, 0);
+      if (SafeMPI::COMM_WORLD.Get_rank() == 0) {
+        if (zero_if_addresses_differ == 0) {
+          MADNESS_EXCEPTION("Address Space Layout Randomization (ASLR) detected, please turn off or disable by providing appropriate linker flags (see MADNESS_DISABLEPIE_LINKER_FLAG)",0);
+        }
+        MADNESS_ASSERT(zero_if_addresses_differ == my_address);
+      }
+      SafeMPI::Op_free(compare_fn_addresses_op);
+    }
+
     void RMI::begin() {
+
+            // complain loudly and throw if ASLR is on ... RMI requires ASLR to be off
+            assert_aslr_off();
+
             testsome_backoff_us = 5;
             const char* buf = getenv("MAD_BACKOFF_US");
             if (buf) {
@@ -364,7 +397,7 @@ namespace madness {
             MADNESS_ASSERT(task_ptr == nullptr);
 #if HAVE_INTEL_TBB
 
-            // Force tne RMI task to be picked up by someone other then main thread
+            // Force the RMI task to be picked up by someone other then main thread
             // by keeping main thread occupied AND enqueing enough dummy tasks to make
             // TBB create threads and pick up RmiTask eventually
 

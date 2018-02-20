@@ -97,6 +97,7 @@
 #cmakedefine WORLD_GATHER_MEM_STATS 1
 #cmakedefine WORLD_MEM_PROFILE_ENABLE 1
 #cmakedefine WORLD_PROFILE_ENABLE 1
+#cmakedefine MADNESS_TASK_DEBUG_TRACE 1
 
 
 /* Define to the equivalent of the C99 'restrict' keyword, or to

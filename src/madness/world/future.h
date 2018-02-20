@@ -100,9 +100,13 @@ namespace madness {
         typedef T type;
     };
 
-    /// Boost-type-trait-like mapping of \c Future<T> to \c T.
+    /// This metafunction maps \c Future<T> to \c T.
 
-    /// Specialization of \c remove_future.
+    /// \internal Future is a wrapper for T (it acts like an Identity monad), so this
+    /// unwraps T. It makes sense that the result should preserve the access traits
+    /// of the Future, i.e. const Future<T> should map to const T, etc.
+
+    /// Specialization of \c remove_future for \c Future<T>
     /// \tparam T The type to have future removed.
     template <typename T>
     struct remove_future< Future<T> > {
@@ -110,10 +114,68 @@ namespace madness {
         typedef T type;
     };
 
+    /// Specialization of \c remove_future for \c Future<T>
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< const Future<T> > {
+        /// Type with \c Future removed.
+        typedef const T type;
+    };
+
+    /// Specialization of \c remove_future for \c Future<T>&
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< Future<T>& > {
+        /// Type with \c Future removed.
+        typedef T& type;
+    };
+
+    /// Specialization of \c remove_future for \c Future<T>&&
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< Future<T>&& > {
+        /// Type with \c Future removed.
+        typedef T&& type;
+    };
+
+    /// Specialization of \c remove_future for \c const \c Future<T>&
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< const Future<T>& > {
+        /// Type with \c Future removed.
+        typedef const T& type;
+    };
+
     /// Macro to determine type of future (by removing wrapping \c Future template).
 
     /// \param T The type (possibly with \c Future).
 #define REMFUTURE(T) typename remove_future< T >::type
+
+    /// C++11 version of REMFUTURE
+    template <typename T>
+    using remove_future_t = typename remove_future< T >::type;
+
+    /// Similar to remove_future , but future_to_ref<Future<T>> evaluates to T& ,whereas
+    /// remove_future<Future<T>> evaluates to T .
+    /// \tparam T The type to have future removed; in this case, do nothing.
+    template <typename T>
+    struct future_to_ref {
+        typedef T type;
+    };
+    template <typename T>
+    struct future_to_ref<Future<T>> {
+      typedef T& type;
+    };
+    template <typename T>
+    struct future_to_ref<Future<T>&> {
+      typedef T& type;
+    };
+    template <typename T>
+    struct future_to_ref<const Future<T>&> {
+      typedef const T& type;
+    };
+    template <typename T>
+    using future_to_ref_t = typename future_to_ref< T >::type;
 
     /// Human readable printing of a \c Future to a stream.
 
@@ -620,23 +682,38 @@ namespace madness {
 
         /// Same as \c get().
 
-        /// \return The value.
-        inline operator T&() {
+        /// \return An lvalue reference to the value.
+        inline operator T&() & {
             return get();
         }
 
 
         /// Same as `get() const`.
 
-        /// \return The value.
-        inline operator const T&() const {
+        /// \return An const lvalue reference to the value.
+        inline operator const T&() const& {
             return get();
         }
 
-        /// Same as \c get().
+        /// An rvalue analog of \c get().
 
-        /// \return The value.
-        inline explicit operator T&&() {
+        /// \return An rvalue reference to the value.
+        /// \internal Rationale: the conversion operators unwrap the
+        ///           Future object (see also \c remove_future
+        ///           metafunction), hence the result should maintain
+        ///           the traits of the Future object. The rvalue conversion
+        ///           is made explicit to avoid accidents (perhaps this should
+        ///           be revisited to make easier moving Future objects into
+        ///           functions).
+        inline explicit operator T&&() && {
+            return std::move(get());
+        }
+
+        /// An rvalue analog of \c get().
+
+        /// \return An rvalue reference to the value.
+        /// \internal Rationale: this makes possible to move the value from a mutable assigned future.
+        inline explicit operator T&&() & {
             return std::move(get());
         }
 
@@ -863,10 +940,7 @@ namespace madness {
 
         /// \return True if all futures have been assigned; false otherwise.
         bool probe() const {
-            for(typename std::vector< Future<T> >::const_iterator it = v.begin(); it != v.end(); ++it)
-                if(! it->probe())
-                    return false;
-            return true;
+            return DependencyInterface::probe();
         }
 
     }; // class Future< std::vector< Future<T> > >

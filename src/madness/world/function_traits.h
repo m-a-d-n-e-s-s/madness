@@ -5,23 +5,54 @@
 
 namespace madness {
     namespace detail {
-        /// Function traits in the spirt of boost function traits
-        template <typename functionT>
+        // helps to implement other metafunctions
+        template<typename> struct is_type : public std::true_type { };
+
+        /// Function traits in the spirit of boost function traits
+        template <typename functionT, typename enablerT = void>
         struct function_traits : public std::false_type {};
 
-        /// Member function traits in the spirt of boost function traits
+        /// Function traits in the spirit of boost function traits
+        template <typename functionT, typename enablerT = void>
+        struct callable_traits : public std::false_type {};
+
+        /// Member function traits in the spirit of boost function traits
         template <typename memfuncT>
         struct memfunc_traits : public std::false_type { };
 
-        /// Function traits in the spirt of boost function traits
-        template <typename returnT, typename... argTs>
-        struct function_traits<returnT(*)(argTs...)> {
-            static const bool value = true;
-            static const int arity = sizeof...(argTs);
-            typedef returnT result_type;
+        /// Function trait specialization for a free function pointer
+        template <typename resultT, typename... argTs>
+        struct function_traits<resultT(*)(argTs...), void> {
+          static const bool value = true;
+          static const int arity = sizeof...(argTs);
+          using result_type = resultT;
         };
 
-        /// Member function traits in the spirt of boost function traits
+        /// Function trait specialization for a *reference* to a free function pointer
+        template <typename resultT, typename... argTs>
+        struct function_traits<resultT(*&)(argTs...), void> {
+          static const bool value = true;
+          static const int arity = sizeof...(argTs);
+          using result_type = resultT;
+        };
+
+        /// Function trait specialization for a callable (can be a function, a (generic) lambda, etc.)
+        template <typename fnT, typename... argTs>
+        struct function_traits<fnT(argTs...), typename std::enable_if_t<is_type<std::result_of_t<fnT(argTs...)>>::value>> {
+            static const bool value = true;
+            static const int arity = sizeof...(argTs);
+            using result_type = std::result_of_t<fnT(argTs...)>;
+        };
+
+        /// Function traits in the spirit of boost function traits
+        template <typename fnT, typename... argTs>
+        struct callable_traits<fnT(argTs...), typename std::enable_if_t<is_type<std::result_of_t<fnT(argTs...)>>::value>> {
+            static const bool value = true;
+            static const int arity = sizeof...(argTs);
+            using result_type = std::result_of_t<fnT(argTs...)>;
+        };
+
+        /// Member function traits in the spirit of boost function traits
         template <typename objT, typename returnT, typename... argTs>
         struct memfunc_traits<returnT(objT::*)(argTs...)> {
             static const bool value = true;
@@ -31,7 +62,7 @@ namespace madness {
             typedef returnT result_type;
         };
 
-        /// Member function traits in the spirt of boost function traits
+        /// Member function traits in the spirit of boost function traits
         template <typename objT, typename returnT, typename... argTs>
         struct memfunc_traits<returnT(objT::*)(argTs...) const> {
             static const bool value = true;
@@ -40,11 +71,6 @@ namespace madness {
             typedef objT obj_type;
             typedef returnT result_type;
         };
-
-
-        // helps to implement other metafunctions
-        template<typename> struct is_type : public std::true_type { };
-
 
 
         template <typename fnT, typename Enabler = void>

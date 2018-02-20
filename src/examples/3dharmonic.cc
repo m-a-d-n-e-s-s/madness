@@ -104,7 +104,7 @@
   to choose the size of the shift to optimize the rate of convergence
   (empirically \f$\Delta=7\f$ is best) rather than being forced to
   pick a large value.  We use the very easy to use solver in
-  examples/nonlinsol.h .
+  mra/nonlinsol.h .
 
   [Aside.  It is possible to apply the operator for positive energies,
   but efficient application requires separate treatment of the
@@ -116,7 +116,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/funcplot.h>
-#include "nonlinsol.h"
+#include <madness/mra/nonlinsol.h>
 
 using namespace madness;
 

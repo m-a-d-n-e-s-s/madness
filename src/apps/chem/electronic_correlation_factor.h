@@ -12,7 +12,7 @@
 
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
-#include <apps/chem/molecule.h>
+#include <chem/molecule.h>
 #include <iomanip>
 
 namespace madness {
@@ -78,7 +78,7 @@ public:
 
     /// apply Kutzelnigg's regularized potential to an orbital product
     real_function_6d apply_U(const real_function_3d& phi_i, const real_function_3d& phi_j,
-            const real_convolution_6d op_mod, const bool symmetric=false) const {
+            const real_convolution_6d& op_mod, const bool symmetric=false) const {
 	  if(not op_mod.modified()) MADNESS_EXCEPTION("ElectronicCorrelationFactor::apply_U, op_mod must be in modified_NS form",1);
 	  const double thresh = FunctionDefaults<6>::get_thresh();
 	  const bool debug = false;

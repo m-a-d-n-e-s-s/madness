@@ -35,10 +35,10 @@
 #define MADNESS_EXAMPLES_NONLINSOL_H__INCLUDED
 
 /*!
-  \file examples/nonlinsol.h
-  \brief Example implementation of Krylov-subspace nonlinear equation solver 
+  \file nonlinsol.h
+  \brief Implementation of Krylov-subspace nonlinear equation solver
   \defgroup nonlinearsolve Simple Krylov-subspace nonlinear equation solver 
-  \ingroup examples
+  \ingroup mra
 
   This class implements the solver described in 
   \verbatim

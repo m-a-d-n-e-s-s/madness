@@ -121,7 +121,7 @@ namespace madness {
 
     // if you want to use milder refinement conditions for special boxes with increasing refinement level
     // Cuspybox_op needs this
-    const size_t get_half_of_special_level(const size_t& sl= FunctionDefaults<NDIM>::get_special_level())const{
+    size_t get_half_of_special_level(const size_t& sl= FunctionDefaults<NDIM>::get_special_level())const{
       size_t ll = sl;
       if(sl%2==0) ll=sl/2;
       else ll = (sl+1)/2;
