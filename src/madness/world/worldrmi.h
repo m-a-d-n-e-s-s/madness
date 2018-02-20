@@ -344,6 +344,8 @@ namespace madness {
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
 
+        static void assert_aslr_off();  // will complain to std::cerr and throw if ASLR is on
+
         static void begin();
 
         static void end() {

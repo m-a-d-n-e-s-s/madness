@@ -35,6 +35,7 @@
 
 namespace madness {
     std::istream& position_stream(std::istream& f, const std::string& tag) {
+        f.seekg(0);
         std::string s;
         while (std::getline(f,s)) {
             std::string::size_type loc = s.find(tag, 0);

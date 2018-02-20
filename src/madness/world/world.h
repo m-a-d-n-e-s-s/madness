@@ -82,11 +82,12 @@ namespace madness {
     class WorldAmInterface;
     class WorldGopInterface;
 
-    /// \todo Brief description needed.
+    /// redirects standard output and error to rank-specific files
 
-    /// \todo Description needed.
-    /// \param[in,out] world Description needed.
-    void redirectio(World& world);
+    /// @param[in] world the World object that determines rank of this process
+    /// @param[in] split if true, write standard output to log.<rank> and standard error to err.<rank>,
+    ///            otherwise write both standard output and error to log.<rank>. The default is false.
+    void redirectio(const World& world, bool split = false);
 
     /// Initialize the MADNESS runtime.
 

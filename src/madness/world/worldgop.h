@@ -647,7 +647,7 @@ namespace madness {
         /// locally ensuring ntask=0 and all am sent and processed,
         /// and then participating in a global sum of nsent and nrecv.
         /// Then globally checks that nsent=nrecv and that both are
-        /// constant over two traversals.  We are then we are sure
+        /// constant over two traversals.  We are then sure
         /// that all tasks and AM are processed and there no AM in
         /// flight.
         void fence();

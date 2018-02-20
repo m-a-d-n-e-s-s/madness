@@ -347,7 +347,8 @@ namespace madness{
 	tda_iter_max(25),
 	tda_iter_guess(10),
 	tda_homo_guess(false),
-	tda_damping_width(0.0)
+	tda_damping_width(0.0),
+	tda_triplet(false)
   {
     // get the parameters from the input file
     std::ifstream f(input.c_str());
@@ -462,6 +463,7 @@ namespace madness{
 	tmp = buf;
 	tda_exops.push_back(tmp);
       }
+      else if (s == "tda_triplet") f>>tda_triplet;
       else{
 	std::cout << "Unknown Keyword: " << s << "\n";
 	continue;
@@ -681,9 +683,9 @@ namespace madness{
       std::cout << "tda_store_potential      :" << tda_store_potential         << std::endl;
       std::cout << "tda_iter_max             :" << tda_iter_max                << std::endl;
       std::cout << "tda_iter_guess           :" << tda_iter_guess              << std::endl;
-      std::cout << "tda_homo_guess           :" << tda_homo_guess << std::endl;
-      std::cout << "tda_damping_width   :" << tda_damping_width << std::endl;
-
+      //std::cout << "tda_homo_guess           :" << tda_homo_guess << std::endl;
+      std::cout << "tda_damping_width        :" << tda_damping_width << std::endl;
+      std::cout << "tda_triplet              :" << tda_triplet << std::endl;  
       std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
       std::cout << std::setfill(' ');
     }
