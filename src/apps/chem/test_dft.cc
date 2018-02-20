@@ -31,7 +31,7 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness.h>
-#include <apps/chem/SCFOperators.h>
+#include <chem/SCFOperators.h>
 
 using namespace madness;
 

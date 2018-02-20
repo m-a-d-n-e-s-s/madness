@@ -92,7 +92,7 @@ namespace madness {
         }
 
         /// Adds call back to schedule task when outstanding dependencies are satisfied
-        void register_submit_callback() { register_callback(&submit); }
+        void register_submit_callback() { register_final_callback(&submit); }
 
     protected:
         virtual void run(const TaskThreadEnv& env);
@@ -104,6 +104,16 @@ namespace madness {
         TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes())
                 : PoolTaskInterface(attr)
                 , DependencyInterface(ndepend)
+                , world(0)
+                , completion(0)
+                , submit(this)
+        {}
+
+        /// Create a new task with ndepend dependencies (default 0) and given attributes,
+        /// keep track of \c caller for debugging purposes.
+        TaskInterface(int ndepend, const char* caller, const TaskAttributes attr = TaskAttributes())
+                : PoolTaskInterface(attr)
+                , DependencyInterface(ndepend, caller)
                 , world(0)
                 , completion(0)
                 , submit(this)

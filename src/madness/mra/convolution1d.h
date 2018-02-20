@@ -282,13 +282,15 @@ namespace madness {
                 , quad_w(npt)
                 , arg(arg)
         {
-
-            MADNESS_ASSERT(autoc(k,&c));
+            auto success = autoc(k,&c);
+            MADNESS_ASSERT(success);
 
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
-            MADNESS_ASSERT(two_scale_hg(k,&hg));
+            success = two_scale_hg(k,&hg);
+            MADNESS_ASSERT(success);
             hgT = transpose(hg);
-            MADNESS_ASSERT(two_scale_hg(2*k,&hgT2k));
+            success = two_scale_hg(2*k,&hgT2k);
+            MADNESS_ASSERT(success);
             hgT2k = transpose(hgT2k);
 
             // Cannot construct the coefficients here since the
@@ -854,6 +856,10 @@ namespace madness {
             hash_combine(key, k);
             hash_combine(key, m);
             hash_combine(key, int(periodic));
+
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
             iterator it = map.find(key);
             if (it == map.end()) {
                 map.insert(datumT(key, std::make_shared< GaussianConvolution1D<Q> >(k,
@@ -869,6 +875,9 @@ namespace madness {
                 //printf("conv1d: reusing %d %.8e\n",k,expnt);
             }
             return it->second;
+
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
+
         }
     };
 }

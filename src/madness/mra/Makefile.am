@@ -44,7 +44,7 @@ thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  v
                       lbdeux.h  mraimpl.h  funcplot.h  function_common_data.h \
                       function_factory.h function_interface.h gfit.h convolution1d.h \
                       simplecache.h derivative.h displacements.h functypedefs.h \
-                      sdf_shape_3D.h sdf_domainmask.h vmra1.h
+                      sdf_shape_3D.h sdf_domainmask.h vmra1.h nonlinsol.h 
 
 
 LDADD = libMADmra.la $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)

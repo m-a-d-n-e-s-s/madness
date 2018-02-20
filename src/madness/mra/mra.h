@@ -1102,7 +1102,7 @@ namespace madness {
           return *this;
         }
 
-        /// Special refinement on 6D boxes where the electrons come closs (meet)
+        /// Special refinement on 6D boxes where the electrons come close (meet)
         /// @param[in]  op  the convolution operator for screening
         template<typename opT>
         Function<T,NDIM>& fill_cuspy_tree(const opT& op,const bool fence=true){
@@ -1117,7 +1117,7 @@ namespace madness {
           return *this;
         }
 
-        /// Special refinement on 6D boxes where the electrons come closs (meet)
+        /// Special refinement on 6D boxes where the electrons come close (meet)
         Function<T,NDIM>& fill_cuspy_tree(const bool fence=true){
           MADNESS_ASSERT(is_on_demand());
           // clear what we have

@@ -31,10 +31,10 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness.h>
-#include <apps/chem/SCFOperators.h>
-#include <apps/chem/SCF.h>
-#include <apps/chem/nemo.h>
-#include <apps/chem/correlationfactor.h>
+#include <chem/SCFOperators.h>
+#include <chem/SCF.h>
+#include <chem/nemo.h>
+#include <chem/correlationfactor.h>
 
 using namespace madness;
 

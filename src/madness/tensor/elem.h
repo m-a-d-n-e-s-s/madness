@@ -508,6 +508,8 @@ namespace madness {
 
 #else
 
+#include <madness/tensor/tensor_lapack.h>
+
 namespace madness {
     // sequential fall back code
     template <typename T>

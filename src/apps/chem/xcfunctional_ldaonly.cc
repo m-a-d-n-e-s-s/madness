@@ -127,7 +127,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madne
 
     if (spin_polarized) {
         const double* brho = t[1].ptr();
-        for (unsigned int i=0; i<result.size(); i++) {
+        for (unsigned int i=0; i<result[0].size(); i++) {
             double ra = munge(arho[i]);
             double rb = munge(brho[i]);
             double xf, cf, xdfdr[2], cdfdr[2];
@@ -145,7 +145,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madne
     }
     else {
         const double* arho = t[0].ptr();
-        for (unsigned int i=0; i<result.size(); i++) {
+        for (unsigned int i=0; i<result[0].size(); i++) {
             double r = munge(2.0 * arho[i]);
             double q, dq1, dq2;
             x_rks_s__(&r, &q, &dq1);
