@@ -857,8 +857,8 @@ namespace madness {
             hash_combine(key, m);
             hash_combine(key, int(periodic));
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wundefined-var-template"
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
             iterator it = map.find(key);
             if (it == map.end()) {
@@ -876,7 +876,7 @@ namespace madness {
             }
             return it->second;
 
-#pragma clang diagnostic pop
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
 
         }
     };
