@@ -27,6 +27,8 @@ namespace madness
       bool plot;                   ///< Turn on plotting of final orbitals. Output format is .vts 
       bool plot_range;             ///< Controls which orbitals will be plotted 
       std::vector<int> plot_data;  ///< Orbitals to plot
+      double plot_L;               ///< Controls the plotting box size 
+      int plot_pts;                ///< Controls number of points in plots
       int max_iter;                ///< Maximum number of iterations
       double econv;                ///< Convergence criterion for the orbital energies
       double small;                ///< Minimum length scale to be resolved
@@ -50,7 +52,7 @@ namespace madness
       void serialize(Archive& ar)
       {
          ar & archive & states & print_level & tda & max_iter & small & thresh & random & store_potential
-            & e_window & range_low & range_high & plot_initial & restart & resp_archive;
+            & e_window & range_low & range_high & plot_initial & plot_pts & restart & resp_archive;
       }
 
       // Default constructor
@@ -59,6 +61,8 @@ namespace madness
       , print_level(1)
       , tda(false)
       , plot(false)
+      , plot_L(-1.0)
+      , plot_pts(201)
       , max_iter(20)
       , econv(1e-4)
       , small(1e-6)
@@ -139,6 +143,14 @@ namespace madness
                   while(t >> d)  plot_data.push_back(std::stoi(d));
                }
             }
+            else if (s == "plot_pts")
+            {
+               f >> plot_pts;
+            }
+            else if (s == "plot_L")
+            {
+               f >> plot_L;
+            }
             else if (s == "max_iter")
             {
                f >> max_iter;
@@ -217,9 +229,12 @@ namespace madness
          madness::print("             Store Potential:", store_potential);
          madness::print("              Max Iterations:", max_iter);
          madness::print("Energy Convergence Threshold:", econv);
-         madness::print("         Plot Final Orbitals:", plot);
-         if(plot and plot_range) madness::print("               Plot Start:", plot_data[0]);
-         if(plot and plot_range) madness::print("                 Plot End:", plot_data[1]);
+         if(plot_initial) madness::print("       Plot Initial Orbitals:", plot_initial);
+         if(plot) madness::print("         Plot Final Orbitals:", plot);
+         if(plot and plot_pts != 201) madness::print("         Plot Num. of Points:", plot_pts);
+         if(plot and plot_L > 0.0) madness::print("               Plot Box Size:", plot_L);
+         if(plot and plot_range) madness::print("                  Plot Start:", plot_data[0]);
+         if(plot and plot_range) madness::print("                    Plot End:", plot_data.back());
          if(plot and not plot_range) madness::print("      Orbitals to be Plotted:", plot_data);
          madness::print("                 Print Level:", print_level);
       }

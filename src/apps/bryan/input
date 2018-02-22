@@ -1,9 +1,10 @@
 response
- archive archives/be-canon
- states 2 
- tda 
+ archive archives/water-canon
+ states 4  
+ tda
+ kain
  random
- max_iter 10 
+ max_iter 20 
  store_potential
- print_level 1 
+ print_level 1  
 end

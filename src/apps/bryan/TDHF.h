@@ -1,5 +1,5 @@
 /*!
-   \file TDHF2.h
+   \file TDHF.h
    \brief Header file for the TDHF class, which iteratively solves the linear response HF equations in the Tamm-Dancoff approximation.
    \ingroup response
    \addtogroup response
@@ -426,16 +426,8 @@ class TDHF
       void iterate(World & world);
 
       // Constructs and prints a more detailed analysis of response functions
-      void analysis_tda(World & world,
-                        std::vector<std::vector<real_function_3d>> f, 
-                        Tensor<double> energeis);
-
-
-      // Constructs and prints a more detailed analysis of response functions
-      void analysis_tdhf(World & world,
-                         std::vector<std::vector<real_function_3d>> f,
-                         std::vector<std::vector<real_function_3d>> g,
-                         Tensor<double> energeis);
+      // Uses member variables
+      void analysis(World & world);
 
       // Diagonalizes the given functions
       void diagonalize_guess(World & world,
@@ -452,6 +444,9 @@ class TDHF
       std::vector<std::vector<real_function_3d>> add_randomness(World & world,
                                                                 std::vector<std::vector<real_function_3d>> & f);
 
+      // Creates the transition density
+      std::vector<real_function_3d> transition_density(World & world);
+
       // Creates the ground state hamiltonian for the orbitals in the active subspace
       // (aka the orbitals in tda_act_orbitals) 
       void create_ground_hamiltonian(World &world,
@@ -467,4 +462,3 @@ class TDHF
 #endif
 
 // Deuces
-

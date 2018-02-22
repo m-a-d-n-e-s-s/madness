@@ -74,6 +74,28 @@ std::vector<std::vector<real_function_3d>> scale(std::vector<std::vector<real_fu
    return result;
 }
 
+// Returns a shallow copy of the transpose of a vector of vector of functions
+std::vector<std::vector<real_function_3d>> transpose(std::vector<std::vector<real_function_3d>> f)
+{
+   MADNESS_ASSERT(f.size() > 0);
+   MADNESS_ASSERT(f[0].size() > 0);
+
+   // Get sizes
+   int m = f.size();
+   int n = f[0].size();
+
+   // Return container
+   std::vector<std::vector<real_function_3d>> g(n, std::vector<real_function_3d>(m));
+
+   // Now do shallow copies
+   for(int i = 0; i < m; i++)
+      for(int j = 0; j < n; j++)
+         g[j][i] = f[i][j];
+      
+   // Done
+   return g;
+}
+
 // Multiplication of a vector of vectors by a matrix, g[i][k] = \sum_{j} a[i][j] * b(j,k)
 // NOTE: NO BOUNDS CHECKING ON THE TENSOR b!!!!
 std::vector<std::vector<real_function_3d>> scale_2d(World & world,
@@ -136,35 +158,12 @@ std::vector<std::vector<real_function_3d>> copy(World & world,
 {
    MADNESS_ASSERT(f.size() > 0);
 
-
    int m = f.size();
    std::vector<std::vector<real_function_3d>> answer;
 
    for(int i = 0; i < m; i++) answer.push_back(copy(world,f[i]));
 
    return answer;
-}
-
-// Returns a shallow copy of the transpose of a vector of vector of functions
-std::vector<std::vector<real_function_3d>> transpose(std::vector<std::vector<real_function_3d>> f)
-{
-   MADNESS_ASSERT(f.size() > 0);
-   MADNESS_ASSERT(f[0].size() > 0);
-
-   // Get sizes
-   int m = f.size();
-   int n = f[0].size();
-
-   // Return container
-   std::vector<std::vector<real_function_3d>> g(n, std::vector<real_function_3d>(m));
-
-   // Now do shallow copies
-   for(int i = 0; i < m; i++)
-      for(int j = 0; j < n; j++)
-         g[j][i] = f[i][j];
-      
-   // Done
-   return g;
 }
 
 // Apply a vector of vector of operators to a vector of vector of functions g[i][j] = op[i][j](f[i][j])
