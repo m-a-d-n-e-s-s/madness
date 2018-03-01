@@ -167,6 +167,10 @@ namespace madness {
       typedef T& type;
     };
     template <typename T>
+    struct future_to_ref<Future<T>*> {
+      typedef T& type;
+    };
+    template <typename T>
     struct future_to_ref<Future<T>&> {
       typedef T& type;
     };
