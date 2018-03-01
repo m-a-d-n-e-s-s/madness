@@ -176,7 +176,7 @@ namespace madness {
     };
     template <typename T>
     struct future_to_ref<const Future<T>&> {
-      typedef const T& type;
+      typedef T& type;
     };
     template <typename T>
     using future_to_ref_t = typename future_to_ref< T >::type;
