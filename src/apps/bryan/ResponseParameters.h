@@ -13,46 +13,70 @@ namespace madness
    struct ResponseParameters
    {
       // List of input parameters
-      std::string archive;         ///< Name of input archive to read in ground state
-      int states;                  ///< Number of excited states requested
-      int print_level;             ///< Controls the amount and style of printing. Higher values print more
-                                   ///<   Values |   What gets printed
-                                   ///<   ----------------------------
-                                   ///<     1    |   Print out each step in the calculation,
-                                   ///<          |   along with timings
-                                   ///<   ----------------------------
-                                   ///<     2    |   Debug level. Prints EVERYTHING!!!
+      std::string archive;               ///< Name of input archive to read in ground state
+      int states;                        ///< Number of excited states requested
+      int print_level;                   ///< Controls the amount and style of printing. Higher values print more
+                                         ///<   Values |   What gets printed
+                                         ///<   ----------------------------
+                                         ///<     1    |   Print out each step in the calculation,
+                                         ///<          |   along with timings
+                                         ///<   ----------------------------
+                                         ///<     2    |   Debug level. Prints EVERYTHING!!!
 
-      bool tda;                    ///< Turn on Tam-Danchof approximation (only calculate excitations)
-      bool plot;                   ///< Turn on plotting of final orbitals. Output format is .vts 
-      bool plot_range;             ///< Controls which orbitals will be plotted 
-      std::vector<int> plot_data;  ///< Orbitals to plot
-      double plot_L;               ///< Controls the plotting box size 
-      int plot_pts;                ///< Controls number of points in plots
-      int max_iter;                ///< Maximum number of iterations
-      double econv;                ///< Convergence criterion for the orbital energies
-      double small;                ///< Minimum length scale to be resolved
-      double thresh;               ///< Accuracy criterion when truncating
-      bool random;                 ///< Use a random guess for initial response functions
-      bool store_potential;        ///< Store the potential instead of computing each iteration
-      bool e_window;               ///< Use an energy window to excite from
-      double range_low;            ///< Energy range (lower end) for orbitals to excite from
-      double range_high;           ///< Energy range (upper end) for orbitals to excite from
-      bool plot_initial;           ///< Flag to plot the ground state orbitals read in from archive
-      bool localized;              ///< Flag to use localized orbitals or not. MUST BE TRUE IF USING LOCALIZED
-      bool restart;                ///< Flag to restart from file
-      std::string resp_archive;    ///< Response restart archive
+      bool tda;                          ///< Turn on Tam-Danchof approximation (only calculate excitations)
+      bool plot;                         ///< Turn on plotting of final orbitals. Output format is .vts 
+      bool plot_range;                   ///< Controls which orbitals will be plotted 
+      std::vector<int> plot_data;        ///< Orbitals to plot
+      double plot_L;                     ///< Controls the plotting box size 
+      int plot_pts;                      ///< Controls number of points in plots
+      int max_iter;                      ///< Maximum number of iterations
+      double econv;                      ///< Convergence criterion for the orbital energies
+      double small;                      ///< Minimum length scale to be resolved
+      std::vector<double> protocol_data; ///< Different thresholds for truncation
+      int larger_subspace;               ///< Number of iterations to diagonalize in a subspace consisting of old and new vectors
+      int k;                             ///< Polynomial order to use in calculation
+      bool random;                       ///< Use a random guess for initial response functions
+      bool store_potential;              ///< Store the potential instead of computing each iteration
+      bool e_window;                     ///< Use an energy window to excite from
+      double range_low;                  ///< Energy range (lower end) for orbitals to excite from
+      double range_high;                 ///< Energy range (upper end) for orbitals to excite from
+      bool plot_initial;                 ///< Flag to plot the ground state orbitals read in from archive
+      bool localized;                    ///< Flag to use localized orbitals or not. MUST BE TRUE IF USING LOCALIZED
+      bool restart;                      ///< Flag to restart from file
+      std::string resp_archive;          ///< Response restart archive
 
       // NOT YET IMPLEMENTED
       std::string xc_data;
-      std::vector<double> protocol_data;
       bool kain;  
 
+      // Used to broadcast data to all mpi ranks
       template<typename Archive>
       void serialize(Archive& ar)
       {
-         ar & archive & states & print_level & tda & max_iter & small & thresh & random & store_potential
-            & e_window & range_low & range_high & plot_initial & plot_pts & restart & resp_archive;
+         ar & archive 
+            & states 
+            & print_level 
+            & tda 
+            & plot 
+            & plot_range 
+            & plot_data 
+            & plot_L 
+            & plot_pts 
+            & max_iter 
+            & econv
+            & small
+            & protocol_data 
+            & larger_subspace
+            & k
+            & random 
+            & store_potential 
+            & e_window 
+            & range_low 
+            & range_high 
+            & plot_initial
+            & localized
+            & restart 
+            & resp_archive;
       }
 
       // Default constructor
@@ -66,7 +90,9 @@ namespace madness
       , max_iter(20)
       , econv(1e-4)
       , small(1e-6)
-      , thresh(1e-6)
+      , protocol_data(madness::vector_factory(1e-4, 1e-6))
+      , larger_subspace(0)
+      , k(0)
       , random(false)
       , store_potential(false)
       , e_window(false)
@@ -119,6 +145,14 @@ namespace madness
             {
                tda = true;
             }
+            else if (s == "larger_subspace")
+            {
+               f >> larger_subspace;
+            }
+            else if (s == "k")
+            {
+               f >> k;
+            }
             else if (s == "plot")
             {
                plot = true;
@@ -162,10 +196,6 @@ namespace madness
             else if (s == "small")
             {
                f >> small;
-            }
-            else if (s == "thresh")
-            {
-               f >> thresh;
             }
             else if (s == "plot_initial")
             {
@@ -225,10 +255,13 @@ namespace madness
          madness::print("               Energy Window:", e_window, " (Not yet implemented)");
          if(e_window) madness::print("          Energy Range Start:", range_low);
          if(e_window) madness::print("            Energy Range End:", range_high);
+         if(k>0) madness::print("                           k:", k);
          madness::print("    Use Random Initial Guess:", random);
          madness::print("             Store Potential:", store_potential);
          madness::print("              Max Iterations:", max_iter);
+         madness::print("  Larger Subspace Iterations:", larger_subspace);
          madness::print("Energy Convergence Threshold:", econv);
+         madness::print("                    Protocol:", protocol_data);
          if(plot_initial) madness::print("       Plot Initial Orbitals:", plot_initial);
          if(plot) madness::print("         Plot Final Orbitals:", plot);
          if(plot and plot_pts != 201) madness::print("         Plot Num. of Points:", plot_pts);

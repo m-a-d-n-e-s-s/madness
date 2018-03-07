@@ -1,10 +1,11 @@
 response
- archive archives/water-canon
- states 4  
+ archive archives/water-local
+ localized
  tda
- kain
+ states 20
  random
+ larger_subspace 20
  max_iter 20 
  store_potential
- print_level 1  
+ print_level 1
 end

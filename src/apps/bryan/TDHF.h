@@ -274,6 +274,7 @@ class TDHF
       // Returns the overlap matrix of the given response functions
       Tensor<double> create_overlap(World & world,
                                     std::vector<std::vector<real_function_3d>> & f,
+                                    std::vector<std::vector<real_function_3d>> & g,
                                     int print_level,
                                     std::string xy);
 
@@ -286,6 +287,7 @@ class TDHF
 
       // Returns the hamiltonian matrix, equation 45 from the paper
       Tensor<double> create_response_matrix(World & world,
+                                            std::vector<std::vector<real_function_3d>> & fe,
                                             std::vector<std::vector<real_function_3d>> & gamma,
                                             std::vector<std::vector<real_function_3d>> & V,
                                             std::vector<std::vector<real_function_3d>> & f,
@@ -358,11 +360,11 @@ class TDHF
 
       // Selects from a list of functions and energies the k functions with the lowest 
       // energy
-      std::vector<std::vector<real_function_3d>> select_trial_functions(World & world,
-                                                                        std::vector<std::vector<real_function_3d>> & f,
-                                                                        Tensor<double> & energies,
-                                                                        int k,
-                                                                        int print_level);
+      std::vector<std::vector<real_function_3d>> select_functions(World & world,
+                                                                  std::vector<std::vector<real_function_3d>> & f,
+                                                                  Tensor<double> & energies,
+                                                                  int k,
+                                                                  int print_level);
 
       // Calculates the exponentiation of a matrix through first order (I think)
       Tensor<double> matrix_exponential(const Tensor<double> & A);
@@ -375,20 +377,57 @@ class TDHF
                                              const double thresh_degenerate);
 
       // Diagonalizes the fock matrix, taking care of degerate states
-      Tensor<double> diag_fock_matrix(World & world,
-                                      Tensor<double> & fock,
-                                      std::vector<std::vector<real_function_3d>> & psi,
-                                      std::vector<std::vector<real_function_3d>> & Vpsi,
-                                      std::vector<std::vector<real_function_3d>> & gamma,
-                                      Tensor<double> & evals,
-                                      Tensor<double> & overlap,
-                                      const double thresh);
+      Tensor<int> diag_fock_matrix(World & world,
+                                   Tensor<double> & fock,
+                                   std::vector<std::vector<real_function_3d>> & psi,
+                                   std::vector<std::vector<real_function_3d>> & Vpsi,
+                                   std::vector<std::vector<real_function_3d>> & gamma,
+                                   std::vector<std::vector<real_function_3d>> & fe,
+                                   Tensor<double> & evals,
+                                   Tensor<double> & overlap,
+                                   const double thresh);
 
       // Transforms the given matrix of functions according to the given
       // transformation matrix. Used to update orbitals / potentials
       std::vector<std::vector<real_function_3d>> transform(World & world,
                                                            std::vector<std::vector<real_function_3d>> & f,
                                                            Tensor<double> & U);
+
+      // If using a larger subspace to diagonalize in, this will put everything in the right spot
+      void augment(World & world,
+                   Tensor<double> & S_x,     
+                   Tensor<double> & A_x,     
+                   std::vector<std::vector<real_function_3d>> & x_gamma,
+                   std::vector<std::vector<real_function_3d>> & x_response,
+                   std::vector<std::vector<real_function_3d>> & V_x_response,
+                   std::vector<std::vector<real_function_3d>> & x_fe, 
+                   Tensor<double> & old_S_x, 
+                   Tensor<double> & old_A_x, 
+                   std::vector<std::vector<real_function_3d>> & old_x_gamma, 
+                   std::vector<std::vector<real_function_3d>> & old_x_resopnse, 
+                   std::vector<std::vector<real_function_3d>> & old_V_x_response, 
+                   std::vector<std::vector<real_function_3d>> & old_x_fe,
+                   int print_level);
+
+      // If using a larger subspace to diagonalize in, after diagonalization this will put everything in the right spot
+      void unaugment(World & world,
+                     int m,
+                     int iter,
+                     Tensor<int> & selected,
+                     Tensor<double> & x_omega,
+                     Tensor<double> & S_x,     
+                     Tensor<double> & A_x,     
+                     std::vector<std::vector<real_function_3d>> & x_gamma,
+                     std::vector<std::vector<real_function_3d>> & x_response,
+                     std::vector<std::vector<real_function_3d>> & V_x_response,
+                     std::vector<std::vector<real_function_3d>> & x_fe,
+                     Tensor<double> & old_S_x, 
+                     Tensor<double> & old_A_x, 
+                     std::vector<std::vector<real_function_3d>> & old_x_gamma, 
+                     std::vector<std::vector<real_function_3d>> & old_x_resopnse, 
+                     std::vector<std::vector<real_function_3d>> & old_V_x_response, 
+                     std::vector<std::vector<real_function_3d>> & old_x_fe,
+                     int print_level);
 
       // Diagonalize the full response matrix, taking care of degenerate states
       Tensor<double> diag_full_response(World & world,
@@ -401,7 +440,8 @@ class TDHF
                                         std::vector<std::vector<real_function_3d>> & y_g,
                                         Tensor<double> & x_evals, 
                                         Tensor<double> & y_evals,
-                                        const double thresh);
+                                        const double thresh,
+                                        int print_level);
 
       // Similar to what robert did above in "get_fock_transformation"
       Tensor<double> get_full_response_transformation(World& world,
@@ -452,6 +492,14 @@ class TDHF
       void create_ground_hamiltonian(World &world,
                                      std::vector<real_function_3d> f,
                                      int print_level);
+
+      // Sets the different k/thresh levels
+      template<std::size_t NDIM>
+      void set_protocol(World & world, double thresh);
+
+      // Verifies that correct order of polynomial is in use for all
+      void check_k(World & world,
+                   double thresh);
 
       // Solves the response equations
       void solve(World & world);

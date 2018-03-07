@@ -18,13 +18,13 @@ namespace madness
       Tensor<double> energies;                 ///< Energy of ground state orbitals
       Tensor<double> occ;                      ///< Occupancy of ground state orbitals
       double L;                                ///< Box size of ground state - response calcluation is in same box
-      int order;                               ///< Order of polynomial used in ground state
+      int k;                                   ///< Order of polynomial used in ground state
       Molecule molecule;                       ///< The molecule used in ground state calculation
       std::vector<real_function_3d> orbitals;  ///< The ground state orbitals 
 
       // Default constructor
       GroundParameters() {}
-
+  
       // Initializes ResponseParameters using the contents of file \c filename
       void read(World& world, const std::string& filename)
       { 
@@ -42,19 +42,19 @@ namespace madness
          input & occ;                 // Tensor<double>    orbital occupations
          input & dummy2;              // std::vector<int>  sets of orbitals(?)
          input & L;                   // double            box size
-         input & order;               // int               wavelet order
+         input & k;                   // int               wavelet order
          input & molecule;            // Molecule   
 
          // Check that order is positive and less than 30
-         if (order < 1 or order > 30)
+         if (k < 1 or k > 30)
          {
             if(world.rank() == 0) print("\n   ***PLEASE NOTE***\n   Invalid wavelet order read from archive, setting to 8.\n   This seems to happen when the default wavelet order is used in moldft."); 
-            order = 8;
+            k = 8;
          }
 
          // Set this so we can read in whats
          // written in the archive 
-         //FunctionDefaults<3>::set_k(order);
+         FunctionDefaults<3>::set_k(k);
 
          // Read in ground state orbitals
          for(unsigned int i = 0; i < num_orbitals; i++)
@@ -74,7 +74,7 @@ namespace madness
          madness::print("       Spin Restricted:", spinrestricted);
          madness::print("    Number of orbitals:", num_orbitals);
          madness::print("                     L:", L);
-         madness::print("         Wavelet Order:", order);
+         madness::print("         Wavelet Order:", k);
          madness::print("      Orbital Energies:", energies);
       }
    };

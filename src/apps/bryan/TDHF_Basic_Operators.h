@@ -181,7 +181,7 @@ std::vector<std::vector<real_function_3d>> apply(World & world,
    {
       // Using vmra.h function, line 889
       result[i] = apply(world, op[i], f[i]);
-   }
+  }
 
    return result;
 }
