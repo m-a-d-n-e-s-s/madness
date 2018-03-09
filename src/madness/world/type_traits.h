@@ -66,7 +66,8 @@ using void_t = typename make_void<Ts...>::type;
 # else
 using std::void_t;
 # endif
-
+#else
+using std::void_t;
 #endif  // C++17 features
 }
 
