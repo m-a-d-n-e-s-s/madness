@@ -1,0 +1,80 @@
+\begin{thebibliography}{9}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\href}[2]{#2}
+\providecommand{\path}[1]{#1}
+\providecommand{\DOIprefix}{doi:}
+\providecommand{\ArXivprefix}{arXiv:}
+\providecommand{\URLprefix}{URL: }
+\providecommand{\Pubmedprefix}{pmid:}
+\providecommand{\doi}[1]{\href{http://dx.doi.org/#1}{\path{#1}}}
+\providecommand{\Pubmed}[1]{\href{pmid:#1}{\path{#1}}}
+\providecommand{\bibinfo}[2]{#2}
+\ifx\xfnm\relax \def\xfnm[#1]{\unskip,\space#1}\fi
+%Type = Article
+\bibitem[{Harrison et~al.(2005)Harrison, Fann, Gan, Yanai, Sugiki, Beste, and
+  Beylkin}]{Harrison05}
+\bibinfo{author}{R.~J. Harrison}, \bibinfo{author}{G.~I. Fann},
+  \bibinfo{author}{Z.~Gan}, \bibinfo{author}{T.~Yanai},
+  \bibinfo{author}{S.~Sugiki}, \bibinfo{author}{A.~Beste},
+  \bibinfo{author}{G.~Beylkin}, \bibinfo{journal}{Journal of Physics:
+  Conference Series} \bibinfo{volume}{16} (\bibinfo{year}{2005})
+  \bibinfo{pages}{243}.
+%Type = Article
+\bibitem[{Harrison et~al.(2004)Harrison, Fann, Yanai, Gan, and
+  Beylkin}]{Harrison04}
+\bibinfo{author}{R.~J. Harrison}, \bibinfo{author}{G.~I. Fann},
+  \bibinfo{author}{T.~Yanai}, \bibinfo{author}{Z.~Gan},
+  \bibinfo{author}{G.~Beylkin}, \bibinfo{journal}{The Journal of Chemical
+  Physics} \bibinfo{volume}{121} (\bibinfo{year}{2004})
+  \bibinfo{pages}{11587--11598}.
+%Type = Article
+\bibitem[{Fann et~al.(2010)Fann, Harrison, Jia, Hill, and Galindo}]{Fann10}
+\bibinfo{author}{G.~I. Fann}, \bibinfo{author}{R.~J. Harrison},
+  \bibinfo{author}{J.~Jia}, \bibinfo{author}{J.~Hill},
+  \bibinfo{author}{D.~Galindo}, \bibinfo{journal}{Proceedings from SciDAC}
+  (\bibinfo{year}{2010}).
+%Type = Article
+\bibitem[{Fann et~al.(2009)Fann, Pei, Harrison, Jia, Hill, Ou, Nazarewicz,
+  Shelton, and Schunck}]{Fann09}
+\bibinfo{author}{G.~I. Fann}, \bibinfo{author}{J.~Pei}, \bibinfo{author}{R.~J.
+  Harrison}, \bibinfo{author}{J.~Jia}, \bibinfo{author}{J.~Hill},
+  \bibinfo{author}{M.~Ou}, \bibinfo{author}{W.~Nazarewicz},
+  \bibinfo{author}{W.~A. Shelton}, \bibinfo{author}{N.~Schunck},
+  \bibinfo{journal}{Journal of Physics: Conference Series}
+  \bibinfo{volume}{180} (\bibinfo{year}{2009}) \bibinfo{pages}{012080}.
+%Type = Article
+\bibitem[{{Pei} et~al.(2012){Pei}, {Fann}, {Harrison}, {Nazarewicz}, {Hill},
+  {Galindo}, and {Jia}}]{Pei12}
+\bibinfo{author}{J.~C. {Pei}}, \bibinfo{author}{G.~I. {Fann}},
+  \bibinfo{author}{R.~J. {Harrison}}, \bibinfo{author}{W.~{Nazarewicz}},
+  \bibinfo{author}{J.~{Hill}}, \bibinfo{author}{D.~{Galindo}},
+  \bibinfo{author}{J.~{Jia}}, \bibinfo{journal}{Journal of Physics Conference
+  Series} \bibinfo{volume}{402} (\bibinfo{year}{2012}) \bibinfo{pages}{012035}.
+%Type = Article
+\bibitem[{{Pei} et~al.(2014){Pei}, {Fann}, {Harrison}, {Nazarewicz}, {Shi}, and
+  {Thornton}}]{Pei14}
+\bibinfo{author}{J.~C. {Pei}}, \bibinfo{author}{G.~I. {Fann}},
+  \bibinfo{author}{R.~J. {Harrison}}, \bibinfo{author}{W.~{Nazarewicz}},
+  \bibinfo{author}{Y.~{Shi}}, \bibinfo{author}{S.~{Thornton}},
+  \bibinfo{journal}{Phys. Rev. C} \bibinfo{volume}{90} (\bibinfo{year}{2014})
+  \bibinfo{pages}{024317}.
+%Type = Article
+\bibitem[{Chamel and Haensel(2008)}]{Chamel08}
+\bibinfo{author}{N.~Chamel}, \bibinfo{author}{P.~Haensel},
+  \bibinfo{journal}{Living Reviews in Relativity} \bibinfo{volume}{11}
+  (\bibinfo{year}{2008}). \DOIprefix\doi{10.12942/lrr-2008-10}.
+%Type = Article
+\bibitem[{Mohammed and Sahni(1984)}]{Mohammed84}
+\bibinfo{author}{A.-R.~E. Mohammed}, \bibinfo{author}{V.~Sahni},
+  \bibinfo{journal}{Phys. Rev. B} \bibinfo{volume}{29} (\bibinfo{year}{1984})
+  \bibinfo{pages}{3687--3690}.
+%Type = Article
+\bibitem[{Robinson et~al.(1962)Robinson, Bassani, Knox, and
+  Schrieffer}]{Robinson62}
+\bibinfo{author}{J.~E. Robinson}, \bibinfo{author}{F.~Bassani},
+  \bibinfo{author}{R.~S. Knox}, \bibinfo{author}{J.~R. Schrieffer},
+  \bibinfo{journal}{Phys. Rev. Lett.} \bibinfo{volume}{9}
+  (\bibinfo{year}{1962}) \bibinfo{pages}{215--217}.
+
+\end{thebibliography}
