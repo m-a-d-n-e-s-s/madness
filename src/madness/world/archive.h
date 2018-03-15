@@ -833,15 +833,15 @@ namespace madness {
 
         /// \tparam Archive the archive type.
         /// \tparam T The data type stored in the \c vector.
-        template <class Archive, typename T>
-        struct ArchiveStoreImpl< Archive, std::vector<T> > {
+        template <class Archive, typename T, typename Alloc>
+        struct ArchiveStoreImpl< Archive, std::vector<T, Alloc> > {
 
             /// Store a \c std::vector of plain data.
 
             /// \param[in] ar The archive.
             /// \param[in] v The \c vector.
             template <typename U = T, typename = std::enable_if_t<is_serializable<Archive,U>::value>>
-            static inline void store(const Archive& ar, const std::vector<U>& v) {
+            static inline void store(const Archive& ar, const std::vector<U, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector of plain data" << std::endl);
                 ar & v.size();
                 ar & wrap(v.data(),v.size());
@@ -852,7 +852,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] v The \c vector.
             template <typename U = T>
-            static inline void store(const Archive& ar, const std::vector<U>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
+            static inline void store(const Archive& ar, const std::vector<U, Alloc>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector of non-plain data" << std::endl);
                 ar & v.size();
                 for(const auto& elem: v) {
@@ -867,8 +867,8 @@ namespace madness {
 
         /// \tparam Archive the archive type.
         /// \tparam T The data type stored in the \c vector.
-        template <class Archive, typename T>
-        struct ArchiveLoadImpl< Archive, std::vector<T> > {
+        template <class Archive, typename T, typename Alloc>
+        struct ArchiveLoadImpl< Archive, std::vector<T, Alloc> > {
 
             /// Load a \c std::vector of plain data.
 
@@ -876,7 +876,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[out] v The \c vector.
             template <typename U = T, typename = std::enable_if_t<is_serializable<Archive,U>::value>>
-            static void load(const Archive& ar, std::vector<U>& v) {
+            static void load(const Archive& ar, std::vector<U, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector of plain data" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;
@@ -893,7 +893,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[out] v The \c vector.
             template <typename U = T>
-            static void load(const Archive& ar, std::vector<U>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
+            static void load(const Archive& ar, std::vector<U, Alloc>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector of non-plain data" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;
@@ -912,13 +912,13 @@ namespace madness {
         /// Serialize a STL \c vector<bool> (as a plain array of bool).
 
         /// \tparam Archive The archive type.
-        template <class Archive>
-        struct ArchiveStoreImpl< Archive, std::vector<bool> > {
+        template <class Archive, typename Alloc>
+        struct ArchiveStoreImpl< Archive, std::vector<bool, Alloc> > {
             /// Store a \c vector<bool>.
 
             /// \param[in] ar The archive.
             /// \param[in] v The \c vector.
-            static inline void store(const Archive& ar, const std::vector<bool>& v) {
+            static inline void store(const Archive& ar, const std::vector<bool, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
                 std::size_t n = v.size();
                 bool* b = new bool[n];
@@ -932,14 +932,14 @@ namespace madness {
         /// Deserialize a STL vector<bool>. Clears and resizes as necessary.
 
         /// \tparam Archive The archive type.
-        template <class Archive>
-        struct ArchiveLoadImpl< Archive, std::vector<bool> > {
+        template <class Archive, typename Alloc>
+        struct ArchiveLoadImpl< Archive, std::vector<bool, Alloc> > {
             /// Load a \c vector<bool>.
 
             /// Clears and resizes the \c vector as necessary.
             /// \param[in] ar The archive.
             /// \param[out] v The \c vector.
-            static void load(const Archive& ar, std::vector<bool>& v) {
+            static void load(const Archive& ar, std::vector<bool, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;
@@ -1055,16 +1055,18 @@ namespace madness {
         /// \tparam Archive The archive type.
         /// \tparam T The map's key type.
         /// \tparam Q The map's data type.
-        template <class Archive, typename T, typename Q>
-        struct ArchiveStoreImpl< Archive, std::map<T,Q> > {
+        /// \tparam Compare The map's comparer type.
+        /// \tparam Alloc The map's allocator type.
+        template <class Archive, typename T, typename Q, typename Compare, typename Alloc>
+        struct ArchiveStoreImpl< Archive, std::map<T,Q,Compare,Alloc> > {
             /// Store a \c map.
 
             /// \param[in] ar The archive.
             /// \param[in] t The \c map.
-            static void store(const Archive& ar, const std::map<T,Q>& t) {
+            static void store(const Archive& ar, const std::map<T,Q,Compare,Alloc>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL map" << std::endl);
                 ar << t.size();
-                for (typename std::map<T,Q>::const_iterator p = t.begin();
+                for (auto p = t.begin();
                         p != t.end(); ++p) {
                     // Fun and games here since IBM's iterator (const or
                     // otherwise) gives us a const qualified key
@@ -1083,14 +1085,16 @@ namespace madness {
         /// \tparam Archive The archive type.
         /// \tparam T The map's key type.
         /// \tparam Q The map's data type.
-        template <class Archive, typename T, typename Q>
-        struct ArchiveLoadImpl< Archive, std::map<T,Q> > {
+        /// \tparam Compare The map's comparer type.
+        /// \tparam Alloc The map's allocator type.
+        template <class Archive, typename T, typename Q, typename Compare, typename Alloc>
+        struct ArchiveLoadImpl< Archive, std::map<T,Q,Compare,Alloc> > {
             /// Load a \c map.
 
             /// The \c map is \em not cleared; duplicate elements are replaced.
             /// \param[in] ar The archive.
             /// \param[out] t The \c map.
-            static void load(const Archive& ar, std::map<T,Q>& t) {
+            static void load(const Archive& ar, std::map<T,Q,Compare,Alloc>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL map" << std::endl);
                 std::size_t n = 0;
                 ar & n;
