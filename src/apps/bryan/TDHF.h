@@ -131,9 +131,6 @@ class TDHF
       // ground state calculation. Read from an archive
       GroundParameters Gparams;
 
-      // Timer variables
-      std::vector<double> sss, ttt;
-
       // Tensors for holding energies 
       // residuals, and shifts
       Tensor<double> x_omega;        // Energies of response functions
@@ -170,15 +167,6 @@ class TDHF
                                                                      //   \int dr \frac{\phi_i^\dagger phi_j}{\left| r - r' \right|}
 
    public:
-
-      // Start a timer
-      void start_timer(World & world);
-
-      // Needed to do timers correctly
-      double pop(std::vector<double> & v);
-
-      // Stop a timer
-      Tensor<double> end_timer(World & world);
 
       // Collective constructor for response uses contents of file \c filename and broadcasts to all nodes
       TDHF(World & world,            // MADNESS world object
@@ -455,7 +443,7 @@ class TDHF
                        Tensor<double> & vals,
                        Tensor<double> & vals_residuals,
                        std::vector<std::vector<real_function_3d>> & f,
-                       std::vector<std::vector<real_function_3d>> & f_diff);
+                       Tensor<double> & f_diff);
 
       // Sorts the given Tensors 
       Tensor<int> sort_eigenvalues(World & world,
@@ -500,6 +488,13 @@ class TDHF
       // Verifies that correct order of polynomial is in use for all
       void check_k(World & world,
                    double thresh);
+
+      // Creates random guess functions semi-intelligently(?)
+      std::vector<std::vector<real_function_3d>> create_random_guess(World & world, 
+                                                                     int m, 
+                                                                     int n,
+                                                                     std::vector<real_function_3d> & grounds,
+                                                                     Molecule & molecule);
 
       // Solves the response equations
       void solve(World & world);

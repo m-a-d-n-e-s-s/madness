@@ -14,6 +14,7 @@ namespace madness
    {
       // List of input parameters
       std::string archive;               ///< Name of input archive to read in ground state
+      std::string nwchem;                ///< Root name of nwchem files for intelligent starting guess
       int states;                        ///< Number of excited states requested
       int print_level;                   ///< Controls the amount and style of printing. Higher values print more
                                          ///<   Values |   What gets printed
@@ -30,7 +31,7 @@ namespace madness
       double plot_L;                     ///< Controls the plotting box size 
       int plot_pts;                      ///< Controls number of points in plots
       int max_iter;                      ///< Maximum number of iterations
-      double econv;                      ///< Convergence criterion for the orbital energies
+      double dconv;                      ///< Convergence criterion for the orbital density 
       double small;                      ///< Minimum length scale to be resolved
       std::vector<double> protocol_data; ///< Different thresholds for truncation
       int larger_subspace;               ///< Number of iterations to diagonalize in a subspace consisting of old and new vectors
@@ -53,7 +54,8 @@ namespace madness
       template<typename Archive>
       void serialize(Archive& ar)
       {
-         ar & archive 
+         ar & archive
+            & nwchem 
             & states 
             & print_level 
             & tda 
@@ -63,7 +65,7 @@ namespace madness
             & plot_L 
             & plot_pts 
             & max_iter 
-            & econv
+            & dconv
             & small
             & protocol_data 
             & larger_subspace
@@ -82,13 +84,14 @@ namespace madness
       // Default constructor
       ResponseParameters()
       : states(1)
+      , nwchem("")
       , print_level(1)
       , tda(false)
       , plot(false)
       , plot_L(-1.0)
       , plot_pts(201)
       , max_iter(20)
-      , econv(1e-4)
+      , dconv(1e-3)
       , small(1e-6)
       , protocol_data(madness::vector_factory(1e-4, 1e-6))
       , larger_subspace(0)
@@ -127,6 +130,10 @@ namespace madness
             else if (s == "archive")
             {
                f >> archive;
+            }
+            else if (s == "nwchem")
+            {
+               f >> nwchem;
             }
             else if (s == "restart")
             {
@@ -189,9 +196,9 @@ namespace madness
             {
                f >> max_iter;
             }
-            else if (s == "econv")
+            else if (s == "dconv")
             {
-               f >> econv;
+               f >> dconv;
             }
             else if (s == "small")
             {
@@ -247,29 +254,30 @@ namespace madness
       {
          madness::print("\n   Input Response Parameters");
          madness::print("   -------------------------");
-         madness::print("               XC Functional:", xc_data);
-         madness::print("           Ground State File:", archive);
-         madness::print("            States Requested:", states);
-         madness::print("           TDA Approximation:", tda);
-         madness::print("          Localized Orbitals:", localized);
-         madness::print("               Energy Window:", e_window, " (Not yet implemented)");
-         if(e_window) madness::print("          Energy Range Start:", range_low);
-         if(e_window) madness::print("            Energy Range End:", range_high);
-         if(k>0) madness::print("                           k:", k);
-         madness::print("    Use Random Initial Guess:", random);
-         madness::print("             Store Potential:", store_potential);
-         madness::print("              Max Iterations:", max_iter);
-         madness::print("  Larger Subspace Iterations:", larger_subspace);
-         madness::print("Energy Convergence Threshold:", econv);
-         madness::print("                    Protocol:", protocol_data);
-         if(plot_initial) madness::print("       Plot Initial Orbitals:", plot_initial);
-         if(plot) madness::print("         Plot Final Orbitals:", plot);
-         if(plot and plot_pts != 201) madness::print("         Plot Num. of Points:", plot_pts);
-         if(plot and plot_L > 0.0) madness::print("               Plot Box Size:", plot_L);
-         if(plot and plot_range) madness::print("                  Plot Start:", plot_data[0]);
-         if(plot and plot_range) madness::print("                    Plot End:", plot_data.back());
-         if(plot and not plot_range) madness::print("      Orbitals to be Plotted:", plot_data);
-         madness::print("                 Print Level:", print_level);
+         madness::print("                XC Functional:", xc_data);
+         madness::print("            Ground State File:", archive);
+         if(nwchem != "") madness::print("                  NWChem File:", nwchem);
+         madness::print("             States Requested:", states);
+         madness::print("            TDA Approximation:", tda);
+         madness::print("           Localized Orbitals:", localized);
+         madness::print("                Energy Window:", e_window, " (Not yet implemented)");
+         if(e_window) madness::print("           Energy Range Start:", range_low);
+         if(e_window) madness::print("             Energy Range End:", range_high);
+         if(k>0) madness::print("                            k:", k);
+         madness::print("     Use Random Initial Guess:", random);
+         madness::print("              Store Potential:", store_potential);
+         madness::print("               Max Iterations:", max_iter);
+         madness::print("   Larger Subspace Iterations:", larger_subspace);
+         madness::print("Density Convergence Threshold:", dconv);
+         madness::print("                     Protocol:", protocol_data);
+         if(plot_initial) madness::print("        Plot Initial Orbitals:", plot_initial);
+         if(plot) madness::print("          Plot Final Orbitals:", plot);
+         if(plot and plot_pts != 201) madness::print("          Plot Num. of Points:", plot_pts);
+         if(plot and plot_L > 0.0) madness::print("                Plot Box Size:", plot_L);
+         if(plot and plot_range) madness::print("                   Plot Start:", plot_data[0]);
+         if(plot and plot_range) madness::print("                     Plot End:", plot_data.back());
+         if(plot and not plot_range) madness::print("       Orbitals to be Plotted:", plot_data);
+         madness::print("                  Print Level:", print_level);
       }
    };
 

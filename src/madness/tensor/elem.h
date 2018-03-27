@@ -524,6 +524,20 @@ namespace madness {
     void gesvp(World& world, const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
         gesv(a, b, x);
     }
+
+    // sequential fall back code
+    template <typename T>
+    void geevp(World& world, const Tensor<T>& A, Tensor<T>& VR, Tensor<std::complex<T>>& e) {
+       geev(A, VR, e);
+    }
+
+    // sequential fall back code
+    template <typename T>
+    void ggevp(World& world, const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR, 
+               Tensor<std::complex<T>>& e) {
+       ggev(A, B, VR, e);
+    }
+
 }
 
 #endif //MADNESS_HAS_ELEMENTAL_EMBEDDED

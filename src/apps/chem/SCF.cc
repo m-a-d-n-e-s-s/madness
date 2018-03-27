@@ -243,7 +243,7 @@ namespace madness {
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
         ar & current_energy & param.spin_restricted;
         ar & (unsigned int) (amo.size());
-        ar & aeps & aocc & aset & param.L & param.k & molecule;
+        ar & aeps & aocc & aset & param.L & FunctionDefaults<3>::get_k() & molecule;
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
         if (!param.spin_restricted) {

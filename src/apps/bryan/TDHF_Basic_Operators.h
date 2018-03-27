@@ -38,12 +38,9 @@ std::vector<std::vector<real_function_3d>> multiply(std::vector<std::vector<real
    for(unsigned int i = 0; i < a.size(); i++)
    {
       // Using vmra.h definitions
-      // TESTING!!!!!!!!!!! (the false)
       result.push_back(mul(a[i][0].world(), b, a[i], false));
    }
 
-   // TESTING!!!!!!!!!!
-   // Not needed ??????	
    a[0][0].world().gop.fence();
 
    return result;
