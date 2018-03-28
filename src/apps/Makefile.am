@@ -1,5 +1,5 @@
 
-SUBDIRS = chem tdse moldft 
+SUBDIRS = chem tdse moldft mshf
  #hf vnuc nick
 EXTRA_DIST = CMakeLists.txt
 

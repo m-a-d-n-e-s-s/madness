@@ -1,0 +1,11 @@
+# src/apps/mshf
+
+add_executable(mshf mshf.cc laplacian.cc densities.cc)
+target_link_libraries(mshf MADmra)
+
+##add_library(laplacian  laplacian.cpp  laplacian.h)
+##add_executable(mshf mshf.cc laplacian.h)
+##target_link_libraries(mshf laplacian  MADmra)
+
+install(TARGETS mshf
+    DESTINATION "${MADNESS_INSTALL_BINDIR}")

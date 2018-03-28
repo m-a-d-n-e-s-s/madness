@@ -1,0 +1,47 @@
+setup:
+  A 16
+  Z 8
+  Box 32
+  initial 2
+  boundary 1
+  knumber 6.0
+  thresh 1.e-4
+  IO_nodes 8
+  project 1
+end_setup
+
+
+nuclear: 
+  spinorbit 1
+  meff 1
+  jellium 1
+  screening 0
+  screenl 0.25
+  lap_comp 1
+end_nuclear
+
+
+mixing:
+  avg_pot 0
+  avg_lap 1
+  avg_wav 1
+end_mixing
+
+
+output:
+  vtk_output 0
+  txt_output 1
+end_output
+
+
+additional:
+  prec 0.1
+  use_infile 0
+  chi 0.6
+  tol 1.e-7
+  brad 0.25
+  timing 0
+end_additional
+
+
+
