@@ -461,6 +461,7 @@ AC_CONFIG_FILES([
         src/apps/chem/Makefile
         src/apps/tdse/Makefile
         src/apps/moldft/Makefile
+        src/apps/mshf/Makefile
       src/examples/Makefile
         src/examples/compiler/Makefile-prog
     doc/Makefile
