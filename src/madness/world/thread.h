@@ -1486,6 +1486,8 @@ namespace madness {
 #elif HAVE_INTEL_TBB
             tbb_scheduler->terminate();
             delete(tbb_scheduler);
+#else
+            delete[] threads;           
 #endif
         }
     };
