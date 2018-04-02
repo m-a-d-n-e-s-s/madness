@@ -1387,7 +1387,7 @@ namespace madness {
             try {
                 ThreadPool::await(ProbeAllDone(this), true);
             } catch(...) {
-                printf("!!MADNESS ERROR: Exception thrown in WorldTaskQueue::fence() with %i pending task(s)\n", int(nregistered));
+                fprintf(stderr, "!!MADNESS ERROR: Exception thrown in WorldTaskQueue::fence() with %i pending task(s)\n", int(nregistered));
                 throw;
             }
         }
