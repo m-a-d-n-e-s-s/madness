@@ -1446,7 +1446,7 @@ namespace madness {
                     counter = 0;
                 } else {
                     if(((current_time - start) > timeout) && (timeout > 1.0)) {	// Check for timeout
-		        std::cout << "!!MADNESS: Hung queue?" << std::endl;
+                        std::cerr << "!!MADNESS: Hung queue?" << std::endl;
                         if(counter++ > 3)
                             throw madness::MadnessException("ThreadPool::await() timeout",
                                     0, 1, __LINE__, __FUNCTION__, __FILE__);
