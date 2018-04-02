@@ -221,7 +221,7 @@ namespace madness {
         //                     recv_req[i].Cancel();
         //             }
         //         }
-        //for (int i=0; i<nrecv_; ++i) free(recv_buf[i]);
+        for (int i=0; i<nrecv_; ++i) free(recv_buf[i]);
     }
 
     static volatile bool rmi_task_is_running = false;
