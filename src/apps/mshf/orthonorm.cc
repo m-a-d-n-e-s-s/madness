@@ -28,6 +28,7 @@ void orthonorm( World& world, comp_vecfuncT& psi_qu,
     comp_tensorT H_q(nst, nst);           // hamiltonian
     comp_tensorT S_q(nst, nst);           // overlap matrix
 
+
     //if (world.rank() == 0 && details == 1) {print("             Compute K-matrix ... ");}
     comp_tensorT K_q = Kmatrix(world, psi_qu, psi_qd, dpsi_qu_dx, dpsi_qd_dx, dpsi_qu_dy,
                                       dpsi_qd_dy, dpsi_qu_dz, dpsi_qd_dz, prec, k_fq);
