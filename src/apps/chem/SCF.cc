@@ -1806,18 +1806,16 @@ namespace madness {
                 // q(0,0) = q(1,1) = c;
                 // q(0,1) = -s;
                 // q(1,0) = s;
+
+                // Polar Decomposition
+                Tensor<double> VH(nclus, nclus);
+                Tensor<double> W(nclus, nclus);
+                Tensor<double> sigma(nclus);
+
+                svd(q, W, sigma, VH);
+                q = transpose(inner(W,VH));
+                U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)),q )
                 
-                // Iteratively construct unitary rotation by
-                // exponentiating the antisymmetric part of the matrix
-                // ... is quadratically convergent so just do 3
-                // iterations
-                tensorT rot = matrix_exponential(-0.5 * (q - transpose(q)));
-                q = inner(q, rot);
-                tensorT rot2 = matrix_exponential(-0.5 * (q - transpose(q)));
-                q = inner(q, rot2);
-                tensorT rot3 = matrix_exponential(-0.5 * (q - transpose(q)));
-                q = inner(rot, inner(rot2, rot3));
-                U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
             }
             ilo = ihi + 1;
         }
