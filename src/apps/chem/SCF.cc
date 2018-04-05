@@ -1814,7 +1814,7 @@ namespace madness {
 
                 svd(q, W, sigma, VH);
                 q = transpose(inner(W,VH));
-                U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)),q )
+                U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
                 
             }
             ilo = ihi + 1;
