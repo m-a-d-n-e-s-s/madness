@@ -108,7 +108,7 @@ void Energies(World& world, const real_functionT& U_q,
 
     if (world.rank() == 0) {
         std::ostringstream filename1;
-        filename1 << "En_0" << std::setw(6) << std::setfill('0') << iter << ".txt";
+        filename1 << "data_En_0" << std::setw(6) << std::setfill('0') << iter << ".txt";
         FILE * fid1 = fopen(filename1.str().c_str(), "a");
 
         fprintf(fid1,"\n");
@@ -192,7 +192,7 @@ double Ebinding(World& world, const real_functionT& rho_p,
     if (iter%10 == 0 || iter == 0) {
         if (world.rank() == 0) {
             std::ostringstream filename1;
-            filename1 << "En_0" << std::setw(6) << std::setfill('0') << iter << ".txt";
+            filename1 << "data_En_0" << std::setw(6) << std::setfill('0') << iter << ".txt";
             FILE * fid1 = fopen(filename1.str().c_str(), "w");
             fprintf(fid1,"\n");
             fprintf(fid1,"%s \t%u\n","Iteration:",iter);

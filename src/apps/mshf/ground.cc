@@ -136,12 +136,12 @@ void ground_state(World& world, const double A,
     // Check, if there is a checkpointed file with updated values for above parameters
     FILE *tfile;
     char trecord_name1[100];
-    sprintf(trecord_name1, "%s/t_record.00000",record);
+    sprintf(trecord_name1, "%s/checkpoint_t.00000",record);
     tfile=fopen(trecord_name1,"r");
     if (tfile!=NULL) {
         if (world.rank() == 0) {print("Checkpointed files are present - read simulation information");}
         char trecord_name2[100];
-        sprintf(trecord_name2, "%s/t_record",record);
+        sprintf(trecord_name2, "%s/checkpoint_t",record);
         archive::ParallelInputArchive tin(world, trecord_name2, IO_nodes);
         tin & thresh;
         tin & knumber;
@@ -213,7 +213,7 @@ void ground_state(World& world, const double A,
     file_check=false;
     if (world.rank() == 0) {
         char grecord_name1[100];
-        sprintf(grecord_name1, "%s/g_record.00000",record);
+        sprintf(grecord_name1, "%s/checkpoint_g.00000",record);
         FILE *file;
         file=fopen(grecord_name1,"r");
         if (file==NULL) {file_check = false;}
@@ -291,7 +291,7 @@ void ground_state(World& world, const double A,
                 if (world.rank() == 0) {print(" "); print("Reading checkpoint");}
 
                 char grecord_name2[100];
-                sprintf(grecord_name2, "%s/g_record",record);
+                sprintf(grecord_name2, "%s/checkpoint_g",record);
                 archive::ParallelInputArchive gin(world, grecord_name2, IO_nodes);
                 gin & iter;
                 gin & pindex;
@@ -308,7 +308,7 @@ void ground_state(World& world, const double A,
 
                 if(world.rank() == 0) {print("Reading neutrons");}
                 char nrecord_name[100];
-                sprintf(nrecord_name, "%s/n_record", record);
+                sprintf(nrecord_name, "%s/checkpoint_n", record);
                 archive::ParallelInputArchive nind(world, nrecord_name, IO_nodes);
                 for (unsigned int i=0; i< psi_nu.size(); i++) {nind & psi_nu[i]; nind & psi_nd[i];}
                 nind.close();
@@ -316,7 +316,7 @@ void ground_state(World& world, const double A,
 
                 if (world.rank() == 0) {print("Reading protons");}
                 char precord_name[100];
-                sprintf(precord_name, "%s/p_record", record);
+                sprintf(precord_name, "%s/checkpoint_p", record);
                 archive::ParallelInputArchive pind(world, precord_name, IO_nodes);
                 for (unsigned int i=0; i< psi_pu.size(); i++) {pind & psi_pu[i]; pind & psi_pd[i];}
                 pind.close();
@@ -412,12 +412,12 @@ void ground_state(World& world, const double A,
             if (timing == 1) {START_TIMER;}
             if (iter%1 == 0 || iter == 0) {
                 if (world.rank() == 0) {
-                    outfile.open("log.txt", std::ios::app);
+                    outfile.open("data_log.txt", std::ios::app);
                     outfile << iter <<" "<< delta_psi <<" "<< BE <<" "<< thresh <<" "<< time << std::endl;
                     outfile.close();
                 }
             }
-            if (timing == 1) {END_TIMER("Output log.txt");}
+            if (timing == 1) {END_TIMER("Output data_log.txt");}
             world.gop.fence();  // FENCE gif
 
             // Project to higher wavelet number
@@ -481,7 +481,7 @@ void ground_state(World& world, const double A,
                 if (iter%2 == 0 && iter != 0) {
                     if (world.rank() == 0) { print(" "); print("Checkpoint"); print(" "); }
                     char trecord_name[100];
-                    sprintf(trecord_name, "%s/t_record", bck_record);
+                    sprintf(trecord_name, "%s/checkpoint_t", bck_record);
                     archive::ParallelOutputArchive tout(world, trecord_name, IO_nodes);
                     tout & thresh;
                     tout & knumber;
@@ -493,7 +493,7 @@ void ground_state(World& world, const double A,
                     world.gop.fence();
 
                     char grecord_name[100];
-                    sprintf(grecord_name, "%s/g_record", bck_record);
+                    sprintf(grecord_name, "%s/checkpoint_g", bck_record);
                     archive::ParallelOutputArchive gout(world, grecord_name, IO_nodes);
                     gout & iter;
                     gout & pindex;
@@ -509,14 +509,14 @@ void ground_state(World& world, const double A,
                     world.gop.fence();
 
                     char nrecord_name[100];
-                    sprintf(nrecord_name, "%s/n_record", bck_record);
+                    sprintf(nrecord_name, "%s/checkpoint_n", bck_record);
                     archive::ParallelOutputArchive noutc(world, nrecord_name, IO_nodes);
                     for (unsigned int i = 0; i < psi_nu.size(); i++) {noutc & psi_nu[i]; noutc & psi_nd[i];}
                     noutc.close();
                     world.gop.fence();
 
                     char precord_name[100];
-                    sprintf(precord_name, "%s/p_record", bck_record);
+                    sprintf(precord_name, "%s/checkpoint_p", bck_record);
                     archive::ParallelOutputArchive poutc(world, precord_name, IO_nodes);
                     for (unsigned int i = 0; i < psi_pu.size(); i++) {poutc & psi_pu[i]; poutc & psi_pd[i];}
                     poutc.close();
@@ -525,7 +525,7 @@ void ground_state(World& world, const double A,
                 else {
                     if (world.rank() == 0) {print(" "); print("Checkpoint"); print(" ");}
                     char trecord_name[100];
-                    sprintf(trecord_name, "%s/t_record", record);
+                    sprintf(trecord_name, "%s/checkpoint_t", record);
                     archive::ParallelOutputArchive tout(world, trecord_name, IO_nodes);
                     tout & thresh;
                     tout & knumber;
@@ -537,7 +537,7 @@ void ground_state(World& world, const double A,
                     world.gop.fence();
 
                     char grecord_name[100];
-                    sprintf(grecord_name, "%s/g_record", record);
+                    sprintf(grecord_name, "%s/checkpoint_g", record);
                     archive::ParallelOutputArchive gout(world, grecord_name, IO_nodes);
                     gout & iter;
                     gout & pindex;
@@ -553,14 +553,14 @@ void ground_state(World& world, const double A,
                     world.gop.fence();
 
                     char nrecord_name[100];
-                    sprintf(nrecord_name, "%s/n_record", record);
+                    sprintf(nrecord_name, "%s/checkpoint_n", record);
                     archive::ParallelOutputArchive noutc(world, nrecord_name, IO_nodes);
                     for (unsigned int i = 0; i < psi_nu.size(); i++) { noutc & psi_nu[i]; noutc & psi_nd[i];}
                     noutc.close();
                     world.gop.fence();
 
                     char precord_name[100];
-                    sprintf(precord_name, "%s/p_record", record);
+                    sprintf(precord_name, "%s/checkpoint_p", record);
                     archive::ParallelOutputArchive poutc(world, precord_name, IO_nodes);
                     for (unsigned int i = 0; i < psi_pu.size(); i++) { poutc & psi_pu[i]; poutc & psi_pd[i]; }
                     poutc.close();
