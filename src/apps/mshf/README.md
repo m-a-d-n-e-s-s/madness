@@ -1,8 +1,7 @@
 MADNESS Skyrme-Hartree-Fock code
 --------------------------------
 
-Branch: mshf\_stable: This branch uses the master branch at commit 
-commit ba1218958388532cba5891b3b4fa5fd9235e928e
+Branch: mshf\_stable: This branch uses the master branch at commit ba1218958388532cba5891b3b4fa5fd9235e928e
 
 
 For general information, see:
