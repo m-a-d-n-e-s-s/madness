@@ -132,10 +132,10 @@ TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
 			}
 		}
 	}else{
-		F_occ = Tensor<double>(mo_ket_.size(),mo_ket_.size());
+		F_occ = Tensor<double>(get_active_mo_bra().size(),get_active_mo_ket().size());
 		F_occ*=0.0;
-		for(size_t i=0;i<mo_ket_.size();++i){
-			F_occ(i,i)=get_orbital_energy(i);
+		for(size_t i=0;i<get_active_mo_ket().size();++i){
+			F_occ(i,i)=get_orbital_energy(i+param.freeze);
 		}
 	}
 }
