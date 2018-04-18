@@ -1808,14 +1808,13 @@ namespace madness {
                 // q(1,0) = s;
 
                 // Polar Decomposition
-                Tensor<double> VH(nclus, nclus);
-                Tensor<double> W(nclus, nclus);
+                tensorT VH(nclus, nclus);
+                tensorT W(nclus, nclus);
                 Tensor<double> sigma(nclus);
 
                 svd(q, W, sigma, VH);
-                q = transpose(inner(W,VH));
+                q = transpose(inner(W,VH)).conj(); 
                 U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
-                
             }
             ilo = ihi + 1;
         }
