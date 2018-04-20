@@ -20,5 +20,10 @@ brew update
 brew upgrade gcc || brew install gcc || true
 brew link --overwrite gcc || true
 
+# TBB requires python@2 but it's plagued by same issues as gcc
+# use similare workaround
+brew upgrade python@2 || brew install python@2 || true
+brew link --overwrite python@2 || true
+
 # Proceed assuming GCC is installed properly.
 brew install libxc mpich tbb

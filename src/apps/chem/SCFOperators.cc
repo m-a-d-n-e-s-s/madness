@@ -334,7 +334,7 @@ void Exchange::set_parameters(const vecfuncT& bra, const vecfuncT& ket,
             CoulombOperatorPtr(world, lo, econv));
 }
 
-vecfuncT Exchange::operator()(const vecfuncT& vket) const {
+vecfuncT Exchange::operator()(const vecfuncT& vket, const double& mul_tol) const {
     const bool same = this->same();
     int nocc = mo_bra.size();
     int nf = vket.size();
@@ -352,11 +352,11 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
     if (small_memory_) {     // Smaller memory algorithm ... possible 2x saving using i-j sym
         for(int i=0; i<nocc; ++i){
             if(occ[i] > 0.0){
-                vecfuncT psif = mul_sparse(world, mo_bra[i], vket, tol); /// was vtol
+                vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
                 truncate(world, psif);
                 psif = apply(world, *poisson.get(), psif);
                 truncate(world, psif);
-                psif = mul_sparse(world, mo_ket[i], psif, tol); /// was vtol
+                psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
                 gaxpy(world, 1.0, Kf, occ[i], psif);
             }
         }
@@ -367,12 +367,12 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
             if (same)
                 jtop = i + 1;
             for (int j = 0; j < jtop; ++j) {
-                psif.push_back(mul_sparse(mo_bra[i], vket[j], tol, false));
+                psif.push_back(mul_sparse(mo_bra[i], vket[j], mul_tol, false));
             }
         }
 
         world.gop.fence();
-        truncate(world, psif);
+        truncate(world, psif,tol);
         psif = apply(world, *poisson.get(), psif);
         truncate(world, psif, tol);
         reconstruct(world, psif);
@@ -384,9 +384,9 @@ vecfuncT Exchange::operator()(const vecfuncT& vket) const {
             if (same)
                 jtop = i + 1;
             for (int j = 0; j < jtop; ++j, ++ij) {
-                psipsif[i * nf + j] = mul_sparse(psif[ij], mo_ket[i], false);
+                psipsif[i * nf + j] = mul_sparse(psif[ij], mo_ket[i],mul_tol ,false);
                 if (same && i != j) {
-                    psipsif[j * nf + i] = mul_sparse(psif[ij], mo_ket[j], false);
+                    psipsif[j * nf + i] = mul_sparse(psif[ij], mo_ket[j],mul_tol , false);
                 }
             }
         }
