@@ -94,22 +94,22 @@ public:
 
 /// helper struct for computing the moments
 struct xyz {
-    int direction;
-    xyz(int direction) : direction(direction) {}
-    double operator()(const coord_3d& r) const {
-        return r[direction];
-    }
+	int direction;
+	xyz(int direction) : direction(direction) {}
+	double operator()(const coord_3d& r) const {
+		return r[direction];
+	}
 };
 
 TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
-						    		  world(world),
-									  parameters(param),
-									  nemo(nemo_),
-									  g12(world,OT_G12,param),
-									  mo_ket_(make_mo_ket(nemo_)),
-									  mo_bra_(make_mo_bra(nemo_)),
-									  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
-									  msg(world) {
+						    						  world(world),
+													  parameters(param),
+													  nemo(nemo_),
+													  g12(world,OT_G12,param),
+													  mo_ket_(make_mo_ket(nemo_)),
+													  mo_bra_(make_mo_bra(nemo_)),
+													  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
+													  msg(world) {
 	msg.section("Initialize TDHF Class");
 	msg.debug = parameters.debug;
 	if (not param.no_compute_response) {
@@ -120,6 +120,23 @@ TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
 		const Tensor<double> eps=nemo.get_calc()->aeps;
 		if(world.rank()==0) std::cout << eps << "\n";
 		time.info();
+	}
+	if(nemo.get_calc()->param.localize){
+		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
+		F_occ = F(get_active_mo_bra(),get_active_mo_ket());
+		for(size_t i=0;i<get_active_mo_ket().size();++i){
+			std::cout << std::scientific << std::setprecision(10);
+			if(world.rank()==0) std::cout << "F(" << i << "," << i << ")=" << F_occ(i,i) << "\n";
+			if(std::fabs(get_orbital_energy(i+param.freeze)-F_occ(i,i))>1.e-5){
+				if(world.rank()==0) std::cout << "eps(" << i << ")=" << get_orbital_energy(i) << " | diff=" << get_orbital_energy(i+param.freeze)-F_occ(i,i) << "\n";
+			}
+		}
+	}else{
+		F_occ = Tensor<double>(get_active_mo_bra().size(),get_active_mo_ket().size());
+		F_occ*=0.0;
+		for(size_t i=0;i<get_active_mo_ket().size();++i){
+			F_occ(i,i)=get_orbital_energy(i+param.freeze);
+		}
 	}
 }
 
@@ -469,8 +486,9 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	// Real Alpha density (with nuclear cusps)
 	const real_function_3d alpha_density=0.5*nemo.R_square*nemo_density;
 
-	// XC Potential
-	const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
+
+
+
 
 	// Apply Ground State Potential to x-states
 	vecfuncT Vpsi1;
@@ -492,20 +510,26 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		CCTimer timeJ(world,"Jx");
 		const vecfuncT Jx=J(x.get_vecfunction());
 		timeJ.info(parameters.debug);
-		// Applied XC Potential
-		CCTimer timeXCx(world,"XCx");
-		real_function_3d xc_pot = xc.make_xc_potential();
 
-		// compute the asymptotic correction of exchange-correlation potential
-		if(nemo.do_ac()) {
-			double charge = double(nemo.molecule().total_nuclear_charge());
-			real_function_3d scaledJ = -1.0/charge*J.potential()*(1.0-hf_coeff);
-			xc_pot = nemo.get_ac().apply(xc_pot, scaledJ);
-		}
+		if(nemo.get_calc()->xc.is_dft()){
+			// XC Potential
+			const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
 
-		const vecfuncT XCx=mul(world, xc_pot, x.get_vecfunction());
-		// Ground State Potential applied to x, without exchange
-		Vpsi1 = Jx+XCx; // Nx removed
+			// Applied XC Potential
+			CCTimer timeXCx(world,"XCx");
+			real_function_3d xc_pot = xc.make_xc_potential();
+
+			// compute the asymptotic correction of exchange-correlation potential
+			if(nemo.do_ac()) {
+				double charge = double(nemo.molecule().total_nuclear_charge());
+				real_function_3d scaledJ = -1.0/charge*J.potential()*(1.0-hf_coeff);
+				xc_pot = nemo.get_ac().apply(xc_pot, scaledJ);
+			}
+
+			const vecfuncT XCx=mul(world, xc_pot, x.get_vecfunction());
+			// Ground State Potential applied to x, without exchange
+			Vpsi1 = Jx+XCx; // Nx removed
+		}else Vpsi1=Jx;
 		// add exchange if demanded
 		if(hf_coeff!=0.0){
 			CCTimer timeKx(world,"Kx");
@@ -538,13 +562,19 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		Coulomb Jp(world);
 		real_function_3d density_pert=2.0*nemo.make_density(occ,active_bra,x.get_vecfunction());
 		Jp.potential()=Jp.compute_potential(density_pert);
-		// reconstruct the full perturbed density: do not truncate!
-		real_function_3d gamma=xc.apply_xc_kernel(density_pert);
-		vecfuncT XCp=mul(world,gamma,active_mo);
-		truncate(world,XCp);
+
+		vecfuncT XCp=zero_functions<double,3>(world,get_active_mo_ket().size());
+		if(nemo.get_calc()->xc.is_dft()){
+			// XC Potential
+			const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
+			// reconstruct the full perturbed density: do not truncate!
+			real_function_3d gamma=xc.apply_xc_kernel(density_pert);
+			vecfuncT XCp=mul(world,gamma,active_mo);
+			truncate(world,XCp);
+		}
 
 		if(parameters.tda_triplet){
-			if(gamma.norm2()!=0.0) MADNESS_EXCEPTION("Triplets only for CIS",1);
+			if(norm2(world,XCp)!=0.0) MADNESS_EXCEPTION("Triplets only for CIS",1);
 			Vpsi2 = XCp;
 		}
 		else Vpsi2 = Jp(active_mo)+XCp;
@@ -583,7 +613,24 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	}
 	// whole tda potential
 	vecfuncT Vpsi = Vpsi1 + Q(Vpsi2);
+	// if the ground state is localized add the coupling terms
+	// canonical: -ei|xi> (part of greens function)
+	// local:  -fik|xk> (fii|xi> part of greens functions, rest needs to be added)
+
+	if(nemo.get_calc()->param.localize){
+		const vecfuncT vx=x.get_vecfunction();
+		vecfuncT fock_coupling=madness::transform(world,vx,F_occ);
+		// subtract the diagonal terms
+		for(size_t i=0;i<fock_coupling.size();++i){
+			fock_coupling[i]=(fock_coupling[i]-F_occ(i,i)*vx[i]);
+		}
+		Vpsi-=fock_coupling;
+	}
+
+
 	truncate(world,Vpsi);
+
+
 
 	// debug output
 	if(parameters.debug or parameters.plot){
@@ -1135,7 +1182,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 					<< std::fixed << std::setprecision(1) << root.excitation <<": "
 					<< std::fixed << std::setprecision(10) << root.omega << " Eh         "
 					<< root.omega*constants::hartree_electron_volt_relationship << " eV\n";
-            std::cout << std::scientific;
+			std::cout << std::scientific;
 			print("  oscillator strength (length)    ", osl);
 			print("  oscillator strength (velocity)  ", osv);
 			// print out the most important amplitudes

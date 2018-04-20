@@ -359,7 +359,7 @@ public:
     /// note that only one spin is used (either alpha or beta orbitals)
     /// @param[in]  vket       the orbitals |i> that the operator is applied on
     /// @return     a vector of orbitals  K| i>
-    vecfuncT operator()(const vecfuncT& vket) const;
+    vecfuncT operator()(const vecfuncT& vket,const double& mul_tol=0.0) const;
 
     /// compute the matrix element <bra | K | ket>
 
