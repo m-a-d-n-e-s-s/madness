@@ -42,6 +42,7 @@
 #include <fstream>
 #include <cstring>
 #include <madness/world/archive.h>
+#include <madness/world/print.h>  // this injects operator<<(std::ostream,T) for common Ts
 
 namespace madness {
     namespace archive {
@@ -100,6 +101,7 @@ namespace madness {
             template <class T>
             typename std::enable_if< madness::is_ostreammable<T>::value >::type
             store(const T* t, long n) const {
+                using madness::operator<<;
                 for (long i=0; i<n; ++i)
                     os << t[i] << std::endl;
             }

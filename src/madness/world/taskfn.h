@@ -220,6 +220,12 @@ namespace madness {
             typedef Future<T> holderT;
         };
 
+        template <typename T>
+        struct task_arg<Future<T>* > {
+            typedef T type;
+            typedef Future<T>* holderT;
+        };
+
         template <>
         struct task_arg<Future<void> > {
             typedef const Future<void> type;
@@ -281,6 +287,12 @@ namespace madness {
         template <typename T>
         T&& decay(Future<T>&& arg_holder) {
           return static_cast<T&&>(arg_holder);
+        }
+
+        // specialization for Future<>*
+        template <typename T>
+        T& decay(Future<T>* arg_holder) {
+            return static_cast<T&>(*arg_holder);
         }
 
         // specialization for non-Future non-ArgHolder argument
@@ -453,11 +465,32 @@ namespace madness {
     /// Wrap a callable object and its arguments into a task function
 
     /// The callable object may have up to 10 arguments
+    /// \note arg*T cannot be a reference type
     template <typename fnT, typename arg1T = void, typename arg2T = void,
             typename arg3T = void, typename arg4T = void, typename arg5T = void,
             typename arg6T = void, typename arg7T = void, typename arg8T = void,
             typename arg9T = void>
     struct TaskFn : public TaskInterface {
+
+      static_assert(not (std::is_const<arg1T>::value || std::is_reference<arg1T>::value),
+                    "improper instantiation of TaskFn, arg1T cannot be a const or reference type");
+      static_assert(not (std::is_const<arg2T>::value || std::is_reference<arg2T>::value),
+                    "improper instantiation of TaskFn, arg2T cannot be a const or reference type");
+      static_assert(not (std::is_const<arg3T>::value || std::is_reference<arg3T>::value),
+                    "improper instantiation of TaskFn, arg3T cannot be a const or reference type");
+      static_assert(not (std::is_const<arg4T>::value || std::is_reference<arg4T>::value),
+                    "improper instantiation of TaskFn, arg4T cannot be a const or reference type");
+      static_assert(not (std::is_const<arg5T>::value || std::is_reference<arg5T>::value),
+                    "improper instantiation of TaskFn, arg5T cannot be a const or reference type");
+      static_assert(not (std::is_const<arg6T>::value || std::is_reference<arg6T>::value),
+                    "improper instantiation of TaskFn, arg6T cannot be a const or reference type");
+      static_assert(not (std::is_const<arg7T>::value || std::is_reference<arg7T>::value),
+                    "improper instantiation of TaskFn, arg7T cannot be a consy or reference type");
+      static_assert(not (std::is_const<arg8T>::value || std::is_reference<arg8T>::value),
+                    "improper instantiation of TaskFn, arg8T cannot be a const or reference type");
+      static_assert(not (std::is_const<arg9T>::value || std::is_reference<arg9T>::value),
+                    "improper instantiation of TaskFn, arg9T cannot be a const or reference type");
+
     private:
         /// This class type
         typedef TaskFn<fnT, arg1T, arg2T, arg3T, arg4T, arg5T, arg6T, arg7T,
@@ -508,7 +541,7 @@ namespace madness {
         }
 
 
-        /// Register non-ready future as a dependency
+        /// Register a non-ready future as a dependency
 
         /// \tparam T The type of the future to check
         /// \param fut The future to check
@@ -520,6 +553,17 @@ namespace madness {
             }
         }
 
+        /// Register (pointer to) a non-ready future as a dependency
+
+        /// \tparam T The type of the future to check
+        /// \param fut The future to check
+        template <typename T>
+        inline void check_dependency(Future<T>* fut) {
+            if(!fut->probe()) {
+                DependencyInterface::inc();
+                fut->register_callback(this);
+            }
+        }
 
         /// None future arguments are always ready => no op
         template <typename T>

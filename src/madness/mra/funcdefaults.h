@@ -205,8 +205,8 @@ namespace madness {
 
     public:
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wundefined-var-template"
+      MADNESS_PRAGMA_CLANG(diagnostic push)
+      MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
       /// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
         static void set_defaults(World& world);
@@ -453,7 +453,7 @@ namespace madness {
             pmap = newpmap;
         }
 
-#pragma clang diagnostic pop
+      MADNESS_PRAGMA_CLANG(diagnostic pop)
 
     };
 
