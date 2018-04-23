@@ -209,7 +209,8 @@ public:
 
 	/// analyze the root: oscillator strength and contributions from occupied orbitals
 	void analyze(const std::vector<CC_vecfunction> &x) const;
-
+	/// Fock matrix for occupied orbitals
+	Tensor<double> F_occ;
 	/// The MPI Communicator
 	World& world;
 	/// The Parameters for the Calculations
