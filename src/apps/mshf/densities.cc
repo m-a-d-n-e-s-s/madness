@@ -556,7 +556,6 @@ real_functionT so_density(World& world, const comp_vecfuncT& dpsi_qu_dx,
         dj_q.gaxpy(double_complex(1.0, 0.0), DJ_q_part[i], double_complex(1.0, 0.0), true); 
     }
     world.gop.fence();
-    if (world.rank() == 0) {print("   done ");}
 
     return real(-1.0 * I * dj_q);
 }
