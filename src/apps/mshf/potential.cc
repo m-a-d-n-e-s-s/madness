@@ -352,7 +352,6 @@ void Potential(World& world, const comp_vecfuncT& psi_pu,
         K_p = Kmatrix(world, psi_pu, psi_pd, dpsi_pu_dx, dpsi_pd_dx, dpsi_pu_dy, dpsi_pd_dy, dpsi_pu_dz, dpsi_pd_dz, prec, k_fp);
         world.gop.fence();
     }
-    if (world.rank() == 0) {print("   done ");}
 
     dpsi_pu_dx.clear(); dpsi_pd_dx.clear();
     dpsi_pu_dy.clear(); dpsi_pd_dy.clear();
