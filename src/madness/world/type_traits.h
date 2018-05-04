@@ -93,11 +93,15 @@ using std::void_t;
     struct is_ostreammable : std::false_type {};
     template <typename T>
     struct is_ostreammable<T, meta::void_t<decltype(std::declval<std::ostream&>() << std::declval<const T&>())>> : std::true_type {};
+    template <typename T> constexpr bool is_ostreammable_v = is_ostreammable<T>::value;
     /// True for types that are "deserialiable" from an std::istream
     template <typename T, typename = void>
     struct is_istreammable : std::false_type {};
     template <typename T>
     struct is_istreammable<T, meta::void_t<decltype(std::declval<std::istream&>() >> std::declval<T&>())>> : std::true_type {};
+    template <typename T> constexpr bool is_istreammable_v = is_ostreammable<T>::value;
+    /// providing automatic support for serializing to/from std streams requires bidirectional streammability
+    template <typename T> constexpr bool is_iostreammable_v = is_istreammable_v<T> && is_ostreammable_v<T>;
 
     template <typename T> constexpr bool is_always_serializable =
     std::is_arithmetic<T>::value || \
@@ -137,9 +141,9 @@ using std::void_t;
     template <typename T>
     struct is_serializable<archive::VectorInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_ostreammable<T>::value>> : std::true_type {};
+    struct is_serializable<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::TextFstreamInputArchive, T, std::enable_if_t<is_istreammable<T>::value>> : std::true_type {};
+    struct is_serializable<archive::TextFstreamInputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
     template <typename T>
     struct is_serializable<archive::MPIRawOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
