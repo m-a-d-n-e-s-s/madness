@@ -1,7 +1,7 @@
 setup:
   A 16
   Z 8
-  Box 32
+  length 32
   initial 2
   boundary 1
   knumber 6.0

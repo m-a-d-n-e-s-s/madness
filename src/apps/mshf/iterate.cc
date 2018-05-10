@@ -127,7 +127,7 @@ void iterate(World& world, const real_functionT& U_q,
     std::vector<poperatorT> ops = BSHoperators(world, E_q, Es, tol, k_fq);
     world.gop.fence();
 
-    loadbalance_v2(world, Upsi_qu, Upsi_qd);
+    //loadbalance_v2(world, Upsi_qu, Upsi_qd);
     world.gop.fence();
 
     //if (world.rank() == 0 && details == 1) {std::cout << "             to Upsi_qu ... " << std::endl;}

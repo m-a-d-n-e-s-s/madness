@@ -25,7 +25,7 @@ char bck_record[] = "./";
 // Calculates nuclear ground state via Hartree-Fock iterations
 void ground_state(World& world, const double A,
                                 const double Z,
-                                const double Box,
+                                const double length,
                                 const int initial,
                                 const int boundary,
                                 const int jellium,
@@ -56,7 +56,7 @@ void ground_state(World& world, const double A,
                                 const int timing)
 {
     double time_old     = 0.0;          // Checkpointed wall_time
-    const double L      = Box/2.0;      // Half of box size
+    const double L      = length/2.0;      // Half of box size
 
     double chi_in       = chi;
     double brad_in      = brad;
@@ -65,7 +65,7 @@ void ground_state(World& world, const double A,
     if (world.rank() == 0) {
         print("Mass number:                     ", A);
         print("Charge number:                   ", Z);
-        print("Total box size:                  ", Box);
+        print("Total box size:                  ", length);
         print("Additional precision factor:     ", prec);
         print("Density laplacian via method:    ", lap_comp);
         print(" ");

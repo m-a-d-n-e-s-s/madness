@@ -14,11 +14,13 @@ real_functionT laplacian(World& world, real_functionT& rho_q,
     real_functionT drho_q_dx    = real_derivative_3d(world,0)(rho_q);
     real_functionT drho_q_dy    = real_derivative_3d(world,1)(rho_q);
     real_functionT drho_q_dz    = real_derivative_3d(world,2)(rho_q);
+    world.gop.fence();
     
     real_functionT ddrho_q_dxdx = real_derivative_3d(world,0)(drho_q_dx);
     real_functionT ddrho_q_dydy = real_derivative_3d(world,1)(drho_q_dy);
     real_functionT ddrho_q_dzdz = real_derivative_3d(world,2)(drho_q_dz);
-    
+    world.gop.fence();    
+
     real_functionT lap_q = ddrho_q_dxdx + ddrho_q_dydy + ddrho_q_dzdz;
     lap_q.truncate(ntol);
     
@@ -68,12 +70,16 @@ real_functionT laplacian1(World& world, const comp_vecfuncT& dpsi_qu_dx,
     compress(world, termx, false);
     world.gop.fence();
 
+    //gaxpy(world, 1.0, termx, 1.0, mul1, false);
+    //world.gop.fence();
+    //gaxpy(world, 1.0, termx, 1.0, mul2, false);
+    //world.gop.fence();
+    //gaxpy(world, 1.0, termx, 1.0, mul3, false);
+
+    gaxpy(world, 1.0, mul2,  1.0, mul3, false);
     gaxpy(world, 1.0, termx, 1.0, mul1, false);
     world.gop.fence();
     gaxpy(world, 1.0, termx, 1.0, mul2, false);
-
-    world.gop.fence();
-    gaxpy(world, 1.0, termx, 1.0, mul3, false);
 
     world.gop.fence();
     mul1.clear(), mul2.clear(), mul3.clear();
@@ -103,11 +109,16 @@ real_functionT laplacian1(World& world, const comp_vecfuncT& dpsi_qu_dx,
     compress(world, termy, false);
     world.gop.fence();
 
+    //gaxpy(world, 1.0, termy, 1.0, mul4, false);
+    //world.gop.fence();
+    //gaxpy(world, 1.0, termy, 1.0, mul5, false);
+    //world.gop.fence();
+    //gaxpy(world, 1.0, termy, 1.0, mul6, false);
+
+    gaxpy(world, 1.0, mul5,  1.0, mul6, false);
     gaxpy(world, 1.0, termy, 1.0, mul4, false);
     world.gop.fence();
     gaxpy(world, 1.0, termy, 1.0, mul5, false);
-    world.gop.fence();
-    gaxpy(world, 1.0, termy, 1.0, mul6, false);
 
     world.gop.fence();
     mul4.clear(), mul5.clear(), mul6.clear();
@@ -137,11 +148,16 @@ real_functionT laplacian1(World& world, const comp_vecfuncT& dpsi_qu_dx,
     compress(world, mul9, false);
     world.gop.fence();
 
+    //gaxpy(world, 1.0, termz, 1.0, mul7, false);
+    //world.gop.fence();
+    //gaxpy(world, 1.0, termz, 1.0, mul8, false);
+    //world.gop.fence();
+    //gaxpy(world, 1.0, termz, 1.0, mul9, false);
+
+    gaxpy(world, 1.0, mul8,  1.0, mul9, false);
     gaxpy(world, 1.0, termz, 1.0, mul7, false);
     world.gop.fence();
     gaxpy(world, 1.0, termz, 1.0, mul8, false);
-    world.gop.fence();
-    gaxpy(world, 1.0, termz, 1.0, mul9, false);
 
     world.gop.fence();
     mul7.clear(), mul8.clear(), mul9.clear();
@@ -481,21 +497,28 @@ real_functionT so_density(World& world, const comp_vecfuncT& dpsi_qu_dx,
     compress(world, mul5, false);
     world.gop.fence();
 
-    gaxpy(world, one, DJ_q_part, I, mul1);
+    //gaxpy(world, one, DJ_q_part, I, mul1);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, -one, mul2);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, one, mul3);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, -I, mul4);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, -one, mul5);
+    
+    gaxpy(world, double_complex(1.0,0.0), mul2,  double_complex(1.0,0.0), mul5);
+    gaxpy(world, double_complex(1.0,0.0), mul1, -double_complex(1.0,0.0), mul4);
     world.gop.fence();
-    gaxpy(world, one, DJ_q_part, -one, mul2);
+    gaxpy(world, double_complex(1.0,0.0), mul3,     -double_complex(1.0,0.0), mul2);
+    gaxpy(world, double_complex(1.0,0.0), DJ_q_part, double_complex(0.0,1.0), mul1);
     world.gop.fence();
-    gaxpy(world, one, DJ_q_part, one, mul3);
-    world.gop.fence();
-    gaxpy(world, one, DJ_q_part, -I, mul4);
-    world.gop.fence();
-    gaxpy(world, one, DJ_q_part, -one, mul5);
+    gaxpy(world, double_complex(1.0,0.0), DJ_q_part, double_complex(1.0,0.0), mul3);
 
     world.gop.fence();
     mul1.clear(), mul2.clear(), mul3.clear(), mul4.clear(), mul5.clear();
-    loadbalance_v1(world, DJ_q_part);
+    //loadbalance_v1(world, DJ_q_part);
     world.gop.fence();
-
 
     comp_vecfuncT conj6  = conj(world, dpsi_qd_dx, false);
     comp_vecfuncT conj8  = conj(world, dpsi_qd_dy, false);
@@ -519,29 +542,38 @@ real_functionT so_density(World& world, const comp_vecfuncT& dpsi_qu_dx,
     conj6.clear(), conj8.clear(), conj10.clear();
     world.gop.fence();
 
-    compress(world, mul6, false);
-    compress(world, mul7, false);
-    compress(world, mul8, false);
-    compress(world, mul9, false);
+    compress(world, mul6,  false);
+    compress(world, mul7,  false);
+    compress(world, mul8,  false);
+    compress(world, mul9,  false);
     compress(world, mul10, false);
     compress(world, mul11, false);
     world.gop.fence();
 
-    gaxpy(world, one, DJ_q_part, -I , mul6, false);
+    //gaxpy(world, one, DJ_q_part, -I , mul6, false);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, -one, mul7, false);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, one, mul8, false);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, one, mul9, false);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, I, mul10, false);
+    //world.gop.fence();
+    //gaxpy(world, one, DJ_q_part, -one, mul11, false);
+
+    gaxpy(world, double_complex(1.0,0.0), mul10, -double_complex(1.0,0.0), mul6, false);
+    gaxpy(world, double_complex(1.0,0.0), mul8,   double_complex(1.0,0.0), mul9, false);    
+    gaxpy(world, double_complex(1.0,0.0), mul7,   double_complex(1.0,0.0), mul11, false);
     world.gop.fence();
-    gaxpy(world, one, DJ_q_part, -one, mul7, false);
+    gaxpy(world, double_complex(1.0,0.0), mul8,    -double_complex(1.0,0.0), mul7, false);
+    gaxpy(world, double_complex(1.0,0.0), DJ_q_part, double_complex(0.0,1.0), mul10, false);
     world.gop.fence();
-    gaxpy(world, one, DJ_q_part, one, mul8, false);
-    world.gop.fence();
-    gaxpy(world, one, DJ_q_part, one, mul9, false);
-    world.gop.fence();
-    gaxpy(world, one, DJ_q_part, I, mul10, false);
-    world.gop.fence();
-    gaxpy(world, one, DJ_q_part, -one, mul11, false);
+    gaxpy(world, double_complex(1.0,0.0), DJ_q_part, double_complex(0.0,1.0), mul8, false);
 
     world.gop.fence();
     mul6.clear(), mul7.clear(), mul8.clear(), mul9.clear(), mul10.clear(), mul11.clear();
-    loadbalance_v1(world, DJ_q_part);
+    //loadbalance_v1(world, DJ_q_part);
     world.gop.fence();
 
     compress(world, DJ_q_part, false);

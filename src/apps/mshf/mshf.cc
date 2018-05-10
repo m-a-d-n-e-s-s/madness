@@ -57,12 +57,12 @@ int main(int argc, char** argv)
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
     
-    Skyrme skyrme("mshf_skyrme");
-    Setup setup("mshf_input");
-    Nuclear nuclear("mshf_input");
-    Mixing mixing("mshf_input");
-    Output output("mshf_input");
-    Additional additional("mshf_input");
+    Skyrme skyrme("skyrme.input");
+    Setup setup("mshf.input");
+    Nuclear nuclear("mshf.input");
+    Mixing mixing("mshf.input");
+    Output output("mshf.input");
+    Additional additional("mshf.input");
 
     if( world.rank() == 0){std::cout << " " << std::endl;}
     if( world.rank() == 0){std::cout << "---------------------------" << std::endl;}
@@ -74,7 +74,7 @@ int main(int argc, char** argv)
     // basic setup parameters 
     double A          = setup.A;               // Mass number
     double Z          = setup.Z;               // Charge number
-    double Box        = setup.Box;             // Box size
+    double length     = setup.length;          // Lenght of one side of the sim. volume (cubic)
     int    initial    = setup.initial;         // Initialization parameter
     int    boundary   = setup.boundary;        // Boundary conditions
     double knumber    = setup.knumber;         // Wavelet order
@@ -143,7 +143,7 @@ int main(int argc, char** argv)
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
         std::cout.precision(6);
 
-        ground_state(world, A, Z, Box, initial, boundary, jellium, spinorbit, meff, screening, screenl, 
+        ground_state(world, A, Z, length, initial, boundary, jellium, spinorbit, meff, screening, screenl, 
              avg_pot, avg_lap, avg_wav, lap_comp, prec, vtk_output, txt_output, use_infile, knumber, 
              thresh, chi, tol, brad, IO_nodes, b, bp, alpha, k_fn, k_fp, project, timing);
     }

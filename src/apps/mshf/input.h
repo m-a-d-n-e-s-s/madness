@@ -35,7 +35,7 @@ struct Setup
 {
     Setup() : A(208.0), 
               Z(82.0), 
-              Box(200.0), 
+              length(200.0), 
               initial(3), 
               boundary(1), 
               knumber(5.0),
@@ -43,7 +43,7 @@ struct Setup
               {}
     Setup(const std::string file): A(208.0), 
                                    Z(82.0), 
-                                   Box(200), 
+                                   length(200), 
                                    initial(3), 
                                    boundary(1),
                                    knumber(5.0),
@@ -57,20 +57,20 @@ struct Setup
             if (s=="end_setup") break;
             else if (s=="A") {f>>A;}
             else if (s=="Z") {f>>Z;}
-            else if (s=="Box") {f>>Box;}
+            else if (s=="length") {f>>length;}
             else if (s=="initial") {f>>initial;}
             else if (s=="boundary") {f>>boundary;}
             else if (s=="knumber") {f>>knumber;}
             else if (s=="thresh") {f>>thresh;}
             else if (s=="IO_nodes") {f>>IO_nodes;}
             else if (s=="project") {f>>project;}
-            else {std::cout << "mshf_input: unrecognized input for setup " << s << std::endl;}
+            else {std::cout << "mshf.input: unrecognized input for setup " << s << std::endl;}
         }
     }       
 
     double A;
     double Z;
-    double Box;
+    double length;
     int    initial;
     int    boundary;
     double knumber;
@@ -108,7 +108,7 @@ struct Nuclear
             else if (n=="screening") {f>>screening;}
             else if (n=="screenl") {f>>screenl;}
             else if (n=="lap_comp") {f>>lap_comp;}
-            else {std::cout << "mshf_input: Unrecognized input for nuclear" << n << std::endl;}
+            else {std::cout << "mshf.input: Unrecognized input for nuclear" << n << std::endl;}
         }
     }       
 
@@ -140,7 +140,7 @@ struct Mixing
             else if (m == "avg_pot") {f>>avg_pot;}
             else if (m == "avg_lap") {f>>avg_lap;}
             else if (m == "avg_wav") {f>>avg_wav;}
-            else {std::cout << "mshf_input: Unrecognized input for mixing" << m << std::endl;}
+            else {std::cout << "mshf.input: Unrecognized input for mixing" << m << std::endl;}
         }
     }       
 
@@ -166,7 +166,7 @@ struct Output
             if (o == "end_output") break;
             else if (o == "vtk_output") {f>>vtk_output;}
             else if (o == "txt_output") {f>>txt_output;}
-            else {std::cout << "mshf_input: Unrecognized input for output" << o << std::endl;}
+            else {std::cout << "mshf.input: Unrecognized input for output" << o << std::endl;}
         }
     }       
 
@@ -203,7 +203,7 @@ struct Additional
             else if (a == "tol") {f>>tol;}
             else if (a == "brad") {f>>brad;}
             else if (a == "timing") {f>>timing;}
-            else {std::cout << "mshf_input: Unrecognized input for additional" << a << std::endl;}
+            else {std::cout << "mshf.input: Unrecognized input for additional" << a << std::endl;}
         }      
     }       
 
@@ -264,7 +264,7 @@ struct Skyrme
             else if(s == "alpha")f>>alpha;
             else if(s == "k_fn")f>>k_fn;
             else if(s == "k_fp")f>>k_fp;
-            else {std::cout << "mshf_input: Unrecognized input for skyrme" << s << std::endl;}
+            else {std::cout << "mshf.input: Unrecognized input for skyrme" << s << std::endl;}
         }
     }
     double t0;

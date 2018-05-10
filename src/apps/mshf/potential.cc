@@ -34,11 +34,11 @@ void Umeff(World& world, comp_vecfuncT& Upsi_qu,
     real_functionT B_q1 = 1.0 * B_q;
     real_functionT B_q2 = 1.0 * B_q;
     real_functionT B_q3 = 1.0 * B_q;
-    world.gop.fence();
+    //world.gop.fence();
 
     compress(world,  Upsi_qu, false);
     compress(world,  Upsi_qd, false);
-    world.gop.fence();
+    //world.gop.fence();
 
     complex_derivative_3d Dx(world, 0);
     complex_derivative_3d Dy(world, 1);
@@ -57,9 +57,10 @@ void Umeff(World& world, comp_vecfuncT& Upsi_qu,
     mul1.clear(), mul2.clear(), mul3.clear();
     world.gop.fence();
 
-    truncate2(world, Ueff1psi_qu, Ueff2psi_qu, prec);
-    world.gop.fence();
-    truncate(world,  Ueff3psi_qu, ntol);
+    truncate2(world,Ueff1psi_qu, Ueff2psi_qu, prec);
+    //world.gop.fence();
+    //truncate(world, Ueff3psi_qu, ntol);
+    truncate(world, Ueff3psi_qu, prec);
     world.gop.fence();
 
     compress(world, Ueff1psi_qu, false);
@@ -67,11 +68,16 @@ void Umeff(World& world, comp_vecfuncT& Upsi_qu,
     compress(world, Ueff3psi_qu, false);
     world.gop.fence();
 
-    gaxpy(world, one, Upsi_qu, mone, Ueff1psi_qu, false);
+    //gaxpy(world, one, Upsi_qu, mone, Ueff1psi_qu, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qu, mone, Ueff2psi_qu, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qu, mone, Ueff3psi_qu, false);
+
+    gaxpy(world, double_complex(1.0,0.0), Ueff2psi_qu,  double_complex(1.0,0.0), Ueff3psi_qu, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qu,     -double_complex(1.0,0.0), Ueff1psi_qu, false);
     world.gop.fence();
-    gaxpy(world, one, Upsi_qu, mone, Ueff2psi_qu, false);
-    world.gop.fence();
-    gaxpy(world, one, Upsi_qu, mone, Ueff3psi_qu, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qu,     -double_complex(1.0,0.0), Ueff2psi_qu, false);
 
     world.gop.fence();
     Ueff1psi_qu.clear(); Ueff2psi_qu.clear(); Ueff3psi_qu.clear();
@@ -89,9 +95,10 @@ void Umeff(World& world, comp_vecfuncT& Upsi_qu,
     world.gop.fence();
     mul4.clear(), mul5.clear(), mul6.clear();
 
-    truncate2(world, Ueff1psi_qd, Ueff2psi_qd, prec);
-    world.gop.fence();
-    truncate(world,  Ueff3psi_qd, ntol);
+    truncate2(world,Ueff1psi_qd, Ueff2psi_qd, prec);
+    //world.gop.fence();
+    //truncate(world,  Ueff3psi_qd, ntol);
+    truncate(world, Ueff3psi_qd, prec);
     world.gop.fence();
 
     compress(world, Ueff1psi_qd, false);
@@ -99,15 +106,19 @@ void Umeff(World& world, comp_vecfuncT& Upsi_qu,
     compress(world, Ueff3psi_qd, false);
     world.gop.fence();
 
-    gaxpy(world, one, Upsi_qd, mone, Ueff1psi_qd, false);
+    //gaxpy(world, one, Upsi_qd, mone, Ueff1psi_qd, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qd, mone, Ueff2psi_qd, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qd, mone, Ueff3psi_qd, false);
+   
+    gaxpy(world, double_complex(1.0,0.0), Ueff2psi_qd,  double_complex(1.0,0.0), Ueff3psi_qd, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qd,     -double_complex(1.0,0.0), Ueff1psi_qd, false);
     world.gop.fence();
-    gaxpy(world, one, Upsi_qd, mone, Ueff2psi_qd, false);
-    world.gop.fence();
-    gaxpy(world, one, Upsi_qd, mone, Ueff3psi_qd, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qd,     -double_complex(1.0,0.0), Ueff2psi_qd, false);
 
     world.gop.fence();
-    Ueff1psi_qd.clear(), Ueff2psi_qd.clear(), Ueff3psi_qd.clear();
-    B_q1.clear(), B_q2.clear(); B_q3.clear();
+    Ueff1psi_qd.clear(), Ueff2psi_qd.clear(), Ueff3psi_qd.clear(); B_q1.clear(), B_q2.clear(); B_q3.clear();
 }
 
 
@@ -115,7 +126,7 @@ void Umeff(World& world, comp_vecfuncT& Upsi_qu,
 // Calculates spin-orbit potential
 void Uso(World& world, comp_vecfuncT& Upsi_qu,
                        comp_vecfuncT& Upsi_qd,
-                       const real_functionT& W_q,
+                       const real_functionT& W_q1,
                        const comp_vecfuncT& dpsi_qu_dx,
                        const comp_vecfuncT& dpsi_qd_dx,
                        const comp_vecfuncT& dpsi_qu_dy,
@@ -123,31 +134,30 @@ void Uso(World& world, comp_vecfuncT& Upsi_qu,
                        const comp_vecfuncT& dpsi_qu_dz,
                        const comp_vecfuncT& dpsi_qd_dz)
 {
-    const double_complex one(1.0, 0.0);
+    const double_complex one(1.0,0.0);
     const double lambda = -1.0;
     const double_complex lam(lambda, 0.0);
-    //const double_complex I = double_complex(0.0, 1.0);
 
-    W_q.reconstruct();
+    W_q1.reconstruct();
+    world.gop.fence();
+    
+    real_functionT W_q2 = 1.0 * W_q1;
+    real_functionT W_q3 = 1.0 * W_q1;
     world.gop.fence();
 
-    real_functionT dW_q_dx = real_derivative_3d(world, 0)(W_q);
-    world.gop.fence();
-    real_functionT dW_q_dy = real_derivative_3d(world, 1)(W_q);
-    world.gop.fence();
-    real_functionT dW_q_dz = real_derivative_3d(world, 2)(W_q);
+    real_functionT dW_q_dx = real_derivative_3d(world, 0)(W_q1);
+    real_functionT dW_q_dy = real_derivative_3d(world, 1)(W_q2);
+    real_functionT dW_q_dz = real_derivative_3d(world, 2)(W_q3);
 
     compress(world, Upsi_qu, false);
     compress(world, Upsi_qd, false);
-    world.gop.fence();
+    //world.gop.fence();
 
     comp_vecfuncT mul1 = mul(world, dW_q_dy, dpsi_qu_dx, false);
+    comp_vecfuncT mul4 = mul(world, dW_q_dz, dpsi_qd_dx, false);
     world.gop.fence();
     comp_vecfuncT mul2 = mul(world, dW_q_dy, dpsi_qd_dx, false);
-    world.gop.fence();
     comp_vecfuncT mul3 = mul(world, dW_q_dz, dpsi_qu_dx, false);
-    world.gop.fence();
-    comp_vecfuncT mul4 = mul(world, dW_q_dz, dpsi_qd_dx, false);
     world.gop.fence();
 
     compress(world, mul1, false);
@@ -156,25 +166,31 @@ void Uso(World& world, comp_vecfuncT& Upsi_qu,
     compress(world, mul4, false);
     world.gop.fence();
 
-    gaxpy(world, one, Upsi_qu, -I*lam, mul1, false);
+    //gaxpy(world, one, Upsi_qu, -I*lam, mul1, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qd,  I*lam, mul2, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qd,   -lam, mul3, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qu,    lam, mul4, false);
+    //world.gop.fence();
+
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qu,  double_complex(0.0,1.0), mul1, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qd, -double_complex(0.0,1.0), mul2, false);
     world.gop.fence();
-    gaxpy(world, one, Upsi_qd,  I*lam, mul2, false);
-    world.gop.fence();
-    gaxpy(world, one, Upsi_qd,   -lam, mul3, false);
-    world.gop.fence();
-    gaxpy(world, one, Upsi_qu,    lam, mul4, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qd,  double_complex(1.0,0.0), mul3, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qu, -double_complex(1.0,0.0), mul4, false);
     world.gop.fence();
 
+    W_q2.clear(); W_q3.clear();
     mul1.clear(), mul2.clear(), mul3.clear(), mul4.clear();
-    world.gop.fence();
+    //world.gop.fence();
 
     comp_vecfuncT mul5 = mul(world, dW_q_dx, dpsi_qu_dy, false);
+    comp_vecfuncT mul8 = mul(world, dW_q_dz, dpsi_qd_dy, false);
     world.gop.fence();
     comp_vecfuncT mul6 = mul(world, dW_q_dx, dpsi_qd_dy, false);
-    world.gop.fence();
     comp_vecfuncT mul7 = mul(world, dW_q_dz, dpsi_qu_dy, false);
-    world.gop.fence();
-    comp_vecfuncT mul8 = mul(world, dW_q_dz, dpsi_qd_dy, false);
     world.gop.fence();
 
     compress(world, mul5, false);
@@ -183,34 +199,46 @@ void Uso(World& world, comp_vecfuncT& Upsi_qu,
     compress(world, mul8, false);
     world.gop.fence();
 
-    gaxpy(world, one, Upsi_qu,  I*lam, mul5, false);
+    //gaxpy(world, one, Upsi_qu,  I*lam, mul5, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qd, -I*lam, mul6, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qd, -I*lam, mul7, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qu, -I*lam, mul8, false);
+    //world.gop.fence();
+
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qu, -double_complex(0.0,1.0), mul5, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qd,  double_complex(0.0,1.0), mul6, false);
     world.gop.fence();
-    gaxpy(world, one, Upsi_qd, -I*lam, mul6, false);
-    world.gop.fence();
-    gaxpy(world, one, Upsi_qd, -I*lam, mul7, false);
-    world.gop.fence();
-    gaxpy(world, one, Upsi_qu, -I*lam, mul8, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qd,  double_complex(0.0,1.0), mul7, false);    
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qu,  double_complex(0.0,1.0), mul8, false);
     world.gop.fence();
 
     mul5.clear(), mul6.clear(), mul7.clear(), mul8.clear();
-    world.gop.fence();
+    //world.gop.fence();
 
     comp_vecfuncT mul9  = mul(world, dW_q_dx, dpsi_qd_dz, false);
-    world.gop.fence();
-    comp_vecfuncT mul10 = mul(world, dW_q_dx, dpsi_qu_dz, false);
-    world.gop.fence();
-    comp_vecfuncT mul11 = mul(world, dW_q_dy, dpsi_qd_dz, false);
-    world.gop.fence();
     comp_vecfuncT mul12 = mul(world, dW_q_dy, dpsi_qu_dz, false);
     world.gop.fence();
+    comp_vecfuncT mul10 = mul(world, dW_q_dx, dpsi_qu_dz, false);
+    comp_vecfuncT mul11 = mul(world, dW_q_dy, dpsi_qd_dz, false);
+    world.gop.fence();
 
-    gaxpy(world, one, Upsi_qu,   -lam, mul9,  false);
+    //gaxpy(world, one, Upsi_qu,   -lam, mul9,  false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qd,    lam, mul10, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qu,  I*lam, mul11, false);
+    //world.gop.fence();
+    //gaxpy(world, one, Upsi_qd,  I*lam, mul12, false);
+    //world.gop.fence();
+
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qu,  double_complex(1.0,0.0), mul9,  false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qd, -double_complex(1.0,0.0), mul10, false);
     world.gop.fence();
-    gaxpy(world, one, Upsi_qd,    lam, mul10, false);
-    world.gop.fence();
-    gaxpy(world, one, Upsi_qu,  I*lam, mul11, false);
-    world.gop.fence();
-    gaxpy(world, one, Upsi_qd,  I*lam, mul12, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qu, -double_complex(0.0,1.0), mul11, false);
+    gaxpy(world, double_complex(1.0,0.0), Upsi_qd, -double_complex(0.0,1.0), mul12, false);
     world.gop.fence();
 
     mul9.clear(), mul10.clear(), mul11.clear(), mul12.clear();
