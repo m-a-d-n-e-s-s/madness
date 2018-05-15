@@ -16,7 +16,11 @@ if(NOT PCM_FOUND)
   # define include and library directories based on root directory
   if(PCM_ROOT_DIR) 
     set(PCM_INCLUDE_DIR ${PCM_ROOT_DIR}/include/ CACHE PATH "The include directory for PCM")
-    set(PCM_LIBRARY ${PCM_ROOT_DIR}/lib CACHE PATH "Linker Flags for PCM Library")
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8 AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      set(PCM_LIBRARY ${PCM_ROOT_DIR}/lib;${PCM_ROOT_DIR}/lib64 CACHE PATH "Linker Flags for PCM Library")
+    else()
+      set(PCM_LIBRARY ${PCM_ROOT_DIR}/lib CACHE PATH "Linker Flags for PCM Library")
+    endif()
   endif()
   
   find_path(PCM_INCLUDE_DIRS NAMES PCMSolver/pcmsolver.h 
