@@ -80,8 +80,13 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              integer *info, char_len jobulen, char_len jobvtlen) {
     //std::cout << "n " << *n << " m " << *m << " lwork " << *lwork << std::endl;
     //std::cout << " sizeof(integer) " << sizeof(integer) << std::endl;
+#if MADNESS_LINALG_USE_LAPACKE
+    sgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
+            vt, ldvt, work, lwork, info);
+#else
     sgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, info, jobulen, jobvtlen);
+#endif
 }
 
 STATIC inline
@@ -89,9 +94,14 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              complex_real4 *a, integer *lda, real4 *s, complex_real4 *u, integer *ldu,
              complex_real4 *vt, integer *ldvt, complex_real4 *work, integer *lwork,
              integer *info, char_len jobulen, char_len jobvtlen) {
-    Tensor<float> rwork(5*min(*m,*n));
+  Tensor<float> rwork(5*min(*m,*n));
+#if MADNESS_LINALG_USE_LAPACKE
+    cgesvd_(jobu, jobvt, m, n, reinterpret_cast<MKL_Complex8*>(a), lda, s, reinterpret_cast<MKL_Complex8*>(u), ldu,
+            reinterpret_cast<MKL_Complex8*>(vt), ldvt, reinterpret_cast<MKL_Complex8*>(work), lwork, rwork.ptr(), info);
+#else
     cgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
+#endif
 }
 
 STATIC inline
@@ -100,9 +110,13 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              complex_real8 *vt, integer *ldvt, complex_real8 *work, integer *lwork,
              integer *info, char_len jobulen, char_len jobvtlen) {
     Tensor<double> rwork(5*min(*m,*n));
+#if MADNESS_LINALG_USE_LAPACKE
+    zgesvd_(jobu, jobvt, m, n, reinterpret_cast<MKL_Complex16*>(a), lda, s, reinterpret_cast<MKL_Complex16*>(u), ldu,
+            reinterpret_cast<MKL_Complex16*>(vt), ldvt, reinterpret_cast<MKL_Complex16*>(work), lwork, rwork.ptr(), info);
+#else
     zgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
-
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
+#endif
 }
 
 /// These oddly-named wrappers enable the generic gesv iterface to get
