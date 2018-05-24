@@ -96,8 +96,8 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              integer *info, char_len jobulen, char_len jobvtlen) {
   Tensor<float> rwork(5*min(*m,*n));
 #if MADNESS_LINALG_USE_LAPACKE
-    cgesvd_(jobu, jobvt, m, n, reinterpret_cast<MKL_Complex8*>(a), lda, s, reinterpret_cast<MKL_Complex8*>(u), ldu,
-            reinterpret_cast<MKL_Complex8*>(vt), ldvt, reinterpret_cast<MKL_Complex8*>(work), lwork, rwork.ptr(), info);
+    cgesvd_(jobu, jobvt, m, n, reinterpret_cast<lapack_complex_float*>(a), lda, s, reinterpret_cast<lapack_complex_float*>(u), ldu,
+            reinterpret_cast<lapack_complex_float*>(vt), ldvt, reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
 #else
     cgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
@@ -111,8 +111,8 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              integer *info, char_len jobulen, char_len jobvtlen) {
     Tensor<double> rwork(5*min(*m,*n));
 #if MADNESS_LINALG_USE_LAPACKE
-    zgesvd_(jobu, jobvt, m, n, reinterpret_cast<MKL_Complex16*>(a), lda, s, reinterpret_cast<MKL_Complex16*>(u), ldu,
-            reinterpret_cast<MKL_Complex16*>(vt), ldvt, reinterpret_cast<MKL_Complex16*>(work), lwork, rwork.ptr(), info);
+    zgesvd_(jobu, jobvt, m, n, reinterpret_cast<lapack_complex_double*>(a), lda, s, reinterpret_cast<lapack_complex_double*>(u), ldu,
+            reinterpret_cast<lapack_complex_double*>(vt), ldvt, reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
 #else
     zgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
@@ -128,11 +128,19 @@ STATIC inline void dgesv_(integer* n, integer* nrhs, float* AT, integer* lda,
 }
 STATIC inline void dgesv_(integer* n, integer* nrhs, float_complex* AT, integer* lda,
                           integer* piv, float_complex* x, integer* ldx, integer* info) {
+#if MADNESS_LINALG_USE_LAPACKE
+    cgesv_(n, nrhs, reinterpret_cast<lapack_complex_float*>(AT), lda, piv, reinterpret_cast<lapack_complex_float*>(x), ldx, info);
+#else
     cgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
+#endif
 }
 STATIC inline void dgesv_(integer* n, integer* nrhs, double_complex* AT, integer* lda,
                           integer* piv, double_complex* x, integer* ldx, integer* info) {
+#if MADNESS_LINALG_USE_LAPACKE
+    zgesv_(n, nrhs, reinterpret_cast<lapack_complex_double*>(AT), lda, piv, reinterpret_cast<lapack_complex_double*>(x), ldx, info);
+#else
     zgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
+#endif
 }
 /// These oddly-named wrappers enable the generic gelss iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
@@ -954,8 +962,13 @@ namespace madness {
 
     void init_tensor_lapack() {
 	char e[] = "e";
+#if MADNESS_LINALG_USE_LAPACKE
+    dlamch(e);
+	slamch(e);
+#else
 	dlamch_(e,1);
 	slamch_(e,1);
+#endif
 
 // 	char modes[] = "esbpnrmulo";
 // 	for (int i=0; i<10; ++i) {
