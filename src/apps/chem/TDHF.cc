@@ -112,14 +112,27 @@ TDHF::TDHF(World &world, const CCParameters & param, const Nemo & nemo_):
 													  msg(world) {
 	msg.section("Initialize TDHF Class");
 	msg.debug = parameters.debug;
+
+	msg.subsection("General Information about settings from SCF object:\n");
+	if(world.rank()==0) std::cout << " is_dft() = " << nemo.get_calc()->xc.is_dft() << "\n";
+	if(world.rank()==0) std::cout << " hf_coeff = " << nemo.get_calc()->xc.hf_exchange_coefficient() << "\n";
+	if(world.rank()==0) std::cout << " do_pcm() = " << nemo.do_pcm() << "\n";
+	if(world.rank()==0) std::cout << " do_ac()  = " << nemo.do_ac() << "\n";
+
+
 	if (not param.no_compute_response) {
+
+		if(nemo.get_calc()->xc.hf_exchange_coefficient()!=0.0){
 		msg.subsection("Computing Exchange Intermediate");
-		CCTimer time(world,"Computing ExIm");
+		CCTimer timer(world,"Computing ExIm");
 		g12.update_elements(mo_bra_,mo_ket_);
+		timer.info();
+		}else msg.output("No Exchange Intermediate Computed\n");
+
 		msg.output("Orbital Energies of Reference");
 		const Tensor<double> eps=nemo.get_calc()->aeps;
 		if(world.rank()==0) std::cout << eps << "\n";
-		time.info();
+
 	}
 	if(nemo.get_calc()->param.localize){
 		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
@@ -472,8 +485,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	double hf_coeff = nemo.get_calc()->xc.hf_exchange_coefficient();
 
 	// Use the PCMSolver
-	//bool pcm=nemo.do_pcm();
-	bool pcm = false; // not yet here
+	bool pcm=nemo.do_pcm();
 	if(parameters.debug){
 		if(world.rank()==0) std::cout << "TDA Potential is " << xc_data << ", hf_coeff=" << hf_coeff << ", pcm is=" << pcm <<  "\n";
 	}
