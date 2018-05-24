@@ -7,7 +7,7 @@
 #  BLA_STATIC           - Prefer to link against static lbraries
 # Output variables:
 #  MKL_FOUND            - System has MKL
-#  MKL_INCLUDE_DIRS     - The tbb include directories
+#  MKL_INCLUDE_DIRS     - The MKL include directories
 #  MKL_LIBRARIES        - The libraries needed to use MKL
 #  MKL_VERSION          - The version string for MKL
 
