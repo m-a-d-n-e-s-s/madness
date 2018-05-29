@@ -39,6 +39,15 @@ add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tenso
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
 target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
+if (LAPACK_INCLUDE_DIRS)
+  target_include_directories(MADlinalg PUBLIC ${LAPACK_INCLUDE_DIRS})
+endif(LAPACK_INCLUDE_DIRS)
+if (LAPACK_COMPILE_OPTIONS)
+  target_compile_options(MADlinalg PUBLIC ${LAPACK_COMPILE_OPTIONS})
+endif(LAPACK_COMPILE_OPTIONS)
+if (LAPACK_COMPILE_DEFINITIONS)
+  target_compile_definitions(MADlinalg PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
+endif(LAPACK_COMPILE_DEFINITIONS)
 
 if(HAVE_IBMBGQ)
   add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a
