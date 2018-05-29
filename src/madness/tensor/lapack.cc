@@ -91,6 +91,20 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
 
 STATIC inline
 void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
+             real8 *a, integer *lda, real8 *s, real8 *u, integer *ldu,
+             real8 *vt, integer *ldvt, real8 *work, integer *lwork,
+             integer *info, char_len jobulen, char_len jobvtlen){
+#if MADNESS_LINALG_USE_LAPACKE
+  dgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
+          vt, ldvt, work, lwork, info);
+#else
+  dgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
+            vt, ldvt, work, lwork, info, jobulen, jobvtlen);
+#endif
+}
+
+STATIC inline
+void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              complex_real4 *a, integer *lda, real4 *s, complex_real4 *u, integer *ldu,
              complex_real4 *vt, integer *ldvt, complex_real4 *work, integer *lwork,
              integer *info, char_len jobulen, char_len jobvtlen) {
@@ -193,9 +207,23 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             real4 *w,  real4 *work,  integer *lwork,
             integer *info, char_len jobzlen, char_len uplo_len ) {
 #if MADNESS_LINALG_USE_LAPACKE
-  ssygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
+    ssygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
 #else
     ssygv_(itype, jobz, uplo, n,
+           a, lda, b, ldb, w,  work,  lwork, info,
+           jobzlen,uplo_len);
+#endif
+}
+
+STATIC inline
+void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
+            real8 *a, integer *lda, real8 *b, integer *ldb,
+            real8 *w,  real8 *work,  integer *lwork,
+            integer *info, char_len jobzlen, char_len uplo_len ) {
+#if MADNESS_LINALG_USE_LAPACKE
+  dsygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
+#else
+  dsygv_(itype, jobz, uplo, n,
            a, lda, b, ldb, w,  work,  lwork, info,
            jobzlen,uplo_len);
 #endif
@@ -243,6 +271,16 @@ STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
   ssyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
 #else
   ssyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len );
+#endif
+}
+
+STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
+                          real8 *a, integer *lda, real8 *w,  real8 *work,  integer *lwork,
+                          integer *info, char_len jobzlen, char_len uplo_len ) {
+#if MADNESS_LINALG_USE_LAPACKE
+  dsyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
+#else
+  dsyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len );
 #endif
 }
 
@@ -344,16 +382,9 @@ namespace madness {
         s = Tensor< typename Tensor<T>::scalar_type >(rmax);
         U = Tensor<T>(m,rmax);
         VT = Tensor<T>(rmax,n);
-        if(typeid(*(A.ptr())) == typeid(double)){
-          dgesvd_("S", "S", &n, &m, reinterpret_cast<real4*>(A.ptr()), &n, reinterpret_cast<real4*>(s.ptr()),
-                  reinterpret_cast<real4*>(VT.ptr()), &n, reinterpret_cast<real4*>(U.ptr()),
-                  &rmax, reinterpret_cast<real4*>(work.ptr()), &lwork, &info, (char_len) 1, (char_len) 1);
-        }
-        else{
-          dgesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
-                  VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
-                  &info, (char_len) 1, (char_len) 1);
-        }
+        dgesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
+                VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
+                &info, (char_len) 1, (char_len) 1);
 
         //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
 	//std::cout << sizeof(long) << " " << sizeof(int) << " " << sizeof(integer) << std::endl;
@@ -384,16 +415,9 @@ namespace madness {
         integer info;
 
         // calling list is swapped
-      if(typeid(*(a.ptr())) == typeid(double)) {
-        dgesvd_("O", "S", &n, &m, reinterpret_cast<real4*>(a.ptr()), &n, reinterpret_cast<real4*>(s.ptr()),
-                reinterpret_cast<real4*>(VT.ptr()), &n, reinterpret_cast<real4*>(U.ptr()), &rmax, reinterpret_cast<real4*>(work.ptr()), &lwork,
-                &info, (char_len) 1, (char_len) 1);
-      }
-      else{
         dgesvd_("O", "S", &n, &m, a.ptr(), &n, s.ptr(),
                 VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
-      }
 
         mask_info(info);
 
@@ -587,15 +611,8 @@ namespace madness {
         Tensor<T> work(lwork);
         V = transpose(A);		// For Hermitian case
         e = Tensor<typename Tensor<T>::scalar_type>(n);
-        if(typeid(V.ptr()) == typeid(double)){
-          dsyev_("V", "U", &n, reinterpret_cast<real4*>(V.ptr()), &n, reinterpret_cast<real4*>(e.ptr()),
-                 reinterpret_cast<real4*>(work.ptr()), &lwork, &info,
-                 (char_len) 1, (char_len) 1);
-        }
-        else {
-          dsyev_("V", "U", &n, V.ptr(), &n, e.ptr(), work.ptr(), &lwork, &info,
-                 (char_len) 1, (char_len) 1);
-        }
+        dsyev_("V", "U", &n, V.ptr(), &n, e.ptr(), work.ptr(), &lwork, &info,
+               (char_len) 1, (char_len) 1);
 
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
@@ -640,17 +657,9 @@ namespace madness {
         Tensor<T> b = transpose(B);	// For Hermitian case
         V = transpose(A);		// For Hermitian case
         e = Tensor<typename Tensor<T>::scalar_type>(n);
-        if(typeid(*(V.ptr())) == typeid(double)) {
-          dsygv_(&ity, "V", "U", &n, reinterpret_cast<real4*>(V.ptr()), &n, reinterpret_cast<real4*>(b.ptr()), &n,
-                 reinterpret_cast<real4*>(e.ptr()), reinterpret_cast<real4*>(work.ptr()), &lwork, &info,
-                 (char_len) 1, (char_len) 1);
-        }
-        else {
-          auto *V_ptr = V.ptr();
-          dsygv_(&ity, "V", "U", &n, V_ptr, &n, b.ptr(), &n,
-                 e.ptr(), work.ptr(), &lwork, &info,
-                 (char_len) 1, (char_len) 1);
-        }
+        dsygv_(&ity, "V", "U", &n, V.ptr(), &n, b.ptr(), &n,
+               e.ptr(), work.ptr(), &lwork, &info,
+               (char_len) 1, (char_len) 1);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
         V = transpose(V);
