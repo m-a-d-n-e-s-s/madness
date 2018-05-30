@@ -89,19 +89,16 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
 #endif
 }
 
+#if MADNESS_LINALG_USE_LAPACKE
 STATIC inline
 void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              real8 *a, integer *lda, real8 *s, real8 *u, integer *ldu,
              real8 *vt, integer *ldvt, real8 *work, integer *lwork,
              integer *info, char_len jobulen, char_len jobvtlen){
-#if MADNESS_LINALG_USE_LAPACKE
   dgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
           vt, ldvt, work, lwork, info);
-#else
-  dgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
-            vt, ldvt, work, lwork, info, jobulen, jobvtlen);
-#endif
 }
+#endif 
 
 STATIC inline
 void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
@@ -215,19 +212,15 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
 #endif
 }
 
+#if MADNESS_LINALG_USE_LAPACKE
 STATIC inline
 void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             real8 *a, integer *lda, real8 *b, integer *ldb,
             real8 *w,  real8 *work,  integer *lwork,
             integer *info, char_len jobzlen, char_len uplo_len ) {
-#if MADNESS_LINALG_USE_LAPACKE
   dsygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
-#else
-  dsygv_(itype, jobz, uplo, n,
-           a, lda, b, ldb, w,  work,  lwork, info,
-           jobzlen,uplo_len);
-#endif
 }
+#endif
 
 STATIC inline
 void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
@@ -274,15 +267,13 @@ STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
 #endif
 }
 
+#if MADNESS_LINALG_USE_LAPACKE
 STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
                           real8 *a, integer *lda, real8 *w,  real8 *work,  integer *lwork,
                           integer *info, char_len jobzlen, char_len uplo_len ) {
-#if MADNESS_LINALG_USE_LAPACKE
   dsyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
-#else
-  dsyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len );
-#endif
 }
+#endif
 
 STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    complex_real4 *a, integer *lda, real4 *w,
