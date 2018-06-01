@@ -103,7 +103,10 @@ public:
 	virtual ~NuclearCorrelationFactor() {};
 
 	/// initialize the regularized potentials U1 and U2
-	void initialize() {
+	void initialize(const double vtol1) {
+
+	    // set threshold for projections
+	    vtol=vtol1;
 
 		// construct the potential functions
 		// keep tighter threshold for orthogonalization
@@ -957,7 +960,7 @@ public:
 			print("which is of Gaussian-Slater type\n");
 		}
 
-		initialize();
+//		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::GaussSlater;}
@@ -1091,7 +1094,7 @@ public:
             print("which is of Gradiental Gaussian-Slater type\n");
         }
 
-        initialize();
+//        initialize();
     }
 
     corrfactype type() const {return NuclearCorrelationFactor::GradientalGaussSlater;}
@@ -1236,7 +1239,7 @@ public:
             print("with eprec ",mol.get_eprec());
 			print("which is of linear Slater type\n");
 		}
-		initialize();
+//		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::LinearSlater;}
@@ -1320,15 +1323,16 @@ public:
 		: NuclearCorrelationFactor(world,mol), a_(1.5) {
 
 		if (a!=0.0) a_=a;
+		eprec_=mol.get_eprec();
 
 		if (world.rank()==0) {
 			print("\nconstructed nuclear correlation factor of the form");
 			print("  S_A = 1/(a-1) exp(-a Z_A r_{1A}) + 1");
 			print("    a = ",a_);
-            print("with eprec ",mol.get_eprec());
+            print("with eprec ",eprec_);
 			print("which is of Slater type\n");
 		}
-		initialize();
+//		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::Slater;}
@@ -1337,8 +1341,10 @@ private:
 
 	/// the length scale parameter
 	double a_;
+	double eprec_;
 
 	double a_param() const {return a_;}
+    double eprec_param() const {return eprec_;}
 
 	/// first derivative of the correlation factor wrt (r-R_A)
 
@@ -1375,7 +1381,12 @@ private:
     /// the nuclear correlation factor
     double S(const double& r, const double& Z) const {
     	const double a=a_param();
+    	const double eprec=eprec_param();
     	return 1.0+1.0/(a-1.0) * exp(-a*Z*r);
+
+//    	return 1.0 + 0.5/(a-1.0) *
+//    	        (exp(-a*r*Z + 0.5*a*a*Z*Z*eprec) * erfc((-r+a*eprec*Z)/sqrt(2*eprec))
+//    	         + exp(-a*r*Z + 0.5*a*Z*(4.0*r+a*eprec*Z)) * erfc((r+a*eprec*Z)/sqrt(2*eprec)));
     }
 
     /// radial part first derivative of the nuclear correlation factor
@@ -1474,7 +1485,7 @@ public:
 			print("with eprec ",mol.get_eprec());
 			print("which is of polynomial type with exponent N = ",N);
 		}
-		initialize();
+//		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::Polynomial;}
@@ -1644,7 +1655,7 @@ public:
             print("with eprec ",mol.get_eprec());
 			print("which means it's (nearly) a conventional calculation\n");
 		}
-		initialize();
+//		initialize();
 
 		// add the missing -Z/r part to U2!
 	}

@@ -151,17 +151,19 @@ public:
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc) :
-			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {}
+			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
+
+	    if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data,true);
+
+	}
 
 	void construct_nuclear_correlation_factor() {
-		// construct the nuclear potential
-		// Make the nuclear potential, initial orbitals, etc.
-		calc->make_nuclear_potential(world);
-		calc->potentialmanager->vnuclear().print_size("vnuc");
-		calc->project_ao_basis(world);
-//		save_function(calc->potentialmanager->vnuclear(),"vnuc");
 	    // construct the nuclear correlation factor:
-	    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+	    if (not nuclear_correlation)
+	        nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+
+	    // re-project the ncf
+	    nuclear_correlation->initialize(FunctionDefaults<3>::get_thresh()*0.1);
 	    R = nuclear_correlation->function();
 	    R.set_thresh(FunctionDefaults<3>::get_thresh());
 	    R_square = nuclear_correlation->square();
@@ -420,15 +422,15 @@ private:
 	PCM pcm;
 	AC<3> ac;
 
-	void print_nuclear_corrfac() const;
-
 	/// adapt the thresholds consistently to a common value
     void set_protocol(const double thresh) {
 
         calc->set_protocol<3>(world,thresh);
 
         // (re) construct nuclear potential and correlation factors
+        timer timer1(world);
         construct_nuclear_correlation_factor();
+        timer1.end("reproject ncf");
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
