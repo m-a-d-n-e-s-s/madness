@@ -24,7 +24,7 @@ void Umeff(World& world, comp_vecfuncT& Upsi_qu,
                          const double prec)
 
 {
-    double ntol = FunctionDefaults<3>::get_thresh() * prec;
+    //double ntol = FunctionDefaults<3>::get_thresh() * prec;
     const double_complex  one( 1.0,0.0);
     const double_complex mone(-1.0,0.0);
 
@@ -294,7 +294,6 @@ void Potential(World& world, const comp_vecfuncT& psi_pu,
     /////////////////////////////////////////////////////////////////////////////
 
     // Make number density and kinetic densities
-    if (world.rank() == 0) {print("   Make densities");}
     if (BE == 0.0) {
         if (timing == 1) {START_TIMER;}
         rho_p = ndensity(world, psi_pu, psi_pd);
@@ -305,8 +304,8 @@ void Potential(World& world, const comp_vecfuncT& psi_pu,
     double p_number = rho_p.trace();
     double n_number = rho_n.trace();
     if (world.rank() == 0) {
+        print(" ");
         print("   Protons  =", p_number);
-        print("   Neutrons =", n_number);
     }
     world.gop.fence();
 
@@ -332,7 +331,8 @@ void Potential(World& world, const comp_vecfuncT& psi_pu,
     comp_vecfuncT dpsi_pd_dz = apply(world, Dz, psi_pd, false);
     world.gop.fence();
 
-    if (world.rank() == 0) {print("   Kdensities ");}
+
+    if (world.rank() == 0) {print("   Kinetic densities ");}
     if (timing == 1) {START_TIMER;}
     real_functionT tau_p = kdensity(world, dpsi_pu_dx, dpsi_pd_dx, dpsi_pu_dy, dpsi_pd_dy, dpsi_pu_dz, dpsi_pd_dz);
     if (timing == 1) {END_TIMER("kdensity");}
@@ -386,6 +386,8 @@ void Potential(World& world, const comp_vecfuncT& psi_pu,
     dpsi_pu_dz.clear(); dpsi_pd_dz.clear();
     world.gop.fence();
 
+    if (world.rank() == 0) {print("  ");}
+
     comp_vecfuncT dpsi_nu_dx = apply(world, Dx, psi_nu, false);
     comp_vecfuncT dpsi_nd_dy = apply(world, Dy, psi_nd, false);
     world.gop.fence();
@@ -398,7 +400,12 @@ void Potential(World& world, const comp_vecfuncT& psi_pu,
     comp_vecfuncT dpsi_nd_dz = apply(world, Dz, psi_nd, false);
     world.gop.fence();
 
-        if (timing == 1) {START_TIMER;}
+
+    if (timing == 1) {START_TIMER;}
+    if (world.rank() == 0) {
+        print("   Neutrons =", n_number); 
+        print("   Kinetic densities ");
+    }
     real_functionT tau_n = kdensity(world, dpsi_nu_dx, dpsi_nd_dx, dpsi_nu_dy, dpsi_nd_dy, dpsi_nu_dz, dpsi_nd_dz);
     real_functionT lap_n = 0.0 * rho_n;
     world.gop.fence();
@@ -431,6 +438,7 @@ void Potential(World& world, const comp_vecfuncT& psi_pu,
 
     // Matrix of neutron single particle kinetic energies 
     if (iter%100 == 0 || iter == 0) {
+        if (world.rank() == 0) {print("   Kmatrix for neutrons ");}
         K_n = Kmatrix(world, psi_nu, psi_nd, dpsi_nu_dx, dpsi_nd_dx, dpsi_nu_dy, dpsi_nd_dy, dpsi_nu_dz, dpsi_nd_dz, prec, k_fn);
         world.gop.fence();
     }
@@ -439,6 +447,8 @@ void Potential(World& world, const comp_vecfuncT& psi_pu,
     dpsi_nu_dy.clear(); dpsi_nd_dy.clear();
     dpsi_nu_dz.clear(); dpsi_nd_dz.clear();
     world.gop.fence();
+
+    if (world.rank() == 0) {print(" ");}
 
     // Mixing of density laplacians
     if (avg_lap == 1 && brad < 0.0 && iter > 0) {

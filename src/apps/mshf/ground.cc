@@ -55,12 +55,11 @@ void ground_state(World& world, const double A,
                                 const int project,
                                 const int timing)
 {
-    double time_old     = 0.0;          // Checkpointed wall_time
-    const double L      = length/2.0;      // Half of box size
-
-    double chi_in       = chi;
-    double brad_in      = brad;
-    double tol_in       = tol;
+    double time_old = 0.0;              // Checkpointed wall_time
+    const double L  = length/2.0;       // Half of box size
+    double chi_in   = chi;
+    double brad_in  = brad;
+    double tol_in   = tol;
 
     if (world.rank() == 0) {
         print("Mass number:                     ", A);
@@ -70,58 +69,58 @@ void ground_state(World& world, const double A,
         print("Density laplacian via method:    ", lap_comp);
         print(" ");
 
-        if (boundary == 1) print("- Periodic boundary conditions");
-        else if (boundary == 0) print("- Free boundary conditions");
+        if (boundary == 1) print("* Periodic boundary conditions");
+        else if (boundary == 0) print("* Free boundary conditions");
         else {
             print ("Error: Boundary condition must be either 1 (periodic) or 0 (free).");
             assert(0);
         }
 
-        if (jellium == 1) print("- Jellium approximation");
-        else if (jellium == 0) print("- No jellium approximation");
+        if (jellium == 1) print("* Jellium approximation");
+        else if (jellium == 0) print("* No jellium approximation");
         else {
             print ("Error: Jellium switch must be 1 (with jellium) or 0 (no jellium).");
             assert(0);
         }
 
-        if (spinorbit == 1) print("- Spin-orbit potential included");
-        else if (spinorbit == 0) print("- No spin-orbit potential");
+        if (spinorbit == 1) print("* Spin-orbit potential included");
+        else if (spinorbit == 0) print("* No spin-orbit potential");
         else {
             print ("Error: Spin-orbit swithc must be 1 (with spinorbit) or 0 (no spinorbit).");
             assert(0);
         }
-        if (meff == 1) print("- Effective mass potential included");
-        else if (meff == 0) print("- No effective mass potential");
+        if (meff == 1) print("* Effective mass potential included");
+        else if (meff == 0) print("* No effective mass potential");
         else {
             print ("Error: Effective mass switch must be 1 (with eff. mass) or 0 (no eff. mass).");
             assert(0);
         }
 
         if (screening == 1) {
-            print("- Coulomb screening");
-            print("  Screening length:                ", screenl);
+            print("* Coulomb screening");
+            print("* Screening length:                ", screenl);
         }
-        else if (screening == 0) print("- No Coulomb screening");
+        else if (screening == 0) print("* No Coulomb screening");
         else {
             print ("Error: Coulomb screening switch must be 1 (with screening) or 0 (no screening).");
             assert(0);
         }
 
-        if (avg_pot == 1) print("- Potential mixing");
+        if (avg_pot == 1) print("* Potential mixing");
         else if (avg_pot == 0) {}
         else {
             print ("Error: Potential mixing switch must be 1 (with mixing) or 0 (no mixing).");
             assert(0);
         }
 
-        if (avg_lap == 1) print("- Laplacian mixing");
+        if (avg_lap == 1) print("* Laplacian mixing");
         else if (avg_lap == 0) {}
         else {
             print ("Error: Laplacian mixing switch must be 1 (with mixing) or 0 (no mixing).");
             assert(0);
         }
 
-        if (avg_wav == 1) print("- State mixing");
+        if (avg_wav == 1) print("* State mixing");
         else if (avg_wav == 0) {}
         else {
             print ("Error: State mixing switch must be 1 (mixing) or 0 (no mixing).");
@@ -310,6 +309,7 @@ void ground_state(World& world, const double A,
                 char nrecord_name[100];
                 sprintf(nrecord_name, "%s/checkpoint_n", record);
                 archive::ParallelInputArchive nind(world, nrecord_name, IO_nodes);
+
                 for (unsigned int i=0; i< psi_nu.size(); i++) {nind & psi_nu[i]; nind & psi_nd[i];}
                 nind.close();
                 world.gop.fence();
@@ -318,6 +318,7 @@ void ground_state(World& world, const double A,
                 char precord_name[100];
                 sprintf(precord_name, "%s/checkpoint_p", record);
                 archive::ParallelInputArchive pind(world, precord_name, IO_nodes);
+
                 for (unsigned int i=0; i< psi_pu.size(); i++) {pind & psi_pu[i]; pind & psi_pd[i];}
                 pind.close();
                 world.gop.fence();
@@ -334,8 +335,12 @@ void ground_state(World& world, const double A,
                 print("Wavelet number:   ", knumber);
                 print("Trunc. threshold: ", thresh);
                 print("Mixing parameter: ", chi);
-                if(brad > 0.0) {print("Smoothing radius: ", brad);}
-                else {print("No smoothing");}
+                if(brad > 0.0) {
+                    print("Smoothing radius: ", brad);
+                }
+                else {
+                    print("No smoothing");
+                }
                 print("Wall-time:        ", time);
                 print(" ");
             }
@@ -350,7 +355,7 @@ void ground_state(World& world, const double A,
             world.gop.fence();    
 
             // Make local potential
-            if (world.rank() == 0) {print("Make potential");}
+            if (world.rank() == 0) {print("Local potential:");}
             if (iter > 0) {
                 U_p_old = copy(U_p);
                 U_n_old = copy(U_n);
@@ -373,7 +378,7 @@ void ground_state(World& world, const double A,
             if (world.rank() == 0) {print("Neutrons: ");}
             if (timing == 1) {START_TIMER;}
             iterate(world, U_n, psi_nu, psi_nd, energy_n, delta_psi, rho, rho_n, iter,
-                    chi, tol, spinorbit, meff, avg_wav, prec, b, bp, k_fn);
+                           chi, tol, spinorbit, meff, avg_wav, prec, b, bp, k_fn);
             if (timing == 1) {END_TIMER("Iterate neutrons");}
             world.gop.fence();
 
@@ -388,7 +393,7 @@ void ground_state(World& world, const double A,
             if (world.rank() == 0) {print("Protons: ");}
             if (timing == 1) {START_TIMER;}
             iterate(world, U_p, psi_pu, psi_pd, energy_p, delta_psi, rho, rho_p, iter,
-                    chi, tol, spinorbit, meff, avg_wav, prec, b, bp, k_fn);
+                           chi, tol, spinorbit, meff, avg_wav, prec, b, bp, k_fn);
             if (timing == 1) {END_TIMER("Iterate protons");}
             world.gop.fence();
 
@@ -446,6 +451,7 @@ void ground_state(World& world, const double A,
                     psi_pu[i] = madness::project(psi_pu[i], knumber, thresh);
                     psi_pd[i] = madness::project(psi_pd[i], knumber, thresh);
                 }
+
                 truncate2(world, psi_pu, psi_pd, prec);
                 world.gop.fence();
                 normalize_ud(world, psi_pu, psi_pd);
@@ -455,6 +461,7 @@ void ground_state(World& world, const double A,
                     psi_nu[i] = madness::project(psi_nu[i], knumber, thresh);
                     psi_nd[i] = madness::project(psi_nd[i], knumber, thresh);
                 }
+
                 truncate2(world, psi_nu, psi_nd, prec);
                 world.gop.fence();
                 normalize_ud(world, psi_nu, psi_nd);
@@ -479,7 +486,10 @@ void ground_state(World& world, const double A,
             if (timing == 1) {START_TIMER;}
             if (iter%1 == 0) {
                 if (iter%2 == 0 && iter != 0) {
-                    if (world.rank() == 0) { print(" "); print("Checkpoint"); print(" "); }
+                    if (world.rank() == 0) { 
+                        print(" "); 
+                        print("Checkpoint"); print(" "); 
+                    }
                     char trecord_name[100];
                     sprintf(trecord_name, "%s/checkpoint_t", bck_record);
                     archive::ParallelOutputArchive tout(world, trecord_name, IO_nodes);
@@ -511,19 +521,28 @@ void ground_state(World& world, const double A,
                     char nrecord_name[100];
                     sprintf(nrecord_name, "%s/checkpoint_n", bck_record);
                     archive::ParallelOutputArchive noutc(world, nrecord_name, IO_nodes);
-                    for (unsigned int i = 0; i < psi_nu.size(); i++) {noutc & psi_nu[i]; noutc & psi_nd[i];}
+
+                    for (unsigned int i = 0; i < psi_nu.size(); i++) {
+                        noutc & psi_nu[i]; noutc & psi_nd[i];
+                    }
                     noutc.close();
                     world.gop.fence();
 
                     char precord_name[100];
                     sprintf(precord_name, "%s/checkpoint_p", bck_record);
                     archive::ParallelOutputArchive poutc(world, precord_name, IO_nodes);
-                    for (unsigned int i = 0; i < psi_pu.size(); i++) {poutc & psi_pu[i]; poutc & psi_pd[i];}
+
+                    for (unsigned int i = 0; i < psi_pu.size(); i++) {
+                        poutc & psi_pu[i]; poutc & psi_pd[i];
+                    }
                     poutc.close();
                     world.gop.fence();
                 }
                 else {
-                    if (world.rank() == 0) {print(" "); print("Checkpoint"); print(" ");}
+                    if (world.rank() == 0) {
+                        print(" "); 
+                        print("Checkpoint"); print(" ");
+                    }
                     char trecord_name[100];
                     sprintf(trecord_name, "%s/checkpoint_t", record);
                     archive::ParallelOutputArchive tout(world, trecord_name, IO_nodes);
@@ -555,14 +574,20 @@ void ground_state(World& world, const double A,
                     char nrecord_name[100];
                     sprintf(nrecord_name, "%s/checkpoint_n", record);
                     archive::ParallelOutputArchive noutc(world, nrecord_name, IO_nodes);
-                    for (unsigned int i = 0; i < psi_nu.size(); i++) { noutc & psi_nu[i]; noutc & psi_nd[i];}
+
+                    for (unsigned int i = 0; i < psi_nu.size(); i++) {
+                        noutc & psi_nu[i]; noutc & psi_nd[i];
+                    }
                     noutc.close();
                     world.gop.fence();
 
                     char precord_name[100];
                     sprintf(precord_name, "%s/checkpoint_p", record);
                     archive::ParallelOutputArchive poutc(world, precord_name, IO_nodes);
-                    for (unsigned int i = 0; i < psi_pu.size(); i++) { poutc & psi_pu[i]; poutc & psi_pd[i]; }
+
+                    for (unsigned int i = 0; i < psi_pu.size(); i++) {
+                        poutc & psi_pu[i]; poutc & psi_pd[i];
+                    }
                     poutc.close();
                     world.gop.fence();
                 }

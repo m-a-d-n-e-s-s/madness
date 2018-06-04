@@ -1,8 +1,8 @@
 setup:
   A 16
   Z 8
-  length 32
-  initial 2
+  length 16
+  initial 3
   boundary 1
   knumber 6.0
   thresh 1.e-4

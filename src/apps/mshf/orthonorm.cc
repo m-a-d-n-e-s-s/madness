@@ -8,7 +8,7 @@ void orthonorm( World& world, comp_vecfuncT& psi_qu,
                               comp_vecfuncT& Upsi_qu,
                               comp_vecfuncT& Upsi_qd,
                               real_tensorT& E_q,
-                              double& Es,
+                              double& Es1,
                               const double tol,
                               const real_functionT& U_q,
                               const comp_vecfuncT& dpsi_qu_dx,
@@ -28,26 +28,26 @@ void orthonorm( World& world, comp_vecfuncT& psi_qu,
     comp_tensorT H_q(nst, nst);           // hamiltonian
     comp_tensorT S_q(nst, nst);           // overlap matrix
 
-    //if (world.rank() == 0 && details == 1) {print("             Compute K-matrix ... ");}
     comp_tensorT K_q = Kmatrix(world, psi_qu, psi_qd, dpsi_qu_dx, dpsi_qd_dx, dpsi_qu_dy,
                                       dpsi_qd_dy, dpsi_qu_dz, dpsi_qd_dz, prec, k_fq);
     world.gop.fence();
 
-    //if (world.rank() == 0 && details == 1) {print("             Compute S-matrix and H-matrix... ");}
     S_q =       matrix_inner(world, psi_qu, psi_qu,  true) + matrix_inner(world, psi_qd, psi_qd,  true);
     H_q = K_q + matrix_inner(world, psi_qu, Upsi_qu, true) + matrix_inner(world, psi_qd, Upsi_qd, true);
     world.gop.fence();
 
-    //if (world.rank() == 0 && details == 1) {print("             Compute sygv ... ");}
     sygv(H_q, S_q, 1, C_q, E_q);
     world.gop.fence();
 
-    //if (world.rank() == 0 && details == 1) {print("             transform ... ");}
+    comp_tensorT C_q1 = 1.0 * C_q;
+    comp_tensorT C_q2 = 1.0 * C_q;
+    comp_tensorT C_q3 = 1.0 * C_q;
+
     if ((spinorbit != 1) && (meff != 1)) {
         E_q = E_q(Slice(0, nst - 1));
         psi_qu = transform(world, psi_qu, C_q(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
-        world.gop.fence();
-        psi_qd = transform(world, psi_qd, C_q(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
+        //world.gop.fence();
+        psi_qd = transform(world, psi_qd, C_q1(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
         world.gop.fence();
         Upsi_qu = mul(world, U_q, psi_qu, false);
         world.gop.fence();
@@ -56,12 +56,12 @@ void orthonorm( World& world, comp_vecfuncT& psi_qu,
     else {
         E_q = E_q(Slice(0, nst - 1));
         psi_qu  = transform(world, psi_qu,  C_q(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
-        world.gop.fence();
-        psi_qd  = transform(world, psi_qd,  C_q(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
-        world.gop.fence();
-        Upsi_qu = transform(world, Upsi_qu, C_q(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
-        world.gop.fence();
-        Upsi_qd = transform(world, Upsi_qd, C_q(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
+        //world.gop.fence();
+        psi_qd  = transform(world, psi_qd,  C_q1(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
+        //world.gop.fence();
+        Upsi_qu = transform(world, Upsi_qu, C_q2(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
+        //world.gop.fence();
+        Upsi_qd = transform(world, Upsi_qd, C_q3(_, Slice(0, nst - 1)), 1.e-3 * tol, false);
     }
     world.gop.fence();
 
@@ -72,8 +72,9 @@ void orthonorm( World& world, comp_vecfuncT& psi_qu,
         minen = std::min(minen, E_q[i]);
     }
 
-    Es = std::max(15.0, 2.0 * maxen);
-    if (maxen > 0) {if(world.rank() == 0) {print("              Energy Es = ", maxen);}}
+    Es1 = std::max(15.0, 2.0 * maxen);
+    double Es2 = Es1;
+    if (maxen > 0) {if(world.rank() == 0) {print("              Energy Es = ", Es1);}}
 
     truncate2(world, psi_qu,  psi_qd,  prec);
     truncate2(world, Upsi_qu, Upsi_qd, prec);
@@ -87,9 +88,9 @@ void orthonorm( World& world, comp_vecfuncT& psi_qu,
     compress(world, psi_qd, false);
     world.gop.fence();
 
-    gaxpy(world, 1.0, Upsi_qu, -1.0 * Es, psi_qu, false);
-    world.gop.fence();
-    gaxpy(world, 1.0, Upsi_qd, -1.0 * Es, psi_qd, false);
+    gaxpy(world, 1.0, Upsi_qu, -1.0 * Es1, psi_qu, false);
+    //world.gop.fence();
+    gaxpy(world, 1.0, Upsi_qd, -1.0 * Es2, psi_qd, false);
     world.gop.fence();
 
     scale(world, Upsi_qu, -1.0/k_fq);
