@@ -69,6 +69,11 @@ void ground_state(World& world, const double A,
         print("Density laplacian via method:    ", lap_comp);
         print(" ");
 
+        if (A%2 !=0 || Z%2 !=0 || A < 0 || Z < 0) {
+            print("Error: Mass number A and charge number Z must be larger than zero and even!");
+            assert(0);
+        }
+
         if (boundary == 1) print("* Periodic boundary conditions");
         else if (boundary == 0) print("* Free boundary conditions");
         else {
