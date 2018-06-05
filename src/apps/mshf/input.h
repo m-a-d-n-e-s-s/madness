@@ -33,16 +33,16 @@ typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 // Basic simulation setup parameters 
 struct Setup
 {
-    Setup() : A(208.0), 
-              Z(82.0), 
+    Setup() : A(208), 
+              Z(82), 
               length(200.0), 
               initial(3), 
               boundary(1), 
               knumber(5.0),
               project(1)
               {}
-    Setup(const std::string file): A(208.0), 
-                                   Z(82.0), 
+    Setup(const std::string file): A(208), 
+                                   Z(82), 
                                    length(200), 
                                    initial(3), 
                                    boundary(1),
@@ -68,8 +68,8 @@ struct Setup
         }
     }       
 
-    double A;
-    double Z;
+    int A;
+    int Z;
     double length;
     int    initial;
     int    boundary;

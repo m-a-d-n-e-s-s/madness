@@ -72,7 +72,6 @@ struct MD : FunctionFunctorInterface<double_complex,3>
 // Plane wave wavefunction
 struct Fermi : FunctionFunctorInterface<double_complex,3>
 {
-    //const double_complex I = double_complex(0.0, 1.0);
     const int nx, ny, nz, px, py, pz;
     const double L;
     Fermi(int nx, int ny, int nz, int px, int py, int pz, double L) : nx(nx), ny(ny), nz(nz), px(px), py(py), pz(pz), L(L) {}
@@ -91,19 +90,19 @@ struct Fermi : FunctionFunctorInterface<double_complex,3>
 // Make vector of gaussians around nucleon coordinates
 extern void make_MD(World& world, comp_vecfuncT& psi_n, 
                                   comp_vecfuncT& psi_p,
-                                  const double A, 
-                                  const double Z, 
+                                  const int A, 
+                                  const int Z, 
                                   const double L, 
                                   const double prec);
 
 // Make vector of modified HO wavefunctions
-extern void make_HO(World& world, comp_vecfuncT& u, const double A);
+extern void make_HO(World& world, comp_vecfuncT& u, const int A);
 
 
 // Make vector of plane waves wavefunctions
 extern void make_Fermi(World& world, comp_vecfuncT& u, 
-                                     const double A, 
-                                     const double Z, 
+                                     const int A, 
+                                     const int Z, 
                                      const double L, 
                                      const double prec);
 

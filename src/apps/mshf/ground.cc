@@ -23,8 +23,8 @@ char bck_record[] = "./";
 
 
 // Calculates nuclear ground state via Hartree-Fock iterations
-void ground_state(World& world, const double A,
-                                const double Z,
+void ground_state(World& world, const int A,
+                                const int Z,
                                 const double length,
                                 const int initial,
                                 const int boundary,

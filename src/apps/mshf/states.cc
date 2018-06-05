@@ -5,8 +5,8 @@
 // Make vector of gaussians around nucleon coordinates
 void make_MD(World& world, comp_vecfuncT& psi_n,
                            comp_vecfuncT& psi_p,
-                           const double A,
-                           const double Z,
+                           const int A,
+                           const int Z,
                            const double L,
                            const double prec)
 {
@@ -45,7 +45,7 @@ void make_MD(World& world, comp_vecfuncT& psi_n,
 
 
 // Make vector of modified HO wavefunctions
-void make_HO(World& world, comp_vecfuncT& u, const double A)
+void make_HO(World& world, comp_vecfuncT& u, const int A)
 {
     double d = 0.5 * std::pow(A * 1.0,(1.0/3.0)) * 1.25;
     int ntot = u.size();
@@ -74,8 +74,8 @@ void make_HO(World& world, comp_vecfuncT& u, const double A)
 
 // Make vector of plane waves wavefunctions
 void make_Fermi(World& world, comp_vecfuncT& u,
-                              const double A,
-                              const double Z,
+                              const int A,
+                              const int Z,
                               const double L,
                               const double prec)
 {

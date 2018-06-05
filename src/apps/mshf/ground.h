@@ -3,8 +3,8 @@
 
 #include "input.h"
 
-extern void ground_state(World& world, const double A,
-                                       const double Z,
+extern void ground_state(World& world, const int A,
+                                       const int Z,
                                        const double Box,
                                        const int initial,
                                        const int boundary,
