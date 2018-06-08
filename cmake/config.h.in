@@ -66,9 +66,15 @@
 #cmakedefine HAVE_STRCHR 1
 
 /* Define if header files are available. */
+#ifndef HAVE_SYS_STAT_H
 #cmakedefine HAVE_SYS_STAT_H 1
-#cmakedefine HAVE_SYS_TYPES_H 1
+#endif
+#ifndef HAVE_SYS_TYPES_H
+#cmakedefine HAVE_SYS_TYPES_H
+#endif
+#ifndef HAVE_UNISTD_H
 #cmakedefine HAVE_UNISTD_H 1
+#endif
 #cmakedefine HAVE_ELEMENTAL_H 1
 #cmakedefine HAVE_EL_H 1
 
