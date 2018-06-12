@@ -668,6 +668,80 @@ namespace madness {
     extern bool test_rnlp();
 }
 
+
+#include <madness/world/world_object.h>
+#include <madness/world/worldmutex.h>
+
+template <> Spinlock WorldObject<WorldContainerImpl<Key<1ul>, typename VectorNormTree<1ul>::valueT, Hash<Key<1ul> > > >::pending_mutex(0);
+template <> Spinlock WorldObject<WorldContainerImpl<Key<2ul>, typename VectorNormTree<2ul>::valueT, Hash<Key<2ul> > > >::pending_mutex(0);
+template <> Spinlock WorldObject<WorldContainerImpl<Key<3ul>, typename VectorNormTree<3ul>::valueT, Hash<Key<3ul> > > >::pending_mutex(0);
+template <> Spinlock WorldObject<WorldContainerImpl<Key<4ul>, typename VectorNormTree<4ul>::valueT, Hash<Key<4ul> > > >::pending_mutex(0);
+template <> Spinlock WorldObject<WorldContainerImpl<Key<5ul>, typename VectorNormTree<5ul>::valueT, Hash<Key<5ul> > > >::pending_mutex(0);
+template <> Spinlock WorldObject<WorldContainerImpl<Key<6ul>, typename VectorNormTree<6ul>::valueT, Hash<Key<6ul> > > >::pending_mutex(0);
+
+
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<1ul>, VectorNormTree<1ul>::valueT, Hash<Key<1ul> > > >::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<2ul>, VectorNormTree<2ul>::valueT, Hash<Key<2ul> > > >::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<3ul>, VectorNormTree<3ul>::valueT, Hash<Key<3ul> > > >::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<4ul>, VectorNormTree<4ul>::valueT, Hash<Key<4ul> > > >::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<5ul>, VectorNormTree<5ul>::valueT, Hash<Key<5ul> > > >::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<6ul>, VectorNormTree<6ul>::valueT, Hash<Key<6ul> > > >::pending = std::list<::detail::PendingMsg>();
+
+
+template <> Spinlock WorldObject<VectorNormTree<1ul>>::pending_mutex(0);
+template <> Spinlock WorldObject<VectorNormTree<2ul>>::pending_mutex(0);
+template <> Spinlock WorldObject<VectorNormTree<3ul>>::pending_mutex(0);
+template <> Spinlock WorldObject<VectorNormTree<4ul>>::pending_mutex(0);
+template <> Spinlock WorldObject<VectorNormTree<5ul>>::pending_mutex(0);
+template <> Spinlock WorldObject<VectorNormTree<6ul>>::pending_mutex(0);
+
+template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<1ul>>::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<2ul>>::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<3ul>>::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<4ul>>::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<5ul>>::pending = std::list<::detail::PendingMsg>();
+template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<6ul>>::pending = std::list<::detail::PendingMsg>();
+
+// template class VectorNormTree<1ul>;
+// template class VectorNormTree<2ul>;
+// template class VectorNormTree<3ul>;
+// template class VectorNormTree<4ul>;
+// template class VectorNormTree<5ul>;
+// template class VectorNormTree<6ul>;
+
+template <typename T, std::size_t NDIM>
+int test_K(World& world) {
+    if (world.rank() == 0) {
+        print("\nTest exchange - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
+    }
+
+    bool ok=true;
+
+    const double thresh=1.e-4;
+    FunctionDefaults<NDIM>::set_k(6);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(2);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
+    {
+      typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
+      const int nvfunc = 2;
+      std::vector< Function<T,NDIM> > vin(nvfunc);
+      for (int i=0; i<nvfunc; ++i) {
+	functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
+	vin[i] = FunctionFactory<T,NDIM>(world).functor(f2);
+      }
+      
+      //reconstruct
+      norm_tree(world, vin);
+      auto vtree = Function<T,NDIM>::make_vec_norm_tree(vin);
+      vtree->print();
+    }
+    return ok;
+}
+
+
 template <typename T, std::size_t NDIM>
 int test_op(World& world) {
 
@@ -1326,55 +1400,56 @@ int main(int argc, char**argv) {
 
         std::cout.precision(8);
 
+        // nfail+=test_basic<double,1>(world);
+        // nfail+=test_conv<double,1>(world);
+        // nfail+=test_math<double,1>(world);
+        // nfail+=test_diff<double,1>(world);
+        // nfail+=test_op<double,1>(world);
+        // nfail+=test_plot<double,1>(world);
+        // nfail+=test_apply_push_1d<double,1>(world);
+        // nfail+=test_io<double,1>(world);
 
-        nfail+=test_basic<double,1>(world);
-        nfail+=test_conv<double,1>(world);
-        nfail+=test_math<double,1>(world);
-        nfail+=test_diff<double,1>(world);
-        nfail+=test_op<double,1>(world);
-        nfail+=test_plot<double,1>(world);
-        nfail+=test_apply_push_1d<double,1>(world);
-        nfail+=test_io<double,1>(world);
+        // // stupid location for this test
+        // GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
+        // GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, false);
+        // Tensor<double> gg = gen.rnlp(4,0);
+        // Tensor<double> hh = gau.rnlp(4,0);
+        // MADNESS_ASSERT((gg-hh).normf() < 1e-13);
+        // if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
-        // stupid location for this test
-        GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
-        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, false);
-        Tensor<double> gg = gen.rnlp(4,0);
-        Tensor<double> hh = gau.rnlp(4,0);
-        MADNESS_ASSERT((gg-hh).normf() < 1e-13);
-        if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
+        // // disabling to allow tests pass
+        // // TODO fix this test, sometimes error will increase by several orders of magnitude during propagation
+        // //nfail+=test_qm(world);
 
-        // disabling to allow tests pass
-        // TODO fix this test, sometimes error will increase by several orders of magnitude during propagation
-        //nfail+=test_qm(world);
+        // nfail+=test_basic<double_complex,1>(world);
+        // nfail+=test_conv<double_complex,1>(world);
+        // nfail+=test_math<double_complex,1>(world);
+        // nfail+=test_diff<double_complex,1>(world);
+        // nfail+=test_op<double_complex,1>(world);
+        // nfail+=test_plot<double_complex,1>(world);
+        // nfail+=test_io<double_complex,1>(world);
 
-        nfail+=test_basic<double_complex,1>(world);
-        nfail+=test_conv<double_complex,1>(world);
-        nfail+=test_math<double_complex,1>(world);
-        nfail+=test_diff<double_complex,1>(world);
-        nfail+=test_op<double_complex,1>(world);
-        nfail+=test_plot<double_complex,1>(world);
-        nfail+=test_io<double_complex,1>(world);
+        // //TaskInterface::debug = true;
+        // nfail+=test_basic<double,2>(world);
+        // nfail+=test_conv<double,2>(world);
+        // nfail+=test_math<double,2>(world);
+        // nfail+=test_diff<double,2>(world);
+        // nfail+=test_op<double,2>(world);
+        // nfail+=test_plot<double,2>(world);
+        // nfail+=test_io<double,2>(world);
 
-        //TaskInterface::debug = true;
-        nfail+=test_basic<double,2>(world);
-        nfail+=test_conv<double,2>(world);
-        nfail+=test_math<double,2>(world);
-        nfail+=test_diff<double,2>(world);
-        nfail+=test_op<double,2>(world);
-        nfail+=test_plot<double,2>(world);
-        nfail+=test_io<double,2>(world);
+        // nfail+=test_basic<double,3>(world);
+        // nfail+=test_conv<double,3>(world);
+        // nfail+=test_math<double,3>(world);
+        // nfail+=test_diff<double,3>(world);
+        // nfail+=test_op<double,3>(world);
+        // nfail+=test_coulomb(world);
+        // nfail+=test_plot<double,3>(world);
+        // nfail+=test_io<double,3>(world);
 
-        nfail+=test_basic<double,3>(world);
-        nfail+=test_conv<double,3>(world);
-        nfail+=test_math<double,3>(world);
-        nfail+=test_diff<double,3>(world);
-        nfail+=test_op<double,3>(world);
-        nfail+=test_coulomb(world);
-        nfail+=test_plot<double,3>(world);
-        nfail+=test_io<double,3>(world);
+        // test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
-        test_plot<double,4>(world); // slow unless reduce npt in test_plot
+	test_K<double,3>(world);
 
         if (world.rank() == 0) print("entering final fence");
         world.gop.fence();

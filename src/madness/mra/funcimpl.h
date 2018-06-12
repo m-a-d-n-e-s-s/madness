@@ -48,6 +48,7 @@
 #include <madness/mra/key.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
+#include <madness/mra/vecnormtree.h>
 
 #include "leafop.h"
 
@@ -991,6 +992,31 @@ namespace madness {
         virtual ~FunctionImpl() { }
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const;
+
+      static 
+      std::shared_ptr<VectorNormTree<NDIM>>
+      make_vec_norm_tree(const std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>>& v) {
+	const size_t nfunc = v.size();
+	World& world = v[0]->world;
+	MADNESS_ASSERT(nfunc>0);
+	world.gop.fence();
+	using vtreeT = VectorNormTree<NDIM>;
+	auto vtree = std::make_shared<vtreeT>(v[0]->world, v[0]->get_pmap(), nfunc);
+	
+	for (size_t i=0; i<nfunc; i++) {
+	  auto f = v[i];
+	  for (auto& it : f->coeffs) {
+	    const Key<NDIM>& key = it.first;
+	    double norm = it.second.get_norm_tree();
+	    bool has_children = it.second.has_children();
+	    vtree->set(i, key, norm, has_children);
+	  }
+	}
+	vtree->putv();
+
+	return vtree;
+      }  
+	
 
         /// Copy coeffs from other into self
         template <typename Q>
@@ -3584,7 +3610,7 @@ namespace madness {
         	// this means that the function has to be completely constructed and not mirrored by another function
 
         	// if the initial level is not reached then this must not be a leaf box
-        	size_t il = result->get_initial_level();
+        	Level il = result->get_initial_level();
         	if(FunctionDefaults<NDIM>::get_refine()) il+=1;
         	if(key.level()<il){
         	    //std::cout << "n=" +  std::to_string(key.level()) + " below initial level " + std::to_string(result->get_initial_level()) + "\n";

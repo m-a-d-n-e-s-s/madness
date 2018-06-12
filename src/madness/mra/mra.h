@@ -211,6 +211,12 @@ namespace madness {
             return result;
         }
 
+	static 
+	std::shared_ptr<VectorNormTree<NDIM>>
+	make_vec_norm_tree(const std::vector<Function<T,NDIM>>& v) {
+	  return FunctionImpl<T,NDIM>::make_vec_norm_tree(vimpl(v));
+	}
+
         /// Evaluate function only if point is local returning (true,value); otherwise return (false,0.0)
 
         /// maxlevel is the maximum depth to search down to --- the max local depth can be
