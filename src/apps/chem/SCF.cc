@@ -249,7 +249,7 @@ namespace madness {
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
         ar & current_energy & param.spin_restricted;
         ar & (unsigned int) (amo.size());
-        ar & aeps & aocc & aset;
+        ar & aeps & aocc & aset & param.L & FunctionDefaults<3>::get_k() & molecule;
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
         if (!param.spin_restricted) {
@@ -295,6 +295,11 @@ namespace madness {
           repeat for beta if !spinrestricted
           
         */
+
+        //Local copies for basic check
+        double L;
+        Molecule molecule1;
+        int k1;
         
         // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
         // EPS, SWAP, ... sigh
@@ -302,7 +307,13 @@ namespace madness {
         
         ar & nmo;
         MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
-        ar & aeps & aocc & aset;
+        ar & aeps & aocc & aset & L & k1 & molecule1;
+
+        //Some basic checks
+        if(L != param.L){
+           if(world.rank()==0) print("Warning: Box size mismatch between archive and input parameter. Archive value:", L, "Param value:", param.L);
+        }
+
         amo.resize(nmo);
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];

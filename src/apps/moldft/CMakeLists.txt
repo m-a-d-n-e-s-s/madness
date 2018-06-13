@@ -15,4 +15,7 @@ target_link_libraries(testpg MADchem)
 add_executable(testperiodic_moldft testperiodic.cc)
 target_link_libraries(testperiodic_moldft MADchem)
 
+add_executable(DFdriver DFdriver.cc DF.cc fcwf.cc gaussian.cc NWChem.cc polynomial.cc)
+target_link_libraries(DFdriver MADchem MADmra)
+
 install(TARGETS moldft mcpfit DESTINATION "${MADNESS_INSTALL_BINDIR}")

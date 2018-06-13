@@ -1,0 +1,71 @@
+#!/bin/bash
+
+#PBS -l nodes=8:ppn=28,walltime=24:00:00
+#PBS -q long
+#PBS -N DFdriver
+#PBS -j oe
+
+
+#14 cores per socket = OS+MPI+unknown+madness
+export I_MPI_FABRICS=shm:ofa
+export MAD_NUM_THREADS=11
+export I_MPI_PIN_DOMAIN=socket
+#export I_MPI_HYDRA_BOOTSTRAP=rsh
+#export MAD_SEND_BUFFERS=512
+#export MAD_RECV_BUFFERS=512
+#export REMORA_MODE=FULL
+
+MY_EXE=/gpfs/home/jscanderson/src/madness/src/apps/moldft/DFdriver
+MY_OUTPUT=/gpfs/home/jscanderson/src/madness/src/apps/moldft/OutputFiles/DFdriver
+MY_JOB_MESSAGE='Debugging contant hung queues. Got it to hang again. Running 5 times with lineplots turned on'
+
+cd $PBS_O_WORKDIR 
+
+#Checks to see if output file already exists, if so changes filename
+if [[ -e $MY_OUTPUT.out ]] ; then
+     i=2
+     while [[ -e $MY_OUTPUT-$i.out ]] ; do
+          let i++
+     done
+     MY_OUTPUT=$MY_OUTPUT-$i
+fi
+MY_OUTPUT=$MY_OUTPUT.out
+
+
+#gets hosts, writes those to output
+sort < $PBS_NODEFILE | uniq > $$.hosts
+let NPROC=$PBS_NUM_NODES*2
+cat $$.hosts &> $MY_OUTPUT
+
+#write job message to output
+echo &>> $MY_OUTPUT
+echo 'Job message:' &>> $MY_OUTPUT
+echo $MY_JOB_MESSAGE &>> $MY_OUTPUT
+echo &>> $MY_OUTPUT
+
+# Now run the job
+#mpirun -npernode 2 $MY_EXE DFinput_He &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_Be &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_Ne &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_Mg &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_Ar &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_Ca &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_Zn &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_Kr &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_Xe &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_HF &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_N2 &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_BH3 &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_H2O &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_H2S &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput_H2Se &>> $MY_OUTPUT
+#mpirun -npernode 2 $MY_EXE DFinput &>> $MY_OUTPUT
+#remora mpirun -npernode 2 $MY_EXE DFinput &>> $MY_OUTPUT
+
+#Use with
+mpirun -f $$.hosts -ppn 2 -n $NPROC $MY_EXE DFinput &>> $MY_OUTPUT
+mpirun -f $$.hosts -ppn 2 -n $NPROC $MY_EXE DFinput &>> $MY_OUTPUT
+mpirun -f $$.hosts -ppn 2 -n $NPROC $MY_EXE DFinput &>> $MY_OUTPUT
+mpirun -f $$.hosts -ppn 2 -n $NPROC $MY_EXE DFinput &>> $MY_OUTPUT
+mpirun -f $$.hosts -ppn 2 -n $NPROC $MY_EXE DFinput &>> $MY_OUTPUT
+
