@@ -14,7 +14,7 @@
 #include <exception>
 #include <iterator>
 #include <list>
-#include <apps/chem/SCF.h>
+#include <chem/SCF.h>
 
 namespace madness {
 
@@ -103,8 +103,10 @@ struct ACParameters{
 		dft_coefficient_=0.0;
 	}
 
-	void initialize(Molecule molecule, std::string ac_data, double dft_coeff, double tot_charge){
-
+	bool initialize(Molecule molecule, std::string ac_data, double dft_coeff, double tot_charge){
+		if(ac_data=="none"){
+			return false;
+		}else{
 		dft_coefficient_ = dft_coeff;
 
 		std::stringstream sac_data(ac_data);
@@ -131,6 +133,8 @@ struct ACParameters{
 		}
 		atoms_ = make_atom_vec(molecule, R1_, R2_);
 		num_elec_ = molecule.total_nuclear_charge() - tot_charge;
+		return true;
+		}
 	}
 
 	ACParameters(const ACParameters &other)
@@ -432,11 +436,11 @@ private:
 
 	/// Parameter for the asymtotic correction
 	ACParameters<NDIM> ac_param_;
-
+	bool initialized_=false;
 	double shift()const{return (-ac_param_.e_ion_-ac_param_.eh_);}
 
 public:
-
+    bool initialized()const{return initialized_;}
     AC(){
     	// TODO Auto-generated constructor stub
     	std::cout << "Called AC default Constructor\n";
@@ -448,8 +452,9 @@ public:
 
    AC(World &world, std::shared_ptr<SCF> calc){
 	   if(world.rank()==0){
-		   ac_param_.initialize(calc->molecule, calc->param.ac_data, 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge);
+		   initialized_=ac_param_.initialize(calc->molecule, calc->param.ac_data, 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge);
 	   }
+	   world.gop.broadcast_serializable(initialized_,0);
 	   world.gop.broadcast_serializable(ac_param_, 0);
 	   ac_param_.print(world);
 	   if(calc->param.ac_data!="none") ac_param_.check(world);
@@ -461,6 +466,7 @@ public:
    /// @param[in] xc_functional: uncorrected (standard) exchange correlation potential
    /// @param[out] : corrected exchange correlation potential
    Function<double,NDIM> apply(Function<double,NDIM> xc_functional)const{
+	   MADNESS_ASSERT(initialized());
 	   std::cout << "Apply AC Scheme with multipole approximation\n";
 	   // fast return
 	   if(ac_param_.atoms_.empty()){
@@ -488,6 +494,7 @@ public:
    /// @param[in] v_hartree: potential to describe asymptotic behaviour
    /// @param[out] : corrected exchange correlation potential
    Function<double,NDIM> apply(Function<double,NDIM> xc_functional, const Function<double,NDIM> v_hartree)const{
+	   MADNESS_ASSERT(initialized());
 	   if(ac_param_.use_mult_) return apply(xc_functional);
 	   //else return apply_potential(xc_functional, v_hartree);
 	   std::cout << "Apply AC Scheme with hartree potential\n";

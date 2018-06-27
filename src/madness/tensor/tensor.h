@@ -1958,6 +1958,23 @@ namespace madness {
         }
     }
 
+    /// Returns a new contiguous tensor of type Q that is a deep copy of the input
+
+    /// \ingroup tensor
+    /// @result Returns a new contiguous tensor that is a deep copy of the input
+    template <class Q, class T>
+    Tensor<Q> convert(const Tensor<T>& t) {
+        if (t.size()) {
+            Tensor<Q> result = Tensor<Q>(t.ndim(),t.dims(),false);
+            BINARY_OPTIMIZED_ITERATOR(Q, result, const T, t, *_p0 = *_p1);
+            return result;
+        }
+        else {
+            return Tensor<Q>();
+        }
+    }
+
+
     /// Transforms one dimension of the tensor t by the matrix c, returns new contiguous tensor
 
     /// \ingroup tensor

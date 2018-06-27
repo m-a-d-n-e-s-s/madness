@@ -188,6 +188,10 @@ namespace madness {
         ThreadBase::set_hpm_thread_env(hpm_thread_id);
 #endif
         detail::WorldMpi::initialize(argc, argv, MADNESS_MPI_THREAD_LEVEL);
+
+        // Construct the default world before starting RMI so that incoming active messages can find this world
+        World::default_world = new World(comm);
+
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
         ThreadPool::begin();        // Must have thread pool before any AM arrives
@@ -205,9 +209,6 @@ namespace madness {
 #ifdef MADNESS_HAS_ELEMENTAL
         elem::Initialize(argc,argv);
 #endif // HAVE_ELEMENTAL
-
-        // Construct the default world
-        World::default_world = new World(comm);
 
         madness_initialized_ = true;
         if(SafeMPI::COMM_WORLD.Get_rank() == 0)

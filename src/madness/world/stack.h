@@ -371,6 +371,11 @@ namespace madness {
         /// \return The number of items pushed to the stack.
         size_type size() const { return size_; }
 
+        /// Size accessor.
+
+        /// \return The number of items pushed to the stack.
+        size_type size() const volatile { return size_; }
+
         /// Capacity accessor.
 
         /// \return The size of allocated storage capacity.
@@ -381,7 +386,12 @@ namespace madness {
         /// \return True if the size of the stack is 0; otherwise false.
         bool empty() const { return ! size_; }
 
-        /// Empty the stack.
+        /// Check if the stack is empty.
+
+        /// \return True if the size of the stack is 0; otherwise false.
+        bool empty() const volatile { return ! size_; }
+
+      /// Empty the stack.
 
         /// Destroy items on the stack (if any) and set the size to 0.
         void clear() {

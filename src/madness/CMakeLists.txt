@@ -78,6 +78,15 @@ target_link_libraries(madness PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(madness PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
+if (LAPACK_INCLUDE_DIRS)
+  target_include_directories(madness PUBLIC ${LAPACK_INCLUDE_DIRS})
+endif(LAPACK_INCLUDE_DIRS)
+if (LAPACK_COMPILE_OPTIONS)
+  target_compile_options(madness PUBLIC ${LAPACK_COMPILE_OPTIONS})
+endif(LAPACK_COMPILE_OPTIONS)
+if (LAPACK_COMPILE_DEFINITIONS)
+  target_compile_definitions(madness PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
+endif(LAPACK_COMPILE_DEFINITIONS)
 
 # Add common header files and madness library to the install list
 install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINARY_DIR}/config.h

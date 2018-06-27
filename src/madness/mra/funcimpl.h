@@ -178,7 +178,7 @@ namespace madness {
         template<typename Q>
         FunctionNode<Q, NDIM>
         convert() const {
-            return FunctionNode<Q, NDIM> (copy(coeff()), _has_children);
+            return FunctionNode<Q, NDIM> (madness::convert<Q,T>(coeff()), _has_children);
         }
 
         /// Returns true if there are coefficients in this node
@@ -344,8 +344,10 @@ namespace madness {
                 //                coeff() = coeffT(t,args);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
-                    //const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
-                    const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+		    if (c.is_local(parent))
+			const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+		    else
+		      const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
             double cpu1=cpu_time();
@@ -383,8 +385,10 @@ namespace madness {
             	coeff() = copy(t);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
-                    //const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
-                    const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+		    if (c.is_local(parent)) 
+		      const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+		    else
+		      const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
             double cpu1=cpu_time();
@@ -1000,7 +1004,7 @@ namespace madness {
                  it!=end; ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
-                coeffs.replace(key,node. template convert<Q>());
+                coeffs.replace(key,node. template convert<T>());
             }
             if (fence)
                 world.gop.fence();
@@ -2380,7 +2384,11 @@ namespace madness {
                             bool newnode = left->coeffs.insert(acc,key);
                             if (newnode && key.level()>0) {
                                 Key<NDIM> parent = key.parent();
-                                left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+				if (left->coeffs.is_local(parent))
+				  left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+				else
+				  left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+
                             }
                             nodeT& node = acc->second;
                             if (!node.has_coeff())
@@ -4350,9 +4358,10 @@ namespace madness {
 		        ndone++;
 		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
 			if (result.normf() > 0.3*tol/fac) {
-			      // Switched back to send in order to get rid of a zillion small tasks and to preserve
-			      // direct call optimization.  Also reduces remote memory foot print.
+			  if (coeffs.is_local(dest))
 			      coeffs.send(dest, &nodeT::accumulate2, result, coeffs, dest);
+			  else
+  			      coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest);
                         }
                     }
                 }

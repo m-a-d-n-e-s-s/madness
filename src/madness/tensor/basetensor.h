@@ -91,7 +91,7 @@ namespace madness {
     protected:
 
         long _size;			///< Number of elements in the tensor
-        long _ndim;			///< Number of dimensions (-1=invalid; 0=scalar; >0=tensor)
+        long _ndim;			///< Number of dimensions (-1=invalid; 0=no supported; >0=tensor)
         long _id; 			///< Id from TensorTypeData<T> in type_data.h
         long _dim[TENSOR_MAXDIM];	///< Size of each dimension
         long _stride[TENSOR_MAXDIM];     ///< Increment between elements in each dimension

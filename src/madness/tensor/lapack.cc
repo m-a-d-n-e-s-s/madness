@@ -80,18 +80,39 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              integer *info, char_len jobulen, char_len jobvtlen) {
     //std::cout << "n " << *n << " m " << *m << " lwork " << *lwork << std::endl;
     //std::cout << " sizeof(integer) " << sizeof(integer) << std::endl;
+#if MADNESS_LINALG_USE_LAPACKE
+    sgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
+            vt, ldvt, work, lwork, info);
+#else
     sgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, info, jobulen, jobvtlen);
+#endif
 }
+
+#if MADNESS_LINALG_USE_LAPACKE
+STATIC inline
+void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
+             real8 *a, integer *lda, real8 *s, real8 *u, integer *ldu,
+             real8 *vt, integer *ldvt, real8 *work, integer *lwork,
+             integer *info, char_len jobulen, char_len jobvtlen){
+  dgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
+          vt, ldvt, work, lwork, info);
+}
+#endif 
 
 STATIC inline
 void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              complex_real4 *a, integer *lda, real4 *s, complex_real4 *u, integer *ldu,
              complex_real4 *vt, integer *ldvt, complex_real4 *work, integer *lwork,
              integer *info, char_len jobulen, char_len jobvtlen) {
-    Tensor<float> rwork(5*min(*m,*n));
+  Tensor<float> rwork(5*min(*m,*n));
+#if MADNESS_LINALG_USE_LAPACKE
+    cgesvd_(jobu, jobvt, m, n, reinterpret_cast<lapack_complex_float*>(a), lda, s, reinterpret_cast<lapack_complex_float*>(u), ldu,
+            reinterpret_cast<lapack_complex_float*>(vt), ldvt, reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
+#else
     cgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
+#endif
 }
 
 STATIC inline
@@ -100,9 +121,13 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              complex_real8 *vt, integer *ldvt, complex_real8 *work, integer *lwork,
              integer *info, char_len jobulen, char_len jobvtlen) {
     Tensor<double> rwork(5*min(*m,*n));
+#if MADNESS_LINALG_USE_LAPACKE
+    zgesvd_(jobu, jobvt, m, n, reinterpret_cast<lapack_complex_double*>(a), lda, s, reinterpret_cast<lapack_complex_double*>(u), ldu,
+            reinterpret_cast<lapack_complex_double*>(vt), ldvt, reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
+#else
     zgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
-
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
+#endif
 }
 
 /// These oddly-named wrappers enable the generic gesv iterface to get
@@ -114,11 +139,19 @@ STATIC inline void dgesv_(integer* n, integer* nrhs, float* AT, integer* lda,
 }
 STATIC inline void dgesv_(integer* n, integer* nrhs, float_complex* AT, integer* lda,
                           integer* piv, float_complex* x, integer* ldx, integer* info) {
+#if MADNESS_LINALG_USE_LAPACKE
+    cgesv_(n, nrhs, reinterpret_cast<lapack_complex_float*>(AT), lda, piv, reinterpret_cast<lapack_complex_float*>(x), ldx, info);
+#else
     cgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
+#endif
 }
 STATIC inline void dgesv_(integer* n, integer* nrhs, double_complex* AT, integer* lda,
                           integer* piv, double_complex* x, integer* ldx, integer* info) {
+#if MADNESS_LINALG_USE_LAPACKE
+    zgesv_(n, nrhs, reinterpret_cast<lapack_complex_double*>(AT), lda, piv, reinterpret_cast<lapack_complex_double*>(x), ldx, info);
+#else
     zgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
+#endif
 }
 /// These oddly-named wrappers enable the generic gelss iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
@@ -137,8 +170,13 @@ STATIC inline void dgelss_(integer *m, integer *n, integer *nrhs,
                            float *rcondIN, integer *rankOUT, float_complex *work,
                            integer *lwork, integer *infoOUT) {
     Tensor<float> rwork((5*min(*m,*n)));
+#if MADNESS_LINALG_USE_LAPACKE
+  cgelss_(m, n, nrhs, reinterpret_cast<lapack_complex_float*>(a), lda, reinterpret_cast<lapack_complex_float*>(b), ldb, sOUT,
+          rcondIN, rankOUT, reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(),infoOUT);
+#else
     cgelss_(m, n, nrhs, a, lda, b, ldb, sOUT, rcondIN, rankOUT, work,
             lwork, rwork.ptr(),infoOUT);
+#endif
 }
 
 
@@ -148,8 +186,13 @@ STATIC inline void dgelss_(integer *m, integer *n, integer *nrhs,
                            double *rcondIN, integer *rankOUT, double_complex *work,
                            integer *lwork, integer *infoOUT) {
     Tensor<double> rwork((5*min(*m,*n)));
+#if MADNESS_LINALG_USE_LAPACKE
+  zgelss_(m, n, nrhs, reinterpret_cast<lapack_complex_double*>(a), lda, reinterpret_cast<lapack_complex_double*>(b), ldb, sOUT,
+          rcondIN, rankOUT, reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(),infoOUT);
+#else
     zgelss_(m, n, nrhs, a, lda, b, ldb, sOUT, rcondIN, rankOUT, work,
             lwork, rwork.ptr(),infoOUT);
+#endif
 }
 
 /// These oddly-named wrappers enable the generic sygv/hegv iterface to get
@@ -160,10 +203,24 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             real4 *a, integer *lda, real4 *b, integer *ldb,
             real4 *w,  real4 *work,  integer *lwork,
             integer *info, char_len jobzlen, char_len uplo_len ) {
+#if MADNESS_LINALG_USE_LAPACKE
+    ssygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
+#else
     ssygv_(itype, jobz, uplo, n,
            a, lda, b, ldb, w,  work,  lwork, info,
            jobzlen,uplo_len);
+#endif
 }
+
+#if MADNESS_LINALG_USE_LAPACKE
+STATIC inline
+void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
+            real8 *a, integer *lda, real8 *b, integer *ldb,
+            real8 *w,  real8 *work,  integer *lwork,
+            integer *info, char_len jobzlen, char_len uplo_len ) {
+  dsygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
+}
+#endif
 
 STATIC inline
 void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
@@ -171,9 +228,14 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             real4 *w,  complex_real4 *work,  integer *lwork,
             integer *info, char_len jobzlen, char_len uplo_len ) {
     Tensor<float> rwork(max((integer) 1, (integer) (3*(*n)-2)));
+#if MADNESS_LINALG_USE_LAPACKE
+    chegv_(itype, jobz, uplo, n, reinterpret_cast<lapack_complex_float*>(a), lda, reinterpret_cast<lapack_complex_float*>(b),
+            ldb, w, reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
+#else
     chegv_(itype, jobz, uplo, n,
            a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
            jobzlen, uplo_len);
+#endif
 }
 
 STATIC inline
@@ -182,9 +244,14 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             real8 *w,  complex_real8 *work,  integer *lwork,
             integer *info, char_len jobzlen, char_len uplo_len ) {
     Tensor<double> rwork(max((integer) 1, (integer) (3*(*n)-2)));
+#if MADNESS_LINALG_USE_LAPACKE
+    zhegv_(itype, jobz, uplo,n, reinterpret_cast<lapack_complex_double*>(a), lda, reinterpret_cast<lapack_complex_double*>(b),
+            ldb, w, reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
+#else
     zhegv_(itype, jobz, uplo, n,
            a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
            jobzlen, uplo_len);
+#endif
 }
 
 /// These oddly-named wrappers enable the generic syev/heev iterface to get
@@ -193,8 +260,20 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
 STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
                           real4 *a, integer *lda, real4 *w,  real4 *work,  integer *lwork,
                           integer *info, char_len jobzlen, char_len uplo_len ) {
-    ssyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len );
+#if MADNESS_LINALG_USE_LAPACKE
+  ssyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
+#else
+  ssyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len );
+#endif
 }
+
+#if MADNESS_LINALG_USE_LAPACKE
+STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
+                          real8 *a, integer *lda, real8 *w,  real8 *work,  integer *lwork,
+                          integer *info, char_len jobzlen, char_len uplo_len ) {
+  dsyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
+}
+#endif
 
 STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    complex_real4 *a, integer *lda, real4 *w,
@@ -202,8 +281,13 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    integer *info, char_len jobzlen, char_len uplo_len ) {
     Tensor<float> rwork(max((integer) 1, (integer) (3* (*n)-2)));
     //std::cout << *n << " " << *lda << " " << *lwork <<std::endl;
+#if MADNESS_LINALG_USE_LAPACKE
+    cheev_(jobz, uplo, n, reinterpret_cast<lapack_complex_float*>(a), lda, w,
+           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
+#else
     cheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
            info, jobzlen, uplo_len );
+#endif
 }
 
 STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
@@ -211,8 +295,13 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    complex_real8 *work,  integer *lwork,
                    integer *info, char_len jobzlen, char_len uplo_len ) {
     Tensor<double> rwork(max((integer) 1, (integer) (3* (*n)-2)));
+#if MADNESS_LINALG_USE_LAPACKE
+    zheev_(jobz, uplo, n, reinterpret_cast<lapack_complex_double*>(a), lda, w,
+           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
+#else
     zheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
            info, jobzlen, uplo_len );
+#endif
 }
 
 
@@ -288,13 +377,25 @@ STATIC inline void dorgqr_(integer *m, integer *n, integer *k,
 STATIC void dorgqr_(integer *m, integer *n, integer *k,
 		 complex_real4 *a, integer *lda, complex_real4 *tau,
 		 complex_real4 *work, integer *lwork, integer *info) {
+#if MADNESS_LINALG_USE_LAPACKE
+  cungqr_(m, n, k, reinterpret_cast<lapack_complex_float*>(a), lda,
+          reinterpret_cast<lapack_complex_float*>(tau),
+          reinterpret_cast<lapack_complex_float*>(work), lwork, info);
+#else
 	cungqr_(m, n, k, a, m, tau, work, lwork, info);
+#endif
 }
 
 STATIC void dorgqr_(integer *m, integer *n, integer *k,
 		 complex_real8 *a, integer *lda, complex_real8 *tau,
 	 	 complex_real8 *work, integer *lwork, integer *info) {
+#if MADNESS_LINALG_USE_LAPACKE
+  zungqr_(m,n,k, reinterpret_cast<lapack_complex_double*>(a), m,
+          reinterpret_cast<lapack_complex_double*>(tau),
+          reinterpret_cast<lapack_complex_double*>(work), lwork, info);
+#else
 	zungqr_(m, n, k, a, m, tau, work, lwork, info);
+#endif
 }
 
 namespace madness {
@@ -331,14 +432,13 @@ namespace madness {
         s = Tensor< typename Tensor<T>::scalar_type >(rmax);
         U = Tensor<T>(m,rmax);
         VT = Tensor<T>(rmax,n);
-
-        //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
-	//std::cout << sizeof(long) << " " << sizeof(int) << " " << sizeof(integer) << std::endl;
-	//std::cout << sizeof(real4) << " " << sizeof(float)  << std::endl;
         dgesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
                 VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
 
+        //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
+	//std::cout << sizeof(long) << " " << sizeof(int) << " " << sizeof(integer) << std::endl;
+	//std::cout << sizeof(real4) << " " << sizeof(float)  << std::endl;
         mask_info(info);
 
         TENSOR_ASSERT(info == 0, "svd: Lapack failed", info, &a);
@@ -365,7 +465,7 @@ namespace madness {
         integer info;
 
         // calling list is swapped
-        dgesvd_("O","S", &n, &m, a.ptr(), &n, s.ptr(),
+        dgesvd_("O", "S", &n, &m, a.ptr(), &n, s.ptr(),
                 VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
 
@@ -563,6 +663,7 @@ namespace madness {
         e = Tensor<typename Tensor<T>::scalar_type>(n);
         dsyev_("V", "U", &n, V.ptr(), &n, e.ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
+
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         V = transpose(V);
@@ -752,7 +853,11 @@ namespace madness {
         integer n = A.dim(0);
         integer info;
 
+#if MADNESS_LINALG_USE_LAPACKE
+        dpotrf_("L", &n, A.ptr(), &n, &info);
+#else
         dpotrf_("L", &n, A.ptr(), &n, &info, 1);
+#endif
         mask_info(info);
         TENSOR_ASSERT(info == 0, "cholesky: Lapack failed", info, &A);
 
@@ -1123,8 +1228,13 @@ namespace madness {
 
     void init_tensor_lapack() {
 	char e[] = "e";
+#if MADNESS_LINALG_USE_LAPACKE
+    dlamch(e);
+	slamch(e);
+#else
 	dlamch_(e,1);
 	slamch_(e,1);
+#endif
 
 // 	char modes[] = "esbpnrmulo";
 // 	for (int i=0; i<10; ++i) {

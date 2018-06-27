@@ -193,6 +193,9 @@ void test5(World& world) {
     Future<string> kate2;
     Future<double> kate3;
     Future<string> kate = world.taskq.add(TTT::kate,&world,kate2,kate3);
+    Future<string> katy2;
+    Future<double> katy3;
+    Future<string> katy = world.taskq.add(TTT::kate,&world,&katy2,&katy3);
     Future<string> cute = world.taskq.add(right,TTT::kate,&world,string("Boo!"),-42.0);
     TTT ttt;
     Future<double> jody = world.taskq.add(ttt,&TTT::jody,1.0,2.0,3.0);
@@ -204,6 +207,8 @@ void test5(World& world) {
     sara2.set(double_complex(2.1,1.2));
     kate2.set(string("Who's your daddy?"));
     kate3.set(3.14);
+    katy2.set(string("Your momma"));
+    katy3.set(6.28);
 
     vector< Future<int> > futv = future_vector_factory<int>(7);
     Future<double> hugh = world.taskq.add(ttt,&TTT::hugh,futv);
@@ -222,6 +227,7 @@ void test5(World& world) {
     MADNESS_ASSERT(bert.probe());
     MADNESS_ASSERT(sara.probe());
     MADNESS_ASSERT(kate.probe());
+    MADNESS_ASSERT(katy.probe());
     MADNESS_ASSERT(cute.probe());
     MADNESS_ASSERT(jody.probe());
     MADNESS_ASSERT(hugh.probe());
@@ -235,6 +241,7 @@ void test5(World& world) {
     MADNESS_ASSERT(duh.get() == 21.0);
     print("Sara says",sara.get().real(),sara.get().imag());
     print("Kate says",kate.get());
+    print("Katy says",katy.get());
     print("Cute says",cute.get());
     print("Jody says",jody.get());
 

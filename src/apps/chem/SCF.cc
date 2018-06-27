@@ -96,6 +96,7 @@ namespace madness {
     }
     
   static double pop(std::vector<double>& v) {
+    MADNESS_ASSERT(v.size());
     double x=v.back();
     v.pop_back();
     return x;
@@ -174,7 +175,12 @@ namespace madness {
                 MADNESS_EXCEPTION("SCF failed to open stream", 0);
             }
             molecule.read(*input);
-            if (molecule.natom() < 3) param.localize = false; // symmetry confuses orbital localization
+            // symmetry confuses orbital localization
+            if (molecule.natom() < 3){
+		param.localize = false; 
+		if(world.rank()==0) std::cout << "Less than 3 Atoms: Deactivated localization!\n";
+	    }
+
             param.read(*input);
             
             //if psp_calc is true, set all atoms to PS atoms
@@ -2373,7 +2379,6 @@ namespace madness {
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 normalize(world, amo);
-                END_TIMER(world, "Rotate subspace");
                 if (!param.spin_restricted && param.nbeta != 0) {
 		  if (param.localize_pm)
                     dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, true);

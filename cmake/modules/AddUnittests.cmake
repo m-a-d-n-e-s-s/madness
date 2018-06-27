@@ -16,7 +16,7 @@ macro(add_unittests _component _sources _libs)
     
     # Create test executables
     add_executable(${_test} EXCLUDE_FROM_ALL ${_source_list})
-    target_link_libraries(${_test} ${_libs})
+    target_link_libraries(${_test} ${_libs} "${DISABLEPIE_LINKER_FLAG}")
     
     # Add the test and set dependencies
     add_test(NAME ${_component}-${_test} COMMAND ${_test})

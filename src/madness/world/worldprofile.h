@@ -52,8 +52,7 @@ namespace madness {
         T value, max, min, sum;  // local value, parallel max, min, sum
         ProcessID pmax, pmin;    // processor with max, min values
 
-        /// Constructor initializes all members to zero
-        ProfileStat() : value(0), max(0), min(0), sum(0), pmax(0), pmin(0) {}
+        ProfileStat() = default;
 
         /// Copies local stats into parallel stats in prep for global reduction
         void init_par_stats(ProcessID me) {
@@ -78,11 +77,6 @@ namespace madness {
         void clear() {
             value = max = min = sum = 0;
             pmax = pmin = 0;
-        }
-
-        template <class Archive>
-        void serialize(const Archive& ar) {
-            ar & value & max & min & sum & pmax & pmin;
         }
     }; // struct ProfileStat
 

@@ -169,7 +169,7 @@ namespace madness {
 
     inline AmArg* copy_am_arg(const AmArg& arg) {
         AmArg* r = alloc_am_arg(arg.size());
-        memcpy(r, &arg, arg.size()+sizeof(AmArg));
+        memcpy(reinterpret_cast<void*>(r), &arg, arg.size()+sizeof(AmArg));
         return r;
     }
 

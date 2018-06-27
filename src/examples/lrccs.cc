@@ -67,6 +67,15 @@ int main(int argc, char** argv) {
 
 	World world(SafeMPI::COMM_WORLD);
 
+	// read out command line arguments
+	bool analyze_only=false;		// default: compute the excitations
+
+    for(int i = 1; i < argc; i++) {
+        const std::string arg=argv[i];
+        if (arg=="--analyze") analyze_only=true;
+    }
+
+
 	if (world.rank() == 0) {
 		print("\n  CC2 without Gentensor Flag : Only Linear Response For CCS/CIS  \n");
 		print("!!!DO NOT USE 6D APPLICATIONS HERE!!!");
@@ -87,32 +96,43 @@ int main(int argc, char** argv) {
 	}
 #endif
 
-typedef std::vector<real_function_3d> vecfuncT;
+	typedef std::vector<real_function_3d> vecfuncT;
 
-// Make reference
-const std::string input = "input";
-//SCF calc(world,input.c_str());
-std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
-Nemo nemo(world,calc);
-if (world.rank()==0) {
-    calc->molecule.print();
-    print("\n");
-    calc->param.print(world);
-}
-double hf_energy = nemo.value();
-if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy
-		<<"\n current wall-time: " << wall_time()
-		<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";
+	// Make reference
+	const std::string input = "input";
+	//SCF calc(world,input.c_str());
+	std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
+	Nemo nemo(world,calc);
+	if (world.rank()==0) {
+		calc->molecule.print();
+		print("\n");
+		calc->param.print(world);
+	}
+	double hf_energy = nemo.value();
+	if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy
+			<<"\n current wall-time: " << wall_time()
+			<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";
 
-CCParameters parameters(input,nemo.get_calc()->param.lo);
-if(world.rank()==0) std::cout << "Setting 3D Thresh to " << parameters.thresh_3D << "\n";
-FunctionDefaults<3>::set_thresh(parameters.thresh_3D);
-TDHF tdhf(world,parameters,nemo);
-tdhf.solve_cis();
+	CCParameters parameters(input,nemo.get_calc()->param.lo);
+	if (analyze_only) parameters.no_compute_response=true;
 
-if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
-world.gop.fence();
-finalize();
+	if(world.rank()==0) std::cout << "Setting 3D Thresh to " << parameters.thresh_3D << "\n";
+	FunctionDefaults<3>::set_thresh(parameters.thresh_3D);
+
+	TDHF tdhf(world,parameters,nemo);
+
+	// try to restart
+	std::vector<CC_vecfunction> roots = tdhf.read_vectors();
+
+	// solve the CIS equations
+	if (not analyze_only) tdhf.solve_cis(roots);
+
+	// analyze the results
+	tdhf.analyze(roots);
+
+	if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
+	world.gop.fence();
+	finalize();
 
 	return 0;
 }// end main

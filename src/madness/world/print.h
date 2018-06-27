@@ -194,6 +194,21 @@ namespace madness {
         print_helper(std::cout, ts...) << ENDL;
     }
 
+    /// \brief Print items to \c std::cerr (items separated by spaces) and
+    ///    terminate with a new line
+
+    /// The first item is printed here so that it isn't preceded by a space.
+    /// \tparam T Type of the first item to be printed.
+    /// \tparam Ts Argument pack type for the items to be printed.
+    /// \param[in] t The first item to be printed.
+    /// \param[in] ts The remaining items to be printed in the argument pack.
+    template<typename T, typename... Ts>
+    void print_error(const T& t, const Ts&... ts) {
+        ScopedMutex<Mutex> safe(detail::printmutex);
+        std::cerr << t;
+        print_helper(std::cerr, ts...) << ENDL;
+    }
+
     /// @}
 
 }
