@@ -43,7 +43,6 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/constants.h>
-#include <madness/mra/nonlinsol.h>  // The kain solver
 #include <vector>
 #include <math.h>
 #include <stdio.h>
@@ -359,7 +358,7 @@ class TDHF
 
       // Computes the unitary transformation that diagonalizes the fock matrix
       Tensor<double> get_fock_transformation(World & world,
-                                             const Tensor<double> & overlap,
+                                             Tensor<double> & overlap, 
                                              Tensor<double> & fock,
                                              Tensor<double> & evals,
                                              const double thresh_degenerate);
@@ -495,6 +494,13 @@ class TDHF
                                                                      int n,
                                                                      std::vector<real_function_3d> & grounds,
                                                                      Molecule & molecule);
+
+      // Creates an initial guess using NWChem outputs from a ground state calculation
+      // Requires:
+      //    1. nwchem output file (named as "base_name.out")
+      //    2. nwchem movecs file (named as "base_name.movecs")
+      std::vector<std::vector<real_function_3d>> create_nwchem_guess(World & world,
+                                                                     int m);
 
       // Solves the response equations
       void solve(World & world);

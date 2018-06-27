@@ -1,11 +1,9 @@
 response
- archive archives/water-local
- localized
+ archive /gpfs/home/bsundahl/madness/src/apps/moldft/h2-hf
  tda
- states 20
- random
+ states 9
  larger_subspace 20
  max_iter 20 
  store_potential
- print_level 1
+ print_level 2
 end

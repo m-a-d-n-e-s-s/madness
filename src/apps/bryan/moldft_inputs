@@ -5,6 +5,12 @@ dft
 end
   #xc GGA_X_PBE .75 GGA_C_PBE 1. HF_X .25
 
+# he atom
+geometry
+ eprec 1.0e-04
+ units atomic
+ He             0.0000000            0.0000000            0.0000000
+end
 
 # optimized formic acid
 geometry

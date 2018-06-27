@@ -5,7 +5,7 @@
  */ 
 
 
-#include "TDA3.h"    // All response functions/objects enter through this
+#include "TDHF2.h"    // All response functions/objects enter through this
 #include <stdlib.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
@@ -39,8 +39,8 @@ int main(int argc, char** argv)
    }
    if (!file_exists(input)) throw "input file not found";
 
-   // Create the TDA object
-   TDA my_calc(world, input);       
+   // Create the TDHF object
+   TDHF my_calc(world, input);       
                
    // Have it iterate to convergence
    my_calc.solve(world);

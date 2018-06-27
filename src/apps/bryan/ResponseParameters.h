@@ -44,11 +44,14 @@ namespace madness
       bool plot_initial;                 ///< Flag to plot the ground state orbitals read in from archive
       bool localized;                    ///< Flag to use localized orbitals or not. MUST BE TRUE IF USING LOCALIZED
       bool restart;                      ///< Flag to restart from file
+      bool kain;                         ///< Flag to use KAIN solver
+      int kain_size;                     ///< How many previous iterations KAIN will store 
       std::string resp_archive;          ///< Response restart archive
+      std::string mat_output;            ///< File to write matrices to
 
       // NOT YET IMPLEMENTED
       std::string xc_data;
-      bool kain;  
+
 
       // Used to broadcast data to all mpi ranks
       template<typename Archive>
@@ -78,13 +81,15 @@ namespace madness
             & plot_initial
             & localized
             & restart 
-            & resp_archive;
+            & resp_archive
+            & mat_output
+            & kain
+            & kain_size;
       }
 
       // Default constructor
       ResponseParameters()
       : states(1)
-      , nwchem("")
       , print_level(1)
       , tda(false)
       , plot(false)
@@ -104,6 +109,8 @@ namespace madness
       , plot_initial(false)
       , localized(false)
       , restart(false)
+      , kain(false)
+      , kain_size(3)
       {}
 
       // Initializes ResponseParameters using the contents of file \c filename
@@ -220,6 +227,10 @@ namespace madness
             {
                localized = true;
             }
+            else if (s == "canonical")
+            {
+               localized = false;
+            }
             else if (s == "range")
             {
                e_window = false;
@@ -241,6 +252,15 @@ namespace madness
                std::stringstream s(buf);
                while (s >> d) protocol_data.push_back(d);
             }
+            else if (s == "mat_output")
+            {
+               f >> mat_output;
+            }        
+            else if (s == "kain")
+            {
+               kain = true;
+               f >> kain_size;
+            }        
             else 
             {
                std::cout << "response: unrecognized input keyword " << s << std::endl;
@@ -257,6 +277,7 @@ namespace madness
          madness::print("                XC Functional:", xc_data);
          madness::print("            Ground State File:", archive);
          if(nwchem != "") madness::print("                  NWChem File:", nwchem);
+         if(mat_output != "") madness::print("           Matrix Output File:", mat_output);
          madness::print("             States Requested:", states);
          madness::print("            TDA Approximation:", tda);
          madness::print("           Localized Orbitals:", localized);
@@ -268,6 +289,8 @@ namespace madness
          madness::print("              Store Potential:", store_potential);
          madness::print("               Max Iterations:", max_iter);
          madness::print("   Larger Subspace Iterations:", larger_subspace);
+         madness::print("                     Use KAIN:", kain);
+         if(kain) madness::print("          Size of KAIN memory:", kain_size);
          madness::print("Density Convergence Threshold:", dconv);
          madness::print("                     Protocol:", protocol_data);
          if(plot_initial) madness::print("        Plot Initial Orbitals:", plot_initial);

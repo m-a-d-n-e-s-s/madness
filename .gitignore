@@ -23,6 +23,9 @@
 # Restart files
 *.00000
 
+# NWChem files
+./src/apps/bryan/nwchem/*
+
 .cproject
 .project
 .settings
