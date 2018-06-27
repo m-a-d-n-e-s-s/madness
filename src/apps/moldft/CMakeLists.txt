@@ -18,4 +18,10 @@ target_link_libraries(testperiodic_moldft MADchem)
 add_executable(DFdriver DFdriver.cc DF.cc fcwf.cc gaussian.cc NWChem.cc polynomial.cc)
 target_link_libraries(DFdriver MADchem MADmra)
 
+add_executable(rk relops.cc rk-2.cc)
+target_link_libraries(rk MADchem MADmra -lgmp -lmpfr)
+
+add_executable(dk DKhydrogen3.cc)
+target_link_libraries(dk MADchem MADmra -lgmp -lmpfr)
+
 install(TARGETS moldft mcpfit DESTINATION "${MADNESS_INSTALL_BINDIR}")
