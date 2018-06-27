@@ -6,6 +6,7 @@
 #define MADNESS_APPS_RESPONSEPARAMS_H_INCLUDED
 
 #include <chem/molecule.h>
+#include <chem/xcfunctional.h>
 
 namespace madness 
 {
@@ -48,9 +49,7 @@ namespace madness
       int kain_size;                     ///< How many previous iterations KAIN will store 
       std::string resp_archive;          ///< Response restart archive
       std::string mat_output;            ///< File to write matrices to
-
-      // NOT YET IMPLEMENTED
-      std::string xc_data;
+      std::string xc;                    ///< Controls the HF or DFT switch, as well as which DFT functional is used
 
 
       // Used to broadcast data to all mpi ranks
@@ -84,7 +83,8 @@ namespace madness
             & resp_archive
             & mat_output
             & kain
-            & kain_size;
+            & kain_size
+            & xc;
       }
 
       // Default constructor
@@ -110,7 +110,8 @@ namespace madness
       , localized(false)
       , restart(false)
       , kain(false)
-      , kain_size(3)
+      , kain_size(0)
+      , xc("hf")
       {}
 
       // Initializes ResponseParameters using the contents of file \c filename
@@ -125,7 +126,7 @@ namespace madness
       {
          position_stream(f, "response");
          std::string s;
-         xc_data = "hf";
+         xc = "hf";
          protocol_data = madness::vector_factory(1e-4, 1e-6);
 
          while(f >> s)
@@ -239,9 +240,12 @@ namespace madness
             }
             else if (s == "xc")
             {
-               char buf[1024];
-               f.getline(buf,sizeof(buf));
-               xc_data = buf;
+               f >> xc;
+
+               if(not (xc == "hf" or xc == "lda"))
+               {
+                  MADNESS_EXCEPTION("Unsupported DFT functional requested.", 0);
+               }
             }
             else if (s == "protocol")
             {
@@ -274,7 +278,7 @@ namespace madness
       {
          madness::print("\n   Input Response Parameters");
          madness::print("   -------------------------");
-         madness::print("                XC Functional:", xc_data);
+         madness::print("                XC Functional:", xc);
          madness::print("            Ground State File:", archive);
          if(nwchem != "") madness::print("                  NWChem File:", nwchem);
          if(mat_output != "") madness::print("           Matrix Output File:", mat_output);

@@ -60,6 +60,12 @@ namespace madness {
     void svd_result(Tensor<T>& a, Tensor<T>& U,
              Tensor< typename Tensor<T>::scalar_type >& s, Tensor<T>& VT, Tensor<T>& work);
 
+    /// Solves linear equations
+    
+    /// \ingroup linalg
+    template <typename T>
+    void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
+
     /// Solves linear equations using least squares
     
     /// \ingroup linalg
@@ -75,10 +81,20 @@ namespace madness {
     void syev(const Tensor<T>& A,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
 
+
+// START BRYAN ADDITION
     /// Solves non-symmetric or non-Hermitian eigenvalue problem
     
     template <typename T>
     void geev(const Tensor<T>& A, Tensor<T>& VR, Tensor<std::complex<T>>& e); 
+
+    /// Solves non-symmetric or non-Hermitian generalized eigenvalue problem
+    
+    template <typename T>
+    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR, 
+              Tensor<std::complex<T>>& e); 
+// END BRYAN ADDITIONS
+
 
     /// Solves linear equations
     
@@ -93,13 +109,6 @@ namespace madness {
     template <typename T>
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
-
-    /// Solves non-symmetric or non-Hermitian generalized eigenvalue problem
-    
-    template <typename T>
-    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR, 
-              Tensor<std::complex<T>>& e); 
-
 
     class World; // UGH!
     /// Solves symmetric or Hermitian generalized eigenvalue problem

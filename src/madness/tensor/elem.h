@@ -527,6 +527,7 @@ namespace madness {
         gesv(a, b, x);
     }
 
+    // START BRYAN ADDITIONS
     // sequential fall back code
     template <typename T>
     void geevp(World& world, const Tensor<T>& A, Tensor<T>& VR, Tensor<std::complex<T>>& e) {
@@ -539,7 +540,7 @@ namespace madness {
                Tensor<std::complex<T>>& e) {
        ggev(A, B, VR, e);
     }
-
+    // END BRYAN ADDITIONS
 }
 
 #endif //MADNESS_HAS_ELEMENTAL_EMBEDDED

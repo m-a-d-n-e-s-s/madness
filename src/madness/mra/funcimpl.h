@@ -3592,7 +3592,7 @@ namespace madness {
         	// this means that the function has to be completely constructed and not mirrored by another function
 
         	// if the initial level is not reached then this must not be a leaf box
-        	size_t il = result->get_initial_level();
+        	Level il = result->get_initial_level();
         	if(FunctionDefaults<NDIM>::get_refine()) il+=1;
         	if(key.level()<il){
         	    //std::cout << "n=" +  std::to_string(key.level()) + " below initial level " + std::to_string(result->get_initial_level()) + "\n";
@@ -5007,54 +5007,37 @@ namespace madness {
                                     const bool sym,
                                     Tensor< TENSOR_RESULT_TYPE(T,R) >* result_ptr,
                                     Mutex* mutex) {
-            Tensor< TENSOR_RESULT_TYPE(T,R) >& result = *result_ptr;
-            //Tensor< TENSOR_RESULT_TYPE(T,R) > r(result.dim(0),result.dim(1));
-            for (typename mapT::iterator lit=lstart; lit!=lend; ++lit) {
-                const keyT& key = lit->first;
-                typename FunctionImpl<R,NDIM>::mapT::iterator rit=rmap_ptr->find(key);
-                if (rit != rmap_ptr->end()) {
-                    const mapvecT& leftv = lit->second;
-                    const typename FunctionImpl<R,NDIM>::mapvecT& rightv =rit->second;
-                    const int nleft = leftv.size();
-                    const int nright= rightv.size();
+           Tensor< TENSOR_RESULT_TYPE(T,R) >& result = *result_ptr;
+           //Tensor< TENSOR_RESULT_TYPE(T,R) > r(result.dim(0),result.dim(1));
+           for (typename mapT::iterator lit=lstart; lit!=lend; ++lit) {
+               const keyT& key = lit->first;
+               typename FunctionImpl<R,NDIM>::mapT::iterator rit=rmap_ptr->find(key);
+               if (rit != rmap_ptr->end()) {
+                   const mapvecT& leftv = lit->second;
+                   const typename FunctionImpl<R,NDIM>::mapvecT& rightv =rit->second;
+                   const unsigned int nleft = leftv.size();
+                   const unsigned int nright= rightv.size();
 
-                    //for (int iv=0; iv<nleft; iv++) {
-                    //    const int i = leftv[iv].first;
-                    //    const GenTensor<T>* iptr = leftv[iv].second;
-         
-                    // START OF NEW STUFF
-                    unsigned int size = leftv[0].second->size();
-                    Tensor<T> Left(nleft, size);
-                    Tensor<R> Right(nright, size);
-                    Tensor< TENSOR_RESULT_TYPE(T,R)> r(nleft, nright);
-                    for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = *(leftv[iv].second);
-                    for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = *(rightv[jv].second);
-                    // call mxmT from mxm.h in tensor
-                    mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
-                    mutex->lock();
-                    for(unsigned int iv = 0; iv < nleft; ++iv) {
-                        const int i = leftv[iv].first;
-                        for(unsigned int jv = 0; jv < nright; ++jv) {
-                          const int j = rightv[jv].first;
-                          if (!sym || (sym && i<=j)) result(i,j) += r(iv,jv);
-                        }
-                    }
-                    mutex->unlock();
-                    // END OF NEW STUFF
-
-//                        for (int jv=0; jv<nright; jv++) {
-//                            const int j = rightv[jv].first;
-//                            const GenTensor<R>* jptr = rightv[jv].second;
-//
-//                            if (!sym || (sym && i<=j))
-//                                r(i,j) += iptr->trace_conj(*jptr);
-//                        }
-//                    }
-                }
-            }
-            //mutex->lock();
-            //result += r;
-            //mutex->unlock();
+                   unsigned int size = leftv[0].second->size();
+                   Tensor<T> Left(nleft, size);
+                   Tensor<R> Right(nright, size);
+                   Tensor< TENSOR_RESULT_TYPE(T,R)> r(nleft, nright);
+                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = *(leftv[iv].second);
+                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = *(rightv[jv].second);
+                   // call mxmT from mxm.h in tensor
+                   Left = Left.conj();  //Should handle complex case and leave real case alone
+                   mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
+                   mutex->lock();
+                   for(unsigned int iv = 0; iv < nleft; ++iv) {
+                       const int i = leftv[iv].first;
+                       for(unsigned int jv = 0; jv < nright; ++jv) {
+                         const int j = rightv[jv].first;
+                         if (!sym || (sym && i<=j)) result(i,j) += r(iv,jv);
+                       }
+                   }
+                   mutex->unlock();
+               }
+           }
         }
 
         static double conj(double x) {

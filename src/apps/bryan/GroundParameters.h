@@ -69,7 +69,7 @@ namespace madness
       void print_params() const
       {
          madness::print("\n   Ground State Parameters");
-         madness::print("   -------------------------");
+         madness::print("   -----------------------");
          madness::print("  Ground State Archive:", inFile);
          madness::print("       Spin Restricted:", spinrestricted);
          madness::print("    Number of orbitals:", num_orbitals);

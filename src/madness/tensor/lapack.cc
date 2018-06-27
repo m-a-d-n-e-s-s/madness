@@ -305,6 +305,8 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
 }
 
 
+// bryan edits start
+
 /// These oddly-named wrappers enable the generic geev iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
 /// use only.
@@ -351,18 +353,19 @@ STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
                           complex_real4 *vl, integer *ldvl, complex_real4 *vr, integer *ldvr,
                           complex_real4 *work,  integer *lwork, integer *info) {
     Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
-    cggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info );
+    cggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(),      info );
 }
 
 
 STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
-                          complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb, 
+                          complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
                           complex_real8 *w, complex_real8 *w_imag, complex_real8 *beta,
                           complex_real8 *vl, integer *ldvl, complex_real8 *vr, integer *ldvr,
                           complex_real8 *work,  integer *lwork, integer *info) {
     Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
-    zggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info );
+    zggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(),      info );
 }
+// bryan edits end
 
 
 /// These oddly-named wrappers enable the generic orgqr/unggr iterface to get
@@ -669,6 +672,7 @@ namespace madness {
         V = transpose(V);
     }
 
+// bryan edits
     /** \brief   Real non-symmetric or complex non-Hermitian eigenproblem.
 
     A is a real non-symmetric or complex non-Hermitian matrix.  Return V and e
@@ -700,14 +704,15 @@ namespace madness {
         Tensor<T> A_copy = copy(A);
         Tensor<T> VL(n,n); // Should not be referenced
         Tensor<T> e_real(n), e_imag(n);
-        dgeev_("N", "V", &n, A_copy.ptr(), &n, e_real.ptr(), e_imag.ptr(), VL.ptr(), &n, VR.ptr(), &n,  work.ptr(), &lwork, &info);
+        dgeev_("N", "V", &n, A_copy.ptr(), &n, e_real.ptr(), e_imag.ptr(), VL.ptr(), &n, VR.ptr(     ), &n,  work.ptr(), &lwork, &info);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)geev/(c/z)geev failed", info, &A);
-        
+
         // Now put energies back where user expects them to be
         std::complex<double> my_i(0,1);
         e = e_real + e_imag * my_i;
     }
+// bryan edits end
 
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
@@ -755,6 +760,7 @@ namespace madness {
         V = transpose(V);
     }
 
+// bryan edit start
     /** \brief  Generalized real-non-symmetric or complex-non-Hermitian eigenproblem.
 
     This from the LAPACK documentation
@@ -796,7 +802,7 @@ namespace madness {
     */
     // Might not work if A is complex (type issues on tensor e)
     template <typename T>
-    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR, 
+    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR,
               Tensor<std::complex<T>>& e) {
         TENSOR_ASSERT(A.ndim() == 2, "ggev requires a matrix",A.ndim(),&A);
         TENSOR_ASSERT(A.dim(0) == A.dim(1), "ggev requires square matrix",0,&A);
@@ -809,20 +815,20 @@ namespace madness {
         Tensor<T> A_copy = copy(A);
         Tensor<T> VL(n,n); // Should not be referenced
         Tensor<T> e_real(n), e_imag(n), beta(n);
-        dggev_("N", "V", &n, A_copy.ptr(), &n, B.ptr(), &n, e_real.ptr(), e_imag.ptr(), beta.ptr(), VL.ptr(), &n, VR.ptr(), &n,  work.ptr(), &lwork, &info);
+        dggev_("N", "V", &n, A_copy.ptr(), &n, B.ptr(), &n, e_real.ptr(), e_imag.ptr(), beta.ptr     (), VL.ptr(), &n, VR.ptr(), &n,  work.ptr(), &lwork, &info);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)ggev/(c/z)ggev failed", info, &A);
-       
+
         //print("e_real:\n", e_real);
         //print("e_imag:\n", e_imag);
         //print("beta:\n", beta);
- 
+
         // Now put energies back where user expects them to be
         // Need to be smart with the division, possibly throw
         // errors if neccessary.
         std::complex<double> my_i(0,1);
         for(int i = 0; i < e.dim(0); i++)
-        {         
+        {
            MADNESS_ASSERT(beta(i) >=  1e-14); // Do something smarter here?
            // Two cases: 
            // Case 1: Real value (imaginary == 0)
@@ -831,13 +837,13 @@ namespace madness {
            // Case 2: Complex value (need to handle the pair)
            else
            {
-              e(i) = (e_real(i) + my_i * e_imag(i)) / beta(i); 
+              e(i) = (e_real(i) + my_i * e_imag(i)) / beta(i);
               e(i+1) = (e_real(i) - my_i * e_imag(i)) / beta(i);
               i = i + 1; // Already took care of the paired value as well
            }
         }
     }
-
+// bryan edits stop
 
     /** \brief  Compute the Cholesky factorization.
 
@@ -1331,11 +1337,13 @@ namespace madness {
     void syev(const Tensor<double>& A,
               Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
 
+// bryan edits start
     template
     void geev(const Tensor<double>& A, Tensor<double>& V, Tensor<std::complex<double>>& e);
 
     template
-    void ggev(const Tensor<double>& A, Tensor<double>& B, Tensor<double>& V, Tensor<std::complex<double>>& e);
+    void ggev(const Tensor<double>& A, Tensor<double>& B, Tensor<double>& V, Tensor<std::complex     <double>>& e);
+// bryan edits end
 
     template
     void cholesky(Tensor<double>& A);
