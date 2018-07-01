@@ -285,6 +285,7 @@ namespace madness {
         const functionT g2;  ///< Function describing the boundary condition on the left side
 
         bool is_second;
+        bool is_third;
 
         // Tensors for holding the modified coefficients
         Tensor<double> rm, r0, rp        ; ///< Blocks of the derivative operator
@@ -333,6 +334,7 @@ namespace madness {
 
             double fac = FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev);
             if (is_second) fac *= fac;
+            else if (is_third) fac *= fac*fac;
         
             d.scale(fac);
             d.reduce_rank(df->get_thresh());
@@ -427,6 +429,7 @@ namespace madness {
 
             double fac = FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level());
             if (is_second) fac *= fac;
+            else if (is_third) fac *= fac*fac;
         
             d.scale(fac);
             d.reduce_rank(df->get_thresh());
@@ -438,6 +441,7 @@ namespace madness {
 
         void initCoefficients()  {
             is_second = false;
+            is_third = false;
             
             r0 = Tensor<double>(this->k,this->k);
             rp = Tensor<double>(this->k,this->k);
@@ -647,9 +651,13 @@ namespace madness {
         //     rm=rm_bsp_t; rmt=rm_bsp; left_rm=rm_bsp_t; left_rmt=rm_bsp;
         // }
 
-        void set_is_second(bool value=true) {is_second = value;}
+        void set_is_first() {is_second = false; is_third = false;}
 
-        void read_from_file(const std::string& filename) {
+        void set_is_second() {is_second = true; is_third=false;}
+
+        void set_is_third() {is_second = false; is_third = true;}
+
+        void read_from_file(const std::string& filename, unsigned int order = 1) {
 
             Tensor<double> r0_bsp(this->k,this->k);
             Tensor<double> rp_bsp(this->k,this->k);
@@ -687,6 +695,17 @@ namespace madness {
             rp=rp_bsp; rpt=rp_bsp_t; right_rp=rp_bsp; right_rpt=rp_bsp_t;
             
             rm=rm_bsp; rmt=rm_bsp_t; left_rm=rm_bsp; left_rmt=rm_bsp_t;
+
+            // Get scaling factor right for higher order derivatives
+            if (order == 1) {
+               set_is_first();
+            }
+            else if(order == 2) {
+               set_is_second();
+            }
+            else if(order == 3) {
+               set_is_third();
+            }
 
             // Printing just to see what they look like
             //std::cout << std::setprecision(16); 
