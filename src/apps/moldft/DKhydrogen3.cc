@@ -184,6 +184,7 @@ int main(int argc, char** argv){
      FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
      //FunctionDefaults<3>::set_initial_level(5);
 
+
      //Starting guess is the nonrelativistic exact solution
      NRGFunctor nonrelguess(Z);
      real_function_3d psi = real_factory_3d(world).functor(nonrelguess);
@@ -193,6 +194,7 @@ int main(int argc, char** argv){
      //make potential
      PotentialFunctor myV(Z);
      real_function_3d Vnuc = real_factory_3d(world).functor(myV).truncate_mode(0);
+
 
      //make operators
      real_convolution_3d Pbarop = Pbar(world);

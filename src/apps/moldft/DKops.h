@@ -5,6 +5,8 @@
 #include <madness/mra/mra.h>
 #include <madness/constants.h>
 #include <madness/mra/operator.h>
+#include <iostream>
+#include <fstream>
 
 //#include "../../../../mpfrc++-3/mpreal.h"
 
@@ -75,40 +77,69 @@ real_convolution_3d Ebar(World& world, double eps){
      return real_convolution_3d(world, ctensor, ttensor);
 }
 
-real_convolution_3d Ebar_fixed(World& world){
-     //Tensor<double> c(305l), t(305l);
-     std::vector<double> c(365), t(365);
-     Vector<double,3> args = vec(0.0,0.0,0.0);
-     #include "RelCoeffs/Ebar_coeffs.dat"
-     int n = 305;
-     
-     for(int i=0; i < n; i++){
-          if(c[i]*exp(-t[i]*1e-16) < opthresh){
-               c.erase(c.begin()+i);
-               t.erase(t.begin()+i);
-               i--;
-               n--;
-          }
-     }
-     
-     //print("n = ", n);
-
-     Tensor<double> ctens(n), ttens(n);
-     for(int i = 0; i < n; i++){
-          ctens[i] = c[i];
-          ttens[i] = t[i];
-     }
-     //if(world.rank()==0) print("Made a Ebar (fixed)! n = ", n);
-     //if(world.rank()==0) print("Made a Pbar! Here's what's inside:\n\nc:\n",ctens,"\nt:\n",ttens);
-     //return real_convolution_3d(world, args, ctens, ttens);
-     return real_convolution_3d(world, ctens, ttens);
-}
+//real_convolution_3d Ebar_fixed(World& world){
+//     //Tensor<double> c(305l), t(305l);
+//     std::vector<double> c(365), t(365);
+//     Vector<double,3> args = vec(0.0,0.0,0.0);
+//     #include "RelCoeffs/Ebar_coeffs.dat"
+//     int n = 305;
+//     
+//     for(int i=0; i < n; i++){
+//          if(c[i]*exp(-t[i]*1e-16) < opthresh){
+//               c.erase(c.begin()+i);
+//               t.erase(t.begin()+i);
+//               i--;
+//               n--;
+//          }
+//     }
+//     
+//     //print("n = ", n);
+//
+//     Tensor<double> ctens(n), ttens(n);
+//     for(int i = 0; i < n; i++){
+//          ctens[i] = c[i];
+//          ttens[i] = t[i];
+//     }
+//     //if(world.rank()==0) print("Made a Ebar (fixed)! n = ", n);
+//     //if(world.rank()==0) print("Made a Pbar! Here's what's inside:\n\nc:\n",ctens,"\nt:\n",ttens);
+//     //return real_convolution_3d(world, args, ctens, ttens);
+//     return real_convolution_3d(world, ctens, ttens);
+//}
 
 real_convolution_3d Pbar(World& world){
      //Tensor<double> c(305l), t(305l);
-     std::vector<double> c(564), t(564);
+     std::vector<double> c;
+     std::vector<double> t;
      Vector<double,3> args = vec(0.0,0.0,0.0);
-     #include "RelCoeffs/Pbar_coeffs.dat"
+
+     std::ifstream inf("/gpfs/home/jscanderson/DKproject/Pbar_t.csv");
+     if(!inf){
+          if(world.rank() == 0) std::cerr << "Unable to open Pbar_t.csv" << std::endl;
+          exit(1);
+     }
+     std::string strInput;
+     getline(inf, strInput);
+     while(inf){
+          if(world.rank()==0) print("a",strInput,"b");
+          t.push_back(std::stod(strInput));
+          getline(inf, strInput);
+     }
+     inf.close();
+
+     inf.open("/gpfs/home/jscanderson/DKproject/Pbar_c.csv");
+     if(!inf){
+          if(world.rank() == 0) std::cerr << "Unable to open Pbar_c.csv" << std::endl;
+          exit(1);
+     }
+     getline(inf, strInput);
+     while(inf){
+          c.push_back(std::stod(strInput));
+          if(world.rank()==0) print(c.back());
+          getline(inf, strInput);
+     }
+     inf.close();
+
+
      int n = c.size();
      
      for(int i=0; i < n; i++){
@@ -137,7 +168,32 @@ real_convolution_3d A(World& world){
      //Tensor<double> c(301l), t(301l);
      std::vector<double> c(561), t(561);
      Vector<double,3> args = vec(0.0,0.0,0.0);
-     #include "RelCoeffs/A_coeffs.dat"
+     
+     std::ifstream inf("/gpfs/home/jscanderson/DKproject/A_t.csv");
+     if(!inf){
+          if(world.rank() == 0) std::cerr << "Unable to open A_t.csv" << std::endl;
+          exit(1);
+     }
+     std::string strInput;
+     getline(inf, strInput);
+     while(inf){
+          t.push_back(std::stod(strInput));
+          getline(inf, strInput);
+     }
+     inf.close();
+
+     inf.open("/gpfs/home/jscanderson/DKproject/A_c.csv");
+     if(!inf){
+          if(world.rank() == 0) std::cerr << "Unable to open A_c.csv" << std::endl;
+          exit(1);
+     }
+     getline(inf, strInput);
+     while(inf){
+          c.push_back(std::stod(strInput));
+          getline(inf, strInput);
+     }
+     inf.close();
+
      int n = c.size();
      
      for(int i=0; i < n; i++){
@@ -164,7 +220,32 @@ real_convolution_3d PbarA(World& world){
      //Tensor<double> c(441l), t(441l);
      std::vector<double> c(300), t(300);
      Vector<double,3> args = vec(0.0,0.0,0.0);
-     #include "RelCoeffs/PbarA_coeffs.dat"
+     
+     std::ifstream inf("/gpfs/home/jscanderson/DKproject/PbarA_t.csv");
+     if(!inf){
+          if(world.rank() == 0) std::cerr << "Unable to open PbarA_t.csv" << std::endl;
+          exit(1);
+     }
+     std::string strInput;
+     getline(inf, strInput);
+     while(inf){
+          t.push_back(std::stod(strInput));
+          getline(inf, strInput);
+     }
+     inf.close();
+
+     inf.open("/gpfs/home/jscanderson/DKproject/PbarA_c.csv");
+     if(!inf){
+          if(world.rank() == 0) std::cerr << "Unable to open PbarA_c.csv" << std::endl;
+          exit(1);
+     }
+     getline(inf, strInput);
+     while(inf){
+          c.push_back(std::stod(strInput));
+          getline(inf, strInput);
+     }
+     inf.close();
+
      int n = c.size();
      for(int i=0; i < n; i++){
           if(c[i]*exp(-t[i]*1e-30) < opthresh){
