@@ -158,6 +158,7 @@ public:
 	}
 
 	void construct_nuclear_correlation_factor() {
+
 	    // construct the nuclear correlation factor:
 	    if (not nuclear_correlation)
 	        nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
@@ -427,10 +428,6 @@ private:
 
         calc->set_protocol<3>(world,thresh);
 
-        // (re) construct nuclear potential and correlation factors
-        timer timer1(world);
-        construct_nuclear_correlation_factor();
-        timer1.end("reproject ncf");
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(

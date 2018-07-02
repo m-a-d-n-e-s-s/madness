@@ -129,12 +129,16 @@ double Nemo::value(const Tensor<double>& x) {
 	}
 
 	double energy=0.0;
+    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
 
 
 	for (p.initialize() ; not p.finished(); ++p) {
 
 	    set_protocol(p.current_prec);
-	    get_calc()->make_nuclear_potential(world);
+
+	    // (re) construct nuclear potential and correlation factors
+        get_calc()->make_nuclear_potential(world);
+        construct_nuclear_correlation_factor();
 
         energy=solve(p);
     }
@@ -224,30 +228,23 @@ double Nemo::solve(const SCFProtocol& proto) {
 	allocT alloc(world, nemo.size());
 	solverT solver(allocT(world, nemo.size()));
 
-	timer alltimer(world);
 	// iterate the residual equations
 	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
 
 	    if (localized) nemo=localize(nemo,proto.dconv,iter==0);
-	    alltimer.tag("alltimer: localize");
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
-        alltimer.tag("alltimer: R2nemo");
 
 		// compute potentials the Fock matrix: J - K + Vnuc
 		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
-        alltimer.tag("alltimer: nemo potentials");
 
 		// compute the fock matrix
 //		vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
 		vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
 		if (do_pcm()) JKUpsi+=pcmnemo;
-        alltimer.tag("alltimer: add nemo potentials");
 		tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
-        alltimer.tag("alltimer: fock core");
 		Kinetic<double,3> T(world);
 		fock+=T(R2nemo,nemo);
-        alltimer.tag("alltimer: fock kinetic");
 		JKUpsi.clear();
 
 
@@ -263,7 +260,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 //		energy = compute_energy(psi, mul(world, R, Jnemo),
 //				mul(world, R, Knemo));
         energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
-        alltimer.tag("alltimer: compute energy");
 
         // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
         tensorT U;
@@ -271,17 +267,14 @@ double Nemo::solve(const SCFProtocol& proto) {
             tensorT overlap = matrix_inner(world, psi, psi, true);
             U=calc->get_fock_transformation(world,overlap,
                     fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
-            alltimer.tag("alltimer: get fock transformation");
 
             START_TIMER(world);
             nemo = transform(world, nemo, U, trantol(), true);
             rotate_subspace(world, U, solver, 0, nemo.size());
-            alltimer.tag("alltimer: transform/rotate subspace");
 
             truncate(world, nemo);
             normalize(nemo);
             END_TIMER(world, "transform orbitals");
-            alltimer.tag("alltimer: truncate/normalize");
         }
 
 		// update the nemos
@@ -297,7 +290,6 @@ double Nemo::solve(const SCFProtocol& proto) {
         if(localized) calc->aeps=eps;
         vecfuncT fnemo;
         if (localized) fnemo= transform(world, nemo, fock, trantol(), true);
-        alltimer.tag("alltimer: transform localize");
 
         // Undo the damage
         for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
@@ -318,12 +310,10 @@ double Nemo::solve(const SCFProtocol& proto) {
         if (localized) gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
 		truncate(world,Vpsi);
 		END_TIMER(world, "make Vpsi");
-        alltimer.tag("alltimer: make Vpsi");
 
 		START_TIMER(world);
 		if (not localized) Vpsi = transform(world, Vpsi, U, trantol(), true);
 		truncate(world,Vpsi);
-        alltimer.tag("alltimer: transform Vpsi");
 		END_TIMER(world, "transform Vpsi");
 
 		// apply the BSH operator on the wave function
@@ -332,12 +322,10 @@ double Nemo::solve(const SCFProtocol& proto) {
 		vecfuncT tmp = apply(world, ops, Vpsi);
 		truncate(world, tmp);
 		END_TIMER(world, "apply BSH");
-        alltimer.tag("alltimer: apply BSH");
 
 		double n1=norm2(world,nemo);
 		double n2=norm2(world,tmp);
 		print("norm of nemo and GVnemo; ratio ",n1,n2,n1/n2);
-        alltimer.tag("alltimer: compute norms");
 
 		// compute the residuals
 		vecfuncT residual = sub(world, nemo, tmp);
@@ -352,12 +340,10 @@ double Nemo::solve(const SCFProtocol& proto) {
 		}
 		truncate(world,nemo_new);
 		normalize(nemo_new);
-        alltimer.tag("alltimer: solver update");
 
 		calc->do_step_restriction(world,nemo,nemo_new,"ab spin case");
 		orthonormalize(nemo_new);
 		nemo=nemo_new;
-        alltimer.tag("alltimer: step restriction/orthonormalize");
 
 		if ((norm < proto.dconv) and
 				(fabs(energy-oldenergy)<proto.econv))
@@ -437,14 +423,12 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
     START_TIMER(world);
-    timer time_energy(world);
+
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
-    time_energy.tag("R2nemo");
 
     const tensorT U = inner(world, R2nemo, Unemo);
     const double pe = 2.0 * U.sum();  // closed shell
-    time_energy.tag("U");
 
     double ke = 0.0;
     for (int axis = 0; axis < 3; axis++) {
@@ -454,11 +438,26 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
         ke += 0.5 * (inner(world, dnemo, dr2nemo)).sum();
     }
     ke *= 2.0; // closed shell
-    time_energy.tag("KE");
+
+    // possible advantageous to do it this way, the U1 term should cancel
+    // with the nuclear potential, might be faster and more precise.
+//    // do the kinetic energy again
+//    double ke1=0.0;
+//    for (int axis = 0; axis < 3; axis++) {
+//        real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+//        const vecfuncT dnemo = apply(world, D, nemo);
+//
+//        real_function_3d term1=dot(world,dnemo,dnemo);
+//        ke1 += 0.5*inner(term1,R_square);
+//
+//        vecfuncT term2=R_square*nuclear_correlation->U1(axis)*nemo;
+//        ke1 +=-2.0* 0.5 * (inner(world, dnemo, term2)).sum();
+//    }
+//    ke1 *= 2.0; // closed shell
+
 
     const double J = inner(world, R2nemo, Jnemo).sum();
     const double K = inner(world, R2nemo, Knemo).sum();
-    time_energy.tag("J+K");
 
     int ispin=0;
     double exc=0.0;
@@ -466,11 +465,9 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
         XCOperator xcoperator(world,this,ispin);
         exc=xcoperator.compute_xc_energy();
     }
-    time_energy.tag("exc");
 
     double pcm_energy=0.0;
     if (do_pcm()) pcm_energy=pcm.compute_pcm_energy();
-    time_energy.tag("PCM");
 
     const double nucrep = calc->molecule.nuclear_repulsion_energy();
 
@@ -480,6 +477,7 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
 
     if (world.rank() == 0) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
+//        printf("\n  kinetic again %16.8f\n",  ke1);
         printf("              coulomb %16.8f\n", J);
         if (is_dft()) {
             printf(" exchange-correlation %16.8f\n", exc);
@@ -494,7 +492,6 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
         printf("  buggy if hybrid functionals are used..\n");
     }
     END_TIMER(world, "compute energy");
-    time_energy.tag("printout");
 
     return energy;
 }
@@ -519,10 +516,29 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 	truncate(world, psi);
 	END_TIMER(world, "reconstruct psi");
 
+	bool do_scale=false;
+	double scalefactor=1.0;
+	std::map<std::string,std::string>::const_iterator it=calc->param.generalkeyval.find("scale_density");
+    if (it!=get_calc()->param.generalkeyval.end())
+        do_scale=CalculationParameters::stringtobool(it->second);
+
+    if (do_scale) {
+	    real_function_3d nemodensity=dot(world,nemo,nemo);
+	    double nelectron=nemodensity.trace()*2.0;
+	    print("scaling Coulomb and exchange potentials");
+	    print("number of electrons",nelectron);
+	    double nelectron_exact=nemo.size()*2.0;
+	    scalefactor=nelectron_exact/nelectron;
+	} else {
+        print("not scaling Coulomb and exchange potentials");
+	}
+
+
 	// compute the density and the coulomb potential
 	START_TIMER(world);
 	Coulomb J=Coulomb(world,this);
 	Jnemo = J(nemo);
+	if (do_scale) scale(world,Jnemo,scalefactor);
 	truncate(world, Jnemo);
 	END_TIMER(world, "compute Jnemo");
 
@@ -537,6 +553,8 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
         truncate(world, Knemo);
         END_TIMER(world, "compute Knemo");
     }
+    if (do_scale) scale(world,Knemo,scalefactor);
+
 
 	// compute the exchange-correlation potential
     if (calc->xc.is_dft()) {
