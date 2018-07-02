@@ -88,7 +88,7 @@ namespace madness {
 class NuclearCorrelationFactor {
 public:
 	enum corrfactype {None, GradientalGaussSlater, GaussSlater, LinearSlater,
-	    Polynomial, Slater, Slater2, Slater3, Slater4, Slater5, Slater6, Two};
+	    Polynomial, Slater, Slater2, Slater3, Slater4, Slater5, poly4erfc, Two};
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 	/// ctor
@@ -2437,25 +2437,24 @@ private:
 
 };
 
-class Slater6 : public NuclearCorrelationFactor {
+class poly4erfc : public NuclearCorrelationFactor {
 public:
     /// ctor
 
     /// @param[in]  world   the world
     /// @param[in]  mol molecule with the sites of the nuclei
-    Slater6(World& world, const Molecule& mol, const double aa)
+    poly4erfc(World& world, const Molecule& mol, const double aa)
         : NuclearCorrelationFactor(world,mol), a(1.5) {
 
         if (aa!=0.0) a=aa;
         eprec_=mol.get_eprec();
 
-
         if (world.rank()==0) {
             print("\nconstructed nuclear correlation factor of the form");
-            print("  S_A = ");
+            print("  S_A = 1 + (a0 + a1 arZ + a2 (arZ)^2 + a3 (arZ)^3 + a4 (arZ)^4) erfc(arZ)");
             print("    a = ",a);
             print("with eprec ",eprec_);
-            print("which is of Slater6 type\n");
+            print("which is of poly4erfc type\n");
         }
         const double pi32=std::pow(constants::pi,1.5);
         const double sqrtpi=sqrt(constants::pi);
@@ -2475,13 +2474,13 @@ public:
             a4=0.14518390461225107425;
 
         } else {
-            print("invalid parameter a for Slater6: only 0.5 and 1.0 implemented");
+            print("invalid parameter a for poly4erfc: only 0.5 and 1.0 implemented");
             MADNESS_EXCEPTION("stupid you",1);
         }
         //      initialize();
     }
 
-    corrfactype type() const {return NuclearCorrelationFactor::Slater6;}
+    corrfactype type() const {return NuclearCorrelationFactor::poly4erfc;}
 
 private:
 

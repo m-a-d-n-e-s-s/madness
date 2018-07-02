@@ -428,6 +428,10 @@ private:
 
         calc->set_protocol<3>(world,thresh);
 
+        // (re) construct nuclear potential and correlation factors
+        timer timer1(world);
+        construct_nuclear_correlation_factor();
+        timer1.end("reproject ncf");
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
