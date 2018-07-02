@@ -99,7 +99,7 @@ using std::void_t;
     struct is_istreammable : std::false_type {};
     template <typename T>
     struct is_istreammable<T, meta::void_t<decltype(std::declval<std::istream&>() >> std::declval<T&>())>> : std::true_type {};
-    template <typename T> constexpr bool is_istreammable_v = is_ostreammable<T>::value;
+    template <typename T> constexpr bool is_istreammable_v = is_istreammable<T>::value;
     /// providing automatic support for serializing to/from std streams requires bidirectional streammability
     template <typename T> constexpr bool is_iostreammable_v = is_istreammable_v<T> && is_ostreammable_v<T>;
 

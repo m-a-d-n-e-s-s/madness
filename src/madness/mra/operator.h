@@ -396,7 +396,10 @@ namespace madness {
                         trans[d].VT = 0;
                     }
                     else {
-                        //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+
+#ifdef USE_GENTENSOR
+                        r = std::max(2L,r+(r&1L)); // (needed for 6D == when GENTENSOR is on) NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+#endif
                         if (r == 0) {
                             rank_is_zero = true;
                             break;
@@ -438,7 +441,10 @@ namespace madness {
                         trans[d].VT = 0;
                     }
                     else {
-                        //r = std::max(2L,r+(r&1L)); // NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+
+#ifdef USE_GENTENSOR
+                        r = std::max(2L,r+(r&1L)); // (needed for 6D == GENTENSOR is USED) NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
+#endif
                         if (r == 0) {
                             rank_is_zero = true;
                             break;

@@ -136,7 +136,8 @@ check_required_components(${MADNESS_TARGET_COMPONENT})
 set(MADNESS_FOUND TRUE)
 
 ########### LAPACK ############
-set(LAPACK_LIBRARIES "@LAPACK_LIBRARIES@")
+# this is formatted to be added to CMAKE_REQUIRED_LIBRARIES
+set(LAPACK_LIBRARIES "@PROCESSED_LAPACK_LIBRARIES@")
 
 ########### MPI ############
 set(MPIEXEC "@MPIEXEC@")

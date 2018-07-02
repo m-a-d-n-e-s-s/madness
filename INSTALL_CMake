@@ -156,6 +156,18 @@ Library of Exchange-Correlation DFT functionals (LIBXC):
 * LIBXC_INCLUDE_DIR --- The path to the LIBXC include directory.
 * LIBXC_LIBRARY --- The path to the LIBXC library directory.
 
+Polarizable Conitinuum Solver (PCM):
+* ENABLE_PCM --- Enables use of PCM
+* PCM_ROOT_DIR --- The install prefix for PCM 
+* PCM_INCLUDE_DIR --- The path to the PCM include directory (should be added automatically when the correct PCM_ROOT_DIR is given)
+* PCM_LIBRARY --- The path to the PCM library (should be added automatically when the correct PCM_ROOT_DIR is given)
+set either PCM_ROOT_DIR or manually set PCM_INCLUDE_DIR and PCM_LIBRARY
+See also
+madness/CMakeLists.txt
+madness/external/pcm.cmake
+madness/modules/FindPCM.cmake
+madness/src/apps/chem/CMakeLists.txt
+
 Performance Application Programming Interface (PAPI):
 
 * ENABLE_PAPI --- Enables use of PAPI [default=OFF]
