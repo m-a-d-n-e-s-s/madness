@@ -544,7 +544,7 @@ int nuclear_anchor_test(World& world) {
             std::shared_ptr<NuclearCorrelationFactor>(
                 new PseudoNuclearCorrelationFactor(world,
                 calc.molecule,calc.potentialmanager,1.0));
-    ncf_none->initialize();
+    ncf_none->initialize(FunctionDefaults<3>::get_thresh());
 
     Nuclear Vnuc(world,ncf_none);
 

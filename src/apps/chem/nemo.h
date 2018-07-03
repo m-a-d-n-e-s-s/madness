@@ -164,7 +164,7 @@ public:
 	        nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
 
 	    // re-project the ncf
-	    nuclear_correlation->initialize(FunctionDefaults<3>::get_thresh()*0.1);
+	    nuclear_correlation->initialize(FunctionDefaults<3>::get_thresh());
 	    R = nuclear_correlation->function();
 	    R.set_thresh(FunctionDefaults<3>::get_thresh());
 	    R_square = nuclear_correlation->square();
