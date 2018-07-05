@@ -960,7 +960,6 @@ public:
 			print("which is of Gaussian-Slater type\n");
 		}
 
-//		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::GaussSlater;}
@@ -1094,7 +1093,6 @@ public:
             print("which is of Gradiental Gaussian-Slater type\n");
         }
 
-//        initialize();
     }
 
     corrfactype type() const {return NuclearCorrelationFactor::GradientalGaussSlater;}
@@ -1239,7 +1237,6 @@ public:
             print("with eprec ",mol.get_eprec());
 			print("which is of linear Slater type\n");
 		}
-//		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::LinearSlater;}
@@ -1332,7 +1329,6 @@ public:
             print("with eprec ",eprec_);
 			print("which is of Slater type\n");
 		}
-//		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::Slater;}
@@ -1794,7 +1790,6 @@ public:
 			print("with eprec ",mol.get_eprec());
 			print("which is of polynomial type with exponent N = ",N);
 		}
-//		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::Polynomial;}
@@ -1964,7 +1959,6 @@ public:
             print("with eprec ",mol.get_eprec());
 			print("which means it's (nearly) a conventional calculation\n");
 		}
-//		initialize();
 
 		// add the missing -Z/r part to U2!
 	}
