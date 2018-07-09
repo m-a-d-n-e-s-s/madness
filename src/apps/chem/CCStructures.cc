@@ -332,6 +332,7 @@ namespace madness{
 	excitations_(0),
 	tda_guess_orbitals(0),
 	tda_guess_mode("uninitialized"),
+	excitation_irrep("all"),
 	tda_excitations(0),
 	tda_guess_excitations(0),
 	tda_iterating_excitations(0),
@@ -441,6 +442,7 @@ namespace madness{
       else if ( s == "tda_guess_orbitals") f>>tda_guess_orbitals;
       else if ( s == "tda_guess_mode") f>>tda_guess_mode;
       else if ( s == "tda_guess_excitations") f>>tda_guess_excitations;
+      else if ( s == "tda_excitation_irrep") f>>excitation_irrep;
       else if ( s == "tda_excitations") f>>tda_excitations;
       else if ( s == "tda_iterating_excitations") f>>tda_iterating_excitations;
       else if ( s == "tda_guess") f >> tda_guess;
@@ -565,6 +567,7 @@ namespace madness{
 	excitations_(other.excitations_),
 	tda_guess_orbitals(0),
 	tda_guess_mode(other.tda_guess_mode),
+	excitation_irrep(other.excitation_irrep),
 	tda_excitations(other.tda_excitations),
 	tda_guess_excitations(other.tda_guess_excitations),
 	tda_iterating_excitations(other.tda_iterating_excitations),
@@ -581,7 +584,8 @@ namespace madness{
 	tda_iter_guess(other.tda_iter_guess),
 	tda_homo_guess(other.tda_homo_guess),
 	tda_exops(other.tda_exops),
-	tda_damping_width(other.tda_damping_width)
+	tda_damping_width(other.tda_damping_width),
+	tda_triplet(other.tda_triplet)
   {}
 
   void CCParameters::information(World &world)const{
@@ -667,6 +671,7 @@ namespace madness{
       std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
       std::cout << std::setfill(' ');
       std::cout << std::scientific << std::setprecision(2);
+      std::cout << "excitation_irrep         :" << excitation_irrep          << std::endl;
       std::cout << "tda_guess_orbitals       :" << tda_guess_orbitals          << std::endl;
       //std::cout << "tda_guess_mode           :" << tda_guess_mode              << std::endl;
       std::cout << "tda_excitations          :" << tda_excitations             << std::endl;

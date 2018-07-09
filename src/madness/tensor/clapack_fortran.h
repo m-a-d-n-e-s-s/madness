@@ -279,6 +279,10 @@ extern "C"
 extern "C"
 void dpotrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer *info, char_len uplo_len);
 
+extern "C"
+void dpstrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer* ipiv, integer* rank, real8* tol,
+		real8* work, integer *info);
+
 
 extern "C"
 void dgetrf_(const integer* m, const integer* n, real8 *a, const integer *lda,

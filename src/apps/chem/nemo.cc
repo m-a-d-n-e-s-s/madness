@@ -48,6 +48,7 @@
 #include <madness/constants.h>
 #include <chem/vibanal.h>
 #include <chem/pcm.h>
+#include <chem/pointgroupsymmetry.h>
 
 
 namespace madness {
@@ -104,42 +105,50 @@ double Nemo::value(const Tensor<double>& x) {
 	}
 
 	SCFProtocol p(world,calc->param,"nemo_iterations",calc->param.restart);
+
     nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
 
 	// read (pre-) converged wave function from disk if there is one
 	if (calc->param.no_compute) {
-	    calc->load_mos(world);
+
+		calc->load_mos(world);
+	    set_protocol(p.econv);
+	    get_calc()->make_nuclear_potential(world);
+        calc->project_ao_basis(world);
+
 	    p.current_prec=calc->param.econv;   // no additional iterations
         p.restart=false;    // don't read anything from disk
+        p.converged=true;
 
 	} else if (calc->param.restart) {
-	    calc->load_mos(world);
+
+		calc->load_mos(world);
+	    FunctionDefaults<3>::set_thresh(calc->amo[0].thresh());
+	    get_calc()->make_nuclear_potential(world);
+        calc->project_ao_basis(world);
+
 	    p.start_prec=calc->amo[0].thresh();
 	    p.current_prec=calc->amo[0].thresh();
 
 	} else {
-	    FunctionDefaults<3>::set_thresh(p.start_prec);
+
+		FunctionDefaults<3>::set_thresh(p.start_prec);
         get_calc()->make_nuclear_potential(world);
         calc->project_ao_basis(world);
-	    calc->initial_guess(world);
 
+        calc->initial_guess(world);
 	    real_function_3d R_inverse = nuclear_correlation->inverse();
 	    calc->amo = R_inverse*calc->amo;
 	    truncate(world,calc->amo);
 	}
 
 	double energy=0.0;
-    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
-
-
 	for (p.initialize() ; not p.finished(); ++p) {
 
 	    set_protocol(p.current_prec);
 
 	    // (re) construct nuclear potential and correlation factors
         get_calc()->make_nuclear_potential(world);
-        construct_nuclear_correlation_factor();
-
         energy=solve(p);
     }
 
@@ -232,6 +241,8 @@ double Nemo::solve(const SCFProtocol& proto) {
 	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
 
 	    if (localized) nemo=localize(nemo,proto.dconv,iter==0);
+	    std::vector<std::string> str_irreps;
+	    if (calc->param.enforce_symmetry) nemo=project_on_irreps(nemo,str_irreps);
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
 
@@ -246,7 +257,8 @@ double Nemo::solve(const SCFProtocol& proto) {
 		Kinetic<double,3> T(world);
 		fock+=T(R2nemo,nemo);
 		JKUpsi.clear();
-
+		print("fock matrix");
+		print(fock);
 
 		// report the off-diagonal fock matrix elements
 		if (not localized) {
@@ -915,6 +927,24 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
         }
     }
     return grad;
+}
+
+
+vecfuncT Nemo::project_on_irreps(const vecfuncT& nemo, std::vector<std::string>& irreps) const {
+
+	projector_irrep proj(calc->molecule.pointgroup_);
+	vecfuncT nemo_irrep;
+	irreps.clear();
+
+//	// loop over all irreps
+//	for (const std::string & irrep : proj.get_all_irreps()) {
+//		proj.set_irrep(irrep);
+//		vecfuncT tmp=proj(nemo,R_square);	// all orbitals in this irrep
+//		std::vector<std::string> tmp_irrep(tmp.size(),irrep);
+//		irreps.insert(std::end(irreps), std::begin(tmp_irrep), std::end(tmp_irrep));
+//		nemo_irrep.insert(std::end(nemo_irrep), std::begin(tmp), std::end(tmp));
+//	}
+	return nemo_irrep;
 }
 
 

@@ -6,6 +6,7 @@
  */
 
 #include "TDHF.h"
+#include <chem/pointgroupsymmetry.h>
 
 namespace madness {
 
@@ -316,15 +317,39 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 	}
 
 	bool converged = true;
+	projector_irrep projector(nemo.get_calc()->molecule.pointgroup_,parameters.excitation_irrep);
 
 	// get potentials (if demanded)
 	std::vector<vecfuncT> V;
+
+	// initial symmetry projection
+	print("symmetrizing the x vectors");
+	for (auto& xx : x) {
+		std::size_t nx_before=xx.size();
+		std::vector<std::string> sirreps;
+		vecfuncT tmp=nemo.project_on_irreps(xx.get_vecfunction(),sirreps);
+		xx.set_functions(tmp,xx.type,parameters.freeze);
+		MADNESS_ASSERT(xx.size()==nx_before);
+	}
 
 	// for TDHF the potential is always stored
 	if(parameters.tda_store_potential and y.empty()) V = make_potentials(x);
 	else if(not y.empty()) V = make_tdhf_potentials(x,y);
 	// orthonormalize
+
 	orthonormalize(x,V);
+	print("check symmetry of x after orthonormalization");
+	for (auto& xx : x) {
+		std::vector<std::string> sirreps;
+		vecfuncT tmp=nemo.project_on_irreps(xx.get_vecfunction(),sirreps);
+		print("sirreps",sirreps);
+	}
+	print("check symmetry of V after orthonormalization");
+	for (auto& vv : V) {
+		std::vector<std::string> sirreps;
+		nemo.project_on_irreps(vv,sirreps);
+		print("sirreps",sirreps);
+	}
 
 	for(size_t iter=0;iter<iter_max;iter++){
 		// if we solve for the y functions we need to switch the sign of omega
@@ -334,8 +359,16 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 		// apply Greens Functions
 		for(size_t i=0;i<x.size();i++) if(iterate_y and x[i].omega>=0.0) x[i].omega = -1.0*y[i].omega;
 		std::vector<vecfuncT> residuals=apply_G(x,V);
-		// check convergence
 
+		print("check symmetry of residual");
+		for (auto& r : residuals) {
+			std::vector<std::string> sirreps;
+			r=nemo.project_on_irreps(r,sirreps);
+			print("sirreps",sirreps);
+		}
+
+
+		// check convergence
 		converged = true;
 		std::vector<double> errors;
 		for(size_t i=0;i<x.size();i++){
@@ -499,6 +532,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	const real_function_3d alpha_density=0.5*nemo.R_square*nemo_density;
 
 
+	std::vector<std::string> sirreps;
 
 
 
@@ -522,6 +556,10 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		CCTimer timeJ(world,"Jx");
 		const vecfuncT Jx=J(x.get_vecfunction());
 		timeJ.info(parameters.debug);
+
+		print("Check symmetry on Jx");
+		vecfuncT tmp=nemo.project_on_irreps(Jx,sirreps);
+		print("sirreps",sirreps);
 
 		if(nemo.get_calc()->xc.is_dft()){
 			// XC Potential
@@ -549,6 +587,11 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 			K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo,parameters.thresh_poisson);
 			vecfuncT Kx =K(x.get_vecfunction());
 			scale(world,Kx,hf_coeff);
+
+			print("Check symmetry on Kx (gs)");
+			vecfuncT tmp=nemo.project_on_irreps(Kx,sirreps);
+			print("sirreps",sirreps);
+
 			Vpsi1 = sub(world, Vpsi1, Kx);
 			timeKx.info(parameters.debug);
 		}
@@ -590,6 +633,12 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 			Vpsi2 = XCp;
 		}
 		else Vpsi2 = Jp(active_mo)+XCp;
+
+		print("Check symmetry on Jp (es)");
+		vecfuncT tmp=nemo.project_on_irreps(Vpsi2,sirreps);
+		print("sirreps",sirreps);
+
+
 		timeJ.info(parameters.debug);
 		// Exchange Part
 		if(hf_coeff>0.0){
@@ -605,6 +654,10 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 				}
 				Kp.push_back(Ki);
 			}
+			print("Check symmetry on Kp (es)");
+			vecfuncT tmp=nemo.project_on_irreps(Kp,sirreps);
+			print("sirreps",sirreps);
+
 			scale(world,Kp,hf_coeff);
 			Vpsi2 = sub(world,Vpsi2,Kp);
 			timeK.info(parameters.debug);
@@ -629,6 +682,10 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	// canonical: -ei|xi> (part of greens function)
 	// local:  -fik|xk> (fii|xi> part of greens functions, rest needs to be added)
 
+	print("Check symmetry on V (total)");
+	nemo.project_on_irreps(Vpsi,sirreps);
+	print("sirreps",sirreps);
+
 	if(nemo.get_calc()->param.localize){
 		const vecfuncT vx=x.get_vecfunction();
 		vecfuncT fock_coupling=madness::transform(world,vx,F_occ);
@@ -638,6 +695,8 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		}
 		Vpsi-=fock_coupling;
 	}
+	print("Check symmetry on V with local coupling)");
+	nemo.project_on_irreps(Vpsi,sirreps);
 
 
 	truncate(world,Vpsi);
@@ -856,7 +915,66 @@ std::vector<CC_vecfunction> TDHF::make_y_guess(const std::vector<CC_vecfunction>
 }
 
 /// Makes the guess functions by exciting active orbitals with excitation operators
+std::vector<CC_vecfunction> TDHF::make_symmetrized_guess()const{
+	CCTimer time(world,"Making Symmetrized Guess Functions ");
+
+	// make the excitation operators
+	std::vector<std::string> exop_strings = make_predefined_guess_strings(parameters.tda_guess);
+	vecfuncT exops;
+	for(const auto& exs:exop_strings){
+		std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(new polynomial_functor(exs));
+		real_function_3d exop = real_factory_3d(world).functor(exop_functor);
+		// do damp
+		if(parameters.tda_damping_width > 0.0){
+			std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(new gauss_functor(parameters.tda_damping_width));
+			real_function_3d damp = real_factory_3d(world).functor(damp_functor);
+			plot_plane(world,damp,"damping_function");
+			exop = (exop*damp).truncate();
+		}
+		exops.push_back(exop);
+	}
+
+	// symmetrize orbitals and excitation operators
+	print("projecting excitation operators");
+	std::vector<std::string> str_irreps_guess;
+	exops=nemo.project_on_irreps(exops,str_irreps_guess);
+
+	print("projecting reference orbitals");
+	std::vector<std::string> str_irreps_mo;
+	const CC_vecfunction & mos = get_active_mo_ket();
+
+	vecfuncT vm=nemo.project_on_irreps(mos.get_vecfunction(),str_irreps_mo);
+
+	// making the guess
+	reconstruct(world,vm);
+	reconstruct(world,exops);
+
+	projector_irrep projector(nemo.get_calc()->molecule.pointgroup_);
+	std::vector<CC_vecfunction> guess;
+
+	// loop over all excitation operators
+	for (std::size_t iex=0; iex<exops.size(); ++iex) {
+
+		if (str_irreps_guess[iex]==parameters.excitation_irrep) {
+			print("making guess from excitation ",iex,str_irreps_guess[iex]);
+			vecfuncT tmp = (exops[iex]*vm);
+			nemo.normalize(tmp);
+
+			tmp = Q(tmp);
+			nemo.normalize(tmp);
+
+			CC_vecfunction guess_tmp(tmp,RESPONSE,parameters.freeze);
+			guess.push_back(guess_tmp);
+		}
+	}
+	return guess;
+}
+
+
+/// Makes the guess functions by exciting active orbitals with excitation operators
 std::vector<CC_vecfunction> TDHF::make_guess()const{
+
+	return make_symmetrized_guess();
 	CCTimer time(world,"Making Guess Functions: " + parameters.tda_guess);
 	std::vector<std::string> exop_strings;
 	if(parameters.tda_guess=="custom"){
@@ -883,9 +1001,18 @@ std::vector<CC_vecfunction> TDHF::make_guess()const{
 		exops.push_back(exop);
 	}
 
+	// symmetrize
+	std::vector<std::string> str_irreps_guess;
+	if (this->nemo.get_calc()->param.enforce_symmetry) {
+		print("number of excitation operators",exops.size());
+		print("projecting excitation operators");
+		exops=nemo.project_on_irreps(exops,str_irreps_guess);
+	}
+
 	// Excite the last N unfrozen MOs
 	size_t N = parameters.tda_guess_orbitals;
 	const CC_vecfunction & mos = get_active_mo_ket();
+
 	// if N was not assigned we use just the Homo if there are no degeneracies
 	// here we check for degeneracies
 	if(N==0){
@@ -897,19 +1024,47 @@ std::vector<CC_vecfunction> TDHF::make_guess()const{
 	}
 
 	// making the guess
+	vecfuncT vm = mos.get_vecfunction();
+	std::vector<std::string> str_irreps_mo;
+	projector_irrep projector(nemo.get_calc()->molecule.pointgroup_);
+	if (this->nemo.get_calc()->param.enforce_symmetry) {
+		print("projecting reference orbitals");
+		vm=nemo.project_on_irreps(vm,str_irreps_mo);
+	}
+	reconstruct(world,vm);
+	reconstruct(world,exops);
+	MADNESS_ASSERT(not(N>vm.size()));
+
 	std::vector<CC_vecfunction> guess;
+	print("requesting excitation",parameters.excitation_irrep);
+	// loop over the number of excitation operators
 	for(size_t i=0;i<exops.size();i++){
-		const vecfuncT vm = mos.get_vecfunction();
-		reconstruct(world,vm);
-		reconstruct(world,exops);
-		MADNESS_ASSERT(not(N>vm.size()));
 		vecfuncT tmp= zero_functions<double,3>(world,vm.size());
-		// exciting the first N orbitals (from the homo to the homo-N)
-		for(size_t k=0;k<N;k++){
-			real_function_3d xmo = (exops[i]*vm[vm.size()-1-k]).truncate();
-			tmp[tmp.size()-1-k]=xmo;
-			plot_plane(world,xmo,std::to_string(i)+"_cis_guess_"+"_"+std::to_string(vm.size()-k-1+parameters.freeze));
+
+		if (parameters.excitation_irrep=="all") {
+			// exciting the first N orbitals (from the homo to the homo-N)
+			for(size_t k=0;k<N;k++){
+				real_function_3d xmo = (exops[i]*vm[vm.size()-1-k]).truncate();
+				tmp[tmp.size()-1-k]=xmo;
+				plot_plane(world,xmo,std::to_string(i)+"_cis_guess_"+"_"+std::to_string(vm.size()-k-1+parameters.freeze));
+			}
+		} else {
+			for (std::size_t imo=0; imo<vm.size(); ++imo) {
+				// reduce the direct product of orbital and excitation operator
+				std::vector<std::string> prod=projector.reduce(str_irreps_mo[imo],str_irreps_guess[i]);
+				MADNESS_ASSERT(prod.size()==1);	// only Abelian right now
+//				print("reducing orbital/excitation product to",prod);
+				if (prod[0]==parameters.excitation_irrep) {
+					print("making guess from orbital/excitation ",imo,i);
+					print("   corresponding to irreps",str_irreps_mo[imo],str_irreps_guess[i]);
+
+					real_function_3d xmo = (exops[i]*vm[imo]).truncate();
+					tmp[imo]=xmo;
+				}
+			}
 		}
+
+
 		{
 			const double norm = sqrt(inner(world,make_bra(tmp),tmp).sum());
 			scale(world,tmp,1.0/norm);

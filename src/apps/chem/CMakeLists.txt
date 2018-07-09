@@ -10,12 +10,13 @@ set(MADCHEM_HEADERS
     molecular_optimizer.h projector.h
     SCFOperators.h CCStructures.h CalculationParameters.h
     electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
-    pcm.h SCFProtocol.h AC.h)
+    pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
     corepotential.cc atomutil.cc lda.cc cheminfo.cc
     distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc
-    SCFOperators.cc TDHF.cc CCStructures.cc CC2.cc CCPotentials.cc AC.cc)
+    SCFOperators.cc TDHF.cc CCStructures.cc CC2.cc CCPotentials.cc AC.cc
+     pointgroupsymmetry.cc)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()
@@ -52,7 +53,7 @@ install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 if(ENABLE_UNITTESTS)
   
   # The list of unit test source files
-  set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc)
+  set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc)
   
   add_unittests(chem CHEM_TEST_SOURCES "MADchem;MADgtest")
   

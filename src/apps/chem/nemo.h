@@ -143,6 +143,7 @@ struct allocator {
 class Nemo: public MolecularOptimizationTargetInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
+	friend class TDHF;
 
 public:
 
@@ -179,6 +180,9 @@ public:
 	Tensor<double> gradient(const Tensor<double>& x);
 
 	bool provides_gradient() const {return true;}
+
+	/// project orbitals on the irreps of the point group
+	vecfuncT project_on_irreps(const vecfuncT& nemo, std::vector<std::string>& irreps) const;
 
 	/// returns the molecular hessian matrix at structure x
 	Tensor<double> hessian(const Tensor<double>& x);

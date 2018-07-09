@@ -1145,6 +1145,13 @@ namespace madness {
 
     }
 
+    /// mirror the dimensions of f according to mirror, result on this
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::mirror(const implT& f, const std::vector<long>& mirrormap, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        const_cast<implT*>(&f)->flo_unary_op_node_inplace(do_mirror(mirrormap,*this),fence);
+    }
+
 
     /// take the average of two functions, similar to: this=0.5*(this+rhs)
 

@@ -254,6 +254,9 @@ namespace madness{
     /// "projected" use the projected occupied orbitals (projected to guess gauss basis) and avoid noise for high guess polynomials
     std::string tda_guess_mode;
 
+    /// restrict the calculation of the excited state to a specific irrep
+    std::string excitation_irrep;
+
     /// The number of excitation vectors for which the alorithm will solve
     size_t tda_excitations;
     /// The number of guess_excitation vectors for the first iterations
@@ -414,40 +417,47 @@ namespace madness{
   /// A helper structure which holds a map of functions
   struct CC_vecfunction{
 
-    CC_vecfunction(): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9), delta(0.0){}
-    CC_vecfunction(const FuncType type_): type(type_),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){}
-    CC_vecfunction(const vecfuncT &v): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
-      for(size_t i=0;i<v.size();i++){
-	CCFunction tmp(v[i],i,type);
-	functions.insert(std::make_pair(i,tmp));
-      }
-    }
-    CC_vecfunction(const std::vector<CCFunction> &v): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
-      for(size_t i=0;i<v.size();i++){
-	functions.insert(std::make_pair(v[i].i,v[i]));
-      }
-    }
-    CC_vecfunction(const vecfuncT &v,const FuncType &type): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
-      for(size_t i=0;i<v.size();i++){
-	CCFunction tmp(v[i],i,type);
-	functions.insert(std::make_pair(i,tmp));
-      }
-    }
-    CC_vecfunction(const vecfuncT &v,const FuncType &type,const size_t &freeze): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
-      for(size_t i=0;i<v.size();i++){
-	CCFunction tmp(v[i],freeze+i,type);
-	functions.insert(std::make_pair(freeze+i,tmp));
-      }
-    }
-    CC_vecfunction(const std::vector<CCFunction> &v,const FuncType type_): type(type_),omega(0.0),excitation(-1),current_error(99.9),delta(0.0){
-      for(auto x:v){
-	functions.insert(std::make_pair(x.i,x));
-      }
-    }
-    CC_vecfunction(const CC_vecfunction &other) : functions(other.functions),type(other.type), omega(other.omega),excitation(other.excitation),current_error(other.current_error),delta(other.delta) {}
+	  CC_vecfunction(): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9), delta(0.0){}
 
-    typedef std::map<std::size_t, CCFunction> CC_functionmap;
-    CC_functionmap functions;
+	  CC_vecfunction(const FuncType type_): type(type_),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){}
+
+	  CC_vecfunction(const vecfuncT &v): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
+		  for(size_t i=0;i<v.size();i++){
+			  CCFunction tmp(v[i],i,type);
+			  functions.insert(std::make_pair(i,tmp));
+		  }
+	  }
+
+	  CC_vecfunction(const std::vector<CCFunction> &v): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
+		  for(size_t i=0;i<v.size();i++){
+			  functions.insert(std::make_pair(v[i].i,v[i]));
+		  }
+	  }
+
+	  CC_vecfunction(const vecfuncT &v,const FuncType &type): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
+		  for(size_t i=0;i<v.size();i++){
+			  CCFunction tmp(v[i],i,type);
+			  functions.insert(std::make_pair(i,tmp));
+		  }
+	  }
+
+	  CC_vecfunction(const vecfuncT &v,const FuncType &type,const size_t &freeze): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
+		  for(size_t i=0;i<v.size();i++){
+			  CCFunction tmp(v[i],freeze+i,type);
+			  functions.insert(std::make_pair(freeze+i,tmp));
+		  }
+	  }
+
+	  CC_vecfunction(const std::vector<CCFunction> &v,const FuncType type_): type(type_),omega(0.0),excitation(-1),current_error(99.9),delta(0.0){
+		  for(auto x:v){
+			  functions.insert(std::make_pair(x.i,x));
+		  }
+	  }
+
+	  CC_vecfunction(const CC_vecfunction &other) : functions(other.functions),type(other.type), omega(other.omega),excitation(other.excitation),current_error(other.current_error),delta(other.delta) {}
+
+	  typedef std::map<std::size_t, CCFunction> CC_functionmap;
+	  CC_functionmap functions;
 
     /// returns a deep copy (void shallow copy errors)
     CC_vecfunction

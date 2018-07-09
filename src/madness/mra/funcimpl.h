@@ -2115,7 +2115,7 @@ namespace madness {
         struct do_check_symmetry_local {
             typedef Range<typename dcT::const_iterator> rangeT;
             const implT* f;
-            do_check_symmetry_local() {}
+            do_check_symmetry_local() : f(0) {}
             do_check_symmetry_local(const implT& f) : f(&f) {}
 
             /// return the norm of the difference of this node and its "mirror" node
@@ -2191,7 +2191,7 @@ namespace madness {
             FunctionImpl<Q,NDIM>* other;
             T alpha;
             R beta;
-            do_merge_trees() {}
+            do_merge_trees() : other(0) {}
             do_merge_trees(const T alpha, const R beta, FunctionImpl<Q,NDIM>& other)
                 : other(&other), alpha(alpha), beta(beta) {}
 
@@ -2251,13 +2251,64 @@ namespace madness {
 
         };
 
+        /// mirror dimensions of this, write result on f
+        struct do_mirror {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            std::vector<long> mirror;
+            implT* f;
+
+            do_mirror() : f(0) {};
+            do_mirror(const std::vector<long> mirror, implT& f) : mirror(mirror), f(&f) {}
+
+            bool operator()(typename rangeT::iterator& it) const {
+
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+
+                // mirror translation index: l_new + l_old = l_max
+                Vector<Translation,NDIM> l=key.translation();
+                Translation lmax = (Translation(1)<<key.level()) - 1;
+                for (std::size_t i=0; i<NDIM; ++i) {
+                	if (mirror[i]==-1) l[i]= lmax - key.translation()[i];
+                }
+
+                // mirror coefficients: multiply all odd-k slices with -1
+                tensorT c = node.coeff().full_tensor_copy();
+            	if (c.size()) {
+            		std::vector<Slice> s(___);
+
+                	// loop over dimensions and over k
+                	for (long i=0; i<NDIM; ++i) {
+                		std::size_t kmax=c.dim(i);
+                		if (mirror[i]==-1) {
+                			for (long k=1; k<kmax; k+=2) {
+                				s[i]=Slice(k,k,1);
+                				c(s)*=(-1.0);
+                			}
+                			s[i]=_;
+                		}
+                	}
+                }
+                coeffT cc(c,f->get_tensor_args());
+                f->get_coeffs().replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
+
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("no serialization of do_mirror",1);
+            }
+
+        };
+
+
         /// "put" this on g
         struct do_average {
             typedef Range<typename dcT::const_iterator> rangeT;
 
             implT* g;
 
-            do_average() {}
+            do_average() : g(0) {}
             do_average(implT& g) : g(&g) {}
 
             /// iterator it points to this
@@ -3916,6 +3967,8 @@ namespace madness {
         /// Permute the dimensions of f according to map, result on this
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
 
+        /// mirror the dimensions of f according to map, result on this
+        void mirror(const implT& f, const std::vector<long>& mirror, bool fence);
 
         /// take the average of two functions, similar to: this=0.5*(this+rhs)
 

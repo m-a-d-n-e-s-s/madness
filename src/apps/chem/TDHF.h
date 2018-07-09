@@ -77,6 +77,9 @@ public:
 	std::vector<vecfuncT> apply_G(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const;
 	/// Guess for TDHF y functions (not ready)
 	std::vector<CC_vecfunction> make_y_guess(const std::vector<CC_vecfunction> & x, std::vector<CC_vecfunction> & y)const;
+
+	std::vector<CC_vecfunction> make_symmetrized_guess() const;
+
 	/// Make the CIS Guess
 	/// the type of guess is  ontrolled over the tda_guess keyword in the CCParameters class (CC_Structures.h)
 	std::vector<CC_vecfunction> make_guess()const;

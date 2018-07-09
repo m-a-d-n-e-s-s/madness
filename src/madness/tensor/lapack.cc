@@ -683,6 +683,48 @@ namespace madness {
                 A(i,j) = 0.0;
     }
 
+    /** \brief  Compute the rank-revealing Cholesky factorization.
+
+    Compute the rank-revealing Cholesky factorization of the symmetric positive definite matrix A
+
+    For memory efficiency A is modified inplace.  Its upper
+    triangle will hold the result and the lower triangle will be
+    zeroed such that input = inner(transpose(output),output).
+
+    @param[in]	A	the positive-semidefinite matrix to be decomposed
+    @param[in]	tol	linear dependency threshold for discarding columns of A
+    @param[in]	piv	pivot vector, its 1-rank entries are the orthogonal vectors
+    @param[in]	rank	numerical rank of A (wrt tol)
+
+    */
+    template <typename T>
+    void rr_cholesky(Tensor<T>& A, double tol, Tensor<integer>& piv, int& rank) {
+        integer n = A.dim(0);
+        integer info;
+        piv=Tensor<integer>(n);
+        Tensor<T> work(2*n);
+
+#if MADNESS_LINALG_USE_LAPACKE
+        dpstrf_("L", &n, A.ptr(), &n, piv.ptr(), &rank, &tol, work.ptr(), &info);
+#else
+        dpstrf_("L", &n, A.ptr(), &n, piv.ptr(), &rank, &tol, work.ptr(), &info);
+#endif
+        // note:
+        // info=0: Cholesky decomposition suceeded with full rank
+        // info>0: indicates a rank-deficient A, which is not failure!
+        // info<0: faulty input parameter
+        mask_info(info);
+        TENSOR_ASSERT(info >= 0, "rr_cholesky: Lapack failed", info, &A);
+
+        for (int i=0; i<n; ++i)
+            for (int j=0; j<i; ++j)
+                A(i,j) = 0.0;
+        // turn piv into c numbering
+        for (int i=0; i<n; ++i) piv[i]--;
+    }
+
+
+
     /** \brief  Compute the QR factorization.
 
 	Q is returned in the lapack-specific format
@@ -1151,6 +1193,10 @@ namespace madness {
 
     template
     void cholesky(Tensor<double>& A);
+
+    template
+    void rr_cholesky(Tensor<double>& A, double tol, Tensor<integer>& piv, int& rank);
+
 
     template
     Tensor<double> inverse(const Tensor<double>& A);
