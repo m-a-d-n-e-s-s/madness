@@ -125,7 +125,16 @@ struct CalculationParameters {
     double rconv;                     ///< Response convergence
     double efield;                    ///< eps for finite field
     double efield_axis;               ///< eps for finite field axis
+    std::map<std::string,std::string> generalkeyval;  ///< general new key/value pair
 
+
+    static bool stringtobool(std::string str) {
+        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        if (str=="true" or str=="1" or str=="yes") return true;
+        if (str=="false" or str=="0" or str=="no") return false;
+        madness::print("unknown boolean ",str);
+        return 0;
+    }
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -417,6 +426,13 @@ struct CalculationParameters {
                 std::getline(f,str);
                 nuclear_corrfac=str;
             }
+            else if (s == "keyval") {
+                std::string key, val;
+                f >> key;
+                f >> val;
+                generalkeyval.insert(std::make_pair(key,val));
+            }
+
             else if (s == "psp_calc") {
                 psp_calc = true;
                 pure_ae = false;
