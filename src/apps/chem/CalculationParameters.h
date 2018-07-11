@@ -483,11 +483,12 @@ struct CalculationParameters {
 
             // Bryan edit for derivative
             // Available options are:
-            //   bspline       -->  uses robert's bsplines
-            //   ph1           -->  uses whatever is in ph-spline-deriv.txt
-            //   ph2           -->  uses whatever is in ph-spline-deriv-2.txt
-            //   prolate       -->  uses whatever is in prolates-joel
-            //   prolate-greg  -->  uses whatever is in prolates-joel
+            //   bspline       -->  uses robert's bspline basis for derivatives
+            //   ph1           -->  uses a low-pass filter basis from 
+            //                      http://www.holoborodko.com/pavel/numerical-methods/numerical-derivative/smooth-low-noise-differentiators/ 
+            //                      for derivatives
+            //   ble           -->  uses one of greg's band-limited exponential bases for derivatives
+            //   prolate       -->  uses one of greg's prolate bases for derivatives
             else if (s == "deriv") {
                f >> deriv;
             }

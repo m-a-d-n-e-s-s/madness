@@ -392,25 +392,20 @@ namespace madness {
             // Didn't know how to do this intelligently...
             if(param.deriv == "bspline")
             {
-               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/deriv-bsp.k=m+1.n=m+1");
+               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv1.txt");
             }
-            else if(param.deriv == "ph1")
+            else if(param.deriv == "ph")
             { 
                for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv.txt");
             }
-            else if(param.deriv == "ph2")
+            else if(param.deriv == "ble")
             { 
-               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv-2.txt");
+               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ble-first.txt");
             }
             else if(param.deriv == "prolate")
             { 
-               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-joel");
+               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-feb");
             }
-            else if(param.deriv == "prolate-greg")
-            { 
-               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-greg");
-            }
-
 
             mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
             if(world.rank() == 0){

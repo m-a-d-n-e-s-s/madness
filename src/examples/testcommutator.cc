@@ -85,23 +85,20 @@ struct Qfunc : public FunctionFunctorInterface<double,3> {
 };
 
 template <typename T>
-int test_bsh(World& world) {
+void test_bsh(World& world) {
 
     // Setting up the derivative types
     std::vector<const char*> DATA_PATH;
-    DATA_PATH.push_back("/gpfs/projects/rjh/mad-der/src/madness/mra/deriv-bsp.k=m+1.n=m+1");
-    DATA_PATH.push_back("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv.txt");
-    DATA_PATH.push_back("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-joel");
+    DATA_PATH.push_back("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv1.txt");
+    DATA_PATH.push_back("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv2.txt");
+    DATA_PATH.push_back("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv3.txt");
+    DATA_PATH.push_back("/gpfs/projects/rjh/mad-der/src/madness/mra/ble-first.txt");
+    DATA_PATH.push_back("/gpfs/projects/rjh/mad-der/src/madness/mra/ble-second.txt");
 
     double mu = 1.0;
     std::vector<long> npt(3,201l);
     typedef Vector<double,3> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,3> > functorT;
-
-    int success=0;
-    //if (world.rank() == 0)
-    //    print("Test BSH operation, type =",
-    //          archive::get_type_name<T>(),", ndim =",3);
 
     FunctionDefaults<3>::set_cubic_cell(-100,100);
     FunctionDefaults<3>::set_thresh(1e-6);
@@ -114,21 +111,22 @@ int test_bsh(World& world) {
     printf("\n%4s %16s %20s %20s %20s %20s %20s\n", "k", "deriv. type", "d/dx(op(f)) norm", "d/dx(op(f)) error", "op(d/dx(f)) norm", "op(d/dx(f)) error", "norm of dif.");
     printf("---- ---------------- -------------------- -------------------- -------------------- -------------------- --------------------\n");
 
-    for (int i=0; i<4; i++) {
+    for (int i=0; i<=5; i++) {
 
        // Choose derivative type
        std::string deriv_type;
        if (i == 0) deriv_type = "abgv";
-       else if (i == 1) deriv_type = "bspline";
-       else if (i == 2) deriv_type = "ph1";
-       else if (i == 3) deriv_type = "prolate";      
-       
+       else if (i == 1) deriv_type = "bspline1";
+       else if (i == 2) deriv_type = "bspline2";
+       else if (i == 3) deriv_type = "bspline3";
+       else if (i == 4) deriv_type = "ble1";
+       else if (i == 5) deriv_type = "ble2";
+      
+       // Only do first derivatives
+       if(i == 2 or i == 3 or i == 5) continue;
+ 
        // Prolates are only available for k=8+, so taking care of that here
-       int k = 4;
-       if(deriv_type == "prolate") k = 8;
-
-       for ( ; k<=12; k++) {
-           //print("\n Testing with k", k);
+       for (int k=7 ; k<=15; k++) {
            FunctionDefaults<3>::set_k(k);
 
            FunctionDefaults<3>::set_initial_level(6);
@@ -138,16 +136,21 @@ int test_bsh(World& world) {
            std::vector< std::shared_ptr<real_derivative_3d> > diff = gradient_operator<double,3>(world);
            
            // Change derivative to correct type
-           if (deriv_type == "bspline") {
+           if (deriv_type == "bspline1") {
               for(int j=0; j<3; j++) (*diff[j]).read_from_file(DATA_PATH[0]);
            }
-           else if (deriv_type == "ph1") {
-              for(int j=0; j<3; j++) (*diff[j]).read_from_file(DATA_PATH[1]);
+           else if (deriv_type == "bspline2") {
+              for(int j=0; j<3; j++) (*diff[j]).read_from_file(DATA_PATH[1], 2);
            }
-           else if (deriv_type == "prolate") {
-              for(int j=0; j<3; j++) (*diff[j]).read_from_file(DATA_PATH[2]);
+           else if (deriv_type == "bspline3") {
+              for(int j=0; j<3; j++) (*diff[j]).read_from_file(DATA_PATH[2], 3);
            }
-
+           else if (deriv_type == "ble1") {
+              for(int j=0; j<3; j++) (*diff[j]).read_from_file(DATA_PATH[3]);
+           }
+           else if (deriv_type == "ble2") {
+              for(int j=0; j<3; j++) (*diff[j]).read_from_file(DATA_PATH[4], 2);
+           }
            const coordT origin(0.0);
            const double expnt = 100.0;
            aa = expnt;
@@ -156,69 +159,41 @@ int test_bsh(World& world) {
            // the input function to be convolved
            Function<T,3> f = FunctionFactory<T,3>(world).functor(functorT(new Gaussian<T,3>(origin, expnt, coeff)));
            f.truncate();
-           
-           //double norm = f.trace();
-           double ferr = f.err(Gaussian<T,3>(origin, expnt, coeff));
-           //if (world.rank() == 0) print("norm and error of the initial function", norm, ferr);
-           
+
            SeparatedConvolution<T,3> op = BSHOperator<3>(world, mu, 1e-4, 1e-8);
            std::cout.precision(8);
 
            // apply the convolution operator on the input function f
            Function<T,3> ff = copy(f);
-           //if (world.rank() == 0) print("applying - 1");
-           //double start = cpu_time();
            Function<T,3> opf = op(ff);
-           //if (world.rank() == 0) print("done in time",cpu_time()-start);
+           
            ff.clear();
            opf.verify_tree();
-           double opferr = opf.err(Qfunc());
-           //if (world.rank() == 0) print("err in opf", opferr);
-           //if (world.rank() == 0) print("err in f", ferr);
            
-           // here we are testing bsh, not the initial projection
-           if ((opferr>ferr) and (opferr>FunctionDefaults<3>::get_thresh())) success++;
-           if (opferr>2*ferr) success++;
-           
-           //opf.truncate();
            Function<T,3> opinvopf = opf*(mu*mu);
            for (int axis=0; axis<3; ++axis) {
-               //Derivative<double,3> diff(world, axis);
                opinvopf.gaxpy(1.0, (*diff[axis])( (*diff[axis])( opf ) ),-1.0);
            }
-           //if (world.rank() == 0) print("norm of (-del^2+mu^2)*G*f", opinvopf.norm2());
+
            double opinvof_norm = opinvopf.norm2();
            Function<T,3> error = (f-opinvopf);
-           //if (world.rank() == 0) print("error",error.norm2());
            double error_norm = error.norm2();
-
-           //opf.clear();
-           //opinvopf.clear();
            
            Function<T,3> g = (mu*mu)*f;
            for (int axis=0; axis<3; ++axis) {
-               //Derivative<double,3> diff(world, axis);
-               //g = g - diff(diff(f.reconstruct(),axis).reconstruct(),axis);
                g = g - (*diff[axis])((*diff[axis])(f.reconstruct()).reconstruct());
            }
            g = op(g);
            double derror=(g-f).norm2();
-           //if (world.rank() == 0) print("norm of G*(-del^2+mu^2)*f",g.norm2());
-           //if (world.rank() == 0) print("error",derror);
            double g_norm = g.norm2();
-           if (derror> FunctionDefaults<3>::get_thresh()) success++;
            double com_norm = (opinvopf-g).norm2();          
  
            // Output data of interest
            printf("%4d %16s %20.8f %20.8f %20.8f %20.8f %20.8f\n", k, deriv_type.c_str(), opinvof_norm, error_norm, g_norm, derror, com_norm);
-
-           // Line plots of op(f), opinv(f), op(opinv(f)), opinv(op(f)), analytic versions of same
-           
        }
     }
         
     world.gop.fence();
-    return success;
 }
 
 
@@ -226,11 +201,10 @@ int main(int argc, char**argv) {
     initialize(argc,argv);
     World world(SafeMPI::COMM_WORLD);
 
-    int success=0;
     try {
         startup(world,argc,argv);
 
-        success=test_bsh<double>(world);
+        test_bsh<double>(world);
 
     }
     catch (const SafeMPI::Exception& e) {
@@ -268,6 +242,6 @@ int main(int argc, char**argv) {
     world.gop.fence();
     finalize();
 
-    return success;
+    return 0;
 }
 

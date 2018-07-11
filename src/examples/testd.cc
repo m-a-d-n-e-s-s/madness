@@ -13,8 +13,8 @@ const char* PH_DATA_PATH    = "/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spl
 const char* PH2_DATA_PATH   = "/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv-2.txt";
 const char* PROL_DATA_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-joel";
 const char* PROL_DATA_PATH2 = "/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-feb";
-const char* BLM_1_PATH      = "/gpfs/projects/rjh/mad-der/src/madness/mra/blm-first.txt";
-const char* BLM_2_PATH      = "/gpfs/projects/rjh/mad-der/src/madness/mra/blm-second.txt";
+const char* BLE_1_PATH      = "/gpfs/projects/rjh/mad-der/src/madness/mra/ble-first.txt";
+const char* BLE_2_PATH      = "/gpfs/projects/rjh/mad-der/src/madness/mraeble-second.txt";
 const char* BSPLINE_1_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv1.txt";
 const char* BSPLINE_2_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv2.txt";
 const char* BSPLINE_3_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv3.txt";
@@ -53,7 +53,7 @@ double exponential2(const coord_3d& r) {
 }
 
 double exponential3(const coord_3d& r) {
-    const double a = 1.0;
+    const double a = 2.0;
     const double a2 = a*a;
     const double a3 = a2*a;
     const double small = 1e-5;
@@ -204,19 +204,19 @@ double sin_energy() {
    return 0.0;
 }
 
-//const std::string funcname = "flat";
-//double (*f )(const coord_3d&) = flat;
-//double (*f1)(const coord_3d&) = flat1;
-//double (*f2)(const coord_3d&) = flat2;
-//double (*f3)(const coord_3d&) = flat3;
-//double (*energy)() = flat_energy;
+const std::string funcname = "flat";
+double (*f )(const coord_3d&) = flat;
+double (*f1)(const coord_3d&) = flat1;
+double (*f2)(const coord_3d&) = flat2;
+double (*f3)(const coord_3d&) = flat3;
+double (*energy)() = flat_energy;
 
-const std::string funcname = "gaussian";
-double (*f )(const coord_3d&) = gaussian;
-double (*f1)(const coord_3d&) = gaussian1;
-double (*f2)(const coord_3d&) = gaussian2;
-double (*f3)(const coord_3d&) = gaussian3;
-double (*energy)() = gaussian_energy;
+//const std::string funcname = "gaussian";
+//double (*f )(const coord_3d&) = gaussian;
+//double (*f1)(const coord_3d&) = gaussian1;
+//double (*f2)(const coord_3d&) = gaussian2;
+//double (*f3)(const coord_3d&) = gaussian3;
+//double (*energy)() = gaussian_energy;
 
 //const std::string funcname = "exponential";
 //double (*f )(const coord_3d&) = exponential;
@@ -448,14 +448,14 @@ void test(World& world, int k, int initial_level, double thresh, int truncmode, 
 //    }
 
     {
-        model = "blm-1";
-        D.read_from_file(BLM_1_PATH);
+        model = "ble-1";
+        D.read_from_file(BLE_1_PATH);
 	DOIT1;
     }
 
     {
-        model = "blm-2";
-        D.read_from_file(BLM_2_PATH, 2);
+        model = "ble-2";
+        D.read_from_file(BLE_2_PATH, 2);
 	DOIT2;
     }
 
@@ -486,16 +486,16 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(10);
 
-    double threshes[] = {1e-4, 1e-6, 1e-8, 1e-10};
-    //double thresh = 1e-4;
-    for (double thresh : threshes) {
-      for (int initial_level = 4; initial_level<=4; initial_level++) { // not used if adaptive refining
+    //double threshes[] = {1e-4, 1e-6, 1e-8, 1e-10};
+    double thresh = 1e-4;
+    //for (double thresh : threshes) {
+      for (int initial_level = 4; initial_level<=8; initial_level++) { // not used if adaptive refining
 	//for (int k=7; k<19; k+=2) {
 	for (int k=8; k<16; k+=2) {
-	  test(world, k, initial_level, thresh, 1, true);
+	  test(world, k, initial_level, thresh, 1, false);
 	}
       }
-    }
+    //}
             
     world.gop.fence();
     finalize();

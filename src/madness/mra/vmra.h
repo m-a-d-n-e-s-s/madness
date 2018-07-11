@@ -1103,7 +1103,8 @@ namespace madness {
         if (fence) world.gop.fence();
         return result;
     }
-    // Bryan's edits for derivatives... the next 4 functions
+
+    // Bryan's edits for derivatives... the next 6 functions
     // Function 1: bspline derivative
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > grad_bspline(const Function<T,NDIM>& f,
@@ -1208,6 +1209,133 @@ namespace madness {
         if (fence) world.gop.fence();
         return result;
     }
+
+    // Function 6: prolate derivative from greg in February, 2018
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_prolate_feb(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-feb");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Function 7: BLM first derivative from greg (June 26, 2018)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_ble_one(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ble-first.txt");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Function 8: BLM second derivative from greg (June 26, 2018)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_ble_two(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ble-second.txt");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Function 9: new bspline first derivative from Robert (June 27, 2018)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_bspline_one(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv1.txt");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Function 10: new bpsline second derivative from Robert (June 27, 2018)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_bpsline_two(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv2.txt");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Function 11: new bspline third derivative from Robert (June 27, 2018)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_bspline_three(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv3.txt");
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
 
 
     /// shorthand div operator
