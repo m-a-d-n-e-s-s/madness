@@ -815,10 +815,15 @@ namespace madness {
         Tensor<T> A_copy = copy(A);
         Tensor<T> VL(n,n); // Should not be referenced
         Tensor<T> e_real(n), e_imag(n), beta(n);
-        dggev_("N", "V", &n, A_copy.ptr(), &n, B.ptr(), &n, e_real.ptr(), e_imag.ptr(), beta.ptr     (), VL.ptr(), &n, VR.ptr(), &n,  work.ptr(), &lwork, &info);
+        dggev_("N", "V", &n, 
+                A_copy.ptr(), &n, B.ptr(), &n, 
+                e_real.ptr(), e_imag.ptr(), beta.ptr(), 
+                VL.ptr(), &n, VR.ptr(), &n,  
+                work.ptr(), &lwork, &info);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)ggev/(c/z)ggev failed", info, &A);
 
+        // Sometimes useful
         //print("e_real:\n", e_real);
         //print("e_imag:\n", e_imag);
         //print("beta:\n", beta);
