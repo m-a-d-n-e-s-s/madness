@@ -544,7 +544,7 @@ int nuclear_anchor_test(World& world) {
             std::shared_ptr<NuclearCorrelationFactor>(
                 new PseudoNuclearCorrelationFactor(world,
                 calc.molecule,calc.potentialmanager,1.0));
-    ncf_none->initialize();
+    ncf_none->initialize(FunctionDefaults<3>::get_thresh());
 
     Nuclear Vnuc(world,ncf_none);
 
@@ -564,7 +564,7 @@ int nuclear_anchor_test(World& world) {
     // test ncf=slater
     std::shared_ptr<NuclearCorrelationFactor> ncf=
     create_nuclear_correlation_factor(world, calc);
-    ncf->initialize();
+    ncf->initialize(FunctionDefaults<3>::get_thresh());
 
     Nuclear Vnuc1(world,ncf);
     Kinetic<double,3> T(world);
@@ -619,7 +619,7 @@ int dnuclear_anchor_test(World& world) {
             std::shared_ptr<NuclearCorrelationFactor>(
                 new PseudoNuclearCorrelationFactor(world,
                 calc.molecule,calc.potentialmanager,1.0));
-    ncf_none->initialize();
+    ncf_none->initialize(FunctionDefaults<3>::get_thresh());
 
     for (int iaxis=0; iaxis<3; ++iaxis) {
         // compute matrix element and reference matrix element
@@ -671,7 +671,7 @@ int dnuclear_anchor_test(World& world) {
     // test U2 and U3
     std::shared_ptr<NuclearCorrelationFactor> ncf=
     create_nuclear_correlation_factor(world, calc);
-    ncf->initialize();
+    ncf->initialize(FunctionDefaults<3>::get_thresh());
     NuclearCorrelationFactor::U2_functor u2f(ncf.get());
     const double u2=inner(gaussian,u2f);
     double err1=fabs(u2-u2ref);

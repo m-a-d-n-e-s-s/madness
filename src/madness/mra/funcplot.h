@@ -380,6 +380,36 @@ namespace madness {
         fprintf(f, " %.14e", v);
     }
 
+
+    /// Generates ASCII file tabulating f(r) at npoints along line r=lo,...,hi
+
+    /// The ordinate is distance from lo
+    template <typename opT, std::size_t NDIM>
+    void plot_line(World& world, const char* filename, int npt, const Vector<double,NDIM>& lo,
+            const Vector<double,NDIM>& hi, const opT& op) {
+        typedef Vector<double,NDIM> coordT;
+        coordT h = (hi - lo)*(1.0/(npt-1));
+
+        double sum = 0.0;
+        for (std::size_t i=0; i<NDIM; ++i) sum += h[i]*h[i];
+        sum = sqrt(sum);
+
+        if (world.rank() == 0) {
+            FILE* file = fopen(filename,"w");
+        if(!file)
+          MADNESS_EXCEPTION("plot_line: failed to open the plot file", 0);
+            for (int i=0; i<npt; ++i) {
+                coordT r = lo + h*double(i);
+                fprintf(file, "%.14e ", i*sum);
+                plot_line_print_value(file, op(r));
+                fprintf(file,"\n");
+            }
+            fclose(file);
+        }
+        world.gop.fence();
+    }
+
+
     /// Generates ASCII file tabulating f(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo

@@ -71,6 +71,8 @@ namespace madness{
             return ncf_ptr(new GradientalGaussSlater(world, calc.molecule,a));
         } else if (corrfac == "slater") {
 			return ncf_ptr(new Slater(world, calc.molecule, a));
+        } else if (corrfac == "poly4erfc") {
+            return ncf_ptr(new poly4erfc(world, calc.molecule, a));
 		} else if (corrfac == "polynomial4") {
 			return ncf_ptr(new Polynomial<4>(world, calc.molecule, a ));
 		} else if (corrfac == "polynomial5") {
