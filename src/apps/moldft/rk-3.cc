@@ -3,6 +3,7 @@
 #include <madness/world/vector.h>
 #include <madness/mra/nonlinsol.h>
 #include <cstdio>
+#include "DKops.h"
 
 void apbar_fit(double dx, double thresh, double quadacc, std::vector<double>& coeffs, std::vector<double>& expnts, double& Cdelta);
 void pbar_fit(double dx, double thresh, double quadacc, std::vector<double>& coeffs, std::vector<double>& expnts, double& Cdelta);
@@ -11,6 +12,25 @@ void tbar_fit(double dx, double thresh, double quadacc, std::vector<double>& coe
 void bshrel_fit(double epsilon, double dx, double thresh, double quadacc, std::vector<double>& coeffs, std::vector<double>& expnts, double& Cdelta);
 
 using namespace madness;
+
+// Needed for rebalancing
+template <typename T, int NDIM>
+struct lbcost {
+    double leaf_value;
+    double parent_value;
+    lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+    double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+        if (key.level() < 1) {
+            return 100.0*(leaf_value+parent_value);
+        }
+        else if (node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
+        }
+    }
+};
 
 static double Z = -1; 
 
@@ -120,53 +140,53 @@ make_grad_operator(World& world,
 
 
 /// Makes the relativistic equivalent of the BSH operator
-real_convolution_3d BSHrel(World& world, double epsilon) {
-    std::vector<double> C, T;
-    double Cdelta;
-    bshrel_fit(epsilon, op_dx, op_thresh, op_quadacc, C, T, Cdelta);
-    return make_operator(world, C, T, Cdelta);
-}
+//real_convolution_3d BSHrel(World& world, double epsilon) {
+//    std::vector<double> C, T;
+//    double Cdelta;
+//    bshrel_fit(epsilon, op_dx, op_thresh, op_quadacc, C, T, Cdelta);
+//    return make_operator(world, C, T, Cdelta);
+//}
 
 /// Makes the Tbar operator (T_rel = E0-mc2 = Tbar T_nonrel = -1/2 Tbar del**2)
-real_convolution_3d Tbar(World& world) {
-    std::vector<double> C, T;
-    double Cdelta;
-    tbar_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
-    return make_operator(world, C, T, Cdelta);
-}
+//real_convolution_3d Tbar(World& world) {
+//    std::vector<double> C, T;
+//    double Cdelta;
+//    tbar_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
+//    return make_operator(world, C, T, Cdelta);
+//}
     
 /// Makes the Pbar operator
-real_convolution_3d Pbar(World& world) {
-    std::vector<double> C, T;
-    double Cdelta;
-    pbar_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
-    return make_operator(world, C, T, Cdelta);
-}
+//real_convolution_3d Pbar(World& world) {
+//    std::vector<double> C, T;
+//    double Cdelta;
+//    pbar_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
+//    return make_operator(world, C, T, Cdelta);
+//}
     
 /// Makes the APbar operator
-real_convolution_3d APbar(World& world) {
-    std::vector<double> C, T;
-    double Cdelta;
-    apbar_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
-    return make_operator(world, C, T, Cdelta);
-}
+//real_convolution_3d APbar(World& world) {
+//    std::vector<double> C, T;
+//    double Cdelta;
+//    apbar_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
+//    return make_operator(world, C, T, Cdelta);
+//}
     
 /// Makes the gradient of the APbar operator
-std::vector<real_convolution_3d_ptr> gradAPbar(World& world) {
-    std::vector<double> C, T;
-    double Cdelta;
-    apbar_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
-    return make_grad_operator(world, C, T, Cdelta);
-}
+//std::vector<real_convolution_3d_ptr> gradAPbar(World& world) {
+//    std::vector<double> C, T;
+//    double Cdelta;
+//    apbar_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
+//    return make_grad_operator(world, C, T, Cdelta);
+//}
     
 
 /// Makes the A operator (including the 1/sqrt(2) piece)
-real_convolution_3d A(World& world) {
-    std::vector<double> C, T;
-    double Cdelta;
-    a_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
-    return make_operator(world, C, T, Cdelta);
-}
+//real_convolution_3d A(World& world) {
+//    std::vector<double> C, T;
+//    double Cdelta;
+//    a_fit(op_dx, op_thresh, op_quadacc, C, T, Cdelta);
+//    return make_operator(world, C, T, Cdelta);
+//}
 
 /// Returns the exponent of the wavefunction cusp at the origin for RK
 double rk_v(double Z) {
@@ -223,23 +243,53 @@ real_function_3d apply_potential(const real_function_3d& Vnuc, const real_functi
     else if (DK1) {
         // A (V + Pp . V pP ) A psi = A V A psi + AP p . V p AP psi
 
-        real_convolution_3d Aop = A(world);
-        real_convolution_3d APbarop = APbar(world);
+        real_convolution_3d Aop = A2(world);
+        real_convolution_3d APbarop = PbarA(world);
+        real_function_3d tempfunc(world);
+        double tempdouble;
+        double fac = pow(2.0*constants::pi,-3.0/2.0);
         
-        real_function_3d Vpsi = Aop((Vnuc*Aop(psi)).truncate());
+        tempfunc = (fac*fac)*Aop((Vnuc*Aop(psi)).truncate());
+        //tempdouble = tempfunc.norm2();
+        //tempdouble = (psi*tempfunc).trace();
+        //if(world.rank()==0) print("expec AVApsi: ", tempdouble);
+        real_function_3d Vpsi = tempfunc;
 
-	// // This works
-        // real_function_3d APbarpsi = APbarop(psi);
-        // for (int axis=0; axis<3; axis++) {
-	// real_derivative_3d D = free_space_derivative<double,3>(world, axis);
-	// Vpsi -= APbarop((D(Vnuc*D(APbarpsi))).truncate());
-	// }
+        tempfunc = fac*(1.0/sqrt(2.0))*Aop((Vnuc*psi).truncate());
+        //tempdouble = tempfunc.norm2();
+        //tempdouble = (psi*tempfunc).trace();
+        //if(world.rank()==0) print("expec AVpsi: ", tempdouble);
+        Vpsi += tempfunc;
+
+        tempfunc = fac*(1.0/sqrt(2.0))*Vnuc*Aop(psi);
+        //tempdouble = tempfunc.norm2();
+        //tempdouble = (psi*tempfunc).trace();
+        //if(world.rank()==0) print("expec VApsi: ", tempdouble);
+        Vpsi += tempfunc;
+
+        tempfunc = (1.0/2.0)*Vnuc*psi;
+        //tempdouble = tempfunc.norm2();
+        //tempdouble = (psi*tempfunc).trace();
+        //if(world.rank()==0) print("expec Vpsi: ", tempdouble);
+        Vpsi += tempfunc;
+
+
+	    //// This works
+         //real_function_3d APbarpsi = APbarop(psi);
+         //for (int axis=0; axis<3; axis++) {
+	    //   real_derivative_3d D = free_space_derivative<double,3>(world, axis);
+         //   tempfunc = (fac*fac)*APbarop((D(Vnuc*D(APbarpsi))).truncate());
+         //   //tempdouble = tempfunc.norm2();
+         //   //if(world.rank()==0) print("expec PApVpPA[",axis,"]: ", tempdouble);
+         //   Vpsi -= tempfunc;
+	    //}
 	
 	// This combines derivative and integral operators and seems both faster and more accurate??
-        std::vector<real_convolution_3d_ptr> gradAPbarop = gradAPbar(world);
+        std::vector<real_convolution_3d_ptr> gradAPbarop = gradPbarA(world);
         for (int axis=0; axis<3; axis++) {
-	  real_convolution_3d& op = *(gradAPbarop[axis]);
-	  Vpsi -= op((Vnuc*op(psi)).truncate());
+	      real_convolution_3d& op = *(gradAPbarop[axis]);
+	      tempfunc = (fac*fac)*op((Vnuc*op(psi)).truncate());
+           Vpsi -= tempfunc; //should be minus?
         }
 
         return Vpsi.truncate();
@@ -283,6 +333,40 @@ double compute_energy(World& world, const real_function_3d& psi, const real_func
     return total_energy;
 }
 
+double compute_energy_simple(World& world, const real_function_3d& psi, const real_function_3d& Vpsi, bool doprint=false) {
+    real_convolution_3d Tbarop = Tbar(world);
+
+    double kinetic_energy = 0.0;
+    for (int axis=0; axis<3; axis++) {
+        real_derivative_3d D = free_space_derivative<double,3>(world, axis);
+        real_function_3d dpsi = D(psi);
+
+        if (NONREL) {
+            kinetic_energy += 0.5*inner(dpsi,dpsi);
+        }
+        else {
+            kinetic_energy += 0.5*inner(dpsi,apply(Tbarop,dpsi));
+        }
+    }
+
+    double nuclear_attraction_energy = inner(psi, Vpsi);
+    double total_energy = kinetic_energy + nuclear_attraction_energy;
+
+    if (world.rank() == 0 && doprint) {
+        if (NONREL) print("Non-relativistic");
+        else if (RK) print("RK");
+        else if (DK1) print("DK1");
+        else throw "confused";
+                         
+        print("            Kinetic energy ", kinetic_energy);
+        print(" Nuclear attraction energy ", nuclear_attraction_energy);
+        print("              Total energy ", total_energy);
+        print("                    Virial ", nuclear_attraction_energy / kinetic_energy);
+    }
+
+    return total_energy;
+}
+
 real_function_3d apply_laplacian(World& world, const real_function_3d& psi) {
     real_function_3d delsqpsi(world);
     
@@ -301,7 +385,7 @@ real_convolution_3d make_bsh_operator(World& world, double eps, double& fac) {
     }
     else {
         fac = -1.0;
-        return BSHrel(world, eps);
+        return Ebar(world, eps);
     }
 }
 
@@ -320,13 +404,12 @@ real_function_3d iterate(World& world, const real_function_3d& V, const real_fun
 
      */
 
-    eps = compute_energy(world, psi, V, false);
+    real_function_3d Vpsi = apply_potential(V,psi);
+    eps = compute_energy_simple(world, psi, Vpsi, false);
 
     double fac;
     real_convolution_3d op = make_bsh_operator(world, eps, fac);
 
-    real_function_3d Vpsi = apply_potential(V,psi);
-    
     Vpsi.scale(fac).truncate();
     
     real_function_3d tmp = apply(op,Vpsi).truncate();
@@ -368,21 +451,24 @@ int main(int argc, char** argv) {
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
-    FunctionDefaults<3>::set_truncate_mode(0);
+    FunctionDefaults<3>::set_truncate_mode(0); //See what happens to lighter elements with mode 1 (hyp more accuracy for lighter elements, but too long for higher elements)
     FunctionDefaults<3>::set_truncate_on_project(true);
     FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
 
     //double Zlist[] = {1.0,2.0,3.0,4.0,6.0,8.0,10.0,12.0,16.0,20.0,30.0,40.0,60.0,80.0};
-    double Zlist[] = {1.0,2.0,4.0,8.0,16.0,20.0,32.0,40.0,48.0,56.0,60.0,64.0,72.0,76.0,80.0,100.0};
+    //double Zlist[] = {1.0,2.0,4.0,8.0,10.0,16.0,20.0,32.0,40.0,48.0,56.0,60.0,64.0,72.0,76.0,80.0};
+    double Zlist[] = {80.0};
+    //double Zlist[] = {40.0,48.0,56.0,60.0,64.0,72.0,76.0,80.0};
     //double Zlist[] = {20.0,40.0,56.0,60.0,64.0,72.0,76.0,80.0};
     //double Zlist[] = {100.0};
     const int NumZs = sizeof(Zlist)/sizeof(Z);
 
+
     for (unsigned int i=0; i<NumZs; i++) {
         Z = Zlist[i];
 
-	print("!!!!!!!!!!!!!!!!!!!!!!!!!");
-	print("Z =", Z, "   v =", rk_v(Z), "   NONREL =", NONREL, "   RK =", RK, "   DK1 =", DK1, "   FINITENUC =", FINITENUC);
+	   if(world.rank()==0) print("!!!!!!!!!!!!!!!!!!!!!!!!!");
+	   if(world.rank()==0) print("Z =", Z, "   v =", rk_v(Z), "   NONREL =", NONREL, "   RK =", RK, "   DK1 =", DK1, "   FINITENUC =", FINITENUC);
 
         real_function_3d psi  = real_factory_3d(world).functor(real_functor_3d(new Guess(Z)));
         psi.scale(1.0/psi.norm2());
@@ -398,32 +484,38 @@ int main(int argc, char** argv) {
             Vnuc = real_factory_3d(world).functor(real_functor_3d(new FiniteNucleusPotential(-1))).truncate_mode(0);
         }
         
-	double eps = compute_energy(world, psi, Vnuc);
+
+	   double eps;// = compute_energy(world, psi, Vnuc);
+        //if(world.rank()==0) print("eps beforehand: ", eps);
 	
-	NonlinearSolver solver(20);
-	for (int iter=0; iter<20; iter++) {
-	  psi.scale(1.0/psi.norm2());
-	  //double eps = compute_energy(world, psi, Vnuc);
-	  real_function_3d residual = iterate(world, Vnuc, psi, eps);
-	  double rnorm = residual.norm2();
-	  real_function_3d psi_new = solver.update(psi, residual);
+	   NonlinearSolver solver(10);
+	   for (int iter=0; iter<10; iter++) {
+	      psi.scale(1.0/psi.norm2());
+	      //double eps = compute_energy(world, psi, Vnuc);
+	      real_function_3d residual = iterate(world, Vnuc, psi, eps);
+	     double rnorm = residual.norm2();
+	     real_function_3d psi_new = solver.update(psi, residual);
 
           if (rnorm > 0.1) {
-	    psi = 0.5*psi_new + 0.5*psi;
+	        psi = 0.5*psi_new + 0.5*psi;
           }
           else {
-	    psi = psi_new;
+	        psi = psi_new;
           }
 
-	  if (world.rank() == 0) {
-            print(" eps=",eps," err(psi)=",rnorm);
-	  }
-	  //if (iter>3 && rnorm < pow(10,0.5*log10(thresh))) break;
-	  if (iter>3 && rnorm < thresh*50.0) break;
-	}
+	     if (world.rank() == 0) {
+             print(" eps=",eps," err(psi)=",rnorm);
+	     }
+	     //if (iter>3 && rnorm < pow(10,0.5*log10(thresh))) break;
+	     if (iter>3 && rnorm < thresh*50.0) break;
+          LoadBalanceDeux<3> lb(world);
+          lb.add_tree(Vnuc, lbcost<double,3>(12.0,96.0),true);
+          lb.add_tree(psi, lbcost<double,3>(12.0,96.0),true);
+          FunctionDefaults<3>::redistribute(world,lb.load_balance(2));
+	   }
 	
         psi.scale(1.0/psi.norm2());
-	compute_energy(world, psi, Vnuc, true);
+	   compute_energy(world, psi, Vnuc, true);
 
         logplot(Z,psi);
     }

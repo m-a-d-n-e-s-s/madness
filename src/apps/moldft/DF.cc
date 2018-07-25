@@ -593,12 +593,17 @@ void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op
 
 
      ////Form the overlap matrix
-     if(world.rank()==0) print("          Integrating to form Overlap Matrix");
-     for(unsigned int j = 0; j < n; j++){
-          for(unsigned int k = 0; k < n; k++){
-               overlap(j,k) = inner(occupieds[j],occupieds[k]);
-          }
-     }
+     //if(world.rank()==0) print("          Integrating to form Overlap Matrix");
+     //for(unsigned int j = 0; j < n; j++){
+     //     for(unsigned int k = 0; k < n; k++){
+     //          overlap(j,k) = inner(occupieds[j],occupieds[k]);
+     //     }
+     //}
+     component1 = matrix_inner(world,occupieds_1,occupieds_1);
+     component2 = matrix_inner(world,occupieds_2,occupieds_2);
+     component3 = matrix_inner(world,occupieds_3,occupieds_3);
+     component4 = matrix_inner(world,occupieds_4,occupieds_4);
+     overlap = component1 + component2 + component3 + component4;
      
      ////debugging: print fock and overlap matrices
      //if(world.rank()==0){
