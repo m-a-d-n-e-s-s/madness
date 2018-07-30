@@ -41,8 +41,8 @@ static const double op_dx=1e-16; //TRY CHANGING THIS 1e-16
 static const double op_quadacc=1e-8; //FIND ALL INSTANCES OF THIS AND DEAL WITH IT
 static const double op_thresh=1e-8;
     
-static const long k = 10;        // wavelet order
-static const double thresh = 1e-8; // precision
+static const long k = 12;        // wavelet order
+static const double thresh = 1e-10; // precision
 static const double L = 50.0;   // box size
 
 static const bool FINITENUC = false;
@@ -489,7 +489,7 @@ int main(int argc, char** argv) {
         //if(world.rank()==0) print("eps beforehand: ", eps);
 	
 	   NonlinearSolver solver(10);
-	   for (int iter=0; iter<10; iter++) {
+	   for (int iter=0; iter<20; iter++) {
 	      psi.scale(1.0/psi.norm2());
 	      //double eps = compute_energy(world, psi, Vnuc);
 	      real_function_3d residual = iterate(world, Vnuc, psi, eps);

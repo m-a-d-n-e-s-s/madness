@@ -448,8 +448,8 @@ namespace madness {
         }
 
         /// Sets the default process map and redistributes all functions using the old map
-        static void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& newpmap) {
-            pmap->redistribute(world,newpmap);
+        static void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& newpmap, bool doprint=true) {
+            pmap->redistribute(world,newpmap, doprint);
             pmap = newpmap;
         }
 
