@@ -1160,7 +1160,7 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         // Read in new coeff for each operator
-        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv-2.txt");
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv-2.txt", 2);
 
         std::vector<Function<T,NDIM> > result(NDIM);
         for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
@@ -1265,7 +1265,7 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         // Read in new coeff for each operator
-        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ble-second.txt");
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ble-second.txt",2);
 
         std::vector<Function<T,NDIM> > result(NDIM);
         for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
@@ -1307,7 +1307,7 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         // Read in new coeff for each operator
-        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv2.txt");
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv2.txt",2);
 
         std::vector<Function<T,NDIM> > result(NDIM);
         for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
@@ -1328,7 +1328,7 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         // Read in new coeff for each operator
-        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv3.txt");
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv3.txt", 3);
 
         std::vector<Function<T,NDIM> > result(NDIM);
         for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
