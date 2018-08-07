@@ -143,6 +143,15 @@ GradBSHOperator_Joel(World& world,
 }
 
 
+//Stolen from SCF.cc to aid in orthonormalization
+Tensor<std::complex<double>> Q2(const Tensor<std::complex<double>>& s) {
+    Tensor<std::complex<double>> Q = -0.5*s;
+    for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
+    return Q;
+}
+
+
+
 //Functor to make the (Gaussian) nuclear potential
 class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
      private:
@@ -457,6 +466,36 @@ Fcwf apply_T(World& world, const Fcwf& psi){
      return Tpsi * (-myi*myc);
 }
 
+////Calculates K*psi for each psi in the orbitals vector and stores them in result
+//void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
+//     //start timer
+//     start_timer(world);
+//
+//     complex_function_3d temp(world);
+//
+//     unsigned int n = Init_params.num_occupied;
+//     for(unsigned int i = 0; i < n; i++){
+//          for(unsigned int j = 0; j < n ; j++){
+//               temp = inner_func(world,occupieds[j],occupieds[i]);
+//               temp.truncate();
+//
+//               temp = apply(op,temp);
+//               if(j == 0){
+//                    Kpsis[i] = occupieds[j]*temp;
+//               }
+//               else{
+//                    Kpsis[i] += occupieds[j]*temp;
+//               }
+//          }
+//
+//          //here too
+//          Kpsis[i].truncate();
+//     }
+//
+//     //Report time
+//     Tensor<double> times = end_timer(world);
+//     if(world.rank()==0) print("     ", times[0]);
+//}
 //Calculates K*psi for each psi in the orbitals vector and stores them in result
 void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
      //start timer
@@ -466,18 +505,26 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
      unsigned int n = Init_params.num_occupied;
      for(unsigned int i = 0; i < n; i++){
-          for(unsigned int j = 0; j < n; j++){
-               temp = inner_func(occupieds[j],occupieds[i]);
-               
-               //try truncating
+          for(unsigned int j = i; j < n ; j++){
+               temp = inner_func(world,occupieds[j],occupieds[i]);
                temp.truncate();
 
                temp = apply(op,temp);
-               if(j == 0){
+               if(i == 0 && j == 0){
                     Kpsis[i] = occupieds[j]*temp;
+               }
+               else if(i == 0){
+                    Kpsis[i] += occupieds[j]*temp;
+                    temp = temp.conj();
+                    Kpsis[j] = occupieds[i]*temp;
+               }
+               else if(i == j){
+                    Kpsis[i] += occupieds[j]*temp;
                }
                else{
                     Kpsis[i] += occupieds[j]*temp;
+                    temp = temp.conj();
+                    Kpsis[j] += occupieds[i]*temp;
                }
           }
 
@@ -496,7 +543,7 @@ Fcwf DF::apply_K(World& world, real_convolution_3d& op, Fcwf& phi){
 
      unsigned int n = Init_params.num_occupied;
      for(unsigned int i = 0; i < n; i++){
-          temp = inner_func(occupieds[i],phi);
+          temp = inner_func(world, occupieds[i], phi);
           temp.truncate();
           temp = apply(op,temp);
           if(i == 0){
@@ -557,7 +604,7 @@ void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op
      }
 
      if(world.rank()==0) print("          Integrating to form Fock Matrix");
-     DF::start_timer(world);
+     start_timer(world);
 
      //We now have a vector of F*psi for each psi (in neworbitals).
      //Calculate each element of the fock matrix
@@ -568,30 +615,31 @@ void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op
      //1) Create four std::vectors each from occupieds and temp_orbitals, one for each component
      //2) Call the new matrix inner for each component. Result in each case gives a matrix
      //3) Sum all the matrices
-     std::vector<complex_function_3d> occupieds_1;
-     std::vector<complex_function_3d> occupieds_2;
-     std::vector<complex_function_3d> occupieds_3;
-     std::vector<complex_function_3d> occupieds_4;
-     std::vector<complex_function_3d> temp_orbitals_1;
-     std::vector<complex_function_3d> temp_orbitals_2;
-     std::vector<complex_function_3d> temp_orbitals_3;
-     std::vector<complex_function_3d> temp_orbitals_4;
-     for(unsigned int i = 0; i < n; i++){
-          occupieds_1.push_back(occupieds[i][0]);
-          occupieds_2.push_back(occupieds[i][1]);
-          occupieds_3.push_back(occupieds[i][2]);
-          occupieds_4.push_back(occupieds[i][3]);
-          temp_orbitals_1.push_back(temp_orbitals[i][0]);
-          temp_orbitals_2.push_back(temp_orbitals[i][1]);
-          temp_orbitals_3.push_back(temp_orbitals[i][2]);
-          temp_orbitals_4.push_back(temp_orbitals[i][3]);
-     }
-     Tensor<std::complex<double>> component1 = matrix_inner(world,occupieds_1,temp_orbitals_1);
-     Tensor<std::complex<double>> component2 = matrix_inner(world,occupieds_2,temp_orbitals_2);
-     Tensor<std::complex<double>> component3 = matrix_inner(world,occupieds_3,temp_orbitals_3);
-     Tensor<std::complex<double>> component4 = matrix_inner(world,occupieds_4,temp_orbitals_4);
+     //std::vector<complex_function_3d> occupieds_1;
+     //std::vector<complex_function_3d> occupieds_2;
+     //std::vector<complex_function_3d> occupieds_3;
+     //std::vector<complex_function_3d> occupieds_4;
+     //std::vector<complex_function_3d> temp_orbitals_1;
+     //std::vector<complex_function_3d> temp_orbitals_2;
+     //std::vector<complex_function_3d> temp_orbitals_3;
+     //std::vector<complex_function_3d> temp_orbitals_4;
+     //for(unsigned int i = 0; i < n; i++){
+     //     occupieds_1.push_back(occupieds[i][0]);
+     //     occupieds_2.push_back(occupieds[i][1]);
+     //     occupieds_3.push_back(occupieds[i][2]);
+     //     occupieds_4.push_back(occupieds[i][3]);
+     //     temp_orbitals_1.push_back(temp_orbitals[i][0]);
+     //     temp_orbitals_2.push_back(temp_orbitals[i][1]);
+     //     temp_orbitals_3.push_back(temp_orbitals[i][2]);
+     //     temp_orbitals_4.push_back(temp_orbitals[i][3]);
+     //}
+     //Tensor<std::complex<double>> component1 = matrix_inner(world,occupieds_1,temp_orbitals_1);
+     //Tensor<std::complex<double>> component2 = matrix_inner(world,occupieds_2,temp_orbitals_2);
+     //Tensor<std::complex<double>> component3 = matrix_inner(world,occupieds_3,temp_orbitals_3);
+     //Tensor<std::complex<double>> component4 = matrix_inner(world,occupieds_4,temp_orbitals_4);
 
-     fock = component1+component2+component3+component4;
+     //fock = component1+component2+component3+component4;
+     fock = matrix_inner(world, occupieds, temp_orbitals);
      
      //Old Method here:
      //for(unsigned int j = 0; j < n; j++){
@@ -600,7 +648,7 @@ void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op
      //     }
      //}
 
-     Tensor<double> times = DF::end_timer(world);
+     Tensor<double> times = end_timer(world);
      if(world.rank()==0) print("               ", times[0]); 
 
 
@@ -612,11 +660,12 @@ void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op
      //          overlap(j,k) = inner(occupieds[j],occupieds[k]);
      //     }
      //}
-     component1 = matrix_inner(world,occupieds_1,occupieds_1);
-     component2 = matrix_inner(world,occupieds_2,occupieds_2);
-     component3 = matrix_inner(world,occupieds_3,occupieds_3);
-     component4 = matrix_inner(world,occupieds_4,occupieds_4);
-     overlap = component1 + component2 + component3 + component4;
+     //component1 = matrix_inner(world,occupieds_1,occupieds_1);
+     //component2 = matrix_inner(world,occupieds_2,occupieds_2);
+     //component3 = matrix_inner(world,occupieds_3,occupieds_3);
+     //component4 = matrix_inner(world,occupieds_4,occupieds_4);
+     //overlap = component1 + component2 + component3 + component4;
+     overlap = matrix_inner(world,occupieds,occupieds);
      
      times = end_timer(world);
      if(world.rank()==0) print("               ", times[0]);
@@ -726,26 +775,66 @@ void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op
      start_timer(world);
 
      ////Apply the transformation to the Exchange
-     for(unsigned int j = 0; j < n; j++){
-          temp_orbitals[j] = Fcwf(world);
-          for(unsigned int k = 0; k < n; k++){
-               temp_orbitals[j] += Kpsis[k]*U(k,j);
-          }
-     }
-     for(unsigned int m = 0; m < n; m++){
-           Kpsis[m] = temp_orbitals[m];
-     }
+     //for(unsigned int j = 0; j < n; j++){
+     //     temp_orbitals[j] = Fcwf(world);
+     //     for(unsigned int k = 0; k < n; k++){
+     //          temp_orbitals[j] += Kpsis[k]*U(k,j);
+     //     }
+     //}
+     //for(unsigned int m = 0; m < n; m++){
+     //      Kpsis[m] = temp_orbitals[m];
+     //}
+     
+     //Trying a different method of applying the transformation, using vmra's transform
+     //for(unsigned int i = 0; i < n; i++){
+     //     temp_orbitals_1[i] = Kpsis[i][0];
+     //     temp_orbitals_2[i] = Kpsis[i][1];
+     //     temp_orbitals_3[i] = Kpsis[i][2];
+     //     temp_orbitals_4[i] = Kpsis[i][3];
+     //}
+     //temp_orbitals_1 = transform(world, temp_orbitals_1, U);
+     //temp_orbitals_2 = transform(world, temp_orbitals_2, U);
+     //temp_orbitals_3 = transform(world, temp_orbitals_3, U);
+     //temp_orbitals_4 = transform(world, temp_orbitals_4, U);
+     //for(unsigned int i = 0; i < n; i++){
+     //     Kpsis[i][0] = temp_orbitals_1[i];
+     //     Kpsis[i][1] = temp_orbitals_2[i];
+     //     Kpsis[i][2] = temp_orbitals_3[i];
+     //     Kpsis[i][3] = temp_orbitals_4[i];
+     //}
+     transform(world, Kpsis, U);
 
      ////Apply the transformation to the orbitals
-     for(unsigned int j = 0; j < n; j++){
-          temp_orbitals[j] = Fcwf(world);
-          for(unsigned int k = 0; k < n; k++){
-               temp_orbitals[j] += occupieds[k]*U(k,j); 
-          }
-     }
-     for(unsigned int j = 0; j < n; j++){
-          occupieds[j] = temp_orbitals[j];
-     }
+     //for(unsigned int j = 0; j < n; j++){
+     //     temp_orbitals[j] = Fcwf(world);
+     //     for(unsigned int k = 0; k < n; k++){
+     //          temp_orbitals[j] += occupieds[k]*U(k,j); 
+     //     }
+     //}
+     //for(unsigned int j = 0; j < n; j++){
+     //     occupieds[j] = temp_orbitals[j];
+     //}
+     
+     //Trying a different method of applying the transformation, using vmra's transform
+     //for(unsigned int i = 0; i < n; i++){
+     //     temp_orbitals_1[i] = occupieds[i][0];
+     //     temp_orbitals_2[i] = occupieds[i][1];
+     //     temp_orbitals_3[i] = occupieds[i][2];
+     //     temp_orbitals_4[i] = occupieds[i][3];
+     //}
+     //temp_orbitals_1 = transform(world, temp_orbitals_1, U);
+     //temp_orbitals_2 = transform(world, temp_orbitals_2, U);
+     //temp_orbitals_3 = transform(world, temp_orbitals_3, U);
+     //temp_orbitals_4 = transform(world, temp_orbitals_4, U);
+     //for(unsigned int i = 0; i < n; i++){
+     //     occupieds[i][0] = temp_orbitals_1[i];
+     //     occupieds[i][1] = temp_orbitals_2[i];
+     //     occupieds[i][2] = temp_orbitals_3[i];
+     //     occupieds[i][3] = temp_orbitals_4[i];
+     //}
+     transform(world, occupieds, U);
+     
+     
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
      times = end_timer(world);
@@ -770,6 +859,45 @@ std::vector<Fcwf> orthogonalize(World& world, std::vector<Fcwf> orbitals){
           }
      }
      return result;
+
+}
+
+//faster orthogonalize that modifies the input functions in place
+//Make this a member function of DF
+void DF::orthogonalize_inplace(World& world){
+
+     unsigned int n = occupieds.size();
+     double maxq;
+
+     //Debugging: original overlap matrix for comparison
+     //Tensor<std::complex<double>> overlap = matrix_inner(world, occupieds, occupieds);
+     //if(world.rank()==0) print("\noriginal overlap:\n", overlap);
+
+     //normalize beforehand
+     for(unsigned int i = 0; i < n; i++){
+          occupieds[i].normalize();
+     }
+
+     //Basically stolen from SCF.cc
+     do{
+          Tensor<std::complex<double>> Q = Q2(matrix_inner(world,occupieds,occupieds));
+          maxq = 0.0;
+          for(unsigned int j=1; j<n; j++){
+               for(unsigned int i=0; i<j; i++){
+                    maxq = std::max(std::abs(Q(j,i)),maxq);
+               }
+          }
+          transform(world, occupieds, Q);
+     } while (maxq>0.01);
+
+     //normalize afterward
+     for(unsigned int i = 0; i < n; i++){
+          occupieds[i].normalize();
+     }
+
+     //Debugging: print new overlap matrix
+     //overlap = matrix_inner(world, occupieds, occupieds);
+     //if(world.rank()==0) print("\nnew overlap:\n", overlap);
 
 }
 
@@ -1284,7 +1412,8 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      //orthogonalize
      if(world.rank()==0) print("\n***Orthonormalizing***");
      start_timer(world);
-     occupieds = orthogonalize(world,occupieds);
+     //occupieds = orthogonalize(world,occupieds);
+     orthogonalize_inplace(world);
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
 
@@ -1315,9 +1444,9 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      double nuclear_attraction_energy = 0.0;
      double old_total_energy = total_energy;
      double myc = 137.0359895; //speed of light
-     double nuclear_attraction_energy_correction;
-     double coulomb_energy_correction;
-     double exchange_energy_correction;
+     Tensor<double> nuclear_attraction_tensor;
+     Tensor<double> coulomb_tensor;
+     Tensor<double> exchange_tensor;
 
      real_function_3d Jop = apply(op,rho);
 
@@ -1329,22 +1458,61 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           
           kinetic_energy += (energies[j] - myc*myc);
           //if(world.rank()==0) print("          Kinetic done.");
+     }
           
-          temp_function = occupieds[j]*V;
-          nuclear_attraction_energy_correction = real(inner(occupieds[j],temp_function));
-          nuclear_attraction_energy += nuclear_attraction_energy_correction;
-          //if(world.rank()==0) print("          Nuclear Attraction done.");
-          
-          temp_function = occupieds[j]*Jop;
-          coulomb_energy_correction = real(inner(occupieds[j],temp_function));
-          energies[j] += coulomb_energy_correction + nuclear_attraction_energy_correction;
-          coulomb_energy += 0.5*coulomb_energy_correction;
-          //if(world.rank()==0) print("          Coulomb Repulsion done.");
-          
-          exchange_energy_correction = real(inner(occupieds[j],Kpsis[j]));
-          energies[j] -= exchange_energy_correction;
-          exchange_energy += 0.5*exchange_energy_correction;
-          //if(world.rank()==0) print("          Exchange done.");
+     //temp_function = occupieds[j]*V;
+     //nuclear_attraction_energy_correction = real(inner(occupieds[j],temp_function));
+     //nuclear_attraction_energy += nuclear_attraction_energy_correction;
+     std::vector<complex_function_3d> occupieds1(Init_params.num_occupied);
+     std::vector<complex_function_3d> occupieds2(Init_params.num_occupied);
+     std::vector<complex_function_3d> occupieds3(Init_params.num_occupied);
+     std::vector<complex_function_3d> occupieds4(Init_params.num_occupied);
+     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+          occupieds1[i] = occupieds[i][0];
+          occupieds2[i] = occupieds[i][1];
+          occupieds3[i] = occupieds[i][2];
+          occupieds4[i] = occupieds[i][3];
+     }
+     nuclear_attraction_tensor = real(inner(world,occupieds1,mul(world,V,occupieds1)));
+     nuclear_attraction_tensor += real(inner(world,occupieds2,mul(world,V,occupieds2)));
+     nuclear_attraction_tensor += real(inner(world,occupieds3,mul(world,V,occupieds3)));
+     nuclear_attraction_tensor += real(inner(world,occupieds4,mul(world,V,occupieds4)));
+     nuclear_attraction_energy = nuclear_attraction_tensor.sum();
+     //if(world.rank()==0) print("          Nuclear Attraction done.");
+     
+     //temp_function = occupieds[j]*Jop;
+     //coulomb_energy_correction = real(inner(occupieds[j],temp_function));
+     //energies[j] += coulomb_energy_correction + nuclear_attraction_energy_correction;
+     //coulomb_energy += 0.5*coulomb_energy_correction;
+     coulomb_tensor = real(inner(world,occupieds1,mul(world,Jop,occupieds1)));
+     coulomb_tensor += real(inner(world,occupieds2,mul(world,Jop,occupieds2)));
+     coulomb_tensor += real(inner(world,occupieds3,mul(world,Jop,occupieds3)));
+     coulomb_tensor += real(inner(world,occupieds4,mul(world,Jop,occupieds4)));
+     coulomb_energy = 0.5*coulomb_tensor.sum();
+     //if(world.rank()==0) print("          Coulomb Repulsion done.");
+     
+     //exchange_energy_correction = real(inner(occupieds[j],Kpsis[j]));
+     //energies[j] -= exchange_energy_correction;
+     //exchange_energy += 0.5*exchange_energy_correction;
+     std::vector<complex_function_3d> Kpsis1(Init_params.num_occupied);
+     std::vector<complex_function_3d> Kpsis2(Init_params.num_occupied);
+     std::vector<complex_function_3d> Kpsis3(Init_params.num_occupied);
+     std::vector<complex_function_3d> Kpsis4(Init_params.num_occupied);
+     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+          Kpsis1[i] = Kpsis[i][0];
+          Kpsis2[i] = Kpsis[i][1];
+          Kpsis3[i] = Kpsis[i][2];
+          Kpsis4[i] = Kpsis[i][3];
+     }
+     exchange_tensor = real(inner(world,occupieds1,Kpsis1));
+     exchange_tensor += real(inner(world,occupieds2,Kpsis2));
+     exchange_tensor += real(inner(world,occupieds3,Kpsis3));
+     exchange_tensor += real(inner(world,occupieds4,Kpsis4));
+     exchange_energy = 0.5*exchange_tensor.sum();
+     //if(world.rank()==0) print("          Exchange done.");
+
+     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+          energies[i] += nuclear_attraction_tensor[i]+coulomb_tensor[i] - exchange_tensor[i];
      }
      total_energy = kinetic_energy + coulomb_energy - exchange_energy + nuclear_attraction_energy + nuclear_repulsion_energy;
 
@@ -1376,6 +1544,9 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
           occupieds[j].truncate();
      }
+
+     times = end_timer(world);
+     if(world.rank()==0) print("     Iteration time:", times[0]);
  
      return iterate_again;
 }
@@ -1483,12 +1654,14 @@ void DF::solve(World& world){
      if(world.rank() == 0) print("\n   Calculation time:", times[0],"\n");
 
      //Make density lineplots
-     start_timer(world);
-     if(world.rank()==0) print("***Making lineplots***");
-     make_density_lineplots(world, "density_lineplots", 50000, 0.5);
-     make_component_lineplots(world, "large_component_lineplots", "small_component_lineplots", 50000, 0.5);
-     times = end_timer(world);
-     if(world.rank()==0) print("     ", times[0]);
+     if(DFparams.lineplot){
+          start_timer(world);
+          if(world.rank()==0) print("***Making lineplots***");
+          make_density_lineplots(world, "density_lineplots", 50000, 0.5);
+          make_component_lineplots(world, "large_component_lineplots", "small_component_lineplots", 50000, 0.5);
+          times = end_timer(world);
+          if(world.rank()==0) print("     ", times[0]);
+     }
      
 }
 

@@ -48,6 +48,7 @@ namespace madness {
           std::string savefile;        ///< Gives the file to save the archive each iteration Default: DFrestartdata (in working directory)
           int lb_iter;                 ///< How many iterations to load balance (after the initial load balancing)
           bool nwchem;                 ///< Indicates archive given is actually an nwchem file for starting the job
+          bool lineplot;               ///< Whether or not to make lineplots at the end of the job
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //               If you add something here, don't forget to add it to serializable!
@@ -60,7 +61,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & print_level & max_iter & small & thresh & kain & maxsub & restart & nucleus & do_save & savefile & lb_iter & nwchem;
+               ar & archive & job & print_level & max_iter & small & thresh & kain & maxsub & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot;
           }
 
           // Default constructor
@@ -79,6 +80,7 @@ namespace madness {
           , savefile("DFrestartdata")
           , lb_iter(20)
           , nwchem(false)
+          , lineplot(false)
           {}
 
           // Initializes DFParameters using the contents of file \c filename
@@ -159,6 +161,9 @@ namespace madness {
                     else if (s == "nwchem"){
                          nwchem = true;
                     }
+                    else if (s == "lineplot"){
+                         lineplot = true;
+                    }
                     else{
                        std::cout << "Dirac Fock: unrecognized input keyword " << s << std::endl;
                        MADNESS_EXCEPTION("input error", 0); 
@@ -185,6 +190,7 @@ namespace madness {
                else{
                     madness::print("                       Nucleus: gaussian");
                }
+               madness::print("                  Do Lineplots:", lineplot);
                madness::print("           Plot Final Orbitals:", plot);
                if(plot and plot_range) madness::print("                 Plot Start:", plot_data[0]);
                if(plot and plot_range) madness::print("                   Plot End:", plot_data[1]);

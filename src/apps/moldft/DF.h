@@ -132,6 +132,8 @@ class DF {
           //Lineplot the densities of the large and small component separately. only along x axis from 0 to L
           void make_component_lineplots(World& world, const char* filename1, const char* filename2, int npt, double endpnt);
 
+          void orthogonalize_inplace(World& world);
+
 
 };
 

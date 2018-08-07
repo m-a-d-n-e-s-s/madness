@@ -46,7 +46,7 @@ public:
 
      Fcwf operator+(const Fcwf& phi);
 
-     Fcwf operator*(std::complex<double> a);
+     Fcwf operator*(std::complex<double> a) const ;
      
      void scale(std::complex<double> a);
      
@@ -58,11 +58,13 @@ public:
 
      void normalize();
 
-     Fcwf operator*(madness::complex_function_3d phi);
+     Fcwf operator*(madness::complex_function_3d& phi);
 
-     Fcwf operator*(madness::real_function_3d phi);
+     Fcwf operator*(madness::real_function_3d& phi);
 
      void truncate();
+
+     std::complex<double>  inner(World& world, const Fcwf& phi) const;
 
 };
 
@@ -70,23 +72,28 @@ std::complex<double> inner(const Fcwf& psi, const Fcwf& phi);
 
 Fcwf apply(real_convolution_3d& op, const Fcwf& psi);
 
-real_function_3d squaremod(Fcwf psi);
-real_function_3d squaremod_small(Fcwf psi);
-real_function_3d squaremod_large(Fcwf psi);
+real_function_3d squaremod(Fcwf& psi);
+real_function_3d squaremod_small(Fcwf& psi);
+real_function_3d squaremod_large(Fcwf& psi);
 
-complex_function_3d inner_func(Fcwf psi, Fcwf phi);
+complex_function_3d inner_func(World& world, Fcwf& psi, Fcwf& phi);
 
 Fcwf copy(Fcwf psi);
 
-std::complex<double> inner(std::vector<Fcwf> a, std::vector<Fcwf> b);
+std::complex<double> inner(std::vector<Fcwf>& a, std::vector<Fcwf>& b);
 
-std::vector<Fcwf> operator*(std::vector<Fcwf> psis, std::complex<double> a);
+std::vector<Fcwf> operator*(const std::vector<Fcwf>& psis, std::complex<double> a);
 
-std::vector<Fcwf> operator*(std::complex<double> a, std::vector<Fcwf> psis);
+std::vector<Fcwf> operator*(std::complex<double> a, const std::vector<Fcwf>& psis);
 
-void operator+=(std::vector<Fcwf>& phi, std::vector<Fcwf> psi);
+void operator+=(std::vector<Fcwf>& phi, const std::vector<Fcwf>& psi);
 
-std::vector<Fcwf> operator-(std::vector<Fcwf> phi, std::vector<Fcwf> psi);
+std::vector<Fcwf> operator-(const std::vector<Fcwf>& phi, const std::vector<Fcwf>& psi);
+
+
+Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, std::vector<Fcwf>& b);
+
+void transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> U);
 
 class Fcwf_vector_allocator {
      World& world;

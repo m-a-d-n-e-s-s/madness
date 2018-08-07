@@ -130,16 +130,12 @@ using namespace madness;
           return Fcwf(temp);
      }
 
-     Fcwf Fcwf::operator*(std::complex<double> a){
-          //print("multiply1");
+     Fcwf Fcwf::operator*(std::complex<double> a) const {
           MADNESS_ASSERT(m_initialized);
           std::vector<complex_function_3d> temp(4);
-          //print("multiply2");
           for(int i = 0 ; i < 4 ; i++){
-               //print("multiply3, ",i);
                temp[i] = a*m_psi[i];    
           }
-          //print("multiply4");
           return Fcwf(temp);
      }
      
@@ -193,10 +189,11 @@ using namespace madness;
 
      double Fcwf::norm2(){
           MADNESS_ASSERT(m_initialized);
-          std::complex<double> temp(0,0);
-          for(int i = 0 ; i < 4 ; i++){
-               temp += madness::inner(m_psi[i],m_psi[i]);
-          }
+          std::complex<double> temp = madness::inner(m_psi[0].world(), m_psi, m_psi).sum();
+          //std::complex<double> temp(0,0);
+          //for(int i = 0 ; i < 4 ; i++){
+          //     temp += madness::inner(m_psi[i],m_psi[i]);
+          //}
           return std::sqrt(std::real(temp));
      }
 
@@ -212,7 +209,7 @@ using namespace madness;
           }
      }
 
-     Fcwf Fcwf::operator*(madness::complex_function_3d phi){
+     Fcwf Fcwf::operator*(madness::complex_function_3d& phi){
           MADNESS_ASSERT(m_initialized);
           std::vector<complex_function_3d> temp(4);
           for(int i = 0 ; i < 4 ; i++){
@@ -221,7 +218,7 @@ using namespace madness;
           return Fcwf(temp);
      }
 
-     Fcwf Fcwf::operator*(madness::real_function_3d phi){
+     Fcwf Fcwf::operator*(madness::real_function_3d& phi){
           MADNESS_ASSERT(m_initialized);
           std::vector<complex_function_3d> temp(4);
           for(int i = 0 ; i < 4 ; i++){
@@ -237,16 +234,20 @@ using namespace madness;
           }
      }
 
+     std::complex<double> Fcwf::inner(World& world, const Fcwf& phi) const{
+          MADNESS_ASSERT(m_initialized && phi.getinitialize());
+          return madness::inner(world, m_psi, phi.m_psi).sum();
+     }
+
 
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi){
-     //print("inner 1");
-     std::complex<double> result(0,0);
-     for(int i = 0 ; i < 4 ; i++){
-          //print("inner 2, ",i);
-          result += madness::inner(psi[i],phi[i]);
-     }
-     //print("inner 3");
-     return result;
+     //std::complex<double> result(0,0);
+     //for(int i = 0 ; i < 4 ; i++){
+     //     result += madness::inner(psi[i],phi[i]);
+     //}
+     //return result;
+     MADNESS_ASSERT(psi.getinitialize() && phi.getinitialize());
+     return psi.inner(psi[0].world(), phi);
 }
 
 Fcwf apply(real_convolution_3d& op, const Fcwf& psi){
@@ -257,30 +258,33 @@ Fcwf apply(real_convolution_3d& op, const Fcwf& psi){
      return Fcwf(temp);
 }
 
-real_function_3d squaremod(Fcwf psi){
+real_function_3d squaremod(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
      real_function_3d temp = abssq(psi[0]) + abssq(psi[1]) + abssq(psi[2]) + abssq(psi[3]);
      return temp;
 }
 
-real_function_3d squaremod_small(Fcwf psi){
+real_function_3d squaremod_small(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
      real_function_3d temp = abssq(psi[2]) + abssq(psi[3]);
      return temp;
 }
 
-real_function_3d squaremod_large(Fcwf psi){
+real_function_3d squaremod_large(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
      real_function_3d temp = abssq(psi[0]) + abssq(psi[1]);
      return temp;
 }
 
-complex_function_3d inner_func(Fcwf psi, Fcwf phi){
+complex_function_3d inner_func(World& world, Fcwf& psi, Fcwf& phi){
      MADNESS_ASSERT(psi.getinitialize() && phi.getinitialize());
-     complex_function_3d result = conj(psi[0])*phi[0];
-     result += conj(psi[1])*phi[1];
-     result += conj(psi[2])*phi[2];
-     result += conj(psi[3])*phi[3];
+     std::vector<complex_function_3d> a(4);
+     std::vector<complex_function_3d> b(4);
+     for(unsigned int i = 0; i < 4; i++){
+          a[i] = psi[i];
+          b[i] = phi[i];
+     }
+     complex_function_3d result = sum(world, mul(world, conj(world, a), b)); 
      return result;
 }
 
@@ -289,112 +293,155 @@ Fcwf copy(Fcwf psi){
 
 }
 
-std::complex<double> inner(std::vector<Fcwf> a, std::vector<Fcwf> b){
-     //print("inner 1");
+std::complex<double> inner(std::vector<Fcwf>& a, std::vector<Fcwf>& b){
      MADNESS_ASSERT(a.size() == b.size());
      std::complex<double> result(0,0);
      for(int i = 0; i < a.size(); i++){
-          //print("inner 2, i =", i);
           result += inner(a[i],b[i]);    
      }
-     //print("inner 3");
      return result;
 }
 
-std::vector<Fcwf> operator*(std::vector<Fcwf> psis, std::complex<double> a){
+std::vector<Fcwf> operator*(const std::vector<Fcwf>& psis, std::complex<double> a){
      std::vector<Fcwf> result;
-     //print("multiply 1");
      if(psis.size() != 0){
           for(int i = 0; i < psis.size(); i++){
-               //print("multiply 2, ", i);
                result.push_back(psis[i]*a);
           }
      }
-     //print("multiply 3");
      return result;
 }
 
-std::vector<Fcwf> operator*(std::complex<double> a, std::vector<Fcwf> psis){
+std::vector<Fcwf> operator*(std::complex<double> a, const std::vector<Fcwf>& psis){
      std::vector<Fcwf> result;
-     //print("multiply 1");
      if(psis.size() != 0){
           for(int i = 0; i < psis.size(); i++){
-               //print("multiply 2, ", i);
                result.push_back(psis[i]*a);
           }
      }
-     //print("multiply 3");
      return result;
 }
 
-void operator+=(std::vector<Fcwf>& phi, std::vector<Fcwf> psi){
+void operator+=(std::vector<Fcwf>& phi, const std::vector<Fcwf>& psi){
      std::vector<Fcwf> result;
-     //print("inplace add 1");
      if(phi.size()==0){
-          //print("inplace add 2");
           phi = psi;
      }
      else if(psi.size() != 0){
-          //print("inplace add 3");
           MADNESS_ASSERT(phi.size()==psi.size());
           for(int i=0; i < psi.size(); i++){
-               //print("inplace add 4, i =", i);
                phi[i]+=psi[i];
           }
      }
-     //print("inplace add 5");
-     return;
 }
 
-std::vector<Fcwf> operator-(std::vector<Fcwf> phi, std::vector<Fcwf> psi){
+std::vector<Fcwf> operator-(const std::vector<Fcwf>& phi, const std::vector<Fcwf>& psi){
      std::vector<Fcwf> result;
-     //print("subtract 1");
-     if(phi.size()==0){
-          //print("subtract 2");
-          std::vector<Fcwf> temp = -1.0*psi;
-          return temp;
+     if(psi.size()==0){
+          result = phi;
      }
-     else if(psi.size()==0){
-          //print("subtract 3");
-          return phi;
+     else if(phi.size()==0){
+          result = -1.0*psi;
      }
      else{
-          //print("subtract 4");
           MADNESS_ASSERT(phi.size()==psi.size());
           for(int i=0; i < psi.size(); i++){
-               //print("subtract 5, i =", i );
                result.push_back(phi[i]-psi[i]);
           }
      }
-     //print("subtract 6");
      return result;
 }
 
-          //Constructor
-          Fcwf_vector_allocator::Fcwf_vector_allocator(World& world, unsigned int m_size)
-          : world(world)
-          , m_size(m_size)
-          {}
+//Constructor
+Fcwf_vector_allocator::Fcwf_vector_allocator(World& world, unsigned int m_size)
+: world(world)
+, m_size(m_size)
+{}
 
-          //Overloading () operator
-          std::vector<Fcwf> Fcwf_vector_allocator::operator()(){
-               std::vector<Fcwf> result;
-               for(int i=0; i < m_size; i++){
-                    result.push_back(Fcwf(world));
-               }
-               return result;
-          }
+//Overloading () operator
+std::vector<Fcwf> Fcwf_vector_allocator::operator()(){
+     std::vector<Fcwf> result;
+     for(int i=0; i < m_size; i++){
+          result.push_back(Fcwf(world));
+     }
+     return result;
+}
 
-          //Copy Constructor
-          //according to Bryan, according to Jakob, this is necessary for KAIN?
-          Fcwf_vector_allocator Fcwf_vector_allocator::operator=(const Fcwf_vector_allocator& other){
-               Fcwf_vector_allocator tmp(world, other.m_size);
-               return tmp;
-          }
+//Copy Constructor
+//according to Bryan, according to Jakob, this is necessary for KAIN?
+Fcwf_vector_allocator Fcwf_vector_allocator::operator=(const Fcwf_vector_allocator& other){
+     Fcwf_vector_allocator tmp(world, other.m_size);
+     return tmp;
+}
 
-          void Fcwf_vector_allocator::set_size(int size){
-               m_size = size;
-          }
+void Fcwf_vector_allocator::set_size(int size){
+     m_size = size;
+}
+
+//Forms the outer product between two vectors of Fcwfs, where each matrix element is the inner product of the two contributing Fcwfs.
+Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, std::vector<Fcwf>& b){
+     unsigned int n = a.size();
+     unsigned int m = b.size();
+     MADNESS_ASSERT(n==m);
+
+     std::vector<complex_function_3d> a_1(n);
+     std::vector<complex_function_3d> a_2(n);
+     std::vector<complex_function_3d> a_3(n);
+     std::vector<complex_function_3d> a_4(n);
+     std::vector<complex_function_3d> b_1(n);
+     std::vector<complex_function_3d> b_2(n);
+     std::vector<complex_function_3d> b_3(n);
+     std::vector<complex_function_3d> b_4(n);
+
+     for(unsigned int i = 0; i < n; i++){
+          a_1[i] = a[i][0];
+          a_2[i] = a[i][1];
+          a_3[i] = a[i][2];
+          a_4[i] = a[i][3];
+          b_1[i] = b[i][0];
+          b_2[i] = b[i][1];
+          b_3[i] = b[i][2];
+          b_4[i] = b[i][3];
+     }
+
+     Tensor<std::complex<double>> component1 = matrix_inner(world, a_1, b_1);
+     Tensor<std::complex<double>> component2 = matrix_inner(world, a_2, b_2);
+     Tensor<std::complex<double>> component3 = matrix_inner(world, a_3, b_3);
+     Tensor<std::complex<double>> component4 = matrix_inner(world, a_4, b_4);
+     component1=component1+component2+component3+component4;
+     return component1;
+}
+
+void transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> U){
+     unsigned int n = a.size();
+     unsigned int m = U.dim(0);
+     unsigned int k = U.dim(1);
+     MADNESS_ASSERT(n==m);
+     MADNESS_ASSERT(m==k); //for now only support square transformation
+
+     std::vector<complex_function_3d> a_1(n);
+     std::vector<complex_function_3d> a_2(n);
+     std::vector<complex_function_3d> a_3(n);
+     std::vector<complex_function_3d> a_4(n);
+     for(unsigned int i = 0; i < n; i++){
+          a_1[i] = a[i][0];
+          a_2[i] = a[i][1];
+          a_3[i] = a[i][2];
+          a_4[i] = a[i][3];
+     }
+     a_1 = transform(world, a_1, U);
+     a_2 = transform(world, a_2, U);
+     a_3 = transform(world, a_3, U);
+     a_4 = transform(world, a_4, U);
+
+     for(unsigned int i = 0; i < n; i++){
+          a[i][0] = a_1[i];
+          a[i][1] = a_2[i];
+          a[i][2] = a_3[i];
+          a[i][3] = a_4[i];
+     }
+     
+}
 
 
 //kthxbye
