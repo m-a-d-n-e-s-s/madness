@@ -843,7 +843,8 @@ namespace madness {
         bool fence=true) {
 
         compress(world, f);
-        Function<T,NDIM> r=real_factory_3d(world).compressed();
+        //Function<T,NDIM> r=real_factory_3d(world).compressed(); //This line causes problems for T complex, NDIM != 3
+        Function<T,NDIM> r = FunctionFactory<T,NDIM>(world).compressed();
 
         for (unsigned int i=0; i<f.size(); ++i) r.gaxpy(1.0,f[i],1.0,false);
         if (fence) world.gop.fence();
