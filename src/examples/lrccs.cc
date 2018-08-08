@@ -76,11 +76,15 @@ using namespace madness;
 
 // test routine which tests h2o molecule
 bool test_lrccs(World& world){
+
+	std::vector<bool> results;
+	std::vector<std::string> nemo_param={"none", "slater"};
+	for(const auto nemo_type:nemo_param){
 	bool passed=true;
 	// print the input
 	// primitive version since we hopefuly have a nice data format in the future
 	if(world.rank()==0){
-		const std::string filename ="lrccs_test_input_h2o";
+		const std::string filename ="lrccs_test_input_h2o_"+nemo_type;
 		if(world.rank()==0) std::cout << "writing test input into file: " << filename << "\n";
 		std::ofstream outfile(filename);
 		  if(!outfile.is_open()) {
@@ -90,7 +94,9 @@ bool test_lrccs(World& world){
 
 		  outfile << "plot\nend"
 				  << "\n\n"
-				  << "\ndft\n canon \n xc hf\n econv 1.e-4\n dconv 1.e-3\n protocol 1.e-4\n L 30.0\nend"
+				  << "\ndft\n canon \n xc hf\n econv 1.e-4\n dconv 1.e-3\n protocol 1.e-4\n L 30.0"
+				  << "\n nuclear_corrfac " << nemo_type
+				  <<"\nend"
 		  	  	  << "\n\n"
 		  	  	  << "\nresponse \n thresh 1.e-4\n excitations 4\n freeze 1 \nend"
 				  << "\n\n"
@@ -123,7 +129,7 @@ bool test_lrccs(World& world){
 
 
 		  if(world.rank()==0){
-			  std::cout << "\n\n TEST FOR H2O ENDED:\n";
+			  std::cout << "\n\n NEMO=" << nemo_type << "TEST FOR H2O ENDED:\n";
 
 			  for(size_t i=0;i<results.size();++i){
 				  const double err = expected_results[i]-results[i];
@@ -136,9 +142,18 @@ bool test_lrccs(World& world){
 
 			 if(passed) std::cout << "H2O TEST PASSED! :)\n";
 			 else std::cout << "H2O TEST FAILED! :(\n";
+			 results.push_back(passed);
 		  }
 	}
-return passed;
+	}
+bool result=true;
+for(const auto x:results) if(x==false) result=false;
+if(world.rank()==0){
+	std::cout << "Test Results:\n";
+	for(size_t i=0;i<results.size();++i) std::cout << "nemo=" << nemo_param[i] << " : " << results[i] << "\n";
+}
+
+return result;
 }
 
 int main(int argc, char** argv) {
