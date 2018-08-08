@@ -129,7 +129,7 @@ bool test_lrccs(World& world){
 
 
 		  if(world.rank()==0){
-			  std::cout << "\n\n NEMO=" << nemo_type << "TEST FOR H2O ENDED:\n";
+			  std::cout << "\n\nNEMO=" << nemo_type << " TEST FOR H2O ENDED:\n";
 
 			  for(size_t i=0;i<results.size();++i){
 				  const double err = expected_results[i]-results[i];

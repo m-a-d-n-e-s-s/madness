@@ -262,6 +262,7 @@ public:
 		auto get_com_idx = [nvirt](int i, int a) { return i*nvirt+a; };
 		auto get_vir_idx = [nvirt](int I) {return I%nvirt;};
 		auto get_occ_idx = [nvirt](int I) {return I/nvirt;};
+		auto delta = [](int x, int y) {if (x==y) return 1; else return 0;};
 
 
 		const int dim=(virtuals.size()*nocc);
@@ -282,7 +283,7 @@ public:
 				for(int J=0;J<dim;++J){
 					const int b=get_vir_idx(J);
 					const int j=get_occ_idx(J);
-					MCIS(I,I) = Fmat(a,b)-Focc(i,j);
+					MCIS(I,J) = Fmat(a,b)*delta(i,j)-Focc(i,j)*delta(a,b);
 				}
 			}
 		}else{
