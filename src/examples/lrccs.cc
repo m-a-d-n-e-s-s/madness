@@ -117,7 +117,7 @@ bool test_lrccs(World& world){
 		  TDHF tdhf(world,nemo,filename);
 		  std::vector<CC_vecfunction> roots=tdhf.solve_cis();
 
-		  std::vector<double> expected_results = {0.3182483205,0.3794405844,0.3999497675,0.4099298010};
+		  std::vector<double> expected_results = {0.3182483205,0.3794405844,0.3999497675,0.4088869291};
 		  std::vector<double> results;
 		  for(const auto& x:roots) results.push_back(x.omega);
 
