@@ -58,6 +58,7 @@ protected:
   Properties::Properties my_properties; ///< The properties that have been read.
   BasisSet my_basis_set; ///< The basis set.
   Atoms my_atoms; ///< The atoms (symbols and positions, in angstroms).
+  unsigned int my_lineardeps; ///< Number of linear dependencies in the basis
   madness::Tensor<double> my_energies; ///< Alpha molecular orbital energies 
   madness::Tensor<double> my_MOs; ///< Alpha molecular orbital expansions coefficients. Column is the MO, row is the basis function.
   madness::Tensor<double> my_occupancies; ///< Alpha molecular orbital occupancies.
@@ -70,6 +71,7 @@ public:
   const Properties::Properties &properties; ///< Publically accessible list of read properties.
   const BasisSet &basis_set; ///< Publicly accessible basis set.
   const Atoms &atoms; ///< Publically accessible list of atoms.
+  const unsigned int &lineardeps; ///< Publically accessible number of linear dependencies
   const madness::Tensor<double> &energies; ///< Publically accessible list of alpha MO energies.
   const madness::Tensor<double> &MOs; ///< Publically accessible alpha MO expansions coefficients. Column is the MO, row is the basis function.
   const madness::Tensor<double> &occupancies; ///< Publically accessible list of alpha MO occupancies (in eV).
@@ -87,11 +89,11 @@ public:
    * \param[in] es The existing interface to move.
    */
   ES_Interface(ES_Interface &&es)
-    : my_properties{std::move(es.my_properties)}, my_energies{std::move(es.my_energies)},
+    : my_properties{std::move(es.my_properties)}, my_lineardeps{std::move(es.lineardeps)}, my_energies{std::move(es.my_energies)},
       my_MOs{std::move(es.my_MOs)}, my_occupancies{std::move(es.my_occupancies)},
       my_beta_energies{std::move(es.my_beta_energies)}, my_beta_MOs{std::move(es.my_beta_MOs)},
       my_beta_occupancies{std::move(es.my_beta_occupancies)}, err(es.err), properties(my_properties), 
-      basis_set(my_basis_set), atoms(my_atoms), energies(my_energies), MOs(my_MOs), occupancies(my_occupancies),
+      basis_set(my_basis_set), atoms(my_atoms), lineardeps(my_lineardeps), energies(my_energies), MOs(my_MOs), occupancies(my_occupancies),
       beta_energies(my_beta_energies), beta_MOs(my_beta_MOs), beta_occupancies(my_beta_occupancies)
   {}
 
@@ -101,10 +103,10 @@ public:
    * \param[in] es The existing interface to copy.
    */
   ES_Interface(const ES_Interface &es)
-    : my_properties{es.my_properties}, my_energies{es.my_energies},
+    : my_properties{es.my_properties}, my_lineardeps{es.lineardeps}, my_energies{es.my_energies},
       my_MOs{es.my_MOs}, my_occupancies{es.my_occupancies}, my_beta_energies{es.my_beta_energies},
       my_beta_MOs{es.my_beta_MOs}, my_beta_occupancies{es.my_occupancies},
-      err(es.err), properties(my_properties), basis_set(my_basis_set), atoms(my_atoms),
+      err(es.err), properties(my_properties), basis_set(my_basis_set), atoms(my_atoms), lineardeps(my_lineardeps),
       energies(my_energies), MOs(my_MOs), occupancies(my_occupancies), beta_energies(my_beta_energies),
       beta_MOs(my_beta_MOs), beta_occupancies(my_beta_occupancies)
   {}
@@ -115,10 +117,10 @@ public:
    * \param[in,out] err_ Output stream for messages. This can be updated later.
    */
   ES_Interface(std::ostream &err_)
-    : my_properties{Properties::None}, my_energies(1), my_MOs(1, 1),
+    : my_properties{Properties::None}, my_lineardeps(0), my_energies(1), my_MOs(1, 1),
       my_occupancies(1), my_beta_energies(1), my_beta_MOs(1,1), my_beta_occupancies(1),
-      err(err_), properties(my_properties), basis_set(my_basis_set), 
-      atoms(my_atoms), energies(my_energies), MOs(my_MOs), occupancies(my_occupancies), 
+      err(err_), properties(my_properties), basis_set(my_basis_set), atoms(my_atoms), 
+      lineardeps(my_lineardeps), energies(my_energies), MOs(my_MOs), occupancies(my_occupancies), 
       beta_energies(my_beta_energies), beta_MOs(my_beta_MOs), beta_occupancies(my_beta_occupancies)
   {}
 
@@ -130,6 +132,7 @@ protected:
     my_properties = Properties::None;
     my_basis_set.clear();
     my_atoms.clear();
+    my_lineardeps = 0;
     my_energies.reshape(1);
     my_MOs.reshape(1, 1);
     my_occupancies.reshape(1);

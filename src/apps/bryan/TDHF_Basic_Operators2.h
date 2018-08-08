@@ -129,27 +129,6 @@ ResponseFunction apply(World & world,
    return result;
 }
 
-// KAIN needs this
-// Inner product for ResponseFunction and ResponseFunction
-//double inner(ResponseFunction& a,
-//             ResponseFunction& b)
-//{
-//   MADNESS_ASSERT(a.size() > 0);
-//   MADNESS_ASSERT(a.size() == b.size());
-//   MADNESS_ASSERT(a[0].size() > 0);
-//   MADNESS_ASSERT(a[0].size() == b[0].size());
-//
-//   double value = 0.0;
-//
-//   for(unsigned int i = 0; i < a.size(); i++)
-//   {
-//      // vmra.h function, line 580 
-//      value += inner(a[i][0].world(), a[i], b[i]).sum();
-//   }
-//
-//   return value;
-//}
-
 #endif
 
 // Deuces

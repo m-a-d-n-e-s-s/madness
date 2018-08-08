@@ -21,6 +21,7 @@ namespace madness
       int k;                                   ///< Order of polynomial used in ground state
       Molecule molecule;                       ///< The molecule used in ground state calculation
       std::vector<real_function_3d> orbitals;  ///< The ground state orbitals 
+      std::string xc;                          ///< Name of xc functional used in ground state
 
       // Default constructor
       GroundParameters() {}
@@ -44,6 +45,7 @@ namespace madness
          input & L;                   // double            box size
          input & k;                   // int               wavelet order
          input & molecule;            // Molecule   
+         input & xc;                  // std:string        xc functional
 
          // Check that order is positive and less than 30
          if (k < 1 or k > 30)
@@ -68,14 +70,15 @@ namespace madness
       // Prints all information
       void print_params() const
       {
-         madness::print("\n   Ground State Parameters");
-         madness::print("   -----------------------");
-         madness::print("  Ground State Archive:", inFile);
-         madness::print("       Spin Restricted:", spinrestricted);
-         madness::print("    Number of orbitals:", num_orbitals);
-         madness::print("                     L:", L);
-         madness::print("         Wavelet Order:", k);
-         madness::print("      Orbital Energies:", energies);
+         madness::print("\n     Ground State Parameters");
+         madness::print("     -----------------------");
+         madness::print("    Ground State Archive:", inFile);
+         madness::print(" Ground State Functional:", xc);
+         madness::print("         Spin Restricted:", spinrestricted);
+         madness::print("      Number of orbitals:", num_orbitals);
+         madness::print("                       L:", L);
+         madness::print("           Wavelet Order:", k);
+         madness::print("        Orbital Energies:", energies);
       }
    };
 }

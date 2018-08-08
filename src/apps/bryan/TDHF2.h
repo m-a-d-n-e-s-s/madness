@@ -134,10 +134,8 @@ class TDHF
 
       // Tensors for holding energies 
       // residuals, and shifts
-      Tensor<double> x_omega;        // Energies of response functions
-      Tensor<double> y_omega;        // Energies of response functions
-      Tensor<double> x_e_residuals;  // Residuals of energies
-      Tensor<double> y_e_residuals;  // Residuals of energies
+      Tensor<double> omega;        // Energies of response functions
+      Tensor<double> e_residuals;  // Residuals of energies
 
       // Information that is inferred from input file
       std::vector<real_function_3d> act_orbitals;     // Ground state orbitals being used in calculation
@@ -197,8 +195,8 @@ class TDHF
 
       // Returns a set of vector of vector of real_function_3d of proper size, initialized to zero
       ResponseFunction response_zero_functions(World & world,
-                                                                         int m,
-                                                                         int n);
+                                               int m,
+                                               int n);
 
       // Returns a list of symmetry related functions for correct
       // pointgroup of the provided molecule
@@ -206,9 +204,15 @@ class TDHF
 
       // Returns initial response functions
       ResponseFunction create_trial_functions(World & world,
-                                                                        int k,
-                                                                        std::vector<real_function_3d> & orbitals,
-                                                                        int print_level);
+                                              int k,
+                                              std::vector<real_function_3d> & orbitals,
+                                              int print_level);
+
+      // Returns initial response functions
+      std::vector<real_function_3d> CIS_create_trial_functions(World & world,
+                                                               int k,
+                                                               std::vector<real_function_3d> & orbitals,
+                                                               int print_level);
 
       // Returns the derivative of the coulomb operator, applied to ground state orbitals
       ResponseFunction create_coulomb_derivative(World & world,
@@ -220,23 +224,34 @@ class TDHF
       // Returns the derivative of the exchange operator, applied to the ground state orbitals
       // This is the function for TDA only
       ResponseFunction create_exchange_derivative(World & world,
-                                                                            ResponseFunction & f,
-                                                                            std::vector<real_function_3d> & orbitals,
-                                                                            double small,
-                                                                            double thresh);
+                                                  ResponseFunction & f,
+                                                  std::vector<real_function_3d> & orbitals,
+                                                  double small,
+                                                  double thresh);
+
+      // Returns the diagonal (letter A) elements of response matrix
+      ResponseFunction create_A(World &world,
+                          ResponseFunction & fe,
+                          ResponseFunction & gamma,
+                          ResponseFunction & V,
+                          ResponseFunction & f,
+                          std::vector<real_function_3d> & ground_orbitals,
+                          Tensor<double> & hamiltonian,
+                          int print_level,
+                          std::string xy);
 
       // Returns the off diagonal (letter B) elements of response matrix       
       ResponseFunction create_B(World & world,
-                                                          ResponseFunction & f,
-                                                          std::vector<real_function_3d> & orbitals,
-                                                          double small,
-                                                          double thresh);
+                                ResponseFunction & f,
+                                std::vector<real_function_3d> & orbitals,
+                                double small,
+                                double thresh);
 
       // Returns gamma (the perturbed 2 electron piece) 
       ResponseFunction create_gamma(World & world,
                                     ResponseFunction & f,
+                                    ResponseFunction & g,
                                     std::vector<real_function_3d> & orbitals,
-                                    real_function_3d vxc,
                                     double small,
                                     double thresh,
                                     int print_level,
@@ -398,7 +413,7 @@ class TDHF
                      int m,
                      int iter,
                      Tensor<int> & selected,
-                     Tensor<double> & x_omega,
+                     Tensor<double> & omega,
                      Tensor<double> & S_x,     
                      Tensor<double> & A_x,     
                      ResponseFunction & x_gamma,
@@ -422,8 +437,7 @@ class TDHF
                                         ResponseFunction & y,
                                         ResponseFunction & Vy,
                                         ResponseFunction & y_g,
-                                        Tensor<double> & x_evals, 
-                                        Tensor<double> & y_evals,
+                                        Tensor<double> & omega, 
                                         const double thresh,
                                         int print_level);
 
@@ -452,9 +466,10 @@ class TDHF
       
       // Uses an XCOperator to construct v_xc for the ground state density 
       // Returns d^2/d rho^2 E_xc[rho]
-      real_function_3d create_vxc(World& world,
-                                  std::vector<real_function_3d> orbitals,
-                                  XCOperator& xc);
+      std::vector<real_function_3d> create_vxc(World& world,
+                                               std::vector<real_function_3d> & orbitals,
+                                               ResponseFunction & f,
+                                               ResponseFunction & g);
 
       // Iterates the trial functions until covergence or it runs out of iterations
       void iterate(World & world);
@@ -474,21 +489,31 @@ class TDHF
                              int print_level,
                              std::string xy);
 
+      // Create and diagonalize the CIS matrix for improved initial guess 
+      ResponseFunction diagonalize_CIS_guess(World & world,
+                                             std::vector<real_function_3d> & virtuals,
+                                             Tensor<double> & omega,
+                                             std::vector<real_function_3d> & orbitals,
+                                             Tensor<double> & energies,
+                                             double small,
+                                             double thresh,
+                                             int print_level);
+
       // Adds random noise to function f
       ResponseFunction add_randomness(World & world,
                                       ResponseFunction & f);
 
       // Creates the transition density
       std::vector<real_function_3d> transition_density(World & world,
-                                                       ResponseFunction x,
-                                                       ResponseFunction y,
-                                                       std::vector<real_function_3d> g);
+                                                       std::vector<real_function_3d> & orbitals,
+                                                       ResponseFunction & x,
+                                                       ResponseFunction & y);
 
       // Creates the ground state hamiltonian for the orbitals in the active subspace
       // (aka the orbitals in tda_act_orbitals) 
-      void create_ground_hamiltonian(World &world,
-                                     std::vector<real_function_3d> f,
-                                     int print_level);
+      Tensor<double> create_ground_hamiltonian(World &world,
+                                               std::vector<real_function_3d> f,
+                                               int print_level);
 
       // Sets the different k/thresh levels
       template<std::size_t NDIM>
@@ -504,6 +529,12 @@ class TDHF
                                            int n,
                                            std::vector<real_function_3d> & grounds,
                                            Molecule & molecule);
+
+      // Creates random guess functions semi-intelligently(?)
+      std::vector<real_function_3d> create_random_guess(World & world, 
+                                                        int m, 
+                                                        std::vector<real_function_3d> & grounds,
+                                                        Molecule & molecule);
 
       // Creates an initial guess using NWChem outputs from a ground state calculation
       // Requires:

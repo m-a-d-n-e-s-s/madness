@@ -33,6 +33,7 @@ namespace madness
       int plot_pts;                      ///< Controls number of points in plots
       int max_iter;                      ///< Maximum number of iterations
       double dconv;                      ///< Convergence criterion for the orbital density 
+      bool dconv_set;                    ///< Convergence flag for the orbital density 
       double small;                      ///< Minimum length scale to be resolved
       std::vector<double> protocol_data; ///< Different thresholds for truncation
       int larger_subspace;               ///< Number of iterations to diagonalize in a subspace consisting of old and new vectors
@@ -68,6 +69,7 @@ namespace madness
             & plot_pts 
             & max_iter 
             & dconv
+            & dconv_set
             & small
             & protocol_data 
             & larger_subspace
@@ -96,7 +98,8 @@ namespace madness
       , plot_L(-1.0)
       , plot_pts(201)
       , max_iter(20)
-      , dconv(1e-3)
+      , dconv(0)
+      , dconv_set(false)
       , small(1e-6)
       , protocol_data(madness::vector_factory(1e-4, 1e-6))
       , larger_subspace(0)
@@ -183,7 +186,7 @@ namespace madness
                   t >> d;
                   plot_data.push_back(std::stoi(d));
                   t >> d;
-                  for(int z = plot_data[0]+1; z < std::stoi(d); z++) plot_data.push_back(z);
+                  for(int z = plot_data[0]+1; z <= std::stoi(d); z++) plot_data.push_back(z);
                }
                else
                {
@@ -207,6 +210,7 @@ namespace madness
             else if (s == "dconv")
             {
                f >> dconv;
+               dconv_set = true;
             }
             else if (s == "small")
             {
@@ -295,7 +299,7 @@ namespace madness
          madness::print("   Larger Subspace Iterations:", larger_subspace);
          madness::print("                     Use KAIN:", kain);
          if(kain) madness::print("          Size of KAIN memory:", kain_size);
-         madness::print("Density Convergence Threshold:", dconv);
+         if(dconv != 0.0) madness::print("Density Convergence Threshold:", dconv);
          madness::print("                     Protocol:", protocol_data);
          if(plot_initial) madness::print("        Plot Initial Orbitals:", plot_initial);
          if(plot) madness::print("          Plot Final Orbitals:", plot);

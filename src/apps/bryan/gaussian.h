@@ -21,6 +21,7 @@
 #include "polynomial.h"
 #include "ESInterface.h"
 #include <madness/mra/mra.h>
+#include <madness/constants.h>
 
 namespace slymer {
 
@@ -190,8 +191,11 @@ public:
   /// The center of the gaussian
   std::array<double, 3> center;
 
+  /// The exponent coefficients
+  std::vector<double> expcoeff;
+
   /// Default constructor: Make the function 0.
-  GaussianFunction() : terms(0), center({{0,0,0}}) {}
+  GaussianFunction() : terms(0), center({{0,0,0}}), expcoeff(std::vector<double>{0.0}) {}
 
   /**
    * \brief Create a Gaussian orbital (uncontracted or contracted) from
@@ -372,7 +376,7 @@ inline GaussianFunction operator*(const double lhs, const GaussianFunction &rhs)
 class Gaussian_Functor : public madness::FunctionFunctorInterface<double, 3> {
 private:
     GaussianFunction func;
-    std::vector<madness::coord_3d> centers;    
+    std::vector<madness::coord_3d> centers;
 public:
     Gaussian_Functor(GaussianFunction func, std::vector<madness::coord_3d> centers) : func(func), centers(centers) {}
 
@@ -385,7 +389,20 @@ public:
     }
 
     madness::Level special_level() {
-       return 18;
+       // From Robert: 
+       // Pick initial level such that average gap between quadrature points
+       // will find a significant value
+       const int N = 6; // looking for where exp(-a*x^2) < 10**-N
+       const int K = 6; // typically the lowest order of the polyn
+       const double log10 = std::log(10.0);
+       const double log2 = std::log(2.0); 
+       const double L = madness::FunctionDefaults<3>::get_cell_min_width(); 
+       const double expnt = *(std::max_element(func.expcoeff.begin(), func.expcoeff.end()));
+       const double a = expnt*L*L;
+       //const double fac = pow(2.0/(expnt*madness::constants::pi), 3.0/2.0); 
+       const double fac = 100.0; 
+       double n = std::log(a/(4*K*K*(N*log10+std::log(fac))))/(2*log2);
+       return (n < 2 ? 2.0 : std::ceil(n));
     }
 };
 

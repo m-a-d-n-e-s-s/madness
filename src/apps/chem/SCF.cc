@@ -249,7 +249,8 @@ namespace madness {
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
         ar & current_energy & param.spin_restricted;
         ar & (unsigned int) (amo.size());
-        ar & aeps & aocc & aset & param.L & FunctionDefaults<3>::get_k() & molecule;
+        ar & aeps & aocc & aset & param.L & FunctionDefaults<3>::get_k() 
+           & molecule & param.xc_data;
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
         if (!param.spin_restricted) {
@@ -292,6 +293,7 @@ namespace madness {
           double L;
           int k;
           Molecule momlecule;
+          std::string xc_data;
           for i from 0 to nalpha-1:
           .   Function<double,3> amo[i]
           
@@ -305,7 +307,8 @@ namespace madness {
         
         ar & nmo;
         MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
-        ar & aeps & aocc & aset & param.L & param.k & molecule;
+        ar & aeps & aocc & aset & param.L & param.k 
+           & molecule & param.xc_data;
         amo.resize(nmo);
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
@@ -2535,6 +2538,8 @@ namespace madness {
                     if (world.rank() == 0 && converged) {
                         print("\nConverged!\n");
                     }
+                    if(world.rank() == 0) print("Final Fock Matrix (non-diagonalalized):");
+                    if(world.rank() == 0) print(focka);
                     
                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
@@ -2572,6 +2577,9 @@ namespace madness {
                         }
                     }
                     
+                    if(world.rank() == 0) print("Final Fock Matrix (diagonalalized):");
+                    if(world.rank() == 0) print(focka);
+
                     if (world.rank() == 0) {
                         print(" ");
                         print("alpha eigenvalues");
