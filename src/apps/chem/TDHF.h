@@ -12,42 +12,167 @@
 #include "nemo.h"
 #include "projector.h"
 #include "SCFOperators.h"
-#include "electronic_correlation_factor.h"
+
+
 
 namespace madness {
 
+
+/// The TDHF class
+/// solves CIS/TDA equations and hopefully soon the full TDHF/TDDFT equations
 class TDHF{
 public:
-	TDHF(World & world, const CCParameters& param,const Nemo &nemo);
+	TDHF(World & world,const Nemo &nemo, const std::string& input="input");
 	virtual
 	~TDHF();
+
+	/// the TDHF parameter class
+	struct Parameters{
+
+		// disable default constructor (need nemo information)
+		Parameters();
+		Parameters(const std::shared_ptr<SCF>& scf, const std::string& input);
+
+		/// assign default for everything that has not been assigned from file:
+		void complete_with_defaults(const std::shared_ptr<SCF>& scf);
+
+		/// reads parameters in from file
+		/// parameters are given between key and end keywords
+		/// filename default is "input"
+		void read_from_file(const std::string input, const std::string& key = "response");
+
+		bool debug=false;
+		bool plot=false;
+		bool no_compute=false;
+
+		/// full linear-response (TDHF/TDDFT) or Tamm-Dancoff (CIS/DFT-TDA)
+		std::string calculation="cis"; // possible: cis and tdhf (dft part is controlled throught moldft parameters)
+
+		/// the threshold for the CIS calculation
+		double thresh=FunctionDefaults<3>::get_thresh();
+		double thresh_op=-1.0; // i.e. uninitialized;
+		///Smallest length scale to resolve
+		double lo=1.e-10;
+
+		/// make parameters for convolution operator
+		typename CCConvolutionOperator::Parameters get_ccc_parameters()const{
+			typename CCConvolutionOperator::Parameters result;
+			result.freeze=freeze;
+			result.lo=lo;
+			result.thresh_op=thresh_op;
+			result.gamma=1.0;
+			return result;
+		}
+
+		/// the number of frozen occupied orbitals (not taken into account for response)
+		int freeze=0;
+
+		/// excitations which will be read from disk
+		std::vector<size_t> restart;
+
+		/// The number of occupied orbitals which are used to create the virtuals for the guess
+		/// <= 0 means that all orbitals will be used
+		int guess_occ_to_virt=5;
+
+		/// The number of excitation vectors for which the alorithm will solve
+		int excitations=1;
+		/// The number of guess_excitation vectors for the first iterations
+		int guess_excitations=-1;
+		/// The number of excitation vectors which will be iterated parallel
+		int iterating_excitations=-1;
+
+		/// determine how the virtuals for the guess are constructed: scf, external, custom, dipole, quadrupole
+		/// scf: read in the ao set from scf (scales with system size)
+		/// external: read in virtuals from disk
+		/// custom: create virtuals form occupied orbitals by multiplying with polynomials
+		/// |v> = |occ>*poly
+		/// the polynomials can be determined by: exop x n1 y n2 z n3 c n4, x n11 ... x n44, ...  which will be n4*x^n1*y^n2*z^n3 + n44*x^n11* ...
+		/// e.g. for a dipole guess enter the exop keyword 3 times as:
+		/// exop x 1.0
+		/// exop y 1.0
+		/// exop z 1.0
+		/// the options dipole, dipole+, dipole+diffuse and quadrupole give predefined exops without explicitly stating them
+		/// see the end of TDHF.cc for predefined keys
+		std::string guess_virtuals="dipole+diffuse_big";
+
+		/// use the diagonal approximation for the guess (only e_a -e_i terms in CIS matrix)
+		/// much faster
+		bool guess_diag=true;
+
+		/// determine active orbitals in guess (for all inactive orbitals only the diagonal  e_a-e_i term is computed in the guess
+		/// guess_active_orbitals=0 is the same as guess_diag
+		int guess_active_orbitals=0;
+
+
+		/// convergence for the excitation vectors
+		double dconv_guess=-1.0;
+		double dconv=FunctionDefaults<3>::get_thresh()*10.0;
+		/// convergence for the excitation energy
+		double econv_guess=-1.0;
+		double econv=FunctionDefaults<3>::get_thresh();
+
+		/// store the potential for orthogonalizations or recalculate it
+		bool store_potential=true;
+
+		/// maximum number of iterations in the final iterations
+		size_t iter_max=10;
+		/// maximum number of guess iterations (mostly more than the final ones and always without KAIN)
+		size_t iter_guess=10;
+		/// Vector of strings which contains the polynomial excitation operators
+		/// For this to be used the tda_guess key has to be "custom"
+		/// The strings are given in a format like: "c c1 x x1 y y1 z z1, c c2 x x2 y y2 z z2, ..." which will be interpreted as: c1*x^x1*y^y1*z^z1 + c2*x^x2*y^y2*z^z2 + ....
+		std::vector<std::string> exops;
+		/// smoothing exponent
+		/// every exop is multiplied with e^(-exponent*r2) to avoid noise at the boundaries
+		double damping_width=0.0;
+
+		/// calculate triplet excitation energies (only works for CIS)
+		bool triplet=false;
+
+		/// use kain (kain subspace<=0 == no kain, kain_subspace==1 should have the same effect)
+		int kain_subspace=8;
+
+		/// general new key/value pair for convenience in development
+		std::map<std::string,std::string> generalkeyval;
+
+		void print(World& world) const;
+	}; // end of parameter class
+
+	/// print information
+	void print_xfunctions(std::vector<CC_vecfunction> & f, const bool& fullinfo=false)const{
+		for(const auto& x:f){
+			const double mem=get_size(world,x.get_vecfunction());
+			if(world.rank()==0){
+				std::cout << "ex. vector " << x.excitation << " | " << x.omega << " | " << mem << "(Gbyte)" << "\n";
+			}
+			if(fullinfo){
+				print_size(world,x.get_vecfunction(),"ex. vector "+std::to_string(x.excitation));
+			}
+		}
+	}
 
 	/// Initialize the CIS functions
 
 	/// @param[in\out] on input the already obtained guess functions (or empty vector), on output new guess functions are added
 	void initialize(std::vector<CC_vecfunction> &start)const;
 
-	/// read restart excitation vectors from file
-
-	/// @return if successful: vectors from file, empty vector otherwise
-	std::vector<CC_vecfunction> read_vectors() const;
-
 	/// Solve the CIS equations
 
 	/// @param[in/out] CC_vecfunction
 	/// on input the guess functions (if empty or not enough the a guess will be generated)
 	/// on output the solution
-	void solve_cis()const{
+	std::vector<CC_vecfunction> solve_cis()const{
 		std::vector<CC_vecfunction> ccs;
-		for(size_t k=0;k<parameters.excitations_.size();k++){
+		// look for restart options
+		for(size_t k=0;k<parameters.restart.size();k++){
 			CC_vecfunction tmp;
-			const bool found= initialize_singles(tmp,RESPONSE,parameters.excitations_[k]);
+			const bool found= initialize_singles(tmp,RESPONSE,parameters.restart[k]);
 			if(found) ccs.push_back(tmp);
 		}
-		solve_cis(ccs);
+		return solve_cis(ccs);
 	}
 
-	void solve_cis(std::vector<CC_vecfunction>& start) const;
+	std::vector<CC_vecfunction> solve_cis(std::vector<CC_vecfunction>& start) const;
 
 	/// Solve TDHF equations (not ready)
 	void solve_tdhf(std::vector<CC_vecfunction>& guess)const;
@@ -77,14 +202,146 @@ public:
 	std::vector<vecfuncT> apply_G(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const;
 	/// Guess for TDHF y functions (not ready)
 	std::vector<CC_vecfunction> make_y_guess(const std::vector<CC_vecfunction> & x, std::vector<CC_vecfunction> & y)const;
-	/// Make the CIS Guess
-	/// the type of guess is  ontrolled over the tda_guess keyword in the CCParameters class (CC_Structures.h)
-	std::vector<CC_vecfunction> make_guess()const;
-	/// Guess only takes the Homos into account
-	/// Guess functions are created from the application of the excitation operators (see tda_guess keyword)
-	/// applied to the Homo orbital and to the Homo-1 ... Homo-N orbital with N=tda_guess_orbitals parameter
-	/// With this we can get more irreps without the need for large polynomials
-	std::vector<CC_vecfunction> make_homo_guess()const;
+	/// Make the old CIS Guess
+	/// the routine is now used to create virtuals
+	std::vector<CC_vecfunction> make_old_guess()const;
+
+	/// Create a set of virtual orbitals for the initial guess
+	vecfuncT make_virtuals() const;
+
+	/// make the initial guess by explicitly diagonalizing a CIS matrix with virtuals from the make_virtuals routine
+	std::vector<CC_vecfunction> make_guess_from_initial_diagonalization() const;
+	/// canonicalize a set of orbitals (here the virtuals for the guess)
+	vecfuncT canonicalize(const vecfuncT& v)const{
+		CCTimer time(world,"canonicalize");
+		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
+		const vecfuncT vbra=make_bra(v);
+		Tensor<double> Fmat = F(vbra,v);
+		Tensor<double> S = matrix_inner(world, vbra, v);
+		Tensor<double> occ(v.size());
+		occ=1.0;
+		Tensor<double> evals;
+		if(parameters.debug and world.rank()==0) std::cout << "Canonicalize: Fock Matrix\n" << Fmat(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
+		if(parameters.debug and world.rank()==0) std::cout << "Canonicalize: Overlap Matrix\n" << S(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
+		Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, evals, occ, std::min(parameters.thresh,1.e-4));
+		vecfuncT result = madness::transform(world, v, U);
+		time.print();
+		return result;
+	}
+	/// compute the CIS matrix for a given set of virtuals
+	Tensor<double> make_cis_matrix(const vecfuncT virtuals)const{
+
+		// make bra elements
+		const vecfuncT virtuals_bra = make_bra(virtuals);
+		// make Fock Matrix of virtuals for diagonal elements
+		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
+		Tensor<double> Fmat = F(virtuals_bra, virtuals);
+
+
+		if (parameters.debug) {
+			const int dim = std::min(10,int(virtuals.size()));
+			if (world.rank() == 0)
+				std::cout << "Debug Part of Virtual Fock Matrix\n" << Fmat(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
+
+			Tensor<double> S = matrix_inner(world, virtuals_bra, virtuals);
+			if (world.rank() == 0)
+				std::cout << "Debug Overlap of virtuals\n" << S(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
+		}
+
+
+		CCTimer time_cis(world, "make CIS matrix");
+
+		// the cis matrix is indexed by ij and ab
+		// we will use the combined indixes from ia and jb named I and J
+		// in order to not be confused we use the following helper functions
+		const int nocc = get_active_mo_ket().size();
+		// determines for which orbitals (couting from the HOMO downwards) the off-diagonal elements will be computed
+		// this simplifies the guess
+		int active_guess_orbitals = parameters.guess_active_orbitals;
+		const int nvirt = virtuals.size();
+		auto get_com_idx = [nvirt](int i, int a) { return i*nvirt+a; };
+		auto get_vir_idx = [nvirt](int I) {return I%nvirt;};
+		auto get_occ_idx = [nvirt](int I) {return I/nvirt;};
+
+
+		const int dim=(virtuals.size()*nocc);
+		if(world.rank()==0) std::cout << "CIS-Matrix for guess calculation will be of size " << dim << "x" << dim << "\n";
+		// the number of the matrix where elements which are not determined by orbital energies and the fock matrix are computed (controlled over active_guess_orbitals parameter)
+		const int dim2=(virtuals.size()*active_guess_orbitals);
+		if(dim2<dim and world.rank()==0) std::cout << "Effective size through neglect of some orbitals will be: " << dim2 << "x" << dim2 << "\n";
+		const int start_ij = nocc-active_guess_orbitals;
+		Tensor<double> MCIS(dim,dim);
+
+		// make CIS matrix
+		// first do the "diagonal" entries
+		if(nemo.get_calc()->param.localize){
+			Tensor<double> Focc = F(get_active_mo_bra(),get_active_mo_ket());
+			for(int I=0;I<dim;++I){
+				const int a=get_vir_idx(I);
+				const int i=get_occ_idx(I);
+				for(int J=0;J<dim;++J){
+					const int b=get_vir_idx(J);
+					const int j=get_occ_idx(J);
+					MCIS(I,I) = Fmat(a,b)-Focc(i,j);
+				}
+			}
+		}else{
+		for(int I=0;I<dim;++I){
+			const int a=get_vir_idx(I);
+			const int i=get_occ_idx(I);
+			MCIS(I,I) = Fmat(a,a)-get_orbital_energy(i+parameters.freeze);
+		}
+		}
+
+		if(not parameters.guess_diag){
+		int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
+		for (int i = start_ij; i < get_active_mo_ket().size(); ++i) {
+			const real_function_3d brai = get_active_mo_bra()[i];
+			const vecfuncT igv = g12(brai * virtuals);
+			for (int a = 0; a < virtuals.size(); ++a) {
+				I=get_com_idx(i,a);
+				int J =-1;
+				for (int j = start_ij; j < get_active_mo_ket().size(); ++j) {
+					const real_function_3d braj =get_active_mo_bra()[j];
+					for (int b = 0; b < virtuals.size(); ++b) {
+						J=get_com_idx(j,b);
+						if(J<=I){
+							const real_function_3d igj = g12(mo_bra_(i+parameters.freeze),mo_ket_(j+parameters.freeze)); // use exchange intermediate
+							const double rIJ = 2.0 * inner(braj * virtuals[b], igv[a]) - inner(virtuals_bra[a] * virtuals[b],igj);
+							MCIS(J,I) += rIJ;
+							MCIS(I,J) += rIJ;
+						}
+					}
+				}
+			}
+		}
+		}
+		if(world.rank()==0){
+			int sdim=std::min(int(MCIS.dim(0)),10);
+			std::cout << "Part of the CIS Matrix:\n" << MCIS(Slice(dim-sdim,-1),Slice(dim-sdim,-1)) << "\n";
+			if(parameters.debug) std::cout << "Debug: Full CIS Matrix:\n" << MCIS<< "\n";
+		}
+
+		// test if symmetric
+		if (parameters.debug) {
+			const double symm_norm = (MCIS - transpose(MCIS)).normf();
+			if (world.rank() == 0)
+				std::cout << "Hermiticity of CIS Matrix:\n" << "||MCIS-transpose(MCIS)||=" << symm_norm << "\n";
+
+			if (symm_norm > 1.e-4) {
+				int sliced_dim = 8;
+				if (8 > MCIS.dim(0))
+					sliced_dim = MCIS.dim(0);
+
+				if (world.rank() == 0)
+					std::cout << "first " << sliced_dim << "x" << sliced_dim << " block of MCIS Matrix\n" << MCIS(_, Slice(sliced_dim - 1, sliced_dim - 1));
+			}
+		}
+		time_cis.info();
+
+		return MCIS;
+	}
+
 	/// initialize the excitation functions
 	bool
 	initialize_singles(CC_vecfunction &singles,const FuncType type,const int ex) const;
@@ -100,7 +357,7 @@ public:
 	//	}
 	/// Make the TDA potential for a single excitation vector
 	vecfuncT get_tda_potential(const CC_vecfunction &x)const;
-	/// Make the TDHF potential
+	/// Make the TDHF potential (not ready)
 	std::vector<vecfuncT> make_tdhf_potentials(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y)const;
 	/// orthonormalize a vector of excitations
 	/// @param[in,out] input: the excitations, output: the orthonormalized excitations
@@ -131,7 +388,7 @@ public:
 	CC_vecfunction make_mo_bra(const Nemo &nemo) const {
 		vecfuncT tmp = mul(world, nemo.nuclear_correlation->square(),
 				nemo.get_calc()->amo);
-		set_thresh(world, tmp, parameters.thresh_3D);
+		set_thresh(world, tmp, parameters.thresh);
 		truncate(world,tmp);
 		reconstruct(world,tmp);
 		CC_vecfunction mo_bra(tmp, HOLE);
@@ -140,7 +397,7 @@ public:
 
 	CC_vecfunction make_mo_ket(const Nemo&nemo) const {
 		vecfuncT tmp = nemo.get_calc()->amo;
-		set_thresh(world, tmp, parameters.thresh_3D);
+		set_thresh(world, tmp, parameters.thresh);
 		truncate(world,tmp);
 		reconstruct(world,tmp);
 		CC_vecfunction mo_ket(tmp, HOLE);
@@ -154,6 +411,11 @@ public:
 	/// convenience
 	vecfuncT make_bra(const CC_vecfunction &ket)const{
 		return make_bra(ket.get_vecfunction());
+	}
+	real_function_3d make_bra(const real_function_3d &ket)const{
+		vecfuncT v(1,ket);
+		return make_bra(v).front();
+
 	}
 	/// maybe move this into nuclear_correlation class ?
 	vecfuncT make_bra(const vecfuncT &ket)const{
@@ -214,10 +476,11 @@ public:
 	/// The MPI Communicator
 	World& world;
 	/// The Parameters for the Calculations
-	const CCParameters& parameters;
+	const Parameters parameters;
 	/// The Nemo structure (convenience)
 	const Nemo& nemo;
 	/// Operator Structure which can handle intermediates (use for exchange with GS orbitals)
+	/// Can be replaced by another potential manager
 	CCConvolutionOperator g12;
 	/// MO bra and ket
 	const CC_vecfunction mo_ket_;
@@ -227,6 +490,9 @@ public:
 	/// the messenger IO
 	CCMessenger msg;
 };
+
+
+
 
 } /* namespace madness */
 
