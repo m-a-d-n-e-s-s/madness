@@ -214,7 +214,7 @@ public:
 	/// canonicalize a set of orbitals (here the virtuals for the guess)
 	vecfuncT canonicalize(const vecfuncT& v)const{
 		CCTimer time(world,"canonicalize");
-		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
+		Fock F(world, &nemo);
 		const vecfuncT vbra=make_bra(v);
 		Tensor<double> Fmat = F(vbra,v);
 		Tensor<double> S = matrix_inner(world, vbra, v);
@@ -234,7 +234,7 @@ public:
 		// make bra elements
 		const vecfuncT virtuals_bra = make_bra(virtuals);
 		// make Fock Matrix of virtuals for diagonal elements
-		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
+		Fock F(world, &nemo);
 		Tensor<double> Fmat = F(virtuals_bra, virtuals);
 
 

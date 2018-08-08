@@ -145,7 +145,7 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
 
 	}
 	if(nemo.get_calc()->param.localize){
-		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
+		Fock F(world, &nemo);
 		F_occ = F(get_active_mo_bra(),get_active_mo_ket());
 		for(size_t i=0;i<get_active_mo_ket().size();++i){
 			std::cout << std::scientific << std::setprecision(10);

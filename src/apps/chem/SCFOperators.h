@@ -562,7 +562,9 @@ class Fock {
 public:
     /// \param[in] scale_K scaling factor for the Hartree-Fock exchange operator (the default is 1, i.e. include
     ///            the full exchange; setting scale_K to 0 excludes the exchange operator, and its computation is skipped)
-    Fock(World& world, const SCF* calc, std::shared_ptr<NuclearCorrelationFactor> ncf,
+    Fock(World& world, const SCF* calc,
+         double scale_K = 1);
+    Fock(World& world, const Nemo* nemo,
          double scale_K = 1);
 
     real_function_3d operator()(const real_function_3d& ket) const {
