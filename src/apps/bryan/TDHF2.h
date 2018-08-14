@@ -57,6 +57,7 @@
 #include "ResponseParameters.h"
 #include "GroundParameters.h"
 #include "ResponseFunction2.h"
+#include "ResponsePotential.h"
 
 using namespace madness;
 
@@ -179,12 +180,17 @@ class TDHF
       void save(World & world);
 
       // Loads a response calculation
-      //void load(World & world,
-      //          std::string archive);
+      void load(World & world,
+                std::string archive);
 
       // Normalizes in the response sense
       void normalize(World & world,
                      ResponseFunction & f);
+
+      // Normalizes in the response sense
+      void normalize(World & world,
+                     ResponseFunction & f,
+                     ResponseFunction & g);
 
       // Prints norms of the given vector 
       void print_norms(World & world,
@@ -542,6 +548,15 @@ class TDHF
       //    2. nwchem movecs file (named as "base_name.movecs")
       ResponseFunction create_nwchem_guess(World & world,
                                            int m);
+
+      // Creates potentials using the ResponsePotential object
+      // Potentials are modified in place
+      void create_all_potentials(World & world,
+                                 ResponseFunction& x,
+                                 ResponseFunction& x_gamma,
+                                 ResponseFunction& x_V0,
+                                 ResponsePotential& potentials,
+                                 int print_level);
 
       // Solves the response equations
       void solve(World & world);

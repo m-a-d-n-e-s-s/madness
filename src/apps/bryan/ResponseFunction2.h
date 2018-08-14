@@ -14,8 +14,7 @@
 namespace madness {
 
 
-class ResponseFunction 
-{
+class ResponseFunction {
    // Member variables
    public:
       unsigned int r_states; // Num. of resp. states
@@ -35,7 +34,7 @@ class ResponseFunction
          x[0][0].world().gop.fence();
       }
 
-      // Initializer that copies the input ResponseFunction
+      // Copy constructor 
       ResponseFunction(const ResponseFunction& b) : r_states(b.r_states), g_states(b.g_states) {
          for(unsigned int i = 0; i < r_states; i++) x.push_back(madness::copy(b.x[0][0].world(), b.x[i])); 
          x[0][0].world().gop.fence();
@@ -162,6 +161,18 @@ class ResponseFunction
       void zero() { 
          for(unsigned int k = 0; k < r_states; k++) {
             x[k] = zero_functions<double,3>(x[0][0].world(), g_states); 
+         }
+      }
+
+      void compress_rf() {
+         for(unsigned int k = 0; k < r_states; k++) {
+            compress(x[0][0].world(), x[k], true);
+         }
+      }
+
+      void reconstruct_rf() {
+         for(unsigned int k = 0; k < r_states; k++) {
+            reconstruct(x[0][0].world(), x[k], true);
          }
       }
 };
