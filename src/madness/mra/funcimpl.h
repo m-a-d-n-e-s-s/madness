@@ -5025,6 +5025,7 @@ namespace madness {
                    for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = *(leftv[iv].second);
                    for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = *(rightv[jv].second);
                    // call mxmT from mxm.h in tensor
+                   Left = Left.conj();  //Should handle complex case and leave real case alone
                    mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
                    mutex->lock();
                    for(unsigned int iv = 0; iv < nleft; ++iv) {
