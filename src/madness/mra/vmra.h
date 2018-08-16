@@ -941,7 +941,8 @@ namespace madness {
         if (op.is_slaterf12) {
         	MADNESS_ASSERT(not op.destructive());
             for (unsigned int i=0; i<f.size(); ++i) {
-            	double trace=f[i].trace();
+            	//double trace=f[i].trace();
+            	R trace=f[i].trace();
                 result[i]=(result[i]-trace).scale(-0.5/op.mu());
             }
         }
