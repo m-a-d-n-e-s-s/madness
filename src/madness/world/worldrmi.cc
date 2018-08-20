@@ -221,13 +221,13 @@ namespace madness {
         //                     recv_req[i].Cancel();
         //             }
         //         }
-        for (decltype(nrecv_) i=0; i<nrecv_; ++i) free(recv_buf[i]);
+        //for (int i=0; i<nrecv_; ++i) free(recv_buf[i]);
     }
 
     static volatile bool rmi_task_is_running = false;
 
-    RMI::RmiTask::RmiTask()
-            : comm(SafeMPI::COMM_WORLD.Clone())
+    RMI::RmiTask::RmiTask(const SafeMPI::Intracomm& _comm)
+            : comm(_comm.Clone())
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , finished(false)
@@ -359,19 +359,19 @@ namespace madness {
       unsigned long* inout = static_cast<unsigned long*>(addresses_inout);
       int n = *len;
       // produce zero if addresses do not match; zero address trumps everything else
-      for(decltype(n) i=0; i!=n; ++i) {
+      for(size_t i=0; i!=n; ++i) {
         if (in[i] == 0 || inout[i] == 0 || in[i] != inout[i]) inout[i] = 0;
       }
     }
     }  // namespace detail
 
-    void RMI::assert_aslr_off() {
+    void RMI::assert_aslr_off(const SafeMPI::Intracomm& comm) {
       unsigned long my_address = reinterpret_cast<unsigned long>(&assert_aslr_off);
       MADNESS_ASSERT(my_address != 0ul);
       MPI_Op compare_fn_addresses_op = SafeMPI::Op_create(&detail::compare_fn_addresses, 1);
       unsigned long zero_if_addresses_differ;
-      SafeMPI::COMM_WORLD.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_UNSIGNED_LONG, compare_fn_addresses_op, 0);
-      if (SafeMPI::COMM_WORLD.Get_rank() == 0) {
+      comm.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_UNSIGNED_LONG, compare_fn_addresses_op, 0);
+      if (comm.Get_rank() == 0) {
         if (zero_if_addresses_differ == 0) {
           MADNESS_EXCEPTION("Address Space Layout Randomization (ASLR) detected, please turn off or disable by providing appropriate linker flags (see MADNESS_DISABLEPIE_LINKER_FLAG)",0);
         }
@@ -380,10 +380,10 @@ namespace madness {
       SafeMPI::Op_free(compare_fn_addresses_op);
     }
 
-    void RMI::begin() {
+    void RMI::begin(const SafeMPI::Intracomm& comm) {
 
             // complain loudly and throw if ASLR is on ... RMI requires ASLR to be off
-            assert_aslr_off();
+            assert_aslr_off(comm);
 
             testsome_backoff_us = 5;
             const char* buf = getenv("MAD_BACKOFF_US");
@@ -404,7 +404,7 @@ namespace madness {
             tbb_rmi_parent_task =
                 new (tbb::task::allocate_root()) tbb::empty_task;
             tbb_rmi_parent_task->set_ref_count(2);
-            task_ptr = new (tbb_rmi_parent_task->allocate_child()) RmiTask();
+            task_ptr = new (tbb_rmi_parent_task->allocate_child()) RmiTask(comm);
             tbb::task::enqueue(*task_ptr, tbb::priority_high);
 
             task_ptr->comm.Barrier();
@@ -436,7 +436,7 @@ namespace madness {
             tbb::task::destroy(*empty_root);
             task_ptr->comm.Barrier();
 #else
-            task_ptr = new RmiTask();
+            task_ptr = new RmiTask(comm);
             task_ptr->start();
 #endif // HAVE_INTEL_TBB
         }

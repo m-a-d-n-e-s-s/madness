@@ -195,8 +195,8 @@ namespace madness {
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
         ThreadPool::begin();        // Must have thread pool before any AM arrives
-        if(SafeMPI::COMM_WORLD.Get_size() > 1) {
-            RMI::begin();           // Must have RMI while still running single threaded
+        if(comm.Get_size() > 1) {
+            RMI::begin(comm);           // Must have RMI while still running single threaded
             // N.B. sync everyone up before messages start flying
             // this is needed to avoid hangs with some MPIs, e.g. Intel MPI on commodity hardware
             comm.Barrier();
