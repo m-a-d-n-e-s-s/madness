@@ -211,7 +211,7 @@ namespace madness {
 #endif // HAVE_ELEMENTAL
 
         madness_initialized_ = true;
-        if(SafeMPI::COMM_WORLD.Get_rank() == 0)
+        if(comm.Get_rank() == 0)
             std::cout << "MADNESS runtime initialized with " << ThreadPool::size()
                 << " threads in the pool and affinity " << sbind << "\n";
 
@@ -220,6 +220,7 @@ namespace madness {
 
     void finalize() {
         World::default_world->gop.fence();
+        const auto world_size = World::default_world->size();
 
         // Destroy the default world
         delete World::default_world;
@@ -229,7 +230,7 @@ namespace madness {
         elem::Finalize();
 #endif
 
-        if(SafeMPI::COMM_WORLD.Get_size() > 1)
+        if(world_size > 1)
             RMI::end();
         ThreadPool::end();
         detail::WorldMpi::finalize();
