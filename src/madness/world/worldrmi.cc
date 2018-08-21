@@ -60,8 +60,7 @@ namespace madness {
         const bool print_debug_info = RMI::debugging;
 
         if (print_debug_info && n_in_q)
-            std::cerr << rank << ":RMI: about to call Testsome with "
-                      << n_in_q << " messages in the queue" << std::endl;
+            print_error(rank, ":RMI: about to call Testsome with ", n_in_q, " messages in the queue\n");
 
         // If MPI is not safe for simultaneous entry by multiple threads we
         // cannot call Waitsome ... have to poll via Testsome
@@ -84,8 +83,7 @@ namespace madness {
 #endif
 
         if (print_debug_info)
-            std::cerr << rank << ":RMI: " << narrived
-                      << " messages just arrived" << std::endl;
+            print_error(rank, ":RMI: ", narrived, " messages just arrived\n");
 
         if (narrived) {
             for (int m=0; m<narrived; ++m) {
@@ -104,32 +102,28 @@ namespace madness {
                 if (!is_ordered(attr) || count==recv_counters[src]) {
                     // Unordered and in order messages should be digested as soon as possible.
                     if (print_debug_info)
-                        std::cerr << rank
-                                  << ":RMI: invoking from=" << src
-                                  << " nbyte=" << len
-                                  << " func=" << func
-                                  << " ordered=" << is_ordered(attr)
-                                  << " count=" << count
-                                  << std::endl;
+                      print_error(rank, ":RMI: invoking from=", src,
+                                  " nbyte=", len, " func=", func,
+                                  " ordered=", is_ordered(attr),
+                                  " count=", count, "\n");
 
                     if (is_ordered(attr)) ++(recv_counters[src]);
                     func(recv_buf[i], len);
                     post_recv_buf(i);
                 }
                 else {
-                    if (print_debug_info)
-                        std::cerr << rank
-                                  << ":RMI: enqueing from=" << src
-                                  << " nbyte=" << len
-                                  << " func=" << func
-                                  << " ordered=" << is_ordered(attr)
-                                  << " fromcount=" << count
-                                  << " herecount=" << int(recv_counters[src])
-                                  << std::endl;
-                    // Shove it in the queue
-                    const int n = n_in_q++;
-                    if (n >= (int)maxq_) MADNESS_EXCEPTION("RMI:server: overflowed out-of-order message q\n", n);
-                    q[n] = qmsg(len, func, i, src, attr, count);
+                  if (print_debug_info)
+                    print_error(rank, ":RMI: enqueing from=", src,
+                                " nbyte=", len, " func=", func,
+                                " ordered=", is_ordered(attr),
+                                " fromcount=", count,
+                                " herecount=", int(recv_counters[src]), "\n");
+                  // Shove it in the queue
+                  const int n = n_in_q++;
+                  if (n >= (int)maxq_)
+                    MADNESS_EXCEPTION(
+                        "RMI:server: overflowed out-of-order message q\n", n);
+                  q[n] = qmsg(len, func, i, src, attr, count);
                 }
             }
 
@@ -146,29 +140,24 @@ namespace madness {
             for (int m=0; m<n_in_q; ++m) {
                 const int src = q[m].src;
                 if (q[m].count == recv_counters[src]) {
-                    if (print_debug_info)
-                        std::cerr << rank
-                                  << ":RMI: queue invoking from=" << src
-                                  << " nbyte=" << q[m].len
-                                  << " func=" << q[m].func
-                                  << " ordered=" << is_ordered(q[m].attr)
-                                  << " count=" << q[m].count
-                                  << std::endl;
+                  if (print_debug_info)
+                    print_error(rank, ":RMI: queue invoking from=", src,
+                                " nbyte=", q[m].len, " func=", q[m].func,
+                                " ordered=", is_ordered(q[m].attr),
+                                " count=", q[m].count, "\n");
 
-                    ++(recv_counters[src]);
-                    q[m].func(recv_buf[q[m].i], q[m].len);
-                    post_recv_buf(q[m].i);
+                  ++(recv_counters[src]);
+                  q[m].func(recv_buf[q[m].i], q[m].len);
+                  post_recv_buf(q[m].i);
                 }
                 else {
                     q[nleftover++] = q[m];
                     if (print_debug_info)
-                        std::cerr << rank
-                                  << ":RMI: queue pending out of order from=" << src
-                                  << " nbyte=" << q[m].len
-                                  << " func=" << q[m].func
-                                  << " ordered=" << is_ordered(q[m].attr)
-                                  << " count=" << q[m].count
-                                  << std::endl;
+                      print_error(rank,
+                                  ":RMI: queue pending out of order from=", src,
+                                  " nbyte=", q[m].len, " func=", q[m].func,
+                                  " ordered=", is_ordered(q[m].attr),
+                                  " count=", q[m].count, "\n");
                 }
             }
             n_in_q = nleftover;
@@ -269,8 +258,12 @@ namespace madness {
             // Check that the size of the receive buffers is reasonable.
             if(max_msg_len_ < 1024) {
                 max_msg_len_ = DEFAULT_MAX_MSG_LEN; // = 3*512*1024
-                std::cerr << "!!! WARNING: MAD_BUFFER_SIZE must be at least 1024 bytes.\n"
-                          << "!!! WARNING: Increasing MAD_BUFFER_SIZE to the default size, " <<  max_msg_len_ << " bytes.\n";
+                print_error(
+                    "!!! WARNING: MAD_BUFFER_SIZE must be at least 1024 "
+                    "bytes.\n",
+                    "!!! WARNING: Increasing MAD_BUFFER_SIZE to the default "
+                    "size, ",
+                    max_msg_len_, " bytes.\n");
             }
             // Check that the buffer has the correct alignment
             const std::size_t unaligned = max_msg_len_ % ALIGNMENT;
@@ -287,8 +280,10 @@ namespace madness {
             // Check that the number of receive buffers is reasonable.
             if(nrecv_ < 32) {
                 nrecv_ = DEFAULT_NRECV;
-                std::cerr << "!!! WARNING: MAD_RECV_BUFFERS must be at least 32.\n"
-                          << "!!! WARNING: Increasing MAD_RECV_BUFFERS to " << nrecv_ << ".\n";
+                print_error(
+                    "!!! WARNING: MAD_RECV_BUFFERS must be at least 32.\n",
+                    "!!! WARNING: Increasing MAD_RECV_BUFFERS to ", nrecv_,
+                    ".\n");
             }
             maxq_ = nrecv_ + 1;
         }
@@ -476,14 +471,10 @@ namespace madness {
         }
 
         if (RMI::debugging)
-            std::cerr << rank
-                      << ":RMI: sending buf=" << buf
-                      << " nbyte=" << nbyte
-                      << " dest=" << dest
-                      << " func=" << func
-                      << " ordered=" << is_ordered(attr)
-                      << " count=" << int(send_counters[dest])
-                      << std::endl;
+          print_error(rank, ":RMI: sending buf=", buf, " nbyte=", nbyte,
+                      " dest=", dest, " func=", func,
+                      " ordered=", is_ordered(attr),
+                      " count=", int(send_counters[dest]), "\n");
 
         // Since most uses are ordered and we need the mutex to accumulate stats
         // we presently always get the lock
