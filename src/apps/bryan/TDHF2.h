@@ -181,7 +181,7 @@ class TDHF
 
       // Loads a response calculation
       void load(World & world,
-                std::string archive);
+                std::string name);
 
       // Normalizes in the response sense
       void normalize(World & world,
@@ -305,14 +305,18 @@ class TDHF
       // [ A  B ] [ X ] = w [ X ]
       // [-B -A ] [ Y ]     [ Y ]
       Tensor<double> create_full_response_matrix(World & world, 
-                                                 ResponseFunction x_b,
-                                                 ResponseFunction Vx,
-                                                 ResponseFunction x,
-                                                 ResponseFunction y_b,
-                                                 ResponseFunction Vy,
-                                                 ResponseFunction y,
-                                                 std::vector<real_function_3d> ground_orbitals,
-                                                 Tensor<double> ground_ham,
+                                                 ResponseFunction & x_b,
+                                                 ResponseFunction & Vx,
+                                                 ResponseFunction & B_x,
+                                                 ResponseFunction & fe_x,
+                                                 ResponseFunction & x,
+                                                 ResponseFunction & y_b,
+                                                 ResponseFunction & Vy,
+                                                 ResponseFunction & B_y,
+                                                 ResponseFunction & fe_y,
+                                                 ResponseFunction & y,
+                                                 std::vector<real_function_3d> & ground_orbitals,
+                                                 Tensor<double> & ground_ham,
                                                  double small,
                                                  double thresh,
                                                  int print_level);
@@ -327,9 +331,9 @@ class TDHF
 
       // Returns the given shift applied to the given potentials
       ResponseFunction apply_shift(World & world,
-                                                             Tensor<double> & shifts,
-                                                             ResponseFunction & V,
-                                                             ResponseFunction & f);
+                                   Tensor<double> & shifts,
+                                   ResponseFunction & V,
+                                   ResponseFunction & f);
 
 
       // Returns a vector of BSH operators
@@ -352,7 +356,7 @@ class TDHF
       // modified Gram-Schmidt. Note: This is specifically designed for
       // response functions only
       ResponseFunction gram_schmidt(World & world,
-                                                              ResponseFunction & f);
+                                    ResponseFunction & f);
 
       // Returns the max norm of the given vector of functions
       double calculate_max_residual(World & world,
@@ -366,10 +370,10 @@ class TDHF
       // Selects from a list of functions and energies the k functions with the lowest 
       // energy
       ResponseFunction select_functions(World & world,
-                                                                  ResponseFunction & f,
-                                                                  Tensor<double> & energies,
-                                                                  int k,
-                                                                  int print_level);
+                                        ResponseFunction & f,
+                                        Tensor<double> & energies,
+                                        int k,
+                                        int print_level);
 
       // Calculates the exponentiation of a matrix through first order (I think)
       Tensor<double> matrix_exponential(const Tensor<double> & A);
@@ -395,8 +399,8 @@ class TDHF
       // Transforms the given matrix of functions according to the given
       // transformation matrix. Used to update orbitals / potentials
       ResponseFunction transform(World & world,
-                                                           ResponseFunction & f,
-                                                           Tensor<double> & U);
+                                 ResponseFunction & f,
+                                 Tensor<double> & U);
 
       // If using a larger subspace to diagonalize in, this will put everything in the right spot
       void augment(World & world,
@@ -406,13 +410,41 @@ class TDHF
                    ResponseFunction & x_response,
                    ResponseFunction & V_x_response,
                    ResponseFunction & x_fe, 
-                   Tensor<double> & old_S_x, 
-                   Tensor<double> & old_A_x, 
+                   Tensor<double> & old_S, 
+                   Tensor<double> & old_A, 
                    ResponseFunction & old_x_gamma, 
                    ResponseFunction & old_x_resopnse, 
                    ResponseFunction & old_V_x_response, 
                    ResponseFunction & old_x_fe,
                    int print_level);
+
+      // If using a larger subspace to diagonalize in, this will put everything in the right spot
+      void augment_full(World & world,
+                        Tensor<double> & S,
+                        Tensor<double> & A,
+                        ResponseFunction & B_x, 
+                        ResponseFunction & x_gamma,
+                        ResponseFunction & x_response,
+                        ResponseFunction & V_x_response,
+                        ResponseFunction & x_fe,
+                        ResponseFunction & B_y, 
+                        ResponseFunction & y_gamma,
+                        ResponseFunction & y_response,
+                        ResponseFunction & V_y_response,
+                        ResponseFunction & y_fe,
+                        Tensor<double> & old_S, 
+                        Tensor<double> & old_A, 
+                        ResponseFunction & old_B_x,
+                        ResponseFunction & old_x_gamma, 
+                        ResponseFunction & old_x_response, 
+                        ResponseFunction & old_V_x_response, 
+                        ResponseFunction & old_x_fe,
+                        ResponseFunction & old_B_y,
+                        ResponseFunction & old_y_gamma, 
+                        ResponseFunction & old_y_response, 
+                        ResponseFunction & old_V_y_response, 
+                        ResponseFunction & old_y_fe,
+                        int print_level);
 
       // If using a larger subspace to diagonalize in, after diagonalization this will put everything in the right spot
       void unaugment(World & world,
@@ -426,31 +458,66 @@ class TDHF
                      ResponseFunction & x_response,
                      ResponseFunction & V_x_response,
                      ResponseFunction & x_fe,
-                     Tensor<double> & old_S_x, 
-                     Tensor<double> & old_A_x, 
+                     Tensor<double> & old_S, 
+                     Tensor<double> & old_A, 
                      ResponseFunction & old_x_gamma, 
                      ResponseFunction & old_x_resopnse, 
                      ResponseFunction & old_V_x_response, 
                      ResponseFunction & old_x_fe,
                      int print_level);
 
+      // If using a larger subspace to diagonalize in, after diagonalization this will put everything in the right spot
+      void unaugment_full(World & world,
+                          int m,
+                          int iter,
+                          Tensor<int> & selected,
+                          Tensor<double> & omega,
+                          Tensor<double> & S,     
+                          Tensor<double> & A,     
+                          ResponseFunction & x_gamma,
+                          ResponseFunction & x_response,
+                          ResponseFunction & V_x_response,
+                          ResponseFunction & x_fe,
+                          ResponseFunction & B_x, 
+                          ResponseFunction & y_gamma,
+                          ResponseFunction & y_response,
+                          ResponseFunction & V_y_response,
+                          ResponseFunction & y_fe,
+                          ResponseFunction & B_y,  
+                          Tensor<double> & old_S, 
+                          Tensor<double> & old_A, 
+                          ResponseFunction & old_x_gamma, 
+                          ResponseFunction & old_x_response, 
+                          ResponseFunction & old_V_x_response, 
+                          ResponseFunction & old_x_fe,
+                          ResponseFunction & old_B_x,
+                          ResponseFunction & old_y_gamma, 
+                          ResponseFunction & old_y_response, 
+                          ResponseFunction & old_V_y_response, 
+                          ResponseFunction & old_y_fe,
+                          ResponseFunction & old_B_y,
+                          int print_level);
+
       // Diagonalize the full response matrix, taking care of degenerate states
-      Tensor<double> diag_full_response(World & world,
-                                        Tensor<double> & full_response,
-                                        ResponseFunction & x,
-                                        ResponseFunction & Vx,
-                                        ResponseFunction & x_g,
-                                        ResponseFunction & y,
-                                        ResponseFunction & Vy,
-                                        ResponseFunction & y_g,
-                                        Tensor<double> & omega, 
-                                        const double thresh,
-                                        int print_level);
+      Tensor<int> diag_full_response(World & world,
+                                     Tensor<double> & S,
+                                     Tensor<double> & A,
+                                     ResponseFunction & x,
+                                     ResponseFunction & Vx,
+                                     ResponseFunction & x_g,
+                                     ResponseFunction & B_x,
+                                     ResponseFunction & y,
+                                     ResponseFunction & Vy,
+                                     ResponseFunction & y_g,
+                                     ResponseFunction & B_y,
+                                     Tensor<double> & omega, 
+                                     const double thresh,
+                                     int print_level);
 
       // Similar to what robert did above in "get_fock_transformation"
       Tensor<double> get_full_response_transformation(World& world,
-                                                      Tensor<double>& overlap,
-                                                      Tensor<double>& full_response,
+                                                      Tensor<double>& S,
+                                                      Tensor<double>& A,
                                                       Tensor<double>& evals,
                                                       const double thresh)   ; 
 

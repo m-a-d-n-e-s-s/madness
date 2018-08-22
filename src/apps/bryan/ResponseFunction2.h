@@ -158,6 +158,7 @@ class ResponseFunction {
          return r_states;
       }      
 
+      // Mimicing tandard madness calls with these 3
       void zero() { 
          for(unsigned int k = 0; k < r_states; k++) {
             x[k] = zero_functions<double,3>(x[0][0].world(), g_states); 

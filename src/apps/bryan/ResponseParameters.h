@@ -300,7 +300,7 @@ bool old;
          madness::print("             States Requested:", states);
          madness::print("            TDA Approximation:", tda);
          madness::print("           Localized Orbitals:", localized);
-         madness::print("                Energy Window:", e_window, " (Not yet implemented)");
+         if(e_window) madness::print("                Energy Window:", e_window, " (Not yet implemented)");
          if(e_window) madness::print("           Energy Range Start:", range_low);
          if(e_window) madness::print("             Energy Range End:", range_high);
          if(k>0) madness::print("                            k:", k);
