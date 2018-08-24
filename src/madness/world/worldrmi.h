@@ -223,7 +223,7 @@ namespace madness {
 
             void process_some();
 
-            RmiTask();
+            RmiTask(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);
             virtual ~RmiTask();
 
             static void set_rmi_task_is_running(bool flag = true);
@@ -345,9 +345,9 @@ namespace madness {
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
 
-        static void assert_aslr_off();  // will complain to std::cerr and throw if ASLR is on
+        static void assert_aslr_off(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);  // will complain to std::cerr and throw if ASLR is on
 
-        static void begin();
+        static void begin(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);
 
         static void end() {
             if(task_ptr) {
