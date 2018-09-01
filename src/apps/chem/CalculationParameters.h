@@ -72,7 +72,7 @@ struct CalculationParameters {
     bool plotcoul;              ///< If true plot the total coulomb potential at convergence
     bool localize;              ///< If true solve for localized orbitals
     bool localize_pm;           ///< If true use PM for localization
-    bool enforce_symmetry;		///< enforce point group symmetry for all orbitals
+    std::string symmetry;		///< use point group symmetry for all orbitals: default/full/schoenflies
     bool restart;               ///< If true restart from orbitals on disk
     bool restartao;             ///< If true restart from orbitals projected into AO basis (STO3G) on disk
     bool no_compute;            ///< If true use orbitals on disk, set value to computed
@@ -141,7 +141,7 @@ struct CalculationParameters {
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta
         & nopen & maxiter & nio & spin_restricted;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm &enforce_symmetry
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & symmetry
         & restart & restartao & save & no_compute &no_orient & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
@@ -171,7 +171,7 @@ struct CalculationParameters {
     , plotcoul(false)
     , localize(true)
     , localize_pm(true)
-    , enforce_symmetry(false)
+    , symmetry("default")
     , restart(false)
     , restartao(false)
     , no_compute(false)
@@ -333,8 +333,13 @@ struct CalculationParameters {
             else if (s == "boys") {
                 localize_pm = false;
             }
-            else if (s == "enforce_symmetry") {
-            	enforce_symmetry=true;
+            else if (s == "symmetry") {
+            	symmetry="full";
+            	std::string buf,buf1;
+                std::getline(f,buf);
+            	std::stringstream ff(buf);
+            	ff >> buf1;
+                if (buf1.size()>0) symmetry=buf1;
             }
             else if (s == "restart") {
                 restart = true;

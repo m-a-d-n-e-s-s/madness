@@ -327,7 +327,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 	for (auto& xx : x) {
 		std::size_t nx_before=xx.size();
 		std::vector<std::string> sirreps;
-		vecfuncT tmp=nemo.project_on_irreps(xx.get_vecfunction(),sirreps);
+		vecfuncT tmp=nemo.get_symmetry_projector()(xx.get_vecfunction(),nemo.R_square,sirreps);
 		xx.set_functions(tmp,xx.type,parameters.freeze);
 		MADNESS_ASSERT(xx.size()==nx_before);
 	}
@@ -341,13 +341,13 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 	print("check symmetry of x after orthonormalization");
 	for (auto& xx : x) {
 		std::vector<std::string> sirreps;
-		vecfuncT tmp=nemo.project_on_irreps(xx.get_vecfunction(),sirreps);
+		vecfuncT tmp=nemo.get_symmetry_projector()(xx.get_vecfunction(),nemo.R_square,sirreps);
 		print("sirreps",sirreps);
 	}
 	print("check symmetry of V after orthonormalization");
 	for (auto& vv : V) {
 		std::vector<std::string> sirreps;
-		nemo.project_on_irreps(vv,sirreps);
+		nemo.get_symmetry_projector()(vv,nemo.R_square,sirreps);
 		print("sirreps",sirreps);
 	}
 
@@ -363,7 +363,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 		print("check symmetry of residual");
 		for (auto& r : residuals) {
 			std::vector<std::string> sirreps;
-			r=nemo.project_on_irreps(r,sirreps);
+			r=nemo.get_symmetry_projector()(r,nemo.R_square,sirreps);
 			print("sirreps",sirreps);
 		}
 
@@ -558,7 +558,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		timeJ.info(parameters.debug);
 
 		print("Check symmetry on Jx");
-		vecfuncT tmp=nemo.project_on_irreps(Jx,sirreps);
+		vecfuncT tmp=nemo.get_symmetry_projector()(Jx,nemo.R_square,sirreps);
 		print("sirreps",sirreps);
 
 		if(nemo.get_calc()->xc.is_dft()){
@@ -589,7 +589,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 			scale(world,Kx,hf_coeff);
 
 			print("Check symmetry on Kx (gs)");
-			vecfuncT tmp=nemo.project_on_irreps(Kx,sirreps);
+			vecfuncT tmp=nemo.get_symmetry_projector()(Kx,nemo.R_square,sirreps);
 			print("sirreps",sirreps);
 
 			Vpsi1 = sub(world, Vpsi1, Kx);
@@ -635,7 +635,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		else Vpsi2 = Jp(active_mo)+XCp;
 
 		print("Check symmetry on Jp (es)");
-		vecfuncT tmp=nemo.project_on_irreps(Vpsi2,sirreps);
+		vecfuncT tmp=nemo.get_symmetry_projector()(Vpsi2,nemo.R_square,sirreps);
 		print("sirreps",sirreps);
 
 
@@ -655,7 +655,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 				Kp.push_back(Ki);
 			}
 			print("Check symmetry on Kp (es)");
-			vecfuncT tmp=nemo.project_on_irreps(Kp,sirreps);
+			vecfuncT tmp=nemo.get_symmetry_projector()(Kp,nemo.R_square,sirreps);
 			print("sirreps",sirreps);
 
 			scale(world,Kp,hf_coeff);
@@ -683,7 +683,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	// local:  -fik|xk> (fii|xi> part of greens functions, rest needs to be added)
 
 	print("Check symmetry on V (total)");
-	nemo.project_on_irreps(Vpsi,sirreps);
+	nemo.get_symmetry_projector()(Vpsi,nemo.R_square,sirreps);
 	print("sirreps",sirreps);
 
 	if(nemo.get_calc()->param.localize){
@@ -696,7 +696,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		Vpsi-=fock_coupling;
 	}
 	print("Check symmetry on V with local coupling)");
-	nemo.project_on_irreps(Vpsi,sirreps);
+	nemo.get_symmetry_projector()(Vpsi,nemo.R_square,sirreps);
 
 
 	truncate(world,Vpsi);
@@ -937,13 +937,13 @@ std::vector<CC_vecfunction> TDHF::make_symmetrized_guess()const{
 	// symmetrize orbitals and excitation operators
 	print("projecting excitation operators");
 	std::vector<std::string> str_irreps_guess;
-	exops=nemo.project_on_irreps(exops,str_irreps_guess);
+	exops=nemo.get_symmetry_projector()(exops,nemo.R_square,str_irreps_guess);
 
 	print("projecting reference orbitals");
 	std::vector<std::string> str_irreps_mo;
 	const CC_vecfunction & mos = get_active_mo_ket();
 
-	vecfuncT vm=nemo.project_on_irreps(mos.get_vecfunction(),str_irreps_mo);
+	vecfuncT vm=nemo.get_symmetry_projector()(mos.get_vecfunction(),nemo.R_square,str_irreps_mo);
 
 	// making the guess
 	reconstruct(world,vm);
@@ -1003,10 +1003,10 @@ std::vector<CC_vecfunction> TDHF::make_guess()const{
 
 	// symmetrize
 	std::vector<std::string> str_irreps_guess;
-	if (this->nemo.get_calc()->param.enforce_symmetry) {
+	if (this->nemo.do_symmetry()) {
 		print("number of excitation operators",exops.size());
 		print("projecting excitation operators");
-		exops=nemo.project_on_irreps(exops,str_irreps_guess);
+		exops=nemo.get_symmetry_projector()(exops,nemo.R_square,str_irreps_guess);
 	}
 
 	// Excite the last N unfrozen MOs
@@ -1027,9 +1027,9 @@ std::vector<CC_vecfunction> TDHF::make_guess()const{
 	vecfuncT vm = mos.get_vecfunction();
 	std::vector<std::string> str_irreps_mo;
 	projector_irrep projector(nemo.get_calc()->molecule.pointgroup_);
-	if (this->nemo.get_calc()->param.enforce_symmetry) {
+	if (this->nemo.do_symmetry()) {
 		print("projecting reference orbitals");
-		vm=nemo.project_on_irreps(vm,str_irreps_mo);
+		vm=nemo.get_symmetry_projector()(vm,nemo.R_square,str_irreps_mo);
 	}
 	reconstruct(world,vm);
 	reconstruct(world,exops);

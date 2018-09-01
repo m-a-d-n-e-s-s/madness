@@ -70,8 +70,13 @@ struct charactertable {
 class projector_irrep {
 
 public:
+
+	/// default ctor
+	projector_irrep() = default;
+
 	/// ctor takes the point group and the optionally the irrep
-	projector_irrep(std::string pointgroup, std::string irrep="") {
+	projector_irrep(std::string pointgroup, std::string irrep="all")
+		: lindep_(1.e-3), verbosity_(0), keep_ordering_(true) {
         std::transform(pointgroup.begin(), pointgroup.end(), pointgroup.begin(), ::tolower);
 		table_=get_table(pointgroup);
 		set_irrep(irrep);
@@ -83,7 +88,7 @@ public:
 
         // check consistency of the input
 		if (std::find(table_.mullikan_.begin(), table_.mullikan_.end(), irrep) == table_.mullikan_.end()) {
-			if (irrep_!="all") {
+			if (irrep!="all") {
 				print("irrep",irrep);
 				print("point group", table_.schoenflies_);
 				MADNESS_EXCEPTION("no such irrep in this point group",1);
@@ -91,6 +96,28 @@ public:
 		}
 
 		irrep_=irrep;
+	}
+
+	/// set the linear dependency threshold
+	void set_lindep(const double ld) {lindep_=ld;}
+
+	/// set the verbosity level
+	void set_verbosity(int v) {verbosity_=v;}
+
+	/// get the verbosity level
+	int get_verbosity() {return verbosity_;}
+
+	/// get the point group name
+	std::string get_pointgroup() const {return table_.schoenflies_;}
+
+	/// set the ordering after symmetrization: irreps or keep as is
+	void set_ordering(std::string o) {
+		if (o=="irrep") keep_ordering_=false;
+		else if (o=="keep") keep_ordering_=true;
+		else {
+			print("projector_irrep: ordering parameter unknown: ",o);
+			MADNESS_EXCEPTION("projector_irrep: ordering parameter unknown",1);
+		}
 	}
 
 	std::vector<std::string> get_all_irreps() const {
@@ -101,8 +128,7 @@ public:
 
 	/// @return	a vector[irreps] of a vector of functions
 	template<typename T, std::size_t NDIM>
-	std::vector<Function<T,NDIM> > operator()(
-			const Function<T,NDIM>& rhs) const {
+	std::vector<Function<T,NDIM> > operator()(const Function<T,NDIM>& rhs) const {
 
 		std::vector<Function<T,NDIM> > vrhs;
 		vrhs.push_back(rhs);
@@ -117,22 +143,76 @@ public:
 	std::vector<Function<T,NDIM> > operator()(
 			const std::vector<Function<T,NDIM> >& vrhs) const {
 
-		typedef std::vector<std::vector<Function<T,NDIM> > > vecvecfunctionT;
-		vecvecfunctionT result=apply_symmetry_operators(vrhs,true);
+		Function<T,NDIM> metric;
+		std::vector<std::string> sirrep;
+		return apply_symmetry_operators(vrhs,metric,sirrep);
 	}
 
 
-	/// apply symmetry operators on a vector of input functions
+	/// projector on a given irrep
 
 	/// @return	a vector[irreps] of a vector of functions
-	template<typename T, std::size_t NDIM> std::vector<std::vector<Function<T,NDIM> > >
-	apply_symmetry_operators(const std::vector<Function<T,NDIM> >& vrhs, bool fence=true) const {
+	template<typename T, std::size_t NDIM>
+	std::vector<Function<T,NDIM> > operator()(
+			const std::vector<Function<T,NDIM> >& vrhs,
+			const Function<T,NDIM>& metric) const {
 
-		// apply the symmetry operators to rhs
-		std::vector<std::vector<Function<T,NDIM> > > result(table_.operators_.size());
+		std::vector<std::string> sirrep;
+		return apply_symmetry_operators(vrhs,metric,sirrep);
+	}
 
-		if (vrhs.size()==0) return result;
+	/// projector on a given irrep
+
+	/// @return	a vector[irreps] of a vector of functions
+	template<typename T, std::size_t NDIM>
+	std::vector<Function<T,NDIM> > operator()(
+			const std::vector<Function<T,NDIM> >& vrhs,
+			const Function<T,NDIM>& metric,
+			std::vector<std::string>& sirreps) const {
+
+		return apply_symmetry_operators(vrhs,metric,sirreps);
+	}
+
+	/// projector on a given irrep
+
+	/// @return	a vector[irreps] of a vector of functions
+	template<typename T, std::size_t NDIM>
+	std::vector<Function<T,NDIM> > operator()(
+			const std::vector<Function<T,NDIM> >& vrhs,
+			std::vector<std::string>& sirreps) const {
+
+		Function<T,NDIM> metric;
+		std::vector<Function<T,NDIM> > redundant=apply_symmetry_operators(vrhs,metric,sirreps);
+	}
+
+
+	/// symmetrize a vector of functions
+
+	/// project a number of functions on a given number of irreps
+	/// linear dependencies are removed, the functions are orthonormalized
+	/// @param[in]	vrhs	vector of functions to be projected on the irrep
+	/// @param[in]	vbra	bra of vrhs if applicable (if bra /= ket), may be empty
+	/// @param[out]	sirrep	vector with the irrep names corresponding to the result
+	template<typename T, std::size_t NDIM>
+	std::vector<Function<T,NDIM> > apply_symmetry_operators(
+			const std::vector<Function<T,NDIM> >& vrhs,
+			Function<T,NDIM> metric,
+			std::vector<std::string>& sirreps,
+			const bool fence=true) const {
+
 		World& world=vrhs.begin()->world();
+
+		// fast return
+		if (vrhs.size()==0) return std::vector<Function<T,NDIM> >();
+		if (table_.schoenflies_=="c1") {return copy(world,vrhs);}
+
+
+		// loop over all symmetry operations of this point group and apply them
+		// to the input vector; dimension: (nop, nmo)
+		std::vector<std::vector<Function<T,NDIM> > > opvrhs(table_.operators_.size());
+		for (int i=0; i<table_.operators_.size(); ++i) {
+			opvrhs[i]=table_.operators_[i](vrhs,false);
+		}
 
 		// get all irreps to work on
 		std::vector<std::string> all_irreps;
@@ -142,93 +222,128 @@ public:
 			all_irreps.push_back(irrep_);
 		}
 
-		// loop over all irreps
-		for (auto& irrep : table_.irreps_) {
-			// get the irrep line
-			const charactertable::characterlineT cline=irrep.second;
+		// accumulate the linearly combined results here; dimension: (nirrep, nmo)
+		std::vector<std::vector<Function<T,NDIM> > > lc_op_vrhs(all_irreps.size());
+		for (auto& v : lc_op_vrhs) {
+			v=zero_functions_compressed<T,NDIM>(world,vrhs.size(),false);
+		}
+
+		// need to fence here before the linear combination with the character weights
+		world.gop.fence();
+
+		// loop over all requested irreps
+		for (int j=0; j<all_irreps.size(); ++j) {
+			std::string& irrep=all_irreps[j];
+
+			// get the characters of this irrep
+			const charactertable::characterlineT cline=table_.irreps_.find(irrep)->second;
 			MADNESS_ASSERT(table_.operators_.size()==cline.size());
 
-			for (int i=0; i<cline.size(); ++i) {
-				double character=double(cline[i]);
-				const pg_operator& op=table_.operators_[i];
-				result[i]=(character/table_.order_)*op(vrhs,false);
+
+			// do the linear combination; loop over all operators
+			// lc_op_vhrs[jirrep] = \sum_iop (character[iop]/table_.order_)*opvhrs[iop];
+			for (int iop=0; iop<cline.size(); ++iop) {
+				double character=double(cline[iop]);
+				const pg_operator& op=table_.operators_[iop];
+				gaxpy(world,1.0,lc_op_vrhs[j],character/table_.order_,opvrhs[iop],false);
 			}
 		}
-		if (fence) world.gop.fence();
+
+		// need to fence here before the orthogonalization step
+		world.gop.fence();
+		for (auto& v : lc_op_vrhs) truncate(world,v,0.0,false);
+		world.gop.fence();
+
+		// now we have a linearly dependent set of symmetrized functions
+		std::vector<Function<T,NDIM> > result(vrhs.size());
+		sirreps.resize(vrhs.size());
+
+		// loop over all irreps
+		int iresult=0;	// counter for the result vector ordering
+		for (int j=0; j<all_irreps.size(); ++j) {
+
+			if (verbosity_>1) print("working on irrep ",all_irreps[j]);
+			// compute overlap, include metric if necessary
+			Tensor<double> ovlp;
+			if (metric.is_initialized()) ovlp=matrix_inner(world,lc_op_vrhs[j],metric*lc_op_vrhs[j]);
+			else ovlp=matrix_inner(world,lc_op_vrhs[j],lc_op_vrhs[j]);
+
+			if (verbosity_>1) {
+				print("ovlp");
+				print(ovlp);
+			}
+
+			// check for zero rank
+			Tensor<double> evec,eval;
+			syev(ovlp,evec,eval);
+
+			if (eval.sum()>1.e-3) {
+
+				if (verbosity_>1) print("eigenvalues",eval);
+
+				// compute rank-revealing Cholesky, discard linear dependent vectors
+				Tensor<int> piv;
+				int rank;
+				rr_cholesky(ovlp,lindep_,piv,rank);
+				Tensor<double> shrunk=copy(ovlp(Slice(0,rank-1,1),Slice(0,rank-1,1)));
+				Tensor<double> inv=inverse(shrunk);
+
+				if (verbosity_>2) {
+					print("cholesky");
+					print(ovlp);
+					print("inverse(cholesky)");
+					print(inv);
+					print("orthogonality");
+					print(inner(shrunk,shrunk,0,0));
+				}
+				if (verbosity_>1) {
+					print("pivot elements");
+					print(piv);
+				}
+
+				// transform linearly independent orbitals only
+				std::vector<Function<T,NDIM> > a1shrunk;
+				for (int i=0; i<rank; ++i) a1shrunk.push_back(lc_op_vrhs[j][piv(i)]);
+				std::vector<Function<T,NDIM> > tmp=transform(world,a1shrunk,inv);
+
+				// keep original ordering
+				for (int i=0; i<a1shrunk.size(); ++i) {
+					result[piv(i)]=tmp[i];
+					sirreps[piv(i)]=all_irreps[j];
+				}
+			}
+		}
+		if (not keep_ordering_) result=sort_to_irreps(result,sirreps);
+		if (verbosity_>0) print("final function irreps: ",sirreps);
+
 		return result;
+
 	}
 
-	/// project a number of functions on a given irrep
+	/// given a vector of functions and their irreps, extract only the ones of the requested irrep
+	template<typename T, std::size_t NDIM>
+	std::vector<Function<T,NDIM> > sort_to_irreps(std::vector<Function<T,NDIM> >& vrhs,
+			std::vector<std::string>& sirreps) const {
 
-	/// linear dependencies are removed, the functions are orthonormalized
-	/// @param[in]				vrhs	vector of functions to be projected on the irrep
-	/// @param[in, optional]	metric	additional metric for overlap and orthonormalization
-	/// @param[in, optional]	lindep	linear dependency threshold
-	/// @param[in, optional]	verbose	verbosity level
-//	template<typename T, std::size_t NDIM>
-//	std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vrhs,
-//			const Function<T,NDIM> metric=Function<T,NDIM>(),
-//			const double lindep=1.e-3, bool verbose=true) const {
-//
-//		if (vrhs.size()==0) return std::vector<Function<T,NDIM> >();
-//		World& world=vrhs[0].world();
-//
-//		// project input function onto the irrep
-//		vector_real_function_3d a1, result(vrhs.size());
-//		for (const real_function_3d& f : vrhs) {
-//			a1.push_back(operator()(f));
-//		}
-//
-//		// compute overlap, include metric if necessary
-//		Tensor<double> ovlp;
-//		if (metric.is_initialized()) ovlp=matrix_inner(world,a1,metric*a1);
-//		else ovlp=matrix_inner(world,a1,a1);
-//
-//		if (verbose) {
-//			print("ovlp");
-//			print(ovlp);
-//		}
-//
-//		// check for zero rank
-//		Tensor<double> evec,eval;
-//		syev(ovlp,evec,eval);
-//
-//		if (eval.sum()>1.e-3) {
-//
-//			if (verbose) print("eigenvalues",eval);
-//			print("eigenvalues",eval);
-//
-//			// compute rank-revealing Cholesky, discard linear dependent vectors
-//			Tensor<int> piv;
-//			int rank;
-//			rr_cholesky(ovlp,lindep,piv,rank);
-//			Tensor<double> shrunk=copy(ovlp(Slice(0,rank-1,1),Slice(0,rank-1,1)));
-//			Tensor<double> inv=inverse(shrunk);
-//
-//			if (verbose) {
-//				print("cholesky");
-//				print(ovlp);
-//				print("inverse(cholesky)");
-//				print(inv);
-//				print("orthogonality");
-//				print(inner(shrunk,shrunk,0,0));
-//				print("pivot elements");
-//				print(piv);
-//			}
-//
-//			// transform linearly independent orbitals only
-//			vector_real_function_3d a1shrunk;
-//			for (int i=0; i<rank; ++i) a1shrunk.push_back(a1[piv(i)]);
-//			vector_real_function_3d tmp=transform(world,a1shrunk,inv);
-//
-//			// keep original ordering
-//			for (int i=0; i<a1shrunk.size(); ++i) {
-//				result[piv(i)]=tmp[i];
-//			}
-//		}
-//
-//		return result;
-//	}
+		std::map<std::string,std::vector<Function<T,NDIM> > > m;
+		for (int i=0; i<vrhs.size(); ++i) {
+			m[sirreps[i]].push_back(vrhs[i]);
+		}
+
+		std::vector<Function<T,NDIM> > result;
+		sirreps.clear();
+		for (const std::string& irrep : table_.mullikan_) {
+			if (m.find(irrep)!=m.end()) {
+				// concatenate the functions
+				std::vector<Function<T,NDIM> > tmp=m.find(irrep)->second;
+				result.insert(result.end(),tmp.begin(),tmp.end());
+				// concatenate the strings
+				std::vector<std::string> s(tmp.size(),irrep);
+				sirreps.insert(sirreps.end(),s.begin(),s.end());
+			}
+		}
+		return result;
+	}
 
 	/// print the character table
 	void print_character_table() const {
@@ -273,14 +388,21 @@ public:
 
 private:
 
-	std::map<std::string, charactertable> charactertables_;
 	charactertable table_;
 
 	/// choose one of the irreps or "all"
 	std::string irrep_;
 
+	/// linear dependency threshold for the orthogonalization
+	double lindep_;
+
+	/// verbosity level
+	int verbosity_;
+
 	/// after projection: result functions being ordered according to irreps or ordering unchanged
-	bool irrep_ordering;
+	bool keep_ordering_;
+
+	charactertable make_c1_table() const;
 
 	charactertable make_cs_table() const;
 
@@ -290,21 +412,31 @@ private:
 
 	charactertable make_c2v_table() const;
 
+	charactertable make_c2h_table() const;
+
+	charactertable make_d2_table() const;
+
+	charactertable make_d2h_table() const;
+
+
 	/// return the character table according to the requested point group
-	const charactertable& get_table(std::string pointgroup) {
+	const charactertable get_table(std::string pointgroup) {
 
         std::transform(pointgroup.begin(), pointgroup.end(), pointgroup.begin(), ::tolower);
-		std::map<std::string, charactertable>::const_iterator it=charactertables_.find(pointgroup);
 
-		if (it==charactertables_.end()) {
-			if (pointgroup=="ci") charactertables_[pointgroup]=make_ci_table();
-			if (pointgroup=="cs") charactertables_[pointgroup]=make_cs_table();
-			if (pointgroup=="c2") charactertables_[pointgroup]=make_c2_table();
-			if (pointgroup=="c2v") charactertables_[pointgroup]=make_c2v_table();
-			it=charactertables_.find(pointgroup);
-		}
-		MADNESS_ASSERT(it!=charactertables_.end());
-		return it->second;
+        charactertable table;
+        if (pointgroup=="c1") table=make_c1_table();
+        else if (pointgroup=="ci") table=make_ci_table();
+        else if (pointgroup=="cs") table=make_cs_table();
+        else if (pointgroup=="c2") table=make_c2_table();
+        else if (pointgroup=="c2v") table=make_c2v_table();
+        else if (pointgroup=="c2h") table=make_c2h_table();
+        else if (pointgroup=="d2") table=make_d2_table();
+        else if (pointgroup=="d2h") table=make_d2h_table();
+        else {
+        	MADNESS_EXCEPTION("unknown group table",1);
+        }
+		return table;
 	}
 };
 

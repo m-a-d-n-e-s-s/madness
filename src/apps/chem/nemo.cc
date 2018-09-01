@@ -89,6 +89,41 @@ public:
 
 
 
+/// ctor
+
+/// @param[in]	world1	the world
+/// @param[in]	calc	the SCF
+Nemo::Nemo(World& world1, std::shared_ptr<SCF> calc) :
+		world(world1), calc(calc),
+		ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
+
+    if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data,true);
+
+    // symmetry section
+    // use highest point group unless specified by user
+
+    // no symmetry keyword specified
+    std::string pg;
+	if (calc->param.symmetry=="default") {
+		if (calc->param.localize) pg="c1";
+		else pg=calc->molecule.pointgroup_;
+
+	// symmetry keyword specified without pointgroup
+	} else if (calc->param.symmetry=="full") {
+		pg=calc->molecule.pointgroup_;
+	// symmetry keyword specified with pointgroup
+	} else {
+		pg=calc->param.symmetry;
+	}
+
+    symmetry_projector=projector_irrep(pg);
+    if (world.rank()==0) print("constructing symmetry projector of point group ",pg);
+    symmetry_projector.set_ordering("keep");
+    symmetry_projector.set_verbosity(1);
+	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+}
+
+
 double Nemo::value(const Tensor<double>& x) {
 
     // fast return if the reference is already solved at this geometry
@@ -237,12 +272,14 @@ double Nemo::solve(const SCFProtocol& proto) {
 	allocT alloc(world, nemo.size());
 	solverT solver(allocT(world, nemo.size()));
 
+
 	// iterate the residual equations
 	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
 
 	    if (localized) nemo=localize(nemo,proto.dconv,iter==0);
 	    std::vector<std::string> str_irreps;
-	    if (calc->param.enforce_symmetry) nemo=project_on_irreps(nemo,str_irreps);
+	    if (do_symmetry()) nemo=symmetry_projector(nemo,R_square);
+	    save_function(nemo,"nemo_it"+stringify(iter));
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
 
@@ -250,15 +287,12 @@ double Nemo::solve(const SCFProtocol& proto) {
 		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
 
 		// compute the fock matrix
-//		vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
 		vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
 		if (do_pcm()) JKUpsi+=pcmnemo;
 		tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
 		Kinetic<double,3> T(world);
 		fock+=T(R2nemo,nemo);
 		JKUpsi.clear();
-		print("fock matrix");
-		print(fock);
 
 		// report the off-diagonal fock matrix elements
 		if (not localized) {
@@ -315,7 +349,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 		// make the potential * nemos term; make sure it's in phase with nemo
 		START_TIMER(world);
-//		vecfuncT Vpsi = add(world, sub(world, Jnemo, Knemo), Unemo);
         vecfuncT Vpsi=Unemo+Jnemo-Knemo;
         if (do_pcm()) Vpsi+=pcmnemo;
 
@@ -541,8 +574,6 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 	    print("number of electrons",nelectron);
 	    double nelectron_exact=nemo.size()*2.0;
 	    scalefactor=nelectron_exact/nelectron;
-	} else {
-        print("not scaling Coulomb and exchange potentials");
 	}
 
 
@@ -927,24 +958,6 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
         }
     }
     return grad;
-}
-
-
-vecfuncT Nemo::project_on_irreps(const vecfuncT& nemo, std::vector<std::string>& irreps) const {
-
-	projector_irrep proj(calc->molecule.pointgroup_);
-	vecfuncT nemo_irrep;
-	irreps.clear();
-
-//	// loop over all irreps
-//	for (const std::string & irrep : proj.get_all_irreps()) {
-//		proj.set_irrep(irrep);
-//		vecfuncT tmp=proj(nemo,R_square);	// all orbitals in this irrep
-//		std::vector<std::string> tmp_irrep(tmp.size(),irrep);
-//		irreps.insert(std::end(irreps), std::begin(tmp_irrep), std::end(tmp_irrep));
-//		nemo_irrep.insert(std::end(nemo_irrep), std::begin(tmp), std::end(tmp));
-//	}
-	return nemo_irrep;
 }
 
 

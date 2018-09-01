@@ -100,6 +100,17 @@ std::vector<std::string> projector_irrep::reduce(const std::vector<std::string> 
 	return result;
 }
 
+
+charactertable projector_irrep::make_c1_table() const {
+	charactertable c1;
+	c1.schoenflies_="C1";
+	c1.order_=1;
+	c1.operators_.push_back(pg_identity());
+	c1.irreps_["a"]=vector_factory<int>(1);
+	c1.mullikan_=vector_factory<std::string>("a");
+	return c1;
+}
+
 charactertable projector_irrep::make_cs_table() const {
 	charactertable cs;
 	cs.schoenflies_="Cs";
@@ -150,6 +161,63 @@ charactertable projector_irrep::make_c2v_table() const {
 	cs.irreps_["a2"]=vector_factory<int>(1,1,-1,-1);
 	cs.irreps_["b1"]=vector_factory<int>(1,-1,1,-1);
 	cs.irreps_["b2"]=vector_factory<int>(1,-1,-1,1);
+	return cs;
+}
+
+
+charactertable projector_irrep::make_c2h_table() const {
+	charactertable cs;
+	cs.schoenflies_="C2h";
+	cs.order_=4;
+	cs.operators_.push_back(pg_identity());
+	cs.operators_.push_back(pg_c2z());
+	cs.operators_.push_back(pg_inversion());
+	cs.operators_.push_back(pg_sigma_xy());
+	cs.mullikan_=vector_factory<std::string>("ag","bg","au","bu");
+	cs.irreps_["ag"]=vector_factory<int>(1, 1, 1, 1);
+	cs.irreps_["bg"]=vector_factory<int>(1,-1, 1,-1);
+	cs.irreps_["au"]=vector_factory<int>(1, 1,-1,-1);
+	cs.irreps_["bu"]=vector_factory<int>(1,-1,-1, 1);
+	return cs;
+}
+
+charactertable projector_irrep::make_d2_table() const {
+	charactertable cs;
+	cs.schoenflies_="D2";
+	cs.order_=4;
+	cs.operators_.push_back(pg_identity());
+	cs.operators_.push_back(pg_c2z());
+	cs.operators_.push_back(pg_c2y());
+	cs.operators_.push_back(pg_c2x());
+	cs.mullikan_=vector_factory<std::string>("a1","b1","b2","b3");
+	cs.irreps_["a1"]=vector_factory<int>(1, 1, 1, 1);
+	cs.irreps_["b1"]=vector_factory<int>(1, 1,-1,-1);
+	cs.irreps_["b2"]=vector_factory<int>(1,-1, 1,-1);
+	cs.irreps_["b3"]=vector_factory<int>(1,-1,-1, 1);
+	return cs;
+}
+
+charactertable projector_irrep::make_d2h_table() const {
+	charactertable cs;
+	cs.schoenflies_="D2h";
+	cs.order_=8;
+	cs.operators_.push_back(pg_identity());
+	cs.operators_.push_back(pg_c2z());
+	cs.operators_.push_back(pg_c2y());
+	cs.operators_.push_back(pg_c2x());
+	cs.operators_.push_back(pg_inversion());
+	cs.operators_.push_back(pg_sigma_xy());
+	cs.operators_.push_back(pg_sigma_xz());
+	cs.operators_.push_back(pg_sigma_yz());
+	cs.mullikan_=vector_factory<std::string>("ag","au","b1g","b1u","b2g","b2u","b3g","b3u");
+	cs.irreps_["ag"] =vector_factory<int>(1, 1, 1, 1, 1, 1, 1, 1);
+	cs.irreps_["b1g"]=vector_factory<int>(1, 1,-1,-1, 1 ,1,-1,-1);
+	cs.irreps_["b2g"]=vector_factory<int>(1,-1, 1,-1, 1,-1, 1,-1);
+	cs.irreps_["b3g"]=vector_factory<int>(1,-1,-1, 1, 1,-1,-1, 1);
+	cs.irreps_["au"] =vector_factory<int>(1, 1, 1, 1,-1,-1,-1,-1);
+	cs.irreps_["b1u"]=vector_factory<int>(1, 1,-1,-1,-1,-1, 1, 1);
+	cs.irreps_["b2u"]=vector_factory<int>(1,-1, 1,-1,-1, 1,-1, 1);
+	cs.irreps_["b3u"]=vector_factory<int>(1,-1,-1, 1,-1, 1, 1,-1);
 	return cs;
 }
 
