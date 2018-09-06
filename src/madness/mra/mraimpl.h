@@ -1369,7 +1369,7 @@ namespace madness {
                     keyT neigh = neighbor(key, keyT(key.level(),l), is_periodic);
 
                     if (neigh.is_valid()) {
-                        v[i++] = this->send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
+                        v[i++] = this->task(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
                     }
                     else {
                         v[i++].set(false);
@@ -2681,7 +2681,10 @@ namespace madness {
             keyT parent = key.parent();
             //madness::print("sock forwarding to parent",key,parent);
             //PROFILE_BLOCK(sitome_send); // Too fine grain for routine profiling
-            woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
+	    if (coeffs.is_local(parent)) 
+	      woT::send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
+	    else
+	      woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
         }
     }
 

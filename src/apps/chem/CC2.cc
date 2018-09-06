@@ -340,8 +340,9 @@ namespace madness {
       output("Response Results:");
       for(const auto& res:results_ex){
 	if(world.rank()==0) std::cout << std::fixed << std::setprecision(10)
-	<< res.first << ": "<< res.second.first << " (CIS), " << res.second.second << " (CC2)\n";
+	<< res.first << ": "<< res.second.first << " (CIS)*, " << res.second.second << " (CC2)\n";
       }
+      if(world.rank()==0) std::cout << "*only if CIS vectors where given in the beginning (not for CC2 restart)\n";
       output("\nTimings");
       for(const auto& time:timings){
 	if(world.rank()==0) std::cout << std::scientific << std::setprecision(2)

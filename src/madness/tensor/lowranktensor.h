@@ -775,6 +775,10 @@ public:
 /// @result Returns a new tensor that is a deep copy of the input
 template <class Q, class T>
 LowRankTensor<Q> convert(const LowRankTensor<T>& other) {
+
+	// simple return
+	if (std::is_same<Q, T>::value) return copy(other);
+
 	LowRankTensor<Q> result;
 	result.type=other.type;
     if (other.type==TT_FULL)
