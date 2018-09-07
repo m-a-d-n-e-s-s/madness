@@ -1152,6 +1152,18 @@ namespace madness {
         const_cast<implT*>(&f)->flo_unary_op_node_inplace(do_mirror(mirrormap,*this),fence);
     }
 
+    /// map and mirror the translation index and the coefficients, result on this
+
+    /// first map the dimensions, the mirror!
+    /// this = mirror(map(f))
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::map_and_mirror(const implT& f, const std::vector<long>& map,
+    		const std::vector<long>& mirror, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        const_cast<implT*>(&f)->flo_unary_op_node_inplace(do_map_and_mirror(map,mirror,*this),fence);
+    }
+
+
 
     /// take the average of two functions, similar to: this=0.5*(this+rhs)
 

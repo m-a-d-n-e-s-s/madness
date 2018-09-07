@@ -789,12 +789,16 @@ namespace madness {
 
     template<size_t NDIM>
     typename std::enable_if<NDIM==3,void>::type
-    plot_cubefile(World& world, Function<double,NDIM>& f, std::string filename,
-            const std::vector<std::string> molecular_info=std::vector<std::string>()) {
+    plot_cubefile(World& world, const Function<double,NDIM>& f, std::string filename,
+            std::vector<std::string> molecular_info=std::vector<std::string>()) {
 
         if (world.size()>1) return;
         // determine the ploting plane
         std::string c1="x1", c2="x2";
+
+        // dummy atom in the center
+        if (molecular_info.size()==0)
+        	molecular_info=std::vector<std::string>(1,"0 0 0.0 0.0 0.0\n");
 
         // zoom factor
         double zoom=1.0;

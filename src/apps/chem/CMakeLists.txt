@@ -52,6 +52,7 @@ install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 # Add unit tests    
 if(ENABLE_UNITTESTS)
   
+  SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc)
   
@@ -60,7 +61,8 @@ if(ENABLE_UNITTESTS)
   # Create other test executables not included in the unit tests
   set(CHEM_OTHER_TESTS testxc)
   foreach(_test ${CHEM_OTHER_TESTS})  
-    add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
+#    add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
+    add_executable(${_test} ${_test}.cc)
     target_link_libraries(${_test} MADchem)
   endforeach()
   

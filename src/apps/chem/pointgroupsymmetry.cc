@@ -132,7 +132,7 @@ charactertable projector_irrep::make_ci_table() const {
 	cs.operators_.push_back(pg_inversion());
 	cs.mullikan_=vector_factory<std::string>("ag","au");
 	cs.irreps_["ag"]=vector_factory<int>(1,1);
-	cs.irreps_["au'"]=vector_factory<int>(1,-1);
+	cs.irreps_["au"]=vector_factory<int>(1,-1);
 	return cs;
 }
 

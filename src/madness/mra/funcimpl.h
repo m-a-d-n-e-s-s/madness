@@ -2301,6 +2301,62 @@ namespace madness {
 
         };
 
+        /// mirror dimensions of this, write result on f
+        struct do_map_and_mirror {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            std::vector<long> map,mirror;
+            implT* f;
+
+            do_map_and_mirror() = default;
+            do_map_and_mirror(const std::vector<long> map, const std::vector<long> mirror, implT& f)
+            		: map(map), mirror(mirror), f(&f) {}
+
+            bool operator()(typename rangeT::iterator& it) const {
+
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+
+                // do the mapping first
+                Vector<Translation,NDIM> l;
+                for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
+                tensorT c = node.coeff().full_tensor_copy();
+                if (c.size()) c = copy(c.mapdim(map));
+
+                // mirror translation index: l_new + l_old = l_max
+                Translation lmax = (Translation(1)<<key.level()) - 1;
+                for (std::size_t i=0; i<NDIM; ++i) {
+                	if (mirror[i]==-1) l[i]= lmax - key.translation()[i];
+                }
+
+                // mirror coefficients: multiply all odd-k slices with -1
+            	if (c.size()) {
+            		std::vector<Slice> s(___);
+
+                	// loop over dimensions and over k
+                	for (long i=0; i<NDIM; ++i) {
+                		std::size_t kmax=c.dim(i);
+                		if (mirror[i]==-1) {
+                			for (long k=1; k<kmax; k+=2) {
+                				s[i]=Slice(k,k,1);
+                				c(s)*=(-1.0);
+                			}
+                			s[i]=_;
+                		}
+                	}
+                }
+                coeffT cc(c,f->get_tensor_args());
+                f->get_coeffs().replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
+
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("no serialization of do_mirror",1);
+            }
+
+        };
+
+
 
         /// "put" this on g
         struct do_average {
@@ -3962,13 +4018,18 @@ namespace madness {
 
         }
 
-
-
         /// Permute the dimensions of f according to map, result on this
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
 
         /// mirror the dimensions of f according to map, result on this
         void mirror(const implT& f, const std::vector<long>& mirror, bool fence);
+
+        /// map and mirror the translation index and the coefficients, result on this
+
+        /// first map the dimensions, the mirror!
+        /// this = mirror(map(f))
+             void map_and_mirror(const implT& f, const std::vector<long>& map,
+        		const std::vector<long>& mirror, bool fence);
 
         /// take the average of two functions, similar to: this=0.5*(this+rhs)
 

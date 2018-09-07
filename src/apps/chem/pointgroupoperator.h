@@ -101,15 +101,14 @@ public:
 	/// apply the operator on an n-dimensional MRA function
 	template<typename T, std::size_t NDIM>
 	std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vf, bool fence=true) const {
-        std::vector<Function<T,NDIM> > result;
+        std::vector<Function<T,NDIM> > result(vf.size());
 
         // fast return
         if (vf.size()==0) return result;
         World& world=vf.begin()->world();
 
-        for (const Function<T,NDIM>& f : vf) {
-        	result.push_back(this->operator()(f,false));
-        }
+        for (int i=0; i<vf.size(); ++i) result[i]=this->operator()(vf[i],false);
+
         if (fence) world.gop.fence();
 		return result;
 	}
