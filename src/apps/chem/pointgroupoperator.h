@@ -60,7 +60,7 @@ class pg_operator {
 public:
 
 	/// ctor with explicit mirror maps
-    pg_operator(std::string symbol, std::string name, const std::vector<long>& mm,
+    pg_operator(std::string symbol, std::string name, const std::vector<long> mm,
     		const std::vector<long> md)
 		: symbol_(symbol), name_(name), mirrormap(mm), mapdim_(md) {}
 
@@ -75,24 +75,15 @@ public:
         Function<T,NDIM> result;
 
         if (name_=="identity") {
-        	result=copy(f);
+        	result=copy(f,fence);
 
         } else if (name_=="inversion"){
 
         	std::vector<long> mm(NDIM,-1);
-        	result=mirror(f,mm,true);
+        	result=mirror(f,mm,fence);
 
         } else {
-
-            if (mirrormap.size()>0) {   // avoid noop
-            	MADNESS_ASSERT(mirrormap.size()==NDIM);
-    	        result=mirror(f,mirrormap,true);
-    		}
-    		if (mapdim_.size()>0) {      // avoid noop
-            	MADNESS_ASSERT(mapdim_.size()==NDIM);
-    		    Function<T,NDIM> result1=mapdim(result,mapdim_,true);
-    		    std::swap(result,result1);
-    		}
+        	result=map_and_mirror(f,mapdim_,mirrormap,fence);
         }
 
 		return result;
@@ -154,7 +145,7 @@ static inline pg_operator pg_c2() {
 }
 
 static inline pg_operator pg_c4() {
-    return pg_operator("C4","C_4",vector_factory<long>(1,-1),vector_factory<long>(1,0));
+    return pg_operator("C4","C_4",vector_factory<long>(-1,1),vector_factory<long>(1,0));
 }
 
 
@@ -192,7 +183,7 @@ static inline pg_operator pg_c4y() {
 }
 
 static inline pg_operator pg_c4z() {
-	return pg_operator("C4","C_4(z)",vector_factory<long>(1,-1,1), vector_factory<long>(1,0,2));
+	return pg_operator("C4","C_4(z)",vector_factory<long>(-1,1,1), vector_factory<long>(1,0,2));
 }
 
 

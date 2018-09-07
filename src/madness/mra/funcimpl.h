@@ -2317,37 +2317,46 @@ namespace madness {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
 
-                // do the mapping first
-                Vector<Translation,NDIM> l;
-                for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
                 tensorT c = node.coeff().full_tensor_copy();
-                if (c.size()) c = copy(c.mapdim(map));
+                Vector<Translation,NDIM> l=key.translation();
 
-                // mirror translation index: l_new + l_old = l_max
-                Translation lmax = (Translation(1)<<key.level()) - 1;
-                for (std::size_t i=0; i<NDIM; ++i) {
-                	if (mirror[i]==-1) l[i]= lmax - key.translation()[i];
+                // do the mapping first (if present)
+                if (map.size()>0) {
+                	Vector<Translation,NDIM> l1=l;
+                	for (std::size_t i=0; i<NDIM; ++i) l1[map[i]] = l[i];
+                	std::swap(l,l1);
+                	if (c.size()) c = copy(c.mapdim(map));
                 }
 
-                // mirror coefficients: multiply all odd-k slices with -1
-            	if (c.size()) {
-            		std::vector<Slice> s(___);
+                if (mirror.size()>0) {
+					// mirror translation index: l_new + l_old = l_max
+                	Vector<Translation,NDIM> l1=l;
+					Translation lmax = (Translation(1)<<key.level()) - 1;
+					for (std::size_t i=0; i<NDIM; ++i) {
+						if (mirror[i]==-1) l1[i]= lmax - l[i];
+					}
+                	std::swap(l,l1);
 
-                	// loop over dimensions and over k
-                	for (long i=0; i<NDIM; ++i) {
-                		std::size_t kmax=c.dim(i);
-                		if (mirror[i]==-1) {
-                			for (long k=1; k<kmax; k+=2) {
-                				s[i]=Slice(k,k,1);
-                				c(s)*=(-1.0);
-                			}
-                			s[i]=_;
-                		}
-                	}
+                	// mirror coefficients: multiply all odd-k slices with -1
+					if (c.size()) {
+						std::vector<Slice> s(___);
+
+						// loop over dimensions and over k
+						for (long i=0; i<NDIM; ++i) {
+							std::size_t kmax=c.dim(i);
+							if (mirror[i]==-1) {
+								for (long k=1; k<kmax; k+=2) {
+									s[i]=Slice(k,k,1);
+									c(s)*=(-1.0);
+								}
+								s[i]=_;
+							}
+						}
+					}
                 }
+
                 coeffT cc(c,f->get_tensor_args());
                 f->get_coeffs().replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
-
                 return true;
             }
             template <typename Archive> void serialize(const Archive& ar) {
@@ -4028,7 +4037,7 @@ namespace madness {
 
         /// first map the dimensions, the mirror!
         /// this = mirror(map(f))
-             void map_and_mirror(const implT& f, const std::vector<long>& map,
+        void map_and_mirror(const implT& f, const std::vector<long>& map,
         		const std::vector<long>& mirror, bool fence);
 
         /// take the average of two functions, similar to: this=0.5*(this+rhs)

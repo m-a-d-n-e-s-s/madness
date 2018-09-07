@@ -148,7 +148,7 @@ public:
 
 		Function<T,NDIM> metric;
 		std::vector<std::string> sirrep;
-		return apply_symmetry_operators(vrhs,metric,sirrep,false);
+		return apply_symmetry_operators(vrhs,metric,sirrep);
 	}
 
 	/// projector on a given irrep
@@ -160,7 +160,7 @@ public:
 			const Function<T,NDIM>& metric) const {
 
 		std::vector<std::string> sirrep;
-		return apply_symmetry_operators(vrhs,metric,sirrep,false);
+		return apply_symmetry_operators(vrhs,metric,sirrep);
 	}
 
 	/// projector on a given irrep
@@ -172,7 +172,7 @@ public:
 			const Function<T,NDIM>& metric,
 			std::vector<std::string>& sirreps) const {
 
-		return apply_symmetry_operators(vrhs,metric,sirreps,false);
+		return apply_symmetry_operators(vrhs,metric,sirreps);
 	}
 
 	/// projector on a given irrep
@@ -184,7 +184,7 @@ public:
 			std::vector<std::string>& sirreps) const {
 
 		Function<T,NDIM> metric;
-		return apply_symmetry_operators(vrhs,metric,sirreps,false);
+		return apply_symmetry_operators(vrhs,metric,sirreps);
 	}
 
 	/// create a symmetry-adapted basis from a single function
@@ -197,7 +197,7 @@ public:
 			std::vector<std::string>& sirreps) {
 
 		std::vector<Function<T,NDIM> > vrhs(1,rhs);
-		return apply_symmetry_operators(vrhs,metric,sirreps,true);
+		return apply_symmetry_operators(vrhs,metric,sirreps);
 
 	}
 
@@ -211,7 +211,7 @@ public:
 
 		std::vector<Function<T,NDIM> > vrhs(1,rhs);
 		Function<T,NDIM> metric;
-		return apply_symmetry_operators(vrhs,metric,sirreps,true);
+		return apply_symmetry_operators(vrhs,metric,sirreps);
 
 	}
 
@@ -318,15 +318,12 @@ private:
 	/// the number of input and output function is expected to be the same!
 	/// @param[in]	vrhs	vector of functions to be projected on the irrep
 	/// @param[in]	vbra	bra of vrhs if applicable (if bra /= ket), may be empty
-	/// @param[in]	allow_increase	allow increased number of output functions comp. to input
 	/// @param[out]	sirrep	vector with the irrep names corresponding to the result
 	template<typename T, std::size_t NDIM>
 	std::vector<Function<T,NDIM> > apply_symmetry_operators(
 			const std::vector<Function<T,NDIM> >& vrhs,
 			Function<T,NDIM> metric,
-			std::vector<std::string>& sirreps,
-			bool allow_increase,
-			const bool fence=true) const {
+			std::vector<std::string>& sirreps) const {
 
 		World& world=vrhs.begin()->world();
 

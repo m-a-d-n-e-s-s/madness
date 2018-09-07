@@ -399,7 +399,7 @@ int main(int argc, char** argv) {
     result+=check_multiplication_table_c2v(world);
     result+=test_projector(world);
     result+=test_orthogonalization(world);
-//    result+=plot_symmetry_operators(world);
+//    plot_symmetry_operators(world);
 
     print("result",result);
     madness::finalize();

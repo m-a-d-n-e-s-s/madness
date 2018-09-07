@@ -647,6 +647,8 @@ namespace madness {
         if (c2=="x5") cc2=4;
         if (c2=="x6") cc2=5;
 
+        MADNESS_ASSERT(cc1<NDIM);
+        MADNESS_ASSERT(cc2<NDIM);
         // output file name for the gnuplot data
         std::string filename="plane_"+c1+c2+"_"+name;
         // assume a cubic cell
@@ -804,7 +806,7 @@ namespace madness {
         double zoom=1.0;
 
         // number of points in each direction
-        int npoints=200;
+        int npoints=100;
 
         // the coordinates to be plotted
         Vector<double,NDIM> origin(0.0);

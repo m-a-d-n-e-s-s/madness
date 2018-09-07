@@ -1581,11 +1581,11 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             f.verify();
             if (VERIFY_TREE) f.verify_tree();
-            for (std::size_t i=0; i<NDIM; ++i) MADNESS_ASSERT((mirror[i]==1) or (mirror[i]==-1));
-            for (std::size_t i=0; i<NDIM; ++i) MADNESS_ASSERT(map[i]>=0 && static_cast<std::size_t>(map[i])<NDIM);
+            for (std::size_t i=0; i<mirror.size(); ++i) MADNESS_ASSERT((mirror[i]==1) or (mirror[i]==-1));
+            for (std::size_t i=0; i<map.size(); ++i) MADNESS_ASSERT(map[i]>=0 && static_cast<std::size_t>(map[i])<NDIM);
 
             impl.reset(new implT(*f.impl, f.get_pmap(), false));
-            impl->map_and_mirror(*f.impl,map,mirror,false);
+            impl->map_and_mirror(*f.impl,map,mirror,fence);
             return *this;
         }
 
