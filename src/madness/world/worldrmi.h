@@ -41,6 +41,7 @@
 #include <memory>
 #include <tuple>
 #include <pthread.h>
+#include <madness/world/print.h>
 
 /*
   There is just one server thread and it is the only one
@@ -222,7 +223,7 @@ namespace madness {
 
             void process_some();
 
-            RmiTask();
+            RmiTask(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);
             virtual ~RmiTask();
 
             static void set_rmi_task_is_running(bool flag = true);
@@ -257,7 +258,7 @@ namespace madness {
 
             void exit() {
                 if (debugging)
-                    std::cerr << rank << ":RMI: sending exit request to server thread" << std::endl;
+                  print_error(rank, ":RMI: sending exit request to server thread\n");
 
                 // Set finished flag
                 finished = true;
@@ -336,17 +337,17 @@ namespace madness {
         static Request
         isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr=ATTR_UNORDERED) {
             if(!task_ptr) {
-              std::cerr <<
+              print_error(
                   "!! MADNESS RMI error: Attempting to send a message when the RMI thread is not running\n"
-                  "!! MADNESS RMI error: This typically occurs when an active message is sent or a remote task is spawned after calling madness::finalize()\n";
+                  "!! MADNESS RMI error: This typically occurs when an active message is sent or a remote task is spawned after calling madness::finalize()\n");
               MADNESS_EXCEPTION("!! MADNESS error: The RMI thread is not running", (task_ptr != nullptr));
             }
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
 
-        static void assert_aslr_off();  // will complain to std::cerr and throw if ASLR is on
+        static void assert_aslr_off(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);  // will complain to std::cerr and throw if ASLR is on
 
-        static void begin();
+        static void begin(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);
 
         static void end() {
             if(task_ptr) {
