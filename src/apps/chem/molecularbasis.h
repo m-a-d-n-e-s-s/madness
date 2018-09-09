@@ -513,6 +513,25 @@ public:
         }
     }
 
+    /// Makes map from shells to first basis function on she and number of basis functions on sh
+    void shells_to_bfn(const Molecule& molecule, std::vector<int>& sh_to_bf, std::vector<int>& sh_nbf) const {
+        sh_to_bf = std::vector<int>();
+        sh_nbf   = std::vector<int>();
+
+        int nbf = 0;
+        for (int i=0; i<molecule.natom(); ++i) {
+            const Atom& atom = molecule.get_atom(i);
+            const int atn = atom.atomic_number;
+            MADNESS_ASSERT(is_supported(atn));
+            const auto& shells = ag[atn].get_shells();
+            for (const auto& sh : shells) {
+                int n = sh.nbf();
+                sh_nbf.push_back(n);
+                sh_to_bf.push_back(nbf);
+                nbf += n;
+            }
+        }
+    }
 
     /// Returns the number of the atom the ibf'th basis function is on
     int basisfn_to_atom(const Molecule& molecule, int ibf) const {
