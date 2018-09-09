@@ -876,7 +876,7 @@ namespace madness {
 //     START_TIMER(world);
 //     const bool doprint = false;
 //     long nmo = mo.size();
-//     tensorT dip(nmo, nmo, 3);
+//     tensorT dip(nmo, nmo, 3); 
 //     for (int axis = 0; axis < 3; ++axis) {
 //         functionT fdip = factoryT(world).functor(
 //                                                  functorT(new DipoleFunctor(axis))).initial_level(4);
