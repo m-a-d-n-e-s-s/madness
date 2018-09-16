@@ -180,11 +180,13 @@ foundit:
             Tensor<double> dmatpsp = dmat;
             Tensor<double> aocc = load_tixml_matrix<double>(node, nbf, 1, "alphaocc");
             Tensor<double> bocc = load_tixml_matrix<double>(node, nbf, 1, "betaocc");
+	    Tensor<double> aeps = load_tixml_matrix<double>(node, nbf, 1, "alphaeps");
+	    Tensor<double> beps = load_tixml_matrix<double>(node, nbf, 1, "betaeps");
             Tensor<double> aoccpsp = aocc;
-             Tensor<double> boccpsp = bocc;
+	    Tensor<double> boccpsp = bocc;
             Tensor<double> avec = load_tixml_matrix<double>(node, nbf, nbf, "alphavectors");
             Tensor<double> bvec = load_tixml_matrix<double>(node, nbf, nbf, "betavectors");
-            ag[atn].set_guess_info(dmat, dmatpsp, avec, bvec, aocc, bocc, aoccpsp, boccpsp);
+            ag[atn].set_guess_info(dmat, dmatpsp, avec, bvec, aocc, bocc, aeps, beps, aoccpsp, boccpsp);
         }
         else {
             MADNESS_EXCEPTION("Loading atomic basis set: unexpected XML element", 0);

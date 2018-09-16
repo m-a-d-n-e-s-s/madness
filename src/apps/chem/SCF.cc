@@ -44,6 +44,9 @@
 #include <chem/SCFOperators.h>
 #include <madness/world/worldmem.h>
 #include <chem/projector.h>
+// extern "C" {
+//   int     MKL_Set_Num_Threads_Local(int nth);
+// }
 
 namespace madness {
     
@@ -525,19 +528,64 @@ namespace madness {
         int nmo = mo.size();
         int nao = ao.size();
 
-        std::vector<int> at_to_bf, at_nbf; // OVERRIDE CLASS OBJ TO USE SHELLS FOR TESTING
-        aobasis.shells_to_bfn(molecule, at_to_bf, at_nbf);
-        //if (world.rank() == 0) print(at_to_bf, at_nbf);
+        tensorT C = matrix_inner(world, mo, ao);
+        std::vector<int> at_to_bf, at_nbf; // OVERRIDE DATA IN CLASS OBJ TO USE ATOMS OR SHELLS FOR TESTING
+	bool use_atomic_evecs = true;
+	
+	if (use_atomic_evecs) {
+	  // Transform from AOs to orthonormal atomic eigenfunctions
+	  int ilo = 0;
+	  for (int iat=0; iat<molecule.natom(); ++iat) {
+	    const tensorT& avec = aobasis.get_avec(molecule, iat);
+	    int ihi = ilo+avec.dim(1);
+	    Slice s(ilo,ihi-1);
+	    C(_,s) = inner(C(_,s),avec);
+
+	    // generate shell dimensions for atomic eigenfunctions
+	    // ... this relies upon spherical symmetry being enforced
+	    // when making atomic states
+	    const tensorT& aeps = aobasis.get_aeps(molecule, iat);
+	    //print(aeps);
+	    double prev = aeps(0L);
+	    int start = 0;
+	    int i; // used after loop
+	    for (i=0; i<aeps.dim(0); ++i) {
+	      //print(" ... ", i, prev, aeps(i), (std::abs(aeps(i)-prev) > 1e-2*std::abs(prev)));
+	      if (std::abs(aeps(i)-prev) > 1e-2*std::abs(prev)) {
+		at_to_bf.push_back(ilo+start);
+		at_nbf.push_back(i-start);
+		//print("    ", start, i-start);
+		start = i;
+	      }
+	      prev = aeps(i);
+	    }
+	    at_to_bf.push_back(ilo+start);
+	    at_nbf.push_back(i-start);
+	    //print("    ", start, i-start);
+	    ilo = ihi;
+	  }
+	  MADNESS_ASSERT(ilo==nao);
+	  MADNESS_ASSERT(std::accumulate(at_nbf.begin(),at_nbf.end(),0)==nao);
+	  MADNESS_ASSERT(at_to_bf.back()+at_nbf.back()==nao);
+	  //print(at_to_bf, at_nbf);
+	} 
+	else {
+	  aobasis.shells_to_bfn(molecule, at_to_bf, at_nbf);
+	  //aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
+	}
+
+	// Below here atoms may be shells or atoms
 
         int natom = at_to_bf.size();
 
-        tensorT C = matrix_inner(world, mo, ao);
         tensorT U(nmo, nmo);
         for (int i = 0; i < nmo; ++i) U(i, i) = 1.0;
 
-        thresh=1e-10; // Force high accuracy convergence ... really need to do this in SCF::solve
+        thresh=1e-6; // ?????????????????? Force high accuracy convergence ... really need to do this in SCF::solve
         
         if (world.rank() == 0) {
+	  //MKL_Set_Num_Threads_Local(16);
+
             tensorT Q(nmo,natom);
 
             auto QQ = [&at_to_bf, &at_nbf](const tensorT& C, int i, int j, int a) -> double {
@@ -672,6 +720,7 @@ namespace madness {
                 if (U(i, i) < 0.0)
                     U(_, i).scale(-1.0);
             }
+	    //MKL_Set_Num_Threads_Local(1);
         }
         //done:
         world.gop.broadcast(U.ptr(), U.size(), 0);
@@ -2787,7 +2836,7 @@ namespace madness {
             if (param.localize && do_this_iter) {
 	        distmatT dUT;
 		if (param.localize_pm)
-		  dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, false);
+		  dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, true);
 		else 
 		  dUT = localize_boys(world, amo, aset, tolloc, 0.1, iter == 0);
 

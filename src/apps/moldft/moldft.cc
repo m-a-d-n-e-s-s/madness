@@ -40,6 +40,10 @@
 #include <chem/molopt.h>
 #include <madness/world/worldmem.h>
 
+// extern "C" {
+//   int     MKL_Set_Num_Threads_Local(int nth);
+// }
+
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -67,6 +71,8 @@ using namespace madness;
 int main(int argc, char** argv) {
 
     initialize(argc, argv);
+
+    // MKL_Set_Num_Threads_Local(1);
 
     { // limit lifetime of world so that finalize() can execute cleanly
       World world(SafeMPI::COMM_WORLD);
