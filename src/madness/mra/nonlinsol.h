@@ -203,6 +203,12 @@ namespace madness {
 
 	void set_maxsub(int maxsub) {this->maxsub = maxsub;}
 
+	void clear_subspace() {
+		ulist.clear();
+		rlist.clear();
+		Q=Tensor<C>();
+	}
+
 	/// Computes next trial solution vector
 
 	/// You are responsible for performing step restriction or line search

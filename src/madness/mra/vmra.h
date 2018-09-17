@@ -624,7 +624,7 @@ namespace madness {
     /// inner function with right signature for the nonlinear sovler
     /// this is needed for the KAIN solvers and other functions
     template <typename T, typename R, std::size_t NDIM>
-    double inner( const std::vector< Function<T,NDIM> >& f,
+    TENSOR_RESULT_TYPE(T,R) inner( const std::vector< Function<T,NDIM> >& f,
 	                                            const std::vector< Function<R,NDIM> >& g){
       MADNESS_ASSERT(f.size()==g.size());
       if(f.empty()) return 0.0;
@@ -733,6 +733,19 @@ namespace madness {
         std::vector< Function<T,NDIM> > r = copy(world, v); // Currently don't have oop conj
         for (unsigned int i=0; i<v.size(); ++i) {
             r[i].conj(false);
+        }
+        if (fence) world.gop.fence();
+        return r;
+    }
+
+    /// Returns a deep copy of a vector of functions
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector< Function<R,NDIM> > convert(World& world,
+    		const std::vector< Function<T,NDIM> >& v, bool fence=true) {
+        PROFILE_BLOCK(Vcopy);
+        std::vector< Function<R,NDIM> > r(v.size());
+        for (unsigned int i=0; i<v.size(); ++i) {
+            r[i] = convert<R>(v[i], false);
         }
         if (fence) world.gop.fence();
         return r;
@@ -1034,19 +1047,19 @@ namespace madness {
         return sub(lhs[0].world(),lhs,rhs);
     }
 
-    template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > operator*(const double fac,
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > operator*(const R fac,
             const std::vector<Function<T,NDIM> >& rhs) {
         std::vector<Function<T,NDIM> > tmp=copy(rhs[0].world(),rhs);
-        scale(tmp[0].world(),tmp,fac);
+        scale(tmp[0].world(),tmp,TENSOR_RESULT_TYPE(T,R)(fac));
         return tmp;
     }
 
-    template <typename T, std::size_t NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator*(const std::vector<Function<T,NDIM> >& rhs,
-            const double fac) {
-        std::vector<Function<T,NDIM> > tmp=copy(rhs[0].world(),rhs);
-        scale(tmp[0].world(),tmp,fac);
+            const R fac) {
+        std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > tmp=copy(rhs[0].world(),rhs);
+        scale(tmp[0].world(),tmp,TENSOR_RESULT_TYPE(T,R)(fac));
         return tmp;
     }
 

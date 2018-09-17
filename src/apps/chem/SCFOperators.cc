@@ -106,6 +106,13 @@ template class Kinetic<double,4>;
 template class Kinetic<double,5>;
 template class Kinetic<double,6>;
 
+template class Kinetic<double_complex,1>;
+template class Kinetic<double_complex,2>;
+template class Kinetic<double_complex,3>;
+template class Kinetic<double_complex,4>;
+template class Kinetic<double_complex,5>;
+template class Kinetic<double_complex,6>;
+
 
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> >
