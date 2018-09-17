@@ -843,7 +843,7 @@ namespace madness {
         bool fence=true) {
 
         compress(world, f);
-        Function<T,NDIM> r=real_factory_3d(world).compressed();
+        Function<T,NDIM> r=FunctionFactory<T,NDIM>(world).compressed();
 
         for (unsigned int i=0; i<f.size(); ++i) r.gaxpy(1.0,f[i],1.0,false);
         if (fence) world.gop.fence();
@@ -1051,17 +1051,17 @@ namespace madness {
     }
 
     /// multiply a vector of functions with a function: r[i] = v[i] * a
-    template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > operator*(const Function<T,NDIM>& a,
-            const std::vector<Function<T,NDIM> >& v) {
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > operator*(const Function<T,NDIM>& a,
+            const std::vector<Function<R,NDIM> >& v) {
         return mul(v[0].world(),a,v,true);
     }
 
 
     /// multiply a vector of functions with a function: r[i] = a * v[i]
-    template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > operator*(const std::vector<Function<T,NDIM> >& v,
-            const Function<T,NDIM>& a) {
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > operator*(const std::vector<Function<T,NDIM> >& v,
+            const Function<R,NDIM>& a) {
         return mul(v[0].world(),a,v,true);
     }
 
