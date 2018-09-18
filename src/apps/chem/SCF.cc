@@ -530,8 +530,8 @@ namespace madness {
 
         tensorT C = matrix_inner(world, mo, ao);
         std::vector<int> at_to_bf, at_nbf; // OVERRIDE DATA IN CLASS OBJ TO USE ATOMS OR SHELLS FOR TESTING
+
 	bool use_atomic_evecs = true;
-	
 	if (use_atomic_evecs) {
 	  // Transform from AOs to orthonormal atomic eigenfunctions
 	  int ilo = 0;
@@ -581,8 +581,6 @@ namespace madness {
         tensorT U(nmo, nmo);
         for (int i = 0; i < nmo; ++i) U(i, i) = 1.0;
 
-        thresh=1e-6; // ?????????????????? Force high accuracy convergence ... really need to do this in SCF::solve
-        
         if (world.rank() == 0) {
 	  //MKL_Set_Num_Threads_Local(16);
 
@@ -1305,6 +1303,7 @@ namespace madness {
             if (world.rank() == 0)
                 print("guess dens trace", nel);
             END_TIMER(world, "guess density");
+	    rho.scale(std::round(nel)/nel);
             
             if (world.size() > 1) {
                 START_TIMER(world);
@@ -2811,7 +2810,7 @@ namespace madness {
         const double dconv = std::max(FunctionDefaults < 3 > ::get_thresh(),
                                       param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
-        const double tolloc = 1e-10; // force high accuracy localization to ensure well defined orbitals ... was std::min(1e-6,0.01*dconv);
+        const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change
         double update_residual = 0.0, bsh_residual = 0.0;
         subspaceT subspace;
         tensorT Q;
@@ -2907,7 +2906,11 @@ namespace madness {
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
+
             rho.truncate();
+	    double rhotrace = rho.trace();	      
+	    if (world.rank() == 0) print("rho trace", rhotrace, rhotrace-std::round(rhotrace));
+	    
             real_function_3d vnuc;
             if (param.psp_calc){
                 vnuc = gthpseudopotential->vlocalpot();}
