@@ -20,8 +20,8 @@ namespace madness
       int print_level;                   ///< Controls the amount and style of printing. Higher values print more
                                          ///<   Values |   What gets printed
                                          ///<   ----------------------------
-                                         ///<     1    |   Print out each step in the calculation,
-                                         ///<          |   along with timings
+                                         ///<     1    |   Print out timing of each step in the calculation,
+                                         ///<          |   along with energy, energy res., and func. res.
                                          ///<   ----------------------------
                                          ///<     2    |   Debug level. Prints EVERYTHING!!!
 
@@ -51,6 +51,7 @@ namespace madness
       int kain_size;                     ///< How many previous iterations KAIN will store 
       std::string xc;                    ///< Controls the HF or DFT switch, as well as which DFT functional is used
       bool save;                         ///< Controls if orbitals will be saved each iteration
+      int guess_max_iter;                ///< Maximum number of iterations for guess functions
 
 // TESTING
 bool old;
@@ -90,6 +91,7 @@ bool old;
             & kain_size
             & xc
             & save
+            & guess_max_iter
             & old;
       }
 
@@ -121,6 +123,7 @@ bool old;
       , kain_size(0)
       , xc("hf")
       , save(false)
+      , guess_max_iter(5)
       , old(true)
       {}
 
@@ -253,7 +256,7 @@ bool old;
             {
                f >> xc;
 
-               if(not (xc == "hf" or xc == "lda"))
+               if(not (xc == "hf" or xc == "lda" or xc == "pbe0" or xc == "b3lyp"))
                {
                   MADNESS_EXCEPTION("Unsupported DFT functional requested.", 0);
                }
@@ -276,6 +279,10 @@ bool old;
             {
                save = true;
             }
+            else if (s == "guess_iter")
+            {
+               f >> guess_max_iter;
+            }
             else if (s == "new") // Use potential manager, for debugging. Remove after it works
             {
                old = false;
@@ -293,7 +300,7 @@ bool old;
       {
          madness::print("\n   Input Response Parameters");
          madness::print("   -------------------------");
-         madness::print("                XC Functional:", xc);
+         madness::print("       Response XC Functional:", xc);
          madness::print("            Ground State File:", archive);
          if(nwchem != "") madness::print("                  NWChem File:", nwchem);
          if(restart) madness::print("                 Restart File:", restart_file);
@@ -306,6 +313,7 @@ bool old;
          if(k>0) madness::print("                            k:", k);
          madness::print("     Use Random Initial Guess:", random);
          madness::print("              Store Potential:", store_potential);
+         madness::print("         Max Guess Iterations:", guess_max_iter);
          madness::print("               Max Iterations:", max_iter);
          madness::print("   Larger Subspace Iterations:", larger_subspace);
          madness::print("                     Use KAIN:", kain);

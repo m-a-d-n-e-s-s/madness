@@ -54,10 +54,12 @@
 #include <algorithm> 
 #include "../chem/molecule.h"
 #include "../chem/SCFOperators.h"
+#include "../chem/xcfunctional.h"
 #include "ResponseParameters.h"
 #include "GroundParameters.h"
 #include "ResponseFunction2.h"
 #include "ResponsePotential.h"
+
 
 using namespace madness;
 
@@ -146,25 +148,28 @@ class TDHF
       std::vector<int> active;                        // The labels of orbitals selected as "active"
       unsigned int act_num_orbitals;                  // Number of ground state orbitals being used in calculation
 
+      // XCfunction object for DFT calculations
+      XCfunctional xcf;
+
       // Mask function to handle boundary conditions
       real_function_3d mask;
 
       // Functions
       ResponseFunction x_response;   // Excited states to be solved for. 
-                                                               //    Note on storage: The response functions are calculated
-                                                               //    by calculating each transition of occupied --> virtual,
-                                                               //    and thus the actual response function is a sum of of all
-                                                               //    contributions to a specific virtual.
+                                     //    Note on storage: The response functions are calculated
+                                     //    by calculating each transition of occupied --> virtual,
+                                     //    and thus the actual response function is a sum of of all
+                                     //    contributions to a specific virtual.
        
       ResponseFunction y_response;   // De-excitation states to be solved for. 
-                                                               //    Note on storage: The response functions are calculated
-                                                               //    by calculating each transition of occupied --> virtual,
-                                                               //    and thus the actual response function is a sum of of all
-                                                               //    contributions to a specific virtual.
+                                     //    Note on storage: The response functions are calculated
+                                     //    by calculating each transition of occupied --> virtual,
+                                     //    and thus the actual response function is a sum of of all
+                                     //    contributions to a specific virtual.
                                                                    
       ResponseFunction stored_potential;   // The ground state potential, stored only if store_potential
-                                                                     // is true (default is false). Holds the integrals 
-                                                                     //   \int dr \frac{\phi_i^\dagger phi_j}{\left| r - r' \right|}
+                                           // is true (default is false). Holds the integrals 
+                                           //   \int dr \frac{\phi_i^\dagger phi_j}{\left| r - r' \right|}
 
    public:
 
@@ -222,10 +227,10 @@ class TDHF
 
       // Returns the derivative of the coulomb operator, applied to ground state orbitals
       ResponseFunction create_coulomb_derivative(World & world,
-                                                                           ResponseFunction & f,
-                                                                           std::vector<real_function_3d> & orbitals,
-                                                                           double small,
-                                                                           double thresh);
+                                                 ResponseFunction & f,
+                                                 std::vector<real_function_3d> & orbitals,
+                                                 double small,
+                                                 double thresh);
 
       // Returns the derivative of the exchange operator, applied to the ground state orbitals
       // This is the function for TDA only
@@ -269,7 +274,7 @@ class TDHF
 
       // Returns the result of ground state exchange applied to response functions
       ResponseFunction exchange(World & world,
-                                                          ResponseFunction & f);
+                                ResponseFunction & f);
 
       // Returns the ground state potential applied to response functions
       ResponseFunction create_potential(World & world,
@@ -285,10 +290,10 @@ class TDHF
 
       // Returns the ground state fock operator applied to response functions
       ResponseFunction create_fock(World & world,
-                                                             ResponseFunction & V,
-                                                             ResponseFunction & f,
-                                                             int print_level,
-                                                             std::string xy);
+                                   ResponseFunction & V,
+                                   ResponseFunction & f,
+                                   int print_level,
+                                   std::string xy);
 
       // Returns the hamiltonian matrix, equation 45 from the paper
       Tensor<double> create_response_matrix(World & world,
@@ -386,15 +391,15 @@ class TDHF
                                              const double thresh_degenerate);
 
       // Diagonalizes the fock matrix, taking care of degerate states
-      Tensor<int> diag_fock_matrix(World & world,
-                                   Tensor<double> & fock,
-                                   ResponseFunction & psi,
-                                   ResponseFunction & Vpsi,
-                                   ResponseFunction & gamma,
-                                   ResponseFunction & fe,
-                                   Tensor<double> & evals,
-                                   Tensor<double> & overlap,
-                                   const double thresh);
+      Tensor<double> diag_fock_matrix(World & world,
+                                      Tensor<double> & fock,
+                                      ResponseFunction & psi,
+                                      ResponseFunction & Vpsi,
+                                      ResponseFunction & gamma,
+                                      ResponseFunction & fe,
+                                      Tensor<double> & evals,
+                                      Tensor<double> & overlap,
+                                      const double thresh);
 
       // Transforms the given matrix of functions according to the given
       // transformation matrix. Used to update orbitals / potentials
@@ -450,7 +455,6 @@ class TDHF
       void unaugment(World & world,
                      int m,
                      int iter,
-                     Tensor<int> & selected,
                      Tensor<double> & omega,
                      Tensor<double> & S_x,     
                      Tensor<double> & A_x,     
@@ -470,7 +474,7 @@ class TDHF
       void unaugment_full(World & world,
                           int m,
                           int iter,
-                          Tensor<int> & selected,
+                          Tensor<double> & U,
                           Tensor<double> & omega,
                           Tensor<double> & S,     
                           Tensor<double> & A,     
@@ -499,47 +503,43 @@ class TDHF
                           int print_level);
 
       // Diagonalize the full response matrix, taking care of degenerate states
-      Tensor<int> diag_full_response(World & world,
-                                     Tensor<double> & S,
-                                     Tensor<double> & A,
-                                     ResponseFunction & x,
-                                     ResponseFunction & Vx,
-                                     ResponseFunction & x_g,
-                                     ResponseFunction & B_x,
-                                     ResponseFunction & y,
-                                     ResponseFunction & Vy,
-                                     ResponseFunction & y_g,
-                                     ResponseFunction & B_y,
-                                     Tensor<double> & omega, 
-                                     const double thresh,
-                                     int print_level);
+      Tensor<double> diag_full_response(World & world,
+                                        Tensor<double> & S,
+                                        Tensor<double> & A,
+                                        ResponseFunction & x,
+                                        ResponseFunction & Vx,
+                                        ResponseFunction & x_g,
+                                        ResponseFunction & x_fe,
+                                        ResponseFunction & B_x,
+                                        ResponseFunction & y,
+                                        ResponseFunction & Vy,
+                                        ResponseFunction & y_g,
+                                        ResponseFunction & y_fe,
+                                        ResponseFunction & B_y,
+                                        Tensor<double> & omega, 
+                                        const double thresh,
+                                        int print_level);
 
       // Similar to what robert did above in "get_fock_transformation"
       Tensor<double> get_full_response_transformation(World& world,
                                                       Tensor<double>& S,
                                                       Tensor<double>& A,
                                                       Tensor<double>& evals,
-                                                      const double thresh)   ; 
+                                                      const double thresh); 
 
       // Sorts the given Tensor and vector of functions in place
       Tensor<int> sort(World & world,
                        Tensor<double> & vals,
-                       Tensor<double> & vals_residuals,
-                       ResponseFunction & f,
-                       Tensor<double> & f_diff);
-
-      // Sorts the given Tensors 
-      Tensor<int> sort_eigenvalues(World & world,
-                                   Tensor<double> & vals,
-                                   Tensor<double> & vecs);
+                       Tensor<double> & vecs);
 
       // Creates the XCOperator object and initializes it with correct parameters
       XCOperator create_xcoperator(World& world,
-                                   std::vector<real_function_3d> orbitals);
+                                   std::vector<real_function_3d> orbitals,
+                                   std::string xc);
       
       // Uses an XCOperator to construct v_xc for the ground state density 
       // Returns d^2/d rho^2 E_xc[rho]
-      std::vector<real_function_3d> create_vxc(World& world,
+      std::vector<real_function_3d> create_fxc(World& world,
                                                std::vector<real_function_3d> & orbitals,
                                                ResponseFunction & f,
                                                ResponseFunction & g);
@@ -551,16 +551,9 @@ class TDHF
       // Uses member variables
       void analysis(World & world);
 
-      // Diagonalizes the given functions
-      void diagonalize_guess(World & world,
-                             ResponseFunction & f,
-                             Tensor<double> & omega,
-                             std::vector<real_function_3d> & orbitals,
-                             Tensor<double> & energies,
-                             double thresh,
-                             double small,
-                             int print_level,
-                             std::string xy);
+      // Simplified iterate scheme for guesses
+      void iterate_guess(World & world,
+                         ResponseFunction & guesses);
 
       // Create and diagonalize the CIS matrix for improved initial guess 
       ResponseFunction diagonalize_CIS_guess(World & world,
