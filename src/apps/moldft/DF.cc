@@ -503,9 +503,27 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
      complex_function_3d temp(world);
 
+     //reconstruct
+     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+          occupieds[i].reconstruct();
+     }
+
      unsigned int n = Init_params.num_occupied;
      for(unsigned int i = 0; i < n; i++){
-          for(unsigned int j = i; j < n ; j++){
+          for(unsigned int j = i; j < n ; j++){ //parallelize this loop using 4-vectors approach
+
+               /*TODO (vector inner_func)
+                * loop over 4 component indices
+                *   gather the n-i+1 (here, index j) functions for the component index
+                *   vector multiply by occupieds[i] component
+                *   accumulate result
+                * truncate
+                */
+
+
+               //load balance like in SCF.cc KE routine
+
+
                temp = inner_func(world,occupieds[j],occupieds[i]);
                temp.truncate();
 
@@ -528,7 +546,6 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                }
           }
 
-          //here too
           Kpsis[i].truncate();
      }
 
@@ -559,7 +576,7 @@ Fcwf DF::apply_K(World& world, real_convolution_3d& op, Fcwf& phi){
 
 //Diagonalize psiss in the Fock space. psis is modified in place. requires Kpsis to be precomputed
 //Kpsis are transformed in place.
-void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
+void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
 
      if(world.rank()==0) print("\n***Diagonalizing***");
      start_timer(world);
@@ -576,25 +593,27 @@ void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op
      
      ////Form the Fock Matrix
      //first apply Fock operator to all orbitals
+     //
      
-     if(world.rank() == 0) print("          Moving K*psi");
-     //Move Kpsis to new orbitals, as they are part of the fock operator
-     for(unsigned int j = 0; j < n; j++){
-          temp_orbitals.push_back(Kpsis[j]);
-          temp_orbitals[j].scale(-1.0);
-     }
-
      //calculate coulomb part
      if(world.rank() == 0) print("          Adding (V+J)psi");
      real_function_3d rho = real_factory_3d(world);
      for(unsigned int j = 0; j < n; j++){
           rho += squaremod(occupieds[j]);
      }
+     //TODO: Here try moving the apply out to operate on the sum of the nuclear and electronic charge distributions
      real_function_3d potential = myV + apply(op,rho);
+     potential.truncate();
 
      //add in coulomb parts to neworbitals
      for(unsigned int j = 0; j < n; j++){
-          temp_orbitals[j] += occupieds[j]*potential; //add in coulomb term
+          temp_orbitals.push_back(occupieds[j]*potential); //add in coulomb term
+     }
+
+     if(world.rank() == 0) print("          Subtracting K*psi");
+     //Move Kpsis to new orbitals, as they are part of the fock operator
+     for(unsigned int j = 0; j < n; j++){
+          temp_orbitals[j] -= Kpsis[j]; //yes this needs to be subtraction. exchange function doesn't include the negative.
      }
 
      //add in T_psi
@@ -689,6 +708,7 @@ void DF::diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op
 
      //debugging: print matrix of eigenvectors
      //if(world.rank()==0) print("U:\n", U);
+     //if(world.rank()==0) print("evals:\n", evals);
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
      if(world.rank()==0) print("     Removing Rotations");
@@ -864,6 +884,7 @@ std::vector<Fcwf> orthogonalize(World& world, std::vector<Fcwf> orbitals){
 
 //faster orthogonalize that modifies the input functions in place
 //Make this a member function of DF
+//TODO: The function below mimics one from SCF.cc. In the future we will probably want a different variant (which also should exist in SCF.cc or somwhere like that) that treats core and valence orbitals differently: i.e. doesn't mix valence orbitals into the core orbitals
 void DF::orthogonalize_inplace(World& world){
 
      unsigned int n = occupieds.size();
@@ -1077,12 +1098,16 @@ Tensor<double> DF::diagonalize_virtuals(World& world, real_function_3d& JandV,re
 
 }
 
-//Apply's Green's function to a single Fcwf, return new Fcwf
+//Apply's Green's function to Vpsi (a Fcwf). Overwrites Vpsi with new Fcwf
 //double iterate(World& world, complex_function_3d& V, Fcwf& psi, double& eps){
-Fcwf apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
+void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
 
 
+     //necessary constants
      double myc = 137.0359895; //speed of light
+     double c2 = myc*myc;
+     std::complex<double> myi(0,1); //imaginary number
+     std::complex<double> ic = myi*myc;
     
      //calculate exponent for equivalent BSH operator
      double mu = std::sqrt((myc*myc*myc*myc-eps*eps)/myc/myc);
@@ -1090,28 +1115,85 @@ Fcwf apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thr
      //if(world.rank() == 0) print("Hi, this is apply_BSH! mu is: ", mu);
 
      //create gradient BSH operators
-     //TODO: make my own GradBSH that first computes BSH with a ridiculous lo, and then accumulated to CDelta
-     std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> op3 = GradBSHOperator(world, mu, small, thresh); 
-    
+     //TODO: make my own GradBSH that first computes BSH with a ridiculous lo, and then accumulates to CDelta, then need something intelligent for the derivative of that result
+     world.gop.fence();
+     //double ttt = wall_time();
      //create BSH operator
-     real_convolution_3d op = BSHOperator3D(world, mu,small,thresh); // Finer length scale and accuracy control
-     //create Fcwfs for intermediate functions necessary to compute new components
-     Fcwf oppsi(apply(op,Vpsi));             //BSH(Vpsi)
-     Fcwf oppsix(apply(*op3[0],Vpsi));       //GradBSH_x(Vpsi)
-     Fcwf oppsiy(apply(*op3[1],Vpsi));       //GradBSH_y(Vpsi)
-     Fcwf oppsiz(apply(*op3[2],Vpsi));       //GradBSH_z(Vpsi)
-     Fcwf temp(world);                       //will hold the new wavefunction 4-vector
-     //manually compute new components of wavefunction. See Blackledge paper and any definition of the Dirac single-particle Hamiltonian
-     std::complex<double> myi(0,1);
-     temp[0] = myc*myc*oppsi[0]-myi*myc*oppsiz[2]-myi*myc*(oppsix[3]-myi*oppsiy[3]);
-     temp[1] = myc*myc*oppsi[1]-myi*myc*(oppsix[2]+myi*oppsiy[2])+myi*myc*oppsiz[3];
-     temp[2] = -myi*myc*oppsiz[0]-myi*myc*(oppsix[1]-myi*oppsiy[1])-myc*myc*oppsi[2];
-     temp[3] = -myi*myc*(oppsix[0]+myi*oppsiy[0])+myi*myc*oppsiz[1]-myc*myc*oppsi[3];
-     //finish up application of the dirac green's function
-     temp = (temp+(oppsi*eps))*(1.0/(myc*myc));
-     temp.normalize();
+     std::shared_ptr<real_convolution_3d> op = std::shared_ptr<real_convolution_3d>(BSHOperatorPtr3D(world, mu,small,thresh)); // Finer length scale and accuracy control
+     std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> op3 = GradBSHOperator(world, mu, small, thresh); 
+     std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> allops(16);
+     for(unsigned int i = 0; i < 4; i++){
+          allops[i] = op;
+          allops[4+i] = op3[0];
+          allops[8+i] = op3[1];
+          allops[12+i] = op3[2];
+     }
 
-     return temp;
+    
+     //world.gop.fence();
+     //ttt = wall_time() - ttt;
+     //if(world.rank()==0) print("              create operators:", ttt);
+
+
+     //create intermediate functions necessary to compute new components
+     //ttt = wall_time();
+     std::vector<complex_function_3d> temp(16);
+     for(unsigned int i = 0; i < 4; i++){
+          temp[i] = Vpsi[i];
+          temp[4+i] = Vpsi[i];
+          temp[8+i] = Vpsi[i];
+          temp[12+i] = Vpsi[i];
+     }
+
+     //Fcwf oppsi = apply(world, op, Vpsi);             //BSH(Vpsi)
+     //Fcwf oppsix = apply(world, *op3[0], Vpsi);       //GradBSH_x(Vpsi)
+     //Fcwf oppsiy = apply(world, *op3[1], Vpsi);       //GradBSH_y(Vpsi)
+     //Fcwf oppsiz = apply(world, *op3[2], Vpsi);       //GradBSH_z(Vpsi)
+     temp = apply(world, allops, temp);
+     //world.gop.fence();
+     //ttt = wall_time() - ttt;
+     //if(world.rank()==0) print("            create derivatives:", ttt);
+     //manually compute new components of wavefunction. See Blackledge paper and any definition of the Dirac single-particle Hamiltonian
+     //ttt = wall_time();
+
+
+
+     //build transformation tensor
+     Tensor<std::complex<double>> U(16,4);
+     U(0,0) = c2+eps; U(14,0) = -ic; U(7,0) = -ic; U(11,0) = -myc;
+     U(1,1) = c2+eps; U(6,1) = -ic; U(10,1) = myc; U(15,1) = ic;
+     U(12,2) = -ic; U(5,2) = -ic; U(9,2) = -myc; U(2,2) = eps-c2;
+     U(4,3) = -ic; U(8,3) = myc; U(13,3) = ic; U(3,3) = eps-c2;
+     U *= (1.0/c2);
+
+     ////build vector to be transformed
+     //std::vector<complex_function_3d> temp(16);
+     //temp[0] = oppsi[0]; temp[1] = oppsi[1]; temp[2] = oppsi[2]; temp[3] = oppsi[3];
+     //temp[4] = oppsix[0]; temp[5] = oppsix[1]; temp[6] = oppsix[2]; temp[7] = oppsix[3];
+     //temp[8] = oppsiy[0]; temp[9] = oppsiy[1]; temp[10] = oppsiy[2]; temp[11] = oppsiy[3];
+     //temp[12] = oppsiz[0]; temp[13] = oppsiz[1]; temp[14] = oppsiz[2]; temp[15] = oppsiz[3];
+
+     temp = transform(world, temp, U);
+     Vpsi[0] = temp[0];
+     Vpsi[1] = temp[1];
+     Vpsi[2] = temp[2];
+     Vpsi[3] = temp[3];
+
+     //Vpsi[0] = myc*myc*oppsi[0]-myi*myc*oppsiz[2]-myi*myc*(oppsix[3]-myi*oppsiy[3]);
+     //Vpsi[1] = myc*myc*oppsi[1]-myi*myc*(oppsix[2]+myi*oppsiy[2])+myi*myc*oppsiz[3];
+     //Vpsi[2] = -myi*myc*oppsiz[0]-myi*myc*(oppsix[1]-myi*oppsiy[1])-myc*myc*oppsi[2];
+     //Vpsi[3] = -myi*myc*(oppsix[0]+myi*oppsiy[0])+myi*myc*oppsiz[1]-myc*myc*oppsi[3];
+     ////finish up application of the dirac green's function
+     //Vpsi = (Vpsi+(oppsi*eps))*(1.0/(myc*myc));
+
+
+
+
+     //Vpsi.normalize(); //Don't want to do this because it messes with the equation KAIN is trying to solve.
+     //world.gop.fence();
+     //ttt = wall_time() - ttt;
+     //if(world.rank()==0) print("          apply transformation:", ttt);
+
 }
 
 
@@ -1179,8 +1261,8 @@ std::vector<Fcwf> to_fcwfs(World & world, std::vector<real_function_3d> & orbita
      //Loop over input orbitals
      for(unsigned int i = 0; i < n; i++){
           complexreader = function_real2complex(orbitals[i]);
-          spinup = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
-          spindown = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
+          spinup = Fcwf(copy(complexreader), complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
+          spindown = Fcwf(complex_factory_3d(world), copy(complexreader), complex_factory_3d(world), complex_factory_3d(world));
           result.push_back(spinup);
           result.push_back(spindown);
           
@@ -1228,14 +1310,14 @@ void DF::saveDF(World& world){
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      GaussianNucleusFunctor Vfunctor(Init_params.molecule);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 }
 
 //Creates the nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
 void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      GaussianNucleusFunctor Vfunctor(Init_params.molecule);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
      std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
      std::vector<int> Zlist = Vfunctor.get_Zlist();
      nuclear_repulsion_energy = 0.0;
@@ -1257,11 +1339,12 @@ void DF::DF_load_balance(World& world, real_function_3d& Vnuc){
      start_timer(world);
      LoadBalanceDeux<3> lb(world);
      lb.add_tree(Vnuc, lbcost<double,3>(12.0,96.0),true);
-     for(unsigned int j = 0; j < Init_params.num_occupied; j++){
-          for(int kk = 0; kk < 4; kk++){
-               lb.add_tree(occupieds[j][kk], lbcost<std::complex<double>,3>(24.0,192.0),true);
-          }
-     }
+     //Commenting out below block to test memory issues
+     //for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+     //     for(int kk = 0; kk < 4; kk++){
+     //          lb.add_tree(occupieds[j][kk], lbcost<std::complex<double>,3>(24.0,192.0),true);
+     //     }
+     //}
      FunctionDefaults<3>::redistribute(world, lb.load_balance(2), false);
      Tensor<double> times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
@@ -1352,13 +1435,21 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      std::vector<Fcwf> Residuals;
      Fcwf temp_function(world);
      double residualnorm;
+     real_function_3d rho = real_factory_3d(world);
 
      bool iterate_again = false; //Assume iterations will stop
 
      //Diagonalize, but not on the first iteration, unless it's a restarted job
-     if(iteration_number != 1 or DFparams.restart) diagonalize(world, V, op, Kpsis);
+     if(iteration_number != 1 or DFparams.restart){
+          diagonalize(world, V, op, Kpsis);
+          //update JandV
+          for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
+               rho += squaremod(occupieds[kk]);
+          }
+          JandV = V + apply(op,rho); 
+     }
      
-     //Actually let's see what happens if I always diagonalize
+     //Actually let's see what happens if I always diagonalize. Answer: still messes up first iteration
      //diagonalize(world, V, op, Kpsis);
 
 
@@ -1376,7 +1467,22 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           temp_function.truncate();
 
           //temp_function now holds (K-V-J)psi, so apply the BSH
-          temp_function  = apply_BSH(world,  temp_function, energies[j], DFparams.small, DFparams.thresh);
+          apply_BSH(world,  temp_function, energies[j], DFparams.small, DFparams.thresh);
+
+          //debugging: Look at size of function before and after truncating here to see what it's doing
+          std::size_t funcsize = temp_function[0].size();
+          funcsize += temp_function[1].size();
+          funcsize += temp_function[2].size();
+          funcsize += temp_function[3].size();
+          if(world.rank()==0) print("               size after BSH:", funcsize);
+
+          temp_function.truncate(); //try truncating here
+
+          funcsize = temp_function[0].size();
+          funcsize += temp_function[1].size();
+          funcsize += temp_function[2].size();
+          funcsize += temp_function[3].size();
+          if(world.rank()==0) print("          size after truncate:", funcsize);
           
           //Now calculate the residual
           temp_function = occupieds[j] - temp_function; 
@@ -1409,11 +1515,19 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           if(world.rank()==0) print("     ", times[0]);
      }
 
+     //truncate here
+     for(unsigned int i = 0; i < Init_params.num_occupied; i++) occupieds[i].truncate();
+
      //orthogonalize
      if(world.rank()==0) print("\n***Orthonormalizing***");
      start_timer(world);
      //occupieds = orthogonalize(world,occupieds);
      orthogonalize_inplace(world);
+     //truncate here and normalize again
+     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+           occupieds[i].truncate();
+           occupieds[i].normalize();
+     }
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
 
@@ -1424,7 +1538,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      //Calculate new J+V term
      if(world.rank()==0) print("\n***Recalculating Coulomb***");
      start_timer(world);
-     real_function_3d rho = real_factory_3d(world);
+     rho = real_factory_3d(world);
      for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
           rho += squaremod(occupieds[kk]);
      }
@@ -1757,7 +1871,7 @@ void DF::solve_virtuals1(World& world){
                tempfcwf += Kpsis[i];
 
                //if(world.rank()==0) print("Going into BSH, energy is:",v_energies[i] - csquared);
-               tempfcwf = apply_BSH(world,tempfcwf,v_energies[i],DFparams.small,DFparams.thresh);
+               apply_BSH(world,tempfcwf,v_energies[i],DFparams.small,DFparams.thresh);
                Residuals[i] = virtuals[i] - tempfcwf;
                double residualnorm = Residuals[i].norm2();
                if(world.rank()==0) print("Virtual ", i, "     Residual: ", residualnorm);

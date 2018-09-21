@@ -41,8 +41,8 @@ static const double op_dx=1e-16; //TRY CHANGING THIS 1e-16
 static const double op_quadacc=1e-8; //FIND ALL INSTANCES OF THIS AND DEAL WITH IT
 static const double op_thresh=1e-8;
     
-static const long k = 12;        // wavelet order
-static const double thresh = 1e-10; // precision
+static const long k = 10;        // wavelet order
+static const double thresh = 1e-8; // precision
 static const double L = 50.0;   // box size
 
 static const bool FINITENUC = false;
@@ -457,8 +457,7 @@ int main(int argc, char** argv) {
 
     //double Zlist[] = {1.0,2.0,3.0,4.0,6.0,8.0,10.0,12.0,16.0,20.0,30.0,40.0,60.0,80.0};
     //double Zlist[] = {1.0,2.0,4.0,8.0,10.0,16.0,20.0,32.0,40.0,48.0,56.0,60.0,64.0,72.0,76.0,80.0};
-    double Zlist[] = {80.0};
-    //double Zlist[] = {40.0,48.0,56.0,60.0,64.0,72.0,76.0,80.0};
+    double Zlist[] = {60.0,64.0,72.0,76.0,80.0};
     //double Zlist[] = {20.0,40.0,56.0,60.0,64.0,72.0,76.0,80.0};
     //double Zlist[] = {100.0};
     const int NumZs = sizeof(Zlist)/sizeof(Z);
@@ -511,7 +510,7 @@ int main(int argc, char** argv) {
           LoadBalanceDeux<3> lb(world);
           lb.add_tree(Vnuc, lbcost<double,3>(12.0,96.0),true);
           lb.add_tree(psi, lbcost<double,3>(12.0,96.0),true);
-          FunctionDefaults<3>::redistribute(world,lb.load_balance(2));
+          FunctionDefaults<3>::redistribute(world,lb.load_balance(2),false);
 	   }
 	
         psi.scale(1.0/psi.norm2());

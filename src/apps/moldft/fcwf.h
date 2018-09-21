@@ -66,11 +66,16 @@ public:
 
      std::complex<double>  inner(World& world, const Fcwf& phi) const;
 
+     void apply(World& world, real_convolution_3d& op);
+     
+     void reconstruct();
+
 };
 
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi);
 
-Fcwf apply(real_convolution_3d& op, const Fcwf& psi);
+//Fcwf apply(real_convolution_3d& op, const Fcwf& psi);
+Fcwf apply(World& world, real_convolution_3d& op, const Fcwf& psi);
 
 real_function_3d squaremod(Fcwf& psi);
 real_function_3d squaremod_small(Fcwf& psi);

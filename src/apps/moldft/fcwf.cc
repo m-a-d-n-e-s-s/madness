@@ -3,241 +3,243 @@
 using namespace madness;
 
      
-     Fcwf::Fcwf(){
-          m_initialized = false;
-     }
-     
+Fcwf::Fcwf(){
+     m_initialized = false;
+}
 
-     Fcwf::Fcwf(const complex_function_3d& wf1,
-          const complex_function_3d& wf2,
-          const complex_function_3d& wf3,
-          const complex_function_3d& wf4){
-          MADNESS_ASSERT(m_psi.size() == 0);
-          m_psi.push_back(copy(wf1));
-          m_psi.push_back(copy(wf2));
-          m_psi.push_back(copy(wf3));
-          m_psi.push_back(copy(wf4));
-          m_initialized = true;
-     }
 
-     Fcwf::Fcwf(World& world){
-          MADNESS_ASSERT(m_psi.size() == 0);
-          for(int i = 0 ; i < 4 ; i ++){
-               m_psi.push_back(complex_factory_3d(world));
+Fcwf::Fcwf(const complex_function_3d& wf1,
+     const complex_function_3d& wf2,
+     const complex_function_3d& wf3,
+     const complex_function_3d& wf4){
+     MADNESS_ASSERT(m_psi.size() == 0);
+     m_psi.push_back(wf1);
+     m_psi.push_back(wf2);
+     m_psi.push_back(wf3);
+     m_psi.push_back(wf4);
+     m_initialized = true;
+}
+
+Fcwf::Fcwf(World& world){
+     MADNESS_ASSERT(m_psi.size() == 0);
+     for(int i = 0 ; i < 4 ; i ++){
+          m_psi.push_back(complex_factory_3d(world));
+     }
+     m_initialized = true;
+}
+
+complex_function_3d& Fcwf::operator[](const int i){
+     MADNESS_ASSERT(i >= 0 && i <= 3);
+     MADNESS_ASSERT(m_initialized);
+     return m_psi[i];
+}
+
+const complex_function_3d& Fcwf::operator[](const int i) const {
+     MADNESS_ASSERT(i >= 0 && i <= 3);
+     MADNESS_ASSERT(m_initialized);
+     return m_psi[i];
+}
+
+Fcwf::Fcwf(std::vector<complex_function_3d>& phi){
+     MADNESS_ASSERT(m_psi.size() == 0);
+     MADNESS_ASSERT(phi.size() == 4);
+     for(int i = 0 ; i < 4 ; i++){
+          m_psi.push_back(phi[i]);
+     }
+     m_initialized=true;
+}
+
+bool Fcwf::getinitialize(){
+     return m_initialized;
+}
+
+bool Fcwf::getinitialize() const {
+     return m_initialized;
+}
+
+unsigned int Fcwf::size(){
+     MADNESS_ASSERT(m_initialized);
+     return m_psi.size();
+}
+
+unsigned int Fcwf::size() const {
+     MADNESS_ASSERT(m_initialized);
+     return m_psi.size();
+}
+
+//copy contructor defaults to deep copy
+//if this ever changes, you will need to change the copy() function, as it calls this
+Fcwf::Fcwf(const Fcwf& phi){
+     MADNESS_ASSERT(m_psi.size() == 0);
+     MADNESS_ASSERT(phi.size() == 4);
+     for(int i = 0 ; i < 4 ; i++){
+          m_psi.push_back(copy(phi[i]));
+     }
+     m_initialized = true;
+}
+
+//Assignment operator defaults to shallow copy
+Fcwf Fcwf::operator=(const Fcwf& phi){
+     //MADNESS_ASSERT(phi.getinitialize());
+     //if (this != &phi) {
+     //     if(m_psi.size() == 4){
+     //          for(int i = 0 ; i < 4 ; i++){
+     //               m_psi[i] = copy(phi[i]);
+     //          }
+     //     }
+     //     else {
+     //          MADNESS_ASSERT(m_psi.size() == 0);
+     //          for(int i = 0 ; i < 4 ; i++){
+     //               m_psi.push_back(copy(phi[i]));
+     //          }
+     //     }
+     //}
+     //m_initialized = true;
+     m_psi = phi.m_psi;
+     m_initialized = phi.m_initialized;
+     return *this;
+}
+
+Fcwf Fcwf::operator-(const Fcwf& phi) const {
+     MADNESS_ASSERT(phi.getinitialize());
+     std::vector<complex_function_3d> temp;
+     if(m_initialized){
+          //temp = madness::sub(m_psi[0].world(), m_psi, phi.m_psi);
+          for(int i = 0 ; i < 4 ; i++){
+               temp.push_back(m_psi[i] - phi[i]);
           }
-          m_initialized = true;
      }
+     else {
+          for(int i = 0 ; i < 4 ; i++){
+               temp.push_back(copy(phi[i]));
+               temp[i].scale(-1.0);
+          }
+     }
+     return Fcwf(temp);
+}
 
-     complex_function_3d& Fcwf::operator[](const int i){
-          MADNESS_ASSERT(i >= 0 && i <= 3);
-          MADNESS_ASSERT(m_initialized);
-          return m_psi[i];
+Fcwf Fcwf::operator+(const Fcwf& phi){
+     MADNESS_ASSERT(phi.getinitialize());
+     std::vector<complex_function_3d> temp;
+     if(m_initialized){
+          //temp = madness::add(m_psi[0].world(), m_psi, phi.m_psi);
+          for(int i = 0 ; i < 4 ; i++){
+               temp.push_back(m_psi[i] + phi[i]);
+          }
      }
+     else {
+          for(int i = 0 ; i < 4 ; i++){
+               temp.push_back(copy(phi[i]));
+          }
+     }
+     return Fcwf(temp);
+}
 
-     const complex_function_3d& Fcwf::operator[](const int i) const {
-          MADNESS_ASSERT(i >= 0 && i <= 3);
-          MADNESS_ASSERT(m_initialized);
-          return m_psi[i];
+Fcwf Fcwf::operator*(std::complex<double> a) const {
+     MADNESS_ASSERT(m_initialized);
+     std::vector<complex_function_3d> temp(4);
+     for(int i = 0 ; i < 4 ; i++){
+          temp[i] = a*m_psi[i];    
      }
-     
-     Fcwf::Fcwf(std::vector<complex_function_3d>& phi){
-          MADNESS_ASSERT(m_psi.size() == 0);
-          MADNESS_ASSERT(phi.size() == 4);
+     return Fcwf(temp);
+}
+
+void Fcwf::scale(std::complex<double> a){
+     MADNESS_ASSERT(m_initialized);
+     for(int i = 0 ; i < 4 ; i++){
+          //m_psi[i] = a*m_psi[i];
+          m_psi[i].scale(a);
+     }
+}
+
+Fcwf Fcwf::operator+=(const Fcwf& phi){
+     if(m_initialized){
+          //m_psi = madness::add(m_psi[0].world(), m_psi, phi.m_psi);
+          for(int i = 0 ; i < 4 ; i++){
+               m_psi[i] += phi[i];
+          }
+     }
+     else {
+          MADNESS_ASSERT(m_psi.size()==0);
           for(int i = 0 ; i < 4 ; i++){
                m_psi.push_back(copy(phi[i]));
           }
-          m_initialized=true;
+          m_initialized = true;
      }
+     return *this;
+}
 
-     bool Fcwf::getinitialize(){
-          return m_initialized;
+Fcwf Fcwf::operator-=(const Fcwf& phi){
+     if(m_initialized){
+          //m_psi = madness::sub(m_psi[0].world(), m_psi, phi.m_psi);
+          for(int i = 0 ; i < 4 ; i++){
+               m_psi[i] -= phi[i];
+          }
      }
-
-     bool Fcwf::getinitialize() const {
-          return m_initialized;
-     }
-
-     unsigned int Fcwf::size(){
-          MADNESS_ASSERT(m_initialized);
-          return m_psi.size();
-     }
-
-     unsigned int Fcwf::size() const {
-          MADNESS_ASSERT(m_initialized);
-          return m_psi.size();
-     }
-
-     //copy contructor defaults to deep copy
-     Fcwf::Fcwf(const Fcwf& phi){
-          MADNESS_ASSERT(m_psi.size() == 0);
-          MADNESS_ASSERT(phi.size() == 4);
+     else {
+          MADNESS_ASSERT(m_psi.size()==0);
           for(int i = 0 ; i < 4 ; i++){
                m_psi.push_back(copy(phi[i]));
+               m_psi[i].scale(-1.0);
           }
           m_initialized = true;
      }
-
-     //Assignment operator defaults to deep copy
-     Fcwf Fcwf::operator=(const Fcwf& phi){
-          MADNESS_ASSERT(phi.getinitialize());
-          if (this != &phi) {
-               if(m_psi.size() == 4){
-                    for(int i = 0 ; i < 4 ; i++){
-                         m_psi[i] = copy(phi[i]);
-                    }
-               }
-               else {
-                    MADNESS_ASSERT(m_psi.size() == 0);
-                    for(int i = 0 ; i < 4 ; i++){
-                         m_psi.push_back(copy(phi[i]));
-                    }
-               }
-          }
-          m_initialized = true;
-          return *this;
-     }
-
-     Fcwf Fcwf::operator-(const Fcwf& phi) const {
-          MADNESS_ASSERT(phi.getinitialize());
-          std::vector<complex_function_3d> temp;
-          if(m_initialized){
-               for(int i = 0 ; i < 4 ; i++){
-                    temp.push_back(m_psi[i] - phi[i]);
-               }
-          }
-          else {
-               for(int i = 0 ; i < 4 ; i++){
-                    temp.push_back(copy(phi[i]));
-                    temp[i].scale(-1.0);
-               }
-          }
-          return Fcwf(temp);
-     }
-
-     Fcwf Fcwf::operator+(const Fcwf& phi){
-          MADNESS_ASSERT(phi.getinitialize());
-          std::vector<complex_function_3d> temp;
-          if(m_initialized){
-               for(int i = 0 ; i < 4 ; i++){
-                    temp.push_back(m_psi[i] + phi[i]);
-               }
-          }
-          else {
-               for(int i = 0 ; i < 4 ; i++){
-                    temp.push_back(copy(phi[i]));
-               }
-          }
-          return Fcwf(temp);
-     }
-
-     Fcwf Fcwf::operator*(std::complex<double> a) const {
-          MADNESS_ASSERT(m_initialized);
-          std::vector<complex_function_3d> temp(4);
-          for(int i = 0 ; i < 4 ; i++){
-               temp[i] = a*m_psi[i];    
-          }
-          return Fcwf(temp);
-     }
-     
-     void Fcwf::scale(std::complex<double> a){
-          MADNESS_ASSERT(m_initialized);
-          for(int i = 0 ; i < 4 ; i++){
-               m_psi[i] = a*m_psi[i];
-          }
-     }
-     
-     Fcwf Fcwf::operator+=(const Fcwf& phi){
-          if(m_initialized){
-               for(int i = 0 ; i < 4 ; i++){
-                    m_psi[i] += phi[i];
-               }
-          }
-          else {
-               MADNESS_ASSERT(m_psi.size()==0);
-               for(int i = 0 ; i < 4 ; i++){
-                    m_psi.push_back(copy(phi[i]));
-               }
-               m_initialized = true;
-          }
-          return *this;
-     }
-
-     Fcwf Fcwf::operator-=(const Fcwf& phi){
-          if(m_initialized){
-               //print("inpl substract 1");
-               for(int i = 0 ; i < 4 ; i++){
-                    //print("inpl subtract 2, ", i);
-                    m_psi[i] -= phi[i];
-               }
-          }
-          else {
-               //print("inpl subtract 3");
-               MADNESS_ASSERT(m_psi.size()==0);
-               for(int i = 0 ; i < 4 ; i++){
-                    //print("inpl subtract 4, ",i);
-                    m_psi.push_back(copy(phi[i]));
-                    //print("inpl subtract 5, ",i);
-                    m_psi[i].scale(-1.0);
-               }
-               //print("inpl subtract 6");
-               m_initialized = true;
-          }
-          //print("inpl subtract 7");
-          return *this;
-     }
+     return *this;
+}
 
 
-     double Fcwf::norm2(){
-          MADNESS_ASSERT(m_initialized);
-          std::complex<double> temp = madness::inner(m_psi[0].world(), m_psi, m_psi).sum();
-          //std::complex<double> temp(0,0);
-          //for(int i = 0 ; i < 4 ; i++){
-          //     temp += madness::inner(m_psi[i],m_psi[i]);
-          //}
-          return std::sqrt(std::real(temp));
-     }
+double Fcwf::norm2(){
+     MADNESS_ASSERT(m_initialized);
+     std::complex<double> temp = madness::inner(m_psi[0].world(), m_psi, m_psi).sum();
+     //std::complex<double> temp(0,0);
+     //for(int i = 0 ; i < 4 ; i++){
+     //     temp += madness::inner(m_psi[i],m_psi[i]);
+     //}
+     return std::sqrt(std::real(temp));
+}
 
-     void Fcwf::normalize(){
-          MADNESS_ASSERT(m_initialized);
-          //print("normalize1");
-          double norm = norm2();
-          //print("normalize2", norm);
-          MADNESS_ASSERT(norm != 0.0);
-          for(int i = 0 ; i < 4 ; i++){
-               //print("normalize3, ", i);
-               m_psi[i] = (1.0/norm)*m_psi[i];
-          }
+void Fcwf::normalize(){
+     MADNESS_ASSERT(m_initialized);
+     double norm = norm2();
+     MADNESS_ASSERT(norm != 0.0);
+     for(int i = 0 ; i < 4 ; i++){
+          m_psi[i].scale(1.0/norm);// = (1.0/norm)*m_psi[i];
      }
+}
 
-     Fcwf Fcwf::operator*(madness::complex_function_3d& phi){
-          MADNESS_ASSERT(m_initialized);
-          std::vector<complex_function_3d> temp(4);
-          for(int i = 0 ; i < 4 ; i++){
-               temp[i] = phi*m_psi[i];
-          }
-          return Fcwf(temp);
+Fcwf Fcwf::operator*(madness::complex_function_3d& phi){
+     MADNESS_ASSERT(m_initialized);
+     std::vector<complex_function_3d> temp(4);// = mul(m_psi[0].world(), phi, m_psi);
+     for(int i = 0 ; i < 4 ; i++){
+          temp[i] = phi*m_psi[i];
      }
+     return Fcwf(temp);
+}
 
-     Fcwf Fcwf::operator*(madness::real_function_3d& phi){
-          MADNESS_ASSERT(m_initialized);
-          std::vector<complex_function_3d> temp(4);
-          for(int i = 0 ; i < 4 ; i++){
-               temp[i] = phi*m_psi[i];
-          }
-          return Fcwf(temp);
+Fcwf Fcwf::operator*(madness::real_function_3d& phi){
+     MADNESS_ASSERT(m_initialized);
+     std::vector<complex_function_3d> temp(4);// = madness::mul(m_psi[0].world(), phi, m_psi);
+     for(int i = 0 ; i < 4 ; i++){
+          temp[i] = phi*m_psi[i];
      }
+     return Fcwf(temp);
+}
 
-     void Fcwf::truncate(){
-          MADNESS_ASSERT(m_initialized);
-          for(int i = 0 ; i < 4 ; i++){
-               m_psi[i].truncate();    
-          }
+void Fcwf::truncate(){
+     MADNESS_ASSERT(m_initialized);
+     for(int i = 0 ; i < 4 ; i++){
+          m_psi[i].truncate();    
      }
+}
 
-     std::complex<double> Fcwf::inner(World& world, const Fcwf& phi) const{
-          MADNESS_ASSERT(m_initialized && phi.getinitialize());
-          return madness::inner(world, m_psi, phi.m_psi).sum();
-     }
+std::complex<double> Fcwf::inner(World& world, const Fcwf& phi) const{
+     MADNESS_ASSERT(m_initialized && phi.getinitialize());
+     return madness::inner(world, m_psi, phi.m_psi).sum();
+}
+
+void Fcwf::apply(World& world, real_convolution_3d& op){
+     m_psi = madness::apply(world, op, m_psi);
+}
 
 
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi){
@@ -250,13 +252,19 @@ std::complex<double> inner(const Fcwf& psi, const Fcwf& phi){
      return psi.inner(psi[0].world(), phi);
 }
 
-Fcwf apply(real_convolution_3d& op, const Fcwf& psi){
-     std::vector<complex_function_3d> temp;
-     for(int i = 0 ; i < 4 ; i++){
-          temp.push_back(madness::apply(op, psi[i]));
-     }
-     return Fcwf(temp);
+//Fcwf apply(real_convolution_3d& op, const Fcwf& psi){
+//     std::vector<complex_function_3d> temp;
+//     for(int i = 0 ; i < 4 ; i++){
+//          temp.push_back(madness::apply(op, psi[i]));
+//     }
+//     return Fcwf(temp);
+//}
+Fcwf apply(World& world, real_convolution_3d& op, const Fcwf& psi){
+     Fcwf temp = copy(psi);
+     temp.apply(world, op);
+     return temp;
 }
+
 
 real_function_3d squaremod(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
@@ -441,6 +449,12 @@ void transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> 
           a[i][3] = a_4[i];
      }
      
+}
+
+//loop through fcwf and reconstruct each function
+void Fcwf::reconstruct(){
+     MADNESS_ASSERT(m_initialized); //needed?
+     for(unsigned int i = 0; i < 4; i++) m_psi[i].reconstruct();
 }
 
 
