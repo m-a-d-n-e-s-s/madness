@@ -161,9 +161,8 @@ namespace madness{
   /// Calculation Parameters for CC2 and TDA calculations
   /// Maybe merge this with calculation_parameters of SCF at some point, or split into TDA and CC
   struct CCParameters{
-    // default constructor
-    //	CC_Parameters():
-    //	{return CC_Parameters("default constructor")}
+
+	CCParameters(){};
 
     const double uninitialized = 123.456;
 
@@ -173,74 +172,73 @@ namespace madness{
     /// ctor reading out the input file
     CCParameters(const std::string& input,const double &low);
 
-
     // the demanded calculation: possibilities are MP2_, CC2_, CIS_, CCS_ (same as CIS), CISpD_
-    CalcType calculation;
-    double lo;
+    CalcType calculation = CT_LRCC2;
+    double lo = 1.e-7;
     // the finest length to be resolved by 6D operators which needs special refinement
     // this will define the depth of the special level (default is 1.0 bohr)
-    double dmin;
+    double dmin=1.0;
     // function thresh 3D
-    double thresh_3D;
-    double tight_thresh_3D;
+    double thresh_3D=FunctionDefaults<3>::get_thresh();
+    double tight_thresh_3D=FunctionDefaults<3>::get_thresh()*0.1;
     // function thresh 6D
-    double thresh_6D;
-    double tight_thresh_6D;
+    double thresh_6D=FunctionDefaults<6>::get_thresh();
+    double tight_thresh_6D=FunctionDefaults<3>::get_thresh()*0.1;
     // BSH thresh
-    double thresh_bsh_3D;
-    double thresh_bsh_6D;
+    double thresh_bsh_3D=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
+    double thresh_bsh_6D=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
     // Poisson thresh
-    double thresh_poisson;
+    double thresh_poisson=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
     // f12 thresh
-    double thresh_f12;
+    double thresh_f12=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
     // Ue thresh
-    double thresh_Ue;
+    double thresh_Ue=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
     // Convergence for Correlation Energy (overall and pairs)
-    double econv;
-    double econv_pairs;
+    double econv=FunctionDefaults<6>::get_thresh();
+    double econv_pairs=FunctionDefaults<6>::get_thresh();
     // Convergence for CC-singles
-    double dconv_3D;
+    double dconv_3D=FunctionDefaults<6>::get_thresh();
     // Convergence for CC-Doubles
-    double dconv_6D;
+    double dconv_6D=FunctionDefaults<6>::get_thresh();;
     // iterations
-    size_t iter_max;
-    size_t iter_max_3D;
-    size_t iter_max_6D;
+    size_t iter_max=10;
+    size_t iter_max_3D=10;
+    size_t iter_max_6D=10;
     // restart
-    bool restart;
-    bool no_compute;
-    std::pair<std::size_t,std::size_t> only_pair;
-    bool no_compute_gs;
-    bool no_compute_response;
-    bool no_compute_mp2;
-    bool no_compute_cc2;
-    bool no_compute_cispd;
-    bool no_compute_lrcc2;
+    bool restart=false;
+    bool no_compute=false;
+    std::pair<int,int> only_pair =std::make_pair(-1,-1);
+    bool no_compute_gs=false;
+    bool no_compute_response=false;
+    bool no_compute_mp2=false;
+    bool no_compute_cc2=false;
+    bool no_compute_cispd=false;
+    bool no_compute_lrcc2=false;
     // Exponent for the correlation factor
-    double corrfac_gamma;
+    double corrfac_gamma=1.0;
     // for formated output
-    size_t output_prec;
+    size_t output_prec=1.e-8;
     // debug mode
-    bool debug;
+    bool debug=false;
     // make additional plots
-    bool plot;
+    bool plot=false;
     // use kain
-    bool kain;
-    size_t kain_subspace;
+    bool kain=true;
+    size_t kain_subspace=5;
     // freeze MOs
-    size_t freeze;
+    size_t freeze=0;
     // Gamma of the correlation factor
     double gamma()const{
       if(corrfac_gamma<0) MADNESS_EXCEPTION("ERROR in CC_PARAMETERS: CORRFAC_GAMMA WAS NOT INITIALIZED",1);
       return corrfac_gamma;
     }
-    bool test;
+    bool test=false;
     // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
-    bool decompose_Q;
+    bool decompose_Q=false;
     // if true the ansatz for the CC2 ground state pairs is |tau_ij> = |u_ij> + Qtf12|titj>, with Qt = Q - |tau><phi|
     // if false the ansatz is the same with normal Q projector
     // the response ansatz is the corresponding response of the gs ansatz
-    bool QtAnsatz;
+    bool QtAnsatz=true;
 
     /// a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
     std::vector<size_t> excitations_;

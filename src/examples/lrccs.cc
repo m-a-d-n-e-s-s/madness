@@ -74,13 +74,30 @@ static inline int file_exists(const char * inpname)
 
 using namespace madness;
 
+static void canonicalize(World& world, Tensor<double>& A, vecfuncT& v, const double prec){
+	MADNESS_ASSERT(A.ndim() == 2);
+	MADNESS_ASSERT(A.dim(0) == A.dim(1) && A.dim(0) == v.size());
+	const auto n = A.dim(0);
+
+	Tensor<double> U, evals;
+	syev(A, U, evals);
+	v = transform(world, v, U);
+	truncate(world, v,prec);
+	A = Tensor<double>(n, n);
+	for (size_t i = 0; i != n; ++i) A(i, i) = evals(i);
+}
+
 // test routine which tests h2o molecule
 bool test_lrccs(World& world){
+
+	std::vector<bool> results;
+	std::vector<std::string> nemo_param={"none", "slater"};
+	for(const auto nemo_type:nemo_param){
 	bool passed=true;
 	// print the input
 	// primitive version since we hopefuly have a nice data format in the future
 	if(world.rank()==0){
-		const std::string filename ="lrccs_test_input_h2o";
+		const std::string filename ="lrccs_test_input_h2o_"+nemo_type;
 		if(world.rank()==0) std::cout << "writing test input into file: " << filename << "\n";
 		std::ofstream outfile(filename);
 		  if(!outfile.is_open()) {
@@ -90,7 +107,9 @@ bool test_lrccs(World& world){
 
 		  outfile << "plot\nend"
 				  << "\n\n"
-				  << "\ndft\n canon \n xc hf\n econv 1.e-4\n dconv 1.e-3\n protocol 1.e-4\n L 30.0\nend"
+				  << "\ndft\n canon \n xc hf\n econv 1.e-4\n dconv 1.e-3\n protocol 1.e-4\n L 30.0"
+				  << "\n nuclear_corrfac " << nemo_type
+				  <<"\nend"
 		  	  	  << "\n\n"
 		  	  	  << "\nresponse \n thresh 1.e-4\n excitations 4\n freeze 1 \nend"
 				  << "\n\n"
@@ -117,13 +136,13 @@ bool test_lrccs(World& world){
 		  TDHF tdhf(world,nemo,filename);
 		  std::vector<CC_vecfunction> roots=tdhf.solve_cis();
 
-		  std::vector<double> expected_results = {0.3182483205,0.3794405844,0.3999497675,0.4099298010};
+		  std::vector<double> expected_results = {0.3182483205,0.3794405844,0.3999497675,0.4088869291};
 		  std::vector<double> results;
 		  for(const auto& x:roots) results.push_back(x.omega);
 
 
 		  if(world.rank()==0){
-			  std::cout << "\n\n TEST FOR H2O ENDED:\n";
+			  std::cout << "\n\nNEMO=" << nemo_type << " TEST FOR H2O ENDED:\n";
 
 			  for(size_t i=0;i<results.size();++i){
 				  const double err = expected_results[i]-results[i];
@@ -136,9 +155,18 @@ bool test_lrccs(World& world){
 
 			 if(passed) std::cout << "H2O TEST PASSED! :)\n";
 			 else std::cout << "H2O TEST FAILED! :(\n";
+			 results.push_back(passed);
 		  }
 	}
-return passed;
+	}
+bool result=true;
+for(const auto x:results) if(x==false) result=false;
+if(world.rank()==0){
+	std::cout << "Test Results:\n";
+	for(size_t i=0;i<results.size();++i) std::cout << "nemo=" << nemo_param[i] << " : " << results[i] << "\n";
+}
+
+return result;
 }
 
 int main(int argc, char** argv) {
@@ -210,6 +238,44 @@ int main(int argc, char** argv) {
     	if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy
     			<<"\n current wall-time: " << wall_time()
     			<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";
+
+		// experimental
+		{
+			// get the list
+			std::vector<int> list;
+			for(size_t i=0;i<nemo.get_calc()->amo.size();++i){
+				const std::string key="recanonicalize"+std::to_string(i);
+				if(nemo.get_calc()->param.generalkeyval.find(key)!=nemo.get_calc()->param.generalkeyval.end()){
+					list.push_back(i);
+				}
+			}
+
+			if(list.size()>1){
+				if(world.rank()==0) std::cout << "Canonicalizing orbitals " << list << "\n";
+				Fock F(world,&nemo);
+				// testing
+				Tensor<double> Ftesta=F(nemo.get_calc()->amo,nemo.get_calc()->amo);
+				if(world.rank()==0) std::cout << "Fock Matrix:\n" << Ftesta << "\n";
+
+				vecfuncT vdom;
+				for(const int& i:list) vdom.push_back(nemo.get_calc()->amo[i]);
+
+				Tensor<double> Fblock=F(vdom,vdom);
+				if(world.rank()==0) std::cout << "Partial Fock Matrix:\n" << Fblock << "\n";
+				canonicalize(world,Fblock,vdom,std::min(FunctionDefaults<3>::get_thresh(),1.e-5));
+				for(size_t ii=0;ii<vdom.size();++ii){
+					int i=list[ii];
+					nemo.get_calc()->amo[i]=vdom[ii];
+				}
+				// testing
+				Tensor<double> Ftest=F(nemo.get_calc()->amo,nemo.get_calc()->amo);
+				for(size_t k=0;k<nemo.get_calc()->amo.size();++k) nemo.get_calc()->aeps(k)=Ftest(k,k);
+				if(world.rank()==0) std::cout << "new Fock Matrix:\n" << Ftest << "\n";
+			}else if(world.rank()==0) std::cout << "nothing to recanonicalzie\n";
+
+
+
+		}
 
 
     	TDHF tdhf(world,nemo,input);

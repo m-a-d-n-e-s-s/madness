@@ -12,25 +12,108 @@
 #include "nemo.h"
 #include "projector.h"
 #include "SCFOperators.h"
+#include <math.h>
 
 
 
 namespace madness {
+
+// macro for planewavefunctor
+#define SPLITCOORD(x,y,z,r) double x=r[0]-origin[0]; double y=r[1]-origin[1];double z=r[2]-origin[2];
+
+
+
+/// creates a plane-wave: sin (or cos) with argument (npi/L*x)
+struct PlaneWaveFunctor : public FunctionFunctorInterface<double,3> {
+
+	PlaneWaveFunctor(std::vector<double> vn,std::vector<bool> vc, const coord_3d& c) : L(FunctionDefaults<3>::get_cell_width()), n(vn), cosinus(vc), origin(c) {}
+
+	typedef double resultT;
+
+    /// for explicit construction of this plane-wave function
+    double operator()(const coord_3d& r)const{
+    	SPLITCOORD(x,y,z,r);
+
+    	double result=1.0;
+    	for(int i=0;i<3;++i){
+    		result=result*(*this)(r[i],i);
+    	}
+    	return result;
+
+    }
+    /// operator for the 1D plane waves
+    double operator()(const double & x, const int& dim)const{
+    	const double argument = (2.0*n[dim])*M_PI/L[dim];
+    	if(cosinus[dim]){
+    		return cos(argument*x);
+    	}else{
+    		return sin(argument*x);
+    	}
+    }
+    /// in case this is needed at some point
+    double operator()(const coord_1d & x, const int& dim)const{
+    	return (*this)(x[0],dim);
+    }
+
+    std::string name(const bool& compact=false)const{
+    	std::string result="";
+
+    	for(size_t i=0;i<3;++i){
+    		if(compact and n[i]>0){
+    			if(cosinus[i])	result+="c_" + std::to_string(n[i])+"_";
+    			else 			result+="s_" + std::to_string(n[i])+"_";
+    		}
+    		else if(n[i]>0){
+    			if(cosinus[i])	result+="cos(n=" + std::to_string(n[i]) +" l="+ std::to_string(L[i]) + ")";
+    			else 			result+="sin(n=" + std::to_string(n[i]) +" l="+ std::to_string(L[i]) + ")";
+    		}else result +="0";
+
+    	}
+
+    	return result;
+    }
+
+    const Tensor<double> L;
+    const std::vector<double> n;
+    const std::vector<bool> cosinus;
+    const coord_3d origin;
+
+
+};
+
+/// create excitation operators with unaryop (faster as explicit construction and multiplication)
+struct ExopUnaryOpStructure {
+
+	ExopUnaryOpStructure(const std::shared_ptr<FunctionFunctorInterface<double,3> >  f) :exfunc(f),
+		cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())){};
+
+	/// computes the corrected potential (weighting with correction factor and adding of 1/r potential)
+	/// @param[in] t: uncorrected exchange correlation potential
+	/// @param[out] t: corrected exchange correlation potential
+    void operator()(const Key<3>& key, Tensor<double>& t) const {
+        Tensor<double> exop(t.ndim(),t.dims());
+        const Tensor<double>& qp =cdata.quad_x;
+        fcube(key,(*exfunc),qp,exop);
+        t.emul(exop);
+    }
+    /// shared pointer to object of excitation operator
+    std::shared_ptr<FunctionFunctorInterface<double,3> >  exfunc;
+    FunctionCommonData<double,3> cdata;
+    template <typename Archive> void serialize(Archive& ar) {}
+};
+
 
 
 /// The TDHF class
 /// solves CIS/TDA equations and hopefully soon the full TDHF/TDDFT equations
 class TDHF{
 public:
-	TDHF(World & world,const Nemo &nemo, const std::string& input="input");
-	virtual
-	~TDHF();
-
 	/// the TDHF parameter class
 	struct Parameters{
 
 		// disable default constructor (need nemo information)
 		Parameters();
+		Parameters(const std::shared_ptr<SCF>& scf);
 		Parameters(const std::shared_ptr<SCF>& scf, const std::string& input);
 
 		/// assign default for everything that has not been assigned from file:
@@ -93,7 +176,11 @@ public:
 		/// exop z 1.0
 		/// the options dipole, dipole+, dipole+diffuse and quadrupole give predefined exops without explicitly stating them
 		/// see the end of TDHF.cc for predefined keys
-		std::string guess_virtuals="dipole+diffuse_big";
+		std::string guess_virtuals="ppw";
+
+		/// add center of mass functions determined by the homo-energy
+		/// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
+		double guess_cm=3.5;
 
 		/// use the diagonal approximation for the guess (only e_a -e_i terms in CIS matrix)
 		/// much faster
@@ -105,19 +192,19 @@ public:
 
 
 		/// convergence for the excitation vectors
-		double dconv_guess=-1.0;
+		double guess_dconv=-1.0;
 		double dconv=FunctionDefaults<3>::get_thresh()*10.0;
 		/// convergence for the excitation energy
-		double econv_guess=-1.0;
+		double guess_econv=-1.0;
 		double econv=FunctionDefaults<3>::get_thresh();
 
 		/// store the potential for orthogonalizations or recalculate it
 		bool store_potential=true;
 
 		/// maximum number of iterations in the final iterations
-		size_t iter_max=10;
+		size_t maxiter=25;
 		/// maximum number of guess iterations (mostly more than the final ones and always without KAIN)
-		size_t iter_guess=10;
+		size_t guess_maxiter=10;
 		/// Vector of strings which contains the polynomial excitation operators
 		/// For this to be used the tda_guess key has to be "custom"
 		/// The strings are given in a format like: "c c1 x x1 y y1 z z1, c c2 x x2 y y2 z z2, ..." which will be interpreted as: c1*x^x1*y^y1*z^z1 + c2*x^x2*y^y2*z^z2 + ....
@@ -137,6 +224,11 @@ public:
 
 		void print(World& world) const;
 	}; // end of parameter class
+
+	TDHF(World & world,const Nemo &nemo, const std::string& input="input");
+	TDHF(World & world,const Nemo &nemo, const Parameters& param);
+	virtual
+	~TDHF();
 
 	/// print information
 	void print_xfunctions(std::vector<CC_vecfunction> & f, const bool& fullinfo=false)const{
@@ -204,17 +296,22 @@ public:
 	std::vector<CC_vecfunction> make_y_guess(const std::vector<CC_vecfunction> & x, std::vector<CC_vecfunction> & y)const;
 	/// Make the old CIS Guess
 	/// the routine is now used to create virtuals
-	std::vector<CC_vecfunction> make_old_guess()const;
+	std::vector<CC_vecfunction> make_old_guess(const vecfuncT& f)const;
 
 	/// Create a set of virtual orbitals for the initial guess
 	vecfuncT make_virtuals() const;
+
+	/// make product plane-wave virtuals (similar as in Baker, Burke, White 2018)
+	/// multiply plane waves onto the occupied orbitals
+	/// the numer of virtuals will be about (2*order)^3*seed.size()
+	vecfuncT make_ppw_virtuals(const vecfuncT& seed, const int& order) const;
 
 	/// make the initial guess by explicitly diagonalizing a CIS matrix with virtuals from the make_virtuals routine
 	std::vector<CC_vecfunction> make_guess_from_initial_diagonalization() const;
 	/// canonicalize a set of orbitals (here the virtuals for the guess)
 	vecfuncT canonicalize(const vecfuncT& v)const{
 		CCTimer time(world,"canonicalize");
-		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
+		Fock F(world, &nemo);
 		const vecfuncT vbra=make_bra(v);
 		Tensor<double> Fmat = F(vbra,v);
 		Tensor<double> S = matrix_inner(world, vbra, v);
@@ -234,7 +331,7 @@ public:
 		// make bra elements
 		const vecfuncT virtuals_bra = make_bra(virtuals);
 		// make Fock Matrix of virtuals for diagonal elements
-		Fock F(world, nemo.get_calc().get(), nemo.nuclear_correlation);
+		Fock F(world, &nemo);
 		Tensor<double> Fmat = F(virtuals_bra, virtuals);
 
 
@@ -262,6 +359,7 @@ public:
 		auto get_com_idx = [nvirt](int i, int a) { return i*nvirt+a; };
 		auto get_vir_idx = [nvirt](int I) {return I%nvirt;};
 		auto get_occ_idx = [nvirt](int I) {return I/nvirt;};
+		auto delta = [](int x, int y) {if (x==y) return 1; else return 0;};
 
 
 		const int dim=(virtuals.size()*nocc);
@@ -282,7 +380,7 @@ public:
 				for(int J=0;J<dim;++J){
 					const int b=get_vir_idx(J);
 					const int j=get_occ_idx(J);
-					MCIS(I,I) = Fmat(a,b)-Focc(i,j);
+					MCIS(I,J) = Fmat(a,b)*delta(i,j)-Focc(i,j)*delta(a,b);
 				}
 			}
 		}else{
@@ -490,7 +588,6 @@ public:
 	/// the messenger IO
 	CCMessenger msg;
 };
-
 
 
 
