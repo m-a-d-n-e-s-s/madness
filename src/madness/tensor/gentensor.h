@@ -190,8 +190,8 @@ namespace madness {
 		GenTensor<T> reconstruct_tensor() const {return *this;}
 		GenTensor<T> full_tensor() const {return *this;}
 		GenTensor<T>& full_tensor() {return *this;}
-        GenTensor<T> full_tensor_copy() const {return *this;}
-        GenTensor<T> full_tensor_copy() {return *this;}
+        GenTensor<T> full_tensor_copy() const {return copy(*this);}
+        GenTensor<T> full_tensor_copy() {return copy(*this);}
 
         bool has_data() const {return this->size()>0;};
         bool has_no_data() const {return not has_data();};
