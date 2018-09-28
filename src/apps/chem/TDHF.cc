@@ -29,123 +29,10 @@ struct TDHF_allocator{
 
 };
 
-/// GaussFunctor so let the exciation operators go to zero at the boundaries
-/// 1S symmetry: totally symmetric
-struct gauss_functor : public FunctionFunctorInterface<double,3> {
-public:
-	gauss_functor();
-	gauss_functor(const double& width): width_(width){
-		MADNESS_ASSERT(not(width<0.0));
-	}
-	gauss_functor(const double& width, const coord_3d c): width_(width), center(c){
-		MADNESS_ASSERT(not(width<0.0));
-	}
-	gauss_functor(const double& width, const Tensor<double> c): width_(width), center(tensor_to_coord(c)){
-		MADNESS_ASSERT(not(width<0.0));
-	}
-	const double width_;
-	const coord_3d center=coord_3d();
-	coord_3d tensor_to_coord(const Tensor<double>& t)const{
-		coord_3d result;
-		MADNESS_ASSERT(t.size()>=3);
-		for(size_t i=0;i<3;++i) result[i]=t[i];
-		return result;
-	}
-	double operator()(const coord_3d &rr)const{
-		coord_3d r;
-		r[0]=rr[0]-center[0];
-		r[1]=rr[1]-center[1];
-		r[2]=rr[2]-center[2];
-		if(width_<=0.0) return 1.0;
-		else{
-			const double prefactor = 0.06349363593424097/(width_*width_*width_);
-			const double exponent=0.5/(width_*width_);
-			return prefactor*exp(-exponent*(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));
-		}
-		return 1.0;
-	}
-
-
-};
-
-/// Project a general 3D polynomial to the MRA Grid
-struct polynomial_functor : public FunctionFunctorInterface<double,3> {
-public :
-	polynomial_functor(const std::string input, const double& damp_width=0.0, const coord_3d& c=coord_3d()) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(c) {}
-	polynomial_functor(const std::string input, const double& damp_width, const Tensor<double>& c) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(dampf.tensor_to_coord(c)) {}
-
-	double operator()(const coord_3d &rr)const{
-		coord_3d r;
-		r[0]=rr[0]-center[0];
-		r[1]=rr[1]-center[1];
-		r[2]=rr[2]-center[2];
-		return dampf(r)*make_polynom(r);
-	}
-	double make_polynom(const coord_3d& r)const{
-		double result =0.0;
-		for(size_t i=0;i<data_.size();i++){
-			if(data_[i].size()!=4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, empty data_ entry",1);
-			result += ( data_[i][3]*pow(r[0],data_[i][0])*pow(r[1],data_[i][1])*pow(r[2],data_[i][2]) );
-		}
-		return result;
-	}
-private:
-	const std::string input_string_;
-	/// The data for the construction of the polynomial chain
-	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
-	const std::vector<std::vector<double>> data_;
-	gauss_functor dampf;
-	coord_3d center=coord_3d();
-public:
-	std::vector<std::vector<double> > read_string(const std::string string)const{
-		std::stringstream line(string);
-		std::string name;
-		size_t counter = 0;
-		std::vector<double> current_data = vector_factory(0.0,0.0,0.0,1.0);
-		std::vector<std::vector<double> > read_data;
-		while(line>>name){
-			if(name=="c") line>>current_data[3];
-			else if(name=="x") line>>current_data[0];
-			else if(name=="y") line>>current_data[1];
-			else if(name=="z") line>>current_data[2];
-			else if(name==","){
-				counter++; read_data.push_back(current_data); current_data = vector_factory(0.0,0.0,0.0,1.0);
-			}
-		}
-		// dont forget the last read polynomial
-		read_data.push_back(current_data);
-		return read_data;
-	}
-	void test(){
-		std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
-		std::cout << "\n read data is \n" << data_ << std::endl;
-	}
-	std::vector<std::vector<double> > give_data(){return data_;}
-};
 
 
 
-/// helper struct for computing the moments
-struct xyz {
-	int direction;
-	xyz(int direction) : direction(direction) {}
-	double operator()(const coord_3d& r) const {
-		return r[direction];
-	}
-};
 
-
-coord_3d compute_centroid(const real_function_3d& f){
-	coord_3d result(0.0);
-	real_function_3d density = f*f;
-	const double integral= density.trace();
-	for(size_t x=0;x<3;++x){
-		const auto mf = xyz(x);
-		real_function_3d m=real_factory_3d(f.world()).functor(mf);
-		result[x]=(m*density).trace()/integral;
-	}
-	return result;
-}
 // conveniece to interface functions
 TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param):
 								    												  world(world),
@@ -993,26 +880,15 @@ vecfuncT TDHF::make_virtuals() const {
 			const double norm = sqrt(inner(make_bra(x), x));
 			x.scale(1.0 / norm);
 		}
-	} else if(parameters.guess_virtuals == "ppw"){
-		// product plane wave (similar as in Baker, Burke, White 2018
-		int order = 1;
-		if(parameters.generalkeyval.find("ppw_order")!=parameters.generalkeyval.end()) order = std::stoi(parameters.generalkeyval.find("ppw_order")->second);
-		if(order!=1) msg.output("Found ppw_order keyval\nTake Care: a lot of virtuals will be created!");
+	} else{
+		// create the seeds
 		vecfuncT xmo;
 		for(size_t i=0;i<parameters.guess_occ_to_virt;++i) xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size()-1-i]);
-		virtuals = make_ppw_virtuals(xmo,order);
 
-	} else	// use the old guess format and convert to normalized virtuals (result is essentially the same as ppw but with polynomials instead of plane waves;
-	{
-		std::vector<CC_vecfunction> cguess = make_old_guess(get_active_mo_ket());
-		for (const auto& xg : cguess) {
-			for (const auto& f : xg.get_vecfunction()) {
-				if (f.norm2() > 0.1) {
-					const double norm = sqrt(inner(make_bra(f), f));
-					virtuals.push_back(1.0 / norm * f);
-				}
-			}
-		}
+		bool use_trigo=true;
+		if(parameters.generalkeyval.find("polynomial_exops")!=parameters.generalkeyval.end()) use_trigo = (std::stoi(parameters.generalkeyval.find("polynomial_exops")->second)==0);
+		virtuals = apply_excitation_operators(xmo,use_trigo);
+
 	}
 
 	if(parameters.guess_cm>0.0){
@@ -1040,15 +916,12 @@ vecfuncT TDHF::make_virtuals() const {
 	if (world.rank() == 0)
 		std::cout << "created " << virtuals.size() << " virtuals\n";
 
-	virtuals = Q(virtuals);
-	if (parameters.plot) {
-		CCTimer timep(world,"plot");
-		for(size_t i=0;i<virtuals.size();++i){
-			plot_plane(world, virtuals[i], "virt_"+std::to_string(i));
-			save(virtuals[i],"virt_"+std::to_string(i));
-		}
-		timep.print();
-	}
+	plot(virtuals,"virtuals");
+	CCTimer timerQ(world,"virt=Qvirt");
+	virtuals=Q(virtuals);
+	timerQ.print();
+	plot(virtuals,"Qvirtuals");
+
 	if (parameters.debug) {
 		for (const auto& x : virtuals)
 			x.print_size("virtual");
@@ -1058,84 +931,42 @@ vecfuncT TDHF::make_virtuals() const {
 	return virtuals;
 }
 
-madness::vecfuncT TDHF::make_ppw_virtuals(const vecfuncT& seed, const int& order) const {
+vecfuncT TDHF::apply_excitation_operators(const vecfuncT& seed, const bool& use_trigo) const {
 	//const int nvirt = seed.size() * ((2 * order * 2 * order * 2 * order) - 1);
 	//	msg.subsection("creating a set of " + std::to_string(nvirt) + " virtuals by multiplying functions with plane waves");
-
 	// compute the centers of the seed functions
 	CCTimer time_centers(world,"compute centers");
-	std::vector<coord_3d> centers;
-	for(const auto& s:seed){
-		const coord_3d c=compute_centroid(s);
-		centers.push_back(c);
-	}
+	std::vector<coord_3d> centers = compute_centroids(seed);
 	time_centers.print();
-	if(world.rank()==0) std::cout << "Centers of the seed functions are:\n" << centers << "\n";
-
-	CCTimer timec(world, "initialize exops");
-	vecfuncT virtuals;// = zero_functions<double, 3>(world, nvirt);
-	// create the exops (plane waves) and initialize the virtuals with the right seed functions
-	std::vector<ExopUnaryOpStructure> exops;
-
-	// make sin and cos guess instead of x and x2
-	for (size_t i=0;i<seed.size();++i) {
-		const coord_3d& c=centers[i];
-		std::vector<double> n1 = { 1.0,0.0,0.0 };
-		std::vector<double> n2 = { 0.0,1.0,0.0 };
-		std::vector<double> n3 = { 0.0,0.0,1.0 };
-
-		std::vector<double> n4 = { 0.0,1.0,1.0 };
-		std::vector<double> n5 = { 1.0,0.0,1.0 };
-		std::vector<double> n6 = { 1.0,1.0,0.0 };;
-
-		std::vector<double> n7 = { 1.0,1.0,1.0 };
-
-		std::vector<bool> cosinus = {true,true,true };
-		std::vector<bool> sinusx = {false,true,true };
-		std::vector<bool> sinusy = {true,false,true };
-		std::vector<bool> sinusz = {true,true,false };
-		std::vector<bool> sinusxz = {false,true,false };
-		std::vector<bool> sinusyz = {true,false,false };
-		std::vector<bool> sinusxy = {false,false,true };
-
-		exops.push_back(ExopUnaryOpStructure(std::shared_ptr<PlaneWaveFunctor>(new PlaneWaveFunctor(n1, sinusx, c))));
-		exops.push_back(ExopUnaryOpStructure(std::shared_ptr<PlaneWaveFunctor>(new PlaneWaveFunctor(n2, sinusy, c))));
-		exops.push_back(ExopUnaryOpStructure(std::shared_ptr<PlaneWaveFunctor>(new PlaneWaveFunctor(n3, sinusz, c))));
-		exops.push_back(ExopUnaryOpStructure(std::shared_ptr<PlaneWaveFunctor>(new PlaneWaveFunctor(n4, sinusyz, c))));
-		exops.push_back(ExopUnaryOpStructure(std::shared_ptr<PlaneWaveFunctor>(new PlaneWaveFunctor(n5, sinusxz, c))));
-		exops.push_back(ExopUnaryOpStructure(std::shared_ptr<PlaneWaveFunctor>(new PlaneWaveFunctor(n6, sinusxy, c))));
-		exops.push_back(ExopUnaryOpStructure(std::shared_ptr<PlaneWaveFunctor>(new PlaneWaveFunctor(n7, cosinus, c))));
-		virtuals.push_back(copy(seed[i],false));
-		virtuals.push_back(copy(seed[i],false));
-		virtuals.push_back(copy(seed[i],false));
-		virtuals.push_back(copy(seed[i],false));
-		virtuals.push_back(copy(seed[i],false));
-		virtuals.push_back(copy(seed[i],false));
-		virtuals.push_back(copy(seed[i],false));
-	}
 
 
-
-	if(world.rank()==0) std::cout << " will create " << virtuals.size() << " virtuals\n";
-	timec.print();
-
-	MADNESS_ASSERT(exops.size()==virtuals.size());
-
-	world.gop.fence();
-
-	timec.print();
-	CCTimer timeex(world, "excite");
-	const size_t nvirt=virtuals.size();
-	for(size_t v=0;v<nvirt;++v){
-		virtuals[v].unaryop(exops[v],false);
+	// prepare the list of excitation operators and copied seeds
+	CCTimer time_init_exop(world,"initialize excitation operators");
+	std::vector<std::pair<vecfuncT, std::string> > exlist;
+	{
+		std::vector<std::string> exop_strings=parameters.exops;
+		if(parameters.guess_virtuals!="custom") exop_strings=(make_predefined_guess_strings(parameters.guess_virtuals));
+		for(const auto ex: exop_strings){
+			vecfuncT cseed=copy(world,seed,false);
+			exlist.push_back(std::make_pair(cseed,ex));
+		}
 	}
 	world.gop.fence();
-	timeex.print();
-	CCTimer timep(world, "apply Q");
-	virtuals = Q(virtuals);
-	for(size_t v=0;v<nvirt;++v){plot_plane(world,virtuals[v],"Qvirt_"+std::to_string(v));}
-	timep.print();
+	time_init_exop.print();
+	if(world.rank()==0) std::cout << "will create " << exlist.size()*seed.size() << " virtuals, from " << seed.size() << " seeds and " << exlist.size() << " excitation operators"   <<" \n";
+
+	// create the virtuals by unary operations: multiply excitation operators with seeds
+	CCTimer time_create_virtuals(world,"create virtuals");
+	vecfuncT virtuals;
+	for(auto it:exlist){
+		if(use_trigo) virtuals=append(virtuals,apply_trigonometric_exop(it.first,it.second,centers,false));
+		else virtuals=append(virtuals,apply_polynomial_exop(it.first,it.second,centers,false));
+	}
+	world.gop.fence();
+	time_create_virtuals.print();
+
 	return virtuals;
+
 }
 
 vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {

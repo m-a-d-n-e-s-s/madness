@@ -13,96 +13,11 @@
 #include "projector.h"
 #include "SCFOperators.h"
 #include <math.h>
+#include "GuessFactory.h"
 
 
 
 namespace madness {
-
-// macro for planewavefunctor
-#define SPLITCOORD(x,y,z,r) double x=r[0]-origin[0]; double y=r[1]-origin[1];double z=r[2]-origin[2];
-
-
-
-/// creates a plane-wave: sin (or cos) with argument (npi/L*x)
-struct PlaneWaveFunctor : public FunctionFunctorInterface<double,3> {
-
-	PlaneWaveFunctor(std::vector<double> vn,std::vector<bool> vc, const coord_3d& c) : L(FunctionDefaults<3>::get_cell_width()), n(vn), cosinus(vc), origin(c) {}
-
-	typedef double resultT;
-
-    /// for explicit construction of this plane-wave function
-    double operator()(const coord_3d& r)const{
-    	SPLITCOORD(x,y,z,r);
-
-    	double result=1.0;
-    	for(int i=0;i<3;++i){
-    		result=result*(*this)(r[i],i);
-    	}
-    	return result;
-
-    }
-    /// operator for the 1D plane waves
-    double operator()(const double & x, const int& dim)const{
-    	const double argument = (2.0*n[dim])*M_PI/L[dim];
-    	if(cosinus[dim]){
-    		return cos(argument*x);
-    	}else{
-    		return sin(argument*x);
-    	}
-    }
-    /// in case this is needed at some point
-    double operator()(const coord_1d & x, const int& dim)const{
-    	return (*this)(x[0],dim);
-    }
-
-    std::string name(const bool& compact=false)const{
-    	std::string result="";
-
-    	for(size_t i=0;i<3;++i){
-    		if(compact and n[i]>0){
-    			if(cosinus[i])	result+="c_" + std::to_string(n[i])+"_";
-    			else 			result+="s_" + std::to_string(n[i])+"_";
-    		}
-    		else if(n[i]>0){
-    			if(cosinus[i])	result+="cos(n=" + std::to_string(n[i]) +" l="+ std::to_string(L[i]) + ")";
-    			else 			result+="sin(n=" + std::to_string(n[i]) +" l="+ std::to_string(L[i]) + ")";
-    		}else result +="0";
-
-    	}
-
-    	return result;
-    }
-
-    const Tensor<double> L;
-    const std::vector<double> n;
-    const std::vector<bool> cosinus;
-    const coord_3d origin;
-
-
-};
-
-/// create excitation operators with unaryop (faster as explicit construction and multiplication)
-struct ExopUnaryOpStructure {
-
-	ExopUnaryOpStructure(const std::shared_ptr<FunctionFunctorInterface<double,3> >  f) :exfunc(f),
-		cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())){};
-
-	/// computes the corrected potential (weighting with correction factor and adding of 1/r potential)
-	/// @param[in] t: uncorrected exchange correlation potential
-	/// @param[out] t: corrected exchange correlation potential
-    void operator()(const Key<3>& key, Tensor<double>& t) const {
-        Tensor<double> exop(t.ndim(),t.dims());
-        const Tensor<double>& qp =cdata.quad_x;
-        fcube(key,(*exfunc),qp,exop);
-        t.emul(exop);
-    }
-    /// shared pointer to object of excitation operator
-    std::shared_ptr<FunctionFunctorInterface<double,3> >  exfunc;
-    FunctionCommonData<double,3> cdata;
-    template <typename Archive> void serialize(Archive& ar) {}
-};
-
-
 
 /// The TDHF class
 /// solves CIS/TDA equations and hopefully soon the full TDHF/TDDFT equations
@@ -167,8 +82,9 @@ public:
 		/// determine how the virtuals for the guess are constructed: scf, external, custom, dipole, quadrupole
 		/// scf: read in the ao set from scf (scales with system size)
 		/// external: read in virtuals from disk
-		/// custom: create virtuals form occupied orbitals by multiplying with polynomials
+		/// custom or predefined strings like dipole, dipole+, ... : create virtuals form occupied orbitals by multiplying with polynomials
 		/// |v> = |occ>*poly
+		/// if custom is chosen:
 		/// the polynomials can be determined by: exop x n1 y n2 z n3 c n4, x n11 ... x n44, ...  which will be n4*x^n1*y^n2*z^n3 + n44*x^n11* ...
 		/// e.g. for a dipole guess enter the exop keyword 3 times as:
 		/// exop x 1.0
@@ -176,7 +92,7 @@ public:
 		/// exop z 1.0
 		/// the options dipole, dipole+, dipole+diffuse and quadrupole give predefined exops without explicitly stating them
 		/// see the end of TDHF.cc for predefined keys
-		std::string guess_virtuals="ppw";
+		std::string guess_virtuals="dipole+";
 
 		/// add center of mass functions determined by the homo-energy
 		/// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
@@ -229,6 +145,15 @@ public:
 	TDHF(World & world,const Nemo &nemo, const Parameters& param);
 	virtual
 	~TDHF();
+
+	/// plot planes and cubes
+	void plot(const vecfuncT& vf, const std::string& name)const{
+		if(parameters.plot){
+		CCTimer timer(world,"plot planes and cubes");
+		madness::plot(vf,name,nemo.get_calc()->molecule.cubefile_header());
+		timer.print();
+		}
+	}
 
 	/// print information
 	void print_xfunctions(std::vector<CC_vecfunction> & f, const bool& fullinfo=false)const{
@@ -301,10 +226,10 @@ public:
 	/// Create a set of virtual orbitals for the initial guess
 	vecfuncT make_virtuals() const;
 
-	/// make product plane-wave virtuals (similar as in Baker, Burke, White 2018)
-	/// multiply plane waves onto the occupied orbitals
-	/// the numer of virtuals will be about (2*order)^3*seed.size()
-	vecfuncT make_ppw_virtuals(const vecfuncT& seed, const int& order) const;
+	/// multiply excitation operators defined in the parameters with the seed functions
+	/// @param[in] the seeds, define the function which are multiplied by the excitation operators
+	/// @param[in] use_trigo, if false polynomials are used for excitation operators, else trigonometric functions (i.e. x^2y vs sin^2(x)*sin(y))
+	vecfuncT apply_excitation_operators(const vecfuncT& seed,const bool& use_trigo=true) const;
 
 	/// make the initial guess by explicitly diagonalizing a CIS matrix with virtuals from the make_virtuals routine
 	std::vector<CC_vecfunction> make_guess_from_initial_diagonalization() const;

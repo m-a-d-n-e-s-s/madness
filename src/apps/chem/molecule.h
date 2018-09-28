@@ -139,6 +139,9 @@ public:
 
     Molecule(const std::string& filename);
 
+    /// print out a Gaussian cubefile header
+	std::vector<std::string> cubefile_header() const;
+
     // initializes Molecule using the contents of file \c filename
     void read_file(const std::string& filename);
     // initializes Molecule using the contents of stream \c f
@@ -325,6 +328,7 @@ public:
         ar & atoms & rcut & eprec & core_pot;
     }
 };
+
 }
 
 #endif
