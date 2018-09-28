@@ -1131,8 +1131,7 @@ namespace madness {
         // not the fastest way but easy to read
 
         // make pivoting matrix
-        //Tensor<typename Tensor<T>::scalar_type> P(n,n); // leads to erratic behaviour with complex_float and MKL
-        Tensor<T> P(n,n);
+        Tensor<typename Tensor<T>::scalar_type> P(n,n);
         for(size_t i=0;i<n;++i){
         	P(piv(i),i)=1.0;
         }
@@ -1140,8 +1139,7 @@ namespace madness {
         // make aap
         aa=inner(aa,P,1,0);
         // make Pt(aa)P
-        //Tensor<typename Tensor<T>::scalar_type> Pt=transpose(P); // leads to erratic behaviour with complex_float and MKL
-        Tensor<T> Pt=transpose(P);
+        Tensor<typename Tensor<T>::scalar_type> Pt=transpose(P);
         aa=inner(Pt,aa);
 
         return (LLT - aa).normf()/n;
