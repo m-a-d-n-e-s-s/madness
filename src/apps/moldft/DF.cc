@@ -501,50 +501,117 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
      //start timer
      start_timer(world);
 
-     complex_function_3d temp(world);
+     //zero out Kpsis
+     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+          Kpsis[i] = Fcwf(world);
+     }
 
      //reconstruct
      for(unsigned int i = 0; i < Init_params.num_occupied; i++){
           occupieds[i].reconstruct();
      }
 
+     //form occupied orbitals into 4 vectors of components
      unsigned int n = Init_params.num_occupied;
+     //std::vector<complex_function_3d> occupieds0(n);
+     //std::vector<complex_function_3d> occupieds1(n);
+     //std::vector<complex_function_3d> occupieds2(n);
+     //std::vector<complex_function_3d> occupieds3(n);
+     //for(unsigned int i = 0; i < n; i++){
+     //     occupieds0[i] = occupieds[i][0];
+     //     occupieds1[i] = occupieds[i][1];
+     //     occupieds2[i] = occupieds[i][2];
+     //     occupieds3[i] = occupieds[i][3];
+     //}
+
+     //Calculate and accumulate exchange contributions
      for(unsigned int i = 0; i < n; i++){
-          for(unsigned int j = i; j < n ; j++){ //parallelize this loop using 4-vectors approach
 
-               /*TODO (vector inner_func)
-                * loop over 4 component indices
-                *   gather the n-i+1 (here, index j) functions for the component index
-                *   vector multiply by occupieds[i] component
-                *   accumulate result
-                * truncate
-                */
-
-
-               //load balance like in SCF.cc KE routine
-
-
-               temp = inner_func(world,occupieds[j],occupieds[i]);
-               temp.truncate();
-
-               temp = apply(op,temp);
-               if(i == 0 && j == 0){
-                    Kpsis[i] = occupieds[j]*temp;
-               }
-               else if(i == 0){
-                    Kpsis[i] += occupieds[j]*temp;
-                    temp = temp.conj();
-                    Kpsis[j] = occupieds[i]*temp;
-               }
-               else if(i == j){
-                    Kpsis[i] += occupieds[j]*temp;
-               }
-               else{
-                    Kpsis[i] += occupieds[j]*temp;
-                    temp = temp.conj();
-                    Kpsis[j] += occupieds[i]*temp;
-               }
+          std::vector<complex_function_3d> temp(n-i);
+          for(unsigned int j = 0; j < n-i; j++){
+               temp[j] = complex_factory_3d(world);    
           }
+
+          std::vector<complex_function_3d> temp0(n-i);
+          std::vector<complex_function_3d> temp1(n-i);
+          std::vector<complex_function_3d> temp2(n-i);
+          std::vector<complex_function_3d> temp3(n-i);
+          for(unsigned int j = i; j < n; j++){
+               temp0[j-i] = occupieds[j][0];
+               temp1[j-i] = occupieds[j][1];
+               temp2[j-i] = occupieds[j][2];
+               temp3[j-i] = occupieds[j][3];
+          }
+
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*conj(world, temp0));
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*conj(world, temp1));
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][2]*conj(world, temp2));
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][3]*conj(world, temp3));
+
+          temp = apply(world, op, temp);
+
+          //IDEA: Kpsis[i][k] += sum(mul(world, temp, occupieds))
+          Kpsis[i][0] += sum(world, mul(world, temp, temp0));
+          Kpsis[i][1] += sum(world, mul(world, temp, temp1));
+          Kpsis[i][2] += sum(world, mul(world, temp, temp2));
+          Kpsis[i][3] += sum(world, mul(world, temp, temp3));
+          
+          temp = conj(world, temp);
+          //temp0 = mul(world, temp, temp0);
+          //temp1 = mul(world, temp, temp1);
+          //temp2 = mul(world, temp, temp2);
+          //temp3 = mul(world, temp, temp3);
+          temp0 = occupieds[i][0]*temp;
+          temp1 = occupieds[i][1]*temp;
+          temp2 = occupieds[i][2]*temp;
+          temp3 = occupieds[i][3]*temp;
+          for(unsigned int j = i+1; j < n; j++){
+               Kpsis[j][0] += temp0[j-i];
+               Kpsis[j][1] += temp1[j-i];
+               Kpsis[j][2] += temp2[j-i];
+               Kpsis[j][3] += temp3[j-i];
+          }
+          
+
+
+
+
+
+          //for(unsigned int j = i; j < n ; j++){ //parallelize this loop using 4-vectors approach
+
+          //     /*TODO (vector inner_func)
+          //      * loop over 4 component indices
+          //      *   gather the n-i+1 (here, index j) functions for the component index
+          //      *   vector multiply by occupieds[i] component
+          //      *   accumulate result
+          //      * truncate
+          //      */
+
+
+          //     //load balance like in SCF.cc KE routine
+
+
+          //     temp = inner_func(world,occupieds[j],occupieds[i]);
+          //     temp.truncate();
+
+          //     temp = apply(op,temp);
+          //     if(i == 0 && j == 0){
+          //          Kpsis[i] = occupieds[j]*temp;
+          //     }
+          //     else if(i == 0){
+          //          Kpsis[i] += occupieds[j]*temp;
+          //          temp = temp.conj();
+          //          Kpsis[j] = occupieds[i]*temp;
+          //     }
+          //     else if(i == j){
+          //          Kpsis[i] += occupieds[j]*temp;
+          //     }
+          //     else{
+          //          Kpsis[i] += occupieds[j]*temp;
+          //          temp = temp.conj();
+          //          Kpsis[j] += occupieds[i]*temp;
+          //     }
+          //}
 
           Kpsis[i].truncate();
      }
