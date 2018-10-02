@@ -3008,7 +3008,7 @@ namespace madness {
             
             if (iter > 0) {
                 //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
-                if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
+	      if (da < dconv * std::max(5,molecule.natom()) && db < dconv * std::max(5,molecule.natom())
                     && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) converged=true;
 
                 // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
