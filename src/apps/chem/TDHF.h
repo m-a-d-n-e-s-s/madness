@@ -26,7 +26,7 @@ public:
 	/// the TDHF parameter class
 	struct Parameters{
 
-		// disable default constructor (need nemo information)
+		// disable default constructor (need scf information)
 		Parameters();
 		Parameters(const std::shared_ptr<SCF>& scf);
 		Parameters(const std::shared_ptr<SCF>& scf, const std::string& input);
@@ -96,7 +96,7 @@ public:
 
 		/// add center of mass functions determined by the homo-energy
 		/// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
-		double guess_cm=3.5;
+		double guess_cm=2.0;
 
 		/// use the diagonal approximation for the guess (only e_a -e_i terms in CIS matrix)
 		/// much faster
@@ -147,26 +147,13 @@ public:
 	~TDHF();
 
 	/// plot planes and cubes
-	void plot(const vecfuncT& vf, const std::string& name)const{
-		if(parameters.plot){
-		CCTimer timer(world,"plot planes and cubes");
-		madness::plot(vf,name,nemo.get_calc()->molecule.cubefile_header());
-		timer.print();
-		}
-	}
+	void plot(const vecfuncT& vf, const std::string& name)const;
+
+	/// sort the xfunctions according to their excitation energy and name the excitation energies accordingly
+	std::vector<CC_vecfunction> sort_xfunctions(std::vector<CC_vecfunction> x)const;
 
 	/// print information
-	void print_xfunctions(std::vector<CC_vecfunction> & f, const bool& fullinfo=false)const{
-		for(const auto& x:f){
-			const double mem=get_size(world,x.get_vecfunction());
-			if(world.rank()==0){
-				std::cout << "ex. vector " << x.excitation << " | " << x.omega << " | " << mem << "(Gbyte)" << "\n";
-			}
-			if(fullinfo){
-				print_size(world,x.get_vecfunction(),"ex. vector "+std::to_string(x.excitation));
-			}
-		}
-	}
+	void print_xfunctions(const std::vector<CC_vecfunction> & f, const bool& fullinfo=false)const;
 
 	/// Initialize the CIS functions
 
@@ -178,16 +165,7 @@ public:
 	/// @param[in/out] CC_vecfunction
 	/// on input the guess functions (if empty or not enough the a guess will be generated)
 	/// on output the solution
-	std::vector<CC_vecfunction> solve_cis()const{
-		std::vector<CC_vecfunction> ccs;
-		// look for restart options
-		for(size_t k=0;k<parameters.restart.size();k++){
-			CC_vecfunction tmp;
-			const bool found= initialize_singles(tmp,RESPONSE,parameters.restart[k]);
-			if(found) ccs.push_back(tmp);
-		}
-		return solve_cis(ccs);
-	}
+	std::vector<CC_vecfunction> solve_cis()const;
 
 	std::vector<CC_vecfunction> solve_cis(std::vector<CC_vecfunction>& start) const;
 
@@ -217,8 +195,6 @@ public:
 	/// the energy is assumed to be stored in the CC_vecfunctions member omega
 	/// the wavefunction error is stored in the CC_vecfunctions member current_error
 	std::vector<vecfuncT> apply_G(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const;
-	/// Guess for TDHF y functions (not ready)
-	std::vector<CC_vecfunction> make_y_guess(const std::vector<CC_vecfunction> & x, std::vector<CC_vecfunction> & y)const;
 	/// Make the old CIS Guess
 	/// the routine is now used to create virtuals
 	std::vector<CC_vecfunction> make_old_guess(const vecfuncT& f)const;
@@ -232,138 +208,11 @@ public:
 	vecfuncT apply_excitation_operators(const vecfuncT& seed,const bool& use_trigo=true) const;
 
 	/// make the initial guess by explicitly diagonalizing a CIS matrix with virtuals from the make_virtuals routine
-	std::vector<CC_vecfunction> make_guess_from_initial_diagonalization() const;
+	vector<CC_vecfunction> make_guess_from_initial_diagonalization() const;
 	/// canonicalize a set of orbitals (here the virtuals for the guess)
-	vecfuncT canonicalize(const vecfuncT& v)const{
-		CCTimer time(world,"canonicalize");
-		Fock F(world, &nemo);
-		const vecfuncT vbra=make_bra(v);
-		Tensor<double> Fmat = F(vbra,v);
-		Tensor<double> S = matrix_inner(world, vbra, v);
-		Tensor<double> occ(v.size());
-		occ=1.0;
-		Tensor<double> evals;
-		if(parameters.debug and world.rank()==0) std::cout << "Canonicalize: Fock Matrix\n" << Fmat(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
-		if(parameters.debug and world.rank()==0) std::cout << "Canonicalize: Overlap Matrix\n" << S(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
-		Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, evals, occ, std::min(parameters.thresh,1.e-4));
-		vecfuncT result = madness::transform(world, v, U);
-		time.print();
-		return result;
-	}
+	vecfuncT canonicalize(const vecfuncT& v)const;
 	/// compute the CIS matrix for a given set of virtuals
-	Tensor<double> make_cis_matrix(const vecfuncT virtuals)const{
-
-		// make bra elements
-		const vecfuncT virtuals_bra = make_bra(virtuals);
-		// make Fock Matrix of virtuals for diagonal elements
-		Fock F(world, &nemo);
-		Tensor<double> Fmat = F(virtuals_bra, virtuals);
-
-
-		if (parameters.debug) {
-			const int dim = std::min(10,int(virtuals.size()));
-			if (world.rank() == 0)
-				std::cout << "Debug Part of Virtual Fock Matrix\n" << Fmat(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
-
-			Tensor<double> S = matrix_inner(world, virtuals_bra, virtuals);
-			if (world.rank() == 0)
-				std::cout << "Debug Overlap of virtuals\n" << S(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
-		}
-
-
-		CCTimer time_cis(world, "make CIS matrix");
-
-		// the cis matrix is indexed by ij and ab
-		// we will use the combined indixes from ia and jb named I and J
-		// in order to not be confused we use the following helper functions
-		const int nocc = get_active_mo_ket().size();
-		// determines for which orbitals (couting from the HOMO downwards) the off-diagonal elements will be computed
-		// this simplifies the guess
-		int active_guess_orbitals = parameters.guess_active_orbitals;
-		const int nvirt = virtuals.size();
-		auto get_com_idx = [nvirt](int i, int a) { return i*nvirt+a; };
-		auto get_vir_idx = [nvirt](int I) {return I%nvirt;};
-		auto get_occ_idx = [nvirt](int I) {return I/nvirt;};
-		auto delta = [](int x, int y) {if (x==y) return 1; else return 0;};
-
-
-		const int dim=(virtuals.size()*nocc);
-		if(world.rank()==0) std::cout << "CIS-Matrix for guess calculation will be of size " << dim << "x" << dim << "\n";
-		// the number of the matrix where elements which are not determined by orbital energies and the fock matrix are computed (controlled over active_guess_orbitals parameter)
-		const int dim2=(virtuals.size()*active_guess_orbitals);
-		if(dim2<dim and world.rank()==0) std::cout << "Effective size through neglect of some orbitals will be: " << dim2 << "x" << dim2 << "\n";
-		const int start_ij = nocc-active_guess_orbitals;
-		Tensor<double> MCIS(dim,dim);
-
-		// make CIS matrix
-		// first do the "diagonal" entries
-		if(nemo.get_calc()->param.localize){
-			Tensor<double> Focc = F(get_active_mo_bra(),get_active_mo_ket());
-			for(int I=0;I<dim;++I){
-				const int a=get_vir_idx(I);
-				const int i=get_occ_idx(I);
-				for(int J=0;J<dim;++J){
-					const int b=get_vir_idx(J);
-					const int j=get_occ_idx(J);
-					MCIS(I,J) = Fmat(a,b)*delta(i,j)-Focc(i,j)*delta(a,b);
-				}
-			}
-		}else{
-		for(int I=0;I<dim;++I){
-			const int a=get_vir_idx(I);
-			const int i=get_occ_idx(I);
-			MCIS(I,I) = Fmat(a,a)-get_orbital_energy(i+parameters.freeze);
-		}
-		}
-
-		if(not parameters.guess_diag){
-		int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
-		for (int i = start_ij; i < get_active_mo_ket().size(); ++i) {
-			const real_function_3d brai = get_active_mo_bra()[i];
-			const vecfuncT igv = g12(brai * virtuals);
-			for (int a = 0; a < virtuals.size(); ++a) {
-				I=get_com_idx(i,a);
-				int J =-1;
-				for (int j = start_ij; j < get_active_mo_ket().size(); ++j) {
-					const real_function_3d braj =get_active_mo_bra()[j];
-					for (int b = 0; b < virtuals.size(); ++b) {
-						J=get_com_idx(j,b);
-						if(J<=I){
-							const real_function_3d igj = g12(mo_bra_(i+parameters.freeze),mo_ket_(j+parameters.freeze)); // use exchange intermediate
-							const double rIJ = 2.0 * inner(braj * virtuals[b], igv[a]) - inner(virtuals_bra[a] * virtuals[b],igj);
-							MCIS(J,I) += rIJ;
-							MCIS(I,J) += rIJ;
-						}
-					}
-				}
-			}
-		}
-		}
-		if(world.rank()==0){
-			int sdim=std::min(int(MCIS.dim(0)),10);
-			std::cout << "Part of the CIS Matrix:\n" << MCIS(Slice(dim-sdim,-1),Slice(dim-sdim,-1)) << "\n";
-			if(parameters.debug) std::cout << "Debug: Full CIS Matrix:\n" << MCIS<< "\n";
-		}
-
-		// test if symmetric
-		if (parameters.debug) {
-			const double symm_norm = (MCIS - transpose(MCIS)).normf();
-			if (world.rank() == 0)
-				std::cout << "Hermiticity of CIS Matrix:\n" << "||MCIS-transpose(MCIS)||=" << symm_norm << "\n";
-
-			if (symm_norm > 1.e-4) {
-				int sliced_dim = 8;
-				if (8 > MCIS.dim(0))
-					sliced_dim = MCIS.dim(0);
-
-				if (world.rank() == 0)
-					std::cout << "first " << sliced_dim << "x" << sliced_dim << " block of MCIS Matrix\n" << MCIS(_, Slice(sliced_dim - 1, sliced_dim - 1));
-			}
-		}
-		time_cis.info();
-
-		return MCIS;
-	}
+	Tensor<double> make_cis_matrix(const vecfuncT virtuals)const;
 
 	/// initialize the excitation functions
 	bool
@@ -402,10 +251,7 @@ public:
 	}
 	/// Interface to the SCF.h fock_transform function
 	std::vector<CC_vecfunction> transform(const std::vector<CC_vecfunction> &x,const madness::Tensor<double> U) const;
-	/// Make guess function strings for given key
-	std::vector<std::string> make_predefined_guess_strings(const std::string what)const;
-	/// Make guess functions strings  to given order
-	std::vector<std::string> make_auto_polynom_guess(const size_t order)const;
+
 
 	/// Helper function to initialize the const mo_bra and ket elements
 	CC_vecfunction make_mo_bra(const Nemo &nemo) const {
@@ -512,6 +358,10 @@ public:
 	const QProjector<double,3> Q;
 	/// the messenger IO
 	CCMessenger msg;
+	/// converged roots
+	mutable std::vector<CC_vecfunction> converged_roots;
+	/// stored guess roots roots to feed into the cycle, sorted backwards for easier pop_back calling
+	mutable std::vector<CC_vecfunction> guess_roots;
 };
 
 

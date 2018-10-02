@@ -226,11 +226,10 @@ static real_function_3d apply_trigonometric_exop(real_function_3d & f, const std
 	return apply_trigonometric_exop(vf,exop_input,centers,fence).front();
 }
 
-
-
-class GuessFactory {
-
-};
+/// Makes an excitation operator string based on predefined keywords
+std::vector<std::string> make_predefined_exop_strings(const std::string what);
+/// Makes an automated excitation operator string for the excitation operators needed to create virtuals from the reference orbitals
+std::vector<std::string> make_auto_polynom_strings(const size_t order);
 
 inline std::vector<std::vector<double> > polynomial_functor::read_string(const std::string string) const
 {

@@ -105,13 +105,13 @@ bool test_lrccs(World& world){
 		    return false;
 		  }
 
-		  outfile << "plot\nend"
+		  outfile << "plot\npoints 1 \n plane x1 x2 \n zoom 1.0 \nend"
 				  << "\n\n"
-				  << "\ndft\n canon \n xc hf\n econv 1.e-4\n dconv 1.e-3\n protocol 1.e-4\n L 30.0"
-				  << "\n nuclear_corrfac " << nemo_type
+				  << "\ndft\n canon \n xc hf\n econv 1.e-4\n dconv 1.e-3\n protocol 1.e-4"
+				  << "\nnuclear_corrfac " << nemo_type
 				  <<"\nend"
 		  	  	  << "\n\n"
-		  	  	  << "\nresponse \n thresh 1.e-4\n excitations 4\n freeze 1 \nend"
+		  	  	  << "\nresponse \n thresh 1.e-4\n excitations 5\n freeze 1 \nend"
 				  << "\n\n"
 				  << "\ngeometry"
 				  << "\n o   0.00000000000000      0.00000000000000     -0.74803583254128"
@@ -136,7 +136,7 @@ bool test_lrccs(World& world){
 		  TDHF tdhf(world,nemo,filename);
 		  std::vector<CC_vecfunction> roots=tdhf.solve_cis();
 
-		  std::vector<double> expected_results = {0.3182483205,0.3794405844,0.3999497675,0.4088869291};
+		  std::vector<double> expected_results = {0.3182483205,0.3794405844,0.3999497675,0.4088869291}; // always demand one more than you want
 		  std::vector<double> results;
 		  for(const auto& x:roots) results.push_back(x.omega);
 
