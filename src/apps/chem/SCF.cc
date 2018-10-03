@@ -2465,32 +2465,32 @@ namespace madness {
         Q = newQ;
         //if (world.rank() == 0) { print("kain Q"); print(Q); }
         tensorT c;
-        if (world.rank() == 0) {
-            double rcond = 1e-12;
-            while (1) {
-                c = KAIN(Q, rcond);
-                print("kain c:", c);
-                //if (std::abs(c[m - 1]) < 5.0) { // was 3
-		if (c.absmax() < 3.0) { // was 3
-                    break;
-                } else if (rcond < 0.01) {
-                    print("Increasing subspace singular value threshold ", c[m - 1], rcond);
-                    rcond *= 100;
-                } else {
-		  //print("Forcing full step due to subspace malfunction");
-		  // c = 0.0;
-		  // c[m - 1] = 1.0;
-		  // break;
-		  print("Restarting KAIN due to subspace malfunction");
-		  Q = tensorT();
-		  subspace.clear();
-		  goto restart; // fortran hat on ...
-                }
-            }
-        }
+        //if (world.rank() == 0) {
+	double rcond = 1e-12;
+	while (1) {
+	  c = KAIN(Q, rcond);
+	  if (world.rank() == 0) print("kain c:", c);
+	  //if (std::abs(c[m - 1]) < 5.0) { // was 3
+	  if (c.absmax() < 3.0) { // was 3
+	    break;
+	  } else if (rcond < 0.01) {
+	    if (world.rank() == 0) print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+	    rcond *= 100;
+	  } else {
+	    //print("Forcing full step due to subspace malfunction");
+	    // c = 0.0;
+	    // c[m - 1] = 1.0;
+	    // break;
+	    if (world.rank() == 0) print("Restarting KAIN due to subspace malfunction");
+	    Q = tensorT();
+	    subspace.clear();
+	    goto restart; // fortran hat on ...
+	  }
+	}
+	//}
         END_TIMER(world, "Update subspace stuff");        
-
-        world.gop.broadcast_serializable(c, 0);
+	
+        world.gop.broadcast_serializable(c, 0); // make sure everyone has same data
         if (world.rank() == 0) {
             print("Subspace solution", c);
         }
