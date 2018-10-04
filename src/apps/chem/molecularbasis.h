@@ -396,7 +396,7 @@ public:
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & g & rmaxsq & numbf & dmat & dmatpsp & avec & bvec & aocc & bocc & aoccpsp & boccpsp;
+        ar & g & rmaxsq & numbf & dmat & dmatpsp & avec & bvec & aocc & bocc & aeps & beps & aoccpsp & boccpsp;
     }
 
 };
