@@ -107,13 +107,14 @@ bool test_lrccs(World& world){
 
 		  outfile << "plot\npoints 1 \n plane x1 x2 \n zoom 1.0 \nend"
 				  << "\n\n"
-				  << "\ndft\n canon \n xc hf\n econv 1.e-4\n dconv 1.e-3\n protocol 1.e-4"
+				  << "\ndft\n k 7\n canon \n xc hf\n econv 1.e-5\n dconv 1.e-5\n protocol 1.e-4 1.e-5"
 				  << "\nnuclear_corrfac " << nemo_type
 				  <<"\nend"
 		  	  	  << "\n\n"
-		  	  	  << "\nresponse \n thresh 1.e-4\n excitations 5\n freeze 1 \nend"
+		  	  	  << "\nresponse \n thresh 1.e-5 \n dconv 1.e-3 \n excitations 5\n freeze 1 \nend"
 				  << "\n\n"
 				  << "\ngeometry"
+				  << "\n eprec 1.e-6"
 				  << "\n o   0.00000000000000      0.00000000000000     -0.74803583254128"
 				  << "\n h   1.43358660382183      0.00000000000000      0.37401791627063"
 				  << "\n h  -1.43358660382183      0.00000000000000      0.37401791627063"
@@ -136,7 +137,7 @@ bool test_lrccs(World& world){
 		  TDHF tdhf(world,nemo,filename);
 		  std::vector<CC_vecfunction> roots=tdhf.solve_cis();
 
-		  std::vector<double> expected_results = {0.3182483205,0.3794405844,0.3999497675,0.4088869291}; // always demand one more than you want
+		  std::vector<double> expected_results = {0.3182483205,0.3794405844,0.3999497675,0.4099459}; // always demand one more than you want
 		  std::vector<double> results;
 		  for(const auto& x:roots) results.push_back(x.omega);
 
@@ -144,7 +145,7 @@ bool test_lrccs(World& world){
 		  if(world.rank()==0){
 			  std::cout << "\n\nNEMO=" << nemo_type << " TEST FOR H2O ENDED:\n";
 
-			  for(size_t i=0;i<results.size();++i){
+			  for(size_t i=0;i<expected_results.size();++i){
 				  const double err = expected_results[i]-results[i];
 				  if(fabs(err)<1.e-3) std::cout << "found root " << i << "\n";
 				  else{
@@ -216,7 +217,7 @@ int main(int argc, char** argv) {
         do_test=(std::string(argv[i])=="-test");
     }
     if (world.rank() == 0) print("input filename: ", inpname);
-    if (!file_exists(inpname)) {
+    if (!file_exists(inpname) and do_test==false) {
         throw "input file not found!";
     }
 

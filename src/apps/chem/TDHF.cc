@@ -35,40 +35,43 @@ struct TDHF_allocator{
 
 // conveniece to interface functions
 TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param):
-								    																  world(world),
+								    																		  world(world),
+																											  nemo(nemo_),
+																											  parameters(param),
+																											  g12(world,OT_G12,parameters.get_ccc_parameters()),
+																											  mo_ket_(make_mo_ket(nemo_)),
+																											  mo_bra_(make_mo_bra(nemo_)),
+																											  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
+																											  msg(world) {
+	msg.section("TDHF initialized without the usual initialization routine (no intermediates, no parameters read)");
+}
+
+TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
+						    																		  world(world),
 																									  nemo(nemo_),
-																									  parameters(param),
+																									  parameters(nemo_.get_calc(),input),
 																									  g12(world,OT_G12,parameters.get_ccc_parameters()),
 																									  mo_ket_(make_mo_ket(nemo_)),
 																									  mo_bra_(make_mo_bra(nemo_)),
 																									  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
 																									  msg(world) {
-	msg.section("TDHF initialized without the usual initialization routine (no intermediates, no parameters read)");
-}
-
-TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
-						    																  world(world),
-																							  nemo(nemo_),
-																							  parameters(nemo_.get_calc(),input),
-																							  g12(world,OT_G12,parameters.get_ccc_parameters()),
-																							  mo_ket_(make_mo_ket(nemo_)),
-																							  mo_bra_(make_mo_bra(nemo_)),
-																							  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
-																							  msg(world) {
 	msg.section("Initialize TDHF Class");
 
 	msg.debug = parameters.debug;
 
 	msg.subsection("General Information about settings from SCF object:\n");
-	if(world.rank()==0) std::cout << " is_dft() = " << nemo.get_calc()->xc.is_dft() << "\n";
-	if(world.rank()==0) std::cout << " hf_coeff = " << nemo.get_calc()->xc.hf_exchange_coefficient() << "\n";
-	if(world.rank()==0) std::cout << " do_pcm() = " << nemo.do_pcm() << "\n";
-	if(world.rank()==0) std::cout << " do_ac()  = " << nemo.do_ac() << "\n";
+	msg << " is_dft() = " << nemo.get_calc()->xc.is_dft() << "\n";
+	msg << " hf_coeff = " << nemo.get_calc()->xc.hf_exchange_coefficient() << "\n";
+	msg << " do_pcm() = " << nemo.do_pcm() << "\n";
+	msg << " do_ac()  = " << nemo.do_ac() << "\n";
 
 	parameters.print(world);
-
+	const double old_thresh = FunctionDefaults<3>::get_thresh();
+	if(old_thresh>parameters.thresh*0.1){
+		msg.warning("Response thresh="+std::to_string(parameters.thresh)+ " and Reference thresh="+std::to_string(old_thresh) + ". Be careful, reference should be tight");
+	}
 	FunctionDefaults<3>::set_thresh(parameters.thresh);
-	if(world.rank()==0) std::cout << "MRA Threshold is set to: " << FunctionDefaults<3>::get_thresh() << " with k=" << FunctionDefaults<3>::get_k() << "\n";
+	msg << "MRA Threshold is set to: " << FunctionDefaults<3>::get_thresh() << " with k=" << FunctionDefaults<3>::get_k() << "\n";
 
 	if (not parameters.no_compute) {
 
@@ -81,17 +84,17 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
 
 		msg.output("Orbital Energies of Reference");
 		const Tensor<double> eps=nemo.get_calc()->aeps;
-		if(world.rank()==0) std::cout << eps << "\n";
+		msg << eps << "\n";
 
 	}
 	if(nemo.get_calc()->param.localize){
 		Fock F(world, &nemo);
 		F_occ = F(get_active_mo_bra(),get_active_mo_ket());
 		for(size_t i=0;i<get_active_mo_ket().size();++i){
-			std::cout << std::scientific << std::setprecision(10);
-			if(world.rank()==0) std::cout << "F(" << i << "," << i << ")=" << F_occ(i,i) << "\n";
+			msg << std::scientific << std::setprecision(10);
+			msg << "F(" << i << "," << i << ")=" << F_occ(i,i) << "\n";
 			if(std::fabs(get_orbital_energy(i+parameters.freeze)-F_occ(i,i))>1.e-5){
-				if(world.rank()==0) std::cout << "eps(" << i << ")=" << get_orbital_energy(i) << " | diff=" << get_orbital_energy(i+parameters.freeze)-F_occ(i,i) << "\n";
+				msg << "eps(" << i << ")=" << get_orbital_energy(i) << " | diff=" << get_orbital_energy(i+parameters.freeze)-F_occ(i,i) << "\n";
 			}
 		}
 	}else{
@@ -106,9 +109,9 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
 /// plot planes and cubes
 void TDHF::plot(const vecfuncT& vf, const std::string& name)const{
 	if(parameters.plot){
-	CCTimer timer(world,"plot planes and cubes");
-	madness::plot(vf,name,nemo.get_calc()->molecule.cubefile_header());
-	timer.print();
+		CCTimer timer(world,"plot planes and cubes");
+		madness::plot(vf,name,nemo.get_calc()->molecule.cubefile_header());
+		timer.print();
 	}
 }
 
@@ -125,14 +128,14 @@ std::vector<CC_vecfunction> TDHF::sort_xfunctions(std::vector<CC_vecfunction> x)
 void TDHF::print_xfunctions(const std::vector<CC_vecfunction> & f, const bool& fullinfo)const{
 	for(const auto& x:f){
 		const double mem=get_size(world,x.get_vecfunction());
-		if(world.rank()==0){
-			std::cout << "ex. vector "
+
+			msg << "ex. vector "
 					<< x.excitation << " | "
 					<< x.omega << " (ex. energy) | "
 					<< x.current_error << " (error) | "
 					<< x.delta << " (Edelta) | "
 					<< mem << " (Gbyte)" << "\n";
-		}
+
 		if(fullinfo){
 			print_size(world,x.get_vecfunction(),"ex. vector "+std::to_string(x.excitation));
 		}
@@ -159,11 +162,16 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	//orthonormalize(guess,empty);
 
 
-	// failsafe
+	// failsafe (works in most cases)
 	if(guess.size()<parameters.guess_excitations){
-		std::string msg=("WARNING: You demanded: " + std::to_string(parameters.guess_excitations)
+		std::string message=("WARNING: You demanded: " + std::to_string(parameters.guess_excitations)
 		+ " Guess vectors, but your demanded guess has only "
 		+ std::to_string(guess.size()) + "vectors. So we will not iterate the first vectors and then do the same guess again ... this might be unstable").c_str();
+		msg.output(message);
+		if(parameters.guess_maxiter==0){
+			msg.output("In this case you demanded guess_maxiter=0 (which is also the default), so this can not work!");
+			MADNESS_EXCEPTION("Faulty combinations of parameters given",1);
+		}
 		iterate_cis_guess_vectors(guess);
 		initialize(guess);
 	}
@@ -227,7 +235,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start)c
 		for(size_t i=0;i<guess_vectors.size();i++) guess_vectors[i].save_functions(std::to_string(i));
 		// prepare final iterations
 		for(size_t i=0;i<guess_vectors.size();i++){
-			if(i<parameters.excitations) final_vectors.push_back(guess_vectors[i]);
+			if(i<parameters.iterating_excitations) final_vectors.push_back(guess_vectors[i]);
 			else guess_roots.push_back(guess_vectors[i]);
 		}
 		// sort guess_roots backwards in order to feed them into the cycle easily with pop_back
@@ -267,7 +275,12 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start)c
 		result.push_back(x);
 		if(result.size()==parameters.excitations) break;
 	}
+	result=sort_xfunctions(result);
+	msg << "writing final functions to disc...\n";
+	for(size_t i=0;i<result.size();i++) result[i].save_functions(std::to_string(i));
 
+	// print out all warnings
+	msg.print_warnings();
 	return result;
 }
 
@@ -289,8 +302,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 	if(iterate_y) MADNESS_ASSERT(x.size()==y.size());
 
 	msg.subsection("Iterating excitation vectors with the following parameters");
-	if(world.rank()==0) std::cout
-			<< "dconv    = " << dconv << "\n"
+	msg		<< "dconv    = " << dconv << "\n"
 			<< "econv    = " << econv << "\n"
 			<< "iter_max = " << iter_max << "\n"
 			<< "kain     = " << kain << "\n";
@@ -316,6 +328,8 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 
 
 	for(size_t iter=0;iter<iter_max;iter++){
+		CCTimer timer(world,"iteration "+std::to_string(iter));
+		const bool this_is_a_guess_iteration=not (kain); // better readable code
 
 		// if this is the first iteration, the potentials are not calculated yet
 		if(iter==0) orthonormalize(x,V);
@@ -347,48 +361,52 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 			x[i].current_error=(largest_error);
 		}
 		// update, store old omegas in the deltas vector
-		std::vector<double> deltas;
 		for(size_t i=0;i<x.size();i++){
-			vecfuncT new_x0;
-			if(kain){
-				new_x0 = solvers[i]->update(x[i].get_vecfunction(),residuals[i],10.0*parameters.thresh,5.0);
-			}else{
-				new_x0 = sub(world,x[i].get_vecfunction(),residuals[i]);
-			}
-
-			// Project out the converged roots
-			if(converged_roots.size()>0){
-				CCTimer timeP(world,"project out converged roots");
-				for(const auto it:converged_roots){
-					const double overlap = inner(world,it.get_vecfunction(),new_x0).sum();
-					new_x0 -= overlap*it.get_vecfunction();
+			if(std::fabs(x[i].current_error)>dconv or std::fabs(x[i].delta)>econv or this_is_a_guess_iteration){
+				vecfuncT new_x0;
+				if(kain){
+					new_x0 = solvers[i]->update(x[i].get_vecfunction(),residuals[i],10.0*parameters.thresh,5.0);
+				}else{
+					new_x0 = sub(world,x[i].get_vecfunction(),residuals[i]);
 				}
-				timeP.print();
-			}
 
-			vecfuncT Q_new_x0 = Q(new_x0);
-			truncate(world,Q_new_x0);
-			x[i].set_functions(Q_new_x0,x[i].type,parameters.freeze);
+				// Project out the converged roots
+				if(converged_roots.size()>0){
+					vecfuncT bra_new_x0=make_bra(new_x0);
+					CCTimer timeP(world,"project out converged roots");
+					for(const auto it:converged_roots){
+						const double overlap = inner(world,it.get_vecfunction(),bra_new_x0).sum();
+						new_x0 -= overlap*it.get_vecfunction();
+					}
+					timeP.print();
+				}
+
+				vecfuncT Q_new_x0 = Q(new_x0);
+				truncate(world,Q_new_x0);
+				x[i].set_functions(Q_new_x0,x[i].type,parameters.freeze);
+			} else msg.output("Root " +std::to_string(i) + " converged");
 		}
 
 		// remove converged roots
-		if(x.size()==parameters.guess_excitations){
+		if(this_is_a_guess_iteration){
 			// not in the guess iteration
 		}else{
 			std::vector<CC_vecfunction> unconverged_roots;
 			std::vector<std::shared_ptr<XNonlinearSolver<vecfuncT,double,TDHF_allocator> > > corresponding_solvers;
 			for(size_t i=0;i<x.size();++i){
-				if(largest_errors[i].second<dconv and x[i].delta<econv){
+				if(x[i].current_error<dconv and std::fabs(x[i].delta)<econv){
 					// put converged roots into converged roots and replace it by one of the remaining guess functions
 					converged_roots.push_back(x[i]);
-					if(guess_roots.empty()) msg.output("Ran out of guess functions");
+					if(guess_roots.empty()) msg.output("Ran out of guess functions"); // no replacement
 					else{
-					unconverged_roots.push_back(guess_roots.back());
-					// allocate a new solver for the new guess function
-					auto sol=std::make_shared<XNonlinearSolver<vecfuncT,double,TDHF_allocator> >(TDHF_allocator(world,x[i].size()),true);
-					sol->set_maxsub(parameters.kain_subspace);
-					corresponding_solvers.push_back(sol);
-					guess_roots.pop_back();
+						// fill the unconverged roots with new guess roots
+						unconverged_roots.push_back(guess_roots.back());
+						// allocate a new solver for the new guess function
+						auto sol=std::make_shared<XNonlinearSolver<vecfuncT,double,TDHF_allocator> >(TDHF_allocator(world,x[i].size()),true);
+						sol->set_maxsub(parameters.kain_subspace);
+						corresponding_solvers.push_back(sol);
+						// delete the used guess root
+						guess_roots.pop_back();
 					}
 				}else{
 					unconverged_roots.push_back(x[i]);
@@ -416,16 +434,17 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 			else for(size_t i=0;i<x.size();i++) x[i].plot(std::to_string(i)+"_iter_"+std::to_string(iter)+"_");
 		}
 		// information
-		if(world.rank()==0) std::cout << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
-		if(world.rank()==0) std::cout << "Iteration " << iter <<": omega, largest error, delta "<< "\n";
+		msg << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
+		msg << "Iteration " << iter <<": omega, largest error, delta, size "<< "\n";
 
 		msg.output("===========CONVERGED=ROOTS=====================");
 		print_xfunctions(converged_roots);
 		msg.output("=========NON-CONVERGED=ROOTS====================");
 		print_xfunctions(x);
 
-		if(world.rank()==0) std::cout << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
+		msg << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
 
+		timer.stop().print();
 		if(converged) break;
 		if(converged_roots.size()==parameters.excitations) break;
 		if(x.empty()) break;
@@ -456,7 +475,7 @@ std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<
 		const Nuclear V(world,&nemo);
 		vecfuncT VNi = V(x[i].get_vecfunction());
 		Vi += VNi;
-		time_N.info();
+		time_N.info(parameters.debug);
 
 		// scale potential
 		scale(world,Vi,-2.0);
@@ -482,12 +501,13 @@ std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<
 		}
 		world.gop.fence();
 
-		vecfuncT GV = apply(world, bsh, Vi);
+		vecfuncT GV = Q(apply(world, bsh, Vi));
 
 		vecfuncT residual = sub(world,x[i].get_vecfunction(),GV);
 		result.push_back(residual);
 
 		// Calculate Second Order Energy Update
+		const vecfuncT bra_GV=make_bra(GV);
 		{
 			// Inner product of Vpsi and the residual (Vi is scaled to -2.0 --> multiply later with 0.5)
 			double tmp = inner(world,make_bra(residual),Vi).sum();
@@ -495,7 +515,8 @@ std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<
 			double tmp2 = inner(world,make_bra(GV),GV).sum();
 
 			// Factor 0.5 removes the factor 2 from the scaling before
-			x[i].delta = (0.5 * tmp / tmp2);
+			const double sou= (0.5 * tmp / tmp2);
+			msg << "FYI: second order update would be: " << sou << " norm after QG is " << tmp2 << "\n";
 		}
 		// clear potential
 		Vi.clear();
@@ -510,10 +531,10 @@ std::vector<vecfuncT> TDHF::make_potentials(const std::vector<CC_vecfunction> &x
 	CCTimer time(world,"Make Potentials");
 	std::vector<vecfuncT> V;
 	for(auto& xi:x){
-		if(world.rank()==0 and parameters.debug) std::cout << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
+		if(parameters.debug) msg << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
 		const vecfuncT pot = get_tda_potential(xi);
 		V.push_back(pot);
-		if(world.rank()==0 and parameters.debug) std::cout << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
+		if(parameters.debug) msg << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
 	}
 	time.info();
 	MADNESS_ASSERT(V.size()==x.size());
@@ -529,7 +550,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	// Use the PCMSolver
 	bool pcm=nemo.do_pcm();
 	if(parameters.debug){
-		if(world.rank()==0) std::cout << "TDA Potential is " << xc_data << ", hf_coeff=" << hf_coeff << ", pcm is=" << pcm <<  "\n";
+		msg<< "TDA Potential is " << xc_data << ", hf_coeff=" << hf_coeff << ", pcm is=" << pcm <<  "\n";
 	}
 	if(hf_coeff<0.0) msg.warning("hf_exchange_coefficient is negative");
 
@@ -709,7 +730,7 @@ void TDHF::orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &
 
 	// make the overlap matrix
 	Tensor<double> S = make_overlap_matrix(x);
-	if(parameters.debug) std::cout << "The Overlap Matrix\n " << S << "\n";
+	if(parameters.debug) msg << "The Overlap Matrix\n " << S << "\n";
 
 	//make the Hamilton matrix for the vectorfunctions
 	Tensor<double> F = make_perturbed_fock_matrix(x,V);
@@ -720,8 +741,8 @@ void TDHF::orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &
 	U = nemo.get_calc() -> get_fock_transformation(world, S, F, evals, dummy, 2.0*parameters.thresh);
 
 	if(parameters.debug){
-		std::cout << "Perturbed Fock-Matrix Eigenvalues\n";
-		for(int x=0;x<evals.size();++x) if(world.rank()==0) std::cout << evals(x) << "\n";
+		msg << "Perturbed Fock-Matrix Eigenvalues\n";
+		for(int x=0;x<evals.size();++x) msg << evals(x) << "\n";
 	}
 
 	// Transform the states
@@ -769,7 +790,7 @@ Tensor<double> TDHF::make_overlap_matrix(const std::vector<CC_vecfunction> &x)co
 		}
 	}
 	time.info();
-	if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nOverlap Matrix\n" << S << "\n";
+	if(parameters.debug)msg << std::fixed << std::setprecision(5) << "\nOverlap Matrix\n" << S << "\n";
 	return S;
 }
 
@@ -880,12 +901,12 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 			}
 		}
 		timeR.stop();
-		if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\n(T+V) Matrix\n" << T << "\n";
-		if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nPotential Matrix\n" << MV << "\n";
-		if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nPerturbed Fock Matrix\n" << F << "\n";
+		if(parameters.debug)msg<< std::fixed << std::setprecision(5) << "\n(T+V) Matrix\n" << T << "\n";
+		if(parameters.debug)msg<< std::fixed << std::setprecision(5) << "\nPotential Matrix\n" << MV << "\n";
+		if(parameters.debug)msg<< std::fixed << std::setprecision(5) << "\nPerturbed Fock Matrix\n" << F << "\n";
 	}
 	timeF.stop();
-	if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nPerturbed Fock Matrix\n" << F << "\n";
+	if(parameters.debug)msg << std::fixed << std::setprecision(5) << "\nPerturbed Fock Matrix\n" << F << "\n";
 	//formated timings output
 	timeT.print();
 	timeV.print();
@@ -894,7 +915,7 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 
 	// symmetryze
 	F = 0.5*(F + transpose<double>(F));
-	if(parameters.debug and world.rank()==0) std::cout << std::fixed << std::setprecision(5) << "\nSymmetrized Perturbed Fock Matrix\n" << F << "\n";
+	if(parameters.debug) msg << std::fixed << std::setprecision(5) << "\nSymmetrized Perturbed Fock Matrix\n" << F << "\n";
 
 	return F;
 }
@@ -905,10 +926,8 @@ std::vector<CC_vecfunction> TDHF::make_old_guess(const vecfuncT& f)const{
 	std::vector<std::string> exop_strings;
 	if(parameters.guess_virtuals=="custom"){
 		exop_strings = parameters.exops;
-		if(world.rank()==0){
-			std::cout << "Custom Excitation Operators Demanded:\n";
-			std::cout << exop_strings << "\n";
-		}
+		msg << "Custom Excitation Operators Demanded:\n";
+      	msg << exop_strings << "\n";
 	}
 	else exop_strings = make_predefined_exop_strings(parameters.guess_virtuals);
 
@@ -1003,7 +1022,7 @@ vecfuncT TDHF::make_virtuals() const {
 		msg.output("width="+std::to_string(width));
 
 		Tensor<double> cm = nemo.get_calc()->molecule.center_of_mass();
-		if(world.rank()==0) std::cout << "center of mass is " << cm << "\n";
+		msg << "center of mass is " << cm << "\n";
 		polynomial_functor px("x 1.0",width,cm);
 		polynomial_functor py("y 1.0",width,cm);
 		polynomial_functor pz("z 1.0",width,cm);
@@ -1018,7 +1037,7 @@ vecfuncT TDHF::make_virtuals() const {
 		virtuals.push_back(vs);
 	}
 	if (world.rank() == 0)
-		std::cout << "created " << virtuals.size() << " virtuals\n";
+		msg << virtuals.size() << " virtuals\n";
 
 	plot(virtuals,"virtuals");
 	CCTimer timerQ(world,"virt=Qvirt");
@@ -1057,7 +1076,7 @@ vecfuncT TDHF::apply_excitation_operators(const vecfuncT& seed, const bool& use_
 	}
 	world.gop.fence();
 	time_init_exop.print();
-	if(world.rank()==0) std::cout << "will create " << exlist.size()*seed.size() << " virtuals, from " << seed.size() << " seeds and " << exlist.size() << " excitation operators"   <<" \n";
+	msg << "will create " << exlist.size()*seed.size() << " virtuals, from " << seed.size() << " seeds and " << exlist.size() << " excitation operators"   <<" \n";
 
 	// create the virtuals by unary operations: multiply excitation operators with seeds
 	CCTimer time_create_virtuals(world,"create virtuals");
@@ -1102,11 +1121,11 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 		CCTimer time_diag(world, "cis-matrix diagonalization");
 		syev(MCIS, U, evals);
 		time_diag.print();
-		if (world.rank() == 0) {
-			std::cout << "Initial Diagonalization of CIS Matrix:\n Lowest Eigenvalues are \n";
+
+			msg << "Initial Diagonalization of CIS Matrix:\n Lowest Eigenvalues are \n";
 			for (int x = 0; x < std::max(std::min(int(evals.size()), 10), parameters.guess_excitations); ++x)
-				std::cout << evals(x) << "\n";
-		}
+				msg << evals(x) << "\n";
+
 		CCTimer time_assemble(world, "assemble guess vectors");
 		// make x functions from amplitudes and virtuals
 		// todo: probably not optimal for highly parallel applications
@@ -1130,8 +1149,8 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 				msg.warning("NEGATIVE EIGENVALUE IN INITIAL DIAGONALIZATION: CHECK YOUR REFERENCE!\n");
 
 			if (evals(I) < 1.e-5) {
-				if (world.rank() == 0)
-					std::cout << "skipping root " << evals(I) << " \n";
+
+					msg << "skipping root " << evals(I) << " \n";
 
 				continue;
 			}
@@ -1156,12 +1175,12 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	}
 	if (parameters.debug) {
 		Tensor<double> S = make_overlap_matrix(xfunctions);
-		if (world.rank() == 0)
-			std::cout << "Overlap matrix of guess:\n" << S << "\n";
+
+			msg << "Overlap matrix of guess:\n" << S << "\n";
 	}
 	print_xfunctions(xfunctions, true);
-	if (world.rank() == 0)
-		std::cout << "created " << xfunctions.size() << " guess vectors\n";
+
+		msg << "created " << xfunctions.size() << " guess vectors\n";
 
 	time.print();
 	return xfunctions;
@@ -1176,8 +1195,8 @@ vecfuncT TDHF::canonicalize(const vecfuncT& v)const{
 	Tensor<double> occ(v.size());
 	occ=1.0;
 	Tensor<double> evals;
-	if(parameters.debug and world.rank()==0) std::cout << "Canonicalize: Fock Matrix\n" << Fmat(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
-	if(parameters.debug and world.rank()==0) std::cout << "Canonicalize: Overlap Matrix\n" << S(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
+	if(parameters.debug) msg << "Canonicalize: Fock Matrix\n" << Fmat(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
+	if(parameters.debug) msg << "Canonicalize: Overlap Matrix\n" << S(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
 	Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, evals, occ, std::min(parameters.thresh,1.e-4));
 	vecfuncT result = madness::transform(world, v, U);
 	time.print();
@@ -1195,12 +1214,10 @@ Tensor<double> TDHF::make_cis_matrix(const vecfuncT virtuals)const{
 
 	if (parameters.debug) {
 		const int dim = std::min(10,int(virtuals.size()));
-		if (world.rank() == 0)
-			std::cout << "Debug Part of Virtual Fock Matrix\n" << Fmat(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
+			msg << "Debug Part of Virtual Fock Matrix\n" << Fmat(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
 
 		Tensor<double> S = matrix_inner(world, virtuals_bra, virtuals);
-		if (world.rank() == 0)
-			std::cout << "Debug Overlap of virtuals\n" << S(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
+			msg << "Debug Overlap of virtuals\n" << S(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
 	}
 
 
@@ -1221,10 +1238,10 @@ Tensor<double> TDHF::make_cis_matrix(const vecfuncT virtuals)const{
 
 
 	const int dim=(virtuals.size()*nocc);
-	if(world.rank()==0) std::cout << "CIS-Matrix for guess calculation will be of size " << dim << "x" << dim << "\n";
+	msg << "CIS-Matrix for guess calculation will be of size " << dim << "x" << dim << "\n";
 	// the number of the matrix where elements which are not determined by orbital energies and the fock matrix are computed (controlled over active_guess_orbitals parameter)
 	const int dim2=(virtuals.size()*active_guess_orbitals);
-	if(dim2<dim and world.rank()==0) std::cout << "Effective size through neglect of some orbitals will be: " << dim2 << "x" << dim2 << "\n";
+	if(dim2<dim) msg << "Effective size through neglect of some orbitals will be: " << dim2 << "x" << dim2 << "\n";
 	const int start_ij = nocc-active_guess_orbitals;
 	Tensor<double> MCIS(dim,dim);
 
@@ -1242,55 +1259,52 @@ Tensor<double> TDHF::make_cis_matrix(const vecfuncT virtuals)const{
 			}
 		}
 	}else{
-	for(int I=0;I<dim;++I){
-		const int a=get_vir_idx(I);
-		const int i=get_occ_idx(I);
-		MCIS(I,I) = Fmat(a,a)-get_orbital_energy(i+parameters.freeze);
-	}
+		for(int I=0;I<dim;++I){
+			const int a=get_vir_idx(I);
+			const int i=get_occ_idx(I);
+			MCIS(I,I) = Fmat(a,a)-get_orbital_energy(i+parameters.freeze);
+		}
 	}
 
 	if(not parameters.guess_diag){
-	int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
-	for (int i = start_ij; i < get_active_mo_ket().size(); ++i) {
-		const real_function_3d brai = get_active_mo_bra()[i];
-		const vecfuncT igv = g12(brai * virtuals);
-		for (int a = 0; a < virtuals.size(); ++a) {
-			I=get_com_idx(i,a);
-			int J =-1;
-			for (int j = start_ij; j < get_active_mo_ket().size(); ++j) {
-				const real_function_3d braj =get_active_mo_bra()[j];
-				for (int b = 0; b < virtuals.size(); ++b) {
-					J=get_com_idx(j,b);
-					if(J<=I){
-						const real_function_3d igj = g12(mo_bra_(i+parameters.freeze),mo_ket_(j+parameters.freeze)); // use exchange intermediate
-						const double rIJ = 2.0 * inner(braj * virtuals[b], igv[a]) - inner(virtuals_bra[a] * virtuals[b],igj);
-						MCIS(J,I) += rIJ;
-						MCIS(I,J) += rIJ;
+		int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
+		for (int i = start_ij; i < get_active_mo_ket().size(); ++i) {
+			const real_function_3d brai = get_active_mo_bra()[i];
+			const vecfuncT igv = g12(brai * virtuals);
+			for (int a = 0; a < virtuals.size(); ++a) {
+				I=get_com_idx(i,a);
+				int J =-1;
+				for (int j = start_ij; j < get_active_mo_ket().size(); ++j) {
+					const real_function_3d braj =get_active_mo_bra()[j];
+					for (int b = 0; b < virtuals.size(); ++b) {
+						J=get_com_idx(j,b);
+						if(J<=I){
+							const real_function_3d igj = g12(mo_bra_(i+parameters.freeze),mo_ket_(j+parameters.freeze)); // use exchange intermediate
+							const double rIJ = 2.0 * inner(braj * virtuals[b], igv[a]) - inner(virtuals_bra[a] * virtuals[b],igj);
+							MCIS(J,I) += rIJ;
+							MCIS(I,J) += rIJ;
+						}
 					}
 				}
 			}
 		}
 	}
-	}
-	if(world.rank()==0){
 		int sdim=std::min(int(MCIS.dim(0)),10);
-		std::cout << "Part of the CIS Matrix:\n" << MCIS(Slice(dim-sdim,-1),Slice(dim-sdim,-1)) << "\n";
-		if(parameters.debug) std::cout << "Debug: Full CIS Matrix:\n" << MCIS<< "\n";
-	}
+		msg << "Part of the CIS Matrix:\n" << MCIS(Slice(dim-sdim,-1),Slice(dim-sdim,-1)) << "\n";
+		if(parameters.debug) msg << "Debug: Full CIS Matrix:\n" << MCIS<< "\n";
+
 
 	// test if symmetric
 	if (parameters.debug) {
 		const double symm_norm = (MCIS - transpose(MCIS)).normf();
-		if (world.rank() == 0)
-			std::cout << "Hermiticity of CIS Matrix:\n" << "||MCIS-transpose(MCIS)||=" << symm_norm << "\n";
+			msg << "Hermiticity of CIS Matrix:\n" << "||MCIS-transpose(MCIS)||=" << symm_norm << "\n";
 
 		if (symm_norm > 1.e-4) {
 			int sliced_dim = 8;
 			if (8 > MCIS.dim(0))
 				sliced_dim = MCIS.dim(0);
 
-			if (world.rank() == 0)
-				std::cout << "first " << sliced_dim << "x" << sliced_dim << " block of MCIS Matrix\n" << MCIS(_, Slice(sliced_dim - 1, sliced_dim - 1));
+				msg << "first " << sliced_dim << "x" << sliced_dim << " block of MCIS Matrix\n" << MCIS(_, Slice(sliced_dim - 1, sliced_dim - 1));
 		}
 	}
 	time_cis.info();
@@ -1388,24 +1402,24 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 		double osl=this->oscillator_strength_length(root);
 		double osv=this->oscillator_strength_velocity(root);
 
-		std::cout << std::scientific << std::setprecision(10) << std::setw(20);
-		if (world.rank()==0) {
-			std::cout << "excitation energy for root "
+		msg << std::scientific << std::setprecision(10) << std::setw(20);
+
+			msg<< "excitation energy for root "
 					<< std::fixed << std::setprecision(1) << root.excitation <<": "
 					<< std::fixed << std::setprecision(10) << root.omega << " Eh         "
 					<< root.omega*constants::hartree_electron_volt_relationship << " eV\n";
-			std::cout << std::scientific;
-			print("  oscillator strength (length)    ", osl);
-			print("  oscillator strength (velocity)  ", osv);
+			msg << std::scientific;
+			if(world.rank()==0)print("  oscillator strength (length)    ", osl);
+			if(world.rank()==0)print("  oscillator strength (velocity)  ", osv);
 			// print out the most important amplitudes
-			print("  dominant contributions ");
-		}
+			if(world.rank()==0)print("  dominant contributions ");
+
 		for (std::size_t p=0; p<noct; ++p) {
 			const double amplitude=norms[p]*norms[p];
-			if (world.rank()==0 and (amplitude > 0.1)) {
-				std::cout << "    norm(x_"<<p+parameters.freeze<<") **2  ";
+			if ((amplitude > 0.1)) {
+				msg << "    norm(x_"<<p+parameters.freeze<<") **2  ";
 				std::cout.width(10); std::cout.precision(6);
-				std::cout << amplitude << std::endl;
+				msg << amplitude << "\n";
 			}
 		}
 		if (world.rank()==0) print(" ");
@@ -1424,17 +1438,23 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 
 /// todo: read_from_file compatible with dist. memory computation
 TDHF::Parameters::Parameters(const std::shared_ptr<SCF>& scf,const std::string& input) :
-											lo(scf->param.lo) {
+													lo(scf->param.lo) {
 	read_from_file(input, "response");
 	complete_with_defaults(scf);
 }
 TDHF::Parameters::Parameters(const std::shared_ptr<SCF>& scf) :
-											lo(scf->param.lo) {
+													lo(scf->param.lo) {
 	complete_with_defaults(scf);
 }
 
 /// auto assigns all parameters which where not explicitly given and which depend on other parameters of the reference calculation
 void TDHF::Parameters::complete_with_defaults(const std::shared_ptr<SCF>& scf) {
+	if (econv == -1.0)
+		econv = thresh;
+
+	if (dconv == -1.0)
+		dconv = thresh*10.0;
+
 	if (guess_econv == -1.0)
 		guess_econv = std::max(1.e-1, 10 * econv);
 
@@ -1551,13 +1571,11 @@ void TDHF::Parameters::print(World& world) const {
 		std::cout << "freeze               :" << freeze << std::endl;
 		std::cout << "excitations          :" << excitations << std::endl;
 		std::cout << "guess_excitations    :" << guess_excitations << std::endl;
-		std::cout << "dconv_guess          :" << guess_dconv << std::endl;
+		std::cout << "iterating_excitations:" << iterating_excitations << std::endl;
 		std::cout << "dconv                :" << dconv << std::endl;
-		std::cout << "econv_guess          :" << guess_econv << std::endl;
 		std::cout << "econv                :" << econv << std::endl;
 		std::cout << "store_potential      :" << store_potential << std::endl;
-		std::cout << "iter_max             :" << maxiter << std::endl;
-		std::cout << "iter_guess           :" << guess_maxiter << std::endl;
+		std::cout << "maxiter              :" << maxiter << std::endl;
 		std::cout << "triplet              :" << triplet << std::endl;
 		if (kain_subspace > 0)
 			std::cout << "kain_subspace        :" << kain_subspace << std::endl;
@@ -1568,6 +1586,13 @@ void TDHF::Parameters::print(World& world) const {
 		std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
 		std::cout << "guess_virtuals       :" << guess_virtuals << std::endl;
 		std::cout << "guess_diag           :" << guess_diag << std::endl;
+		if(guess_maxiter==0){
+			std::cout << "guess_maxiter    :"  << "no iteration of guess" << std::endl;
+		}else{
+			std::cout << "guess_dconv          :" << guess_dconv << std::endl;
+			std::cout << "guess_econv          :" << guess_econv << std::endl;
+			std::cout << "guess_maxiter        :" << guess_maxiter << std::endl;
+		}
 		if(guess_diag==false) std::cout << "guess_active_orbitals:" << guess_active_orbitals << std::endl;
 		// if this is the case then virtuals are generated
 		if(guess_virtuals!="scf" and guess_virtuals!="extern"){

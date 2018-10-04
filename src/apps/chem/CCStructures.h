@@ -69,7 +69,7 @@ namespace madness{
   // Little structure for formated output and to collect warnings
   // much room to improve
   struct CCMessenger{
-    CCMessenger(World &world) : world(world), output_prec(10), scientific(true), debug(false){}
+    CCMessenger(World &world) : world(world), output_prec(10), scientific(true), debug(false), os(std::cout){}
     World & world;
     size_t output_prec;
     bool scientific;
@@ -89,7 +89,15 @@ namespace madness{
     void print_warnings()const{
       for(const auto& x:warnings) if(world.rank()==0) std::cout << x << "\n";
     }
+    template<class T>
+    CCMessenger operator<<(const T& t)const{
+    	if(world.rank()==0) os << t;
+    	return *this;
+    }
+    /// collect all warnings that occur to print out at the end of the job
     mutable std::vector<std::string> warnings;
+    /// output stream
+    std::ostream& os;
   };
 
   typedef std::vector<Function<double, 3> > vecfuncT;
@@ -117,15 +125,17 @@ namespace madness{
     void
     info(const bool debug=true,const double norm=12345.6789);
 
-    void start(){
+    CCTimer start(){
       start_wall = wall_time();
       start_cpu  = cpu_time();
+      return *this;
     }
-    void stop(){
+    CCTimer stop(){
       end_wall = wall_time();
       end_cpu = cpu_time();
       time_wall = end_wall - start_wall;
       time_cpu = end_cpu - start_cpu;
+      return *this;
     }
 
 

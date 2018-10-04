@@ -109,18 +109,18 @@ public:
 
 		/// convergence for the excitation vectors
 		double guess_dconv=-1.0;
-		double dconv=FunctionDefaults<3>::get_thresh()*10.0;
+		double dconv=-1.0;
 		/// convergence for the excitation energy
 		double guess_econv=-1.0;
-		double econv=FunctionDefaults<3>::get_thresh();
+		double econv=-1.0;
 
 		/// store the potential for orthogonalizations or recalculate it
 		bool store_potential=true;
 
 		/// maximum number of iterations in the final iterations
 		size_t maxiter=25;
-		/// maximum number of guess iterations (mostly more than the final ones and always without KAIN)
-		size_t guess_maxiter=10;
+		/// maximum number of guess iterations (pre iterate guess functions)
+		size_t guess_maxiter=0;
 		/// Vector of strings which contains the polynomial excitation operators
 		/// For this to be used the tda_guess key has to be "custom"
 		/// The strings are given in a format like: "c c1 x x1 y y1 z z1, c c2 x x2 y y2 z z2, ..." which will be interpreted as: c1*x^x1*y^y1*z^z1 + c2*x^x2*y^y2*z^z2 + ....
