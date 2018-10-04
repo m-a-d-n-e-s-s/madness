@@ -88,6 +88,15 @@ struct spherical_box : public FunctionFunctorInterface<double,3> {
 
 };
 
+template<typename R>
+struct binary_munge{
+	binary_munge()=default;
+	void operator()(const Key<3>& key, Tensor<R>& result, Tensor<R>& rhs, Tensor<R>& reference) const {
+		if (reference.absmax()>1.e-2) result=copy(rhs);
+		else result=Tensor<R>(3,reference.dims());
+	}
+};
+
 // The default constructor for functions does not initialize
 // them to any value, but the solver needs functions initialized
 // to zero for which we also need the world object.
@@ -134,8 +143,12 @@ static double_complex guess_sigma_u(const coord_3d& r) {
     return double_complex(rho,0);
 }
 
+static double_complex one(const coord_3d& r) {
+	return double_complex(1.0,0);
+}
 
 double monomial_x(const coord_3d& r) {return r[0];}
+
 double monomial_y(const coord_3d& r) {return r[1];}
 
 static double_complex V(const coord_3d& r) {
@@ -323,6 +336,32 @@ void orthonormalize(std::vector<complex_function_3d>& rhs) {
 }
 
 
+void test(World& world) {
+	complex_function_3d o=complex_factory_3d(world).f(one);
+	real_function_3d absone=abssq(o);
+	save(absone,"absone");
+	real_function_3d realone=real(o);
+	save(absone,"realone");
+	real_function_3d imagone=imag(o);
+	save(imagone,"imagone");
+
+
+
+	complex_function_3d ref=complex_factory_3d(world).f(guess);
+	real_function_3d absref=abssq(ref);
+	save(absref,"absref");
+
+	binary_munge<double_complex> op;
+	complex_function_3d out=binary_op(o, ref, op);
+	double n=out.norm2();
+	print("norm(out)",n);
+	save(out,"out");
+	real_function_3d absout=abssq(out);
+	save(absout,"absout");
+
+	MADNESS_ASSERT(0);
+}
+
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -347,6 +386,7 @@ int main(int argc, char** argv) {
     print(nuc1);
     print(nuc2);
 
+    test(world);
     // get the command line options
     for(int i = 1; i < argc; i++) {
         const std::string arg=argv[i];
@@ -506,7 +546,10 @@ int main(int argc, char** argv) {
 				psi=solver.update(psi,res,0.01,3);
 				printf("current eps at B= %4.2f %12.8f %12.8f   --   %12.8f\n ",B,eps[0]+global_shift,eps[1]+global_shift,eps[0]-eps[1]);
 
-				psi=psi*sboxpsi;
+				binary_munge<double_complex> op;
+				psi[0]=binary_op(potential[0], copy(psi[0]), op);
+				psi[1]=binary_op(potential[1], copy(psi[1]), op);
+
 				orthonormalize(psi);
 				std::string filename="B"+stringify(B);
 				plot_plane(world,real(psi[0]),real(psi[1]),"realpsi_"+filename);
