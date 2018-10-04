@@ -25,6 +25,16 @@ namespace madness {
   class CC2{
   public:
 
+	  CC2(World &world_,const CCParameters& param,const Nemo &nemo_)
+	 	: world(world_),
+	 	parameters(param),
+	 	nemo(nemo_),
+	 	CCOPS(world,nemo,parameters),
+	 	output(CCOPS.output)
+	   {
+		  parameters.sanity_check(world);
+	   }
+
     CC2(World &world_,const std::string &inputFileName,const Nemo &nemo_)
 	: world(world_),
 	parameters(inputFileName,nemo_.get_calc()->param.lo),
@@ -67,8 +77,6 @@ namespace madness {
       else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::Two) nuc="Two";
       if(world.rank() == 0) std::cout << "Nuclear Correlation Factor is " << nuc << std::endl;
 
-      //output.section("Testing Section in Constructor");
-      //CCOPS.test_fill_tree();
     }
 
     void

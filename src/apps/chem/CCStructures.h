@@ -67,8 +67,9 @@ namespace madness{
   assign_name(const FuncType& inp);
 
   // Little structure for formated output and to collect warnings
+  // much room to improve
   struct CCMessenger{
-    CCMessenger(World &world) : world(world), output_prec(10), scientific(true), debug(false){}
+    CCMessenger(World &world) : world(world), output_prec(10), scientific(true), debug(false), os(std::cout){}
     World & world;
     size_t output_prec;
     bool scientific;
@@ -88,7 +89,15 @@ namespace madness{
     void print_warnings()const{
       for(const auto& x:warnings) if(world.rank()==0) std::cout << x << "\n";
     }
+    template<class T>
+    CCMessenger operator<<(const T& t)const{
+    	if(world.rank()==0) os << t;
+    	return *this;
+    }
+    /// collect all warnings that occur to print out at the end of the job
     mutable std::vector<std::string> warnings;
+    /// output stream
+    std::ostream& os;
   };
 
   typedef std::vector<Function<double, 3> > vecfuncT;
@@ -116,15 +125,17 @@ namespace madness{
     void
     info(const bool debug=true,const double norm=12345.6789);
 
-    void start(){
+    CCTimer start(){
       start_wall = wall_time();
       start_cpu  = cpu_time();
+      return *this;
     }
-    void stop(){
+    CCTimer stop(){
       end_wall = wall_time();
       end_cpu = cpu_time();
       time_wall = end_wall - start_wall;
       time_cpu = end_cpu - start_cpu;
+      return *this;
     }
 
 
@@ -160,9 +171,8 @@ namespace madness{
   /// Calculation Parameters for CC2 and TDA calculations
   /// Maybe merge this with calculation_parameters of SCF at some point, or split into TDA and CC
   struct CCParameters{
-    // default constructor
-    //	CC_Parameters():
-    //	{return CC_Parameters("default constructor")}
+
+	CCParameters(){};
 
     const double uninitialized = 123.456;
 
@@ -172,138 +182,82 @@ namespace madness{
     /// ctor reading out the input file
     CCParameters(const std::string& input,const double &low);
 
-
     // the demanded calculation: possibilities are MP2_, CC2_, CIS_, CCS_ (same as CIS), CISpD_
-    CalcType calculation;
-    double lo;
+    CalcType calculation = CT_LRCC2;
+    double lo = 1.e-7;
     // the finest length to be resolved by 6D operators which needs special refinement
     // this will define the depth of the special level (default is 1.0 bohr)
-    double dmin;
+    double dmin=1.0;
     // function thresh 3D
-    double thresh_3D;
-    double tight_thresh_3D;
+    double thresh_3D=FunctionDefaults<3>::get_thresh();
+    double tight_thresh_3D=FunctionDefaults<3>::get_thresh()*0.1;
     // function thresh 6D
-    double thresh_6D;
-    double tight_thresh_6D;
+    double thresh_6D=FunctionDefaults<6>::get_thresh();
+    double tight_thresh_6D=FunctionDefaults<3>::get_thresh()*0.1;
     // BSH thresh
-    double thresh_bsh_3D;
-    double thresh_bsh_6D;
+    double thresh_bsh_3D=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
+    double thresh_bsh_6D=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
     // Poisson thresh
-    double thresh_poisson;
+    double thresh_poisson=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
     // f12 thresh
-    double thresh_f12;
+    double thresh_f12=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
     // Ue thresh
-    double thresh_Ue;
+    double thresh_Ue=std::min(1.e-4,FunctionDefaults<3>::get_thresh());
     // Convergence for Correlation Energy (overall and pairs)
-    double econv;
-    double econv_pairs;
+    double econv=FunctionDefaults<6>::get_thresh();
+    double econv_pairs=FunctionDefaults<6>::get_thresh();
     // Convergence for CC-singles
-    double dconv_3D;
+    double dconv_3D=FunctionDefaults<6>::get_thresh();
     // Convergence for CC-Doubles
-    double dconv_6D;
+    double dconv_6D=FunctionDefaults<6>::get_thresh();;
     // iterations
-    size_t iter_max;
-    size_t iter_max_3D;
-    size_t iter_max_6D;
+    size_t iter_max=10;
+    size_t iter_max_3D=10;
+    size_t iter_max_6D=10;
     // restart
-    bool restart;
-    bool no_compute;
-    std::pair<std::size_t,std::size_t> only_pair;
-    bool no_compute_gs;
-    bool no_compute_response;
-    bool no_compute_mp2;
-    bool no_compute_cc2;
-    bool no_compute_cispd;
-    bool no_compute_lrcc2;
+    bool restart=false;
+    bool no_compute=false;
+    std::pair<int,int> only_pair =std::make_pair(-1,-1);
+    bool no_compute_gs=false;
+    bool no_compute_response=false;
+    bool no_compute_mp2=false;
+    bool no_compute_cc2=false;
+    bool no_compute_cispd=false;
+    bool no_compute_lrcc2=false;
     // Exponent for the correlation factor
-    double corrfac_gamma;
+    double corrfac_gamma=1.0;
     // for formated output
-    size_t output_prec;
+    size_t output_prec=1.e-8;
     // debug mode
-    bool debug;
+    bool debug=false;
     // make additional plots
-    bool plot;
+    bool plot=false;
     // use kain
-    bool kain;
-    size_t kain_subspace;
+    bool kain=true;
+    size_t kain_subspace=5;
     // freeze MOs
-    size_t freeze;
+    size_t freeze=0;
     // Gamma of the correlation factor
     double gamma()const{
       if(corrfac_gamma<0) MADNESS_EXCEPTION("ERROR in CC_PARAMETERS: CORRFAC_GAMMA WAS NOT INITIALIZED",1);
       return corrfac_gamma;
     }
-    bool test;
+    bool test=false;
     // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
-    bool decompose_Q;
+    bool decompose_Q=false;
     // if true the ansatz for the CC2 ground state pairs is |tau_ij> = |u_ij> + Qtf12|titj>, with Qt = Q - |tau><phi|
     // if false the ansatz is the same with normal Q projector
     // the response ansatz is the corresponding response of the gs ansatz
-    bool QtAnsatz;
+    bool QtAnsatz=true;
 
     /// a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
     std::vector<size_t> excitations_;
 
     // Parameters for the TDA Algorithm
 
-    /// The number of orbitals which are not zero in the guess (default is one, so the guess is just homo)
-    std::size_t tda_guess_orbitals;
-
-    /// Guess mode for TDA:
-    /// "numerical" use the std numerical occupied orbitals to create the guess for the excited states
-    /// "projected" use the projected occupied orbitals (projected to guess gauss basis) and avoid noise for high guess polynomials
-    std::string tda_guess_mode;
-
-    /// The number of excitation vectors for which the alorithm will solve
-    size_t tda_excitations;
-    /// The number of guess_excitation vectors for the first iterations
-    size_t tda_guess_excitations;
-    /// The number of excitation vectors which will be iterated parallel
-    size_t tda_iterating_excitations;
-
-    /// the guess which will be applied
-    /// see the file guess.h
-    /// can be "dipole", "dipole+", "quadrupole", "qualdrupole+" , " big_fock_3", "big_fock_4"
-    std::string tda_guess;
-
-    /// the guess factor for the first energy guess which is: omega = - factor*HOMO
-    /// the factor has to be between ]0,1[
-    double tda_energy_guess_factor;
-
-    /// convergence for the excitation vectors
-    double tda_dconv_guess;
-    double tda_dconv;
-    double tda_dconv_hard;
-    /// convergence for the excitation energy
-    double tda_econv_guess;
-    double tda_econv;
-    double tda_econv_hard;
-
-    /// store the potential for orthogonalizations or recalculate it (doubles the time but saves memory)
-    bool tda_store_potential;
-
-    /// maximum number of iterations in the final iterations
-    size_t tda_iter_max;
-    /// maximum number of guess iterations (mostly more than the final ones and always without KAIN)
-    size_t tda_iter_guess;
-    /// specify if for the guess only the homo orbitals (or Homo untill homo-N controlled over guess_orbitals parameter) are used
-    bool tda_homo_guess;
-    /// Vector of strings which contains the polynomial excitation operators
-    /// For this to be used the tda_guess key has to be "custom"
-    /// The strings are given in a format like: "c c1 x x1 y y1 z z1, c c2 x x2 y y2 z z2, ..." which will be interpreted as: c1*x^x1*y^y1*z^z1 + c2*x^x2*y^y2*z^z2 + ....
-    std::vector<std::string> tda_exops;
-    /// smoothing exponent
-    /// every exop is multiplied with e^(-exponent*r2) to avoid noise at the boundaries
-    double tda_damping_width;
-
-/// calculate triplet excitation energies (only works for CIS)
-	bool tda_triplet;
-
-    /// print out the parameters (except the tda parameters)
+    /// print out the parameters
     void information(World &world)const;
 
-    /// print all the parameters for a TDA calculation
-    void print_tda_parameters(World &world)const;
     /// check if parameters are set correct
     void sanity_check(World &world)const;
 
@@ -553,10 +507,22 @@ namespace madness{
   /// some 6D operations are also included
   /// The structure does not know if nuclear correlation facors are used, so the corresponding bra states have to be prepared beforehand
   struct CCConvolutionOperator{
+
+	/// parameter class
+	  struct Parameters{
+		  Parameters(){};
+		  Parameters(const CCParameters& param): thresh_op(param.thresh_poisson), lo(param.lo), freeze(param.freeze), gamma(param.gamma()) {};
+		  double thresh_op=FunctionDefaults<3>::get_thresh();
+		  double lo=1.e-6;
+		  int freeze=0;
+		  double gamma=1.0; /// f12 exponent
+	  };
+
+
     /// @param[in] world
     /// @param[in] optype: the operatortype (can be g12_ or f12_)
     /// @param[in] param: the parameters of the current CC-Calculation (including function and operator thresholds and the exponent for f12)
-    CCConvolutionOperator(World &world,const OpType type, const CCParameters &param):parameters(param),world(world),operator_type(type),op(init_op(type,param)){}
+	CCConvolutionOperator(World &world,const OpType type, const Parameters &param):parameters(param),world(world),operator_type(type),op(init_op(type,param)){}
 
     /// @param[in] f: a 3D function
     /// @param[out] the convolution op(f), no intermediates are used
@@ -637,13 +603,13 @@ namespace madness{
     /// create a TwoElectronFactory with the operatorkernel
     TwoElectronFactory get_kernel()const{
       if(type()==OT_G12) return TwoElectronFactory(world).dcut(1.e-7);
-      else if(type()==OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma());
+      else if(type()==OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma);
       else error("no kernel of type " + name() +" implemented");
       return TwoElectronFactory(world);
     }
 
     OpType type()const {return operator_type;}
-    const CCParameters& parameters;
+    const Parameters& parameters;
   private:
     /// the world
     World &world;
@@ -652,7 +618,7 @@ namespace madness{
     /// @param[in] optype: can be f12_ or g12_ depending on which operator shall be intitialzied
     /// @param[in] parameters: parameters (thresholds etc)
     /// initializes the operators
-    SeparatedConvolution<double,3>* init_op(const OpType &type,const CCParameters &parameters)const;
+    SeparatedConvolution<double,3>* init_op(const OpType &type,const Parameters &parameters)const;
     const std::shared_ptr<real_convolution_3d> op;
     intermediateT imH;
     intermediateT imP;
