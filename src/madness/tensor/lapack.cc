@@ -136,33 +136,33 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
 STATIC inline
 void potrf_(const char * UPLO,integer *n, real4 *a ,integer *lda , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        spotrf_(UPLO, n, a, lda, info);
+	spotrf_(UPLO, n, a, lda, info);
 #else
-        spotrf_(UPLO, n, a, lda, info, 1);
+	spotrf_(UPLO, n, a, lda, info, 1);
 #endif
 }
 STATIC inline
 void potrf_(const char * UPLO,integer *n, real8 *a ,integer *lda , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        dpotrf_(UPLO, n, a, lda, info);
+	dpotrf_(UPLO, n, a, lda, info);
 #else
-        dpotrf_(UPLO, n, a, lda, info, 1);
+	dpotrf_(UPLO, n, a, lda, info, 1);
 #endif
 }
 STATIC inline
 void potrf_(const char * UPLO,integer *n, complex_real4 *a ,integer *lda , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        cpotrf_(UPLO, n, a, lda, info);
+	cpotrf_(UPLO, n, a, lda, info);
 #else
-        cpotrf_(UPLO, n, a, lda, info, 1);
+	cpotrf_(UPLO, n, a, lda, info, 1);
 #endif
 }
 STATIC inline
 void potrf_(const char * UPLO,integer *n, complex_real8 *a ,integer *lda , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        zpotrf_(UPLO, n, a, lda, info);
+	zpotrf_(UPLO, n, a, lda, info);
 #else
-        zpotrf_(UPLO, n, a, lda, info, 1);
+	zpotrf_(UPLO, n, a, lda, info, 1);
 #endif
 }
 
@@ -172,33 +172,33 @@ void potrf_(const char * UPLO,integer *n, complex_real8 *a ,integer *lda , integ
 STATIC inline
 void pstrf_(const char * UPLO,integer *n, real4 *a ,integer* lda, integer *piv, integer* rank, real4* tol, real4* work , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+	spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #else
-        spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+	spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #endif
 }
 STATIC inline
 void pstrf_(const char * UPLO,integer *n, real8 *a ,integer* lda, integer *piv, integer* rank, real8* tol, real8* work , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+	dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #else
-        dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+	dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #endif
 }
 STATIC inline
 void pstrf_(const char * UPLO,integer *n, complex_real4 *a ,integer* lda, integer *piv, integer* rank, real4* tol, complex_real4* work , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+	cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #else
-        cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+	cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #endif
 }
 STATIC inline
 void pstrf_(const char * UPLO,integer *n, complex_real8 *a ,integer* lda, integer *piv, integer* rank, real8* tol, complex_real8* work , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+	zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #else
-        zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+	zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #endif
 }
 
@@ -769,25 +769,25 @@ namespace madness {
     */
     template <typename T>
     void rr_cholesky(Tensor<T>& A, typename Tensor<T>::scalar_type tol, Tensor<integer>& piv, int& rank) {
-        integer n = A.dim(0);
-        integer info;
-        piv=Tensor<integer>(n);
-        Tensor<T> work(2*n);
+    	integer n = A.dim(0);
+    	integer info;
+    	piv=Tensor<integer>(n);
+    	Tensor<T> work(2*n);
 
-        pstrf_("L", &n, A.ptr(), &n, piv.ptr(), &rank, &tol, work.ptr(), &info);
+    	pstrf_("L", &n, A.ptr(), &n, piv.ptr(), &rank, &tol, work.ptr(), &info);
 
-        // note:
-        // info=0: Cholesky decomposition suceeded with full rank
-        // info>0: indicates a rank-deficient A, which is not failure!
-        // info<0: faulty input parameter
-        mask_info(info);
-        TENSOR_ASSERT(info >= 0, "rr_cholesky: Lapack failed", info, &A);
+    	// note:
+    	// info=0: Cholesky decomposition suceeded with full rank
+    	// info>0: indicates a rank-deficient A, which is not failure!
+    	// info<0: faulty input parameter
+    	mask_info(info);
+    	TENSOR_ASSERT(info >= 0, "rr_cholesky: Lapack failed", info, &A);
 
-        for (int i=0; i<n; ++i)
-            for (int j=0; j<i; ++j)
-                A(i,j) = 0.0;
-        // turn piv into c numbering
-        for (int i=0; i<n; ++i) piv[i]--;
+    	for (int i=0; i<n; ++i)
+    		for (int j=0; j<i; ++j)
+    			A(i,j) = 0.0;
+    	// turn piv into c numbering
+    	for (int i=0; i<n; ++i) piv[i]--;
     }
 
 

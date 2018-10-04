@@ -104,55 +104,45 @@ double Nemo::value(const Tensor<double>& x) {
 	}
 
 	SCFProtocol p(world,calc->param,"nemo_iterations",calc->param.restart);
-    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
 
     get_calc()->make_nuclear_potential(world);
     calc->project_ao_basis(world);
 	// read (pre-) converged wave function from disk if there is one
-	if (calc->param.no_compute) {
+	if (calc->param.no_compute or calc->param.restart) {
 	    calc->load_mos(world);
-	    p.current_prec=calc->param.econv;   // no additional iterations
-        p.restart=false;    // don't read anything from disk
-	    FunctionDefaults<3>::set_thresh(p.start_prec);
-	} else if (calc->param.restart) {
-	    calc->load_mos(world);
-	    p.start_prec=calc->amo[0].thresh();
-	    p.current_prec=calc->amo[0].thresh();
+	    set_protocol(calc->amo[0].thresh());	// set thresh to current value
+	    calc->project_ao_basis(world);
 
-	} else {
-	    FunctionDefaults<3>::set_thresh(p.start_prec);
-	    calc->initial_guess(world);
-	    real_function_3d R_inverse = nuclear_correlation->inverse();
-	    calc->amo = R_inverse*calc->amo;
-	    truncate(world,calc->amo);
+	} else {		// we need a guess
+
+		FunctionDefaults<3>::set_thresh(p.start_prec);
+		set_protocol(p.start_prec);	// set thresh to initial value
+
+		calc->project_ao_basis(world);
+
+
+		calc->initial_guess(world);
+		real_function_3d R_inverse = nuclear_correlation->inverse();
+		calc->amo = R_inverse*calc->amo;
+		truncate(world,calc->amo);
+
+
 	}
 
-	double energy=0.0;
-    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+	if (not calc->param.no_compute) {
 
-    if(calc->param.no_compute){
-    	vecfuncT& nemo = calc->amo;
-    	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
-	    // (re) construct nuclear potential and correlation factors
-        get_calc()->make_nuclear_potential(world);
-        construct_nuclear_correlation_factor();
-        energy=calc->current_energy;
-    }
-    else{
-	for (p.initialize() ; not p.finished(); ++p) {
+		p.start_prec=calc->amo[0].thresh();
+		p.current_prec=calc->amo[0].thresh();
 
-	    set_protocol(p.current_prec);
+		for (p.initialize() ; not p.finished(); ++p) {
 
-	    // (re) construct nuclear potential and correlation factors
-        get_calc()->make_nuclear_potential(world);
-        construct_nuclear_correlation_factor();
+			set_protocol(p.current_prec);
+			calc->current_energy=solve(p);
 
-        energy=solve(p);
+		}
     }
     }
 
-    calc->current_energy=energy;
-    if (calc->param.save) calc->save_mos(world);
 
     // save the converged orbitals and nemos
     for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
@@ -168,7 +158,7 @@ double Nemo::value(const Tensor<double>& x) {
 
 	if(world.rank()==0) std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
 
-	return energy;
+	return calc->current_energy;
 }
 
 
@@ -537,8 +527,6 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 	    print("number of electrons",nelectron);
 	    double nelectron_exact=nemo.size()*2.0;
 	    scalefactor=nelectron_exact/nelectron;
-	} else {
-        print("not scaling Coulomb and exchange potentials");
 	}
 
 

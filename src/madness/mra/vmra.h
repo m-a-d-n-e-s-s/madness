@@ -306,26 +306,26 @@ namespace madness {
     /// @param[in] overlap matrix
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_symmetric(
-       const std::vector<Function<T,NDIM> >& v,
-	   const Tensor<T>& ovlp) {
-
+    		const std::vector<Function<T,NDIM> >& v,
+			  const Tensor<T>& ovlp) {
     	if(v.empty()) return v;
 
     	Tensor<T> U;
     	Tensor< typename Tensor<T>::scalar_type > s;
     	syev(ovlp,U,s);
 
-     	// transform s to s^{-1}
-     	for(size_t i=0;i<v.size();++i) s(i)=1.0/(sqrt(s(i)));
+    	// transform s to s^{-1}
+    	for(size_t i=0;i<v.size();++i) s(i)=1.0/(sqrt(s(i)));
 
+    	// save Ut before U gets modified with s^{-1}
     	const Tensor<T> Ut=transpose(U);
-     	for(size_t i=0;i<v.size();++i){
-     		for(size_t j=0;j<v.size();++j){
-     			U(i,j)=U(i,j)*s(j);
-     		}
-     	}
+    	for(size_t i=0;i<v.size();++i){
+    		for(size_t j=0;j<v.size();++j){
+    			U(i,j)=U(i,j)*s(j);
+    		}
+    	}
 
-     	Tensor<T> X=inner(U,Ut,1,0);
+    	Tensor<T> X=inner(U,Ut,1,0);
 
     	World& world=v.front().world();
     	return transform(world,v,X);
@@ -338,7 +338,8 @@ namespace madness {
     std::vector<Function<T,NDIM> > orthonormalize_symmetric(const std::vector<Function<T,NDIM> >& v){
     	if(v.empty()) return v;
 
-	    World& world=v.front().world();
+
+    	World& world=v.front().world();
     	Tensor<T> ovlp = matrix_inner(world, v, v);
 
     	return orthonormalize_symmetric(v,ovlp);
@@ -349,26 +350,27 @@ namespace madness {
     /// @param[in] overlap matrix
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_canonical(
-       const std::vector<Function<T,NDIM> >& v,
- 	   const Tensor<T>& ovlp) {
+    		const std::vector<Function<T,NDIM> >& v,
+			const Tensor<T>& ovlp) {
 
-     	if(v.empty()) return v;
+    	if(v.empty()) return v;
 
-     	Tensor<T> U;
-     	Tensor< typename Tensor<T>::scalar_type > s;
-     	syev(ovlp,U,s);
+    	Tensor<T> U;
+    	Tensor< typename Tensor<T>::scalar_type > s;
+    	syev(ovlp,U,s);
 
-     	// transform s to s^{-1}
-     	for(size_t i=0;i<v.size();++i) s(i)=1.0/(sqrt(s(i)));
+    	// transform s to s^{-1}
+    	for(size_t i=0;i<v.size();++i) s(i)=1.0/(sqrt(s(i)));
 
-     	for(size_t i=0;i<v.size();++i){
-     		for(size_t j=0;j<v.size();++j){
-     			U(i,j)=U(i,j)*(s(j));
-     		}
-     	}
+    	for(size_t i=0;i<v.size();++i){
+    		for(size_t j=0;j<v.size();++j){
+    			U(i,j)=U(i,j)*(s(j));
+    		}
+    	}
 
-     	World& world=v.front().world();
-     	return transform(world,v,U);
+    	World& world=v.front().world();
+    	return transform(world,v,U);
+
     }
 
     /// convenience routine for canonical routine for symmetric orthonormalization (see e.g. Szabo/Ostlund)
@@ -378,7 +380,7 @@ namespace madness {
     std::vector<Function<T,NDIM> > orthonormalize_canonical(const std::vector<Function<T,NDIM> >& v){
     	if(v.empty()) return v;
 
-	    World& world=v.front().world();
+    	World& world=v.front().world();
     	Tensor<T> ovlp = matrix_inner(world, v, v);
 
     	return orthonormalize_canonical(v,ovlp);
@@ -389,19 +391,19 @@ namespace madness {
     /// @param[in] overlap matrix, destroyed on return!
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_cd(
-       const std::vector<Function<T,NDIM> >& v,
- 	   Tensor<T>& ovlp) {
+    		const std::vector<Function<T,NDIM> >& v,
+			Tensor<T>& ovlp) {
 
- 	   if (v.empty()) return v;
+    	if (v.empty()) return v;
 
-     	cholesky(ovlp); // destroys ovlp and gives back Upper ∆ Matrix from CD
+    	cholesky(ovlp); // destroys ovlp and gives back Upper ∆ Matrix from CD
 
-     	Tensor<T> L = transpose(ovlp);
-     	Tensor<T> Linv = inverse(L);
-     	Tensor<T> U = transpose(Linv);
+    	Tensor<T> L = transpose(ovlp);
+    	Tensor<T> Linv = inverse(L);
+    	Tensor<T> U = transpose(Linv);
 
-     	World& world=v.front().world();
-     	return transform(world, v, U);
+    	World& world=v.front().world();
+    	return transform(world, v, U);
 
     }
 
@@ -412,27 +414,27 @@ namespace madness {
     std::vector<Function<T,NDIM> > orthonormalize_cd(const std::vector<Function<T,NDIM> >& v){
     	if(v.empty()) return v;
 
-	    World& world=v.front().world();
+    	World& world=v.front().world();
     	Tensor<T> ovlp = matrix_inner(world, v, v);
 
     	return orthonormalize_cd(v,ovlp);
     }
 
-   /// @param[in] the vector to orthonormalize
-   /// @param[in] overlap matrix, will be destroyed on return!
-   /// @param[in] tolerance for numerical rank reduction
-   /// @param[out] pivoting vector, no allocation on input needed
-   /// @param[out] rank
-   /// @return orthonrormalized vector (may or may not be truncated)
-   template <typename T, std::size_t NDIM>
-   std::vector<Function<T,NDIM> > orthonormalize_rrcd(
-		   const std::vector<Function<T,NDIM> >& v,
-		   Tensor<T>& ovlp,
-		   const double tol,
-		   Tensor<integer>& piv,
-		   int& rank) {
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] overlap matrix, will be destroyed on return!
+    /// @param[in] tolerance for numerical rank reduction
+    /// @param[out] pivoting vector, no allocation on input needed
+    /// @param[out] rank
+    /// @return orthonrormalized vector (may or may not be truncated)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_rrcd(
+    		const std::vector<Function<T,NDIM> >& v,
+			Tensor<T>& ovlp,
+			const double tol,
+			Tensor<integer>& piv,
+			int& rank) {
 
-	   if (v.empty()) {
+    	if (v.empty()) {
     		return v;
     	}
 
@@ -453,45 +455,45 @@ namespace madness {
     	return transform(world, pv, U);
     }
 
-   /// convenience routine for orthonromalize_cholesky: orthonromalize_cholesky without information on pivoting and rank
-   /// @param[in] the vector to orthonormalize
-   /// @param[in] overlap matrix
-   /// @param[in] tolerance for numerical rank reduction
-   template <typename T, std::size_t NDIM>
-   std::vector<Function<T,NDIM> > orthonormalize_rrcd(const std::vector<Function<T,NDIM> >& v, Tensor<T> ovlp , const double tol) {
-	   Tensor<integer> piv;
-	   int rank;
-	   return orthonormalize_rrcd(v,ovlp,tol,piv,rank);
-   }
+    /// convenience routine for orthonromalize_cholesky: orthonromalize_cholesky without information on pivoting and rank
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] overlap matrix
+    /// @param[in] tolerance for numerical rank reduction
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_rrcd(const std::vector<Function<T,NDIM> >& v, Tensor<T> ovlp , const double tol) {
+    	Tensor<integer> piv;
+    	int rank;
+    	return orthonormalize_rrcd(v,ovlp,tol,piv,rank);
+    }
 
-   /// convenience routine for orthonromalize_cholesky: computes the overlap matrix and then calls orthonromalize_cholesky
-   /// @param[in] the vector to orthonormalize
-   /// @param[in] tolerance for numerical rank reduction
-   template <typename T, std::size_t NDIM>
-   std::vector<Function<T,NDIM> > orthonormalize_rrcd(const std::vector<Function<T,NDIM> >& v, const double tol) {
-	   if (v.empty()) {
+    /// convenience routine for orthonromalize_cholesky: computes the overlap matrix and then calls orthonromalize_cholesky
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] tolerance for numerical rank reduction
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_rrcd(const std::vector<Function<T,NDIM> >& v, const double tol) {
+    	if (v.empty()) {
     		return v;
     	}
-	    // compute overlap
-	    World& world=v.front().world();
+    	// compute overlap
+    	World& world=v.front().world();
     	Tensor<T> ovlp = matrix_inner(world, v, v);
     	return orthonormalize_rrcd(v,ovlp,tol);
-   }
+    }
 
-   /// combine two vectors
-   template <typename T, std::size_t NDIM>
-   std::vector<Function<T,NDIM> > append(const std::vector<Function<T,NDIM> > & lhs, const std::vector<Function<T,NDIM> > & rhs){
-	std::vector<Function<T,NDIM> >  v=lhs;
-   	for (std::size_t i = 0; i < rhs.size(); ++i) v.push_back(rhs[i]);
-   	return v;
-   }
+    /// combine two vectors
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > append(const std::vector<Function<T,NDIM> > & lhs, const std::vector<Function<T,NDIM> > & rhs){
+    	std::vector<Function<T,NDIM> >  v=lhs;
+    	for (std::size_t i = 0; i < rhs.size(); ++i) v.push_back(rhs[i]);
+    	return v;
+    }
 
-   template <typename T, std::size_t NDIM>
-   std::vector<Function<T,NDIM> > append(const std::vector< std::vector<Function<T,NDIM> > > vv){
-	   std::vector<Function<T,NDIM> >result;
-	   for(const auto& x:vv) result=append(result,x);
-	   return result;
-   }
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > append(const std::vector< std::vector<Function<T,NDIM> > > vv){
+    	std::vector<Function<T,NDIM> >result;
+    	for(const auto& x:vv) result=append(result,x);
+    	return result;
+    }
 
     /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
 

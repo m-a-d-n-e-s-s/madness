@@ -115,7 +115,7 @@ public:
     PotentialManager(const Molecule& molecule, const std::string& core_type)
      : molecule(molecule), core_type(core_type) {}
 
-    real_function_3d vnuclear() {
+    const real_function_3d& vnuclear() {
         return vnuc;
     }
 
