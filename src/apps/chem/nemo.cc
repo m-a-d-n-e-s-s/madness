@@ -105,11 +105,10 @@ double Nemo::value(const Tensor<double>& x) {
 
 	SCFProtocol p(world,calc->param,"nemo_iterations",calc->param.restart);
 
-    get_calc()->make_nuclear_potential(world);
-    calc->project_ao_basis(world);
 	// read (pre-) converged wave function from disk if there is one
 	if (calc->param.no_compute or calc->param.restart) {
 	    calc->load_mos(world);
+
 	    set_protocol(calc->amo[0].thresh());	// set thresh to current value
 	    calc->project_ao_basis(world);
 
@@ -120,12 +119,10 @@ double Nemo::value(const Tensor<double>& x) {
 
 		calc->project_ao_basis(world);
 
-
 		calc->initial_guess(world);
 		real_function_3d R_inverse = nuclear_correlation->inverse();
 		calc->amo = R_inverse*calc->amo;
 		truncate(world,calc->amo);
-
 
 	}
 
@@ -140,7 +137,6 @@ double Nemo::value(const Tensor<double>& x) {
 			calc->current_energy=solve(p);
 
 		}
-    }
     }
 
 
