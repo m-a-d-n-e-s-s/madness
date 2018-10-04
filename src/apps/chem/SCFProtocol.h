@@ -90,7 +90,6 @@ public:
                     if (tag=="thresh") ss >> thresh;
                     if (tag=="user_dconv") ss >> user_dconv;
                 }
-                if (world.rank()==0) print("tried restart but failed");
             }
         } else {
             current_prec=start_prec;

@@ -187,9 +187,9 @@ namespace madness {
 
         GenTensor convert(const TensorArgs& targs) const {return copy(*this);}
 
-		GenTensor<T> reconstruct_tensor() const {return *this;}
-		GenTensor<T> full_tensor() const {return *this;}
-		GenTensor<T>& full_tensor() {return *this;}
+        GenTensor<T> reconstruct_tensor() const {return *this;}
+        GenTensor<T> full_tensor() const {return *this;}
+        GenTensor<T>& full_tensor() {return *this;}
         GenTensor<T> full_tensor_copy() const {return copy(*this);}
         GenTensor<T> full_tensor_copy() {return copy(*this);}
 

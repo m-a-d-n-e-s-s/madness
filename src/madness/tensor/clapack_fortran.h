@@ -276,8 +276,29 @@ extern "C"
     			 complex_real8 *a, integer *lda, complex_real8 *tau,
 			 	 complex_real8 *work, integer *lwork, integer *info);
 
+// cholesky
+extern "C"
+void spotrf_(const char *uplo, const integer* n, real4 *a, const integer *lda, integer *info, char_len uplo_len);
 extern "C"
 void dpotrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer *info, char_len uplo_len);
+extern "C"
+void cpotrf_(const char *uplo, const integer* n, complex_real4 *a, const integer *lda, integer *info, char_len uplo_len);
+extern "C"
+void zpotrf_(const char *uplo, const integer* n, complex_real8 *a, const integer *lda, integer *info, char_len uplo_len);
+
+// rr_cholesky
+extern "C"
+void spstrf_(const char *uplo, const integer* n, real4 *a, const integer *lda, integer* ipiv, integer* rank, real4* tol,
+		real4* work, integer *info);
+extern "C"
+void dpstrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer* ipiv, integer* rank, real8* tol,
+		real8* work, integer *info);
+extern "C"
+void cpstrf_(const char *uplo, const integer* n, complex_real4 *a, const integer *lda, integer* ipiv, integer* rank, real4* tol,
+		complex_real4* work, integer *info);
+extern "C"
+void zpstrf_(const char *uplo, const integer* n, complex_real8 *a, const integer *lda, integer* ipiv, integer* rank, real8* tol,
+		complex_real8* work, integer *info);
 
 extern "C"
 void dpstrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer* ipiv, integer* rank, real8* tol,

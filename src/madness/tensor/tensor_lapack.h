@@ -121,7 +121,7 @@ namespace madness {
 
     /// \ingroup linalg
     template <typename T>
-    void rr_cholesky(Tensor<T>& A, double tol, Tensor<integer>& piv, int& rank);
+    void rr_cholesky(Tensor<T>& A, typename Tensor<T>::scalar_type tol, Tensor<integer>& piv, int& rank);
 
     /// \ingroup linalg
     template <typename T>
