@@ -227,7 +227,7 @@ namespace madness{
     // Exponent for the correlation factor
     double corrfac_gamma=1.0;
     // for formated output
-    size_t output_prec=1.e-8;
+    double output_prec=1.e-8;
     // debug mode
     bool debug=false;
     // make additional plots
