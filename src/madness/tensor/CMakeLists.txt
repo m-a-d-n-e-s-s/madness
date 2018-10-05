@@ -89,10 +89,10 @@ if(ENABLE_UNITTESTS)
   # The list of unit test source files
   set(TENSOR_TEST_SOURCES test_tensor.cc oldtest.cc test_mtxmq.cc
       jimkernel.cc test_distributed_matrix.cc test_Zmtxmq.cc test_systolic.cc)
-  if(ENABLE_GENTENSOR)
-    list(APPEND TENSOR_TEST_SOURCES test_gentensor.cc)
-  endif()
   set(LINALG_TEST_SOURCES test_linalg.cc test_solvers.cc testseprep.cc)
+  if(ENABLE_GENTENSOR)
+    list(APPEND LINALG_TEST_SOURCES test_gentensor.cc)
+  endif()
 
   add_unittests(tensor TENSOR_TEST_SOURCES "MADtensor;MADgtest")
   add_unittests(linalg LINALG_TEST_SOURCES "MADlinalg;MADgtest")
