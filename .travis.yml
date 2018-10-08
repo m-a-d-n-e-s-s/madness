@@ -5,6 +5,9 @@ os:
   - linux
 compiler:
   - clang
+    CLANG_NAME=clang
+    CLANGXX_NAME=clang++
+# the above two explicitly spelled out for OSX with MPI
   - gcc
 env:
   #- GCC_VERSION=4.7 RUN_TEST=buildonly
@@ -24,6 +27,17 @@ env:
   #- GCC_VERSION=4.9 RUN_TEST=mra
   - GCC_VERSION=5 RUN_TEST=mra
 matrix:
+  include:
+    - compiler: clang
+      env: RUN_TEST=buildonly 
+           CLANG_NAME=clang 
+           CLANGXX_NAME=clang++
+           CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1" 
+    - compiler: clang
+      env: RUN_TEST=tensor
+           CLANG_NAME=clang 
+           CLANGXX_NAME=clang++
+           CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1" 
   exclude:
     - compiler: clang
       env: GCC_VERSION=4.7 RUN_TEST=buildonly
@@ -100,3 +114,5 @@ script:
   - ./ci/build-$TRAVIS_OS_NAME.sh
 after_failure:
   - cat ./build/config.log
+  - cat ./build/CMakeFiles/CMakeError.log
+  - cat ./build/CMakeFiles/CMakeOutput.log
