@@ -103,10 +103,9 @@ public:
 /// Project a general 3D polynomial to the MRA Grid
 class polynomial_functor : public FunctionFunctorInterface<double,3> {
 public :
-	/// simple moments constructor
-	//polynomial_functor(): input_string()
+	/// simple xyz moments constructor
+	polynomial_functor(const int& axis): input_string_(axis_to_string(axis)), data_(read_string(axis_to_string(axis))), dampf(0.0) {}
 	// general polynomials or sums of polynomials
-	polynomial_functor(): input_string_(""),data_(),dampf(0.0){}
 	polynomial_functor(const std::string input, const double& damp_width=0.0, const coord_3d& c=coord_3d()) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(c) {}
 	polynomial_functor(const std::string input,const double& damp_width, const Tensor<double>& c) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(tensor_to_coord<double,3>(c)) {}
 
@@ -115,6 +114,16 @@ public :
 
 	/// create the value of the polynomial according to the data in the data_ structure
 	double compute_value(const coord_3d& r) const;
+
+	/// convert a given axis to the appropriate input string
+	std::string axis_to_string(const int& axis)const{
+		std::string result;
+		if(axis==0) result="x 1.0";
+		else if(axis==1) result="y 1.0";
+		else if (axis==2) result="z 1.0";
+		else MADNESS_EXCEPTION("polynomial functor only defined up to 3 dimensions",1);
+		return result;
+	}
 
 protected:
 	const std::string input_string_;
@@ -129,31 +138,6 @@ public:
 	void test();
 	std::vector<std::vector<double> > give_data(){return data_;}
 };
-
-/// helper struct for computing moments
-class xyz : public polynomial_functor{
-public:
-	xyz(const int& axis) : data_(init_data(axis)) {};
-	/// The data for the construction of the polynomial chain
-	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
-	const std::vector<std::vector<double> > data_;
-	const std::vector<std::vector<double> > init_data(const int& axis)const{
-		std::vector<double>  result;
-		if(axis==0)      result={1.0,0.0,0.0,1.0};
-		else if(axis==1) result={0.0,1.0,0.0,1.0};
-		else if(axis==2) result={0.0,0.0,1.0,1.0};
-		else MADNESS_EXCEPTION("xyz::polynomial functor only defined up to 3 dimensions",1);
-		return std::vector<std::vector<double> > (1,result);
-	}
-};
-/// helper struct for computing moments
-//struct xyz {
-//	int direction;
-//	xyz(int direction) : direction(direction) {}
-//	double operator()(const coord_3d& r) const {
-//		return r[direction];
-//	}
-//};
 
 /// instead of x,y,z use sin(x), sin(y), sin(z)
 class polynomial_trigonometrics_functor : public polynomial_functor {

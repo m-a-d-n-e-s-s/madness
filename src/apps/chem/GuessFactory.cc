@@ -16,7 +16,7 @@ coord_3d compute_centroid(const real_function_3d& f) {
 	real_function_3d density = f * f;
 	const double integral = density.trace();
 	for (size_t x = 0; x < 3; ++x) {
-		const auto mf = xyz(x);
+		const auto mf = polynomial_functor(x);
 		real_function_3d m = real_factory_3d(f.world()).functor(mf);
 		result[x] = (m * density).trace() / integral;
 	}
@@ -30,7 +30,7 @@ std::vector<coord_3d> compute_centroids(const vector_real_function_3d & vf){
 	const Tensor<double> denom=inner(world,vf,vf);
 	std::vector<Tensor<double> >nums(3);
 	for (size_t x = 0; x < 3; ++x) {
-		const auto mf = xyz(x);
+		const auto mf = polynomial_functor(x);
 		real_function_3d m = real_factory_3d(world).functor(mf);
 		nums[x]=inner(world,vf,m*vf);
 	}

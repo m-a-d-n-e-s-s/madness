@@ -1353,7 +1353,8 @@ bool TDHF::initialize_singles(CC_vecfunction &singles,const FuncType type,const 
 double TDHF::oscillator_strength_length(const CC_vecfunction& x) const {
 	Tensor<double> mu_if(3);
 	for (int idim=0; idim<3; idim++) {
-		real_function_3d ri = real_factory_3d(world).functor(guessfactory::xyz(idim));
+		real_function_3d ri = real_factory_3d(world).functor(guessfactory::polynomial_functor(idim));
+		plot_plane(world,ri,"asd");
 		vector_real_function_3d amo_times_x=ri*get_active_mo_bra();
 		Tensor<double> a=inner(world,amo_times_x,x.get_vecfunction());
 		mu_if(idim)=a.sum();
