@@ -1,20 +1,14 @@
 /*
- * GuessFactory.cc
+ * guessfactory.cc
  *
  *  Created on: Sep 27, 2018
  *      Author: kottmanj
  */
 
-#include "GuessFactory.h"
+#include "guessfactory.h"
 
 namespace madness {
-
-void ExopUnaryOpStructure::operator ()(const Key<3>& key, Tensor<double>& t) const {
-	Tensor<double> exop(t.ndim(), t.dims());
-	const Tensor<double>& qp = cdata.quad_x;
-	fcube(key, (*exfunc), qp, exop);
-	t.emul(exop);
-}
+namespace guessfactory{
 
 /// compute the centroid of a function i.e. c[xi]=<f|xi|f>/<f|f> i.e. position expectation value
 coord_3d compute_centroid(const real_function_3d& f) {
@@ -37,7 +31,7 @@ std::vector<coord_3d> compute_centroids(const vector_real_function_3d & vf){
 	std::vector<Tensor<double> >nums(3);
 	for (size_t x = 0; x < 3; ++x) {
 		const auto mf = xyz(x);
-		real_function_3d m = real_factory_3d(world).functor(xyz(x));
+		real_function_3d m = real_factory_3d(world).functor(mf);
 		nums[x]=inner(world,vf,m*vf);
 	}
 
@@ -51,8 +45,197 @@ std::vector<coord_3d> compute_centroids(const vector_real_function_3d & vf){
 	return results;
 }
 
+
+
+/// excite a vector of functions with a specific excitation operator
+/// @param[in/out] vf the function which gets excited, exop*f on return
+/// @param[in] exop_input , the excitation operator defined by a string (see the polynomial_functor class for details)
+/// @return exop*vf i.e. result[i]=exop*vf[i]
+vector_real_function_3d apply_polynomial_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
+	if (vf.empty())
+		return vf;
+
+	//recompute centers if necessary
+	if (centers.empty())
+		centers = compute_centroids(vf);
+
+	ExopUnaryOpStructure exop(std::make_shared<polynomial_functor>(polynomial_functor(exop_input)));
+	for (auto& f : vf) {
+		f.unaryop(exop, false);
+	}
+	if (fence)
+		vf.front().world().gop.fence();
+
+	return vf;
+}
+
+/// convenience wrapper
+real_function_3d apply_polynomial_exop(real_function_3d& f, const std::string& exop_input, coord_3d center, const bool& fence) {
+	vector_real_function_3d vf(1, f);
+	std::vector<coord_3d> centers(1, center);
+	return apply_polynomial_exop(vf, exop_input, centers, fence).front();
+}
+
+/// excite a vector of functions with a specific excitation operator
+/// @param[in/out] vf the function which gets excited, exop*f on return
+/// @param[in] exop_input, the excitation operator defined by a string (see the polynomial_functor class for details)
+/// @param[in] the centers of the vf functions, if none were given they are recomputed
+/// @return exop*vf i.e. result[i]=exop*vf[i]
+vector_real_function_3d apply_trigonometric_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
+	if (vf.empty())
+		return vf;
+
+	//recompute centers if necessary
+	if (centers.empty())
+		centers = compute_centroids(vf);
+
+	ExopUnaryOpStructure exop(std::make_shared<polynomial_trigonometrics_functor>(polynomial_trigonometrics_functor(exop_input)));
+	for (auto& f : vf) {
+		f.unaryop(exop, false);
+	}
+	if (fence)
+		vf.front().world().gop.fence();
+
+	return vf;
+}
+
+/// convenience wrapper
+real_function_3d apply_trigonometric_exop(real_function_3d& f, const std::string& exop_input, coord_3d center, const bool& fence) {
+	vector_real_function_3d vf(1, f);
+	std::vector<coord_3d> centers(1, center);
+	return apply_trigonometric_exop(vf, exop_input, centers, fence).front();
+}
+
+void polynomial_functor::test() {
+	std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
+	for(const auto mono : data_){
+		for(const auto entry : mono){
+			std::cout << entry << ",";
+		}
+		std::cout << "\n";
+	}
+}
+
+void ExopUnaryOpStructure::operator ()(const Key<3>& key, Tensor<double>& t) const {
+	Tensor<double> exop(t.ndim(), t.dims());
+	const Tensor<double>& qp = cdata.quad_x;
+	fcube(key, (*exfunc), qp, exop);
+	t.emul(exop);
+}
+
+double polynomial_functor::operator ()(const coord_3d& rr) const {
+	coord_3d r;
+	r[0] = rr[0] - center[0];
+	r[1] = rr[1] - center[1];
+	r[2] = rr[2] - center[2];
+	return dampf(r) * compute_value(r);
+}
+
+
+
+double polynomial_functor::compute_value(const coord_3d& r) const {
+	double result = 0.0;
+	for (size_t i = 0; i < data_.size(); i++) {
+		if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
+		result += (data_[i][3] * pow(r[0], data_[i][0]) * pow(r[1], data_[i][1]) * pow(r[2], data_[i][2]));
+	}
+
+	return result;
+}
+
+std::vector<std::vector<double> > polynomial_functor::read_string(const std::string string) const
+{
+	std::stringstream line(string);
+	std::string name;
+	size_t counter = 0;
+	std::vector<double> current_data = vector_factory(0.0, 0.0, 0.0, 1.0);
+	std::vector<std::vector<double> > read_data;
+	while (line >> name) {
+		if (name == "c")
+		line >> current_data[3];
+		else
+		if (name == "x")
+		line >> current_data[0];
+		else
+		if (name == "y")
+		line >> current_data[1];
+		else
+		if (name == "z")
+		line >> current_data[2];
+		else
+		if (name == ",") {
+			counter++;
+			read_data.push_back(current_data);
+			current_data = vector_factory(0.0, 0.0, 0.0, 1.0);
+		}
+	}
+	// dont forget the last read polynomial
+	read_data.push_back(current_data);
+	return read_data;
+}
+
+double polynomial_trigonometrics_functor::compute_value(const coord_3d& r) const {
+	double result = 0.0;
+	for (size_t i = 0; i < data_.size(); i++) {
+		if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
+		result += (data_[i][3] * pow(sin(r[0]), data_[i][0]) * pow(sin(r[1]), data_[i][1]) * pow(sin(r[2]), data_[i][2]));
+	}
+}
+
+double gauss_functor::operator ()(const coord_3d& rr) const {
+	coord_3d r;
+	r[0] = rr[0] - center[0];
+	r[1] = rr[1] - center[1];
+	r[2] = rr[2] - center[2];
+	if (width_ <= 0.0)
+		return 1.0;
+	else {
+		const double prefactor = 0.06349363593424097 / (width_ * width_ * width_);
+		const double exponent = 0.5 / (width_ * width_);
+		return prefactor * exp(-exponent * (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]));
+	}
+	return 1.0;
+}
+
+double PlaneWaveFunctor::operator ()(const coord_3d& r) const {
+	SPLITCOORD(x, y, z, r);
+	double result = 1.0;
+	for (int i = 0; i < 3; ++i) {
+		result = result * (*this)(r[i], i);
+	}
+	return result;
+}
+
+double PlaneWaveFunctor::operator ()(const double& x, const int& dim) const {
+	const double argument = (2.0 * n[dim]) * M_PI / L[dim];
+	if (cosinus[dim]) {
+		return cos(argument * x);
+	} else {
+		return sin(argument * x);
+	}
+}
+
+std::string PlaneWaveFunctor::name(const bool& compact) const {
+	std::string result = "";
+	for (size_t i = 0; i < 3; ++i) {
+		if (compact && n[i] > 0) {
+			if (cosinus[i])
+				result += "c_" + std::to_string(n[i]) + "_";
+			else
+				result += "s_" + std::to_string(n[i]) + "_";
+		} else if (n[i] > 0) {
+			if (cosinus[i])
+				result += "cos(n=" + std::to_string(n[i]) + " l=" + std::to_string(L[i]) + ")";
+			else
+				result += "sin(n=" + std::to_string(n[i]) + " l=" + std::to_string(L[i]) + ")";
+		} else
+			result += "0";
+	}
+	return result;
+}
+
 /// Makes an excitation operator string based on predefined keywords
-std::vector<std::string> make_predefined_exop_strings(const std::string what){
+std::vector<std::string>make_predefined_exop_strings(const std::string what){
 	std::vector<std::string> exop_strings;
 	if (what == "dipole") {
 		exop_strings.resize(3);
@@ -124,25 +307,25 @@ std::vector<std::string> make_predefined_exop_strings(const std::string what){
 		exop_strings[6] = "y 1.0 , y 1.0 z 1.0 , y 1.0 z 2.0 , y 3.0 z 1.0 , y 1.0 z 3.0 , y 3.0";
 		exop_strings[7] = "x 2.0 y 1.0 , x 2.0 y 1.0 z 1.0";
 	} else if (what == "big_fock") {
-		exop_strings = make_auto_polynom_strings(6);
+		exop_strings = guessfactory::make_auto_polynom_strings(6);
 	} else if (what == "small_fock") {
-		exop_strings = make_auto_polynom_strings(4);
+		exop_strings = guessfactory::make_auto_polynom_strings(4);
 	} else if (what == "big_fock_2") {
-		exop_strings = make_auto_polynom_strings(2);
+		exop_strings = guessfactory::make_auto_polynom_strings(2);
 	} else if (what == "big_fock_3") {
-		exop_strings = make_auto_polynom_strings(3);
+		exop_strings = guessfactory::make_auto_polynom_strings(3);
 	} else if (what == "big_fock_4") {
-		exop_strings = make_auto_polynom_strings(4);
+		exop_strings = guessfactory::make_auto_polynom_strings(4);
 	} else if (what == "big_fock_5") {
-		exop_strings = make_auto_polynom_strings(5);
+		exop_strings = guessfactory::make_auto_polynom_strings(5);
 	} else if (what == "big_fock_6") {
-		exop_strings = make_auto_polynom_strings(6);
+		exop_strings = guessfactory::make_auto_polynom_strings(6);
 	} else if (what == "big_fock_7") {
-		exop_strings = make_auto_polynom_strings(7);
+		exop_strings = guessfactory::make_auto_polynom_strings(7);
 	} else if (what == "big_fock_8") {
-		exop_strings = make_auto_polynom_strings(8);
+		exop_strings = guessfactory::make_auto_polynom_strings(8);
 	} else if (what == "big_fock_9") {
-		exop_strings = make_auto_polynom_strings(9);
+		exop_strings = guessfactory::make_auto_polynom_strings(9);
 	} else
 		std::cout << "Keyword " << what << " is not known" << std::endl;
 
@@ -181,179 +364,5 @@ std::vector<std::string> make_auto_polynom_strings(const size_t order){
 	return exop_strings;
 }
 
-/// excite a vector of functions with a specific excitation operator
-/// @param[in/out] vf the function which gets excited, exop*f on return
-/// @param[in] exop_input , the excitation operator defined by a string (see the polynomial_functor class for details)
-/// @return exop*vf i.e. result[i]=exop*vf[i]
-vector_real_function_3d apply_polynomial_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
-	if (vf.empty())
-		return vf;
-
-	//recompute centers if necessary
-	if (centers.empty())
-		centers = compute_centroids(vf);
-
-	ExopUnaryOpStructure exop(std::make_shared<polynomial_functor>(polynomial_functor(exop_input)));
-	for (auto& f : vf) {
-		f.unaryop(exop, false);
-	}
-	if (fence)
-		vf.front().world().gop.fence();
-
-	return vf;
-}
-
-/// convenience wrapper
-real_function_3d apply_polynomial_exop(real_function_3d& f, const std::string& exop_input, coord_3d center, const bool& fence) {
-	vector_real_function_3d vf(1, f);
-	std::vector<coord_3d> centers(1, center);
-	return apply_polynomial_exop(vf, exop_input, centers, fence).front();
-}
-
-/// excite a vector of functions with a specific excitation operator
-/// @param[in/out] vf the function which gets excited, exop*f on return
-/// @param[in] exop_input, the excitation operator defined by a string (see the polynomial_functor class for details)
-/// @param[in] the centers of the vf functions, if none were given they are recomputed
-/// @return exop*vf i.e. result[i]=exop*vf[i]
-vector_real_function_3d apply_trigonometric_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
-	if (vf.empty())
-		return vf;
-
-	//recompute centers if necessary
-	if (centers.empty())
-		centers = compute_centroids(vf);
-
-	ExopUnaryOpStructure exop(std::make_shared<polynomial_trigonometrics_functor>(polynomial_trigonometrics_functor(exop_input)));
-	for (auto& f : vf) {
-		f.unaryop(exop, false);
-	}
-	if (fence)
-		vf.front().world().gop.fence();
-
-	return vf;
-}
-
-/// convenience wrapper
-real_function_3d apply_trigonometric_exop(real_function_3d& f, const std::string& exop_input, coord_3d center, const bool& fence) {
-	vector_real_function_3d vf(1, f);
-	std::vector<coord_3d> centers(1, center);
-	return apply_trigonometric_exop(vf, exop_input, centers, fence).front();
-}
-
-std::vector<std::vector<double> > polynomial_functor::read_string(const std::string string) const
-{
-	std::stringstream line(string);
-	std::string name;
-	size_t counter = 0;
-	std::vector<double> current_data = vector_factory(0.0, 0.0, 0.0, 1.0);
-	std::vector<std::vector<double> > read_data;
-	while (line >> name) {
-		if (name == "c")
-		line >> current_data[3];
-		else
-		if (name == "x")
-		line >> current_data[0];
-		else
-		if (name == "y")
-		line >> current_data[1];
-		else
-		if (name == "z")
-		line >> current_data[2];
-		else
-		if (name == ",") {
-			counter++;
-			read_data.push_back(current_data);
-			current_data = vector_factory(0.0, 0.0, 0.0, 1.0);
-		}
-	}
-	// dont forget the last read polynomial
-	read_data.push_back(current_data);
-	return read_data;
-}
-
-double polynomial_functor::operator ()(const coord_3d& rr) const {
-	coord_3d r;
-	r[0] = rr[0] - center[0];
-	r[1] = rr[1] - center[1];
-	r[2] = rr[2] - center[2];
-	return dampf(r) * compute_value(r);
-}
-
-void polynomial_functor::test() {
-	std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
-	std::cout << "\n read data is \n" << data_ << std::endl;
-}
-
-double polynomial_functor::compute_value(const coord_3d& r) const {
-	double result = 0.0;
-	for (size_t i = 0; i < data_.size(); i++) {
-		if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
-		result += (data_[i][3] * pow(r[0], data_[i][0]) * pow(r[1], data_[i][1]) * pow(r[2], data_[i][2]));
-	}
-
-	return result;
-}
-
-double polynomial_trigonometrics_functor::compute_value(const coord_3d& r) const {
-	double result = 0.0;
-	for (size_t i = 0; i < data_.size(); i++) {
-		if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
-		result += (data_[i][3] * pow(sin(r[0]), data_[i][0]) * pow(sin(r[1]), data_[i][1]) * pow(sin(r[2]), data_[i][2]));
-	}
-}
-
-double gauss_functor::operator ()(const coord_3d& rr) const {
-	coord_3d r;
-	r[0] = rr[0] - center[0];
-	r[1] = rr[1] - center[1];
-	r[2] = rr[2] - center[2];
-	if (width_ <= 0.0)
-		return 1.0;
-	else {
-		const double prefactor = 0.06349363593424097 / (width_ * width_ * width_);
-		const double exponent = 0.5 / (width_ * width_);
-		return prefactor * exp(-exponent * (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]));
-	}
-	return 1.0;
-}
-
-double PlaneWaveFunctor::operator ()(const coord_3d& r) const {
-	SPLITCOORD(x, y, z, r);
-	double result = 1.0;
-	for (int i = 0; i < 3; ++i) {
-		result = result * (*this)(r[i], i);
-	}
-	return result;
-}
-
-double PlaneWaveFunctor::operator ()(const double& x, const int& dim) const {
-	const double argument = (2.0 * n[dim]) * M_PI / L[dim];
-	if (cosinus[dim]) {
-		return cos(argument * x);
-	} else {
-		return sin(argument * x);
-	}
-}
-
-std::string PlaneWaveFunctor::name(const bool& compact) const {
-	std::string result = "";
-	for (size_t i = 0; i < 3; ++i) {
-		if (compact && n[i] > 0) {
-			if (cosinus[i])
-				result += "c_" + std::to_string(n[i]) + "_";
-			else
-				result += "s_" + std::to_string(n[i]) + "_";
-		} else if (n[i] > 0) {
-			if (cosinus[i])
-				result += "cos(n=" + std::to_string(n[i]) + " l=" + std::to_string(L[i]) + ")";
-			else
-				result += "sin(n=" + std::to_string(n[i]) + " l=" + std::to_string(L[i]) + ")";
-		} else
-			result += "0";
-	}
-	return result;
-}
-
-
-
+} /* namespace guessfactory */
 } /* namespace madness */

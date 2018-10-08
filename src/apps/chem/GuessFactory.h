@@ -14,6 +14,9 @@
 
 namespace madness {
 
+// avoid confusion with other projects which may use similar generic names
+namespace guessfactory{
+
 // convenience macros
 #define SPLITCOORD(x,y,z,r) double x=r[0]-origin[0]; double y=r[1]-origin[1];double z=r[2]-origin[2];
 
@@ -100,6 +103,10 @@ public:
 /// Project a general 3D polynomial to the MRA Grid
 class polynomial_functor : public FunctionFunctorInterface<double,3> {
 public :
+	/// simple moments constructor
+	//polynomial_functor(): input_string()
+	// general polynomials or sums of polynomials
+	polynomial_functor(): input_string_(""),data_(),dampf(0.0){}
 	polynomial_functor(const std::string input, const double& damp_width=0.0, const coord_3d& c=coord_3d()) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(c) {}
 	polynomial_functor(const std::string input,const double& damp_width, const Tensor<double>& c) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(tensor_to_coord<double,3>(c)) {}
 
@@ -124,13 +131,29 @@ public:
 };
 
 /// helper struct for computing moments
-struct xyz {
-	int direction;
-	xyz(int direction) : direction(direction) {}
-	double operator()(const coord_3d& r) const {
-		return r[direction];
+class xyz : public polynomial_functor{
+public:
+	xyz(const int& axis) : data_(init_data(axis)) {};
+	/// The data for the construction of the polynomial chain
+	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
+	const std::vector<std::vector<double> > data_;
+	const std::vector<std::vector<double> > init_data(const int& axis)const{
+		std::vector<double>  result;
+		if(axis==0)      result={1.0,0.0,0.0,1.0};
+		else if(axis==1) result={0.0,1.0,0.0,1.0};
+		else if(axis==2) result={0.0,0.0,1.0,1.0};
+		else MADNESS_EXCEPTION("xyz::polynomial functor only defined up to 3 dimensions",1);
+		return std::vector<std::vector<double> > (1,result);
 	}
 };
+/// helper struct for computing moments
+//struct xyz {
+//	int direction;
+//	xyz(int direction) : direction(direction) {}
+//	double operator()(const coord_3d& r) const {
+//		return r[direction];
+//	}
+//};
 
 /// instead of x,y,z use sin(x), sin(y), sin(z)
 class polynomial_trigonometrics_functor : public polynomial_functor {
@@ -142,6 +165,7 @@ public:
 	/// instead of x,y,z use sin(x), sin(y), sin(z)
 	double compute_value(const coord_3d& r) const;
 };
+
 
 
 /// excite a vector of functions with a specific excitation operator
@@ -160,13 +184,14 @@ vector_real_function_3d apply_trigonometric_exop(vector_real_function_3d& vf, co
 /// convenience wrapper
 real_function_3d apply_trigonometric_exop(real_function_3d& f, const std::string& exop_input, coord_3d center = coord_3d(), const bool& fence = false);
 
+
 /// Makes an excitation operator string based on predefined keywords
 std::vector<std::string> make_predefined_exop_strings(const std::string what);
 /// Makes an automated excitation operator string for the excitation operators needed to create virtuals from the reference orbitals
 std::vector<std::string> make_auto_polynom_strings(const size_t order);
 
 
-
+} /* namespace guessfactory */
 } /* namespace madness */
 
 #endif /* SRC_APPS_CHEM_GUESSFACTORY_H_ */

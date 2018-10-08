@@ -929,16 +929,16 @@ std::vector<CC_vecfunction> TDHF::make_old_guess(const vector_real_function_3d& 
 		msg << "Custom Excitation Operators Demanded:\n";
       	msg << exop_strings << "\n";
 	}
-	else exop_strings = make_predefined_exop_strings(parameters.guess_excitation_operators);
+	else exop_strings = guessfactory::make_predefined_exop_strings(parameters.guess_excitation_operators);
 
 	// make the excitation operators
 	vector_real_function_3d exops;
 	for(const auto& exs:exop_strings){
-		std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(new polynomial_functor(exs));
+		std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(new guessfactory::polynomial_functor(exs));
 		real_function_3d exop = real_factory_3d(world).functor(exop_functor);
 		// do damp
 		if(parameters.damping_width > 0.0){
-			std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(new gauss_functor(parameters.damping_width));
+			std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(new guessfactory::gauss_functor(parameters.damping_width));
 			real_function_3d damp = real_factory_3d(world).functor(damp_functor);
 			plot_plane(world,damp,"damping_function");
 			exop = (exop*damp).truncate();
@@ -1023,10 +1023,10 @@ vector_real_function_3d TDHF::make_virtuals() const {
 
 		Tensor<double> cm = nemo.get_calc()->molecule.center_of_mass();
 		msg << "center of mass is " << cm << "\n";
-		polynomial_functor px("x 1.0",width,cm);
-		polynomial_functor py("y 1.0",width,cm);
-		polynomial_functor pz("z 1.0",width,cm);
-		gauss_functor s(width,cm);
+		guessfactory::polynomial_functor px("x 1.0",width,cm);
+		guessfactory::polynomial_functor py("y 1.0",width,cm);
+		guessfactory::polynomial_functor pz("z 1.0",width,cm);
+		guessfactory::gauss_functor s(width,cm);
 		real_function_3d vpx=real_factory_3d(world).functor(px);
 		real_function_3d vpy=real_factory_3d(world).functor(py);
 		real_function_3d vpz=real_factory_3d(world).functor(pz);
@@ -1059,7 +1059,7 @@ vector_real_function_3d TDHF::apply_excitation_operators(const vector_real_funct
 	//	msg.subsection("creating a set of " + std::to_string(nvirt) + " virtuals by multiplying functions with plane waves");
 	// compute the centers of the seed functions
 	CCTimer time_centers(world,"compute centers");
-	std::vector<coord_3d> centers = compute_centroids(seed);
+	std::vector<coord_3d> centers = guessfactory::compute_centroids(seed);
 	time_centers.print();
 
 
@@ -1068,7 +1068,7 @@ vector_real_function_3d TDHF::apply_excitation_operators(const vector_real_funct
 	std::vector<std::pair<vector_real_function_3d, std::string> > exlist;
 	{
 		std::vector<std::string> exop_strings=parameters.exops;
-		if(parameters.guess_excitation_operators!="custom") exop_strings=(make_predefined_exop_strings(parameters.guess_excitation_operators));
+		if(parameters.guess_excitation_operators!="custom") exop_strings=(guessfactory::make_predefined_exop_strings(parameters.guess_excitation_operators));
 		for(const auto ex: exop_strings){
 			vector_real_function_3d cseed=copy(world,seed,false);
 			exlist.push_back(std::make_pair(cseed,ex));
@@ -1082,8 +1082,8 @@ vector_real_function_3d TDHF::apply_excitation_operators(const vector_real_funct
 	CCTimer time_create_virtuals(world,"create virtuals");
 	vector_real_function_3d virtuals;
 	for(auto it:exlist){
-		if(use_trigo) virtuals=append(virtuals,apply_trigonometric_exop(it.first,it.second,centers,false));
-		else virtuals=append(virtuals,apply_polynomial_exop(it.first,it.second,centers,false));
+		if(use_trigo) virtuals=append(virtuals,guessfactory::apply_trigonometric_exop(it.first,it.second,centers,false));
+		else virtuals=append(virtuals,guessfactory::apply_polynomial_exop(it.first,it.second,centers,false));
 	}
 	world.gop.fence();
 	time_create_virtuals.print();
@@ -1353,7 +1353,7 @@ bool TDHF::initialize_singles(CC_vecfunction &singles,const FuncType type,const 
 double TDHF::oscillator_strength_length(const CC_vecfunction& x) const {
 	Tensor<double> mu_if(3);
 	for (int idim=0; idim<3; idim++) {
-		real_function_3d ri = real_factory_3d(world).functor(xyz(idim));
+		real_function_3d ri = real_factory_3d(world).functor(guessfactory::xyz(idim));
 		vector_real_function_3d amo_times_x=ri*get_active_mo_bra();
 		Tensor<double> a=inner(world,amo_times_x,x.get_vecfunction());
 		mu_if(idim)=a.sum();
