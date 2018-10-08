@@ -216,6 +216,7 @@ public:
 	/// multiply excitation operators defined in the parameters with the seed functions
 	/// @param[in] the seeds, define the function which are multiplied by the excitation operators
 	/// @param[in] use_trigo, if false polynomials are used for excitation operators, else trigonometric functions (i.e. x^2y vs sin^2(x)*sin(y))
+	/// Trigonometric functions are prefered since they are bounded (no weird behaviour at the boundaries for large exponents)
 	vector_real_function_3d apply_excitation_operators(const vector_real_function_3d& seed,const bool& use_trigo=true) const;
 
 	/// make the initial guess by explicitly diagonalizing a CIS matrix with virtuals from the make_virtuals routine

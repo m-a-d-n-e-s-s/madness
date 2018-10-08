@@ -934,11 +934,11 @@ std::vector<CC_vecfunction> TDHF::make_old_guess(const vector_real_function_3d& 
 	// make the excitation operators
 	vector_real_function_3d exops;
 	for(const auto& exs:exop_strings){
-		std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(new guessfactory::polynomial_functor(exs));
+		std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(new guessfactory::PolynomialFunctor(exs));
 		real_function_3d exop = real_factory_3d(world).functor(exop_functor);
 		// do damp
 		if(parameters.damping_width > 0.0){
-			std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(new guessfactory::gauss_functor(parameters.damping_width));
+			std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(new guessfactory::GaussFunctor(parameters.damping_width));
 			real_function_3d damp = real_factory_3d(world).functor(damp_functor);
 			plot_plane(world,damp,"damping_function");
 			exop = (exop*damp).truncate();
@@ -1023,10 +1023,10 @@ vector_real_function_3d TDHF::make_virtuals() const {
 
 		Tensor<double> cm = nemo.get_calc()->molecule.center_of_mass();
 		msg << "center of mass is " << cm << "\n";
-		guessfactory::polynomial_functor px("x 1.0",width,cm);
-		guessfactory::polynomial_functor py("y 1.0",width,cm);
-		guessfactory::polynomial_functor pz("z 1.0",width,cm);
-		guessfactory::gauss_functor s(width,cm);
+		guessfactory::PolynomialFunctor px("x 1.0",width,cm);
+		guessfactory::PolynomialFunctor py("y 1.0",width,cm);
+		guessfactory::PolynomialFunctor pz("z 1.0",width,cm);
+		guessfactory::GaussFunctor s(width,cm);
 		real_function_3d vpx=real_factory_3d(world).functor(px);
 		real_function_3d vpy=real_factory_3d(world).functor(py);
 		real_function_3d vpz=real_factory_3d(world).functor(pz);
@@ -1353,7 +1353,7 @@ bool TDHF::initialize_singles(CC_vecfunction &singles,const FuncType type,const 
 double TDHF::oscillator_strength_length(const CC_vecfunction& x) const {
 	Tensor<double> mu_if(3);
 	for (int idim=0; idim<3; idim++) {
-		real_function_3d ri = real_factory_3d(world).functor(guessfactory::polynomial_functor(idim));
+		real_function_3d ri = real_factory_3d(world).functor(guessfactory::PolynomialFunctor(idim));
 		plot_plane(world,ri,"asd");
 		vector_real_function_3d amo_times_x=ri*get_active_mo_bra();
 		Tensor<double> a=inner(world,amo_times_x,x.get_vecfunction());

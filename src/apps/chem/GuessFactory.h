@@ -79,16 +79,16 @@ public:
 
 /// GaussFunctor to let the exciation operators go to zero at the boundaries
 /// totally symmetric
-class gauss_functor : public FunctionFunctorInterface<double,3> {
+class GaussFunctor : public FunctionFunctorInterface<double,3> {
 public:
-	gauss_functor();
-	gauss_functor(const double& width): width_(width){
+	GaussFunctor();
+	GaussFunctor(const double& width): width_(width){
 		MADNESS_ASSERT(not(width<0.0));
 	}
-	gauss_functor(const double& width, const coord_3d c): width_(width), center(c){
+	GaussFunctor(const double& width, const coord_3d c): width_(width), center(c){
 		MADNESS_ASSERT(not(width<0.0));
 	}
-	gauss_functor(const double& width, const Tensor<double> c): width_(width), center(tensor_to_coord<double,3>(c)){
+	GaussFunctor(const double& width, const Tensor<double> c): width_(width), center(tensor_to_coord<double,3>(c)){
 		MADNESS_ASSERT(not(width<0.0));
 	}
 	const double width_;
@@ -101,13 +101,13 @@ public:
 };
 
 /// Project a general 3D polynomial to the MRA Grid
-class polynomial_functor : public FunctionFunctorInterface<double,3> {
+class PolynomialFunctor : public FunctionFunctorInterface<double,3> {
 public :
 	/// simple xyz moments constructor
-	polynomial_functor(const int& axis): input_string_(axis_to_string(axis)), data_(read_string(axis_to_string(axis))), dampf(0.0) {}
+	PolynomialFunctor(const int& axis): input_string_(axis_to_string(axis)), data_(read_string(axis_to_string(axis))), dampf(0.0) {}
 	// general polynomials or sums of polynomials
-	polynomial_functor(const std::string input, const double& damp_width=0.0, const coord_3d& c=coord_3d()) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(c) {}
-	polynomial_functor(const std::string input,const double& damp_width, const Tensor<double>& c) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(tensor_to_coord<double,3>(c)) {}
+	PolynomialFunctor(const std::string input, const double& damp_width=0.0, const coord_3d& c=coord_3d()) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(c) {}
+	PolynomialFunctor(const std::string input,const double& damp_width, const Tensor<double>& c) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(tensor_to_coord<double,3>(c)) {}
 
 	/// construction by coordinates
 	double operator ()(const coord_3d& rr) const;
@@ -131,7 +131,7 @@ protected:
 	/// every entry of data_ is vector containing the threee exponents and the coefficient of a monomial dx^ay^bz^c , data_[i] = (a,b,c,d)
 	const std::vector<std::vector<double>> data_;
 	/// damping function
-	gauss_functor dampf;
+	GaussFunctor dampf;
 	coord_3d center=coord_3d();
 public:
 	std::vector<std::vector<double> > read_string(const std::string string) const;
@@ -140,10 +140,11 @@ public:
 };
 
 /// instead of x,y,z use sin(x), sin(y), sin(z)
-class polynomial_trigonometrics_functor : public polynomial_functor {
+/// shows the same transformation behaviour but does not grow unbounded with larger x,y,z values
+class PolynomialTrigonometricsFunctor : public PolynomialFunctor {
 public:
 	/// c++11 constructor inheritance
-	using polynomial_functor::polynomial_functor;
+	using PolynomialFunctor::PolynomialFunctor;
 	// overload
 	/// create the value of the polynomial according to the data in the data_ structure
 	/// instead of x,y,z use sin(x), sin(y), sin(z)

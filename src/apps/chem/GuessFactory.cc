@@ -16,7 +16,7 @@ coord_3d compute_centroid(const real_function_3d& f) {
 	real_function_3d density = f * f;
 	const double integral = density.trace();
 	for (size_t x = 0; x < 3; ++x) {
-		const auto mf = polynomial_functor(x);
+		const auto mf = PolynomialFunctor(x);
 		real_function_3d m = real_factory_3d(f.world()).functor(mf);
 		result[x] = (m * density).trace() / integral;
 	}
@@ -30,7 +30,7 @@ std::vector<coord_3d> compute_centroids(const vector_real_function_3d & vf){
 	const Tensor<double> denom=inner(world,vf,vf);
 	std::vector<Tensor<double> >nums(3);
 	for (size_t x = 0; x < 3; ++x) {
-		const auto mf = polynomial_functor(x);
+		const auto mf = PolynomialFunctor(x);
 		real_function_3d m = real_factory_3d(world).functor(mf);
 		nums[x]=inner(world,vf,m*vf);
 	}
@@ -59,7 +59,7 @@ vector_real_function_3d apply_polynomial_exop(vector_real_function_3d& vf, const
 	if (centers.empty())
 		centers = compute_centroids(vf);
 
-	ExopUnaryOpStructure exop(std::make_shared<polynomial_functor>(polynomial_functor(exop_input)));
+	ExopUnaryOpStructure exop(std::make_shared<PolynomialFunctor>(PolynomialFunctor(exop_input)));
 	for (auto& f : vf) {
 		f.unaryop(exop, false);
 	}
@@ -89,7 +89,7 @@ vector_real_function_3d apply_trigonometric_exop(vector_real_function_3d& vf, co
 	if (centers.empty())
 		centers = compute_centroids(vf);
 
-	ExopUnaryOpStructure exop(std::make_shared<polynomial_trigonometrics_functor>(polynomial_trigonometrics_functor(exop_input)));
+	ExopUnaryOpStructure exop(std::make_shared<PolynomialTrigonometricsFunctor>(PolynomialTrigonometricsFunctor(exop_input)));
 	for (auto& f : vf) {
 		f.unaryop(exop, false);
 	}
@@ -106,7 +106,7 @@ real_function_3d apply_trigonometric_exop(real_function_3d& f, const std::string
 	return apply_trigonometric_exop(vf, exop_input, centers, fence).front();
 }
 
-void polynomial_functor::test() {
+void PolynomialFunctor::test() {
 	std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
 	for(const auto mono : data_){
 		for(const auto entry : mono){
@@ -123,7 +123,7 @@ void ExopUnaryOpStructure::operator ()(const Key<3>& key, Tensor<double>& t) con
 	t.emul(exop);
 }
 
-double polynomial_functor::operator ()(const coord_3d& rr) const {
+double PolynomialFunctor::operator ()(const coord_3d& rr) const {
 	coord_3d r;
 	r[0] = rr[0] - center[0];
 	r[1] = rr[1] - center[1];
@@ -133,7 +133,7 @@ double polynomial_functor::operator ()(const coord_3d& rr) const {
 
 
 
-double polynomial_functor::compute_value(const coord_3d& r) const {
+double PolynomialFunctor::compute_value(const coord_3d& r) const {
 	double result = 0.0;
 	for (size_t i = 0; i < data_.size(); i++) {
 		if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
@@ -143,7 +143,7 @@ double polynomial_functor::compute_value(const coord_3d& r) const {
 	return result;
 }
 
-std::vector<std::vector<double> > polynomial_functor::read_string(const std::string string) const
+std::vector<std::vector<double> > PolynomialFunctor::read_string(const std::string string) const
 {
 	std::stringstream line(string);
 	std::string name;
@@ -174,7 +174,7 @@ std::vector<std::vector<double> > polynomial_functor::read_string(const std::str
 	return read_data;
 }
 
-double polynomial_trigonometrics_functor::compute_value(const coord_3d& r) const {
+double PolynomialTrigonometricsFunctor::compute_value(const coord_3d& r) const {
 	double result = 0.0;
 	for (size_t i = 0; i < data_.size(); i++) {
 		if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
@@ -182,7 +182,7 @@ double polynomial_trigonometrics_functor::compute_value(const coord_3d& r) const
 	}
 }
 
-double gauss_functor::operator ()(const coord_3d& rr) const {
+double GaussFunctor::operator ()(const coord_3d& rr) const {
 	coord_3d r;
 	r[0] = rr[0] - center[0];
 	r[1] = rr[1] - center[1];
