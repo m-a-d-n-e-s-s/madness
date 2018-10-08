@@ -34,8 +34,8 @@ Vector<T,NDIM> tensor_to_coord(const Tensor<T>& t) {
 
 /// create excitation operators with unaryop (faster as explicit construction and multiplication)
 /// Guess function do not need to be perfectly refined
-struct ExopUnaryOpStructure {
-
+class ExopUnaryOpStructure {
+public:
 	ExopUnaryOpStructure(const std::shared_ptr<FunctionFunctorInterface<double, 3> >& f) :
 			exfunc(f), cdata(FunctionCommonData<double, 3>::get(FunctionDefaults<3>::get_k())) {
 	}
@@ -49,8 +49,8 @@ struct ExopUnaryOpStructure {
 };
 
 /// creates a plane-wave: sin (or cos) with argument (npi/L*x)
-struct PlaneWaveFunctor : public FunctionFunctorInterface<double,3> {
-
+class PlaneWaveFunctor : public FunctionFunctorInterface<double,3> {
+public:
 	PlaneWaveFunctor(std::vector<double> vn,std::vector<bool> vc, const coord_3d& c) : L(FunctionDefaults<3>::get_cell_width()), n(vn), cosinus(vc), origin(c) {}
 
 	typedef double resultT;
@@ -76,7 +76,7 @@ struct PlaneWaveFunctor : public FunctionFunctorInterface<double,3> {
 
 /// GaussFunctor to let the exciation operators go to zero at the boundaries
 /// totally symmetric
-struct gauss_functor : public FunctionFunctorInterface<double,3> {
+class gauss_functor : public FunctionFunctorInterface<double,3> {
 public:
 	gauss_functor();
 	gauss_functor(const double& width): width_(width){
@@ -98,7 +98,7 @@ public:
 };
 
 /// Project a general 3D polynomial to the MRA Grid
-struct polynomial_functor : public FunctionFunctorInterface<double,3> {
+class polynomial_functor : public FunctionFunctorInterface<double,3> {
 public :
 	polynomial_functor(const std::string input, const double& damp_width=0.0, const coord_3d& c=coord_3d()) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(c) {}
 	polynomial_functor(const std::string input,const double& damp_width, const Tensor<double>& c) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(tensor_to_coord<double,3>(c)) {}
@@ -133,7 +133,8 @@ struct xyz {
 };
 
 /// instead of x,y,z use sin(x), sin(y), sin(z)
-struct polynomial_trigonometrics_functor : public polynomial_functor {
+class polynomial_trigonometrics_functor : public polynomial_functor {
+public:
 	/// c++11 constructor inheritance
 	using polynomial_functor::polynomial_functor;
 	// overload
