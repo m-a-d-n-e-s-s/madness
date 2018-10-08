@@ -100,8 +100,6 @@ namespace madness{
     std::ostream& os;
   };
 
-  typedef std::vector<Function<double, 3> > vecfuncT;
-
   /// Timer Structure
   struct CCTimer{
     /// TDA_TIMER contructor
@@ -370,7 +368,7 @@ namespace madness{
 
     CC_vecfunction(): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9), delta(0.0){}
     CC_vecfunction(const FuncType type_): type(type_),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){}
-    CC_vecfunction(const vecfuncT &v): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
+    CC_vecfunction(const vector_real_function_3d &v): type(UNDEFINED),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
       for(size_t i=0;i<v.size();i++){
 	CCFunction tmp(v[i],i,type);
 	functions.insert(std::make_pair(i,tmp));
@@ -381,13 +379,13 @@ namespace madness{
 	functions.insert(std::make_pair(v[i].i,v[i]));
       }
     }
-    CC_vecfunction(const vecfuncT &v,const FuncType &type): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
+    CC_vecfunction(const vector_real_function_3d &v,const FuncType &type): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
       for(size_t i=0;i<v.size();i++){
 	CCFunction tmp(v[i],i,type);
 	functions.insert(std::make_pair(i,tmp));
       }
     }
-    CC_vecfunction(const vecfuncT &v,const FuncType &type,const size_t &freeze): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
+    CC_vecfunction(const vector_real_function_3d &v,const FuncType &type,const size_t &freeze): type(type),omega(0.0),excitation(-1), current_error(99.9),delta(0.0){
       for(size_t i=0;i<v.size();i++){
 	CCFunction tmp(v[i],freeze+i,type);
 	functions.insert(std::make_pair(freeze+i,tmp));
@@ -443,7 +441,7 @@ namespace madness{
     }
 
     /// setter
-    void set_functions(const vecfuncT & v, const FuncType& type, const size_t& freeze){
+    void set_functions(const vector_real_function_3d & v, const FuncType& type, const size_t& freeze){
       functions.clear();
       for(size_t i=0;i<v.size();i++){
 	CCFunction tmp(v[i],freeze+i,type);
@@ -452,8 +450,8 @@ namespace madness{
     }
 
     /// Returns all the functions of the map as vector
-    vecfuncT get_vecfunction()const{
-      vecfuncT tmp;
+    vector_real_function_3d get_vecfunction()const{
+      vector_real_function_3d tmp;
       for(auto x:functions) tmp.push_back(x.second.function);
       return tmp;
     }
@@ -469,7 +467,7 @@ namespace madness{
 
     /// scalar multiplication
     CC_vecfunction operator*(const double &fac)const{
-      vecfuncT vnew = fac*get_vecfunction();
+      vector_real_function_3d vnew = fac*get_vecfunction();
       const size_t freeze = functions.cbegin()->first;
       return CC_vecfunction(vnew,type,freeze);
     }
@@ -531,8 +529,8 @@ namespace madness{
     /// @param[in] bra a CC_vecfunction
     /// @param[in] ket a CC_function
     /// @param[out] vector[i] = <bra[i]|op|ket>
-    vecfuncT operator()(const CC_vecfunction & bra, const CCFunction &ket)const{
-      vecfuncT result;
+    vector_real_function_3d operator()(const CC_vecfunction & bra, const CCFunction &ket)const{
+      vector_real_function_3d result;
       if(bra.type==HOLE){
 	for(const auto& ktmp:bra.functions){
 	  const CCFunction &brai = ktmp.second;
@@ -540,7 +538,7 @@ namespace madness{
 	  result.push_back(tmpi);
 	}
       }else{
-	vecfuncT tmp=mul(world,ket.function,bra.get_vecfunction());
+	vector_real_function_3d tmp=mul(world,ket.function,bra.get_vecfunction());
 	result=apply(world,(*op),tmp);
 	truncate(world,result);
       }
@@ -549,7 +547,7 @@ namespace madness{
 
     // @param[in] f: a vector of 3D functions
     // @param[out] the convolution of op with each function, no intermeditates are used
-    vecfuncT operator()(const vecfuncT &f)const{
+    vector_real_function_3d operator()(const vector_real_function_3d &f)const{
       return apply<double,double,3>(world,(*op),f);
     }
 
@@ -640,8 +638,8 @@ namespace madness{
 
   public:
     CCPairFunction(World&world,const real_function_6d &ket):world(world), type(PT_FULL), a(),b(), op(0),u(ket) {}
-    CCPairFunction(World&world,const vecfuncT &f1,const vecfuncT &f2):world(world), type(PT_DECOMPOSED), a(f1),b(f2), op(0),u() {}
-    CCPairFunction(World&world,const std::pair<vecfuncT,vecfuncT> &f):world(world), type(PT_DECOMPOSED), a(f.first),b(f.second), op(0),u() {}
+    CCPairFunction(World&world,const vector_real_function_3d &f1,const vector_real_function_3d &f2):world(world), type(PT_DECOMPOSED), a(f1),b(f2), op(0),u() {}
+    CCPairFunction(World&world,const std::pair<vector_real_function_3d,vector_real_function_3d> &f):world(world), type(PT_DECOMPOSED), a(f.first),b(f.second), op(0),u() {}
     CCPairFunction(World&world,const CCConvolutionOperator *op_,const CCFunction &f1, const CCFunction &f2):world(world), type(PT_OP_DECOMPOSED), a(),b(), op(op_),x(f1),y(f2),u() {}
     CCPairFunction(const CCPairFunction &other): world(other.world),type(other.type),a(other.a),b(other.b),op(other.op),x(other.x),y(other.y),u(other.u) {}
 
@@ -719,9 +717,9 @@ namespace madness{
     /// the type of the given 6D-function
     const PairFormat type;
     /// if type==decomposed this is the first particle
-    vecfuncT a;
+    vector_real_function_3d a;
     /// if type==decomposed this is the second particle
-    vecfuncT b;
+    vector_real_function_3d b;
     /// if type==op_decomposed_ this is the symmetric 6D-operator (g12 or f12) in u=op12|xy>
     const CCConvolutionOperator* op;
     /// if type==op_decomposed_ this is the first particle in u=op12|xy>
@@ -749,7 +747,7 @@ namespace madness{
     real_function_3d dirac_convolution_decomposed(const CCFunction &x, const CCConvolutionOperator &op, const size_t particle)const;
 
     /// small helper function that gives back (a,b) or (b,a) depending on the value of particle
-    const std::pair<vecfuncT,vecfuncT> assign_particles(const size_t particle)const;
+    const std::pair<vector_real_function_3d,vector_real_function_3d> assign_particles(const size_t particle)const;
 
     /// swap particle function if type==pure_
     CCPairFunction swap_particles_pure() const;
@@ -814,15 +812,15 @@ namespace madness{
     CCIntermediatePotentials(World&world, const CCParameters& p): world(world), parameters(p) {};
 
     /// fetches the correct stored potential or throws an exception
-    vecfuncT
+    vector_real_function_3d
     operator ()(const CC_vecfunction& f,const PotentialType& type) const;
 
     /// fetch the potential for a single function
     real_function_3d
     operator ()(const CCFunction& f,const PotentialType& type) const;
 
-    vecfuncT get_unprojected_cc2_projector_response()const{return unprojected_cc2_projector_response_;}
-    void add_unprojected_cc2_projector_response(const vecfuncT& tmp){unprojected_cc2_projector_response_=copy(world,tmp);}
+    vector_real_function_3d get_unprojected_cc2_projector_response()const{return unprojected_cc2_projector_response_;}
+    void add_unprojected_cc2_projector_response(const vector_real_function_3d& tmp){unprojected_cc2_projector_response_=copy(world,tmp);}
 
     /// deltes all stored potentials
     void clear_all(){
@@ -841,26 +839,26 @@ namespace madness{
     }
     /// insert potential
     void
-    insert(const vecfuncT& potential,const CC_vecfunction& f,const PotentialType& type);
+    insert(const vector_real_function_3d& potential,const CC_vecfunction& f,const PotentialType& type);
 
   private:
     World &world;
     const CCParameters& parameters;
     /// whole ground state singles potential without fock-residue
-    vecfuncT current_singles_potential_gs_;
+    vector_real_function_3d current_singles_potential_gs_;
     /// whole excited state singles potential without fock-residue
-    vecfuncT current_singles_potential_ex_;
+    vector_real_function_3d current_singles_potential_ex_;
     /// s2b_potential for the pure 6D-part of the ground-state (expensive and constant during singles iterations)
-    vecfuncT current_s2b_potential_gs_;
+    vector_real_function_3d current_s2b_potential_gs_;
     /// s2b_potential for the pure 6D-part of the excited-state (expensive and constant during singles iterations)
-    vecfuncT current_s2b_potential_ex_;
+    vector_real_function_3d current_s2b_potential_ex_;
     /// s2c_potential for the pure 6D-part of the ground-state (expensive and constant during singles iterations)
-    vecfuncT current_s2c_potential_gs_;
+    vector_real_function_3d current_s2c_potential_gs_;
     /// s2c_potential for the pure 6D-part of the excited_state (expensive and constant during singles iterations)
-    vecfuncT current_s2c_potential_ex_;
+    vector_real_function_3d current_s2c_potential_ex_;
     /// unprojected S3c + S5c + S2b + S2c potential of CC2 singles
     /// for the projector response of the CC2 singles potential
-    vecfuncT unprojected_cc2_projector_response_;
+    vector_real_function_3d unprojected_cc2_projector_response_;
     /// structured output
     void output(const std::string &msg)const{if(world.rank()==0 and parameters.debug) std::cout << "Intermediate Potential Manager: " << msg << "\n";}
   };

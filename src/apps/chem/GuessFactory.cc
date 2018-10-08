@@ -28,7 +28,7 @@ coord_3d compute_centroid(const real_function_3d& f) {
 	}
 	return result;
 }
-std::vector<coord_3d> compute_centroids(const vecfuncT & vf){
+std::vector<coord_3d> compute_centroids(const vector_real_function_3d & vf){
 	std::vector<coord_3d> results(vf.size());
 	if(vf.empty()) return results;
 
@@ -185,7 +185,7 @@ std::vector<std::string> make_auto_polynom_strings(const size_t order){
 /// @param[in/out] vf the function which gets excited, exop*f on return
 /// @param[in] exop_input , the excitation operator defined by a string (see the polynomial_functor class for details)
 /// @return exop*vf i.e. result[i]=exop*vf[i]
-vecfuncT apply_polynomial_exop(vecfuncT& vf, const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
+vector_real_function_3d apply_polynomial_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
 	if (vf.empty())
 		return vf;
 
@@ -205,7 +205,7 @@ vecfuncT apply_polynomial_exop(vecfuncT& vf, const std::string& exop_input, std:
 
 /// convenience wrapper
 real_function_3d apply_polynomial_exop(real_function_3d& f, const std::string& exop_input, coord_3d center, const bool& fence) {
-	vecfuncT vf(1, f);
+	vector_real_function_3d vf(1, f);
 	std::vector<coord_3d> centers(1, center);
 	return apply_polynomial_exop(vf, exop_input, centers, fence).front();
 }
@@ -215,7 +215,7 @@ real_function_3d apply_polynomial_exop(real_function_3d& f, const std::string& e
 /// @param[in] exop_input, the excitation operator defined by a string (see the polynomial_functor class for details)
 /// @param[in] the centers of the vf functions, if none were given they are recomputed
 /// @return exop*vf i.e. result[i]=exop*vf[i]
-vecfuncT apply_trigonometric_exop(vecfuncT& vf, const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
+vector_real_function_3d apply_trigonometric_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
 	if (vf.empty())
 		return vf;
 
@@ -235,7 +235,7 @@ vecfuncT apply_trigonometric_exop(vecfuncT& vf, const std::string& exop_input, s
 
 /// convenience wrapper
 real_function_3d apply_trigonometric_exop(real_function_3d& f, const std::string& exop_input, coord_3d center, const bool& fence) {
-	vecfuncT vf(1, f);
+	vector_real_function_3d vf(1, f);
 	std::vector<coord_3d> centers(1, center);
 	return apply_trigonometric_exop(vf, exop_input, centers, fence).front();
 }

@@ -225,7 +225,7 @@ namespace madness {
 
 	// get potentials
 	CCTimer time_V(world,assign_name(ctype) + "-Singles Potential");
-	vecfuncT V;
+	vector_real_function_3d V;
 	if(ctype == CT_CC2) V=CCOPS.get_CC2_singles_potential_gs(singles,gs_doubles);
 	else if(ctype == CT_LRCC2) V=CCOPS.get_CC2_singles_potential_ex(singles2,gs_doubles,singles,ex_doubles);
 	else if(ctype == CT_LRCCS) V=CCOPS.get_CCS_potential_ex(singles);
@@ -256,7 +256,7 @@ namespace madness {
 
 	// apply bsh operators
 	CCTimer time_applyG(world,"Apply G-Operators");
-	vecfuncT GV=apply<SeparatedConvolution<double, 3>, double, 3>(world,G,V);
+	vector_real_function_3d GV=apply<SeparatedConvolution<double, 3>, double, 3>(world,G,V);
 	world.gop.fence();
 	time_applyG.info();
 
@@ -266,15 +266,15 @@ namespace madness {
 	// Normalize Singles if it is excited state
 	if(ctype==CT_LRCCS or ctype==CT_LRCC2 or ctype==CT_ADC2){
 	  output("Normalizing new singles");
-	  const vecfuncT x = GV;
-	  const vecfuncT xbra = mul(world,nemo.nuclear_correlation->square(),GV);
+	  const vector_real_function_3d x = GV;
+	  const vector_real_function_3d xbra = mul(world,nemo.nuclear_correlation->square(),GV);
 	  const double norm = sqrt(inner(world,xbra,x).sum());
 	  if(world.rank()==0) std::cout << " Norm was " <<std::fixed<< std::setprecision(parameters.output_prec) << norm << "\n";
 	  scale(world,GV,1.0/norm);
 	} else output("Singles not normalized");
 
 	// residual
-	const vecfuncT residual=sub(world,singles.get_vecfunction(),GV);
+	const vector_real_function_3d residual=sub(world,singles.get_vecfunction(),GV);
 
 	// information
 	const Tensor<double> R2xinnerx=inner(world,mul(world,nemo.nuclear_correlation->square(),singles.get_vecfunction()),singles.get_vecfunction());
@@ -300,8 +300,8 @@ namespace madness {
 	  output("\nMake 2nd order energy update:");
 	  // include nuclear factors
 	  {
-	    vecfuncT bra_res=mul(world,nemo.nuclear_correlation->square(),residual);
-	    vecfuncT bra_GV=mul(world,nemo.nuclear_correlation->square(),GV);
+	    vector_real_function_3d bra_res=mul(world,nemo.nuclear_correlation->square(),residual);
+	    vector_real_function_3d bra_GV=mul(world,nemo.nuclear_correlation->square(),GV);
 	    double Rtmp=inner(world,bra_res,V).sum();
 	    double Rtmp2=inner(world,bra_GV,GV).sum();
 	    const double Rdelta=(0.5 * Rtmp / Rtmp2);
@@ -315,7 +315,7 @@ namespace madness {
 
 	// update singles
 	singles.omega=omega;
-	vecfuncT new_singles=GV;
+	vector_real_function_3d new_singles=GV;
 	if(parameters.kain) new_singles=solver.update(singles.get_vecfunction(),residual).x;
 	print_size(world,new_singles,"new_singles");
 	truncate(world,new_singles);

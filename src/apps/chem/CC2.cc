@@ -302,7 +302,7 @@ namespace madness {
 	CCTimer time_ex(world,"LRCC2 Calculation for Excitation " + std::to_string(int(excitation)));
 	CC_vecfunction lrcc2_s = vccs[xxx];
 	// needed to assign an omega
-	const vecfuncT backup = copy(world,lrcc2_s.get_vecfunction());
+	const vector_real_function_3d backup = copy(world,lrcc2_s.get_vecfunction());
 	CC_vecfunction test(backup,RESPONSE,parameters.freeze);
 	test.excitation = lrcc2_s.excitation;
 	iterate_ccs_singles(test);

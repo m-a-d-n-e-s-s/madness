@@ -14,15 +14,12 @@
 
 namespace madness {
 
-// typedefs
-typedef std::vector<Function<double, 3> > vecfuncT;
-
 // convenience macros
 #define SPLITCOORD(x,y,z,r) double x=r[0]-origin[0]; double y=r[1]-origin[1];double z=r[2]-origin[2];
 
 /// compute the centroid of a function i.e. c[xi]=<f|xi|f>/<f|f> i.e. position expectation value
 coord_3d compute_centroid(const real_function_3d& f);
-std::vector<coord_3d> compute_centroids(const vecfuncT & vf);
+std::vector<coord_3d> compute_centroids(const vector_real_function_3d & vf);
 /// little helper for coord (Vector<3>) and Tensor data formats
 template<typename T, size_t NDIM>
 Vector<T,NDIM> tensor_to_coord(const Tensor<T>& t) {
@@ -150,7 +147,7 @@ struct polynomial_trigonometrics_functor : public polynomial_functor {
 /// @param[in/out] vf the function which gets excited, exop*f on return
 /// @param[in] exop_input , the excitation operator defined by a string (see the polynomial_functor class for details)
 /// @return exop*vf i.e. result[i]=exop*vf[i]
-vecfuncT apply_polynomial_exop(vecfuncT& vf, const std::string& exop_input, std::vector<coord_3d> centers = std::vector<coord_3d>(), const bool& fence = false);
+vector_real_function_3d apply_polynomial_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers = std::vector<coord_3d>(), const bool& fence = false);
 /// convenience wrapper
 real_function_3d apply_polynomial_exop(real_function_3d& f, const std::string& exop_input, coord_3d center = coord_3d(), const bool& fence = false);
 /// excite a vector of functions with a specific excitation operator
@@ -158,7 +155,7 @@ real_function_3d apply_polynomial_exop(real_function_3d& f, const std::string& e
 /// @param[in] exop_input, the excitation operator defined by a string (see the polynomial_functor class for details)
 /// @param[in] the centers of the vf functions, if none were given they are recomputed
 /// @return exop*vf i.e. result[i]=exop*vf[i]
-vecfuncT apply_trigonometric_exop(vecfuncT& vf, const std::string& exop_input, std::vector<coord_3d> centers = std::vector<coord_3d>(), const bool& fence = false);
+vector_real_function_3d apply_trigonometric_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers = std::vector<coord_3d>(), const bool& fence = false);
 /// convenience wrapper
 real_function_3d apply_trigonometric_exop(real_function_3d& f, const std::string& exop_input, coord_3d center = coord_3d(), const bool& fence = false);
 

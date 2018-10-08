@@ -147,7 +147,7 @@ public:
 	~TDHF();
 
 	/// plot planes and cubes
-	void plot(const vecfuncT& vf, const std::string& name)const;
+	void plot(const vector_real_function_3d& vf, const std::string& name)const;
 
 	/// sort the xfunctions according to their excitation energy and name the excitation energies accordingly
 	std::vector<CC_vecfunction> sort_xfunctions(std::vector<CC_vecfunction> x)const;
@@ -194,25 +194,25 @@ public:
 	/// @param[out] the vectorfunctions after G has been applied
 	/// the energy is assumed to be stored in the CC_vecfunctions member omega
 	/// the wavefunction error is stored in the CC_vecfunctions member current_error
-	std::vector<vecfuncT> apply_G(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const;
+	std::vector<vector_real_function_3d> apply_G(std::vector<CC_vecfunction> &x,std::vector<vector_real_function_3d> &V)const;
 	/// Make the old CIS Guess
 	/// the routine is now used to create virtuals
-	std::vector<CC_vecfunction> make_old_guess(const vecfuncT& f)const;
+	std::vector<CC_vecfunction> make_old_guess(const vector_real_function_3d& f)const;
 
 	/// Create a set of virtual orbitals for the initial guess
-	vecfuncT make_virtuals() const;
+	vector_real_function_3d make_virtuals() const;
 
 	/// multiply excitation operators defined in the parameters with the seed functions
 	/// @param[in] the seeds, define the function which are multiplied by the excitation operators
 	/// @param[in] use_trigo, if false polynomials are used for excitation operators, else trigonometric functions (i.e. x^2y vs sin^2(x)*sin(y))
-	vecfuncT apply_excitation_operators(const vecfuncT& seed,const bool& use_trigo=true) const;
+	vector_real_function_3d apply_excitation_operators(const vector_real_function_3d& seed,const bool& use_trigo=true) const;
 
 	/// make the initial guess by explicitly diagonalizing a CIS matrix with virtuals from the make_virtuals routine
 	vector<CC_vecfunction> make_guess_from_initial_diagonalization() const;
 	/// canonicalize a set of orbitals (here the virtuals for the guess)
-	vecfuncT canonicalize(const vecfuncT& v)const;
+	vector_real_function_3d canonicalize(const vector_real_function_3d& v)const;
 	/// compute the CIS matrix for a given set of virtuals
-	Tensor<double> make_cis_matrix(const vecfuncT virtuals)const;
+	Tensor<double> make_cis_matrix(const vector_real_function_3d virtuals)const;
 
 	/// initialize the excitation functions
 	bool
@@ -222,30 +222,30 @@ public:
 	/// Make the potentials to a given vector of vecfunctions (excitations)
 	/// @param[in] The vector of excitations
 	/// @param[out] The potentials
-	std::vector<vecfuncT> make_potentials(const std::vector<CC_vecfunction> &x)const;
+	std::vector<vector_real_function_3d> make_potentials(const std::vector<CC_vecfunction> &x)const;
 	//    /// Make the CIS potential for a single excitation vector
 	//	vecfuncT get_cis_potential(const CC_vecfunction& x) const {
 	//		return CCOPS.make_cis_potential(x);
 	//	}
 	/// Make the TDA potential for a single excitation vector
-	vecfuncT get_tda_potential(const CC_vecfunction &x)const;
+	vector_real_function_3d get_tda_potential(const CC_vecfunction &x)const;
 	/// Make the TDHF potential (not ready)
-	std::vector<vecfuncT> make_tdhf_potentials(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y)const;
+	std::vector<vector_real_function_3d> make_tdhf_potentials(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y)const;
 	/// orthonormalize a vector of excitations
 	/// @param[in,out] input: the excitations, output: the orthonormalized excitations
 	/// @param[in] input: the potentials, if empty the potentials will be recalculated but NOT stored
 	/// output: the transformed potentials
-	void orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const;
+	void orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vector_real_function_3d> &V)const;
 	/// Calculate the perturbed fock matrix for a given vector of excitations
 	/// @param[in] input: the excitations
 	/// @param[in] input: the potentials, if empty the potentials will be recalculated but NOT stored
-	Tensor<double> make_perturbed_fock_matrix(const std::vector<CC_vecfunction> &x, const std::vector<vecfuncT> &V)const;
+	Tensor<double> make_perturbed_fock_matrix(const std::vector<CC_vecfunction> &x, const std::vector<vector_real_function_3d> &V)const;
 	Tensor<double> make_overlap_matrix(const std::vector<CC_vecfunction> &x)const;
-	std::vector<vecfuncT> transform(const std::vector<vecfuncT> &x,const madness::Tensor<double> U) const{
+	std::vector<vector_real_function_3d> transform(const std::vector<vector_real_function_3d> &x,const madness::Tensor<double> U) const{
 		std::vector<CC_vecfunction> tmp;
 		for(const auto& xi:x) tmp.push_back(CC_vecfunction(xi));
 		std::vector<CC_vecfunction> tmp2= transform(tmp,U);
-		std::vector<vecfuncT> result;
+		std::vector<vector_real_function_3d> result;
 		for(const auto&xi:tmp2) result.push_back(xi.get_vecfunction());
 		return result;
 	}
@@ -255,7 +255,7 @@ public:
 
 	/// Helper function to initialize the const mo_bra and ket elements
 	CC_vecfunction make_mo_bra(const Nemo &nemo) const {
-		vecfuncT tmp = mul(world, nemo.nuclear_correlation->square(),
+		vector_real_function_3d tmp = mul(world, nemo.nuclear_correlation->square(),
 				nemo.get_calc()->amo);
 		set_thresh(world, tmp, parameters.thresh);
 		truncate(world,tmp);
@@ -265,7 +265,7 @@ public:
 	}
 
 	CC_vecfunction make_mo_ket(const Nemo&nemo) const {
-		vecfuncT tmp = nemo.get_calc()->amo;
+		vector_real_function_3d tmp = nemo.get_calc()->amo;
 		set_thresh(world, tmp, parameters.thresh);
 		truncate(world,tmp);
 		reconstruct(world,tmp);
@@ -278,19 +278,19 @@ public:
 	}
 
 	/// convenience
-	vecfuncT make_bra(const CC_vecfunction &ket)const{
+	vector_real_function_3d make_bra(const CC_vecfunction &ket)const{
 		return make_bra(ket.get_vecfunction());
 	}
 	real_function_3d make_bra(const real_function_3d &ket)const{
-		vecfuncT v(1,ket);
+		vector_real_function_3d v(1,ket);
 		return make_bra(v).front();
 
 	}
 	/// maybe move this into nuclear_correlation class ?
-	vecfuncT make_bra(const vecfuncT &ket)const{
+	vector_real_function_3d make_bra(const vector_real_function_3d &ket)const{
 		CCTimer time(world,"Make Bra");
 		real_function_3d nucf = nemo.nuclear_correlation ->square();
-		vecfuncT result= mul(world,nucf,ket);
+		vector_real_function_3d result= mul(world,nucf,ket);
 		time.info(parameters.debug);
 		return result;
 	}
@@ -307,13 +307,13 @@ public:
 		}else return false;
 	}
 
-	const vecfuncT get_active_mo_ket()const{
-		vecfuncT result;
+	const vector_real_function_3d get_active_mo_ket()const{
+		vector_real_function_3d result;
 		for(size_t i=parameters.freeze;i<mo_ket_.size();i++) result.push_back(mo_ket_(i).function);
 		return result;
 	}
-	const vecfuncT get_active_mo_bra()const{
-		vecfuncT result;
+	const vector_real_function_3d get_active_mo_bra()const{
+		vector_real_function_3d result;
 		for(size_t i=parameters.freeze;i<mo_ket_.size();i++) result.push_back(mo_bra_(i).function);
 		return result;
 	}

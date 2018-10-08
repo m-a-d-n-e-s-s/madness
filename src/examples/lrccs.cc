@@ -74,7 +74,7 @@ static inline int file_exists(const char * inpname)
 
 using namespace madness;
 
-static void canonicalize(World& world, Tensor<double>& A, vecfuncT& v, const double prec){
+static void canonicalize(World& world, Tensor<double>& A, vector_real_function_3d& v, const double prec){
 	MADNESS_ASSERT(A.ndim() == 2);
 	MADNESS_ASSERT(A.dim(0) == A.dim(1) && A.dim(0) == v.size());
 	const auto n = A.dim(0);
@@ -258,7 +258,7 @@ int main(int argc, char** argv) {
 				Tensor<double> Ftesta=F(nemo.get_calc()->amo,nemo.get_calc()->amo);
 				if(world.rank()==0) std::cout << "Fock Matrix:\n" << Ftesta << "\n";
 
-				vecfuncT vdom;
+				vector_real_function_3d vdom;
 				for(const int& i:list) vdom.push_back(nemo.get_calc()->amo[i]);
 
 				Tensor<double> Fblock=F(vdom,vdom);

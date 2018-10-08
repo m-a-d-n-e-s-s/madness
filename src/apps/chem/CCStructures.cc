@@ -152,7 +152,7 @@ namespace madness{
       uc.scale(-1.0);
       u=uc;
     }else if(type == PT_DECOMPOSED){
-      vecfuncT ac=madness::copy(world,a);
+      vector_real_function_3d ac=madness::copy(world,a);
       scale(world,ac,-1.0);
       a=ac;
     }else if(type == PT_OP_DECOMPOSED){
@@ -234,10 +234,10 @@ namespace madness{
     }
   }
 
-  madness::vecfuncT
+  madness::vector_real_function_3d
   CCIntermediatePotentials::operator ()(const CC_vecfunction& f,const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
-    vecfuncT result;
+    vector_real_function_3d result;
     if(type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_;
     else if(type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_;
     else if(type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_;
@@ -277,7 +277,7 @@ namespace madness{
   }
 
   void
-  CCIntermediatePotentials::insert(const vecfuncT& potential,const CC_vecfunction& f,const PotentialType& type) {
+  CCIntermediatePotentials::insert(const vector_real_function_3d& potential,const CC_vecfunction& f,const PotentialType& type) {
     output("Storing potential: " + assign_name(type) + " for " + f.name());
     MADNESS_ASSERT(!potential.empty());
     if(type == POT_singles_ && (f.type == PARTICLE || f.type == MIXED)) current_singles_potential_gs_=potential;
@@ -715,7 +715,7 @@ namespace madness{
 
   real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d &f,const size_t particle)const{
     real_function_3d result = real_factory_3d(world);
-    const std::pair<vecfuncT,vecfuncT> decompf = assign_particles(particle);
+    const std::pair<vector_real_function_3d,vector_real_function_3d> decompf = assign_particles(particle);
     Tensor<double> c = inner(world,f,decompf.first);
     for(size_t i=0;i<a.size();i++) result += c(i)*decompf.second[i];
     return result;
@@ -733,16 +733,16 @@ namespace madness{
   }
 
   real_function_3d CCPairFunction::dirac_convolution_decomposed(const CCFunction &bra, const CCConvolutionOperator &op, const size_t particle)const{
-    const std::pair<vecfuncT,vecfuncT> f = assign_particles(particle);
-    const vecfuncT braa = mul(world,bra.function,f.first);
-    const vecfuncT braga = op(braa);
+    const std::pair<vector_real_function_3d,vector_real_function_3d> f = assign_particles(particle);
+    const vector_real_function_3d braa = mul(world,bra.function,f.first);
+    const vector_real_function_3d braga = op(braa);
     real_function_3d result = real_factory_3d(world);
     for(size_t i=0;i<braga.size();i++) result += braga[i]*f.second[i];
     return result;
   }
 
 
-  const std::pair<vecfuncT,vecfuncT> CCPairFunction::assign_particles(const size_t particle)const{
+  const std::pair<vector_real_function_3d,vector_real_function_3d> CCPairFunction::assign_particles(const size_t particle)const{
     if(particle==1){
       return std::make_pair(a,b);
     }else if(particle==2){

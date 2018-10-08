@@ -19,7 +19,7 @@ struct TDHF_allocator{
 	/// @todo validate doxygen on `nnoct`
 	TDHF_allocator(World& world, const int nnoct) : world(world), noct(nnoct) {}
 
-	vecfuncT operator()(){
+	vector_real_function_3d operator()(){
 		return zero_functions<double,3>(world,noct);
 	}
 	TDHF_allocator operator=(const TDHF_allocator &other){
@@ -107,7 +107,7 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
 }
 
 /// plot planes and cubes
-void TDHF::plot(const vecfuncT& vf, const std::string& name)const{
+void TDHF::plot(const vector_real_function_3d& vf, const std::string& name)const{
 	if(parameters.plot){
 		CCTimer timer(world,"plot planes and cubes");
 		madness::plot(vf,name,nemo.get_calc()->molecule.cubefile_header());
@@ -158,7 +158,7 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	}
 	// combine guess and start vectors
 	for(const auto& tmp:start) guess.push_back(tmp);
-	std::vector<vecfuncT> empty;
+	std::vector<vector_real_function_3d> empty;
 	//orthonormalize(guess,empty);
 
 
@@ -308,11 +308,11 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 			<< "kain     = " << kain << "\n";
 
 	// set up the kain solvers ... if needed or not
-	std::vector<std::shared_ptr< XNonlinearSolver<vecfuncT,double,TDHF_allocator> > > solvers(x.size());
+	std::vector<std::shared_ptr< XNonlinearSolver<vector_real_function_3d,double,TDHF_allocator> > > solvers(x.size());
 	// initialize solvers
 	if(kain){
 		for(size_t i=0;i<x.size();i++){
-			solvers[i]=std::make_shared<XNonlinearSolver<vecfuncT,double,TDHF_allocator> >(TDHF_allocator(world,x[i].size()),true);
+			solvers[i]=std::make_shared<XNonlinearSolver<vector_real_function_3d,double,TDHF_allocator> >(TDHF_allocator(world,x[i].size()),true);
 			solvers[i]->set_maxsub(parameters.kain_subspace);
 		}
 	}
@@ -320,7 +320,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 	bool converged = true;
 
 	// get potentials (if demanded)
-	std::vector<vecfuncT> V;
+	std::vector<vector_real_function_3d> V;
 
 	// for TDHF the potential is always stored
 	if(parameters.store_potential and y.empty()) V = make_potentials(x);
@@ -340,7 +340,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 		}
 		// apply Greens Functions
 		for(size_t i=0;i<x.size();i++) if(iterate_y and x[i].omega>=0.0) x[i].omega = -1.0*y[i].omega;
-		std::vector<vecfuncT> residuals=apply_G(x,V);
+		std::vector<vector_real_function_3d> residuals=apply_G(x,V);
 		// check convergence
 
 		converged = true;
@@ -363,7 +363,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 		// update, store old omegas in the deltas vector
 		for(size_t i=0;i<x.size();i++){
 			if(std::fabs(x[i].current_error)>dconv or std::fabs(x[i].delta)>econv or this_is_a_guess_iteration){
-				vecfuncT new_x0;
+				vector_real_function_3d new_x0;
 				if(kain){
 					new_x0 = solvers[i]->update(x[i].get_vecfunction(),residuals[i],10.0*parameters.thresh,5.0);
 				}else{
@@ -372,7 +372,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 
 				// Project out the converged roots
 				if(converged_roots.size()>0){
-					vecfuncT bra_new_x0=make_bra(new_x0);
+					vector_real_function_3d bra_new_x0=make_bra(new_x0);
 					CCTimer timeP(world,"project out converged roots");
 					for(const auto it:converged_roots){
 						const double overlap = inner(world,it.get_vecfunction(),bra_new_x0).sum();
@@ -381,7 +381,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 					timeP.print();
 				}
 
-				vecfuncT Q_new_x0 = Q(new_x0);
+				vector_real_function_3d Q_new_x0 = Q(new_x0);
 				truncate(world,Q_new_x0);
 				x[i].set_functions(Q_new_x0,x[i].type,parameters.freeze);
 			} else msg.output("Root " +std::to_string(i) + " converged");
@@ -392,7 +392,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 			// not in the guess iteration
 		}else{
 			std::vector<CC_vecfunction> unconverged_roots;
-			std::vector<std::shared_ptr<XNonlinearSolver<vecfuncT,double,TDHF_allocator> > > corresponding_solvers;
+			std::vector<std::shared_ptr<XNonlinearSolver<vector_real_function_3d,double,TDHF_allocator> > > corresponding_solvers;
 			for(size_t i=0;i<x.size();++i){
 				if(x[i].current_error<dconv and std::fabs(x[i].delta)<econv){
 					// put converged roots into converged roots and replace it by one of the remaining guess functions
@@ -402,7 +402,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 						// fill the unconverged roots with new guess roots
 						unconverged_roots.push_back(guess_roots.back());
 						// allocate a new solver for the new guess function
-						auto sol=std::make_shared<XNonlinearSolver<vecfuncT,double,TDHF_allocator> >(TDHF_allocator(world,x[i].size()),true);
+						auto sol=std::make_shared<XNonlinearSolver<vector_real_function_3d,double,TDHF_allocator> >(TDHF_allocator(world,x[i].size()),true);
 						sol->set_maxsub(parameters.kain_subspace);
 						corresponding_solvers.push_back(sol);
 						// delete the used guess root
@@ -454,15 +454,15 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 
 
 
-std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const{
+std::vector<vector_real_function_3d>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<vector_real_function_3d> &V)const{
 
 	std::string msg1 = "Applying Greens Function to vectors";
 	if(V.empty()) msg1+=", with recalculated Potentials";
 	CCTimer time(world,msg1);
-	std::vector<vecfuncT> result;
+	std::vector<vector_real_function_3d> result;
 	for(size_t i=0;i<x.size();i++){
 
-		vecfuncT Vi;
+		vector_real_function_3d Vi;
 		if(V.empty()) Vi=get_tda_potential(x[i]);
 		else Vi=V[i];
 		double omega = x[i].omega;
@@ -473,7 +473,7 @@ std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<
 		CCTimer time_N(world,"add nuclear potential");
 		// the potentials still need the nuclear potential
 		const Nuclear V(world,&nemo);
-		vecfuncT VNi = V(x[i].get_vecfunction());
+		vector_real_function_3d VNi = V(x[i].get_vecfunction());
 		Vi += VNi;
 		time_N.info(parameters.debug);
 
@@ -501,13 +501,13 @@ std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<
 		}
 		world.gop.fence();
 
-		vecfuncT GV = Q(apply(world, bsh, Vi));
+		vector_real_function_3d GV = Q(apply(world, bsh, Vi));
 
-		vecfuncT residual = sub(world,x[i].get_vecfunction(),GV);
+		vector_real_function_3d residual = sub(world,x[i].get_vecfunction(),GV);
 		result.push_back(residual);
 
 		// Calculate Second Order Energy Update
-		const vecfuncT bra_GV=make_bra(GV);
+		const vector_real_function_3d bra_GV=make_bra(GV);
 		{
 			// Inner product of Vpsi and the residual (Vi is scaled to -2.0 --> multiply later with 0.5)
 			double tmp = inner(world,make_bra(residual),Vi).sum();
@@ -527,12 +527,12 @@ std::vector<vecfuncT>  TDHF::apply_G(std::vector<CC_vecfunction> &x,std::vector<
 	return result;
 }
 
-std::vector<vecfuncT> TDHF::make_potentials(const std::vector<CC_vecfunction> &x)const{
+std::vector<vector_real_function_3d> TDHF::make_potentials(const std::vector<CC_vecfunction> &x)const{
 	CCTimer time(world,"Make Potentials");
-	std::vector<vecfuncT> V;
+	std::vector<vector_real_function_3d> V;
 	for(auto& xi:x){
 		if(parameters.debug) msg << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
-		const vecfuncT pot = get_tda_potential(xi);
+		const vector_real_function_3d pot = get_tda_potential(xi);
 		V.push_back(pot);
 		if(parameters.debug) msg << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
 	}
@@ -541,7 +541,7 @@ std::vector<vecfuncT> TDHF::make_potentials(const std::vector<CC_vecfunction> &x
 	return V;
 }
 
-vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
+vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	// XC information
 	const std::string xc_data = nemo.get_calc()->param.xc_data;
 	// HF exchange Coefficient
@@ -566,7 +566,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 
 
 	// Apply Ground State Potential to x-states
-	vecfuncT Vpsi1;
+	vector_real_function_3d Vpsi1;
 	{
 		// construct unperturbed operators
 		const Coulomb J(world,&nemo);
@@ -583,7 +583,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		//timeN.info(parameters.debug);
 		// Applied Hartree Potential (J|x>) -> factor two is absorbed into the density for the J Operator
 		CCTimer timeJ(world,"Jx");
-		const vecfuncT Jx=J(x.get_vecfunction());
+		const vector_real_function_3d Jx=J(x.get_vecfunction());
 		timeJ.info(parameters.debug);
 
 		if(nemo.get_calc()->xc.is_dft()){
@@ -601,7 +601,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 				xc_pot = nemo.get_ac().apply(xc_pot, scaledJ);
 			}
 
-			const vecfuncT XCx=mul(world, xc_pot, x.get_vecfunction());
+			const vector_real_function_3d XCx=mul(world, xc_pot, x.get_vecfunction());
 			// Ground State Potential applied to x, without exchange
 			Vpsi1 = Jx+XCx; // Nx removed
 		}else Vpsi1=Jx;
@@ -610,7 +610,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 			CCTimer timeKx(world,"Kx");
 			Exchange K=Exchange(world,&nemo,0).small_memory(false);
 			K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo,parameters.thresh_op);
-			vecfuncT Kx =K(x.get_vecfunction());
+			vector_real_function_3d Kx =K(x.get_vecfunction());
 			scale(world,Kx,hf_coeff);
 			Vpsi1 = sub(world, Vpsi1, Kx);
 			timeKx.info(parameters.debug);
@@ -620,31 +620,31 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 			CCTimer timepcm(world,"pcm:gs");
 			const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(J.potential(),false);
 			if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_gs");
-			const vecfuncT pcm_x=vpcm*x.get_vecfunction();
+			const vector_real_function_3d pcm_x=vpcm*x.get_vecfunction();
 			timepcm.info(parameters.debug);
 			Vpsi1 = add(world,Vpsi1,pcm_x);
 		}
 	}
 
 	// Apply the Perturbed Potential to the Active Ground State Orbitals
-	vecfuncT Vpsi2;
+	vector_real_function_3d Vpsi2;
 	{
 		// active mo
-		const vecfuncT active_mo = get_active_mo_ket();
-		const vecfuncT active_bra = get_active_mo_bra();
+		const vector_real_function_3d active_mo = get_active_mo_ket();
+		const vector_real_function_3d active_bra = get_active_mo_bra();
 		// construct perturbed operators
 		CCTimer timeJ(world,"pXC");
 		Coulomb Jp(world);
 		real_function_3d density_pert=2.0*nemo.make_density(occ,active_bra,x.get_vecfunction());
 		Jp.potential()=Jp.compute_potential(density_pert);
 
-		vecfuncT XCp=zero_functions<double,3>(world,get_active_mo_ket().size());
+		vector_real_function_3d XCp=zero_functions<double,3>(world,get_active_mo_ket().size());
 		if(nemo.get_calc()->xc.is_dft()){
 			// XC Potential
 			const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
 			// reconstruct the full perturbed density: do not truncate!
 			real_function_3d gamma=xc.apply_xc_kernel(density_pert);
-			vecfuncT XCp=mul(world,gamma,active_mo);
+			vector_real_function_3d XCp=mul(world,gamma,active_mo);
 			truncate(world,XCp);
 		}
 
@@ -657,7 +657,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		// Exchange Part
 		if(hf_coeff>0.0){
 			CCTimer timeK(world,"pK");
-			vecfuncT Kp;
+			vector_real_function_3d Kp;
 			// summation over all active indices
 			for(const auto itmp:x.functions){
 				const size_t i=itmp.first;
@@ -679,7 +679,7 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 			CCTimer timepcm(world,"pcm:ex");
 			const real_function_3d vpcm = nemo.get_pcm().compute_pcm_potential(Jp.potential(),true);
 			if(parameters.plot or parameters.debug) plot_plane(world,vpcm,"vpcm_ex");
-			const vecfuncT pcm_orbitals=vpcm*active_mo;
+			const vector_real_function_3d pcm_orbitals=vpcm*active_mo;
 			timepcm.info(parameters.debug);
 			Vpsi2 = add(world,Vpsi2,pcm_orbitals);
 		}
@@ -687,14 +687,14 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		truncate(world,Vpsi2);
 	}
 	// whole tda potential
-	vecfuncT Vpsi = Vpsi1 + Q(Vpsi2);
+	vector_real_function_3d Vpsi = Vpsi1 + Q(Vpsi2);
 	// if the ground state is localized add the coupling terms
 	// canonical: -ei|xi> (part of greens function)
 	// local:  -fik|xk> (fii|xi> part of greens functions, rest needs to be added)
 
 	if(nemo.get_calc()->param.localize){
-		const vecfuncT vx=x.get_vecfunction();
-		vecfuncT fock_coupling=madness::transform(world,vx,F_occ);
+		const vector_real_function_3d vx=x.get_vecfunction();
+		vector_real_function_3d fock_coupling=madness::transform(world,vx,F_occ);
 		// subtract the diagonal terms
 		for(size_t i=0;i<fock_coupling.size();++i){
 			fock_coupling[i]=(fock_coupling[i]-F_occ(i,i)*vx[i]);
@@ -718,13 +718,13 @@ vecfuncT TDHF::get_tda_potential(const CC_vecfunction &x)const{
 
 }
 
-std::vector<vecfuncT> TDHF::make_tdhf_potentials(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y)const{
+std::vector<vector_real_function_3d> TDHF::make_tdhf_potentials(std::vector<CC_vecfunction> &x,const std::vector<CC_vecfunction> &y)const{
 	MADNESS_EXCEPTION("NOT IMPLEMENTED",1);
 }
 
 
 
-void TDHF::orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &V)const{
+void TDHF::orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vector_real_function_3d> &V)const{
 	if(x.empty()) return;
 	CCTimer time(world,"Orthonormalization");
 
@@ -766,7 +766,7 @@ void TDHF::orthonormalize(std::vector<CC_vecfunction> &x,std::vector<vecfuncT> &
 std::vector<CC_vecfunction> TDHF::transform(const std::vector<CC_vecfunction> &x,const madness::Tensor<double> U) const {
 	std::vector<CC_vecfunction> transformed;
 	for(size_t k=0;k<x.size();k++){
-		vecfuncT new_x = zero_functions_compressed<double,3>(world,x[k].size());
+		vector_real_function_3d new_x = zero_functions_compressed<double,3>(world,x[k].size());
 		compress(world,x[k].get_vecfunction());
 		for(size_t l=0;l<x.size();l++){
 			gaxpy(world,1.0,new_x,U(l,k),x[l].get_vecfunction()); // gaxpy(alpha,a,beta,b) -> a[i]=alpha*a[i] + beta*b[i], since there is no += for vectorfunctions implemented
@@ -784,7 +784,7 @@ Tensor<double> TDHF::make_overlap_matrix(const std::vector<CC_vecfunction> &x)co
 	CCTimer time(world,"Make Overlap Matrix");
 	Tensor<double> S(x.size(),x.size());
 	for(size_t k=0;k<x.size();k++){
-		const vecfuncT kbra = make_bra(x[k]);
+		const vector_real_function_3d kbra = make_bra(x[k]);
 		for(size_t l=0;l<x.size();l++){
 			S(l,k) = inner(world,kbra,x[l].get_vecfunction()).sum();
 		}
@@ -794,7 +794,7 @@ Tensor<double> TDHF::make_overlap_matrix(const std::vector<CC_vecfunction> &x)co
 	return S;
 }
 
-Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction> &x, const std::vector<vecfuncT> &V)const{
+Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction> &x, const std::vector<vector_real_function_3d> &V)const{
 	// Make formated timings
 	CCTimer timeF(world,"Matrix: F");
 	CCTimer timeT(world,"Matrix: T+Vn");
@@ -802,12 +802,12 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 	CCTimer timeR(world,"Matrix: e");
 
 	// bra elements of x
-	std::vector<vecfuncT> xbra;
+	std::vector<vector_real_function_3d> xbra;
 
 	{
 		CCTimer time_bra(world,"Make bra elements");
 		for(size_t k=0;k<x.size();k++){
-			const vecfuncT xbrak = make_bra(x[k]);
+			const vector_real_function_3d xbrak = make_bra(x[k]);
 			xbra.push_back(xbrak);
 		}
 		MADNESS_ASSERT(xbra.size()==x.size());
@@ -831,16 +831,16 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 			}
 
 			const real_function_3d R = nemo.nuclear_correlation -> function();
-			std::vector<vecfuncT> Rx(x.size(),zero_functions<double,3>(world,x.front().size()));
+			std::vector<vector_real_function_3d> Rx(x.size(),zero_functions<double,3>(world,x.front().size()));
 			CCTimer timeR(world,"make Rx");
 			for(size_t k=0;k<x.size();k++){
 				Rx[k] = mul(world,R,x[k].get_vecfunction(),false);
 			}
 			world.gop.fence();
 			timeR.info(parameters.debug);
-			std::vector<vecfuncT> dx(x.size(),zero_functions<double,3>(world,x.front().size()));
-			std::vector<vecfuncT> dy(x.size(),zero_functions<double,3>(world,x.front().size()));
-			std::vector<vecfuncT> dz(x.size(),zero_functions<double,3>(world,x.front().size()));
+			std::vector<vector_real_function_3d> dx(x.size(),zero_functions<double,3>(world,x.front().size()));
+			std::vector<vector_real_function_3d> dy(x.size(),zero_functions<double,3>(world,x.front().size()));
+			std::vector<vector_real_function_3d> dz(x.size(),zero_functions<double,3>(world,x.front().size()));
 			CCTimer timeD(world,"make Grad(Rx)");
 			for(size_t k=0;k<x.size();k++){
 				dx[k] = apply(world,*(D[0]),Rx[k],false);
@@ -852,7 +852,7 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 
 			CCTimer time_mat(world,"T+V Mat");
 			for(size_t k=0;k<x.size();k++){
-				const vecfuncT Vxk = mul(world,Vnuc,x[k].get_vecfunction());
+				const vector_real_function_3d Vxk = mul(world,Vnuc,x[k].get_vecfunction());
 				for(size_t l=0;l<x.size();l++){
 					T(l,k) = inner(world,xbra[l],Vxk).sum();
 					T(l,k) += 0.5*inner(world,dx[l],dx[k]).sum();
@@ -869,7 +869,7 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 			timeV.start();
 			bool recompute_V = V.empty();
 			for(size_t k=0;k<x.size();k++){
-				vecfuncT Vk;
+				vector_real_function_3d Vk;
 				//if(recompute_V) Vk = CCOPS.get_CIS_potential(x[k]);
 				if(recompute_V){
 					msg.output("Recompute V");
@@ -921,7 +921,7 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 }
 
 /// Makes the (old) guess functions by exciting active orbitals with excitation operators
-std::vector<CC_vecfunction> TDHF::make_old_guess(const vecfuncT& f)const{
+std::vector<CC_vecfunction> TDHF::make_old_guess(const vector_real_function_3d& f)const{
 	CCTimer time(world,"Making Guess Functions: " + parameters.guess_virtuals);
 	std::vector<std::string> exop_strings;
 	if(parameters.guess_virtuals=="custom"){
@@ -932,7 +932,7 @@ std::vector<CC_vecfunction> TDHF::make_old_guess(const vecfuncT& f)const{
 	else exop_strings = make_predefined_exop_strings(parameters.guess_virtuals);
 
 	// make the excitation operators
-	vecfuncT exops;
+	vector_real_function_3d exops;
 	for(const auto& exs:exop_strings){
 		std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(new polynomial_functor(exs));
 		real_function_3d exop = real_factory_3d(world).functor(exop_functor);
@@ -957,11 +957,11 @@ std::vector<CC_vecfunction> TDHF::make_old_guess(const vecfuncT& f)const{
 	// making the guess
 	std::vector<CC_vecfunction> guess;
 	for(size_t i=0;i<exops.size();i++){
-		const vecfuncT& vm = f;
+		const vector_real_function_3d& vm = f;
 		reconstruct(world,vm);
 		reconstruct(world,exops);
 		MADNESS_ASSERT(not(N>vm.size()));
-		vecfuncT tmp= zero_functions<double,3>(world,vm.size());
+		vector_real_function_3d tmp= zero_functions<double,3>(world,vm.size());
 		// exciting the first N orbitals (from the homo to the homo-N)
 		for(size_t k=0;k<N;k++){
 			real_function_3d xmo = (exops[i]*vm[vm.size()-1-k]).truncate();
@@ -985,10 +985,10 @@ std::vector<CC_vecfunction> TDHF::make_old_guess(const vecfuncT& f)const{
 	return guess;
 }
 
-vecfuncT TDHF::make_virtuals() const {
+vector_real_function_3d TDHF::make_virtuals() const {
 	CCTimer time(world, "make virtuals");
 	// create virtuals
-	vecfuncT virtuals;
+	vector_real_function_3d virtuals;
 	if (parameters.guess_virtuals == "external") {
 		madness::load_function(world, virtuals, "mybasis");
 		//virtuals=Q(virtuals);
@@ -1005,7 +1005,7 @@ vecfuncT TDHF::make_virtuals() const {
 		}
 	} else{
 		// create the seeds
-		vecfuncT xmo;
+		vector_real_function_3d xmo;
 		for(size_t i=0;i<parameters.guess_occ_to_virt;++i) xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size()-1-i]);
 
 		bool use_trigo=true;
@@ -1054,7 +1054,7 @@ vecfuncT TDHF::make_virtuals() const {
 	return virtuals;
 }
 
-vecfuncT TDHF::apply_excitation_operators(const vecfuncT& seed, const bool& use_trigo) const {
+vector_real_function_3d TDHF::apply_excitation_operators(const vector_real_function_3d& seed, const bool& use_trigo) const {
 	//const int nvirt = seed.size() * ((2 * order * 2 * order * 2 * order) - 1);
 	//	msg.subsection("creating a set of " + std::to_string(nvirt) + " virtuals by multiplying functions with plane waves");
 	// compute the centers of the seed functions
@@ -1065,12 +1065,12 @@ vecfuncT TDHF::apply_excitation_operators(const vecfuncT& seed, const bool& use_
 
 	// prepare the list of excitation operators and copied seeds
 	CCTimer time_init_exop(world,"initialize excitation operators");
-	std::vector<std::pair<vecfuncT, std::string> > exlist;
+	std::vector<std::pair<vector_real_function_3d, std::string> > exlist;
 	{
 		std::vector<std::string> exop_strings=parameters.exops;
 		if(parameters.guess_virtuals!="custom") exop_strings=(make_predefined_exop_strings(parameters.guess_virtuals));
 		for(const auto ex: exop_strings){
-			vecfuncT cseed=copy(world,seed,false);
+			vector_real_function_3d cseed=copy(world,seed,false);
 			exlist.push_back(std::make_pair(cseed,ex));
 		}
 	}
@@ -1080,7 +1080,7 @@ vecfuncT TDHF::apply_excitation_operators(const vecfuncT& seed, const bool& use_
 
 	// create the virtuals by unary operations: multiply excitation operators with seeds
 	CCTimer time_create_virtuals(world,"create virtuals");
-	vecfuncT virtuals;
+	vector_real_function_3d virtuals;
 	for(auto it:exlist){
 		if(use_trigo) virtuals=append(virtuals,apply_trigonometric_exop(it.first,it.second,centers,false));
 		else virtuals=append(virtuals,apply_polynomial_exop(it.first,it.second,centers,false));
@@ -1098,7 +1098,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	//convenience
 	const int nact = get_active_mo_ket().size();
 	// create virtuals
-	vecfuncT virtuals = make_virtuals();
+	vector_real_function_3d virtuals = make_virtuals();
 	// canonicalize virtuals
 	virtuals = canonicalize(virtuals);
 	// compute the CIS matrix
@@ -1165,7 +1165,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 		time_assemble.print();
 		CCTimer time_truncate(world, "truncate guess");
 		for (auto& x : xfunctions) {
-			vecfuncT tmp = x.get_vecfunction();
+			vector_real_function_3d tmp = x.get_vecfunction();
 			truncate(world, tmp, parameters.thresh);
 			// should be truncated by shallow copy anyways ... but just to be sure
 			x.set_functions(tmp, x.type, parameters.freeze);
@@ -1185,10 +1185,10 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	return xfunctions;
 }
 /// canonicalize a set of orbitals (here the virtuals for the guess)
-vecfuncT TDHF::canonicalize(const vecfuncT& v)const{
+vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v)const{
 	CCTimer time(world,"canonicalize");
 	Fock F(world, &nemo);
-	const vecfuncT vbra=make_bra(v);
+	const vector_real_function_3d vbra=make_bra(v);
 	Tensor<double> Fmat = F(vbra,v);
 	Tensor<double> S = matrix_inner(world, vbra, v);
 	Tensor<double> occ(v.size());
@@ -1197,15 +1197,15 @@ vecfuncT TDHF::canonicalize(const vecfuncT& v)const{
 	if(parameters.debug) msg << "Canonicalize: Fock Matrix\n" << Fmat(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
 	if(parameters.debug) msg << "Canonicalize: Overlap Matrix\n" << S(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
 	Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, evals, occ, std::min(parameters.thresh,1.e-4));
-	vecfuncT result = madness::transform(world, v, U);
+	vector_real_function_3d result = madness::transform(world, v, U);
 	time.print();
 	return result;
 }
 /// compute the CIS matrix for a given set of virtuals
-Tensor<double> TDHF::make_cis_matrix(const vecfuncT virtuals)const{
+Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals)const{
 
 	// make bra elements
-	const vecfuncT virtuals_bra = make_bra(virtuals);
+	const vector_real_function_3d virtuals_bra = make_bra(virtuals);
 	// make Fock Matrix of virtuals for diagonal elements
 	Fock F(world, &nemo);
 	Tensor<double> Fmat = F(virtuals_bra, virtuals);
@@ -1269,7 +1269,7 @@ Tensor<double> TDHF::make_cis_matrix(const vecfuncT virtuals)const{
 		int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
 		for (int i = start_ij; i < get_active_mo_ket().size(); ++i) {
 			const real_function_3d brai = get_active_mo_bra()[i];
-			const vecfuncT igv = g12(brai * virtuals);
+			const vector_real_function_3d igv = g12(brai * virtuals);
 			for (int a = 0; a < virtuals.size(); ++a) {
 				I=get_com_idx(i,a);
 				int J =-1;
@@ -1354,7 +1354,7 @@ double TDHF::oscillator_strength_length(const CC_vecfunction& x) const {
 	Tensor<double> mu_if(3);
 	for (int idim=0; idim<3; idim++) {
 		real_function_3d ri = real_factory_3d(world).functor(xyz(idim));
-		vecfuncT amo_times_x=ri*get_active_mo_bra();
+		vector_real_function_3d amo_times_x=ri*get_active_mo_bra();
 		Tensor<double> a=inner(world,amo_times_x,x.get_vecfunction());
 		mu_if(idim)=a.sum();
 	}
@@ -1373,12 +1373,12 @@ double TDHF::oscillator_strength_length(const CC_vecfunction& x) const {
 double TDHF::oscillator_strength_velocity(const CC_vecfunction& x) const {
 	Tensor<double> p_if(3);
 	// compute the derivatives of the MOs in all 3 directions
-	const vecfuncT Rroot=nemo.R*x.get_vecfunction();
-	const vecfuncT Rnemo=nemo.R*get_active_mo_ket();
+	const vector_real_function_3d Rroot=nemo.R*x.get_vecfunction();
+	const vector_real_function_3d Rnemo=nemo.R*get_active_mo_ket();
 
 	for (int idim=0; idim<3; idim++) {
 		real_derivative_3d D = free_space_derivative<double,3>(world, idim);
-		vecfuncT Damo=apply(world,D,Rnemo);
+		vector_real_function_3d Damo=apply(world,D,Rnemo);
 		Tensor<double> a=inner(world,Damo,Rroot);
 		p_if(idim)=a.sum();
 	}
@@ -1394,7 +1394,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 
 	for (const CC_vecfunction& root : x) {
 
-		const vecfuncT Rroot=nemo.R*root.get_vecfunction(); // reintroduce the nuclear correlation factor
+		const vector_real_function_3d Rroot=nemo.R*root.get_vecfunction(); // reintroduce the nuclear correlation factor
 		std::vector<double> norms=norm2s(world,Rroot);
 
 		// compute the oscillator strengths and dominant contributions
@@ -1425,9 +1425,9 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 	}
 
 	// compute the transition densities
-	const vecfuncT bra_oct=get_active_mo_bra();
+	const vector_real_function_3d bra_oct=get_active_mo_bra();
 	for (std::size_t i=0; i<x.size(); ++i) {
-		const vecfuncT root=x[i].get_vecfunction();
+		const vector_real_function_3d root=x[i].get_vecfunction();
 		const real_function_3d td=dot(world,root,bra_oct);
 		const double trace=td.trace();
 		if (world.rank()==0) print("trace over transition density",i,trace);
