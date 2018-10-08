@@ -67,8 +67,8 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
 
 	parameters.print(world);
 	const double old_thresh = FunctionDefaults<3>::get_thresh();
-	if(old_thresh>parameters.thresh*0.1){
-		msg.warning("Response thresh="+std::to_string(parameters.thresh)+ " and Reference thresh="+std::to_string(old_thresh) + ". Be careful, reference should be tight");
+	if(old_thresh>parameters.thresh*0.1 and old_thresh>1.e-5){
+		msg.warning("Threshold of Reference might be too loose |  Response thresh="+std::to_string(parameters.thresh)+ " and Reference thresh="+std::to_string(old_thresh) + ". Be careful, reference should be tight");
 	}
 	FunctionDefaults<3>::set_thresh(parameters.thresh);
 	msg << "MRA Threshold is set to: " << FunctionDefaults<3>::get_thresh() << " with k=" << FunctionDefaults<3>::get_k() << "\n";
@@ -1105,7 +1105,6 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	Tensor<double> MCIS = make_cis_matrix(virtuals);
 	// initialize the guess functions
 	if (world.rank() == 0 && MCIS.dim(0) < parameters.guess_excitations) {
-		msg.warning("asd" + std::to_string(1));
 		msg.warning(std::to_string(parameters.guess_excitations) + " guess vectors where demanded, but with the given options only " + std::to_string(MCIS.dim(0)) + " can be created\n");
 	}
 	std::vector<CC_vecfunction> xfunctions;
