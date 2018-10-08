@@ -922,14 +922,14 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 
 /// Makes the (old) guess functions by exciting active orbitals with excitation operators
 std::vector<CC_vecfunction> TDHF::make_old_guess(const vector_real_function_3d& f)const{
-	CCTimer time(world,"Making Guess Functions: " + parameters.guess_virtuals);
+	CCTimer time(world,"Making Guess Functions: " + parameters.guess_excitation_operators);
 	std::vector<std::string> exop_strings;
-	if(parameters.guess_virtuals=="custom"){
+	if(parameters.guess_excitation_operators=="custom"){
 		exop_strings = parameters.exops;
 		msg << "Custom Excitation Operators Demanded:\n";
       	msg << exop_strings << "\n";
 	}
-	else exop_strings = make_predefined_exop_strings(parameters.guess_virtuals);
+	else exop_strings = make_predefined_exop_strings(parameters.guess_excitation_operators);
 
 	// make the excitation operators
 	vector_real_function_3d exops;
@@ -989,14 +989,14 @@ vector_real_function_3d TDHF::make_virtuals() const {
 	CCTimer time(world, "make virtuals");
 	// create virtuals
 	vector_real_function_3d virtuals;
-	if (parameters.guess_virtuals == "external") {
+	if (parameters.guess_excitation_operators == "external") {
 		madness::load_function(world, virtuals, "mybasis");
 		//virtuals=Q(virtuals);
 		for (auto& x : virtuals) {
 			const double norm = sqrt(inner(make_bra(x), x));
 			x.scale(1.0 / norm);
 		}
-	} else if (parameters.guess_virtuals == "scf") {
+	} else if (parameters.guess_excitation_operators == "scf") {
 		// use the ao basis set from the scf calculations as virtuals (like projected aos)
 		virtuals = (nemo.get_calc()->ao);
 		for (auto& x : virtuals) {
@@ -1068,7 +1068,7 @@ vector_real_function_3d TDHF::apply_excitation_operators(const vector_real_funct
 	std::vector<std::pair<vector_real_function_3d, std::string> > exlist;
 	{
 		std::vector<std::string> exop_strings=parameters.exops;
-		if(parameters.guess_virtuals!="custom") exop_strings=(make_predefined_exop_strings(parameters.guess_virtuals));
+		if(parameters.guess_excitation_operators!="custom") exop_strings=(make_predefined_exop_strings(parameters.guess_excitation_operators));
 		for(const auto ex: exop_strings){
 			vector_real_function_3d cseed=copy(world,seed,false);
 			exlist.push_back(std::make_pair(cseed,ex));
@@ -1491,16 +1491,16 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 			else if (s == "thresh") f >> thresh;
 			else if (s == "freeze") f >> freeze;
 			else if (s == "no_compute")
-				f >> no_compute;
+				f >> std::boolalpha >> no_compute;
 			else if (s == "debug")
-				f >> debug;
+				f >> std::boolalpha >> debug;
 			else if (s == "plot")
-				f >> plot;
+				f >> std::boolalpha >> plot;
 			else if (s == "restart") {
 				size_t tmp;
 				f >> tmp;
 				restart.push_back(tmp);
-			} else if (s == "exop" || s == "exop") {
+			} else if (s == "exop" or s == "guess_exop") {
 				std::string tmp;
 				char buf[1024];
 				f.getline(buf, sizeof(buf));
@@ -1515,15 +1515,15 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 			else if (s == "guess_active_orbitals")
 				f >> guess_active_orbitals;
 			else if (s == "guess_diag")
-				f >> guess_diag;
+				f >> std::boolalpha>> guess_diag;
 			else if (s == "guess_excitations")
 				f >> guess_excitations;
 			else if (s == "excitations")
 				f >> excitations;
 			else if (s == "iterating_excitations")
 				f >> iterating_excitations;
-			else if (s == "guess_virtuals")
-				f >> guess_virtuals;
+			else if (s=="guess_excitation_operators" or  s== "guess_excitation_operators")
+				f >> guess_excitation_operators;
 			else if (s == "dconv_guess" or s=="guess_dconv")
 				f >> guess_dconv;
 			else if (s == "dconv")
@@ -1533,7 +1533,7 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 			else if (s == "econv")
 				f >> econv;
 			else if (s == "store_potential")
-				f >> store_potential;
+				f >> std::boolalpha >> store_potential;
 			else if (s == "iter_max" or s =="maxiter")
 				f >> maxiter;
 			else if (s == "iter_guess" or s=="guess_maxiter" or s=="maxiter_guess")
@@ -1541,7 +1541,7 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 			else if (s == "damping_width")
 				f >> damping_width;
 			else if (s == "triplet")
-				f >> triplet;
+				f >> std::boolalpha >> triplet;
 			else if (s == "kain_subspace" or s=="kain")
 				f>>kain_subspace;
 			else if (s == "keyval") {
@@ -1583,7 +1583,7 @@ void TDHF::Parameters::print(World& world) const {
 		std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
 		std::cout << "Parameters for the guess:\n";
 		std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
-		std::cout << "guess_virtuals       :" << guess_virtuals << std::endl;
+		std::cout << "guess_excitation_operators       :" << guess_excitation_operators << std::endl;
 		std::cout << "guess_diag           :" << guess_diag << std::endl;
 		if(guess_maxiter==0){
 			std::cout << "guess_maxiter    :"  << "no iteration of guess" << std::endl;
@@ -1594,14 +1594,14 @@ void TDHF::Parameters::print(World& world) const {
 		}
 		if(guess_diag==false) std::cout << "guess_active_orbitals:" << guess_active_orbitals << std::endl;
 		// if this is the case then virtuals are generated
-		if(guess_virtuals!="scf" and guess_virtuals!="extern"){
+		if(guess_excitation_operators!="scf" and guess_excitation_operators!="extern"){
 			std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
 			std::cout << "Parameters for the generation of virtuals\nby multiplying excitation operators to the occupied orbitals\n";
 			std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
 			std::cout << "guess_occ_to_virt    :" << guess_occ_to_virt << std::endl;
 			std::cout << "damping_width        :" << damping_width << std::endl;
 			std::cout << "guess_cm             :" << guess_cm << std::endl;
-			if(guess_virtuals!="custom") 		std::cout << "predefined excitation operators are " << guess_virtuals << std::endl;
+			if(guess_excitation_operators!="custom") 		std::cout << "predefined excitation operators are " << guess_excitation_operators << std::endl;
 			else std::cout << "custom excitation operators are \n" << exops << "\n";
 		}
 
@@ -1615,7 +1615,6 @@ void TDHF::Parameters::print(World& world) const {
 		}
 	}
 }
-
 
 TDHF::~TDHF() {
 	// TODO Auto-generated destructor stub

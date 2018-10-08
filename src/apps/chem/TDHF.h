@@ -92,7 +92,7 @@ public:
 		/// exop z 1.0
 		/// the options dipole, dipole+, dipole+diffuse and quadrupole give predefined exops without explicitly stating them
 		/// see the end of TDHF.cc for predefined keys
-		std::string guess_virtuals="dipole+";
+		std::string guess_excitation_operators="dipole+";
 
 		/// add center of mass functions determined by the homo-energy
 		/// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
@@ -139,6 +139,7 @@ public:
 		std::map<std::string,std::string> generalkeyval;
 
 		void print(World& world) const;
+
 	}; // end of parameter class
 
 	TDHF(World & world,const Nemo &nemo, const std::string& input="input");
@@ -363,7 +364,6 @@ public:
 	/// stored guess roots roots to feed into the cycle, sorted backwards for easier pop_back calling
 	mutable std::vector<CC_vecfunction> guess_roots;
 };
-
 
 
 } /* namespace madness */
