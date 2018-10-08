@@ -39,6 +39,16 @@ public:
 		/// filename default is "input"
 		void read_from_file(const std::string input, const std::string& key = "response");
 
+		bool assign_bool(std::ifstream& s)const{
+			std::string tmp;
+			s>>tmp;
+			return assign_bool(tmp);
+		}
+		bool assign_bool(std::string& s)const{
+			if(s=="0" or s=="false" or s=="f") return false;
+			else return true;
+		}
+
 		bool debug=false;
 		bool plot=false;
 		bool no_compute=false;

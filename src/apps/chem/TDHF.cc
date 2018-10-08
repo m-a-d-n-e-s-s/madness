@@ -1494,8 +1494,7 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 				f >> std::boolalpha >> no_compute;
 			else if (s == "debug")
 				f >> std::boolalpha >> debug;
-			else if (s == "plot")
-				f >> std::boolalpha >> plot;
+			else if (s == "plot") plot=assign_bool(f);
 			else if (s == "restart") {
 				size_t tmp;
 				f >> tmp;
@@ -1515,7 +1514,7 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 			else if (s == "guess_active_orbitals")
 				f >> guess_active_orbitals;
 			else if (s == "guess_diag")
-				f >> std::boolalpha>> guess_diag;
+				guess_diag=assign_bool(f);
 			else if (s == "guess_excitations")
 				f >> guess_excitations;
 			else if (s == "excitations")
@@ -1533,7 +1532,7 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 			else if (s == "econv")
 				f >> econv;
 			else if (s == "store_potential")
-				f >> std::boolalpha >> store_potential;
+				store_potential=assign_bool(f);
 			else if (s == "iter_max" or s =="maxiter")
 				f >> maxiter;
 			else if (s == "iter_guess" or s=="guess_maxiter" or s=="maxiter_guess")
@@ -1541,7 +1540,7 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 			else if (s == "damping_width")
 				f >> damping_width;
 			else if (s == "triplet")
-				f >> std::boolalpha >> triplet;
+				triplet=assign_bool(f);
 			else if (s == "kain_subspace" or s=="kain")
 				f>>kain_subspace;
 			else if (s == "keyval") {
