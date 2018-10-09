@@ -39,14 +39,18 @@ add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tenso
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
 target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
+target_link_libraries(MADtensor PUBLIC ${LAPACK_LIBRARIES}) # some of the tests depend on MKL/Blas
 if (LAPACK_INCLUDE_DIRS)
   target_include_directories(MADlinalg PUBLIC ${LAPACK_INCLUDE_DIRS})
+  target_include_directories(MADtensor PUBLIC ${LAPACK_INCLUDE_DIRS})
 endif(LAPACK_INCLUDE_DIRS)
 if (LAPACK_COMPILE_OPTIONS)
   target_compile_options(MADlinalg PUBLIC ${LAPACK_COMPILE_OPTIONS})
+  target_compile_options(MADtensor PUBLIC ${LAPACK_COMPILE_OPTIONS})
 endif(LAPACK_COMPILE_OPTIONS)
 if (LAPACK_COMPILE_DEFINITIONS)
   target_compile_definitions(MADlinalg PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
+  target_compile_definitions(MADtensor PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
 endif(LAPACK_COMPILE_DEFINITIONS)
 
 if(HAVE_IBMBGQ)
@@ -85,10 +89,10 @@ if(ENABLE_UNITTESTS)
   # The list of unit test source files
   set(TENSOR_TEST_SOURCES test_tensor.cc oldtest.cc test_mtxmq.cc
       jimkernel.cc test_distributed_matrix.cc test_Zmtxmq.cc test_systolic.cc)
-  if(ENABLE_GENTENSOR)
-    list(APPEND TENSOR_TEST_SOURCES test_gentensor.cc)
-  endif()
   set(LINALG_TEST_SOURCES test_linalg.cc test_solvers.cc testseprep.cc)
+  if(ENABLE_GENTENSOR)
+    list(APPEND LINALG_TEST_SOURCES test_gentensor.cc)
+  endif()
 
   add_unittests(tensor TENSOR_TEST_SOURCES "MADtensor;MADgtest")
   add_unittests(linalg LINALG_TEST_SOURCES "MADlinalg;MADgtest")

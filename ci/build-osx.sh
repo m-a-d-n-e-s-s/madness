@@ -10,6 +10,9 @@ cmake \
     -D CMAKE_BUILD_TYPE=RelWithDebInfo \
     -D ENABLE_UNITTESTS=ON \
     -D ENABLE_NEVER_SPIN=ON \
+    -D CMAKE_C_COMPILER=$CC \
+    -D CMAKE_CXX_COMPILER=$CXX \
+    $CMAKE_EXTRA_OPTIONS \
     ..
 
 if [ "$RUN_TEST" = "buildonly" ]; then
