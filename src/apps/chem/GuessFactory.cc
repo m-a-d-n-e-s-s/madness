@@ -5,7 +5,7 @@
  *      Author: kottmanj
  */
 
-#include "guessfactory.h"
+#include "GuessFactory.h"
 
 namespace madness {
 namespace guessfactory{
