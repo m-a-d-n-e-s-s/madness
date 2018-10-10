@@ -50,6 +50,7 @@
 #include <exception>
 #include <madness/madness_config.h>
 #ifdef MADNESS_ASSERTIONS_ASSERT
+#undef NDEBUG
 #  include <cassert>
 #endif
 
@@ -130,25 +131,23 @@ namespace madness {
 /// - `assert(condition)` is called.
 /// - execution is aborted.
 /// - nothing.
-/// \param[in] condition The condition to be asserted.
-#define MADNESS_ASSERT(condition)
-#undef MADNESS_ASSERT
+/// \param[in] condition The condition to be asserted which is always evaluated.
+
+#if !(defined(MADNESS_ASSERTIONS_ABORT) || defined(MADNESS_ASSERTIONS_DISABLE) || defined(MADNESS_ASSERTIONS_ASSERT) || defined(MADNESS_ASSERTIONS_THROW))
+#define (MADNESS_ASSERTIONS_THROW
+#endif
 
 #ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) { std::abort(); }} while (0)
-#endif
 
-#ifdef MADNESS_ASSERTIONS_DISABLE
-// this avoid unused variqble warnings, see http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
-#  define MADNESS_ASSERT(condition) do { (void)sizeof(condition);} while (0)
-#endif
+#elif defined(MADNESS_ASSERTIONS_DISABLE)
+#  define MADNESS_ASSERT(condition) do { (void)(condition);} while (0)
 
-#ifdef MADNESS_ASSERTIONS_ASSERT
+#elif defined(MADNESS_ASSERTIONS_ASSERT)
 #  define MADNESS_ASSERT(condition) assert(condition)
-#endif
 
-#ifdef MADNESS_ASSERTIONS_THROW
+#elif defined(MADNESS_ASSERTIONS_THROW)
 #  define MADNESS_STRINGIZE(X) #X
 #  define MADNESS_EXCEPTION_AT(F, L) MADNESS_STRINGIZE(F) "(" MADNESS_STRINGIZE(L) ")"
 #  define MADNESS_ASSERT(condition) \
@@ -159,6 +158,9 @@ namespace madness {
                 #condition,0,__LINE__,__FUNCTION__,__FILE__); \
         } \
     } while (0)
+#else
+
+#error "MADNESS_ASSERTIONS must do something!"
 #endif
 
 } // namespace madness

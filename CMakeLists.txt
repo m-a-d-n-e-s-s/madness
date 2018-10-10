@@ -179,7 +179,7 @@ add_feature_info("FORTRAN_INTEGER_SIZE=${FORTRAN_INTEGER_SIZE}" TRUE "assumes Fo
 if (CMAKE_BUILD_TYPE STREQUAL Release OR
     CMAKE_BUILD_TYPE STREQUAL RelWithDebInfo OR
     CMAKE_BUILD_TYPE STREQUAL MinSizeRel)
-  set (DEFAULT_ASSERTION_TYPE "disable")
+  set (DEFAULT_ASSERTION_TYPE "throw")
 else ()
   set (DEFAULT_ASSERTION_TYPE "throw")
 endif()

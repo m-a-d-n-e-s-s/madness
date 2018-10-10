@@ -30,13 +30,13 @@ set(MPI_CXX_COMPILER       "mpicxx")
 # Set compile flags
 set(CMAKE_C_FLAGS_INIT             "-std=c99 -mcpu=a2 -mtune=a2" CACHE STRING "Inital C compile flags")
 set(CMAKE_C_FLAGS_DEBUG            "-g -Wall" CACHE STRING "Inital C debug compile flags")
-set(CMAKE_C_FLAGS_MINSIZEREL       "-Os -DNDEBUG" CACHE STRING "Inital C minimum size release compile flags")
-set(CMAKE_C_FLAGS_RELEASE          "-O3 -DNDEBUG" CACHE STRING "Inital C release compile flags")
+set(CMAKE_C_FLAGS_MINSIZEREL       "-Os" CACHE STRING "Inital C minimum size release compile flags")
+set(CMAKE_C_FLAGS_RELEASE          "-O3" CACHE STRING "Inital C release compile flags")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO   "-O2 -g -Wall" CACHE STRING "Inital C release with debug info compile flags")
 set(CMAKE_CXX_FLAGS_INIT           " -mcpu=a2 -mtune=a2" CACHE STRING "Inital C++ compile flags")
 set(CMAKE_CXX_FLAGS_DEBUG          "-g -Wall" CACHE STRING "Inital C++ debug compile flags")
-set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -DNDEBUG" CACHE STRING "Inital C++ minimum size release compile flags")
-set(CMAKE_CXX_FLAGS_RELEASE        "-O3 -DNDEBUG" CACHE STRING "Inital C++ release compile flags")
+set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os" CACHE STRING "Inital C++ minimum size release compile flags")
+set(CMAKE_CXX_FLAGS_RELEASE        "-O3" CACHE STRING "Inital C++ release compile flags")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -Wall" CACHE STRING "Inital C++ release with debug info compile flags")
 
 

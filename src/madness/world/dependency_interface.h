@@ -39,6 +39,7 @@
 #define MADNESS_WORLD_DEPENDENCY_INTERFACE_H__INCLUDED
 
 #include <atomic>
+#undef NDEBUG
 #include <cassert>
 #include <typeinfo>
 
