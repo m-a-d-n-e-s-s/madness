@@ -264,6 +264,27 @@ double compute_energy(const complex_function_3d& Vpsi, const complex_function_3d
 	return ke+real(pe);
 }
 
+double compute_total_energy(const std::vector<complex_function_3d>& psi, const std::vector<complex_function_3d>& Vpsi,
+		const std::vector<complex_function_3d> potential_twoe) {
+
+	World& world=Vpsi[0].world();
+	Kinetic<double_complex,3> T(world);
+	Tensor<double_complex> Tmat=T(psi,psi);
+	Tensor<double_complex> Vmat1=matrix_inner(world,Vpsi,psi);
+	Tensor<double_complex> Vmat2=matrix_inner(world,potential_twoe,psi);
+
+//	print("tmat, vmat1, vmat2");
+//	print(Tmat);
+//	print(Vmat1);
+//	print(Vmat2);
+	double h=real(Tmat(0,0)+Tmat(1,1)+ Vmat1(0,0)+Vmat1(1,1));
+	double V2= real(Vmat2(0,0)+Vmat2(1,1));
+	printf(" energy: 1e, 2e, nucrep, total %12.8f %12.8f %12.8f %12.8f\n", h, V2, 1.0/R, h+0.5*V2+1.0/R);
+
+	return h+0.5*V2*1.0/R;
+
+}
+
 complex_function_3d compute_residual(complex_function_3d Vpsi, const complex_function_3d psi,
 		double& eps) {
 	World& world=Vpsi.world();
@@ -386,7 +407,7 @@ int main(int argc, char** argv) {
     print(nuc1);
     print(nuc2);
 
-    test(world);
+//    test(world);
     // get the command line options
     for(int i = 1; i < argc; i++) {
         const std::string arg=argv[i];
@@ -503,12 +524,9 @@ int main(int argc, char** argv) {
 			for (int iter=0; iter<iter_end; iter++) {
 				print("\n\n ---- Iteration ",iter," with B = ", B,"\n\n");
 				real_function_3d rho = (abssq(psi[0])+abssq(psi[1])).truncate();
-				complex_function_3d J=convert<double,double_complex,3>(op(rho).truncate());
 				std::vector<complex_function_3d> potential = Vnuc*psi;
-				potential+= J*psi;
 
 				std::vector<complex_function_3d> Vlz(2);
-
 				Vlz[0]=B*0.5*Lz(psi[0]);					// angular momentum
 				Vlz[1]=B*0.5*Lz(psi[1]);					// angular momentum
 				Tensor<double_complex> lzmat=matrix_inner(world,psi,Vlz);
@@ -517,7 +535,6 @@ int main(int argc, char** argv) {
 				double inorm0=imag(psi[0]).norm2();
 				double inorm1=imag(psi[1]).norm2();
 				print("imaginary norm ",inorm0, inorm1);
-
 
 				potential+=Vlz;
 
@@ -530,10 +547,17 @@ int main(int argc, char** argv) {
 
 
 				potential+=diapsi;								// diamagnetic part
-				potential+=0.5*B*psi;							// spin part
+				potential-=0.5*B*psi;							// spin part
 				potential-=global_shift*psi;							// global shift
-				potential-=apply_K(world,psi);
 
+				// two-electron part
+				complex_function_3d J=convert<double,double_complex,3>(op(rho).truncate());
+				std::vector<complex_function_3d> potential_twoe= J*psi;
+				potential_twoe-=apply_K(world,psi);
+
+				compute_total_energy(psi,potential,potential_twoe);
+
+				potential+=potential_twoe;
 
 				eps[0]=compute_energy(potential[0],psi[0],"energy(0)");
 				eps[1]=compute_energy(potential[1],psi[1],"energy(1)");
@@ -546,9 +570,10 @@ int main(int argc, char** argv) {
 				psi=solver.update(psi,res,0.01,3);
 				printf("current eps at B= %4.2f %12.8f %12.8f   --   %12.8f\n ",B,eps[0]+global_shift,eps[1]+global_shift,eps[0]-eps[1]);
 
-				binary_munge<double_complex> op;
-				psi[0]=binary_op(potential[0], copy(psi[0]), op);
-				psi[1]=binary_op(potential[1], copy(psi[1]), op);
+				psi=psi*sboxpsi;
+//				binary_munge<double_complex> op;
+//				psi[0]=binary_op(potential[0], copy(psi[0]), op);
+//				psi[1]=binary_op(potential[1], copy(psi[1]), op);
 
 				orthonormalize(psi);
 				std::string filename="B"+stringify(B);
