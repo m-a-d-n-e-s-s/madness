@@ -789,7 +789,7 @@ namespace madness {
 
     template<size_t NDIM>
     typename std::enable_if<NDIM==3,void>::type
-    plot_cubefile(World& world, Function<double,NDIM>& f, std::string filename,
+    plot_cubefile(World& world,const Function<double,NDIM>& f, std::string filename,
             const std::vector<std::string> molecular_info=std::vector<std::string>()) {
 
         if (world.size()>1) return;
@@ -872,6 +872,19 @@ namespace madness {
         }
         fclose(file);
 
+    }
+
+    /// convenience to get plot_plane and plot_cubefile
+    template<size_t NDIM>
+    void plot(const std::vector<Function<double,NDIM> >& vf, const std::string& name, const std::vector<std::string>& header){
+    	if(vf.empty()) return;
+    	World& world=vf.front().world();
+    	for(size_t i=0;i<vf.size();++i){
+    		const std::string namei=name+"_"+std::to_string(i);
+    		vf[i].print_size("plot:"+namei);
+    		plot_plane<NDIM>(world,vf[i],namei);
+    		plot_cubefile<NDIM>(world,vf[i],namei+".cube",header);
+    	}
     }
 
     template<typename T>
