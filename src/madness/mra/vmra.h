@@ -307,8 +307,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_symmetric(
     		const std::vector<Function<T,NDIM> >& v,
-			const Tensor<T>& ovlp) {
-
+			  const Tensor<T>& ovlp) {
     	if(v.empty()) return v;
 
     	Tensor<T> U;
@@ -338,6 +337,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_symmetric(const std::vector<Function<T,NDIM> >& v){
     	if(v.empty()) return v;
+
 
     	World& world=v.front().world();
     	Tensor<T> ovlp = matrix_inner(world, v, v);
@@ -370,6 +370,7 @@ namespace madness {
 
     	World& world=v.front().world();
     	return transform(world,v,U);
+
     }
 
     /// convenience routine for canonical routine for symmetric orthonormalization (see e.g. Szabo/Ostlund)
