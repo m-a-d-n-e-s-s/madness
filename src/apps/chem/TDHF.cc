@@ -34,27 +34,27 @@ struct TDHF_allocator{
 
 
 // conveniece to interface functions
-TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param):
-								    																		  world(world),
-																											  nemo(nemo_),
-																											  parameters(param),
-																											  g12(world,OT_G12,parameters.get_ccc_parameters()),
-																											  mo_ket_(make_mo_ket(nemo_)),
-																											  mo_bra_(make_mo_bra(nemo_)),
-																											  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
-																											  msg(world) {
+TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param)
+	: world(world),
+	  nemo(nemo_),
+	  parameters(param),
+	  g12(world,OT_G12,parameters.get_ccc_parameters()),
+	  mo_ket_(make_mo_ket(nemo_)),
+	  mo_bra_(make_mo_bra(nemo_)),
+	  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
+	  msg(world) {
 	msg.section("TDHF initialized without the usual initialization routine (no intermediates, no parameters read)");
 }
 
-TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
-						    																		  world(world),
-																									  nemo(nemo_),
-																									  parameters(nemo_.get_calc(),input),
-																									  g12(world,OT_G12,parameters.get_ccc_parameters()),
-																									  mo_ket_(make_mo_ket(nemo_)),
-																									  mo_bra_(make_mo_bra(nemo_)),
-																									  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
-																									  msg(world) {
+TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
+	: world(world),
+	  nemo(nemo_),
+	  parameters(nemo_.get_calc(),input),
+	  g12(world,OT_G12,parameters.get_ccc_parameters()),
+	  mo_ket_(make_mo_ket(nemo_)),
+	  mo_bra_(make_mo_bra(nemo_)),
+	  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
+	  msg(world) {
 	msg.section("Initialize TDHF Class");
 
 	msg.debug = parameters.debug;
@@ -104,6 +104,10 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
 			F_occ(i,i)=get_orbital_energy(i+parameters.freeze);
 		}
 	}
+	symmetry_projector=nemo.get_symmetry_projector();
+	// do not normalize the x vectors individually!
+	symmetry_projector.set_lindep(1.e-6).set_orthonormalize_irreps(false).set_verbosity(1);
+	symmetry_projector.print_info(world);
 }
 
 /// plot planes and cubes
@@ -221,6 +225,8 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start)c
 		guess_vectors = start;
 	}else guess_vectors=start;
 
+	symmetrize(guess_vectors);
+
 	msg.output("====Guess-Vectors=====");
 	print_xfunctions(guess_vectors);
 
@@ -319,6 +325,8 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 
 	bool converged = true;
 
+	symmetrize(x);
+
 	// get potentials (if demanded)
 	std::vector<vector_real_function_3d> V;
 
@@ -341,6 +349,8 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 		// apply Greens Functions
 		for(size_t i=0;i<x.size();i++) if(iterate_y and x[i].omega>=0.0) x[i].omega = -1.0*y[i].omega;
 		std::vector<vector_real_function_3d> residuals=apply_G(x,V);
+
+
 		// check convergence
 
 		converged = true;
@@ -384,8 +394,10 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 				vector_real_function_3d Q_new_x0 = Q(new_x0);
 				truncate(world,Q_new_x0);
 				x[i].set_functions(Q_new_x0,x[i].type,parameters.freeze);
+
 			} else msg.output("Root " +std::to_string(i) + " converged");
 		}
+		symmetrize(x);
 
 		// remove converged roots
 		if(this_is_a_guess_iteration){

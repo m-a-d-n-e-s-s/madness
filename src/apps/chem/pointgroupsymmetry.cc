@@ -53,6 +53,9 @@ namespace madness {
 std::vector<std::string> projector_irrep::reduce(const std::vector<std::string> irreps) const {
 
 	bool verbose=false;
+	for (const std::string& r : irreps) {
+		if (r=="null") return std::vector<std::string> (1,"null");
+	}
 
 	// make sure all reps in the input vector exist in the table
 	for (auto r : irreps) {

@@ -82,8 +82,23 @@ public:
 		set_irrep(irrep);
 	}
 
+	/// print the parameters of this projector
+	void print_info(World& world) const {
+		if (world.rank()==0) {
+			print("symmetry projector for point group ",table_.schoenflies_);
+			print("");
+			print("             working on irrep:", irrep_);
+			print("  linear dependency threshold:", lindep_);
+			print("                keep ordering:", keep_ordering_);
+			print("        orthonormalize irreps:", orthonormalize_irreps_);
+			print("              verbosity level:", verbosity_);
+			print("");
+			print_character_table();
+		}
+	}
+
 	/// set the irrep on which this projector projects
-	void set_irrep(std::string irrep) {
+	projector_irrep& set_irrep(std::string irrep) {
         std::transform(irrep.begin(), irrep.end(), irrep.begin(), ::tolower);
 
         // check consistency of the input
@@ -96,16 +111,32 @@ public:
 		}
 
 		irrep_=irrep;
+		return *this;
 	}
 
 	/// set the linear dependency threshold
-	void set_lindep(const double ld) {lindep_=ld;}
+	projector_irrep& set_lindep(const double ld) {
+		lindep_=ld;
+		return *this;
+	}
 
 	/// set the verbosity level
-	void set_verbosity(int v) {verbosity_=v;}
+	projector_irrep& set_verbosity(int v) {
+		verbosity_=v;
+		return *this;
+	}
 
 	/// get the verbosity level
-	int get_verbosity() {return verbosity_;}
+	int get_verbosity() const {return verbosity_;}
+
+	/// get the verbosity level
+	projector_irrep& set_orthonormalize_irreps(bool flag) {
+		orthonormalize_irreps_=flag;
+		return *this;
+	}
+
+	/// get the verbosity level
+	bool get_orthonormalize_irreps() const {return orthonormalize_irreps_;}
 
 	/// get the point group name
 	std::string get_pointgroup() const {return table_.schoenflies_;}
@@ -114,13 +145,14 @@ public:
 	charactertable get_table() const {return table_;}
 
 	/// set the ordering after symmetrization: irreps or keep as is
-	void set_ordering(std::string o) {
+	projector_irrep& set_ordering(std::string o) {
 		if (o=="irrep") keep_ordering_=false;
 		else if (o=="keep") keep_ordering_=true;
 		else {
 			print("projector_irrep: ordering parameter unknown: ",o);
 			MADNESS_EXCEPTION("projector_irrep: ordering parameter unknown",1);
 		}
+		return *this;
 	}
 
 	std::vector<std::string> get_all_irreps() const {
@@ -263,16 +295,19 @@ private:
 	charactertable table_;
 
 	/// choose one of the irreps or "all"
-	std::string irrep_;
+	std::string irrep_="all";
 
 	/// linear dependency threshold for the orthogonalization
-	double lindep_;
+	double lindep_=1.e-3;
 
 	/// verbosity level
-	int verbosity_;
+	int verbosity_=1;
 
 	/// after projection: result functions being ordered according to irreps or ordering unchanged
-	bool keep_ordering_;
+	bool keep_ordering_=true;
+
+	/// orthonormalize within the irreps or simply discard linear dependent vectors
+	bool orthonormalize_irreps_=true;
 
 	charactertable make_c1_table() const;
 
@@ -315,6 +350,7 @@ private:
 
 	/// project a number of functions on a given number of irreps
 	/// linear dependencies are removed, the functions are orthonormalized
+	/// vanishing input functions are mapped onto vanishing output functions with irrep "null"
 	/// the number of input and output function is expected to be the same!
 	/// @param[in]	vrhs	vector of functions to be projected on the irrep
 	/// @param[in]	vbra	bra of vrhs if applicable (if bra /= ket), may be empty
@@ -330,7 +366,6 @@ private:
 		// fast return
 		if (vrhs.size()==0) return std::vector<Function<T,NDIM> >();
 		if (table_.schoenflies_=="C1") {return copy(world,vrhs);}
-
 
 		// loop over all symmetry operations of this point group and apply them
 		// to the input vector; dimension: (nop, nmo)
@@ -393,7 +428,7 @@ private:
 			if (metric.is_initialized()) ovlp=matrix_inner(world,lc_op_vrhs[j],metric*lc_op_vrhs[j]);
 			else ovlp=matrix_inner(world,lc_op_vrhs[j],lc_op_vrhs[j]);
 
-			for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)+=1.e-6;
+//			for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)+=1.e-6;
 
 			if (verbosity_>1) {
 				print("ovlp");
@@ -404,7 +439,7 @@ private:
 			Tensor<double> evec,eval;
 			syev(ovlp,evec,eval);
 
-			if (eval.sum()>1.e-3) {
+			if (eval.sum()>lindep_) {
 
 				if (verbosity_>1) print("eigenvalues",eval);
 
@@ -428,14 +463,16 @@ private:
 					print(piv);
 				}
 
-				// transform linearly independent orbitals only
+				// collect non-vanishing elements
 				std::vector<Function<T,NDIM> > a1shrunk;
 				for (int i=0; i<rank; ++i) a1shrunk.push_back(lc_op_vrhs[j][piv(i)]);
-				std::vector<Function<T,NDIM> > tmp=transform(world,a1shrunk,inv);
+
+				// orthonormalize vectors within this irrep
+				if (orthonormalize_irreps_) a1shrunk=transform(world,a1shrunk,inv);
 
 				// collect all result functions and their irreps
 				for (int i=0; i<a1shrunk.size(); ++i) {
-					result1.push_back(tmp[i]);
+					result1.push_back(a1shrunk[i]);
 					sirreps1.push_back(all_irreps[j]);
 					ipiv1.push_back(piv[i]);
 				}
@@ -456,8 +493,8 @@ private:
 		// to the left atomic orbital, just by numerical noise.
 		// Find double and missing entries and replace the double with the missing ones
 
-		std::vector<Function<T,NDIM> > result(result1.size());
-		sirreps.resize(result1.size());
+		std::vector<Function<T,NDIM> > result=zero_functions<T,NDIM>(world,vrhs.size());
+		sirreps=std::vector<std::string>(vrhs.size(),"null");
 
 		if (vrhs.size()==1) {
 			result=result1;

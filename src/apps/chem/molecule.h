@@ -132,7 +132,7 @@ public:
 
     /// The molecular point group
     /// is automatically assigned in the identify_pointgroup function
-    std::string pointgroup_;
+    std::string pointgroup_="c1";
 
     /// Makes a molecule with zero atoms
     Molecule() : atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {};
