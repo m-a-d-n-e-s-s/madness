@@ -145,7 +145,7 @@ public:
 	charactertable get_table() const {return table_;}
 
 	/// set the ordering after symmetrization: irreps or keep as is
-	projector_irrep& set_ordering(std::string o) {
+	projector_irrep& set_ordering(const std::string o) {
 		if (o=="irrep") keep_ordering_=false;
 		else if (o=="keep") keep_ordering_=true;
 		else {
@@ -247,8 +247,6 @@ public:
 
 	}
 
-
-
 	/// print the character table
 	void print_character_table() const {
 		print("character table for point group ",table_.schoenflies_);
@@ -288,6 +286,41 @@ public:
 	std::vector<std::string> reduce(const std::string irrep1, const std::string irrep2,
 			const std::string irrep3, const std::string irrep4) const {
 		return reduce(vector_factory<std::string>(irrep1,irrep2,irrep3,irrep4));
+	}
+
+	/// get a mapping canonical to irrep-sorting
+	std::vector<int> get_canonical_to_irrep_map(std::vector<std::string> sirreps) const {
+
+		// distribute into bins
+		std::map<std::string,std::vector<int> > m;
+		for (int i=0; i<sirreps.size(); ++i) m[sirreps[i]].push_back(i);
+
+		// concatenate bins
+		std::vector<int> map;
+		for (auto& irrep : table_.mullikan_) {
+			map.insert(end(map), begin(m[irrep]), end(m[irrep]));
+		}
+		return map;
+	}
+
+	/// given a mapping resort
+	template<typename R>
+	static std::vector<R> resort(const std::vector<int> map,
+			const std::vector<R>& vrhs) {
+		MADNESS_ASSERT(map.size()==vrhs.size());
+		std::vector<R> result(vrhs.size());
+		for (int i=0; i<map.size(); ++i) result[i]=vrhs[map[i]];
+		return result;
+	}
+
+	/// given a mapping resort
+	template<typename R>
+	static std::vector<R> reverse_resort(const std::vector<int> map,
+			const std::vector<R>& vrhs) {
+		MADNESS_ASSERT(map.size()==vrhs.size());
+		std::vector<R> result(vrhs.size());
+		for (int i=0; i<map.size(); ++i) result[map[i]]=vrhs[i];
+		return result;
 	}
 
 private:
@@ -549,25 +582,8 @@ private:
 	template<typename T, std::size_t NDIM>
 	std::vector<Function<T,NDIM> > sort_to_irreps(std::vector<Function<T,NDIM> >& vrhs,
 			std::vector<std::string>& sirreps) const {
-
-		std::map<std::string,std::vector<Function<T,NDIM> > > m;
-		for (int i=0; i<vrhs.size(); ++i) {
-			m[sirreps[i]].push_back(vrhs[i]);
-		}
-
-		std::vector<Function<T,NDIM> > result;
-		sirreps.clear();
-		for (const std::string& irrep : table_.mullikan_) {
-			if (m.find(irrep)!=m.end()) {
-				// concatenate the functions
-				std::vector<Function<T,NDIM> > tmp=m.find(irrep)->second;
-				result.insert(result.end(),tmp.begin(),tmp.end());
-				// concatenate the strings
-				std::vector<std::string> s(tmp.size(),irrep);
-				sirreps.insert(sirreps.end(),s.begin(),s.end());
-			}
-		}
-		return result;
+		std::vector<int> map=get_canonical_to_irrep_map(sirreps);
+		return resort(map,vrhs);
 	}
 
 };

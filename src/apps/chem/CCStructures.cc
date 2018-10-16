@@ -86,12 +86,14 @@ namespace madness{
 
   madness::CC_vecfunction
   CC_vecfunction::copy() const {
-    std::vector<CCFunction> vn;
-    for(auto x : functions){
-      const CCFunction fn(madness::copy(x.second.function),x.second.i,x.second.type);
-      vn.push_back(fn);
-    }
-    return CC_vecfunction(vn,type);
+	  std::vector<CCFunction> vn;
+	  for(auto x : functions){
+		  const CCFunction fn(madness::copy(x.second.function),x.second.i,x.second.type);
+		  vn.push_back(fn);
+	  }
+	  CC_vecfunction result(vn,type);
+	  result.irrep=irrep;
+	  return result;
   }
 
   std::string

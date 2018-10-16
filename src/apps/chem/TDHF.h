@@ -181,7 +181,11 @@ public:
 				f.set_functions(tmp,RESPONSE,parameters.freeze);
 				for (int i=0; i<irreps.size(); ++i) {
 					reduced=symmetry_projector.reduce(irreps[i],orbital_irreps[i]);
-					print("reduced irrep of the excitation ",reduced);
+
+					if (not ((reduced[0]==f.irrep) or (reduced[0]=="null"))) {
+						print("reduced, irrep",reduced[0],f.irrep);
+						MADNESS_ASSERT(0);
+					}
 				}
 			}
 		}
