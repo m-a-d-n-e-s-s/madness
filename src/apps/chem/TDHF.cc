@@ -202,6 +202,24 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	start = guess_vectors;
 }
 
+void TDHF::symmetrize(std::vector<CC_vecfunction>& v) const {
+	std::vector<std::string> irreps, orbital_irreps, reduced;
+	vector_real_function_3d bla = symmetry_projector(get_active_mo_ket(), nemo.R_square, orbital_irreps);
+	if (nemo.do_symmetry()) {
+		for (auto& f : v) {
+			vector_real_function_3d tmp = symmetry_projector(f.get_vecfunction(), nemo.R_square, irreps);
+			f.set_functions(tmp, RESPONSE, parameters.freeze);
+			for (int i = 0; i < irreps.size(); ++i) {
+				reduced = symmetry_projector.reduce(irreps[i], orbital_irreps[i]);
+				if (!((reduced[0] == f.irrep) || (reduced[0] == "null"))) {
+					print("reduced, irrep", reduced[0], f.irrep);
+					MADNESS_ASSERT(0);
+				}
+			}
+		}
+	}
+}
+
 /// @param[in/out] CC_vecfunction
 /// on input the guess functions (if empty or not enough the a guess will be generated)
 /// on output the solution
@@ -1132,7 +1150,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	std::vector<std::string> orbital_irreps, virtual_irreps;
 	projector_irrep proj=projector_irrep(symmetry_projector).set_verbosity(0);
 	virtuals=proj(virtuals,nemo.R_square,virtual_irreps);
-	proj(nemo.get_calc()->amo,nemo.R_square,orbital_irreps);
+	proj(get_active_mo_ket(),nemo.R_square,orbital_irreps);
 
 	// canonicalize virtuals
 	virtuals = canonicalize(virtuals);

@@ -110,7 +110,7 @@ bool test_lrccs(World& world){
 
 				outfile << "plot\npoints 1 \n plane x1 x2 \n zoom 1.0 \nend"
 						<< "\n\n"
-						<< "\ndft\n k 7\n canon \n xc hf\n econv 1.e-5\n dconv 1.e-5\n protocol 1.e-4 1.e-5\n symmetry " << symmetry << "\n"
+						<< "\ndft\n k 7\n canon \n xc hf\n econv 1.e-5\n dconv 1.e-5\n protocol 1.e-4 1.e-5\n symmetry " << symmetry
 						<< "\nnuclear_corrfac " << nemo_type
 						<<"\nend"
 						<< "\n\n"

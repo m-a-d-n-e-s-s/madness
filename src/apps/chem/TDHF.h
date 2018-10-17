@@ -178,25 +178,7 @@ public:
 	/// @param[in\out] on input the already obtained guess functions (or empty vector), on output new guess functions are added
 	void initialize(std::vector<CC_vecfunction> &start)const;
 
-	void symmetrize(std::vector<CC_vecfunction>& v) const {
-
-		std::vector<std::string> irreps, orbital_irreps, reduced;
-		vector_real_function_3d bla=symmetry_projector(nemo.get_calc()->amo,nemo.R_square,orbital_irreps);
-		if (nemo.do_symmetry()) {
-			for (auto& f : v) {
-				vector_real_function_3d tmp=symmetry_projector(f.get_vecfunction(),nemo.R_square,irreps);
-				f.set_functions(tmp,RESPONSE,parameters.freeze);
-				for (int i=0; i<irreps.size(); ++i) {
-					reduced=symmetry_projector.reduce(irreps[i],orbital_irreps[i]);
-
-					if (not ((reduced[0]==f.irrep) or (reduced[0]=="null"))) {
-						print("reduced, irrep",reduced[0],f.irrep);
-						MADNESS_ASSERT(0);
-					}
-				}
-			}
-		}
-	}
+	void symmetrize(std::vector<CC_vecfunction>& v) const;
 
 	/// Solve the CIS equations
 
