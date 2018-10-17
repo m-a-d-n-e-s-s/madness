@@ -542,6 +542,26 @@ struct CalculationParameters {
         }
 
         lo = molecule.smallest_length_scale();
+
+        // set molecular and computational point groups
+        // use highest point group unless specified by user
+
+        // complain if symmetry has been set to anything other than c1
+        if ((symmetry!="default" and symmetry!="c1") and localize) {
+        	error("\n\nsymmetry and localization cannot be used at the same time\n"
+        			"switch from local to canonical orbitals (keyword canon)\n\n");
+        }
+
+        // no symmetry keyword specified
+    	if (symmetry=="default") {
+    		if (localize) symmetry="c1";
+    		else symmetry=molecule.pointgroup_;
+
+    	// symmetry keyword specified without pointgroup
+    	} else if (symmetry=="full") {
+    		symmetry=molecule.pointgroup_;
+    	}
+
     }
 
     void print(World& world) const {
@@ -602,6 +622,7 @@ struct CalculationParameters {
             madness::print("  localized orbitals ", loctype);
         else
             madness::print("  canonical orbitals ");
+        madness::print("   comp. point group ", symmetry);
         if (derivatives)
             madness::print("    calc derivatives ");
         if (dipole)
