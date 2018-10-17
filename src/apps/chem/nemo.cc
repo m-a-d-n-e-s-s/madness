@@ -99,29 +99,10 @@ Nemo::Nemo(World& world1, std::shared_ptr<SCF> calc) :
 
     if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data,true);
 
-    // symmetry section
-    // use highest point group unless specified by user
-
-    // no symmetry keyword specified
-    std::string pg;
-	if (calc->param.symmetry=="default") {
-		if (calc->param.localize) pg="c1";
-		else pg=calc->molecule.pointgroup_;
-
-	// symmetry keyword specified without pointgroup
-	} else if (calc->param.symmetry=="full") {
-		pg=calc->molecule.pointgroup_;
-	// symmetry keyword specified with pointgroup
-	} else {
-		pg=calc->param.symmetry;
-	}
-
-    if (world.rank()==0) {
-    	print("computational point group ",pg);
-    	print("constructing symmetry projector of point group ",pg);
-    }
-    symmetry_projector=projector_irrep(pg)
-    		.set_ordering("keep").set_verbosity(1).set_orthonormalize_irreps(true);;
+    symmetry_projector=projector_irrep(calc->param.symmetry)
+    		.set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
+    if (world.rank()==0) print("constructed symmetry operator for point group",
+    		symmetry_projector.get_pointgroup());
 	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
 }
 
@@ -266,7 +247,8 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 	    if (localized) nemo=localize(nemo,proto.dconv,iter==0);
 	    std::vector<std::string> str_irreps;
-	    if (do_symmetry()) nemo=symmetry_projector(nemo,R_square);
+	    if (do_symmetry()) nemo=symmetry_projector(nemo,R_square,str_irreps);
+	    if (world.rank()==0) print("orbital irreps",str_irreps);
 	    save_function(nemo,"nemo_it"+stringify(iter));
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
