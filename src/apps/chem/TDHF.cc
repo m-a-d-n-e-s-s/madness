@@ -44,6 +44,8 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param)
 	  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
 	  msg(world) {
 	msg.section("TDHF initialized without the usual initialization routine (no intermediates, no parameters read)");
+	check_consistency();
+
 }
 
 TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
@@ -66,12 +68,17 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
 	msg << " do_ac()  = " << nemo.do_ac() << "\n";
 
 	parameters.print(world);
+	check_consistency();
+
 	const double old_thresh = FunctionDefaults<3>::get_thresh();
 	if(old_thresh>parameters.thresh*0.1 and old_thresh>1.e-5){
-		msg.warning("Threshold of Reference might be too loose |  Response thresh="+std::to_string(parameters.thresh)+ " and Reference thresh="+std::to_string(old_thresh) + ". Be careful, reference should be tight");
+		msg.warning("Threshold of Reference might be too loose |  Response thresh="
+				+std::to_string(parameters.thresh)+ " and Reference thresh="+std::to_string(old_thresh)
+				+ ". Be careful, reference should be tight");
 	}
 	FunctionDefaults<3>::set_thresh(parameters.thresh);
-	msg << "MRA Threshold is set to: " << FunctionDefaults<3>::get_thresh() << " with k=" << FunctionDefaults<3>::get_k() << "\n";
+	msg << "MRA Threshold is set to: " << FunctionDefaults<3>::get_thresh()
+			<< " with k=" << FunctionDefaults<3>::get_k() << "\n";
 
 	if (not parameters.no_compute) {
 
@@ -108,6 +115,7 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
 	// do not normalize the x vectors individually!
 	symmetry_projector.set_lindep(1.e-6).set_orthonormalize_irreps(false).set_verbosity(0);
 	symmetry_projector.print_info(world);
+
 }
 
 /// plot planes and cubes
@@ -157,7 +165,8 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	msg.subsection("Calculate Guess");
 	std::vector<CC_vecfunction> guess;
 	bool use_old_guess=(parameters.generalkeyval.find("use_old_guess")!=parameters.generalkeyval.end());
-	if(use_old_guess) use_old_guess=(parameters.generalkeyval.find("use_old_guess")->second=="true" or parameters.generalkeyval.find("use_old_guess")->second=="1");
+	if(use_old_guess) use_old_guess=(parameters.generalkeyval.find("use_old_guess")->second=="true"
+			or parameters.generalkeyval.find("use_old_guess")->second=="1");
 	if(use_old_guess){
 		guess=make_old_guess(get_active_mo_ket());
 	}
@@ -173,8 +182,8 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	// failsafe (works in most cases)
 	if(guess.size()<parameters.guess_excitations){
 		std::string message=("WARNING: You demanded: " + std::to_string(parameters.guess_excitations)
-		+ " Guess vectors, but your demanded guess has only "
-		+ std::to_string(guess.size()) + "vectors. So we will not iterate the first vectors and then do the same guess again ... this might be unstable").c_str();
+			+ " Guess vectors, but your demanded guess has only " + std::to_string(guess.size())
+			+ "vectors. So we will not iterate the first vectors and then do the same guess again ... this might be unstable").c_str();
 		msg.output(message);
 		if(parameters.guess_maxiter==0){
 			msg.output("In this case you demanded guess_maxiter=0 (which is also the default), so this can not work!");
@@ -785,7 +794,8 @@ std::vector<CC_vecfunction> TDHF::transform(const std::vector<CC_vecfunction> &x
 		vector_real_function_3d new_x = zero_functions_compressed<double,3>(world,x[k].size());
 		compress(world,x[k].get_vecfunction());
 		for(size_t l=0;l<x.size();l++){
-			gaxpy(world,1.0,new_x,U(l,k),x[l].get_vecfunction()); // gaxpy(alpha,a,beta,b) -> a[i]=alpha*a[i] + beta*b[i], since there is no += for vectorfunctions implemented
+			// gaxpy(alpha,a,beta,b) -> a[i]=alpha*a[i] + beta*b[i], since there is no += for vectorfunctions implemented
+			gaxpy(world,1.0,new_x,U(l,k),x[l].get_vecfunction());
 		}
 		CC_vecfunction tmp(x[k]);
 		tmp.set_functions(new_x,tmp.type,parameters.freeze);
@@ -1025,7 +1035,8 @@ vector_real_function_3d TDHF::make_virtuals() const {
 		for(size_t i=0;i<parameters.guess_occ_to_virt;++i) xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size()-1-i]);
 
 		bool use_trigo=true;
-		if(parameters.generalkeyval.find("polynomial_exops")!=parameters.generalkeyval.end()) use_trigo = (std::stoi(parameters.generalkeyval.find("polynomial_exops")->second)==0);
+		if(parameters.generalkeyval.find("polynomial_exops")!=parameters.generalkeyval.end())
+			use_trigo = (std::stoi(parameters.generalkeyval.find("polynomial_exops")->second)==0);
 		virtuals = apply_excitation_operators(xmo,use_trigo);
 
 	}
@@ -1117,11 +1128,6 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	// create virtuals
 	vector_real_function_3d virtuals = make_virtuals();
 
-	std::string irrep="all";
-	if (parameters.generalkeyval.find("irrep")!=parameters.generalkeyval.end())
-		irrep=parameters.generalkeyval.find("irrep")->second;
-	print("requested irrep: ",irrep);
-
 	// determine the symmetry of the occupied and virtual orbitals
 	std::vector<std::string> orbital_irreps, virtual_irreps;
 	projector_irrep proj=projector_irrep(symmetry_projector).set_verbosity(0);
@@ -1135,11 +1141,11 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	Tensor<double> MCIS = make_cis_matrix(virtuals);
 
 	// zero out all non-contributing irreps
-	if (irrep!="all") {
+	if (parameters.irrep!="all") {
 		int I=0;
 		for (auto oirrep1 : orbital_irreps) {
 			for (auto virrep1 : virtual_irreps) {
-				if (not (proj.reduce(oirrep1,virrep1)[0]==irrep)) {
+				if (not (proj.reduce(oirrep1,virrep1)[0]==parameters.irrep)) {
 					MCIS(I,_)=0.0;
 					MCIS(_,I)=0.0;
 				}
@@ -1150,7 +1156,9 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 
 	// initialize the guess functions
 	if (world.rank() == 0 && MCIS.dim(0) < parameters.guess_excitations) {
-		msg.warning(std::to_string(parameters.guess_excitations) + " guess vectors where demanded, but with the given options only " + std::to_string(MCIS.dim(0)) + " can be created\n");
+		msg.warning(std::to_string(parameters.guess_excitations)
+			+ " guess vectors where demanded, but with the given options only "
+			+ std::to_string(MCIS.dim(0)) + " can be created\n");
 	}
 
 	const int nvirt = virtuals.size();
@@ -1169,7 +1177,8 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	std::vector<int> II;
 	for (int i=0; i<orbital_irreps.size(); ++i) {
 		for (int a=0; a<virtual_irreps.size(); ++a) {
-			if (proj.reduce(orbital_irreps[i],virtual_irreps[a])[0]==irrep) II.push_back(get_com_idx(i,a));
+			if (proj.reduce(orbital_irreps[i],virtual_irreps[a])[0]==parameters.irrep)
+				II.push_back(get_com_idx(i,a));
 		}
 	}
 	std::vector<CC_vecfunction> xfunctions;
@@ -1517,6 +1526,7 @@ TDHF::Parameters::Parameters(const std::shared_ptr<SCF>& scf,const std::string& 
 	read_from_file(input, "response");
 	complete_with_defaults(scf);
 }
+
 TDHF::Parameters::Parameters(const std::shared_ptr<SCF>& scf) :
 													lo(scf->param.lo) {
 	complete_with_defaults(scf);
@@ -1551,6 +1561,20 @@ void TDHF::Parameters::complete_with_defaults(const std::shared_ptr<SCF>& scf) {
 	guess_active_orbitals = std::min(size_t(guess_active_orbitals),(scf->amo.size()-freeze));
 
 }
+
+/// check consistency of the input parameters
+void TDHF::check_consistency() const {
+
+	// check if the requested irrep is present in the computational point group
+	const std::vector<std::string> irreps=nemo.get_symmetry_projector().get_table().mullikan_;
+	if (find(irreps.begin(),irreps.end(),parameters.irrep)==irreps.end()
+			and (parameters.irrep!="all")) {
+		print("irrep ",parameters.irrep, " is not contained in point group ",
+				nemo.get_symmetry_projector().get_table().schoenflies_,"\n\n");
+		MADNESS_EXCEPTION("\ninconsistent input paramters\n\n",1);
+	}
+}
+
 /// todo: read_from_file compatible with dist. memory computation
 void TDHF::Parameters::read_from_file(const std::string input, const std::string& key) {
 	{
@@ -1566,6 +1590,7 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 				break;
 			else if (s == "thresh") f >> thresh;
 			else if (s == "freeze") f >> freeze;
+			else if (s == "irrep") f >> irrep;
 			else if (s == "no_compute")
 				f >> std::boolalpha >> no_compute;
 			else if (s == "debug")
@@ -1643,6 +1668,7 @@ void TDHF::Parameters::print(World& world) const {
 		std::cout << "thresh               :" << thresh << std::endl;
 		std::cout << "calculation          :" << calculation << std::endl;
 		std::cout << "freeze               :" << freeze << std::endl;
+		std::cout << "irrep                :" << irrep << std::endl;
 		std::cout << "excitations          :" << excitations << std::endl;
 		std::cout << "guess_excitations    :" << guess_excitations << std::endl;
 		std::cout << "iterating_excitations:" << iterating_excitations << std::endl;

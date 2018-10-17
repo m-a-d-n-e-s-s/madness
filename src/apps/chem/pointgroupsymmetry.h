@@ -512,6 +512,16 @@ private:
 			}
 		}
 
+		// check closure
+		if (vrhs.size()>1 and (sirreps1.size()>vrhs.size())) {
+
+			print("vrhs.size()            ",vrhs.size());
+			print("raw sirreps            ",sirreps1);
+			print("raw mapping in ipiv1   ",ipiv1);
+
+			MADNESS_EXCEPTION("\n\nfunction arguments in apply_symmetry_operators are not closed\n\n",1);
+		}
+
 		if (verbosity_>1) {
 			print("raw sirreps            ",sirreps1);
 			print("raw mapping in ipiv1   ",ipiv1);

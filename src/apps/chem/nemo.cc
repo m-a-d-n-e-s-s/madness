@@ -116,7 +116,10 @@ Nemo::Nemo(World& world1, std::shared_ptr<SCF> calc) :
 		pg=calc->param.symmetry;
 	}
 
-    if (world.rank()==0) print("constructing symmetry projector of point group ",pg);
+    if (world.rank()==0) {
+    	print("computational point group ",pg);
+    	print("constructing symmetry projector of point group ",pg);
+    }
     symmetry_projector=projector_irrep(pg)
     		.set_ordering("keep").set_verbosity(1).set_orthonormalize_irreps(true);;
 	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();

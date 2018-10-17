@@ -75,6 +75,9 @@ public:
 		/// the number of frozen occupied orbitals (not taken into account for response)
 		int freeze=0;
 
+		/// the number of frozen occupied orbitals (not taken into account for response)
+		std::string irrep="all";
+
 		/// excitations which will be read from disk
 		std::vector<size_t> restart;
 
@@ -156,6 +159,10 @@ public:
 	TDHF(World & world,const Nemo &nemo, const Parameters& param);
 	virtual
 	~TDHF();
+
+
+	/// check consistency of the input parameters
+	void check_consistency() const;
 
 	/// plot planes and cubes
 	void plot(const vector_real_function_3d& vf, const std::string& name)const;
