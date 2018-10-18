@@ -1165,8 +1165,16 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	proj(get_active_mo_ket(),nemo.R_square,orbital_irreps);
 
 	// canonicalize virtuals
-	std::vector<double> veps;	// orbital energies of the virtuals
+	Tensor<double> veps;	// orbital energies of the virtuals
 	virtuals = canonicalize(virtuals,veps);
+
+	// make sure the virtual orbital energies are higher than the occupied orbtials
+	double vmin=veps.min();
+	double omax=nemo.get_calc()->aeps.max();
+	if (vmin<omax) {
+		veps+=(omax-vmin);
+		if (world.rank()==0) print("shifting guess virtual energies by ",omax-vmin+1.e-1);
+	}
 
 	// compute the CIS matrix
 	Tensor<double> MCIS = make_cis_matrix(virtuals,veps);
@@ -1302,7 +1310,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 /// canonicalize a set of orbitals (here the virtuals for the guess)
 
 /// @param[out]	veps	orbital energies of the virtuals
-vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v, std::vector<double>& veps)const{
+vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v, Tensor<double>& veps)const{
 	CCTimer time(world,"canonicalize");
 
 	// no exact exchange for the guess -- use LDA exchange instead
@@ -1320,17 +1328,14 @@ vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v, std
 	occ=1.0;
 	if(parameters.debug) msg << "Canonicalize: Fock Matrix\n" << Fmat(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
 	if(parameters.debug) msg << "Canonicalize: Overlap Matrix\n" << S(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
-	Tensor<double> eval;
-	Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, eval, occ, std::min(parameters.thresh,1.e-4));
-	veps.resize(eval.size());
-	for (int i=0; i<eval.size(); ++i) veps[i]=eval(i);
+	Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, veps, occ, std::min(parameters.thresh,1.e-4));
 	vector_real_function_3d result = madness::transform(world, v, U);
 	time.print();
 	return result;
 }
 /// compute the CIS matrix for a given set of virtuals
 Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
-		const std::vector<double>& veps)const{
+		const Tensor<double>& veps)const{
 
 	CCTimer time_cis(world, "make CIS matrix");
 
@@ -1395,7 +1400,7 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
 		for(int I=0;I<dim;++I){
 			const int a=get_vir_idx(I);
 			const int i=get_occ_idx(I);
-			MCIS(I,I) = veps[a]-get_orbital_energy(i+parameters.freeze);
+			MCIS(I,I) = veps(a)-get_orbital_energy(i+parameters.freeze);
 		}
 	}
 

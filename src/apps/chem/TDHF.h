@@ -231,13 +231,13 @@ public:
 	/// make the initial guess by explicitly diagonalizing a CIS matrix with virtuals from the make_virtuals routine
 	vector<CC_vecfunction> make_guess_from_initial_diagonalization() const;
 	/// canonicalize a set of orbitals (here the virtuals for the guess)
-	vector_real_function_3d canonicalize(const vector_real_function_3d& v, std::vector<double>& veps)const;
+	vector_real_function_3d canonicalize(const vector_real_function_3d& v, Tensor<double>& veps)const;
 
 	/// compute the CIS matrix for a given set of virtuals
 
 	/// @param[in]	virtuals	the virtual orbitals
 	/// @param[in]	veps		the orbital energies of the virtuals
-	Tensor<double> make_cis_matrix(const vector_real_function_3d virtuals, const std::vector<double>& veps)const;
+	Tensor<double> make_cis_matrix(const vector_real_function_3d virtuals, const Tensor<double>& veps)const;
 
 	/// initialize the excitation functions
 	bool
