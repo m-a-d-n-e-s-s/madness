@@ -203,19 +203,30 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 }
 
 void TDHF::symmetrize(std::vector<CC_vecfunction>& v) const {
-	std::vector<std::string> irreps, orbital_irreps, reduced;
-	vector_real_function_3d bla = symmetry_projector(get_active_mo_ket(), nemo.R_square, orbital_irreps);
+
+	// The irreps of the x vector elements are given by
+	//    Gamma(orbital) x Gamma(x element) = Gamma (excitation)
+	// Using the inverse element of Gamma(orbital) we get
+	//    Gamma(x element) = Gamma(excitation) x Gamma^{-1}(orbital)
+	// since all groups are Abelian the inverse element is the element itself
+	//    Gamma(x element) = Gamma(excitation) x Gamma(orbital)
+
 	if (nemo.do_symmetry()) {
+		std::vector<std::string> irreps, orbital_irreps;
+		symmetry_projector(get_active_mo_ket(), orbital_irreps);
+
+		// loop over all excitations
 		for (auto& f : v) {
-			vector_real_function_3d tmp = symmetry_projector(f.get_vecfunction(), nemo.R_square, irreps);
-			f.set_functions(tmp, RESPONSE, parameters.freeze);
-			for (int i = 0; i < irreps.size(); ++i) {
-				reduced = symmetry_projector.reduce(irreps[i], orbital_irreps[i]);
-				if (!((reduced[0] == f.irrep) || (reduced[0] == "null"))) {
-					print("reduced, irrep", reduced[0], f.irrep);
-					MADNESS_ASSERT(0);
-				}
+
+			// determine the irreps of the x vector elements
+			std::vector<std::string> xirreps(f.get_vecfunction().size());
+			MADNESS_ASSERT(symmetry_projector.get_table().is_abelian);
+			for (int i=0; i<xirreps.size(); ++i) {
+				xirreps[i]=symmetry_projector.reduce(f.irrep,orbital_irreps[i])[0];
 			}
+
+			vector_real_function_3d tmp = symmetry_projector.project_on_irreps(f.get_vecfunction(),xirreps);
+			f.set_functions(tmp, RESPONSE, parameters.freeze);
 		}
 	}
 }
@@ -1145,10 +1156,11 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 
 	// create virtuals
 	vector_real_function_3d virtuals = make_virtuals();
+	virtuals=orthonormalize_symmetric(virtuals);
 
 	// determine the symmetry of the occupied and virtual orbitals
 	std::vector<std::string> orbital_irreps, virtual_irreps;
-	projector_irrep proj=projector_irrep(symmetry_projector).set_verbosity(0);
+	projector_irrep proj=projector_irrep(symmetry_projector).set_verbosity(0).set_lindep(1.e-1);
 	virtuals=proj(virtuals,nemo.R_square,virtual_irreps);
 	proj(get_active_mo_ket(),nemo.R_square,orbital_irreps);
 
@@ -1257,6 +1269,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 			x.set_functions(tmp, x.type, parameters.freeze);
 		}
 		time_truncate.print();
+
 		CCTimer time_symmetrize(world, "symmetrize guess");
 		for (auto& x : xfunctions) {
 			std::vector<std::string> x_irreps;

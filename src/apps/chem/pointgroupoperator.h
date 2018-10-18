@@ -48,12 +48,12 @@
 #define SRC_APPS_CHEM_POINTGROUPOPERATOR_H_
 
 using namespace madness;
+#include <madness/tensor/vector_factory.h>
 
 namespace madness {
 
 template<typename T, std::size_t NDIM>
 class Function;
-
 /// This class implements the symmetry operations (not the point groups)
 class pg_operator {
 
