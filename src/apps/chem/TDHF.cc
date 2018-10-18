@@ -113,7 +113,7 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
 	}
 	symmetry_projector=nemo.get_symmetry_projector();
 	// do not normalize the x vectors individually!
-	symmetry_projector.set_lindep(1.e-6).set_orthonormalize_irreps(false).set_verbosity(0);
+	symmetry_projector.set_lindep(1.e-2).set_orthonormalize_irreps(false).set_verbosity(0);
 	symmetry_projector.print_info(world);
 
 }
@@ -143,7 +143,7 @@ void TDHF::print_xfunctions(const std::vector<CC_vecfunction> & f, const bool& f
 
 			msg << "ex. vector "
 					<< x.excitation << " | "
-					<< x.irrep << " | "
+					<< std::setw(4) << x.irrep << " | "
 					<< x.omega << " (ex. energy) | "
 					<< std::setprecision(3)
 					<< x.current_error << " (error) | "
@@ -1165,10 +1165,11 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	proj(get_active_mo_ket(),nemo.R_square,orbital_irreps);
 
 	// canonicalize virtuals
-	virtuals = canonicalize(virtuals);
+	std::vector<double> veps;	// orbital energies of the virtuals
+	virtuals = canonicalize(virtuals,veps);
 
 	// compute the CIS matrix
-	Tensor<double> MCIS = make_cis_matrix(virtuals);
+	Tensor<double> MCIS = make_cis_matrix(virtuals,veps);
 
 	// zero out all non-contributing irreps
 	if (parameters.irrep!="all") {
@@ -1299,40 +1300,37 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	return xfunctions;
 }
 /// canonicalize a set of orbitals (here the virtuals for the guess)
-vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v)const{
+
+/// @param[out]	veps	orbital energies of the virtuals
+vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v, std::vector<double>& veps)const{
 	CCTimer time(world,"canonicalize");
-	Fock F(world, &nemo);
+
+	// no exact exchange for the guess -- use LDA exchange instead
+	Fock F(world, &nemo,0.0);
 	const vector_real_function_3d vbra=make_bra(v);
 	Tensor<double> Fmat = F(vbra,v);
+
+	// add lda potential
+	real_function_3d arho=2.0*dot(world,vbra,v);
+	real_function_3d ldapot=nemo.get_calc()->make_lda_potential(world,arho);
+	Fmat+=matrix_inner(world,vbra,ldapot*v);
+
 	Tensor<double> S = matrix_inner(world, vbra, v);
 	Tensor<double> occ(v.size());
 	occ=1.0;
-	Tensor<double> evals;
 	if(parameters.debug) msg << "Canonicalize: Fock Matrix\n" << Fmat(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
 	if(parameters.debug) msg << "Canonicalize: Overlap Matrix\n" << S(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
-	Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, evals, occ, std::min(parameters.thresh,1.e-4));
+	Tensor<double> eval;
+	Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, eval, occ, std::min(parameters.thresh,1.e-4));
+	veps.resize(eval.size());
+	for (int i=0; i<eval.size(); ++i) veps[i]=eval(i);
 	vector_real_function_3d result = madness::transform(world, v, U);
 	time.print();
 	return result;
 }
 /// compute the CIS matrix for a given set of virtuals
-Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals)const{
-
-	// make bra elements
-	const vector_real_function_3d virtuals_bra = make_bra(virtuals);
-	// make Fock Matrix of virtuals for diagonal elements
-	Fock F(world, &nemo);
-	Tensor<double> Fmat = F(virtuals_bra, virtuals);
-
-
-	if (parameters.debug) {
-		const int dim = std::min(10,int(virtuals.size()));
-		msg << "Debug Part of Virtual Fock Matrix\n" << Fmat(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
-
-		Tensor<double> S = matrix_inner(world, virtuals_bra, virtuals);
-		msg << "Debug Overlap of virtuals\n" << S(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
-	}
-
+Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
+		const std::vector<double>& veps)const{
 
 	CCTimer time_cis(world, "make CIS matrix");
 
@@ -1361,6 +1359,27 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals)cons
 	// make CIS matrix
 	// first do the "diagonal" entries
 	if(nemo.get_calc()->param.localize){
+
+		// make bra elements
+		const vector_real_function_3d virtuals_bra = make_bra(virtuals);
+
+		// make Fock Matrix of virtuals for diagonal elements
+		Fock F(world, &nemo,0.0);
+		Tensor<double> Fmat = F(virtuals_bra, virtuals);
+		// add lda potential
+		real_function_3d arho=2.0*nemo.R_square*nemo.make_density(nemo.get_calc()->aocc,nemo.get_calc()->amo);
+		real_function_3d ldapot=nemo.get_calc()->make_lda_potential(world,arho);
+		Fmat+=matrix_inner(world,virtuals_bra,ldapot*virtuals);
+
+
+		if (parameters.debug) {
+			const int dim = std::min(10,int(virtuals.size()));
+			msg << "Debug Part of Virtual Fock Matrix\n" << Fmat(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
+
+			Tensor<double> S = matrix_inner(world, virtuals_bra, virtuals);
+			msg << "Debug Overlap of virtuals\n" << S(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
+		}
+
 		Tensor<double> Focc = F(get_active_mo_bra(),get_active_mo_ket());
 		for(int I=0;I<dim;++I){
 			const int a=get_vir_idx(I);
@@ -1371,15 +1390,18 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals)cons
 				MCIS(I,J) = Fmat(a,b)*delta(i,j)-Focc(i,j)*delta(a,b);
 			}
 		}
-	}else{
+
+	}else{	// canonical case with virtual orbital energies only
 		for(int I=0;I<dim;++I){
 			const int a=get_vir_idx(I);
 			const int i=get_occ_idx(I);
-			MCIS(I,I) = Fmat(a,a)-get_orbital_energy(i+parameters.freeze);
+			MCIS(I,I) = veps[a]-get_orbital_energy(i+parameters.freeze);
 		}
 	}
 
 	if(not parameters.guess_diag){
+		const vector_real_function_3d virtuals_bra = make_bra(virtuals);
+
 		int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
 		for (int i = start_ij; i < get_active_mo_ket().size(); ++i) {
 			const real_function_3d brai = get_active_mo_bra()[i];
