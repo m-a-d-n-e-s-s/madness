@@ -1156,7 +1156,10 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 
 	// create virtuals
 	vector_real_function_3d virtuals = make_virtuals();
-	virtuals=orthonormalize_symmetric(virtuals);
+	CCTimer time_ortho(world,"canonical orthonormalization");
+	virtuals=orthonormalize_canonical(virtuals,1.e-4);
+	time_ortho.print();
+	if (world.rank()==0) print("final number of virtuals",virtuals.size());
 
 	// determine the symmetry of the occupied and virtual orbitals
 	std::vector<std::string> orbital_irreps, virtual_irreps;
@@ -1313,15 +1316,9 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v, Tensor<double>& veps)const{
 	CCTimer time(world,"canonicalize");
 
-	// no exact exchange for the guess -- use LDA exchange instead
-	Fock F(world, &nemo,0.0);
+	Fock F(world, &nemo);
 	const vector_real_function_3d vbra=make_bra(v);
 	Tensor<double> Fmat = F(vbra,v);
-
-	// add lda potential
-	real_function_3d arho=2.0*dot(world,vbra,v);
-	real_function_3d ldapot=nemo.get_calc()->make_lda_potential(world,arho);
-	Fmat+=matrix_inner(world,vbra,ldapot*v);
 
 	Tensor<double> S = matrix_inner(world, vbra, v);
 	Tensor<double> occ(v.size());
@@ -1369,13 +1366,8 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
 		const vector_real_function_3d virtuals_bra = make_bra(virtuals);
 
 		// make Fock Matrix of virtuals for diagonal elements
-		Fock F(world, &nemo,0.0);
+		Fock F(world, &nemo);
 		Tensor<double> Fmat = F(virtuals_bra, virtuals);
-		// add lda potential
-		real_function_3d arho=2.0*nemo.R_square*nemo.make_density(nemo.get_calc()->aocc,nemo.get_calc()->amo);
-		real_function_3d ldapot=nemo.get_calc()->make_lda_potential(world,arho);
-		Fmat+=matrix_inner(world,virtuals_bra,ldapot*virtuals);
-
 
 		if (parameters.debug) {
 			const int dim = std::min(10,int(virtuals.size()));
@@ -1742,6 +1734,7 @@ void TDHF::Parameters::print(World& world) const {
 		std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
 		std::cout << "Parameters for the guess:\n";
 		std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
+		std::cout << std::setfill(' ');
 		std::cout << "guess_excitation_operators       :" << guess_excitation_operators << std::endl;
 		std::cout << "guess_diag           :" << guess_diag << std::endl;
 		if(guess_maxiter==0){
@@ -1757,6 +1750,7 @@ void TDHF::Parameters::print(World& world) const {
 			std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
 			std::cout << "Parameters for the generation of virtuals\nby multiplying excitation operators to the occupied orbitals\n";
 			std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
+			std::cout << std::setfill(' ');
 			std::cout << "guess_occ_to_virt    :" << guess_occ_to_virt << std::endl;
 			std::cout << "damping_width        :" << damping_width << std::endl;
 			std::cout << "guess_cm             :" << guess_cm << std::endl;
