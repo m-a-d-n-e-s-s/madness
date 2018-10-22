@@ -40,7 +40,24 @@
 
   The source is
   <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
-  /trunk/src/apps/chem/pointgroupsymmetry.cc>here</a>.
+  /trunk/src/apps/chem/pointgroupsymmetry.h>here</a>.
+
+	\par Use cases
+	There are 3 use cases for the projector
+	 - create_symmetry_adapted_basis()
+	   Given a single function generate a set of symmetry-adapted functions of a given irrep
+	 - operator()()
+	   Given a set of functions transform them to a set of symmetry-adapted function.
+	   This is most likely the case for a localized-to-symmetrized transformation of orbitals.
+	   The irreps will be determined by the projection based on a rank-revealing Cholesky
+	   decomposition. It is therefore necessary that the set of input functions is normalized,
+	   so that small eigenvalues are always due to numerics and not to physics.
+	   There will be a rough check on closedness, i.e. that the old and the new set of functions
+	   project on the same space.
+	 - project_on_irreps()
+	   Given a set of functions and a set of corresponding irreps, reproject the functions on
+	   their irreps
+	 Furthermore a reduction method is provided to do some algebra with the irreps
 
 */
 #ifndef SRC_APPS_CHEM_POINTGROUPSYMMETRY_H_
