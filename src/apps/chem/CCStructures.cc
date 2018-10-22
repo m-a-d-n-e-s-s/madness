@@ -22,10 +22,10 @@ namespace madness{
   CCMessenger::section(const std::string& msg) const {
     if(world.rank() == 0){
       std::cout << "\n" << std::setw(msg.size() + 10) << std::setfill('*') << "\n";
-      std::setfill(' ');
+      std::cout << std::setfill(' ');
       output(msg);
       std::cout << std::setw(msg.size() + 10) << std::setfill('*') << "\n\n";
-      std::setfill(' ');
+      std::cout << std::setfill(' ');
     }
   }
 
@@ -33,10 +33,10 @@ namespace madness{
   CCMessenger::subsection(const std::string& msg) const {
     if(world.rank() == 0){
       std::cout << "\n" << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
-      std::setfill(' ');
+      std::cout << std::setfill(' ');
       output(msg);
       std::cout << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
-      std::setfill(' ');
+      std::cout << std::setfill(' ');
     }
   }
 
@@ -55,7 +55,8 @@ namespace madness{
       if(norm != 12345.6789) s_norm=", ||result||=" + std::to_string(norm);
 
       if(world.rank() == 0){
-	std::cout << std::setfill(' ') << std::scientific << std::setprecision(2) << "Timer: " << time_wall << " (Wall), " << time_cpu << " (CPU)" << s_norm << ", (" + operation + ")" << "\n";
+    	  std::cout << std::setfill(' ') << std::scientific << std::setprecision(2)
+    	  << "Timer: " << time_wall << " (Wall), " << time_cpu << " (CPU)" << s_norm << ", (" + operation + ")" << "\n";
       }
     }
   }
