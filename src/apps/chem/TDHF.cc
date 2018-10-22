@@ -1157,7 +1157,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	// create virtuals
 	vector_real_function_3d virtuals = make_virtuals();
 	CCTimer time_ortho(world,"canonical orthonormalization");
-	virtuals=orthonormalize_canonical(virtuals,1.e-4);
+	virtuals=orthonormalize_canonical(virtuals,1.e-6);
 	time_ortho.print();
 	if (world.rank()==0) print("final number of virtuals",virtuals.size());
 
