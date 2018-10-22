@@ -524,7 +524,7 @@ public:
 
 	AC<3> get_ac() const {return ac;}
 
-	bool do_symmetry() const {return (symmetry_projector.get_pointgroup()!="c1");}
+	bool do_symmetry() const {return (symmetry_projector.get_pointgroup()!="C1");}
 
 private:
 

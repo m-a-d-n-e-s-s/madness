@@ -114,7 +114,10 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 
 	// fast return
 	if (vrhs.size()==0) return std::vector<Function<T,NDIM> >();
-	if (table_.schoenflies_=="C1") {return copy(world,vrhs);}
+	if (table_.schoenflies_=="C1") {
+		sirreps=std::vector<std::string>(vrhs.size(),"a");
+		return copy(world,vrhs);
+	}
 
 	// loop over all symmetry operations of this point group and apply them
 	// to the input vector; dimension: (nop, nmo)
