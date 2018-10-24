@@ -187,6 +187,11 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
         print("number of electrons in Coulomb",nel);
     }
     density.truncate();
+//    if (do_R2) {
+//        density.print_size("density with R2");
+//    } else {
+//        density.print_size("density without R2");
+//    }
     return nemo->get_calc()->make_coulomb_potential(density);
 }
 

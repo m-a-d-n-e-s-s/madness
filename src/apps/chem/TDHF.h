@@ -75,6 +75,9 @@ public:
 		/// the number of frozen occupied orbitals (not taken into account for response)
 		int freeze=0;
 
+		/// the number of frozen occupied orbitals (not taken into account for response)
+		std::string irrep="all";
+
 		/// excitations which will be read from disk
 		std::vector<size_t> restart;
 
@@ -157,6 +160,10 @@ public:
 	virtual
 	~TDHF();
 
+
+	/// check consistency of the input parameters
+	void check_consistency() const;
+
 	/// plot planes and cubes
 	void plot(const vector_real_function_3d& vf, const std::string& name)const;
 
@@ -170,6 +177,8 @@ public:
 
 	/// @param[in\out] on input the already obtained guess functions (or empty vector), on output new guess functions are added
 	void initialize(std::vector<CC_vecfunction> &start)const;
+
+	void symmetrize(std::vector<CC_vecfunction>& v) const;
 
 	/// Solve the CIS equations
 
@@ -222,9 +231,13 @@ public:
 	/// make the initial guess by explicitly diagonalizing a CIS matrix with virtuals from the make_virtuals routine
 	vector<CC_vecfunction> make_guess_from_initial_diagonalization() const;
 	/// canonicalize a set of orbitals (here the virtuals for the guess)
-	vector_real_function_3d canonicalize(const vector_real_function_3d& v)const;
+	vector_real_function_3d canonicalize(const vector_real_function_3d& v, Tensor<double>& veps)const;
+
 	/// compute the CIS matrix for a given set of virtuals
-	Tensor<double> make_cis_matrix(const vector_real_function_3d virtuals)const;
+
+	/// @param[in]	virtuals	the virtual orbitals
+	/// @param[in]	veps		the orbital energies of the virtuals
+	Tensor<double> make_cis_matrix(const vector_real_function_3d virtuals, const Tensor<double>& veps)const;
 
 	/// initialize the excitation functions
 	bool
@@ -368,6 +381,8 @@ public:
 	const CC_vecfunction mo_bra_;
 	/// the Projector to the virtual space
 	const QProjector<double,3> Q;
+	/// the symmetry projector
+	projector_irrep symmetry_projector;
 	/// the messenger IO
 	CCMessenger msg;
 	/// converged roots

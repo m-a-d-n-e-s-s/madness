@@ -48,6 +48,7 @@
 #include <madness/constants.h>
 #include <chem/vibanal.h>
 #include <chem/pcm.h>
+#include <chem/pointgroupsymmetry.h>
 
 
 namespace madness {
@@ -86,6 +87,24 @@ public:
     }
 };
 
+
+
+/// ctor
+
+/// @param[in]	world1	the world
+/// @param[in]	calc	the SCF
+Nemo::Nemo(World& world1, std::shared_ptr<SCF> calc) :
+		world(world1), calc(calc),
+		ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
+
+    if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data,true);
+
+    symmetry_projector=projector_irrep(calc->param.symmetry)
+    		.set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
+    if (world.rank()==0) print("constructed symmetry operator for point group",
+    		symmetry_projector.get_pointgroup());
+	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+}
 
 
 double Nemo::value(const Tensor<double>& x) {
@@ -222,10 +241,15 @@ double Nemo::solve(const SCFProtocol& proto) {
 	allocT alloc(world, nemo.size());
 	solverT solver(allocT(world, nemo.size()));
 
+
 	// iterate the residual equations
 	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
 
 	    if (localized) nemo=localize(nemo,proto.dconv,iter==0);
+	    std::vector<std::string> str_irreps;
+	    if (do_symmetry()) nemo=symmetry_projector(nemo,R_square,str_irreps);
+	    if (world.rank()==0) print("orbital irreps",str_irreps);
+	    save_function(nemo,"nemo_it"+stringify(iter));
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
 
@@ -233,14 +257,12 @@ double Nemo::solve(const SCFProtocol& proto) {
 		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
 
 		// compute the fock matrix
-//		vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
 		vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
 		if (do_pcm()) JKUpsi+=pcmnemo;
 		tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
 		Kinetic<double,3> T(world);
 		fock+=T(R2nemo,nemo);
 		JKUpsi.clear();
-
 
 		// report the off-diagonal fock matrix elements
 		if (not localized) {
@@ -297,7 +319,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 		// make the potential * nemos term; make sure it's in phase with nemo
 		START_TIMER(world);
-//		vecfuncT Vpsi = add(world, sub(world, Jnemo, Knemo), Unemo);
         vecfuncT Vpsi=Unemo+Jnemo-Knemo;
         if (do_pcm()) Vpsi+=pcmnemo;
 

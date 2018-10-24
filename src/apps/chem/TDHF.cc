@@ -34,27 +34,29 @@ struct TDHF_allocator{
 
 
 // conveniece to interface functions
-TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param):
-								    																		  world(world),
-																											  nemo(nemo_),
-																											  parameters(param),
-																											  g12(world,OT_G12,parameters.get_ccc_parameters()),
-																											  mo_ket_(make_mo_ket(nemo_)),
-																											  mo_bra_(make_mo_bra(nemo_)),
-																											  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
-																											  msg(world) {
+TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param)
+	: world(world),
+	  nemo(nemo_),
+	  parameters(param),
+	  g12(world,OT_G12,parameters.get_ccc_parameters()),
+	  mo_ket_(make_mo_ket(nemo_)),
+	  mo_bra_(make_mo_bra(nemo_)),
+	  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
+	  msg(world) {
 	msg.section("TDHF initialized without the usual initialization routine (no intermediates, no parameters read)");
+	check_consistency();
+
 }
 
-TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
-						    																		  world(world),
-																									  nemo(nemo_),
-																									  parameters(nemo_.get_calc(),input),
-																									  g12(world,OT_G12,parameters.get_ccc_parameters()),
-																									  mo_ket_(make_mo_ket(nemo_)),
-																									  mo_bra_(make_mo_bra(nemo_)),
-																									  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
-																									  msg(world) {
+TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
+	: world(world),
+	  nemo(nemo_),
+	  parameters(nemo_.get_calc(),input),
+	  g12(world,OT_G12,parameters.get_ccc_parameters()),
+	  mo_ket_(make_mo_ket(nemo_)),
+	  mo_bra_(make_mo_bra(nemo_)),
+	  Q(world,mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction()),
+	  msg(world) {
 	msg.section("Initialize TDHF Class");
 
 	msg.debug = parameters.debug;
@@ -66,12 +68,17 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
 	msg << " do_ac()  = " << nemo.do_ac() << "\n";
 
 	parameters.print(world);
+	check_consistency();
+
 	const double old_thresh = FunctionDefaults<3>::get_thresh();
 	if(old_thresh>parameters.thresh*0.1 and old_thresh>1.e-5){
-		msg.warning("Threshold of Reference might be too loose |  Response thresh="+std::to_string(parameters.thresh)+ " and Reference thresh="+std::to_string(old_thresh) + ". Be careful, reference should be tight");
+		msg.warning("Threshold of Reference might be too loose |  Response thresh="
+				+std::to_string(parameters.thresh)+ " and Reference thresh="+std::to_string(old_thresh)
+				+ ". Be careful, reference should be tight");
 	}
 	FunctionDefaults<3>::set_thresh(parameters.thresh);
-	msg << "MRA Threshold is set to: " << FunctionDefaults<3>::get_thresh() << " with k=" << FunctionDefaults<3>::get_k() << "\n";
+	msg << "MRA Threshold is set to: " << FunctionDefaults<3>::get_thresh()
+			<< " with k=" << FunctionDefaults<3>::get_k() << "\n";
 
 	if (not parameters.no_compute) {
 
@@ -104,6 +111,11 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input):
 			F_occ(i,i)=get_orbital_energy(i+parameters.freeze);
 		}
 	}
+	symmetry_projector=nemo.get_symmetry_projector();
+	// do not normalize the x vectors individually!
+	symmetry_projector.set_lindep(1.e-2).set_orthonormalize_irreps(false).set_verbosity(0);
+	symmetry_projector.print_info(world);
+
 }
 
 /// plot planes and cubes
@@ -131,10 +143,14 @@ void TDHF::print_xfunctions(const std::vector<CC_vecfunction> & f, const bool& f
 
 			msg << "ex. vector "
 					<< x.excitation << " | "
+					<< std::setw(4) << x.irrep << " | "
 					<< x.omega << " (ex. energy) | "
+					<< std::setprecision(3)
 					<< x.current_error << " (error) | "
 					<< x.delta << " (Edelta) | "
-					<< mem << " (Gbyte)" << "\n";
+					<< mem << " (Gbyte)"
+					<< std::setprecision(msg.output_prec)
+					<< "\n";
 
 		if(fullinfo){
 			print_size(world,x.get_vecfunction(),"ex. vector "+std::to_string(x.excitation));
@@ -149,7 +165,8 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	msg.subsection("Calculate Guess");
 	std::vector<CC_vecfunction> guess;
 	bool use_old_guess=(parameters.generalkeyval.find("use_old_guess")!=parameters.generalkeyval.end());
-	if(use_old_guess) use_old_guess=(parameters.generalkeyval.find("use_old_guess")->second=="true" or parameters.generalkeyval.find("use_old_guess")->second=="1");
+	if(use_old_guess) use_old_guess=(parameters.generalkeyval.find("use_old_guess")->second=="true"
+			or parameters.generalkeyval.find("use_old_guess")->second=="1");
 	if(use_old_guess){
 		guess=make_old_guess(get_active_mo_ket());
 	}
@@ -165,8 +182,8 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	// failsafe (works in most cases)
 	if(guess.size()<parameters.guess_excitations){
 		std::string message=("WARNING: You demanded: " + std::to_string(parameters.guess_excitations)
-		+ " Guess vectors, but your demanded guess has only "
-		+ std::to_string(guess.size()) + "vectors. So we will not iterate the first vectors and then do the same guess again ... this might be unstable").c_str();
+			+ " Guess vectors, but your demanded guess has only " + std::to_string(guess.size())
+			+ "vectors. So we will not iterate the first vectors and then do the same guess again ... this might be unstable").c_str();
 		msg.output(message);
 		if(parameters.guess_maxiter==0){
 			msg.output("In this case you demanded guess_maxiter=0 (which is also the default), so this can not work!");
@@ -183,6 +200,35 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	for(size_t i=0;i<parameters.guess_excitations;i++) guess_vectors.push_back(guess[i]);
 	// this is the return value
 	start = guess_vectors;
+}
+
+void TDHF::symmetrize(std::vector<CC_vecfunction>& v) const {
+
+	// The irreps of the x vector elements are given by
+	//    Gamma(orbital) x Gamma(x element) = Gamma (excitation)
+	// Using the inverse element of Gamma(orbital) we get
+	//    Gamma(x element) = Gamma(excitation) x Gamma^{-1}(orbital)
+	// since all groups are Abelian the inverse element is the element itself
+	//    Gamma(x element) = Gamma(excitation) x Gamma(orbital)
+
+	if (nemo.do_symmetry()) {
+		std::vector<std::string> irreps, orbital_irreps;
+		symmetry_projector(get_active_mo_ket(), orbital_irreps);
+
+		// loop over all excitations
+		for (auto& f : v) {
+
+			// determine the irreps of the x vector elements
+			std::vector<std::string> xirreps(f.get_vecfunction().size());
+			MADNESS_ASSERT(symmetry_projector.get_table().is_abelian);
+			for (int i=0; i<xirreps.size(); ++i) {
+				xirreps[i]=symmetry_projector.reduce(f.irrep,orbital_irreps[i])[0];
+			}
+
+			vector_real_function_3d tmp = symmetry_projector.project_on_irreps(f.get_vecfunction(),xirreps);
+			f.set_functions(tmp, RESPONSE, parameters.freeze);
+		}
+	}
 }
 
 /// @param[in/out] CC_vecfunction
@@ -220,6 +266,8 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start)c
 		initialize(start);
 		guess_vectors = start;
 	}else guess_vectors=start;
+
+	symmetrize(guess_vectors);
 
 	msg.output("====Guess-Vectors=====");
 	print_xfunctions(guess_vectors);
@@ -319,6 +367,8 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 
 	bool converged = true;
 
+	symmetrize(x);
+
 	// get potentials (if demanded)
 	std::vector<vector_real_function_3d> V;
 
@@ -341,6 +391,8 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 		// apply Greens Functions
 		for(size_t i=0;i<x.size();i++) if(iterate_y and x[i].omega>=0.0) x[i].omega = -1.0*y[i].omega;
 		std::vector<vector_real_function_3d> residuals=apply_G(x,V);
+
+
 		// check convergence
 
 		converged = true;
@@ -384,8 +436,10 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 				vector_real_function_3d Q_new_x0 = Q(new_x0);
 				truncate(world,Q_new_x0);
 				x[i].set_functions(Q_new_x0,x[i].type,parameters.freeze);
+
 			} else msg.output("Root " +std::to_string(i) + " converged");
 		}
+		symmetrize(x);
 
 		// remove converged roots
 		if(this_is_a_guess_iteration){
@@ -769,7 +823,8 @@ std::vector<CC_vecfunction> TDHF::transform(const std::vector<CC_vecfunction> &x
 		vector_real_function_3d new_x = zero_functions_compressed<double,3>(world,x[k].size());
 		compress(world,x[k].get_vecfunction());
 		for(size_t l=0;l<x.size();l++){
-			gaxpy(world,1.0,new_x,U(l,k),x[l].get_vecfunction()); // gaxpy(alpha,a,beta,b) -> a[i]=alpha*a[i] + beta*b[i], since there is no += for vectorfunctions implemented
+			// gaxpy(alpha,a,beta,b) -> a[i]=alpha*a[i] + beta*b[i], since there is no += for vectorfunctions implemented
+			gaxpy(world,1.0,new_x,U(l,k),x[l].get_vecfunction());
 		}
 		CC_vecfunction tmp(x[k]);
 		tmp.set_functions(new_x,tmp.type,parameters.freeze);
@@ -1009,7 +1064,8 @@ vector_real_function_3d TDHF::make_virtuals() const {
 		for(size_t i=0;i<parameters.guess_occ_to_virt;++i) xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size()-1-i]);
 
 		bool use_trigo=true;
-		if(parameters.generalkeyval.find("polynomial_exops")!=parameters.generalkeyval.end()) use_trigo = (std::stoi(parameters.generalkeyval.find("polynomial_exops")->second)==0);
+		if(parameters.generalkeyval.find("polynomial_exops")!=parameters.generalkeyval.end())
+			use_trigo = (std::stoi(parameters.generalkeyval.find("polynomial_exops")->second)==0);
 		virtuals = apply_excitation_operators(xmo,use_trigo);
 
 	}
@@ -1097,15 +1153,79 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	CCTimer time(world, "make_guess_from_initial_diagonalization");
 	//convenience
 	const int nact = get_active_mo_ket().size();
+
 	// create virtuals
 	vector_real_function_3d virtuals = make_virtuals();
+	{
+		CCTimer time_ortho(world,"canonical orthonormalization");
+		const size_t spre=virtuals.size();
+		virtuals=orthonormalize_canonical(virtuals,1.e-6);
+		if(virtuals.size()!=spre) msg << "removed " << spre-virtuals.size() << " virtuals due to linear dependencies \n";
+		time_ortho.print();
+	}
+	if (world.rank()==0) print("final number of virtuals",virtuals.size());
+
+	// determine the symmetry of the occupied and virtual orbitals
+	std::vector<std::string> orbital_irreps, virtual_irreps;
+	projector_irrep proj=projector_irrep(symmetry_projector).set_verbosity(0).set_lindep(1.e-1);
+	virtuals=proj(virtuals,nemo.R_square,virtual_irreps);
+	proj(get_active_mo_ket(),nemo.R_square,orbital_irreps);
+
 	// canonicalize virtuals
-	virtuals = canonicalize(virtuals);
+	Tensor<double> veps;	// orbital energies of the virtuals
+	virtuals = canonicalize(virtuals,veps);
+
+	// make sure the virtual orbital energies are higher than the occupied orbtials
+	double vmin=veps.min();
+	double omax=nemo.get_calc()->aeps.max();
+	if (vmin<omax) {
+		veps+=(omax-vmin);
+		if (world.rank()==0) print("shifting guess virtual energies by ",omax-vmin+1.e-1);
+	}
+
 	// compute the CIS matrix
-	Tensor<double> MCIS = make_cis_matrix(virtuals);
+	Tensor<double> MCIS = make_cis_matrix(virtuals,veps);
+
+	// zero out all non-contributing irreps
+	if (parameters.irrep!="all") {
+		int I=0;
+		for (auto oirrep1 : orbital_irreps) {
+			for (auto virrep1 : virtual_irreps) {
+				if (not (proj.reduce(oirrep1,virrep1)[0]==parameters.irrep)) {
+					MCIS(I,_)=0.0;
+					MCIS(_,I)=0.0;
+				}
+				I++;
+			}
+		}
+	}
+
 	// initialize the guess functions
 	if (world.rank() == 0 && MCIS.dim(0) < parameters.guess_excitations) {
-		msg.warning(std::to_string(parameters.guess_excitations) + " guess vectors where demanded, but with the given options only " + std::to_string(MCIS.dim(0)) + " can be created\n");
+		msg.warning(std::to_string(parameters.guess_excitations)
+			+ " guess vectors where demanded, but with the given options only "
+			+ std::to_string(MCIS.dim(0)) + " can be created\n");
+	}
+
+	const int nvirt = virtuals.size();
+	auto get_com_idx = [nvirt](int i, int a) {
+		return i * nvirt + a;
+	};
+	auto get_vir_idx = [nvirt](int I) {
+		return I % nvirt;
+	};
+	auto get_occ_idx = [nvirt](int I) {
+		return I / nvirt;
+	};
+
+
+	// find all contributing ia/jb elements for the requested irrep -- needs to be improved..
+	std::vector<int> II;
+	for (int i=0; i<orbital_irreps.size(); ++i) {
+		for (int a=0; a<virtual_irreps.size(); ++a) {
+			if (proj.reduce(orbital_irreps[i],virtual_irreps[a])[0]==parameters.irrep)
+				II.push_back(get_com_idx(i,a));
+		}
 	}
 	std::vector<CC_vecfunction> xfunctions;
 	for (int x = 0; x < MCIS.dim(0); ++x) {
@@ -1121,26 +1241,18 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 		syev(MCIS, U, evals);
 		time_diag.print();
 
+		if (parameters.debug) {
 			msg << "Initial Diagonalization of CIS Matrix:\n Lowest Eigenvalues are \n";
 			for (int x = 0; x < std::max(std::min(int(evals.size()), 10), parameters.guess_excitations); ++x)
 				msg << evals(x) << "\n";
+		}
 
 		CCTimer time_assemble(world, "assemble guess vectors");
 		// make x functions from amplitudes and virtuals
 		// todo: probably not optimal for highly parallel applications
-		const int nvirt = virtuals.size();
-		auto get_com_idx = [nvirt](int i, int a) {
-			return i * nvirt + a;
-		};
-		auto get_vir_idx = [nvirt](int I) {
-			return I % nvirt;
-		};
-		auto get_occ_idx = [nvirt](int I) {
-			return I / nvirt;
-		};
+		int iexcitation=0;
 		for (size_t I = 0; I < MCIS.dim(0); ++I) {
-			if (I >= parameters.guess_excitations)
-				break;
+			if (iexcitation >= parameters.guess_excitations) break;
 
 			const int a = get_vir_idx(I);
 			const int i = get_occ_idx(I);
@@ -1148,19 +1260,21 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 				msg.warning("NEGATIVE EIGENVALUE IN INITIAL DIAGONALIZATION: CHECK YOUR REFERENCE!\n");
 
 			if (evals(I) < 1.e-5) {
-
-					msg << "skipping root " << evals(I) << " \n";
-
+				if (parameters.debug) msg << "skipping root " << evals(I) << " \n";
 				continue;
 			}
+
+			xfunctions[iexcitation].omega = evals(I);
+			xfunctions[iexcitation].excitation = iexcitation;
+
 			for (size_t J = 0; J < MCIS.dim(1); ++J) {
+
 				const int b = get_vir_idx(J);
 				const int j = get_occ_idx(J);
 				const double xjb = U(J, I);
-				xfunctions[I].get_vecfunction()[j] += xjb * virtuals[b];
-				xfunctions[I].omega = evals(I);
-				xfunctions[I].excitation = I;
+				xfunctions[iexcitation].get_vecfunction()[j] += xjb * virtuals[b];
 			}
+			iexcitation++;
 		}
 		time_assemble.print();
 		CCTimer time_truncate(world, "truncate guess");
@@ -1171,54 +1285,58 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 			x.set_functions(tmp, x.type, parameters.freeze);
 		}
 		time_truncate.print();
+
+		CCTimer time_symmetrize(world, "symmetrize guess");
+		for (auto& x : xfunctions) {
+			std::vector<std::string> x_irreps;
+			vector_real_function_3d tmp=proj(x.get_vecfunction(),nemo.R_square,x_irreps);
+			x.set_functions(tmp,RESPONSE,parameters.freeze);
+			for (int i=0; i<x_irreps.size(); ++i) {
+				std::string reduced=symmetry_projector.reduce(x_irreps[i],orbital_irreps[i])[0];
+				if (not ((reduced==x.irrep) or (reduced=="null") or (x.irrep=="null"))) {
+					print("reduced, irrep",reduced,x.irrep);
+					MADNESS_EXCEPTION("inconsistent symmetry in x vector\n\n",0);
+				}
+				if (reduced!="null") x.irrep=reduced;
+			}
+		}
+		time_symmetrize.print();
+
 	}
 	if (parameters.debug) {
 		Tensor<double> S = make_overlap_matrix(xfunctions);
 
-			msg << "Overlap matrix of guess:\n" << S << "\n";
+		msg << "Overlap matrix of guess:\n" << S << "\n";
 	}
 	print_xfunctions(xfunctions, true);
-
-		msg << "created " << xfunctions.size() << " guess vectors\n";
+	msg << "created " << xfunctions.size() << " guess vectors\n";
 
 	time.print();
 	return xfunctions;
 }
 /// canonicalize a set of orbitals (here the virtuals for the guess)
-vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v)const{
+
+/// @param[out]	veps	orbital energies of the virtuals
+vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d& v, Tensor<double>& veps)const{
 	CCTimer time(world,"canonicalize");
+
 	Fock F(world, &nemo);
 	const vector_real_function_3d vbra=make_bra(v);
 	Tensor<double> Fmat = F(vbra,v);
+
 	Tensor<double> S = matrix_inner(world, vbra, v);
 	Tensor<double> occ(v.size());
 	occ=1.0;
-	Tensor<double> evals;
 	if(parameters.debug) msg << "Canonicalize: Fock Matrix\n" << Fmat(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
 	if(parameters.debug) msg << "Canonicalize: Overlap Matrix\n" << S(Slice(0,std::min(10,int(v.size()))-1),Slice(0,std::min(10,int(v.size()))-1));
-	Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, evals, occ, std::min(parameters.thresh,1.e-4));
+	Tensor<double> U = nemo.get_calc()->get_fock_transformation(world, S, Fmat, veps, occ, std::min(parameters.thresh,1.e-4));
 	vector_real_function_3d result = madness::transform(world, v, U);
 	time.print();
 	return result;
 }
 /// compute the CIS matrix for a given set of virtuals
-Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals)const{
-
-	// make bra elements
-	const vector_real_function_3d virtuals_bra = make_bra(virtuals);
-	// make Fock Matrix of virtuals for diagonal elements
-	Fock F(world, &nemo);
-	Tensor<double> Fmat = F(virtuals_bra, virtuals);
-
-
-	if (parameters.debug) {
-		const int dim = std::min(10,int(virtuals.size()));
-			msg << "Debug Part of Virtual Fock Matrix\n" << Fmat(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
-
-		Tensor<double> S = matrix_inner(world, virtuals_bra, virtuals);
-			msg << "Debug Overlap of virtuals\n" << S(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
-	}
-
+Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
+		const Tensor<double>& veps)const{
 
 	CCTimer time_cis(world, "make CIS matrix");
 
@@ -1247,6 +1365,22 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals)cons
 	// make CIS matrix
 	// first do the "diagonal" entries
 	if(nemo.get_calc()->param.localize){
+
+		// make bra elements
+		const vector_real_function_3d virtuals_bra = make_bra(virtuals);
+
+		// make Fock Matrix of virtuals for diagonal elements
+		Fock F(world, &nemo);
+		Tensor<double> Fmat = F(virtuals_bra, virtuals);
+
+		if (parameters.debug) {
+			const int dim = std::min(10,int(virtuals.size()));
+			msg << "Debug Part of Virtual Fock Matrix\n" << Fmat(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
+
+			Tensor<double> S = matrix_inner(world, virtuals_bra, virtuals);
+			msg << "Debug Overlap of virtuals\n" << S(Slice(0,dim-1),Slice(0,dim-1)) << "\n";
+		}
+
 		Tensor<double> Focc = F(get_active_mo_bra(),get_active_mo_ket());
 		for(int I=0;I<dim;++I){
 			const int a=get_vir_idx(I);
@@ -1257,15 +1391,18 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals)cons
 				MCIS(I,J) = Fmat(a,b)*delta(i,j)-Focc(i,j)*delta(a,b);
 			}
 		}
-	}else{
+
+	}else{	// canonical case with virtual orbital energies only
 		for(int I=0;I<dim;++I){
 			const int a=get_vir_idx(I);
 			const int i=get_occ_idx(I);
-			MCIS(I,I) = Fmat(a,a)-get_orbital_energy(i+parameters.freeze);
+			MCIS(I,I) = veps(a)-get_orbital_energy(i+parameters.freeze);
 		}
 	}
 
 	if(not parameters.guess_diag){
+		const vector_real_function_3d virtuals_bra = make_bra(virtuals);
+
 		int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
 		for (int i = start_ij; i < get_active_mo_ket().size(); ++i) {
 			const real_function_3d brai = get_active_mo_bra()[i];
@@ -1288,10 +1425,11 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals)cons
 			}
 		}
 	}
+	if (parameters.debug) {
 		int sdim=std::min(int(MCIS.dim(0)),10);
 		msg << "Part of the CIS Matrix:\n" << MCIS(Slice(dim-sdim,-1),Slice(dim-sdim,-1)) << "\n";
 		if(parameters.debug) msg << "Debug: Full CIS Matrix:\n" << MCIS<< "\n";
-
+	}
 
 	// test if symmetric
 	if (parameters.debug) {
@@ -1442,6 +1580,7 @@ TDHF::Parameters::Parameters(const std::shared_ptr<SCF>& scf,const std::string& 
 	read_from_file(input, "response");
 	complete_with_defaults(scf);
 }
+
 TDHF::Parameters::Parameters(const std::shared_ptr<SCF>& scf) :
 													lo(scf->param.lo) {
 	complete_with_defaults(scf);
@@ -1476,6 +1615,20 @@ void TDHF::Parameters::complete_with_defaults(const std::shared_ptr<SCF>& scf) {
 	guess_active_orbitals = std::min(size_t(guess_active_orbitals),(scf->amo.size()-freeze));
 
 }
+
+/// check consistency of the input parameters
+void TDHF::check_consistency() const {
+
+	// check if the requested irrep is present in the computational point group
+	const std::vector<std::string> irreps=nemo.get_symmetry_projector().get_table().mullikan_;
+	if (find(irreps.begin(),irreps.end(),parameters.irrep)==irreps.end()
+			and (parameters.irrep!="all")) {
+		print("irrep ",parameters.irrep, " is not contained in point group ",
+				nemo.get_symmetry_projector().get_table().schoenflies_,"\n\n");
+		MADNESS_EXCEPTION("\ninconsistent input paramters\n\n",1);
+	}
+}
+
 /// todo: read_from_file compatible with dist. memory computation
 void TDHF::Parameters::read_from_file(const std::string input, const std::string& key) {
 	{
@@ -1491,6 +1644,7 @@ void TDHF::Parameters::read_from_file(const std::string input, const std::string
 				break;
 			else if (s == "thresh") f >> thresh;
 			else if (s == "freeze") f >> freeze;
+			else if (s == "irrep") f >> irrep;
 			else if (s == "no_compute")
 				f >> std::boolalpha >> no_compute;
 			else if (s == "debug")
@@ -1568,6 +1722,7 @@ void TDHF::Parameters::print(World& world) const {
 		std::cout << "thresh               :" << thresh << std::endl;
 		std::cout << "calculation          :" << calculation << std::endl;
 		std::cout << "freeze               :" << freeze << std::endl;
+		std::cout << "irrep                :" << irrep << std::endl;
 		std::cout << "excitations          :" << excitations << std::endl;
 		std::cout << "guess_excitations    :" << guess_excitations << std::endl;
 		std::cout << "iterating_excitations:" << iterating_excitations << std::endl;
@@ -1583,6 +1738,7 @@ void TDHF::Parameters::print(World& world) const {
 		std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
 		std::cout << "Parameters for the guess:\n";
 		std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
+		std::cout << std::setfill(' ');
 		std::cout << "guess_excitation_operators       :" << guess_excitation_operators << std::endl;
 		std::cout << "guess_diag           :" << guess_diag << std::endl;
 		if(guess_maxiter==0){
@@ -1598,6 +1754,7 @@ void TDHF::Parameters::print(World& world) const {
 			std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
 			std::cout << "Parameters for the generation of virtuals\nby multiplying excitation operators to the occupied orbitals\n";
 			std::cout << std::setfill('-') << std::setw(50) << std::setfill('-') << "\n";
+			std::cout << std::setfill(' ');
 			std::cout << "guess_occ_to_virt    :" << guess_occ_to_virt << std::endl;
 			std::cout << "damping_width        :" << damping_width << std::endl;
 			std::cout << "guess_cm             :" << guess_cm << std::endl;

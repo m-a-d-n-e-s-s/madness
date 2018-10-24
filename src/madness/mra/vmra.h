@@ -348,28 +348,43 @@ namespace madness {
     /// canonical orthonormalization (see e.g. Szabo/Ostlund)
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix
+    /// @param[in]	lindep	linear dependency threshold relative to largest eigenvalue
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_canonical(
     		const std::vector<Function<T,NDIM> >& v,
-			const Tensor<T>& ovlp) {
+			const Tensor<T>& ovlp,
+			double lindep) {
 
     	if(v.empty()) return v;
 
     	Tensor<T> U;
     	Tensor< typename Tensor<T>::scalar_type > s;
     	syev(ovlp,U,s);
+    	lindep*=s(s.size()-1);	// eigenvalues are in ascending order
 
     	// transform s to s^{-1}
-    	for(size_t i=0;i<v.size();++i) s(i)=1.0/(sqrt(s(i)));
+    	int rank=0,lo=0;
+    	Tensor< typename Tensor<T>::scalar_type > sqrts(v.size());
+    	for(size_t i=0;i<v.size();++i) {
+    		if (s(i)>lindep) {
+    			sqrts(i)=1.0/(sqrt(s(i)));
+        		rank++;
+    		} else {
+    			sqrts(i)=0.0;
+    			lo++;
+    		}
+    	}
+    	MADNESS_ASSERT(lo+rank==v.size());
 
     	for(size_t i=0;i<v.size();++i){
     		for(size_t j=0;j<v.size();++j){
-    			U(i,j)=U(i,j)*(s(j));
+    			U(i,j)=U(i,j)*(sqrts(j));
     		}
     	}
+    	Tensor<double> X=U(_,Slice(lo,-1));
 
     	World& world=v.front().world();
-    	return transform(world,v,U);
+    	return transform(world,v,X);
 
     }
 
@@ -377,13 +392,14 @@ namespace madness {
     /// overlap matrix is calculated
     /// @param[in] the vector to orthonormalize
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > orthonormalize_canonical(const std::vector<Function<T,NDIM> >& v){
+    std::vector<Function<T,NDIM> > orthonormalize_canonical(const std::vector<Function<T,NDIM> >& v,
+    		const double lindep){
     	if(v.empty()) return v;
 
     	World& world=v.front().world();
     	Tensor<T> ovlp = matrix_inner(world, v, v);
 
-    	return orthonormalize_canonical(v,ovlp);
+    	return orthonormalize_canonical(v,ovlp,lindep);
     }
 
     /// cholesky orthonormalization without pivoting

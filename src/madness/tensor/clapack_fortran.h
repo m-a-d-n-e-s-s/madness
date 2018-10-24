@@ -300,6 +300,10 @@ extern "C"
 void zpstrf_(const char *uplo, const integer* n, complex_real8 *a, const integer *lda, integer* ipiv, integer* rank, real8* tol,
 		complex_real8* work, integer *info);
 
+extern "C"
+void dpstrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer* ipiv, integer* rank, real8* tol,
+		real8* work, integer *info);
+
 
 extern "C"
 void dgetrf_(const integer* m, const integer* n, real8 *a, const integer *lda,

@@ -391,12 +391,18 @@ namespace madness{
 	functions.insert(std::make_pair(freeze+i,tmp));
       }
     }
-    CC_vecfunction(const std::vector<CCFunction> &v,const FuncType type_): type(type_),omega(0.0),excitation(-1),current_error(99.9),delta(0.0){
-      for(auto x:v){
-	functions.insert(std::make_pair(x.i,x));
-      }
+
+    CC_vecfunction(const std::vector<CCFunction> &v, const FuncType type_)
+    	: type(type_),omega(0.0),excitation(-1),current_error(99.9),delta(0.0) {
+    	for(auto x:v) functions.insert(std::make_pair(x.i,x));
     }
-    CC_vecfunction(const CC_vecfunction &other) : functions(other.functions),type(other.type), omega(other.omega),excitation(other.excitation),current_error(other.current_error),delta(other.delta) {}
+
+    /// copy ctor (shallow)
+    CC_vecfunction(const CC_vecfunction &other)
+    	: functions(other.functions),type(other.type), omega(other.omega),
+		  excitation(other.excitation),current_error(other.current_error),
+		  delta(other.delta), irrep(other.irrep) {
+    }
 
     typedef std::map<std::size_t, CCFunction> CC_functionmap;
     CC_functionmap functions;
@@ -411,6 +417,7 @@ namespace madness{
     int excitation; /// the excitation number
     double current_error;
     double delta; // Last difference in Energy
+    std::string irrep="null";	/// excitation irrep (direct product of x function and corresponding orbital)
 
     std::string
     name() const;
