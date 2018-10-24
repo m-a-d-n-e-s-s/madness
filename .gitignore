@@ -53,3 +53,4 @@ cmake/bin
 cmake/doc
 cmake/share
 Makefile-prog.in
+build/
