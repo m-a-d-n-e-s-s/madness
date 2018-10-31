@@ -42,6 +42,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
+#include <chem/CalculationParametersBase.h>
 #include <chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
 #include <chem/projector.h>
@@ -351,19 +352,28 @@ namespace madness {
     class MP2 : public OptimizationTargetInterface {
 
     	/// POD for MP2 keywords
-        struct Parameters {
-        	double thresh_;			///< the accuracy threshold
-            double econv_;          ///< energy threshold for the MP1 residual
-        	double dconv_;			///< density threshold for the MP1 residual
-        	int i; 					///< electron 1, used only if a specific pair is requested
-        	int j; 					///< electron 2, used only if a specific pair is requested
+        struct Parameters : CalculationParametersBase {
+
+        	/// ctor reading out the input file
+        	Parameters() {
+        		read("input","mp2");
+        		print();
+        	}
+
+
+        	Parameter<double> thresh_=1.e-3;			///< the accuracy threshold
+        	Parameter<double> econv_=1.e-3;          	///< energy threshold for the MP1 residual
+        	Parameter<double> dconv_=sqrt(1.e-3)*0.1;	///< density threshold for the MP1 residual
+        	Parameter<int> i=-1; 						///< electron 1, used only if a specific pair is requested
+        	Parameter<int> j=-1;						///< electron 2, used only if a specific pair is requested
+        	Parameter<std::vector<int> > pair=std::vector<int>{-1,-1};
 
         	/// number of frozen orbitals; note the difference to the "pair" keyword where you
         	/// request a specific orbital. Here you freeze lowest orbitals, i.e. if you find
         	///  freeze 1
         	/// in the input file the 0th orbital is kept frozen, and orbital 1 is the first to
         	/// be correlated.
-        	int freeze;
+        	Parameter<int> freeze=0;
 
         	/// the restart flag initiates the loading of the pair functions
 
@@ -371,46 +381,72 @@ namespace madness {
         	///  pair_ij.00000
         	/// where ij is to be replaced by the values of i and j.
         	/// These files contain the restart information for each pair.
-        	bool restart;
+        	Parameter<bool> restart=false;
 
         	/// maximum number of subspace vectors in KAIN
-        	int maxsub;
+        	Parameter<int> maxsub=2;
 
         	/// maximum number of microiterations
-        	int maxiter;
+        	Parameter<int> maxiter=5;
 
-        	/// ctor reading out the input file
-        	Parameters(const std::string& input) : thresh_(-1.0), econv_(-1.0),
-        	        dconv_(-1.0), i(-1), j(-1), freeze(0), restart(false),
-        	        maxsub(2), maxiter(20) {
+        	void print() const override {
+        		madness::print("      MP2 info ");
+        		print_twocolumn_centered("thresh",thresh_,"thraasd asdf");
+        		print_twocolumn_centered("econv",econv_);
+        		print_twocolumn_centered("dconv",dconv_);
+        		print_twocolumn_centered("freeze",freeze);
+        		print_twocolumn_centered("pair",pair);
+        		print_twocolumn_centered("restart",restart);
+        		print_twocolumn_centered("maxsub",maxsub);
+        		print_twocolumn_centered("maxiter",maxiter);
 
-        		// get the parameters from the input file
-                std::ifstream f(input.c_str());
-                position_stream(f, "mp2");
-                std::string s;
+        	}
 
-                while (f >> s) {
-                    if (s == "end") break;
-                    else if (s == "thresh") f >> thresh_;
-                    else if (s == "econv") f >> econv_;
-                    else if (s == "dconv") f >> dconv_;
-                    else if (s == "pair") f >> i >> j;
-                    else if (s == "maxsub") f >> maxsub;
-                    else if (s == "freeze") f >> freeze;
-                    else if (s == "restart") restart=true;
-                    else continue;
-                }
-                // set default for dconv if not explicitly given
-                if (dconv_<0.0) dconv_=sqrt(econv_)*0.1;
-                if (thresh_<0.0) thresh_=econv_;
+        	template <typename Archive>
+        	void serialize(Archive& ar) {
+        		ar & thresh_ & econv_ & dconv_ & freeze & i & j & restart & maxsub & maxiter;
+        	};
+
+        	void read(const std::string input, const std::string tag) override {
+
+        		std::ifstream f(input.c_str());
+
+				position_stream(f, tag);
+				std::string line, word;
+
+				// read input lines
+				while (std::getline(f,line)) {
+
+					std::stringstream sline(line);
+					sline >> word;
+
+					// skip comment line
+					if (word.front()=='#') continue;
+					if (word=="thresh") sline>>thresh_;
+					else if (word=="econv")  sline>>econv_;
+					else if (word=="dconv")  sline>>dconv_;
+					else if (word=="pair")   sline>>pair ;
+					else if (word=="maxsub") sline>>maxsub;
+					else if (word=="freeze") sline>>freeze;
+					else if (word=="restart") sline>>restart;
+					else if (word=="end") break;
+					else {
+						madness::print("ignoring unknown input parameter",word);
+					}
+
+				}
+
+				// set derived values (will *not* override user-set values)
+                dconv_.set_derived_value(sqrt(econv_.get())*0.1);
+                thresh_.set_derived_value(econv_.get());
         	}
 
             /// check the user input
         	void check_input(const std::shared_ptr<HartreeFock> hf) const {
-                if (freeze>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
-                if (i>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
-                if (j>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
-                if (thresh_<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
+                if (freeze()>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
+                if (i()>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
+                if (j()>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
+                if (thresh_()<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
         	}
 
         };
