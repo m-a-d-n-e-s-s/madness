@@ -140,7 +140,7 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     double hi = log(expntmax);
     double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
     T coeff = pow(2.0*expnt/PI,0.25*NDIM);
-    //print("RandomGaussian: origin", origin, "expnt", expnt, "coeff", coeff);
+    print("RandomGaussian: origin", origin, "expnt", expnt, "coeff", coeff);
     return new Gaussian<T,NDIM>(origin,expnt,coeff);
 }
 
@@ -710,6 +710,19 @@ template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<6u
 // template class VectorNormTree<6ul>;
 
 template <typename T, std::size_t NDIM>
+Function<T,NDIM> dumbx(World& world, const Function<T,NDIM>& f, const Function<T,NDIM>& phi, const SeparatedConvolution<double,3>& op) {
+
+  return f*op((f*phi).truncate());
+  // auto fphi = (f*phi).truncate();
+  // auto opfphi = op(fphi);
+  // auto r = f*opfphi;
+
+  // print("dumb", fphi.norm2(), opfphi.norm2(), r.norm2());
+  //return r;
+
+}
+
+template <typename T, std::size_t NDIM>
 int test_K(World& world) {
     if (world.rank() == 0) {
         print("\nTest exchange - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
@@ -717,26 +730,108 @@ int test_K(World& world) {
 
     bool ok=true;
 
-    const double thresh=1.e-4;
-    FunctionDefaults<NDIM>::set_k(6);
+    // const double thresh=1.e-4;
+    // FunctionDefaults<NDIM>::set_k(6);
+    const double thresh=1.e-6;
+    FunctionDefaults<NDIM>::set_k(8);
     FunctionDefaults<NDIM>::set_thresh(thresh);
     FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_autorefine(false);
     FunctionDefaults<NDIM>::set_initial_level(2);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
-    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
+    FunctionDefaults<NDIM>::set_cubic_cell(-5,5);
     {
+      /**
+
+       Want to apply exchange operator to phi
+
+       (K phi)(x) = sum(mu) f_mu(x) (G * (f_mu.phi))(x)
+
+
+       (K_mu phi)(x) = f_mu(x) (G * (f_mu.phi))(x)
+
+       **/
+      
       typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
-      const int nvfunc = 2;
-      std::vector< Function<T,NDIM> > vin(nvfunc);
+      const int nvfunc = 200;
+      std::vector< Function<T,NDIM> > f(nvfunc);
       for (int i=0; i<nvfunc; ++i) {
-	functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
-	vin[i] = FunctionFactory<T,NDIM>(world).functor(f2);
+	    print("     ", i);
+	    functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),10.0));
+	    f[i] = FunctionFactory<T,NDIM>(world).functor(f2);
       }
+      print("generating phi");
+      functorT f3(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),10.0));
+      real_function_3d phi = FunctionFactory<T,NDIM>(world).functor(f3);
+
+      truncate(world, f);
+      phi.truncate();
+
+      //f.push_back(copy(phi));
       
       //reconstruct
-      norm_tree(world, vin);
-      auto vtree = Function<T,NDIM>::make_vec_norm_tree(vin);
-      vtree->print();
+      phi.reconstruct();
+      reconstruct(world, f);
+      norm_tree(world, f);
+      auto vtree = Function<T,NDIM>::make_vec_norm_tree(f);
+      //vtree->print();
+
+      //auto fphi = mul_sparse(world, phi, f, thresh); // may need a different tolerance
+
+      auto fphi = mul(world, phi, f); //<<<<<<<<<<<<
+
+      //std::vector< Function<T,NDIM> > fphi;      
+      //for (int i=0; i<nvfunc; i++) {
+	 //   fphi.push_back((f[i]*phi).truncate());
+	 //   print("notdumba", i, fphi[i].norm2());
+      //}
+
+
+      truncate(world, fphi, thresh);
+
+      START_TIMER;
+
+      nonstandard(world, fphi);
+
+      SeparatedConvolution<double,3> op = CoulombOperator(world, 1e-5, thresh);
+
+      std::vector< Function<T,NDIM> > result(fphi.size());
+      for (unsigned int i=0; i<fphi.size(); ++i) {
+	print("     ", i);
+	    result[i] = apply_exchange_only(op, fphi[i], vtree, i, true);
+	    //result[i] = apply_only(op, fphi[i], true);
+      }
+      world.gop.fence();
+
+      //standard(world, result);
+      standard(world, fphi);
+
+      reconstruct(world, result);
+
+      result = mul(world, f, result); // needs sparse version
+
+      END_TIMER("NEW");
+
+      {
+	START_TIMER;
+	auto opfphi = apply(world, op, fphi);
+	mul(world, f, opfphi);
+	END_TIMER("OLD");
+      }
+
+
+      //for (unsigned int i=0; i<fphi.size(); ++i) {
+	 //   auto q = f[i]*result[i];
+	 //   print("notdumbb", result[i].norm2(), q.norm2());
+	 //   result[i] = q;
+      //}
+
+      for (size_t i=0; i<f.size(); i++) {
+	    print("     ", i);
+	    auto r0 = dumbx(world, f[i], phi, op);
+	    print("<f0|f0>", f[i].inner(f[i]), "<f0|phi>", f[i].inner(phi), "<phi|phi>", phi.inner(phi), "<r0|r0>", r0.inner(r0), result[i].inner(result[i]));
+	    print("the error is ", (r0-result[i]).norm2());
+      }
     }
     return ok;
 }

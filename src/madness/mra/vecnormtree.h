@@ -47,6 +47,7 @@
 
 namespace madness {
 
+  /// Constructs and holds an estimate of the norm of each function in the 27 boxes usually touched by an integral operator.  This is to support exchange.
   template <std::size_t NDIM>
     class VectorNormTree : public WorldObject<VectorNormTree<NDIM>> {
     //static_assert(NDIM==3);
@@ -71,10 +72,12 @@ namespace madness {
 
     const size_t nfunc;
 
+    // Given neighbor i,j,k in -1,0,1 returns index of box [0,26]
     static constexpr int index(int i, int j, int k) {
       return (i+1)*9 + (j+1)*3 + (k+1);
     }
 
+    // Given offset of child in parent and index of child neighbor (i in -1,0,1) returns index of containing neighbor of parent
     static int child_to_parent(int offset, int i) {
       int sum = i + offset;
       if (sum==0 || sum==1) return 0;
@@ -82,8 +85,9 @@ namespace madness {
       else return -1;
     }
 
-    const int MIDDLE = index(0,0,0);
+    const int MIDDLE = index(0,0,0); // index of center box
 
+    // Make list of keys in container so that we can iterate while mutating the container
     std::vector<keyT> make_key_list() const {
       std::vector<keyT> r;
       r.reserve(values.size());
@@ -91,6 +95,23 @@ namespace madness {
       return r;
     }
 	
+    // Child invokes this method in parent to inform it of birth
+    void you_have_a_child(const keyT& key) {
+      typename dcT::accessor acc;
+      bool newnode = values.insert(acc,key);
+      //MADNESS_ASSERT(!newnode);
+      if(newnode){
+           for(auto& vi : acc->second.v) {
+               vi.resize(nfunc);
+               for(auto& x : vi) x = -1.0; // -ve value so can identify missing data
+           }
+           auto pkey = acc->first.parent();
+           this->send(values.owner(pkey), &VectorNormTree<NDIM>::you_have_a_child, pkey); 
+      }
+      acc->second.has_children = true;  // maybe not all children exist
+    }
+
+    // Invoked by putv to set value from neighbor specified by index ... question about what we do with has_children
     void setv(const keyT& key, int index, const std::vector<normT>& norms, bool has_children) {
       MADNESS_ASSERT(index>=0 && index<int(NVEC));
       typename dcT::accessor acc;
@@ -100,96 +121,34 @@ namespace madness {
 	  vi.resize(nfunc);
 	  for (auto& x : vi) x = -1.0; // -ve value so can identify missing data
 	}
-	acc->second.has_children = has_children; 
+	acc->second.has_children = false;
+     auto pkey = acc->first.parent();
+     this->send(values.owner(pkey), &VectorNormTree<NDIM>::you_have_a_child, pkey); 
       }
+      //auto n = key.level();
+      //auto l = key.translation();
+      //if (n==1 && l[0]==1 && l[1]==0 && l[2]==1) ::madness::print("in setv: ", key, index, norms);
+
       acc->second.v[index] = norms;
     }
 
-    void you_have_a_child(const keyT& key) {
-      typename dcT::accessor acc;
-      bool newnode = values.insert(acc,key);
-      MADNESS_ASSERT(!newnode);
-      acc->second.has_children = true;  // maybe not all children exist
-    }
-
+    // Ensures connection to parent exists for all boxes
     void connect_to_parent() {
       for (auto& it : values) {
 	const bool has_children = it.second.has_children;	
-	if (!has_children) {
 	  const auto& key = it.first;
+	  if (!has_children){
+       //if(key.level() > 0){
 	  auto parent = key.parent();
 	  this->send(values.owner(parent), &VectorNormTree<NDIM>::you_have_a_child, parent);
-	}
-      }
-      World& world = this->get_world();
-      world.gop.fence();
-    }
-
-  public:
-  
-    VectorNormTree(World& world, 
-		   std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > > pmap,
-		   size_t nfunc) 
-      : WorldObject<VectorNormTree<NDIM>>(world)
-      , values(world, pmap)
-      , nfunc(nfunc)
-    {this->process_pending();}
-
-    void set(size_t i, const keyT& key, double norm, bool has_children) {
-      typename dcT::accessor acc;
-      bool newnode = values.insert(acc,key);
-      if (newnode) {
-	for (auto& vi : acc->second.v)  {
-	  vi.resize(nfunc);
-	  for (auto& x : vi) x = -1.0; // -ve value so can identify missing data
-	}
-      }
-      MADNESS_ASSERT(i<nfunc);
-      acc->second.v[MIDDLE][i] = norm;
-      acc->second.has_children = (acc->second.has_children || has_children);
-    }
-
-    void putv() {
-      World& world = this->get_world();
-      world.gop.fence();
-      auto keys = make_key_list();
-      world.gop.fence();
-
-      for (auto& key : keys) {
-	typename dcT::accessor acc;
-	bool newnode = values.insert(acc,key);
-	MADNESS_ASSERT(!newnode);
-
-	const auto& lold = key.translation();
-	Level n = key.level();
-	Translation maxl = Translation(1)<<n;
-	for (int i=-1; i<=1; i++) {
-	  for (int j=-1; j<=1; j++) {
-	    for (int k=-1; k<=1; k++) {
-	      if (i || j || k) {
-		auto l = lold;
-		l[0] += i; if (l[0]<0 || l[0] >= maxl) break;
-		l[1] += j; if (l[1]<0 || l[1] >= maxl) break;
-		l[2] += k; if (l[2]<0 || l[2] >= maxl) break;
-		keyT neigh(n,l);
-		const auto& norms = acc->second.v[MIDDLE];
-		const bool has_children = acc->second.has_children;
-		this->send(values.owner(neigh), &VectorNormTree<NDIM>::setv, neigh, index(-i, -j, -k), norms, has_children);
-	      }
-	    }
 	  }
-	}
       }
-      world.gop.fence();
-      connect_to_parent();
-
-      keyT root(0);
-      if (world.rank() == values.owner(root)) {
-	this->send(values.owner(root), &VectorNormTree<NDIM>::walk_down, root, valueT());
-      }
+      World& world = this->get_world();
       world.gop.fence();
     }
 
+    // Call by putv to propagte data down the tree --- tell children what knowledge parent has about their neighbors
+    // pvalue is data from parent
     void walk_down(const keyT& key, const valueT& pvalue) {
       typename dcT::accessor acc;
       bool newnode = values.insert(acc,key);
@@ -202,19 +161,29 @@ namespace madness {
 	value.has_children = false;
       }
 
+
       if (key.level() > 0) {
 	const auto& l = key.translation();
 	const auto& p = key.parent().translation();
-	int offi = 2*p[0]-l[0];
-	int offj = 2*p[1]-l[1];
-	int offk = 2*p[2]-l[2];
+	Level n = key.level();
+	Translation maxl = Translation(1)<<n;
+	int offi = l[0]-2*p[0]; // 0 or 1 for left or right
+	int offj = l[1]-2*p[1];
+	int offk = l[2]-2*p[2];
 	
 	for (int i=-1; i<=1; i++) {
 	  for (int j=-1; j<=1; j++) {
 	    for (int k=-1; k<=1; k++) {
 	      int index = this->index(i,j,k);
 	      for (size_t f=0; f<nfunc; f++) {
-		if (value.v[index][f] == -1.0) {
+		if (value.v[index][f] == -1.0) { // if data in me has not been set
+
+            //ignore this section if the data we're missing is in a boundary box
+		  if (l[0]+i<0 || l[0]+i >= maxl) continue;
+		  if (l[1]+j<0 || l[1]+j >= maxl) continue;
+		  if (l[2]+k<0 || l[2]+k >= maxl) continue;
+
+
 		  int pi = child_to_parent(offi, i);
 		  int pj = child_to_parent(offj, j);
 		  int pk = child_to_parent(offk, k);
@@ -236,21 +205,133 @@ namespace madness {
 
     }
 
+
+  public:
+
+    VectorNormTree() = delete;
+  
+    VectorNormTree(World& world, 
+		   std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > > pmap,
+		   size_t nfunc) 
+      : WorldObject<VectorNormTree<NDIM>>(world)
+      , values(world, pmap)
+      , nfunc(nfunc)
+    {this->process_pending();}
+
+    // Invoked by method in func impl to initially insert norms of middle box (0,0,0) for each function as computed by norm_tree
+    void set(size_t i, const keyT& key, double norm, bool has_children) {
+      typename dcT::accessor acc;
+      bool newnode = values.insert(acc,key);
+      if (newnode) {
+	for (auto& vi : acc->second.v)  {
+	  vi.resize(nfunc);
+	  for (auto& x : vi) x = -1.0; // -ve value so can identify missing data
+	}
+      }
+      MADNESS_ASSERT(i<nfunc);
+      acc->second.v[MIDDLE][i] = norm;
+      acc->second.has_children = (acc->second.has_children || has_children);
+    }
+
+    void putv() {
+      World& world = this->get_world();
+      world.gop.fence(); // required unless fence in funcinp::make_vec_norm_tree
+      auto keys = make_key_list();
+      world.gop.fence();
+
+      // Communicate values to neighbors
+      for (const auto& key : keys) {
+	typename dcT::accessor acc;
+	bool newnode = values.insert(acc,key);
+	MADNESS_ASSERT(!newnode);
+
+	Level n = key.level();
+	Translation maxl = Translation(1)<<n;
+	const auto& lold = key.translation();
+	for (int i=-1; i<=1; i++) {
+	  for (int j=-1; j<=1; j++) {
+	    for (int k=-1; k<=1; k++) {
+	      if (i || j || k) {
+		auto l = lold;
+		l[0] += i; if (l[0]<0 || l[0] >= maxl) continue;
+		l[1] += j; if (l[1]<0 || l[1] >= maxl) continue;
+		l[2] += k; if (l[2]<0 || l[2] >= maxl) continue;
+		keyT neigh(n,l);
+		const auto& norms = acc->second.v[MIDDLE];
+		const bool has_children = acc->second.has_children;
+		this->send(values.owner(neigh), &VectorNormTree<NDIM>::setv, neigh, index(-i, -j, -k), norms, has_children);
+	      }
+	    }
+	  }
+	}
+      }
+      world.gop.fence();
+      //connect_to_parent();
+
+      // ::madness::print("BEFORE WALKDOWN");
+
+      // for (int i=-1; i<=1; i++) {
+      // 	for (int j=-1; j<=1; j++) {
+      // 	  for (int k=-1; k<=1; k++) {
+      // 	    ::madness::print(i,j,k,index(i,j,k));
+      // 	  }
+      // 	}
+      // }
+
+      // print();
+      // ::madness::print("END OF BEFORE WALKDOWN");
+
+      // Propagate values down the tree to fill in gaps where possible
+      keyT root(0);
+      if (world.rank() == values.owner(root)) {
+	this->send(values.owner(root), &VectorNormTree<NDIM>::walk_down, root, valueT());
+      }
+      world.gop.fence();
+
+      // Verify
+      for (auto& it : values) {
+	const auto& key = it.first;
+	const auto& value = it.second;
+	const auto& lold = key.translation();
+	Level n = key.level();
+	Translation maxl = Translation(1)<<n;
+	for (int i=-1; i<=1; i++) {
+	  for (int j=-1; j<=1; j++) {
+	    for (int k=-1; k<=1; k++) {
+	      auto l = lold;
+	      l[0] += i; if (l[0]<0 || l[0] >= maxl) continue;
+	      l[1] += j; if (l[1]<0 || l[1] >= maxl) continue;
+	      l[2] += k; if (l[2]<0 || l[2] >= maxl) continue;
+	      auto index = this->index(i,j,k);
+	      for (auto f : value.v[index]) {
+		if (f == -1.0) ::madness::print("missing? ", key, i, j, k);
+	      }
+	    }
+	  }
+	}
+      }
+      world.gop.fence();
+    }
+
     void print() const {
       for (auto& it : values) {
 	const auto& key = it.first;
 	const valueT& value = it.second;
-	std::cout << key << " : " << value.has_children << std::endl;
+	std::cout << "\n" << key << " : " << value.has_children << std::endl;
 	for (size_t i=0; i<nfunc; i++) {
 	  std::cout << "    " << i << " : ";
 	  for (size_t neigh=0; neigh<NVEC; neigh++) {
 	    MADNESS_ASSERT(value.v[neigh].size() == nfunc);
+         if(neigh % 3 == 0) std::cout << std::endl;
 	    std::cout << value.v[neigh][i] << " ";
 	  }
 	  std::cout << std::endl;
 	}  
       }
     }
+
+    template <typename Archive> void serialize(Archive& ar) {throw "cannot serialize vtree";}
+
 
   };
 }

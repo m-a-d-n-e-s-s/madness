@@ -4372,12 +4372,81 @@ namespace madness {
                     double opnorm = op->norm(key.level(), *it, source);
                     double tol = truncate_tol(thresh, key);
 
+
                     if (cnorm*opnorm> tol/fac) {
 		        ndone++;
+			//print(key, d.translation(), cnorm, opnorm, tol/fac);
 		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
 			if (result.normf() > 0.3*tol/fac) {
 			      // Switched back to send in order to get rid of a zillion small tasks and to preserve
 			      // direct call optimization.  Also reduces remote memory foot print.
+			      coeffs.send(dest, &nodeT::accumulate2, result, coeffs, dest);
+                        }
+                    }
+                }
+            }
+        }
+
+
+      template <typename opT, typename R>
+      void do_apply_exchange(const opT* op, const keyT& key, const Tensor<R>& c, const std::shared_ptr<VectorNormTree<NDIM>> vtree, int i) {
+  	  if (NDIM != 3) throw "IIIIIIIIIIII";
+	  // rationale below same as above do_apply exchange now have info about function that is being exchanged with
+	  // in f(x).G(f.phi)(x) we are applying G using screening made possible by knowledge we will multiply by f
+	  // i --- f is the i'th function in the list of functions
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            typedef typename opT::keyT opkeyT;
+            const opkeyT source=op->get_source_key(key);
+
+            const double radius = 1.5 + 0.33*std::max(0.0,2-std::log10(thresh)-k); // 0.33 was 0.5
+            const double fac = vol_nsphere(NDIM, radius);
+
+            const double cnorm = c.normf();
+
+            const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in orer of increasing distance
+            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+	    int ndone=1;	// Counts #done at each distance
+	    uint64_t distsq = 99999999999999; 
+            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
+	        const keyT& d = *it;
+
+		uint64_t dsq = d.distsq();
+		if (dsq != distsq) { // Moved to next shell of neighbors
+		    if (ndone == 0 && dsq > 1) {
+		        // Have at least done the input box and all first
+		        // nearest neighbors, and for all of the last set
+		        // of neighbors had no contribution.  Thus,
+		        // assuming monotonic decrease, we are done.
+		        break;
+		    }
+		    ndone = 0;
+		    distsq = dsq;
+		} 
+
+                keyT dest = neighbor(key, d, is_periodic);
+
+		
+                if (dest.is_valid()) {
+                    double opnorm = op->norm(key.level(), *it, source);
+                    double tol = truncate_tol(thresh, key);
+		    double fnorm = 1.0; // will hold norm of function f in destination box
+		    if (dsq <= 3) { // 1 is current max displacement for info about f
+		      if (!vtree->values.is_local(key)) throw "sfdjlksajflkjsalkfjsalkfjsalkfsa";
+		      auto it = vtree->values.find(key).get();
+		      auto& l = d.translation();
+		      int indx = vtree->index(l[0],l[1],l[2]);
+		      if (it != vtree->values.end()) fnorm = it->second.v[indx][i];
+		    }
+		    else {
+		      //::madness::print("FYI disp", d);
+		    }
+
+                    if (cnorm*opnorm> tol/fac/fnorm) {
+		      ndone++;
+		      //print(key, d.translation(), cnorm, opnorm, fnorm, tol/fac);
+		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
+			if (result.normf() > 0.3*tol/fac) {
 			      coeffs.send(dest, &nodeT::accumulate2, result, coeffs, dest);
                         }
                     }
@@ -4411,6 +4480,31 @@ namespace madness {
             this->nonstandard=true;
             this->redundant=false;
 
+        }
+
+        template <typename opT, typename R>
+	  void apply_exchange(opT& op, const FunctionImpl<R,NDIM>& f, std::shared_ptr<VectorNormTree<NDIM>> vtree, int i, bool fence) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            MADNESS_ASSERT(!op.modified());
+            typename dcT::const_iterator end = f.coeffs.end();
+            for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
+                // looping through all the coefficients in the source
+                const keyT& key = it->first;
+                const FunctionNode<R,NDIM>& node = it->second;
+                if (node.has_coeff()) {
+                    if (node.coeff().dim(0) != k || op.doleaves) {
+		      auto fn = &implT:: template do_apply_exchange<opT,R>;
+		      world.taskq.add(*this, fn, &op, key, node.coeff(), vtree, i);
+		      //do_apply_exchange<opT,R>(&op,key,node.coeff(),vtree,i);
+                    }
+                }
+            }
+            if (fence)
+                world.gop.fence();
+
+            this->compressed=true;
+            this->nonstandard=true;
+            this->redundant=false;
         }
 
 

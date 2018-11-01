@@ -2000,6 +2000,18 @@ namespace madness {
 		return result;
     }
 
+    /// Apply exchange interal operator ONLY in non-standard form - required other steps missing !!
+    template <typename opT, typename R, std::size_t NDIM>
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
+    apply_exchange_only(const opT& op, const Function<R,NDIM>& f, std::shared_ptr<VectorNormTree<NDIM>> vtree, int i, bool fence=true) {
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
+
+        if (NDIM != 3) throw "!!!!!!!!!!!!!!!!!!!!";
+
+	result.set_impl(f, false);
+	result.get_impl()->apply_exchange(op, *f.get_impl(), vtree, i, fence);
+        return result;
+    }
 
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, std::size_t NDIM>
