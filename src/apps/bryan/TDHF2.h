@@ -125,11 +125,13 @@ public:
 /// in the Tamm-Danchoff approximation.
 class TDHF 
 {
-   private:
-      // Member variables
+   public:
 
       // ResponseParameter object to hold all user input variables
       ResponseParameters Rparams;
+
+   private:
+      // Member variables
 
       // GroundParameter object to hold all variables needed from
       // ground state calculation. Read from an archive
@@ -209,9 +211,9 @@ class TDHF
                                                int m,
                                                int n);
 
-      // Returns a list of symmetry related functions for correct
-      // pointgroup of the provided molecule
-      std::vector<real_function_3d> symmetry(World & world);
+      // Returns a list of solid harmonics 
+      std::map<std::vector<int>, real_function_3d> solid_harmonics(World & world,
+                                                                   int n);
 
       // Returns initial response functions
       ResponseFunction create_trial_functions(World & world,
@@ -219,11 +221,10 @@ class TDHF
                                               std::vector<real_function_3d> & orbitals,
                                               int print_level);
 
-      // Returns initial response functions
-      std::vector<real_function_3d> CIS_create_trial_functions(World & world,
-                                                               int k,
-                                                               std::vector<real_function_3d> & orbitals,
-                                                               int print_level);
+      // Returns dipole operator * molecular orbitals 
+      ResponseFunction dipole_guess(World &world,
+                                    std::vector<real_function_3d> orbitals,
+                                    unsigned int axis);
 
       // Returns the derivative of the coulomb operator, applied to ground state orbitals
       ResponseFunction create_coulomb_derivative(World & world,
@@ -362,6 +363,10 @@ class TDHF
       // response functions only
       ResponseFunction gram_schmidt(World & world,
                                     ResponseFunction & f);
+
+      void gram_schmidt(World & world,
+                        ResponseFunction & f,
+                        ResponseFunction & g);
 
       // Returns the max norm of the given vector of functions
       double calculate_max_residual(World & world,
@@ -527,10 +532,10 @@ class TDHF
                                                       Tensor<double>& evals,
                                                       const double thresh); 
 
-      // Sorts the given Tensor and vector of functions in place
-      Tensor<int> sort(World & world,
-                       Tensor<double> & vals,
-                       Tensor<double> & vecs);
+      // Sorts the given Tensor and response functions in place
+      void sort(World & world,
+                Tensor<double> & vals,
+                ResponseFunction & f); 
 
       // Creates the XCOperator object and initializes it with correct parameters
       XCOperator create_xcoperator(World& world,
@@ -567,7 +572,8 @@ class TDHF
 
       // Adds random noise to function f
       ResponseFunction add_randomness(World & world,
-                                      ResponseFunction & f);
+                                      ResponseFunction & f,
+                                      double magnitude);
 
       // Creates the transition density
       std::vector<real_function_3d> transition_density(World & world,
@@ -618,9 +624,21 @@ class TDHF
                                  ResponsePotential& potentials,
                                  int print_level);
 
-      // Solves the response equations
+      // Solves the response equations for response states
       void solve(World & world);
 
+      // Iterates the response functions until converged or out of iterations
+      void iterate_polarizability(World & world,
+                                  ResponseFunction &dipoles);
+
+      // Calculates polarizability according to
+      // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> + <psi_mj(1)(-\omega)|r_i|psi_m(0)>
+      void polarizability(World& world,
+                          Tensor<double> polar,
+                          int axis);
+
+      // Solves the response equations for the polarizability 
+      void solve_polarizability(World & world);
 };
 
 #endif

@@ -42,8 +42,20 @@ int main(int argc, char** argv)
    // Create the TDHF object
    TDHF my_calc(world, input);       
                
-   // Have it iterate to convergence
-   my_calc.solve(world);
+   // Check if calculating a property
+   if(my_calc.Rparams.property)
+   {
+      // Which property?
+      if(my_calc.Rparams.polarizability) my_calc.solve_polarizability(world);
+  
+      // Future properties go here
+      //
+   }
+   // If not a property, just calculate response states
+   else 
+   {
+      my_calc.solve(world);
+   }
 
    world.gop.fence();
    finalize();

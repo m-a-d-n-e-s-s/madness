@@ -54,10 +54,10 @@ class ResponseFunction {
       ResponseFunction operator+(ResponseFunction& b) {
          MADNESS_ASSERT(same_size(b));
 
-         ResponseFunction result(b.x[0][0].world(), r_states, g_states);
+         ResponseFunction result(x[0][0].world(), r_states, g_states);
 
          for(unsigned int i = 0; i < r_states; i++) {
-            result[i] = add(b.x[0][0].world(), x[i], b[i]); 
+            result[i] = add(x[0][0].world(), x[i], b[i]); 
          }
 
          result[0][0].world().gop.fence();
@@ -67,10 +67,10 @@ class ResponseFunction {
       ResponseFunction operator-(const ResponseFunction& b) const {
          MADNESS_ASSERT(same_size(b));
 
-         ResponseFunction result(b.x[0][0].world(), r_states, g_states);
+         ResponseFunction result(x[0][0].world(), r_states, g_states);
 
          for(unsigned int i = 0; i < r_states; i++) {
-            result.x[i] = sub(b.x[0][0].world(), x[i], b.x[i]); 
+            result.x[i] = sub(x[0][0].world(), x[i], b.x[i]); 
          }
 
          return result; 
@@ -158,7 +158,7 @@ class ResponseFunction {
          return r_states;
       }      
 
-      // Mimicing tandard madness calls with these 3
+      // Mimicing standard madness calls with these 3
       void zero() { 
          for(unsigned int k = 0; k < r_states; k++) {
             x[k] = zero_functions<double,3>(x[0][0].world(), g_states); 
@@ -174,6 +174,12 @@ class ResponseFunction {
       void reconstruct_rf() {
          for(unsigned int k = 0; k < r_states; k++) {
             reconstruct(x[0][0].world(), x[k], true);
+         }
+      }
+
+      void truncate_rf() {
+         for(unsigned int k = 0; k < r_states; k++) {
+            truncate(x[0][0].world(), x[k], true);
          }
       }
 };

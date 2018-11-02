@@ -53,6 +53,11 @@ namespace madness
       bool save;                         ///< Controls if orbitals will be saved each iteration
       int guess_max_iter;                ///< Maximum number of iterations for guess functions
 
+      // Start of properties
+      bool property;                     ///< Flag that this is a properties calculation
+      bool polarizability;               ///< Flag to indicate desired property is the polarizability
+      double omega;                      ///< Incident energy for polarizability
+
 // TESTING
 bool old;
 // END TESTING
@@ -92,6 +97,9 @@ bool old;
             & xc
             & save
             & guess_max_iter
+            & property
+            & polarizability
+            & omega
             & old;
       }
 
@@ -120,10 +128,13 @@ bool old;
       , restart(false)
       , restart_file("")
       , kain(false)
-      , kain_size(0)
+      , kain_size(3)
       , xc("hf")
       , save(false)
       , guess_max_iter(5)
+      , property(false)
+      , polarizability(false)
+      , omega(0.0)
       , old(true)
       {}
 
@@ -273,6 +284,9 @@ bool old;
             else if (s == "kain")
             {
                kain = true;
+            }
+            else if (s == "kain_size")
+            {
                f >> kain_size;
             }
             else if (s == "save")
@@ -282,6 +296,12 @@ bool old;
             else if (s == "guess_iter")
             {
                f >> guess_max_iter;
+            }
+            else if (s == "polarizability")
+            {
+               property = true;
+               polarizability = true;
+               f >> omega;
             }
             else if (s == "new") // Use potential manager, for debugging. Remove after it works
             {
@@ -304,31 +324,36 @@ bool old;
          madness::print("            Ground State File:", archive);
          if(nwchem != "") madness::print("                  NWChem File:", nwchem);
          if(restart) madness::print("                 Restart File:", restart_file);
-         madness::print("             States Requested:", states);
-         madness::print("            TDA Approximation:", tda);
+         if(!property) madness::print("             States Requested:", states);
+         if(!property) madness::print("            TDA Approximation:", tda);
          madness::print("           Localized Orbitals:", localized);
-         if(e_window) madness::print("                Energy Window:", e_window, " (Not yet implemented)");
-         if(e_window) madness::print("           Energy Range Start:", range_low);
-         if(e_window) madness::print("             Energy Range End:", range_high);
+         if(e_window and !property) madness::print("                Energy Window:", e_window, " (Not yet implemented)");
+         if(e_window and !property) madness::print("           Energy Range Start:", range_low);
+         if(e_window and !property) madness::print("             Energy Range End:", range_high);
          if(k>0) madness::print("                            k:", k);
-         madness::print("     Use Random Initial Guess:", random);
+         if(!property and random) madness::print("                Initial Guess: Random");
+         if(!property and !random and nwchem == "") madness::print("                Initial Guess: Solid Harmonics * MOs");
          madness::print("              Store Potential:", store_potential);
          madness::print("         Max Guess Iterations:", guess_max_iter);
          madness::print("               Max Iterations:", max_iter);
-         madness::print("   Larger Subspace Iterations:", larger_subspace);
+         if(!property) madness::print("   Larger Subspace Iterations:", larger_subspace);
          madness::print("                     Use KAIN:", kain);
-         if(kain) madness::print("          Size of KAIN memory:", kain_size);
+         if(kain) madness::print("           KAIN Subspace Size:", kain_size);
          madness::print("                Save orbitals:", save);
          if(dconv != 0.0) madness::print("Density Convergence Threshold:", dconv);
-         madness::print("                     Protocol:", protocol_data);
-         if(plot_initial) madness::print("        Plot Initial Orbitals:", plot_initial);
-         if(plot) madness::print("          Plot Final Orbitals:", plot);
-         if(plot and plot_pts != 201) madness::print("          Plot Num. of Points:", plot_pts);
-         if(plot and plot_L > 0.0) madness::print("                Plot Box Size:", plot_L);
-         if(plot and plot_range) madness::print("                   Plot Start:", plot_data[0]);
-         if(plot and plot_range) madness::print("                     Plot End:", plot_data.back());
-         if(plot and not plot_range) madness::print("       Orbitals to be Plotted:", plot_data);
+         if(!property) madness::print("                     Protocol:", protocol_data);
+         if(plot_initial and !property) madness::print("        Plot Initial Orbitals:", plot_initial);
+         if(plot and !property) madness::print("          Plot Final Orbitals:", plot);
+         if(plot and plot_pts != 201 and !property) madness::print("          Plot Num. of Points:", plot_pts);
+         if(plot and plot_L > 0.0 and !property) madness::print("                Plot Box Size:", plot_L);
+         if(plot and plot_range and !property) madness::print("                   Plot Start:", plot_data[0]);
+         if(plot and plot_range and !property) madness::print("                     Plot End:", plot_data.back());
+         if(plot and not plot_range and !property) madness::print("       Orbitals to be Plotted:", plot_data);
          madness::print("                  Print Level:", print_level);
+      
+         // Start of property printing
+         if(polarizability) madness::print("                     Property: Polarizability");
+         if(polarizability) madness::print("           Incident Frequency: ", omega);
       }
    };
 
