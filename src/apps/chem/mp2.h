@@ -42,13 +42,18 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
-#include <chem/CalculationParametersBase.h>
+#include <chem/CalculationParametersBaseMap.h>
 #include <chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
 #include <chem/projector.h>
 #include <chem/correlationfactor.h>
 #include <chem/electronic_correlation_factor.h>
 #include <chem/nemo.h>
+
+#include <madness/world/text_fstream_archive.h>
+using madness::archive::TextFstreamInputArchive;
+using madness::archive::TextFstreamOutputArchive;
+
 
 #include <iostream>
 
@@ -352,101 +357,64 @@ namespace madness {
     class MP2 : public OptimizationTargetInterface {
 
     	/// POD for MP2 keywords
-        struct Parameters : CalculationParametersBase {
+        struct Parameters : public CalculationParametersBase {
 
-        	/// ctor reading out the input file
-        	Parameters() {
-        		read("input","mp2");
-        		print();
-        	}
-
-
-        	Parameter<double> thresh_=1.e-3;			///< the accuracy threshold
-        	Parameter<double> econv_=1.e-3;          	///< energy threshold for the MP1 residual
-        	Parameter<double> dconv_=sqrt(1.e-3)*0.1;	///< density threshold for the MP1 residual
-        	Parameter<int> i=-1; 						///< electron 1, used only if a specific pair is requested
-        	Parameter<int> j=-1;						///< electron 2, used only if a specific pair is requested
-        	Parameter<std::vector<int> > pair=std::vector<int>{-1,-1};
-
-        	/// number of frozen orbitals; note the difference to the "pair" keyword where you
-        	/// request a specific orbital. Here you freeze lowest orbitals, i.e. if you find
-        	///  freeze 1
-        	/// in the input file the 0th orbital is kept frozen, and orbital 1 is the first to
-        	/// be correlated.
-        	Parameter<int> freeze=0;
-
-        	/// the restart flag initiates the loading of the pair functions
-
-        	/// if this flag is set the program expect for each pair a file named
-        	///  pair_ij.00000
-        	/// where ij is to be replaced by the values of i and j.
-        	/// These files contain the restart information for each pair.
-        	Parameter<bool> restart=false;
-
-        	/// maximum number of subspace vectors in KAIN
-        	Parameter<int> maxsub=2;
-
-        	/// maximum number of microiterations
-        	Parameter<int> maxiter=5;
-
-        	void print() const override {
-        		madness::print("      MP2 info ");
-        		print_twocolumn_centered("thresh",thresh_,"thraasd asdf");
-        		print_twocolumn_centered("econv",econv_);
-        		print_twocolumn_centered("dconv",dconv_);
-        		print_twocolumn_centered("freeze",freeze);
-        		print_twocolumn_centered("pair",pair);
-        		print_twocolumn_centered("restart",restart);
-        		print_twocolumn_centered("maxsub",maxsub);
-        		print_twocolumn_centered("maxiter",maxiter);
-
-        	}
-
-        	template <typename Archive>
-        	void serialize(Archive& ar) {
-        		ar & thresh_ & econv_ & dconv_ & freeze & i & j & restart & maxsub & maxiter;
+        	enum parameterenum {
+        		thresh,		///< thresh
+        		econv, 		///< econv for MP2
+				dconv, 		///< dconv for MP2
+				i,
+				j,
+				pair,
+				freeze,		///< number of frozen orbitals
+				maxsub,		///< maximum number of subspace vectors in KAIN
+				restart,	///< if this flag is set the program expect for each pair a file named
+							///<  pair_ij.00000
+							///< where ij is to be replaced by the values of i and j.
+							///< These files contain the restart information for each pair.
+				maxiter		///< maximum number of microiterations
         	};
 
-        	void read(const std::string input, const std::string tag) override {
+            /// the map with initial values
+            ParameterMap params={
+            		init<double>(thresh,{"thresh",1.e-5}),
+            		init<double>(econv,{"econv",1.e-3}),
+            		init<double>(dconv,{"dconv",1.e-3}),
+            		init<int>(i,{"i",-1}),
+            		init<int>(j,{"j",-1}),
+            		init<std::vector<int> >(pair,{"pair",{-1,-1}}),
+            		init<int>(freeze,{"freeze",0}),
+            		init<int>(maxsub,{"maxsub",2}),
+            		init<bool>(restart,{"restart",0}),
+            		init<int>(maxiter,{"maxiter",5})
+            };
 
-        		std::ifstream f(input.c_str());
+        	/// ctor reading out the input file
+        	Parameters(World& world) {
+        		read(world,"input","mp2",params);
+        		print(params,"mp2");
+        	}
 
-				position_stream(f, tag);
-				std::string line, word;
+        	/// return the value of the parameter
+        	template<typename T>
+        	T get(parameterenum k) const {
+        		if (params.find(int(k))!=params.end()) {
+        			return params.find(int(k))->second.get_parameter<T>().get();
+        		} else {
+        			MADNESS_EXCEPTION("could not fine parameter ",1);
+        		}
+        	}
 
-				// read input lines
-				while (std::getline(f,line)) {
-
-					std::stringstream sline(line);
-					sline >> word;
-
-					// skip comment line
-					if (word.front()=='#') continue;
-					if (word=="thresh") sline>>thresh_;
-					else if (word=="econv")  sline>>econv_;
-					else if (word=="dconv")  sline>>dconv_;
-					else if (word=="pair")   sline>>pair ;
-					else if (word=="maxsub") sline>>maxsub;
-					else if (word=="freeze") sline>>freeze;
-					else if (word=="restart") sline>>restart;
-					else if (word=="end") break;
-					else {
-						madness::print("ignoring unknown input parameter",word);
-					}
-
-				}
-
-				// set derived values (will *not* override user-set values)
-                dconv_.set_derived_value(sqrt(econv_.get())*0.1);
-                thresh_.set_derived_value(econv_.get());
+        	virtual ParameterMap& get_ParameterMap() override {
+        		return params;
         	}
 
             /// check the user input
         	void check_input(const std::shared_ptr<HartreeFock> hf) const {
-                if (freeze()>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
-                if (i()>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
-                if (j()>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
-                if (thresh_()<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
+                if (this->get<int>(freeze)>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
+                if (this->get<int>(i)>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
+                if (this->get<int>(j)>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
+                if (this->get<double>(thresh)<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
         	}
 
         };

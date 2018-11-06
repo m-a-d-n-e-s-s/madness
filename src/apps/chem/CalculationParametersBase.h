@@ -60,7 +60,7 @@ template<typename T>
 struct Parameter {
 
 	/// the constructor takes the default value
-	Parameter(const T d) : value(d), default_value(d) {
+	Parameter(std::string k, const T d) : key(k), value(d), default_value(d) {
 		set_all();
 	}
 
@@ -76,6 +76,7 @@ struct Parameter {
 		set_all();
 	}
 
+	const std::string& get_key() const {return key;}
 	/// return the value of the parameter
 	T get() const {return value;}
 
@@ -85,10 +86,11 @@ struct Parameter {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & value & default_value & user_defined_value & derived_value & null;
+        ar & key & value & default_value & user_defined_value & derived_value & null;
     }
 
 private:
+    const std::string key;		///< the key for the key/value pair
 	T value;					///< the actual value
 	const T default_value;		///< the default value
 	T user_defined_value = T();	///< the value if defined by the user

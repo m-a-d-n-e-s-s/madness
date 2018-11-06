@@ -76,7 +76,7 @@ void load_balance(const real_function_6d& f, const bool leaf) {
 
 /// ctor
 MP2::MP2(World& world, const std::string& input) : world(world),
-		param(), corrfac(world), correlation_energy(0.0),
+		param(world), corrfac(world), correlation_energy(0.0),
 		coords_sum(-1.0), Q12(world), ttt(0.0), sss(0.0) {
 
 	{
@@ -90,8 +90,8 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 		// get parameters form input file for hf
 		if (world.rank() == 0)
 			print("accuracy from dft will be overriden by mp2 to 0.01*thresh");
-		calc->set_protocol<6>(world, param.thresh_.get());
-		calc->param.econv = param.thresh_.get() * 0.01;
+		calc->set_protocol<6>(world, param.get<double>(Parameters::thresh));
+		calc->param.econv = param.get<double>(Parameters::thresh) * 0.01;
 		calc->set_protocol<3>(world, calc->param.econv);
 
 		// override computed parameters if they are provided explicitly
@@ -140,10 +140,10 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 
 	// initialize the electron pairs and store restart info
 	// or load previous restart information
-	for (int i = param.freeze.get(); i < hf->nocc(); ++i) {
+	for (int i = param.get<int>(Parameters::freeze); i < hf->nocc(); ++i) {
 		for (int j = i; j < hf->nocc(); ++j) {
 			pairs.insert(i,j,ElectronPair(i, j));
-			if (param.restart.get())
+			if (param.get<bool>(Parameters::restart))
 				pairs(i, j).load_pair(world);
 		}
 	}
@@ -196,18 +196,19 @@ double MP2::value(const Tensor<double>& x) {
 	if (world.rank()==0) print("localize ",hf->get_calc().param.localize);
 
 	// compute only one single pair
-	if ((param.i.get() > -1) and (param.j.get() > -1)) {
-		throw;
-//		pairs(param.i,param.j)=make_pair(param.i,param.j);	// initialize
-//		solve_residual_equations(pairs(param.i, param.j),param.econv_*0.05,param.dconv_);	// solve
-//		correlation_energy += pairs(param.i, param.j).e_singlet
-//				+ pairs(param.i, param.j).e_triplet;
-//
-//		return correlation_energy;
+	if ((param.get<int>(Parameters::i) > -1) and (param.get<int>(Parameters::j) > -1)) {
+		pairs(param.get<int>(Parameters::i),param.get<int>(Parameters::j))=
+				make_pair(param.get<int>(Parameters::i),param.get<int>(Parameters::j));	// initialize
+		solve_residual_equations(pairs(param.get<int>(Parameters::i), param.get<int>(Parameters::j)),
+				param.get<double>(Parameters::econv)*0.05,param.get<double>(Parameters::dconv));	// solve
+		correlation_energy += pairs(param.get<int>(Parameters::i), param.get<int>(Parameters::j)).e_singlet
+				+ pairs(param.get<int>(Parameters::i), param.get<int>(Parameters::j)).e_triplet;
+
+		return correlation_energy;
 	}
 
 	// DEBUG: INTEGRAL TEST
-	for (int i = param.freeze.get(); i < hf->nocc(); ++i) {
+	for (int i = param.get<int>(Parameters::freeze); i < hf->nocc(); ++i) {
 		for (int j = i; j < hf->nocc(); ++j) {
 			ElectronPair test = make_pair(i,j);
 			if(world.rank()==0){
@@ -220,10 +221,11 @@ double MP2::value(const Tensor<double>& x) {
 	// DEBUG END
 
 	// compute the 0th order term and do some coarse pre-iterations
-	for (int i = param.freeze.get(); i < hf->nocc(); ++i) {
+	for (int i = param.get<int>(Parameters::freeze); i < hf->nocc(); ++i) {
 		for (int j = i; j < hf->nocc(); ++j) {
 			pairs(i,j)=make_pair(i,j);				// initialize
-			solve_residual_equations(pairs(i,j),param.econv_.get()*0.5,param.dconv_.get());
+			solve_residual_equations(pairs(i,j),param.get<int>(Parameters::econv)*0.5,
+					param.get<int>(Parameters::dconv));
 			correlation_energy += pairs(i, j).e_singlet
 					+ pairs(i, j).e_triplet;
 		}
@@ -235,15 +237,17 @@ double MP2::value(const Tensor<double>& x) {
 	correlation_energy=0.0;
 	if (hf->get_calc().param.localize) {
 		// solve the coupled MP1 equations
-		correlation_energy=solve_coupled_equations(pairs,param.econv_()*0.1,param.dconv_());
+		correlation_energy=solve_coupled_equations(pairs,param.get<int>(Parameters::econv)*0.1,
+				param.get<int>(Parameters::dconv));
 
 	} else {
 
 		// solve the canonical MP1 equations with increased accuracy
-		for (int i = param.freeze(); i < hf->nocc(); ++i) {
+		for (int i = param.get<int>(Parameters::freeze); i < hf->nocc(); ++i) {
 			for (int j = i; j < hf->nocc(); ++j) {
 				pairs(i,j).converged=false;
-				solve_residual_equations(pairs(i,j),param.econv_()*0.05,param.dconv_());
+				solve_residual_equations(pairs(i,j),param.get<int>(Parameters::econv)*0.05,
+						param.get<int>(Parameters::dconv));
 				correlation_energy += pairs(i, j).e_singlet + pairs(i, j).e_triplet;
 			}
 		}
@@ -253,38 +257,38 @@ double MP2::value(const Tensor<double>& x) {
 
 /// print the SCF parameters
 void MP2::print_info(World& world) const {
-	if (world.rank() == 0) {
-		madness::print("\n");
-		madness::print_centered("MP2 info\n",31,false);
-		print_options("MP2 restart",param.restart);
-		print_options("threshold 3D",FunctionDefaults<3>::get_thresh());
-		print_options("threshold 6D",FunctionDefaults<6>::get_thresh());
-		print_options("density threshold (dconv)", param.dconv_);
-		print_options("energy threshold (econv)", param.econv_);
-		print_options("truncation mode",FunctionDefaults<6>::get_truncate_mode());
-		print_options("tensor type",FunctionDefaults<6>::get_tensor_type());
-		print_options("facReduce",GenTensor<double>::fac_reduce());
-		print_options("max displacement",Displacements<6>::bmax_default());
-		print_options("apply randomize",FunctionDefaults<6>::get_apply_randomize());
-
-		if (param.i() >= 0 and param.j() >= 0) {
-			std::stringstream ss;
-			ss << param.i() << " " << param.j();
-			print_options("computing pair",ss.str());
-		}
-		if (param.freeze() == 0) {
-			print_options("# frozen orbitals", "none");
-		}else {
-			std::stringstream ss;
-			ss<< 0 << " to " << param.freeze() - 1;
-			print_options("# frozen orbitals",ss.str());
-		}
-		std::stringstream ss1;
-		ss1 << param.freeze() <<" to "<< hf->nocc() - 1;
-		print_options(" correlated orbitals",ss1.str());
-
-		print_options("max KAIN subspace", param.maxsub);
-	}
+//	if (world.rank() == 0) {
+//		madness::print("\n");
+//		madness::print_centered("MP2 info\n",31,false);
+//		print_options("MP2 restart",param.restart);
+//		print_options("threshold 3D",FunctionDefaults<3>::get_thresh());
+//		print_options("threshold 6D",FunctionDefaults<6>::get_thresh());
+//		print_options("density threshold (dconv)", param.dconv_);
+//		print_options("energy threshold (econv)", param.econv_);
+//		print_options("truncation mode",FunctionDefaults<6>::get_truncate_mode());
+//		print_options("tensor type",FunctionDefaults<6>::get_tensor_type());
+//		print_options("facReduce",GenTensor<double>::fac_reduce());
+//		print_options("max displacement",Displacements<6>::bmax_default());
+//		print_options("apply randomize",FunctionDefaults<6>::get_apply_randomize());
+//
+//		if (param.i() >= 0 and param.j() >= 0) {
+//			std::stringstream ss;
+//			ss << param.i() << " " << param.j();
+//			print_options("computing pair",ss.str());
+//		}
+//		if (param.freeze() == 0) {
+//			print_options("# frozen orbitals", "none");
+//		}else {
+//			std::stringstream ss;
+//			ss<< 0 << " to " << param.freeze() - 1;
+//			print_options("# frozen orbitals",ss.str());
+//		}
+//		std::stringstream ss1;
+//		ss1 << param.freeze() <<" to "<< hf->nocc() - 1;
+//		print_options(" correlated orbitals",ss1.str());
+//
+//		print_options("max KAIN subspace", param.maxsub);
+//	}
 }
 
 /// solve the residual equation for electron pair (i,j)
@@ -318,10 +322,10 @@ void MP2::solve_residual_equations(ElectronPair& result,
 			bsh_eps);
 	if(world.rank() == 0) std::cout << "Constructed Green Operator is destructive ? :" << green.destructive() << std::endl;
 
-	NonlinearSolverND<6> solver(param.maxsub());
+	NonlinearSolverND<6> solver(param.get<int>(Parameters::maxsub));
 	solver.do_print = (world.rank() == 0);
 	// increment iteration counter upon entry
-	for (++result.iteration; result.iteration <= param.maxiter(); ++result.iteration) {
+	for (++result.iteration; result.iteration <= param.get<int>(Parameters::maxiter); ++result.iteration) {
 
 		result.function.print_size("psi");
 
@@ -385,14 +389,14 @@ double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
 	if (world.rank() == 0) printf("\nsolving coupled MP2 equations\n\n");
 
 	double total_energy=0.0;
-	for (int i = param.freeze(); i < hf->nocc(); ++i) {
+	for (int i = param.get<int>(Parameters::freeze); i < hf->nocc(); ++i) {
 		for (int j = i; j < hf->nocc(); ++j) {
 			total_energy+=compute_energy(pairs(i,j));
 		}
 	}
 
 	// do the macro-iterations of the whole set of pair functions
-	for (int iteration=0; iteration<param.maxiter(); ++iteration) {
+	for (int iteration=0; iteration<param.get<int>(Parameters::maxiter); ++iteration) {
 
 		// compute the coupling between the pair functions
 		START_TIMER(world);
@@ -403,7 +407,7 @@ double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
 		// compute the vector function, aka the rhs of the residual equations
 		START_TIMER(world);
 		Pairs<real_function_6d> vectorfunction;
-		for (int i = param.freeze(); i < hf->nocc(); ++i) {
+		for (int i = param.get<int>(Parameters::freeze); i < hf->nocc(); ++i) {
 			for (int j = i; j < hf->nocc(); ++j) {
 
 				vectorfunction(i,j)=multiply_with_0th_order_Hamiltonian(
@@ -419,7 +423,7 @@ double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
 		double old_energy=total_energy;
 		total_energy=0.0;
 		// apply the Green's function on the vector function
-		for (int i = param.freeze(); i < hf->nocc(); ++i) {
+		for (int i = param.get<int>(Parameters::freeze); i < hf->nocc(); ++i) {
 			for (int j = i; j < hf->nocc(); ++j) {
 				const double eps = zeroth_order_energy(i, j);
 
@@ -453,7 +457,7 @@ double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
 				and (total_rnorm < dconv));
 
 		// save the pairs
-		for (int i = param.freeze(); i < hf->nocc(); ++i) {
+		for (int i = param.get<int>(Parameters::freeze); i < hf->nocc(); ++i) {
 			for (int j = i; j < hf->nocc(); ++j) {
 				pairs(i,j).store_pair(world);
 			}
@@ -897,7 +901,7 @@ real_function_6d MP2::make_KffKphi0(const ElectronPair& pair) const {
 ElectronPair MP2::make_pair(const int i, const int j) const {
 
 	ElectronPair p = ElectronPair(i, j);
-	if (param.restart()) p.load_pair(world);
+	if (param.get<int>(Parameters::restart)) p.load_pair(world);
 
 	// compute and store them if they have not been read from disk
 	if (p.ij_gQf_ij == ElectronPair::uninitialized()) {
@@ -1509,8 +1513,8 @@ void MP2::add_local_coupling(const Pairs<ElectronPair>& pairs,
 	// temporarily make all N^2 pair functions
 	typedef std::map<std::pair<int,int>,real_function_6d> pairsT;
 	pairsT quadratic;
-	for (int k = param.freeze(); k < hf->nocc(); ++k) {
-		for (int l = param.freeze(); l < hf->nocc(); ++l) {
+	for (int k = param.get<int>(Parameters::freeze); k < hf->nocc(); ++k) {
+		for (int l =param.get<int>(Parameters::freeze); l < hf->nocc(); ++l) {
 			if (l>=k) {
 				quadratic[std::make_pair(k,l)]=pairs(k,l).function;
 			} else {
@@ -1530,21 +1534,21 @@ void MP2::add_local_coupling(const Pairs<ElectronPair>& pairs,
 		fock1(k, k) =0.0;
 	}
 
-	for (int i=param.freeze(); i<hf->nocc(); ++i) {
+	for (int i=param.get<int>(Parameters::freeze); i<hf->nocc(); ++i) {
 		for (int j=i; j<hf->nocc(); ++j) {
 			coupling(i,j)=real_factory_6d(world).compressed();
 		}
 	}
 
-	for (int i=param.freeze(); i<hf->nocc(); ++i) {
+	for (int i=param.get<int>(Parameters::freeze); i<hf->nocc(); ++i) {
 		for (int j=i; j<hf->nocc(); ++j) {
-			for (int k=param.freeze(); k<hf->nocc(); ++k) {
+			for (int k=param.get<int>(Parameters::freeze); k<hf->nocc(); ++k) {
 				if (fock1(k,i) != 0.0) {
 					coupling(i,j).gaxpy(1.0,quadratic[std::make_pair(k,j)],fock1(k,i),false);
 				}
 			}
 
-			for (int l=param.freeze(); l<hf->nocc(); ++l) {
+			for (int l=param.get<int>(Parameters::freeze); l<hf->nocc(); ++l) {
 				if (fock1(l,j) != 0.0) {
 					coupling(i,j).gaxpy(1.0,quadratic[std::make_pair(i,l)],fock1(l,j),true);
 				}
