@@ -157,17 +157,20 @@ class TDHF
       real_function_3d mask;
 
       // Functions
-      ResponseFunction x_response;   // Excited states to be solved for. 
-                                     //    Note on storage: The response functions are calculated
-                                     //    by calculating each transition of occupied --> virtual,
-                                     //    and thus the actual response function is a sum of of all
-                                     //    contributions to a specific virtual.
+      real_function_3d stored_v_nuc;  // Stored nuclear potential from ground state
+      real_function_3d stored_v_coul; // Stored coulomb potential from ground state
+
+      ResponseFunction x_response;    // Excited states to be solved for. 
+                                      //    Note on storage: The response functions are calculated
+                                      //    by calculating each transition of occupied --> virtual,
+                                      //    and thus the actual response function is a sum of of all
+                                      //    contributions to a specific virtual.
        
-      ResponseFunction y_response;   // De-excitation states to be solved for. 
-                                     //    Note on storage: The response functions are calculated
-                                     //    by calculating each transition of occupied --> virtual,
-                                     //    and thus the actual response function is a sum of of all
-                                     //    contributions to a specific virtual.
+      ResponseFunction y_response;    // De-excitation states to be solved for. 
+                                      //    Note on storage: The response functions are calculated
+                                      //    by calculating each transition of occupied --> virtual,
+                                      //    and thus the actual response function is a sum of of all
+                                      //    contributions to a specific virtual.
                                                                    
       ResponseFunction stored_potential;   // The ground state potential, stored only if store_potential
                                            // is true (default is false). Holds the integrals 
@@ -255,6 +258,7 @@ class TDHF
       // Returns the off diagonal (letter B) elements of response matrix       
       ResponseFunction create_B(World & world,
                                 ResponseFunction & f,
+                                ResponseFunction & g,
                                 std::vector<real_function_3d> & orbitals,
                                 double small,
                                 double thresh);
