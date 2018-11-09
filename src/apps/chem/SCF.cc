@@ -2375,6 +2375,15 @@ namespace madness {
                 START_TIMER(world);
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
+                if(params.hard_zero) {
+                    auto zero = [](const Key<3> & key, Tensor<double> & x) {
+                        double sum = x.absmax();
+                        if(sum < FunctionDefaults<3>::get_thresh()*0.1) {
+                            x = 0;
+                            if(world.rank() == 0) print(key);
+                        }
+                    }
+                }
                 normalize(world, amo);
                 if (!param.spin_restricted && param.nbeta != 0) {
 		  if (param.localize_pm)
