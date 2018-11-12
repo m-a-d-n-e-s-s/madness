@@ -325,18 +325,30 @@ public:
 	}
 
 
-    /// read the parameters from file -- no need to reimplement this
+    /// read the parameters from file
+
+	/// only world.rank()==0 reads the input file and broadcasts to all other nodes,
+	/// so we don't need to serialize the ParameterMap
     virtual void read(World& world, const std::string filename, const std::string tag,
     		ParameterMap& param) {
-    	std::ifstream f(filename.c_str());
-    	read(f,tag,param);
+
+    	std::string filecontents, line;
+    	if (world.rank()==0) {
+    		std::ifstream f(filename.c_str());
+    		while (std::getline(f,line)) filecontents+=line+"\n";
+    	}
+
+    	// broadcast the input file to all nodes
+    	world.gop.broadcast_serializable(filecontents, 0);
+    	read(filecontents,tag,param);
     }
 
     /// read the stream, starting from tag
 
     /// only parameters that are defined in the constructor will be processed,
     /// all others will be discarded.
-    virtual void read(std::istream& f, std::string tag, ParameterMap& params) {
+    virtual void read(std::string& filecontents, std::string tag, ParameterMap& params) {
+    	std::stringstream f(filecontents);
 		position_stream(f, tag);
 		std::string line, word;
 
