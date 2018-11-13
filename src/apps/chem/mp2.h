@@ -391,8 +391,15 @@ namespace madness {
 
         	/// ctor reading out the input file
         	Parameters(World& world) {
+
+        		// read input file
         		read(world,"input","mp2",params);
-        		print(params,"mp2");
+
+        		// set derived values
+        		params[dconv].set_derived_value(sqrt(get<double>(econv))*0.1);
+
+        		// print final parameters
+        		if (world.rank()==0) print(params,"mp2","end");
         	}
 
         	/// return the value of the parameter
@@ -403,10 +410,6 @@ namespace madness {
         		} else {
         			MADNESS_EXCEPTION("could not fine parameter ",1);
         		}
-        	}
-
-        	virtual ParameterMap& get_ParameterMap() override {
-        		return params;
         	}
 
             /// check the user input
