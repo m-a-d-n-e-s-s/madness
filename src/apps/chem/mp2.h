@@ -360,33 +360,29 @@ namespace madness {
         struct Parameters : public CalculationParametersBase {
 
         	enum parameterenum {
-        		thresh,		///< thresh
-        		econv, 		///< econv for MP2
-				dconv, 		///< dconv for MP2
-				i,
-				j,
-				pair,
-				freeze,		///< number of frozen orbitals
-				maxsub,		///< maximum number of subspace vectors in KAIN
-				restart,	///< if this flag is set the program expect for each pair a file named
-							///<  pair_ij.00000
-							///< where ij is to be replaced by the values of i and j.
-							///< These files contain the restart information for each pair.
-				maxiter		///< maximum number of microiterations
+        		thresh_,		///< thresh
+        		econv_, 		///< econv for MP2
+				dconv_, 		///< dconv for MP2
+				pair_,			///< compute this pair only
+				freeze_,		///< number of frozen orbitals
+				maxsub_,		///< maximum number of subspace vectors in KAIN
+				restart_,		///< if this flag is set the program expect for each pair a file named
+								///<  pair_ij.00000
+								///< where ij is to be replaced by the values of i and j.
+								///< These files contain the restart information for each pair.
+				maxiter_		///< maximum number of microiterations
         	};
 
             /// the map with initial values
             ParameterMap params={
-            		init<double>(thresh,{"thresh",1.e-5}),
-            		init<double>(econv,{"econv",1.e-3}),
-            		init<double>(dconv,{"dconv",1.e-3}),
-            		init<int>(i,{"i",-1}),
-            		init<int>(j,{"j",-1}),
-            		init<std::vector<int> >(pair,{"pair",{-1,-1}}),
-            		init<int>(freeze,{"freeze",0}),
-            		init<int>(maxsub,{"maxsub",2}),
-            		init<bool>(restart,{"restart",0}),
-            		init<int>(maxiter,{"maxiter",5})
+            		init<double>(thresh_,{"thresh",1.e-5}),
+            		init<double>(econv_,{"econv",1.e-3}),
+            		init<double>(dconv_,{"dconv",1.e-3}),
+            		init<std::vector<int> >(pair_,{"pair",{-1,-1}}),
+            		init<int>(freeze_,{"freeze",0}),
+            		init<int>(maxsub_,{"maxsub",2}),
+            		init<bool>(restart_,{"restart",0}),
+            		init<int>(maxiter_,{"maxiter",5})
             };
 
         	/// ctor reading out the input file
@@ -396,7 +392,7 @@ namespace madness {
         		read(world,"input","mp2",params);
 
         		// set derived values
-        		params[dconv].set_derived_value(sqrt(get<double>(econv))*0.1);
+        		params[dconv_].set_derived_value(sqrt(econv())*0.1);
 
         		// print final parameters
         		if (world.rank()==0) print(params,"mp2","end");
@@ -414,12 +410,18 @@ namespace madness {
 
             /// check the user input
         	void check_input(const std::shared_ptr<HartreeFock> hf) const {
-                if (this->get<int>(freeze)>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
-                if (this->get<int>(i)>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
-                if (this->get<int>(j)>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
-                if (this->get<double>(thresh)<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
+                if (freeze()>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
+                if (i()>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
+                if (j()>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
+                if (thresh()<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
         	}
 
+        	double thresh() const {return this->get<double>(thresh_);}   	/// convenience function
+        	double econv() const {return this->get<double>(econv_);}   		/// convenience function
+        	double dconv() const {return this->get<double>(dconv_);}   		/// convenience function
+        	int freeze() const {return this->get<int>(freeze_);}   			/// convenience function
+        	int i() const {return this->get<std::vector<int> >(pair_)[0];}	/// convenience function
+        	int j() const {return this->get<std::vector<int> >(pair_)[1];}	/// convenience function
         };
 
         /// POD holding all electron pairs with easy access

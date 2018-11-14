@@ -40,12 +40,12 @@ namespace madness {
 	class is given below. A life example can be found in mp2.h/mp2.cc
 
 	class DerivedParamterClass : public CalculationParametersBase {
-		enum parameterenum {param1, param2};
+		enum parameterenum {param1_, param2_};
 
 		/// the parameters with the enum key, the constructor taking the input file key and a default value
 		ParameterMap params={
-            		init<int>(param1,{"param1_key",2}),
-            		init<double>(param2,{"param2_key",1.e-3})
+            		init<int>(param1_,{"param1_key",2}),
+            		init<double>(param2_,{"param2_key",1.e-3})
         };
 
 		/// ctor reading out the input file
@@ -55,7 +55,7 @@ namespace madness {
 			read(world,"input","parameter_tag",params);
 
 			// set derived values
-			params[param2].set_derived_value(this->get<int>(param1)*10.0);
+			params[param2_].set_derived_value(this->get<int>(param1_)*10.0);
 
 			// print final parameters
 			if (world.rank()==0) print(params,"Our parameters");
@@ -78,7 +78,7 @@ namespace madness {
 	syntax is a bit cumbersome shortcuts may be defined.
 
 	..
-	int param1() const {return param.get<int>(Parameters::param1);}
+	int param1() const {return param.get<int>(Parameters::param1_);}
 	..
 	int use_this_parameter = param.param1();
 	..
