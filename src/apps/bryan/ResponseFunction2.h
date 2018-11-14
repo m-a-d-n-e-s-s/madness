@@ -82,7 +82,7 @@ class ResponseFunction {
          ResponseFunction result(*this);
 
          for(unsigned int i = 0; i < r_states; i++) {
-            scale(x[0][0].world(), result.x[i], a, false);
+            madness::scale(x[0][0].world(), result.x[i], a, false);
          }
 
          x[0][0].world().gop.fence();
@@ -182,6 +182,20 @@ class ResponseFunction {
             truncate(x[0][0].world(), x[k], true);
          }
       }
+
+      // Returns norms of each state
+      Tensor<double> norm2() { 
+         Tensor<double> answer(r_states);
+         for(unsigned int i = 0; i < r_states; i++) answer(i) = sqrt(inner(x[i], x[i]));
+         return answer;
+      }
+
+      // Scales each state (read: entire row) by corresponding vector element
+      //     new[i] = old[i] * mat[i]
+      void scale(Tensor<double>& mat) {
+         for(unsigned int i = 0; i < r_states; i++) madness::scale(x[0][0].world(), x[i], mat[i], false);
+         x[0][0].world().gop.fence();
+      }
 };
 
 // Final piece for KAIN
@@ -206,5 +220,6 @@ inline double inner(ResponseFunction& a,
 
 } // End namespace madness 
 #endif
+
 
 // Deuces

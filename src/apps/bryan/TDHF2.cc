@@ -496,25 +496,26 @@ ResponseFunction TDHF::create_trial_functions(World & world,
 
 // Returns dipole operator * molecular orbitals 
 ResponseFunction TDHF::dipole_guess(World &world,
-                                    std::vector<real_function_3d> orbitals,
-                                    unsigned int axis)
+                                    std::vector<real_function_3d> orbitals)
 {
    // Return container
-   ResponseFunction dipole_guesses(world, 1, orbitals.size());
+   ResponseFunction dipole_guesses(world, 3, orbitals.size());
 
-   // Create dipole operator in the 'axis' direction
-   std::vector<int> f(3,0);
-   f[axis] = true;
-   real_function_3d dip = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
-
-   reconstruct(world, orbitals);
-
-   // Create guesses
-   for(unsigned int i = 0; i < dipole_guesses[0].size(); i++)
+   for(int axis = 0; axis < 3; axis++)
    {
-      dipole_guesses[0][i] = mul_sparse(dip, orbitals[i], false); 
-   }
+      // Create dipole operator in the 'axis' direction
+      std::vector<int> f(3,0);
+      f[axis] = true;
+      real_function_3d dip = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
 
+      reconstruct(world, orbitals);
+
+      // Create guesses
+      for(unsigned int i = 0; i < dipole_guesses[0].size(); i++)
+      {
+         dipole_guesses[axis][i] = mul_sparse(dip, orbitals[i], false); 
+      }
+   }
    //dipole_guesses.truncate_rf();
 
    // Done
@@ -2681,7 +2682,7 @@ void TDHF::iterate(World & world)
    XNonlinearSolver<ResponseFunction, double, TDHF_allocator> kain(TDHF_allocator(world, Rparams.tda ? m : 2*m, n), false); 
 
    // Setting max sub size for KAIN solver
-   if(Rparams.kain) kain.set_maxsub(Rparams.kain_size);
+   if(Rparams.kain) kain.set_maxsub(Rparams.maxsub);
 
    // Set y things if not doing TDA
    if(not Rparams.tda) old_y_response = ResponseFunction(world, m, n);
@@ -2856,6 +2857,11 @@ void TDHF::iterate(World & world)
       if(not Rparams.tda) 
       {
          omega = -omega; // Negative here is so that these Greens functions are (eps - omega) 
+// TEST
+//Tensor<double> cpy = copy(omega);
+//cpy = 0;
+//y_shifts = create_shift(world, Gparams.energies, cpy, Rparams.print_level, "y");
+// END TEST
          y_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "y");
          omega = -omega;
       }
@@ -2874,6 +2880,10 @@ void TDHF::iterate(World & world)
 
          // And construct y
          rhs_y = y_gamma + shifted_V_y_response + B_x;
+// TEST
+// Add omega * V_y_response
+//rhs_y = y_gamma + shifted_V_y_response + B_x + y_response * omega;
+// END TEST
       }
 
       // Add in localized orbital piece if using localized orbitals
@@ -3089,11 +3099,7 @@ void TDHF::iterate(World & world)
       if(not Rparams.tda) truncate(world, y_response);
 
       // Save
-      if(Rparams.save)
-      {
-         if(world.rank() == 0) print("   Saving states.\n");
-         save(world);
-      }
+      if(Rparams.save) save(world);
 
       // Basic output
       if(Rparams.print_level >= 1) end_timer(world, " This iteration:");
@@ -3195,6 +3201,25 @@ void TDHF::iterate(World & world)
    // A little more detailed analysis
    analysis(world);
 
+// TEST
+// Doing line plots along z axis
+if(world.rank() == 0) print("\n\nStarting plots");
+coord_3d lo,hi;
+char plotname[500];
+// z axis 
+lo[0] = 0.0; lo[1] = 0.0; lo[2] = -Gparams.L;
+hi[0] = 0.0; hi[1] = 0.0; hi[2] =  Gparams.L;
+for(int i = 0; i < Rparams.states; i++) {
+  for(unsigned int j = 0; j < Gparams.num_orbitals; j++) {
+    sprintf(plotname, "plot_exX_%d_%d.plt", i, j);
+    plot_line(plotname, 500001, lo, hi, x_response[i][j]);  
+    sprintf(plotname, "plot_exY_%d_%d.plt", i, j);
+    plot_line(plotname, 500001, lo, hi, y_response[i][j]);  
+  }
+}
+// END TEST
+
+
 }   // Done with iterate. 
 
 // More detailed analysis of the response functions
@@ -3233,20 +3258,10 @@ void TDHF::analysis(World & world)
          while(x != cpy(i,z)) z++;
          cpy(i,z) = -100.0;
          x_order(i,j) = z;
-      }
-   }
-   // Also 'sort' the y inner products
-   if(not Rparams.tda)
-   {
-      cpy = copy(y_norms);
-      for(int i = 0; i < m; i++)
-      {
-         for(int j = 0; j < n; j++)
+
+         // Also sort y if full response
+         if(not Rparams.tda)
          {
-            double x = cpy(i,_).max();
-            int z = 0;
-            while(x != cpy(i,z)) z++;
-            cpy(i,z) = -100.0; 
             y_order(i,j) = z;
          }
       }
@@ -4439,7 +4454,7 @@ void TDHF::iterate_polarizability(World & world,
    ResponseFunction old_y_response;                           // Holds the old y_response vector of vectors
    real_function_3d v_xc;                                     // For TDDFT
    bool converged = false;                                    // Converged flag
-   double shift = 0.0;                                        // Used in shifting
+
 
    // If DFT, initialize the XCOperator
    XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
@@ -4448,25 +4463,20 @@ void TDHF::iterate_polarizability(World & world,
    XNonlinearSolver<ResponseFunction, double, TDHF_allocator> kain(TDHF_allocator(world, (Rparams.omega != 0.0) ? 2*m : m, n), false); 
 
    // Setting max sub size for KAIN solver
-   if(Rparams.kain) kain.set_maxsub(Rparams.kain_size);
+   if(Rparams.kain) kain.set_maxsub(Rparams.maxsub);
 
    // Set omega (its constant here,
-   // and has only 1 entry... for now)
-   omega = Tensor<double>(1);
-   omega[0] = Rparams.omega; 
+   // and has only 1 entry for each axis)
+   omega = Tensor<double>(3);
+   omega = Rparams.omega; 
 
    // Verify if any shift is needed (NEEDS CHECKING)
    //if((Gparams.energies[n] + Rparams.omega) > 0.0)
    //{
    //   // Calculate minimum shift needed such that \eps + \omega + shift < 0 
    //   // for all \eps, \omega
-   //   shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
-
-   //   // Take min of shifts?
-   //   //shift = shifts.min();
-
-   //   // Put shift into each position of shifts
-   //   //shifts = shift;
+   //   //shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
+   //   shifts = -(Gparams.energies[n] + Rparams.omega + 0.05);
    //}
 
    // Construct BSH operators
@@ -4477,7 +4487,8 @@ void TDHF::iterate_polarizability(World & world,
    if(Rparams.omega != 0.0)
    {
       omega = -omega;
-      bsh_y_operators = create_bsh_operators(world, shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
+      Tensor<double> dumb(3);
+      bsh_y_operators = create_bsh_operators(world, dumb, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
    }
 
    // Now to iterate
@@ -4500,6 +4511,15 @@ void TDHF::iterate_polarizability(World & world,
       old_x_response = x_response.copy();
       if(Rparams.omega != 0.0) old_y_response = y_response.copy(); 
 
+      // Get norms 
+      x_norms = x_response.norm2();
+
+      // Scale x and y 
+      //Tensor<double> rec_norms(m);
+      //for(int i = 0; i < m; i++) rec_norms(i) = 1.0/std::max(1.0, x_norms(i));
+      //x_response.scale(rec_norms);
+      //y_response.scale(rec_norms);
+      
       // Create gamma
       x_gamma = create_gamma(world, x_response, y_response, Gparams.orbitals, Rparams.small, 
                              FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
@@ -4510,7 +4530,7 @@ void TDHF::iterate_polarizability(World & world,
       V_x_response = create_potential(world, x_response, xc, Rparams.print_level, "x");
       if(Rparams.omega != 0.0) V_y_response = create_potential(world, y_response, xc, Rparams.print_level, "y");
 
-      // Apply shift *******BROKEN********* 
+      // Apply shift
       //V_x_response = apply_shift(world, shifts, V_x_response, x_response);
       //if(Rparams.omega != 0.0) V_y_response = apply_shift(world, shifts, V_y_response, y_response);
 
@@ -4562,17 +4582,17 @@ void TDHF::iterate_polarizability(World & world,
       }
 
       // Calculate coupling terms
-      B_x = create_B(world, x_response, y_response, Gparams.orbitals, Rparams.small, FunctionDefaults<3>::get_thresh());
-      if(Rparams.omega != 0.0) B_y = create_B(world, y_response, x_response, Gparams.orbitals, Rparams.small, FunctionDefaults<3>::get_thresh());
+      B_y = create_B(world, y_response, x_response, Gparams.orbitals, Rparams.small, FunctionDefaults<3>::get_thresh());
+      if(Rparams.omega != 0.0) B_x = create_B(world, x_response, y_response, Gparams.orbitals, Rparams.small, FunctionDefaults<3>::get_thresh());
 
       // Construct RHS of equation
       ResponseFunction rhs_x, rhs_y;
-      if(Rparams.omega != 0.0)
-      {
-         rhs_x = V_x_response - x_fe + dipoles + x_gamma + B_y;
-         rhs_y = V_y_response - y_fe + dipoles + y_gamma + B_x; 
-      }
-      else rhs_x = V_x_response - x_fe + dipoles + x_gamma + B_x;
+      //ResponseFunction dip_copy(dipoles);
+      //dip_copy.scale(rec_norms);
+      //rhs_x = V_x_response - x_fe + dip_copy + x_gamma + B_y;
+      //if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dip_copy + y_gamma + B_x; 
+      rhs_x = V_x_response - x_fe + dipoles + x_gamma + B_y;
+      if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dipoles + y_gamma + B_x; 
 
       // Project out ground state
       for(int i = 0; i < m; i++) rhs_x[i] = projector(rhs_x[i]);
@@ -4598,8 +4618,10 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
 
       // Scale by -2.0 (coefficient in eq. 37 of reference paper)
+      //bsh_x_resp.scale(x_norms.scale(-2.0));
+      //if(Rparams.omega != 0.0) bsh_y_resp.scale(x_norms.scale(-2.0));     
       bsh_x_resp = scale(bsh_x_resp, -2.0);
-      if(Rparams.omega != 0.0) bsh_y_resp = scale(bsh_y_resp, -2.0);     
+      if(Rparams.omega != 0.0) bsh_y_resp = scale(bsh_y_resp, -2.0);
 
       // Debugging output
       if(Rparams.print_level >= 2)
@@ -4643,10 +4665,10 @@ void TDHF::iterate_polarizability(World & world,
       // Check convergence
       if(std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv) 
       {
-         if(Rparams.print_level >= 1) end_timer(world, "This iteration:");
-         if(world.rank() == 0) print("\n   Converged!");
-         converged = true;
-         break;
+          if(Rparams.print_level >= 1) end_timer(world, "This iteration:");
+          if(world.rank() == 0) print("\n   Converged!");
+          converged = true;
+          break;
       }
 
       // KAIN solver update 
@@ -4694,11 +4716,7 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.omega != 0.0) truncate(world, y_response);
 
       // Save
-      if(Rparams.save)
-      {
-         if(world.rank() == 0) print("   Saving states.\n");
-         save(world);
-      }
+      if(Rparams.save) save(world);
 
       // Basic output
       if(Rparams.print_level >= 1) end_timer(world, " This iteration:");
@@ -4709,26 +4727,26 @@ void TDHF::iterate_polarizability(World & world,
 // Calculates polarizability according to
 // alpha_ij(\omega) = -sum_{occ} < x_j | r_i | 0 > + < 0 | r_i | y_j >
 void TDHF::polarizability(World& world,
-                          Tensor<double> polar,
-                          int axis)
+                          Tensor<double> polar)
 {
    // Get transition density
    std::vector<real_function_3d> rhos = transition_density(world, Gparams.orbitals, x_response, y_response); 
-   real_function_3d drho = rhos[0];
-   for(unsigned int i = 1; i < rhos.size(); i++) drho = drho + rhos[i];
 
-   // Run over each other axis and calc.
-   // the polarizability
-   for(int i = 0; i < 3; i++)
+   // For each r_axis
+   for(int axis = 0; axis < 3; axis++)
    {
-      // Create dipole operator in the 'i' direction
-      std::vector<int> f(3,0);
-      f[i] = true;
-      real_function_3d dip = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
-      polar(axis, i) = -2.0 * dip.inner(drho);
-      
-      // X = Y for static case, so double this value here
-      //if(Rparams.omega == 0.0) polar(axis, i) = 2.0 * polar(axis, i);      
+      real_function_3d drho = rhos[axis];
+
+      // Run over each other axis and calc.
+      // the polarizability
+      for(int i = 0; i < 3; i++)
+      {
+         // Create dipole operator in the 'i' direction
+         std::vector<int> f(3,0);
+         f[i] = true;
+         real_function_3d dip = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
+         polar(axis, i) = -2.0 * dip.inner(drho);
+      }
    }
 }
 
@@ -4752,45 +4770,41 @@ void TDHF::solve_polarizability(World & world)
    // Create the polarizability tensor
    Tensor<double> polar_tensor(3,3);
 
-   // For polarizability tensor, need to run
-   // over each axis
-   for(unsigned int axis = 0; axis < 3; axis++)
+   // Create guesses
+   // If restarting, load here
+   if(Rparams.restart)
    {
-      // Use a zero guess (really using perturbation as guess)
-      x_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
-      y_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
-
-      // For each protocol
-      for(unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++)
-      {
-         // Set defaults inside here
-         set_protocol<3>(world, Rparams.protocol_data[proto]);
-
-         // Do something to ensure all functions have same k value
-         check_k(world, Rparams.protocol_data[proto]);
-
-         // Create trial functions
-         if(world.rank() == 0 and proto == 0)  printf("\n   Creating trial functions for %s axis", axis == 0 ? "x" : axis == 1 ? "y" : "z"); 
-         if(world.rank() == 0 and proto == 0)  printf("\n   -----------------------------------\n\n"); 
-
-         // Keep a copy of dipoles * MO (needed explicitly in eq.)
-         ResponseFunction dipoles = dipole_guess(world, Gparams.orbitals, axis); 
-               
-         // Now actually ready to iterate...
-         iterate_polarizability(world, dipoles);
-      }
-
-      // Have response function, now calculate polarizability for this axis
-      polarizability(world, polar_tensor, axis); 
-
-      // Tell the user something interesting
-      if(world.rank() == 0)
-      {
-         printf("\nDynamic Polarizability alpha ( Frequency = %.6f, %s axis )\n", Rparams.omega, axis == 0 ? "x" : axis == 1 ? "y" : "z");
-         for(unsigned int i=0; i<3; ++i) printf(" \t %.6f ", polar_tensor(axis,i));
-         printf("\n");
-      }
+      if(world.rank() == 0) print("   Initial guess from file:", Rparams.restart_file);
+      load(world, Rparams.restart_file);
    }
+   else // Dipole guesses
+   { 
+      x_response = dipole_guess(world, Gparams.orbitals); 
+      y_response = x_response.copy(); 
+   }
+
+   // For each protocol
+   for(unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++)
+   {
+      // Set defaults inside here
+      set_protocol<3>(world, Rparams.protocol_data[proto]);
+
+      // Do something to ensure all functions have same k value
+      check_k(world, Rparams.protocol_data[proto]);
+
+      // Create trial functions
+      if(world.rank() == 0 and proto == 0)  printf("\n   Creating trial functions");
+      if(world.rank() == 0 and proto == 0)  printf("\n   ------------------------\n\n"); 
+
+      // Keep a copy of dipoles * MO (needed explicitly in eq.)
+      ResponseFunction dipoles = dipole_guess(world, Gparams.orbitals); 
+
+      // Now actually ready to iterate...
+      iterate_polarizability(world, dipoles);
+   }
+
+   // Have response function, now calculate polarizability for this axis
+   polarizability(world, polar_tensor); 
 
    // Final polarizability analysis
    //diagonalize
@@ -4806,7 +4820,9 @@ void TDHF::solve_polarizability(World & world)
 
    if (world.rank() == 0)
    {
-       print("\nTotal Dynamic Polarizability Tensor ( Frequency = ", Rparams.omega, ")\n");
+       print("\nTotal Dynamic Polarizability Tensor");
+       printf("\nFrequency  = %.6f a.u.\n\n", Rparams.omega);
+       //printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???); 
        print(polar_tensor);
        printf("\tEigenvalues = ");
        printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
@@ -4822,6 +4838,23 @@ void TDHF::solve_polarizability(World & world)
 
    // Get start time
    end_timer(world, "total:");
+
+// TEST
+// Doing line plots along z axis
+//if(world.rank() == 0) print("\n\nStarting plots");
+//coord_3d lo,hi;
+//char plotname[500];
+//// z axis 
+//lo[0] = 0.0; lo[1] = 0.0; lo[2] = -Gparams.L;
+//hi[0] = 0.0; hi[1] = 0.0; hi[2] =  Gparams.L;
+//for(int j = 0; j < Gparams.num_orbitals; j++) {
+//  sprintf(plotname, "plot_X_%d_%.3f.plt", j, Rparams.omega);
+//  plot_line(plotname, 500001, lo, hi, x_response[2][j]);  
+//  sprintf(plotname, "plot_Y_%d_%.3f.plt", j, Rparams.omega);
+//  plot_line(plotname, 500001, lo, hi, y_response[2][j]);  
+//}
+// END TEST
+
 } 
 // End solve_polar
 

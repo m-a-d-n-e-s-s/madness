@@ -2538,8 +2538,6 @@ namespace madness {
                     if (world.rank() == 0 && converged) {
                         print("\nConverged!\n");
                     }
-                    if(world.rank() == 0) print("Final Fock Matrix (non-diagonalalized):");
-                    if(world.rank() == 0) print(focka);
                     
                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
@@ -2577,9 +2575,6 @@ namespace madness {
                         }
                     }
                     
-                    if(world.rank() == 0) print("Final Fock Matrix (diagonalalized):");
-                    if(world.rank() == 0) print(focka);
-
                     if (world.rank() == 0) {
                         print(" ");
                         print("alpha eigenvalues");

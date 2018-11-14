@@ -48,7 +48,7 @@ namespace madness
       bool restart;                      ///< Flag to restart from file
       std::string restart_file;          ///< Flag to restart from file
       bool kain;                         ///< Flag to use KAIN solver
-      int kain_size;                     ///< How many previous iterations KAIN will store 
+      int maxsub;                        ///< How many previous iterations KAIN will store 
       std::string xc;                    ///< Controls the HF or DFT switch, as well as which DFT functional is used
       bool save;                         ///< Controls if orbitals will be saved each iteration
       int guess_max_iter;                ///< Maximum number of iterations for guess functions
@@ -93,7 +93,7 @@ bool old;
             & restart 
             & restart_file 
             & kain
-            & kain_size
+            & maxsub 
             & xc
             & save
             & guess_max_iter
@@ -119,7 +119,7 @@ bool old;
       , larger_subspace(0)
       , k(0)
       , random(false)
-      , store_potential(false)
+      , store_potential(true)
       , e_window(false)
       , range_low(0.0)
       , range_high(1.0)
@@ -128,7 +128,7 @@ bool old;
       , restart(false)
       , restart_file("")
       , kain(false)
-      , kain_size(3)
+      , maxsub(5)
       , xc("hf")
       , save(false)
       , guess_max_iter(5)
@@ -285,9 +285,9 @@ bool old;
             {
                kain = true;
             }
-            else if (s == "kain_size")
+            else if (s == "maxsub")
             {
-               f >> kain_size;
+               f >> maxsub; 
             }
             else if (s == "save")
             {
@@ -300,6 +300,7 @@ bool old;
             else if (s == "polarizability")
             {
                property = true;
+               states = 3; // One for each axis
                polarizability = true;
                f >> omega;
             }
@@ -338,7 +339,7 @@ bool old;
          madness::print("               Max Iterations:", max_iter);
          if(!property) madness::print("   Larger Subspace Iterations:", larger_subspace);
          madness::print("                     Use KAIN:", kain);
-         if(kain) madness::print("           KAIN Subspace Size:", kain_size);
+         if(kain) madness::print("           KAIN Subspace Size:", maxsub);
          madness::print("                Save orbitals:", save);
          if(dconv != 0.0) madness::print("Density Convergence Threshold:", dconv);
          if(!property) madness::print("                     Protocol:", protocol_data);
