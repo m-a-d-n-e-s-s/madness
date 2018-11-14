@@ -132,12 +132,15 @@ public:
 
     /// The molecular point group
     /// is automatically assigned in the identify_pointgroup function
-    std::string pointgroup_;
+    std::string pointgroup_="c1";
 
     /// Makes a molecule with zero atoms
     Molecule() : atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {};
 
     Molecule(const std::string& filename);
+
+    /// print out a Gaussian cubefile header
+	std::vector<std::string> cubefile_header() const;
 
     // initializes Molecule using the contents of file \c filename
     void read_file(const std::string& filename);
@@ -325,6 +328,7 @@ public:
         ar & atoms & rcut & eprec & core_pot;
     }
 };
+
 }
 
 #endif

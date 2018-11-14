@@ -22,10 +22,10 @@ namespace madness{
   CCMessenger::section(const std::string& msg) const {
     if(world.rank() == 0){
       std::cout << "\n" << std::setw(msg.size() + 10) << std::setfill('*') << "\n";
-      std::setfill(' ');
+      std::cout << std::setfill(' ');
       output(msg);
       std::cout << std::setw(msg.size() + 10) << std::setfill('*') << "\n\n";
-      std::setfill(' ');
+      std::cout << std::setfill(' ');
     }
   }
 
@@ -33,10 +33,10 @@ namespace madness{
   CCMessenger::subsection(const std::string& msg) const {
     if(world.rank() == 0){
       std::cout << "\n" << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
-      std::setfill(' ');
+      std::cout << std::setfill(' ');
       output(msg);
       std::cout << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
-      std::setfill(' ');
+      std::cout << std::setfill(' ');
     }
   }
 
@@ -55,7 +55,8 @@ namespace madness{
       if(norm != 12345.6789) s_norm=", ||result||=" + std::to_string(norm);
 
       if(world.rank() == 0){
-	std::cout << std::setfill(' ') << std::scientific << std::setprecision(2) << "Timer: " << time_wall << " (Wall), " << time_cpu << " (CPU)" << s_norm << ", (" + operation + ")" << "\n";
+    	  std::cout << std::setfill(' ') << std::scientific << std::setprecision(2)
+    	  << "Timer: " << time_wall << " (Wall), " << time_cpu << " (CPU)" << s_norm << ", (" + operation + ")" << "\n";
       }
     }
   }
@@ -86,12 +87,14 @@ namespace madness{
 
   madness::CC_vecfunction
   CC_vecfunction::copy() const {
-    std::vector<CCFunction> vn;
-    for(auto x : functions){
-      const CCFunction fn(madness::copy(x.second.function),x.second.i,x.second.type);
-      vn.push_back(fn);
-    }
-    return CC_vecfunction(vn,type);
+	  std::vector<CCFunction> vn;
+	  for(auto x : functions){
+		  const CCFunction fn(madness::copy(x.second.function),x.second.i,x.second.type);
+		  vn.push_back(fn);
+	  }
+	  CC_vecfunction result(vn,type);
+	  result.irrep=irrep;
+	  return result;
   }
 
   std::string
@@ -152,7 +155,7 @@ namespace madness{
       uc.scale(-1.0);
       u=uc;
     }else if(type == PT_DECOMPOSED){
-      vecfuncT ac=madness::copy(world,a);
+      vector_real_function_3d ac=madness::copy(world,a);
       scale(world,ac,-1.0);
       a=ac;
     }else if(type == PT_OP_DECOMPOSED){
@@ -234,10 +237,10 @@ namespace madness{
     }
   }
 
-  madness::vecfuncT
+  madness::vector_real_function_3d
   CCIntermediatePotentials::operator ()(const CC_vecfunction& f,const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
-    vecfuncT result;
+    vector_real_function_3d result;
     if(type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_;
     else if(type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_;
     else if(type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_;
@@ -277,7 +280,7 @@ namespace madness{
   }
 
   void
-  CCIntermediatePotentials::insert(const vecfuncT& potential,const CC_vecfunction& f,const PotentialType& type) {
+  CCIntermediatePotentials::insert(const vector_real_function_3d& potential,const CC_vecfunction& f,const PotentialType& type) {
     output("Storing potential: " + assign_name(type) + " for " + f.name());
     MADNESS_ASSERT(!potential.empty());
     if(type == POT_singles_ && (f.type == PARTICLE || f.type == MIXED)) current_singles_potential_gs_=potential;
@@ -329,26 +332,7 @@ namespace madness{
 	test(false),
 	decompose_Q(true),
 	QtAnsatz(false),
-	excitations_(0),
-	tda_guess_orbitals(0),
-	tda_guess_mode("uninitialized"),
-	tda_excitations(0),
-	tda_guess_excitations(0),
-	tda_iterating_excitations(0),
-	tda_guess("uninitialized"),
-	tda_energy_guess_factor(uninitialized),
-	tda_dconv_guess(uninitialized),
-	tda_dconv(uninitialized),
-	// tda_dconv_hard(uninitialized),
-	tda_econv_guess(uninitialized),
-	tda_econv(uninitialized),
-	//tda_econv_hard(uninitialized),
-	tda_store_potential(true),
-	tda_iter_max(25),
-	tda_iter_guess(10),
-	tda_homo_guess(false),
-	tda_damping_width(0.0),
-	tda_triplet(false)
+	excitations_(0)
   {
     // get the parameters from the input file
     std::ifstream f(input.c_str());
@@ -438,32 +422,6 @@ namespace madness{
       }
       else if ( s == "qtansatz") QtAnsatz=true;
       else if ( s == "full_residue") decompose_Q=false;
-      else if ( s == "tda_guess_orbitals") f>>tda_guess_orbitals;
-      else if ( s == "tda_guess_mode") f>>tda_guess_mode;
-      else if ( s == "tda_guess_excitations") f>>tda_guess_excitations;
-      else if ( s == "tda_excitations") f>>tda_excitations;
-      else if ( s == "tda_iterating_excitations") f>>tda_iterating_excitations;
-      else if ( s == "tda_guess") f >> tda_guess;
-      else if ( s == "tda_energy_guess_factor") f >> tda_energy_guess_factor;
-      else if ( s == "tda_dconv_guess") f >> tda_dconv_guess;
-      else if ( s == "tda_dconv") f >> tda_dconv;
-      //else if ( s == "tda_dconv_hard")f >> tda_dconv_hard;
-      else if ( s == "tda_econv_guess") f >> tda_econv_guess;
-      else if ( s == "tda_econv") f >> tda_econv;
-      //else if ( s == "tda_econv_hard") f >> tda_econv_hard;
-      else if ( s == "tda_store_potential") f >> tda_store_potential;
-      else if ( s == "tda_iter_max") f>>tda_iter_max;
-      else if ( s == "tda_iter_guess") f>> tda_iter_guess;
-      else if ( s == "tda_homo_guess") tda_homo_guess=true;
-      else if ( s == "tda_damping_width") f>>tda_damping_width;
-      else if ( s == "tda_exop" or s == "exop"){
-	std::string tmp;
-	char buf[1024];
-	f.getline(buf,sizeof(buf));
-	tmp = buf;
-	tda_exops.push_back(tmp);
-      }
-      else if (s == "tda_triplet") f>>tda_triplet;
       else{
 	std::cout << "Unknown Keyword: " << s << "\n";
 	continue;
@@ -504,21 +462,6 @@ namespace madness{
     if(thresh_3D < 1.1e-5) output_prec = 7;
     if(thresh_3D < 1.1e-6) output_prec = 8;
     std::cout.precision(output_prec);
-
-    // set the default TDA parameters
-    if(tda_guess=="uninitialized") tda_guess = "big_fock_3";
-    //if(tda_guess_mode=="uninitialized") tda_guess_mode = "projected";
-    if(tda_excitations==0) tda_excitations = 1;
-    if(tda_guess_excitations==0) tda_guess_excitations = tda_excitations;
-    if(tda_iterating_excitations==0) tda_iterating_excitations=tda_guess_excitations;
-    if(tda_energy_guess_factor==uninitialized) tda_energy_guess_factor=0.99;
-    if(tda_dconv_guess==uninitialized) tda_dconv_guess = 1.0;
-    if(tda_dconv==uninitialized) tda_dconv = thresh_3D*10.0;
-    if(tda_econv_guess==uninitialized) tda_econv_guess = 1.e-1;
-    if(tda_econv==uninitialized) tda_econv =thresh_3D;
-
-    if(tda_dconv_hard==uninitialized) tda_econv_hard =tda_econv;;
-    if(tda_econv_hard==uninitialized) tda_dconv_hard =tda_dconv;;
 
     if(no_compute==true and restart ==false) restart = true;
   }
@@ -562,26 +505,7 @@ namespace madness{
 	test(other.test),
 	decompose_Q(other.decompose_Q),
 	QtAnsatz(other.QtAnsatz),
-	excitations_(other.excitations_),
-	tda_guess_orbitals(0),
-	tda_guess_mode(other.tda_guess_mode),
-	tda_excitations(other.tda_excitations),
-	tda_guess_excitations(other.tda_guess_excitations),
-	tda_iterating_excitations(other.tda_iterating_excitations),
-	tda_guess(other.tda_guess),
-	tda_energy_guess_factor(other.tda_energy_guess_factor),
-	tda_dconv_guess(other.tda_dconv_guess),
-	tda_dconv(other.tda_dconv),
-	tda_dconv_hard(other.tda_dconv_hard),
-	tda_econv_guess(other.tda_econv_guess),
-	tda_econv(other.tda_econv),
-	tda_econv_hard(other.tda_econv_hard),
-	tda_store_potential(other.tda_store_potential),
-	tda_iter_max(other.tda_iter_max),
-	tda_iter_guess(other.tda_iter_guess),
-	tda_homo_guess(other.tda_homo_guess),
-	tda_exops(other.tda_exops),
-	tda_damping_width(other.tda_damping_width)
+	excitations_(other.excitations_)
   {}
 
   void CCParameters::information(World &world)const{
@@ -659,37 +583,6 @@ namespace madness{
     }
   }
 
-  void CCParameters::print_tda_parameters(World &world)const{
-    if(world.rank()==0){
-      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-      std::cout << std::setfill(' ');
-      std::cout << "TDA PARAMETERS:\n";
-      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-      std::cout << std::setfill(' ');
-      std::cout << std::scientific << std::setprecision(2);
-      std::cout << "tda_guess_orbitals       :" << tda_guess_orbitals          << std::endl;
-      //std::cout << "tda_guess_mode           :" << tda_guess_mode              << std::endl;
-      std::cout << "tda_excitations          :" << tda_excitations             << std::endl;
-      std::cout << "tda_guess_excitations    :" << tda_guess_excitations       << std::endl;
-      //std::cout << "tda_iterating_excitations:" << tda_iterating_excitations   << std::endl;
-      std::cout << "tda_guess                :" << tda_guess                   << std::endl;
-      std::cout << "tda_energy_guess_factor  :" << tda_energy_guess_factor     << std::endl;
-      std::cout << "tda_dconv_guess          :" << tda_dconv_guess             << std::endl;
-      std::cout << "tda_dconv                :" << tda_dconv                   << std::endl;
-      //std::cout << "tda_dconv_hard           :" << tda_dconv_hard              << std::endl;
-      std::cout << "tda_econv_guess          :" << tda_econv_guess             << std::endl;
-      std::cout << "tda_econv                :" << tda_econv                   << std::endl;
-      //std::cout << "tda_econv_hard           :" << tda_econv_hard              << std::endl;
-      std::cout << "tda_store_potential      :" << tda_store_potential         << std::endl;
-      std::cout << "tda_iter_max             :" << tda_iter_max                << std::endl;
-      std::cout << "tda_iter_guess           :" << tda_iter_guess              << std::endl;
-      //std::cout << "tda_homo_guess           :" << tda_homo_guess << std::endl;
-      std::cout << "tda_damping_width        :" << tda_damping_width << std::endl;
-      std::cout << "tda_triplet              :" << tda_triplet << std::endl;  
-      std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-      std::cout << std::setfill(' ');
-    }
-  }
   void CCParameters::sanity_check(World &world)const{
     size_t warnings = 0;
     if(FunctionDefaults<3>::get_thresh() > 0.01*FunctionDefaults<6>::get_thresh()) warnings+=warning(world,"3D Thresh is too low, should be 0.01*6D_thresh");
@@ -825,7 +718,7 @@ namespace madness{
 
   real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d &f,const size_t particle)const{
     real_function_3d result = real_factory_3d(world);
-    const std::pair<vecfuncT,vecfuncT> decompf = assign_particles(particle);
+    const std::pair<vector_real_function_3d,vector_real_function_3d> decompf = assign_particles(particle);
     Tensor<double> c = inner(world,f,decompf.first);
     for(size_t i=0;i<a.size();i++) result += c(i)*decompf.second[i];
     return result;
@@ -843,16 +736,16 @@ namespace madness{
   }
 
   real_function_3d CCPairFunction::dirac_convolution_decomposed(const CCFunction &bra, const CCConvolutionOperator &op, const size_t particle)const{
-    const std::pair<vecfuncT,vecfuncT> f = assign_particles(particle);
-    const vecfuncT braa = mul(world,bra.function,f.first);
-    const vecfuncT braga = op(braa);
+    const std::pair<vector_real_function_3d,vector_real_function_3d> f = assign_particles(particle);
+    const vector_real_function_3d braa = mul(world,bra.function,f.first);
+    const vector_real_function_3d braga = op(braa);
     real_function_3d result = real_factory_3d(world);
     for(size_t i=0;i<braga.size();i++) result += braga[i]*f.second[i];
     return result;
   }
 
 
-  const std::pair<vecfuncT,vecfuncT> CCPairFunction::assign_particles(const size_t particle)const{
+  const std::pair<vector_real_function_3d,vector_real_function_3d> CCPairFunction::assign_particles(const size_t particle)const{
     if(particle==1){
       return std::make_pair(a,b);
     }else if(particle==2){
@@ -930,15 +823,15 @@ namespace madness{
     return size_imH+size_imP + size_imR;
   }
 
-  SeparatedConvolution<double,3>* CCConvolutionOperator::init_op(const OpType &type,const CCParameters &parameters)const{
+  SeparatedConvolution<double,3>* CCConvolutionOperator::init_op(const OpType &type,const Parameters &parameters)const{
     switch(type){
       case OT_G12 : {
-	if(world.rank()==0) std::cout << "Creating " << assign_name(type) <<" Operator with thresh=" << parameters.thresh_poisson <<" and lo=" << parameters.lo << std::endl;
-	return CoulombOperatorPtr(world, parameters.lo,parameters.thresh_poisson);
+	if(world.rank()==0) std::cout << "Creating " << assign_name(type) <<" Operator with thresh=" << parameters.thresh_op <<" and lo=" << parameters.lo << std::endl;
+	return CoulombOperatorPtr(world, parameters.lo,parameters.thresh_op);
       }
       case OT_F12 : {
-	if(world.rank()==0) std::cout << "Creating " << assign_name(type) <<" Operator with thresh=" << parameters.thresh_poisson <<" and lo=" << parameters.lo << " and Gamma=" << parameters.gamma() << std::endl;
-	return SlaterF12OperatorPtr(world, parameters.gamma(),parameters.lo, parameters.thresh_poisson);
+	if(world.rank()==0) std::cout << "Creating " << assign_name(type) <<" Operator with thresh=" << parameters.thresh_op <<" and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
+	return SlaterF12OperatorPtr(world, parameters.gamma,parameters.lo, parameters.thresh_op);
       }
       default : {
 	error("Unknown operatorype " + assign_name(type));
