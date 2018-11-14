@@ -4585,14 +4585,13 @@ void TDHF::iterate_polarizability(World & world,
       B_y = create_B(world, y_response, x_response, Gparams.orbitals, Rparams.small, FunctionDefaults<3>::get_thresh());
       if(Rparams.omega != 0.0) B_x = create_B(world, x_response, y_response, Gparams.orbitals, Rparams.small, FunctionDefaults<3>::get_thresh());
 
-      // Construct RHS of equation
-      ResponseFunction rhs_x, rhs_y;
+      // Scale dipoles by same value
       ResponseFunction dip_copy(dipoles);
       dip_copy.scale(rec_norms);
+
+      // Construct RHS of equation
       rhs_x = V_x_response - x_fe + dip_copy + x_gamma + B_y;
       if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dip_copy + y_gamma + B_x; 
-      //rhs_x = V_x_response - x_fe + dipoles + x_gamma + B_y;
-      //if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dipoles + y_gamma + B_x; 
 
       // Project out ground state
       for(int i = 0; i < m; i++) rhs_x[i] = projector(rhs_x[i]);
@@ -4620,8 +4619,6 @@ void TDHF::iterate_polarizability(World & world,
       // Scale by -2.0 (coefficient in eq. 37 of reference paper)
       for(int i = 0; i < m; i++) bsh_x_resp[i] = bsh_x_resp[i] * (std::max(1.0, x_norms[i]) * -2.0); 
       if(Rparams.omega != 0.0) for(int i = 0; i < m; i++) bsh_y_resp[i] = bsh_y_resp[i] * (std::max(1.0, x_norms[i]) * -2.0); 
-      //bsh_x_resp = scale(bsh_x_resp, -2.0);
-      //if(Rparams.omega != 0.0) bsh_y_resp = scale(bsh_y_resp, -2.0);
 
       // Debugging output
       if(Rparams.print_level >= 2)
