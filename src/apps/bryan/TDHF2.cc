@@ -4512,13 +4512,13 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.omega != 0.0) old_y_response = y_response.copy(); 
 
       // Get norms 
-      x_norms = x_response.norm2();
+      for(int i = 0; i < m; i++) x_norms[i] = sqrt(inner(x_response[i], x_response[i]) - inner(y_response[i], y_response[i])); 
 
       // Scale x and y 
-      //Tensor<double> rec_norms(m);
-      //for(int i = 0; i < m; i++) rec_norms(i) = 1.0/std::max(1.0, x_norms(i));
-      //x_response.scale(rec_norms);
-      //y_response.scale(rec_norms);
+      Tensor<double> rec_norms(m);
+      for(int i = 0; i < m; i++) rec_norms(i) = 1.0/std::max(1.0, x_norms(i));
+      x_response.scale(rec_norms);
+      y_response.scale(rec_norms);
       
       // Create gamma
       x_gamma = create_gamma(world, x_response, y_response, Gparams.orbitals, Rparams.small, 
@@ -4587,12 +4587,12 @@ void TDHF::iterate_polarizability(World & world,
 
       // Construct RHS of equation
       ResponseFunction rhs_x, rhs_y;
-      //ResponseFunction dip_copy(dipoles);
-      //dip_copy.scale(rec_norms);
-      //rhs_x = V_x_response - x_fe + dip_copy + x_gamma + B_y;
-      //if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dip_copy + y_gamma + B_x; 
-      rhs_x = V_x_response - x_fe + dipoles + x_gamma + B_y;
-      if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dipoles + y_gamma + B_x; 
+      ResponseFunction dip_copy(dipoles);
+      dip_copy.scale(rec_norms);
+      rhs_x = V_x_response - x_fe + dip_copy + x_gamma + B_y;
+      if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dip_copy + y_gamma + B_x; 
+      //rhs_x = V_x_response - x_fe + dipoles + x_gamma + B_y;
+      //if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dipoles + y_gamma + B_x; 
 
       // Project out ground state
       for(int i = 0; i < m; i++) rhs_x[i] = projector(rhs_x[i]);
@@ -4618,10 +4618,10 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
 
       // Scale by -2.0 (coefficient in eq. 37 of reference paper)
-      //bsh_x_resp.scale(x_norms.scale(-2.0));
-      //if(Rparams.omega != 0.0) bsh_y_resp.scale(x_norms.scale(-2.0));     
-      bsh_x_resp = scale(bsh_x_resp, -2.0);
-      if(Rparams.omega != 0.0) bsh_y_resp = scale(bsh_y_resp, -2.0);
+      for(int i = 0; i < m; i++) bsh_x_resp[i] = bsh_x_resp[i] * (std::max(1.0, x_norms[i]) * -2.0); 
+      if(Rparams.omega != 0.0) for(int i = 0; i < m; i++) bsh_y_resp[i] = bsh_y_resp[i] * (std::max(1.0, x_norms[i]) * -2.0); 
+      //bsh_x_resp = scale(bsh_x_resp, -2.0);
+      //if(Rparams.omega != 0.0) bsh_y_resp = scale(bsh_y_resp, -2.0);
 
       // Debugging output
       if(Rparams.print_level >= 2)
