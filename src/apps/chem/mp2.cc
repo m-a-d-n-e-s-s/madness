@@ -896,7 +896,7 @@ real_function_6d MP2::make_KffKphi0(const ElectronPair& pair) const {
 ElectronPair MP2::make_pair(const int i, const int j) const {
 
 	ElectronPair p = ElectronPair(i, j);
-	if (param.get<int>(Parameters::restart_)) p.load_pair(world);
+	if (param.get<bool>(Parameters::restart_)) p.load_pair(world);
 
 	// compute and store them if they have not been read from disk
 	if (p.ij_gQf_ij == ElectronPair::uninitialized()) {

@@ -266,7 +266,11 @@ public:
 		if (std::type_index(typeid(T)) == std::type_index(object->value_type_info())) {
 			return static_cast<Model<Parameter<T> >&>(*object).Mobject;
 		} else {
-			MADNESS_EXCEPTION("faulty type in set_user_defined_value ",1);
+			madness::print("key ",object->get_key());
+			madness::print("type(object)",object->type_info().name());
+			madness::print("requested type",std::type_index(typeid(T)).name());
+			madness::print("value_type(object)",object->value_type_info().name());
+			MADNESS_EXCEPTION("faulty type in get_parameter ",1);
 		}
 	}
 
@@ -276,7 +280,11 @@ public:
 		if (std::type_index(typeid(T)) == std::type_index(object->value_type_info())) {
 			return static_cast<Model<Parameter<T> >&>(*object).Mobject;
 		} else {
-			MADNESS_EXCEPTION("faulty type in set_user_defined_value ",1);
+			madness::print("key ",object->get_key());
+			madness::print("type(object)",object->type_info().name());
+			madness::print("requested type",std::type_index(typeid(T)).name());
+			madness::print("value_type(object)",object->value_type_info().name());
+			MADNESS_EXCEPTION("faulty type in get_parameter ",1);
 		}
 	}
 

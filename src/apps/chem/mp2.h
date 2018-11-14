@@ -375,7 +375,7 @@ namespace madness {
 
             /// the map with initial values
             ParameterMap params={
-            		init<double>(thresh_,{"thresh",1.e-5}),
+            		init<double>(thresh_,{"thresh",1.e-3}),
             		init<double>(econv_,{"econv",1.e-3}),
             		init<double>(dconv_,{"dconv",1.e-3}),
             		init<std::vector<int> >(pair_,{"pair",{-1,-1}}),
