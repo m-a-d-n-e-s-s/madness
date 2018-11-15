@@ -260,7 +260,8 @@ class TDHF
                                 ResponseFunction & g,
                                 std::vector<real_function_3d> & orbitals,
                                 double small,
-                                double thresh);
+                                double thresh,
+                                int print_level);
 
       // Returns gamma (the perturbed 2 electron piece) 
       ResponseFunction create_gamma(World & world,
@@ -337,6 +338,16 @@ class TDHF
                                   Tensor<double> & omega,
                                   int print_level,
                                   std::string xy);
+
+      // Returns the shift needed for each orbital to make sure
+      // (ground_state_energy + excited_state_energy + shift) = target 
+      Tensor<double> create_shift_target(World & world,
+                                         Tensor<double> & ground,
+                                         Tensor<double> & omega,
+                                         double target,
+                                         int print_level,
+                                         std::string xy);
+
 
       // Returns the given shift applied to the given potentials
       ResponseFunction apply_shift(World & world,

@@ -65,6 +65,9 @@ namespace madness
               input & reader;
               orbitals.push_back(reader); 
          }
+
+         // Clean up
+         truncate(world, orbitals);
       }
 
       // Prints all information
