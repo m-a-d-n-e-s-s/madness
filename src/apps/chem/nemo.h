@@ -541,8 +541,10 @@ private:
 			int lo, int nfunc) const;
 
     tensorT Q2(const tensorT& s) const {
+    	print("s",s);
         tensorT Q = -0.5*s;
         for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
+        print("Q",Q);
         return Q;
     }
 

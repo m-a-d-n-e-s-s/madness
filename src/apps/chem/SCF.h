@@ -817,6 +817,15 @@ namespace madness {
                 }
                 
             }
+
+            // save the converged orbitals and nemos
+            for (std::size_t imo = 0; imo < calc.amo.size(); ++imo) {
+                save(calc.amo[imo], "nemo" + stringify(imo));
+            }
+            for (std::size_t imo = 0; imo < calc.bmo.size(); ++imo) {
+                save(calc.bmo[imo], "nemo" + stringify(imo));
+            }
+
             return calc.current_energy;
         }
         

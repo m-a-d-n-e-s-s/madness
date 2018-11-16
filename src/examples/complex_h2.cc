@@ -52,6 +52,7 @@
 #include <madness/mra/operator.h>
 #include <madness/mra/nonlinsol.h>
 #include <chem/SCFOperators.h>
+#include <chem/Nemocomplex.h>
 
 
 using namespace madness;
@@ -100,19 +101,19 @@ struct binary_munge{
 // The default constructor for functions does not initialize
 // them to any value, but the solver needs functions initialized
 // to zero for which we also need the world object.
-struct allocator {
+struct callocator {
 	World& world;
 	const int n;
 
 	/// @param[in]	world	the world
 	/// @param[in]	nn		the number of functions in a given vector
-	allocator(World& world, const int nn) :
+	callocator(World& world, const int nn) :
 			world(world), n(nn) {
 	}
 
 	/// @param[in]	world	the world
 	/// @param[in]	nn		the number of functions in a given vector
-	allocator(const allocator& other) :
+	callocator(const callocator& other) :
 			world(other.world), n(other.n) {
 	}
 
@@ -391,6 +392,11 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
+#if 1
+    Nemo_complex nemo(world);
+    nemo.value();
+
+#else
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_refine(true);
@@ -487,7 +493,7 @@ int main(int argc, char** argv) {
     	orthonormalize(psi);
 
 
-    	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> solver(allocator(world,2));
+    	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, callocator> solver(callocator(world,2));
     	solver.set_maxsub(10);
     	solver.do_print=true;
 
@@ -591,7 +597,7 @@ int main(int argc, char** argv) {
 
 
     world.gop.fence();
-
+#endif
     finalize();
     return 0;
 }

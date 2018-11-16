@@ -923,6 +923,21 @@ namespace madness {
     }
 
 
+    /// Computes the square of a vector of functions --- q[i] = abs(v[i])**2
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<typename Tensor<T>::scalar_type,NDIM> >
+    abssq(World& world,
+           const std::vector< Function<T,NDIM> >& v,
+           bool fence=true) {
+    	typedef typename Tensor<T>::scalar_type scalartype;
+    	reconstruct(world,v);
+    	std::vector<Function<scalartype,NDIM> > result(v.size());
+    	for (int i=0; i<v.size(); ++i) result[i]=abssq(v[i],false);
+    	if (fence) world.gop.fence();
+        return result;
+    }
+
+
     /// Sets the threshold in a vector of functions
     template <typename T, std::size_t NDIM>
     void set_thresh(World& world, std::vector< Function<T,NDIM> >& v, double thresh, bool fence=true) {
@@ -954,7 +969,7 @@ namespace madness {
         PROFILE_BLOCK(Vcopy);
         std::vector< Function<R,NDIM> > r(v.size());
         for (unsigned int i=0; i<v.size(); ++i) {
-            r[i] = convert<R>(v[i], false);
+            r[i] = convert<T,R,NDIM>(v[i], false);
         }
         if (fence) world.gop.fence();
         return r;
@@ -1161,8 +1176,9 @@ namespace madness {
 
         if (op.is_slaterf12) {
         	MADNESS_ASSERT(not op.destructive());
+        	if (typeid(T)!=typeid(R)) MADNESS_EXCEPTION("think again!",1);
             for (unsigned int i=0; i<f.size(); ++i) {
-            	double trace=f[i].trace();
+            	R trace=f[i].trace();
                 result[i]=(result[i]-trace).scale(-0.5/op.mu());
             }
         }

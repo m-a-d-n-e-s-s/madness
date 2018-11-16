@@ -314,14 +314,14 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
     return result;
 }
 
-
-Exchange::Exchange(World& world, const SCF* calc, const int ispin)
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const SCF* calc, const int ispin)
         : world(world), small_memory_(true), same_(false), do_R2(true) {
     if (ispin==0) { // alpha spin
-        mo_ket=calc->amo;
+        mo_ket=convert<double,T,NDIM>(world,calc->amo);		// deep copy necessary if T==double_complex
         occ=calc->aocc;
     } else if (ispin==1) {  // beta spin
-        mo_ket=calc->bmo;
+        mo_ket=convert<double,T,NDIM>(world,calc->bmo);
         occ=calc->bocc;
     }
     mo_bra=mo_ket;
@@ -329,19 +329,21 @@ Exchange::Exchange(World& world, const SCF* calc, const int ispin)
             CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
 }
 
-Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
-    : world(world), small_memory_(true), same_(false), do_R2(true) {
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin)
+    : Exchange<T,NDIM>(world,nemo->get_calc().get(),ispin) {
+
+//    if (ispin==0) { // alpha spin
+//        mo_ket=nemo->get_calc()->amo;
+//        occ=nemo->get_calc()->aocc;
+//    } else if (ispin==1) {  // beta spin
+//        mo_ket=nemo->get_calc()->bmo;
+//        occ=nemo->get_calc()->bocc;
+//    }
+
     std::map<std::string,std::string>::const_iterator it=nemo->get_calc()->param.generalkeyval.find("do_R2");
     if (it!=nemo->get_calc()->param.generalkeyval.end())
         do_R2=CalculationParameters::stringtobool(it->second);
-
-    if (ispin==0) { // alpha spin
-        mo_ket=nemo->get_calc()->amo;
-        occ=nemo->get_calc()->aocc;
-    } else if (ispin==1) {  // beta spin
-        mo_ket=nemo->get_calc()->bmo;
-        occ=nemo->get_calc()->bocc;
-    }
 
     if (do_R2) {
         mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
@@ -356,21 +358,14 @@ Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
 
 }
 
-void Exchange::set_parameters(const vecfuncT& bra, const vecfuncT& ket,
-        const Tensor<double>& occ1, const double lo, const double econv) {
-    mo_bra=copy(world,bra);
-    mo_ket=copy(world,ket);
-    occ=copy(occ1);
-    poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, lo, econv));
-}
-
-vecfuncT Exchange::operator()(const vecfuncT& vket, const double& mul_tol) const {
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
+		const std::vector<Function<T,NDIM> >& vket, const double& mul_tol) const {
     const bool same = this->same();
     int nocc = mo_bra.size();
     int nf = vket.size();
     double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
-    vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
+    vecfuncT Kf = zero_functions_compressed<T,NDIM>(world, nf);
     reconstruct(world, mo_bra);
     norm_tree(world, mo_bra);
     reconstruct(world, mo_ket);
@@ -408,7 +403,7 @@ vecfuncT Exchange::operator()(const vecfuncT& vket, const double& mul_tol) const
         truncate(world, psif, tol);
         reconstruct(world, psif);
         norm_tree(world, psif);
-        vecfuncT psipsif = zero_functions<double, 3>(world, nf * nocc);
+        vecfuncT psipsif = zero_functions<T,NDIM>(world, nf * nocc);
         int ij = 0;
         for (int i = 0; i < nocc; ++i) {
             int jtop = nf;
@@ -761,6 +756,9 @@ Fock::Fock(World& world, const Nemo* nemo,
 }
 
 
+
+template class Exchange<double_complex,3>;
+template class Exchange<double,3>;
 
 } // namespace madness
 

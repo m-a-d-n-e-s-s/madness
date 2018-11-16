@@ -93,7 +93,8 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
 /// on the line.
 ///
 /// This code is just for the examples ... don't trust it!
-Molecule::Molecule(const std::string& filename) {
+Molecule::Molecule(const std::string& filename) :
+		atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {
     read_file(filename);
 }
 

@@ -339,7 +339,7 @@ int test_coulomb(World& world) {
 }
 
 /// anchor test for the exchange operator -- partially hardwired
-int exchange_anchor_test(World& world, Exchange& K, const double thresh) {
+int exchange_anchor_test(World& world, Exchange<double,3>& K, const double thresh) {
 
     const int nmo=2;
     Tensor<double> alpha(nmo);
@@ -407,7 +407,7 @@ int test_exchange(World& world) {
     FunctionDefaults<3>::set_cubic_cell(-10, 10);
 
     // construct exchange operator
-    Exchange K(world);
+    Exchange<double,3> K(world);
 
     const int nmo=2;
     Tensor<double> alpha(nmo);
@@ -431,11 +431,11 @@ int test_exchange(World& world) {
     if (success>0) return 1;
 
     // test hermiticity of the K operator
-    success=test_hermiticity<Exchange,3>(world, K, thresh);
+    success=test_hermiticity<Exchange<double,3> ,3>(world, K, thresh);
     if (success>0) return 1;
 
     // test bra/ket sets being different
-    success=test_asymmetric<Exchange,3>(world, K, thresh);
+    success=test_asymmetric<Exchange<double,3> ,3>(world, K, thresh);
     if (success>0) return 1;
 
     return 0;

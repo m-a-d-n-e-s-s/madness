@@ -333,7 +333,11 @@ private:
 
 };
 
+template<typename T, std::size_t NDIM>
 class Exchange {
+	typedef Function<T,NDIM> functionT;
+	typedef std::vector<functionT> vecfuncT;
+
 public:
 
     /// default ctor
@@ -347,10 +351,16 @@ public:
     Exchange(World& world, const Nemo* nemo, const int ispin);
 
     void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
-            const Tensor<double>& occ, const double lo=1.e-4,
-            const double econv=FunctionDefaults<3>::get_thresh());
+            const Tensor<double>& occ1, const double lo=1.e-4,
+            const double econv=FunctionDefaults<3>::get_thresh()) {
+    	mo_bra=copy(world,bra);
+    	mo_ket=copy(world,ket);
+    	occ=copy(occ1);
+    	poisson = std::shared_ptr<real_convolution_3d>(
+    	            CoulombOperatorPtr(world, lo, econv));
+    }
 
-    real_function_3d operator()(const real_function_3d& ket) const {
+    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
         vecfuncT vket(1,ket);
         vecfuncT vKket=this->operator()(vket);
         return vKket[0];
@@ -367,7 +377,7 @@ public:
 
     /// @param[in]  bra    real_funtion_3d, the bra state
     /// @param[in]  ket    real_funtion_3d, the ket state
-    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
         return inner(bra,this->operator()(ket));
     }
 
@@ -376,7 +386,7 @@ public:
     /// @param[in]  vbra    vector of real_funtion_3d, the set of bra states
     /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
     /// @return K_ij
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vKket=this->operator()(vket);
         return matrix_inner(world,vbra,vKket,bra_equiv_ket);
@@ -598,7 +608,7 @@ public:
 private:
     World& world;
     Coulomb J;
-    Exchange K;
+    Exchange<double,3> K;
     Kinetic<double,3> T;
     Nuclear V;
     const double scale_K;
