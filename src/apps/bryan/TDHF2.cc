@@ -813,7 +813,7 @@ ResponseFunction TDHF::create_B(World &world,
    }
 
    // End timer
-   if(print_level >= 1) end_timer(world, "   Create B:");
+   if(print_level >= 1) end_timer(world, "   Creating B:");
 
    // Done
    return gamma; 
@@ -3839,10 +3839,7 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
                                                int print_level)
 {
    // Basic output
-   if(print_level > 0)
-   {
-      if(world.rank() == 0) print("   Creating the ground state hamiltonian.");
-   }
+   if(print_level >= 1) start_timer(world); 
 
    // Get sizes
    int m = f.size();
@@ -3964,18 +3961,19 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
 
    // If using localized orbitals, just save a matrix that is
    // (T+V) - Lambda * eye (so we can multiply this for RHS)
-   if(true) // Always do this. //Rparams.localized)
-   {
-      // Copy hamiltonian and zero the diagonal 
-      ham_no_diag = copy(hamiltonian); 
-      for(int i = 0; i < m; i++) ham_no_diag(i,i) = 0.0; 
-   }
+   // Copy hamiltonian and zero the diagonal 
+   ham_no_diag = copy(hamiltonian); 
+   for(int i = 0; i < m; i++) ham_no_diag(i,i) = 0.0; 
 
    // Debug output
-   if(print_level >= 2)
+   if(print_level >= 2 and world.rank() == 0)
    {
-      if(world.rank() == 0) print(hamiltonian);
+      print("   Ground state hamiltonian:");
+      print(hamiltonian);
    }
+
+   // End timer
+   if(print_level >=1) end_timer(world, "   Create grnd ham:");
 
    return hamiltonian;
 }
@@ -4056,22 +4054,42 @@ void TDHF::set_protocol(World & world, double thresh)
 
 
 void TDHF::check_k(World& world, 
-                   double thresh)
+                   double thresh,
+                   int k)
 {
+   // Boolean to redo ground hamiltonian calculation if
+   // ground state orbitals change
+   bool redo = false;
+
    // Verify ground state orbitals have correct k
    if(FunctionDefaults<3>::get_k() != Gparams.orbitals[0].k())
    {
+      // Re-read orbitals from the archive (assuming
+      // the archive has orbitals stored at a higher
+      // k value than what was previously computed 
+      // with)
+      Gparams.read(world, Rparams.archive);
       reconstruct(world, Gparams.orbitals);
+
+      // Reset correct k (its set in Gparams.read)
+      FunctionDefaults<3>::set_k(k);
 
       // Project each ground state to correct k
       for(unsigned int i = 0; i < Gparams.orbitals.size(); i++)
          Gparams.orbitals[i] = project(Gparams.orbitals[i], FunctionDefaults<3>::get_k(), thresh, false);
       world.gop.fence();
 
+      // Clean up a bit
       truncate(world, Gparams.orbitals);
 
-      // Recalculate ground state hamiltonian here
-      hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, -1); // -1 suppresses output 
+      // Ground state orbitals changed, clear old hamiltonian
+      redo = true; 
+   }
+
+   // Recalculate ground state hamiltonian here
+   if(redo or !hamiltonian.has_data())
+   {
+      hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level); 
    }
 
    // If we stored the potential, check that too
@@ -4093,29 +4111,31 @@ void TDHF::check_k(World& world,
    }
 
    // Verify response functions have correct k
-   if(FunctionDefaults<3>::get_k() != x_response[0][0].k())
+   if(x_response.size() != 0)
    {
-      // Project all x states into correct k
-      for(unsigned int i = 0; i < x_response.size(); i++)
+      if(FunctionDefaults<3>::get_k() != x_response[0][0].k())
       {
-         reconstruct(world, x_response[i]);
-         for(unsigned int j = 0; j < x_response[0].size(); j++)
-            x_response[i][j] = project(x_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
-         world.gop.fence();
-      }
-      truncate(world, x_response); 
+         // Project all x states into correct k
+         for(unsigned int i = 0; i < x_response.size(); i++)
+         {
+            reconstruct(world, x_response[i]);
+            for(unsigned int j = 0; j < x_response[0].size(); j++)
+               x_response[i][j] = project(x_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+            world.gop.fence();
+         }
+         truncate(world, x_response); 
 
-      // Do same for y states if applicable
-      // Project all y states into correct k
-      for(unsigned int i = 0; i < y_response.size(); i++)
-      {
-         reconstruct(world, y_response[i]);
-         for(unsigned int j = 0; j < y_response[0].size(); j++)
-            y_response[i][j] = project(y_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
-         world.gop.fence();
+         // Do same for y states if applicable
+         // Project all y states into correct k
+         for(unsigned int i = 0; i < y_response.size(); i++)
+         {
+            reconstruct(world, y_response[i]);
+            for(unsigned int j = 0; j < y_response[0].size(); j++)
+               y_response[i][j] = project(y_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+            world.gop.fence();
+         }
+         truncate(world, y_response);
       }
-      truncate(world, y_response);
-
    }
 
    // Don't forget the mask function as well
@@ -4404,102 +4424,6 @@ void TDHF::solve(World & world)
       print("   ------------------------");
    }
 
-   // Create hamiltonian from ground state orbitals (need the matrix for both local and canonical orbitals)
-   hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level);
-
-   // Create the active subspace (select which ground state orbitals to calculate excitations from)
-   //if(Rparams.e_window) select_active_subspace(world);
-
-   if(Rparams.restart)
-   {
-      if(world.rank() == 0) print("   Restarting from file:", Rparams.restart_file);
-      load(world, Rparams.restart_file);
-   }
-   else
-   {
-      // Create trial functions by...
-      // (Always creating (at least) twice the amount requested for initial diagonalization)
-      if(world.rank() == 0)  print("\n   Creating trial functions.\n");
-      if(Rparams.random)
-      {
-         // Random guess
-         x_response = create_random_guess(world, 2*Rparams.states, Gparams.num_orbitals, Gparams.orbitals, Gparams.molecule);
-      }
-      else if(Rparams.nwchem != "")
-      {
-         // Virtual orbitals from NWChem
-         x_response = create_nwchem_guess(world, 2*Rparams.states);
-      }
-      else
-      {
-         // Use a symmetry adapted operator on ground state functions
-         x_response = create_trial_functions(world, 2*Rparams.states, Gparams.orbitals, Rparams.print_level);
-      }
-
-      // Load balance
-      // Only balancing on x-states. Smart?
-      if(world.size() > 1)
-      {
-         // Start a timer
-         if(Rparams.print_level >= 1) start_timer(world); 
-         if(world.rank() == 0) print(""); // Makes it more legible
- 
-         LoadBalanceDeux<3> lb(world);
-         for(int j = 0; j < Rparams.states; j++)
-         {
-            for(unsigned int k = 0; k < Gparams.num_orbitals; k++)
-            {
-               lb.add_tree(x_response[j][k], lbcost<double,3>(1.0,8.0),true);
-            }
-         }
-         for(unsigned int j = 0; j < Gparams.num_orbitals; j++)
-         {
-            lb.add_tree(Gparams.orbitals[j], lbcost<double,3>(1.0,8.0),true);
-         }
-         FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
-
-         if(Rparams.print_level >= 1) end_timer(world, "Load balancing:");
-      }
- 
-      // Project out groundstate from guesses
-      QProjector<double, 3> projector(world, Gparams.orbitals);
-      for(unsigned int i = 0; i < x_response.size(); i++) x_response[i] = projector(x_response[i]);
-
-      // Ensure orthogonal guesses
-      for(int i = 0; i < 2; i++)
-      {
-         start_timer(world);
-         // Orthog
-         x_response = gram_schmidt(world, x_response);
-         end_timer(world, "orthog");
-
-         start_timer(world); 
-         // Normalize
-         normalize(world, x_response);
-         end_timer(world, "normalize");
-      } 
-
-      // Diagonalize guess
-      if(world.rank() == 0) print("   Iterating trial functions for an improved initial guess.\n");
-      iterate_guess(world, x_response);
-
-      // Sort
-      sort(world, omega, x_response);
-
-      // Basic output
-      if(Rparams.print_level >= 1 and world.rank() == 0)
-      {
-         print("\n   Final initial guess excitation energies:");
-         print(omega);
-      }
-
-      // Select lowest energy functions from guess   
-      x_response = select_functions(world, x_response, omega, Rparams.states, Rparams.print_level);
-
-      // Initial guess for y are zero functions
-      y_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
-   }
-
    // Ready to iterate! 
    for(unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++)
    {
@@ -4507,7 +4431,107 @@ void TDHF::solve(World & world)
       set_protocol<3>(world, Rparams.protocol_data[proto]);
 
       // Do something to ensure all functions have same k value
-      check_k(world, Rparams.protocol_data[proto]);
+      check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
+
+      // Create hamiltonian from ground state orbitals (need the matrix for both local and canonical orbitals)
+      // Done inside check k?
+      //hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level);
+
+      // Create the active subspace (select which ground state orbitals to calculate excitations from)
+      //if(Rparams.e_window) select_active_subspace(world);
+
+      if(proto == 0)
+      {
+         if(Rparams.restart)
+         {
+            if(world.rank() == 0) print("   Restarting from file:", Rparams.restart_file);
+            load(world, Rparams.restart_file);
+         }
+         else
+         {
+            // Create trial functions by...
+            // (Always creating (at least) twice the amount requested for initial diagonalization)
+            if(world.rank() == 0)  print("\n   Creating trial functions.\n");
+            if(Rparams.random)
+            {
+               // Random guess
+               x_response = create_random_guess(world, 2*Rparams.states, Gparams.num_orbitals, Gparams.orbitals, Gparams.molecule);
+            }
+            else if(Rparams.nwchem != "")
+            {
+               // Virtual orbitals from NWChem
+               x_response = create_nwchem_guess(world, 2*Rparams.states);
+            }
+            else
+            {
+               // Use a symmetry adapted operator on ground state functions
+               x_response = create_trial_functions(world, 2*Rparams.states, Gparams.orbitals, Rparams.print_level);
+            }
+
+            // Load balance
+            // Only balancing on x-states. Smart?
+            if(world.size() > 1)
+            {
+               // Start a timer
+               if(Rparams.print_level >= 1) start_timer(world); 
+               if(world.rank() == 0) print(""); // Makes it more legible
+ 
+               LoadBalanceDeux<3> lb(world);
+               for(int j = 0; j < Rparams.states; j++)
+               {
+                  for(unsigned int k = 0; k < Gparams.num_orbitals; k++)
+                  {
+                     lb.add_tree(x_response[j][k], lbcost<double,3>(1.0,8.0),true);
+                  }
+               }
+               for(unsigned int j = 0; j < Gparams.num_orbitals; j++)
+               {
+                  lb.add_tree(Gparams.orbitals[j], lbcost<double,3>(1.0,8.0),true);
+               }
+               FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
+
+               if(Rparams.print_level >= 1) end_timer(world, "Load balancing:");
+            }
+            
+            // Project out groundstate from guesses
+            QProjector<double, 3> projector(world, Gparams.orbitals);
+            for(unsigned int i = 0; i < x_response.size(); i++) x_response[i] = projector(x_response[i]);
+
+            // Ensure orthogonal guesses
+            for(int i = 0; i < 2; i++)
+            {
+               start_timer(world);
+               // Orthog
+               x_response = gram_schmidt(world, x_response);
+               end_timer(world, "orthog");
+
+               start_timer(world); 
+               // Normalize
+               normalize(world, x_response);
+               end_timer(world, "normalize");
+            } 
+
+            // Diagonalize guess
+            if(world.rank() == 0) print("\n   Iterating trial functions for an improved initial guess.\n");
+            iterate_guess(world, x_response);
+
+            // Sort
+            sort(world, omega, x_response);
+
+            // Basic output
+            if(Rparams.print_level >= 1 and world.rank() == 0)
+            {
+               print("\n   Final initial guess excitation energies:");
+               print(omega);
+            }
+
+            // Select lowest energy functions from guess   
+            x_response = select_functions(world, x_response, omega, Rparams.states, Rparams.print_level);
+
+            // Initial guess for y are zero functions
+            y_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
+         }
+      }
 
       // Now actually ready to iterate...
       iterate(world);
@@ -4588,13 +4612,13 @@ void TDHF::iterate_polarizability(World & world,
    omega = Rparams.omega; 
 
    // Verify if any shift is needed (NEEDS CHECKING)
-   //if((Gparams.energies[n] + Rparams.omega) > 0.0)
-   //{
-   //   // Calculate minimum shift needed such that \eps + \omega + shift < 0 
-   //   // for all \eps, \omega
-   //   //shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
-   //   shifts = -(Gparams.energies[n] + Rparams.omega + 0.05);
-   //}
+   if((Gparams.energies[n] + Rparams.omega) > 0.0)
+   {
+      // Calculate minimum shift needed such that \eps + \omega + shift < 0 
+      // for all \eps, \omega
+      shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
+      //shifts = -(Gparams.energies[n] + Rparams.omega + 0.05);
+   }
 
    // Construct BSH operators
    std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(world, shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
@@ -4647,7 +4671,7 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.omega != 0.0) V_y_response = create_potential(world, y_response, xc, Rparams.print_level, "y");
 
       // Apply shift
-      //V_x_response = apply_shift(world, shifts, V_x_response, x_response);
+      V_x_response = apply_shift(world, shifts, V_x_response, x_response);
       //if(Rparams.omega != 0.0) V_y_response = apply_shift(world, shifts, V_y_response, y_response);
 
       // Create \epsilon applied to response functions
@@ -4878,24 +4902,11 @@ void TDHF::solve_polarizability(World & world)
       print("   ------------------------");
    }
 
-   // Create hamiltonian from ground state orbitals
-   hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level);
-
    // Create the polarizability tensor
    Tensor<double> polar_tensor(3,3);
 
-   // Create guesses
-   // If restarting, load here
-   if(Rparams.restart)
-   {
-      if(world.rank() == 0) print("   Initial guess from file:", Rparams.restart_file);
-      load(world, Rparams.restart_file);
-   }
-   else // Dipole guesses
-   { 
-      x_response = dipole_guess(world, Gparams.orbitals); 
-      y_response = x_response.copy(); 
-   }
+   // Keep a copy of dipoles * MO (needed explicitly in eq.)
+   ResponseFunction dipoles = dipole_guess(world, Gparams.orbitals); 
 
    // For each protocol
    for(unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++)
@@ -4904,14 +4915,35 @@ void TDHF::solve_polarizability(World & world)
       set_protocol<3>(world, Rparams.protocol_data[proto]);
 
       // Do something to ensure all functions have same k value
-      check_k(world, Rparams.protocol_data[proto]);
+      check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
 
-      // Create trial functions
-      if(world.rank() == 0 and proto == 0)  printf("\n   Creating trial functions");
-      if(world.rank() == 0 and proto == 0)  printf("\n   ------------------------\n\n"); 
+      // Create hamiltonian from ground state orbitals
+      // Done inside check k now
+      //hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level);
 
-      // Keep a copy of dipoles * MO (needed explicitly in eq.)
-      ResponseFunction dipoles = dipole_guess(world, Gparams.orbitals); 
+      // Create guesses if no response functions
+      // If restarting, load here
+      if(proto == 0)
+      {
+         if(Rparams.restart)
+         {
+            if(world.rank() == 0) print("   Initial guess from file:", Rparams.restart_file);
+            load(world, Rparams.restart_file);
+         }
+         else // Dipole guesses
+         { 
+            x_response = dipole_guess(world, Gparams.orbitals); 
+            y_response = x_response.copy(); 
+         }
+
+         // Create trial functions
+         if(world.rank() == 0 and proto == 0)  printf("\n   Creating trial functions");
+         if(world.rank() == 0 and proto == 0)  printf("\n   ------------------------\n\n"); 
+      }
+
+      // Set the dipoles (ground orbitals are probably
+      // more accurate now, so recalc the dipoles)
+      dipoles = dipole_guess(world, Gparams.orbitals); 
 
       // Now actually ready to iterate...
       iterate_polarizability(world, dipoles);

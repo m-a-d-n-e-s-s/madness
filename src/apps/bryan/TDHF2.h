@@ -607,7 +607,8 @@ class TDHF
 
       // Verifies that correct order of polynomial is in use for all
       void check_k(World & world,
-                   double thresh);
+                   double thresh,
+                   int k);
 
       // Creates random guess functions semi-intelligently(?)
       ResponseFunction create_random_guess(World & world, 

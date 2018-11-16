@@ -58,6 +58,10 @@ namespace madness
          // written in the archive 
          FunctionDefaults<3>::set_k(k);
 
+         // Possible to call this function multiple times now
+         // Do this to ensure everything works.
+         orbitals.clear();
+
          // Read in ground state orbitals
          for(unsigned int i = 0; i < num_orbitals; i++)
          {
