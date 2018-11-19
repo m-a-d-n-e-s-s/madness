@@ -43,7 +43,10 @@ double Nemo_complex::value() {
 	for (int i=0; i<param.B().size(); ++i) {
 		B=param.B()[i];
 		print("solving for magnetic field B=",B);
-		int maxiter = (i==param.B().size()-1) ? cparam.maxiter : 8;
+
+		// set end of iteration cycles for intermediate calculations
+		int maxiter = (i==param.B().size()-1) ? cparam.maxiter : 20;
+		double dconv = (i==param.B().size()-1) ? cparam.dconv : 1.e-2;
 		double na=1.0,nb=1.0;	// residual norms
 
 		solvera.clear_subspace();
@@ -59,12 +62,11 @@ double Nemo_complex::value() {
 			if (cparam.spin_restricted) density*=2.0;
 			density.truncate();
 
-			// compute the initial Fock matrix and the orbital energies
+			// compute the fock matrix
 			std::vector<complex_function_3d> Vnemo, lznemo, dianemo, Knemo, Jnemo, Vnemoa, Vnemob,
 				spin_zeeman_nemo;
 			Tensor<double_complex> focka, fockb(0l,0l), tmata, tmatb, vmata, vmatb;
 
-			// compute the fock matrix and total energy
 			compute_potentials(amo, density, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
 			vmata=compute_vmat(amo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
 			Vnemoa=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo;
@@ -102,10 +104,10 @@ double Nemo_complex::value() {
 			oldenergy=energy;
 			energy=aeps.sum() + beps.sum();
 			energy=energy-0.5*(two_electron_alpha + two_electron_beta) + molecule.nuclear_repulsion_energy();
-			if (iter<5) {
+//			if (iter<5) {
 				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
 				for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
-			}
+//			}
 			if (world.rank()==0 and (param.printlevel()>1)) {
 				print("orbital energies alpha",aeps);
 				print("orbital energies beta ",beps);
@@ -115,7 +117,7 @@ double Nemo_complex::value() {
 						iter, wall_time(), energy, na, nb);
 			}
 
-			if (std::abs(oldenergy-energy)<cparam.econv and (sqrt(na*na+nb*nb)<cparam.dconv)) {
+			if (std::abs(oldenergy-energy)<cparam.econv and (sqrt(na*na+nb*nb)<dconv)) {
 				print("energy converged");
 				converged=true;
 			}
@@ -144,7 +146,7 @@ double Nemo_complex::value() {
 				nb=sqrt(nb);
 				bmo=solverb.update(bmo,resb,0.01,3);
 				bmo=sbox*bmo;
-				bmo=orthonormalize_symmetric(bmo);
+//				bmo=orthonormalize_symmetric(bmo);
 				truncate(world,bmo);
 			}
 			save_orbitals(iter);
@@ -152,13 +154,21 @@ double Nemo_complex::value() {
 		if (world.rank()==0) {
 			print("orbital energies alpha",aeps);
 			print("orbital energies beta ",beps);
+
+			Tensor<double> oza=0.5*B*real(inner(world,amo,Lz(amo)));
+			print("Orbital Zeeman term alpha ",oza);
+			Tensor<double> bza=0.5*B*real(inner(world,bmo,Lz(bmo)));
+			print("Orbital Zeeman term beta  ",bza);
+			Tensor<double> diaa=0.125*B*B*real(inner(world,amo,diamagnetic()*amo));
+			print("diamagnetic term alpha    ",diaa);
+			Tensor<double> diab= (have_beta()) ? 0.125*B*B*real(inner(world,bmo,diamagnetic()*bmo)) : Tensor<double>();
+			print("diamagnetic term beta     ",diab);
 		}
 
 	}
 
 	return energy;
 }
-
 
 /// compute the action of the Lz =i r x del operator on rhs
 std::vector<complex_function_3d> Nemo_complex::Lz(const std::vector<complex_function_3d>& rhs) const {
@@ -245,8 +255,6 @@ Nemo_complex::compute_vmat(
 	Tensor<double_complex> Kmat=matrix_inner(world,mo,Knemo);
 	Tensor<double_complex> Jmat=matrix_inner(world,mo,Jnemo);
 
-//	print("Vnucmat+lzmat+diamat-Kmat+Jmat");
-//	print(Vnucmat,lzmat,diamat,Kmat,Jmat);
 	Tensor<double_complex> vmat=Vnucmat+lzmat+diamat+spin_zeeman_mat-Kmat+Jmat;
 	return vmat;
 };
