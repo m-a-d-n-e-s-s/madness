@@ -42,6 +42,7 @@ double Nemo_complex::value() {
 	// increase the magnetic field
 	for (int i=0; i<param.B().size(); ++i) {
 		B=param.B()[i];
+		double shift=param.shift();
 		print("solving for magnetic field B=",B);
 
 		// set end of iteration cycles for intermediate calculations
@@ -69,7 +70,7 @@ double Nemo_complex::value() {
 
 			compute_potentials(amo, density, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
 			vmata=compute_vmat(amo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
-			Vnemoa=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo;
+			Vnemoa=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo+shift*amo;
 			truncate(world,Vnemoa,thresh*0.1);
 			two_electron_alpha= real(-inner(world,Knemo,amo).sum() + inner(world,Jnemo,amo).sum());
 
@@ -77,7 +78,7 @@ double Nemo_complex::value() {
 				compute_potentials(bmo, density, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
 				scale(world,spin_zeeman_nemo,-1.0);
 				vmatb=compute_vmat(bmo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
-				Vnemob=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo;
+				Vnemob=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo+shift*bmo;
 				truncate(world,Vnemob);
 				two_electron_beta= real(-inner(world,Knemo,bmo).sum() + inner(world,Jnemo,bmo).sum());
 			}
@@ -102,15 +103,15 @@ double Nemo_complex::value() {
 
 			// compute orbital and total energies
 			oldenergy=energy;
-			energy=aeps.sum() + beps.sum();
+			energy=aeps.sum() + beps.sum()-shift-shift;
 			energy=energy-0.5*(two_electron_alpha + two_electron_beta) + molecule.nuclear_repulsion_energy();
 //			if (iter<5) {
-				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
-				for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
+				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i))+shift;
+				for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i))+shift;
 //			}
 			if (world.rank()==0 and (param.printlevel()>1)) {
-				print("orbital energies alpha",aeps);
-				print("orbital energies beta ",beps);
+				print("orbital energies alpha",aeps-shift);
+				print("orbital energies beta ",beps-shift);
 			}
 			if (world.rank() == 0) {
 				printf("finished iteration %2d at time %8.1fs with energy, norms %12.8f %12.8f %12.8f\n",
@@ -123,27 +124,18 @@ double Nemo_complex::value() {
 			}
 			if (converged) break;
 
-			// add a global shift for convergence stabilization
-			// the diamagnetic term is unbound
-			double shift=param.shift();
-			aeps+=shift;
-			Vnemoa+=shift*amo;
-			if (have_beta()) {
-				Vnemob+=shift*bmo;
-				beps+=shift;
-			}
-
 			// compute the residual of the Greens' function
 			std::vector<complex_function_3d> resa=compute_residuals(Vnemoa,amo,aeps);
 			truncate(world,resa,thresh*0.1);
 			std::vector<double> normsa=norm2s(world,resa);
-			aeps-=shift;
 
 			na=0.0; nb=0.0;
 			for (auto nn : normsa) {na+=nn*nn;}
 			na=sqrt(na);
-			amo=solvera.update(amo,resa,0.01,3);
-			amo=sbox*amo;
+			std::vector<complex_function_3d> amo_new=solvera.update(amo,resa,0.01,3);
+			amo_new=sbox*amo_new;
+			do_step_restriction(amo,amo_new);
+			amo=amo_new;
 //			amo=orthonormalize_symmetric(amo);
 			orthonormalize(amo);
 			truncate(world,amo);
@@ -155,14 +147,19 @@ double Nemo_complex::value() {
 				std::vector<double> normsb=norm2s(world,resb);
 				for (auto nn : normsb) {nb+=nn*nn;}
 				nb=sqrt(nb);
-				bmo=solverb.update(bmo,resb,0.01,3);
-				bmo=sbox*bmo;
+				std::vector<complex_function_3d> bmo_new=solverb.update(bmo,resb,0.01,3);
+				bmo_new=sbox*bmo_new;
+				do_step_restriction(bmo,bmo_new);
+				bmo=bmo_new;
+				orthonormalize(bmo);
 //				bmo=orthonormalize_symmetric(bmo);
 				truncate(world,bmo);
-				beps-=shift;
 			}
 			save_orbitals(iter);
 		}
+		// undo the energy shift
+		aeps-=shift;
+		beps-=shift;
 		if (world.rank()==0) {
 			print("orbital energies alpha",aeps);
 			print("orbital energies beta ",beps);
@@ -181,6 +178,31 @@ double Nemo_complex::value() {
 
 	return energy;
 }
+
+
+void Nemo_complex::do_step_restriction(const std::vector<complex_function_3d>& mo,
+		std::vector<complex_function_3d>& mo_new) const {
+    PROFILE_MEMBER_FUNC(SCF);
+    std::vector<double> anorm = norm2s(world, sub(world, mo, mo_new));
+    int nres = 0;
+    for (unsigned int i = 0; i < mo.size(); ++i) {
+        if (anorm[i] > cparam.maxrotn) {
+            double s = cparam.maxrotn / anorm[i];
+            ++nres;
+            if (world.rank() == 0) {
+                if (nres == 1)
+                    printf("  restricting step ");
+                printf(" %d", i);
+            }
+            mo_new[i].gaxpy(s, mo[i], 1.0 - s, false);
+        }
+    }
+    if (nres > 0 && world.rank() == 0)
+        printf("\n");
+
+    world.gop.fence();
+}
+
 
 /// compute the action of the Lz =i r x del operator on rhs
 std::vector<complex_function_3d> Nemo_complex::Lz(const std::vector<complex_function_3d>& rhs) const {
@@ -231,7 +253,7 @@ void Nemo_complex::compute_potentials(const std::vector<complex_function_3d>& mo
 		std::vector<complex_function_3d>& Jnemo) const {
 	Vnemo=vnuclear*mo;
 	lznemo=0.5*B*Lz(mo);
-	dianemo=0.125*B*B*diamagnetic()*mo;
+	dianemo=sbox*0.125*B*B*diamagnetic()*mo;
 	spin_zeeman_nemo=B*0.5*mo;
 	Exchange<double_complex,3> K=Exchange<double_complex,3>(world);
 	Tensor<double> occ(mo.size());
@@ -279,6 +301,7 @@ Nemo_complex::compute_residuals(
 		Tensor<double>& eps) const {
 
 	double tol = FunctionDefaults < 3 > ::get_thresh();
+	double shift=param.shift();
 
     std::vector < std::shared_ptr<real_convolution_3d> > ops(psi.size());
     for (int i=0; i<eps.size(); ++i)

@@ -46,13 +46,17 @@
 
 */
 
+#define OLDCODE
+#undef OLDCODE
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/nonlinsol.h>
 #include <chem/SCFOperators.h>
+#ifndef OLDCODE
 #include <chem/Nemocomplex.h>
+#endif
 
 
 using namespace madness;
@@ -392,7 +396,7 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-#if 1
+#ifndef OLDCODE
     Nemo_complex nemo(world);
     nemo.value();
 

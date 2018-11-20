@@ -167,6 +167,9 @@ public:
 	/// read the guess orbitals from a previous nemo or moldft calculation
 	std::vector<complex_function_3d> read_guess(const std::string& spin) const;
 
+	void do_step_restriction(const std::vector<complex_function_3d>& mo,
+			std::vector<complex_function_3d>& mo_new) const;
+
 	/// compute the action of the Lz =i r x del operator on rhs
 	std::vector<complex_function_3d> Lz(const std::vector<complex_function_3d>& rhs) const;
 
