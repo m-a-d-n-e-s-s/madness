@@ -123,10 +123,21 @@ double Nemo_complex::value() {
 			}
 			if (converged) break;
 
+			// add a global shift for convergence stabilization
+			// the diamagnetic term is unbound
+			double shift=param.shift();
+			aeps+=shift;
+			Vnemoa+=shift*amo;
+			if (have_beta()) {
+				Vnemob+=shift*bmo;
+				beps+=shift;
+			}
+
 			// compute the residual of the Greens' function
 			std::vector<complex_function_3d> resa=compute_residuals(Vnemoa,amo,aeps);
 			truncate(world,resa,thresh*0.1);
 			std::vector<double> normsa=norm2s(world,resa);
+			aeps-=shift;
 
 			na=0.0; nb=0.0;
 			for (auto nn : normsa) {na+=nn*nn;}
@@ -148,6 +159,7 @@ double Nemo_complex::value() {
 				bmo=sbox*bmo;
 //				bmo=orthonormalize_symmetric(bmo);
 				truncate(world,bmo);
+				beps-=shift;
 			}
 			save_orbitals(iter);
 		}

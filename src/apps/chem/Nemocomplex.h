@@ -96,8 +96,10 @@ public:
 	}
 
 	int printlevel() const {return get<int>(printlevel_);}
+	double shift() const {return get<double>(shift_);}
 	std::vector<double> B() const {return get<std::vector<double> >(B_);}
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
+
 
 	/// return the value of the parameter
 	template<typename T>
