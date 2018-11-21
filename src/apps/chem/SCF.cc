@@ -175,7 +175,7 @@ namespace madness {
                 MADNESS_EXCEPTION("SCF failed to open stream", 0);
             }
             molecule.read(*input);
-            if (molecule.natom() < 3) param.localize = false; // symmetry confuses orbital localization
+            //if (molecule.natom() < 3) param.localize = false; // symmetry confuses orbital localization
             param.read(*input);
             
             //if psp_calc is true, set all atoms to PS atoms
@@ -1131,7 +1131,8 @@ namespace madness {
                if (world.rank() == 0)
                    print("guess dens trace", nel);
                END_TIMER(world, "guess density");
-               
+               rho.scale(std::round(nel)/nel);               
+
                if (world.size() > 1) {
                    START_TIMER(world);
                    LoadBalanceDeux < 3 > lb(world);
@@ -2041,37 +2042,82 @@ namespace madness {
     tensorT SCF::matrix_exponential(const tensorT& A) const {
         PROFILE_MEMBER_FUNC(SCF);
         const double tol = 1e-13;
+
         MADNESS_ASSERT(A.dim((0) == A.dim(1)));
-        
+       
+        // Power iteration to estimate the 2-norm of the matrix. Used
+        // to use Frobenius or 1-norms but neither were very tight.
+         double anorm;
+        {
+          tensorT x(A.dim(0));
+          x.fillrandom(); x.scale(1.0/x.normf());
+          double prev = 0.0;
+          for (int i=0; i<100; i++) {
+            tensorT xnew = inner(A,inner(A,x,1,0),0,0);
+            anorm = std::sqrt(std::abs((x.trace(xnew))));
+            double err = std::abs(prev-anorm)/anorm;
+            //print(i,anorm,err,A.normf());
+            if (err < 0.01) break; // just need 1-2 digits
+            x = xnew.scale(1.0/xnew.normf());
+            prev = anorm;
+          }
+        }
+ 
         // Scale A by a power of 2 until it is "small"
-        double anorm = A.normf();
         int n = 0;
         double scale = 1.0;
-        while (anorm * scale > 0.1) {
+        while (anorm * scale > 0.089) { // so that 9th order expansion is accurate to 1e-15
             ++n;
             scale *= 0.5;
         }
         tensorT B = scale * A;    // B = A*2^-n
-        
-        // Compute exp(B) using Taylor series
-        tensorT expB = tensorT(2, B.dims());
-        for (int i = 0; i < expB.dim(0); ++i)
-            expB(i, i) = 1.0;
-        
-        int k = 1;
-        tensorT term = B;
-        while (term.normf() > tol) {
-            expB += term;
-            term = inner(term, B);
-            ++k;
-            term.scale(1.0 / k);
+
+        // Make identity
+        tensorT I = tensorT(2, B.dims());
+        for (int i = 0; i < I.dim(0); ++i) I(i, i) = 1.0;        
+
+        // Compute exp(B) using Taylor series optimized to reduce cost --- Chebyshev is only a minor improvement
+        tensorT expB;
+        if (anorm > 0.24e-1) {
+          tensorT B2 = inner(B,B);
+          tensorT B4 = inner(B2,B2); 
+          tensorT B6 = inner(B4,B2); 
+          expB = I + inner(B,B6+42.*B4+840.*B2+5040.*I).scale(1./5040.) + inner(B2,B6+56.*B4+1680.*B2+20160.*I).scale(1./40320.);
         }
-        
+        else if (anorm > 0.26e-2) {
+          tensorT B2 = inner(B,B);
+          tensorT B4 = inner(B2,B2); 
+          expB = I + inner(B,42.*B4+840.*B2+5040.*I).scale(1./5040.) + inner(B2,56.*B4+1680.*B2+20160.*I).scale(1./40320.);
+        }
+        else if (anorm > 0.18e-4) {
+          tensorT B2 = inner(B,B);
+          expB = I + inner(B,840.*B2+5040.*I).scale(1./5040.) + inner(B2,1680.*B2+20160.*I).scale(1./40320.);
+        }
+        else if (anorm > 4.5e-8) {
+          expB = I + B + inner(B,B).scale(0.5);
+        } 
+        else {
+          expB = I + B;
+        } 
+
+        // // Old algorithm
+        // tensorT oldexpB = copy(I);
+        // const double tol = 1e-13;
+        // int k = 1;
+        // tensorT term = B;
+        // while (term.normf() > tol) {
+        //     oldexpB += term;
+        //     term = inner(term, B);
+        //     ++k;
+        //     term.scale(1.0 / k);
+        // }
+        // Error check for validation
+        // double err = (expB-oldexpB).normf();
+        // print("matxerr", anorm, err);
+                  
         // Repeatedly square to recover exp(A)
-        while (n--) {
-            expB = inner(expB, expB);
-        }
-        
+        while (n--) expB = inner(expB, expB);
+
         return expB;
     }
     
@@ -2329,6 +2375,7 @@ namespace madness {
         compress(world, vm, false);
         compress(world, rm, false);
         world.gop.fence();
+        restart:
         subspace.push_back(pairvecfuncT(vm, rm));
         int m = subspace.size();
         tensorT ms(m);
@@ -2353,28 +2400,32 @@ namespace madness {
         Q = newQ;
         //if (world.rank() == 0) { print("kain Q"); print(Q); }
         tensorT c;
-        if (world.rank() == 0) {
-            double rcond = 1e-12;
-            while (1) {
-                c = KAIN(Q, rcond);
-                //if (world.rank() == 0) print("kain c:", c);
-                if (std::abs(c[m - 1]) < 3.0) {
-                    break;
-                } else if (rcond < 0.01) {
-                    print("Increasing subspace singular value threshold ", c[m - 1],
-                          rcond);
-                    rcond *= 100;
-                } else {
-                    print("Forcing full step due to subspace malfunction");
-                    c = 0.0;
-                    c[m - 1] = 1.0;
-                    break;
-                }
-            }
+        //if (world.rank() == 0) {
+        double rcond = 1e-12;
+        while (1) {
+          c = KAIN(Q, rcond);
+          if (world.rank() == 0) print("kain c:", c);
+          //if (std::abs(c[m - 1]) < 5.0) { // was 3
+          if (c.absmax() < 3.0) { // was 3
+            break;
+          } else if (rcond < 0.01) {
+            if (world.rank() == 0) print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+            rcond *= 100;
+          } else {
+            //print("Forcing full step due to subspace malfunction");
+            // c = 0.0;
+            // c[m - 1] = 1.0;
+            // break;
+            if (world.rank() == 0) print("Restarting KAIN due to subspace malfunction");
+            Q = tensorT();
+            subspace.clear();
+            goto restart; // fortran hat on ...
+          }
         }
+        //}
         END_TIMER(world, "Update subspace stuff");        
 
-        world.gop.broadcast_serializable(c, 0);
+        world.gop.broadcast_serializable(c, 0); // make sure everyone has same data
         if (world.rank() == 0) {
             print("Subspace solution", c);
         }
@@ -2469,18 +2520,22 @@ namespace madness {
                 for (int i=0; i<j; i++)
                     maxq = std::max(std::abs(Q(j,i)),maxq);
             
-            //Q.screen(trantol); // ???? Is this really needed? Just for speed.
+            Q.screen(trantol); // Is this really needed? Just for speed.
 
-            //make virt orthog to occ without changing occ states (is this correct?)
-            for (int j=nocc; j<Q.dim(0); ++j)
-                for (int i=0; i<nocc; ++i)
+            //make virt orthog to occ without changing occ states --- ASSUMES symmetric form for Q2
+            for (int j=nocc; j<Q.dim(0); ++j) {
+                for (int i=0; i<nocc; ++i) {
                     Q(j,i)=0.0;
+                    Q(i,j)*=2.0;
+                }
+            }
 
             amo_new = transform(world, amo_new,
                                 Q, trantol, true);
             truncate(world, amo_new);
             if (world.rank() == 0) print("ORTHOG2a: maxq trantol", maxq, trantol);
             //print(Q);
+            //print(matrix_inner(world,amo_new,amo_new));
 
         } while (maxq>0.01);
         normalize(world, amo_new);
@@ -2690,24 +2745,26 @@ namespace madness {
         const double dconv = std::max(FunctionDefaults < 3 > ::get_thresh(),
                                       param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
-        const double tolloc = std::min(1e-6,0.01*dconv);
+        const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change
         double update_residual = 0.0, bsh_residual = 0.0;
         subspaceT subspace;
         tensorT Q;
         bool do_this_iter = true;
         bool converged = false;
         // Shrink subspace until stop localizing/canonicalizing
-        int maxsub_save = param.maxsub;
-        param.maxsub = 2;
+        //int maxsub_save = param.maxsub;
+        //param.maxsub = 2;
+
+        vecfuncT amo_old;
         
         for (int iter = 0; iter < param.maxiter; ++iter) {
             if (world.rank() == 0)
                 printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
             
-            if (iter > 0 && update_residual < 0.1) {
-                //do_this_iter = false;
-                param.maxsub = maxsub_save;
-            }
+            //if (iter > 0 && update_residual < 0.1) {
+            //    //do_this_iter = false;
+            //    param.maxsub = maxsub_save;
+            //}
 
             if (param.localize && do_this_iter) {
 	        distmatT dUT;
@@ -2770,7 +2827,11 @@ namespace madness {
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
+
             rho.truncate();
+            double rhotrace = rho.trace();
+            if (world.rank() == 0) print("rho trace", rhotrace, rhotrace-std::round(rhotrace));
+
             real_function_3d vnuc;
             if (param.psp_calc){
                 vnuc = gthpseudopotential->vlocalpot();}
@@ -2868,7 +2929,8 @@ namespace madness {
             
             if (iter > 0) {
                 //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
-                if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
+                //if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
+                if (da < dconv * std::max(5,molecule.natom()) && db < dconv * std::max(5,molecule.natom())
                     && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) converged=true;
 
                 // do diagonalization etc if this is the last iteration, even if the calculation didn't converge

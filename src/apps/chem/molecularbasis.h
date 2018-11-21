@@ -232,6 +232,7 @@ public:
     void set_guess_info(const Tensor<double>& dmat, const Tensor<double>& dmatpsp,
                         const Tensor<double>& avec, const Tensor<double>& bvec,
                         const Tensor<double>& aocc, const Tensor<double>& bocc,
+                        const Tensor<double>& aeps, const Tensor<double>& beps,
                         const Tensor<double>& aoccpsp, const Tensor<double>& boccpsp) {
         this->dmat = copy(dmat);
         this->dmatpsp = copy(dmatpsp);
@@ -239,6 +240,8 @@ public:
         this->bvec = copy(bvec);
         this->aocc = copy(aocc);
         this->bocc = copy(bocc);
+        this->aeps = copy(aeps);
+        this->beps = copy(beps);
         this->aoccpsp = copy(aoccpsp);
         this->boccpsp = copy(boccpsp);
     }
@@ -512,7 +515,7 @@ public:
     void read_nw_file(std::string filename);
 
     /// Makes map from atoms to first basis function on atom and number of basis functions on atom
-    void atoms_to_bfn(const Molecule& molecule, std::vector<int>& at_to_bf, std::vector<int>& at_nbf) {
+    void atoms_to_bfn(const Molecule& molecule, std::vector<int>& at_to_bf, std::vector<int>& at_nbf) const {
         at_to_bf = std::vector<int>(molecule.natom());
         at_nbf   = std::vector<int>(molecule.natom());
 
