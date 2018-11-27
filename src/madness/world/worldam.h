@@ -309,9 +309,7 @@ namespace madness {
 
                 lock(); nsent++; unlock(); // This world must still keep track of messages
 
-                SendReq* p = new SendReq((AmArg*)(arg), RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr));
-
-                RMI::send_req.push_back(std::unique_ptr<RMISendReq>(p));
+                RMI::send_req.emplace_back(std::make_unique<SendReq>((AmArg*)(arg), RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr)));
 
                 //std::cout << "sending message from server " << (void*)(arg) << " " << pthread_self() << " " << p <<  std::endl;
 

@@ -214,7 +214,7 @@ class AtomicBasis {
     std::vector<ContractedGaussianShell> g;
     double rmaxsq;
     int numbf;
-    Tensor<double> dmat, dmatpsp, avec, bvec, aocc, bocc, aoccpsp, boccpsp;
+    Tensor<double> dmat, dmatpsp, avec, bvec, aocc, bocc, aeps, beps, aoccpsp, boccpsp;
 
 public:
     AtomicBasis() : g(), rmaxsq(0.0), numbf(0) {};
@@ -232,12 +232,15 @@ public:
     void set_guess_info(const Tensor<double>& dmat, const Tensor<double>& dmatpsp,
                         const Tensor<double>& avec, const Tensor<double>& bvec,
                         const Tensor<double>& aocc, const Tensor<double>& bocc,
+                        const Tensor<double>& aeps, const Tensor<double>& beps,
                         const Tensor<double>& aoccpsp, const Tensor<double>& boccpsp) {
         this->dmat = copy(dmat);
         this->dmatpsp = copy(dmatpsp);
         this->avec = copy(avec);
         this->bvec = copy(bvec);
         this->aocc = copy(aocc);
+        this->beps = copy(beps);
+        this->aeps = copy(aeps);
         this->bocc = copy(bocc);
         this->aoccpsp = copy(aoccpsp);
         this->boccpsp = copy(boccpsp);
@@ -342,12 +345,21 @@ public:
     void set_dmatpsp(Tensor<double>& mat) {
        dmatpsp = mat;
     };
+
     const Tensor<double>& get_avec() const {
         return avec;
     };
 
     const Tensor<double>& get_bvec() const {
         return bvec;
+    };
+
+    const Tensor<double>& get_aeps() const {
+        return aeps;
+    };
+
+    const Tensor<double>& get_beps() const {
+        return beps;
     };
 
     const Tensor<double>& get_aocc() const {
@@ -384,7 +396,7 @@ public:
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & g & rmaxsq & numbf & dmat & dmatpsp & avec & bvec & aocc & bocc & aoccpsp & boccpsp;
+        ar & g & rmaxsq & numbf & dmat & dmatpsp & avec & bvec & aocc & bocc & aeps & beps & aoccpsp & boccpsp;
     }
 
 };
@@ -498,7 +510,7 @@ public:
     void read_file(std::string filename);
 
     /// Makes map from atoms to first basis function on atom and number of basis functions on atom
-    void atoms_to_bfn(const Molecule& molecule, std::vector<int>& at_to_bf, std::vector<int>& at_nbf) {
+    void atoms_to_bfn(const Molecule& molecule, std::vector<int>& at_to_bf, std::vector<int>& at_nbf) const {
         at_to_bf = std::vector<int>(molecule.natom());
         at_nbf   = std::vector<int>(molecule.natom());
 
@@ -513,6 +525,43 @@ public:
         }
     }
 
+    /// Makes map from shells to first basis function on she and number of basis functions on sh
+    void shells_to_bfn(const Molecule& molecule, std::vector<int>& sh_to_bf, std::vector<int>& sh_nbf) const {
+        sh_to_bf = std::vector<int>();
+        sh_nbf   = std::vector<int>();
+
+        int nbf = 0;
+        for (int i=0; i<molecule.natom(); ++i) {
+            const Atom& atom = molecule.get_atom(i);
+            const int atn = atom.atomic_number;
+            MADNESS_ASSERT(is_supported(atn));
+            const auto& shells = ag[atn].get_shells();
+            for (const auto& sh : shells) {
+                int n = sh.nbf();
+                sh_nbf.push_back(n);
+                sh_to_bf.push_back(nbf);
+                nbf += n;
+            }
+        }
+    }
+
+    /// Returns the atomic alpha eigenvectors for atom iat
+    const Tensor<double>& get_avec(const Molecule& molecule, int iat) const {
+      MADNESS_ASSERT(iat>=0 && iat<molecule.natom());
+      const Atom& atom = molecule.get_atom(iat);
+      const int atn = atom.atomic_number;
+      MADNESS_ASSERT(is_supported(atn));
+      return ag[atn].get_avec();
+    }
+
+    /// Returns the atomic alpha eigenvalues for atom iat
+    const Tensor<double>& get_aeps(const Molecule& molecule, int iat) const {
+      MADNESS_ASSERT(iat>=0 && iat<molecule.natom());
+      const Atom& atom = molecule.get_atom(iat);
+      const int atn = atom.atomic_number;
+      MADNESS_ASSERT(is_supported(atn));
+      return ag[atn].get_aeps();
+    }
 
     /// Returns the number of the atom the ibf'th basis function is on
     int basisfn_to_atom(const Molecule& molecule, int ibf) const {

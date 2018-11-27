@@ -194,10 +194,10 @@ class Coulomb {
 public:
 
     /// default empty ctor
-    Coulomb(World& world) : world(world) {};
+    Coulomb(World& world) : world(world), do_R2(true) {};
 
     /// ctor with an SCF calculation providing the MOs and density
-    Coulomb(World& world, const SCF* calc) : world(world) {
+    Coulomb(World& world, const SCF* calc) : world(world), do_R2(true) {
         vcoul=compute_potential(calc);
     }
 
@@ -256,6 +256,7 @@ private:
     World& world;
     real_function_3d vcoul; ///< the coulomb potential
     real_function_3d R_square;    ///< square of the nuclear correlation factor, if any
+    bool do_R2;             ///< multiply with the ncf (default), or skip
 };
 
 
@@ -336,7 +337,8 @@ class Exchange {
 public:
 
     /// default ctor
-    Exchange(World& world) : world(world), small_memory_(true), same_(false) {};
+    Exchange(World& world) : world(world), small_memory_(true), same_(false),
+            do_R2(true) {};
 
     /// ctor with a conventional calculation
     Exchange(World& world, const SCF* calc, const int ispin);
@@ -399,6 +401,7 @@ private:
     World& world;
     bool small_memory_;
     bool same_;
+    bool do_R2;             ///< multiply with the square of the ncf (default)
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     Tensor<double> occ;
     std::shared_ptr<real_convolution_3d> poisson;
@@ -559,7 +562,9 @@ class Fock {
 public:
     /// \param[in] scale_K scaling factor for the Hartree-Fock exchange operator (the default is 1, i.e. include
     ///            the full exchange; setting scale_K to 0 excludes the exchange operator, and its computation is skipped)
-    Fock(World& world, const SCF* calc, std::shared_ptr<NuclearCorrelationFactor> ncf,
+    Fock(World& world, const SCF* calc,
+         double scale_K = 1);
+    Fock(World& world, const Nemo* nemo,
          double scale_K = 1);
 
     real_function_3d operator()(const real_function_3d& ket) const {

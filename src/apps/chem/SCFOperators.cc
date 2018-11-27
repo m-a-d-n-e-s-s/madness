@@ -139,7 +139,12 @@ template class Laplacian<double,6>;
 
 
 Coulomb::Coulomb(World& world, const Nemo* nemo) : world(world),
-        R_square(nemo->R_square) {
+        R_square(nemo->R_square), do_R2(true) {
+
+    std::map<std::string,std::string>::const_iterator it=nemo->get_calc()->param.generalkeyval.find("do_R2");
+    if (it!=nemo->get_calc()->param.generalkeyval.end())
+        do_R2=CalculationParameters::stringtobool(it->second);
+
     vcoul=compute_potential(nemo);
 }
 
@@ -174,8 +179,19 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
                 nemo->get_calc()->get_bocc(),nemo->get_calc()->get_bmo());
         density+=brho;
     }
-    density=density*R_square;
+    if (do_R2) {
+        density=density*R_square;
+    } else {
+        print("skip R2 in Coulomb");
+        double nel=density.trace();
+        print("number of electrons in Coulomb",nel);
+    }
     density.truncate();
+    if (do_R2) {
+        density.print_size("density with R2");
+    } else {
+        density.print_size("density without R2");
+    }
     return nemo->get_calc()->make_coulomb_potential(density);
 }
 
@@ -293,7 +309,7 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
 
 
 Exchange::Exchange(World& world, const SCF* calc, const int ispin)
-        : world(world), small_memory_(true), same_(false) {
+        : world(world), small_memory_(true), same_(false), do_R2(true) {
     if (ispin==0) { // alpha spin
         mo_ket=calc->amo;
         occ=calc->aocc;
@@ -307,7 +323,10 @@ Exchange::Exchange(World& world, const SCF* calc, const int ispin)
 }
 
 Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
-    : world(world), small_memory_(true), same_(false) {
+    : world(world), small_memory_(true), same_(false), do_R2(true) {
+    std::map<std::string,std::string>::const_iterator it=nemo->get_calc()->param.generalkeyval.find("do_R2");
+    if (it!=nemo->get_calc()->param.generalkeyval.end())
+        do_R2=CalculationParameters::stringtobool(it->second);
 
     if (ispin==0) { // alpha spin
         mo_ket=nemo->get_calc()->amo;
@@ -317,8 +336,13 @@ Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
         occ=nemo->get_calc()->bocc;
     }
 
-    mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
-    truncate(world,mo_bra);
+    if (do_R2) {
+        mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
+        truncate(world,mo_bra);
+    } else {
+        print("skip R2 in exchange");
+        mo_bra=mo_ket;
+    }
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, nemo->get_calc()->param.lo,
                     nemo->get_calc()->param.econv));
@@ -711,13 +735,21 @@ void XCOperator::prep_xc_args_response(const real_function_3d& dens_pt,
 
 
 Fock::Fock(World& world, const SCF* calc,
-           std::shared_ptr<NuclearCorrelationFactor> ncf,
            double scale_K)
     : world(world),
       J(world,calc),
       K(world,calc,0),
       T(world),
-      V(world,ncf),
+      V(world,calc),
+      scale_K(scale_K) {
+}
+Fock::Fock(World& world, const Nemo* nemo,
+           double scale_K)
+    : world(world),
+      J(world,nemo),
+      K(world,nemo,0),
+      T(world),
+      V(world,nemo),
       scale_K(scale_K) {
 }
 

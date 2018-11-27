@@ -680,9 +680,6 @@ namespace madness {
         }
 
         /// Broadcast a serializable object
-
-        /// Current dumb version assumes object fits in 1MB
-        /// ... you are free to add intelligence.
         template <typename objT>
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
