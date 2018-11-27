@@ -263,10 +263,10 @@ void TDHF::load(World& world,
 
    x_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
 
-   for(int i=0; i<Rparams.states; i++) {
-      for(unsigned int j=0; j<Gparams.num_orbitals; j++) {
+   for(int i=0; i<Rparams.states; i++) 
+      for(unsigned int j=0; j<Gparams.num_orbitals; j++)
          ar & x_response[i][j];
-   }}
+   world.gop.fence();
 
    if(not Rparams.tda)
    {      
@@ -275,6 +275,7 @@ void TDHF::load(World& world,
       for(int i=0; i<Rparams.states; i++)
          for(unsigned int j=0; j<Gparams.num_orbitals; j++)
             ar & y_response[i][j];
+      world.gop.fence();
    }
 }
 
@@ -4125,17 +4126,20 @@ void TDHF::check_k(World& world,
          }
          truncate(world, x_response); 
 
-         // Do same for y states if applicable
-         // Project all y states into correct k
-         for(unsigned int i = 0; i < y_response.size(); i++)
+         if(!Rparams.tda)
          {
-            reconstruct(world, y_response[i]);
-            for(unsigned int j = 0; j < y_response[0].size(); j++)
-               y_response[i][j] = project(y_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
-            world.gop.fence();
+            // Do same for y states if applicable
+            // Project all y states into correct k
+            for(unsigned int i = 0; i < y_response.size(); i++)
+            {
+               reconstruct(world, y_response[i]);
+               for(unsigned int j = 0; j < y_response[0].size(); j++)
+                  y_response[i][j] = project(y_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+               world.gop.fence();
+            }
+            truncate(world, y_response);
          }
-         truncate(world, y_response);
-      }
+      } 
    }
 
    // Don't forget the mask function as well
@@ -4433,10 +4437,6 @@ void TDHF::solve(World & world)
       // Do something to ensure all functions have same k value
       check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
 
-      // Create hamiltonian from ground state orbitals (need the matrix for both local and canonical orbitals)
-      // Done inside check k?
-      //hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level);
-
       // Create the active subspace (select which ground state orbitals to calculate excitations from)
       //if(Rparams.e_window) select_active_subspace(world);
 
@@ -4446,6 +4446,7 @@ void TDHF::solve(World & world)
          {
             if(world.rank() == 0) print("   Restarting from file:", Rparams.restart_file);
             load(world, Rparams.restart_file);
+            check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
          }
          else
          {
@@ -4659,7 +4660,7 @@ void TDHF::iterate_polarizability(World & world,
       Tensor<double> rec_norms(m);
       for(int i = 0; i < m; i++) rec_norms(i) = 1.0/std::max(1.0, x_norms(i));
       x_response.scale(rec_norms); y_response.scale(rec_norms);
-      
+
       // Create gamma
       x_gamma = create_gamma(world, x_response, y_response, Gparams.orbitals, Rparams.small, 
                              FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
@@ -4801,7 +4802,7 @@ void TDHF::iterate_polarizability(World & world,
       }
 
       // Check convergence
-      if(std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv) 
+      if(std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv and iteration > 0) 
       {
           if(Rparams.print_level >= 1) end_timer(world, "This iteration:");
           if(world.rank() == 0) print("\n   Converged!");
@@ -4917,10 +4918,6 @@ void TDHF::solve_polarizability(World & world)
       // Do something to ensure all functions have same k value
       check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
 
-      // Create hamiltonian from ground state orbitals
-      // Done inside check k now
-      //hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level);
-
       // Create guesses if no response functions
       // If restarting, load here
       if(proto == 0)
@@ -4929,6 +4926,7 @@ void TDHF::solve_polarizability(World & world)
          {
             if(world.rank() == 0) print("   Initial guess from file:", Rparams.restart_file);
             load(world, Rparams.restart_file);
+            check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
          }
          else // Dipole guesses
          { 

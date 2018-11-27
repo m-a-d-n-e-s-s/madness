@@ -847,6 +847,7 @@ namespace madness {
               i = i + 1; // Already took care of the paired value as well
            }
         }
+        VR = transpose(VR);
     }
 // bryan edits stop
 
