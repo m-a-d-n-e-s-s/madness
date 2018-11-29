@@ -1398,6 +1398,9 @@ GaussianFunction::GaussianFunction(const GaussianType type,
 
   // store the center
   this->center = center;
+
+  // store the exponents
+  this->expcoeff = expcoeff;
 }
 
 double GaussianFunction::operator() (const std::array<double, 3> &x) const {

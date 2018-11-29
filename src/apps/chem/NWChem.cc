@@ -84,7 +84,7 @@ void NWChem_Interface::read_atoms(std::istream &in) {
   // state variables
   std::string line; // current line of the NWChem output
   bool reading = false; // are we in the block of text where we can read basis functions?
-  double unitcf = 1.; // Conversion factor to go from units in the NWChem file to angstroms
+  double unitcf = 1.; // Conversion factor to go from units in the NWChem file to a.u. 
 
   // regex search strings
   std::regex startline{R"(Geometry)"},
@@ -113,21 +113,21 @@ void NWChem_Interface::read_atoms(std::istream &in) {
         unitcf = 0.01/0.529177;
       else {
         err.get() << "Unknown units: " << matches[1] << ". Assuming angstroms." << std::endl;
-        unitcf = 1.;
+        unitcf = 1.0/0.529177;
         doprint = false;
       }
       if(doprint)
-        err.get() << "NWChem uses " << matches[1] << ". Conversion to a.u. is "
-          << unitcf << '.' << std::endl;
+        err.get() << "\nNWChem used " << matches[1] << ".\nConversion to a.u. is "
+          << unitcf << '.' << "\nUnits have been converted to a.u." << std::endl;
     }
 
     // does this line have an atomic position?
-    else if(reading && std::regex_search(line, matches, atomline)) {
-      err.get() << matches[1] << " at (" << matches[2] << ", " << matches[3] << ", " << matches[4] << ")." << std::endl;
+    else if(reading && std::regex_search(line, matches, atomline)) { 
       Atom addme;
       addme.symbol = matches[1];
       addme.position = {{std::stod(matches[2]) * unitcf, std::stod(matches[3]) * unitcf, std::stod(matches[4]) * unitcf}};
       my_atoms.emplace_back(std::move(addme));
+      err.get() << matches[1] << " at (" << addme.position[0] << ", " << addme.position[1] << ", " << addme.position[2] << ")." << std::endl;
     }
 
     // are we done?
@@ -172,6 +172,7 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
   // state variables
   std::string line; // current line of the NWChem output
   bool reading = false; // are we in the block of text where we can read basis functions?
+  bool reading_lindeps = false; // can we read the linear deps in this text?
   bool spherical = true; // are we using spherical orbitals (true) or Cartesian (false)?
   std::string curatom; // Symbol of the current atom being read.
   unsigned curnum = 1; // The current basis function number (for the symbol) being read.
@@ -183,7 +184,10 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
   std::regex startline{R"(Basis.*(cartesian|spherical))"},
              newatomline{R"(([[:alpha:]]+)[[:space:]]+\(([[:alpha:]]+)\))"},
              orbitalline{R"(([[:digit:]]+)[[:space:]]+([[:alpha:]]+)[[:space:]]+([^[:space:]]+)[[:space:]]+([^[:space:]]+))"},
-             doneline{R"(Summary)"};
+             lineardepline{R"( !! The overlap matrix has *([\d]+))"},
+             almostdoneline{R"(Summary)"},
+             doneline{R"(Superposition)"};
+
   std::smatch matches;
 
   // note that NWChem outputs the orbitals by atom type, listing ang. momentum, exponents, and coefficients
@@ -202,13 +206,14 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
     }
 
     // Are we done reading orbitals?
-    else if(reading && std::regex_search(line, doneline)) {
+    else if(reading && std::regex_search(line, almostdoneline)) {
       if(curatom.length() > 0) {
         err.get() << "   Function " << curnum << ": " << curfunc << std::endl;
         basiscuratom.emplace_back(std::move(curfunc));
         basisperatom.emplace(std::move(curatom), std::move(basiscuratom));
       }
-      break; // nothing more to read
+      reading = false;
+      reading_lindeps = true; // Only thing left to find 
     }
 
     // Is this the start of a new atom?
@@ -224,6 +229,19 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
       curatom = matches[1];
       curnum = 1;
       err.get() << "Reading basis for " << curatom << " (" << matches[2] << ")." << std::endl;
+    }
+
+    // Is this the line containing linear dependencies? 
+    else if(reading_lindeps && std::regex_search(line, matches, lineardepline)) {
+      err.get() << "Found " << matches[1] << " linear dependencies in the basis."
+      << std::endl;
+      line = matches[1].str(); 
+      my_lineardeps = static_cast<unsigned int>(std::stoi(matches[1]));
+    }
+
+    else if(reading_lindeps && std::regex_search(line, matches, doneline)) {
+      reading_lindeps = false;
+      break; // all done
     }
 
     else if(reading && std::regex_search(line, matches, orbitalline)) {
@@ -823,18 +841,18 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
   if(num[0] == 4) {
     int32_t temp;
     temp = read_endian<int32_t>(in, swap_endian);
-    nmo[0] = static_cast<unsigned>(temp);
+    nmo[0] = static_cast<unsigned>(temp) + my_lineardeps;
   }
   if(num[0] == 8) {
     int64_t temp;
     temp = read_endian<int64_t>(in, swap_endian);
-    nmo[0] = static_cast<unsigned>(temp);
+    nmo[0] = static_cast<unsigned>(temp) + my_lineardeps;
   } 
   else if(num[0] > 8) {
     int64_t temp;
-    for(unsigned j = 0; j < nsets; ++j) {
+    for(unsigned j = 0; j < nsets; ++j) { 
       temp = read_endian<int64_t>(in, swap_endian);
-      nmo[j] = static_cast<unsigned>(temp);
+      nmo[j] = static_cast<unsigned>(temp) + my_lineardeps;
     }
   }
   num[1] = read_endian<int32_t>(in, swap_endian);
@@ -849,15 +867,15 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
     // allocate space to store the occupation numbers, the eigenvalues, and the
     // eigenvectors (MO vectors), as desired by the request
     if(do_occupancies) {
-      madness::Tensor<double> one(nmo[nsets-1]);
+      madness::Tensor<double> one(nmo[set]);
       temp_occupancies = copy(one);
     }
     if(do_energies) {
-      madness::Tensor<double> two(nmo[nsets - 1]);
+      madness::Tensor<double> two(nmo[set]);
       temp_energies = copy(two);
     }
     if(do_MOs) {
-      madness::Tensor<double> three(nmo[nsets - 1], nmo[nsets - 1]);
+      madness::Tensor<double> three(nmo[set], nmo[set]);
       temp_MOs = copy(three);
     }
 
@@ -865,18 +883,19 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
     // number of bits bookend (8 for double * nmo[set]);
     num[0] = read_endian<int32_t>(in, swap_endian);
     if(num[0] != static_cast<int>(8*nmo[set])) {
-      err.get() << "Unexpected number of occupancies for set " << set << '.'
-        << std::endl;
+      err.get() << "Unexpected number of occupancies for set " << set << '.' << std::endl
+        << "Read " << num[0] << " but expected " << static_cast<int>(8*nmo[set]) << std::endl;
       throw errmess;
     }
     if(do_occupancies)
       for(unsigned j = 0; j < nmo[set]; ++j)
-        temp_occupancies[j] = read_endian<double>(in, swap_endian);
+        temp_occupancies[j] = read_endian<double>(in, swap_endian);     
     else
       in.seekg(num[0], std::ios_base::cur); // just buzz past them.
     num[1] = read_endian<int32_t>(in, swap_endian);
     if(num[0] != num[1]) {
-      err.get() << "Error reading occupancies for set " << set << '.' << std::endl;
+      err.get() << "Error reading occupancies for set " << set << '.' << std::endl
+        << "Read " << num[1] << " but expected " << num[0] << std::endl;
       throw errmess;
     }
 
@@ -901,12 +920,13 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
     }
 
     // finally, read the MO vectors, which were written vector-by-vector
-    for(unsigned mo = 0; mo < nmo[set]; ++mo) {
+    for(unsigned mo = 0; mo < nmo[set] - my_lineardeps; ++mo) {
       // bookend size of the vector
       num[0] = read_endian<int32_t>(in, swap_endian);
       if(num[0] != static_cast<int>(8*nbasis)) {
         err.get() << "Unexpected number of coefficients in MO " << mo << " of set "
-          << set << '.' << std::endl;
+          << set << '.' << std::endl << "Read " << nmo[0] << " but expected " <<
+          static_cast<int>(8*nbasis) << std::endl;
         throw errmess;
       }
       if(do_MOs)
@@ -916,9 +936,10 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
         in.seekg(num[0], std::ios_base::cur); // just buzz past the MO
       // bookend size of the vector
       num[1] = read_endian<int32_t>(in, swap_endian);
-      if(num[0] != num[1]) {
+      if(num[0] != static_cast<int>(num[1])) {
         err.get() << "Error reading coefficients of MO " << mo << " of set "
-          << set << '.' << std::endl;
+          << set << '.' << std::endl << "Read " << nmo[0] << " but expected "
+          << num[1] << std::endl;
         throw errmess;
       }
     }

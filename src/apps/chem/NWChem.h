@@ -81,7 +81,7 @@ protected:
    * \brief Extract and store the basis set.
    *
    * \todo Reading Cartesian-type d and f shells has not been tested.
-   * \note Only shells of type s, p, d, and f are implemented.
+   * \note Only shells of type s, p, d, f, g and h are implemented.
    *
    * \param[in,out] in The stream containing the NWChem output file.
    */
