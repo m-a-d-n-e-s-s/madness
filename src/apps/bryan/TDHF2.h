@@ -409,6 +409,12 @@ class TDHF
                                              Tensor<double> & evals,
                                              const double thresh_degenerate);
 
+// Sorts the given Tensor of energies
+Tensor<int> sort_eigenvalues(World & world,
+                             Tensor<double> & vals,
+                             Tensor<double> & vecs);
+
+
       // Diagonalizes the fock matrix, taking care of degerate states
       Tensor<double> diag_fock_matrix(World & world,
                                       Tensor<double> & fock,

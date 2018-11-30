@@ -1920,6 +1920,51 @@ Tensor<double> TDHF::get_fock_transformation(World & world,
    return U;
 }
 
+// Sorts the given Tensor of energies
+Tensor<int> TDHF::sort_eigenvalues(World & world,
+                                   Tensor<double> & vals,
+                                   Tensor<double> & vecs)
+{
+   // Get relevant sizes
+   int k = vals.size();
+
+   // Tensor to hold selection order
+   Tensor<int> selected(k);
+
+   // Copy everything...    
+   std::vector<double> vals_copy;
+   for(int i = 0; i < k; i++) vals_copy.push_back(vals[i]);
+   Tensor<double> vals_copy2 = copy(vals);
+   Tensor<double> vecs_copy = copy(vecs);
+
+   // Now sort vals_copy
+   std::sort(vals_copy.begin(), vals_copy.end());
+
+   // Now sort the rest of the things, using the sorted energy list
+   // to find the correct indices 
+   for(int i = 0; i < k; i++)
+   {
+      // Find matching index in sorted vals_copy
+      int j = 0;
+      while(fabs(vals_copy[i] - vals_copy2[j]) > 1e-8 && j < k) j++;
+
+      // Add in to list which one we're taking
+      selected(i) = j;
+
+      // Put corresponding things in the correct place
+      vals(i) =  vals_copy[i];
+      vecs(_,i) = vecs_copy(_,j);
+
+      // Change the value of vals_copy2[j] to help deal with duplicates?
+      vals_copy2[j] = 10000.0;
+   }
+
+   // Done
+   return selected;
+}
+
+
+
 /// diagonalize the fock matrix, taking care of degenerate states
 
 /// Vpsi is passed in to make sure orbitals and Vpsi are in phase
@@ -1944,6 +1989,11 @@ Tensor<double> TDHF::diag_fock_matrix(World & world,
     // compute the unitary transformation matrix U that diagonalizes
     // the fock matrix
     Tensor<double> U = get_fock_transformation(world, overlap, fock, evals, thresh);
+
+// TEST
+    // Sort into ascending order
+    Tensor<int> selected = sort_eigenvalues(world, evals, U);
+// END TEST
 
     // Debugging output
     if(Rparams.print_level >= 2 and world.rank() == 0)
@@ -2632,6 +2682,13 @@ Tensor<double> TDHF::get_full_response_transformation(World& world,
        U = copy(U2);
     }
 
+// TEST
+    // Sort into ascending order
+    Tensor<int> selected = sort_eigenvalues(world, evals, U);
+// END TEST
+
+
+
     // End timer
     if(Rparams.print_level >= 1) end_timer(world, "Diag. resp. mat.");
 
@@ -2900,16 +2957,16 @@ void TDHF::iterate(World & world)
                                                         Rparams.small, FunctionDefaults<3>::get_thresh(), Rparams.print_level);
 
          // Larger subspace augmentation BROKEN!!!!!
-         if(iteration < Rparams.larger_subspace and iteration > 0)
-         {
-            //augment_full(world, S, A, 
-            //             B_x, x_gamma, x_response, V_x_response, x_fe, 
-            //             B_y, y_gamma, y_response, V_y_response, y_fe,
-            //             old_S, old_A, 
-            //             old_B_x, old_x_gamma, old_x_response, old_V_x_response, old_x_fe,
-            //             old_B_y, old_y_gamma, old_y_response, old_V_y_response, old_y_fe,
-            //             Rparams.print_level);
-         }
+         //if(iteration < Rparams.larger_subspace and iteration > 0)
+         //{
+         //   augment_full(world, S, A, 
+         //                B_x, x_gamma, x_response, V_x_response, x_fe, 
+         //                B_y, y_gamma, y_response, V_y_response, y_fe,
+         //                old_S, old_A, 
+         //                old_B_x, old_x_gamma, old_x_response, old_V_x_response, old_x_fe,
+         //                old_B_y, old_y_gamma, old_y_response, old_V_y_response, old_y_fe,
+         //                Rparams.print_level);
+         //}
 
          // Diagonalize         
          // Just to be sure dimensions work out, clear omega
@@ -2920,16 +2977,16 @@ void TDHF::iterate(World & world)
                                                omega, FunctionDefaults<3>::get_thresh(), Rparams.print_level);
 
          // Larger subspace un-augmentation BROKEN!!!!
-         if(iteration < Rparams.larger_subspace)
-         {  
-            //unaugment_full(world, m, iteration, U, omega, S, A,
-            //               x_gamma, x_response, V_x_response, x_fe, B_x,
-            //               y_gamma, y_response, V_y_response, y_fe, B_y,
-            //               old_S, old_A,
-            //               old_x_gamma, old_x_response, old_V_x_response, old_x_fe, old_B_x,
-            //               old_y_gamma, old_y_response, old_V_y_response, old_y_fe, old_B_y,
-            //               Rparams.print_level);
-         }
+         //if(iteration < Rparams.larger_subspace)
+         //{  
+         //   unaugment_full(world, m, iteration, U, omega, S, A,
+         //                  x_gamma, x_response, V_x_response, x_fe, B_x,
+         //                  y_gamma, y_response, V_y_response, y_fe, B_y,
+         //                  old_S, old_A,
+         //                  old_x_gamma, old_x_response, old_V_x_response, old_x_fe, old_B_x,
+         //                  old_y_gamma, old_y_response, old_V_y_response, old_y_fe, old_B_y,
+         //                  Rparams.print_level);
+         //}
       }
 
       // Basic output
@@ -3529,7 +3586,7 @@ void TDHF::iterate_guess(World & world,
 
       // Load balance
       // Only balancing on x-states. Smart?
-      if(world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0)) )
+      if(world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0)) and iteration != 0)
       {
          // Start a timer
          if(Rparams.print_level >= 1) start_timer(world); 
@@ -4126,19 +4183,19 @@ void TDHF::check_k(World& world,
          }
          truncate(world, x_response); 
 
-         if(!Rparams.tda)
+         // Do same for y states if applicable
+         // (Always do this, as y will be zero 
+         //  and still used in doing DFT and TDA)
+         // Project all y states into correct k
+         for(unsigned int i = 0; i < y_response.size(); i++)
          {
-            // Do same for y states if applicable
-            // Project all y states into correct k
-            for(unsigned int i = 0; i < y_response.size(); i++)
-            {
-               reconstruct(world, y_response[i]);
-               for(unsigned int j = 0; j < y_response[0].size(); j++)
-                  y_response[i][j] = project(y_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
-               world.gop.fence();
-            }
-            truncate(world, y_response);
+            reconstruct(world, y_response[i]);
+            for(unsigned int j = 0; j < y_response[0].size(); j++)
+               y_response[i][j] = project(y_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+            world.gop.fence();
          }
+         truncate(world, y_response);
+         
       } 
    }
 
