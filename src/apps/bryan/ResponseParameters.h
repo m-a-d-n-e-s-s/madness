@@ -44,7 +44,6 @@ namespace madness
       double range_low;                  ///< Energy range (lower end) for orbitals to excite from
       double range_high;                 ///< Energy range (upper end) for orbitals to excite from
       bool plot_initial;                 ///< Flag to plot the ground state orbitals read in from archive
-      bool localized;                    ///< Flag to use localized orbitals or not. MUST BE TRUE IF USING LOCALIZED
       bool restart;                      ///< Flag to restart from file
       std::string restart_file;          ///< Flag to restart from file
       bool kain;                         ///< Flag to use KAIN solver
@@ -89,7 +88,6 @@ bool old;
             & range_low 
             & range_high 
             & plot_initial
-            & localized
             & restart 
             & restart_file 
             & kain
@@ -124,7 +122,6 @@ bool old;
       , range_low(0.0)
       , range_high(1.0)
       , plot_initial(false)
-      , localized(false)
       , restart(false)
       , restart_file("")
       , kain(false)
@@ -249,14 +246,6 @@ bool old;
             {
                store_potential = true;
             }
-            else if (s == "localized")
-            {
-               localized = true;
-            }
-            else if (s == "canonical")
-            {
-               localized = false;
-            }
             else if (s == "range")
             {
                e_window = false;
@@ -327,7 +316,6 @@ bool old;
          if(restart) madness::print("                 Restart File:", restart_file);
          if(!property) madness::print("             States Requested:", states);
          if(!property) madness::print("            TDA Approximation:", tda);
-         madness::print("           Localized Orbitals:", localized);
          if(e_window and !property) madness::print("                Energy Window:", e_window, " (Not yet implemented)");
          if(e_window and !property) madness::print("           Energy Range Start:", range_low);
          if(e_window and !property) madness::print("             Energy Range End:", range_high);

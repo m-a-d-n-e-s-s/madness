@@ -3036,34 +3036,30 @@ void TDHF::iterate(World & world)
          rhs_y = y_gamma + shifted_V_y_response + B_x;
       }
 
-      // Add in localized orbital piece if using localized orbitals
-      // This should be all off diagonal elements of ground state Fock
-      // matrix 
-      if(Rparams.localized)
+      // Used to be localized orbital correction
+      // but needs to happen in all cases
+      ResponseFunction temp = scale_2d(world, x_response, ham_no_diag); 
+      rhs_x = rhs_x - temp;
+
+      // Debugging output
+      if(Rparams.print_level >= 2)
       {
-         ResponseFunction temp = scale_2d(world, x_response, ham_no_diag); 
-         rhs_x = rhs_x - temp;
+         if(world.rank() == 0) print("   Norms of off-diagonal hamiltonian correction for x states:");
+         print_norms(world, temp);
+      }
+
+      if(not Rparams.tda)
+      {
+         temp = scale_2d(world, y_response, ham_no_diag);
+         rhs_y = rhs_y - temp; 
 
          // Debugging output
          if(Rparams.print_level >= 2)
          {
-            if(world.rank() == 0) print("   Norms of localized orbital correction for x states:");
+            if(world.rank() == 0) print("   Norms of off-diagonal hamiltonian correction for y states:");
             print_norms(world, temp);
          }
-
-         if(not Rparams.tda)
-         {
-            temp = scale_2d(world, y_response, ham_no_diag);
-            rhs_y = rhs_y - temp; 
-
-            // Debugging output
-            if(Rparams.print_level >= 2)
-            {
-               if(world.rank() == 0) print("   Norms of localized orbital correction for y states:");
-               print_norms(world, temp);
-            }
-         }
-      }
+      }      
 
       // Debugging output
       if(Rparams.print_level >= 2)
@@ -3667,14 +3663,9 @@ void TDHF::iterate_guess(World & world,
          // Construct RHS of equation
          ResponseFunction rhs = gamma + shifted_V;
 
-         // Add in localized orbital piece if using localized orbitals
-         // This should be all off diagonal elements of ground state Fock
-         // matrix 
-         if(Rparams.localized)
-         {
-            ResponseFunction temp = scale_2d(world, guesses, ham_no_diag); 
-            rhs = rhs - temp;
-         }
+         // Add in all off diagonal elements of ground state Fock matrix 
+         ResponseFunction temp = scale_2d(world, guesses, ham_no_diag); 
+         rhs = rhs - temp;
 
          // Construct BSH operators
          std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_operators = create_bsh_operators(world, shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
@@ -4017,8 +4008,8 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
    // Now create the hamiltonian
    hamiltonian = T + V;
 
-   // If using localized orbitals, just save a matrix that is
-   // (T+V) - Lambda * eye (so we can multiply this for RHS)
+   // Save a matrix that is
+   // (T+V) - Lambda * eye 
    // Copy hamiltonian and zero the diagonal 
    ham_no_diag = copy(hamiltonian); 
    for(int i = 0; i < m; i++) ham_no_diag(i,i) = 0.0; 
