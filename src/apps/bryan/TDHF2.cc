@@ -3007,6 +3007,15 @@ void TDHF::iterate(World & world)
          if(world.rank() == 0) print(energy_residuals);
       }
 
+// TESTING
+  // Analysis gets messed up if BSH is last thing applied
+  if(iteration == Rparams.max_iter-1) 
+  {
+     end_timer(world," This iteration:");
+     break;
+  }
+// END TESTING
+
       //  Calculates shifts needed for potential / energies
       //  If none needed, the zero tensor is returned
       x_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
