@@ -788,7 +788,7 @@ ResponseFunction TDHF::create_B(World &world,
  
    // Project out the ground state
    QProjector<double, 3> projector(world, orbitals);          
-   for(int i = 0; i<m; i++) deriv_j[i] = projector(gamma[i]);
+   for(int i = 0; i<m; i++) gamma[i] = projector(gamma[i]);
 
    // Debugging output
    if(print_level >= 2)
@@ -3023,15 +3023,19 @@ void TDHF::iterate(World & world)
       {
          omega = -omega; // Negative here is so that these Greens functions are (eps - omega) 
 // TEST
-//y_shifts = create_shift_target(world, Gparams.energies, omega, Gparams.energies[n-1], Rparams.print_level, "y");
+y_shifts = create_shift_target(world, Gparams.energies, omega, Gparams.energies[n-1], Rparams.print_level, "y");
 // END TEST
-         y_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "y");
+         //y_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "y");
          omega = -omega;
       }
 
       // Apply the shifts
       shifted_V_x_response = apply_shift(world, x_shifts, V_x_response, x_response);
-      if(not Rparams.tda) shifted_V_y_response = apply_shift(world, y_shifts, V_y_response, y_response);
+      if(not Rparams.tda)
+      {
+         y_shifts = -y_shifts; // TESTING 
+         shifted_V_y_response = apply_shift(world, y_shifts, V_y_response, y_response);
+      }
 
       // Construct RHS of equation
       ResponseFunction rhs_x = x_gamma + shifted_V_x_response;
