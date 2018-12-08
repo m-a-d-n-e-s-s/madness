@@ -115,6 +115,7 @@ public:
 
 
 class Nemo_complex {
+	friend class Complex_cis;
 public:
 	Nemo_complex(World& w) : world(w), param(world), molecule("input"), cparam() {
 		cparam.read_file("input");
@@ -221,7 +222,7 @@ public:
 		return Q;
 	}
 
-private:
+protected:
 
 	World& world;
 	Molecule molecule;

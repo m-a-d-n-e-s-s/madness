@@ -324,13 +324,13 @@ Exchange<T,NDIM>::Exchange(World& world, const SCF* calc, const int ispin)
         mo_ket=convert<double,T,NDIM>(world,calc->bmo);
         occ=calc->bocc;
     }
-    mo_bra=mo_ket;
+    mo_bra=conj(world,mo_ket);
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
 }
 
 template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin)
+Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin) // @suppress("Class members should be properly initialized")
     : Exchange<T,NDIM>(world,nemo->get_calc().get(),ispin) {
 
 //    if (ispin==0) { // alpha spin
@@ -346,11 +346,11 @@ Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin)
         do_R2=CalculationParameters::stringtobool(it->second);
 
     if (do_R2) {
-        mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
+        mo_bra=conj(world,mul(world,nemo->nuclear_correlation->square(),mo_ket));
         truncate(world,mo_bra);
     } else {
         print("skip R2 in exchange");
-        mo_bra=mo_ket;
+        mo_bra=conj(world,mo_ket);
     }
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, nemo->get_calc()->param.lo,
@@ -511,7 +511,8 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& a
     xc_args=prep_xc_args(arho,brho);
 }
 
-vecfuncT XCOperator::operator()(const vecfuncT& vket) const {
+template<typename T>
+std::vector<Function<T,3> > XCOperator::operator()(const std::vector<Function<T,3> >& vket) const {
     real_function_3d xc_pot=make_xc_potential();
     double vtol = FunctionDefaults<3>::get_thresh() * 0.1;  // safety
     return mul_sparse(world, xc_pot, vket, vtol);
@@ -756,6 +757,8 @@ Fock::Fock(World& world, const Nemo* nemo,
 }
 
 
+template std::vector<Function<double,3> > XCOperator::operator()(const std::vector<Function<double,3> >& vket) const;
+template std::vector<Function<double_complex,3> > XCOperator::operator()(const std::vector<Function<double_complex,3> >& vket) const;
 
 template class Exchange<double_complex,3>;
 template class Exchange<double,3>;

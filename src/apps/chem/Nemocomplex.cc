@@ -5,7 +5,7 @@
  *      Author: fbischoff
  */
 
-#include "Nemocomplex.h"
+#include <chem/Nemocomplex.h>
 #include <madness/mra/mra.h>
 
 

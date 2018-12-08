@@ -381,7 +381,7 @@ namespace madness {
     			U(i,j)=U(i,j)*(sqrts(j));
     		}
     	}
-    	Tensor<double> X=U(_,Slice(lo,-1));
+    	Tensor<T> X=U(_,Slice(lo,-1));
 
     	World& world=v.front().world();
     	return transform(world,v,X);

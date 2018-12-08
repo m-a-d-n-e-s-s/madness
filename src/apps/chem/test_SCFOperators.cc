@@ -35,6 +35,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/correlationfactor.h>
+#include<typeinfo>
 
 using namespace madness;
 
@@ -48,8 +49,8 @@ bool similar(double val1, double val2, double thresh=1.e-6) {
 /// \[
 /// f(r) = x^i y^j .. z^k exp(-alpha r^2)
 /// \]
-template<std::size_t NDIM>
-class GaussianGuess : public FunctionFunctorInterface<double,NDIM> {
+template<typename T, std::size_t NDIM>
+class GaussianGuess : public FunctionFunctorInterface<T,NDIM> {
     typedef Vector<double,NDIM> coordT;
 
 public:
@@ -60,23 +61,64 @@ public:
     /// @param[in]  alpha   the exponent exp(-alpha r^2)
     /// @param[in]  ijk     the monomial x^i y^j z^k exp(-alpha r^2) (for NDIM)
     GaussianGuess(const coordT& origin, const double alpha,
-            const std::vector<int> ijk=std::vector<int>(NDIM))
+    		const std::vector<int> ijk=std::vector<int>(NDIM))
             : origin(origin), exponent(alpha), ijk(ijk) {
+    	for (auto i : ijk) l+=i;
+    }
+
+    /// ctor
+
+    /// @param[in]  origin  the origin of the Gauss function
+    /// @param[in]  alpha   the exponent exp(-alpha r^2)
+    /// @param[in]  ijk     the monomial x^i y^j z^k exp(-alpha r^2) (for NDIM)
+    GaussianGuess(const coordT& origin, const double alpha, int l)
+            : origin(origin), exponent(alpha), ijk(0), l(l) {
+    	ijk=std::vector<int>(NDIM);
+    	for (int i=0; i<std::abs(l); ++i) {
+    		int v1 = rand() % NDIM;
+    		ijk[v1]++;
+    	}
+//    	print("in GaussianGuess : l, ijk", l, ijk,"phase", phase);
     }
 
     coordT origin;
     double exponent;        ///< exponent of the guess
     std::vector<int> ijk;   ///< cartesian exponents
+    int l=0;				///< magnetic quantum number (if T=double_complex)
+    double phase=double(rand()%1000)/1000.0;		///< complex phase (if applicable)
 
-    double operator()(const coordT& xyz) const {
-        double arg=0.0, prefac=1.0;
-        for (std::size_t i=0; i<NDIM;++i) {
-            arg+=(xyz[i]-origin[i])*(xyz[i]-origin[i]);
-            prefac*=pow(xyz[i],ijk[i]);
-        }
-        const double e=exponent*arg;
-        return prefac*exp(-e);
+    /// virtual function cannot be SFINAE'ed
+    T operator()(const coordT& xyz) const {
+    	return val(xyz);
     }
+
+
+    template<class R = T>
+    typename std::enable_if<std::is_same<R,std::complex<double> >::value, R>::type
+	val(const coordT& xyz) const {
+
+		double prefac=1.0;
+    	double r=(xyz-origin).normf();
+		const double e=exponent*r*r;
+
+		for (std::size_t i=0; i<NDIM;++i) prefac*=pow(xyz[i]-origin[i],ijk[i]);
+
+		T result=prefac*exp(-e);
+		result*=exp(T(0.0,1.0)*phase); 	// this term introduces a random complex phase
+		return result;
+    }
+
+
+    template<class R = T>
+    typename std::enable_if<std::is_same<R,double>::value, R>::type
+	val(const coordT& xyz) const {
+		double prefac=1.0;
+    	double r=(xyz-origin).normf();
+		const double e=exponent*r*r;
+		for (std::size_t i=0; i<NDIM;++i) prefac*=pow(xyz[i]-origin[i],ijk[i]);
+		return prefac*exp(-e);
+    }
+
 };
 
 /// reference potential for the Poisson solver of a Gaussian
@@ -154,6 +196,23 @@ struct write_test_input {
     std::string filename() const {return filename_;}
 };
 
+/// complex function p-orbital with m_l=1
+static double_complex p_plus(const coord_3d& xyz) {
+	double r=xyz.normf();
+	double theta=acos(xyz[2]/r);
+	double phi=atan2(xyz[1],xyz[0]);
+	return r*exp(-r/2.0)*sin(theta)*exp(double_complex(0.0,1.0)*phi);
+}
+
+/// complex function p-orbital with m_l=-1
+static double_complex p_minus(const coord_3d& xyz) {
+	double r=xyz.normf();
+	double theta=acos(xyz[2]/r);
+	double phi=atan2(xyz[1],xyz[0]);
+	return r*exp(-r/2.0)*sin(theta)*exp(double_complex(0.0,-1.0)*phi);
+}
+
+
 
 bool check_err(double err, double thresh, std::string msg) {
     if (fabs(err)>thresh) {
@@ -169,29 +228,33 @@ bool check_err(double err, double thresh, std::string msg) {
 /// @param[in]  op      the operator to be tested, must implement op(vecfuncT,vecfuncT)
 /// @param[in]  thresh  the accuracy threshold
 /// @return     0 if test passes, 1 if test fails
-template<typename opT, std::size_t NDIM>
+template<typename T, typename opT, std::size_t NDIM>
 int test_hermiticity(World& world, const opT& op, double thresh) {
 
     print("hermiticity error/translational invariance");
     print("abs err       op(ij).normf()");
-    for (int i=0; i<10; ++i) {
-        Vector<double,NDIM> origin(double(i)*0.2);
-        const std::vector<int> ijk(NDIM);   // s-symmetry
+    for (int ml=-1; ml<2; ++ml) {	// complex magnetic number (ignored if T == double)
+		for (int i=0; i<3; ++i) {
+			Vector<double,NDIM> origin(double(i)*0.43);
 
-        // test hermiticity of the T operator
-        std::vector<Function<double,NDIM> > amo(2);
-        amo[0]=FunctionFactory<double,NDIM>(world)
-                .functor(GaussianGuess<NDIM>(origin,1.0,ijk)).truncate_on_project();
-        amo[1]=FunctionFactory<double,NDIM>(world)
-                .functor(GaussianGuess<NDIM>(origin,2.0,ijk)).truncate_on_project();
+			// test hermiticity of the T operator
+			std::vector<Function<T,NDIM> > amo(2);
+			amo[0]=FunctionFactory<T,NDIM>(world)
+					.functor(GaussianGuess<T,NDIM>(origin,1.0,ml)).truncate_on_project();
+			amo[1]=FunctionFactory<T,NDIM>(world)
+					.functor(GaussianGuess<T,NDIM>(origin,2.0,(ml+1)*2)).truncate_on_project();
 
-        Tensor<double> tmat;
-        tmat=op(amo,amo);
-        Tensor<double> tmp=tmat-transpose(tmat);
-        double err=tmp.normf()/tmp.size();
-        print(err,tmat.normf());
-        if (check_err(err,thresh*2.0,"hermiticity error")) return 1;  // tolerance 2
+			Tensor<T> tmat=op(amo,copy(world,amo));	// deep copy triggers asymmetric evaluation
+			Tensor<T> tmp=tmat-conj_transpose(tmat);
+			double err=double(tmp.normf()/tmp.size());
+//			print("origin",origin);
+//			print("ml ",ml,(ml+1)*2);
+			print(err,tmat.normf());
+//			print(tmat);
+			if (check_err(abs(err),thresh*2.0,"hermiticity error")) return 1;  // tolerance 2
+		}
     }
+
     return 0;
 }
 
@@ -201,7 +264,7 @@ int test_hermiticity(World& world, const opT& op, double thresh) {
 /// @param[in]  op      the operator to be tested, must implement op(vecfuncT,vecfuncT)
 /// @param[in]  thresh  the accuracy threshold
 /// @return     0 if test passes, 1 if test fails
-template<typename opT, std::size_t NDIM>
+template<typename T, typename opT, std::size_t NDIM>
 int test_asymmetric(World& world, const opT& op, double thresh) {
 
     Vector<double,NDIM> origin(1.2);
@@ -211,26 +274,26 @@ int test_asymmetric(World& world, const opT& op, double thresh) {
     std::vector<int> ijk_d(NDIM);       // d-symmetry (not quite actually..)
     ijk_d[NDIM-1]=2;
 
-    std::vector<Function<double,NDIM> > amo(2);
-    amo[0]=FunctionFactory<double,NDIM>(world)
-            .functor(GaussianGuess<NDIM>(origin,1.0,ijk)).truncate_on_project();
-    amo[1]=FunctionFactory<double,NDIM>(world)
-            .functor(GaussianGuess<NDIM>(origin,2.0,ijk)).truncate_on_project();
+    std::vector<Function<T,NDIM> > amo(2);
+    amo[0]=FunctionFactory<T,NDIM>(world)
+            .functor(GaussianGuess<T,NDIM>(origin,1.0,ijk)).truncate_on_project();
+    amo[1]=FunctionFactory<T,NDIM>(world)
+            .functor(GaussianGuess<T,NDIM>(origin,2.0,ijk)).truncate_on_project();
 
     // test asymmetric T operator
-    std::vector<Function<double,NDIM> > bmo(5);
+    std::vector<Function<T,NDIM> > bmo(5);
     bmo[0]=copy(amo[0]);
     bmo[1]=copy(amo[1]);
-    bmo[2]=FunctionFactory<double,NDIM>(world).functor(GaussianGuess<NDIM>(origin,1.0,ijk_p))
+    bmo[2]=FunctionFactory<T,NDIM>(world).functor(GaussianGuess<T,NDIM>(origin,1.0,ijk_p))
                 .truncate_on_project();
-    bmo[3]=FunctionFactory<double,NDIM>(world).functor(GaussianGuess<NDIM>(origin,1.0,ijk_d))
+    bmo[3]=FunctionFactory<T,NDIM>(world).functor(GaussianGuess<T,NDIM>(origin,1.0,ijk_d))
                 .truncate_on_project();
-    bmo[4]=FunctionFactory<double,NDIM>(world).functor(GaussianGuess<NDIM>(origin,0.5,ijk))
+    bmo[4]=FunctionFactory<T,NDIM>(world).functor(GaussianGuess<T,NDIM>(origin,0.5,ijk))
                 .truncate_on_project();
 
-    Tensor<double> tmat=op(amo,amo);
-    Tensor<double> tmat1=op(amo,bmo);
-    Tensor<double> tmp=tmat1(_,Slice(0,1))-tmat;
+    Tensor<T> tmat=op(amo,amo);
+    Tensor<T> tmat1=op(amo,bmo);
+    Tensor<T> tmp=tmat1(_,Slice(0,1))-tmat;
     double err=tmp.normf()/tmp.size();
     print("a/symmetric algorithm error",err);
     if (check_err(err,thresh*2.0,"symmetry error")) return 1;
@@ -238,50 +301,55 @@ int test_asymmetric(World& world, const opT& op, double thresh) {
 
 }
 
-template<std::size_t NDIM>
+template<typename T, std::size_t NDIM>
 int test_kinetic(World& world) {
-    if (world.rank()==0) print("entering test_kinetic with dimension ",NDIM);
+    if (world.rank()==0) print("entering test_kinetic with dimension, type ",NDIM,typeid(T).name());
 
     FunctionDefaults<NDIM>::set_cubic_cell(-10, 10);
     double thresh=FunctionDefaults<NDIM>::get_thresh();
 
-    Kinetic<double,NDIM> T(world);
+    Kinetic<T,NDIM> Top(world);
 
     Vector<double,NDIM> origin(0.0);
+    origin[NDIM-1]+=1.303;
     const std::vector<int> ijk(NDIM);   // s-symmetry
-    std::vector<int> ijk_p(NDIM);       // p-symmetry
-    ijk_p[NDIM-1]=1;
-    std::vector<int> ijk_d(NDIM);       // d-symmetry (not quite actually..)
-    ijk_d[NDIM-1]=2;
 
     // compare T operator with integration by parts
     double expo=2.0;
-    Function<double,NDIM> f=FunctionFactory<double,NDIM>(world)
-            .functor(GaussianGuess<NDIM>(origin,expo,ijk)).truncate_on_project();
-    double ip_amo=0.0;
+    Function<T,NDIM> f=FunctionFactory<T,NDIM>(world)
+            .functor(GaussianGuess<T,NDIM>(origin,expo,ijk)).truncate_on_project();
+    T ip_amo=0.0;
     for (std::size_t i=0; i<NDIM; ++i) {
         std::vector<int> dijk(NDIM);
         dijk[i]=1;
-        Function<double,NDIM> df=FunctionFactory<double,NDIM>(world).truncate_on_project()
-                .functor(GaussianGuess<NDIM>(origin,expo,dijk));
+        Function<T,NDIM> df=FunctionFactory<T,NDIM>(world).truncate_on_project()
+                .functor(GaussianGuess<T,NDIM>(origin,expo,dijk));
         df.scale(2.0*expo);
         ip_amo+=0.5*inner(df,df);
     }
-    double T_amo=T(f,f);
-    double err=fabs(ip_amo-T_amo);
+    T T_amo=Top(f,f);
+    double err=std::abs(ip_amo-T_amo);
     print("<Damo|Damo>",ip_amo,T_amo,err);
-    if (check_err(err,thresh*2.0,"kinetic error")) return 1;
+    if (check_err(abs(err),thresh*2.0,"kinetic error")) return 1;
+
+    // compute an off-diagonal element
+    Function<T,NDIM> ff=FunctionFactory<T,NDIM>(world)
+            .functor(GaussianGuess<T,NDIM>(origin,expo,2)).truncate_on_project();
+
+    print("<f | T | ff > :",Top(f,ff));
+    print("ff.norm2(), abs(ff.norms())",ff.norm2(),abs(ff).norm2(),real(ff).norm2());
 
     // test hermiticity of the T operator
-    int success=test_hermiticity<Kinetic<double,NDIM>,NDIM>(world, T, thresh);
+    int success=test_hermiticity<T,Kinetic<T,NDIM>,NDIM>(world, Top, thresh);
     if (success>0) return 1;
 
-    success=test_asymmetric<Kinetic<double,NDIM>,NDIM>(world, T, thresh);
+    success=test_asymmetric<T,Kinetic<T,NDIM>,NDIM>(world, Top, thresh);
     if (err>thresh) return 1;
 
     return 0;
 }
 
+template<typename T>
 int test_coulomb(World& world) {
     if (world.rank()==0) print("\nentering test_coulomb");
 
@@ -299,7 +367,7 @@ int test_coulomb(World& world) {
 
     // compute a trial density and the reference potential
     real_function_3d density=real_factory_3d(world).truncate_on_project()
-                .functor(GaussianGuess<3>(origin,alpha)).thresh(thresh*0.1);
+                .functor(GaussianGuess<double,3>(origin,alpha)).thresh(thresh*0.1);
     real_function_3d refpot=real_factory_3d(world).truncate_on_project()
             .functor(refpotfunctor(alpha)).thresh(thresh*0.1);
     double refpotnorm=refpot.norm2();
@@ -318,28 +386,29 @@ int test_coulomb(World& world) {
     if (check_err(err,thresh,"Coulomb density error")) return 1;
 
     // test matrix element
-    real_function_3d g=real_factory_3d(world).truncate_on_project()
-                    .functor(GaussianGuess<3>(origin,3.0));
-    real_function_3d g2=copy(g).square();
-    double refelement=inner(g2,refpot);
-    double element=J(g,g);
-    err=fabs(element-refelement);
+    Function<T,3> g=FunctionFactory<T,3>(world).truncate_on_project()
+                    .functor(GaussianGuess<T,3>(origin,3.0));
+    Function<double,3> g2=abs_square(copy(g));
+    T refelement=inner(g2,refpot);
+    T element=J(g,g);
+    err=std::abs(element-refelement);
     print("element, refelement, error",element,refelement,err);
     if (check_err(err,thresh,"Coulomb matrix element error"))  return 1;
 
 
     // test hermiticity of the T operator
-    int success=test_hermiticity<Coulomb,3>(world, J, thresh);
+    int success=test_hermiticity<T,Coulomb,3>(world, J, thresh);
     if (success>0) return 1;
 
-    success=test_asymmetric<Coulomb,3>(world, J, thresh);
+    success=test_asymmetric<T,Coulomb,3>(world, J, thresh);
     if (err>thresh) return 1;
 
     return 0;
 }
 
 /// anchor test for the exchange operator -- partially hardwired
-int exchange_anchor_test(World& world, Exchange<double,3>& K, const double thresh) {
+template<typename T>
+int exchange_anchor_test(World& world, Exchange<T,3>& K, const double thresh) {
 
     const int nmo=2;
     Tensor<double> alpha(nmo);
@@ -348,16 +417,16 @@ int exchange_anchor_test(World& world, Exchange<double,3>& K, const double thres
     Vector<double,3> origin(0.0);
 
     // construct two dummy orbitals
-    vecfuncT amo(nmo);
+    std::vector<Function<T,3> > amo(nmo);
     for (int i=0; i<nmo; ++i) {
-        amo[i]=real_factory_3d(world).truncate_on_project()
-                .functor(GaussianGuess<3>(origin,alpha(i))).thresh(thresh*0.1);
+        amo[i]=FunctionFactory<T,3>(world).truncate_on_project()
+                .functor(GaussianGuess<T,3>(origin,alpha(i))).thresh(thresh*0.1);
     }
     Tensor<double> aocc(nmo);
     aocc.fill(1.0);
 
     // compute the reference result functions
-    vecfuncT Kamo=zero_functions_compressed<double,3>(world,nmo,true);
+    std::vector<Function<T,3> > Kamo=zero_functions_compressed<T,3>(world,nmo,true);
     for (int i=0; i<nmo; ++i) {
         for (int k=0; k<nmo; ++k) {
             const double sum_alpha=alpha(i)+alpha(k);
@@ -368,9 +437,9 @@ int exchange_anchor_test(World& world, Exchange<double,3>& K, const double thres
     }
 
     // compute the result functions with the exchange operator
-    vecfuncT Kamo1=K(amo);
+    std::vector<Function<T,3> > Kamo1=K(amo);
 
-    vecfuncT diff=sub(world,Kamo,Kamo1);
+    std::vector<Function<T,3> > diff=sub(world,Kamo,Kamo1);
     std::vector<double> norms=norm2s(world,diff);
     print("diffnorm in K",norms);
     int ierr=0;
@@ -378,8 +447,8 @@ int exchange_anchor_test(World& world, Exchange<double,3>& K, const double thres
         if (n>thresh*5.0) ierr++;           // tolerance 5.0 in the density
     }
 
-    Tensor<double> Kmat=matrix_inner(world,amo,Kamo);
-    Tensor<double> Kmat1=matrix_inner(world,amo,Kamo1);
+    Tensor<T> Kmat=matrix_inner(world,amo,Kamo);
+    Tensor<T> Kmat1=matrix_inner(world,amo,Kamo1);
 //    print("kmat, kmat1");
 //    print(Kmat);
 //    print(Kmat1);
@@ -399,15 +468,16 @@ int exchange_anchor_test(World& world, Exchange<double,3>& K, const double thres
     return 0;
 }
 
+template<typename T>
 int test_exchange(World& world) {
 
     FunctionDefaults<3>::set_thresh(1.e-5);
     double thresh=FunctionDefaults<3>::get_thresh();
-    if (world.rank()==0) print("\nentering test_exchange",thresh);
+    if (world.rank()==0) print("\nentering test_exchange",thresh,typeid(T).name());
     FunctionDefaults<3>::set_cubic_cell(-10, 10);
 
     // construct exchange operator
-    Exchange<double,3> K(world);
+    Exchange<T,3> K(world);
 
     const int nmo=2;
     Tensor<double> alpha(nmo);
@@ -416,31 +486,33 @@ int test_exchange(World& world) {
     Vector<double,3> origin(0.0);
 
     // construct two dummy orbitals
-    vecfuncT amo(nmo);
+    std::vector<Function<T,3> > amo(nmo);
     for (int i=0; i<nmo; ++i) {
-        amo[i]=real_factory_3d(world).truncate_on_project()
-                .functor(GaussianGuess<3>(origin,alpha(i))).thresh(thresh*0.1);
+        amo[i]=FunctionFactory<T,3>(world).truncate_on_project()
+                .functor(GaussianGuess<T,3>(origin,alpha(i))).thresh(thresh*0.1);
     }
     Tensor<double> aocc(nmo);
     aocc.fill(1.0);
 
-    K.set_parameters(amo,amo,aocc);
+    K.set_parameters(conj(world,amo),amo,aocc);
 
     // compare the exchange operator to precomputed reference values
-    int success=exchange_anchor_test(world, K, thresh);
+    int success=0;
+    if (typeid(T)==typeid(double)) success+=exchange_anchor_test(world, K, thresh);
     if (success>0) return 1;
 
     // test hermiticity of the K operator
-    success=test_hermiticity<Exchange<double,3> ,3>(world, K, thresh);
+    success=test_hermiticity<T,Exchange<T,3> ,3>(world, K, thresh);
     if (success>0) return 1;
 
     // test bra/ket sets being different
-    success=test_asymmetric<Exchange<double,3> ,3>(world, K, thresh);
+    success=test_asymmetric<T,Exchange<T,3> ,3>(world, K, thresh);
     if (success>0) return 1;
 
     return 0;
 }
 
+template<typename T>
 int test_XCOperator(World& world) {
 
     FunctionDefaults<3>::set_thresh(1.e-5);
@@ -454,10 +526,10 @@ int test_XCOperator(World& world) {
     Vector<double,3> origin2={1.0,3.0,-1.5};
 
     // test refine_to_common_level
-    real_function_3d empty;
-    real_function_3d f1=real_factory_3d(world).functor(GaussianGuess<3>(origin1,alpha));
-    real_function_3d f2=real_factory_3d(world).functor(GaussianGuess<3>(origin2,beta));
-    vector_real_function_3d v(3);
+    Function<T,3> empty;
+    Function<T,3> f1=FunctionFactory<T,3>(world).functor(GaussianGuess<T,3>(origin1,alpha));
+    Function<T,3> f2=FunctionFactory<T,3>(world).functor(GaussianGuess<T,3>(origin2,beta));
+    std::vector<Function<T,3> > v(3);
     v[0]=empty;
     v[1]=f1;
     v[2]=f2;
@@ -465,8 +537,7 @@ int test_XCOperator(World& world) {
     MADNESS_ASSERT(v[1].tree_size()==v[2].tree_size()); // should be identical
     MADNESS_ASSERT(v[0].tree_size()==0);    // no change here
 
-    real_function_3d arho=copy(f1);
-    arho.square();
+    real_function_3d arho=abs_square(f1);
 
     // hardwire-check several functionals for their energy, potential, and kernels
     // for Slater exchange their ratios must be 3/4 and 9/4
@@ -492,7 +563,7 @@ int test_XCOperator(World& world) {
         MADNESS_ASSERT(similar(a0,refvalues[i++]));
 
         // compare xc potential to hardwired results
-        double a1=2.0*inner(f1,xc(f1)); // factor 2 for RHF
+        double a1=2.0*std::real(inner(f1,xc(f1))); // factor 2 for RHF
         real_function_3d lda_pot=xc.make_xc_potential();
         double a11=2.0*inner(arho,lda_pot);
         print("potential ",a1);
@@ -502,7 +573,7 @@ int test_XCOperator(World& world) {
         MADNESS_ASSERT(similar(a1,refvalues[i++]));
 
         // compare xc kernel to hardwired results
-        double a2=inner(2.0*f1*f1,xc.apply_xc_kernel(2.0*arho)); // factors 2 for RHF
+        double a2=inner(2.0*arho,xc.apply_xc_kernel(2.0*arho)); // factors 2 for RHF
         print("kernel ",a2);
         print("ratio ",a0,a2*9.0/4.0);
         if (xcfunc=="LDA_X") MADNESS_ASSERT(std::fabs(a0-a2*9.0/4.0)<1.e-6);
@@ -517,7 +588,7 @@ int test_XCOperator(World& world) {
             print("energy ", a0a);
             MADNESS_ASSERT(similar(a0,a0a));
 
-            double a1a=2.0*inner(f1,xc(f1)); // factor 2 for RHF
+            double a1a=2.0*std::real(inner(f1,xc(f1))); // factor 2 for RHF
             real_function_3d lda_pot=xc.make_xc_potential();
             double a11a=2.0*inner(arho,lda_pot);
             print("potential ",a1a);
@@ -530,6 +601,7 @@ int test_XCOperator(World& world) {
         print("\n");
 
     }
+
     return 0;
 }
 
@@ -552,7 +624,7 @@ int nuclear_anchor_test(World& world) {
     Vector<double,3> origin{0,0.1,1.0};
 
     real_function_3d gaussian=FunctionFactory<double,3>(world)
-                    .functor(GaussianGuess<3>(origin,2.0,ijk)).truncate_on_project();
+                    .functor(GaussianGuess<double,3>(origin,2.0,ijk)).truncate_on_project();
     real_function_3d gaussian2=copy(gaussian).square();
 
     double V=Vnuc(gaussian,gaussian);
@@ -611,7 +683,7 @@ int dnuclear_anchor_test(World& world) {
     Vector<double,3> origin{0.7,0.2,0.0};
 
     const real_function_3d gaussian=FunctionFactory<double,3>(world)
-                    .functor(GaussianGuess<3>(origin,2.0,ijk)).truncate_on_project();
+                    .functor(GaussianGuess<double,3>(origin,2.0,ijk)).truncate_on_project();
     const real_function_3d gaussian2=copy(gaussian).square();
 
     // test ncf=none
@@ -781,17 +853,26 @@ int main(int argc, char** argv) {
     madness::World world(SafeMPI::COMM_WORLD);
     world.gop.fence();
     startup(world,argc,argv);
+    srand (time(NULL));
 
     int result=0;
+    result+=test_kinetic<double,1>(world);
+    result+=test_kinetic<double,2>(world);
+    result+=test_kinetic<double,3>(world);
+    result+=test_kinetic<double_complex,1>(world);
+    result+=test_kinetic<double_complex,2>(world);
+    result+=test_kinetic<double_complex,3>(world);
 
-    result+=test_kinetic<1>(world);
-    result+=test_kinetic<2>(world);
-    result+=test_kinetic<3>(world);
-//    result+=test_kinetic<4>(world);
 
-    result+=test_coulomb(world);
-    result+=test_exchange(world);
-    result+=test_XCOperator(world);
+//    result+=test_kinetic<double,4>(world);
+//    result+=test_kinetic<double_complex,4>(world);
+
+    result+=test_coulomb<double>(world);
+    result+=test_coulomb<double_complex>(world);
+    result+=test_exchange<double>(world);
+    result+=test_exchange<double_complex>(world);
+    result+=test_XCOperator<double>(world);
+    result+=test_XCOperator<double_complex>(world);
     result+=test_nuclear(world);
     result+=test_dnuclear(world);
     result+=test_SCF(world);

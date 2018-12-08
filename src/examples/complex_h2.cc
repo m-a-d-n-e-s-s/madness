@@ -56,6 +56,7 @@
 #include <chem/SCFOperators.h>
 #ifndef OLDCODE
 #include <chem/Nemocomplex.h>
+#include <chem/Complexcis.h>
 #endif
 
 
@@ -399,6 +400,10 @@ int main(int argc, char** argv) {
 #ifndef OLDCODE
     Nemo_complex nemo(world);
     nemo.value();
+
+    Complex_cis cc(world,nemo);
+    cc.value();
+
 
 #else
     FunctionDefaults<3>::set_k(k);

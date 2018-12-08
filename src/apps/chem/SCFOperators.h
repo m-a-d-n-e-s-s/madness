@@ -204,23 +204,28 @@ public:
     /// ctor with an SCF calculation providing the MOs and density
     Coulomb(World& world, const Nemo* nemo);
 
-    real_function_3d operator()(const real_function_3d& ket) const {
+    template<typename T, std::size_t NDIM>
+    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
         return (vcoul*ket).truncate();
     }
 
-    vecfuncT operator()(const vecfuncT& vket) const {
-        vecfuncT tmp=mul(world,vcoul,vket);
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const {
+        std::vector<Function<T,NDIM> > tmp=mul(world,vcoul,vket);
         truncate(world,tmp);
         return tmp;
     }
 
-    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+    template<typename T, std::size_t NDIM>
+    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
         return inner(bra,vcoul*ket);
     }
 
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    template<typename T, std::size_t NDIM>
+    Tensor<T> operator()(const std::vector<Function<T,NDIM> >& vbra,
+    		const std::vector<Function<T,NDIM> >& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
-        vecfuncT vJket;
+        std::vector<Function<T,NDIM> > vJket;
         for (std::size_t i=0; i<vket.size(); ++i) {
             vJket.push_back(this->operator()(vket[i]));
         }
@@ -350,6 +355,11 @@ public:
     /// ctor with a nemo calculation
     Exchange(World& world, const Nemo* nemo, const int ispin);
 
+    /// set the bra and ket orbital spaces, and the occupation
+
+    /// @param[in]	bra		bra space, must be provided as complex conjugate
+    /// @param[in]	ket		ket space
+    /// @param[in]	occ1	occupation numbers
     void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
             const Tensor<double>& occ1, const double lo=1.e-4,
             const double econv=FunctionDefaults<3>::get_thresh()) {
@@ -409,9 +419,9 @@ public:
 private:
 
     World& world;
-    bool small_memory_;
-    bool same_;
-    bool do_R2;             ///< multiply with the square of the ncf (default)
+    bool small_memory_=true;
+    bool same_=false;
+    bool do_R2=true;             ///< multiply with the square of the ncf (default)
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     Tensor<double> occ;
     std::shared_ptr<real_convolution_3d> poisson;
@@ -455,12 +465,14 @@ public:
     void set_ispin(const int i) const {ispin=i;}
 
     /// apply the xc potential on a set of orbitals
-    vecfuncT operator()(const vecfuncT& vket) const;
+    template<typename T>
+    std::vector<Function<T,3> > operator()(const std::vector<Function<T,3> >& vket) const;
 
     /// apply the xc potential on an orbitals
-    real_function_3d operator()(const real_function_3d& ket) const {
-        vecfuncT vket(1,ket);
-        vecfuncT vKket=this->operator()(vket);
+    template<typename T>
+    Function<T,3> operator()(const Function<T,3>& ket) const {
+    	std::vector<Function<T,3> > vket(1,ket);
+    	std::vector<Function<T,3> > vKket=this->operator()(vket);
         return vKket[0];
     }
 
