@@ -268,10 +268,9 @@ void TDHF::load(World& world,
          ar & x_response[i][j];
    world.gop.fence();
 
+   y_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
    if(not Rparams.tda)
    {      
-      y_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
-
       for(int i=0; i<Rparams.states; i++)
          for(unsigned int j=0; j<Gparams.num_orbitals; j++)
             ar & y_response[i][j];
@@ -1990,10 +1989,8 @@ Tensor<double> TDHF::diag_fock_matrix(World & world,
     // the fock matrix
     Tensor<double> U = get_fock_transformation(world, overlap, fock, evals, thresh);
 
-// TEST
     // Sort into ascending order
     Tensor<int> selected = sort_eigenvalues(world, evals, U);
-// END TEST
 
     // Debugging output
     if(Rparams.print_level >= 2 and world.rank() == 0)
@@ -2682,12 +2679,8 @@ Tensor<double> TDHF::get_full_response_transformation(World& world,
        U = copy(U2);
     }
 
-// TEST
     // Sort into ascending order
     Tensor<int> selected = sort_eigenvalues(world, evals, U);
-// END TEST
-
-
 
     // End timer
     if(Rparams.print_level >= 1) end_timer(world, "Diag. resp. mat.");
@@ -3007,14 +3000,13 @@ void TDHF::iterate(World & world)
          if(world.rank() == 0) print(energy_residuals);
       }
 
-// TESTING
-  // Analysis gets messed up if BSH is last thing applied
-  if(iteration == Rparams.max_iter-1) 
-  {
-     end_timer(world," This iteration:");
-     break;
-  }
-// END TESTING
+      // Analysis gets messed up if BSH is last thing applied
+      // so exit early if last iteration
+      if(iteration == Rparams.max_iter-1) 
+      {
+         end_timer(world," This iteration:");
+         break;
+      }
 
       //  Calculates shifts needed for potential / energies
       //  If none needed, the zero tensor is returned
@@ -3022,10 +3014,7 @@ void TDHF::iterate(World & world)
       if(not Rparams.tda) 
       {
          omega = -omega; // Negative here is so that these Greens functions are (eps - omega) 
-// TEST
-y_shifts = create_shift_target(world, Gparams.energies, omega, Gparams.energies[n-1], Rparams.print_level, "y");
-// END TEST
-         //y_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "y");
+         y_shifts = create_shift_target(world, Gparams.energies, omega, Gparams.energies[n-1], Rparams.print_level, "y");
          omega = -omega;
       }
 
@@ -3033,7 +3022,7 @@ y_shifts = create_shift_target(world, Gparams.energies, omega, Gparams.energies[
       shifted_V_x_response = apply_shift(world, x_shifts, V_x_response, x_response);
       if(not Rparams.tda)
       {
-         y_shifts = -y_shifts; // TESTING 
+         y_shifts = -y_shifts; 
          shifted_V_y_response = apply_shift(world, y_shifts, V_y_response, y_response);
       }
 
@@ -3258,7 +3247,12 @@ y_shifts = create_shift_target(world, Gparams.energies, omega, Gparams.energies[
       if(not Rparams.tda) truncate(world, y_response);
 
       // Save
-      if(Rparams.save) save(world);
+      if(Rparams.save)
+      {
+         start_timer(world);
+         save(world);
+         end_timer(world, "Saving:");
+      }
 
       // Basic output
       if(Rparams.print_level >= 1) end_timer(world, " This iteration:");
@@ -4638,7 +4632,8 @@ void TDHF::iterate_polarizability(World & world,
    int m = Rparams.states;                                    // Number of excited states
    Tensor<double> x_norms(m);                                 // Holds the norms of x function residuals (for convergence)
    Tensor<double> y_norms(m);                                 // Holds the norms of y function residuals (for convergence)
-   Tensor<double> shifts(m);                                  // Holds the shifted energy values
+   Tensor<double> x_shifts(m);                                // Holds the shifted energy values
+   Tensor<double> y_shifts(m);                                // Holds the shifted energy values
    ResponseFunction bsh_x_resp;                               // Holds wave function corrections
    ResponseFunction bsh_y_resp;                               // Holds wave function corrections
    ResponseFunction x_differences;                            // Holds wave function corrections
@@ -4678,20 +4673,19 @@ void TDHF::iterate_polarizability(World & world,
    {
       // Calculate minimum shift needed such that \eps + \omega + shift < 0 
       // for all \eps, \omega
-      shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
-      //shifts = -(Gparams.energies[n] + Rparams.omega + 0.05);
+      x_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
+      y_shifts = Gparams.energies[n] + Rparams.omega + 0.05;
    }
 
    // Construct BSH operators
-   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(world, shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
+   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(world, x_shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
    std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_operators; 
 
    // Negate omega to make this next set of BSH operators \eps - omega
    if(Rparams.omega != 0.0)
    {
       omega = -omega;
-      //Tensor<double> dumb(3);
-      bsh_y_operators = create_bsh_operators(world, shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
+      bsh_y_operators = create_bsh_operators(world, y_shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
    }
 
    // Now to iterate
@@ -4733,8 +4727,8 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.omega != 0.0) V_y_response = create_potential(world, y_response, xc, Rparams.print_level, "y");
 
       // Apply shift
-      V_x_response = apply_shift(world, shifts, V_x_response, x_response);
-      //if(Rparams.omega != 0.0) V_y_response = apply_shift(world, shifts, V_y_response, y_response);
+      V_x_response = apply_shift(world, x_shifts, V_x_response, x_response);
+      if(Rparams.omega != 0.0) V_y_response = apply_shift(world, y_shifts, V_y_response, y_response);
 
       // Create \epsilon applied to response functions
       x_fe = scale_2d(world, x_response, ham_no_diag); 
@@ -4916,8 +4910,12 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.omega != 0.0) truncate(world, y_response);
 
       // Save
-      if(Rparams.save) save(world);
-
+      if(Rparams.save)
+      { 
+         start_timer(world);
+         save(world);
+         end_timer(world, "Save:");
+      }
       // Basic output
       if(Rparams.print_level >= 1) end_timer(world, " This iteration:");
 

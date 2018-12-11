@@ -242,9 +242,9 @@ bool old;
             {
                random = true;
             }
-            else if (s == "store_potential")
+            else if (s == "store_potential_off")
             {
-               store_potential = true;
+               store_potential = false;
             }
             else if (s == "range")
             {
