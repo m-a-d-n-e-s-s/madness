@@ -685,7 +685,9 @@ namespace madness {
                              cvecfuncT& camo, cvecfuncT& cbmo, double t, double time_step,
                              double thresh);
         
-        
+        // Zeros out coefficient tensors if max coefficient is below 0.1 * thresh
+        void hard_zero(const Key<3>& key, Tensor<double>& x);
+ 
         // For given protocol, solve the DFT/HF/response equations
         void solve(World & world);
         

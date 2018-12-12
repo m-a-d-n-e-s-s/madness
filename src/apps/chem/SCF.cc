@@ -2337,7 +2337,15 @@ namespace madness {
             }
         }
     }
-    
+   
+    void SCF::hard_zero(const Key<3>& key, Tensor<double>& x) {
+       double sum = x.absmax();
+       if(sum < FunctionDefaults<3>::get_thresh() * 0.1) {
+          x = 0;
+          print(key);
+       }
+    } 
+ 
     // For given protocol, solve the DFT/HF/response equations
     void SCF::solve(World & world) {
         PROFILE_MEMBER_FUNC(SCF);
@@ -2375,14 +2383,8 @@ namespace madness {
                 START_TIMER(world);
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
-                if(params.hard_zero) {
-                    auto zero = [](const Key<3> & key, Tensor<double> & x) {
-                        double sum = x.absmax();
-                        if(sum < FunctionDefaults<3>::get_thresh()*0.1) {
-                            x = 0;
-                            if(world.rank() == 0) print(key);
-                        }
-                    }
+                if(param.hard_zero) {
+                    for(auto f : amo) f.unaryop(hard_zero);
                 }
                 normalize(world, amo);
                 if (!param.spin_restricted && param.nbeta != 0) {
@@ -2395,6 +2397,9 @@ namespace madness {
                     dUT.data().screen(trantol);
                     bmo = transform(world, bmo, dUT);
                     truncate(world, bmo);
+                    if(param.hard_zero) {
+                       for(auto f : bmo) f.unaryop(hard_zero);
+                    }
                     normalize(world, bmo);
                     END_TIMER(world, "Rotate subspace");
                 }
