@@ -56,6 +56,7 @@
 #include <madness/mra/vmra.h>
 #include <chem/pcm.h>
 #include <chem/AC.h>
+#include <chem/pointgroupsymmetry.h>
 
 namespace madness {
 
@@ -143,6 +144,7 @@ struct allocator {
 class Nemo: public MolecularOptimizationTargetInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
+	friend class TDHF;
 
 public:
 
@@ -150,14 +152,12 @@ public:
 
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
-	Nemo(World& world1, std::shared_ptr<SCF> calc) :
-			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
-
-	    if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data,true);
-
-	}
+	Nemo(World& world1, std::shared_ptr<SCF> calc);
 
 	void construct_nuclear_correlation_factor() {
+
+		// make sure the nuclear potential is present
+		MADNESS_ASSERT(calc->potentialmanager->vnuclear().is_initialized());
 
 	    // construct the nuclear correlation factor:
 	    if (not nuclear_correlation)
@@ -211,7 +211,7 @@ public:
 	/// @param[in]  iatom   the atom A to be moved
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
 	/// @return     \ket{i^X} or \ket{F^\perp}
-	vecfuncT solve_cphf(const int iatom, const int iaxis, const Tensor<double> fock,
+	vecfuncT solve_cphf(const size_t iatom, const int iaxis, const Tensor<double> fock,
 	        const vecfuncT& guess, const vecfuncT& rhsconst,
 	        const Tensor<double> incomplete_hessian, const vecfuncT& parallel,
 	        const SCFProtocol& p, const std::string& xc_data) const;
@@ -242,7 +242,7 @@ public:
     /// \f[
     ///  F_i^\parallel = -\frac{1}{2}\sum_k|F_k ><F_k | (R^2)^X | F_i>
     /// \f]
-    vecfuncT compute_cphf_parallel_term(const int iatom, const int iaxis) const;
+    vecfuncT compute_cphf_parallel_term(const size_t iatom, const int iaxis) const;
 
     /// compute the IR intensities in the double harmonic approximation
 
@@ -341,6 +341,8 @@ private:
 
 	std::shared_ptr<SCF> calc;
 
+	projector_irrep symmetry_projector;
+
 	mutable double ttt, sss;
 	void START_TIMER(World& world) const {
 	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
@@ -393,6 +395,11 @@ public:
     /// the square of the nuclear correlation factor
     real_function_3d R_square;
 
+    /// return the symmetry_projector
+    projector_irrep get_symmetry_projector() const {
+    	return symmetry_projector;
+    }
+
 private:
 
 	/// sum of square of coords at last solved geometry
@@ -429,9 +436,16 @@ private:
         calc->set_protocol<3>(world,thresh);
 
         // (re) construct nuclear potential and correlation factors
-        timer timer1(world);
-        construct_nuclear_correlation_factor();
-        timer1.end("reproject ncf");
+        // first make the nuclear potential, since it might be needed by the nuclear correlation factor
+        if ((not (calc->potentialmanager.get() and calc->potentialmanager->vnuclear().is_initialized()))
+        		or (calc->potentialmanager->vnuclear().thresh()>thresh)) {
+            get_calc()->make_nuclear_potential(world);
+        }
+        if ((not R.is_initialized()) or (R.thresh()>thresh)) {
+            timer timer1(world);
+            construct_nuclear_correlation_factor();
+            timer1.end("reproject ncf");
+        }
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
@@ -497,10 +511,10 @@ private:
 	/// compute the constant term for the CPHF equations
 
 	/// mainly all terms with the nuclear correlation factor's derivatives
-	vecfuncT make_cphf_constant_term(const int iatom, const int iaxis,
+	vecfuncT make_cphf_constant_term(const size_t iatom, const int iaxis,
 	        const vecfuncT& R2nemo, const real_function_3d& rhonemo) const;
 
-	public:
+public:
 
 	bool is_dft() const {return calc->xc.is_dft();}
 
@@ -510,7 +524,9 @@ private:
 
 	AC<3> get_ac() const {return ac;}
 
-	private:
+	bool do_symmetry() const {return (symmetry_projector.get_pointgroup()!="C1");}
+
+private:
 
 	/// localize the nemo orbitals
     vecfuncT localize(const vecfuncT& nemo, const double dconv, const bool randomize) const;

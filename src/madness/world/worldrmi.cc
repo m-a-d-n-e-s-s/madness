@@ -354,7 +354,7 @@ namespace madness {
       unsigned long* inout = static_cast<unsigned long*>(addresses_inout);
       int n = *len;
       // produce zero if addresses do not match; zero address trumps everything else
-      for(size_t i=0; i!=n; ++i) {
+      for(int i=0; i!=n; ++i) {
         if (in[i] == 0 || inout[i] == 0 || in[i] != inout[i]) inout[i] = 0;
       }
     }

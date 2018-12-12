@@ -439,7 +439,7 @@ public:
 			: ncf(ncf), exponent(e) {}
 		double operator()(const coord_3d& xyz) const {
 			double result=1.0;
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -472,7 +472,7 @@ public:
 
 		double operator()(const coord_3d& xyz) const {
 			double result=0.0;
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -497,11 +497,11 @@ public:
     class U1_atomic_functor : public FunctionFunctorInterface<double,3> {
 
         const NuclearCorrelationFactor* ncf;
-        const int iatom;
+        const size_t iatom;
         const int axis;
 
     public:
-        U1_atomic_functor(const NuclearCorrelationFactor* ncf, const int atom,
+        U1_atomic_functor(const NuclearCorrelationFactor* ncf, const size_t atom,
                 const int axis) : ncf(ncf), iatom(atom), axis(axis) {}
 
         double operator()(const coord_3d& xyz) const {
@@ -539,7 +539,7 @@ public:
 
         double operator()(const coord_3d& xyz) const {
             double result=0.0;
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                 const Atom& atom=ncf->molecule.get_atom(i);
                 const coord_3d vr1A=xyz-atom.get_coords();
                 const double r=vr1A.normf();
@@ -561,7 +561,7 @@ public:
 		U2_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
 		double operator()(const coord_3d& xyz) const {
 			double result=0.0;
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -580,7 +580,7 @@ public:
 		U3_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
 		double operator()(const coord_3d& xyz) const {
 			std::vector<coord_3d> all_terms(ncf->molecule.natom());
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -589,8 +589,8 @@ public:
 			}
 
 			double result=0.0;
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
-				for (int j=0; j<i; ++j) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+				for (size_t j=0; j<i; ++j) {
 					result+=all_terms[i][0]*all_terms[j][0]
 					       +all_terms[i][1]*all_terms[j][1]
 					       +all_terms[i][2]*all_terms[j][2];
@@ -608,10 +608,10 @@ public:
     class U2_atomic_functor : public FunctionFunctorInterface<double,3> {
 
         const NuclearCorrelationFactor* ncf;
-        const int iatom;
+        const size_t iatom;
 
     public:
-        U2_atomic_functor(const NuclearCorrelationFactor* ncf, const int atom)
+        U2_atomic_functor(const NuclearCorrelationFactor* ncf, const size_t atom)
             : ncf(ncf), iatom(atom) {}
 
         double operator()(const coord_3d& xyz) const {
@@ -635,7 +635,7 @@ public:
     class U3_atomic_functor : public FunctionFunctorInterface<double,3> {
 
         const NuclearCorrelationFactor* ncf;
-        const int iatom;
+        const size_t iatom;
 
     public:
         U3_atomic_functor(const NuclearCorrelationFactor* ncf, const int atom)
@@ -650,7 +650,7 @@ public:
 
             double result=0.0;
             // sum over B
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                 if (i==iatom) continue; // restricted sum
 
                 const Atom& atomB=ncf->molecule.get_atom(i);
@@ -678,14 +678,14 @@ public:
     class square_times_V_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
         const Molecule& molecule;
-        const int iatom;
+        const size_t iatom;
     public:
         square_times_V_functor(const NuclearCorrelationFactor* ncf,
-                const Molecule& mol, const int iatom1)
+                const Molecule& mol, const size_t iatom1)
             : ncf(ncf), molecule(mol), iatom(iatom1) {}
         double operator()(const coord_3d& xyz) const {
             double result=1.0;
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                 const Atom& atom=ncf->molecule.get_atom(i);
                 const coord_3d vr1A=xyz-atom.get_coords();
                 const double r=vr1A.normf();
@@ -705,15 +705,15 @@ public:
     class square_times_V_derivative_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
         const Molecule& molecule;
-        const int iatom;
+        const size_t iatom;
         const int axis;
     public:
         square_times_V_derivative_functor(const NuclearCorrelationFactor* ncf,
-                const Molecule& molecule1, const int atom1, const int axis1)
+                const Molecule& molecule1, const size_t atom1, const int axis1)
             : ncf(ncf), molecule(molecule1), iatom(atom1), axis(axis1) {}
         double operator()(const coord_3d& xyz) const {
             double result=1.0;
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                 const Atom& atom=ncf->molecule.get_atom(i);
                 const coord_3d vr1A=xyz-atom.get_coords();
                 const double r=vr1A.normf();
@@ -755,7 +755,7 @@ public:
             // compute the R term
             double result=1.0;
             if ((exponent==1) or (exponent==2)) {
-                for (int i=0; i<ncf->molecule.natom(); ++i) {
+                for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                     const Atom& atom=ncf->molecule.get_atom(i);
                     const coord_3d vr1A=xyz-atom.get_coords();
                     const double r=vr1A.normf();
@@ -881,10 +881,10 @@ public:
     /// \f]
     class U3X_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
-        const int iatom;
+        const size_t iatom;
         const int axis;
     public:
-        U3X_functor(const NuclearCorrelationFactor* ncf, const int iatom,
+        U3X_functor(const NuclearCorrelationFactor* ncf, const size_t iatom,
                 const int axis) : ncf(ncf), iatom(iatom), axis(axis) {}
 
         double operator()(const coord_3d& xyz) const {
@@ -905,7 +905,7 @@ public:
             const double drhodx=-nA[axis];
 
             double term=0.0;
-            for (int jatom=0; jatom<ncf->molecule.natom(); ++jatom) {
+            for (size_t jatom=0; jatom<ncf->molecule.natom(); ++jatom) {
                 if (iatom==jatom) continue; // restricted sum B \neq A
 
                 const Atom& atomB=ncf->molecule.get_atom(jatom);
@@ -1377,7 +1377,7 @@ private:
     /// the nuclear correlation factor
     double S(const double& r, const double& Z) const {
     	const double a=a_param();
-    	const double eprec=eprec_param();
+    	//const double eprec=eprec_param();
     	return 1.0+1.0/(a-1.0) * exp(-a*Z*r);
 
 //    	return 1.0 + 0.5/(a-1.0) *
@@ -1473,9 +1473,9 @@ public:
             print("with eprec ",eprec_);
             print("which is of poly4erfc type\n");
         }
-        const double pi32=std::pow(constants::pi,1.5);
-        const double sqrtpi=sqrt(constants::pi);
-        const double Pi=constants::pi;
+        //const double pi32=std::pow(constants::pi,1.5);
+        //const double sqrtpi=sqrt(constants::pi);
+        //const double Pi=constants::pi;
 
         if (a==0.5) {
             a0=0.5083397721116242769;

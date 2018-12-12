@@ -515,7 +515,7 @@ public:
         at_nbf   = std::vector<int>(molecule.natom());
 
         int n = 0;
-        for (int i=0; i<molecule.natom(); ++i) {
+        for (size_t i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
             MADNESS_ASSERT(is_supported(atn));
@@ -531,7 +531,7 @@ public:
         sh_nbf   = std::vector<int>();
 
         int nbf = 0;
-        for (int i=0; i<molecule.natom(); ++i) {
+        for (size_t i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
             MADNESS_ASSERT(is_supported(atn));
@@ -546,7 +546,7 @@ public:
     }
 
     /// Returns the atomic alpha eigenvectors for atom iat
-    const Tensor<double>& get_avec(const Molecule& molecule, int iat) const {
+    const Tensor<double>& get_avec(const Molecule& molecule, size_t iat) const {
       MADNESS_ASSERT(iat>=0 && iat<molecule.natom());
       const Atom& atom = molecule.get_atom(iat);
       const int atn = atom.atomic_number;
@@ -555,7 +555,7 @@ public:
     }
 
     /// Returns the atomic alpha eigenvalues for atom iat
-    const Tensor<double>& get_aeps(const Molecule& molecule, int iat) const {
+    const Tensor<double>& get_aeps(const Molecule& molecule, size_t iat) const {
       MADNESS_ASSERT(iat>=0 && iat<molecule.natom());
       const Atom& atom = molecule.get_atom(iat);
       const int atn = atom.atomic_number;
@@ -564,10 +564,10 @@ public:
     }
 
     /// Returns the number of the atom the ibf'th basis function is on
-    int basisfn_to_atom(const Molecule& molecule, int ibf) const {
+    int basisfn_to_atom(const Molecule& molecule, size_t ibf) const {
         MADNESS_ASSERT(ibf >= 0);
-        int n = 0;
-        for (int i=0; i<molecule.natom(); ++i) {
+        size_t n = 0;
+        for (size_t i=0; i<molecule.natom(); ++i) {
             // Is the desired function on this atom?
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
@@ -584,10 +584,10 @@ public:
     }
 
     /// Returns the ibf'th atomic basis function
-    AtomicBasisFunction get_atomic_basis_function(const Molecule& molecule, int ibf) const {
+    AtomicBasisFunction get_atomic_basis_function(const Molecule& molecule, size_t ibf) const {
         MADNESS_ASSERT(ibf >= 0);
-        int n = 0;
-        for (int i=0; i<molecule.natom(); ++i) {
+        size_t n = 0;
+        for (size_t i=0; i<molecule.natom(); ++i) {
             // Is the desired function on this atom?
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
@@ -610,7 +610,7 @@ public:
     /// Given a molecule count the number of basis functions
     int nbf(const Molecule& molecule) const {
         int n = 0;
-        for (int i=0; i<molecule.natom(); ++i) {
+        for (size_t i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
             MADNESS_ASSERT(is_supported(atn));
@@ -621,7 +621,7 @@ public:
 
     /// Evaluates the basis functions
     void eval(const Molecule& molecule, double x, double y, double z, double *bf) const {
-        for (int i=0; i<molecule.natom(); ++i) {
+        for (size_t i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
             bf = ag[atn].eval(x-atom.x, y-atom.y, z-atom.z, bf);
@@ -633,7 +633,7 @@ public:
     double eval_guess_density(const Molecule& molecule, double x, double y, double z) const {
         double sum = 0.0;
         bool pspat;
-        for (int i=0; i<molecule.natom(); ++i) {
+        for (size_t i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             if (atom.pseudo_atom){
                 pspat=true;}

@@ -68,18 +68,7 @@ std::vector<std::string> cubefile_header(std::string filename, const bool& no_or
     Molecule molecule;
     molecule.read_file(filename);
     if(no_orient==false) molecule.orient();
-    std::vector<std::string> molecular_info;
-    for (unsigned int i=0; i<molecule.natom(); ++i) {
-        std::stringstream ss;
-        const int charge=molecule.get_atom(i).get_atomic_number();
-        ss << charge << " " << charge << " ";
-        ss << std::fixed;
-        ss.precision(8);
-        const Vector<double,3> coord=molecule.get_atom(i).get_coords();
-        ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
-        molecular_info.push_back(ss.str());
-    }
-    return molecular_info;
+    return molecule.cubefile_header();
 }
 
 
@@ -106,6 +95,21 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
 /// This code is just for the examples ... don't trust it!
 Molecule::Molecule(const std::string& filename) {
     read_file(filename);
+}
+
+std::vector<std::string> Molecule::cubefile_header() const {
+	std::vector<std::string> molecular_info;
+	for (unsigned int i = 0; i < natom(); ++i) {
+		std::stringstream ss;
+		const int charge = get_atom(i).get_atomic_number();
+		ss << charge << " " << charge << " ";
+		ss << std::fixed;
+		ss.precision(8);
+		const Vector<double, 3> coord = get_atom(i).get_coords();
+		ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
+		molecular_info.push_back(ss.str());
+	}
+	return molecular_info;
 }
 
 void Molecule::read_file(const std::string& filename) {
@@ -230,7 +234,7 @@ void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
 
 madness::Tensor<double> Molecule::get_all_coords() const {
     madness::Tensor<double> c(natom(),3);
-    for (int i=0; i<natom(); ++i) {
+    for (size_t i=0; i<natom(); ++i) {
         const Atom atom = get_atom(i);
         c(i,0) = atom.x;
         c(i,1) = atom.y;
@@ -241,7 +245,7 @@ madness::Tensor<double> Molecule::get_all_coords() const {
 
 std::vector< madness::Vector<double,3> > Molecule::get_all_coords_vec() const {
   std::vector< madness::Vector<double,3> > c(natom());
-  for (int i=0; i<natom(); ++i) {
+  for (size_t i=0; i<natom(); ++i) {
     const Atom atom = get_atom(i);
     c[i][0] = atom.x;
     c[i][1] = atom.y;
@@ -251,8 +255,8 @@ std::vector< madness::Vector<double,3> > Molecule::get_all_coords_vec() const {
 }
 
 void Molecule::set_all_coords(const madness::Tensor<double>& c) {
-    MADNESS_ASSERT(c.ndim()==2 && c.dims()[0]==natom() && c.dims()[1]==3);
-    for (int i=0; i<natom(); ++i) {
+    MADNESS_ASSERT(c.ndim()==2u && size_t(c.dims()[0])==natom() && c.dims()[1]==3);
+    for (size_t i=0; i<natom(); ++i) {
         atoms[i].x = c(i,0);
         atoms[i].y = c(i,1);
         atoms[i].z = c(i,2);
@@ -262,14 +266,14 @@ void Molecule::set_all_coords(const madness::Tensor<double>& c) {
 /// updates rcuts with given eprec
 void Molecule::set_eprec(double value) {
     eprec = value;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
+    for (size_t i=0; i<atoms.size(); ++i) {
         rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, eprec);
     }
     core_pot.set_eprec(value);
 }
 
 void Molecule::set_rcut(double value) {
-    for (unsigned int i=0; i<atoms.size(); ++i) {
+    for (size_t i=0; i<atoms.size(); ++i) {
         rcut[i] = (value<=0.0) ? 1.0 : value;
     }
 }
@@ -285,7 +289,7 @@ void Molecule::print() const {
     printf("   eprec %.1e\n", eprec);
     printf("   units atomic\n");
     //printf("   Finite Field %11.8f %20.8f %20.8f\n", field[0], field[1], field[2]);
-    for (int i=0; i<natom(); ++i) {
+    for (size_t i=0; i<natom(); ++i) {
         printf("   %-2s  %20.8f %20.8f %20.8f", get_atomic_data(atoms[i].atomic_number).symbol,
                atoms[i].x, atoms[i].y, atoms[i].z);
         if (atoms[i].atomic_number == 0) printf("     %20.8f", atoms[i].q);
@@ -304,13 +308,13 @@ double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
 double Molecule::nuclear_repulsion_energy() const {
     double sum = 0.0;
     unsigned int z1, z2;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
+    for (size_t i=0; i<atoms.size(); ++i) {
         if (atoms[i].pseudo_atom){
             z1 = atoms[i].q;}
         else{
             z1 = atoms[i].atomic_number;}
         if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
-        for (unsigned int j=i+1; j<atoms.size(); ++j) {
+        for (size_t j=i+1; j<atoms.size(); ++j) {
             if (atoms[j].pseudo_atom){
                 z2 = atoms[j].q;}
             else{
@@ -324,7 +328,7 @@ double Molecule::nuclear_repulsion_energy() const {
 
 double Molecule::nuclear_dipole(int axis) const {
     double sum = 0.0;
-    for (unsigned int atom = 0; atom < atoms.size(); ++atom) {
+    for (size_t atom = 0; atom < atoms.size(); ++atom) {
         unsigned int z;
         if (atoms[atom].pseudo_atom){
             z = atoms[atom].q;}
@@ -350,13 +354,13 @@ Tensor<double> Molecule::nuclear_dipole_derivative(const int atom, const int axi
 }
 
 
-double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
+double Molecule::nuclear_repulsion_derivative(size_t i, int axis) const {
     double sum = 0.0;
     unsigned int z1 = atoms[i].atomic_number;
     if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
-    for (unsigned int j=0; j<atoms.size(); ++j) {
-        if (j != (unsigned int)(i)) {
-            unsigned int z2 = atoms[j].atomic_number;
+    for (size_t j=0; j<atoms.size(); ++j) {
+        if (j != i) {
+            size_t z2 = atoms[j].atomic_number;
             if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
             double r = inter_atomic_distance(i,j);
             double xx;
@@ -373,9 +377,9 @@ double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
 Tensor<double> Molecule::nuclear_repulsion_hessian() const {
 
     Tensor<double> hessian(3*natom(),3*natom());
-    for (int iatom=0; iatom<natom(); ++iatom) {
+    for (size_t iatom=0; iatom<natom(); ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
-            for (int jatom=0; jatom<natom(); ++jatom) {
+            for (size_t jatom=0; jatom<natom(); ++jatom) {
                 for (int jaxis=0; jaxis<3; ++jaxis) {
                     hessian(3*iatom+iaxis, 3*jatom+jaxis)=
                             nuclear_repulsion_second_derivative(iatom,jatom,iaxis,jaxis);
