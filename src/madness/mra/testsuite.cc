@@ -140,7 +140,7 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     double hi = log(expntmax);
     double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
     T coeff = pow(2.0*expnt/PI,0.25*NDIM);
-    print("RandomGaussian: origin", origin, "expnt", expnt, "coeff", coeff);
+    //print("RandomGaussian: origin", origin, "expnt", expnt, "coeff", coeff);
     return new Gaussian<T,NDIM>(origin,expnt,coeff);
 }
 
@@ -668,40 +668,6 @@ namespace madness {
     extern bool test_rnlp();
 }
 
-
-#include <madness/world/world_object.h>
-#include <madness/world/worldmutex.h>
-
-template <> Spinlock WorldObject<WorldContainerImpl<Key<1ul>, typename VectorNormTree<1ul>::valueT, Hash<Key<1ul> > > >::pending_mutex(0);
-template <> Spinlock WorldObject<WorldContainerImpl<Key<2ul>, typename VectorNormTree<2ul>::valueT, Hash<Key<2ul> > > >::pending_mutex(0);
-template <> Spinlock WorldObject<WorldContainerImpl<Key<3ul>, typename VectorNormTree<3ul>::valueT, Hash<Key<3ul> > > >::pending_mutex(0);
-template <> Spinlock WorldObject<WorldContainerImpl<Key<4ul>, typename VectorNormTree<4ul>::valueT, Hash<Key<4ul> > > >::pending_mutex(0);
-template <> Spinlock WorldObject<WorldContainerImpl<Key<5ul>, typename VectorNormTree<5ul>::valueT, Hash<Key<5ul> > > >::pending_mutex(0);
-template <> Spinlock WorldObject<WorldContainerImpl<Key<6ul>, typename VectorNormTree<6ul>::valueT, Hash<Key<6ul> > > >::pending_mutex(0);
-
-
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<1ul>, VectorNormTree<1ul>::valueT, Hash<Key<1ul> > > >::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<2ul>, VectorNormTree<2ul>::valueT, Hash<Key<2ul> > > >::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<3ul>, VectorNormTree<3ul>::valueT, Hash<Key<3ul> > > >::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<4ul>, VectorNormTree<4ul>::valueT, Hash<Key<4ul> > > >::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<5ul>, VectorNormTree<5ul>::valueT, Hash<Key<5ul> > > >::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<6ul>, VectorNormTree<6ul>::valueT, Hash<Key<6ul> > > >::pending = std::list<::detail::PendingMsg>();
-
-
-template <> Spinlock WorldObject<VectorNormTree<1ul>>::pending_mutex(0);
-template <> Spinlock WorldObject<VectorNormTree<2ul>>::pending_mutex(0);
-template <> Spinlock WorldObject<VectorNormTree<3ul>>::pending_mutex(0);
-template <> Spinlock WorldObject<VectorNormTree<4ul>>::pending_mutex(0);
-template <> Spinlock WorldObject<VectorNormTree<5ul>>::pending_mutex(0);
-template <> Spinlock WorldObject<VectorNormTree<6ul>>::pending_mutex(0);
-
-template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<1ul>>::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<2ul>>::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<3ul>>::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<4ul>>::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<5ul>>::pending = std::list<::detail::PendingMsg>();
-template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<6ul>>::pending = std::list<::detail::PendingMsg>();
-
 // template class VectorNormTree<1ul>;
 // template class VectorNormTree<2ul>;
 // template class VectorNormTree<3ul>;
@@ -756,30 +722,29 @@ int test_K(World& world) {
       const int nvfunc = 200;
       std::vector< Function<T,NDIM> > f(nvfunc);
       for (int i=0; i<nvfunc; ++i) {
-	    print("     ", i);
 	    functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),10.0));
 	    f[i] = FunctionFactory<T,NDIM>(world).functor(f2);
       }
-      print("generating phi");
       functorT f3(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),10.0));
       real_function_3d phi = FunctionFactory<T,NDIM>(world).functor(f3);
 
       truncate(world, f);
       phi.truncate();
-
-      //f.push_back(copy(phi));
       
       //reconstruct
       phi.reconstruct();
       reconstruct(world, f);
+      START_TIMER;
       norm_tree(world, f);
+      END_TIMER("norm_tree:");
       auto vtree = Function<T,NDIM>::make_vec_norm_tree(f);
+if(world.rank() == 0) print("after tree");
       //vtree->print();
 
       //auto fphi = mul_sparse(world, phi, f, thresh); // may need a different tolerance
-
+      
       auto fphi = mul(world, phi, f); //<<<<<<<<<<<<
-
+if(world.rank() == 0) print("after multiplication");
       //std::vector< Function<T,NDIM> > fphi;      
       //for (int i=0; i<nvfunc; i++) {
 	 //   fphi.push_back((f[i]*phi).truncate());
@@ -788,21 +753,22 @@ int test_K(World& world) {
 
 
       truncate(world, fphi, thresh);
-
+if(world.rank() == 0) print("after truncate"); 
       START_TIMER;
 
       nonstandard(world, fphi);
 
+if(world.rank() == 0) print("after non-standard"); 
       SeparatedConvolution<double,3> op = CoulombOperator(world, 1e-5, thresh);
 
       std::vector< Function<T,NDIM> > result(fphi.size());
       for (unsigned int i=0; i<fphi.size(); ++i) {
-	print("     ", i);
-	    result[i] = apply_exchange_only(op, fphi[i], vtree, i, true);
+	    result[i] = apply_exchange_only(op, fphi[i], vtree, i, false);
 	    //result[i] = apply_only(op, fphi[i], true);
       }
       world.gop.fence();
 
+if(world.rank() == 0) print("after fence"); 
       //standard(world, result);
       standard(world, fphi);
 
@@ -814,7 +780,8 @@ int test_K(World& world) {
 
       {
 	START_TIMER;
-	auto opfphi = apply(world, op, fphi);
+        SeparatedConvolution<double,3> op2 = CoulombOperator(world, 1e-5, thresh); 
+	auto opfphi = apply(world, op2, fphi);
 	mul(world, f, opfphi);
 	END_TIMER("OLD");
       }
@@ -825,13 +792,14 @@ int test_K(World& world) {
 	 //   print("notdumbb", result[i].norm2(), q.norm2());
 	 //   result[i] = q;
       //}
-
+      double max = 0.0;
       for (size_t i=0; i<f.size(); i++) {
-	    print("     ", i);
 	    auto r0 = dumbx(world, f[i], phi, op);
-	    print("<f0|f0>", f[i].inner(f[i]), "<f0|phi>", f[i].inner(phi), "<phi|phi>", phi.inner(phi), "<r0|r0>", r0.inner(r0), result[i].inner(result[i]));
-	    print("the error is ", (r0-result[i]).norm2());
+	    //print("<f0|f0>", f[i].inner(f[i]), "<f0|phi>", f[i].inner(phi), "<phi|phi>", phi.inner(phi), "<r0|r0>", r0.inner(r0), result[i].inner(result[i]));
+	    //print("the error is ", (r0-result[i]).norm2());
+            max = std::max(max, (r0-result[i]).norm2());
       }
+      if(world.rank() == 0) print("The max error is", max);
     }
     return ok;
 }

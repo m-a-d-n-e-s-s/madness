@@ -2384,7 +2384,7 @@ namespace madness {
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 if(param.hard_zero) {
-                    for(auto f : amo) f.unaryop(hard_zero);
+                    for(auto f : amo) f.unaryop(&hard_zero);
                 }
                 normalize(world, amo);
                 if (!param.spin_restricted && param.nbeta != 0) {
@@ -2398,7 +2398,7 @@ namespace madness {
                     bmo = transform(world, bmo, dUT);
                     truncate(world, bmo);
                     if(param.hard_zero) {
-                       for(auto f : bmo) f.unaryop(hard_zero);
+                       for(auto f : bmo) f.unaryop(&hard_zero);
                     }
                     normalize(world, bmo);
                     END_TIMER(world, "Rotate subspace");

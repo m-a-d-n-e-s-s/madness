@@ -74,6 +74,11 @@ namespace madness {
     template <> volatile std::list<detail::PendingMsg> WorldObject<SeparatedConvolution<std::complex<double>,1> >::pending = std::list<detail::PendingMsg>();
     template <> Spinlock WorldObject<SeparatedConvolution<std::complex<double>,1> >::pending_mutex(0);
 
+    template <> Spinlock WorldObject<WorldContainerImpl<Key<1ul>, typename VectorNormTree<1ul>::valueT, Hash<Key<1ul> > > >::pending_mutex(0);
+    template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<1ul>, VectorNormTree<1ul>::valueT, Hash<Key<1ul> > > >::pending = std::list<detail::PendingMsg>();
+    template <> Spinlock WorldObject<VectorNormTree<1ul>>::pending_mutex(0);
+    template <> volatile std::list<detail::PendingMsg> WorldObject<VectorNormTree<1ul>>::pending = std::list<detail::PendingMsg>();
+
     template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<1>, LBNodeDeux<1>, Hash<Key<1> > > >::pending = std::list<detail::PendingMsg>();
     template <>  Spinlock WorldObject<WorldContainerImpl<Key<1>, LBNodeDeux<1>, Hash<Key<1> > > >::pending_mutex(0);
 

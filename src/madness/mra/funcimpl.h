@@ -4443,6 +4443,8 @@ namespace madness {
 		    }
 
                     if (cnorm*opnorm> tol/fac/fnorm) {
+
+		      if(fnorm == 1.0) ::madness::print("FYI disp", d);
 		      ndone++;
 		      //print(key, d.translation(), cnorm, opnorm, fnorm, tol/fac);
 		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
