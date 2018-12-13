@@ -76,9 +76,9 @@ namespace madness {
         /// @param[in]  f   the vector of functions to be projected
         /// @return     the projection of f on the space of p
         vecfuncT operator()(const vecfuncT& f) const {
-            MADNESS_ASSERT(f.size()>0);
+            if (f.size()==0) return vecfuncT();
             World& world=f[0].world();
-            Tensor<double> ovlp=matrix_inner(world,mo_bra_,f);
+            Tensor<T> ovlp=matrix_inner(world,mo_bra_,f);
             vecfuncT result=transform(world,mo_ket_,ovlp,true);
             truncate(world,result);
             return result;
@@ -125,25 +125,31 @@ namespace madness {
 
     public:
 
+        /// default ctor
+        QProjector() = default;
+
         /// constructor with symmetric bra and ket spaces
-        QProjector(World& world, const vecfuncT& amo) : world(world), O(amo) {};
+        QProjector(World& world, const vecfuncT& amo) : O(amo) {};
 
         /// constructor with asymmetric bra and ket spaces
         QProjector(World& world, const vecfuncT& bra, const vecfuncT& ket)
-            : world(world), O(bra,ket) {};
+            : O(bra,ket) {};
+
+        /// copy ctor
+        QProjector(const QProjector& other) = default;
 
         Function<T,NDIM> operator()(const Function<T,NDIM>& rhs) const {
             return (rhs-O(rhs)).truncate();
         }
 
         vecfuncT operator()(const vecfuncT& rhs) const {
-            vecfuncT result=sub(world,rhs,O(rhs));
-            truncate(world,result);
+        	if (rhs.size()==0) return vecfuncT();
+            vecfuncT result=rhs-O(rhs);
+            truncate(result[0].world(),result);
             return result;
         }
 
     private:
-        World& world;
         Projector<T,NDIM> O;
     };
 

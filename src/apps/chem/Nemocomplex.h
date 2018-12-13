@@ -183,7 +183,8 @@ public:
 
 	/// compute the potential operators applied on the orbitals
 	void compute_potentials(const std::vector<complex_function_3d>& mo,
-			real_function_3d& density,
+			const real_function_3d& density,
+			std::vector<complex_function_3d>& rhs,
 			std::vector<complex_function_3d>& Vnemo,
 			std::vector<complex_function_3d>& lznemo,
 			std::vector<complex_function_3d>& dianemo,

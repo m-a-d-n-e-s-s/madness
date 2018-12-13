@@ -68,14 +68,14 @@ double Nemo_complex::value() {
 				spin_zeeman_nemo;
 			Tensor<double_complex> focka, fockb(0l,0l), tmata, tmatb, vmata, vmatb;
 
-			compute_potentials(amo, density, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
+			compute_potentials(amo, density, amo, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
 			vmata=compute_vmat(amo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
 			Vnemoa=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo+shift*amo;
 			truncate(world,Vnemoa,thresh*0.1);
 			two_electron_alpha= real(-inner(world,Knemo,amo).sum() + inner(world,Jnemo,amo).sum());
 
 			if (have_beta()) {
-				compute_potentials(bmo, density, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
+				compute_potentials(bmo, density, bmo, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
 				scale(world,spin_zeeman_nemo,-1.0);
 				vmatb=compute_vmat(bmo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
 				Vnemob=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo+shift*bmo;
@@ -103,7 +103,7 @@ double Nemo_complex::value() {
 
 			// compute orbital and total energies
 			oldenergy=energy;
-			energy=aeps.sum() + beps.sum()-shift-shift;
+			energy=aeps.sum() + beps.sum()-(aeps.size()+beps.size())*shift;
 			energy=energy-0.5*(two_electron_alpha + two_electron_beta) + molecule.nuclear_repulsion_energy();
 //			if (iter<5) {
 				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i))+shift;
@@ -244,23 +244,24 @@ std::vector<complex_function_3d> Nemo_complex::read_guess(const std::string& spi
 
 /// compute the potential operators applied on the orbitals
 void Nemo_complex::compute_potentials(const std::vector<complex_function_3d>& mo,
-		real_function_3d& density,
+		const real_function_3d& density,
+		std::vector<complex_function_3d>& rhs,
 		std::vector<complex_function_3d>& Vnemo,
 		std::vector<complex_function_3d>& lznemo,
 		std::vector<complex_function_3d>& dianemo,
 		std::vector<complex_function_3d>& spin_zeeman_nemo,
 		std::vector<complex_function_3d>& Knemo,
 		std::vector<complex_function_3d>& Jnemo) const {
-	Vnemo=vnuclear*mo;
-	lznemo=0.5*B*Lz(mo);
-	dianemo=sbox*0.125*B*B*diamagnetic()*mo;
-	spin_zeeman_nemo=B*0.5*mo;
+	Vnemo=vnuclear*rhs;
+	lznemo=0.5*B*Lz(rhs);
+	dianemo=sbox*0.125*B*B*diamagnetic()*rhs;
+	spin_zeeman_nemo=B*0.5*rhs;
 	Exchange<double_complex,3> K=Exchange<double_complex,3>(world);
 	Tensor<double> occ(mo.size());
 	occ=1.0;
 	K.set_parameters(conj(world,mo),mo,occ,cparam.lo,cparam.econv);
-	Knemo=K(mo);
-	Jnemo=(*coulop)(density)*mo;
+	Knemo=K(rhs);
+	Jnemo=(*coulop)(density)*rhs;
 
 	truncate(world,Vnemo);
 	truncate(world,lznemo);
