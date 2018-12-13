@@ -344,8 +344,31 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
      // Set some function defaults   
      //FunctionDefaults<3>::set_cubic_cell(-Init_params.L, Init_params.L);
      //FunctionDefaults<3>::set_k(Init_params.order);
-     FunctionDefaults<3>::set_thresh(DFparams.thresh);
+     FunctionDefaults<3>::set_thresh(DFparams.thresh); //Always use user-specified thresh
      FunctionDefaults<3>::set_truncate_mode(1);   
+
+     //If user requests different k, then project functions
+     if(DFparams.k != Init_params.order){
+          FunctionDefaults<3>::set_k(DFparams.k);
+          for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+               for(unsigned int j = 0; j < 4; j++){
+                    //if(world.rank()==0) print(i,j);
+                    Init_params.orbitals[i][j] = project(Init_params.orbitals[i][j], FunctionDefaults<3>::get_k(), DFparams.thresh, false);
+               }
+               world.gop.fence();
+               Init_params.orbitals[i].truncate();
+          }
+          if(DFparams.job == 1){
+               for(unsigned int i = 0; i < Init_params.num_virtuals; i++){
+                    for(unsigned int j = 0; j < 4; j++){
+                         //if(world.rank()==0) print(i,j);
+                         Init_params.virtuals[i][j] = project(Init_params.virtuals[i][j], FunctionDefaults<3>::get_k(), DFparams.thresh, false);
+                    }
+                    world.gop.fence();
+                    Init_params.virtuals[i].truncate();
+               }
+          }
+     }
 
      energies = Init_params.energies;
      v_energies = Init_params.v_energies;
@@ -550,17 +573,13 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
           temp = apply(world, op, temp);
 
-          //IDEA: Kpsis[i][k] += sum(mul(world, temp, occupieds))
           Kpsis[i][0] += sum(world, mul(world, temp, temp0));
           Kpsis[i][1] += sum(world, mul(world, temp, temp1));
           Kpsis[i][2] += sum(world, mul(world, temp, temp2));
           Kpsis[i][3] += sum(world, mul(world, temp, temp3));
           
           temp = conj(world, temp);
-          //temp0 = mul(world, temp, temp0);
-          //temp1 = mul(world, temp, temp1);
-          //temp2 = mul(world, temp, temp2);
-          //temp3 = mul(world, temp, temp3);
+
           temp0 = occupieds[i][0]*temp;
           temp1 = occupieds[i][1]*temp;
           temp2 = occupieds[i][2]*temp;
@@ -641,7 +660,7 @@ Fcwf DF::apply_K(World& world, real_convolution_3d& op, Fcwf& phi){
      return result;
 }
 
-//Diagonalize psiss in the Fock space. psis is modified in place. requires Kpsis to be precomputed
+//Diagonalize psis in the Fock space. psis is modified in place. requires Kpsis to be precomputed
 //Kpsis are transformed in place.
 void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
 
@@ -758,10 +777,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
 
-     ////debugging: print fock and overlap matrices
+     //debugging: print fock and overlap matrices
      //if(world.rank()==0){
-          //print("fock:\n", fock);
-          //print("\noverlap:\n", overlap);
+     //     print("fock:\n", fock);
+     //     print("\noverlap:\n", overlap);
      //}
      
 
@@ -774,8 +793,13 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print matrix of eigenvectors
-     //if(world.rank()==0) print("U:\n", U);
-     //if(world.rank()==0) print("evals:\n", evals);
+     if(world.rank()==0) print("U:\n", U);
+     //if(world.rank()==0) {
+     //     print("evals:");
+     //     for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+     //          print(evals[j] - 137.0359895*137.0359895);    
+     //     }
+     //}
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
      if(world.rank()==0) print("     Removing Rotations");
@@ -850,7 +874,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
 
 
-     //if(world.rank()==0) print("U:\n", U);
+     if(world.rank()==0) print("U:\n", U);
      
      
      fock = inner(conj_transpose(U), inner(fock, U));
@@ -927,6 +951,9 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
 
+     //Debugging? Let's try setting energies to evals like we're supposed to.
+     //energies = evals;
+
 }
 
 //returns a vector of orthonormal Fcwfs constructed from the input vector of Fcwfs
@@ -966,7 +993,7 @@ void DF::orthogonalize_inplace(World& world){
           occupieds[i].normalize();
      }
 
-     //Basically stolen from SCF.cc
+     //Basically stolen from SCF.cc. Orthogonalization based on Taylor expansion of (overlap)^(1/2)
      do{
           Tensor<std::complex<double>> Q = Q2(matrix_inner(world,occupieds,occupieds));
           maxq = 0.0;
@@ -1515,9 +1542,14 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           }
           JandV = V + apply(op,rho); 
      }
-     
+
      //Actually let's see what happens if I always diagonalize. Answer: still messes up first iteration
+     //Returning to this idea since it turns out I wasn't updating JandV...
      //diagonalize(world, V, op, Kpsis);
+     //for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
+     //     rho += squaremod(occupieds[kk]);
+     //}
+     //JandV = V + apply(op,rho); 
 
 
 
@@ -1525,6 +1557,17 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) print("\n***Applying BSH operator***");
      start_timer(world);
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+
+          //Debugging
+          std::vector<double> temporbitalnorms(4);
+          if(world.rank()==0) print("\nbefore:");
+          for(unsigned int l = 0; l < 4; l++) temporbitalnorms[l] = occupieds[j][l].norm2();
+          if(world.rank()==0) {
+               print("          ", temporbitalnorms[0]);
+               print("          ", temporbitalnorms[1]);
+               print("          ", temporbitalnorms[2]);
+               print("          ", temporbitalnorms[3]);
+          }
 
           //construct the function to which we will apply the BSH
           occupieds[j].truncate();
@@ -1535,6 +1578,17 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
           //temp_function now holds (K-V-J)psi, so apply the BSH
           apply_BSH(world,  temp_function, energies[j], DFparams.small, DFparams.thresh);
+          
+
+          if(world.rank()==0) print("after:");
+          for(unsigned int l = 0; l < 4; l++) temporbitalnorms[l] = temp_function[l].norm2();
+          if(world.rank()==0) {
+               print("          ", temporbitalnorms[0]);
+               print("          ", temporbitalnorms[1]);
+               print("          ", temporbitalnorms[2]);
+               print("          ", temporbitalnorms[3]);
+               print("\n");
+          }
 
           //debugging: Look at size of function before and after truncating here to see what it's doing
           std::size_t funcsize = temp_function[0].size();
@@ -1552,8 +1606,8 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           if(world.rank()==0) print("          size after truncate:", funcsize);
           
           //Now calculate the residual
-          temp_function = occupieds[j] - temp_function; 
-          residualnorm = temp_function.norm2();
+          //temp_function = occupieds[j] - temp_function; 
+          residualnorm = (occupieds[j] - temp_function).norm2();
 
           //Print residual norm to keep track
           if(world.rank()==0) printf("     Orbital: %3i,  Resid: %.10e\n",j+1, residualnorm);
@@ -1562,11 +1616,11 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           if(residualnorm > tolerance) iterate_again = true;
 
           //Store residual function if we're using KAIN. Not necessary if we're not using kain
-          if(DFparams.kain){
-               Residuals.push_back(temp_function);
+          if(iteration_number != 1 and DFparams.kain){
+               Residuals.push_back(occupieds[j] - temp_function);
           }
           else{
-               occupieds[j] = occupieds[j] - temp_function;
+               occupieds[j] = temp_function;
           }
      }
      if(world.rank()==0) printf("                tolerance: %.10e\n",tolerance);
@@ -1574,10 +1628,26 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) print("     ", times[0]);
 
      //Apply the kain solver, if called for
-     if(DFparams.kain){
+     if(iteration_number != 1 and DFparams.kain){
           if(world.rank()==0) print("\n***Applying KAIN Solver***");
           start_timer(world);
-          occupieds = kainsolver.update(occupieds, Residuals);
+
+          //occupieds = kainsolver.update(occupieds, Residuals);
+
+          //Replace above line with kain + step restriction
+          Residuals = kainsolver.update(occupieds, Residuals); //Using Residuals for new orbitals to save storage
+          for(unsigned int i=0; i < Init_params.num_occupied; i++){
+               residualnorm = (occupieds[i]-Residuals[i]).norm2();
+               if(residualnorm > DFparams.maxrotn){
+                    double s = DFparams.maxrotn / residualnorm;
+                    if(world.rank()==0) print("     restricting step for orbital: ", i+1);
+                    occupieds[i] = Residuals[i]*s + occupieds[i]*(1.0-s);
+               }
+               else{
+                    occupieds[i] = Residuals[i];
+               }
+          }
+
           times = end_timer(world);
           if(world.rank()==0) print("     ", times[0]);
      }
@@ -1792,6 +1862,7 @@ void DF::solve_occupied(World & world)
      //Now time to start iterating
      bool keep_going = true;
      int iteration_number = 1;
+     //while(iteration_number < DFparams.max_iter){
      while(keep_going and iteration_number < DFparams.max_iter){
           keep_going = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy);
           
@@ -1802,6 +1873,7 @@ void DF::solve_occupied(World & world)
           //Increment iteration counter
           iteration_number++;
      }
+
 
 
 }

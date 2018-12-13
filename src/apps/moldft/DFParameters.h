@@ -40,8 +40,10 @@ namespace madness {
           //double econv;                ///< Convergence criterion for the orbital energies
           double small;                ///< Minimum length scale to be resolved
           double thresh;               ///< Accuracy criterion when truncating
+          int k;                       ///< Number of legendre polynomials in scaling basis
           bool kain;                   ///< Turns on KAIN nonlinear solver 
           int maxsub;                  ///< Sets maximum subspace size for KAIN
+          double maxrotn;              ///< maximum step allowed by kain
           bool restart;                ///< Indicates this is a restarted DF job
           int nucleus;                 ///< Indicates which nucleus model to use (1 for fermi, anything else for Gaussian)
           bool do_save;                ///< Whether or not to save after each iteration. Defaults to true. Turn off with 'no_save'
@@ -61,7 +63,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & print_level & max_iter & small & thresh & kain & maxsub & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot;
+               ar & archive & job & print_level & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot;
           }
 
           // Default constructor
@@ -71,9 +73,11 @@ namespace madness {
           , plot(false)
           , max_iter(20)
           , small(1e-5)
+          , k(8)
           , thresh(1e-6)
           , kain(false)
           , maxsub(10)
+          , maxrotn(0.25)
           , restart(false)
           , nucleus(0)
           , do_save(true)
@@ -137,11 +141,17 @@ namespace madness {
                     else if (s == "thresh"){
                          f >> thresh;
                     }
+                    else if (s == "k"){
+                         f >> k;
+                    }
                     else if (s == "kain"){
                          kain = true;
                     }
                     else if (s == "maxsub"){
                          f >> maxsub;
+                    }
+                    else if (s == "maxrotn"){
+                         f >> maxrotn;
                     }
                     else if (s == "restart"){
                          restart = true;
@@ -178,6 +188,7 @@ namespace madness {
                madness::print("            Initial Guess File:", archive);
                madness::print("                           Job:", job);
                madness::print("          Refinement Threshold:", thresh);
+               madness::print("                             k:", k);
                madness::print("Smallest Resolved Length Scale:", small);
                madness::print("                Max Iterations:", max_iter);
                madness::print("               Use KAIN Solver:", kain);

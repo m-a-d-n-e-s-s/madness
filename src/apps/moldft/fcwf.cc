@@ -331,7 +331,6 @@ std::vector<Fcwf> operator*(std::complex<double> a, const std::vector<Fcwf>& psi
 }
 
 void operator+=(std::vector<Fcwf>& phi, const std::vector<Fcwf>& psi){
-     std::vector<Fcwf> result;
      if(phi.size()==0){
           phi = psi;
      }
