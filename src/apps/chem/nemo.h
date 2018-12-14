@@ -211,7 +211,7 @@ public:
 	/// @param[in]  iatom   the atom A to be moved
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
 	/// @return     \ket{i^X} or \ket{F^\perp}
-	vecfuncT solve_cphf(const int iatom, const int iaxis, const Tensor<double> fock,
+	vecfuncT solve_cphf(const size_t iatom, const int iaxis, const Tensor<double> fock,
 	        const vecfuncT& guess, const vecfuncT& rhsconst,
 	        const Tensor<double> incomplete_hessian, const vecfuncT& parallel,
 	        const SCFProtocol& p, const std::string& xc_data) const;
@@ -242,7 +242,7 @@ public:
     /// \f[
     ///  F_i^\parallel = -\frac{1}{2}\sum_k|F_k ><F_k | (R^2)^X | F_i>
     /// \f]
-    vecfuncT compute_cphf_parallel_term(const int iatom, const int iaxis) const;
+    vecfuncT compute_cphf_parallel_term(const size_t iatom, const int iaxis) const;
 
     /// compute the IR intensities in the double harmonic approximation
 
@@ -511,7 +511,7 @@ private:
 	/// compute the constant term for the CPHF equations
 
 	/// mainly all terms with the nuclear correlation factor's derivatives
-	vecfuncT make_cphf_constant_term(const int iatom, const int iaxis,
+	vecfuncT make_cphf_constant_term(const size_t iatom, const int iaxis,
 	        const vecfuncT& R2nemo, const real_function_3d& rhonemo) const;
 
 public:

@@ -85,7 +85,7 @@ namespace madness {
 	user_to_sim(special_points[i],simpt);
 	Key<NDIM> specialkey=simpt2key(simpt,key.level());
 	// use adaptive scheme: if we are at a low level refine also neighbours
-	size_t ll=get_half_of_special_level(f->get_special_level());
+	int ll=get_half_of_special_level(f->get_special_level());
 	if(ll<f->get_initial_level()) ll = f->get_initial_level();
 	if(key.level()>ll){
 	  if(specialkey==key) return true;
@@ -160,7 +160,7 @@ namespace madness {
       Key<NDIM / 2> key1;
       Key<NDIM / 2> key2;
       key.break_apart(key1,key2);
-      size_t ll=this->get_half_of_special_level();
+      int ll=this->get_half_of_special_level();
       if(ll<f->get_initial_level()) ll = f->get_initial_level();
       if(key.level()>ll){
 	if(key1 == key2) return true;
@@ -239,7 +239,7 @@ namespace madness {
 	user_to_sim(lowdim_sp[i],simpt);
 	Key<NDIM/2> specialkey=simpt2key(simpt,key1.level());
 	// use adaptive scheme: if we are at a low level refine also neighbours
-	size_t ll=this->get_half_of_special_level(f->get_special_level());
+	int ll=this->get_half_of_special_level(f->get_special_level());
 	if(ll<f->get_initial_level()) ll = f->get_initial_level();
 	if(key.level()>ll){
 	  if(particle==1 and specialkey==key1) return true;

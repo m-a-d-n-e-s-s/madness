@@ -374,7 +374,7 @@ namespace madness {
     			lo++;
     		}
     	}
-    	MADNESS_ASSERT(lo+rank==v.size());
+    	MADNESS_ASSERT(size_t(lo+rank)==v.size());
 
     	for(size_t i=0;i<v.size();++i){
     		for(size_t j=0;j<v.size();++j){
@@ -1308,7 +1308,7 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         std::vector<Function<T,NDIM> > result(NDIM);
-        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        for (size_t i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
         if (fence) world.gop.fence();
         return result;
     }
@@ -1334,7 +1334,7 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         std::vector<Function<T,NDIM> > result(NDIM);
-        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),v[i],false);
+        for (size_t i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),v[i],false);
         world.gop.fence();
         return sum(world,result,fence);
     }
