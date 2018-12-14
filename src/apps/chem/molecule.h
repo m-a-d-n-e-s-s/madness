@@ -180,7 +180,7 @@ public:
 
     void add_atom(double x, double y, double z,  double q, int atn, bool psat);
 
-    int natom() const {
+    size_t natom() const {
         return atoms.size();
     };
 
@@ -234,7 +234,7 @@ public:
 
     double nuclear_repulsion_energy() const;
 
-    double nuclear_repulsion_derivative(int i, int j) const;
+    double nuclear_repulsion_derivative(size_t iatom, int axis) const;
 
     /// compute the nuclear-nuclear contribution to the second derivatives
 
@@ -291,7 +291,7 @@ public:
     Tensor<double> massweights() const {
 
         Tensor<double> M(3*natom(),3*natom());
-        for (int i=0; i<natom(); i++) {
+        for (size_t i=0; i<natom(); i++) {
             const double sqrtmass=1.0/sqrt(get_atom(i).get_mass_in_au());
             M(3*i  ,3*i  )=sqrtmass;
             M(3*i+1,3*i+1)=sqrtmass;

@@ -536,8 +536,8 @@ namespace madness {
         
         vecfuncT apply_potential_response(World & world, const vecfuncT & dmo,
                                           const XCOperator& xc,  const functionT & vlocal, int ispin);
-        void this_axis(World & world, int & axis);
-        vecfuncT calc_dipole_mo(World & world,  vecfuncT & mo, int & axis);
+        void this_axis(World & world, const int axis);
+        vecfuncT calc_dipole_mo(World & world,  vecfuncT & mo, const int axis);
         void calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int sign);
         void make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
                                  std::vector<poperatorT> & aop, std::vector<poperatorT> & bop);
@@ -562,12 +562,12 @@ namespace madness {
                                     std::vector<poperatorT> & op, vecfuncT & rhs);
         void orthogonalize_response(World & world, vecfuncT & dmo, vecfuncT & mo );
         
-        void dpolar(World & world, tensorT & polar, functionT & drho, int & axis);
+        void dpolar(World & world, tensorT & polar, functionT & drho, const int axis);
         
         void calc_dpolar(World & world,
                          const vecfuncT & ax, const vecfuncT & ay,
                          const vecfuncT & bx, const vecfuncT & by,
-                         int & axis,
+                         const int axis,
                          tensorT & Dpolar_total, tensorT & Dpolar_alpha, tensorT & Dpolar_beta);
         double residual_response(World & world, const vecfuncT & x,const  vecfuncT & y,
                                  const vecfuncT & x_old, const vecfuncT & y_old,

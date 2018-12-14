@@ -2279,10 +2279,10 @@ namespace madness {
             		std::vector<Slice> s(___);
 
                 	// loop over dimensions and over k
-                	for (long i=0; i<NDIM; ++i) {
+                	for (size_t i=0; i<NDIM; ++i) {
                 		std::size_t kmax=c.dim(i);
                 		if (mirror[i]==-1) {
-                			for (long k=1; k<kmax; k+=2) {
+                			for (size_t k=1; k<kmax; k+=2) {
                 				s[i]=Slice(k,k,1);
                 				c(s)*=(-1.0);
                 			}
@@ -2342,10 +2342,10 @@ namespace madness {
 						std::vector<Slice> s(___);
 
 						// loop over dimensions and over k
-						for (long i=0; i<NDIM; ++i) {
+						for (size_t i=0; i<NDIM; ++i) {
 							std::size_t kmax=c.dim(i);
 							if (mirror[i]==-1) {
-								for (long k=1; k<kmax; k+=2) {
+								for (size_t k=1; k<kmax; k+=2) {
 									s[i]=Slice(k,k,1);
 									c(s)*=(-1.0);
 								}
@@ -3710,7 +3710,7 @@ namespace madness {
         	// if the initial level is not reached then this must not be a leaf box
         	size_t il = result->get_initial_level();
         	if(FunctionDefaults<NDIM>::get_refine()) il+=1;
-        	if(key.level()<il){
+        	if(key.level()<int(il)){
         	    //std::cout << "n=" +  std::to_string(key.level()) + " below initial level " + std::to_string(result->get_initial_level()) + "\n";
         	    // insert empty coeffs for this box and send off jobs for the children
         	    result->get_coeffs().replace(key,nodeT(coeffT(),true));
@@ -5176,8 +5176,8 @@ namespace madness {
                if (rit != rmap_ptr->end()) {
                    const mapvecT& leftv = lit->second;
                    const typename FunctionImpl<R,NDIM>::mapvecT& rightv =rit->second;
-                   const int nleft = leftv.size();
-                   const int nright= rightv.size();
+                   const size_t nleft = leftv.size();
+                   const size_t nright= rightv.size();
 
                    unsigned int size = leftv[0].second->size();
                    Tensor<T> Left(nleft, size);

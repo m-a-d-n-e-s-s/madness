@@ -633,7 +633,7 @@ namespace madness {
     	coord=origin;
 
         // convert human to mad form
-        int cc1=0, cc2=1;
+        size_t cc1=0, cc2=1;
         if (c1=="x1") cc1=0;
         if (c1=="x2") cc1=1;
         if (c1=="x3") cc1=2;
