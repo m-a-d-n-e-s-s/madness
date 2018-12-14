@@ -116,7 +116,7 @@ Laplacian<T,NDIM>::operator()(const std::vector<Function<T,NDIM> >& vket) const 
     SeparatedConvolution<T,NDIM> smooth=SmoothingOperator<NDIM>(world,eps);
 
 
-    for (int idim=0; idim<NDIM; ++idim) {
+    for (size_t idim=0; idim<NDIM; ++idim) {
         vecfuncT dvket=apply(world,*gradop[idim].get(),vket);
         refine(world,dvket);
         if (eps>0.0) dvket=apply(world,smooth,dvket);

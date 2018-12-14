@@ -978,7 +978,7 @@ int test_qm(World& world) {
 //     }
 
     typedef std::shared_ptr< FunctionFunctorInterface<double_complex,1> > functorT;
-    typedef Vector<double,1> coordT;
+    //typedef Vector<double,1> coordT;
     typedef Function<double_complex,1> functionT;
     typedef FunctionFactory<double_complex,1> factoryT;
 

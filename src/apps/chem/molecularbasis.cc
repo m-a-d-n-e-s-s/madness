@@ -82,10 +82,10 @@ void AtomicBasisFunction::print_me(std::ostream& s) const {
 void AtomicBasisSet::print(const Molecule& molecule) const {
     molecule.print();
     std::cout << "\n " << name << " atomic basis set" << std::endl;
-    for (int i=0; i<molecule.natom(); ++i) {
+    for (size_t i=0; i<molecule.natom(); ++i) {
         const Atom& atom = molecule.get_atom(i);
         const unsigned int atn = atom.atomic_number;
-        for (int j=0; j<i; ++j) {
+        for (size_t j=0; j<i; ++j) {
             if (molecule.get_atom(j).atomic_number == atn)
                 goto doneitalready;
         }

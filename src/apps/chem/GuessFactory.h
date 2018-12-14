@@ -27,7 +27,7 @@ std::vector<coord_3d> compute_centroids(const vector_real_function_3d & vf);
 template<typename T, size_t NDIM>
 Vector<T,NDIM> tensor_to_coord(const Tensor<T>& t) {
 	Vector<T,NDIM> result;
-	MADNESS_ASSERT(t.size() >= NDIM);
+	MADNESS_ASSERT(size_t(t.size()) >= NDIM);
 	for (size_t i = 0; i < NDIM; ++i)
 		result[i] = t[i];
 	return result;

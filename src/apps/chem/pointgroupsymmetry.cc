@@ -67,21 +67,21 @@ std::vector<Function<T,NDIM> > projector_irrep::project_on_irreps(
 	// loop over all symmetry operations of this point group and apply them
 	// to the input vector; dimension: (nop, nmo)
 	std::vector<std::vector<Function<T,NDIM> > > opvrhs(table_.operators_.size());
-	for (int i=0; i<table_.operators_.size(); ++i) {
+	for (size_t i=0; i<table_.operators_.size(); ++i) {
 		opvrhs[i]=table_.operators_[i](vrhs,false);
 	}
 	world.gop.fence();
-	for (int i=0; i<table_.operators_.size(); ++i) compress(world,opvrhs[i],false);
+	for (size_t i=0; i<table_.operators_.size(); ++i) compress(world,opvrhs[i],false);
 	world.gop.fence();
 
 	std::vector<Function<T,NDIM> > result=zero_functions_compressed<T,NDIM>(world,vrhs.size());
 
 	// loop over all vector elements
-	for (int ivec=0; ivec<vrhs.size(); ++ivec) {
+	for (size_t ivec=0; ivec<vrhs.size(); ++ivec) {
 
 		// get the characters for this vector element
 		const charactertable::characterlineT cline=table_.irreps_.find(irreps[ivec])->second;
-		for (int iop=0; iop<table_.operators_.size(); ++iop) {
+		for (size_t iop=0; iop<table_.operators_.size(); ++iop) {
 			double character=double(cline[iop]);
 
 			// apply the projection operator P^Gamma v_i = \sum_op \chi_op^Gamma op(v_i)
@@ -122,7 +122,7 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 	// loop over all symmetry operations of this point group and apply them
 	// to the input vector; dimension: (nop, nmo)
 	std::vector<std::vector<Function<T,NDIM> > > opvrhs(table_.operators_.size());
-	for (int i=0; i<table_.operators_.size(); ++i) {
+	for (size_t i=0; i<table_.operators_.size(); ++i) {
 		opvrhs[i]=table_.operators_[i](vrhs,false);
 	}
 
@@ -144,7 +144,7 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 	world.gop.fence();
 
 	// loop over all requested irreps
-	for (int j=0; j<all_irreps.size(); ++j) {
+	for (size_t j=0; j<all_irreps.size(); ++j) {
 		std::string& irrep=all_irreps[j];
 
 		// get the characters of this irrep
@@ -154,7 +154,7 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 
 		// do the linear combination; loop over all operators
 		// lc_op_vhrs[jrrep] = \sum_iop (character[iop]/table_.order_)*opvhrs[iop];
-		for (int iop=0; iop<cline.size(); ++iop) {
+		for (size_t iop=0; iop<cline.size(); ++iop) {
 			double character=double(cline[iop]);
 			gaxpy(world,1.0,lc_op_vrhs[j],character/table_.order_,opvrhs[iop],false);
 		}
@@ -171,8 +171,8 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 	std::vector<int> ipiv1;
 
 	// loop over all irreps
-	int iresult=0;	// counter for the result vector ordering
-	for (int j=0; j<all_irreps.size(); ++j) {
+	//int iresult=0;	// counter for the result vector ordering
+	for (size_t j=0; j<all_irreps.size(); ++j) {
 
 		if (verbosity_>1) print("working on irrep ",all_irreps[j]);
 		// compute overlap, include metric if necessary
@@ -223,7 +223,7 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 			if (orthonormalize_irreps_) a1shrunk=transform(world,a1shrunk,inv);
 
 			// collect all result functions and their irreps
-			for (int i=0; i<a1shrunk.size(); ++i) {
+			for (size_t i=0; i<a1shrunk.size(); ++i) {
 				result1.push_back(a1shrunk[i]);
 				sirreps1.push_back(all_irreps[j]);
 				ipiv1.push_back(piv[i]);
@@ -266,7 +266,7 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 		// find all double elements
 		std::vector<int> ipiv2(ipiv1),double_elements;
 		std::sort(ipiv2.begin(), ipiv2.end());
-		for (int i=1; i<ipiv2.size(); ++i) {
+		for (size_t i=1; i<ipiv2.size(); ++i) {
 			if (ipiv2[i]==ipiv2[i-1]) double_elements.push_back(ipiv2[i]);
 		}
 
@@ -294,7 +294,7 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 		}
 		if (verbosity_>1) print("final ipiv1",ipiv1);
 
-		for (int i=0; i<ipiv1.size(); ++i) {
+		for (size_t i=0; i<ipiv1.size(); ++i) {
 			result[ipiv1[i]]=result1[i];
 			sirreps[ipiv1[i]]=sirreps1[i];
 		}
@@ -348,7 +348,7 @@ std::vector<std::string> projector_irrep::reduce(const std::vector<std::string> 
 	for (const std::string& irrep : get_all_irreps()) {
 		int n_irrep=0;
 		std::vector<int> ii=table_.irreps_.find(irrep)->second;
-		for (int i=0; i<reducible.size(); ++i) {	// sum over all classes/operators
+		for (size_t i=0; i<reducible.size(); ++i) {	// sum over all classes/operators
 			n_irrep+=reducible[i]*ii[i];
 		}
 		MADNESS_ASSERT(n_irrep%table_.order_==0);

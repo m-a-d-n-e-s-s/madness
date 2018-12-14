@@ -73,9 +73,9 @@ ITERATOR(U,
 
 class atomic_attraction : public FunctionFunctorInterface<double,3> {
     const Molecule& molecule;
-    const int iatom;
+    const size_t iatom;
 public:
-    atomic_attraction(const Molecule& mol, const int iatom1)
+    atomic_attraction(const Molecule& mol, const size_t iatom1)
         : molecule(mol), iatom(iatom1) {}
 
     double operator()(const coord_3d& xyz) const {
@@ -875,7 +875,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
     bra=bra*R_square;
     compress(world,bra);
     calc->potentialmanager->vnuclear().compress();
-    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+    for (size_t iatom=0; iatom<calc->molecule.natom(); ++iatom) {
         atomic_attraction aa(calc->molecule,iatom);
         for (int iaxis=0; iaxis<3; iaxis++) {
             grad(3*iatom + iaxis)=-inner(bra[iaxis],aa);
@@ -884,7 +884,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 
 
 //  // quadratically scaling code..
-//    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+//    for (size_t iatom=0; iatom<calc->molecule.natom(); ++iatom) {
 //        NuclearCorrelationFactor::square_times_V_functor r2v(nuclear_correlation.get(),
 //                calc->molecule,iatom);
 //
@@ -894,7 +894,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 //    }
 
 //    // this block is less precise
-//    for (int iatom=0; iatom<calc->molecule.natom(); ++iatom) {
+//    for (size_t iatom=0; iatom<calc->molecule.natom(); ++iatom) {
 //        for (int axis=0; axis<3; ++axis) {
 //            NuclearCorrelationFactor::square_times_V_derivative_functor r2v(
 //                    nuclear_correlation.get(),this->molecule(),iatom,axis);
@@ -904,7 +904,7 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
 //    }
 
     // add the nuclear contribution
-    for (int atom = 0; atom < calc->molecule.natom(); ++atom) {
+    for (size_t atom = 0; atom < calc->molecule.natom(); ++atom) {
         for (int axis = 0; axis < 3; ++axis) {
             grad[atom * 3 + axis] +=
                     calc->molecule.nuclear_repulsion_derivative(atom,axis);
@@ -920,9 +920,9 @@ Tensor<double> Nemo::gradient(const Tensor<double>& x) {
               "  atom        x            y            z          dE/dx        dE/dy        dE/dz");
         print(
               " ------ ------------ ------------ ------------ ------------ ------------ ------------");
-        for (int i = 0; i < calc->molecule.natom(); ++i) {
+        for (size_t i = 0; i < calc->molecule.natom(); ++i) {
             const Atom& atom = calc->molecule.get_atom(i);
-            printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", i,
+            printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", int(i),
                    atom.x, atom.y, atom.z, grad[i * 3 + 0], grad[i * 3 + 1],
                    grad[i * 3 + 2]);
         }
@@ -936,7 +936,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
 
     const bool hessdebug=(false and (world.rank()==0));
 
-    const int natom=molecule().natom();
+    const size_t natom=molecule().natom();
     const vecfuncT& nemo=get_calc()->amo;
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
@@ -963,7 +963,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     std::vector<vecfuncT> pre_mo_pt(3*natom);
     std::vector<vecfuncT> R2mo_pt(3*natom);
 
-    for (int iatom=0; iatom<natom; ++iatom) {
+    for (size_t iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             int i=iatom*3 + iaxis;
 
@@ -980,11 +980,11 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     save_function(dens_pt,"full_dens_pt");
 
     // add the electronic contribution to the hessian
-    for (int iatom=0; iatom<natom; ++iatom) {
+    for (size_t iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             int i=iatom*3 + iaxis;
 
-            for (int jatom=0; jatom<natom; ++jatom) {
+            for (size_t jatom=0; jatom<natom; ++jatom) {
                 for (int jaxis=0; jaxis<3; ++jaxis) {
                     int j=jatom*3 + jaxis;
 
@@ -1007,7 +1007,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
         print("\n raw electronic Hessian (a.u.)\n");
         print(hessian);
 //    }
-    for (int i=0; i<3*natom; ++i) hessian(i,i)=0.0;
+    for (size_t i=0; i<3*natom; ++i) hessian(i,i)=0.0;
     if (calc->param.purify_hessian) hessian=purify_hessian(hessian);
 
     Tensor<double> asymmetric=0.5*(hessian-transpose(hessian));
@@ -1025,9 +1025,9 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     // exploit translational symmetry to compute the diagonal elements:
     // translating all atoms in the same direction will make no energy change,
     // therefore the respective sum of hessian matrix elements will be zero:
-    for (int i=0; i<3*natom; ++i) {
+    for (size_t i=0; i<3*natom; ++i) {
         double sum=0.0;
-        for (int j=0; j<3*natom; j+=3) sum+=hessian(i,j+(i%3));
+        for (size_t j=0; j<3*natom; j+=3) sum+=hessian(i,j+(i%3));
         hessian(i,i)=-sum;
     }
 
@@ -1094,13 +1094,13 @@ Tensor<double> Nemo::purify_hessian(const Tensor<double>& hessian) const {
     Tensor<double> purified=copy(hessian);
     double maxasymmetric=0.0;
 
-    const int natom=calc->molecule.natom();
+    const size_t natom=calc->molecule.natom();
 
-    for (int iatom=0; iatom<natom; ++iatom) {
+    for (size_t iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             int i=iatom*3 + iaxis;
 
-            for (int jatom=0; jatom<natom; ++jatom) {
+            for (size_t jatom=0; jatom<natom; ++jatom) {
                 for (int jaxis=0; jaxis<3; ++jaxis) {
                     int j=jatom*3 + jaxis;
 
@@ -1133,7 +1133,7 @@ Tensor<double> Nemo::purify_hessian(const Tensor<double>& hessian) const {
 
 Tensor<double> Nemo::make_incomplete_hessian() const {
 
-    const int natom=molecule().natom();
+    const size_t natom=molecule().natom();
     vecfuncT& nemo=get_calc()->amo;
     refine(world,nemo);
     real_function_3d rhonemo=2.0*make_density(get_calc()->get_aocc(),nemo);
@@ -1144,7 +1144,7 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
     // compute the perturbed densities (partial only!)
     // \rho_pt = R2 F_i F_i^X + R^X R2 F_i F_i
     vecfuncT dens_pt(3*natom);
-    for (int iatom=0; iatom<natom; ++iatom) {
+    for (size_t iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             int i=iatom*3 + iaxis;
             NuclearCorrelationFactor::RX_functor rxr_func(nuclear_correlation.get(),iatom,iaxis,2);
@@ -1154,11 +1154,11 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
     }
 
     // add the electronic contribution to the hessian
-    for (int iatom=0; iatom<natom; ++iatom) {
+    for (size_t iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis) {
             int i=iatom*3 + iaxis;
 
-            for (int jatom=0; jatom<natom; ++jatom) {
+            for (size_t jatom=0; jatom<natom; ++jatom) {
                 for (int jaxis=0; jaxis<3; ++jaxis) {
                     int j=jatom*3 + jaxis;
 
@@ -1188,18 +1188,18 @@ Tensor<double> Nemo::make_incomplete_hessian() const {
 Tensor<double> Nemo::make_incomplete_hessian_response_part(
         const std::vector<vecfuncT>& xi) const {
 
-    int natom=calc->molecule.natom();
+    size_t natom=calc->molecule.natom();
     const vecfuncT& nemo=calc->amo;
 
     Tensor<double> complementary_hessian(3*natom,3*natom);
-    for (int i=0, iatom=0; iatom<natom; ++iatom) {
+    for (size_t i=0, iatom=0; iatom<natom; ++iatom) {
         for (int iaxis=0; iaxis<3; ++iaxis, ++i) {
 
             real_function_3d dens_pt=dot(world,xi[i],nemo);
             dens_pt=4.0*R_square*dens_pt;
             Tensor<double> h(3*molecule().natom());
 
-            for (int jatom=0, j=0; jatom<molecule().natom(); ++jatom) {
+            for (size_t jatom=0, j=0; jatom<molecule().natom(); ++jatom) {
                 for (int jaxis=0; jaxis<3; ++jaxis, ++j) {
                     if ((iatom==jatom) and (iaxis==jaxis)) continue;
                     MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
@@ -1213,7 +1213,7 @@ Tensor<double> Nemo::make_incomplete_hessian_response_part(
 }
 
 
-vecfuncT Nemo::make_cphf_constant_term(const int iatom, const int iaxis,
+vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
         const vecfuncT& R2nemo, const real_function_3d& rhonemo) const {
     // guess for the perturbed MOs
     const vecfuncT nemo=calc->amo;
@@ -1264,7 +1264,7 @@ vecfuncT Nemo::make_cphf_constant_term(const int iatom, const int iaxis,
 /// @param[in]  iatom   the atom A to be moved
 /// @param[in]  iaxis   the coordinate X of iatom to be moved
 /// @return     \frac{\partial}{\partial X_A} \varphi
-vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double> fock,
+vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<double> fock,
         const vecfuncT& guess, const vecfuncT& rhsconst,
         const Tensor<double> incomplete_hessian, const vecfuncT& parallel,
         const SCFProtocol& proto, const std::string& xc_data) const {
@@ -1401,7 +1401,7 @@ vecfuncT Nemo::solve_cphf(const int iatom, const int iaxis, const Tensor<double>
         real_function_3d dens_pt=dot(world,xi-parallel,nemo);
         dens_pt=4.0*R_square*dens_pt;
         Tensor<double> h(3*molecule().natom());
-        for (int jatom=0, j=0; jatom<molecule().natom(); ++jatom) {
+        for (size_t jatom=0, j=0; jatom<molecule().natom(); ++jatom) {
             for (int jaxis=0; jaxis<3; ++jaxis, ++j) {
                 if ((iatom==jatom) and (iaxis==jaxis)) continue;
                 MolecularDerivativeFunctor mdf(molecule(), jatom, jaxis);
@@ -1592,7 +1592,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 }
 
 
-vecfuncT Nemo::compute_cphf_parallel_term(const int iatom, const int iaxis) const {
+vecfuncT Nemo::compute_cphf_parallel_term(const size_t iatom, const int iaxis) const {
 
     const vecfuncT& nemo=calc->amo;
     vecfuncT parallel(nemo.size());
@@ -1627,7 +1627,7 @@ Tensor<double> Nemo::compute_IR_intensities(const Tensor<double>& normalmodes,
         // electronic and nuclear dipole derivative wrt nucl. displacements X
         Tensor<double> mu_X(dens_pt.size()), mu_X_nuc(dens_pt.size());
 
-        for (int iatom=0; iatom<molecule().natom(); ++iatom) {
+        for (size_t iatom=0; iatom<molecule().natom(); ++iatom) {
             for (int iaxis=0; iaxis<3; ++iaxis) {
                 int i=iatom*3 + iaxis;
                 mu_X(i)=-inner(dens_pt[i],DipoleFunctor(component));
