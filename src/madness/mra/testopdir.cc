@@ -42,6 +42,8 @@
 
 using namespace madness;
 
+bool smalltest = false;
+
 template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
@@ -180,9 +182,14 @@ int test_opdir(World& world) {
 
     const char* msg[] = {"FAIL <<<<<<<<<<<<<","PASS"};
     int inderr = 0;
-    for (int mx=0; mx<=2; mx++) {
-        for (int my=0; my<=2; my++) {
-            for (int mz=0; mz<=2; mz++) {
+
+    int mhi=1;
+    if (!smalltest) mhi=2;
+    for (int mx=0; mx<=mhi; mx++) {
+        for (int my=0; my<=mhi; my++) {
+            for (int mz=0; mz<=mhi; mz++) {
+                if (smalltest && mx+my+mz>1) break;
+                
                 const int m[3] = {mx,my,mz};
                 std::vector< ConvolutionND<double,3> > ops(1);
                 for (int d=0; d<3; d++) {
@@ -295,8 +302,12 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
+        if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+        for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+        std::cout << "small test : " << smalltest << std::endl;
+
         success+=test_opdir(world);
-        success+=testgradG(world);
+        if (!smalltest) success+=testgradG(world);
     }
     catch (const SafeMPI::Exception& e) {
         print(e);

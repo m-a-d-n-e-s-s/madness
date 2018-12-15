@@ -33,6 +33,8 @@
 
 #include <madness/madness_config.h>
 
+bool smalltest = false;
+
 // Disable for now to facilitate CI 
 #if !(defined(X86_32) || defined(X86_64))
 
@@ -163,9 +165,14 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
 }
 
 int main(int argc, char * argv[]) {
-    const long nimax=30*30;
-    const long njmax=100;
-    const long nkmax=100;
+
+    if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+    for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+    std::cout << "small test : " << smalltest << std::endl;
+    
+    const long nimax=!smalltest ? 30*30 : 8*8;
+    const long njmax=!smalltest ? 100 : 20;
+    const long nkmax=!smalltest ? 100 : 20;
     long ni, nj, nk, i, m;
     double *a, *b, *c, *d;
 
@@ -193,9 +200,9 @@ int main(int argc, char * argv[]) {
 /*     return 0; */
 
     printf("Starting to test ... \n");
-    for (ni=1; ni<60; ni+=1) {
-        for (nj=1; nj<100; nj+=1) {
-            for (nk=1; nk<100; nk+=1) {
+    for (ni=1; ni<std::min(60L,nimax); ni+=1) {
+        for (nj=1; nj<std::min(60L,njmax); nj+=1) {
+            for (nk=1; nk<std::min(60L,nkmax); nk+=1) {
                 for (i=0; i<ni*nj; ++i) d[i] = c[i] = 0.0;
                 mTxm (ni,nj,nk,c,a,b);
                 mTxmq(ni,nj,nk,d,a,b);
@@ -217,11 +224,13 @@ int main(int argc, char * argv[]) {
     }
     printf("... OK!\n");
 
-    printf("%20s %3s %3s %3s %8s %8s (GF/s)\n", "type", "M", "N", "K", "LOOP", "BLAS");
-    for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
-    for (m=2; m<=30; m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
-    for (m=2; m<=30; m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
-    for (m=2; m<=20; m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    if (!smalltest) {
+        printf("%20s %3s %3s %3s %8s %8s (GF/s)\n", "type", "M", "N", "K", "LOOP", "BLAS");
+        for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
+        for (m=2; m<=30; m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
+        for (m=2; m<=30; m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
+        for (m=2; m<=20; m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    }
 
     SafeMPI::Finalize();
 
