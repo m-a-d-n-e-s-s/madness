@@ -67,6 +67,8 @@
 
 #if defined(_MSC_VER) && _MSC_VER==1200
 
+#error "NOW USING UNIQUE_PTR"
+
 /** \brief Macro to replace the MSVC6 auto_ptr with the _my_auto_ptr class.
 
     Hijack auto_ptr and replace it with a version that actually does

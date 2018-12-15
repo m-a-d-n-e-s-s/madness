@@ -186,6 +186,13 @@ void test_multi_to_multi_op(World& world) {
 int main(int argc, char**argv) {
     initialize(argc, argv);
 
+    bool smalltest = false;
+    if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+    for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+    std::cout << "small test : " << smalltest << std::endl;
+    if (smalltest) return 0;
+    
+
     try {
         World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
@@ -194,12 +201,14 @@ int main(int argc, char**argv) {
         test_inner<double,double,1,true>(world);
         test_multi_to_multi_op<1>(world);
         test_multi_to_multi_op<2>(world);
-        test_multi_to_multi_op<3>(world);
+        if (!smalltest) test_multi_to_multi_op<3>(world);
 #if !HAVE_GENTENSOR
         test_inner<double,std::complex<double>,1,false>(world);
-        test_inner<std::complex<double>,double,1,false>(world);
-        test_inner<std::complex<double>,std::complex<double>,1,false>(world);
-        test_inner<std::complex<double>,std::complex<double>,1,true>(world);
+        if (!smalltest) {
+            test_inner<std::complex<double>,double,1,false>(world);
+            test_inner<std::complex<double>,std::complex<double>,1,false>(world);
+            test_inner<std::complex<double>,std::complex<double>,1,true>(world);
+        }
 #endif
     }
     catch (const SafeMPI::Exception& e) {
