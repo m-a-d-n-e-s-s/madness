@@ -1362,11 +1362,11 @@ namespace madness {
 
 
                 if (NDIM == 3) {
-                    for (int i=0; i<npt; ++i) {
+                    for (size_t i=0; i<npt; ++i) {
                         c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                        for (int j=0; j<npt; ++j) {
+                        for (size_t j=0; j<npt; ++j) {
                             c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                            for (int k=0; k<npt; ++k) {
+                            for (size_t k=0; k<npt; ++k) {
                                 c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
                                 //								fprintf(pFile,"%18.12f %18.12f %18.12f\n",c[0],c[1],c[2]);
                                 auto& success1 = std::getline(gfile,gline); MADNESS_ASSERT(success1);

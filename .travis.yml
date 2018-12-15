@@ -1,103 +1,33 @@
 language: cpp
-cache: ccache
+dist: xenial
 os:
-  - osx
   - linux
 compiler:
-  - clang
   - gcc
+  - clang
 env:
-  #- GCC_VERSION=4.7 RUN_TEST=buildonly
-  #- GCC_VERSION=4.8 RUN_TEST=buildonly
-  #- GCC_VERSION=4.9 RUN_TEST=buildonly
-  - GCC_VERSION=5 RUN_TEST=buildonly
-  #- GCC_VERSION=4.7 RUN_TEST=world
-  #- GCC_VERSION=4.8 RUN_TEST=world
-  #- GCC_VERSION=4.9 RUN_TEST=world
-  - GCC_VERSION=5 RUN_TEST=world
-  #- GCC_VERSION=4.7 RUN_TEST=tensor
-  #- GCC_VERSION=4.8 RUN_TEST=tensor
-  #- GCC_VERSION=4.9 RUN_TEST=tensor
-  - GCC_VERSION=5 RUN_TEST=tensor
-  #- GCC_VERSION=4.7 RUN_TEST=mra
-  #- GCC_VERSION=4.8 RUN_TEST=mra
-  #- GCC_VERSION=4.9 RUN_TEST=mra
-  - GCC_VERSION=5 RUN_TEST=mra
+  - RUN_TEST=all
+  - RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"    
 matrix:
-  include:
-    - compiler: clang
-      env: RUN_TEST=buildonly 
-           CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1" 
-    - compiler: clang
-      env: RUN_TEST=tensor
-           CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1" 
   exclude:
-    - compiler: clang
-      env: GCC_VERSION=4.7 RUN_TEST=buildonly
-    - compiler: clang
-      env: GCC_VERSION=4.8 RUN_TEST=buildonly
-    - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=buildonly
-    - compiler: clang
-      env: GCC_VERSION=4.7 RUN_TEST=world
-    - compiler: clang
-      env: GCC_VERSION=4.8 RUN_TEST=world
-    - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=world
-    - compiler: clang
-      env: GCC_VERSION=4.7 RUN_TEST=tensor
-    - compiler: clang
-      env: GCC_VERSION=4.8 RUN_TEST=tensor
-    - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=tensor
-    - compiler: clang
-      env: GCC_VERSION=4.7 RUN_TEST=mra
-    - compiler: clang
-      env: GCC_VERSION=4.8 RUN_TEST=mra
-    - compiler: clang
-      env: GCC_VERSION=4.9 RUN_TEST=mra
-    - os: osx
-      compiler: gcc
-#notifications:
-#  email:
-#    recipients:
-#      - madness-developers@googlegroups.com
-#    on_success: change
-#    on_failure: always
+    - os: linux
+      compiler: clang
+      env: RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"    
 sudo: false
 addons:
   apt:
     sources:
       - george-edison55-precise-backports
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-precise-3.8
+      - llvm-toolchain-xenial-7
+    update: true
     packages:
-      #- gcc-4.7
-      #- g++-4.7
-      #- gfortran-4.7
-      #- gcc-4.8
-      #- g++-4.8
-      #- gfortran-4.8
-      #- gcc-4.9
-      #- g++-4.9
-      #- gfortran-4.9
-      - gcc-5
-      - g++-5
-      - gfortran-5
-      - clang-3.8
-      # These do not lead to the desired result of libc++ >:-(
-      #- libc++-dev
-      #- libc++1
-      # BLAS/LAPACK libraries - use OpenBLAS or ATLAS if faster...
+      - gcc-8
+      - g++-8
+      - gfortran-8
       - libblas-dev
       - liblapack-dev
-      #- libopenblas-base # Do NOT use this library! it causes illegal instruction errors.
-      #- libatlas3-base # "E: Unable to locate package libatlas3-base"
-      # END
-      - libgoogle-perftools-dev
-      #- mpich2 # disallowed - build from source
       - libtbb-dev
-      #- cmake
 # if necessary to debug the install step, move all lines into
 # script step and add appropriate debugging analysis to the
 # after_failure step e.g. find . -name config.log -exec cat {} ";"
@@ -109,3 +39,10 @@ after_failure:
   - cat ./build/config.log
   - cat ./build/CMakeFiles/CMakeError.log
   - cat ./build/CMakeFiles/CMakeOutput.log
+cache: ccache
+cache:
+  directories:
+    - $HOME/mpich
+    - $HOME/libxc
+    - $HOME/ccache
+    - $HOME/.ccache
