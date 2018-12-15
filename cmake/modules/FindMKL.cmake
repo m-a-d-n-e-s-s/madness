@@ -7,7 +7,7 @@
 #  BLA_STATIC           - Prefer to link against static lbraries
 # Output variables:
 #  MKL_FOUND            - System has MKL
-#  MKL_INCLUDE_DIRS     - The tbb include directories
+#  MKL_INCLUDE_DIRS     - The MKL include directories
 #  MKL_LIBRARIES        - The libraries needed to use MKL
 #  MKL_VERSION          - The version string for MKL
 
@@ -79,7 +79,7 @@ if(NOT MKL_FOUND)
     endif()
     if(MKL_${_lib}_LIBRARY)
       set(MKL_${_lib}_FOUND TRUE)
-      list(APPEND MKL_LIBRARIES ${MKL_${_lib}_LIBRARY})
+      list(APPEND MKL_LIBRARIESX ${MKL_${_lib}_LIBRARY})
     else()
       set(MKL_${_lib}_FOUND FALSE)
     endif()
@@ -89,10 +89,10 @@ if(NOT MKL_FOUND)
   if(MKL_mkl_core_FOUND)
     set(MKL_FOUND TRUE)
     if(UNIX AND BLA_STATIC)
-      set(MKL_LIBRARIES -Wl,--start-group ${MKL_LIBRARIES} -Wl,--end-group -lm -ldl
+      set(MKL_LIBRARIES -Wl,--start-group ${MKL_LIBRARIESX} -Wl,--end-group -lm -ldl
           CACHE STRING "The Intel MKL libraries")
     else()
-      set(MKL_LIBRARIES ${MKL_LIBRARIES} -lm -ldl
+      set(MKL_LIBRARIES ${MKL_LIBRARIESX} -lm -ldl
           CACHE STRING "The Intel MKL libraries")
     endif()
   endif()

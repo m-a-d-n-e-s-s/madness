@@ -60,8 +60,9 @@ option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK 
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
 cmake_dependent_option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON
     "NOT ENABLE_TCMALLOC_MINIMAL" OFF)
-option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
+option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
+option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 
 option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
 option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
@@ -178,7 +179,7 @@ add_feature_info("FORTRAN_INTEGER_SIZE=${FORTRAN_INTEGER_SIZE}" TRUE "assumes Fo
 if (CMAKE_BUILD_TYPE STREQUAL Release OR
     CMAKE_BUILD_TYPE STREQUAL RelWithDebInfo OR
     CMAKE_BUILD_TYPE STREQUAL MinSizeRel)
-  set (DEFAULT_ASSERTION_TYPE "disable")
+  set (DEFAULT_ASSERTION_TYPE "throw")
 else ()
   set (DEFAULT_ASSERTION_TYPE "throw")
 endif()
@@ -515,6 +516,7 @@ include(external/mpi.cmake)
 include(external/papi.cmake)
 include(external/lapack.cmake)
 include(external/libxc.cmake)
+include(external/pcm.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)

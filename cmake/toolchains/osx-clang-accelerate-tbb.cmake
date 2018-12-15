@@ -1,5 +1,5 @@
 #
-# Generic Toolchain for OS X + MPI + MKL + TBB
+# Generic Toolchain for OS X + MPI + TBB
 #
 # REQUIREMENTS:
 # - in PATH:
@@ -33,20 +33,14 @@ set(CMAKE_CXX_FLAGS_RELEASE        "-O3 -march=native" CACHE STRING "Inital C++ 
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -Wall" CACHE STRING "Inital C++ release with debug info compile flags")
 
 # Libraries
-if(EXISTS $ENV{MKLROOT})
-  set(MKL_ROOT_DIR "$ENV{MKLROOT}" CACHE PATH "MKL root directory")
-else()
-  set(MKL_ROOT_DIR "/opt/intel/mkl" CACHE PATH "MKL root directory")
-endif()
 if(EXISTS $ENV{TBBROOT})
   set(TBB_ROOT_DIR "$ENV{TBBROOT}" CACHE PATH "TBB root directory")
 else()
   set(TBB_ROOT_DIR "/opt/intel/tbb" CACHE PATH "TBB root directory")
 endif()
 
-# Flags
-set(LAPACK_LIBRARIES "-L${MKL_ROOT_DIR}/lib" "-lmkl_intel_lp64" "-lmkl_core" 
-    "-lmkl_sequential" "-lm" CACHE STRING "LAPACK linker flags")
-set(LAPACK_INCLUDE_DIRS ${MKL_ROOT_DIR}/include CACHE STRING "LAPACK include directories")
-set(LAPACK_COMPILE_DEFINITIONS HAVE_INTEL_MKL=1 CACHE STRING "LAPACK preprocessor definitions")
+# Set BLAS/LAPACK flags
+set(LAPACK_LIBRARIES "-framework Accelerate" CACHE STRING "LAPACK libraries")
+set(LAPACK_COMPILE_OPTIONS "-framework Accelerate" CACHE STRING "LAPACK compiler options")
 set(INTEGER4 TRUE CACHE BOOL "Set Fortran integer size to 4 bytes")
+

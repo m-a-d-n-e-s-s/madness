@@ -32,13 +32,13 @@ set(MPI_CXX_COMPILER       "mpicxx")
 # Set compile flags
 set(CMAKE_C_FLAGS_INIT             "-std=c99" CACHE STRING "Inital C compile flags")
 set(CMAKE_C_FLAGS_DEBUG            "-g -Wall" CACHE STRING "Inital C debug compile flags")
-set(CMAKE_C_FLAGS_MINSIZEREL       "-Os -DNDEBUG" CACHE STRING "Inital C minimum size release compile flags")
-set(CMAKE_C_FLAGS_RELEASE          "-O3 -DNDEBUG" CACHE STRING "Inital C release compile flags")
+set(CMAKE_C_FLAGS_MINSIZEREL       "-Os" CACHE STRING "Inital C minimum size release compile flags")
+set(CMAKE_C_FLAGS_RELEASE          "-O3" CACHE STRING "Inital C release compile flags")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO   "-O2 -g -Wall" CACHE STRING "Inital C release with debug info compile flags")
 set(CMAKE_CXX_FLAGS_INIT           " -m64 -mcx16 -g -Wall" CACHE STRING "Inital C++ compile flags")
 set(CMAKE_CXX_FLAGS_DEBUG          "-g -Wall" CACHE STRING "Inital C++ debug compile flags")
-set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -DNDEBUG" CACHE STRING "Inital C++ minimum size release compile flags")
-set(CMAKE_CXX_FLAGS_RELEASE        "-O3 -DNDEBUG" CACHE STRING "Inital C++ release compile flags")
+set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os" CACHE STRING "Inital C++ minimum size release compile flags")
+set(CMAKE_CXX_FLAGS_RELEASE        "-O3" CACHE STRING "Inital C++ release compile flags")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -Wall" CACHE STRING "Inital C++ release with debug info compile flags")
 
 
@@ -48,6 +48,7 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -Wall" CACHE STRING "Inital C++ relea
 #set(XLF_LIBRARIES ${XLF_DIR}/bglib64/libxlf90_r.a;${XLF_DIR}/bglib64/libxlfmath.a;${XLF_DIR}/bglib64/libxlopt.a;${XLF_DIR}/bglib64/libxl.a;-ldl;-lm)
 set(BLAS_LIBRARIES /opt/intel/mkl/lib/intel64/libmkl_sequential.so;/opt/intel/mkl/lib/intel64/libmkl_core.so;/opt/intel/mkl/lib/intel64/libmkl_gf_lp64.so;-lm)
 set(LAPACK_LIBRARIES ${BLAS_LIBRARIES})
+set(LAPACK_COMPILE_DEFINITIONS HAVE_INTEL_MKL=1 CACHE STRING "LAPACK preprocessor definitions")
 set(FORTRAN_INTEGER_SIZE "4" CACHE STRING "Set Fortran integer size in bytes")
 set(HAVE_SPINLOCKS OFF CACHE BOOL "Enable if pthread lib supports spinlocks in pmrrr")
 
