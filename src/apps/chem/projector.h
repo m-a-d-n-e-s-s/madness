@@ -110,6 +110,11 @@ namespace madness {
           return result;
         }
 
+
+        vecfuncT get_bra_vector() const {return mo_ket_;}
+
+        vecfuncT get_ket_vector() const {return mo_bra_;}
+
     };
 
 
@@ -148,6 +153,10 @@ namespace madness {
             truncate(result[0].world(),result);
             return result;
         }
+
+        vecfuncT get_bra_vector() const {return O.get_bra_vector();}
+
+        vecfuncT get_ket_vector() const {return O.get_ket_vector();}
 
     private:
         Projector<T,NDIM> O;

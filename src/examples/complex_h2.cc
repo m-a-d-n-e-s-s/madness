@@ -535,7 +535,7 @@ int main(int argc, char** argv) {
 			print("spherical damping box radius for psi: ",sbox3.radius);
 
 
-			int iter_end = (std::abs(B-B_init)<1.e-10) ? 25 : 15;
+			int iter_end = (std::abs(B-B_init)<1.e-10) ? 25 : 8;
 			for (int iter=0; iter<iter_end; iter++) {
 				print("\n\n ---- Iteration ",iter," with B = ", B,"\n\n");
 				real_function_3d rho = (abssq(psi[0])+abssq(psi[1])).truncate();

@@ -96,6 +96,10 @@ double Nemo_complex::value() {
 			Tensor<double_complex> ovlp=matrix_inner(world,amo,amo);
 			canonicalize(amo,Vnemoa,focka,ovlp);
 
+			print("canonical Fock matrix");
+			Tensor<double_complex> tmp=(T(amo,amo)+matrix_inner(world,amo,Vnemoa));
+			print(tmp);
+
 			if (have_beta()) {
 				Tensor<double_complex> ovlp=matrix_inner(world,bmo,bmo);
 				canonicalize(bmo,Vnemob,fockb,ovlp);
@@ -104,7 +108,10 @@ double Nemo_complex::value() {
 			// compute orbital and total energies
 			oldenergy=energy;
 			energy=aeps.sum() + beps.sum()-(aeps.size()+beps.size())*shift;
-			energy=energy-0.5*(two_electron_alpha + two_electron_beta) + molecule.nuclear_repulsion_energy();
+			energy=energy-0.5*(two_electron_alpha + two_electron_beta);
+			if (cparam.spin_restricted) energy*=2.0;
+			energy+=molecule.nuclear_repulsion_energy();
+
 //			if (iter<5) {
 				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i))+shift;
 				for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i))+shift;

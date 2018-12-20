@@ -79,6 +79,7 @@ public:
 		Qa(world,conj(world,nemo.amo),nemo.amo), Qb(world,conj(world,nemo.bmo),nemo.bmo) {
 		std::vector<complex_function_3d> abmo=append(nemo.amo,nemo.bmo);
 		Qab=QProjector<double_complex,3>(world,conj(world,abmo),abmo);
+		print("Qa projector",Qa.get_ket_vector().size());
 	}
 
 	virtual ~Complex_cis() {};
@@ -96,7 +97,7 @@ public:
 
 	std::vector<root> make_guess() const;
 
-	void canonicalize(const std::vector<complex_function_3d>& mo,
+	void canonicalize(const std::vector<complex_function_3d>& mo, const real_function_3d& density,
 			std::vector<complex_function_3d>& virtuals, Tensor<double>& veps) const;
 
 	Tensor<double_complex> make_CIS_matrix(const Tensor<double>& veps, const Tensor<double>& oeps) const;
@@ -115,6 +116,8 @@ public:
 		return result;
 	}
 
+	Tensor<double> compute_expectation_values(const std::vector<root>& roots,
+			const std::vector<complex_function_3d>& mo, const real_function_3d& density) const;
 
 	/// little helper function
 	template<typename T>

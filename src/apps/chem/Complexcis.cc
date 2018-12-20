@@ -88,6 +88,8 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 			std::vector<complex_function_3d> pot=append(apot,bpot);
 			std::vector<complex_function_3d> residuals=compute_residuals(pot,thisroot);
 			thisroot.delta=norm2(world,residuals);
+			thisroot.omega=0.085;
+			print("\n\nset excitation energy manually to 0.085\n\n");
 
 
 			auto [ares, bres] = split(residuals,thisroot.afunction.size());
@@ -101,6 +103,21 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 	}
 
 }
+
+Tensor<double> Complex_cis::compute_expectation_values(const std::vector<root>& roots,
+		const std::vector<complex_function_3d>& mo, const real_function_3d& density) const {
+
+	int thisroot=0;
+
+	std::vector<complex_function_3d> vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo;
+	std::vector<complex_function_3d> arg=append(roots[thisroot].afunction,roots[thisroot].bfunction);
+	nemo.compute_potentials(mo,density,arg,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
+	Tensor<double_complex> fockpt=nemo.compute_vmat(arg,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
+	Kinetic<double_complex,3> T(world);
+	fockpt+=T(arg,arg);
+
+}
+
 
 std::vector<complex_function_3d> Complex_cis::compute_residuals(std::vector<complex_function_3d>& pot,
 		root& root) const {
@@ -164,6 +181,8 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 
 	std::vector<complex_function_3d> avirtuals, bvirtuals;
 	Tensor<double> aveps,bveps;		// virtual orbital energies for alpha and beta
+	real_function_3d density=real((dot(world,conj(world,active_mo(nemo.amo)),active_mo(nemo.amo)) +
+			dot(world,conj(world,active_mo(nemo.bmo)),active_mo(nemo.bmo)))).truncate();
 
 	std::vector<root> guess(cis_param.guess_excitations());
 
@@ -204,11 +223,11 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 
 		// canonicalize virtuals and set up the CIS matrix
 		if (spin=="alpha") {
-			canonicalize(active_mo,virtuals,aveps);
+			canonicalize(active_mo,density,virtuals,aveps);
 			avirtuals=virtuals;
 		}
 		if (spin=="beta") {
-			canonicalize(active_mo,virtuals,bveps);
+			canonicalize(active_mo,density,virtuals,bveps);
 			bvirtuals=virtuals;
 		}
 	}
@@ -277,11 +296,10 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 
 }
 
-void Complex_cis::canonicalize(const std::vector<complex_function_3d>& mo,
+void Complex_cis::canonicalize(const std::vector<complex_function_3d>& mo, const real_function_3d& density,
 		std::vector<complex_function_3d>& virtuals, Tensor<double>& veps) const {
 
 	std::vector<complex_function_3d> vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo;
-	real_function_3d density=real(dot(world,conj(world,mo),mo));
 	nemo.compute_potentials(mo,density,virtuals,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
 	Tensor<double_complex> fock=nemo.compute_vmat(virtuals,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
 	Kinetic<double_complex,3> T(world);
