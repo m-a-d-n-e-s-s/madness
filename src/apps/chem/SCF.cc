@@ -186,12 +186,12 @@ namespace madness {
             //if psp_calc is true, set all atoms to PS atoms
             //if not, check whether some atoms are PS atoms or if this a pure AE calculation
             if (param.psp_calc) {
-                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     molecule.set_pseudo_atom(iatom,true);
                 }
             }
             else{
-               for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+               for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                    if (molecule.get_pseudo_atom(iatom)){
                        param.pure_ae=false;
                        continue;
@@ -201,7 +201,7 @@ namespace madness {
 
             //print list of pseudo-atoms in mixed psp/ae calculation
             if (!param.psp_calc && !param.pure_ae && world.rank() == 0){
-               for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+               for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                    //std::cout << "pseudo-atom " << iatom << "  " << molecule.get_pseudo_atom(iatom) << std::endl;
                    if (molecule.get_pseudo_atom(iatom)) std::cout << "atom " << iatom << " is a pseudo-atom" <<  std::endl;
                }
@@ -209,7 +209,7 @@ namespace madness {
 
             //modify atomic charge for complete PSP calc or individual PS atoms
             if (!param.pure_ae){
-                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     if (molecule.get_pseudo_atom(iatom)){
                         unsigned int an=molecule.get_atom_number(iatom);
                         double zeff=get_charge_from_file("gth.xml",an);
@@ -772,11 +772,11 @@ namespace madness {
         int npsi = psi.size();
         if (npsi == 0)
             return psi;
-        int natom = molecule.natom();
+        size_t natom = molecule.natom();
         vecfuncT proj = zero_functions_compressed<double, 3>(world, npsi);
         tensorT overlap_sum(static_cast<long>(npsi));
         
-        for (int i = 0; i < natom; ++i) {
+        for (size_t i = 0; i < natom; ++i) {
             Atom at = molecule.get_atom(i);
             unsigned int atn = at.atomic_number;
             unsigned int nshell = molecule.n_core_orb(atn);
@@ -908,7 +908,7 @@ namespace madness {
 
             // recalculate initial guess density matrix without core orbitals
             if (!param.pure_ae){
-                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     if (molecule.get_pseudo_atom(iatom)){
                         double zeff=molecule.get_atom_charge(iatom);
                         int atn=molecule.get_atom_number(iatom);
@@ -1049,9 +1049,9 @@ namespace madness {
             if (!param.pure_ae){
                 double enl;
                 tensorT occ = tensorT(ao.size());
-                for(unsigned int i = 0;i < param.nalpha;++i){
+                for(int i = 0;i < param.nalpha;++i){
                     occ[i] = 1.0;}
-                for(unsigned int i = param.nalpha;i < ao.size();++i){
+                for(int i = param.nalpha;i < ao.size();++i){
                     occ[i] = 0.0;}
                 vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);}
             else{
@@ -1419,7 +1419,7 @@ namespace madness {
         vecfuncT dv(molecule.natom() * 3);
         vecfuncT du = zero_functions<double, 3>(world, molecule.natom() * 3);
         tensorT rc(molecule.natom() * 3);
-        for (int atom = 0; atom < molecule.natom(); ++atom) {
+        for (size_t atom = 0; atom < molecule.natom(); ++atom) {
             for (int axis = 0; axis < 3; ++axis) {
                 functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
                 dv[atom * 3 + axis] =
@@ -1459,7 +1459,7 @@ namespace madness {
         du.clear();
         world.gop.fence();
         tensorT ra(r.size());
-        for (int atom = 0; atom < molecule.natom(); ++atom) {
+        for (size_t atom = 0; atom < molecule.natom(); ++atom) {
             for (int axis = 0; axis < 3; ++axis) {
                 ra[atom * 3 + axis] = molecule.nuclear_repulsion_derivative(atom,
                                                                             axis);
@@ -1475,9 +1475,9 @@ namespace madness {
                   "  atom        x            y            z          dE/dx        dE/dy        dE/dz");
             print(
                   " ------ ------------ ------------ ------------ ------------ ------------ ------------");
-            for (int i = 0; i < molecule.natom(); ++i) {
+            for (size_t i = 0; i < molecule.natom(); ++i) {
                 const Atom& atom = molecule.get_atom(i);
-                printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", i,
+                printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", int(i),
                        atom.x, atom.y, atom.z, r[i * 3 + 0], r[i * 3 + 1],
                        r[i * 3 + 2]);
             }
@@ -2964,7 +2964,7 @@ namespace madness {
         return Vdmo;
     }
 
-    void SCF::this_axis(World & world, int & axis)
+    void SCF::this_axis(World & world, int axis)
     {
         print("\n");
         if (world.rank() == 0) { 
@@ -2979,7 +2979,7 @@ namespace madness {
         }
     }
 
-    vecfuncT SCF::calc_dipole_mo(World & world,  vecfuncT & mo, int & axis)
+    vecfuncT SCF::calc_dipole_mo(World & world,  vecfuncT & mo, const int axis)
     {
         //START_TIMER(world);
 
@@ -2992,7 +2992,7 @@ namespace madness {
         reconstruct(world, mo);  
 
         // dipolefunc * mo[iter]
-        for(int p=0; p<mo.size(); ++p)
+        for(size_t p=0; p<mo.size(); ++p)
             dipolemo[p] =  mul_sparse(dipolefunc, mo[p],false);
 
         //END_TIMER(world, "Make perturbation");
@@ -3069,7 +3069,7 @@ namespace madness {
     {
         functionT drho = factoryT(world);
         drho.compress();
-        for(int i=0; i<mo.size(); ++i) {
+        for(size_t i=0; i<mo.size(); ++i) {
             functionT rhoi = mo[i] * x[i] + mo[i] * y[i];
             rhoi.compress();
             if(occ[i])
@@ -3094,7 +3094,7 @@ namespace madness {
 
         functionT k1 = factoryT(world);
         functionT k2 = factoryT(world);
-        for(int i=0; i<mo.size(); ++i) {
+        for(size_t i=0; i<mo.size(); ++i) {
             k1 = apply(*coulop, ( mo[i] * mo[p] )) * dmo1[i];
             k2 = apply(*coulop, ( mo[p] * dmo2[i] )) * mo[i];
             dKmo = dKmo - (k1 + k2);
@@ -3147,7 +3147,7 @@ namespace madness {
         if(xc.hf_exchange_coefficient() == 1.0){
         //if(xc.hf_exchange_coefficient()){
             START_TIMER(world);
-            for(int p=0; p<mo.size(); ++p) {
+            for(size_t p=0; p<mo.size(); ++p) {
                 djkmo[p] = calc_exchange_function(world, p, dmo1, dmo2, mo,spin);
                //add a fraction only
                 djkmo[p].scale(xc.hf_exchange_coefficient());
@@ -3172,7 +3172,7 @@ namespace madness {
         Projector<double,3> rho0(mo);
 
         vecfuncT gp = add(world, dipolemo, djkmo);
-        for (int i=0; i<Vdmo.size(); ++i) {
+        for (size_t i=0; i<Vdmo.size(); ++i) {
             functionT gp1 =  gp[i];
             gp1 = gp1 - rho0(gp1);
             gp1 = Vdmo[i] + gp1 ;
@@ -3201,8 +3201,8 @@ namespace madness {
     void SCF::orthogonalize_response(World & world, vecfuncT & dmo, vecfuncT & mo )
     {
      reconstruct(world, dmo);
-       for(int i=0; i<mo.size(); ++i){
-           for (int j=0; j<mo.size(); ++j){
+       for(size_t i=0; i<mo.size(); ++i){
+           for (size_t j=0; j<mo.size(); ++j){
                // new_x = new_x - < psi | new_x > * psi
                dmo[i] = dmo[i] - dmo[i].inner(mo[j])*mo[j];
            }
@@ -3212,7 +3212,7 @@ namespace madness {
 
 //vama ugly ! alpha_ij(w) = - sum(m occ) [<psi_m(0)|r_i|psi_mj(1)(w)> + <psi_mj(1)(-w)|r_i|psi_m(0)>]
 
-    void SCF::dpolar(World & world, tensorT & polar, functionT & drho, int & axis)
+    void SCF::dpolar(World & world, tensorT & polar, functionT & drho, const int axis)
     {
         for(int i=0; i<3; ++i) {
             std::vector<int> f(3, 0);
@@ -3225,7 +3225,7 @@ namespace madness {
     void SCF::calc_dpolar(World & world,  
             const vecfuncT & ax, const vecfuncT & ay, 
             const vecfuncT & bx, const vecfuncT & by, 
-            int & axis,
+            const int axis,
             tensorT & Dpolar_total, tensorT & Dpolar_alpha, tensorT & Dpolar_beta)
     {
         double Dpolar_average = 0.0;
@@ -3419,7 +3419,7 @@ namespace madness {
         const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
         int maxsub_save = param.maxsub;
 
-        for ( int axis=0; axis<param.response_axis.size(); axis++) {
+        for (size_t axis=0; axis<param.response_axis.size(); axis++) {
             if(!param.response_axis[axis]) continue; 
         
             subspaceT subspace;
