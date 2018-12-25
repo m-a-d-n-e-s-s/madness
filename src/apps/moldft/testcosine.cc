@@ -63,7 +63,7 @@ public:
         coord_3d gv = gvecs[ig];
         s += coeffs(ig)*std::exp(factor*(gv[0]*x[0]+gv[1]*x[1]+gv[2]*x[2]));
       }
-      MADNESS_ASSERT(false);
+      MADNESS_CHECK(false);
       return s;
     }
 };

@@ -122,7 +122,7 @@ namespace madness {
 }
 
 // the following define/undef are for documentation purposes only.
-/// Assert a condition.
+/// Assert a condition that should be free of side-effects since in release builds this might be a no-op.
 
 /// Depending on the configuration, one of the following happens if
 /// \c condition is false:
@@ -140,8 +140,7 @@ namespace madness {
 #endif
 
 #ifdef MADNESS_ASSERTIONS_DISABLE
-// this avoid unused variqble warnings, see http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
-#  define MADNESS_ASSERT(condition) do { (void)sizeof(condition);} while (0)
+#  define MADNESS_ASSERT(condition)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_ASSERT
@@ -160,6 +159,33 @@ namespace madness {
         } \
     } while (0)
 #endif
+
+// the following define/undef are for documentation purposes only.
+/// Check a condition --- even in a release build the condition is always evaluated so it can have side effects
+
+/// Depending on the configuration, one of the following happens if
+/// \c condition is false:
+/// - a \c madness::MadnessException is thrown.
+/// - `check(condition)` is called.
+/// - execution is aborted.
+/// \param[in] condition The condition to be checked.
+#define MADNESS_CHECK(condition)
+#undef MADNESS_CHECK
+
+#ifdef MADNESS_ASSERTIONS_THROW
+#  define MADNESS_CHECK(condition)              \
+    do {                                        \
+        if (!(condition)) {                                             \
+            madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
+            throw madness::MadnessException("MADNESS CHECKION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
+                                            #condition,0,__LINE__,__FUNCTION__,__FILE__); \
+        }                                                               \
+    } while (0)
+#else
+#  define MADNESS_CHECK(condition)                      \
+    do {if (!(condition)) { std::abort(); }} while (0)
+#endif
+
 
 } // namespace madness
 

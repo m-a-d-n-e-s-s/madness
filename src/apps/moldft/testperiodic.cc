@@ -606,7 +606,7 @@ vector_complex_function_3d initial_guess(World& world, const real_function_3d& v
     int nkpt = kpoints.size();
     int nsize = psi0.size();
     int nst_initial = nsize/nkpt;
-    MADNESS_ASSERT(nst <= nst_initial);
+    MADNESS_CHECK(nst <= nst_initial);
     if (world.rank() == 0) print("nsize: ", nsize);
     if (world.rank() == 0) print("nst_initial: ", nst_initial);
     vector_complex_function_3d psi;
@@ -659,7 +659,7 @@ vector_complex_function_3d initial_guess(World& world, const real_function_3d& v
 
 tensor_complex matrix_exponential(const tensor_complex& A) {
     const double tol = 1e-13;
-    MADNESS_ASSERT(A.dim(0) == A.dim(1));
+    MADNESS_CHECK(A.dim(0) == A.dim(1));
 
     // Scale A by a power of 2 until it is "small"
     double anorm = A.normf();
@@ -1061,7 +1061,7 @@ int main(int argc, char** argv) {
         }
 
         if (world.rank() == 0) print(nkpt,nst,psi.size());
-        MADNESS_ASSERT(nkpt*nst == (int) psi.size());
+        MADNESS_CHECK(nkpt*nst == (int) psi.size());
 
         if (iter == 20) {
           if (world.rank() == 0) print("reprojecting ..");
