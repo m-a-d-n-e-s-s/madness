@@ -514,7 +514,7 @@ int test_XCOperator(World& world) {
         double a2=inner(2.0*f1*f1,xc.apply_xc_kernel(2.0*arho)); // factors 2 for RHF
         print("kernel ",a2);
         print("ratio ",a0,a2*9.0/4.0);
-        if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0-a2*9.0/4.0)<1.e-6);
+        if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0-a2*9.0/4.0)<tol);
         MADNESS_CHECK(similar(a2,refvalues[i++]));
 
         // do spin-polarized
