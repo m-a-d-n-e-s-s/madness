@@ -20,8 +20,8 @@ public:
     
     void kernel(int i, int j, T* rowi, T* rowj) {
         for (int k=0; k < SystolicMatrixAlgorithm<T>::get_rowdim(); ++k) {
-            MADNESS_ASSERT(rowi[k] == i);
-            MADNESS_ASSERT(rowj[k] == j);
+            MADNESS_CHECK(rowi[k] == i);
+            MADNESS_CHECK(rowj[k] == j);
         }
     }
     
@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
 
             for (int i=ilo; i<=ihi; ++i) {
                 for (int k=0; k<m; ++k) {
-                    MADNESS_ASSERT(A.data()(i-ilo,k) == i);
+                    MADNESS_CHECK(A.data()(i-ilo,k) == i);
                 }
             }
         }
