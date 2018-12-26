@@ -56,6 +56,7 @@
 #include <madness/mra/vmra.h>
 #include <chem/pcm.h>
 #include <chem/AC.h>
+#include <chem/pointgroupsymmetry.h>
 
 namespace madness {
 
@@ -143,6 +144,7 @@ struct allocator {
 class Nemo: public MolecularOptimizationTargetInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
+	friend class TDHF;
 
 public:
 
@@ -150,18 +152,19 @@ public:
 
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
-	Nemo(World& world1, std::shared_ptr<SCF> calc) :
-			world(world1), calc(calc), ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {}
+	Nemo(World& world1, std::shared_ptr<SCF> calc);
 
 	void construct_nuclear_correlation_factor() {
-		// construct the nuclear potential
-		// Make the nuclear potential, initial orbitals, etc.
-		calc->make_nuclear_potential(world);
-		calc->potentialmanager->vnuclear().print_size("vnuc");
-		calc->project_ao_basis(world);
-//		save_function(calc->potentialmanager->vnuclear(),"vnuc");
+
+		// make sure the nuclear potential is present
+		MADNESS_ASSERT(calc->potentialmanager->vnuclear().is_initialized());
+
 	    // construct the nuclear correlation factor:
-	    nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+	    if (not nuclear_correlation)
+	        nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+
+	    // re-project the ncf
+	    nuclear_correlation->initialize(FunctionDefaults<3>::get_thresh());
 	    R = nuclear_correlation->function();
 	    R.set_thresh(FunctionDefaults<3>::get_thresh());
 	    R_square = nuclear_correlation->square();
@@ -338,6 +341,8 @@ private:
 
 	std::shared_ptr<SCF> calc;
 
+	projector_irrep symmetry_projector;
+
 	mutable double ttt, sss;
 	void START_TIMER(World& world) const {
 	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
@@ -390,6 +395,11 @@ public:
     /// the square of the nuclear correlation factor
     real_function_3d R_square;
 
+    /// return the symmetry_projector
+    projector_irrep get_symmetry_projector() const {
+    	return symmetry_projector;
+    }
+
 private:
 
 	/// sum of square of coords at last solved geometry
@@ -420,15 +430,22 @@ private:
 	PCM pcm;
 	AC<3> ac;
 
-	void print_nuclear_corrfac() const;
-
 	/// adapt the thresholds consistently to a common value
     void set_protocol(const double thresh) {
 
         calc->set_protocol<3>(world,thresh);
 
         // (re) construct nuclear potential and correlation factors
-        construct_nuclear_correlation_factor();
+        // first make the nuclear potential, since it might be needed by the nuclear correlation factor
+        if ((not (calc->potentialmanager.get() and calc->potentialmanager->vnuclear().is_initialized()))
+        		or (calc->potentialmanager->vnuclear().thresh()>thresh)) {
+            get_calc()->make_nuclear_potential(world);
+        }
+        if ((not R.is_initialized()) or (R.thresh()>thresh)) {
+            timer timer1(world);
+            construct_nuclear_correlation_factor();
+            timer1.end("reproject ncf");
+        }
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
@@ -497,7 +514,7 @@ private:
 	vecfuncT make_cphf_constant_term(const int iatom, const int iaxis,
 	        const vecfuncT& R2nemo, const real_function_3d& rhonemo) const;
 
-	public:
+public:
 
 	bool is_dft() const {return calc->xc.is_dft();}
 
@@ -507,7 +524,9 @@ private:
 
 	AC<3> get_ac() const {return ac;}
 
-	private:
+	bool do_symmetry() const {return (symmetry_projector.get_pointgroup()!="C1");}
+
+private:
 
 	/// localize the nemo orbitals
     vecfuncT localize(const vecfuncT& nemo, const double dconv, const bool randomize) const;

@@ -17,7 +17,7 @@ namespace madness {
     const CalcType ctype = parameters.calculation;
 
     if(ctype==CT_TDHF){
-      TDHF tdhf(world,parameters,nemo);
+      TDHF tdhf(world,nemo);
       std::vector<CC_vecfunction> ccs;
       for(size_t k=0;k<parameters.excitations_.size();k++){
 	CC_vecfunction tmp;
@@ -65,7 +65,7 @@ namespace madness {
       if(world.rank()==0) std::cout << std::fixed << std::setprecision(10) << " CC2 Correlation Energy =" << cc2_correlation_energy << "\n";
 
     }else if(ctype==CT_LRCCS){
-      TDHF tdhf(world,parameters,nemo);
+      TDHF tdhf(world,nemo);
       std::vector<CC_vecfunction> ccs;
       for(size_t k=0;k<parameters.excitations_.size();k++){
 	CC_vecfunction tmp;
@@ -302,7 +302,7 @@ namespace madness {
 	CCTimer time_ex(world,"LRCC2 Calculation for Excitation " + std::to_string(int(excitation)));
 	CC_vecfunction lrcc2_s = vccs[xxx];
 	// needed to assign an omega
-	const vecfuncT backup = copy(world,lrcc2_s.get_vecfunction());
+	const vector_real_function_3d backup = copy(world,lrcc2_s.get_vecfunction());
 	CC_vecfunction test(backup,RESPONSE,parameters.freeze);
 	test.excitation = lrcc2_s.excitation;
 	iterate_ccs_singles(test);
@@ -340,8 +340,9 @@ namespace madness {
       output("Response Results:");
       for(const auto& res:results_ex){
 	if(world.rank()==0) std::cout << std::fixed << std::setprecision(10)
-	<< res.first << ": "<< res.second.first << " (CIS), " << res.second.second << " (CC2)\n";
+	<< res.first << ": "<< res.second.first << " (CIS)*, " << res.second.second << " (CC2)\n";
       }
+      if(world.rank()==0) std::cout << "*only if CIS vectors where given in the beginning (not for CC2 restart)\n";
       output("\nTimings");
       for(const auto& time:timings){
 	if(world.rank()==0) std::cout << std::scientific << std::setprecision(2)
@@ -359,7 +360,7 @@ namespace madness {
   // Solve the CCS equations for the ground state (debug potential and check HF convergence)
   std::vector<CC_vecfunction> CC2::solve_ccs() {
     output.section("SOLVE CCS");
-    TDHF tdhf(world,parameters,nemo);
+    TDHF tdhf(world,nemo);
     std::vector<CC_vecfunction> excitations;
     for(size_t k=0;k<parameters.excitations_.size();k++){
 	CC_vecfunction tmp;

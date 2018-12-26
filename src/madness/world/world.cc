@@ -195,8 +195,8 @@ namespace madness {
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
         ThreadPool::begin();        // Must have thread pool before any AM arrives
-        if(SafeMPI::COMM_WORLD.Get_size() > 1) {
-            RMI::begin();           // Must have RMI while still running single threaded
+        if(comm.Get_size() > 1) {
+            RMI::begin(comm);           // Must have RMI while still running single threaded
             // N.B. sync everyone up before messages start flying
             // this is needed to avoid hangs with some MPIs, e.g. Intel MPI on commodity hardware
             comm.Barrier();
@@ -211,7 +211,7 @@ namespace madness {
 #endif // HAVE_ELEMENTAL
 
         madness_initialized_ = true;
-        if(SafeMPI::COMM_WORLD.Get_rank() == 0)
+        if(comm.Get_rank() == 0)
             std::cout << "MADNESS runtime initialized with " << ThreadPool::size()
                 << " threads in the pool and affinity " << sbind << "\n";
 
@@ -220,6 +220,7 @@ namespace madness {
 
     void finalize() {
         World::default_world->gop.fence();
+        const auto world_size = World::default_world->size();
 
         // Destroy the default world
         delete World::default_world;
@@ -229,7 +230,7 @@ namespace madness {
         elem::Finalize();
 #endif
 
-        if(SafeMPI::COMM_WORLD.Get_size() > 1)
+        if(world_size > 1)
             RMI::end();
         ThreadPool::end();
         detail::WorldMpi::finalize();

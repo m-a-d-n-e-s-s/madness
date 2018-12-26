@@ -68,18 +68,7 @@ std::vector<std::string> cubefile_header(std::string filename, const bool& no_or
     Molecule molecule;
     molecule.read_file(filename);
     if(no_orient==false) molecule.orient();
-    std::vector<std::string> molecular_info;
-    for (unsigned int i=0; i<molecule.natom(); ++i) {
-        std::stringstream ss;
-        const int charge=molecule.get_atom(i).get_atomic_number();
-        ss << charge << " " << charge << " ";
-        ss << std::fixed;
-        ss.precision(8);
-        const Vector<double,3> coord=molecule.get_atom(i).get_coords();
-        ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
-        molecular_info.push_back(ss.str());
-    }
-    return molecular_info;
+    return molecule.cubefile_header();
 }
 
 
@@ -106,6 +95,21 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
 /// This code is just for the examples ... don't trust it!
 Molecule::Molecule(const std::string& filename) {
     read_file(filename);
+}
+
+std::vector<std::string> Molecule::cubefile_header() const {
+	std::vector<std::string> molecular_info;
+	for (unsigned int i = 0; i < natom(); ++i) {
+		std::stringstream ss;
+		const int charge = get_atom(i).get_atomic_number();
+		ss << charge << " " << charge << " ";
+		ss << std::fixed;
+		ss.precision(8);
+		const Vector<double, 3> coord = get_atom(i).get_coords();
+		ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
+		molecular_info.push_back(ss.str());
+	}
+	return molecular_info;
 }
 
 void Molecule::read_file(const std::string& filename) {
