@@ -1551,6 +1551,45 @@ namespace madness {
             return *this;
         }
 
+        /// This is replaced with mirror(f) ...  private
+
+        /// similar to mapdim, but maps from x to -x, y to -y, and so on
+        /// Example: mirror a 3d function on the xy plane: mirror={1,1,-1}
+        /// @param[in]	mirror	array of -1 and 1, corresponding to mirror or not
+        Function<T,NDIM>& mirror(const Function<T,NDIM>& f, const std::vector<long>& mirrormap, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
+            f.verify();
+            if (VERIFY_TREE) f.verify_tree();
+            for (std::size_t i=0; i<NDIM; ++i) MADNESS_ASSERT((mirrormap[i]==1) or (mirrormap[i]==-1));
+            impl.reset(new implT(*f.impl, f.get_pmap(), false));
+            impl->mirror(*f.impl,mirrormap,fence);
+            return *this;
+        }
+
+        /// This is replaced with mirror(map(f)) ...  private
+
+        /// first map then mirror!
+        /// mirror is similar to mapdim, but maps from x to -x, y to -y, and so on
+        /// Example: mirror a 3d function on the xy plane: mirror={1,1,-1}
+        /// Example: c4 rotation of a 3d function around the z axis:
+        /// 	x->y, y->-x, z->z: map(1,0,2); mirror(-1,1,1)
+        /// @param[in]	map		array holding dimensions
+        /// @param[in]	mirror	array of -1 and 1, corresponding to mirror or not
+        Function<T,NDIM>& map_and_mirror(const Function<T,NDIM>& f,
+        		const std::vector<long>& map, const std::vector<long>& mirror,
+				bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
+            f.verify();
+            if (VERIFY_TREE) f.verify_tree();
+            for (std::size_t i=0; i<mirror.size(); ++i) MADNESS_ASSERT((mirror[i]==1) or (mirror[i]==-1));
+            for (std::size_t i=0; i<map.size(); ++i) MADNESS_ASSERT(map[i]>=0 && static_cast<std::size_t>(map[i])<NDIM);
+
+            impl.reset(new implT(*f.impl, f.get_pmap(), false));
+            impl->map_and_mirror(*f.impl,map,mirror,fence);
+            return *this;
+        }
+
+
         /// check symmetry of a function by computing the 2nd derivative
         double check_symmetry() const {
 
@@ -2133,6 +2172,37 @@ namespace madness {
         Function<T,NDIM> result;
         return result.mapdim(f,map,fence);
     }
+
+    /// Generate a new function by mirroring within the dimensions .. optional fence
+
+    /// similar to mapdim
+    /// @param[in]	mirror	array with -1 and 1, corresponding to mirror this dimension or not
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM>
+    mirror(const Function<T,NDIM>& f, const std::vector<long>& mirrormap, bool fence=true) {
+        PROFILE_FUNC;
+        Function<T,NDIM> result;
+        return result.mirror(f,mirrormap,fence);
+    }
+
+    /// This is replaced with mirror(map(f)), optional fence
+
+    /// first map then mirror!
+    /// mirror is similar to mapdim, but maps from x to -x, y to -y, and so on
+    /// Example: mirror a 3d function on the xy plane: mirror={1,1,-1}
+    /// Example: c4 rotation of a 3d function around the z axis:
+    /// 	x->y, y->-x, z->z: map(1,0,2); mirror(-1,1,1)
+    /// @param[in]	map		array holding dimensions
+    /// @param[in]	mirror	array of -1 and 1, corresponding to mirror or not
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM>
+    map_and_mirror(const Function<T,NDIM>& f, const std::vector<long>& map,
+    		const std::vector<long>& mirror, bool fence=true) {
+        PROFILE_FUNC;
+        Function<T,NDIM> result;
+        return result.map_and_mirror(f,map,mirror,fence);
+    }
+
 
     /// swap particles 1 and 2
 

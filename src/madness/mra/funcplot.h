@@ -380,6 +380,36 @@ namespace madness {
         fprintf(f, " %.14e", v);
     }
 
+
+    /// Generates ASCII file tabulating f(r) at npoints along line r=lo,...,hi
+
+    /// The ordinate is distance from lo
+    template <typename opT, std::size_t NDIM>
+    void plot_line(World& world, const char* filename, int npt, const Vector<double,NDIM>& lo,
+            const Vector<double,NDIM>& hi, const opT& op) {
+        typedef Vector<double,NDIM> coordT;
+        coordT h = (hi - lo)*(1.0/(npt-1));
+
+        double sum = 0.0;
+        for (std::size_t i=0; i<NDIM; ++i) sum += h[i]*h[i];
+        sum = sqrt(sum);
+
+        if (world.rank() == 0) {
+            FILE* file = fopen(filename,"w");
+        if(!file)
+          MADNESS_EXCEPTION("plot_line: failed to open the plot file", 0);
+            for (int i=0; i<npt; ++i) {
+                coordT r = lo + h*double(i);
+                fprintf(file, "%.14e ", i*sum);
+                plot_line_print_value(file, op(r));
+                fprintf(file,"\n");
+            }
+            fclose(file);
+        }
+        world.gop.fence();
+    }
+
+
     /// Generates ASCII file tabulating f(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo
@@ -617,6 +647,8 @@ namespace madness {
         if (c2=="x5") cc2=4;
         if (c2=="x6") cc2=5;
 
+        MADNESS_ASSERT(cc1<NDIM);
+        MADNESS_ASSERT(cc2<NDIM);
         // output file name for the gnuplot data
         std::string filename="plane_"+c1+c2+"_"+name;
         // assume a cubic cell
@@ -759,18 +791,22 @@ namespace madness {
 
     template<size_t NDIM>
     typename std::enable_if<NDIM==3,void>::type
-    plot_cubefile(World& world, Function<double,NDIM>& f, std::string filename,
-            const std::vector<std::string> molecular_info=std::vector<std::string>()) {
+    plot_cubefile(World& world, const Function<double,NDIM>& f, std::string filename,
+            std::vector<std::string> molecular_info=std::vector<std::string>()) {
 
         if (world.size()>1) return;
         // determine the ploting plane
         std::string c1="x1", c2="x2";
 
+        // dummy atom in the center
+        if (molecular_info.size()==0)
+        	molecular_info=std::vector<std::string>(1,"0 0 0.0 0.0 0.0\n");
+
         // zoom factor
         double zoom=1.0;
 
         // number of points in each direction
-        int npoints=200;
+        int npoints=100;
 
         // the coordinates to be plotted
         Vector<double,NDIM> origin(0.0);
@@ -842,6 +878,19 @@ namespace madness {
         }
         fclose(file);
 
+    }
+
+    /// convenience to get plot_plane and plot_cubefile
+    template<size_t NDIM>
+    void plot(const std::vector<Function<double,NDIM> >& vf, const std::string& name, const std::vector<std::string>& header){
+    	if(vf.empty()) return;
+    	World& world=vf.front().world();
+    	for(size_t i=0;i<vf.size();++i){
+    		const std::string namei=name+"_"+std::to_string(i);
+    		vf[i].print_size("plot:"+namei);
+    		plot_plane<NDIM>(world,vf[i],namei);
+    		plot_cubefile<NDIM>(world,vf[i],namei+".cube",header);
+    	}
     }
 
     template<typename T>
