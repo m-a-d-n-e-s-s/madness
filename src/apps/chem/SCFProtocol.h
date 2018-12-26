@@ -90,7 +90,6 @@ public:
                     if (tag=="thresh") ss >> thresh;
                     if (tag=="user_dconv") ss >> user_dconv;
                 }
-                if (world.rank()==0) print("tried restart but failed");
             }
         } else {
             current_prec=start_prec;
@@ -103,7 +102,10 @@ public:
         }
     }
 
-    bool finished() const {return converged;}
+    bool finished() const {
+        if(world.rank()==0) printf("\nending protocol at time %8.1fs \n",wall_time());
+    	return converged;
+    }
 
     /// go to the next level
     SCFProtocol& operator++() {
@@ -114,7 +116,6 @@ public:
             if(world.rank()==0) print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
         } else {
             converged=true;
-            if(world.rank()==0) printf("\nending protocol at time %8.1fs \n",wall_time());
         }
 
         // update restart data on file
