@@ -40,7 +40,7 @@ ccache --version
 mkdir build
 cd build
 cmake \
-    -D CMAKE_BUILD_TYPE=MinSizRel \
+    -D CMAKE_BUILD_TYPE=MinSizeRel \
     -D ENABLE_UNITTESTS=ON \
     -D ENABLE_NEVER_SPIN=ON \
     -D BUILD_SHARED_LIBS=OFF \
