@@ -44,4 +44,4 @@ cache:
   directories:
     - $HOME/mpich
     - $HOME/libxc
-    - $HOME/.ccache
+    - $HOME/ccache
