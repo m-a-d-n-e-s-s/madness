@@ -1050,9 +1050,11 @@ namespace madness {
                 double enl;
                 tensorT occ = tensorT(ao.size());
                 for(int i = 0;i < param.nalpha;++i){
-                    occ[i] = 1.0;}
-                for(int i = param.nalpha;i < ao.size();++i){
-                    occ[i] = 0.0;}
+                    occ[i] = 1.0;
+                }
+                for(int i = param.nalpha;size_t(i) < ao.size();++i){
+                    occ[i] = 0.0;
+                }
                 vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);}
             else{
                 vpsi = mul_sparse(world, vlocal, ao, vtol);}
@@ -2363,21 +2365,25 @@ namespace madness {
             
             if (param.localize && do_this_iter) {
 	        distmatT dUT;
-		if (param.localize_pm)
-		  dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, true);
-		else 
-		  dUT = localize_boys(world, amo, aset, tolloc, 0.1, iter == 0);
-
+		if (param.localize_pm) {
+                    dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, true);
+                }
+		else {
+                    dUT = localize_boys(world, amo, aset, tolloc, 0.1, iter == 0);
+                }
+                
                 dUT.data().screen(trantol);
                 START_TIMER(world);
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 normalize(world, amo);
                 if (!param.spin_restricted && param.nbeta != 0) {
-		  if (param.localize_pm)
-                    dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, true);
-		  else
-		    dUT = localize_boys(world, bmo, bset, tolloc, 0.1, iter == 0);
+                    if (param.localize_pm) {
+                        dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, true);
+                    }
+                    else {
+                        dUT = localize_boys(world, bmo, bset, tolloc, 0.1, iter == 0);
+                    }
 
                     START_TIMER(world);
                     dUT.data().screen(trantol);
