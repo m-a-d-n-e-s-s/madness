@@ -96,10 +96,6 @@ double Nemo_complex::value() {
 			Tensor<double_complex> ovlp=matrix_inner(world,amo,amo);
 			canonicalize(amo,Vnemoa,focka,ovlp);
 
-			print("canonical Fock matrix");
-			Tensor<double_complex> tmp=(T(amo,amo)+matrix_inner(world,amo,Vnemoa));
-			print(tmp);
-
 			if (have_beta()) {
 				Tensor<double_complex> ovlp=matrix_inner(world,bmo,bmo);
 				canonicalize(bmo,Vnemob,fockb,ovlp);

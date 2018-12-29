@@ -19,7 +19,8 @@ namespace madness {
 
 class Complex_CIS_Parameters : public CalculationParametersBase {
 public:
-	enum parameterenum {guess_excitation_operators_,exops_,freeze_,guess_excitations_,thresh_,maxiter_};
+	enum parameterenum {guess_excitation_operators_,exops_,freeze_,guess_excitations_,thresh_,maxiter_,omega_,
+						swap_ab_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
@@ -28,7 +29,9 @@ public:
         		init<int>(freeze_,{"freeze",0}),
         		init<int>(guess_excitations_,{"guess_excitations",4}),
         		init<double>(thresh_,{"thresh",FunctionDefaults<3>::get_thresh()}),
-        		init<int>(maxiter_,{"maxiter",10})
+        		init<double>(omega_,{"omega",0.0}),
+        		init<int>(maxiter_,{"maxiter",10}),
+				init<bool>(swap_ab_,{"swap_ab",false})
     };
 
 	/// ctor reading out the input file
@@ -49,7 +52,9 @@ public:
 	int freeze() const {return get<int>(freeze_);};
 	int guess_excitations() const {return get<int>(guess_excitations_);};
 	double thresh() const {return get<double>(thresh_);};
+	double omega() const {return get<double>(omega_);};
 	int maxiter() const {return get<int>(maxiter_);};
+	bool swap_ab() const {return get<bool>(swap_ab_);};
 
 
 	/// return the value of the parameter
@@ -70,16 +75,17 @@ public:
 	struct root {
 		std::vector<complex_function_3d> afunction;
 		std::vector<complex_function_3d> bfunction;
-		double omega;
-		int excitation; 	// counting the excitations
-		double delta;		// last wave function error
+		double omega=0.0;
+		int excitation; 				// counting the excitations
+		double delta=0.0;				// last wave function error
+		double energy_change=0.0;		// last energy_change
 	};
 
 	Complex_cis(World& w, Nemo_complex& n) : world(w), cis_param(world), nemo(n),
 		Qa(world,conj(world,nemo.amo),nemo.amo), Qb(world,conj(world,nemo.bmo),nemo.bmo) {
-		std::vector<complex_function_3d> abmo=append(nemo.amo,nemo.bmo);
-		Qab=QProjector<double_complex,3>(world,conj(world,abmo),abmo);
 		print("Qa projector",Qa.get_ket_vector().size());
+		print("Qb projector",Qb.get_ket_vector().size());
+
 	}
 
 	virtual ~Complex_cis() {};
@@ -142,6 +148,22 @@ public:
 		return std::make_tuple(t1,t2);
 	}
 
+	void normalize(std::vector<root>& roots) const;
+
+	void compare_to_file(const std::vector<complex_function_3d>& rhs, const std::string name) const {
+		if (nemo.cparam.spin_restricted) {
+			save_function(rhs,name);
+
+		} else {
+			std::vector<complex_function_3d> rhs_file=zero_functions_compressed<double_complex,3>(world,rhs.size());
+			std::vector<complex_function_3d> rhs_file1;
+			load_function(world,rhs_file1,name);
+			for (int i=0; i<rhs_file1.size(); ++i) rhs_file[i]=rhs_file1[i];
+			std::vector<double> dnorm=norm2s(world,rhs-rhs_file);
+			print(name,"diffnorm",dnorm);
+		}
+	}
+
 
 	static std::tuple<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
 	split(const std::vector<complex_function_3d>& rhs, int dim1) {
@@ -152,7 +174,7 @@ public:
 
 		std::vector<complex_function_3d> t1,t2;
 		copy(rhs.begin(),rhs.begin()+dim1,back_inserter(t1));
-		copy(rhs.begin()+dim1+1,rhs.end(),back_inserter(t2));
+		copy(rhs.begin()+dim1,rhs.end(),back_inserter(t2));
 
 		return std::make_tuple(t1,t2);
 	}
@@ -167,7 +189,7 @@ public:
 	Nemo_complex nemo;
 
 	/// orthogonality projector
-	QProjector<double_complex,3> Qa, Qb, Qab;
+	QProjector<double_complex,3> Qa, Qb;
 
 	/// the x vectors
 	std::vector<root> roots;
