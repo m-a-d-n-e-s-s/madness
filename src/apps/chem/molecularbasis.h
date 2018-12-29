@@ -278,7 +278,7 @@ public:
             bf = g[i].eval(rsq, x, y, z, bf);
         }
         // paranoia is good
-        MADNESS_ASSERT(bf-bfstart == numbf);
+        MADNESS_CHECK(bf-bfstart == numbf);
         return bf;
     }
 
