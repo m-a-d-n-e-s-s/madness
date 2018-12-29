@@ -112,4 +112,4 @@ else
     find ${HOME}/mpich -name mpicc
     find ${HOME}/mpich -name mpicxx
 fi
-f
+
