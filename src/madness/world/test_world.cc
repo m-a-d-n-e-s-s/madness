@@ -1305,11 +1305,11 @@ int main(int argc, char** argv) {
         test_cuda0(world);
 #endif
     }
-    catch (SafeMPI::Exception e) {
+    catch (const SafeMPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
     }
-    catch (madness::MadnessException e) {
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
     }
