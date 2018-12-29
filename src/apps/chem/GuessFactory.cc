@@ -192,6 +192,8 @@ double PolynomialTrigonometricsFunctor::compute_value(const coord_3d& r) const {
 		if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
 		result += (data_[i][3] * pow(sin(r[0]), data_[i][0]) * pow(sin(r[1]), data_[i][1]) * pow(sin(r[2]), data_[i][2]));
 	}
+        throw "CONTROL REACHES END OF NON-VOID FUNCTION!!!!!!!!!!!!!";
+        return 99.0;
 }
 
 double GaussFunctor::operator ()(const coord_3d& rr) const {
@@ -210,7 +212,7 @@ double GaussFunctor::operator ()(const coord_3d& rr) const {
 }
 
 double PlaneWaveFunctor::operator ()(const coord_3d& r) const {
-	SPLITCOORD(x, y, z, r);
+    //SPLITCOORD(x, y, z, r);
 	double result = 1.0;
 	for (int i = 0; i < 3; ++i) {
 		result = result * (*this)(r[i], i);

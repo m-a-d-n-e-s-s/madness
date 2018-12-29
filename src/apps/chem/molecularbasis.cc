@@ -82,10 +82,10 @@ void AtomicBasisFunction::print_me(std::ostream& s) const {
 void AtomicBasisSet::print(const Molecule& molecule) const {
     molecule.print();
     std::cout << "\n " << name << " atomic basis set" << std::endl;
-    for (int i=0; i<molecule.natom(); ++i) {
+    for (size_t i=0; i<molecule.natom(); ++i) {
         const Atom& atom = molecule.get_atom(i);
         const unsigned int atn = atom.atomic_number;
-        for (int j=0; j<i; ++j) {
+        for (size_t j=0; j<i; ++j) {
             if (molecule.get_atom(j).atomic_number == atn)
                 goto doneitalready;
         }
@@ -180,11 +180,13 @@ foundit:
             Tensor<double> dmatpsp = dmat;
             Tensor<double> aocc = load_tixml_matrix<double>(node, nbf, 1, "alphaocc");
             Tensor<double> bocc = load_tixml_matrix<double>(node, nbf, 1, "betaocc");
+	    Tensor<double> aeps = load_tixml_matrix<double>(node, nbf, 1, "alphaeps");
+	    Tensor<double> beps = load_tixml_matrix<double>(node, nbf, 1, "betaeps");
             Tensor<double> aoccpsp = aocc;
-             Tensor<double> boccpsp = bocc;
+	    Tensor<double> boccpsp = bocc;
             Tensor<double> avec = load_tixml_matrix<double>(node, nbf, nbf, "alphavectors");
             Tensor<double> bvec = load_tixml_matrix<double>(node, nbf, nbf, "betavectors");
-            ag[atn].set_guess_info(dmat, dmatpsp, avec, bvec, aocc, bocc, aoccpsp, boccpsp);
+            ag[atn].set_guess_info(dmat, dmatpsp, avec, bvec, aocc, bocc, aeps, beps, aoccpsp, boccpsp);
         }
         else {
             MADNESS_EXCEPTION("Loading atomic basis set: unexpected XML element", 0);

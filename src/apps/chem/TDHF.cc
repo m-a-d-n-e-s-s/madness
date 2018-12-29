@@ -36,8 +36,8 @@ struct TDHF_allocator{
 // conveniece to interface functions
 TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param)
 	: world(world),
-	  nemo(nemo_),
 	  parameters(param),
+	  nemo(nemo_),
 	  g12(world,OT_G12,parameters.get_ccc_parameters()),
 	  mo_ket_(make_mo_ket(nemo_)),
 	  mo_bra_(make_mo_bra(nemo_)),
@@ -50,8 +50,8 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const Parameters& param)
 
 TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
 	: world(world),
-	  nemo(nemo_),
 	  parameters(nemo_.get_calc(),input),
+	  nemo(nemo_),
 	  g12(world,OT_G12,parameters.get_ccc_parameters()),
 	  mo_ket_(make_mo_ket(nemo_)),
 	  mo_bra_(make_mo_bra(nemo_)),
@@ -180,7 +180,7 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 
 
 	// failsafe (works in most cases)
-	if(guess.size()<parameters.guess_excitations){
+	if(guess.size()<size_t(parameters.guess_excitations)){
 		std::string message=("WARNING: You demanded: " + std::to_string(parameters.guess_excitations)
 			+ " Guess vectors, but your demanded guess has only " + std::to_string(guess.size())
 			+ "vectors. So we will not iterate the first vectors and then do the same guess again ... this might be unstable").c_str();
@@ -197,7 +197,7 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	std::sort(guess.begin(),guess.end());
 	//truncate the guess
 	std::vector<CC_vecfunction> guess_vectors;
-	for(size_t i=0;i<parameters.guess_excitations;i++) guess_vectors.push_back(guess[i]);
+	for(int i=0;i<parameters.guess_excitations;i++) guess_vectors.push_back(guess[i]);
 	// this is the return value
 	start = guess_vectors;
 }
@@ -221,7 +221,7 @@ void TDHF::symmetrize(std::vector<CC_vecfunction>& v) const {
 			// determine the irreps of the x vector elements
 			std::vector<std::string> xirreps(f.get_vecfunction().size());
 			MADNESS_ASSERT(symmetry_projector.get_table().is_abelian);
-			for (int i=0; i<xirreps.size(); ++i) {
+			for (size_t i=0; i<xirreps.size(); ++i) {
 				xirreps[i]=symmetry_projector.reduce(f.irrep,orbital_irreps[i])[0];
 			}
 
@@ -246,7 +246,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis()const{
 	for(size_t macrocycle=0;macrocycle<1;++macrocycle){
 		//msg.section("CIS Macroiteration " + std::to_string(macrocycle));
 		ccs=solve_cis(ccs);
-		if(converged_roots.size()>=parameters.excitations) break;
+		if(converged_roots.size()>=size_t(parameters.excitations)) break;
 	}
 
 	return converged_roots;
@@ -260,7 +260,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start)c
 	CCTimer time(world,"TDHF/CIS");
 	// decide if a guess calculation is needed
 	bool need_guess =false;
-	if(start.size()<parameters.guess_excitations) need_guess=true;
+	if(start.size()<size_t(parameters.guess_excitations)) need_guess=true;
 	std::vector<CC_vecfunction> guess_vectors;
 	if(need_guess){
 		initialize(start);
@@ -283,7 +283,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start)c
 		for(size_t i=0;i<guess_vectors.size();i++) guess_vectors[i].save_functions(std::to_string(i));
 		// prepare final iterations
 		for(size_t i=0;i<guess_vectors.size();i++){
-			if(i<parameters.iterating_excitations) final_vectors.push_back(guess_vectors[i]);
+                    if(i<size_t(parameters.iterating_excitations)) final_vectors.push_back(guess_vectors[i]);
 			else guess_roots.push_back(guess_vectors[i]);
 		}
 		// sort guess_roots backwards in order to feed them into the cycle easily with pop_back
@@ -321,7 +321,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start)c
 	std::vector<CC_vecfunction> result=converged_roots;
 	for(const auto& x:final_vectors){
 		result.push_back(x);
-		if(result.size()==parameters.excitations) break;
+		if(result.size()==size_t(parameters.excitations)) break;
 	}
 	result=sort_xfunctions(result);
 	msg << "writing final functions to disc...\n";
@@ -500,7 +500,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x,const std::vector<CC_v
 
 		timer.stop().print();
 		if(converged) break;
-		if(converged_roots.size()==parameters.excitations) break;
+		if(converged_roots.size()==size_t(parameters.excitations)) break;
 		if(x.empty()) break;
 	}
 	return converged;
@@ -949,7 +949,7 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 		for(size_t k=0;k<x.size();k++){
 			for(size_t l=0;l<x.size();l++){
 				Tensor<double> xlk = inner(world,xbra[l],x[k].get_vecfunction());
-				MADNESS_ASSERT(xlk.size()==active_eps.size());
+				MADNESS_ASSERT(size_t(xlk.size())==active_eps.size());
 				double eps_part =0.0;
 				for(size_t i=0;i<active_eps.size();i++) eps_part += xlk(i)*active_eps[i];
 				F(l,k) = T(l,k) + MV(l,k) - eps_part;
@@ -1061,7 +1061,7 @@ vector_real_function_3d TDHF::make_virtuals() const {
 	} else{
 		// create the seeds
 		vector_real_function_3d xmo;
-		for(size_t i=0;i<parameters.guess_occ_to_virt;++i) xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size()-1-i]);
+		for(int i=0;i<parameters.guess_occ_to_virt;++i) xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size()-1-i]);
 
 		bool use_trigo=true;
 		if(parameters.generalkeyval.find("polynomial_exops")!=parameters.generalkeyval.end())
@@ -1221,8 +1221,8 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 
 	// find all contributing ia/jb elements for the requested irrep -- needs to be improved..
 	std::vector<int> II;
-	for (int i=0; i<orbital_irreps.size(); ++i) {
-		for (int a=0; a<virtual_irreps.size(); ++a) {
+	for (size_t i=0; i<orbital_irreps.size(); ++i) {
+		for (size_t a=0; a<virtual_irreps.size(); ++a) {
 			if (proj.reduce(orbital_irreps[i],virtual_irreps[a])[0]==parameters.irrep)
 				II.push_back(get_com_idx(i,a));
 		}
@@ -1251,11 +1251,11 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 		// make x functions from amplitudes and virtuals
 		// todo: probably not optimal for highly parallel applications
 		int iexcitation=0;
-		for (size_t I = 0; I < MCIS.dim(0); ++I) {
+		for (int I = 0; I < MCIS.dim(0); ++I) {
 			if (iexcitation >= parameters.guess_excitations) break;
 
-			const int a = get_vir_idx(I);
-			const int i = get_occ_idx(I);
+			//const int a = get_vir_idx(I);
+			//const int i = get_occ_idx(I);
 			if (evals(I) < 0.0 && world.rank() == 0)
 				msg.warning("NEGATIVE EIGENVALUE IN INITIAL DIAGONALIZATION: CHECK YOUR REFERENCE!\n");
 
@@ -1267,7 +1267,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 			xfunctions[iexcitation].omega = evals(I);
 			xfunctions[iexcitation].excitation = iexcitation;
 
-			for (size_t J = 0; J < MCIS.dim(1); ++J) {
+			for (int J = 0; J < MCIS.dim(1); ++J) {
 
 				const int b = get_vir_idx(J);
 				const int j = get_occ_idx(J);
@@ -1291,7 +1291,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 			std::vector<std::string> x_irreps;
 			vector_real_function_3d tmp=proj(x.get_vecfunction(),nemo.R_square,x_irreps);
 			x.set_functions(tmp,RESPONSE,parameters.freeze);
-			for (int i=0; i<x_irreps.size(); ++i) {
+			for (size_t i=0; i<x_irreps.size(); ++i) {
 				std::string reduced=symmetry_projector.reduce(x_irreps[i],orbital_irreps[i])[0];
 				if (not ((reduced==x.irrep) or (reduced=="null") or (x.irrep=="null"))) {
 					print("reduced, irrep",reduced,x.irrep);
@@ -1404,15 +1404,15 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
 		const vector_real_function_3d virtuals_bra = make_bra(virtuals);
 
 		int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
-		for (int i = start_ij; i < get_active_mo_ket().size(); ++i) {
+		for (size_t i = start_ij; i < get_active_mo_ket().size(); ++i) {
 			const real_function_3d brai = get_active_mo_bra()[i];
 			const vector_real_function_3d igv = g12(brai * virtuals);
-			for (int a = 0; a < virtuals.size(); ++a) {
+			for (size_t a = 0; a < virtuals.size(); ++a) {
 				I=get_com_idx(i,a);
 				int J =-1;
-				for (int j = start_ij; j < get_active_mo_ket().size(); ++j) {
+				for (size_t j = start_ij; j < get_active_mo_ket().size(); ++j) {
 					const real_function_3d braj =get_active_mo_bra()[j];
-					for (int b = 0; b < virtuals.size(); ++b) {
+					for (size_t b = 0; b < virtuals.size(); ++b) {
 						J=get_com_idx(j,b);
 						if(J<=I){
 							const real_function_3d igj = g12(mo_bra_(i+parameters.freeze),mo_ket_(j+parameters.freeze)); // use exchange intermediate
@@ -1433,16 +1433,16 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
 
 	// test if symmetric
 	if (parameters.debug) {
-		const double symm_norm = (MCIS - transpose(MCIS)).normf();
-			msg << "Hermiticity of CIS Matrix:\n" << "||MCIS-transpose(MCIS)||=" << symm_norm << "\n";
-
-		if (symm_norm > 1.e-4) {
-			int sliced_dim = 8;
-			if (8 > MCIS.dim(0))
-				sliced_dim = MCIS.dim(0);
-
-				msg << "first " << sliced_dim << "x" << sliced_dim << " block of MCIS Matrix\n" << MCIS(_, Slice(sliced_dim - 1, sliced_dim - 1));
-		}
+            const double symm_norm = (MCIS - transpose(MCIS)).normf();
+            msg << "Hermiticity of CIS Matrix:\n" << "||MCIS-transpose(MCIS)||=" << symm_norm << "\n";
+            
+            if (symm_norm > 1.e-4) {
+                int sliced_dim = 8;
+                if (8 > MCIS.dim(0))
+                    sliced_dim = MCIS.dim(0);
+                
+                msg << "first " << sliced_dim << "x" << sliced_dim << " block of MCIS Matrix\n" << MCIS(_, Slice(sliced_dim - 1, sliced_dim - 1));
+            }
 	}
 	time_cis.info();
 

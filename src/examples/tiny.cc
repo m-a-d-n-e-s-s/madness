@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
     try {
         static const size_t NDIM=3;
         std::vector<Function<double,NDIM> > vf;
-        for (int i=0; i<filenames.size(); ++i) {
+        for (size_t i=0; i<filenames.size(); ++i) {
             real_function_3d tmp;
             try { // load a single function
                 load_function(world,tmp,filenames[i]);
@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
         try {
             static const size_t NDIM=6;
             std::vector<Function<double,NDIM> > vf(filenames.size());
-            for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
+            for (size_t i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
             plot_plane(world,vf,filenames[0]);
         } catch (...) {
 
