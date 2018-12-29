@@ -78,15 +78,16 @@ fi
 
 # Install libxc
 if [ ! -f "${HOME}/libxc/lib/libxc.a" ]; then
-    wget -O libxc-2.2.1.tar.gz "https://github.com/m-a-d-n-e-s-s/madness/files/661744/libxc-2.2.1.tar.gz"
-    tar -xzf libxc-2.2.1.tar.gz
-    cd libxc-2.2.1
+    #wget -O libxc-2.2.1.tar.gz "https://github.com/m-a-d-n-e-s-s/madness/files/661744/libxc-2.2.1.tar.gz"
+    wget -O libxc-4.2.3.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=libxc/4.2.3/libxc-4.2.3.tar.gz"
+    tar -xzf libxc-4.2.3.tar.gz
+    cd libxc-4.2.3
     autoreconf -i
-    ./configure --prefix=${HOME}/libxc --enable-static CFLAGS="-mno-avx -O1" CXXFLAGS="-mno-avx -O1" FCFLAGS="-mno-avx -O1"
+    ./configure --prefix=${HOME}/libxc --enable-static --disable-fortran CFLAGS="-mno-avx -O1" CXXFLAGS="-mno-avx -O1" FCFLAGS="-mno-avx -O1"
     make -j2
     make install
     cd ..
-    rm -rf libxc-2.2.1
+    rm -rf libxc-4.2.3
 else
     echo "LIBXC installed..."
     ls -l ${HOME}/libxc
@@ -111,3 +112,4 @@ else
     find ${HOME}/mpich -name mpicc
     find ${HOME}/mpich -name mpicxx
 fi
+f
