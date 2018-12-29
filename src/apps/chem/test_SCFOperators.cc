@@ -875,21 +875,28 @@ int main(int argc, char** argv) {
     result+=test_kinetic<double,1>(world);
     result+=test_kinetic<double,2>(world);
     result+=test_kinetic<double,3>(world);
+#ifndef HAVE_GENTENSOR
     result+=test_kinetic<double_complex,1>(world);
     result+=test_kinetic<double_complex,2>(world);
     result+=test_kinetic<double_complex,3>(world);
-
+#endif
 
 //    result+=test_kinetic<double,4>(world);
 //    result+=test_kinetic<double_complex,4>(world);
 
     result+=test_coulomb<double>(world);
+#ifndef HAVE_GENTENSOR
     result+=test_coulomb<double_complex>(world);
+#endif
     if (!smalltest) {
     	result+=test_exchange<double>(world);
+#ifndef HAVE_GENTENSOR
     	result+=test_exchange<double_complex>(world);
+#endif
     	result+=test_XCOperator<double>(world);
+#ifndef HAVE_GENTENSOR
     	result+=test_XCOperator<double_complex>(world);
+#endif
     	result+=test_nuclear(world);
     	result+=test_dnuclear(world);
     	result+=test_SCF(world);
