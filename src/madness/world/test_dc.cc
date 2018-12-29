@@ -216,10 +216,10 @@ int main(int argc, char** argv) {
         test1(world);
         test1(world);
     }
-    catch (SafeMPI::Exception e) {
+    catch (const SafeMPI::Exception& e) {
         error("caught an MPI exception");
     }
-    catch (madness::MadnessException e) {
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
     }
