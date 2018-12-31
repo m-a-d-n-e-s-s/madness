@@ -839,7 +839,8 @@ namespace madness {
         template <typename input_iterator>
         void replace(input_iterator& start, input_iterator& end) {
             check_initialized();
-            std::for_each(start,end,std::bind1st(std::mem_fun(&containerT::insert),this));
+            using std::placeholders::_1;
+            std::for_each(start,end,std::bind(this,std::mem_fn(&containerT::insert),_1));
         }
 
 
