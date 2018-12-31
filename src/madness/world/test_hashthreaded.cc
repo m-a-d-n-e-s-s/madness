@@ -49,6 +49,8 @@
 using namespace std;
 using namespace madness;
 
+bool smalltest = false;
+
 void errmsg(const char *msg, int status) {
     cerr << msg << " " << status << std::endl;
     exit(1);
@@ -386,12 +388,19 @@ void test_accessors() {
 
 int main(int argc, char** argv) {
     madness::initialize(argc,argv);
+
+    if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+    for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+    std::cout << "small test : " << smalltest << std::endl;
+    
     try {
         test_coverage();
-        test_random();
-        test_time();
-        test_thread();
-        test_accessors();
+        if (!smalltest) {
+            test_random();
+            test_time();
+            test_thread();
+            test_accessors();
+        }
 
         cout << "Things seem to be working!\n";
     }

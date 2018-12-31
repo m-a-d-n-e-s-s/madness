@@ -391,7 +391,7 @@ public:
         atoms_with_projectors.clear();
         
         // fill list with atoms-with-projectors (i.e. not H or He)
-        for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+        for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
             Atom atom = molecule.get_atom(iatom);
 
             //make sure this is actually a pseudo-atom
@@ -404,7 +404,7 @@ public:
 
         vlocalp = real_factory_3d(world);
         vlocalp.compress();
-        for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+        for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
             // Get atom and its associated GTH tensors
             Atom atom = molecule.get_atom(iatom);
 
@@ -441,7 +441,7 @@ public:
             MADNESS_EXCEPTION("Failed to load GTH pseudopotential file", 0);
         }
 
-        for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+        for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
             Atom atom = molecule.get_atom(iatom);
             unsigned int atype = atom.atomic_number;
             if (debug && world.rank() == 0) {printf("atom atomic_number = %d\n", atype);}

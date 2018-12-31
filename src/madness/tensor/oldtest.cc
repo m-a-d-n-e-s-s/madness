@@ -189,7 +189,7 @@ template <typename T, typename Q> void Test1() {
         ITERATOR6(t,if (!check(t(IND6),q6(IND6))) error("test1: failed",6));
 
     }
-    catch (TensorException e) {
+    catch (const TensorException& e) {
         std::cout << "This exception is unexpected\n";
         std::cout << e;
         std::exit(1);
@@ -596,7 +596,7 @@ int main() {
         std::cout << a(2) << std::endl;
         if (a.bounds_checking()) error("bounds check failed to detect error",1);
     }
-    catch (TensorException e) {
+    catch (const TensorException& e) {
         std::cout << "If bounds checking, this exception was expected" << std::endl;
         std::cout << e;
         if (!a.bounds_checking())
@@ -606,7 +606,7 @@ int main() {
         std::cout << a(-1) << std::endl;
         if (a.bounds_checking()) error("bounds check failed to detect error",2);
     }
-    catch (TensorException e) {
+    catch (const TensorException& e) {
         std::cout << "If bounds checking, this exception was expected" << std::endl;
         std::cout << e;
         if (!a.bounds_checking())
