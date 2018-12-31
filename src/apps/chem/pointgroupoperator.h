@@ -98,7 +98,7 @@ public:
         if (vf.size()==0) return result;
         World& world=vf.begin()->world();
 
-        for (int i=0; i<vf.size(); ++i) result[i]=this->operator()(vf[i],false);
+        for (size_t i=0; i<vf.size(); ++i) result[i]=this->operator()(vf[i],false);
 
         if (fence) world.gop.fence();
 		return result;
@@ -114,8 +114,8 @@ public:
 
 private:
 
-	std::string name_;
 	std::string symbol_;
+	std::string name_;
 	std::vector<long> mirrormap;
     std::vector<long> mapdim_;
 

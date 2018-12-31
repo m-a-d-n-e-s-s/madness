@@ -416,7 +416,7 @@ namespace madness {
     for(auto &pairs:cispd.allpairs){
       CCPair& pair = pairs.second;
       pair.bsh_eps = CCOPS.get_epsilon(pair.i,pair.j) + ccs.omega;
-      if(parameters.only_pair.first == pair.i and parameters.only_pair.second == pair.j){
+      if(size_t(parameters.only_pair.first) == pair.i and size_t(parameters.only_pair.second) == pair.j){
 	output("Found only_pair exception");
 	update_constant_part_cispd(ccs,pair);
 	iterate_pair(pair,ccs);
