@@ -1132,7 +1132,7 @@ namespace madness {
 
         // make pivoting matrix
         Tensor<typename Tensor<T>::scalar_type> P(n,n);
-        for(size_t i=0;i<n;++i){
+        for(int i=0;i<n;++i){
         	P(piv(i),i)=1.0;
         }
 
@@ -1263,7 +1263,7 @@ namespace madness {
             cout << endl;
         }
 
-        catch (TensorException e) {
+        catch (TensorException& e) {
             cout << "Caught a tensor exception in test_tensor_lapack\n";
             cout << e;
             return false;

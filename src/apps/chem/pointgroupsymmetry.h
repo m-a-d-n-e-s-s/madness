@@ -334,7 +334,7 @@ public:
 
 		// distribute into bins
 		std::map<std::string,std::vector<int> > m;
-		for (int i=0; i<sirreps.size(); ++i) m[sirreps[i]].push_back(i);
+		for (size_t i=0; i<sirreps.size(); ++i) m[sirreps[i]].push_back(i);
 
 		// concatenate bins
 		std::vector<int> map;
@@ -350,7 +350,7 @@ public:
 			const std::vector<R>& vrhs) {
 		MADNESS_ASSERT(map.size()==vrhs.size());
 		std::vector<R> result(vrhs.size());
-		for (int i=0; i<map.size(); ++i) result[i]=vrhs[map[i]];
+		for (size_t i=0; i<map.size(); ++i) result[i]=vrhs[map[i]];
 		return result;
 	}
 
