@@ -257,6 +257,8 @@ public:
         vector_complex_function_3d t3 = mul(world,phase_m,t2);
         return t3;
         END_TIMER(world, "apply periodic bsh");
+        throw "control reaches end of non-void function";
+        return t2; // T2 is random choice ... WHAT SHOULD IT REALLY BE??????????????????????????????
     }
 };
 
@@ -293,7 +295,7 @@ vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,
         for (int i = -maxR; i <= maxR; i++) {
             for (int j = -maxR; j <= maxR; j++) {
                 for (int k = -maxR; k <= maxR; k++) {
-                    AtomicBasisFunction abf = aobasis.get_atomic_basis_function(molecule, ibf); 
+                    //AtomicBasisFunction abf = aobasis.get_atomic_basis_function(molecule, ibf); 
                     //if ((i*i+j*j+k*k)*L*L < 3.0*abf.rangesq()) {
                     if (true) {
                         real_functor_3d aofunc(

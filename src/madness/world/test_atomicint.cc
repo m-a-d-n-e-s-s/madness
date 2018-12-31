@@ -100,6 +100,12 @@ int get_nthread() {
 }
 
 int main(int argc, char** argv) {
+    bool smalltest = false;
+    if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+    for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+    std::cout << "small test : " << smalltest << std::endl;
+    if (smalltest) return 0;
+    
     madness::initialize(argc,argv);
     const int nthread = get_nthread();
     if (nthread > MAX_NUM_THREADS)

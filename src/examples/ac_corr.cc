@@ -55,7 +55,7 @@ private:
 
 	/// forms the density
 	double density (const Vector<double, NDIM> &r) const{
-		double dist = get_distance(r, atoms[0].coord)*get_distance(r, atoms[0].coord);
+            //double dist = get_distance(r, atoms[0].coord)*get_distance(r, atoms[0].coord);
 
 		//double sto2g_h = 0.430128498*exp(-1.309756377*get_distance(r, atoms[0].coord)*get_distance(r, atoms[0].coord))+ 0.678913531*exp(-0.233135974*get_distance(r, atoms[0].coord)*get_distance(r, atoms[0].coord));
 		//double density = sto2g_h*sto2g_h;
