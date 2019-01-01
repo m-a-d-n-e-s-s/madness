@@ -134,13 +134,15 @@ namespace madness {
 #define MADNESS_ASSERT(condition)
 #undef MADNESS_ASSERT
 
+
 #ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) { std::abort(); }} while (0)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_DISABLE
-#  define MADNESS_ASSERT(condition)
+// this avoid unused variable warnings, see http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
+#  define MADNESS_ASSERT(condition) do { (void)sizeof(condition);} while (0)    
 #endif
 
 #ifdef MADNESS_ASSERTIONS_ASSERT
@@ -148,14 +150,12 @@ namespace madness {
 #endif
 
 #ifdef MADNESS_ASSERTIONS_THROW
-#  define MADNESS_STRINGIZE(X) #X
-#  define MADNESS_EXCEPTION_AT(F, L) MADNESS_STRINGIZE(F) "(" MADNESS_STRINGIZE(L) ")"
 #  define MADNESS_ASSERT(condition) \
     do { \
         if (!(condition)) { \
             madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
-            throw madness::MadnessException("MADNESS ASSERTION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
-                #condition,0,__LINE__,__FUNCTION__,__FILE__); \
+            throw madness::MadnessException("MADNESS ASSERTION FAILED: " , \
+                                            (#condition),0,__LINE__,__FUNCTION__,__FILE__); \
         } \
     } while (0)
 #endif
@@ -166,26 +166,25 @@ namespace madness {
 /// Depending on the configuration, one of the following happens if
 /// \c condition is false:
 /// - a \c madness::MadnessException is thrown.
-/// - `check(condition)` is called.
 /// - execution is aborted.
 /// \param[in] condition The condition to be checked.
 #define MADNESS_CHECK(condition)
 #undef MADNESS_CHECK
 
-#ifdef MADNESS_ASSERTIONS_THROW
-#  define MADNESS_CHECK(condition)              \
-    do {                                        \
-        if (!(condition)) {                                             \
-            madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
-            throw madness::MadnessException("MADNESS CHECKION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
-                                            #condition,0,__LINE__,__FUNCTION__,__FILE__); \
-        }                                                               \
-    } while (0)
-#else
+// If madness assertions throw/assert/disabled, then madness checks throw.  Otherwise both assertions and checks abort.
+#ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_CHECK(condition)                      \
     do {if (!(condition)) { std::abort(); }} while (0)
+#else
+#  define MADNESS_CHECK(condition)              \
+    do { \
+        if (!(condition)) { \
+            madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
+            throw madness::MadnessException("MADNESS CHECK FAILED: " , \
+                                            (#condition),0,__LINE__,__FUNCTION__,__FILE__); \
+        } \
+    } while (0)
 #endif
-
 
 } // namespace madness
 

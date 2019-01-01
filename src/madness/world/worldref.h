@@ -283,7 +283,7 @@ namespace madness {
             /// \throw MadnessException If \c key is not found in the pointer map.
             static void unregister_ptr_(void* key) {
                 std::size_t erased = pimpl_map_.erase(key);
-                MADNESS_CHECK(erased > 0);
+                if (!erased) MADNESS_EXCEPTION("worldref: unregister_ptr failed", erased);
             }
 
             RemoteCounter(const WorldPtr<implT>& p) :
