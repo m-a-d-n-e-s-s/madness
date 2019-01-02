@@ -18,8 +18,8 @@ void check(DistributedMatrix<double>& A) {
     const Tensor<double>& t = A.data();
     for (int64_t i=ilo; i<=ihi; i++) {
         for (int64_t j=jlo; j<=jhi; j++) {
-            MADNESS_ASSERT(A.get(i,j) == ij(i,j));
-            MADNESS_ASSERT(t(i-ilo,j-jlo) == ij(i,j));
+            MADNESS_CHECK(A.get(i,j) == ij(i,j));
+            MADNESS_CHECK(t(i-ilo,j-jlo) == ij(i,j));
        }
     }
 
@@ -28,7 +28,7 @@ void check(DistributedMatrix<double>& A) {
     const int64_t n=A.coldim(), m=A.rowdim();
     for (int64_t i=0; i<n; i++) {
         for (int64_t j=0; j<m; j++) {
-            if (A.owner(i,j) == me) MADNESS_ASSERT(A.get(i,j) == ij(i,j));
+            if (A.owner(i,j) == me) MADNESS_CHECK(A.get(i,j) == ij(i,j));
         }
     }
 }

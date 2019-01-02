@@ -1618,7 +1618,7 @@ namespace madness {
                     int nclient = 0;
                     BinaryFstreamInputArchive& localar = ar.local_archive();
                     localar & cookie & nclient;
-                    MADNESS_ASSERT(cookie == magic);
+                    MADNESS_CHECK(cookie == magic);
                     while (nclient--) {
                         localar & t;
                     }

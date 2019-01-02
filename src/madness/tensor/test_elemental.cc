@@ -179,7 +179,7 @@ void test_copy(World& world, int n, int m) {
     for (int64_t i=ilo; i<=ihi; i++) {
         for (int64_t j=jlo; j<=jhi; j++) {
             //print(i,j,A.get(i,j),ij(i,j));
-            MADNESS_ASSERT(A.get(i,j) == ij(i,j));
+            MADNESS_CHECK(A.get(i,j) == ij(i,j));
         }
     }
 }
