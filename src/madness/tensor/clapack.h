@@ -42,7 +42,7 @@
 
 #ifdef MADNESS_LINALG_USE_LAPACKE
 #  if HAVE_INTEL_MKL
-#    if !__has_include(<mkl_lapack.h>)
+#    if !__has_include(<mkl_lapacke.h>)
 #      error "INTEL MKL detected at configure time, and MADNESS_LINALG_USE_LAPACKE defined, but mkl_lapacke.h not found. Provide -I/path/to/mkl/include to the compiler."
 #    endif
 #    if !__has_include(<mkl_lapack.h>)
