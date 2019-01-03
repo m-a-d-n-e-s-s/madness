@@ -26,11 +26,6 @@ double Complex_cis::value() {
 /// iterate the roots
 void Complex_cis::iterate(std::vector<root>& roots) const {
 
-	// some numbers
-	const int anoct=noct(nemo.aeps).size();
-	const int bnoct=noct(nemo.beps).size();
-	const int noct=anoct+bnoct;
-
 	// timings
 	double wall0=wall_time(), wall1=wall_time();
 
@@ -44,68 +39,56 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 	totdens.print_size("totdens");
 
 	for (int iter=0; iter<cis_param.maxiter(); ++iter) {
-		print("iteration ",iter);
-		print("root     energy         wf delta    energy change    elapsed time");
+		wall1=wall_time();
+		printf("iteration %2d  %4.1fs\n",iter,wall1-wall0);
+		wall0=wall1;
+		print("root     energy         wf delta    energy change ");
+
+		for (int i=0; i<roots.size(); ++i)
+			printf("  %2d   %12.8f     %4.2e      %4.2e\n",i, roots[i].omega, roots[i].delta, roots[i].energy_change);
+
+
+		// compute the perturbed fock matrix and the excitation energy expectation values
+		compute_potentials(roots, totdens);
+
+		Tensor<double> omega;
+		if ((iter<3) or (iter%5==0)) {
+			Tensor<double_complex> fock_pt = compute_fock_pt(roots);
+			print("fock_pt");
+			print(fock_pt);
+
+			// compute the expectation value of the excitation energy Eq. (34) of Kottmann2015
+			Tensor<double_complex> ovlp(roots.size()),eovlp(roots.size());
+			for (std::size_t i=0; i<roots.size(); ++i) {
+				ovlp(i)=inner(roots[i].afunction,roots[i].afunction) + inner(roots[i].bfunction,roots[i].bfunction);
+				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(nemo.aeps) +(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(nemo.beps);
+			}
+	//		print("ovlp (ab), eovlp (ab)");
+	//		print(ovlp);
+	//		print(eovlp);
+
+			omega=Tensor<double>(roots.size());
+			for (std::size_t i=0; i<roots.size(); ++i) {
+				omega(i)=real((fock_pt(i,i)-eovlp(i,i))/(ovlp(i,i)));
+			}
+			print("omega from the perturbed fock matrix approach");
+			print(omega);
+	//
+			orthonormalize(roots, fock_pt);
+	//		else if (iter<10) orthonormalize(roots);
+		}
+
+		// update the residuals
 		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 			root& thisroot=roots[iroot];
 
-			std::vector<complex_function_3d> td_a=mul(world,thisroot.afunction,active_mo(nemo.amo));
-			std::vector<complex_function_3d> td_b=mul(world,thisroot.bfunction,active_mo(nemo.bmo));
-			int i=0;
-			for (auto& a : td_a) save(real(a),"transition_density_a"+stringify(i++));
-
-			wall1=wall_time();
-			printf("  %2d   %12.8f     %4.2e      %4.2e      %4.1fs\n",iroot, thisroot.omega, thisroot.delta,
-					thisroot.energy_change,wall1-wall0);
-			wall0=wall1;
-
-			std::vector<complex_function_3d> apot=zero_functions_compressed<double_complex,3>(world,anoct);
-			std::vector<complex_function_3d> bpot=zero_functions_compressed<double_complex,3>(world,bnoct);
-
-			// compute the perturbed density
-			real_function_3d denspt=real((dot(world,conj(world,thisroot.afunction),active_mo(nemo.amo)) +
-					dot(world,conj(world,thisroot.bfunction),active_mo(nemo.bmo))));
-			if (nemo.cparam.spin_restricted) denspt.scale(2.0);
-
-			denspt.truncate();
-			double bla=denspt.trace();
-			print("trace over the perturbed density",bla);
-
-			denspt.print_size("denspt");
-
-			for (std::string spin : {"alpha","beta"}) {
-				if (nemo.cparam.spin_restricted and (spin=="beta")) continue;
-
-				const std::vector<complex_function_3d>& mo=(spin=="alpha") ? nemo.amo : nemo.bmo;
-				if (mo.size()==0) continue;
-
-				std::vector<complex_function_3d>& pot=(spin=="alpha") ? apot : bpot;
-				std::vector<complex_function_3d> x= (spin=="alpha") ? thisroot.afunction : thisroot.bfunction;
-				const QProjector<double_complex,3>& Q=(spin=="alpha") ? Qa : Qb;
-				Tensor<double> occ = (spin=="alpha") ? Tensor<double>(nemo.amo.size()) : Tensor<double>(nemo.bmo.size());
-				occ=1.0;
-
-				/// zeroth order Fock operator acting on the x functions
-				std::vector<complex_function_3d> vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo;
-				nemo.compute_potentials(mo,totdens,x,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
-				if (spin=="beta") scale(world,spin_zeeman_nemo,-1.0);
-
-				pot+=(vnemo+vlznemo+dianemo+spin_zeeman_nemo-knemo+jnemo);	// need += b/c of reference
-				truncate(world,pot);
-
-				// perturbed Fock operator acting on the reference orbitals
-				Coulomb Jp(world);
-				Jp.potential() = Jp.compute_potential(denspt);
-
-				Exchange<double_complex,3> Kp(world);
-				Kp.set_parameters(conj(world,mo),x,occ);
-				pot+=Q(Jp(mo) - Kp(mo));
-				truncate(world,pot);
-			}
-
-			std::vector<complex_function_3d> pot=append(apot,bpot);
+			std::vector<complex_function_3d> pot=append(thisroot.apot,thisroot.bpot);
 			std::vector<complex_function_3d> residuals=compute_residuals(pot,thisroot);
 			thisroot.delta=norm2(world,residuals);
+
+			if (omega.size()>0) {		// from the perturbed fock matrix
+				thisroot.omega=omega(iroot);
+			}
 			if (cis_param.omega()!=0) {
 				thisroot.omega=cis_param.omega();
 				printf("\n\nset excitation energy manually to %8.4f\n\n",thisroot.omega);
@@ -118,27 +101,95 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 
 			if (ares.size()>0) thisroot.afunction-=ares;
 			if (bres.size()>0) thisroot.bfunction-=bres;
-			print_size(world,thisroot.afunction,"afunction");
-			print_size(world,thisroot.bfunction,"bfunction");
+//			print_size(world,thisroot.afunction,"afunction1");
+//			print_size(world,thisroot.bfunction,"bfunction1");
 
 		}
-		normalize(roots);
+		orthonormalize(roots);
+	}
+}
 
+void Complex_cis::compute_potentials(std::vector<root>& roots, const real_function_3d& totdens) const {
+	// some numbers
+	const int anoct=noct(nemo.aeps).size();
+	const int bnoct=noct(nemo.beps).size();
+	const int noct=anoct+bnoct;
+
+
+	for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
+		root& thisroot=roots[iroot];
+
+		std::vector<complex_function_3d> td_a=mul(world,thisroot.afunction,active_mo(nemo.amo));
+		std::vector<complex_function_3d> td_b=mul(world,thisroot.bfunction,active_mo(nemo.bmo));
+		int i=0;
+		for (auto& a : td_a) save(real(a),"transition_density_a"+stringify(i++));
+
+		std::vector<complex_function_3d> apot=zero_functions_compressed<double_complex,3>(world,anoct);
+		std::vector<complex_function_3d> bpot=zero_functions_compressed<double_complex,3>(world,bnoct);
+
+		// compute the perturbed density
+		real_function_3d denspt=real((dot(world,conj(world,thisroot.afunction),active_mo(nemo.amo)) +
+				dot(world,conj(world,thisroot.bfunction),active_mo(nemo.bmo))));
+		if (nemo.cparam.spin_restricted) denspt.scale(2.0);
+
+		denspt.truncate();
+		denspt.print_size("denspt");
+
+		for (std::string spin : {"alpha","beta"}) {
+			if (nemo.cparam.spin_restricted and (spin=="beta")) continue;
+
+			const std::vector<complex_function_3d>& mo=(spin=="alpha") ? nemo.amo : nemo.bmo;
+			if (mo.size()==0) continue;
+
+			std::vector<complex_function_3d>& pot=(spin=="alpha") ? apot : bpot;
+			std::vector<complex_function_3d> x= (spin=="alpha") ? thisroot.afunction : thisroot.bfunction;
+			const QProjector<double_complex,3>& Q=(spin=="alpha") ? Qa : Qb;
+			Tensor<double> occ = (spin=="alpha") ? Tensor<double>(nemo.amo.size()) : Tensor<double>(nemo.bmo.size());
+			occ=1.0;
+
+			/// zeroth order Fock operator acting on the x functions
+			std::vector<complex_function_3d> vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo;
+			nemo.compute_potentials(mo,totdens,x,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
+			if (spin=="beta") scale(world,spin_zeeman_nemo,-1.0);
+
+			pot+=(vnemo+vlznemo+dianemo+spin_zeeman_nemo-knemo+jnemo);	// need += b/c of reference
+			truncate(world,pot);
+
+			// perturbed Fock operator acting on the reference orbitals
+			Coulomb Jp(world);
+			Jp.potential() = Jp.compute_potential(denspt);
+
+			Exchange<double_complex,3> Kp(world);
+			Kp.set_parameters(conj(world,mo),x,occ);
+			pot+=Q(Jp(mo) - Kp(mo));
+			truncate(world,pot);
+		}
+		thisroot.apot=copy(world,apot);
+		thisroot.bpot=copy(world,bpot);
 	}
 
 }
 
-Tensor<double> Complex_cis::compute_expectation_values(const std::vector<root>& roots,
-		const std::vector<complex_function_3d>& mo, const real_function_3d& density) const {
+Tensor<double_complex> Complex_cis::compute_fock_pt(const std::vector<root>& roots) const {
 
-	int thisroot=0;
-
-	std::vector<complex_function_3d> vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo;
-	std::vector<complex_function_3d> arg=append(roots[thisroot].afunction,roots[thisroot].bfunction);
-	nemo.compute_potentials(mo,density,arg,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
-	Tensor<double_complex> fockpt=nemo.compute_vmat(arg,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
+	std::size_t dim=roots.size();
 	Kinetic<double_complex,3> T(world);
-	fockpt+=T(arg,arg);
+	Tensor<double_complex> fock_pt_a(dim,dim), fock_pt_b(dim,dim);
+	Tensor<double_complex> Tmat;
+	for (std::size_t r=0; r<dim; ++r) {
+		for (std::size_t p=0; p<dim; ++p) {
+
+			fock_pt_a(r,p) = inner(roots[r].afunction,roots[p].apot);
+			Tmat=T(roots[r].afunction,roots[p].afunction);
+			for (int i=0; i<Tmat.dim(0); ++i) fock_pt_a(r,p)+=Tmat(i,i);
+
+			fock_pt_b(r,p) = inner(roots[r].bfunction,roots[p].bpot);
+			Tmat=T(roots[r].bfunction,roots[p].bfunction);
+			for (int i=0; i<Tmat.dim(0); ++i) fock_pt_b(r,p)+=Tmat(i,i);
+
+		}
+	}
+	return fock_pt_a+fock_pt_b;
 
 }
 
@@ -346,7 +397,7 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 	}
 	for (auto& x : guess) truncate(world, x.afunction, cis_param.thresh());
 	for (auto& x : guess) truncate(world, x.bfunction, cis_param.thresh());
-	normalize(guess);
+	orthonormalize(guess);
 
 	return guess;
 
@@ -400,10 +451,69 @@ Tensor<double_complex> Complex_cis::make_CIS_matrix(const Tensor<double>& veps, 
 
 }
 
+void Complex_cis::orthonormalize(std::vector<root>& roots, const Tensor<double_complex>& fock_pt) const {
+	normalize(roots);
+	Tensor<double_complex> ovlp(roots.size(),roots.size());
+	for (auto i=0; i<roots.size(); ++i) {
+		for (auto j=0; j<roots.size(); ++j) {
+			ovlp(i,j)=inner(roots[i].afunction,roots[j].afunction) + inner(roots[i].bfunction,roots[j].bfunction);
+		}
+	}
+//
+//	print("ovlp in orthonormalize w/ Fock");
+//	print(ovlp);
+
+	// orthonormalize alpha and beta part
+	Tensor<double_complex> U;
+	Tensor<double> e;
+	sygv(fock_pt, ovlp, 1, U, e);
+	std::vector<root> tmp = transform(world,roots,U);
+	for (int i=0; i<tmp.size(); ++i) {
+		roots[i].afunction=tmp[i].afunction;
+		roots[i].bfunction=tmp[i].bfunction;
+		roots[i].apot=tmp[i].apot;
+		roots[i].bpot=tmp[i].bpot;
+	}
+	normalize(roots);
+}
+
+
+void Complex_cis::orthonormalize(std::vector<root>& roots) const {
+	normalize(roots);
+
+	double maxq;
+	do {
+
+		Tensor<double_complex> ovlp(roots.size(),roots.size());
+		for (auto i=0; i<roots.size(); ++i) {
+			for (auto j=0; j<roots.size(); ++j) {
+				ovlp(i,j)=inner(roots[i].afunction,roots[j].afunction)+inner(roots[i].bfunction,roots[j].bfunction);
+			}
+		}
+
+		Tensor<double_complex> Q = Nemo_complex::Q2(ovlp);
+		maxq = 0.0;
+		for (int j=1; j<Q.dim(0); j++)
+			for (int i=0; i<j; i++) {
+				maxq = std::max(std::abs(Q(j,i)),maxq);
+			}
+//		amo = transform(world, amo, Q, 0.0, true);
+		std::vector<root> tmp = transform(world,roots,Q);
+		for (int i=0; i<tmp.size(); ++i) {
+			roots[i].afunction=tmp[i].afunction;
+			roots[i].bfunction=tmp[i].bfunction;
+			roots[i].apot=tmp[i].apot;
+			roots[i].bpot=tmp[i].bpot;
+		}
+//		print("maxq",maxq);
+	} while (maxq>0.01);
+
+	normalize(roots);
+}
+
 
 void Complex_cis::normalize(std::vector<root>& roots) const {
 
-	MADNESS_ASSERT(roots.size()==1);
 	for (auto root : roots) {
 		double na=0.0, nb=0.0;
         if (root.afunction.size()>0) na = norm2(world, root.afunction);

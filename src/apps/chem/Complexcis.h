@@ -75,11 +75,55 @@ public:
 	struct root {
 		std::vector<complex_function_3d> afunction;
 		std::vector<complex_function_3d> bfunction;
+		std::vector<complex_function_3d> apot;
+		std::vector<complex_function_3d> bpot;
 		double omega=0.0;
 		int excitation; 				// counting the excitations
 		double delta=0.0;				// last wave function error
 		double energy_change=0.0;		// last energy_change
 	};
+
+	static std::vector<root> transform(World& world,
+			  const std::vector<root>& v,
+			  const Tensor<double_complex>& c,
+			  bool fence=true) {
+
+		int n = v.size();  // n is the old dimension
+		int m = c.dim(1);  // m is the new dimension
+
+		int nocca=v.front().afunction.size();
+		int noccb=v.front().bfunction.size();
+
+		std::vector<root> result(m);
+
+		for (auto&& r : result) {
+			r.afunction= zero_functions_compressed<double_complex,3>(world, nocca, false);
+			r.bfunction= zero_functions_compressed<double_complex,3>(world, noccb, false);
+			r.apot= zero_functions_compressed<double_complex,3>(world, nocca, false);
+			r.bpot= zero_functions_compressed<double_complex,3>(world, noccb, false);
+		}
+		for (auto&& vv : v) {
+			compress(world, vv.afunction,false);
+			compress(world, vv.bfunction,false);
+			compress(world, vv.apot,false);
+			compress(world, vv.bpot,false);
+		}
+		world.gop.fence();
+
+		for (int i=0; i<m; ++i) {
+			for (int j=0; j<n; ++j) {
+				gaxpy(world,double_complex(1.0),result[i].afunction,c(j,i),v[j].afunction,false);
+				gaxpy(world,double_complex(1.0),result[i].bfunction,c(j,i),v[j].bfunction,false);
+				if (v[j].apot.size()>0) gaxpy(world,double_complex(1.0),result[i].apot,c(j,i),v[j].apot,false);
+				if (v[j].bpot.size()>0) gaxpy(world,double_complex(1.0),result[i].bpot,c(j,i),v[j].bpot,false);
+			}
+		}
+
+		if (fence) world.gop.fence();
+		return result;
+	}
+
+
 
 	Complex_cis(World& w, Nemo_complex& n) : world(w), cis_param(world), nemo(n),
 		Qa(world,conj(world,nemo.amo),nemo.amo), Qb(world,conj(world,nemo.bmo),nemo.bmo) {
@@ -93,6 +137,8 @@ public:
 	double value();
 
 	void iterate(std::vector<root>& roots) const;
+
+	void compute_potentials(std::vector<root>& roots, const real_function_3d& totdens) const;
 
 	std::vector<complex_function_3d> compute_residuals(std::vector<complex_function_3d>& pot,
 			root& root) const;
@@ -108,6 +154,9 @@ public:
 
 	Tensor<double_complex> make_CIS_matrix(const Tensor<double>& veps, const Tensor<double>& oeps) const;
 
+	Tensor<double_complex> compute_fock_pt(const std::vector<root>& roots) const;
+
+
 	/// return the active orbitals only
 	Tensor<double> noct(const Tensor<double>& eps) const {
 		if (eps.size()<=cis_param.freeze()) return Tensor<double>();
@@ -121,9 +170,6 @@ public:
 		result.insert(result.end(),mo.begin()+cis_param.freeze(),mo.end());
 		return result;
 	}
-
-	Tensor<double> compute_expectation_values(const std::vector<root>& roots,
-			const std::vector<complex_function_3d>& mo, const real_function_3d& density) const;
 
 	/// little helper function
 	template<typename T>
@@ -147,6 +193,10 @@ public:
 		Tensor<T> t2=rhs(Slice(dim1,-1,1));
 		return std::make_tuple(t1,t2);
 	}
+
+	void orthonormalize(std::vector<root>& roots, const Tensor<double_complex>& fock_pt_a) const;
+
+	void orthonormalize(std::vector<root>& roots) const;
 
 	void normalize(std::vector<root>& roots) const;
 
@@ -193,6 +243,8 @@ public:
 
 	/// the x vectors
 	std::vector<root> roots;
+
+	const std::vector<std::string> spins = {"alpha","beta"};
 };
 
 } /* namespace madness */

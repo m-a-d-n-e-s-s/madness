@@ -217,7 +217,7 @@ public:
 		for (int i=0; i<mo.size(); ++i) mo[i].scale(1.0/(n[i]));
 	}
 
-	Tensor<double_complex> Q2(const Tensor<double_complex> & s) const {
+	static Tensor<double_complex> Q2(const Tensor<double_complex> & s) {
 		Tensor<double_complex> Q = -0.5*s;
 		for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
 		return Q;
