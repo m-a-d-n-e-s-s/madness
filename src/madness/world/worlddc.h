@@ -40,11 +40,13 @@
 
 */
 
+#include <functional>
+#include <set>
+
 #include <madness/world/parallel_archive.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/mpi_archive.h>
 #include <madness/world/world_object.h>
-#include <set>
 
 namespace madness {
 
