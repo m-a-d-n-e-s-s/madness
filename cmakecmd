@@ -4,5 +4,6 @@ cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/generic-mkl-tbb.cmake \
       -DLIBXC_LIBRARIES=/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a \
       -DLIBXC_INCLUDE_DIRS=/gpfs/projects/rjh/libxc-3.0.0/include \
       -DCMAKE_CXX_COMPILER=mpiicpc \
+      -DCMAKE_CXX_COMPILER=mpiicc \
       ..
 #      -DBLA_STATIC=TRUE 
