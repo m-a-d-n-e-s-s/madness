@@ -58,10 +58,10 @@ export CTEST_OUTPUT_ON_FAILURE=1
 
 if [ "$RUN_TEST" = "buildonly" ]; then
     echo "Build all libraries, examples, and applications ($CMAKE_EXTRA_OPTIONS)"
-    make -j2 all
+    make -j2 all VERBOSE=1
 elif [ "$RUN_TEST" = "all" ]; then
     echo "Build all libraries, examples, and applications; then run all test programs ($CMAKE_EXTRA_OPTIONS)"
-    make -j2 all
+    make -j2 all  VERBOSE=1
     make -j2 test ARGS="-V"
 else
     echo "Running test --- $RUN_TEST ($CMAKE_EXTRA_OPTIONS)"

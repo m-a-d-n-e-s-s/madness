@@ -17,7 +17,6 @@ sudo: false
 addons:
   apt:
     sources:
-      - george-edison55-precise-backports
       - ubuntu-toolchain-r-test
       - llvm-toolchain-xenial-7
     update: true
