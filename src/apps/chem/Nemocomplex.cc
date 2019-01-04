@@ -240,7 +240,7 @@ std::vector<complex_function_3d> Nemo_complex::read_guess(const std::string& spi
 	// load the converged orbitals
     for (std::size_t imo = 0; imo < nmo; ++imo) {
     	print("loading mos ",spin,imo);
-    	load(real_mo[imo], "nemo" + stringify(imo));
+    	load(real_mo[imo], "nemo_"+spin + stringify(imo));
     }
     return convert<double,double_complex,3>(world,real_mo);
 }
@@ -292,6 +292,28 @@ Nemo_complex::compute_vmat(
 	Tensor<double_complex> spin_zeeman_mat=matrix_inner(world,mo,spin_zeeman_nemo);
 	Tensor<double_complex> Kmat=matrix_inner(world,mo,Knemo);
 	Tensor<double_complex> Jmat=matrix_inner(world,mo,Jnemo);
+
+	Kinetic<double_complex,3> T(world);
+	Tensor<double_complex> tmat=T(mo,mo);
+	double ekinetic, evnuclear, ecoulomb, eexchange,ediamagnetic, ezeeman, elz;
+	for (std::size_t i=0; i<mo.size(); ++i) {
+		ekinetic+=real(tmat(i,i));
+		evnuclear+=real(Vnucmat(i,i));
+		ecoulomb+=real(Jmat(i,i));
+		eexchange+=real(Kmat(i,i));
+		ediamagnetic+=real(diamat(i,i));
+		ezeeman+=real(spin_zeeman_mat(i,i));
+		elz+=real(lzmat(i,i));
+	}
+
+	printf("           kinetic   %12.8f\n",ekinetic);
+	printf("           nuclear   %12.8f\n",evnuclear);
+	printf("           Coulomb   %12.8f\n",ecoulomb);
+	printf("          exchange   %12.8f\n",eexchange);
+	printf("       diamagnetic   %12.8f\n",ediamagnetic);
+	printf("       spin-zeeman   %12.8f\n",ezeeman);
+	printf("        spin-orbit   %12.8f\n",elz);
+
 
 	Tensor<double_complex> vmat=Vnucmat+lzmat+diamat+spin_zeeman_mat-Kmat+Jmat;
 	return vmat;

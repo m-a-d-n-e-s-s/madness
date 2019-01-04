@@ -78,7 +78,6 @@ public:
 		std::vector<complex_function_3d> apot;
 		std::vector<complex_function_3d> bpot;
 		double omega=0.0;
-		int excitation; 				// counting the excitations
 		double delta=0.0;				// last wave function error
 		double energy_change=0.0;		// last energy_change
 	};
@@ -140,8 +139,7 @@ public:
 
 	void compute_potentials(std::vector<root>& roots, const real_function_3d& totdens) const;
 
-	std::vector<complex_function_3d> compute_residuals(std::vector<complex_function_3d>& pot,
-			root& root) const;
+	std::vector<complex_function_3d> compute_residuals(root& root) const;
 
 	void update_roots(std::vector<root>& aroot, std::vector<root>& broot, std::vector<root>& troot) const;
 
@@ -244,7 +242,6 @@ public:
 	/// the x vectors
 	std::vector<root> roots;
 
-	const std::vector<std::string> spins = {"alpha","beta"};
 };
 
 } /* namespace madness */

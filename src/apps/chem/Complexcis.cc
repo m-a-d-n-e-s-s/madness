@@ -42,10 +42,10 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 		wall1=wall_time();
 		printf("iteration %2d  %4.1fs\n",iter,wall1-wall0);
 		wall0=wall1;
-		print("root     energy         wf delta    energy change ");
+		print("root     energy         wf delta      energy change ");
 
 		for (int i=0; i<roots.size(); ++i)
-			printf("  %2d   %12.8f     %4.2e      %4.2e\n",i, roots[i].omega, roots[i].delta, roots[i].energy_change);
+			printf("  %2d   %12.8f     %4.2e      %5.2e\n",i, roots[i].omega, roots[i].delta, roots[i].energy_change);
 
 
 		// compute the perturbed fock matrix and the excitation energy expectation values
@@ -61,7 +61,8 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 			Tensor<double_complex> ovlp(roots.size()),eovlp(roots.size());
 			for (std::size_t i=0; i<roots.size(); ++i) {
 				ovlp(i)=inner(roots[i].afunction,roots[i].afunction) + inner(roots[i].bfunction,roots[i].bfunction);
-				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(nemo.aeps) +(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(nemo.beps);
+				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo.aeps))
+						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo.beps));
 			}
 	//		print("ovlp (ab), eovlp (ab)");
 	//		print(ovlp);
@@ -82,8 +83,7 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 			root& thisroot=roots[iroot];
 
-			std::vector<complex_function_3d> pot=append(thisroot.apot,thisroot.bpot);
-			std::vector<complex_function_3d> residuals=compute_residuals(pot,thisroot);
+			std::vector<complex_function_3d> residuals=compute_residuals(thisroot);
 			thisroot.delta=norm2(world,residuals);
 
 			if (omega.size()>0) {		// from the perturbed fock matrix
@@ -139,7 +139,8 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 			if (nemo.cparam.spin_restricted and (spin=="beta")) continue;
 
 			const std::vector<complex_function_3d>& mo=(spin=="alpha") ? nemo.amo : nemo.bmo;
-			if (mo.size()==0) continue;
+			const std::vector<complex_function_3d>& act_mo=(spin=="alpha") ? active_mo(nemo.amo) : active_mo(nemo.bmo);
+			if (act_mo.size()==0) continue;
 
 			std::vector<complex_function_3d>& pot=(spin=="alpha") ? apot : bpot;
 			std::vector<complex_function_3d> x= (spin=="alpha") ? thisroot.afunction : thisroot.bfunction;
@@ -160,8 +161,8 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 			Jp.potential() = Jp.compute_potential(denspt);
 
 			Exchange<double_complex,3> Kp(world);
-			Kp.set_parameters(conj(world,mo),x,occ);
-			pot+=Q(Jp(mo) - Kp(mo));
+			Kp.set_parameters(conj(world,act_mo),x,occ(Slice(cis_param.freeze(),-1)));
+			pot+=Q(Jp(act_mo) - Kp(act_mo));
 			truncate(world,pot);
 		}
 		thisroot.apot=copy(world,apot);
@@ -183,10 +184,11 @@ Tensor<double_complex> Complex_cis::compute_fock_pt(const std::vector<root>& roo
 			Tmat=T(roots[r].afunction,roots[p].afunction);
 			for (int i=0; i<Tmat.dim(0); ++i) fock_pt_a(r,p)+=Tmat(i,i);
 
-			fock_pt_b(r,p) = inner(roots[r].bfunction,roots[p].bpot);
-			Tmat=T(roots[r].bfunction,roots[p].bfunction);
-			for (int i=0; i<Tmat.dim(0); ++i) fock_pt_b(r,p)+=Tmat(i,i);
-
+			if (roots[p].bpot.size()>0) {
+				fock_pt_b(r,p) = inner(roots[r].bfunction,roots[p].bpot);
+				Tmat=T(roots[r].bfunction,roots[p].bfunction);
+				for (int i=0; i<Tmat.dim(0); ++i) fock_pt_b(r,p)+=Tmat(i,i);
+			}
 		}
 	}
 	return fock_pt_a+fock_pt_b;
@@ -194,17 +196,21 @@ Tensor<double_complex> Complex_cis::compute_fock_pt(const std::vector<root>& roo
 }
 
 
-std::vector<complex_function_3d> Complex_cis::compute_residuals(std::vector<complex_function_3d>& pot,
-		root& root) const {
+std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) const {
+
+
+	std::vector<complex_function_3d> x=append(root.afunction,root.bfunction);
+	std::vector<complex_function_3d> pot = append(root.apot,root.bpot);
+	Tensor<double> eps=copy(concatenate(noct(nemo.aeps),noct(nemo.beps))) + root.omega;
+//	print("compute_residuals, eps",eps);
 
 	// make the BSH operator
 	std::vector<std::shared_ptr<SeparatedConvolution<double,3> > > bsh(pot.size());
 
-	std::vector<complex_function_3d> x=append(root.afunction,root.bfunction);
-	Tensor<double> eps=copy(concatenate(noct(nemo.aeps),noct(nemo.beps))) + root.omega;
 	for (std::size_t p = 0; p < bsh.size(); p++) {
 
-		// if eps is above zero we have an unbound state (or are early in the iteration) however this needs a shift of the potential
+		// if eps is above zero we have an unbound state (or are early in the iteration)
+		// however this needs a shift of the potential
 		// we shift to -0.05 (same as moldft does, no particular reason)
 		if(eps[p]>0.0){
 			print("potential shift needed for V" + std::to_string(p+cis_param.freeze()));
@@ -214,7 +220,8 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(std::vector<comp
 		}
 		MADNESS_ASSERT(not(eps[p]>0.0));
 //		print("assigning eps to bsh ",p,eps[p]);
-		bsh[p] = std::shared_ptr<real_convolution_3d>(BSHOperatorPtr3D(world, sqrt(-2.0 * eps[p]), 1.e-4, cis_param.thresh()));
+		bsh[p] = std::shared_ptr<real_convolution_3d>(BSHOperatorPtr3D(world,
+				sqrt(-2.0 * eps[p]), 1.e-4, cis_param.thresh()));
 	}
 
 	// apply the BSH operator
@@ -255,8 +262,8 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 
 	std::vector<complex_function_3d> avirtuals, bvirtuals;
 	Tensor<double> aveps,bveps;		// virtual orbital energies for alpha and beta
-	real_function_3d adens=real(dot(world,conj(world,active_mo(nemo.amo)),active_mo(nemo.amo))).truncate();
-	real_function_3d bdens=real(dot(world,conj(world,active_mo(nemo.bmo)),active_mo(nemo.bmo))).truncate();
+	real_function_3d adens=real(dot(world,conj(world,nemo.amo),nemo.amo)).truncate();
+	real_function_3d bdens=real(dot(world,conj(world,nemo.bmo),nemo.bmo)).truncate();
 	real_function_3d density=adens + bdens;
 	if (nemo.cparam.spin_restricted) density.scale(2.0);
 
@@ -266,18 +273,18 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 
 	for (std::string spin : {"alpha","beta"}) {
 		print("spin " ,spin);
-		std::vector<complex_function_3d> virtuals;
-		std::vector<complex_function_3d> active_mo= (spin=="alpha") ? nemo.amo : nemo.bmo;
-		if (active_mo.size()==0) continue;
+		std::vector<complex_function_3d>& virtuals =(spin=="alpha") ? avirtuals : bvirtuals;
+		std::vector<complex_function_3d> mo= (spin=="alpha") ? active_mo(nemo.amo) : active_mo(nemo.bmo);
+		if (mo.size()==0) continue;
 
 		// prepare the list of excitation operators and copied seeds
-		std::vector<coord_3d> centers = guessfactory::compute_centroids(active_mo);
+		std::vector<coord_3d> centers = guessfactory::compute_centroids(mo);
 		std::vector<std::pair<std::vector<complex_function_3d>, std::string> > exlist;
 		{
 	//		std::vector<std::string> exop_strings=cis_param.exops();
 			std::vector<std::string> exop_strings=(guessfactory::make_predefined_exop_strings(cis_param.guess_excitation_operators()));
 			for(const auto ex: exop_strings){
-				std::vector<complex_function_3d> cseed=copy(world,active_mo,false);
+				std::vector<complex_function_3d> cseed=copy(world,mo,false);
 				exlist.push_back(std::make_pair(cseed,ex));
 			}
 			print(exop_strings);
@@ -300,18 +307,11 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 		const size_t spre=virtuals.size();
 		virtuals=orthonormalize_canonical(virtuals,1.e-6);
 		if(virtuals.size()!=spre) std::cout << "removed " << spre-virtuals.size() << " virtuals due to linear dependencies" << std::endl;
-
-		// canonicalize virtuals and set up the CIS matrix
-		if (spin=="alpha") {
-			canonicalize(active_mo,density,virtuals,aveps);
-			avirtuals=virtuals;
-		}
-		if (spin=="beta") {
-			canonicalize(active_mo,density,virtuals,bveps);
-			bvirtuals=virtuals;
-		}
-
 	}
+
+	// canonicalize virtuals and set up the CIS matrix
+	if (avirtuals.size()>0) canonicalize(nemo.amo,density,avirtuals,aveps);
+	if (bvirtuals.size()>0) canonicalize(nemo.bmo,density,bvirtuals,bveps);
 
 	// active orbital energies only
 	int anoct=noct(nemo.aeps).size();
@@ -331,6 +331,10 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 	Tensor<double> evals;
 	syev(MCIS, U, evals);
 	print("MCIS excitation energies ",evals);
+	if (evals.size()<cis_param.guess_excitations()) {
+		print("number of requested excitations larger than the number of MCIS energies");
+		MADNESS_EXCEPTION("increase the guess",1);
+	}
 //	print(real(U));
 //	print("MCIS excitation vectors");
 //	for (int i=0; i<cis_param.guess_excitations(); ++i) print(real(U(_,i)));
@@ -369,14 +373,12 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 			MADNESS_EXCEPTION("NEGATIVE EIGENVALUE IN INITIAL DIAGONALIZATION: CHECK YOUR REFERENCE!\n",0);
 
 		guess[iexcitation].omega = evals(I);
-		guess[iexcitation].excitation = iexcitation;
 
 		// alpha part
 		if (Ua.size()>0) {
 			for (size_t J = 0; J < Ua.dim(0); ++J) {
 				const int b = get_vir_idx_a(J);
 				const int j = get_occ_idx_a(J);
-//				print("I, J, b, j",I, J, b, j);
 				const double_complex xjb = Ua(J, I);
 				guess[iexcitation].afunction[j] += xjb * avirtuals[b];
 			}
@@ -387,7 +389,6 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 			for (size_t J = 0; J < Ub.dim(0); ++J) {
 				const int b = get_vir_idx_b(J);
 				const int j = get_occ_idx_b(J);
-//				print("I, J, b, j",I, J, b, j);
 				const double_complex xjb = Ub(J, I);
 				guess[iexcitation].bfunction[j] += xjb * bvirtuals[b];
 			}
@@ -434,6 +435,9 @@ Tensor<double_complex> Complex_cis::make_CIS_matrix(const Tensor<double>& veps, 
 	// this simplifies the guess
 	const int nvirt = veps.size();
 
+//	print("eps(occ), eps(vir)");
+//	print(act);
+//	print(veps);
 	const int dim=(nvirt*nact);
 	std::cout << "CIS-Matrix for guess calculation will be of size " << dim << "x" << dim <<std::endl;
 	// the number of the matrix where elements which are not determined by orbital energies and the fock matrix are computed (controlled over active_guess_orbitals parameter)
@@ -515,12 +519,11 @@ void Complex_cis::orthonormalize(std::vector<root>& roots) const {
 void Complex_cis::normalize(std::vector<root>& roots) const {
 
 	for (auto root : roots) {
-		double na=0.0, nb=0.0;
-        if (root.afunction.size()>0) na = norm2(world, root.afunction);
-        if (root.bfunction.size()>0) nb = norm2(world, root.bfunction);
-
-        if (na>1.e-8) scale(world,root.afunction,1.0/na);
-        if (nb>1.e-8) scale(world,root.bfunction,1.0/nb);
+		double n=0.0;
+        if (root.afunction.size()>0) n += norm2(world, root.afunction);
+        if (root.bfunction.size()>0) n += norm2(world, root.bfunction);
+        scale(world,root.afunction,1.0/n);
+        scale(world,root.bfunction,1.0/n);
 	}
 }
 
