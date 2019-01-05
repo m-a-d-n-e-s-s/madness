@@ -1049,10 +1049,10 @@ namespace madness {
             if (!param.pure_ae){
                 double enl;
                 tensorT occ = tensorT(ao.size());
-                for(int i = 0;i < param.nalpha;++i){
+                for (int i = 0;i < param.nalpha;++i) {
                     occ[i] = 1.0;
                 }
-                for(int i = param.nalpha;size_t(i) < ao.size();++i){
+                for (int i = param.nalpha;size_t(i) < ao.size();++i) {
                     occ[i] = 0.0;
                 }
                 vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);}
@@ -1697,37 +1697,80 @@ namespace madness {
     
     tensorT SCF::matrix_exponential(const tensorT& A) const {
         PROFILE_MEMBER_FUNC(SCF);
-        const double tol = 1e-13;
-        MADNESS_ASSERT(A.dim((0) == A.dim(1)));
-        
+        MADNESS_ASSERT(A.dim(0) == A.dim(1));
+
+	// Power iteration to estimate the 2-norm of the matrix. Used
+	// to use Frobenius or 1-norms but neither were very tight.
+        double anorm;
+	{
+	  tensorT x(A.dim(0));
+	  x.fillrandom(); x.scale(1.0/x.normf());
+	  double prev = 0.0;
+	  for (int i=0; i<100; i++) {
+	    tensorT xnew = inner(A,inner(A,x,1,0),0,0);
+	    anorm = std::sqrt(std::abs((x.trace(xnew))));
+	    double err = std::abs(prev-anorm)/anorm;
+	    //print(i,anorm,err,A.normf());
+	    if (err < 0.01) break; // just need 1-2 digits
+	    x = xnew.scale(1.0/xnew.normf());
+	    prev = anorm;
+	  }
+	}
+
         // Scale A by a power of 2 until it is "small"
-        double anorm = A.normf();
         int n = 0;
         double scale = 1.0;
-        while (anorm * scale > 0.1) {
+        while (anorm * scale > 0.089) { // so that 9th order expansion is accurate to 1e-15
             ++n;
             scale *= 0.5;
         }
         tensorT B = scale * A;    // B = A*2^-n
         
-        // Compute exp(B) using Taylor series
-        tensorT expB = tensorT(2, B.dims());
-        for (int i = 0; i < expB.dim(0); ++i)
-            expB(i, i) = 1.0;
+	// Make identity
+        tensorT I = tensorT(2, B.dims());
+        for (int i = 0; i < I.dim(0); ++i) I(i, i) = 1.0;
         
-        int k = 1;
-        tensorT term = B;
-        while (term.normf() > tol) {
-            expB += term;
-            term = inner(term, B);
-            ++k;
-            term.scale(1.0 / k);
-        }
+        // Compute exp(B) using Taylor series optimized to reduce cost --- Chebyshev is only a minor improvement
+	tensorT expB;
+	if (anorm > 0.24e-1) {
+	  tensorT B2 = inner(B,B);
+	  tensorT B4 = inner(B2,B2); 
+	  tensorT B6 = inner(B4,B2); 
+	  expB = I + inner(B,B6+42.*B4+840.*B2+5040.*I).scale(1./5040.) + inner(B2,B6+56.*B4+1680.*B2+20160.*I).scale(1./40320.);
+	}
+	else if (anorm > 0.26e-2) {
+	  tensorT B2 = inner(B,B);
+	  tensorT B4 = inner(B2,B2); 
+	  expB = I + inner(B,42.*B4+840.*B2+5040.*I).scale(1./5040.) + inner(B2,56.*B4+1680.*B2+20160.*I).scale(1./40320.);
+	}
+	else if (anorm > 0.18e-4) {
+	  tensorT B2 = inner(B,B);
+	  expB = I + inner(B,840.*B2+5040.*I).scale(1./5040.) + inner(B2,1680.*B2+20160.*I).scale(1./40320.);
+	}
+	else if (anorm > 4.5e-8) {
+	  expB = I + B + inner(B,B).scale(0.5);
+	} 
+	else {
+	  expB = I + B;
+	} 
+
+	// // Old algorithm
+	// tensorT oldexpB = copy(I);
+	// const double tol = 1e-13;
+        // int k = 1;
+        // tensorT term = B;
+        // while (term.normf() > tol) {
+        //     oldexpB += term;
+        //     term = inner(term, B);
+        //     ++k;
+        //     term.scale(1.0 / k);
+        // }
+	// Error check for validation
+	// double err = (expB-oldexpB).normf();
+	// print("matxerr", anorm, err);
         
         // Repeatedly square to recover exp(A)
-        while (n--) {
-            expB = inner(expB, expB);
-        }
+        while (n--) expB = inner(expB, expB);
         
         return expB;
     }
@@ -2106,7 +2149,7 @@ namespace madness {
         return maxval;
     }
     
-    /// orthonormalize the vectors
+    /// orthonormalize the vectors (symmetric in occupied spaced, gramm-schmidt for virt to occ)
     
     /// @param[in]          world   the world
     /// @param[inout]       amo_new the vectors to be orthonormalized
@@ -2123,12 +2166,15 @@ namespace madness {
                 for (int i=0; i<j; i++)
                     maxq = std::max(std::abs(Q(j,i)),maxq);
             
-            //Q.screen(trantol); // ???? Is this really needed? Just for speed.
+            Q.screen(trantol); // Is this really needed? Just for speed.
 
-            //make virt orthog to occ without changing occ states (is this correct?)
-            for (int j=nocc; j<Q.dim(0); ++j)
-                for (int i=0; i<nocc; ++i)
+            //make virt orthog to occ without changing occ states --- ASSUMES symmetric form for Q2
+            for (int j=nocc; j<Q.dim(0); ++j) {
+                for (int i=0; i<nocc; ++i) {
                     Q(j,i)=0.0;
+                    Q(i,j)*=2.0;
+                }
+            }
 
             amo_new = transform(world, amo_new,
                                 Q, trantol, true);
@@ -2143,7 +2189,7 @@ namespace madness {
 
     }
 
-    /// orthonormalize the vectors
+    /// orthonormalize the vectors ignoring occupied/virtual distinctions
     
     /// @param[in]          world   the world
     /// @param[inout]       amo_new the vectors to be orthonormalized
