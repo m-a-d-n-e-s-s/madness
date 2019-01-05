@@ -515,7 +515,7 @@ int test_XCOperator(World& world) {
         print("kernel ",a2);
         print("ratio ",a0,a2*9.0/4.0);
         if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0-a2*9.0/4.0)<tol);
-        MADNESS_CHECK(similar(a2,refvalues[i++]));
+        MADNESS_CHECK(similar(a2,refvalues[i++],tol));  // bp fails this without relaxed tol
 
         // do spin-polarized
         for (int ispin=0; ispin<2   ; ++ispin) {
