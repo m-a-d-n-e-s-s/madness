@@ -763,7 +763,11 @@ namespace madness {
                     calc.set_protocol<3>(world,calc.param.protocol_data[proto]);
                     calc.make_nuclear_potential(world);
                     
-                    if (calc.param.restartao) calc.param.aobasis = "sto-3g"; // since this was used for the projection
+                    if (calc.param.restartao) {
+		      calc.param.aobasis = "sto-3g"; // since this was used for the projection
+		      calc.aobasis = AtomicBasisSet(); // reset
+		      calc.aobasis.read_file(calc.param.aobasis);
+		    }
                     calc.project_ao_basis(world);
                     
                     if (proto == 0 && nv == nvalpha_start) {
@@ -802,8 +806,11 @@ namespace madness {
                     // of the MOs and orbital localization
                     
                     if (calc.param.aobasis != "sto-3g") {
-                        calc.param.aobasis = "sto-3g";
-                        calc.project_ao_basis(world);
+		      print("reproj");
+		      calc.param.aobasis = "sto-3g";
+		      calc.aobasis = AtomicBasisSet(); // reset
+		      calc.aobasis.read_file(calc.param.aobasis);
+		      calc.project_ao_basis(world);
                     }
                     calc.solve(world);
                     
