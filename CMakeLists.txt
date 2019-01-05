@@ -520,7 +520,6 @@ include(external/libxc.cmake)
 include(external/pcm.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
-include(external/mkl.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 
