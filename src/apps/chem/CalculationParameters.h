@@ -115,7 +115,11 @@ struct CalculationParameters {
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;    ///< nuclear correlation factor
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
-    int nv_factor;              ///< factor to multiply number of virtual orbitals with when automatically decreasing nvirt
+    // variables for calculations with automatically decreasing number of virtual states:
+    // do nv_its iters for nvalpha, then nv_its iters for nvalpha-nv_step etc. until reach nvalpha-nv_extra states
+    int nv_extra;               ///< number of extra virtual states when automatically decreasing nvirt
+    int nv_step;                ///< number of virtual states to decrease by
+    int nv_its;                 ///< maximum number of iterations for each number of virtual states
     int vnucextra; // load balance parameter for nuclear pot.
     int loadbalparts = 2; // was 6
     std::string pcm_data;            ///< do a PCM (solvent) calculation
@@ -152,7 +156,8 @@ struct CalculationParameters {
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
         & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf & restart_cphf
-        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data & explicit_occ & input_aocc & input_bocc;
+        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data & explicit_occ & input_aocc & input_bocc
+        & nv_extra & nv_step & nv_its;
     }
 
     CalculationParameters()
@@ -216,7 +221,9 @@ struct CalculationParameters {
     , tdksprop(false)
     , nuclear_corrfac("none")
     , pure_ae(true)
-    , nv_factor(1)
+    , nv_extra(0)
+    , nv_step(0)
+    , nv_its(5)
     , vnucextra(12)
     , loadbalparts(2)
     , pcm_data("none")
@@ -476,9 +483,15 @@ struct CalculationParameters {
             else if (s == "explicit_occ") {
                 explicit_occ = true;
             }
-            else if (s == "nv_factor") {
-                f >> nv_factor;
+            else if (s == "nv_extra") {
+                f >> nv_extra;
             }
+            else if (s == "nv_step") {
+                f >> nv_step;
+            }
+            else if (s == "nv_its") {
+                f >> nv_its;
+             }
             else if (s == "response") {
                 response = true;
             }
@@ -679,6 +692,14 @@ struct CalculationParameters {
             madness::print(" psp or all electron ", "mixed psp/AE");
         if (explicit_occ){
             madness::print("  explicit occupancy ");
+        }
+        if (nvalpha > 0){
+            madness::print("  number of virtuals ", nvalpha, nvbeta);
+            if (nv_extra > 0 && nv_its > 0){
+                madness::print(" num. extra virtuals ", nv_extra);
+                madness::print("decrease virtuals by ", nv_step);
+                madness::print("    max. virtual its ", nv_its);
+            }
         }
     }
 
