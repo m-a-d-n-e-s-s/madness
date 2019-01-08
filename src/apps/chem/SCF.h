@@ -407,6 +407,28 @@ namespace madness {
         
         /// getter for the occupation numbers, alpha spin
         const tensorT& get_bocc() const {return bocc;}
+
+        /// function for printing occupancies, useful in the case where explicit occupancies were given
+        void print_occs()
+        {
+            long naocc = aocc.size();
+
+            long nbocc = 0;
+            if (param.nbeta != 0 && !param.spin_restricted) {
+                nbocc = bocc.size();
+            }
+           
+            // assuming aocc must always be equal to or longer than bocc
+            printf("\tOccupancies:\n");
+            for (long i = 0; i < naocc; ++i) {
+                printf("\t%10.6f\t", aocc(i));
+                if (i < nbocc){
+                   printf("%10.6f\t", bocc(i));
+                }
+                printf("\n");
+            }
+            printf("\n");
+        }
         
         bool is_spin_restricted() const {return param.spin_restricted;}
         

@@ -277,6 +277,14 @@ namespace madness {
             aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha - 1)));
             aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha - 1)));
         }
+
+        // override the occupancies in the case of explicit input occupancies
+        if (param.explicit_occ) {
+            int nocc = param.input_aocc.size();
+            for (int i = 0; i < nocc; ++i){
+                aocc[i] = param.input_aocc[i];
+            }
+        }
         
         if (amo[0].k() != k) {
             reconstruct(world, amo);
@@ -332,6 +340,24 @@ namespace madness {
                 //                normalize(world, bmo);
                 
             }
+
+            // override the occupancies in the case of explicit input occupancies
+            if (param.explicit_occ) {
+                int nocc = param.input_bocc.size();
+                for (int i = 0; i < nocc; ++i){
+                    bocc[i] = param.input_bocc[i];
+                }
+            }
+
+        }
+
+        // output occupancies in the case of explicit input occupancies
+        if (param.explicit_occ) {    
+            if (world.rank()==0){
+                printf("\n\tUsing occupancies from input file:\n");
+                print_occs();  
+            }
+
         }
     }
     
@@ -1257,6 +1283,14 @@ namespace madness {
             aocc = tensorT(param.nmo_alpha);
             for (int i = 0; i < param.nalpha; ++i)
                 aocc[i] = 1.0;
+
+            // override the occupancies in the case of explicit input occupancies
+            if (param.explicit_occ) {
+                int nocc = param.input_aocc.size();
+                for (int i = 0; i < nocc; ++i){
+                    aocc[i] = param.input_aocc[i];
+                }
+            }
             
             if (world.rank()==0) print("grouping alpha orbitals into sets");
             aset=group_orbital_sets(world,aeps,aocc,param.nmo_alpha);
@@ -1270,10 +1304,27 @@ namespace madness {
                 for (int i = 0; i < param.nbeta; ++i)
                     bocc[i] = 1.0;
 
+                // override the occupancies in the case of explicit input occupancies
+                if (param.explicit_occ) {
+                    int nocc = param.input_bocc.size();
+                    for (int i = 0; i < nocc; ++i){
+                        bocc[i] = param.input_bocc[i];
+                    }
+                }
+
                 if (world.rank()==0) print("grouping beta orbitals into sets");
                 bset=group_orbital_sets(world,beps,bocc,param.nmo_beta);
 
             }
+
+            // output occupancies in the case of explicit input occupancies
+            if (param.explicit_occ) {    
+                if (world.rank()==0){
+                    printf("\n\tUsing occupancies from input file:\n");
+                    print_occs();  
+                }
+            }
+
             END_TIMER(world, "guess orbital grouping");
         }
     }
