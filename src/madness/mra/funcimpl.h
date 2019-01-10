@@ -344,8 +344,10 @@ namespace madness {
                 //                coeff() = coeffT(t,args);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
-                    //const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
-                    const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+		    if (c.is_local(parent))
+			const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+		    else
+		      const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
             double cpu1=cpu_time();
@@ -383,8 +385,10 @@ namespace madness {
             	coeff() = copy(t);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
-                    //const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
-                    const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+		    if (c.is_local(parent)) 
+		      const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+		    else
+		      const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
             double cpu1=cpu_time();
@@ -1313,7 +1317,7 @@ namespace madness {
             if (not (std::istringstream(line) >> ndata)) MADNESS_EXCEPTION("failed reading k",0);
             if (not (std::getline(gfile,line))) MADNESS_EXCEPTION("failed reading 1st line of grid data",0);
             if (not (std::istringstream(line) >> ndata1)) MADNESS_EXCEPTION("failed reading k",0);
-            MADNESS_ASSERT(ndata==ndata1);
+            MADNESS_CHECK(ndata==ndata1);
             if (not (std::getline(kfile,line))) MADNESS_EXCEPTION("failed reading 2nd line of key data",0);
             if (not (std::getline(gfile,line))) MADNESS_EXCEPTION("failed reading 2nd line of grid data",0);
 
@@ -1358,23 +1362,23 @@ namespace madness {
 
 
                 if (NDIM == 3) {
-                    for (int i=0; i<npt; ++i) {
+                    for (size_t i=0; i<npt; ++i) {
                         c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                        for (int j=0; j<npt; ++j) {
+                        for (size_t j=0; j<npt; ++j) {
                             c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                            for (int k=0; k<npt; ++k) {
+                            for (size_t k=0; k<npt; ++k) {
                                 c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
                                 //								fprintf(pFile,"%18.12f %18.12f %18.12f\n",c[0],c[1],c[2]);
-                                auto& success1 = std::getline(gfile,gline); MADNESS_ASSERT(success1);
-                                auto& success2 = std::getline(kfile,kline); MADNESS_ASSERT(success2);
+                                auto& success1 = std::getline(gfile,gline); MADNESS_CHECK(success1);
+                                auto& success2 = std::getline(kfile,kline); MADNESS_CHECK(success2);
                                 std::istringstream(gline) >> x >> y >> z >> val;
                                 std::istringstream(kline) >> x1 >> y1 >> z1;
-                                MADNESS_ASSERT(std::fabs(x-c[0])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(x1-c[0])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(y-c[1])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(y1-c[1])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(z-c[2])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(z1-c[2])<1.e-4);
+                                MADNESS_CHECK(std::fabs(x-c[0])<1.e-4);
+                                MADNESS_CHECK(std::fabs(x1-c[0])<1.e-4);
+                                MADNESS_CHECK(std::fabs(y-c[1])<1.e-4);
+                                MADNESS_CHECK(std::fabs(y1-c[1])<1.e-4);
+                                MADNESS_CHECK(std::fabs(z-c[2])<1.e-4);
+                                MADNESS_CHECK(std::fabs(z1-c[2])<1.e-4);
 
                                 // regularize if a functor is given
                                 if (vnuc_functor) val-=(*vnuc_functor)(c);
@@ -1397,7 +1401,7 @@ namespace madness {
 
             kfile.close();
             gfile.close();
-            MADNESS_ASSERT(ii==nboxes);
+            MADNESS_CHECK(ii==nboxes);
 
         }
 
@@ -1427,7 +1431,7 @@ namespace madness {
             long npoints=power<NDIM>(npt);
             // the number of boxes
             long nboxes=ndata/npoints;
-            MADNESS_ASSERT(nboxes*npoints==ndata);
+            MADNESS_CHECK(nboxes*npoints==ndata);
             print("reading ",nboxes,"boxes from file",gridfile);
 
             // these will be the data
@@ -1467,11 +1471,11 @@ namespace madness {
                                 c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
 
                                 auto& success = std::getline(gfile,gline);
-                                MADNESS_ASSERT(success);
+                                MADNESS_CHECK(success);
                                 std::istringstream(gline) >> x1 >> y1 >> z1 >> val;
-                                MADNESS_ASSERT(std::fabs(x1-c[0])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(y1-c[1])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(z1-c[2])<1.e-4);
+                                MADNESS_CHECK(std::fabs(x1-c[0])<1.e-4);
+                                MADNESS_CHECK(std::fabs(y1-c[1])<1.e-4);
+                                MADNESS_CHECK(std::fabs(z1-c[2])<1.e-4);
 
                                 // regularize if a functor is given
                                 if (vnuc_functor) val-=(*vnuc_functor)(c);
@@ -1495,7 +1499,7 @@ namespace madness {
             }
 
             gfile.close();
-            MADNESS_ASSERT(ii==nboxes);
+            MADNESS_CHECK(ii==nboxes);
 
         }
 
@@ -2111,7 +2115,7 @@ namespace madness {
         struct do_check_symmetry_local {
             typedef Range<typename dcT::const_iterator> rangeT;
             const implT* f;
-            do_check_symmetry_local() {}
+            do_check_symmetry_local() : f(0) {}
             do_check_symmetry_local(const implT& f) : f(&f) {}
 
             /// return the norm of the difference of this node and its "mirror" node
@@ -2187,7 +2191,7 @@ namespace madness {
             FunctionImpl<Q,NDIM>* other;
             T alpha;
             R beta;
-            do_merge_trees() {}
+            do_merge_trees() : other(0) {}
             do_merge_trees(const T alpha, const R beta, FunctionImpl<Q,NDIM>& other)
                 : other(&other), alpha(alpha), beta(beta) {}
 
@@ -2247,13 +2251,129 @@ namespace madness {
 
         };
 
+        /// mirror dimensions of this, write result on f
+        struct do_mirror {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            std::vector<long> mirror;
+            implT* f;
+
+            do_mirror() : f(0) {};
+            do_mirror(const std::vector<long> mirror, implT& f) : mirror(mirror), f(&f) {}
+
+            bool operator()(typename rangeT::iterator& it) const {
+
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+
+                // mirror translation index: l_new + l_old = l_max
+                Vector<Translation,NDIM> l=key.translation();
+                Translation lmax = (Translation(1)<<key.level()) - 1;
+                for (std::size_t i=0; i<NDIM; ++i) {
+                	if (mirror[i]==-1) l[i]= lmax - key.translation()[i];
+                }
+
+                // mirror coefficients: multiply all odd-k slices with -1
+                tensorT c = node.coeff().full_tensor_copy();
+            	if (c.size()) {
+            		std::vector<Slice> s(___);
+
+                	// loop over dimensions and over k
+                	for (size_t i=0; i<NDIM; ++i) {
+                		std::size_t kmax=c.dim(i);
+                		if (mirror[i]==-1) {
+                			for (size_t k=1; k<kmax; k+=2) {
+                				s[i]=Slice(k,k,1);
+                				c(s)*=(-1.0);
+                			}
+                			s[i]=_;
+                		}
+                	}
+                }
+                coeffT cc(c,f->get_tensor_args());
+                f->get_coeffs().replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
+
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("no serialization of do_mirror",1);
+            }
+
+        };
+
+        /// mirror dimensions of this, write result on f
+        struct do_map_and_mirror {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            std::vector<long> map,mirror;
+            implT* f;
+
+            do_map_and_mirror() = default;
+            do_map_and_mirror(const std::vector<long> map, const std::vector<long> mirror, implT& f)
+            		: map(map), mirror(mirror), f(&f) {}
+
+            bool operator()(typename rangeT::iterator& it) const {
+
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+
+                tensorT c = node.coeff().full_tensor_copy();
+                Vector<Translation,NDIM> l=key.translation();
+
+                // do the mapping first (if present)
+                if (map.size()>0) {
+                	Vector<Translation,NDIM> l1=l;
+                	for (std::size_t i=0; i<NDIM; ++i) l1[map[i]] = l[i];
+                	std::swap(l,l1);
+                	if (c.size()) c = copy(c.mapdim(map));
+                }
+
+                if (mirror.size()>0) {
+					// mirror translation index: l_new + l_old = l_max
+                	Vector<Translation,NDIM> l1=l;
+					Translation lmax = (Translation(1)<<key.level()) - 1;
+					for (std::size_t i=0; i<NDIM; ++i) {
+						if (mirror[i]==-1) l1[i]= lmax - l[i];
+					}
+                	std::swap(l,l1);
+
+                	// mirror coefficients: multiply all odd-k slices with -1
+					if (c.size()) {
+						std::vector<Slice> s(___);
+
+						// loop over dimensions and over k
+						for (size_t i=0; i<NDIM; ++i) {
+							std::size_t kmax=c.dim(i);
+							if (mirror[i]==-1) {
+								for (size_t k=1; k<kmax; k+=2) {
+									s[i]=Slice(k,k,1);
+									c(s)*=(-1.0);
+								}
+								s[i]=_;
+							}
+						}
+					}
+                }
+
+                coeffT cc(c,f->get_tensor_args());
+                f->get_coeffs().replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("no serialization of do_mirror",1);
+            }
+
+        };
+
+
+
         /// "put" this on g
         struct do_average {
             typedef Range<typename dcT::const_iterator> rangeT;
 
             implT* g;
 
-            do_average() {}
+            do_average() : g(0) {}
             do_average(implT& g) : g(&g) {}
 
             /// iterator it points to this
@@ -2380,7 +2500,11 @@ namespace madness {
                             bool newnode = left->coeffs.insert(acc,key);
                             if (newnode && key.level()>0) {
                                 Key<NDIM> parent = key.parent();
-                                left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+				if (left->coeffs.is_local(parent))
+				  left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+				else
+				  left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+
                             }
                             nodeT& node = acc->second;
                             if (!node.has_coeff())
@@ -3586,7 +3710,7 @@ namespace madness {
         	// if the initial level is not reached then this must not be a leaf box
         	size_t il = result->get_initial_level();
         	if(FunctionDefaults<NDIM>::get_refine()) il+=1;
-        	if(key.level()<il){
+        	if(key.level()<int(il)){
         	    //std::cout << "n=" +  std::to_string(key.level()) + " below initial level " + std::to_string(result->get_initial_level()) + "\n";
         	    // insert empty coeffs for this box and send off jobs for the children
         	    result->get_coeffs().replace(key,nodeT(coeffT(),true));
@@ -3903,11 +4027,18 @@ namespace madness {
 
         }
 
-
-
         /// Permute the dimensions of f according to map, result on this
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
 
+        /// mirror the dimensions of f according to map, result on this
+        void mirror(const implT& f, const std::vector<long>& mirror, bool fence);
+
+        /// map and mirror the translation index and the coefficients, result on this
+
+        /// first map the dimensions, the mirror!
+        /// this = mirror(map(f))
+        void map_and_mirror(const implT& f, const std::vector<long>& map,
+        		const std::vector<long>& mirror, bool fence);
 
         /// take the average of two functions, similar to: this=0.5*(this+rhs)
 
@@ -3994,7 +4125,7 @@ namespace madness {
             // and we get a write accessor just in case they are already executing
             typename dcT::accessor acc;
             const auto found = coeffs.find(acc,key);
-            MADNESS_ASSERT(found);
+            MADNESS_CHECK(found);
             nodeT& node = acc->second;
             if (node.has_coeff() && key.level() < max_refine_level && op(this, key, node)) {
                 coeffT d(cdata.v2k,targs);
@@ -4350,9 +4481,10 @@ namespace madness {
 		        ndone++;
 		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
 			if (result.normf() > 0.3*tol/fac) {
-			      // Switched back to send in order to get rid of a zillion small tasks and to preserve
-			      // direct call optimization.  Also reduces remote memory foot print.
+			  if (coeffs.is_local(dest))
 			      coeffs.send(dest, &nodeT::accumulate2, result, coeffs, dest);
+			  else
+  			      coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest);
                         }
                     }
                 }
@@ -4990,7 +5122,8 @@ namespace madness {
             return map;
         }
 
-
+#if HAVE_GENTENSOR
+// Original
         template <typename R>
         static void do_inner_localX(const typename mapT::iterator lstart,
                                     const typename mapT::iterator lend,
@@ -5027,10 +5160,47 @@ namespace madness {
             result += r;
             mutex->unlock();
         }
+#else
+       template <typename R>
+       static void do_inner_localX(const typename mapT::iterator lstart,
+                                   const typename mapT::iterator lend,
+                                   typename FunctionImpl<R,NDIM>::mapT* rmap_ptr,
+                                   const bool sym,
+                                   Tensor< TENSOR_RESULT_TYPE(T,R) >* result_ptr,
+                                   Mutex* mutex) {
+           Tensor< TENSOR_RESULT_TYPE(T,R) >& result = *result_ptr;
+           //Tensor< TENSOR_RESULT_TYPE(T,R) > r(result.dim(0),result.dim(1));
+           for (typename mapT::iterator lit=lstart; lit!=lend; ++lit) {
+               const keyT& key = lit->first;
+               typename FunctionImpl<R,NDIM>::mapT::iterator rit=rmap_ptr->find(key);
+               if (rit != rmap_ptr->end()) {
+                   const mapvecT& leftv = lit->second;
+                   const typename FunctionImpl<R,NDIM>::mapvecT& rightv =rit->second;
+                   const size_t nleft = leftv.size();
+                   const size_t nright= rightv.size();
 
-        static double conj(double x) {
-            return x;
-        }
+                   unsigned int size = leftv[0].second->size();
+                   Tensor<T> Left(nleft, size);
+                   Tensor<R> Right(nright, size);
+                   Tensor< TENSOR_RESULT_TYPE(T,R)> r(nleft, nright);
+                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = *(leftv[iv].second);
+                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = *(rightv[jv].second);
+                   // call mxmT from mxm.h in tensor
+                   if(TensorTypeData<T>::iscomplex) Left = Left.conj();  //Should handle complex case and leave real case alone
+                   mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
+                   mutex->lock();
+                   for(unsigned int iv = 0; iv < nleft; ++iv) {
+                       const int i = leftv[iv].first;
+                       for(unsigned int jv = 0; jv < nright; ++jv) {
+                         const int j = rightv[jv].first;
+                         if (!sym || (sym && i<=j)) result(i,j) += r(iv,jv);
+                       }
+                   }
+                   mutex->unlock();
+               }
+           }
+       }
+#endif
 
         static double conj(float x) {
             return x;

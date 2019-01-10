@@ -167,12 +167,16 @@ namespace madness {
       typedef T& type;
     };
     template <typename T>
+    struct future_to_ref<Future<T>*> {
+      typedef T& type;
+    };
+    template <typename T>
     struct future_to_ref<Future<T>&> {
       typedef T& type;
     };
     template <typename T>
     struct future_to_ref<const Future<T>&> {
-      typedef const T& type;
+      typedef T& type;
     };
     template <typename T>
     using future_to_ref_t = typename future_to_ref< T >::type;
@@ -706,6 +710,14 @@ namespace madness {
         ///           be revisited to make easier moving Future objects into
         ///           functions).
         inline explicit operator T&&() && {
+            return std::move(get());
+        }
+
+        /// An rvalue analog of \c get().
+
+        /// \return An rvalue reference to the value.
+        /// \internal Rationale: this makes possible to move the value from a mutable assigned future.
+        inline explicit operator T&&() & {
             return std::move(get());
         }
 

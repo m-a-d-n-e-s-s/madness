@@ -22,8 +22,9 @@ thisinclude_HEADERS = correlationfactor.h molecule.h molecularbasis.h \
                       corepotential.h atomutil.h SCF.h xcfunctional.h \
                       mp2.h nemo.h potentialmanager.h gth_pseudopotential.h \
                       molecular_optimizer.h projector.h \
-                      SCFOperators.h CCStructures.h \
-                      electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h AC.h \
+                      SCFOperators.h CCStructures.h pointgroupoperator.h pointgroupsymmetry.h \
+                      electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h \
+                      CC2.h CCPotentials.h AC.h GuessFactory.h  \
                       polynomial.h gaussian.h ESInterface.h NWChem.h basis.h
 
 testxc_SOURCES = testxc.cc xcfunctional.h
@@ -40,10 +41,12 @@ plotxc_LDADD = libMADchem.la $(MRALIBS)
 
 libMADchem_la_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc \
                        corepotential.cc atomutil.cc lda.cc cheminfo.cc \
-                       distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc\
-                       SCFOperators.cc xcfunctional_ldaonly.cc TDHF.cc CCStructures.cc CC2.cc CCPotentials.cc AC.cc\
+                       distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc pointgroupsymmetry.cc \
+                       SCFOperators.cc xcfunctional_ldaonly.cc TDHF.cc CCStructures.cc CC2.cc CCPotentials.cc \
+                       AC.cc GuessFactory.cc\
                        polynomial.cc gaussian.cc NWChem.cc \
                        $(thisinclude_HEADERS)
+
 libMADchem_la_LDFLAGS = -version-info 0:0:0
                        
 if MADNESS_HAS_LIBXC

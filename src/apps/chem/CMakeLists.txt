@@ -10,14 +10,17 @@ set(MADCHEM_HEADERS
     molecular_optimizer.h projector.h
     SCFOperators.h CCStructures.h CalculationParameters.h
     electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
-    pcm.h SCFProtocol.h AC.h  
+    pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h
     basis.h polynomial.h gaussian.h ESInterface.h NWChem.h)
+
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
     corepotential.cc atomutil.cc lda.cc cheminfo.cc
     distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc
-    SCFOperators.cc TDHF.cc CCStructures.cc CC2.cc CCPotentials.cc AC.cc
+    SCFOperators.cc TDHF.cc GuessFactory.cc CCStructures.cc CC2.cc CCPotentials.cc 
+    AC.cc pointgroupsymmetry.cc
     polynomial.cc gaussian.cc NWChem.cc)
+
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()
@@ -35,6 +38,12 @@ if(LIBXC_FOUND)
   target_link_libraries(MADchem PUBLIC ${LIBXC_LIBRARIES})
 endif()
 
+if(PCM_FOUND)
+  target_include_directories(MADchem PUBLIC ${PCM_INCLUDE_DIRS})
+  target_link_libraries(MADchem PUBLIC ${PCM_LIBRARIES})
+endif()
+
+
 # Add executables
 add_executable(plotxc plotxc.cc xcfunctional.h)
 target_link_libraries(plotxc MADchem)
@@ -47,15 +56,17 @@ install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 # Add unit tests    
 if(ENABLE_UNITTESTS)
   
+  SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
-  set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc)
+  set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc)
   
   add_unittests(chem CHEM_TEST_SOURCES "MADchem;MADgtest")
   
   # Create other test executables not included in the unit tests
   set(CHEM_OTHER_TESTS testxc)
   foreach(_test ${CHEM_OTHER_TESTS})  
-    add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
+#    add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
+    add_executable(${_test} ${_test}.cc)
     target_link_libraries(${_test} MADchem)
   endforeach()
   

@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
         Future<int> futa = a.send(p,&Foo::get);
         Future<int> futb = b.send(p,&Foo::get);
         // Could work here until the results are available
-        MADNESS_ASSERT(futa.get() == p);
-        MADNESS_ASSERT(futb.get() == p*10);
+        MADNESS_CHECK(futa.get() == p);
+        MADNESS_CHECK(futb.get() == p*10);
     }
     world.gop.fence();
     if (world.rank() == 0) print("OK!");

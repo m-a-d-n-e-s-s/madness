@@ -237,7 +237,7 @@ namespace madness {
             /// \param[in] filename Base name of the file.
             static void remove(World& world, const char* filename) {
                 if (world.rank() == 0) {
-                    char buf[256];
+                    char buf[268];
                     MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
                     for (ProcessID p=0; p<world.size(); ++p) {
                         sprintf(buf, "%s.%5.5d", filename, p);

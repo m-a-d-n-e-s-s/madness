@@ -85,8 +85,8 @@ int main(int argc, char** argv) {
         Future<double> vala = a.read(i);
         Future<double> valb = b.read(i);
         // Could do work here until results are available
-        MADNESS_ASSERT(vala.get() == 10.0*i);
-        MADNESS_ASSERT(valb.get() ==  7.0*i);
+        MADNESS_CHECK(vala.get() == 10.0*i);
+        MADNESS_CHECK(valb.get() ==  7.0*i);
     }
     world.gop.fence();
 

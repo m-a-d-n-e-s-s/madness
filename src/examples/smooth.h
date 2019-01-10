@@ -76,7 +76,7 @@ struct munging_operator {
                     const real_tensor& smoothed_function) const {
         ITERATOR(U,
                  double f = function(IND);
-                 double sf = smoothed_function(IND);
+                 //double sf = smoothed_function(IND);
                  if (fabs(f)<thresh_)
                      U(IND) = 0.0;
                  else
@@ -188,7 +188,7 @@ public:
 	madness::Tensor<double> slater_apply(const std::vector< madness::Tensor<double> >& t,const madness::Key<3> & key,const FunctionCommonData<double,3> cdata) const{
 	madness::Tensor<double> rho = t.front();
 	madness::Tensor<double> pt_rho = t.back();
-    const long & k = FunctionDefaults<3>::get_k();
+        const long k = FunctionDefaults<3>::get_k();
 	const Tensor<double>& quad_x = cdata.quad_x;
 
 	// if all points of the perturbed density are below the threshold: Set the result to zero
