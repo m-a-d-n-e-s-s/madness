@@ -227,6 +227,11 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
       }
 
       curatom = matches[1];
+
+      // Get symbol's case correct. First is capitalized, second is lower if exists
+      curatom[0] = std::toupper(curatom[0]);
+      if(curatom.length() > 1) curatom[1] = std::tolower(curatom[1]);
+
       curnum = 1;
       err.get() << "Reading basis for " << curatom << " (" << matches[2] << ")." << std::endl;
     }

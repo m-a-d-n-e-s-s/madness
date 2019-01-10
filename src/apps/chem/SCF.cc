@@ -1270,12 +1270,13 @@ namespace madness {
                   centers.push_back(r);
 
                   // Now make the function
-                  temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get(), centers))));
+                  temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get(), centers)))); // Put no fence on factory
                   //double norm = temp1[i].norm2();
                   //if(world.rank() == 0) print("Norm of function", i, "is", norm);
                   if(world.rank() == 0 and i % 10 == 0 and i != 0) print("Created", i, "functions."); 
                   i++;
               } 
+              // Fence here if no fence on factory
               if(world.rank() == 0) print("Finished creating", temp1.size(), "functions.");    
  
               // Normalize ao's
