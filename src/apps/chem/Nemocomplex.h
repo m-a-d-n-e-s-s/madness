@@ -168,6 +168,31 @@ public:
 	/// read the guess orbitals from a previous nemo or moldft calculation
 	std::vector<complex_function_3d> read_guess(const std::string& spin) const;
 
+	void read_orbitals() {
+		std::string name="reference";
+		print("reading orbitals from file",name);
+
+		archive::ParallelInputArchive ar(world, name.c_str(), 1);
+		std::size_t namo, nbmo;
+
+		ar & namo & nbmo & aeps & beps;
+		amo.resize(namo);
+		bmo.resize(nbmo);
+		for (auto& a: amo) ar & a;
+		for (auto& a: bmo) ar & a;
+	}
+
+	void save_orbitals() const {
+		std::string name="reference";
+		print("saving orbitals to file",name);
+
+		archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+
+		ar & amo.size() & bmo.size() & aeps & beps;
+		for (auto& a: amo) ar & a;
+		for (auto& a: bmo) ar & a;
+	}
+
 	void do_step_restriction(const std::vector<complex_function_3d>& mo,
 			std::vector<complex_function_3d>& mo_new) const;
 

@@ -202,11 +202,6 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
     return nemo->get_calc()->make_coulomb_potential(density);
 }
 
-real_function_3d Coulomb::compute_potential(const real_function_3d& density,
-        double lo, double econv) const {
-    real_convolution_3d poisson = CoulombOperator(world, lo, econv);
-    return poisson(density).truncate();
-}
 
 
 Nuclear::Nuclear(World& world, const SCF* calc) : world(world) {

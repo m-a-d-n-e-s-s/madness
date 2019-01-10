@@ -10,6 +10,7 @@
 
 #include <chem/Nemocomplex.h>
 #include <chem/projector.h>
+#include<mra.h>
 #include<tuple>
 
 
@@ -80,6 +81,7 @@ public:
 		double omega=0.0;
 		double delta=0.0;				// last wave function error
 		double energy_change=0.0;		// last energy_change
+
 	};
 
 	static std::vector<root> transform(World& world,
@@ -125,7 +127,7 @@ public:
 
 
 	Complex_cis(World& w, Nemo_complex& n) : world(w), cis_param(world), nemo(n),
-		Qa(world,conj(world,nemo.amo),nemo.amo), Qb(world,conj(world,nemo.bmo),nemo.bmo) {
+		Qa(world,nemo.amo,nemo.amo), Qb(world,nemo.bmo,nemo.bmo) {
 		print("Qa projector",Qa.get_ket_vector().size());
 		print("Qb projector",Qb.get_ket_vector().size());
 
@@ -141,9 +143,9 @@ public:
 
 	std::vector<complex_function_3d> compute_residuals(root& root) const;
 
-	void update_roots(std::vector<root>& aroot, std::vector<root>& broot, std::vector<root>& troot) const;
+	std::vector<root> read_guess() const;
 
-	std::vector<root> read_guess(const std::string spin) const;
+	void save_guess(const std::vector<root>& roots) const;
 
 	std::vector<root> make_guess() const;
 

@@ -9,7 +9,6 @@
 #include <chem/GuessFactory.h>
 #include <chem/SCFOperators.h>
 
-
 namespace madness {
 
 double Complex_cis::value() {
@@ -18,8 +17,14 @@ double Complex_cis::value() {
 		std::swap(nemo.amo,nemo.bmo);
 		std::swap(Qa,Qb);
 	}
-	std::vector<root> roots=make_guess();
+	std::vector<root> roots;
+	try {
+		roots=read_guess();
+	} catch (...) {
+		roots=make_guess();
+	}
 	iterate(roots);
+	save_guess(roots);
 	return 0.0;
 }
 
@@ -64,9 +69,9 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo.aeps))
 						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo.beps));
 			}
-	//		print("ovlp (ab), eovlp (ab)");
-	//		print(ovlp);
-	//		print(eovlp);
+			print("ovlp (ab), eovlp (ab)");
+			print(ovlp);
+			print(eovlp);
 
 			omega=Tensor<double>(roots.size());
 			for (std::size_t i=0; i<roots.size(); ++i) {
@@ -74,9 +79,9 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 			}
 			print("omega from the perturbed fock matrix approach");
 			print(omega);
-	//
-			orthonormalize(roots, fock_pt);
-	//		else if (iter<10) orthonormalize(roots);
+
+//			orthonormalize(roots, fock_pt);
+//			orthonormalize(roots);
 		}
 
 		// update the residuals
@@ -101,11 +106,12 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 
 			if (ares.size()>0) thisroot.afunction-=ares;
 			if (bres.size()>0) thisroot.bfunction-=bres;
-//			print_size(world,thisroot.afunction,"afunction1");
-//			print_size(world,thisroot.bfunction,"bfunction1");
+			print_size(world,thisroot.afunction,"afunction1");
+			print_size(world,thisroot.bfunction,"bfunction1");
 
 		}
 		orthonormalize(roots);
+		normalize(roots);
 	}
 }
 
@@ -121,17 +127,18 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 
 		std::vector<complex_function_3d> td_a=mul(world,thisroot.afunction,active_mo(nemo.amo));
 		std::vector<complex_function_3d> td_b=mul(world,thisroot.bfunction,active_mo(nemo.bmo));
-		int i=0;
-		for (auto& a : td_a) save(real(a),"transition_density_a"+stringify(i++));
+		int i=cis_param.freeze();
+		for (auto& a : td_a) save(abs_square(a),"transition_density_a"+stringify(i++)+"root"+stringify(iroot));
 
 		std::vector<complex_function_3d> apot=zero_functions_compressed<double_complex,3>(world,anoct);
 		std::vector<complex_function_3d> bpot=zero_functions_compressed<double_complex,3>(world,bnoct);
 
 		// compute the perturbed density
-		real_function_3d denspt=real((dot(world,conj(world,thisroot.afunction),active_mo(nemo.amo)) +
+		complex_function_3d denspt=((dot(world,conj(world,thisroot.afunction),active_mo(nemo.amo)) +
 				dot(world,conj(world,thisroot.bfunction),active_mo(nemo.bmo))));
 		if (nemo.cparam.spin_restricted) denspt.scale(2.0);
 
+		denspt=conj(denspt);
 		denspt.truncate();
 		denspt.print_size("denspt");
 
@@ -153,16 +160,19 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 			nemo.compute_potentials(mo,totdens,x,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
 			if (spin=="beta") scale(world,spin_zeeman_nemo,-1.0);
 
+//			nemo.compute_vmat(mo,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
+
+
 			pot+=(vnemo+vlznemo+dianemo+spin_zeeman_nemo-knemo+jnemo);	// need += b/c of reference
 			truncate(world,pot);
 
 			// perturbed Fock operator acting on the reference orbitals
 			Coulomb Jp(world);
-			Jp.potential() = Jp.compute_potential(denspt);
+			complex_function_3d Jp_pot = Jp.compute_potential(denspt);
 
 			Exchange<double_complex,3> Kp(world);
 			Kp.set_parameters(conj(world,act_mo),x,occ(Slice(cis_param.freeze(),-1)));
-			pot+=Q(Jp(act_mo) - Kp(act_mo));
+			pot+=Q(Jp_pot*act_mo - Kp(act_mo));
 			truncate(world,pot);
 		}
 		thisroot.apot=copy(world,apot);
@@ -233,12 +243,17 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 	std::vector<complex_function_3d> residual=x-tmp;
 	truncate(world,residual);
 
-	// Calculate Second Order Energy Update
-	double tmp1 = real(inner(world,conj(world,residual),pot).sum());
+	// Calculate Second Order Energy Update	(complex conjugate implicit in inner)
+	double_complex tmp1 = inner(world,residual,pot).sum();
 	// squared norm of GVpsi (Psi_tilde)
-	double tmp2 = real(inner(world,conj(world,tmp),tmp).sum());
+	double_complex tmp2 = inner(world,tmp,tmp).sum();
 
-	const double sou= -tmp1/tmp2;
+//	print(" sou = Vp * res / Vp * tmp");
+//	double_complex tmp1=inner(pot,residual);
+//	double_complex tmp2=inner(x,tmp);
+
+	print("tmp1,tmp2",tmp1,tmp2);
+	const double sou= real(tmp1)/real(tmp2);
 	root.omega+=sou;
 	root.energy_change=sou;
 
@@ -246,15 +261,45 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 
 }
 
-void Complex_cis::update_roots(std::vector<root>& aroot, std::vector<root>& broot, std::vector<root>& troot) const {
+std::vector<Complex_cis::root> Complex_cis::read_guess() const {
+	std::vector<root> guess(cis_param.guess_excitations());
+	std::string name="cis_guess";
+	print("reading cis guess from file",name);
 
+	archive::ParallelInputArchive ar(world, name.c_str(), 1);
+	std::size_t size1, size2, size3, size4;
+
+	for (root& g : guess) {
+		ar & g.omega & g.delta & g.energy_change ;
+		ar & size1 & size2 & size3 & size4;
+        g.afunction.resize(size1);
+        g.bfunction.resize(size2);
+        g.apot.resize(size3);
+        g.bpot.resize(size4);
+        for (auto& a: g.afunction) ar & a;
+        for (auto& a: g.bfunction) ar & a;
+        for (auto& a: g.apot) ar & a;
+        for (auto& a: g.bpot) ar & a;
+	}
+	return guess;
 }
 
-
-std::vector<Complex_cis::root> Complex_cis::read_guess(const std::string spin) const {
-	std::vector<root> guess(cis_param.guess_excitations());
-	MADNESS_EXCEPTION("implement Complex_cis::read_guess()",1);
-	return guess;
+void Complex_cis::save_guess(const std::vector<root>& roots) const {
+	std::string name="cis_guess";
+	print("saving cis guess to file",name);
+	archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+	for (const root& g : roots) {
+		ar & g.omega & g.delta & g.energy_change ;
+		std::size_t size1=g.afunction.size();
+		std::size_t size2=g.bfunction.size();
+		std::size_t size3=g.apot.size();
+		std::size_t size4=g.bpot.size();
+		ar & size1 & size2 & size3 & size4;
+        for (const auto& a: g.afunction) ar & a;
+        for (const auto& a: g.bfunction) ar & a;
+        for (const auto& a: g.apot) ar & a;
+        for (const auto& a: g.bpot) ar & a;
+	}
 }
 
 
@@ -519,9 +564,10 @@ void Complex_cis::orthonormalize(std::vector<root>& roots) const {
 void Complex_cis::normalize(std::vector<root>& roots) const {
 
 	for (auto root : roots) {
-		double n=0.0;
-        if (root.afunction.size()>0) n += norm2(world, root.afunction);
-        if (root.bfunction.size()>0) n += norm2(world, root.bfunction);
+		double na=0.0, nb=0.0;
+        if (root.afunction.size()>0) na = norm2(world, root.afunction);
+        if (root.bfunction.size()>0) nb = norm2(world, root.bfunction);
+        double n=sqrt(na*na + nb*nb);
         scale(world,root.afunction,1.0/n);
         scale(world,root.bfunction,1.0/n);
 	}

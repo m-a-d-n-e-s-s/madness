@@ -244,8 +244,12 @@ public:
 
     /// this function uses a newly constructed Poisson operator. Note that
     /// the accuracy parameters must be consistent with the exchange operator.
-    real_function_3d compute_potential(const real_function_3d& density,
-            double lo=1.e-4, double econv=FunctionDefaults<3>::get_thresh()) const;
+    template<typename T, std::size_t NDIM>
+    Function<T,NDIM> compute_potential(const Function<T,NDIM>& density,
+            double lo=1.e-4, double econv=FunctionDefaults<3>::get_thresh()) const {
+    	real_convolution_3d poisson = CoulombOperator(world, lo, econv);
+    	return poisson(density).truncate();
+    }
 
     /// given a set of MOs in an SCF calculation, compute the Coulomb potential
 

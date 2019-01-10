@@ -22,10 +22,14 @@ double Nemo_complex::value() {
 	vnuclear.set_thresh(FunctionDefaults<3>::get_thresh());
 
 	// read the guess orbitals
-	amo=read_guess("alpha");
-	if (have_beta()) bmo=read_guess("beta");
-	aeps=Tensor<double>(amo.size());
-	beps=Tensor<double>(bmo.size());
+	try {
+		read_orbitals();
+	} catch(...) {
+		amo=read_guess("alpha");
+		if (have_beta()) bmo=read_guess("beta");
+		aeps=Tensor<double>(amo.size());
+		beps=Tensor<double>(bmo.size());
+	}
 
 	double thresh=FunctionDefaults<3>::get_thresh();
 	double energy=1.e10;
@@ -178,7 +182,7 @@ double Nemo_complex::value() {
 		}
 
 	}
-
+	save_orbitals();
 	return energy;
 }
 
