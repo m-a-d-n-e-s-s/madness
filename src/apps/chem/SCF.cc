@@ -1490,11 +1490,13 @@ namespace madness {
 
               // PM localization requires the AO basis, which we can't use,
               // so turning off PM here and turning on Boys
-              if(param.localize_pm && param.localize) {
+              if(param.localize_pm or param.localize_new) {
                   if(world.rank() == 0) {
                       print("\nPM localization requested, but is unsuported with NWChem orbitals.\nUsing Boys localization instead.\n");
                   }
+                  param.localize_new = false;
                   param.localize_pm = false;
+                  param.localize_boys = true;
                   param.localize = true;
               }
 
