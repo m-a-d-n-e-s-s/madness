@@ -209,9 +209,15 @@ namespace madness {
     void SCF::save_mos(World& world) {
         PROFILE_MEMBER_FUNC(SCF);
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
+
+        // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
+        unsigned int version = 1;
+
+        ar & version;
         ar & current_energy & param.spin_restricted;
         ar & (unsigned int) (amo.size());
-        ar & aeps & aocc & aset;
+        ar & aeps & aocc & aset & param.L & FunctionDefaults<3>::get_k()
+           & molecule & param.xc_data;
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
         if (!param.spin_restricted) {
@@ -234,7 +240,6 @@ namespace madness {
         PROFILE_MEMBER_FUNC(SCF);
         //        const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults < 3 > ::get_thresh();
-        const int k = FunctionDefaults < 3 > ::get_k();
         unsigned int nmo = 0;
         bool spinrest = false;
         amo.clear();
@@ -244,13 +249,18 @@ namespace madness {
         
         /*
           File format:
-          
-          bool spinrestricted --> if true only alpha orbitals are present
-          
+         
+          unsigned int version;
+          double current_energy;
+          bool spinrestricted --> if true only alpha orbitals are present         
           unsigned int nmo_alpha;
           Tensor<double> aeps;
           Tensor<double> aocc;
           vector<int> aset;
+          double L;
+          int k; 
+          Molecule molecule;
+          std::string xc_data;
           for i from 0 to nalpha-1:
           .   Function<double,3> amo[i]
           
@@ -258,13 +268,36 @@ namespace madness {
           
         */
         
+        // Local copies used for a basic check
+        double L;
+        int k = FunctionDefaults<3>::get_k();
+        int k1; // Ignored for restarting, used in response only
+        unsigned int version = 1; // UPDATE THIS IF YOU CHANGE ANYTHING
+        unsigned int archive_version;
+
+        ar & archive_version;
+      
+        if(archive_version != version) {
+           if(world.rank() == 0) print("Loading from a different version of archive. Archive version", archive_version, "MADNESS version", version);
+           throw "Invalid archive";
+        }
+
         // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
         // EPS, SWAP, ... sigh
         ar & current_energy & spinrest;
         
         ar & nmo;
         MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
-        ar & aeps & aocc & aset;
+        ar & aeps & aocc & aset & L & k1 & molecule & param.xc_data;
+
+        // Some basic checks
+        if(L != param.L) {
+           if(world.rank() == 0) print("Warning: Box size mismatch between archive and input parameter. Archive value", L, "Param value:", param.L);
+           throw "Mismatch in box sizes"; 
+        }
+        if(world.rank() == 0) print("Restarting from this molecular geometry");
+        if(world.rank() == 0) molecule.print();
+ 
         amo.resize(nmo);
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
