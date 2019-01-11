@@ -44,6 +44,8 @@
 
 #include <madness/misc/ran.h>
 
+bool smalltest = false;
+
 const double PI = 3.1415926535897932384;
 
 using namespace madness;
@@ -265,7 +267,9 @@ int test_conv(World& world) {
 
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
 
-    for (int k=2; k<=30; k+=2) {
+    int kmax=10, kstep=2;
+    if (!smalltest) {kmax=30; kstep=1;}
+    for (int k=2; k<=kmax; k+=kstep) {
         if (world.rank() == 0) printf("k=%d\n", k);
         int ntop = 5;
         if (NDIM > 2 && k>5) ntop = 4;
@@ -473,8 +477,8 @@ int test_math(World& world) {
 
     FunctionDefaults<NDIM>::set_autorefine(false);
 
-    int nfunc = 100;
-    if (NDIM >= 3) nfunc = 20;
+    int nfunc = 10; // was 100 but reduce for Travis
+    if (NDIM >= 3) nfunc = 5; // was 20 but reduce for travis
     for (int i=0; i<nfunc; ++i) {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
@@ -561,7 +565,7 @@ int test_math(World& world) {
     }
 
     if (world.rank() == 0) print("\nTest adding random functions in place");
-    for (int i=0; i<10; ++i) {
+    for (int i=0; i<5; ++i) { // was 10 but reduce for travis
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         T(*p)(T,T) = &sum<T,T,T>;
@@ -978,7 +982,7 @@ int test_qm(World& world) {
 //     }
 
     typedef std::shared_ptr< FunctionFunctorInterface<double_complex,1> > functorT;
-    typedef Vector<double,1> coordT;
+    //typedef Vector<double,1> coordT;
     typedef Function<double_complex,1> functionT;
     typedef FunctionFactory<double_complex,1> factoryT;
 
@@ -1218,7 +1222,7 @@ int test_io(World& world) {
     if (world.rank() == 0) print("err = ", err);
     CHECK(err,1e-12,"test_io");
 
-    //    MADNESS_ASSERT(err == 0.0);
+    //    MADNESS_CHECK(err == 0.0);
 
     if (world.rank() == 0) print("test_io OK");
     world.gop.fence();
@@ -1322,6 +1326,11 @@ int main(int argc, char**argv) {
 
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
+
+        if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+        for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+        std::cout << "small test : " << smalltest << std::endl;
+        
         PROFILE_BLOCK(testsuite);
 
         std::cout.precision(8);
@@ -1341,7 +1350,7 @@ int main(int argc, char**argv) {
         GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, false);
         Tensor<double> gg = gen.rnlp(4,0);
         Tensor<double> hh = gau.rnlp(4,0);
-        MADNESS_ASSERT((gg-hh).normf() < 1e-13);
+        MADNESS_CHECK((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
         // disabling to allow tests pass
@@ -1365,16 +1374,18 @@ int main(int argc, char**argv) {
         nfail+=test_plot<double,2>(world);
         nfail+=test_io<double,2>(world);
 
-        nfail+=test_basic<double,3>(world);
-        nfail+=test_conv<double,3>(world);
-        nfail+=test_math<double,3>(world);
-        nfail+=test_diff<double,3>(world);
-        nfail+=test_op<double,3>(world);
-        nfail+=test_coulomb(world);
-        nfail+=test_plot<double,3>(world);
-        nfail+=test_io<double,3>(world);
-
-        test_plot<double,4>(world); // slow unless reduce npt in test_plot
+        if (!smalltest) {
+            nfail+=test_basic<double,3>(world);
+            nfail+=test_conv<double,3>(world);
+            nfail+=test_math<double,3>(world);
+            nfail+=test_diff<double,3>(world);
+            nfail+=test_op<double,3>(world);
+            nfail+=test_coulomb(world);
+            nfail+=test_plot<double,3>(world);
+            nfail+=test_io<double,3>(world);
+            
+            test_plot<double,4>(world); // slow unless reduce npt in test_plot // comment out to speed up travis
+        }
 
         if (world.rank() == 0) print("entering final fence");
         world.gop.fence();

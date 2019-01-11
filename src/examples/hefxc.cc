@@ -78,26 +78,26 @@ static double guess(const coord_3d& r) {
     return (2.0*exp(-sqrt(x*x+y*y+z*z+1e-8)));
 }
 
-static double V(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    return  -2.0/sqrt(x*x+y*y+z*z+1e-8);
-}
+// static double V(const coord_3d& r) {
+//     const double x=r[0], y=r[1], z=r[2];
+//     return  -2.0/sqrt(x*x+y*y+z*z+1e-8);
+// }
 
 
-static double guess_density(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    return (4.0*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(12.566358048);
-}
+// static double guess_density(const coord_3d& r) {
+//     const double x=r[0], y=r[1], z=r[2];
+//     return (4.0*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(12.566358048);
+// }
 
 
-//d/dx**2+d/dy**2+d/dz**2
-static double guess_gradient(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    double dx=(-8.0*x*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
-    double dy=(-8.0*y*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
-    double dz=(-8.0*z*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
-    return dx*dx+dy*dy+dz*dz;
-}
+// //d/dx**2+d/dy**2+d/dz**2
+// static double guess_gradient(const coord_3d& r) {
+//     const double x=r[0], y=r[1], z=r[2];
+//     double dx=(-8.0*x*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
+//     double dy=(-8.0*y*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
+//     double dz=(-8.0*z*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
+//     return dx*dx+dy*dy+dz*dz;
+// }
 
 
 

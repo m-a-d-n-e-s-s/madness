@@ -41,6 +41,8 @@
 
 using namespace madness;
 
+bool smalltest = false;
+
 template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
@@ -88,7 +90,9 @@ int test_proj(World& world) {
     //double x = 0.0;
     const coordT origin(x);
 
-    for (int i=0; i<=7; ++i) {
+    int ilo=2, ihi=2;
+    if (!smalltest) {ilo=0; ihi=7;}
+    for (int i=ilo; i<=ihi; i+=1) {
         double L = pow(2.0,double(i));
         FunctionDefaults<NDIM>::set_cubic_cell(-L,L);
         print("I think the cell volume is", FunctionDefaults<NDIM>::get_cell_volume());
@@ -117,12 +121,15 @@ int main(int argc, char**argv) {
 
     try {
         startup(world,argc,argv);
+        if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+        for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+        std::cout << "small test : " << smalltest << std::endl;
 
         std::cout.precision(8);
 
         success+=test_proj<double,1>(world);
         success+=test_proj<double,2>(world);
-        success+=test_proj<double,3>(world);
+        if (!smalltest) success+=test_proj<double,3>(world);
 
     }
     catch (const SafeMPI::Exception& e) {

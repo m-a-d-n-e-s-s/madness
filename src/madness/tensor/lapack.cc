@@ -152,7 +152,7 @@ void potrf_(const char * UPLO,integer *n, real8 *a ,integer *lda , integer *info
 STATIC inline
 void potrf_(const char * UPLO,integer *n, complex_real4 *a ,integer *lda , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-	cpotrf_(UPLO, n, a, lda, info);
+        cpotrf_(UPLO, n, reinterpret_cast<lapack_complex_float*>(a), lda, info);
 #else
 	cpotrf_(UPLO, n, a, lda, info, 1);
 #endif
@@ -160,7 +160,7 @@ void potrf_(const char * UPLO,integer *n, complex_real4 *a ,integer *lda , integ
 STATIC inline
 void potrf_(const char * UPLO,integer *n, complex_real8 *a ,integer *lda , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-	zpotrf_(UPLO, n, a, lda, info);
+        zpotrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, info);
 #else
 	zpotrf_(UPLO, n, a, lda, info, 1);
 #endif
@@ -188,7 +188,7 @@ void pstrf_(const char * UPLO,integer *n, real8 *a ,integer* lda, integer *piv, 
 STATIC inline
 void pstrf_(const char * UPLO,integer *n, complex_real4 *a ,integer* lda, integer *piv, integer* rank, real4* tol, complex_real4* work , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-	cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+        cpstrf_(UPLO, n, reinterpret_cast<lapack_complex_float*>(a), lda, piv, rank, tol, reinterpret_cast<float*>(work), info);
 #else
 	cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #endif
@@ -196,7 +196,8 @@ void pstrf_(const char * UPLO,integer *n, complex_real4 *a ,integer* lda, intege
 STATIC inline
 void pstrf_(const char * UPLO,integer *n, complex_real8 *a ,integer* lda, integer *piv, integer* rank, real8* tol, complex_real8* work , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-	zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+        //zpstrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, piv, rank, tol, reinterpret_cast<lapack_complex_float*>(work), info);
+        zpstrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, piv, rank, tol, reinterpret_cast<double*>(work), info);
 #else
 	zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #endif
@@ -1132,7 +1133,7 @@ namespace madness {
 
         // make pivoting matrix
         Tensor<typename Tensor<T>::scalar_type> P(n,n);
-        for(size_t i=0;i<n;++i){
+        for(int i=0;i<n;++i){
         	P(piv(i),i)=1.0;
         }
 
@@ -1263,7 +1264,7 @@ namespace madness {
             cout << endl;
         }
 
-        catch (TensorException e) {
+        catch (TensorException& e) {
             cout << "Caught a tensor exception in test_tensor_lapack\n";
             cout << e;
             return false;
