@@ -43,6 +43,8 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 	print("nelectron from the total density",nelectron);
 	totdens.print_size("totdens");
 
+	const double shift=nemo.param.shift();
+
 	for (int iter=0; iter<cis_param.maxiter(); ++iter) {
 		wall1=wall_time();
 		printf("iteration %2d  %4.1fs\n",iter,wall1-wall0);
@@ -57,7 +59,7 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 		compute_potentials(roots, totdens);
 
 		Tensor<double> omega;
-		if ((iter<3) or (iter%5==0)) {
+		if (1) {//(iter<3) or (iter%5==0)) {
 			Tensor<double_complex> fock_pt = compute_fock_pt(roots);
 			print("fock_pt");
 			print(fock_pt);
@@ -66,8 +68,8 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 			Tensor<double_complex> ovlp(roots.size()),eovlp(roots.size());
 			for (std::size_t i=0; i<roots.size(); ++i) {
 				ovlp(i)=inner(roots[i].afunction,roots[i].afunction) + inner(roots[i].bfunction,roots[i].bfunction);
-				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo.aeps))
-						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo.beps));
+				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo.aeps+shift))
+						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo.beps+shift));
 			}
 			print("ovlp (ab), eovlp (ab)");
 			print(ovlp);
@@ -121,6 +123,7 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 	const int bnoct=noct(nemo.beps).size();
 	const int noct=anoct+bnoct;
 
+	double shift=nemo.param.shift();
 
 	for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 		root& thisroot=roots[iroot];
@@ -163,7 +166,7 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 //			nemo.compute_vmat(mo,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
 
 
-			pot+=(vnemo+vlznemo+dianemo+spin_zeeman_nemo-knemo+jnemo);	// need += b/c of reference
+			pot+=(vnemo+vlznemo+dianemo+spin_zeeman_nemo-knemo+jnemo + shift*x);	// need += b/c of reference
 			truncate(world,pot);
 
 			// perturbed Fock operator acting on the reference orbitals
@@ -188,8 +191,8 @@ Tensor<double_complex> Complex_cis::compute_fock_pt(const std::vector<root>& roo
 	Tensor<double_complex> fock_pt_a(dim,dim), fock_pt_b(dim,dim);
 	Tensor<double_complex> Tmat;
 	for (std::size_t r=0; r<dim; ++r) {
-		for (std::size_t p=0; p<dim; ++p) {
 
+		for (std::size_t p=0; p<dim; ++p) {
 			fock_pt_a(r,p) = inner(roots[r].afunction,roots[p].apot);
 			Tmat=T(roots[r].afunction,roots[p].afunction);
 			for (int i=0; i<Tmat.dim(0); ++i) fock_pt_a(r,p)+=Tmat(i,i);
@@ -211,7 +214,7 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 
 	std::vector<complex_function_3d> x=append(root.afunction,root.bfunction);
 	std::vector<complex_function_3d> pot = append(root.apot,root.bpot);
-	Tensor<double> eps=copy(concatenate(noct(nemo.aeps),noct(nemo.beps))) + root.omega;
+	Tensor<double> eps=copy(concatenate(noct(nemo.aeps),noct(nemo.beps))) + root.omega + nemo.param.shift();
 //	print("compute_residuals, eps",eps);
 
 	// make the BSH operator

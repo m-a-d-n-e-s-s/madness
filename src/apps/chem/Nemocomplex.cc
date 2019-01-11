@@ -331,7 +331,6 @@ Nemo_complex::compute_residuals(
 		Tensor<double>& eps) const {
 
 	double tol = FunctionDefaults < 3 > ::get_thresh();
-	double shift=param.shift();
 
     std::vector < std::shared_ptr<real_convolution_3d> > ops(psi.size());
     for (int i=0; i<eps.size(); ++i)
