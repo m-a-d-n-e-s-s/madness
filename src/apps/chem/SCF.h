@@ -719,6 +719,7 @@ namespace madness {
             
             // read converged wave function from disk if there is one
             if (calc.param.no_compute) {
+                throw "Multiple things missing here. Please review.";
 		calc.load_mos(world);
 		calc.make_nuclear_potential(world);
 		calc.project_ao_basis(world);
@@ -796,7 +797,7 @@ namespace madness {
                         }
                         calc.project(world);
                     }
-                    
+
                     // If the basis for the inital guess was not sto-3g
                     // switch to sto-3g since this is needed for analysis
                     // of the MOs and orbital localization
