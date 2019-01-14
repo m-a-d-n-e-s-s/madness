@@ -60,20 +60,21 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 		for (int i=0; i<roots.size(); ++i)
 			printf("  %2d   %12.8f     %4.2e      %5.2e\n",i, roots[i].omega, roots[i].delta, roots[i].energy_change);
 
+		bool do_kain=use_kain and (iter>2);
 
 		// compute the perturbed fock matrix and the excitation energy expectation values
 		compute_potentials(roots, totdens);
 
 		Tensor<double> omega;
-		if ((iter<3) or (iter%5==0)) {
+		if (not do_kain) {
 			Tensor<double_complex> fock_pt = compute_fock_pt(roots);
 
 			// compute the expectation value of the excitation energy Eq. (34) of Kottmann2015
 			Tensor<double_complex> ovlp(roots.size()),eovlp(roots.size());
 			for (std::size_t i=0; i<roots.size(); ++i) {
 				ovlp(i)=inner(roots[i],roots[i]);
-				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo.aeps+shift))
-						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo.beps+shift));
+				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo.aeps))
+						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo.beps));
 			}
 
 			if (cis_param.printlevel()>2) {
@@ -102,7 +103,7 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 			if (thisroot.delta<cis_param.dconv()) continue;
 
 			std::vector<complex_function_3d> residuals=compute_residuals(thisroot);
-			if (use_kain and (iter>3)) {
+			if (do_kain) {
 				std::vector<complex_function_3d> oldx=append(thisroot.afunction,thisroot.bfunction);
 				std::vector<complex_function_3d> newx=solvers[iroot].update(oldx,residuals,0.01,3);
 
@@ -119,6 +120,8 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 				if (ares.size()>0) thisroot.afunction-=ares;
 				if (bres.size()>0) thisroot.bfunction-=bres;
 			}
+			truncate(world,thisroot.afunction);
+			truncate(world,thisroot.bfunction);
 
 
 			thisroot.delta=norm2(world,residuals);
@@ -129,8 +132,10 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 				printf("\n\nset excitation energy manually to %8.4f\n\n",thisroot.omega);
 			}
 
-//			print_size(world,thisroot.afunction,"afunction1");
-//			print_size(world,thisroot.bfunction,"bfunction1");
+			print_size(world,thisroot.afunction,"afunction1");
+			print_size(world,thisroot.bfunction,"bfunction1");
+			int i=0;
+			for (auto& f : thisroot.afunction) save(abs_square(f),"afunction_root"+stringify(iroot)+"mo"+stringify(i++));
 
 		}
 		orthonormalize(roots);
@@ -143,8 +148,6 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 	const int anoct=noct(nemo.aeps).size();
 	const int bnoct=noct(nemo.beps).size();
 	const int noct=anoct+bnoct;
-
-	double shift=nemo.param.shift();
 
 	for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 		root& thisroot=roots[iroot];
@@ -188,7 +191,7 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 //			nemo.compute_vmat(mo,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
 
 
-			pot+=(vnemo+vlznemo+dianemo+spin_zeeman_nemo-knemo+jnemo + shift*x);	// need += b/c of reference
+			pot+=(vnemo+vlznemo+dianemo+spin_zeeman_nemo-knemo+jnemo);	// need += b/c of reference
 			truncate(world,pot);
 
 			// perturbed Fock operator acting on the reference orbitals
@@ -236,7 +239,10 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 
 	std::vector<complex_function_3d> x=append(root.afunction,root.bfunction);
 	std::vector<complex_function_3d> pot = append(root.apot,root.bpot);
-	Tensor<double> eps=copy(concatenate(noct(nemo.aeps),noct(nemo.beps))) + root.omega + nemo.param.shift();
+	Tensor<double> eps=copy(concatenate(noct(nemo.aeps),noct(nemo.beps))) + root.omega;
+
+	double global_shift=nemo.param.shift();
+	eps+=global_shift;
 //	print("compute_residuals, eps",eps);
 
 	// make the BSH operator
@@ -256,11 +262,11 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 		MADNESS_ASSERT(not(eps[p]>0.0));
 //		print("assigning eps to bsh ",p,eps[p]);
 		bsh[p] = std::shared_ptr<real_convolution_3d>(BSHOperatorPtr3D(world,
-				sqrt(-2.0 * eps[p]), 1.e-4, cis_param.thresh()));
+				sqrt(-2.0 * (eps[p])), 1.e-4, cis_param.thresh()));
 	}
 
 	// apply the BSH operator
-	std::vector<complex_function_3d> tmp0=(apply(world,bsh,-2.0*pot));
+	std::vector<complex_function_3d> tmp0=(apply(world,bsh,-2.0*pot-2.0*global_shift*x));
 
 	auto [atmp, btmp] = split(tmp0,root.afunction.size());
 	std::vector<complex_function_3d> tmp=append(Qa(atmp),Qb(btmp));
@@ -269,7 +275,8 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 	truncate(world,residual);
 
 	// Calculate Second Order Energy Update	(complex conjugate implicit in inner)
-	double_complex tmp1 = inner(world,residual,pot).sum();
+	double_complex tmp1 = inner(world,residual,pot+global_shift*x).sum();
+//	double_complex tmp11= inner(world,pot,x).sum();
 	// squared norm of GVpsi (Psi_tilde)
 	double_complex tmp2 = inner(world,tmp,tmp).sum();
 
@@ -277,12 +284,12 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 //	double_complex tmp1=inner(pot,residual);
 //	double_complex tmp2=inner(x,tmp);
 
-//	print("tmp1,tmp2",tmp1,tmp2);
+	print("tmp1,tmp2,tmp11",tmp1,tmp2);
 	const double sou=-real(tmp1)/real(tmp2);
 	root.omega+=sou;
 	root.energy_change=sou;
 
-	return residual;
+	return residual*nemo.sbox;
 
 }
 
