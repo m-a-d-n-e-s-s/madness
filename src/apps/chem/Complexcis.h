@@ -91,7 +91,7 @@ public:
 	    double_complex inner(const root& f, const root& g){
 			MADNESS_ASSERT(f.afunction.size()==g.afunction.size());
 			MADNESS_ASSERT(f.bfunction.size()==g.bfunction.size());
-			double_complex result=inner(f.afunction,f.afunction) + inner(g.bfunction,g.bfunction);
+			double_complex result=inner(f.afunction,g.afunction) + inner(f.bfunction,g.bfunction);
 			return result;
 		}
 

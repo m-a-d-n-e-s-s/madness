@@ -163,7 +163,7 @@ double Nemo_complex::value() {
 //				bmo=orthonormalize_symmetric(bmo);
 				truncate(world,bmo);
 			}
-			save_orbitals(iter);
+//			save_orbitals(iter);
 		}
 		if (world.rank()==0) {
 			print("orbital energies alpha",aeps);

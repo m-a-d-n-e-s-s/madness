@@ -92,7 +92,7 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 			print("omega from the perturbed fock matrix approach");
 			print(omega);
 
-//			orthonormalize(roots, fock_pt);
+			orthonormalize(roots, fock_pt);
 //			orthonormalize(roots);
 		}
 
@@ -105,6 +105,9 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 			if (use_kain and (iter>3)) {
 				std::vector<complex_function_3d> oldx=append(thisroot.afunction,thisroot.bfunction);
 				std::vector<complex_function_3d> newx=solvers[iroot].update(oldx,residuals,0.01,3);
+
+				nemo.do_step_restriction(oldx,newx);
+
 				auto [atmp, btmp] = split(newx,thisroot.afunction.size());
 
 				thisroot.afunction=atmp;
@@ -530,9 +533,6 @@ void Complex_cis::orthonormalize(std::vector<root>& roots, const Tensor<double_c
 			ovlp(i,j)=inner(roots[i],roots[j]);
 		}
 	}
-//
-//	print("ovlp in orthonormalize w/ Fock");
-//	print(ovlp);
 
 	// orthonormalize alpha and beta part
 	Tensor<double_complex> U;
