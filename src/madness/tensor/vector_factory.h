@@ -113,6 +113,43 @@ namespace madness {
         v[5] = v5;
         return v;
     }
+
+    /// Returns a std::vector<T> initialized from the arguments
+    template <typename T>
+    inline std::vector<T> vector_factory(const T& v0, const T& v1,
+                                         const T& v2, const T& v3,
+                                         const T& v4, const T& v5,
+										 const T& v6) {
+        std::vector<T> v(7);
+        v[0] = v0;
+        v[1] = v1;
+        v[2] = v2;
+        v[3] = v3;
+        v[4] = v4;
+        v[5] = v5;
+        v[6] = v6;
+        return v;
+    }
+
+    /// Returns a std::vector<T> initialized from the arguments
+    template <typename T>
+    inline std::vector<T> vector_factory(const T& v0, const T& v1,
+                                         const T& v2, const T& v3,
+                                         const T& v4, const T& v5,
+										 const T& v6, const T& v7) {
+        std::vector<T> v(8);
+        v[0] = v0;
+        v[1] = v1;
+        v[2] = v2;
+        v[3] = v3;
+        v[4] = v4;
+        v[5] = v5;
+        v[6] = v6;
+        v[7] = v7;
+        return v;
+    }
+
+
 }
 
 #endif // MADNESS_TENSOR_VECTOR_FACTORY_H__INCLUDED

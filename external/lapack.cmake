@@ -3,6 +3,7 @@ include(CheckCFortranFunctionExists)
 include(CMakePushCheckState)
 
 if(NOT LAPACK_LIBRARIES)
+  set(USER_LAPACK_LIBRARIES FALSE)
 
   if(ENABLE_MKL)
     find_package(MKL)
@@ -42,6 +43,8 @@ if(NOT LAPACK_LIBRARIES)
     endif()
   endif()  
 
+else()
+  set(USER_LAPACK_LIBRARIES TRUE)
 endif()
 
 cmake_push_check_state()
@@ -77,6 +80,26 @@ endif()
 
 set(LAPACK_FOUND TRUE)
 message(STATUS "Found LAPACK: ${LAPACK_LIBRARIES}")
+
+# introspect LAPACK_LIBRARIES given by the user
+if (USER_LAPACK_LIBRARIES)
+
+  # check for MKL
+  check_function_exists(mkl_get_version USER_LAPACK_LIBRARIES_IS_MKL)
+  if(USER_LAPACK_LIBRARIES_IS_MKL)
+    message(STATUS "User-defined LAPACK_LIBRARIES provides an MKL library")
+    set(HAVE_INTEL_MKL 1)
+  else(USER_LAPACK_LIBRARIES_IS_MKL)
+    # check for ACML
+    check_function_exists(acmlversion USER_LAPACK_LIBRARIES_IS_ACML)
+
+    if(USER_LAPACK_LIBRARIES_IS_ACML)
+      message(STATUS "User-defined LAPACK_LIBRARIES provides an ACML library")
+      set(HAVE_ACML 1)
+    endif(USER_LAPACK_LIBRARIES_IS_ACML)
+  endif(USER_LAPACK_LIBRARIES_IS_MKL)
+
+endif(USER_LAPACK_LIBRARIES)
 
 cmake_pop_check_state()
 

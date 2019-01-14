@@ -62,7 +62,7 @@ void test0(World& world) {
     arout & 1L & 99.9;
     arout.store("hello",6);
     arout & 7L & 77.7;
-    MADNESS_ASSERT(buf[0]==127 && buf[n+1]==127);
+    MADNESS_CHECK(buf[0]==127 && buf[n+1]==127);
 
     long i = 0l;
     double a = 0.0;
@@ -71,11 +71,11 @@ void test0(World& world) {
     char s[8];
     s[0] = s[7] = 66;
     arin & i & a;
-    MADNESS_ASSERT(i==1 && a==99.9);
+    MADNESS_CHECK(i==1 && a==99.9);
     arin.load(s+1,6);
-    MADNESS_ASSERT(s[0]==66 && s[1]=='h' && s[5]=='o' && s[7]==66);
+    MADNESS_CHECK(s[0]==66 && s[1]=='h' && s[5]=='o' && s[7]==66);
     arin & i & a;
-    MADNESS_ASSERT(i==7 && a==77.7);
+    MADNESS_CHECK(i==7 && a==77.7);
 
     if (world.rank() == 0) print("test0 (serialization to/from buf) seems to be working");
 }
@@ -221,24 +221,24 @@ void test5(World& world) {
     world.gop.fence();
     print("finished fence again");
 
-    MADNESS_ASSERT(mary.probe());
-    MADNESS_ASSERT(carl.probe());
-    MADNESS_ASSERT(dave.probe());
-    MADNESS_ASSERT(bert.probe());
-    MADNESS_ASSERT(sara.probe());
-    MADNESS_ASSERT(kate.probe());
-    MADNESS_ASSERT(katy.probe());
-    MADNESS_ASSERT(cute.probe());
-    MADNESS_ASSERT(jody.probe());
-    MADNESS_ASSERT(hugh.probe());
-    MADNESS_ASSERT(duh.probe());
+    MADNESS_CHECK(mary.probe());
+    MADNESS_CHECK(carl.probe());
+    MADNESS_CHECK(dave.probe());
+    MADNESS_CHECK(bert.probe());
+    MADNESS_CHECK(sara.probe());
+    MADNESS_CHECK(kate.probe());
+    MADNESS_CHECK(katy.probe());
+    MADNESS_CHECK(cute.probe());
+    MADNESS_CHECK(jody.probe());
+    MADNESS_CHECK(hugh.probe());
+    MADNESS_CHECK(duh.probe());
 
-    MADNESS_ASSERT(mary.get() == 99);
-    MADNESS_ASSERT(carl.get() == 88);
-    MADNESS_ASSERT(dave.get() == right);
-    MADNESS_ASSERT(bert.get() == 8);
-    MADNESS_ASSERT(hugh.get() == 21.0);
-    MADNESS_ASSERT(duh.get() == 21.0);
+    MADNESS_CHECK(mary.get() == 99);
+    MADNESS_CHECK(carl.get() == 88);
+    MADNESS_CHECK(dave.get() == right);
+    MADNESS_CHECK(bert.get() == 8);
+    MADNESS_CHECK(hugh.get() == 21.0);
+    MADNESS_CHECK(duh.get() == 21.0);
     print("Sara says",sara.get().real(),sara.get().imag());
     print("Kate says",kate.get());
     print("Katy says",katy.get());
@@ -427,48 +427,48 @@ void test6(World& world) {
     if (me == 0) {
         print(a.id());
         for (ProcessID p=0; p<nproc; ++p) {
-            MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
-            MADNESS_ASSERT(a.task(p,&Foo::get0).get() == p*100);
+            MADNESS_CHECK(a.send(p,&Foo::get0).get() == p*100);
+            MADNESS_CHECK(a.task(p,&Foo::get0).get() == p*100);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get0f).get() == p*100);
-            MADNESS_ASSERT(a.task(p,&Foo::get0f).get() == p*100);
+            MADNESS_CHECK(a.send(p,&Foo::get0f).get() == p*100);
+            MADNESS_CHECK(a.task(p,&Foo::get0f).get() == p*100);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
-            MADNESS_ASSERT(a.task(p,&Foo::get1,Future<int>(1)).get() == p*100+1);
+            MADNESS_CHECK(a.send(p,&Foo::get1,1).get() == p*100+1);
+            MADNESS_CHECK(a.task(p,&Foo::get1,Future<int>(1)).get() == p*100+1);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
-            MADNESS_ASSERT(a.task(p,&Foo::get2,1,2).get() == p*100+3);
+            MADNESS_CHECK(a.send(p,&Foo::get2,1,2).get() == p*100+3);
+            MADNESS_CHECK(a.task(p,&Foo::get2,1,2).get() == p*100+3);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get3,1,2,3).get() == p*100+6);
-            MADNESS_ASSERT(a.task(p,&Foo::get3,1,2,3).get() == p*100+6);
+            MADNESS_CHECK(a.send(p,&Foo::get3,1,2,3).get() == p*100+6);
+            MADNESS_CHECK(a.task(p,&Foo::get3,1,2,3).get() == p*100+6);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);
-            MADNESS_ASSERT(a.task(p,&Foo::get4,1,2,3,4).get() == p*100+10);
+            MADNESS_CHECK(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);
+            MADNESS_CHECK(a.task(p,&Foo::get4,1,2,3,4).get() == p*100+10);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
-            MADNESS_ASSERT(a.task(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
+            MADNESS_CHECK(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
+            MADNESS_CHECK(a.task(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
 
-            MADNESS_ASSERT(a.task(p,&Foo::getbuf0,a.dbuf()).get() == p*100+dbuf_sum);
+            MADNESS_CHECK(a.task(p,&Foo::getbuf0,a.dbuf()).get() == p*100+dbuf_sum);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get0c).get() == p*100);
-            MADNESS_ASSERT(a.task(p,&Foo::get0c).get() == p*100);
+            MADNESS_CHECK(a.send(p,&Foo::get0c).get() == p*100);
+            MADNESS_CHECK(a.task(p,&Foo::get0c).get() == p*100);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get1c,1).get() == p*100+1);
-            MADNESS_ASSERT(a.task(p,&Foo::get1c,1).get() == p*100+1);
+            MADNESS_CHECK(a.send(p,&Foo::get1c,1).get() == p*100+1);
+            MADNESS_CHECK(a.task(p,&Foo::get1c,1).get() == p*100+1);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get2c,1,2).get() == p*100+3);
-            MADNESS_ASSERT(a.task(p,&Foo::get2c,1,2).get() == p*100+3);
+            MADNESS_CHECK(a.send(p,&Foo::get2c,1,2).get() == p*100+3);
+            MADNESS_CHECK(a.task(p,&Foo::get2c,1,2).get() == p*100+3);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get3c,1,2,3).get() == p*100+6);
-            MADNESS_ASSERT(a.task(p,&Foo::get3c,1,2,3).get() == p*100+6);
+            MADNESS_CHECK(a.send(p,&Foo::get3c,1,2,3).get() == p*100+6);
+            MADNESS_CHECK(a.task(p,&Foo::get3c,1,2,3).get() == p*100+6);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
-            MADNESS_ASSERT(a.task(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
+            MADNESS_CHECK(a.send(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
+            MADNESS_CHECK(a.task(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
 
-            MADNESS_ASSERT(a.send(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
-            MADNESS_ASSERT(a.task(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
+            MADNESS_CHECK(a.send(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
+            MADNESS_CHECK(a.task(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
 
-            MADNESS_ASSERT(a.task(p,&Foo::getbuf0c,a.dbuf()).get() == p*100+dbuf_sum);
+            MADNESS_CHECK(a.task(p,&Foo::getbuf0c,a.dbuf()).get() == p*100+dbuf_sum);
         }
     } // me == 0
 
@@ -500,7 +500,7 @@ void test6(World& world) {
       }
       world.gop.fence();
       for(size_t r=0; r!=results.size(); r += 2) {
-        MADNESS_ASSERT(results[r].get() == results_ref[r]);
+        MADNESS_CHECK(results[r].get() == results_ref[r]);
       }
     }
 
@@ -536,7 +536,7 @@ void test6a(World& world) {
     if (world.rank() == 0) {
         Future<int> fred = t.test(0);
         world.gop.fence();
-        MADNESS_ASSERT(fred.get() == 100);
+        MADNESS_CHECK(fred.get() == 100);
     }
     else {
         world.gop.fence();
@@ -567,26 +567,26 @@ void test7(World& world) {
     for (int i=999; i>=0; --i) {
         futureT fut = c.find(i);
         iterator it = fut.get();
-        MADNESS_ASSERT(it != c.end());
+        MADNESS_CHECK(it != c.end());
         double j = it->second;
-        MADNESS_ASSERT(j == i);
+        MADNESS_CHECK(j == i);
     }
     world.gop.fence();
 
     // Check that unset keys return end correctly
     for (int i=10001; i<10020; ++i) {
-        MADNESS_ASSERT(c.find(i).get() == c.end());
+        MADNESS_CHECK(c.find(i).get() == c.end());
     }
 
     // Check that other iterators compare correctly
-    MADNESS_ASSERT(c.find(10).get() == c.find(10).get());
-    MADNESS_ASSERT(c.find(11).get() != c.find(12).get());
-    MADNESS_ASSERT(c.end() == c.end());
-    MADNESS_ASSERT(c.find(12).get() != c.end());
+    MADNESS_CHECK(c.find(10).get() == c.find(10).get());
+    MADNESS_CHECK(c.find(11).get() != c.find(12).get());
+    MADNESS_CHECK(c.end() == c.end());
+    MADNESS_CHECK(c.find(12).get() != c.end());
 
     // Loop thru local stuff
     for (iterator it=c.begin(); it != c.end(); ++it) {
-        MADNESS_ASSERT(it->first == it->second);
+        MADNESS_CHECK(it->first == it->second);
     };
 
     // Check shallow copy and const iterator
@@ -594,7 +594,7 @@ void test7(World& world) {
 
     // Loop thru local stuff with a const iterator
     for (const_iterator it=d.begin(); it != d.end(); ++it) {
-        MADNESS_ASSERT(it->first == it->second);
+        MADNESS_CHECK(it->first == it->second);
     };
 
     world.gop.fence();
@@ -610,7 +610,7 @@ void test8(World& world) {
     World* p = nullptr;
     archive::VectorInputArchive arin(v);
     arin & p;
-    MADNESS_ASSERT(p==&world);
+    MADNESS_CHECK(p==&world);
     if (world.rank() == 0) print("test8 (serializing world pointer) OK");
 }
 
@@ -676,7 +676,7 @@ void test9(World& world) {
     std::cout.flush();
     used += cpu_time();
     print("Time to  run",ntask,"chain of tasks",used,"time/task",used/ntask);
-    MADNESS_ASSERT(result.get() == ntask);
+    MADNESS_CHECK(result.get() == ntask);
     if (world.rank() == 0) print("test9 (time task creation and processing) OK");
 }
 
@@ -759,7 +759,7 @@ void test10(World& world) {
 
     for (iterator it=m.begin(); it!=m.end(); ++it) {
         print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(int(it->second.get()) == nproc);
+        MADNESS_CHECK(int(it->second.get()) == nproc);
     }
     world.gop.fence();
 
@@ -769,7 +769,7 @@ void test10(World& world) {
 
     for (iterator it=m.begin(); it!=m.end(); ++it) {
         print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(long(it->second.get()) == nproc*(nproc+1)/2);
+        MADNESS_CHECK(long(it->second.get()) == nproc*(nproc+1)/2);
     }
     world.gop.fence();
 
@@ -779,7 +779,7 @@ void test10(World& world) {
 
     for (iterator it=m.begin(); it!=m.end(); ++it) {
         print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(long(it->second.get()) == nproc*(3*nproc-1)/2);
+        MADNESS_CHECK(long(it->second.get()) == nproc*(3*nproc-1)/2);
     }
     world.gop.fence();
 
@@ -798,7 +798,7 @@ void test10(World& world) {
     world.taskq.add(pounder, m, ind);
     world.gop.fence();
     if (world.rank() == 0)
-        MADNESS_ASSERT(long(m.find(ind).get()->second.get()) == nproc * 1000 * 7);
+        MADNESS_CHECK(long(m.find(ind).get()->second.get()) == nproc * 1000 * 7);
 
     world.gop.fence();
 
@@ -822,8 +822,8 @@ void test10(World& world) {
     world.gop.fence();
 
     for (int i=0; i<nproc; ++i) {
-        MADNESS_ASSERT(results[i].probe());
-        MADNESS_ASSERT(b[i].probe());
+        MADNESS_CHECK(results[i].probe());
+        MADNESS_CHECK(b[i].probe());
         print("results",i,results[i].get(),b[i].get());
     };
 
@@ -959,8 +959,8 @@ void walker1(WorldContainer<Key,Node>& d, const Key& key) {
         d.erase(key);
         d.replace(key,node);
         it = d.find(key).get();
-        MADNESS_ASSERT(it != d.end());
-        MADNESS_ASSERT(it->second.get() == counter);
+        MADNESS_CHECK(it != d.end());
+        MADNESS_CHECK(it->second.get() == counter);
         if (!node.is_leaf()) {
             key.foreach_child(Walker1(d));
         }
@@ -975,11 +975,11 @@ void walker2(WorldContainer<Key,Node>& d, const Key& key) {
         node.set(++counter);
         d.replace(key,node);
         it = d.find(key).get();
-        MADNESS_ASSERT(it != d.end());
+        MADNESS_CHECK(it != d.end());
         if (it->second.get() != counter) {
             print("failing",it->second.get(),counter,key,d.owner(key));
         }
-        MADNESS_ASSERT(it->second.get() == counter);
+        MADNESS_CHECK(it->second.get() == counter);
         if (!node.is_leaf()) {
             key.foreach_child(Walker1(d));
         }
@@ -1067,8 +1067,8 @@ void test12(World& world) {
 
     for (int i=0; i<100; ++i) {
         int key = me*100+i;
-        MADNESS_ASSERT(c.probe(key));
-        MADNESS_ASSERT(c.find(key).get()->second == key);
+        MADNESS_CHECK(c.probe(key));
+        MADNESS_CHECK(c.find(key).get()->second == key);
     }
 
     world.gop.fence();
@@ -1121,7 +1121,7 @@ void test13(World& world) {
 
     for (int i=0; i<100; ++i) {
         int key = me*100+i;
-        MADNESS_ASSERT(c.find(key).get()->second == key);
+        MADNESS_CHECK(c.find(key).get()->second == key);
     }
 
     fin.close();
@@ -1305,11 +1305,11 @@ int main(int argc, char** argv) {
         test_cuda0(world);
 #endif
     }
-    catch (SafeMPI::Exception e) {
+    catch (const SafeMPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
     }
-    catch (madness::MadnessException e) {
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
     }

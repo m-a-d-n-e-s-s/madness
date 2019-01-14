@@ -130,6 +130,80 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
 #endif
 }
 
+/// These oddly-named wrappers enable the generic cholesky iterface to get
+/// the correct LAPACK routine based upon the argument type.  Internal
+/// use only.
+STATIC inline
+void potrf_(const char * UPLO,integer *n, real4 *a ,integer *lda , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+	spotrf_(UPLO, n, a, lda, info);
+#else
+	spotrf_(UPLO, n, a, lda, info, 1);
+#endif
+}
+STATIC inline
+void potrf_(const char * UPLO,integer *n, real8 *a ,integer *lda , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+	dpotrf_(UPLO, n, a, lda, info);
+#else
+	dpotrf_(UPLO, n, a, lda, info, 1);
+#endif
+}
+STATIC inline
+void potrf_(const char * UPLO,integer *n, complex_real4 *a ,integer *lda , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+        cpotrf_(UPLO, n, reinterpret_cast<lapack_complex_float*>(a), lda, info);
+#else
+	cpotrf_(UPLO, n, a, lda, info, 1);
+#endif
+}
+STATIC inline
+void potrf_(const char * UPLO,integer *n, complex_real8 *a ,integer *lda , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+        zpotrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, info);
+#else
+	zpotrf_(UPLO, n, a, lda, info, 1);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic rr_cholesky iterface to get
+/// the correct LAPACK routine based upon the argument type.  Internal
+/// use only.
+STATIC inline
+void pstrf_(const char * UPLO,integer *n, real4 *a ,integer* lda, integer *piv, integer* rank, real4* tol, real4* work , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+	spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+#else
+	spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+#endif
+}
+STATIC inline
+void pstrf_(const char * UPLO,integer *n, real8 *a ,integer* lda, integer *piv, integer* rank, real8* tol, real8* work , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+	dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+#else
+	dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+#endif
+}
+STATIC inline
+void pstrf_(const char * UPLO,integer *n, complex_real4 *a ,integer* lda, integer *piv, integer* rank, real4* tol, complex_real4* work , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+        cpstrf_(UPLO, n, reinterpret_cast<lapack_complex_float*>(a), lda, piv, rank, tol, reinterpret_cast<float*>(work), info);
+#else
+	cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+#endif
+}
+STATIC inline
+void pstrf_(const char * UPLO,integer *n, complex_real8 *a ,integer* lda, integer *piv, integer* rank, real8* tol, complex_real8* work , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+        //zpstrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, piv, rank, tol, reinterpret_cast<lapack_complex_float*>(work), info);
+        zpstrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, piv, rank, tol, reinterpret_cast<double*>(work), info);
+#else
+	zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+#endif
+}
+
+
 /// These oddly-named wrappers enable the generic gesv iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
 /// use only.
@@ -865,11 +939,8 @@ namespace madness {
         integer n = A.dim(0);
         integer info;
 
-#if MADNESS_LINALG_USE_LAPACKE
-        dpotrf_("L", &n, A.ptr(), &n, &info);
-#else
-        dpotrf_("L", &n, A.ptr(), &n, &info, 1);
-#endif
+        potrf_("L", &n, A.ptr(), &n, &info);
+
         mask_info(info);
         TENSOR_ASSERT(info == 0, "cholesky: Lapack failed", info, &A);
 
@@ -877,6 +948,45 @@ namespace madness {
             for (int j=0; j<i; ++j)
                 A(i,j) = 0.0;
     }
+
+    /** \brief  Compute the rank-revealing Cholesky factorization.
+
+    Compute the rank-revealing Cholesky factorization of the symmetric positive definite matrix A
+
+    For memory efficiency A is modified inplace.  Its upper
+    triangle will hold the result and the lower triangle will be
+    zeroed such that input = inner(transpose(output),output).
+
+    @param[in]	A	the positive-semidefinite matrix to be decomposed
+    @param[in]	tol	linear dependency threshold for discarding columns of A
+    @param[in]	piv	pivot vector, its 1-rank entries are the orthogonal vectors
+    @param[in]	rank	numerical rank of A (wrt tol)
+
+    */
+    template <typename T>
+    void rr_cholesky(Tensor<T>& A, typename Tensor<T>::scalar_type tol, Tensor<integer>& piv, int& rank) {
+    	integer n = A.dim(0);
+    	integer info;
+    	piv=Tensor<integer>(n);
+    	Tensor<T> work(2*n);
+
+    	pstrf_("L", &n, A.ptr(), &n, piv.ptr(), &rank, &tol, work.ptr(), &info);
+
+    	// note:
+    	// info=0: Cholesky decomposition suceeded with full rank
+    	// info>0: indicates a rank-deficient A, which is not failure!
+    	// info<0: faulty input parameter
+    	mask_info(info);
+    	TENSOR_ASSERT(info >= 0, "rr_cholesky: Lapack failed", info, &A);
+
+    	for (int i=0; i<n; ++i)
+    		for (int j=0; j<i; ++j)
+    			A(i,j) = 0.0;
+    	// turn piv into c numbering
+    	for (int i=0; i<n; ++i) piv[i]--;
+    }
+
+
 
     /** \brief  Compute the QR factorization.
 
@@ -1199,6 +1309,39 @@ namespace madness {
     }
 
     template <typename T>
+    double test_rr_cholesky(int n) {
+        Tensor<T> a(n,n);
+        a.fillrandom();
+        a += madness::my_conj_transpose(a);
+        for (int i=0; i<n; ++i) a(i,i) += n;
+
+
+
+
+        Tensor<T> aa = copy(a);
+        Tensor<integer> piv;
+        int rank;
+        rr_cholesky(a,0.0,piv,rank);
+        Tensor<T> LLT = inner(my_conj_transpose(a),a);
+
+        // not the fastest way but easy to read
+
+        // make pivoting matrix
+        Tensor<typename Tensor<T>::scalar_type> P(n,n);
+        for(int i=0;i<n;++i){
+        	P(piv(i),i)=1.0;
+        }
+
+        // make aap
+        aa=inner(aa,P,1,0);
+        // make Pt(aa)P
+        Tensor<typename Tensor<T>::scalar_type> Pt=transpose(P);
+        aa=inner(Pt,aa);
+
+        return (LLT - aa).normf()/n;
+    }
+
+    template <typename T>
     double test_qr() {
 
 		Tensor<T> R;
@@ -1289,7 +1432,22 @@ namespace madness {
             cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
             cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
             cout << endl;
+
+            cout << "error in float cholesky " << test_cholesky<float>(22) << endl;
+            cout << endl;
             cout << "error in double cholesky " << test_cholesky<double>(22) << endl;
+            cout << endl;
+            cout << "error in float_complex cholesky " << test_cholesky<float_complex>(22) << endl;
+            cout << endl;
+            cout << "error in double_complex cholesky " << test_cholesky<double_complex>(22) << endl;
+            cout << endl;
+            cout << "error in float rr_cholesky " << test_rr_cholesky<float>(22) << endl;
+            cout << endl;
+            cout << "error in double rr_cholesky " << test_rr_cholesky<double>(22) << endl;
+            cout << endl;
+            cout << "error in float_complex rr_cholesky " << test_rr_cholesky<float_complex>(22) << endl;
+            cout << endl;
+            cout << "error in double_complex rr_cholesky " << test_rr_cholesky<double_complex>(22) << endl;
             cout << endl;
 
             cout << endl;
@@ -1301,7 +1459,7 @@ namespace madness {
             cout << endl;
         }
 
-        catch (TensorException e) {
+        catch (TensorException& e) {
             cout << "Caught a tensor exception in test_tensor_lapack\n";
             cout << e;
             return false;
@@ -1355,6 +1513,10 @@ namespace madness {
     void cholesky(Tensor<double>& A);
 
     template
+    void rr_cholesky(Tensor<double>& A, typename Tensor<double>::scalar_type tol, Tensor<integer>& piv, int& rank);
+
+
+    template
     Tensor<double> inverse(const Tensor<double>& A);
 
     template
@@ -1403,6 +1565,11 @@ namespace madness {
     void syev(const Tensor<double_complex>& A,
               Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
 
+    template
+    void cholesky(Tensor<double_complex>& A);
+
+    template
+    void rr_cholesky(Tensor<double_complex>& A, typename Tensor<double_complex>::scalar_type tol, Tensor<integer>& piv, int& rank);
 
 //     template
 //     void triangular_solve(const Tensor<double_complex>& L, Tensor<double_complex>& B,

@@ -116,7 +116,7 @@ Laplacian<T,NDIM>::operator()(const std::vector<Function<T,NDIM> >& vket) const 
     SeparatedConvolution<T,NDIM> smooth=SmoothingOperator<NDIM>(world,eps);
 
 
-    for (int idim=0; idim<NDIM; ++idim) {
+    for (size_t idim=0; idim<NDIM; ++idim) {
         vecfuncT dvket=apply(world,*gradop[idim].get(),vket);
         refine(world,dvket);
         if (eps>0.0) dvket=apply(world,smooth,dvket);
@@ -187,11 +187,11 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
         print("number of electrons in Coulomb",nel);
     }
     density.truncate();
-    if (do_R2) {
-        density.print_size("density with R2");
-    } else {
-        density.print_size("density without R2");
-    }
+//    if (do_R2) {
+//        density.print_size("density with R2");
+//    } else {
+//        density.print_size("density without R2");
+//    }
     return nemo->get_calc()->make_coulomb_potential(density);
 }
 

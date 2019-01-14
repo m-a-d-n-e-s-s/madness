@@ -120,6 +120,7 @@ namespace madness {
         return Q.scale(15.0/8.0);
     }
     
+    /// Given overlap matrix, return rotation with 2nd order error to orthonormalize the vectors
     tensorT Q2(const tensorT& s) {
         // symmetric
         tensorT Q = -0.5*s;
@@ -139,45 +140,6 @@ namespace madness {
     }
     
     
-    
-    void drot3(long n, double* MADNESS_RESTRICT a, double* MADNESS_RESTRICT b, double s, double c, long inc) {
-        if (inc == 1) {
-            n*=3;
-            for (long i=0; i<n; i+=3) {
-                double aa0 = a[i  ]*c - b[i  ]*s;
-                double bb0 = b[i  ]*c + a[i  ]*s;
-                double aa1 = a[i+1]*c - b[i+1]*s;
-                double bb1 = b[i+1]*c + a[i+1]*s;
-                double aa2 = a[i+2]*c - b[i+2]*s;
-                double bb2 = b[i+2]*c + a[i+2]*s;
-                a[i  ] = aa0;
-                b[i  ] = bb0;
-                a[i+1] = aa1;
-                b[i+1] = bb1;
-                a[i+2] = aa2;
-                b[i+2] = bb2;
-            }
-        }
-        else {
-            inc*=3;
-            n*=inc;
-            for (long i=0; i<n; i+=inc) {
-                double aa0 = a[i  ]*c - b[i  ]*s;
-                double bb0 = b[i  ]*c + a[i  ]*s;
-                double aa1 = a[i+1]*c - b[i+1]*s;
-                double bb1 = b[i+1]*c + a[i+1]*s;
-                double aa2 = a[i+2]*c - b[i+2]*s;
-                double bb2 = b[i+2]*c + a[i+2]*s;
-                a[i  ] = aa0;
-                b[i  ] = bb0;
-                a[i+1] = aa1;
-                b[i+1] = bb1;
-                a[i+2] = aa2;
-                b[i+2] = bb2;
-            }
-        }
-    }
-    
     SCF::SCF(World & world, const char *filename) : SCF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr)){
     }
 
@@ -190,7 +152,8 @@ namespace madness {
                 MADNESS_EXCEPTION("SCF failed to open stream", 0);
             }
             molecule.read(*input);
-            // symmetry confuses orbital localization
+
+            // symmetry confuses orbital localization --- no longer --- the new algorithm is robust
             // if (molecule.natom() < 3){
 	    //     param.localize = false; 
 	    //     if(world.rank()==0) std::cout << "Less than 3 Atoms: Deactivated localization!\n";
@@ -201,12 +164,12 @@ namespace madness {
             //if psp_calc is true, set all atoms to PS atoms
             //if not, check whether some atoms are PS atoms or if this a pure AE calculation
             if (param.psp_calc) {
-                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     molecule.set_pseudo_atom(iatom,true);
                 }
             }
             else{
-               for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+               for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                    if (molecule.get_pseudo_atom(iatom)){
                        param.pure_ae=false;
                        continue;
@@ -216,7 +179,7 @@ namespace madness {
 
             //print list of pseudo-atoms in mixed psp/ae calculation
             if (!param.psp_calc && !param.pure_ae && world.rank() == 0){
-               for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+               for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                    //std::cout << "pseudo-atom " << iatom << "  " << molecule.get_pseudo_atom(iatom) << std::endl;
                    if (molecule.get_pseudo_atom(iatom)) std::cout << "atom " << iatom << " is a pseudo-atom" <<  std::endl;
                }
@@ -224,7 +187,7 @@ namespace madness {
 
             //modify atomic charge for complete PSP calc or individual PS atoms
             if (!param.pure_ae){
-                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     if (molecule.get_pseudo_atom(iatom)){
                         unsigned int an=molecule.get_atom_number(iatom);
                         double zeff=get_charge_from_file("gth.xml",an);
@@ -738,6 +701,220 @@ namespace madness {
         END_TIMER(world, "Pipek-Mezy new ");
         return dUT;
     }
+
+    distmatT SCF::localize_new(World & world, const vecfuncT & mo,
+                               const std::vector<int> & set, double thresh,
+                               const double thetamax, const bool randomize,
+                               const bool doprint) const {
+        // PROFILE_MEMBER_FUNC(SCF);
+        START_TIMER(world);
+        int nmo = mo.size();
+        int nao = ao.size();
+
+        tensorT C = matrix_inner(world, mo, ao);
+        std::vector<int> at_to_bf, at_nbf; // OVERRIDE DATA IN CLASS OBJ TO USE ATOMS OR SHELLS FOR TESTING
+
+	bool use_atomic_evecs = true;
+	if (use_atomic_evecs) {
+	  // Transform from AOs to orthonormal atomic eigenfunctions
+	  int ilo = 0;
+	  for (size_t iat=0; iat<molecule.natom(); ++iat) {
+	    const tensorT& avec = aobasis.get_avec(molecule, iat);
+	    int ihi = ilo+avec.dim(1);
+	    Slice s(ilo,ihi-1);
+	    C(_,s) = inner(C(_,s),avec);
+
+	    // generate shell dimensions for atomic eigenfunctions
+	    // ... this relies upon spherical symmetry being enforced
+	    // when making atomic states
+	    const tensorT& aeps = aobasis.get_aeps(molecule, iat);
+	    //print(aeps);
+	    double prev = aeps(0L);
+	    int start = 0;
+	    int i; // used after loop
+	    for (i=0; i<aeps.dim(0); ++i) {
+	      //print(" ... ", i, prev, aeps(i), (std::abs(aeps(i)-prev) > 1e-2*std::abs(prev)));
+	      if (std::abs(aeps(i)-prev) > 1e-2*std::abs(prev)) {
+		at_to_bf.push_back(ilo+start);
+		at_nbf.push_back(i-start);
+		//print("    ", start, i-start);
+		start = i;
+	      }
+	      prev = aeps(i);
+	    }
+	    at_to_bf.push_back(ilo+start);
+	    at_nbf.push_back(i-start);
+	    //print("    ", start, i-start);
+	    ilo = ihi;
+	  }
+	  MADNESS_ASSERT(ilo==nao);
+	  MADNESS_ASSERT(std::accumulate(at_nbf.begin(),at_nbf.end(),0)==nao);
+	  MADNESS_ASSERT(at_to_bf.back()+at_nbf.back()==nao);
+	  //print(at_to_bf, at_nbf);
+	} 
+	else {
+	  aobasis.shells_to_bfn(molecule, at_to_bf, at_nbf);
+	  //aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
+	}
+
+	// Below here atoms may be shells or atoms --- by default shells
+
+        int natom = at_to_bf.size();
+
+        tensorT U(nmo, nmo);
+        for (int i = 0; i < nmo; ++i) U(i, i) = 1.0;
+
+        if (world.rank() == 0) {
+	  //MKL_Set_Num_Threads_Local(16);
+
+            tensorT Q(nmo,natom);
+
+            auto QQ = [&at_to_bf, &at_nbf](const tensorT& C, int i, int j, int a) -> double {
+                int lo = at_to_bf[a], nbf = at_nbf[a];
+                const double* Ci = &C(i,lo);
+                const double* Cj = &C(j,lo);
+                double qij = 0.0;
+                for(int mu=0; mu<nbf; ++mu) qij += Ci[mu] * Cj[mu];
+                return qij;
+            };
+
+            auto makeGW = [&Q,&nmo,&natom,&QQ](const tensorT& C, double& W, tensorT& g) -> void {
+                W = 0.0;
+                for (int i=0; i<nmo; ++i) {
+                    for (int a=0; a<natom; ++a) {
+                        Q(i,a) = QQ(C,i,i,a);
+                        W += Q(i,a)*Q(i,a);
+                    }
+                }
+                
+                for (int i = 0; i < nmo; ++i) {
+                    for (int j = 0; j < i; ++j) {
+                        double Qiiij = 0.0, Qijjj = 0.0;
+                        for (int a=0; a<natom; ++a) {
+                            double Qija = QQ(C,i,j,a);
+                            Qijjj += Qija*Q(j,a);
+                            Qiiij += Qija*Q(i,a);
+                        }
+                        g(j,i) = Qiiij - Qijjj;
+                        g(i,j) = - g(j,i);
+                    }
+                }
+            };
+            
+            tensorT xprev; // previous search direction
+            tensorT gprev; // previous gradient
+            bool rprev=true; // if true previous iteration restricted step or did incomplete search (so don't do conjugate)
+            const int N = (nmo*(nmo-1))/2; // number of independent variables
+            for (int iter = 0; iter < 1200; ++iter) {
+                tensorT g(nmo,nmo);
+                double W;
+
+                makeGW(C,W,g);
+
+                if (randomize && iter == 0) {
+                    for (int i=0; i<nmo; ++i) {
+                        for (int j=0; j<i; ++j) {
+                            g(i,j) += 0.1*(RandomValue<double>() - 0.5);
+                            g(j,i) = - g(i,j);
+                        }
+                    }
+                }
+                
+                double maxg = g.absmax();
+                if (doprint) printf("iteration %d W=%.8f maxg=%.2e\n", iter, W, maxg);
+                if (maxg < thresh) break;
+                
+                // construct search direction using conjugate gradient approach
+                tensorT x = copy(g);
+                if (!rprev) { // Only apply conjugacy if did LS with real gradient
+                    double gamma = g.trace(g-gprev)/gprev.trace(gprev);
+                    if (doprint) print("gamma", gamma);
+                    x.gaxpy(1.0,xprev,gamma);
+                }
+                
+                // Perform the line search.
+                rprev = false;
+                double dxgrad = x.trace(g)*2.0;  // 2*2 = 4 which should be prefactor on integrals in gradient
+                if (dxgrad < 0 || ((iter+1)%N)==0) {
+                    if (doprint) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
+                    x = copy(g);
+                    dxgrad = x.trace(g)*2.0;
+                }
+                xprev = x; // Save for next iteration
+                gprev = copy(g);
+                
+                double mu = 0.01/std::max(0.1,maxg); // Restrict intial step mu by size of max gradient
+                tensorT dU = matrix_exponential(x*mu);
+                tensorT newC = inner(dU,C,0,0);
+                double newW;
+                makeGW(newC,newW,g);
+                double dxgnew = x.trace(g)*2.0;
+                
+                if (randomize && iter==0) {
+                    rprev = true; // since did not use real gradient
+                }
+                else { // perform quadratic fit using f(0), df(0)/dx=dxgrad, f(mu) --- actually now use f(0), df(0)/dx, df(mu)/dx for better accuracy
+                    double f0 = W;
+                    double f1 = newW;
+                    //double hess = 2.0*(f1-f0-mu*dxgrad)/(mu*mu); 
+                    double hess = (dxgnew-dxgrad)/mu; // Near convergence this is more accurate
+                    if (hess >= 0) {
+  		        if (doprint) print("+ve hessian", hess);
+                        hess = -2.0*dxgrad; // force a bigish step to get out of bad region
+                        rprev = true; // since did not do line search
+                    }
+                    double mu2 = -dxgrad/hess;
+                    if (mu2*maxg > 0.25) {
+                        mu2 = 0.25/maxg; // pi/6 = 0.524, pi/4=0.785
+                        rprev = true; // since did not do line search
+                    }                        
+                    double f2p = f0 + dxgrad*mu2 + 0.5*hess*mu2*mu2;                
+                    if (doprint) print(f0,f1,f0-f1,f2p,"dxg", dxgrad,"hess", hess, "mu", mu, "mu2", mu2);
+                    mu = mu2;
+                }
+                
+                dU = matrix_exponential(x*mu);
+                U = inner(U,dU,1,0);
+                C = inner(dU,C,0,0);
+            }
+            bool switched = true;
+            while (switched) {
+                switched = false;
+                for (int i = 0; i < nmo; i++) {
+                    for (int j = i + 1; j < nmo; j++) {
+                        if (set[i] == set[j]) {
+                            double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
+                            double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+                            if (snew > sold) {
+                                tensorT tmp = copy(U(_, i));
+                                U(_, i) = U(_, j);
+                                U(_, j) = tmp;
+                                switched = true;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Fix phases.
+            for (int i = 0; i < nmo; ++i) {
+                if (U(i, i) < 0.0)
+                    U(_, i).scale(-1.0);
+            }
+	    //MKL_Set_Num_Threads_Local(1);
+        }
+        //done:
+        world.gop.broadcast(U.ptr(), U.size(), 0);
+        
+        DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
+        dUT.copy_from_replicated(transpose(U));
+        
+        // distmatT dUT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf,
+        //                                        thresh, thetamax, randomize, doprint);
+        //print(UT);
+        END_TIMER(world, "Pipek-Mezy new ");
+        return dUT;
+    }
     
     void SCF::analyze_vectors(World& world, const vecfuncT & mo, const tensorT& occ,
                               const tensorT& energy, const std::vector<int>& set) {
@@ -788,307 +965,136 @@ namespace madness {
     }
     
     distmatT SCF::localize_boys(World & world, const vecfuncT & mo,
-                        const std::vector<int> & set, double thresh,
-                        const double thetamax, const bool randomize) {
-    START_TIMER(world);
-    const bool doprint = false;
-    long nmo = mo.size();
-    tensorT dip(nmo, nmo, 3);
-    for (int axis = 0; axis < 3; ++axis) {
-        functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-        dip(_, _, axis) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
-    }
-    //print("dip\n", dip);
-    //print("tolloc", thresh, "thetamax", thetamax);
-    if (thresh < 1e-6) thresh = 1e-6; //<<<<<<<<<<<<<<<<<<<<< need to implement new line search like in pm routine
-    tensorT U(nmo, nmo);
-    if (world.rank() == 0) {
-        for (long i = 0; i < nmo; ++i)
-            U(i, i) = 1.0;
-     
-
-        double tol = thetamax;
-        long ndone = 0;
-        bool converged = false;
-
-        tensorT xprev; // previous search direction
-        tensorT gprev; // previous gradient
-        bool rprev=true; // if true previous iteration restricted step or did incomplete search (so don't do conjugate)
-        const int N = (nmo*(nmo-1))/2;
-        for (long iter = 0; iter < 1200; ++iter) {
-            tensorT g(nmo,nmo);
-            double W = 0.0;
-            // cannot restrict size of individual gradients if want to do line search --- should instead modify line search direction
-            for (long i = 0; i < nmo; ++i) {
-                W += DIP(dip, i, i, i, i);
-                for (long j = 0; j < i; ++j) {
-                    g(j,i) = (DIP(dip, i, i, i, j) - DIP(dip, j, j, j, i));
-                    if (randomize && iter == 0) g(j,i) += 0.1*(RandomValue<double>() - 0.5);
-                    g(i,j) = - g(j,i);
-                }
-            }
-            double maxg = g.absmax();
-            if (doprint)
-                printf("iteration %ld W=%.8f maxg=%.2e\n", iter, W, maxg);
-            if (maxg < thresh) break;
-
-            // construct search direction using conjugate gradient approach
-            tensorT x = copy(g);
-            if (!rprev) { // Only apply conjugacy if did LS with real gradient
-                double gamma = g.trace(g-gprev)/gprev.trace(gprev);
-                if (doprint) print("gamma", gamma);
-                x.gaxpy(1.0,xprev,gamma);
-            }
-            
-            // Perform the line search.
-            rprev = false;
-            double dxgrad = x.trace(g)*2.0;
-            if (dxgrad < 0 || ((iter+1)%N)==0) {
-                if (doprint) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
-                x = copy(g);
-                dxgrad = x.trace(g)*2.0; // 2*2 = 4 which should be prefactor on integrals in gradient
-            }
-            xprev = x; // Save for next iteration, noting shallow copy
-            gprev = g;
-            
-            double mu = 0.01/std::max(0.1,maxg); // Restrict intial step mu by size of max gradient
-            tensorT dU = matrix_exponential(x*mu);
-            tensorT newdip = inner(dU,dip,0,1); // can optimize this since only want (ii|ii)
-            newdip = inner(dU,newdip,0,1);
-            double newW = 0.0;
-            for (long i = 0; i < nmo; ++i) {
-                newW += DIP(newdip, i, i, i, i);
-            }
-            
-            if (randomize && iter==0) {
-                rprev = true; // since did not use real gradient
-            }
-            else { // perform quadratic fit using f(0), df(0)/dx=dxgrad, f(mu)
-                double f0 = W;
-                double f1 = newW;
-                double hess = 2.0*(f1-f0-mu*dxgrad)/(mu*mu);
-                if (hess >= 0) {
-		    if (doprint) print("+ve hessian", hess);
-                    hess = -2.0*dxgrad; // force a bigish step to get out of bad region
-                    rprev = true; // since did not do line search
-                }
-                double mu2 = -dxgrad/hess;
-                if (mu2*maxg > 0.5) {
-                    mu2 = 0.5/maxg; // pi/6 = 0.524, pi/4=0.785
-                    rprev = true; // since did not do line search
-                }                        
-                double f2p = f0 + dxgrad*mu2 + 0.5*hess*mu2*mu2;                
-                if (doprint) print(f0,f1,f2p,"dxg", dxgrad,"hess", hess, "mu", mu, "mu2", mu2);
-                mu = mu2;
-            }
-            
-            dU = matrix_exponential(x*mu);
-            U = inner(U,dU,1,0);
-            dip = inner(dU,dip,0,1);
-            dip = inner(dU,dip,0,1);
+                                const std::vector<int> & set, double thresh,
+                                const double thetamax, const bool randomize, const bool doprint) const {
+        START_TIMER(world);
+        long nmo = mo.size();
+        tensorT dip(nmo, nmo, 3);
+        for (int axis = 0; axis < 3; ++axis) {
+            functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
+            dip(_, _, axis) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
         }
-
-        bool switched = true;
-        while (switched) {
-            switched = false;
-            for (int i = 0; i < nmo; i++) {
-                for (int j = i + 1; j < nmo; j++) {
-                    if (set[i] == set[j]) {
-                        double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
-                        double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
-                        if (snew > sold) {
-                            tensorT tmp = copy(U(_, i));
-                            U(_, i) = U(_, j);
-                            U(_, j) = tmp;
-                            switched = true;
+        //print("dip\n", dip);
+        //print("tolloc", thresh, "thetamax", thetamax);
+        if (thresh < 1e-6) thresh = 1e-6; //<<<<<<<<<<<<<<<<<<<<< need to implement new line search like in pm routine
+        tensorT U(nmo, nmo);
+        if (world.rank() == 0) {
+            for (long i = 0; i < nmo; ++i)
+                U(i, i) = 1.0;
+            
+            tensorT xprev; // previous search direction
+            tensorT gprev; // previous gradient
+            bool rprev=true; // if true previous iteration restricted step or did incomplete search (so don't do conjugate)
+            const int N = (nmo*(nmo-1))/2;
+            for (long iter = 0; iter < 1200; ++iter) {
+                tensorT g(nmo,nmo);
+                double W = 0.0;
+                // cannot restrict size of individual gradients if want to do line search --- should instead modify line search direction
+                for (long i = 0; i < nmo; ++i) {
+                    W += DIP(dip, i, i, i, i);
+                    for (long j = 0; j < i; ++j) {
+                        g(j,i) = (DIP(dip, i, i, i, j) - DIP(dip, j, j, j, i));
+                        if (randomize && iter == 0) g(j,i) += 0.1*(RandomValue<double>() - 0.5);
+                        g(i,j) = - g(j,i);
+                    }
+                }
+                double maxg = g.absmax();
+                if (doprint)
+                    printf("iteration %ld W=%.8f maxg=%.2e\n", iter, W, maxg);
+                if (maxg < thresh) break;
+                
+                // construct search direction using conjugate gradient approach
+                tensorT x = copy(g);
+                if (!rprev) { // Only apply conjugacy if did LS with real gradient
+                    double gamma = g.trace(g-gprev)/gprev.trace(gprev);
+                    if (doprint) print("gamma", gamma);
+                    x.gaxpy(1.0,xprev,gamma);
+                }
+                
+                // Perform the line search.
+                rprev = false;
+                double dxgrad = x.trace(g)*2.0;
+                if (dxgrad < 0 || ((iter+1)%N)==0) {
+                    if (doprint) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
+                    x = copy(g);
+                    dxgrad = x.trace(g)*2.0; // 2*2 = 4 which should be prefactor on integrals in gradient
+                }
+                xprev = x; // Save for next iteration, noting shallow copy
+                gprev = g;
+                
+                double mu = 0.01/std::max(0.1,maxg); // Restrict intial step mu by size of max gradient
+                tensorT dU = matrix_exponential(x*mu);
+                tensorT newdip = inner(dU,dip,0,1); // can optimize this since only want (ii|ii)
+                newdip = inner(dU,newdip,0,1);
+                double newW = 0.0;
+                for (long i = 0; i < nmo; ++i) {
+                    newW += DIP(newdip, i, i, i, i);
+                }
+                
+                if (randomize && iter==0) {
+                    rprev = true; // since did not use real gradient
+                }
+                else { // perform quadratic fit using f(0), df(0)/dx=dxgrad, f(mu)
+                    double f0 = W;
+                    double f1 = newW;
+                    double hess = 2.0*(f1-f0-mu*dxgrad)/(mu*mu);
+                    if (hess >= 0) {
+                        if (doprint) print("+ve hessian", hess);
+                        hess = -2.0*dxgrad; // force a bigish step to get out of bad region
+                        rprev = true; // since did not do line search
+                    }
+                    double mu2 = -dxgrad/hess;
+                    if (mu2*maxg > 0.5) {
+                        mu2 = 0.5/maxg; // pi/6 = 0.524, pi/4=0.785
+                        rprev = true; // since did not do line search
+                    }                        
+                    double f2p = f0 + dxgrad*mu2 + 0.5*hess*mu2*mu2;                
+                    if (doprint) print(f0,f1,f2p,"dxg", dxgrad,"hess", hess, "mu", mu, "mu2", mu2);
+                    mu = mu2;
+                }
+                
+                dU = matrix_exponential(x*mu);
+                U = inner(U,dU,1,0);
+                dip = inner(dU,dip,0,1);
+                dip = inner(dU,dip,0,1);
+            }
+            
+            bool switched = true;
+            while (switched) {
+                switched = false;
+                for (int i = 0; i < nmo; i++) {
+                    for (int j = i + 1; j < nmo; j++) {
+                        if (set[i] == set[j]) {
+                            double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
+                            double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+                            if (snew > sold) {
+                                tensorT tmp = copy(U(_, i));
+                                U(_, i) = U(_, j);
+                                U(_, j) = tmp;
+                                switched = true;
+                            }
                         }
                     }
                 }
             }
+            
+            // Fix phases.
+            for (long i = 0; i < nmo; ++i) {
+                if (U(i, i) < 0.0)
+                    U(_, i).scale(-1.0);
+            }
+            
         }
-     
-        // Fix phases.
-        for (long i = 0; i < nmo; ++i) {
-            if (U(i, i) < 0.0)
-                U(_, i).scale(-1.0);
-        }
-     
+        
+        world.gop.broadcast(U.ptr(), U.size(), 0);
+        
+        DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
+        dUT.copy_from_replicated(transpose(U));
+        
+        END_TIMER(world, "Boys localize");
+        return dUT;
     }
- 
-    world.gop.broadcast(U.ptr(), U.size(), 0);
-
-    DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
-    dUT.copy_from_replicated(transpose(U));
-
-    END_TIMER(world, "Boys localize");
-    return dUT;
-}
-//   distmatT SCF::localize_boys(World & world, const vecfuncT & mo,
-//                            const std::vector<int> & set, const double thresh,
-// 			     const double thetamax, const bool randomize) {
-//     START_TIMER(world);
-//     const bool doprint = false;
-//     long nmo = mo.size();
-//     tensorT dip(nmo, nmo, 3); 
-//     for (int axis = 0; axis < 3; ++axis) {
-//         functionT fdip = factoryT(world).functor(
-//                                                  functorT(new DipoleFunctor(axis))).initial_level(4);
-//         dip(_, _, axis) = matrix_inner(world, mo,
-//                                        mul_sparse(world, fdip, mo, vtol), true);
-//     }
-//     tensorT U(nmo, nmo);
-//     if (world.rank() == 0) {
-//         for (long i = 0; i < nmo; ++i)
-//             U(i, i) = 1.0;
-     
-//         double tol = thetamax;
-//         long ndone = 0;
-//         bool converged = false;
-//         for (long iter = 0; iter < 300; ++iter) {
-//             double sum = 0.0;
-//             for (long i = 0; i < nmo; ++i) {
-//                 sum += DIP(dip, i, i, i, i);
-//             }
-//             long ndone_iter = 0;
-//             double maxtheta = 0.0;
-//             if (doprint)
-//                 printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum,
-//                        ndone, tol);
-         
-//             for (long i = 0; i < nmo; ++i) {
-//                 for (long j = 0; j < i; ++j) {
-//                     if (set[i] == set[j]) {
-//                         double g = DIP(dip, i, j, j, j) - DIP(dip, i, j, i, i);
-//                         double h = 4.0 * DIP(dip, i, j, i, j)
-//                             + 2.0 * DIP(dip, i, i, j, j)
-//                             - DIP(dip, i, i, i, i) - DIP(dip, j, j, j, j);
-//                         double sij = DIP(dip, i, j, i, j);
-//                         bool doit = false;
-//                         if (h >= 0.0) {
-//                             doit = true;
-//                             if (doprint)
-//                                 print("             forcing negative h", i, j,
-//                                       h);
-                         
-//                             h = -1.0;
-//                         }
-//                         double theta = -g / h;
-//                         maxtheta = std::max<double>(std::abs(theta), maxtheta);
-//                         if (fabs(theta) > thetamax) {
-//                             doit = true;
-//                             if (doprint)
-//                                 print("             restricting", i, j);
-                         
-//                             if (g < 0)
-//                                 theta = -thetamax;
-                         
-//                             else
-//                                 theta = thetamax * 0.8;
-                         
-//                         }
-//                         bool randomized = false;
-//                         if (randomize && iter == 0 && sij > 0.01
-//                             && fabs(theta) < 0.01) {
-//                             randomized = true;
-//                             if (doprint)
-//                                 print("             randomizing", i, j);
-                         
-//                             theta += 0.1*(RandomValue<double>() - 0.5);
-//                         }
-//                         if (fabs(theta) >= tol || randomized || doit) {
-//                             ++ndone_iter;
-//                             if (doprint)
-//                                 print("     rotating", i, j, theta);
-                         
-//                             double c = cos(theta);
-//                             double s = sin(theta);
-//                             drot3(nmo, &dip(i, 0, 0), &dip(j, 0, 0), s, c, 1);
-//                             drot3(nmo, &dip(0, i, 0), &dip(0, j, 0), s, c, nmo);
-//                             drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
-//                         }
-//                     }
-//                 }
-//             }
-         
-//             ndone += ndone_iter;
-//             if (ndone_iter == 0 && tol == thresh) {
-//                 if (doprint)
-//                     print("Boys localization converged in", ndone, "steps");
-             
-//                 converged = true;
-//                 break;
-//             }
-//             tol = std::max(0.1 * maxtheta, thresh);
-//         }
-     
-//         if (!converged) {
-//             print("warning: boys localization did not fully converge: ", ndone);
-//         }
-//         U = transpose(U);
-     
-//         bool switched = true;
-//         while (switched) {
-//             switched = false;
-//             for (int i = 0; i < nmo; i++) {
-//                 for (int j = i + 1; j < nmo; j++) {
-//                     if (set[i] == set[j]) {
-//                         double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
-//                         double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
-//                         if (snew > sold) {
-//                             tensorT tmp = copy(U(_, i));
-//                             U(_, i) = U(_, j);
-//                             U(_, j) = tmp;
-//                             switched = true;
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-     
-//         // Fix phases.
-//         for (long i = 0; i < nmo; ++i) {
-//             if (U(i, i) < 0.0)
-//                 U(_, i).scale(-1.0);
-//         }
-     
-//     }
- 
-//     world.gop.broadcast(U.ptr(), U.size(), 0);
-
-//     DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
-//     dUT.copy_from_replicated(transpose(U));
-
-//     END_TIMER(world, "Boys localize");
-//     return dUT;
-// }
-    
-    // tensorT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
-    //     reconstruct(world, v);
-    //     int n = v.size();
-    //     tensorT r(n, n);
-    //     for (int axis = 0; axis < 3; ++axis) {
-    //         vecfuncT dv = apply(world, *(gradop[axis]), v);
-    //         r += matrix_inner(world, dv, dv, true);
-    //         dv.clear();
-    //     }
-    //     return r.scale(0.5);
-    // }
-    
-    /*distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
-        reconstruct(world, v);
-        int n = v.size();
-        distmatT r = column_distributed_matrix<double>(world, n, n);
-        for (int axis = 0; axis < 3; ++axis) {
-            vecfuncT dv = apply(world, *(gradop[axis]), v);
-            r += matrix_inner(r.distribution(), dv, dv, true);
-            dv.clear();
-        }
-        r *= 0.5;
-        //tensorT p(v.size(),v.size());
-        //r.copy_to_replicated(p);
-        return r;
-    }*/
-
+   
     // this version is faster than the previous version on BG/Q
     distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
          PROFILE_MEMBER_FUNC(SCF);
@@ -1154,11 +1160,11 @@ namespace madness {
         int npsi = psi.size();
         if (npsi == 0)
             return psi;
-        int natom = molecule.natom();
+        size_t natom = molecule.natom();
         vecfuncT proj = zero_functions_compressed<double, 3>(world, npsi);
         tensorT overlap_sum(static_cast<long>(npsi));
         
-        for (int i = 0; i < natom; ++i) {
+        for (size_t i = 0; i < natom; ++i) {
             Atom at = molecule.get_atom(i);
             unsigned int atn = at.atomic_number;
             unsigned int nshell = molecule.n_core_orb(atn);
@@ -1290,7 +1296,7 @@ namespace madness {
 
             // recalculate initial guess density matrix without core orbitals
             if (!param.pure_ae){
-                for (int iatom = 0; iatom < molecule.natom(); iatom++) {
+                for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     if (molecule.get_pseudo_atom(iatom)){
                         double zeff=molecule.get_atom_charge(iatom);
                         int atn=molecule.get_atom_number(iatom);
@@ -1429,16 +1435,20 @@ namespace madness {
             }*/
 
             //vlocal treated in psp includes psp and ae contribution so don't need separate clause for mixed psp/AE
-            if (!param.pure_ae){
+            if (!param.pure_ae) {
                 double enl;
                 tensorT occ = tensorT(ao.size());
-                for(unsigned int i = 0;i < param.nalpha;++i){
-                    occ[i] = 1.0;}
-                for(unsigned int i = param.nalpha;i < ao.size();++i){
-                    occ[i] = 0.0;}
-                vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);}
-            else{
-                vpsi = mul_sparse(world, vlocal, ao, vtol);}
+                for (int i = 0;i < param.nalpha;++i) {
+                    occ[i] = 1.0;
+                }
+                for (int i = param.nalpha;size_t(i) < ao.size();++i) {
+                    occ[i] = 0.0;
+                }
+                vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);
+            }
+            else {
+                vpsi = mul_sparse(world, vlocal, ao, vtol);
+            }
 
             compress(world, vpsi);
             truncate(world, vpsi);
@@ -1528,7 +1538,8 @@ namespace madness {
     	std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
         for (int i = 1; i < nmo; ++i) {
             set[i] = set[i - 1];
-            //if (eps[i] - eps[i - 1] > 1.5 || occ[i] != 1.0) ++(set[i]);
+            // Only the new/boys localizers can tolerate not separating out the core orbitals
+            if (param.localize_pm && (eps[i] - eps[i - 1] > 1.5 || occ[i] != 1.0)) ++(set[i]);
         }
 
         // pretty print out
@@ -1802,7 +1813,7 @@ namespace madness {
         vecfuncT dv(molecule.natom() * 3);
         vecfuncT du = zero_functions<double, 3>(world, molecule.natom() * 3);
         tensorT rc(molecule.natom() * 3);
-        for (int atom = 0; atom < molecule.natom(); ++atom) {
+        for (size_t atom = 0; atom < molecule.natom(); ++atom) {
             for (int axis = 0; axis < 3; ++axis) {
                 functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
                 dv[atom * 3 + axis] =
@@ -1842,7 +1853,7 @@ namespace madness {
         du.clear();
         world.gop.fence();
         tensorT ra(r.size());
-        for (int atom = 0; atom < molecule.natom(); ++atom) {
+        for (size_t atom = 0; atom < molecule.natom(); ++atom) {
             for (int axis = 0; axis < 3; ++axis) {
                 ra[atom * 3 + axis] = molecule.nuclear_repulsion_derivative(atom,
                                                                             axis);
@@ -1858,9 +1869,9 @@ namespace madness {
                   "  atom        x            y            z          dE/dx        dE/dy        dE/dz");
             print(
                   " ------ ------------ ------------ ------------ ------------ ------------ ------------");
-            for (int i = 0; i < molecule.natom(); ++i) {
+            for (size_t i = 0; i < molecule.natom(); ++i) {
                 const Atom& atom = molecule.get_atom(i);
-                printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", i,
+                printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", int(i),
                        atom.x, atom.y, atom.z, r[i * 3 + 0], r[i * 3 + 1],
                        r[i * 3 + 2]);
             }
@@ -2574,7 +2585,7 @@ namespace madness {
         return maxval;
     }
     
-    /// orthonormalize the vectors
+    /// orthonormalize the vectors (symmetric in occupied spaced, gramm-schmidt for virt to occ)
     
     /// @param[in]          world   the world
     /// @param[inout]       amo_new the vectors to be orthonormalized
@@ -2615,7 +2626,7 @@ namespace madness {
 
     }
 
-    /// orthonormalize the vectors
+    /// orthonormalize the vectors ignoring occupied/virtual distinctions
     
     /// @param[in]          world   the world
     /// @param[inout]       amo_new the vectors to be orthonormalized
@@ -2823,12 +2834,10 @@ namespace madness {
         bool do_this_iter = true;
         bool converged = false;
 
-        // Shrink subspace until stop localizing/canonicalizing ... likely not a good idea
+        // Shrink subspace until stop localizing/canonicalizing--- probably not a good idea
         // int maxsub_save = param.maxsub;
         // param.maxsub = 2;
-
-        vecfuncT amo_old;
-
+        
         for (int iter = 0; iter < param.maxiter; ++iter) {
             if (world.rank() == 0)
                 printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
@@ -2840,21 +2849,33 @@ namespace madness {
             
             if (param.localize && do_this_iter) {
 	        distmatT dUT;
-		if (param.localize_pm)
-		  dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, true);
-		else 
-		  dUT = localize_boys(world, amo, aset, tolloc, 0.1, iter == 0);
-
+		if (param.localize_pm) {
+                    dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, false);
+                }
+                else if (param.localize_new) {
+                    dUT = localize_new(world, amo, aset, tolloc, 0.1, iter == 0, false);
+                }
+		else if (param.localize_boys) {
+                    dUT = localize_boys(world, amo, aset, tolloc, 0.1, iter == 0, false);
+                }
+                else
+                    throw "localization confusion";
+                
                 dUT.data().screen(trantol);
                 START_TIMER(world);
                 amo = transform(world, amo, dUT);
                 truncate(world, amo);
                 normalize(world, amo);
                 if (!param.spin_restricted && param.nbeta != 0) {
-		  if (param.localize_pm)
-                    dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, true);
-		  else
-		    dUT = localize_boys(world, bmo, bset, tolloc, 0.1, iter == 0);
+                    if (param.localize_pm) {
+                        dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, false);
+                    }
+                    else if (param.localize_new) {
+                        dUT = localize_new(world, bmo, bset, tolloc, 0.1, iter == 0, false);
+                    }
+                    else {
+                        dUT = localize_boys(world, bmo, bset, tolloc, 0.1, iter == 0, false);
+                    }
 
                     START_TIMER(world);
                     dUT.data().screen(trantol);
@@ -2914,9 +2935,7 @@ namespace madness {
             functionT rho = arho + brho;
 
             rho.truncate();
-	    double rhotrace = rho.trace();	      
-	    if (world.rank() == 0) print("rho trace", rhotrace, rhotrace-std::round(rhotrace));
-	    
+ 
             real_function_3d vnuc;
             if (param.psp_calc){
                 vnuc = gthpseudopotential->vlocalpot();}
@@ -3014,8 +3033,12 @@ namespace madness {
             
             if (iter > 0) {
                 //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
-	      if (da < dconv * std::max(5,molecule.natom()) && db < dconv * std::max(5,molecule.natom())
+
+                if (da < dconv * std::max(size_t(5),molecule.natom()) && db < dconv * std::max(size_t(5),molecule.natom())
                     && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) converged=true;
+                // previous conv was too tight for small systems
+                // if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
+                //     && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) converged=true;
 
                 // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
                 if (converged || iter==param.maxiter-1) {
@@ -3457,7 +3480,7 @@ namespace madness {
         return Vdmo;
     }
 
-    void SCF::this_axis(World & world, int & axis)
+    void SCF::this_axis(World & world, int axis)
     {
         print("\n");
         if (world.rank() == 0) { 
@@ -3472,7 +3495,7 @@ namespace madness {
         }
     }
 
-    vecfuncT SCF::calc_dipole_mo(World & world,  vecfuncT & mo, int & axis)
+    vecfuncT SCF::calc_dipole_mo(World & world,  vecfuncT & mo, const int axis)
     {
         //START_TIMER(world);
 
@@ -3485,7 +3508,7 @@ namespace madness {
         reconstruct(world, mo);  
 
         // dipolefunc * mo[iter]
-        for(int p=0; p<mo.size(); ++p)
+        for(size_t p=0; p<mo.size(); ++p)
             dipolemo[p] =  mul_sparse(dipolefunc, mo[p],false);
 
         //END_TIMER(world, "Make perturbation");
@@ -3562,7 +3585,7 @@ namespace madness {
     {
         functionT drho = factoryT(world);
         drho.compress();
-        for(int i=0; i<mo.size(); ++i) {
+        for(size_t i=0; i<mo.size(); ++i) {
             functionT rhoi = mo[i] * x[i] + mo[i] * y[i];
             rhoi.compress();
             if(occ[i])
@@ -3587,7 +3610,7 @@ namespace madness {
 
         functionT k1 = factoryT(world);
         functionT k2 = factoryT(world);
-        for(int i=0; i<mo.size(); ++i) {
+        for(size_t i=0; i<mo.size(); ++i) {
             k1 = apply(*coulop, ( mo[i] * mo[p] )) * dmo1[i];
             k2 = apply(*coulop, ( mo[p] * dmo2[i] )) * mo[i];
             dKmo = dKmo - (k1 + k2);
@@ -3640,7 +3663,7 @@ namespace madness {
         if(xc.hf_exchange_coefficient() == 1.0){
         //if(xc.hf_exchange_coefficient()){
             START_TIMER(world);
-            for(int p=0; p<mo.size(); ++p) {
+            for(size_t p=0; p<mo.size(); ++p) {
                 djkmo[p] = calc_exchange_function(world, p, dmo1, dmo2, mo,spin);
                //add a fraction only
                 djkmo[p].scale(xc.hf_exchange_coefficient());
@@ -3665,7 +3688,7 @@ namespace madness {
         Projector<double,3> rho0(mo);
 
         vecfuncT gp = add(world, dipolemo, djkmo);
-        for (int i=0; i<Vdmo.size(); ++i) {
+        for (size_t i=0; i<Vdmo.size(); ++i) {
             functionT gp1 =  gp[i];
             gp1 = gp1 - rho0(gp1);
             gp1 = Vdmo[i] + gp1 ;
@@ -3694,8 +3717,8 @@ namespace madness {
     void SCF::orthogonalize_response(World & world, vecfuncT & dmo, vecfuncT & mo )
     {
      reconstruct(world, dmo);
-       for(int i=0; i<mo.size(); ++i){
-           for (int j=0; j<mo.size(); ++j){
+       for(size_t i=0; i<mo.size(); ++i){
+           for (size_t j=0; j<mo.size(); ++j){
                // new_x = new_x - < psi | new_x > * psi
                dmo[i] = dmo[i] - dmo[i].inner(mo[j])*mo[j];
            }
@@ -3705,7 +3728,7 @@ namespace madness {
 
 //vama ugly ! alpha_ij(w) = - sum(m occ) [<psi_m(0)|r_i|psi_mj(1)(w)> + <psi_mj(1)(-w)|r_i|psi_m(0)>]
 
-    void SCF::dpolar(World & world, tensorT & polar, functionT & drho, int & axis)
+    void SCF::dpolar(World & world, tensorT & polar, functionT & drho, const int axis)
     {
         for(int i=0; i<3; ++i) {
             std::vector<int> f(3, 0);
@@ -3718,7 +3741,7 @@ namespace madness {
     void SCF::calc_dpolar(World & world,  
             const vecfuncT & ax, const vecfuncT & ay, 
             const vecfuncT & bx, const vecfuncT & by, 
-            int & axis,
+            const int axis,
             tensorT & Dpolar_total, tensorT & Dpolar_alpha, tensorT & Dpolar_beta)
     {
         double Dpolar_average = 0.0;
@@ -3912,7 +3935,7 @@ namespace madness {
         const double rconv = std::max(FunctionDefaults<3>::get_thresh(), param.rconv);
         int maxsub_save = param.maxsub;
 
-        for ( int axis=0; axis<param.response_axis.size(); axis++) {
+        for (size_t axis=0; axis<param.response_axis.size(); axis++) {
             if(!param.response_axis[axis]) continue; 
         
             subspaceT subspace;

@@ -592,19 +592,19 @@ void print_stats(World& world, int step, double t, const functionT& v,
 }
 
 const char* wave_function_filename(int step) {
-    static char fname[1024];
+    static char fname[256];
     sprintf(fname, "%s-%5.5d", param.prefix.c_str(), step);
     return fname;
 }
 
 const char* wave_function_small_plot_filename(int step) {
-    static char fname[1024];
+    static char fname[256];
     sprintf(fname, "%s-%5.5dS.dx", param.prefix.c_str(), step);
     return fname;
 }
 
 const char* wave_function_large_plot_filename(int step) {
-    static char fname[1024];
+    static char fname[256];
     sprintf(fname, "%s-%5.5dL.dx", param.prefix.c_str(), step);
     return fname;
 }

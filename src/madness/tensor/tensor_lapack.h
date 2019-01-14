@@ -132,6 +132,12 @@ namespace madness {
     template <typename T>
     void cholesky(Tensor<T>& A);
 
+    /// rank-revealing Cholesky factorization
+
+    /// \ingroup linalg
+    template <typename T>
+    void rr_cholesky(Tensor<T>& A, typename Tensor<T>::scalar_type tol, Tensor<integer>& piv, int& rank);
+
     /// \ingroup linalg
     template <typename T>
     Tensor<T> inverse(const Tensor<T>& A);

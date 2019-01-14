@@ -50,7 +50,6 @@
 #include <exception>
 #include <madness/madness_config.h>
 #ifdef MADNESS_ASSERTIONS_ASSERT
-#undef NDEBUG
 #  include <cassert>
 #endif
 
@@ -123,7 +122,7 @@ namespace madness {
 }
 
 // the following define/undef are for documentation purposes only.
-/// Assert a condition.
+/// Assert a condition that should be free of side-effects since in release builds this might be a no-op.
 
 /// Depending on the configuration, one of the following happens if
 /// \c condition is false:
@@ -131,36 +130,60 @@ namespace madness {
 /// - `assert(condition)` is called.
 /// - execution is aborted.
 /// - nothing.
-/// \param[in] condition The condition to be asserted which is always evaluated.
+/// \param[in] condition The condition to be asserted.
+#define MADNESS_ASSERT(condition)
+#undef MADNESS_ASSERT
 
-#if !(defined(MADNESS_ASSERTIONS_ABORT) || defined(MADNESS_ASSERTIONS_DISABLE) || defined(MADNESS_ASSERTIONS_ASSERT) || defined(MADNESS_ASSERTIONS_THROW))
-#define (MADNESS_ASSERTIONS_THROW
-#endif
 
 #ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) { std::abort(); }} while (0)
+#endif
 
-#elif defined(MADNESS_ASSERTIONS_DISABLE)
-#  define MADNESS_ASSERT(condition) do { (void)(condition);} while (0)
+#ifdef MADNESS_ASSERTIONS_DISABLE
+// this avoid unused variable warnings, see http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
+#  define MADNESS_ASSERT(condition) do { (void)sizeof(condition);} while (0)    
+#endif
 
-#elif defined(MADNESS_ASSERTIONS_ASSERT)
+#ifdef MADNESS_ASSERTIONS_ASSERT
 #  define MADNESS_ASSERT(condition) assert(condition)
+#endif
 
-#elif defined(MADNESS_ASSERTIONS_THROW)
-#  define MADNESS_STRINGIZE(X) #X
-#  define MADNESS_EXCEPTION_AT(F, L) MADNESS_STRINGIZE(F) "(" MADNESS_STRINGIZE(L) ")"
+#ifdef MADNESS_ASSERTIONS_THROW
 #  define MADNESS_ASSERT(condition) \
     do { \
         if (!(condition)) { \
             madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
-            throw madness::MadnessException("MADNESS ASSERTION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
-                #condition,0,__LINE__,__FUNCTION__,__FILE__); \
+            throw madness::MadnessException("MADNESS ASSERTION FAILED: " , \
+                                            (#condition),0,__LINE__,__FUNCTION__,__FILE__); \
         } \
     } while (0)
-#else
+#endif
 
-#error "MADNESS_ASSERTIONS must do something!"
+// the following define/undef are for documentation purposes only.
+/// Check a condition --- even in a release build the condition is always evaluated so it can have side effects
+
+/// Depending on the configuration, one of the following happens if
+/// \c condition is false:
+/// - a \c madness::MadnessException is thrown.
+/// - execution is aborted.
+/// \param[in] condition The condition to be checked.
+#define MADNESS_CHECK(condition)
+#undef MADNESS_CHECK
+
+// If madness assertions throw/assert/disabled, then madness checks throw.  Otherwise both assertions and checks abort.
+#ifdef MADNESS_ASSERTIONS_ABORT
+#  define MADNESS_CHECK(condition)                      \
+    do {if (!(condition)) { std::abort(); }} while (0)
+#else
+#  define MADNESS_CHECK(condition)              \
+    do { \
+        if (!(condition)) { \
+            madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
+            throw madness::MadnessException("MADNESS CHECK FAILED: " , \
+                                            (#condition),0,__LINE__,__FUNCTION__,__FILE__); \
+        } \
+    } while (0)
 #endif
 
 } // namespace madness

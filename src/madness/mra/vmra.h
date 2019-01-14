@@ -301,6 +301,215 @@ namespace madness {
         return r;
     }
 
+    /// symmetric orthonormalization (see e.g. Szabo/Ostlund)
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] overlap matrix
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_symmetric(
+    		const std::vector<Function<T,NDIM> >& v,
+			  const Tensor<T>& ovlp) {
+    	if(v.empty()) return v;
+
+    	Tensor<T> U;
+    	Tensor< typename Tensor<T>::scalar_type > s;
+    	syev(ovlp,U,s);
+
+    	// transform s to s^{-1}
+    	for(size_t i=0;i<v.size();++i) s(i)=1.0/(sqrt(s(i)));
+
+    	// save Ut before U gets modified with s^{-1}
+    	const Tensor<T> Ut=transpose(U);
+    	for(size_t i=0;i<v.size();++i){
+    		for(size_t j=0;j<v.size();++j){
+    			U(i,j)=U(i,j)*s(j);
+    		}
+    	}
+
+    	Tensor<T> X=inner(U,Ut,1,0);
+
+    	World& world=v.front().world();
+    	return transform(world,v,X);
+
+    }
+    /// convenience routine for symmetric orthonormalization (see e.g. Szabo/Ostlund)
+    /// overlap matrix is calculated
+    /// @param[in] the vector to orthonormalize
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_symmetric(const std::vector<Function<T,NDIM> >& v){
+    	if(v.empty()) return v;
+
+
+    	World& world=v.front().world();
+    	Tensor<T> ovlp = matrix_inner(world, v, v);
+
+    	return orthonormalize_symmetric(v,ovlp);
+    }
+
+    /// canonical orthonormalization (see e.g. Szabo/Ostlund)
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] overlap matrix
+    /// @param[in]	lindep	linear dependency threshold relative to largest eigenvalue
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_canonical(
+    		const std::vector<Function<T,NDIM> >& v,
+			const Tensor<T>& ovlp,
+			double lindep) {
+
+    	if(v.empty()) return v;
+
+    	Tensor<T> U;
+    	Tensor< typename Tensor<T>::scalar_type > s;
+    	syev(ovlp,U,s);
+    	lindep*=s(s.size()-1);	// eigenvalues are in ascending order
+
+    	// transform s to s^{-1}
+    	int rank=0,lo=0;
+    	Tensor< typename Tensor<T>::scalar_type > sqrts(v.size());
+    	for(size_t i=0;i<v.size();++i) {
+    		if (s(i)>lindep) {
+    			sqrts(i)=1.0/(sqrt(s(i)));
+        		rank++;
+    		} else {
+    			sqrts(i)=0.0;
+    			lo++;
+    		}
+    	}
+    	MADNESS_ASSERT(size_t(lo+rank)==v.size());
+
+    	for(size_t i=0;i<v.size();++i){
+    		for(size_t j=0;j<v.size();++j){
+    			U(i,j)=U(i,j)*(sqrts(j));
+    		}
+    	}
+    	Tensor<double> X=U(_,Slice(lo,-1));
+
+    	World& world=v.front().world();
+    	return transform(world,v,X);
+
+    }
+
+    /// convenience routine for canonical routine for symmetric orthonormalization (see e.g. Szabo/Ostlund)
+    /// overlap matrix is calculated
+    /// @param[in] the vector to orthonormalize
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_canonical(const std::vector<Function<T,NDIM> >& v,
+    		const double lindep){
+    	if(v.empty()) return v;
+
+    	World& world=v.front().world();
+    	Tensor<T> ovlp = matrix_inner(world, v, v);
+
+    	return orthonormalize_canonical(v,ovlp,lindep);
+    }
+
+    /// cholesky orthonormalization without pivoting
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] overlap matrix, destroyed on return!
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_cd(
+    		const std::vector<Function<T,NDIM> >& v,
+			Tensor<T>& ovlp) {
+
+    	if (v.empty()) return v;
+
+    	cholesky(ovlp); // destroys ovlp and gives back Upper ∆ Matrix from CD
+
+    	Tensor<T> L = transpose(ovlp);
+    	Tensor<T> Linv = inverse(L);
+    	Tensor<T> U = transpose(Linv);
+
+    	World& world=v.front().world();
+    	return transform(world, v, U);
+
+    }
+
+    /// convenience routine for cholesky orthonormalization without pivoting
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] overlap matrix
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_cd(const std::vector<Function<T,NDIM> >& v){
+    	if(v.empty()) return v;
+
+    	World& world=v.front().world();
+    	Tensor<T> ovlp = matrix_inner(world, v, v);
+
+    	return orthonormalize_cd(v,ovlp);
+    }
+
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] overlap matrix, will be destroyed on return!
+    /// @param[in] tolerance for numerical rank reduction
+    /// @param[out] pivoting vector, no allocation on input needed
+    /// @param[out] rank
+    /// @return orthonrormalized vector (may or may not be truncated)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_rrcd(
+    		const std::vector<Function<T,NDIM> >& v,
+			Tensor<T>& ovlp,
+			const double tol,
+			Tensor<integer>& piv,
+			int& rank) {
+
+    	if (v.empty()) {
+    		return v;
+    	}
+
+    	rr_cholesky(ovlp,tol,piv,rank); // destroys ovlp and gives back Upper ∆ Matrix from CCD
+
+    	// rearrange and truncate the functions according to the pivoting of the rr_cholesky
+    	std::vector<Function<T,NDIM> > pv(rank);
+    	for(integer i=0;i<rank;++i){
+    		pv[i]=v[piv[i]];
+    	}
+    	ovlp=ovlp(Slice(0,rank-1),Slice(0,rank-1));
+
+    	Tensor<T> L = transpose(ovlp);
+    	Tensor<T> Linv = inverse(L);
+    	Tensor<T> U = transpose(Linv);
+
+    	World& world=v.front().world();
+    	return transform(world, pv, U);
+    }
+
+    /// convenience routine for orthonromalize_cholesky: orthonromalize_cholesky without information on pivoting and rank
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] overlap matrix
+    /// @param[in] tolerance for numerical rank reduction
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_rrcd(const std::vector<Function<T,NDIM> >& v, Tensor<T> ovlp , const double tol) {
+    	Tensor<integer> piv;
+    	int rank;
+    	return orthonormalize_rrcd(v,ovlp,tol,piv,rank);
+    }
+
+    /// convenience routine for orthonromalize_cholesky: computes the overlap matrix and then calls orthonromalize_cholesky
+    /// @param[in] the vector to orthonormalize
+    /// @param[in] tolerance for numerical rank reduction
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_rrcd(const std::vector<Function<T,NDIM> >& v, const double tol) {
+    	if (v.empty()) {
+    		return v;
+    	}
+    	// compute overlap
+    	World& world=v.front().world();
+    	Tensor<T> ovlp = matrix_inner(world, v, v);
+    	return orthonormalize_rrcd(v,ovlp,tol);
+    }
+
+    /// combine two vectors
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > append(const std::vector<Function<T,NDIM> > & lhs, const std::vector<Function<T,NDIM> > & rhs){
+    	std::vector<Function<T,NDIM> >  v=lhs;
+    	for (std::size_t i = 0; i < rhs.size(); ++i) v.push_back(rhs[i]);
+    	return v;
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > append(const std::vector< std::vector<Function<T,NDIM> > > vv){
+    	std::vector<Function<T,NDIM> >result;
+    	for(const auto& x:vv) result=append(result,x);
+    	return result;
+    }
 
     /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
 
@@ -582,7 +791,7 @@ namespace madness {
                                             const std::vector< Function<R,NDIM> >& g) {
         PROFILE_BLOCK(Vinnervv);
         long n=f.size(), m=g.size();
-        MADNESS_ASSERT(n==m);
+        MADNESS_CHECK(n==m);
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
 
         compress(world, f);
@@ -1099,7 +1308,7 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         std::vector<Function<T,NDIM> > result(NDIM);
-        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        for (size_t i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
         if (fence) world.gop.fence();
         return result;
     }
@@ -1125,7 +1334,7 @@ namespace madness {
                 gradient_operator<T,NDIM>(world);
 
         std::vector<Function<T,NDIM> > result(NDIM);
-        for (int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),v[i],false);
+        for (size_t i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),v[i],false);
         world.gop.fence();
         return sum(world,result,fence);
     }
