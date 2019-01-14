@@ -505,13 +505,6 @@ ResponseFunction TDHF::create_trial_functions(World & world,
    return trials;
 }
 
-// Creates a guess from virtual orbitals inside the sto-3g basis
-// MADNESS has lying around
-//Responsefunction TDHF::create_virtuals(World &world,
-//                                       int k)
-//{
-//
-//};
 
 // Returns dipole operator * molecular orbitals 
 ResponseFunction TDHF::dipole_guess(World &world,
@@ -534,12 +527,14 @@ ResponseFunction TDHF::dipole_guess(World &world,
       {
          dipole_guesses[axis][i] = mul_sparse(dip, orbitals[i], false); 
       }
+      world.gop.fence();
    }
    //dipole_guesses.truncate_rf();
 
    // Done
    return dipole_guesses;
 }
+
 
 // Returns the derivative of the coulomb operator, applied to ground state orbitals
 ResponseFunction TDHF::create_coulomb_derivative(World &world,
@@ -4923,12 +4918,15 @@ void TDHF::iterate_polarizability(World & world,
 }  // Done with iterate_polarizability 
 
 // Calculates polarizability according to
-// alpha_ij(\omega) = -sum_{occ} < x_j | r_i | 0 > + < 0 | r_i | y_j >
+// alpha_ij(\omega) = -sum_{ directions } < x_j | r_i | 0 > + < 0 | r_i | y_j >
 void TDHF::polarizability(World& world,
                           Tensor<double> polar)
 {
    // Get transition density
-   std::vector<real_function_3d> rhos = transition_density(world, Gparams.orbitals, x_response, y_response); 
+   //std::vector<real_function_3d> rhos = transition_density(world, Gparams.orbitals, x_response, y_response); 
+   std::vector<real_function_3d> rhos;
+   if(Rparams.omega == 0) rhos = transition_density(world, Gparams.orbitals, x_response, x_response); 
+   else rhos = transition_density(world, Gparams.orbitals, x_response, y_response); 
 
    // For each r_axis
    for(int axis = 0; axis < 3; axis++)
@@ -4966,7 +4964,7 @@ void TDHF::solve_polarizability(World & world)
    Tensor<double> polar_tensor(3,3);
 
    // Keep a copy of dipoles * MO (needed explicitly in eq.)
-   ResponseFunction dipoles = dipole_guess(world, Gparams.orbitals); 
+   ResponseFunction dipoles;// = dipole_guess(world, Gparams.orbitals); 
 
    // For each protocol
    for(unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++)
@@ -4994,8 +4992,8 @@ void TDHF::solve_polarizability(World & world)
          }
 
          // Create trial functions
-         if(world.rank() == 0 and proto == 0)  printf("\n   Creating trial functions");
-         if(world.rank() == 0 and proto == 0)  printf("\n   ------------------------\n\n"); 
+         //if(world.rank() == 0 and proto == 0)  printf("\n   Creating trial functions");
+         //if(world.rank() == 0 and proto == 0)  printf("\n   ------------------------\n\n"); 
       }
 
       // Set the dipoles (ground orbitals are probably
