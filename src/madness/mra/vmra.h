@@ -1263,36 +1263,45 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
             const std::vector<Function<T,NDIM>>& rhs) {
-        return add(lhs[0].world(),lhs,rhs);
+        if (lhs.size()>0) return add(lhs[0].world(),lhs,rhs);
+        return std::vector<Function<T, NDIM> >();
     }
 
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
-        return sub(lhs[0].world(),lhs,rhs);
+        if (lhs.size()>0) return sub(lhs[0].world(),lhs,rhs);
+        return std::vector<Function<T, NDIM> >();
     }
 
     template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > operator*(const R fac,
             const std::vector<Function<T,NDIM> >& rhs) {
-        std::vector<Function<T,NDIM> > tmp=copy(rhs[0].world(),rhs);
-        scale(tmp[0].world(),tmp,TENSOR_RESULT_TYPE(T,R)(fac));
-        return tmp;
+    	if (rhs.size()>0) {
+			std::vector<Function<T,NDIM> > tmp=copy(rhs[0].world(),rhs);
+			scale(tmp[0].world(),tmp,TENSOR_RESULT_TYPE(T,R)(fac));
+			return tmp;
+    	}
+		return std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> >();
     }
 
     template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator*(const std::vector<Function<T,NDIM> >& rhs,
             const R fac) {
-        std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > tmp=copy(rhs[0].world(),rhs);
-        scale(tmp[0].world(),tmp,TENSOR_RESULT_TYPE(T,R)(fac));
-        return tmp;
+    	if (rhs.size()>0) {
+            std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > tmp=copy(rhs[0].world(),rhs);
+            scale(tmp[0].world(),tmp,TENSOR_RESULT_TYPE(T,R)(fac));
+            return tmp;
+    	}
+		return std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> >();
     }
 
     /// multiply a vector of functions with a function: r[i] = v[i] * a
     template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > operator*(const Function<T,NDIM>& a,
             const std::vector<Function<R,NDIM> >& v) {
-        return mul(v[0].world(),a,v,true);
+        if (v.size()>0) return mul(v[0].world(),a,v,true);
+        return std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> >();
     }
 
 
@@ -1300,21 +1309,22 @@ namespace madness {
     template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > operator*(const std::vector<Function<T,NDIM> >& v,
             const Function<R,NDIM>& a) {
-        return mul(v[0].world(),a,v,true);
+        if (v.size()>0) return mul(v[0].world(),a,v,true);
+        return std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> >();
     }
 
 
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
             const std::vector<Function<T,NDIM> >& lhs) {
-        rhs=add(rhs[0].world(),rhs,lhs);
+        if (rhs.size()>0) rhs=add(rhs[0].world(),rhs,lhs);
         return rhs;
     }
 
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-=(std::vector<Function<T,NDIM> >& rhs,
             const std::vector<Function<T,NDIM> >& lhs) {
-        rhs=sub(rhs[0].world(),rhs,lhs);
+        if (rhs.size()>0) rhs=sub(rhs[0].world(),rhs,lhs);
         return rhs;
     }
 

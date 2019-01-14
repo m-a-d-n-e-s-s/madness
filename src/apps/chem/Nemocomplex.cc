@@ -21,9 +21,11 @@ double Nemo_complex::value() {
 	vnuclear=real_factory_3d(world).functor(molecular_potential).thresh(FunctionDefaults<3>::get_thresh()*0.1);
 	vnuclear.set_thresh(FunctionDefaults<3>::get_thresh());
 
+
 	// read the guess orbitals
 	try {
 		read_orbitals();
+
 	} catch(...) {
 		amo=read_guess("alpha");
 		if (have_beta()) bmo=read_guess("beta");
@@ -46,11 +48,11 @@ double Nemo_complex::value() {
 	// increase the magnetic field
 	for (int i=0; i<param.B().size(); ++i) {
 		B=param.B()[i];
-		double shift=param.shift();
 		print("solving for magnetic field B=",B);
 
 		// set end of iteration cycles for intermediate calculations
-		int maxiter = (i==param.B().size()-1) ? cparam.maxiter : 20;
+//		int maxiter = (i==param.B().size()-1) ? cparam.maxiter : 20;
+		int maxiter = cparam.maxiter;
 		double dconv = (i==param.B().size()-1) ? cparam.dconv : 1.e-2;
 		double na=1.0,nb=1.0;	// residual norms
 
@@ -74,7 +76,7 @@ double Nemo_complex::value() {
 
 			compute_potentials(amo, density, amo, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
 			vmata=compute_vmat(amo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
-			Vnemoa=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo+shift*amo;
+			Vnemoa=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo;
 			truncate(world,Vnemoa,thresh*0.1);
 			two_electron_alpha= real(-inner(world,Knemo,amo).sum() + inner(world,Jnemo,amo).sum());
 
@@ -82,7 +84,7 @@ double Nemo_complex::value() {
 				compute_potentials(bmo, density, bmo, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
 				scale(world,spin_zeeman_nemo,-1.0);
 				vmatb=compute_vmat(bmo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
-				Vnemob=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo+shift*bmo;
+				Vnemob=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo;
 				truncate(world,Vnemob);
 				two_electron_beta= real(-inner(world,Knemo,bmo).sum() + inner(world,Jnemo,bmo).sum());
 			}
@@ -106,19 +108,18 @@ double Nemo_complex::value() {
 			}
 
 			// compute orbital and total energies
+			for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
+			for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
+
 			oldenergy=energy;
-			energy=aeps.sum() + beps.sum()-(aeps.size()+beps.size())*shift;
+			energy=aeps.sum() + beps.sum();
 			energy=energy-0.5*(two_electron_alpha + two_electron_beta);
 			if (cparam.spin_restricted) energy*=2.0;
 			energy+=molecule.nuclear_repulsion_energy();
 
-//			if (iter<5) {
-				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i))+shift;
-				for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i))+shift;
-//			}
 			if (world.rank()==0 and (param.printlevel()>1)) {
-				print("orbital energies alpha",aeps-shift);
-				print("orbital energies beta ",beps-shift);
+				print("orbital energies alpha",aeps);
+				print("orbital energies beta ",beps);
 			}
 			if (world.rank() == 0) {
 				printf("finished iteration %2d at time %8.1fs with energy, norms %12.8f %12.8f %12.8f\n",
@@ -164,9 +165,6 @@ double Nemo_complex::value() {
 			}
 			save_orbitals(iter);
 		}
-		// undo the energy shift
-		aeps-=shift;
-		beps-=shift;
 		if (world.rank()==0) {
 			print("orbital energies alpha",aeps);
 			print("orbital energies beta ",beps);
@@ -335,8 +333,9 @@ Nemo_complex::compute_residuals(
     std::vector < std::shared_ptr<real_convolution_3d> > ops(psi.size());
     for (int i=0; i<eps.size(); ++i)
     		ops[i]=std::shared_ptr<real_convolution_3d>(
-    				BSHOperatorPtr3D(world, sqrt(-2.*std::min(-0.05,eps(i))), cparam.lo, tol*0.1));
-    std::vector<complex_function_3d> tmp = apply(world,ops,-2.0*Vpsi);
+    				BSHOperatorPtr3D(world, sqrt(-2.*std::min(-0.05,eps(i)+param.shift())), cparam.lo, tol*0.1));
+
+    std::vector<complex_function_3d> tmp = apply(world,ops,-2.0*Vpsi-2.0*param.shift()*psi);
     std::vector<complex_function_3d> res=psi-tmp;
 
     // update eps
@@ -346,7 +345,7 @@ Nemo_complex::compute_residuals(
     	print("norm2(tmp)",norms);
     	print("norm2(res)",rnorms);
     }
-    Tensor<double_complex> in=inner(world,Vpsi,res);
+    Tensor<double_complex> in=inner(world,Vpsi,res);	// no shift here!
     Tensor<double> delta_eps(eps.size());
     for (int i=0; i<eps.size(); ++i) delta_eps(i)=real(in(i))/(norms[i]*norms[i]);
     eps-=delta_eps;

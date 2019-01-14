@@ -21,7 +21,7 @@ namespace madness {
 class Complex_CIS_Parameters : public CalculationParametersBase {
 public:
 	enum parameterenum {guess_excitation_operators_,exops_,freeze_,guess_excitations_,thresh_,maxiter_,omega_,
-						swap_ab_};
+						swap_ab_,dconv_,printlevel_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
@@ -32,7 +32,9 @@ public:
         		init<double>(thresh_,{"thresh",FunctionDefaults<3>::get_thresh()}),
         		init<double>(omega_,{"omega",0.0}),
         		init<int>(maxiter_,{"maxiter",10}),
-				init<bool>(swap_ab_,{"swap_ab",false})
+				init<bool>(swap_ab_,{"swap_ab",false}),
+        		init<double>(dconv_,{"dconv",1.e-3}),
+        		init<int>(printlevel_,{"printlevel",1})
     };
 
 	/// ctor reading out the input file
@@ -56,6 +58,8 @@ public:
 	double omega() const {return get<double>(omega_);};
 	int maxiter() const {return get<int>(maxiter_);};
 	bool swap_ab() const {return get<bool>(swap_ab_);};
+	double dconv() const {return get<double>(dconv_);};
+	int printlevel() const {return get<int>(printlevel_);};
 
 
 	/// return the value of the parameter
@@ -79,8 +83,18 @@ public:
 		std::vector<complex_function_3d> apot;
 		std::vector<complex_function_3d> bpot;
 		double omega=0.0;
-		double delta=0.0;				// last wave function error
-		double energy_change=0.0;		// last energy_change
+		double delta=1.e3;				// last wave function error
+		double energy_change=1.e3;		// last energy_change
+
+		/// inner product for the KAIN solver
+		friend
+	    double_complex inner(const root& f, const root& g){
+			MADNESS_ASSERT(f.afunction.size()==g.afunction.size());
+			MADNESS_ASSERT(f.bfunction.size()==g.bfunction.size());
+			double_complex result=inner(f.afunction,f.afunction) + inner(g.bfunction,g.bfunction);
+			return result;
+		}
+
 
 	};
 
@@ -128,6 +142,7 @@ public:
 
 	Complex_cis(World& w, Nemo_complex& n) : world(w), cis_param(world), nemo(n),
 		Qa(world,nemo.amo,nemo.amo), Qb(world,nemo.bmo,nemo.bmo) {
+		cis_param.print(cis_param.params);
 		print("Qa projector",Qa.get_ket_vector().size());
 		print("Qb projector",Qb.get_ket_vector().size());
 

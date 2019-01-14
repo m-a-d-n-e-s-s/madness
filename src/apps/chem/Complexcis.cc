@@ -44,6 +44,12 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 	totdens.print_size("totdens");
 
 	const double shift=nemo.param.shift();
+	const bool use_kain=true;
+
+	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>
+			solver(allocator(world,active_mo(nemo.amo).size()+active_mo(nemo.bmo).size()));
+	solver.set_maxsub(10);
+	std::vector<XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> > solvers(roots.size(),solver);
 
 	for (int iter=0; iter<cis_param.maxiter(); ++iter) {
 		wall1=wall_time();
@@ -59,21 +65,25 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 		compute_potentials(roots, totdens);
 
 		Tensor<double> omega;
-		if (1) {//(iter<3) or (iter%5==0)) {
+		if ((iter<3) or (iter%5==0)) {
 			Tensor<double_complex> fock_pt = compute_fock_pt(roots);
-			print("fock_pt");
-			print(fock_pt);
 
 			// compute the expectation value of the excitation energy Eq. (34) of Kottmann2015
 			Tensor<double_complex> ovlp(roots.size()),eovlp(roots.size());
 			for (std::size_t i=0; i<roots.size(); ++i) {
-				ovlp(i)=inner(roots[i].afunction,roots[i].afunction) + inner(roots[i].bfunction,roots[i].bfunction);
+				ovlp(i)=inner(roots[i],roots[i]);
 				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo.aeps+shift))
 						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo.beps+shift));
 			}
-			print("ovlp (ab), eovlp (ab)");
-			print(ovlp);
-			print(eovlp);
+
+			if (cis_param.printlevel()>2) {
+				print("fock_pt");
+				print(fock_pt);
+
+				print("ovlp (ab), eovlp (ab)");
+				print(ovlp);
+				print(eovlp);
+			}
 
 			omega=Tensor<double>(roots.size());
 			for (std::size_t i=0; i<roots.size(); ++i) {
@@ -89,27 +99,35 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 		// update the residuals
 		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 			root& thisroot=roots[iroot];
+			if (thisroot.delta<cis_param.dconv()) continue;
 
 			std::vector<complex_function_3d> residuals=compute_residuals(thisroot);
+			if (use_kain and (iter>3)) {
+				std::vector<complex_function_3d> oldx=append(thisroot.afunction,thisroot.bfunction);
+				std::vector<complex_function_3d> newx=solvers[iroot].update(oldx,residuals,0.01,3);
+				auto [atmp, btmp] = split(newx,thisroot.afunction.size());
+
+				thisroot.afunction=atmp;
+				thisroot.bfunction=btmp;
+			} else {
+
+				auto [ares, bres] = split(residuals,thisroot.afunction.size());
+
+				if (ares.size()>0) thisroot.afunction-=ares;
+				if (bres.size()>0) thisroot.bfunction-=bres;
+			}
+
+
 			thisroot.delta=norm2(world,residuals);
 
-			if (omega.size()>0) {		// from the perturbed fock matrix
-				thisroot.omega=omega(iroot);
-			}
+			if (omega.size()>0) thisroot.omega=omega(iroot);
 			if (cis_param.omega()!=0) {
 				thisroot.omega=cis_param.omega();
 				printf("\n\nset excitation energy manually to %8.4f\n\n",thisroot.omega);
 			}
 
-
-			auto [ares, bres] = split(residuals,thisroot.afunction.size());
-//			print_size(world,ares,"ares");
-//			print_size(world,bres,"bres");
-
-			if (ares.size()>0) thisroot.afunction-=ares;
-			if (bres.size()>0) thisroot.bfunction-=bres;
-			print_size(world,thisroot.afunction,"afunction1");
-			print_size(world,thisroot.bfunction,"bfunction1");
+//			print_size(world,thisroot.afunction,"afunction1");
+//			print_size(world,thisroot.bfunction,"bfunction1");
 
 		}
 		orthonormalize(roots);
@@ -127,6 +145,7 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 
 	for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 		root& thisroot=roots[iroot];
+		if (thisroot.delta<cis_param.dconv()) continue;
 
 		std::vector<complex_function_3d> td_a=mul(world,thisroot.afunction,active_mo(nemo.amo));
 		std::vector<complex_function_3d> td_b=mul(world,thisroot.bfunction,active_mo(nemo.bmo));
@@ -255,8 +274,8 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 //	double_complex tmp1=inner(pot,residual);
 //	double_complex tmp2=inner(x,tmp);
 
-	print("tmp1,tmp2",tmp1,tmp2);
-	const double sou= real(tmp1)/real(tmp2);
+//	print("tmp1,tmp2",tmp1,tmp2);
+	const double sou=-real(tmp1)/real(tmp2);
 	root.omega+=sou;
 	root.energy_change=sou;
 
@@ -508,7 +527,7 @@ void Complex_cis::orthonormalize(std::vector<root>& roots, const Tensor<double_c
 	Tensor<double_complex> ovlp(roots.size(),roots.size());
 	for (auto i=0; i<roots.size(); ++i) {
 		for (auto j=0; j<roots.size(); ++j) {
-			ovlp(i,j)=inner(roots[i].afunction,roots[j].afunction) + inner(roots[i].bfunction,roots[j].bfunction);
+			ovlp(i,j)=inner(roots[i],roots[j]);
 		}
 	}
 //
