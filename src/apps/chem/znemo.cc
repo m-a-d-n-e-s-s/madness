@@ -5,14 +5,14 @@
  *      Author: fbischoff
  */
 
-#include <chem/Nemocomplex.h>
 #include <madness/mra/mra.h>
+#include "znemo.h"
 
 
 namespace madness {
 
 /// compute the molecular energy
-double Nemo_complex::value() {
+double Znemo::value() {
 
 	// compute the molecular potential
 	const Molecule& m=molecule;
@@ -185,7 +185,7 @@ double Nemo_complex::value() {
 }
 
 
-void Nemo_complex::do_step_restriction(const std::vector<complex_function_3d>& mo,
+void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
 		std::vector<complex_function_3d>& mo_new) const {
     PROFILE_MEMBER_FUNC(SCF);
     std::vector<double> anorm = norm2s(world, sub(world, mo, mo_new));
@@ -210,7 +210,7 @@ void Nemo_complex::do_step_restriction(const std::vector<complex_function_3d>& m
 
 
 /// compute the action of the Lz =i r x del operator on rhs
-std::vector<complex_function_3d> Nemo_complex::Lz(const std::vector<complex_function_3d>& rhs) const {
+std::vector<complex_function_3d> Znemo::Lz(const std::vector<complex_function_3d>& rhs) const {
 	// the operator in cartesian components as
 	// L_z =  - i (x del_y - y del_x)
 
@@ -234,7 +234,7 @@ std::vector<complex_function_3d> Nemo_complex::Lz(const std::vector<complex_func
 }
 
 /// read the guess orbitals from a previous nemo or moldft calculation
-std::vector<complex_function_3d> Nemo_complex::read_guess(const std::string& spin) const {
+std::vector<complex_function_3d> Znemo::read_guess(const std::string& spin) const {
 
 	int nmo= (spin=="alpha") ? cparam.nalpha : cparam.nbeta;
 	std::vector<real_function_3d> real_mo=zero_functions<double,3>(world,nmo);
@@ -248,7 +248,7 @@ std::vector<complex_function_3d> Nemo_complex::read_guess(const std::string& spi
 }
 
 /// compute the potential operators applied on the orbitals
-void Nemo_complex::compute_potentials(const std::vector<complex_function_3d>& mo,
+void Znemo::compute_potentials(const std::vector<complex_function_3d>& mo,
 		const real_function_3d& density,
 		std::vector<complex_function_3d>& rhs,
 		std::vector<complex_function_3d>& Vnemo,
@@ -279,7 +279,7 @@ void Nemo_complex::compute_potentials(const std::vector<complex_function_3d>& mo
 
 
 Tensor<double_complex>
-Nemo_complex::compute_vmat(
+Znemo::compute_vmat(
 		const std::vector<complex_function_3d>& mo,
 		const std::vector<complex_function_3d>& Vnemo,
 		const std::vector<complex_function_3d>& lznemo,
@@ -295,35 +295,13 @@ Nemo_complex::compute_vmat(
 	Tensor<double_complex> Kmat=matrix_inner(world,mo,Knemo);
 	Tensor<double_complex> Jmat=matrix_inner(world,mo,Jnemo);
 
-	Kinetic<double_complex,3> T(world);
-	Tensor<double_complex> tmat=T(mo,mo);
-	double ekinetic, evnuclear, ecoulomb, eexchange,ediamagnetic, ezeeman, elz;
-	for (std::size_t i=0; i<mo.size(); ++i) {
-		ekinetic+=real(tmat(i,i));
-		evnuclear+=real(Vnucmat(i,i));
-		ecoulomb+=real(Jmat(i,i));
-		eexchange+=real(Kmat(i,i));
-		ediamagnetic+=real(diamat(i,i));
-		ezeeman+=real(spin_zeeman_mat(i,i));
-		elz+=real(lzmat(i,i));
-	}
-
-	printf("           kinetic   %12.8f\n",ekinetic);
-	printf("           nuclear   %12.8f\n",evnuclear);
-	printf("           Coulomb   %12.8f\n",ecoulomb);
-	printf("          exchange   %12.8f\n",eexchange);
-	printf("       diamagnetic   %12.8f\n",ediamagnetic);
-	printf("       spin-zeeman   %12.8f\n",ezeeman);
-	printf("        spin-orbit   %12.8f\n",elz);
-
-
 	Tensor<double_complex> vmat=Vnucmat+lzmat+diamat+spin_zeeman_mat-Kmat+Jmat;
 	return vmat;
 };
 
 
 std::vector<complex_function_3d>
-Nemo_complex::compute_residuals(
+Znemo::compute_residuals(
 		const std::vector<complex_function_3d>& Vpsi,
 		const std::vector<complex_function_3d>& psi,
 		Tensor<double>& eps) const {
@@ -360,7 +338,7 @@ Nemo_complex::compute_residuals(
 
 
 void
-Nemo_complex::canonicalize(std::vector<complex_function_3d>& amo,
+Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 		std::vector<complex_function_3d>& vnemo,
 		Tensor<double_complex> fock, Tensor<double_complex> ovlp) const {
 
@@ -383,7 +361,7 @@ Nemo_complex::canonicalize(std::vector<complex_function_3d>& amo,
 /// @param[in]          world   the world
 /// @param[inout]       amo_new the vectors to be orthonormalized
 void
-Nemo_complex::orthonormalize(std::vector<complex_function_3d>& amo) const {
+Znemo::orthonormalize(std::vector<complex_function_3d>& amo) const {
     normalize(amo);
     double maxq;
     do {

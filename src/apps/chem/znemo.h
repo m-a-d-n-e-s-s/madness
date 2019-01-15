@@ -5,8 +5,8 @@
  *      Author: fbischoff
  */
 
-#ifndef SRC_APPS_CHEM_NEMOCOMPLEX_H_
-#define SRC_APPS_CHEM_NEMOCOMPLEX_H_
+#ifndef SRC_APPS_CHEM_ZNEMO_H_
+#define SRC_APPS_CHEM_ZNEMO_H_
 
 
 #include <madness/mra/mra.h>
@@ -114,10 +114,10 @@ public:
 
 
 
-class Nemo_complex {
-	friend class Complex_cis;
+class Znemo {
+	friend class Zcis;
 public:
-	Nemo_complex(World& w) : world(w), param(world), molecule("input"), cparam() {
+	Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
 		cparam.read_file("input");
 
 	    FunctionDefaults<3>::set_k(cparam.k);
@@ -281,4 +281,4 @@ protected:
 
 
 } // namespace madness
-#endif /* SRC_APPS_CHEM_NEMOCOMPLEX_H_ */
+#endif /* SRC_APPS_CHEM_ZNEMO_H_ */

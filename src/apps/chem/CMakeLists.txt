@@ -10,13 +10,13 @@ set(MADCHEM_HEADERS
     molecular_optimizer.h projector.h
     SCFOperators.h CCStructures.h CalculationParameters.h
     electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
-    pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h Nemocomplex.h Complexcis.h)
+    pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h znemo.h zcis.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
     corepotential.cc atomutil.cc lda.cc cheminfo.cc
     distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc
     SCFOperators.cc TDHF.cc GuessFactory.cc CCStructures.cc CC2.cc CCPotentials.cc 
-    AC.cc pointgroupsymmetry.cc Nemocomplex.cc Complexcis.cc)
+    AC.cc pointgroupsymmetry.cc znemo.cc zcis.cc)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()

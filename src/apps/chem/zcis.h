@@ -5,13 +5,13 @@
  *      Author: fbischoff
  */
 
-#ifndef SRC_APPS_CHEM_COMPLEXCIS_H_
-#define SRC_APPS_CHEM_COMPLEXCIS_H_
+#ifndef SRC_APPS_CHEM_ZCIS_H_
+#define SRC_APPS_CHEM_ZCIS_H_
 
-#include <chem/Nemocomplex.h>
 #include <chem/projector.h>
 #include<mra.h>
 #include<tuple>
+#include <chem/znemo.h>
 
 
 namespace madness {
@@ -74,7 +74,7 @@ public:
 };
 
 
-class Complex_cis {
+class Zcis {
 public:
 
 	struct root {
@@ -140,7 +140,7 @@ public:
 
 
 
-	Complex_cis(World& w, Nemo_complex& n) : world(w), cis_param(world), nemo(n),
+	Zcis(World& w, Znemo& n) : world(w), cis_param(world), nemo(n),
 		Qa(world,nemo.amo,nemo.amo), Qb(world,nemo.bmo,nemo.bmo) {
 		cis_param.print(cis_param.params);
 		print("Qa projector",Qa.get_ket_vector().size());
@@ -148,7 +148,7 @@ public:
 
 	}
 
-	virtual ~Complex_cis() {};
+	virtual ~Zcis() {};
 
 	double value();
 
@@ -251,7 +251,7 @@ public:
 	Complex_CIS_Parameters cis_param;
 
 	/// the reference
-	Nemo_complex nemo;
+	Znemo nemo;
 
 	/// orthogonality projector
 	QProjector<double_complex,3> Qa, Qb;
@@ -263,4 +263,4 @@ public:
 
 } /* namespace madness */
 
-#endif /* SRC_APPS_CHEM_COMPLEXCIS_H_ */
+#endif /* SRC_APPS_CHEM_ZCIS_H_ */

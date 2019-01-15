@@ -5,13 +5,13 @@
  *      Author: fbischoff
  */
 
-#include <chem/Complexcis.h>
 #include <chem/GuessFactory.h>
 #include <chem/SCFOperators.h>
+#include "zcis.h"
 
 namespace madness {
 
-double Complex_cis::value() {
+double Zcis::value() {
 	if (cis_param.swap_ab()) {
 		std::swap(nemo.aeps,nemo.beps);
 		std::swap(nemo.amo,nemo.bmo);
@@ -29,7 +29,7 @@ double Complex_cis::value() {
 }
 
 /// iterate the roots
-void Complex_cis::iterate(std::vector<root>& roots) const {
+void Zcis::iterate(std::vector<root>& roots) const {
 
 	// timings
 	double wall0=wall_time(), wall1=wall_time();
@@ -143,7 +143,7 @@ void Complex_cis::iterate(std::vector<root>& roots) const {
 	}
 }
 
-void Complex_cis::compute_potentials(std::vector<root>& roots, const real_function_3d& totdens) const {
+void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& totdens) const {
 	// some numbers
 	const int anoct=noct(nemo.aeps).size();
 	const int bnoct=noct(nemo.beps).size();
@@ -169,6 +169,7 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 		denspt=conj(denspt);
 		denspt.truncate();
 		denspt.print_size("denspt");
+		save(abs_square(denspt),"denspt_root"+stringify(iroot));
 
 		for (std::string spin : {"alpha","beta"}) {
 			if (nemo.cparam.spin_restricted and (spin=="beta")) continue;
@@ -209,7 +210,7 @@ void Complex_cis::compute_potentials(std::vector<root>& roots, const real_functi
 
 }
 
-Tensor<double_complex> Complex_cis::compute_fock_pt(const std::vector<root>& roots) const {
+Tensor<double_complex> Zcis::compute_fock_pt(const std::vector<root>& roots) const {
 
 	std::size_t dim=roots.size();
 	Kinetic<double_complex,3> T(world);
@@ -234,7 +235,7 @@ Tensor<double_complex> Complex_cis::compute_fock_pt(const std::vector<root>& roo
 }
 
 
-std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) const {
+std::vector<complex_function_3d> Zcis::compute_residuals(root& root) const {
 
 
 	std::vector<complex_function_3d> x=append(root.afunction,root.bfunction);
@@ -293,7 +294,7 @@ std::vector<complex_function_3d> Complex_cis::compute_residuals(root& root) cons
 
 }
 
-std::vector<Complex_cis::root> Complex_cis::read_guess() const {
+std::vector<Zcis::root> Zcis::read_guess() const {
 	std::vector<root> guess(cis_param.guess_excitations());
 	std::string name="cis_guess";
 	print("reading cis guess from file",name);
@@ -316,7 +317,7 @@ std::vector<Complex_cis::root> Complex_cis::read_guess() const {
 	return guess;
 }
 
-void Complex_cis::save_guess(const std::vector<root>& roots) const {
+void Zcis::save_guess(const std::vector<root>& roots) const {
 	std::string name="cis_guess";
 	print("saving cis guess to file",name);
 	archive::ParallelOutputArchive ar(world, name.c_str(), 1);
@@ -335,7 +336,7 @@ void Complex_cis::save_guess(const std::vector<root>& roots) const {
 }
 
 
-std::vector<Complex_cis::root> Complex_cis::make_guess() const {
+std::vector<Zcis::root> Zcis::make_guess() const {
 
 	std::vector<complex_function_3d> avirtuals, bvirtuals;
 	Tensor<double> aveps,bveps;		// virtual orbital energies for alpha and beta
@@ -481,7 +482,7 @@ std::vector<Complex_cis::root> Complex_cis::make_guess() const {
 
 }
 
-void Complex_cis::canonicalize(const std::vector<complex_function_3d>& mo, const real_function_3d& density,
+void Zcis::canonicalize(const std::vector<complex_function_3d>& mo, const real_function_3d& density,
 		std::vector<complex_function_3d>& virtuals, Tensor<double>& veps) const {
 
 	std::vector<complex_function_3d> vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo;
@@ -502,7 +503,7 @@ void Complex_cis::canonicalize(const std::vector<complex_function_3d>& mo, const
 
 }
 
-Tensor<double_complex> Complex_cis::make_CIS_matrix(const Tensor<double>& veps, const Tensor<double>& act) const {
+Tensor<double_complex> Zcis::make_CIS_matrix(const Tensor<double>& veps, const Tensor<double>& act) const {
 
 	// the cis matrix is indexed by ij and ab
 	// we will use the combined indixes from ia and jb named I and J
@@ -532,7 +533,7 @@ Tensor<double_complex> Complex_cis::make_CIS_matrix(const Tensor<double>& veps, 
 
 }
 
-void Complex_cis::orthonormalize(std::vector<root>& roots, const Tensor<double_complex>& fock_pt) const {
+void Zcis::orthonormalize(std::vector<root>& roots, const Tensor<double_complex>& fock_pt) const {
 	normalize(roots);
 	Tensor<double_complex> ovlp(roots.size(),roots.size());
 	for (auto i=0; i<roots.size(); ++i) {
@@ -556,7 +557,7 @@ void Complex_cis::orthonormalize(std::vector<root>& roots, const Tensor<double_c
 }
 
 
-void Complex_cis::orthonormalize(std::vector<root>& roots) const {
+void Zcis::orthonormalize(std::vector<root>& roots) const {
 	normalize(roots);
 
 	double maxq;
@@ -569,7 +570,7 @@ void Complex_cis::orthonormalize(std::vector<root>& roots) const {
 			}
 		}
 
-		Tensor<double_complex> Q = Nemo_complex::Q2(ovlp);
+		Tensor<double_complex> Q = Znemo::Q2(ovlp);
 		maxq = 0.0;
 		for (int j=1; j<Q.dim(0); j++)
 			for (int i=0; i<j; i++) {
@@ -590,7 +591,7 @@ void Complex_cis::orthonormalize(std::vector<root>& roots) const {
 }
 
 
-void Complex_cis::normalize(std::vector<root>& roots) const {
+void Zcis::normalize(std::vector<root>& roots) const {
 
 	for (auto root : roots) {
 		double na=0.0, nb=0.0;
