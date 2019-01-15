@@ -47,7 +47,10 @@ void Zcis::iterate(std::vector<root>& roots) const {
 	const bool use_kain=true;
 
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>
+			allsolver(allocator(world,(active_mo(nemo.amo).size()+active_mo(nemo.bmo).size())*roots.size()));
+	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>
 			solver(allocator(world,active_mo(nemo.amo).size()+active_mo(nemo.bmo).size()));
+
 	solver.set_maxsub(10);
 	std::vector<XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> > solvers(roots.size(),solver);
 
@@ -97,6 +100,50 @@ void Zcis::iterate(std::vector<root>& roots) const {
 //			orthonormalize(roots);
 		}
 
+#if 1
+		// update the residuals
+		std::vector<complex_function_3d> allres, oldx;
+		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
+			root& thisroot=roots[iroot];
+
+			std::vector<complex_function_3d> residuals=compute_residuals(thisroot);
+			allres=append(allres,residuals);
+			oldx=append(oldx,thisroot.afunction);
+			oldx=append(oldx,thisroot.bfunction);
+
+			thisroot.delta=norm2(world,residuals);
+
+			if (omega.size()>0) thisroot.omega=omega(iroot);
+			if (cis_param.omega()!=0) {
+				thisroot.omega=cis_param.omega();
+				printf("\n\nset excitation energy manually to %8.4f\n\n",thisroot.omega);
+			}
+
+			print_size(world,thisroot.afunction,"afunction1");
+			print_size(world,thisroot.bfunction,"bfunction1");
+			int i=0;
+			for (auto& f : thisroot.afunction) save(abs_square(f),"afunction_root"+stringify(iroot)+"mo"+stringify(i++));
+
+		}
+
+		truncate(world,allres);
+		truncate(world,oldx);
+		std::vector<complex_function_3d> newx=allsolver.update(oldx,allres,0.01,3);
+		truncate(world,newx);
+
+		// distribute new x functions
+		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
+			root& thisroot=roots[iroot];
+			auto [atmp, rest] = split(newx,thisroot.afunction.size());
+			auto [btmp, rest2] = split(rest,thisroot.bfunction.size());
+			newx=rest2;
+			thisroot.afunction=atmp;
+			thisroot.bfunction=btmp;
+
+		}
+		print("final newx.size()",newx.size());
+
+#else
 		// update the residuals
 		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 			root& thisroot=roots[iroot];
@@ -138,6 +185,7 @@ void Zcis::iterate(std::vector<root>& roots) const {
 			for (auto& f : thisroot.afunction) save(abs_square(f),"afunction_root"+stringify(iroot)+"mo"+stringify(i++));
 
 		}
+#endif
 		orthonormalize(roots);
 		normalize(roots);
 	}
