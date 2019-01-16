@@ -64,6 +64,7 @@ void Zcis::iterate(std::vector<root>& roots) const {
 			printf("  %2d   %12.8f     %4.2e      %5.2e\n",i, roots[i].omega, roots[i].delta, roots[i].energy_change);
 
 		bool do_kain=use_kain and (iter>2);
+		if (not do_kain) allsolver.clear_subspace();	// fock_pt diag reshuffles the roots and confuses solver
 
 		// compute the perturbed fock matrix and the excitation energy expectation values
 		compute_potentials(roots, totdens);
@@ -141,7 +142,7 @@ void Zcis::iterate(std::vector<root>& roots) const {
 			thisroot.bfunction=btmp;
 
 		}
-		print("final newx.size()",newx.size());
+		MADNESS_ASSERT(newx.size()==0);
 
 #else
 		// update the residuals

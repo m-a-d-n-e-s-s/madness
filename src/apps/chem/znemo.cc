@@ -173,9 +173,9 @@ double Znemo::value() {
 			print("Orbital Zeeman term alpha ",oza);
 			Tensor<double> bza=0.5*B*real(inner(world,bmo,Lz(bmo)));
 			print("Orbital Zeeman term beta  ",bza);
-			Tensor<double> diaa=0.125*B*B*real(inner(world,amo,diamagnetic()*amo));
+			Tensor<double> diaa=0.125*B*B*real(inner(world,amo,diamagnetic(amo)));
 			print("diamagnetic term alpha    ",diaa);
-			Tensor<double> diab= (have_beta()) ? 0.125*B*B*real(inner(world,bmo,diamagnetic()*bmo)) : Tensor<double>();
+			Tensor<double> diab= (have_beta()) ? 0.125*B*B*real(inner(world,bmo,diamagnetic(bmo))) : Tensor<double>();
 			print("diamagnetic term beta     ",diab);
 		}
 
@@ -259,7 +259,7 @@ void Znemo::compute_potentials(const std::vector<complex_function_3d>& mo,
 		std::vector<complex_function_3d>& Jnemo) const {
 	Vnemo=vnuclear*rhs;
 	lznemo=0.5*B*Lz(rhs);
-	dianemo=sbox*0.125*B*B*diamagnetic()*rhs;
+	dianemo=0.125*B*B*diamagnetic(rhs);
 	spin_zeeman_nemo=B*0.5*rhs;
 	Exchange<double_complex,3> K=Exchange<double_complex,3>(world);
 	Tensor<double> occ(mo.size());

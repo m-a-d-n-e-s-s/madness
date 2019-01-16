@@ -44,6 +44,38 @@ struct spherical_box : public FunctionFunctorInterface<double,3> {
 };
 
 
+/// functor for the diamagnetic term in a box
+
+/// The diamagnetic term is a 2D harmonic potential, which makes the iterations diverge.
+/// Approximate it by making it constant at a specific radius: construct a smooth approximation
+/// for the piecewise function f(x)={{x, x<1}, {1,x>1}}, which is squared. For this approximation
+/// see https://doi.org/10.1186/s40064-016-3278-y
+struct diamagnetic_boxed : public FunctionFunctorInterface<double,3> {
+	const double radius;	//
+	const double tightness;	// alpha in the article
+	diamagnetic_boxed(const double r, const double t=20.0) :
+		radius(r), tightness(t) {}
+
+	double operator()(const coord_3d& xyz) const {
+		double r=sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1]);
+		const double a=0.5;
+		const double b=0.5;
+		const double c=-0.5;
+		const double beta=1.0;
+		const double A=a-c*beta;
+		const double B=b+c;
+		const double C=2.0*c/tightness;
+
+		const double f=radius * (A +B*r/radius + C*log(1.0+exp(-tightness*(r/radius-beta))));
+		return f*f-radius*radius;
+	}
+
+    std::vector<coord_3d> special_points() const {
+    	return std::vector<coord_3d>();
+    }
+
+};
+
 // The default constructor for functions does not initialize
 // them to any value, but the solver needs functions initialized
 // to zero for which we also need the world object.
@@ -200,10 +232,12 @@ public:
 	std::vector<complex_function_3d> Lz(const std::vector<complex_function_3d>& rhs) const;
 
 	/// compute the diamagnetic local potential (B is in z direction -> dia = x^2 + y^2
-	real_function_3d diamagnetic() const {
-		auto dia = [](const coord_3d& r) {return r[0]*r[0] + r[1]*r[1];};
-		real_function_3d result=real_factory_3d(world).functor(dia);
-		return result;
+	std::vector<complex_function_3d> diamagnetic(const std::vector<complex_function_3d>& rhs) const {
+//		auto dia = [](const coord_3d& r) {return r[0]*r[0] + r[1]*r[1];};
+		const double radius=param.box()[0];
+		real_function_3d diabox=real_factory_3d(world).functor(diamagnetic_boxed(radius));
+
+		return rhs*diabox + radius*radius*rhs;
 	}
 
 	/// compute the potential operators applied on the orbitals
