@@ -172,7 +172,7 @@ double MP2::value(const Tensor<double>& x) {
 
 	// make sure HF used the same geometry as we do
 	coords_sum = xsq;
-	MADNESS_ASSERT(std::fabs(coord_chksum() - hf->coord_chksum()) < 1.e-14);
+	MADNESS_CHECK(std::fabs(coord_chksum() - hf->coord_chksum()) < 1.e-14);
 
 	// set all orbitals spaces
 	// When a nuclear correlation factor is used the residual equations
@@ -182,7 +182,7 @@ double MP2::value(const Tensor<double>& x) {
 		Q12.set_spaces(hf->get_calc().amo);
 	} else {
 		// only valid for closed shell
-		MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
+		MADNESS_CHECK(hf->get_calc().param.spin_restricted);
 		const std::vector<real_function_3d>& nemos = hf->nemos();
 		const std::vector<real_function_3d>& R2amo = hf->R2orbitals();
 		Q12.set_spaces(R2amo, nemos, R2amo, nemos);

@@ -526,7 +526,7 @@ namespace madness {
         /// @param[out] s The output tensor (assumed already allocated
         /// to be at least large enough in both dimensions)
         void copy_to_replicated(Tensor<T>& s) const {
-            MADNESS_ASSERT(s.iscontiguous());
+            MADNESS_CHECK(s.iscontiguous());
             s = 0.0;
             if (local_size() > 0) s(Slice(ilo,ihi),Slice(jlo,jhi)) = t(___);
             get_world().gop.sum(s.ptr(), s.size());
@@ -558,7 +558,7 @@ namespace madness {
         /// @param[in] jlow First \c j index in patch
         /// @param[in] jhigh Last \c j index in patch
         void copy_to_replicated_patch(int64_t ilow, int64_t ihigh, int64_t jlow, int64_t jhigh, Tensor<T>& s) const {
-            MADNESS_ASSERT(s.iscontiguous());
+            MADNESS_CHECK(s.iscontiguous());
             s = 0;
             int64_t i0 = std::max(ilo,ilow);
             int64_t j0 = std::max(jlo,jlow);
@@ -572,13 +572,13 @@ namespace madness {
 
         void extract_columns(int64_t jlow, int64_t jhigh, DistributedMatrix<T>& U) const {
             int newrowdim = jhigh - jlow + 1;
-            MADNESS_ASSERT(jlow >= 0);
-            MADNESS_ASSERT(jhigh < rowdim());
-            MADNESS_ASSERT(newrowdim == U.rowdim());
-            MADNESS_ASSERT(coldim() == U.coldim());
-            MADNESS_ASSERT(is_column_distributed());
-            MADNESS_ASSERT(U.is_column_distributed());
-            MADNESS_ASSERT(coltile() == U.coltile());
+            MADNESS_CHECK(jlow >= 0);
+            MADNESS_CHECK(jhigh < rowdim());
+            MADNESS_CHECK(newrowdim == U.rowdim());
+            MADNESS_CHECK(coldim() == U.coldim());
+            MADNESS_CHECK(is_column_distributed());
+            MADNESS_CHECK(U.is_column_distributed());
+            MADNESS_CHECK(coltile() == U.coltile());
 
             int64_t i0 = ilo;
             int64_t j0 = std::max(jlo,jlow);
@@ -599,7 +599,7 @@ namespace madness {
         /// @param[in] A The matrix to add to the current matrix
         /// @return A reference to the current matrix
         DistributedMatrix<T>& operator+=(const DistributedMatrix<T>& A) {
-            MADNESS_ASSERT(has_same_dimension_and_distribution(A));
+            MADNESS_CHECK(has_same_dimension_and_distribution(A));
             t += A.t;
             return *this;
         }
@@ -610,7 +610,7 @@ namespace madness {
         /// @param[in] A The matrix to add to the current matrix
         /// @return A new matrix with the same dimensions and distribution as the inputs
         DistributedMatrix<T> operator+(const DistributedMatrix<T>& A) const {
-            MADNESS_ASSERT(has_same_dimension_and_distribution(A));
+            MADNESS_CHECK(has_same_dimension_and_distribution(A));
             return copy(*this)+=A;
         }
 
@@ -626,13 +626,13 @@ namespace madness {
 
         /// Sets element (i,j) to v if (i,j) is local, otherwise throws MadnessException
         void set(int64_t i, int64_t j, const T x) {
-            MADNESS_ASSERT(i>=ilo && i<=ihi && j>=jlo && j<=jhi);
+            MADNESS_CHECK(i>=ilo && i<=ihi && j>=jlo && j<=jhi);
             t(i-ilo,j-jlo) = x;
         }
 
         /// Gets element (i,j) if (i,j) is local, otherwise throws MadnessException
         T get(int64_t i, int64_t j) const {
-            MADNESS_ASSERT(i>=ilo && i<=ihi && j>=jlo && j<=jhi);
+            MADNESS_CHECK(i>=ilo && i<=ihi && j>=jlo && j<=jhi);
             return t(i-ilo,j-jlo);
         }
     };
@@ -721,7 +721,7 @@ namespace madness {
     /// @return The result matrix
     template <typename T>
     DistributedMatrix<T> interleave_rows(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b) {
-        MADNESS_ASSERT(a.rowdim()==b.rowdim() && a.coldim()==b.coldim() && a.coltile()==b.coltile() && a.rowtile()==b.rowtile());
+        MADNESS_CHECK(a.rowdim()==b.rowdim() && a.coldim()==b.coldim() && a.coltile()==b.coltile() && a.rowtile()==b.rowtile());
 
         DistributedMatrix<T> c(a.get_world(), a.coldim()*2, a.rowdim(), a.coltile()*2, a.rowtile());
         c.data()(Slice(0,-1,2),_) = a.data()(___);
@@ -742,7 +742,7 @@ namespace madness {
     /// @return The result matrix
     template <typename T>
     DistributedMatrix<T> concatenate_rows(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b) {
-        MADNESS_ASSERT(a.coldim()==b.coldim() && a.coltile()==b.coltile() && a.is_column_distributed() && b.is_column_distributed());
+        MADNESS_CHECK(a.coldim()==b.coldim() && a.coltile()==b.coltile() && a.is_column_distributed() && b.is_column_distributed());
 
         int64_t ma = a.rowdim();
         int64_t mb = b.rowdim();
@@ -773,9 +773,9 @@ namespace madness {
     /// @return The result matrix
     template <typename T>
     DistributedMatrix<T> concatenate_rows( const DistributedMatrix<T>& a, const DistributedMatrix<T>& b, const DistributedMatrix<T>& c, const DistributedMatrix<T>& d) {
-        MADNESS_ASSERT(a.coldim()==b.coldim() && b.coldim()==c.coldim() && c.coldim()==d.coldim());
-        MADNESS_ASSERT(a.coltile()==b.coltile() && b.coltile()==c.coltile() && c.coltile()==d.coltile());
-        MADNESS_ASSERT(a.is_column_distributed() && b.is_column_distributed() && c.is_column_distributed() && d.is_column_distributed());
+        MADNESS_CHECK(a.coldim()==b.coldim() && b.coldim()==c.coldim() && c.coldim()==d.coldim());
+        MADNESS_CHECK(a.coltile()==b.coltile() && b.coltile()==c.coltile() && c.coltile()==d.coltile());
+        MADNESS_CHECK(a.is_column_distributed() && b.is_column_distributed() && c.is_column_distributed() && d.is_column_distributed());
         
         int64_t ma = a.rowdim();
         int64_t mb = b.rowdim();
@@ -806,7 +806,7 @@ namespace madness {
     /// @return The result matrix
     template <typename T>
     DistributedMatrix<T> concatenate_columns(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b) {
-        MADNESS_ASSERT(a.rowdim()==b.rowdim() && a.rowtile()==b.rowtile() && a.is_row_distributed() && b.is_row_distributed());
+        MADNESS_CHECK(a.rowdim()==b.rowdim() && a.rowtile()==b.rowtile() && a.is_row_distributed() && b.is_row_distributed());
 
         int64_t ma = a.coldim();
         int64_t mt = ma + b.coldim();

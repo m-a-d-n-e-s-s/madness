@@ -1222,7 +1222,7 @@ int test_io(World& world) {
     if (world.rank() == 0) print("err = ", err);
     CHECK(err,1e-12,"test_io");
 
-    //    MADNESS_ASSERT(err == 0.0);
+    //    MADNESS_CHECK(err == 0.0);
 
     if (world.rank() == 0) print("test_io OK");
     world.gop.fence();
@@ -1350,7 +1350,7 @@ int main(int argc, char**argv) {
         GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, false);
         Tensor<double> gg = gen.rnlp(4,0);
         Tensor<double> hh = gau.rnlp(4,0);
-        MADNESS_ASSERT((gg-hh).normf() < 1e-13);
+        MADNESS_CHECK((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
         // disabling to allow tests pass

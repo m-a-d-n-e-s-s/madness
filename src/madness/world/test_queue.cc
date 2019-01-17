@@ -48,7 +48,7 @@ public:
     Task(int gen) : gen(gen), done(false) {}
 
     virtual void run(madness::World& world) {
-        MADNESS_ASSERT(!done);
+        MADNESS_CHECK(!done);
 
         unsigned long* thread_counter = get_tls();
 

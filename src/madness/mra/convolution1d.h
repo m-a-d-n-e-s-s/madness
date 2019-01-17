@@ -283,7 +283,7 @@ namespace madness {
                 , arg(arg)
         {
             auto success = autoc(k,&c);
-            MADNESS_ASSERT(success);
+            MADNESS_CHECK(success);
 
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
             success = two_scale_hg(k,&hg);
