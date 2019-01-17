@@ -1317,7 +1317,7 @@ namespace madness {
             if (not (std::istringstream(line) >> ndata)) MADNESS_EXCEPTION("failed reading k",0);
             if (not (std::getline(gfile,line))) MADNESS_EXCEPTION("failed reading 1st line of grid data",0);
             if (not (std::istringstream(line) >> ndata1)) MADNESS_EXCEPTION("failed reading k",0);
-            MADNESS_ASSERT(ndata==ndata1);
+            MADNESS_CHECK(ndata==ndata1);
             if (not (std::getline(kfile,line))) MADNESS_EXCEPTION("failed reading 2nd line of key data",0);
             if (not (std::getline(gfile,line))) MADNESS_EXCEPTION("failed reading 2nd line of grid data",0);
 
@@ -1369,16 +1369,16 @@ namespace madness {
                             for (size_t k=0; k<npt; ++k) {
                                 c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
                                 //								fprintf(pFile,"%18.12f %18.12f %18.12f\n",c[0],c[1],c[2]);
-                                auto& success1 = std::getline(gfile,gline); MADNESS_ASSERT(success1);
-                                auto& success2 = std::getline(kfile,kline); MADNESS_ASSERT(success2);
+                                auto& success1 = std::getline(gfile,gline); MADNESS_CHECK(success1);
+                                auto& success2 = std::getline(kfile,kline); MADNESS_CHECK(success2);
                                 std::istringstream(gline) >> x >> y >> z >> val;
                                 std::istringstream(kline) >> x1 >> y1 >> z1;
-                                MADNESS_ASSERT(std::fabs(x-c[0])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(x1-c[0])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(y-c[1])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(y1-c[1])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(z-c[2])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(z1-c[2])<1.e-4);
+                                MADNESS_CHECK(std::fabs(x-c[0])<1.e-4);
+                                MADNESS_CHECK(std::fabs(x1-c[0])<1.e-4);
+                                MADNESS_CHECK(std::fabs(y-c[1])<1.e-4);
+                                MADNESS_CHECK(std::fabs(y1-c[1])<1.e-4);
+                                MADNESS_CHECK(std::fabs(z-c[2])<1.e-4);
+                                MADNESS_CHECK(std::fabs(z1-c[2])<1.e-4);
 
                                 // regularize if a functor is given
                                 if (vnuc_functor) val-=(*vnuc_functor)(c);
@@ -1401,7 +1401,7 @@ namespace madness {
 
             kfile.close();
             gfile.close();
-            MADNESS_ASSERT(ii==nboxes);
+            MADNESS_CHECK(ii==nboxes);
 
         }
 
@@ -1431,7 +1431,7 @@ namespace madness {
             long npoints=power<NDIM>(npt);
             // the number of boxes
             long nboxes=ndata/npoints;
-            MADNESS_ASSERT(nboxes*npoints==ndata);
+            MADNESS_CHECK(nboxes*npoints==ndata);
             print("reading ",nboxes,"boxes from file",gridfile);
 
             // these will be the data
@@ -1471,11 +1471,11 @@ namespace madness {
                                 c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
 
                                 auto& success = std::getline(gfile,gline);
-                                MADNESS_ASSERT(success);
+                                MADNESS_CHECK(success);
                                 std::istringstream(gline) >> x1 >> y1 >> z1 >> val;
-                                MADNESS_ASSERT(std::fabs(x1-c[0])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(y1-c[1])<1.e-4);
-                                MADNESS_ASSERT(std::fabs(z1-c[2])<1.e-4);
+                                MADNESS_CHECK(std::fabs(x1-c[0])<1.e-4);
+                                MADNESS_CHECK(std::fabs(y1-c[1])<1.e-4);
+                                MADNESS_CHECK(std::fabs(z1-c[2])<1.e-4);
 
                                 // regularize if a functor is given
                                 if (vnuc_functor) val-=(*vnuc_functor)(c);
@@ -1499,7 +1499,7 @@ namespace madness {
             }
 
             gfile.close();
-            MADNESS_ASSERT(ii==nboxes);
+            MADNESS_CHECK(ii==nboxes);
 
         }
 
@@ -4125,7 +4125,7 @@ namespace madness {
             // and we get a write accessor just in case they are already executing
             typename dcT::accessor acc;
             const auto found = coeffs.find(acc,key);
-            MADNESS_ASSERT(found);
+            MADNESS_CHECK(found);
             nodeT& node = acc->second;
             if (node.has_coeff() && key.level() < max_refine_level && op(this, key, node)) {
                 coeffT d(cdata.v2k,targs);

@@ -538,8 +538,8 @@ int test_XCOperator(World& world) {
     v[1]=f1;
     v[2]=f2;
     refine_to_common_level(world,v);
-    MADNESS_ASSERT(v[1].tree_size()==v[2].tree_size()); // should be identical
-    MADNESS_ASSERT(v[0].tree_size()==0);    // no change here
+    MADNESS_CHECK(v[1].tree_size()==v[2].tree_size()); // should be identical
+    MADNESS_CHECK(v[0].tree_size()==0);    // no change here
 
     real_function_3d arho=abs_square(f1);
 
@@ -568,7 +568,7 @@ int test_XCOperator(World& world) {
 
         double a0=xc.compute_xc_energy();
         print("energy ",a0);
-        MADNESS_ASSERT(similar(a0,refvalues[i++]));
+        MADNESS_CHECK(similar(a0,refvalues[i++]));
 
         // compare xc potential to hardwired results
         double a1=2.0*std::real(inner(f1,xc(f1))); // factor 2 for RHF
@@ -577,17 +577,15 @@ int test_XCOperator(World& world) {
         print("potential ",a1);
         print("potential ",a11);
         print("ratio ",a0,a1*3.0/4.0);
-        if (xcfunc=="LDA_X") MADNESS_ASSERT(std::fabs(a0-a1*3.0/4.0)<1.e-6);
-        print(a1,refvalues[i],similar(a1,refvalues[i]));
-        MADNESS_ASSERT(similar(a1,refvalues[i++]));
+        if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0-a1*3.0/4.0)<1.e-6);
+        MADNESS_CHECK(similar(a1,refvalues[i++]));
 
         // compare xc kernel to hardwired results
         double a2=inner(2.0*arho,xc.apply_xc_kernel(2.0*arho)); // factors 2 for RHF
         print("kernel ",a2);
         print("ratio ",a0,a2*9.0/4.0);
-        print(a2,refvalues[i],similar(a2,refvalues[i]));
-        if (xcfunc=="LDA_X") MADNESS_ASSERT(std::fabs(a0-a2*9.0/4.0)<tol);
-        MADNESS_ASSERT(similar(a2,refvalues[i++],tol)); // bp fails this without relaxed tol
+        if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0-a2*9.0/4.0)<tol);
+        MADNESS_CHECK(similar(a2,refvalues[i++],tol));  // bp fails this without relaxed tol
 
         // do spin-polarized
         for (int ispin=0; ispin<2   ; ++ispin) {
@@ -596,7 +594,7 @@ int test_XCOperator(World& world) {
 
             double a0a=xc1.compute_xc_energy();
             print("energy ", a0a);
-            MADNESS_ASSERT(similar(a0,a0a));
+            MADNESS_CHECK(similar(a0,a0a));
 
             double a1a=2.0*std::real(inner(f1,xc(f1))); // factor 2 for RHF
             real_function_3d lda_pot=xc.make_xc_potential();
@@ -604,8 +602,8 @@ int test_XCOperator(World& world) {
             print("potential ",a1a);
             print("potential ",a11a);
             print("ratio ",a0a,a1a*3.0/4.0);
-            if (xcfunc=="LDA_X") MADNESS_ASSERT(std::fabs(a0a-a1a*3.0/4.0)<1.e-6);
-            MADNESS_ASSERT(similar(a1,a1a));
+            if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0a-a1a*3.0/4.0)<1.e-6);
+            MADNESS_CHECK(similar(a1,a1a));
 
         }
         print("\n");

@@ -791,7 +791,7 @@ namespace madness {
                                             const std::vector< Function<R,NDIM> >& g) {
         PROFILE_BLOCK(Vinnervv);
         long n=f.size(), m=g.size();
-        MADNESS_ASSERT(n==m);
+        MADNESS_CHECK(n==m);
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
 
         compress(world, f);

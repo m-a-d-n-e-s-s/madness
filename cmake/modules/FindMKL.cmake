@@ -88,7 +88,7 @@ if(NOT MKL_FOUND)
   # Set LAPACK_LIBRARIES variable if MKL was found
   if(MKL_mkl_core_FOUND)
     set(MKL_FOUND TRUE)
-    if(UNIX AND BLA_STATIC)
+    if(UNIX AND NOT APPLE AND BLA_STATIC)
       set(MKL_LIBRARIES -Wl,--start-group ${MKL_LIBRARIESX} -Wl,--end-group -lm -ldl
           CACHE STRING "The Intel MKL libraries")
     else()
