@@ -38,6 +38,8 @@ double Znemo::value() {
 	double oldenergy=0.0;
 	double two_electron_alpha, two_electron_beta;
 
+	// the diamagnetic box
+
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> solvera(allocator(world,amo.size()));
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> solverb(allocator(world,bmo.size()));
 	solvera.set_maxsub(10);
@@ -49,6 +51,8 @@ double Znemo::value() {
 	for (int i=0; i<param.B().size(); ++i) {
 		B=param.B()[i];
 		print("solving for magnetic field B=",B);
+
+		diamagnetic_boxed=make_diamagnetic_boxed();
 
 		// set end of iteration cycles for intermediate calculations
 //		int maxiter = (i==param.B().size()-1) ? cparam.maxiter : 20;
@@ -163,7 +167,6 @@ double Znemo::value() {
 //				bmo=orthonormalize_symmetric(bmo);
 				truncate(world,bmo);
 			}
-//			save_orbitals(iter);
 		}
 		if (world.rank()==0) {
 			print("orbital energies alpha",aeps);
@@ -180,6 +183,7 @@ double Znemo::value() {
 		}
 
 	}
+	save_orbitals(cparam.maxiter);
 	save_orbitals();
 	return energy;
 }

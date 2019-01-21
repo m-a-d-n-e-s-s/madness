@@ -28,13 +28,20 @@ struct spherical_box : public FunctionFunctorInterface<double,3> {
 	const double radius;
 	const double height;
 	const double tightness;
-	spherical_box(const double r, const double h, const double t) :
-		radius(r), height(h), tightness(t) {}
+	const coord_3d B_direction;
+	spherical_box(const double r, const double h, const double t,
+			const coord_3d B_dir={0.0,0.0,1.0}) :
+		radius(r), height(h), tightness(t), B_direction(B_dir) {}
 
 	double operator()(const coord_3d& xyz) const {
-		double r=xyz.normf();
+		// project out all contributions from xyz along the direction of the B field
+		coord_3d tmp=xyz*B_direction;
+		const double inner=tmp[0]+tmp[1]+tmp[2];
+		coord_3d proj=xyz-B_direction*inner;
+		double r=proj.normf();
 		double v1=height/(1.0+exp(-tightness*height*(r-radius)));
 		return 1.0-v1;
+
 	}
 
     std::vector<coord_3d> special_points() const {
@@ -50,10 +57,10 @@ struct spherical_box : public FunctionFunctorInterface<double,3> {
 /// Approximate it by making it constant at a specific radius: construct a smooth approximation
 /// for the piecewise function f(x)={{x, x<1}, {1,x>1}}, which is squared. For this approximation
 /// see https://doi.org/10.1186/s40064-016-3278-y
-struct diamagnetic_boxed : public FunctionFunctorInterface<double,3> {
-	const double radius;	//
+struct diamagnetic_boxed_functor : public FunctionFunctorInterface<double,3> {
+	double radius;	//
 	const double tightness;	// alpha in the article
-	diamagnetic_boxed(const double r, const double t=20.0) :
+	diamagnetic_boxed_functor(const double r, const double t=20.0) :
 		radius(r), tightness(t) {}
 
 	double operator()(const coord_3d& xyz) const {
@@ -104,14 +111,15 @@ struct allocator {
 
 class Nemo_complex_Parameters : public CalculationParametersBase {
 public:
-	enum parameterenum {B_, box_, shift_,printlevel_};
+	enum parameterenum {B_, box_, shift_,printlevel_,diamagnetic_height_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
         		init<std::vector<double> >(B_,{"B",{0.0}}),
         		init<std::vector<double> >(box_,{"box",{15.0,1.0,4.0}}),
 				init<double>(shift_,{"shift",0.0}),
-				init<int>(printlevel_,{"printlevel",1})		// 0: energies, 1: fock matrix, 2: function sizes
+				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
+				init<double>(diamagnetic_height_,{"diamagnetic_height",30})
     };
 
 	/// ctor reading out the input file
@@ -131,6 +139,7 @@ public:
 	double shift() const {return get<double>(shift_);}
 	std::vector<double> B() const {return get<std::vector<double> >(B_);}
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
+	double diamagnetic_height() const {return get<double>(diamagnetic_height_);}
 
 
 	/// return the value of the parameter
@@ -234,10 +243,28 @@ public:
 	/// compute the diamagnetic local potential (B is in z direction -> dia = x^2 + y^2
 	std::vector<complex_function_3d> diamagnetic(const std::vector<complex_function_3d>& rhs) const {
 //		auto dia = [](const coord_3d& r) {return r[0]*r[0] + r[1]*r[1];};
-		const double radius=param.box()[0];
-		real_function_3d diabox=real_factory_3d(world).functor(diamagnetic_boxed(radius));
+		if (B!=0.0) {
+			const double height=param.diamagnetic_height();
+			const double radius=sqrt(8.0*height/(B*B));
+			return rhs*diamagnetic_boxed + radius*radius*rhs;
+		} else {
+			return zero_functions<double_complex,3>(world,rhs.size());
+		}
+	}
 
-		return rhs*diabox + radius*radius*rhs;
+	real_function_3d make_diamagnetic_boxed() const {
+		if (B!=0.0) {
+			const double height=param.diamagnetic_height();
+			const double radius=sqrt(8.0*height/(B*B));
+			if (world.rank()==0) print("computed radius for diamagnetic term from its cutoff height to",radius);
+			real_function_3d diabox=real_factory_3d(world).functor(diamagnetic_boxed_functor(radius));
+			save(diabox*(0.125*(B*B)),"diabox_B"+stringify(B));
+			return diabox;
+		} else {
+			auto one = [](const coord_3d& r) {return 1.0;};
+			real_function_3d nobox=real_factory_3d(world).functor(one);
+			return nobox;
+		}
 	}
 
 	/// compute the potential operators applied on the orbitals
@@ -306,6 +333,9 @@ protected:
 
 	/// the spherical damping box
 	real_function_3d sbox;
+
+	/// the boxed diamagnetic potential (for a given B)
+	real_function_3d diamagnetic_boxed;
 
 	std::shared_ptr<real_convolution_3d> coulop;
 
