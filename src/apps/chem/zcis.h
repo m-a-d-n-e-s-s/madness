@@ -20,7 +20,7 @@ namespace madness {
 
 class Complex_CIS_Parameters : public CalculationParametersBase {
 public:
-	enum parameterenum {guess_excitation_operators_,exops_,freeze_,guess_excitations_,thresh_,maxiter_,omega_,
+	enum parameterenum {guess_excitation_operators_,exops_,freeze_,guess_excitations_,guess_maxiter_,thresh_,maxiter_,omega_,
 						swap_ab_,dconv_,printlevel_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
@@ -29,6 +29,7 @@ public:
         		init<std::vector<std::string> >(exops_,{"exops",{"x 1.0","y 1.0","z 1.0","x 2.0 , y 2.0 , z 2.0"}}),
         		init<int>(freeze_,{"freeze",0}),
         		init<int>(guess_excitations_,{"guess_excitations",4}),
+        		init<int>(guess_maxiter_,{"guess_maxiter",4}),
         		init<double>(thresh_,{"thresh",FunctionDefaults<3>::get_thresh()}),
         		init<double>(omega_,{"omega",0.0}),
         		init<int>(maxiter_,{"maxiter",10}),
@@ -57,6 +58,7 @@ public:
 	double thresh() const {return get<double>(thresh_);};
 	double omega() const {return get<double>(omega_);};
 	int maxiter() const {return get<int>(maxiter_);};
+	int guess_maxiter() const {return get<int>(guess_maxiter_);};
 	bool swap_ab() const {return get<bool>(swap_ab_);};
 	double dconv() const {return get<double>(dconv_);};
 	int printlevel() const {return get<int>(printlevel_);};

@@ -48,11 +48,6 @@ void Zcis::iterate(std::vector<root>& roots) const {
 
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>
 			allsolver(allocator(world,(active_mo(nemo.amo).size()+active_mo(nemo.bmo).size())*roots.size()));
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>
-			solver(allocator(world,active_mo(nemo.amo).size()+active_mo(nemo.bmo).size()));
-
-	solver.set_maxsub(10);
-	std::vector<XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> > solvers(roots.size(),solver);
 
 	for (int iter=0; iter<cis_param.maxiter(); ++iter) {
 		wall1=wall_time();
@@ -63,7 +58,7 @@ void Zcis::iterate(std::vector<root>& roots) const {
 		for (int i=0; i<roots.size(); ++i)
 			printf("  %2d   %12.8f     %4.2e      %5.2e\n",i, roots[i].omega, roots[i].delta, roots[i].energy_change);
 
-		bool do_kain=use_kain and (iter>2);
+		bool do_kain=use_kain and (iter>cis_param.guess_maxiter());
 		if (not do_kain) allsolver.clear_subspace();	// fock_pt diag reshuffles the roots and confuses solver
 
 		// compute the perturbed fock matrix and the excitation energy expectation values
@@ -99,97 +94,59 @@ void Zcis::iterate(std::vector<root>& roots) const {
 
 			orthonormalize(roots, fock_pt);
 //			orthonormalize(roots);
-		}
+		} else {		// do_kain
 
-#if 1
-		// update the residuals
-		std::vector<complex_function_3d> allres, oldx;
-		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
-			root& thisroot=roots[iroot];
+			// update the residuals
+			std::vector<complex_function_3d> allres, oldx;
+			for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
+				root& thisroot=roots[iroot];
 
-			std::vector<complex_function_3d> residuals=compute_residuals(thisroot);
-			allres=append(allres,residuals);
-			oldx=append(oldx,thisroot.afunction);
-			oldx=append(oldx,thisroot.bfunction);
+				std::vector<complex_function_3d> residuals=compute_residuals(thisroot);
+				allres=append(allres,residuals);
+				oldx=append(oldx,thisroot.afunction);
+				oldx=append(oldx,thisroot.bfunction);
 
-			thisroot.delta=norm2(world,residuals);
+				thisroot.delta=norm2(world,residuals);
 
-			if (omega.size()>0) thisroot.omega=omega(iroot);
-			if (cis_param.omega()!=0) {
-				thisroot.omega=cis_param.omega();
-				printf("\n\nset excitation energy manually to %8.4f\n\n",thisroot.omega);
+				if (omega.size()>0) thisroot.omega=omega(iroot);
+				if (cis_param.omega()!=0) {
+					thisroot.omega=cis_param.omega();
+					printf("\n\nset excitation energy manually to %8.4f\n\n",thisroot.omega);
+				}
+
+				print_size(world,thisroot.afunction,"afunction1");
+				print_size(world,thisroot.bfunction,"bfunction1");
+				int i=0;
+				for (auto& f : thisroot.afunction) save(abs_square(f),"afunction_root"+stringify(iroot)+"mo"+stringify(i++));
+
 			}
 
-			print_size(world,thisroot.afunction,"afunction1");
-			print_size(world,thisroot.bfunction,"bfunction1");
-			int i=0;
-			for (auto& f : thisroot.afunction) save(abs_square(f),"afunction_root"+stringify(iroot)+"mo"+stringify(i++));
+			truncate(world,allres);
+			truncate(world,oldx);
+			std::vector<complex_function_3d> newx=allsolver.update(oldx,allres,0.01,3);
+			truncate(world,newx);
 
-		}
-
-		truncate(world,allres);
-		truncate(world,oldx);
-		std::vector<complex_function_3d> newx=allsolver.update(oldx,allres,0.01,3);
-		truncate(world,newx);
-
-		// distribute new x functions
-		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
-			root& thisroot=roots[iroot];
-			auto [atmp, rest] = split(newx,thisroot.afunction.size());
-			auto [btmp, rest2] = split(rest,thisroot.bfunction.size());
-			newx=rest2;
-			thisroot.afunction=atmp;
-			thisroot.bfunction=btmp;
-
-		}
-		MADNESS_ASSERT(newx.size()==0);
-
-#else
-		// update the residuals
-		for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
-			root& thisroot=roots[iroot];
-			if (thisroot.delta<cis_param.dconv()) continue;
-
-			std::vector<complex_function_3d> residuals=compute_residuals(thisroot);
-			if (do_kain) {
-				std::vector<complex_function_3d> oldx=append(thisroot.afunction,thisroot.bfunction);
-				std::vector<complex_function_3d> newx=solvers[iroot].update(oldx,residuals,0.01,3);
-
-				nemo.do_step_restriction(oldx,newx);
-
-				auto [atmp, btmp] = split(newx,thisroot.afunction.size());
-
+			// distribute new x functions
+			for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
+				root& thisroot=roots[iroot];
+				auto [atmp, rest] = split(newx,thisroot.afunction.size());
+				auto [btmp, rest2] = split(rest,thisroot.bfunction.size());
+				newx=rest2;
 				thisroot.afunction=atmp;
 				thisroot.bfunction=btmp;
-			} else {
 
-				auto [ares, bres] = split(residuals,thisroot.afunction.size());
-
-				if (ares.size()>0) thisroot.afunction-=ares;
-				if (bres.size()>0) thisroot.bfunction-=bres;
 			}
-			truncate(world,thisroot.afunction);
-			truncate(world,thisroot.bfunction);
+			MADNESS_ASSERT(newx.size()==0);
 
 
-			thisroot.delta=norm2(world,residuals);
+			orthonormalize(roots);
+			normalize(roots);
 
-			if (omega.size()>0) thisroot.omega=omega(iroot);
-			if (cis_param.omega()!=0) {
-				thisroot.omega=cis_param.omega();
-				printf("\n\nset excitation energy manually to %8.4f\n\n",thisroot.omega);
-			}
-
-			print_size(world,thisroot.afunction,"afunction1");
-			print_size(world,thisroot.bfunction,"bfunction1");
-			int i=0;
-			for (auto& f : thisroot.afunction) save(abs_square(f),"afunction_root"+stringify(iroot)+"mo"+stringify(i++));
-
-		}
-#endif
-		orthonormalize(roots);
-		normalize(roots);
-	}
+			std::vector<double> rnorm=norm2s(world,allres);
+			double rmax=*(std::max_element(rnorm.begin(),rnorm.end()));
+			if (rmax<cis_param.dconv()) break;
+		}	// if do_kain
+	}	// iter
 }
 
 void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& totdens) const {
