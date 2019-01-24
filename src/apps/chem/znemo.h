@@ -60,7 +60,7 @@ struct spherical_box : public FunctionFunctorInterface<double,3> {
 struct diamagnetic_boxed_functor : public FunctionFunctorInterface<double,3> {
 	double radius;	//
 	const double tightness;	// alpha in the article
-	diamagnetic_boxed_functor(const double r, const double t=20.0) :
+	diamagnetic_boxed_functor(const double r, const double t=10.0) :
 		radius(r), tightness(t) {}
 
 	double operator()(const coord_3d& xyz) const {
