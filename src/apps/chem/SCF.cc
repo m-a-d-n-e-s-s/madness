@@ -238,7 +238,6 @@ namespace madness {
     
     void SCF::load_mos(World& world) {
         PROFILE_MEMBER_FUNC(SCF);
-        //        const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults < 3 > ::get_thresh();
         unsigned int nmo = 0;
         bool spinrest = false;
@@ -263,11 +262,11 @@ namespace madness {
           std::string xc_data;
           for i from 0 to nalpha-1:
           .   Function<double,3> amo[i]
-          
+
           repeat for beta if !spinrestricted
-          
+
         */
-        
+
         // Local copies used for a basic check
         double L;
         int k = FunctionDefaults<3>::get_k();
@@ -285,7 +284,6 @@ namespace madness {
         // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
         // EPS, SWAP, ... sigh
         ar & current_energy & spinrest;
-        
         ar & nmo;
         MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
         ar & aeps & aocc & aset & L & k1 & molecule & param.xc_data;
@@ -310,7 +308,7 @@ namespace madness {
             aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha - 1)));
             aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha - 1)));
         }
-        
+
         if (amo[0].k() != k) {
             reconstruct(world, amo);
             for (unsigned int i = 0; i < amo.size(); ++i)
@@ -319,13 +317,7 @@ namespace madness {
         }
         set_thresh(world,amo,thresh);
 
-        //        normalize(world, amo);
-        //        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
-        //        truncate(world, amo);
-        //        normalize(world, amo);
-        
         if (!param.spin_restricted) {
-            
             if (spinrest) { // Only alpha spin orbitals were on disk
                 MADNESS_ASSERT(param.nmo_alpha >= param.nmo_beta);
                 bmo.resize(param.nmo_beta);
@@ -337,11 +329,10 @@ namespace madness {
             } else {
                 ar & nmo;
                 ar & beps & bocc & bset;
-                
+
                 bmo.resize(nmo);
                 for (unsigned int i = 0; i < bmo.size(); ++i)
-                    ar & bmo[i];
-                
+                    ar & bmo[i];                
                 if (nmo > unsigned(param.nmo_beta)) {
                     bset = vector<int>(bset.begin() + n_core,
                                        bset.begin() + n_core + param.nmo_beta);
@@ -350,7 +341,7 @@ namespace madness {
                     beps = copy(beps(Slice(n_core, n_core + param.nmo_beta - 1)));
                     bocc = copy(bocc(Slice(n_core, n_core + param.nmo_beta - 1)));
                 }
-                
+
                 if (bmo[0].k() != k) {
                     reconstruct(world, bmo);
                     for (unsigned int i = 0; i < bmo.size(); ++i)
@@ -358,12 +349,6 @@ namespace madness {
                     world.gop.fence();
                 }
                 set_thresh(world,amo,thresh);
-
-                //                normalize(world, bmo);
-                //                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);
-                //                truncate(world, bmo);
-                //                normalize(world, bmo);
-                
             }
         }
     }
