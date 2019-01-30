@@ -1400,7 +1400,7 @@ namespace madness {
               for (int i = 0; i < param.nalpha; i++) {
                  aeps[i] = nwchem.energies[i];
               }
-              
+
               // Create the orbitals as madness functions
               // Just create the vector of atomic orbitals
               // and use the vector of MO coefficients and
@@ -1420,18 +1420,12 @@ namespace madness {
                   centers.push_back(r);
 
                   // Now make the function
-                  temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get(), centers)))); // Put no fence on factory
-                  //double norm = temp1[i].norm2();
-                  //if(world.rank() == 0) print("Norm of function", i, "is", norm);
+                  temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get(), centers))));
                   if(world.rank() == 0 and i % 10 == 0 and i != 0) print("Created", i, "functions."); 
                   i++;
               } 
-              // Fence here if no fence on factory
               if(world.rank() == 0) print("Finished creating", temp1.size(), "functions.");    
  
-              // Normalize ao's
-              normalize(world, temp1);
-              
               // Transform ao's now
               vector_real_function_3d temp = transform(world, temp1, nwchem.MOs, vtol, true); 
 

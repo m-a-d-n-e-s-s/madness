@@ -288,12 +288,14 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
 
     // add the basis functions for this atom type, centered at this location
     for(const BasisShell &bs : basisperatom[atom.symbol]) {
+      // S Cartesian and Spherical
       if(bs.type == 'S') {
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::s, atom.position, bs.exps,
             bs.coeffs));
         ++nfunc;
       }
+      // P Cartesian and Spherical
       else if(bs.type == 'P') {
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::px, atom.position, bs.exps,
@@ -306,30 +308,41 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
             bs.coeffs));
         nfunc += 3;
       }
+      // D Cartesian
       else if(bs.type == 'D' && !spherical) {
-        throw std::runtime_error("Cartesian D shell requested: These are not tested or verified.");
-        
-        // THESE ROUTINES HAVE NOT BEEN TESTED
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::dxx, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+
+        std::unique_ptr<GaussianFunction> dxy(
           new GaussianFunction(GaussianType::dxy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        dxy->operator*=(sqrt(1./3.));
+        gaussians.emplace_back(std::move(dxy));
+ 
+        std::unique_ptr<GaussianFunction> dxz(
           new GaussianFunction(GaussianType::dxz, atom.position, bs.exps,
             bs.coeffs));
+        dxz->operator*=(sqrt(1./3.));
+        gaussians.emplace_back(std::move(dxz));
+ 
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::dyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+
+        std::unique_ptr<GaussianFunction> dyz(
           new GaussianFunction(GaussianType::dyz, atom.position, bs.exps,
             bs.coeffs));
+        dyz->operator*=(sqrt(1./3.));
+        gaussians.emplace_back(std::move(dyz));
+ 
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::dzz, atom.position, bs.exps,
             bs.coeffs));
+ 
         nfunc += 6;
       }
+      // D Spherical
       else if(bs.type == 'D' && spherical) {
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::dxy, atom.position, bs.exps,
@@ -352,42 +365,65 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
             bs.coeffs));
         nfunc += 5;
       }
+      // F Cartesian
       else if(bs.type == 'F' && !spherical) {
-        throw std::runtime_error("Cartesian F shell requested: These are not tested or verified.");
-        
-        // THESE ROUTINES HAVE NOT BEEN TESTED
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::fxxx, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        
+        std::unique_ptr<GaussianFunction> fxxy(
           new GaussianFunction(GaussianType::fxxy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        fxxy->operator*=(sqrt(0.2));
+        gaussians.emplace_back(std::move(fxxy));
+
+        std::unique_ptr<GaussianFunction> fxxz(
           new GaussianFunction(GaussianType::fxxz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        fxxz->operator*=(sqrt(0.2));
+        gaussians.emplace_back(std::move(fxxz));
+
+        std::unique_ptr<GaussianFunction> fxyy(
           new GaussianFunction(GaussianType::fxyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        fxyy->operator*=(sqrt(0.2));
+        gaussians.emplace_back(std::move(fxyy));
+
+        std::unique_ptr<GaussianFunction> fxyz(
           new GaussianFunction(GaussianType::fxyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        fxyz->operator*=(sqrt(1./15.));
+        gaussians.emplace_back(std::move(fxyz));
+
+        std::unique_ptr<GaussianFunction> fxzz(
           new GaussianFunction(GaussianType::fxzz, atom.position, bs.exps,
             bs.coeffs));
+        fxzz->operator*=(sqrt(0.2));
+        gaussians.emplace_back(std::move(fxzz));
+
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::fyyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+
+        std::unique_ptr<GaussianFunction> fyyz(
           new GaussianFunction(GaussianType::fyyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        fyyz->operator*=(sqrt(0.2));
+        gaussians.emplace_back(std::move(fyyz));
+
+        std::unique_ptr<GaussianFunction> fyzz(
           new GaussianFunction(GaussianType::fyzz, atom.position, bs.exps,
             bs.coeffs));
+        fyzz->operator*=(sqrt(0.2));
+        gaussians.emplace_back(std::move(fyzz));
+
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::fzzz, atom.position, bs.exps,
             bs.coeffs));
+
         nfunc += 10;
       }
+      // F Spherical
       else if(bs.type == 'F' && spherical) {
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::fxxymyyy, atom.position, bs.exps,
@@ -416,57 +452,103 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
             bs.coeffs));
         nfunc += 7;
       }
+      // G Cartesian
       else if(bs.type == 'G' && !spherical) {
-        throw std::runtime_error("Cartesian G shell requested: These are not tested or verified.");
+        // Each shell is normalized with same value inside NWChem
+        const double norm = 16./sqrt(105.);
 
-        // THESE FUNCTIONS HAVE NOT BEEN TESTED OR VERIFIED!!!
-        gaussians.emplace_back(
+        std::unique_ptr<GaussianFunction> gxxxx(
           new GaussianFunction(GaussianType::gxxxx, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        //gxxxx->operator*=(norm*sqrt(105.)/16.);
+        gaussians.emplace_back(std::move(gxxxx));
+
+        std::unique_ptr<GaussianFunction> gxxxy(
           new GaussianFunction(GaussianType::gxxxy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxxxy->operator*=(norm*sqrt(15.)/16.);
+        gaussians.emplace_back(std::move(gxxxy));
+
+        std::unique_ptr<GaussianFunction> gxxxz(
           new GaussianFunction(GaussianType::gxxxz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxxxz->operator*=(norm*sqrt(15.)/16.);
+        gaussians.emplace_back(std::move(gxxxz));
+
+        std::unique_ptr<GaussianFunction> gxxyy(
           new GaussianFunction(GaussianType::gxxyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxxyy->operator*=(norm*3./16.);
+        gaussians.emplace_back(std::move(gxxyy));
+
+        std::unique_ptr<GaussianFunction> gxxyz(
           new GaussianFunction(GaussianType::gxxyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxxyz->operator*=(norm*sqrt(3.)/16.);
+        gaussians.emplace_back(std::move(gxxyz));
+
+        std::unique_ptr<GaussianFunction> gxxzz(
           new GaussianFunction(GaussianType::gxxzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxxzz->operator*=(norm*3./16.);
+        gaussians.emplace_back(std::move(gxxzz));
+
+        std::unique_ptr<GaussianFunction> gxyyy(
           new GaussianFunction(GaussianType::gxyyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxyyy->operator*=(norm*sqrt(15.)/16.);
+        gaussians.emplace_back(std::move(gxyyy));
+
+        std::unique_ptr<GaussianFunction> gxyyz(
           new GaussianFunction(GaussianType::gxyyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxyyz->operator*=(norm*sqrt(3.)/16.);
+        gaussians.emplace_back(std::move(gxyyz));
+
+        std::unique_ptr<GaussianFunction> gxyzz(
           new GaussianFunction(GaussianType::gxyzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxyzz->operator*=(norm*sqrt(3.)/16.);
+        gaussians.emplace_back(std::move(gxyzz));
+
+        std::unique_ptr<GaussianFunction> gxzzz(
           new GaussianFunction(GaussianType::gxzzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gxzzz->operator*=(norm*sqrt(15.)/16.);
+        gaussians.emplace_back(std::move(gxzzz));
+
+        std::unique_ptr<GaussianFunction> gyyyy(
           new GaussianFunction(GaussianType::gyyyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        // gyyyy->operator*=(norm*sqrt(105.)/16.);
+        gaussians.emplace_back(std::move(gyyyy));
+
+        std::unique_ptr<GaussianFunction> gyyyz(
           new GaussianFunction(GaussianType::gyyyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gyyyz->operator*=(norm*sqrt(15.)/16.);
+        gaussians.emplace_back(std::move(gyyyz));
+
+        std::unique_ptr<GaussianFunction> gyyzz(
           new GaussianFunction(GaussianType::gyyzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gyyzz->operator*=(norm*3./16.);
+        gaussians.emplace_back(std::move(gyyzz));
+
+        std::unique_ptr<GaussianFunction> gyzzz(
           new GaussianFunction(GaussianType::gyzzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        gyzzz->operator*=(norm*sqrt(15.)/16.);
+        gaussians.emplace_back(std::move(gyzzz));
+
+        std::unique_ptr<GaussianFunction> gzzzz(
           new GaussianFunction(GaussianType::gzzzz, atom.position, bs.exps,
             bs.coeffs));
+        // gzzzz->operator*=(norm*sqrt(105.)/16.);
+        gaussians.emplace_back(std::move(gzzzz));
         nfunc += 15;
       }
+      // G Spherical
       else if(bs.type == 'G' && spherical) {
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::gxydx2my2, atom.position, bs.exps,
@@ -497,75 +579,140 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
             bs.coeffs));
         nfunc += 9;
       }
+      // H Cartesian
       else if(bs.type == 'H' && !spherical) {
-        throw std::runtime_error("Cartesian H shell requested: These are not tested or verified.");
+        // Each shell is normalized with same value inside NWChem
+        const double norm = 32./(3.*sqrt(105.));
 
-        // THESE FUNCTIONS HAVE NOT BEEN TESTED OR VERIFIED!!! 
-        gaussians.emplace_back(
+        std::unique_ptr<GaussianFunction> hxxxxx(
           new GaussianFunction(GaussianType::hxxxxx, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        // hxxxxx->operator*=(norm*(3.*sqrt(105.)/32.));
+        gaussians.emplace_back(std::move(hxxxxx));
+
+        std::unique_ptr<GaussianFunction> hxxxxy(
           new GaussianFunction(GaussianType::hxxxxy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxxxy->operator*=(norm*(sqrt(105.)/32.));
+        gaussians.emplace_back(std::move(hxxxxy));
+
+        std::unique_ptr<GaussianFunction> hxxxxz(
           new GaussianFunction(GaussianType::hxxxxz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxxxz->operator*=(norm*(sqrt(105.)/32.));
+        gaussians.emplace_back(std::move(hxxxxz));
+
+        std::unique_ptr<GaussianFunction> hxxxyy(
           new GaussianFunction(GaussianType::hxxxyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxxyy->operator*=(norm*(3.*sqrt(5.)/32.));
+        gaussians.emplace_back(std::move(hxxxyy));
+
+        std::unique_ptr<GaussianFunction> hxxxyz(
           new GaussianFunction(GaussianType::hxxxyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxxyz->operator*=(norm*(sqrt(15.)/32.));
+        gaussians.emplace_back(std::move(hxxxyz));
+
+        std::unique_ptr<GaussianFunction> hxxxzz(
           new GaussianFunction(GaussianType::hxxxzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxxzz->operator*=(norm*(3.*sqrt(5.)/32.));
+        gaussians.emplace_back(std::move(hxxxzz));
+
+        std::unique_ptr<GaussianFunction> hxxyyy(
           new GaussianFunction(GaussianType::hxxyyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxyyy->operator*=(norm*(3.*sqrt(5.)/32.));
+        gaussians.emplace_back(std::move(hxxyyy));
+
+        std::unique_ptr<GaussianFunction> hxxyyz(
           new GaussianFunction(GaussianType::hxxyyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxyyz->operator*=(norm*(3./32.));
+        gaussians.emplace_back(std::move(hxxyyz));
+
+        std::unique_ptr<GaussianFunction> hxxyzz(
           new GaussianFunction(GaussianType::hxxyzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxyzz->operator*=(norm*(3./32.));
+        gaussians.emplace_back(std::move(hxxyzz));
+
+        std::unique_ptr<GaussianFunction> hxxzzz(
           new GaussianFunction(GaussianType::hxxzzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxxzzz->operator*=(norm*(3.*sqrt(5.)/32.));
+        gaussians.emplace_back(std::move(hxxzzz));
+
+        std::unique_ptr<GaussianFunction> hxyyyy(
           new GaussianFunction(GaussianType::hxyyyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxyyyy->operator*=(norm*(sqrt(105.)/32.));
+        gaussians.emplace_back(std::move(hxyyyy));
+
+        std::unique_ptr<GaussianFunction> hxyyyz(
           new GaussianFunction(GaussianType::hxyyyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxyyyz->operator*=(norm*(sqrt(15.)/32.));
+        gaussians.emplace_back(std::move(hxyyyz));
+
+        std::unique_ptr<GaussianFunction> hxyyzz(
           new GaussianFunction(GaussianType::hxyyzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxyyzz->operator*=(norm*(3./32.));
+        gaussians.emplace_back(std::move(hxyyzz));
+
+        std::unique_ptr<GaussianFunction> hxyzzz(
           new GaussianFunction(GaussianType::hxyzzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxyzzz->operator*=(norm*(sqrt(15.)/32.));
+        gaussians.emplace_back(std::move(hxyzzz));
+
+        std::unique_ptr<GaussianFunction> hxzzzz(
           new GaussianFunction(GaussianType::hxzzzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hxzzzz->operator*=(norm*(sqrt(105.)/32.));
+        gaussians.emplace_back(std::move(hxzzzz));
+
+        std::unique_ptr<GaussianFunction> hyyyyy(
           new GaussianFunction(GaussianType::hyyyyy, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        // hyyyyy->operator*=(norm*(3.*sqrt(105.)/32.));
+        gaussians.emplace_back(std::move(hyyyyy));
+
+        std::unique_ptr<GaussianFunction> hyyyyz(
           new GaussianFunction(GaussianType::hyyyyz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hyyyyz->operator*=(norm*sqrt(105.)/32.);
+        gaussians.emplace_back(std::move(hyyyyz));
+
+        std::unique_ptr<GaussianFunction> hyyyzz(
           new GaussianFunction(GaussianType::hyyyzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hyyyzz->operator*=(norm*(3.*sqrt(5.)/32.));
+        gaussians.emplace_back(std::move(hyyyzz));
+
+        std::unique_ptr<GaussianFunction> hyyzzz(
           new GaussianFunction(GaussianType::hyyzzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hyyzzz->operator*=(norm*(3.*sqrt(5.)/32.));
+        gaussians.emplace_back(std::move(hyyzzz));
+
+        std::unique_ptr<GaussianFunction> hyzzzz(
           new GaussianFunction(GaussianType::hyzzzz, atom.position, bs.exps,
             bs.coeffs));
-        gaussians.emplace_back(
+        hyzzzz->operator*=(norm*sqrt(105.)/32.);
+        gaussians.emplace_back(std::move(hyzzzz));
+
+        std::unique_ptr<GaussianFunction> hzzzzz(
           new GaussianFunction(GaussianType::hzzzzz, atom.position, bs.exps,
             bs.coeffs));
+        // hzzzzz->operator*=(norm*(3.*sqrt(105.)/32.));
+        gaussians.emplace_back(std::move(hzzzzz));
+
         nfunc += 21;
       }
+      // H Spherical
       else if(bs.type == 'H' && spherical) {
         gaussians.emplace_back(
           new GaussianFunction(GaussianType::hm5, atom.position, bs.exps,
@@ -813,6 +960,7 @@ void NWChem_Interface::read_movecs(const Properties::Properties props,
     err.get() << "The number of basis functions in read_MOs does not match the number of " <<
       "basis functions read\nfrom the NWChem log file. Use the following results with caution."
       << std::endl;
+    throw errmess;
   }
 
   // read the number of vectors in each set (nmo)

@@ -404,6 +404,10 @@ struct CalculationParameters {
             }
             else if (s == "gopt") {
                 gopt = true;
+
+                if (nwfile != "") {
+                   throw "NWChem interface only supports single point energy calculations. Disabling nwchem interface.";
+                }
             }
             else if (s == "gtol") {
                 f >> gtol;
@@ -516,6 +520,9 @@ struct CalculationParameters {
             }
             else if (s=="nwfile") {
                 f >> nwfile;
+                if(gopt) {
+                   throw "NWChem interface only supports single point energy calculations. Disabling geometry optimization.";
+                }
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;

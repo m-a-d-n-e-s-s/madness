@@ -402,7 +402,7 @@ public:
        //const double fac = pow(2.0/(expnt*madness::constants::pi), 3.0/2.0); 
        const double fac = 100.0; 
        double n = std::log(a/(4*K*K*(N*log10+std::log(fac))))/(2*log2);
-       return (n < 2 ? 2.0 : std::ceil(n));
+       return (n < 2 ? 2.0 : std::ceil(n)+1); // Added in the +1 for paranoia's sake
     }
 };
 
