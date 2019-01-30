@@ -249,10 +249,10 @@ namespace madness {
         
         /*
           File format:
-         
+
           unsigned int version;
           double current_energy;
-          bool spinrestricted --> if true only alpha orbitals are present         
+          bool spinrestricted --> if true only alpha orbitals are present
           unsigned int nmo_alpha;
           Tensor<double> aeps;
           Tensor<double> aocc;
@@ -276,7 +276,7 @@ namespace madness {
         unsigned int archive_version;
 
         ar & archive_version;
-      
+
         if(archive_version != version) {
            if(world.rank() == 0) print("Loading from a different version of archive. Archive version", archive_version, "MADNESS version", version);
            throw "Invalid archive";
@@ -293,11 +293,11 @@ namespace madness {
         // Some basic checks
         if(L != param.L) {
            if(world.rank() == 0) print("Warning: Box size mismatch between archive and input parameter. Archive value", L, "Param value:", param.L);
-           throw "Mismatch in box sizes"; 
+           throw "Mismatch in box sizes";
         }
         if(world.rank() == 0) print("Restarting from this molecular geometry");
         if(world.rank() == 0) molecule.print();
- 
+
         amo.resize(nmo);
         for (unsigned int i = 0; i < amo.size(); ++i)
             ar & amo[i];
