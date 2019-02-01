@@ -125,6 +125,11 @@ void NWChem_Interface::read_atoms(std::istream &in) {
     else if(reading && std::regex_search(line, matches, atomline)) { 
       Atom addme;
       addme.symbol = matches[1];
+
+      // Get symbol's case correct. First is capitalized, second is lower if exists
+      addme.symbol[0] = std::toupper(addme.symbol[0]);
+      if(addme.symbol.length() > 1) addme.symbol[1] = std::tolower(addme.symbol[1]);
+
       addme.position = {{std::stod(matches[2]) * unitcf, std::stod(matches[3]) * unitcf, std::stod(matches[4]) * unitcf}};
       my_atoms.emplace_back(std::move(addme));
       err.get() << matches[1] << " at (" << addme.position[0] << ", " << addme.position[1] << ", " << addme.position[2] << ")." << std::endl;
@@ -761,7 +766,7 @@ void NWChem_Interface::read_basis_set(std::istream &in) {
     // add a {reference to the basis function} to the basis set vector
     my_basis_set.emplace_back(std::ref(*gaussians[j].get()));
   }
-
+  
   my_properties = my_properties | Properties::Basis;
 }
 
