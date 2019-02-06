@@ -280,7 +280,7 @@ namespace madness {
 
         // override the occupancies in the case of explicit input occupancies
         if (param.explicit_occ) {
-            int nocc = param.input_aocc.size();
+            int nocc = std::min<unsigned int>(param.input_aocc.size(), param.nalpha);
             for (int i = 0; i < nocc; ++i){
                 aocc[i] = param.input_aocc[i];
             }
@@ -343,7 +343,7 @@ namespace madness {
 
             // override the occupancies in the case of explicit input occupancies
             if (param.explicit_occ) {
-                int nocc = param.input_bocc.size();
+                int nocc = std::min<unsigned int>(param.input_bocc.size(), param.nbeta);
                 for (int i = 0; i < nocc; ++i){
                     bocc[i] = param.input_bocc[i];
                 }
@@ -1286,7 +1286,7 @@ namespace madness {
 
             // override the occupancies in the case of explicit input occupancies
             if (param.explicit_occ) {
-                int nocc = param.input_aocc.size();
+                int nocc = std::min<unsigned int>(param.input_aocc.size(), param.nalpha);
                 for (int i = 0; i < nocc; ++i){
                     aocc[i] = param.input_aocc[i];
                 }
@@ -1306,7 +1306,7 @@ namespace madness {
 
                 // override the occupancies in the case of explicit input occupancies
                 if (param.explicit_occ) {
-                    int nocc = param.input_bocc.size();
+                    int nocc = std::min<unsigned int>(param.input_bocc.size(), param.nbeta);
                     for (int i = 0; i < nocc; ++i){
                         bocc[i] = param.input_bocc[i];
                     }
