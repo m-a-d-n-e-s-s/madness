@@ -3,6 +3,7 @@ include(CheckCFortranFunctionExists)
 include(CMakePushCheckState)
 
 if(NOT LAPACK_LIBRARIES)
+  set(USER_LAPACK_LIBRARIES FALSE)
 
   if(ENABLE_MKL)
     find_package(MKL)
@@ -42,12 +43,22 @@ if(NOT LAPACK_LIBRARIES)
     endif()
   endif()  
 
+else()
+  set(USER_LAPACK_LIBRARIES TRUE)
 endif()
 
 cmake_push_check_state()
 
-set(CMAKE_REQUIRED_LIBRARIES ${LAPACK_LIBRARIES} ${CMAKE_REQUIRED_LIBRARIES} 
-    ${CMAKE_THREAD_LIBS_INIT})
+# process LAPACK_LIBRARIES for CMAKE_REQUIRED_LIBRARIES (this is likely only to work with Makefile generator):
+# 1. get rid of the surrounding quotes
+string(REGEX REPLACE "\"" "" PROCESSED_LAPACK_LIBRARIES "${LAPACK_LIBRARIES}")
+# 2. convert a space-separated string of libs into a list
+string(REGEX REPLACE " " ";" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBRARIES}")
+# 3. restore (and protect!) the space in "-framework X"
+string(REGEX REPLACE "-framework;(.*)" "-framework\\\\ \\1" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBRARIES}")
+#message(STATUS "PROCESSED_LAPACK_LIBRARIES=${PROCESSED_LAPACK_LIBRARIES}")
+set(CMAKE_REQUIRED_LIBRARIES ${PROCESSED_LAPACK_LIBRARIES} ${CMAKE_REQUIRED_LIBRARIES}
+        ${CMAKE_THREAD_LIBS_INIT})
 
 # Verify that we can link against BLAS
 check_c_fortran_function_exists(sgemm BLAS_WORKS)
@@ -55,7 +66,7 @@ check_c_fortran_function_exists(sgemm BLAS_WORKS)
 if(BLAS_WORKS)
   message(STATUS "A library with BLAS API found.")
 else()
-  message(FATAL_ERROR "Uable to link against BLAS function. Specify the BLAS library in LAPACK_LIBRARIES.")
+  message(FATAL_ERROR "Unable to link against BLAS function. Specify the BLAS library in LAPACK_LIBRARIES.")
 endif()
 
 # Verify that we can link against LAPACK
@@ -64,11 +75,31 @@ check_c_fortran_function_exists(cheev LAPACK_WORKS)
 if(LAPACK_WORKS)
   message(STATUS "A library with LAPACK API found.")
 else()
-  message(FATAL_ERROR "Uable to link against LAPACK function. Specify the LAPACK library in LAPACK_LIBRARIES.")
+  message(FATAL_ERROR "Unable to link against LAPACK function. Specify the LAPACK library in LAPACK_LIBRARIES.")
 endif()
 
 set(LAPACK_FOUND TRUE)
 message(STATUS "Found LAPACK: ${LAPACK_LIBRARIES}")
+
+# introspect LAPACK_LIBRARIES given by the user
+if (USER_LAPACK_LIBRARIES)
+
+  # check for MKL
+  check_function_exists(mkl_get_version USER_LAPACK_LIBRARIES_IS_MKL)
+  if(USER_LAPACK_LIBRARIES_IS_MKL)
+    message(STATUS "User-defined LAPACK_LIBRARIES provides an MKL library")
+    set(HAVE_INTEL_MKL 1)
+  else(USER_LAPACK_LIBRARIES_IS_MKL)
+    # check for ACML
+    check_function_exists(acmlversion USER_LAPACK_LIBRARIES_IS_ACML)
+
+    if(USER_LAPACK_LIBRARIES_IS_ACML)
+      message(STATUS "User-defined LAPACK_LIBRARIES provides an ACML library")
+      set(HAVE_ACML 1)
+    endif(USER_LAPACK_LIBRARIES_IS_ACML)
+  endif(USER_LAPACK_LIBRARIES_IS_MKL)
+
+endif(USER_LAPACK_LIBRARIES)
 
 cmake_pop_check_state()
 
@@ -84,3 +115,8 @@ elseif(LAPACK_WORKS STREQUAL "CHEEV")
 elseif(LAPACK_WORKS STREQUAL "CHEEV_")
   set(FORTRAN_LINKAGE_UCU 1)
 endif()
+
+# unquote LAPACK_COMPILE_OPTIONS, LAPACK_INCLUDE_DIRS, and LAPACK_COMPILE_DEFINITIONS also
+string(REGEX REPLACE "\"" "" LAPACK_COMPILE_OPTIONS "${LAPACK_COMPILE_OPTIONS}")
+string(REGEX REPLACE "\"" "" LAPACK_INCLUDE_DIRS "${LAPACK_INCLUDE_DIRS}")
+string(REGEX REPLACE "\"" "" LAPACK_COMPILE_DEFINITIONS "${LAPACK_COMPILE_DEFINITIONS}")

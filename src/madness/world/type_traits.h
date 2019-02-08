@@ -33,17 +33,34 @@
 #define MADNESS_WORLD_TYPE_TRAITS_H__INCLUDED
 
 #include <madness/madness_config.h>
-#  include <type_traits>
+#include <type_traits>
 
 /// \file typestuff.h
-/// \brief Grossly simplified Boost-like type traits and templates
+/// \brief type traits and templates
 
 #include <cstddef>
-#include <stdint.h>
+#include <cstdint>
 #include <madness/madness_config.h>
 #include <madness/world/function_traits.h>
 
+#include <type_traits>
+
 namespace madness {
+
+namespace meta {
+// import some existing C++17 features, or implement them
+#  if __cplusplus <= 201402L
+
+template<typename... Ts>
+struct make_void {
+  using type = void;
+};
+template<typename... Ts>
+using void_t = typename make_void<Ts...>::type;
+# else
+using std::void_t;
+#endif  // C++17 features
+}
 
     template <typename> class Future;
     template <typename> struct add_future;
@@ -58,12 +75,83 @@ namespace madness {
     template <typename T>
     using remove_fcvr_t = typename remove_fcvr<T>::type;
 
-    /// This defines stuff that is serialiable by default rules ... basically anything contiguous
+    /// This defines stuff that is serialiable by bitwise copy N.B. This reports true
+    /// for \c T that is an aggregate type (struct or array) that includes pointers.
     template <typename T>
-    struct is_serializable {
-        static const bool value = std::is_fundamental<T>::value || std::is_member_function_pointer<T>::value || std::is_function<T>::value  || std::is_function<typename std::remove_pointer<T>::type>::value || std::is_pod<T>::value;
+    struct is_trivially_serializable {
+      static const bool value = \
+        std::is_arithmetic<T>::value || \
+        std::is_member_function_pointer<T>::value || \
+        std::is_function<T>::value  || \
+        std::is_function<typename std::remove_pointer<T>::type>::value || \
+        (std::is_pod<T>::value && !std::is_pointer<T>::value);
+//        ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
 
+    /// True for types that are "serialiable" to a std::ostream
+    template <typename T, typename = void>
+    struct is_ostreammable : std::false_type {};
+    template <typename T>
+    struct is_ostreammable<T, meta::void_t<decltype(std::declval<std::ostream&>() << std::declval<const T&>())>> : std::true_type {};
+    template <typename T> constexpr bool is_ostreammable_v = is_ostreammable<T>::value;
+    /// True for types that are "deserialiable" from an std::istream
+    template <typename T, typename = void>
+    struct is_istreammable : std::false_type {};
+    template <typename T>
+    struct is_istreammable<T, meta::void_t<decltype(std::declval<std::istream&>() >> std::declval<T&>())>> : std::true_type {};
+    template <typename T> constexpr bool is_istreammable_v = is_istreammable<T>::value;
+    /// providing automatic support for serializing to/from std streams requires bidirectional streammability
+    template <typename T> constexpr bool is_iostreammable_v = is_istreammable_v<T> && is_ostreammable_v<T>;
+
+    template <typename T> constexpr bool is_always_serializable =
+    std::is_arithmetic<T>::value || \
+    std::is_same<std::nullptr_t, typename std::remove_cv<T>::type>::value || \
+    std::is_member_function_pointer<T>::value || \
+    std::is_function<T>::value  || \
+    std::is_function<typename std::remove_pointer<T>::type>::value;
+
+    template <typename Archive, typename T, typename = void>
+    struct is_serializable : std::false_type {};
+
+    // forward declare archives to provide archive-specific overloads
+    namespace archive {
+    class BinaryFstreamOutputArchive;
+    class BinaryFstreamInputArchive;
+    class BufferOutputArchive;
+    class BufferInputArchive;
+    class VectorOutputArchive;
+    class VectorInputArchive;
+    class TextFstreamOutputArchive;
+    class TextFstreamInputArchive;
+    class MPIRawOutputArchive;
+    class MPIRawInputArchive;
+    class MPIOutputArchive;
+    class MPIInputArchive;
+    }
+    template <typename T>
+    struct is_serializable<archive::BinaryFstreamOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::BinaryFstreamInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::BufferOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::BufferInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::VectorOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::VectorInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::TextFstreamInputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::MPIRawOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::MPIRawInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
 
     /* Macros to make some of this stuff more readable */
 

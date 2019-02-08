@@ -17,7 +17,7 @@ Tensor<double> compute_frequencies(const Molecule& molecule,
     // compute mass-weighing matrices
     Tensor<double> M=molecule.massweights();
     Tensor<double> Minv(3*molecule.natom(),3*molecule.natom());
-    for (int i=0; i<3*molecule.natom(); ++i) Minv(i,i)=1.0/M(i,i);
+    for (size_t i=0; i<3*molecule.natom(); ++i) Minv(i,i)=1.0/M(i,i);
     
     // mass-weight the hessian
     Tensor<double> mwhessian=inner(M,inner(hessian,M));
@@ -56,9 +56,9 @@ Tensor<double> compute_reduced_mass(const Molecule& molecule, const Tensor<doubl
     Tensor<double> MDL=inner(M,DL);
     Tensor<double> mu(3*molecule.natom());
     
-    for (int i=0; i<3*molecule.natom(); ++i) {
+    for (size_t i=0; i<3*molecule.natom(); ++i) {
         double mu1=0.0;
-        for (int j=0; j<3*molecule.natom(); ++j) mu1+=MDL(j,i)*MDL(j,i);
+        for (size_t j=0; j<3*molecule.natom(); ++j) mu1+=MDL(j,i)*MDL(j,i);
         if (mu1>1.e-14) mu(i)=1.0/(mu1*constants::atomic_mass_in_au);
     }
     return mu;
@@ -77,7 +77,7 @@ Tensor<double> projector_external_dof(const Molecule& mol) {
     Tensor<double> transx(3*mol.natom());
     Tensor<double> transy(3*mol.natom());
     Tensor<double> transz(3*mol.natom());
-    for (int i=0; i<mol.natom(); ++i) {
+    for (size_t i=0; i<mol.natom(); ++i) {
         transx[3*i  ]=sqrt(mol.get_atom(i).get_mass_in_au());
         transy[3*i+1]=sqrt(mol.get_atom(i).get_mass_in_au());
         transz[3*i+2]=sqrt(mol.get_atom(i).get_mass_in_au());
@@ -108,7 +108,7 @@ Tensor<double> projector_external_dof(const Molecule& mol) {
     Tensor<double> roty(3*mol.natom());
     Tensor<double> rotz(3*mol.natom());
     
-    for (int iatom=0; iatom<mol.natom(); ++iatom) {
+    for (size_t iatom=0; iatom<mol.natom(); ++iatom) {
         
         // coordinates wrt the center of mass ("R" on the web site)
         Tensor<double> coord(3);
@@ -170,7 +170,7 @@ Tensor<double> projector_external_dof(const Molecule& mol) {
     
     // construct projector on the complement of the rotations
     Tensor<double> projector(3*mol.natom(),3*mol.natom());
-    for (int i=0; i<3*mol.natom(); ++i) projector(i,i)=1.0;
+    for (size_t i=0; i<3*mol.natom(); ++i) projector(i,i)=1.0;
     
     // compute the outer products of the projectors
     // 1- \sum_i | t_i >< t_i |

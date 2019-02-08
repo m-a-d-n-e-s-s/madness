@@ -149,6 +149,9 @@ namespace madness {
             MADNESS_ASSERT(i <= 4*bmax+1);
             int numb = i;
 
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
             disp_periodicsum[n] = std::vector< Key<NDIM> >();
             Vector<long,NDIM> lim(numb);
             for (IndexIterator index(lim); index; ++index) {
@@ -162,12 +165,18 @@ namespace madness {
             std::sort(disp_periodicsum[n].begin(), disp_periodicsum[n].end(), cmp_keys_periodicsum);
 //             print("KEYS AT LEVEL", n);
 //             print(disp_periodicsum[n]);
+
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
+
         }
 
 
     public:
         Displacements() {
-            if (disp.size() == 0) {
+          MADNESS_PRAGMA_CLANG(diagnostic push)
+          MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
+          if (disp.size() == 0) {
                 make_disp(bmax_default());
 
                 if (NDIM <= 3) {
@@ -175,6 +184,8 @@ namespace madness {
                     for (Level n=0; n<nmax; ++n) make_disp_periodicsum(bmax_default(), n);
                 }
             }
+
+          MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
         const std::vector< Key<NDIM> >& get_disp(Level n, bool isperiodicsum) {

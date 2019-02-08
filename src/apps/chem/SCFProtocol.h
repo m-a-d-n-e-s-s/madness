@@ -48,9 +48,9 @@ class SCFProtocol {
 public:
     SCFProtocol(World& w, const CalculationParameters& param,
             const std::string name, const bool restart)
-            : world(w), filename(name), restart(restart), start_prec(1.e-4),
-            current_prec(start_prec), end_prec(param.econv),
-            thresh(1.e-4), econv(1.e-4), dconv(1.e-3), user_dconv(1.e-20) {
+            : world(w), filename(name), restart(restart), converged(false),
+              start_prec(1.e-4), current_prec(start_prec), end_prec(param.econv),
+              thresh(1.e-4), econv(1.e-4), dconv(1.e-3), user_dconv(1.e-20) {
         user_dconv=param.dconv;
     }
 
@@ -58,6 +58,7 @@ public:
 
     std::string filename;   ///< name for the restart data file
     bool restart;           ///< do a restart from file (if possible)
+    bool converged;         ///< flag if protocol has converged
 
     double start_prec;      ///< starting precision, typically 1.e-4
     double current_prec;    ///< current precision
@@ -69,6 +70,9 @@ public:
     double user_dconv;      ///< density convergence provided by user
 
     void initialize() {
+
+        // don't do anything if this protocol is already converged
+        if (converged) return;
 
         // try to read restart data file
         if (restart) {
@@ -86,7 +90,6 @@ public:
                     if (tag=="thresh") ss >> thresh;
                     if (tag=="user_dconv") ss >> user_dconv;
                 }
-                if (world.rank()==0) print("tried restart but failed");
             }
         } else {
             current_prec=start_prec;
@@ -100,8 +103,8 @@ public:
     }
 
     bool finished() const {
-        return current_prec<0.0;
-        return current_prec*0.9999<end_prec;   // account for noise
+        if(world.rank()==0) printf("\nending protocol at time %8.1fs \n",wall_time());
+    	return converged;
     }
 
     /// go to the next level
@@ -112,8 +115,7 @@ public:
             infer_thresholds(current_prec);
             if(world.rank()==0) print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
         } else {
-            current_prec=-1.0;
-            if(world.rank()==0) printf("\nending protocol at time %8.1fs \n",wall_time());
+            converged=true;
         }
 
         // update restart data on file

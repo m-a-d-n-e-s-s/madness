@@ -19,6 +19,7 @@ add_definitions(-DMAD_ROOT_DIR="${PROJECT_SOURCE_DIR}")
 # Add module directory and modules =============================================
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
+include(AddOptions)
 include(AppendFlags)
 include(CheckIncludeFile)
 include(CheckTypeSize)
@@ -30,6 +31,11 @@ include(AddMADLibrary)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
+include(RedefaultableOption)
+
+# workaround for cmake bug: CheckCXXSourceCompiles does not respect CXX_STANDARD
+# see https://github.com/OPM/opm-common/blob/master/cmake/Modules/FindCXX11Features.cmake
+add_options(CXX ALL_BUILDS ${CMAKE_CXX14_STANDARD_COMPILE_OPTION})
 
 # Set install paths ============================================================
 
@@ -50,19 +56,20 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 # Enable optional libraries ====================================================
 
 # Always search for libraries that are 'ON' by default. If a library is not
-# found, it is disable without error. If the library is 'OFF' by default,
+# found, it is disabled without error. If the library is 'OFF' by default,
 # failure to find the library is an error. 
 
 option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
-option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
+redefaultable_option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
 cmake_dependent_option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON
     "NOT ENABLE_TCMALLOC_MINIMAL" OFF)
-option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
+option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
+option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 
-option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
+redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
 option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
 if(ENABLE_PARSEC AND ENABLE_TBB)
   message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
@@ -160,6 +167,12 @@ set(WORLD_GET_DEFAULT_DISABLED ${DISABLE_WORLD_GET_DEFAULT} CACHE BOOL
 option(ENABLE_UNITTESTS "Enables unit tests targets" ON)
 add_feature_info(UNITTESTS ENABLE_UNITTESTS
     "Enables unit tests targets")
+
+option(ENABLE_TASK_DEBUG_TRACE
+        "Enable task debug tracing." OFF)
+add_feature_info(TASK_DEBUG_TRACE ENABLE_TASK_DEBUG_TRACE "supports debug trace of task engine")
+set(MADNESS_TASK_DEBUG_TRACE ${ENABLE_TASK_DEBUG_TRACE} CACHE BOOL
+        "Enable task debug tracing.")
 
 set(FORTRAN_INTEGER_SIZE 4 CACHE STRING "The fortran integer size (4 or 8 bytes) used for BLAS and LAPACK function calls")
 if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))
@@ -508,6 +521,7 @@ include(external/mpi.cmake)
 include(external/papi.cmake)
 include(external/lapack.cmake)
 include(external/libxc.cmake)
+include(external/pcm.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)

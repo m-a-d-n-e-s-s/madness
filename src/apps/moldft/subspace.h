@@ -141,7 +141,7 @@
           // Clear subspace if it is not being used
           _subspace.clear();
       }
-      else if (_subspace.size() == _maxsub) {
+      else if (_subspace.size() == size_t(_maxsub)) {
           // Truncate subspace in preparation for next iteration
           _subspace.erase(_subspace.begin());
           _Q = _Q(Slice(1,-1),Slice(1,-1));
@@ -237,7 +237,7 @@
           // Clear subspace if it is not being used
           _subspace.clear();
       }
-      else if (_subspace.size() == _maxsub) {
+      else if (_subspace.size() == size_t(_maxsub)) {
           // Truncate subspace in preparation for next iteration
           _subspace.erase(_subspace.begin());
           _Q = _Q(Slice(1,-1),Slice(1,-1));

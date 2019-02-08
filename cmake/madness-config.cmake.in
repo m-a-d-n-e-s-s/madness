@@ -76,20 +76,24 @@ set(MADNESS_INSTALL_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
 
 if (MADNESS_HAS_ELEMENTAL)
   if(MADNESS_HAS_ELEMENTAL_EMBEDDED)
-    set_and_check(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
-    set_and_check(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
+    set(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
+    set(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
     list(APPEND MADNESS_BUILD_INCLUDE_DIRS
         "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
         "${Elemental_SOURCE_DIR}/external/pmrrr/include"
         "${Elemental_BINARY_DIR}/external/pmrrr/include")
   else(MADNESS_HAS_ELEMENTAL_EMBEDDED)
-    set_and_check(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
-    set_and_check(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
+    set(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
+    set(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
     # elemental package and component name depends on version
     set(ELEMENTAL_PACKAGE_NAME @ELEMENTAL_PACKAGE_NAME@)
     set(ELEMENTAL_CONFIGURE_NAME @ELEMENTAL_CONFIG_NAME@)
     # where to look for elemental cmake config file
-    #set(${ELEMENTAL_PACKAGE_NAME}_DIR "${Elemental_BINARY_DIR}")
+    if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
+      set(Elemental_DIR "${Elemental_BINARY_DIR}")
+    else()
+      set(Elemental_DIR "${PACKAGE_PREFIX_DIR}/CMake/elemental")
+    endif()
     find_package(${ELEMENTAL_CONFIGURE_NAME} REQUIRED
                  COMPONENTS REQUIRED ${ELEMENTAL_PACKAGE_NAME})
     list(APPEND MADNESS_BUILD_INCLUDE_DIRS
@@ -132,7 +136,8 @@ check_required_components(${MADNESS_TARGET_COMPONENT})
 set(MADNESS_FOUND TRUE)
 
 ########### LAPACK ############
-set(LAPACK_LIBRARIES "@LAPACK_LIBRARIES@")
+# this is formatted to be added to CMAKE_REQUIRED_LIBRARIES
+set(LAPACK_LIBRARIES "@PROCESSED_LAPACK_LIBRARIES@")
 
 ########### MPI ############
 set(MPIEXEC "@MPIEXEC@")

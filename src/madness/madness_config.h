@@ -158,5 +158,17 @@
 
 #endif /* POWERPC */
 
+/* ----------- preprocessor checks ---------------*/
+#define MADNESS_PRAGMA(x) _Pragma(#x)
+/* same as MADNESS_PRAGMA(x), but expands x */
+#define MADNESS_XPRAGMA(x) MADNESS_PRAGMA(x)
+/* "concats" a and b with a space in between */
+#define MADNESS_CONCAT(a,b) a b
+#ifdef __clang__
+#define MADNESS_PRAGMA_CLANG(x) MADNESS_XPRAGMA( MADNESS_CONCAT(clang,x) )
+#else
+#define MADNESS_PRAGMA_CLANG(x)
+#endif
+/* ----------- end of preprocessor checks ---------*/
 
 #endif // MADNESS_MADNESS_CONFIG_H__INCLUDED

@@ -253,7 +253,10 @@ namespace madness {
             }
             else {
                 Future<argT> result;
-                f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
+		if (f->get_coeffs().is_local(neigh))
+		  f->send(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
+		else
+		  f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
                 return result;
             }
         }

@@ -48,6 +48,7 @@
 #cmakedefine HAVE_INTEL_MKL 1
 #cmakedefine HAVE_PAPI 1
 #cmakedefine MADNESS_HAS_LIBXC 1
+#cmakedefine MADNESS_HAS_PCM 1
 #cmakedefine MADNESS_HAS_ELEMENTAL 1
 #cmakedefine MADNESS_HAS_ELEMENTAL_EMBEDDED 1
 #cmakedefine MADNESS_HAS_GOOGLE_PERF_MINIMAL 1
@@ -65,9 +66,15 @@
 #cmakedefine HAVE_STRCHR 1
 
 /* Define if header files are available. */
+#ifndef HAVE_SYS_STAT_H
 #cmakedefine HAVE_SYS_STAT_H 1
-#cmakedefine HAVE_SYS_TYPES_H 1
+#endif
+#ifndef HAVE_SYS_TYPES_H
+#cmakedefine HAVE_SYS_TYPES_H
+#endif
+#ifndef HAVE_UNISTD_H
 #cmakedefine HAVE_UNISTD_H 1
+#endif
 #cmakedefine HAVE_ELEMENTAL_H 1
 #cmakedefine HAVE_EL_H 1
 
@@ -97,7 +104,8 @@
 #cmakedefine WORLD_GATHER_MEM_STATS 1
 #cmakedefine WORLD_MEM_PROFILE_ENABLE 1
 #cmakedefine WORLD_PROFILE_ENABLE 1
-
+#cmakedefine MADNESS_TASK_DEBUG_TRACE 1
+#cmakedefine MADNESS_LINALG_USE_LAPACKE 1
 
 /* Define to the equivalent of the C99 'restrict' keyword, or to
    nothing if this is not supported.  Do not define if restrict is

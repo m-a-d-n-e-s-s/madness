@@ -53,15 +53,30 @@ namespace madness {
     /// some of the methods in tensor.cc, and will have to add additional
     /// instantiations at the end of tensor.cc and tensoriter.cc.
     template <class T>
-    class TensorTypeData {
-    public:
-        enum {id = -1};
-        enum {supported = false};
-        enum {iscomplex = false};
-        enum {memcopyok = false};
-        typedef T type;
-        //typedef T scalar_type;
-    };
+    class TensorTypeData;
+//    {
+//    public:
+//        // id=unique and sequential identifier for each type
+//        enum {id = int};
+//        // supported=true for all supported scalar numeric types
+//        enum {supported = bool};
+//        // iscomplex=true if a complex type
+//        enum {iscomplex = bool};
+//        // memcopyok=true if memcpy can be used to copy an array
+//        // of the type ... it should be true for all native types
+//        // and probably false for all types that require a
+//        // special constructor or assignment operator.
+//        enum {memcopyok = bool};
+//        // type=the actual type
+//        typedef T type;
+//        // scalar_type = is the type of abs, normf, absmin, absmax, real, imag.
+//        // Not all of these functions are defined for all types.
+//        // Unfortunately, in the current version, some misuses will only be
+//        // detected at run time.
+//        typedef ... scalar_type;
+//        // float_scalar_type = the floating-point equivalent of scalar_type
+//        typedef ... float_scalar_type;
+//    };
 
     /// This provides the reverse mapping from integer id to type name
     template <int id>
@@ -69,25 +84,6 @@ namespace madness {
     public:
         typedef long type;
     };
-
-    // id=unique and sequential identifier for each type
-    //
-    // supported=true for all supported scalar numeric types
-    //
-    // iscomplex=true if a complex type
-    //
-    // memcopyok=true if memcpy can be used to copy an array
-    // of the type ... it should be true for all native types
-    // and probably false for all types that require a
-    // special constructor or assignment operator.
-    //
-    // type=the actual type
-    //
-    // scalar_type = is the type of abs, normf, absmin, absmax, real, imag.
-    // Not all of these functions are defined for all types.
-    // Unfortunately, in the current version, some misuses will only be
-    // detected at run time.
-
 
 #define TYPEINFO(num, T, iscmplx, mcpyok, realT,floatrealT) \
 template<> class TensorTypeData<T> {\

@@ -1414,6 +1414,12 @@ namespace madness {
         /// \return Queue statistics.
         static const DQStats& get_stats();
 
+        /// Access the pool thread array
+        /// \return ptr to the pool thread array, its size is given by \c size()
+        static const ThreadPoolThread* get_threads() {
+          return const_cast<const ThreadPoolThread*>(instance()->threads);
+        }
+
         /// Gracefully wait for a condition to become true, executing any tasks in the queue.
 
         /// Probe should be an object that, when called, returns the status.
@@ -1440,7 +1446,7 @@ namespace madness {
                     counter = 0;
                 } else {
                     if(((current_time - start) > timeout) && (timeout > 1.0)) {	// Check for timeout
-		        std::cout << "!!MADNESS: Hung queue?" << std::endl;
+                        std::cerr << "!!MADNESS: Hung queue?" << std::endl;
                         if(counter++ > 3)
                             throw madness::MadnessException("ThreadPool::await() timeout",
                                     0, 1, __LINE__, __FUNCTION__, __FILE__);
@@ -1480,6 +1486,8 @@ namespace madness {
 #elif HAVE_INTEL_TBB
             tbb_scheduler->terminate();
             delete(tbb_scheduler);
+#else
+            delete[] threads;           
 #endif
         }
     };

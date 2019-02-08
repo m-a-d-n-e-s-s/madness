@@ -293,7 +293,7 @@ namespace {
         // Test that the move target stack contains the data that was held by s.
         for(; i > 0u; --i) {
             EXPECT_EQ(i, mss.size());
-            EXPECT_EQ(i - 1, value(mss.top()));
+            EXPECT_EQ(int(i - 1), value(mss.top()));
             EXPECT_NO_THROW(mss.pop());
             EXPECT_EQ(i - 1, mss.size());
             EXPECT_EQ(cap, mss.capacity());
@@ -312,7 +312,7 @@ namespace {
         // Check that the size and capacity has been correctly moved
         EXPECT_EQ(small_buffer, s.data());
         EXPECT_EQ(0u, s.size());
-        EXPECT_EQ(4, s.capacity());
+        EXPECT_EQ(size_t(4), s.capacity());
         EXPECT_EQ(buffer, mls.data());
         EXPECT_EQ(i, mls.size());
         EXPECT_EQ(cap, mls.capacity());

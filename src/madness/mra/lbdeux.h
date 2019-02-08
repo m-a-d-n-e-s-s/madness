@@ -239,7 +239,10 @@ namespace madness {
             const costT& costfn;
             add_op(LoadBalanceDeux* lb, const costT& costfn) : lb(lb), costfn(costfn) {}
             void operator()(const keyT& key, const FunctionNode<T,NDIM>& node) const {
-                lb->tree.send(key, &nodeT::add, costfn(key,node), node.has_children());
+ 	        if (lb->tree.is_local(key))
+		    lb->tree.send(key, &nodeT::add, costfn(key,node), node.has_children());
+		else
+		    lb->tree.task(key, &nodeT::add, costfn(key,node), node.has_children());
             }
         };
 
