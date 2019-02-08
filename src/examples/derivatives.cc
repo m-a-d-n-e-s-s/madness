@@ -1,238 +1,61 @@
+
+/* The following goes through each derivative model and runs the macro tests using that model.
+ * To load the new derivative models, you create the derivative operator normally, then use the 
+ * "set_deriv_type#()" function. See lines 413 - 437 for examples.
+ */
+
 #include <madness/mra/mra.h>
 #include <madness/mra/funcplot.h>
 #include <string>
 #include <malloc.h>
 
-// const char* BSP_DATA_PATH = "/gpfs/home/rharrison/madness/src/madness/mra/deriv-bsp.k=m+1.n=m+1";
-// const char* PH_DATA_PATH  = "/gpfs/home/rharrison/madness/src/madness/mra/ph-spline-deriv.txt";
-// const char* PH2_DATA_PATH = "/gpfs/home/rharrison/madness/src/madness/mra/ph-spline-deriv-2.txt";
-// const char* PROL_DATA_PATH= "/gpfs/home/rharrison/madness/src/madness/mra/prolates-joel";
-
-const char* BSP_DATA_PATH   = "/gpfs/projects/rjh/mad-der/src/madness/mra/deriv-bsp.k=m+1.n=m+1";
-const char* PH_DATA_PATH    = "/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv.txt";
-const char* PH2_DATA_PATH   = "/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv-2.txt";
-const char* PROL_DATA_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-joel";
-const char* PROL_DATA_PATH2 = "/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-feb";
-const char* BLE_1_PATH      = "/gpfs/projects/rjh/mad-der/src/madness/mra/ble-first.txt";
-const char* BLE_2_PATH      = "/gpfs/projects/rjh/mad-der/src/madness/mraeble-second.txt";
-const char* BSPLINE_1_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv1.txt";
-const char* BSPLINE_2_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv2.txt";
-const char* BSPLINE_3_PATH  = "/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv3.txt";
-
 using namespace madness;
 
+// Constants for use in tests
 const double L = 16.0;   // box size [-L,L]^3
 const double a_gaussian = 1.0; 
-const double omega_low = 2.09439510239320;
-const double omega_med = 3.66519142918800;
-const double omega_hi  = 4.71238898038467;
 
-
-double exponential(const coord_3d& r) {
-    const double a = 2.0;
-    const double small = 1e-5;
-    const double x=r[0], y=r[1], z=r[2];
-    const double R = std::sqrt(x*x + y*y + z*z + small*small);
-    return exp(-a*R);
-}
-
-double exponential1(const coord_3d& r) {
-    const double a = 2.0;
-    const double small = 1e-5;
-    const double x=r[0], y=r[1], z=r[2];
-    const double R = std::sqrt(x*x + y*y + z*z + small*small);
-    return -exp(-a*R)*a*x/R;
-}
-
-double exponential2(const coord_3d& r) {
-    const double a = 2.0;
-    const double small = 1e-5;
-    const double x=r[0], y=r[1], z=r[2];
-    const double R = std::sqrt(x*x + y*y + z*z + small*small);
-    return exp(-a*R)*(a*a*x*x/(R*R) - a/R + a*x*x/(R*R*R));
-}
-
-double exponential3(const coord_3d& r) {
-    const double a = 2.0;
-    const double a2 = a*a;
-    const double a3 = a2*a;
-    const double small = 1e-5;
-    const double x=r[0], y=r[1], z=r[2];
-    const double x2 = x*x;
-    const double x3 = x*x2;
-    const double R = std::sqrt(x*x + y*y + z*z + small*small);
-    const double R2 = R*R;
-    const double R3 = R*R2;
-    const double R4 = R*R3;
-    const double R5 = R*R4;
-    return exp(-a*R)*(-3*a*x3/R5 + 3*a*x/R3 - 3*a2*x3/R4 + 3*a2*x/R2 - a3*x3/R3);
-}
-
-double exponential_energy() {
-    double a = 2.0;
-    return constants::pi/a/3.0;
-}
-
-
-double flat(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    const double r2 = x*x + y*y + z*z;
-    const double r4 = r2*r2;
-
-    return erfc(r4);
-}
-
-
-double flat1(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    const double r2 = x*x + y*y + z*z;
-    const double r4 = r2*r2;
-    const double r8 = r4*r4;
-
-    return -8*exp(-r8)* r2 * x/sqrt(constants::pi);
-}
-
-double flat2(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    const double r2 = x*x + y*y + z*z;
-    const double r4 = r2*r2;
-    const double r8 = r4*r4;
-
-    const double s2 = y*y + z*z;
-    const double s4 = s2*s2;
-    const double s6 = s4*s2;
-    const double s8 = s6*s2;
-
-    const double x2 = x*x;
-    const double x4 = x2*x2;
-    const double x6 = x4*x2;
-    const double x8 = x6*x2;
-    const double x10 = x8*x2;
-
-    return 8*exp(-r8)*(8*s8*x2+32*s6*x4+48*s4*x6+32*s2*x8+8*x10-s2-3*x2)/sqrt(constants::pi);
-}
-
-double flat3(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    const double r2 = x*x + y*y + z*z;
-    const double r4 = r2*r2;
-    const double r8 = r4*r4;
-
-    const double s2 = y*y + z*z;
-    const double s4 = s2*s2;
-    const double s6 = s4*s2;
-    const double s8 = s6*s2;
-    const double s10 = s8*s2;
-    const double s12 = s10*s2;
-    const double s14 = s12*s2;
-
-    const double x2 = x*x;
-    const double x4 = x2*x2;
-    const double x6 = x4*x2;
-    const double x8 = x6*x2;
-    const double x10 = x8*x2;
-    const double x12 = x10*x2;
-    const double x14 = x12*x2;
-    const double x16 = x14*x2;
-
-    return -16*exp(-r8)*x*(32*s14*x2+224*s12*x4+672*s10*x6+1120*s8*x8+1120*s6*x10+672*s4*x12+224*s2*x14+32*x16-12*s8-88*s6*x2-192*s4*x4-168*s2*x6-52*x8+3)/sqrt(constants::pi);
-}
-
-double flat_energy() {
-    return 4.60576993824350;
-}
-
-
+// Analytic gaussian function
 double gaussian(const coord_3d& r) {
     const double a = a_gaussian;
     const double fac = std::pow(2*a/constants::pi,0.75);
     const double x=r[0], y=r[1], z=r[2];
     return fac*exp(-a*(x*x+y*y+z*z));
 }
-
+// Analytic first derivative of gaussian function
 double gaussian1(const coord_3d& r) {
     const double a = a_gaussian;
     const double fac = std::pow(2*a/constants::pi,0.75);
     const double x=r[0], y=r[1], z=r[2];
     return -2.0*a*x*fac*exp(-a*(x*x+y*y+z*z));
 }
-
+// Analytic second derivative of gaussian function
 double gaussian2(const coord_3d& r) {
     const double a = a_gaussian;
     const double fac = std::pow(2*a/constants::pi,0.75);
     const double x=r[0], y=r[1], z=r[2];
     return (4.0*a*a*x*x - 2.0*a)*fac*exp(-a*(x*x+y*y+z*z));
 }
-
+// Analytic third derivative of gaussian function
 double gaussian3(const coord_3d& r) {
     const double a = a_gaussian;
     const double fac = std::pow(2*a/constants::pi,0.75);
     const double x=r[0], y=r[1], z=r[2];
     return (12.0*a*a*x - 8.0*a*a*a*x*x*x)*fac*exp(-a*(x*x+y*y+z*z));
 }
-
+// Expectation value of gaussian
 double gaussian_energy() {
     double a = a_gaussian;
     return a;
 }
 
-double sin(const coord_3d& r) {
-    const double omega = omega_low;
-    const double x=r[0];
-    return sin(omega * x);
-}
-
-double sin1(const coord_3d& r) {
-    const double omega = omega_low;
-    const double x=r[0];
-    return omega * cos(omega *x); 
-}
-
-double sin2(const coord_3d& r) {
-    const double omega = omega_low;
-    const double x=r[0];
-    return -omega*omega * sin(omega *x); 
-}
-
-double sin3(const coord_3d& r) {
-    const double omega = omega_low;
-    const double x=r[0];
-    return -omega*omega*omega * cos(omega *x); 
-}
-
-double sin_energy() {
-   return 0.0;
-}
-
-const std::string funcname = "flat";
-double (*f )(const coord_3d&) = flat;
-double (*f1)(const coord_3d&) = flat1;
-double (*f2)(const coord_3d&) = flat2;
-double (*f3)(const coord_3d&) = flat3;
-double (*energy)() = flat_energy;
-
-//const std::string funcname = "gaussian";
-//double (*f )(const coord_3d&) = gaussian;
-//double (*f1)(const coord_3d&) = gaussian1;
-//double (*f2)(const coord_3d&) = gaussian2;
-//double (*f3)(const coord_3d&) = gaussian3;
-//double (*energy)() = gaussian_energy;
-
-//const std::string funcname = "exponential";
-//double (*f )(const coord_3d&) = exponential;
-//double (*f1)(const coord_3d&) = exponential1;
-//double (*f2)(const coord_3d&) = exponential2;
-//double (*f3)(const coord_3d&) = exponential3;
-//double (*energy)() = exponential_energy;
-
-//const std::string funcname = "sin";
-//double (*f )(const coord_3d&) = sin;
-//double (*f1)(const coord_3d&) = sin1;
-//double (*f2)(const coord_3d&) = sin2;
-//double (*f3)(const coord_3d&) = sin3;
-//double (*energy)() = sin_energy;
-
-
+// Define functions
+const std::string funcname = "gaussian";
+double (*f )(const coord_3d&) = gaussian;
+double (*f1)(const coord_3d&) = gaussian1;
+double (*f2)(const coord_3d&) = gaussian2;
+double (*f3)(const coord_3d&) = gaussian3;
+double (*energy)() = gaussian_energy;
 
 class F : public FunctionFunctorInterface<double,3> {
 private:
@@ -333,7 +156,7 @@ void test(World& world, int k, int initial_level, double thresh, int truncmode, 
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_initial_level(initial_level);
     FunctionDefaults<3>::set_truncate_mode(truncmode); 
-    FunctionDefaults<3>::set_truncate_on_project(true); // <<<<<<<<<
+    FunctionDefaults<3>::set_truncate_on_project(true); 
 
     const double lo=-L, hi=L;
     const size_t npts = 10001;
@@ -346,7 +169,6 @@ void test(World& world, int k, int initial_level, double thresh, int truncmode, 
     Derivative<double,3> D = free_space_derivative<double,3>(world, 0);
     if (funcname == "sin"){
         FunctionDefaults<3>::set_bc(BC_PERIODIC);
-        //D = periodic_derivative<double,3>(world, 0);
     }
     
     double g0norm, g1norm, g2norm, g3norm;
@@ -396,9 +218,6 @@ void test(World& world, int k, int initial_level, double thresh, int truncmode, 
  	PRINT("e+<g|g2>", e+g.inner(g2));     \
         plotter1(p(buf,model.c_str(),k,initial_level,thresh,1), pts, g, g1, g2, g3);
 
-    //coord_3d origin = {0.0,0.0,0.0};
-    //print("at origin",g2(origin),f2(origin));	\
-
 // Prints relevant values for a second derivative
 #define DOIT2 \
 	real_function_3d g2 = D(g); \
@@ -417,86 +236,52 @@ void test(World& world, int k, int initial_level, double thresh, int truncmode, 
 	DOIT1;
     }
 
-//    {
-//        model = "bsp";
-//        D.read_from_file(BSP_DATA_PATH);
-//	DOIT1;
-//    }
-//
-//    {
-//        model = "ph";
-//        D.read_from_file(PH_DATA_PATH);
-//	DOIT1;
-//    }
-//
-//    {
-//        model = "ph2";
-//        D.read_from_file(PH2_DATA_PATH);
-//        DOIT2;
-//    }
-//
-//    {
-//        model = "prol";
-//        D.read_from_file(PROL_DATA_PATH);
-//	DOIT1;
-//    }
-//
-//    {
-//        model = "prol-feb";
-//        D.read_from_file(PROL_DATA_PATH2);
-//	DOIT1;
-//    }
-
     {
         model = "ble-1";
-        D.read_from_file(BLE_1_PATH);
+        D.set_ble1();
 	DOIT1;
     }
 
     {
         model = "ble-2";
-        D.read_from_file(BLE_2_PATH, 2);
+        D.set_ble2();
 	DOIT2;
     }
 
     {
         model = "bspline-1";
-        D.read_from_file(BSPLINE_1_PATH);
+        D.set_bspline1();
 	DOIT1;
     }
 
     {
         model = "bspline-2";
-        D.read_from_file(BSPLINE_2_PATH, 2);
+        D.set_bspline2();
 	DOIT2;
     }
 
     {
         model = "bspline-3";
-        D.read_from_file(BSPLINE_3_PATH, 3);
+        D.set_bspline3();
         DOIT3;
     }
 
 }
 
 int main(int argc, char** argv) {
-    //if (!mallopt(M_MXFAST, 0)) return -1;
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(10);
 
-    //double threshes[] = {1e-4, 1e-6, 1e-8, 1e-10};
+    if(world.rank() == 0) print("\n\nBLE derivatives are available for k = 1 to k = 15.\nBspline derivatives are available for k = 1 to k = 18.\n");
+
     double thresh = 1e-4;
-    //for (double thresh : threshes) {
-      for (int initial_level = 4; initial_level<=8; initial_level++) { // not used if adaptive refining
-	//for (int k=7; k<19; k+=2) {
-	for (int k=8; k<16; k+=2) {
-	  test(world, k, initial_level, thresh, 1, false);
-	}
-      }
-    //}
-            
+    int initial_level = 4; 
+    for (int k=7; k<15; k+=2) {
+       test(world, k, initial_level, thresh, 1, true);
+    }
+
     world.gop.fence();
     finalize();
     return 0;

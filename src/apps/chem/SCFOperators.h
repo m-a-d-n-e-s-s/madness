@@ -413,8 +413,6 @@ public:
     XCOperator(World& world) : world(world), nbeta(0), ispin(0),
         extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {}
 
-    // Bryan's edits added in std::string deriv to 3 of the constructors here
-
     /// custom ctor with information about the XC functional
     XCOperator(World& world, std::string xc_data, const bool spin_polarized,
             const real_function_3d& arho, const real_function_3d& brho,
@@ -473,9 +471,7 @@ private:
     /// the world
     World& world;
 
-    // Bryan's edit for derivatives
-    // Idea here is to set this on construction 
-    // to specify which derivative to use
+    /// which derivative operator to use
     std::string dft_deriv;
 
 public:

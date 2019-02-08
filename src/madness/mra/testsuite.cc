@@ -265,7 +265,7 @@ int test_conv(World& world) {
 
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
 
-    for (int k=2; k<=30; k+=2) {
+    for (int k=2; k<=30; k+=1) {
         if (world.rank() == 0) printf("k=%d\n", k);
         int ntop = 5;
         if (NDIM > 2 && k>5) ntop = 4;

@@ -386,25 +386,16 @@ namespace madness {
             double safety = 0.1;
             vtol = FunctionDefaults<NDIM>::get_thresh() * safety;
             coulop = poperatorT(CoulombOperatorPtr(world, param.lo, thresh));
-
-            // Bryan's edits for derivative testing
             gradop = gradient_operator<double,3>(world);
-            // Didn't know how to do this intelligently...
+
+            // Update coefficients if using a different derivative
             if(param.deriv == "bspline")
             {
-               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/b-spline-deriv1.txt");
-            }
-            else if(param.deriv == "ph")
-            { 
-               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ph-spline-deriv.txt");
+               for(int i=0; i<3; ++i) (*gradop[i]).set_bspline1();
             }
             else if(param.deriv == "ble")
-            { 
-               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/ble-first.txt");
-            }
-            else if(param.deriv == "prolate")
-            { 
-               for(int i=0; i<3; ++i) (*gradop[i]).read_from_file("/gpfs/projects/rjh/mad-der/src/madness/mra/prolates-feb");
+            {
+               for(int i=0; i<3; ++i) (*gradop[i]).set_ble1();
             }
 
             mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());

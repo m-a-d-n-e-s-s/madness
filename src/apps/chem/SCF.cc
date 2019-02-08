@@ -2660,38 +2660,7 @@ namespace madness {
                 dipole_matrix_elements(world, bmo, bocc, beps, 1);
             }
         }
-
-        // Bryan edits for derivative testing
-        // Create a line plot of rho and |grad rho(r)| and  the output of
-        // xc function
-
-        // We want XCOperator output as well, so we should construct 
-        // an XCOperator object here
-        XCOperator xcprinter(world, this, 0, param.deriv);
-        functionT xcfunction = xcprinter.make_xc_potential();
-
-        // Create grad_rho here               
-        functionT grad_rho = apply((*gradop[0]), rho) * apply((*gradop[0]), rho) + 
-                             apply((*gradop[1]), rho) * apply((*gradop[1]), rho) + 
-                             apply((*gradop[2]), rho) * apply((*gradop[2]), rho); 
-        grad_rho.unaryop(std::fabs);
-        grad_rho.unaryop(sqrt);
- 
-        if(world.rank() == 0)
-        {
-           coord_3d lo,hi;
-           lo[0] = 0.0; lo[1] = 0.0; lo[2] = -param.L;
-           hi[0] = 0.0; hi[1] = 0.0; hi[2] =  param.L;
-           char plotname[500];
-           sprintf(plotname, "density_z.txt");
-          
-           // Now write to file
-           plot_line(plotname, 10001, lo, hi, rho, grad_rho, xcfunction); // rho is created above, line 2625
-        }
-
-
     }        // end solve function
-
 
 
 //vama polarizability

@@ -65,6 +65,8 @@ namespace madness {
 
 namespace madness {
 
+    static const std::string mad_root_dir = MAD_ROOT_DIR;
+
     /// Tri-diagonal operator traversing tree primarily for derivative operator
 
     /// \ingroup mra
@@ -298,12 +300,12 @@ namespace madness {
 
 
         // Tensors for the bspline smoothed central difference operator
-        Tensor<double> r0_bsp; 
-        Tensor<double> rm_bsp; 
-        Tensor<double> rp_bsp; 
-        Tensor<double> r0_bsp_t; 
-        Tensor<double> rm_bsp_t; 
-        Tensor<double> rp_bsp_t; 
+        Tensor<double> r0_bsp;
+        Tensor<double> rm_bsp;
+        Tensor<double> rp_bsp;
+        Tensor<double> r0_bsp_t;
+        Tensor<double> rm_bsp_t;
+        Tensor<double> rp_bsp_t;
 
         void do_diff2b(const implT* f, implT* df, const keyT& key,
                        const argT& left,
@@ -335,7 +337,7 @@ namespace madness {
             double fac = FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev);
             if (is_second) fac *= fac;
             else if (is_third) fac *= fac*fac;
-        
+
             d.scale(fac);
             d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
@@ -430,7 +432,7 @@ namespace madness {
             double fac = FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level());
             if (is_second) fac *= fac;
             else if (is_third) fac *= fac*fac;
-        
+
             d.scale(fac);
             d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
@@ -442,7 +444,7 @@ namespace madness {
         void initCoefficients()  {
             is_second = false;
             is_third = false;
-            
+
             r0 = Tensor<double>(this->k,this->k);
             rp = Tensor<double>(this->k,this->k);
             rm = Tensor<double>(this->k,this->k);
@@ -569,46 +571,6 @@ namespace madness {
             left_rmt = transpose(left_rm);
             left_r0t = transpose(left_r0);
 
-
-            // Printing to look at them
-            //std::cout << std::setprecision(16); 
-            //print("abgv r0:");
-            ////print(r0);
-            //for(int i=0; i<this->k; i++)
-            //{
-            //   for(int j=0; j<this->k; j++)
-            //   {
-            //      std::cout << r0(i,j) << "  ";
-            //   }
-            //   std::cout << std::endl;
-            //}
-            //print("");
-
-            //print("abgv rp:");
-            ////print(rp);
-            //for(int i=0; i<this->k; i++)
-            //{
-            //   for(int j=0; j<this->k; j++)
-            //   {
-            //      std::cout << rp(i,j) << "  ";
-            //   }
-            //   std::cout << std::endl;
-            //}
-            //print("");
-
-            //print("abgv rm:");
-            ////print(rm);
-            //for(int i=0; i<this->k; i++)
-            //{
-            //   for(int j=0; j<this->k; j++)
-            //   {
-            //      std::cout << rm(i,j) << "  ";
-            //   }
-            //   std::cout << std::endl;
-            //}
-            //print("");
-
-
             //print(rm.normf(),r0.normf(),rp.normf(),left_rm.normf(),left_r0.normf(),right_r0.normf(),right_rp.normf(),bv_left.normf(),bv_right.normf());
         }
 
@@ -643,19 +605,44 @@ namespace madness {
 
         virtual ~Derivative() { }
 
-        // void use_bsp_transpose() {
-        //     r0=r0_bsp_t; r0t=r0_bsp; left_r0=r0_bsp_t; left_r0t=r0_bsp; right_r0=r0_bsp_t; right_r0t=r0_bsp;
-            
-        //     rp=rp_bsp_t; rpt=rp_bsp; right_rp=rp_bsp_t; right_rpt=rp_bsp;
-            
-        //     rm=rm_bsp_t; rmt=rm_bsp; left_rm=rm_bsp_t; left_rmt=rm_bsp;
-        // }
-
         void set_is_first() {is_second = false; is_third = false;}
-
         void set_is_second() {is_second = true; is_third=false;}
-
         void set_is_third() {is_second = false; is_third = true;}
+
+        void set_bspline1() {
+           int k = FunctionDefaults<NDIM>::get_k();
+           if(k > 18) throw "Bspline derivatives are only available up to k=18";
+           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv1.txt";
+           read_from_file(filename, 1);
+        }
+
+        void set_bspline2() {
+           int k = FunctionDefaults<NDIM>::get_k();
+           if(k > 18) throw "Bspline derivatives are only available up to k=18";
+           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv2.txt";
+           read_from_file(filename, 2);
+        }
+
+        void set_bspline3() {
+           int k = FunctionDefaults<NDIM>::get_k();
+           if(k > 18) throw "Bspline derivatives are only available up to k=18";
+           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv3.txt";
+           read_from_file(filename, 3);
+        }
+
+        void set_ble1() {
+           int k = FunctionDefaults<NDIM>::get_k();
+           if(k > 15) throw "BLE derivatives are only available up to k=15";
+           std::string filename = mad_root_dir + "/src/madness/mra/ble-first.txt";
+           read_from_file(filename, 1);
+        }
+
+        void set_ble2() {
+           int k = FunctionDefaults<NDIM>::get_k();
+           if(k > 15) throw "BLE derivatives are only available up to k=15";
+           std::string filename = mad_root_dir + "/src/madness/mra/ble-second.txt";
+           read_from_file(filename, 2);
+        }
 
         void read_from_file(const std::string& filename, unsigned int order = 1) {
 
@@ -665,6 +652,7 @@ namespace madness {
 
             std::ifstream f(filename);
             bool found=false;
+
             for (int m; f >> m; ) {
                 if (m == this->k) {
                     for (int i=0; i<m; i++)
@@ -689,11 +677,11 @@ namespace madness {
             Tensor<double> r0_bsp_t = transpose(r0_bsp);
             Tensor<double> rp_bsp_t = transpose(rp_bsp);
             Tensor<double> rm_bsp_t = transpose(rm_bsp);
-            
+
             r0=r0_bsp; r0t=r0_bsp_t; left_r0=r0_bsp; left_r0t=r0_bsp_t; right_r0=r0_bsp; right_r0t=r0_bsp_t;
-            
+
             rp=rp_bsp; rpt=rp_bsp_t; right_rp=rp_bsp; right_rpt=rp_bsp_t;
-            
+
             rm=rm_bsp; rmt=rm_bsp_t; left_rm=rm_bsp; left_rmt=rm_bsp_t;
 
             // Get scaling factor right for higher order derivatives
@@ -706,48 +694,7 @@ namespace madness {
             else if(order == 3) {
                set_is_third();
             }
-
-            // Printing just to see what they look like
-            //std::cout << std::setprecision(16); 
-            //print(filename, "r0:");
-            ////print(r0);
-            //for(int i=0; i<this->k; i++)
-            //{
-            //   for(int j=0; j<this->k; j++)
-            //   {
-            //      std::cout << r0(i,j) << "  ";
-            //   }
-            //   std::cout << std::endl;
-            //}
-            //print("");
-
-            //print(filename, "rp:");
-            ////print(rp);
-            //for(int i=0; i<this->k; i++)
-            //{
-            //   for(int j=0; j<this->k; j++)
-            //   {
-            //      std::cout << rp(i,j) << "  ";
-            //   }
-            //   std::cout << std::endl;
-            //}
-            //print("");
-
-            //print(filename, "rm:");
-            ////print(rm);
-            //for(int i=0; i<this->k; i++)
-            //{
-            //   for(int j=0; j<this->k; j++)
-            //   {
-            //      std::cout << rm(i,j) << "  ";
-            //   }
-            //   std::cout << std::endl;
-            //}
-            //print("");
-            
         }
-
-        
     };
 
 

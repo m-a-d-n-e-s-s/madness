@@ -126,8 +126,7 @@ struct CalculationParameters {
     double efield;                    ///< eps for finite field
     double efield_axis;               ///< eps for finite field axis
 
-    // Bryan's modifications for new derivative testing
-    // Also added these to serialize
+    // Different derivatives can be used
     std::string deriv;       ///< Which method of derivative should be used for the KE matrix
     std::string dft_deriv;    ///< Which method of derivative should be used for dft functional
 
@@ -480,15 +479,6 @@ struct CalculationParameters {
                 else if (axis == "none")
                     efield_axis = -1;
             }
-
-            // Bryan edit for derivative
-            // Available options are:
-            //   bspline       -->  uses robert's bspline basis for derivatives
-            //   ph1           -->  uses a low-pass filter basis from 
-            //                      http://www.holoborodko.com/pavel/numerical-methods/numerical-derivative/smooth-low-noise-differentiators/ 
-            //                      for derivatives
-            //   ble           -->  uses one of greg's band-limited exponential bases for derivatives
-            //   prolate       -->  uses one of greg's prolate bases for derivatives
             else if (s == "deriv") {
                f >> deriv;
             }
@@ -577,7 +567,6 @@ struct CalculationParameters {
         madness::print("    polynomial order ", k);
         madness::print("       truncate mode ", FunctionDefaults<3>::get_truncate_mode());
         madness::print("  maximum iterations ", maxiter);
-        // Bryan edit
         madness::print("  KE derivative type ", deriv);
         madness::print(" DFT derivative type ", dft_deriv);
         if (conv_only_dens)
