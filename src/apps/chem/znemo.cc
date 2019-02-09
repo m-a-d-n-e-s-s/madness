@@ -36,7 +36,6 @@ double Znemo::value() {
 	double thresh=FunctionDefaults<3>::get_thresh();
 	double energy=1.e10;
 	double oldenergy=0.0;
-	double two_electron_alpha, two_electron_beta;
 
 	// the diamagnetic box
 
@@ -74,34 +73,33 @@ double Znemo::value() {
 			density.truncate();
 
 			// compute the fock matrix
-			std::vector<complex_function_3d> Vnemo, lznemo, dianemo, Knemo, Jnemo, Vnemoa, Vnemob,
-				spin_zeeman_nemo;
-			Tensor<double_complex> focka, fockb(0l,0l), tmata, tmatb, vmata, vmatb;
+			std::vector<complex_function_3d> Vnemoa, Vnemob;
+			Tensor<double_complex> focka, fockb(0l,0l);
+			potentials apot(world,amo.size()), bpot(world,bmo.size());
 
-			compute_potentials(amo, density, amo, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
-			vmata=compute_vmat(amo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
-			Vnemoa=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo;
+			apot=compute_potentials(amo, density, amo);
+			Vnemoa=apot.vnuc_mo+apot.lz_mo+apot.diamagnetic_mo+apot.spin_zeeman_mo-apot.K_mo+apot.J_mo;
 			truncate(world,Vnemoa,thresh*0.1);
-			two_electron_alpha= real(-inner(world,Knemo,amo).sum() + inner(world,Jnemo,amo).sum());
+			Kinetic<double_complex,3> T(world);
+			focka=T(amo,amo) + compute_vmat(amo,apot);
 
 			if (have_beta()) {
-				compute_potentials(bmo, density, bmo, Vnemo, lznemo, dianemo,spin_zeeman_nemo, Knemo, Jnemo);
-				scale(world,spin_zeeman_nemo,-1.0);
-				vmatb=compute_vmat(bmo,Vnemo,lznemo,dianemo,spin_zeeman_nemo,Knemo,Jnemo);
-				Vnemob=Vnemo+lznemo+dianemo+spin_zeeman_nemo-Knemo+Jnemo;
-				truncate(world,Vnemob);
-				two_electron_beta= real(-inner(world,Knemo,bmo).sum() + inner(world,Jnemo,bmo).sum());
+				potentials bpot=compute_potentials(bmo, density, bmo);
+				scale(world,bpot.spin_zeeman_mo,-1.0);
+				Vnemob=bpot.vnuc_mo+bpot.lz_mo+bpot.diamagnetic_mo+bpot.spin_zeeman_mo-bpot.K_mo+bpot.J_mo;
+				truncate(world,Vnemob,thresh*0.1);
+				fockb=T(bmo,bmo) + compute_vmat(bmo,bpot);
 			}
-
-			Kinetic<double_complex,3> T(world);
-			focka=T(amo,amo) + vmata;
-			if (have_beta()) fockb=T(bmo,bmo) + vmatb;
 
 			if (world.rank()==0 and (param.printlevel()>1)) {
 				print("Fock matrix");
 				print(focka);
 				print(fockb);
 			}
+
+			oldenergy=energy;
+			energy=compute_energy(amo,apot,bmo,bpot,param.printlevel()>1);
+
 
 			Tensor<double_complex> ovlp=matrix_inner(world,amo,amo);
 			canonicalize(amo,Vnemoa,focka,ovlp);
@@ -115,11 +113,6 @@ double Znemo::value() {
 			for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
 			for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
 
-			oldenergy=energy;
-			energy=aeps.sum() + beps.sum();
-			energy=energy-0.5*(two_electron_alpha + two_electron_beta);
-			if (cparam.spin_restricted) energy*=2.0;
-			energy+=molecule.nuclear_repulsion_energy();
 
 			if (world.rank()==0 and (param.printlevel()>1)) {
 				print("orbital energies alpha",aeps);
@@ -168,24 +161,94 @@ double Znemo::value() {
 				truncate(world,bmo);
 			}
 		}
+
+		// final energy computation
+		real_function_3d density=sum(world,abssq(world,amo));
+		if (have_beta()) density+=sum(world,abssq(world,bmo));
+		if (cparam.spin_restricted) density*=2.0;
+		density.truncate();
+
+		potentials apot=compute_potentials(amo,density,amo);
+		potentials bpot=compute_potentials(bmo,density,bmo);
+		double energy=compute_energy(amo,apot,bmo,bpot,true);
+
+
 		if (world.rank()==0) {
 			print("orbital energies alpha",aeps);
 			print("orbital energies beta ",beps);
 
-			Tensor<double> oza=0.5*B*real(inner(world,amo,Lz(amo)));
-			print("Orbital Zeeman term alpha ",oza);
-			Tensor<double> bza=0.5*B*real(inner(world,bmo,Lz(bmo)));
-			print("Orbital Zeeman term beta  ",bza);
-			Tensor<double> diaa=0.125*B*B*real(inner(world,amo,diamagnetic(amo)));
-			print("diamagnetic term alpha    ",diaa);
-			Tensor<double> diab= (have_beta()) ? 0.125*B*B*real(inner(world,bmo,diamagnetic(bmo))) : Tensor<double>();
-			print("diamagnetic term beta     ",diab);
 		}
 
 	}
 	save_orbitals(cparam.maxiter);
 	save_orbitals();
 	return energy;
+}
+
+double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const  Znemo::potentials& apot,
+		const std::vector<complex_function_3d>& bmo, const  Znemo::potentials& bpot, const bool do_print) const {
+
+	double_complex kinetic=0.0;
+    for (int axis = 0; axis < 3; axis++) {
+        complex_derivative_3d D = free_space_derivative<double_complex, 3>(world, axis);
+        const std::vector<complex_function_3d> damo = apply(world, D, amo);
+        const std::vector<complex_function_3d> dbmo = apply(world, D, bmo);
+        kinetic += 0.5 * (inner(world, damo, damo)).sum() + (inner(world, dbmo, dbmo)).sum();
+    }
+
+    double_complex nuclear_potential=(inner(world,amo,apot.vnuc_mo)).sum()+(inner(world,bmo,bpot.vnuc_mo)).sum();
+    double_complex diamagnetic=(inner(world,amo,apot.diamagnetic_mo)).sum()+(inner(world,bmo,bpot.diamagnetic_mo)).sum();
+    double_complex lz=(inner(world,amo,apot.lz_mo)).sum()+(inner(world,bmo,bpot.lz_mo)).sum();
+    double_complex spin_zeeman=(inner(world,amo,apot.spin_zeeman_mo)).sum()+(inner(world,bmo,bpot.spin_zeeman_mo)).sum();
+    double_complex coulomb=0.5*(inner(world,amo,apot.J_mo)).sum()+(inner(world,bmo,bpot.J_mo)).sum();
+    double_complex exchange=0.5*(inner(world,amo,apot.K_mo)).sum()+(inner(world,bmo,bpot.K_mo)).sum();
+
+    double_complex energy=kinetic + nuclear_potential + molecule.nuclear_repulsion_energy() +
+    		diamagnetic + lz + spin_zeeman + coulomb - exchange;
+
+	if (world.rank()==0 and do_print) {
+		printf("  kinetic energy      %12.8f \n", real(kinetic));
+		printf("  nuclear potential   %12.8f \n", real(nuclear_potential));
+		printf("  nuclear repulsion   %12.8f \n", molecule.nuclear_repulsion_energy());
+		printf("  diamagnetic term    %12.8f \n", real(diamagnetic));
+		printf("  orbital zeeman term %12.8f \n", real(lz));
+		printf("  spin zeeman term    %12.8f \n", real(spin_zeeman));
+		printf("  Coulomb             %12.8f \n", real(coulomb));
+		printf("  exchange            %12.8f \n", real(exchange));
+		printf("  total               %12.8f \n", real(energy));
+	}
+
+	if(fabs(imag(energy))>1.e-8) {
+
+
+		print("real part");
+		printf("  kinetic energy      %12.8f \n", real(kinetic));
+		printf("  nuclear potential   %12.8f \n", real(nuclear_potential));
+		printf("  nuclear repulsion   %12.8f \n", molecule.nuclear_repulsion_energy());
+		printf("  diamagnetic term    %12.8f \n", real(diamagnetic));
+		printf("  orbital zeeman term %12.8f \n", real(lz));
+		printf("  spin zeeman term    %12.8f \n", real(spin_zeeman));
+		printf("  Coulomb             %12.8f \n", real(coulomb));
+		printf("  exchange            %12.8f \n", real(exchange));
+		printf("  total               %12.8f \n", real(energy));
+
+		print("imaginary part");
+		printf("  kinetic energy      %12.8f \n", imag(kinetic));
+		printf("  nuclear potential   %12.8f \n", imag(nuclear_potential));
+		printf("  nuclear repulsion   %12.8f \n", 0.0);
+		printf("  diamagnetic term    %12.8f \n", imag(diamagnetic));
+		printf("  orbital zeeman term %12.8f \n", imag(lz));
+		printf("  spin zeeman term    %12.8f \n", imag(spin_zeeman));
+		printf("  Coulomb             %12.8f \n", imag(coulomb));
+		printf("  exchange            %12.8f \n", imag(exchange));
+		printf("  total               %12.8f \n", imag(energy));
+
+		print("imaginary part of the energy",energy.imag());
+
+		MADNESS_EXCEPTION("complex energy computation.. ",1);
+	}
+
+	return real(energy);
 }
 
 
@@ -252,52 +315,51 @@ std::vector<complex_function_3d> Znemo::read_guess(const std::string& spin) cons
 }
 
 /// compute the potential operators applied on the orbitals
-void Znemo::compute_potentials(const std::vector<complex_function_3d>& mo,
+Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3d>& mo,
 		const real_function_3d& density,
-		std::vector<complex_function_3d>& rhs,
-		std::vector<complex_function_3d>& Vnemo,
-		std::vector<complex_function_3d>& lznemo,
-		std::vector<complex_function_3d>& dianemo,
-		std::vector<complex_function_3d>& spin_zeeman_nemo,
-		std::vector<complex_function_3d>& Knemo,
-		std::vector<complex_function_3d>& Jnemo) const {
-	Vnemo=vnuclear*rhs;
-	lznemo=0.5*B*Lz(rhs);
-	dianemo=0.125*B*B*diamagnetic(rhs);
-	spin_zeeman_nemo=B*0.5*rhs;
+		std::vector<complex_function_3d>& rhs) const {
+
+	// prepare exchange operator
 	Exchange<double_complex,3> K=Exchange<double_complex,3>(world);
 	Tensor<double> occ(mo.size());
 	occ=1.0;
 	K.set_parameters(conj(world,mo),mo,occ,cparam.lo,cparam.econv);
-	Knemo=K(rhs);
-	Jnemo=(*coulop)(density)*rhs;
 
-	truncate(world,Vnemo);
-	truncate(world,lznemo);
-	truncate(world,dianemo);
-	truncate(world,Knemo);
-	truncate(world,Jnemo);
+	potentials pot(world,rhs.size());
 
+	pot.J_mo=(*coulop)(density)*rhs;
+	pot.K_mo=K(rhs);
+	pot.vnuc_mo=vnuclear*rhs;
+	pot.lz_mo=0.5*B*Lz(rhs);
+	pot.diamagnetic_mo=0.125*B*B*diamagnetic(rhs);
+	pot.spin_zeeman_mo=B*0.5*rhs;
 
+	truncate(world,pot.J_mo);
+	truncate(world,pot.K_mo);
+	truncate(world,pot.vnuc_mo);
+	truncate(world,pot.lz_mo);
+	truncate(world,pot.diamagnetic_mo);
+	truncate(world,pot.spin_zeeman_mo);
+	return pot;
 };
 
 
-Tensor<double_complex>
-Znemo::compute_vmat(
-		const std::vector<complex_function_3d>& mo,
-		const std::vector<complex_function_3d>& Vnemo,
-		const std::vector<complex_function_3d>& lznemo,
-		const std::vector<complex_function_3d>& dianemo,
-		const std::vector<complex_function_3d>& spin_zeeman_nemo,
-		const std::vector<complex_function_3d>& Knemo,
-		const std::vector<complex_function_3d>& Jnemo) const {
+Tensor<double_complex> Znemo::compute_vmat(const std::vector<complex_function_3d>& mo,
+		const potentials& pot) const {
 
-	Tensor<double_complex> Vnucmat=matrix_inner(world,mo,Vnemo);
-	Tensor<double_complex> lzmat=matrix_inner(world,mo,lznemo);
-	Tensor<double_complex> diamat=matrix_inner(world,mo,dianemo);
-	Tensor<double_complex> spin_zeeman_mat=matrix_inner(world,mo,spin_zeeman_nemo);
-	Tensor<double_complex> Kmat=matrix_inner(world,mo,Knemo);
-	Tensor<double_complex> Jmat=matrix_inner(world,mo,Jnemo);
+	Tensor<double_complex> Vnucmat=matrix_inner(world,mo,pot.vnuc_mo);
+	Tensor<double_complex> lzmat=matrix_inner(world,mo,pot.lz_mo);
+	Tensor<double_complex> diamat=matrix_inner(world,mo,pot.diamagnetic_mo);
+	Tensor<double_complex> spin_zeeman_mat=matrix_inner(world,mo,pot.spin_zeeman_mo);
+	Tensor<double_complex> Kmat=matrix_inner(world,mo,pot.K_mo);
+	Tensor<double_complex> Jmat=matrix_inner(world,mo,pot.J_mo);
+//	print("vnuc, lz, dia, spin-zeeman, kmat, jmat");
+//	print(Vnucmat);
+//	print(lzmat);
+//	print(diamat);
+//	print(spin_zeeman_mat);
+//	print(Kmat);
+//	print(Jmat);
 
 	Tensor<double_complex> vmat=Vnucmat+lzmat+diamat+spin_zeeman_mat-Kmat+Jmat;
 	return vmat;

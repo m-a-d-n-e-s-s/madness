@@ -60,7 +60,7 @@ struct spherical_box : public FunctionFunctorInterface<double,3> {
 struct diamagnetic_boxed_functor : public FunctionFunctorInterface<double,3> {
 	double radius;	//
 	const double tightness;	// alpha in the article
-	diamagnetic_boxed_functor(const double r, const double t=10.0) :
+	diamagnetic_boxed_functor(const double r, const double t=30.0) :
 		radius(r), tightness(t) {}
 
 	double operator()(const coord_3d& xyz) const {
@@ -157,6 +157,24 @@ public:
 
 class Znemo {
 	friend class Zcis;
+
+	struct potentials {
+		potentials(World& world, const std::size_t nmo) {
+			vnuc_mo=zero_functions<double_complex,3>(world,nmo);
+			diamagnetic_mo=zero_functions<double_complex,3>(world,nmo);
+			lz_mo=zero_functions<double_complex,3>(world,nmo);
+			J_mo=zero_functions<double_complex,3>(world,nmo);
+			K_mo=zero_functions<double_complex,3>(world,nmo);
+			spin_zeeman_mo=zero_functions<double_complex,3>(world,nmo);
+		}
+		std::vector<complex_function_3d> vnuc_mo;
+		std::vector<complex_function_3d> diamagnetic_mo;
+		std::vector<complex_function_3d> lz_mo;
+		std::vector<complex_function_3d> J_mo;
+		std::vector<complex_function_3d> K_mo;
+		std::vector<complex_function_3d> spin_zeeman_mo;
+	};
+
 public:
 	Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
 		cparam.read_file("input");
@@ -186,6 +204,7 @@ public:
 		coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo,cparam.econv));
 		spherical_box sbox2(param.box()[0],param.box()[1],param.box()[2]);
 		sbox=real_factory_3d(world).functor(sbox2);
+		save(sbox,"sbox");
 	};
 
 	/// compute the molecular energy
@@ -237,6 +256,9 @@ public:
 	void do_step_restriction(const std::vector<complex_function_3d>& mo,
 			std::vector<complex_function_3d>& mo_new) const;
 
+	double compute_energy(const std::vector<complex_function_3d>& amo, const potentials& apot,
+			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print) const;
+
 	/// compute the action of the Lz =i r x del operator on rhs
 	std::vector<complex_function_3d> Lz(const std::vector<complex_function_3d>& rhs) const;
 
@@ -268,24 +290,13 @@ public:
 	}
 
 	/// compute the potential operators applied on the orbitals
-	void compute_potentials(const std::vector<complex_function_3d>& mo,
+	potentials compute_potentials(const std::vector<complex_function_3d>& mo,
 			const real_function_3d& density,
-			std::vector<complex_function_3d>& rhs,
-			std::vector<complex_function_3d>& Vnemo,
-			std::vector<complex_function_3d>& lznemo,
-			std::vector<complex_function_3d>& dianemo,
-			std::vector<complex_function_3d>& spin_zeeman_nemo,
-			std::vector<complex_function_3d>& Knemo,
-			std::vector<complex_function_3d>& Jnemo) const;
+			std::vector<complex_function_3d>& rhs) const;
 
 	Tensor<double_complex> compute_vmat(
 			const std::vector<complex_function_3d>& mo,
-			const std::vector<complex_function_3d>& Vnemo,
-			const std::vector<complex_function_3d>& lznemo,
-			const std::vector<complex_function_3d>& dianemo,
-			const std::vector<complex_function_3d>& spin_zeeman_nemo,
-			const std::vector<complex_function_3d>& Knemo,
-			const std::vector<complex_function_3d>& Jnemo) const;
+			const potentials& pot) const;
 
 	std::vector<complex_function_3d> compute_residuals(
 			const std::vector<complex_function_3d>& Vpsi,

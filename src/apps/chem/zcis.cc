@@ -191,14 +191,14 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 			occ=1.0;
 
 			/// zeroth order Fock operator acting on the x functions
-			std::vector<complex_function_3d> vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo;
-			nemo.compute_potentials(mo,totdens,x,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
-			if (spin=="beta") scale(world,spin_zeeman_nemo,-1.0);
+			Znemo::potentials pot_mo=nemo.compute_potentials(mo,totdens,x);
+			if (spin=="beta") scale(world,pot_mo.spin_zeeman_mo,-1.0);
 
 //			nemo.compute_vmat(mo,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
 
 
-			pot+=(vnemo+vlznemo+dianemo+spin_zeeman_nemo-knemo+jnemo);	// need += b/c of reference
+			pot+=(pot_mo.vnuc_mo+pot_mo.lz_mo+pot_mo.diamagnetic_mo+pot_mo.spin_zeeman_mo
+					-pot_mo.K_mo+pot_mo.J_mo);	// need += b/c of reference
 			truncate(world,pot);
 
 			// perturbed Fock operator acting on the reference orbitals
@@ -491,9 +491,8 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 void Zcis::canonicalize(const std::vector<complex_function_3d>& mo, const real_function_3d& density,
 		std::vector<complex_function_3d>& virtuals, Tensor<double>& veps) const {
 
-	std::vector<complex_function_3d> vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo;
-	nemo.compute_potentials(mo,density,virtuals,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
-	Tensor<double_complex> fock=nemo.compute_vmat(virtuals,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
+	Znemo::potentials pot=nemo.compute_potentials(mo,density,virtuals);
+	Tensor<double_complex> fock=nemo.compute_vmat(virtuals,pot);
 	Kinetic<double_complex,3> T(world);
 	fock+=T(virtuals,virtuals);
 //	print("virtual Fock");
