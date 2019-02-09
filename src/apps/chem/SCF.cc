@@ -44,7 +44,6 @@
 #include <chem/SCFOperators.h>
 #include <madness/world/worldmem.h>
 #include <chem/projector.h>
-#include "Plot_VTK.h"
 
 namespace madness {
     
