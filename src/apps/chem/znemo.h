@@ -28,16 +28,17 @@ struct spherical_box : public FunctionFunctorInterface<double,3> {
 	const double radius;
 	const double height;
 	const double tightness;
+	const coord_3d offset;
 	const coord_3d B_direction;
 	spherical_box(const double r, const double h, const double t,
-			const coord_3d B_dir={0.0,0.0,1.0}) :
-		radius(r), height(h), tightness(t), B_direction(B_dir) {}
+			const coord_3d o={0.0,0.0,0.0}, const coord_3d B_dir={0.0,0.0,1.0}) :
+		radius(r), height(h), tightness(t), offset(o), B_direction(B_dir) {}
 
 	double operator()(const coord_3d& xyz) const {
 		// project out all contributions from xyz along the direction of the B field
-		coord_3d tmp=xyz*B_direction;
+		coord_3d tmp=(xyz-offset)*B_direction;
 		const double inner=tmp[0]+tmp[1]+tmp[2];
-		coord_3d proj=xyz-B_direction*inner;
+		coord_3d proj=(xyz-offset)-B_direction*inner;
 		double r=proj.normf();
 		double v1=height/(1.0+exp(-tightness*height*(r-radius)));
 		return 1.0-v1;
@@ -116,7 +117,7 @@ public:
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
         		init<std::vector<double> >(B_,{"B",{0.0}}),
-        		init<std::vector<double> >(box_,{"box",{15.0,1.0,4.0}}),
+        		init<std::vector<double> >(box_,{"box",{15.0,1.0,4.0,0.0,0.0,0.0}}),
 				init<double>(shift_,{"shift",0.0}),
 				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
 				init<double>(diamagnetic_height_,{"diamagnetic_height",30})
@@ -202,7 +203,8 @@ public:
 		}
 
 		coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo,cparam.econv));
-		spherical_box sbox2(param.box()[0],param.box()[1],param.box()[2]);
+		coord_3d box_offset{param.box()[3],param.box()[4],param.box()[5]};
+		spherical_box sbox2(param.box()[0],param.box()[1],param.box()[2],box_offset);
 		sbox=real_factory_3d(world).functor(sbox2);
 		save(sbox,"sbox");
 	};
