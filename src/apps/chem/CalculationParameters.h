@@ -331,6 +331,7 @@ struct CalculationParameters {
             }
             else if (s == "canon") {
                 localize = false;
+                localize_new = false;
             }
             else if (s == "local") {
                 localize = true;
