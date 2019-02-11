@@ -7,7 +7,6 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/funcplot.h>
 #include <string>
-#include <malloc.h>
 
 using namespace madness;
 

@@ -517,9 +517,15 @@ struct CalculationParameters {
             }
             else if (s == "deriv") {
                f >> deriv;
+               if (deriv!="abgv" && deriv!="bspline" && deriv!="ble") {
+                  throw "deriv must be \"abgv\", \"bspline\", or \"ble\"";
+               }
             }
             else if (s == "dft_deriv") {
                f >> dft_deriv;
+               if (dft_deriv!="abgv" && dft_deriv!="bspline" && dft_deriv!="ble") {
+                  throw "dft_deriv must be \"abgv\", \"bspline\", or \"ble\"";
+               }
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;

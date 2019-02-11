@@ -1518,7 +1518,7 @@ namespace madness {
         if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
             START_TIMER(world);
 
-            XCOperator xcoperator(world,this,ispin,param.deriv);
+            XCOperator xcoperator(world,this,ispin,param.dft_deriv);
             if (ispin==0) exc=xcoperator.compute_xc_energy();
             vloc+=xcoperator.make_xc_potential();
 
