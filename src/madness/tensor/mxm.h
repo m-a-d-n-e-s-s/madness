@@ -61,6 +61,7 @@ namespace madness {
     static inline void mxm_reference(long dimi, long dimj, long dimk,
                                      T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
                                      const S* MADNESS_RESTRICT b) {
+         throw;
         /*
           c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
           
@@ -84,6 +85,7 @@ namespace madness {
     void mTxm_reference(long dimi, long dimj, long dimk,
                         T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
                         const S* MADNESS_RESTRICT b) {
+         throw;
         /*
           c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
           
@@ -107,6 +109,7 @@ namespace madness {
     static inline void mxmT_reference (long dimi, long dimj, long dimk,
                                        T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
                                        const S* MADNESS_RESTRICT b) {
+         throw;
         /*
           c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
           
@@ -132,6 +135,7 @@ namespace madness {
     static inline void mTxmT_reference(long dimi, long dimj, long dimk,
                                        T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
                                        const S* MADNESS_RESTRICT b) {
+         throw;
         /*
           c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
           
@@ -163,6 +167,7 @@ namespace madness {
     template <typename aT, typename bT, typename cT>
     void mTxmq_reference(long dimi, long dimj, long dimk,
                          cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb=-1) {
+        throw;
         if (ldb == -1) ldb=dimj;
         MADNESS_ASSERT(ldb>=dimj);
         //std::cout << "IN GENERIC mTxmq " << tensor_type_names[TensorTypeData<aT>::id] << " " << tensor_type_names[TensorTypeData<bT>::id] << " " << tensor_type_names[TensorTypeData<cT>::id] << "\n";
@@ -262,7 +267,7 @@ namespace madness {
     }
     
 #else
-
+     #error 'mxm Intel MKL else error'
     // Fall back to reference implementations
 
     template <typename T, typename Q, typename S>
