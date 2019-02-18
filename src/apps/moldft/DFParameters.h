@@ -51,6 +51,7 @@ namespace madness {
           int lb_iter;                 ///< How many iterations to load balance (after the initial load balancing)
           bool nwchem;                 ///< Indicates archive given is actually an nwchem file for starting the job
           bool lineplot;               ///< Whether or not to make lineplots at the end of the job
+          bool no_compute;             ///< If true, will skip all computation
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //               If you add something here, don't forget to add it to serializable!
@@ -63,7 +64,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & print_level & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot;
+               ar & archive & job & print_level & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute;
           }
 
           // Default constructor
@@ -85,6 +86,7 @@ namespace madness {
           , lb_iter(20)
           , nwchem(false)
           , lineplot(false)
+          , no_compute(false)
           {}
 
           // Initializes DFParameters using the contents of file \c filename
@@ -173,6 +175,9 @@ namespace madness {
                     }
                     else if (s == "lineplot"){
                          lineplot = true;
+                    }
+                    else if (s == "no_compute"){
+                         no_compute = true;
                     }
                     else{
                        std::cout << "Dirac Fock: unrecognized input keyword " << s << std::endl;

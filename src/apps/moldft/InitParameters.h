@@ -96,11 +96,30 @@ namespace madness{
                          complex_function_3d complexreader;
                          Fcwf spinup(world);
                          Fcwf spindown(world);
+                         complex_derivative_3d Dx(world,0);
+                         complex_derivative_3d Dy(world,1);
+                         complex_derivative_3d Dz(world,2);
+                         double myc = 137.0359895; //speed of light in atomic units
+                         std::complex<double> myi(0,1);
                          for(unsigned int i = 0; i < num_occupied; i++){
                               input & reader;
                               complexreader = function_real2complex(reader);
-                              spinup = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
-                              spindown = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
+                              spinup[0] = complexreader;
+                              spinup[1] = complex_factory_3d(world);
+                              spinup[2] = (-myi/myc) * Dz(complexreader);
+                              spinup[2].scale(0.5);
+                              spinup[3] = (-myi/myc) * (Dx(complexreader) + myi * Dy(complexreader));
+                              spinup[3].scale(0.5);
+                              spinup.normalize();
+                              spindown[0] = complex_factory_3d(world);
+                              spindown[1] = complexreader;
+                              spindown[2] = (-myi/myc) * (Dx(complexreader) - myi * Dy(complexreader));
+                              spindown[2].scale(0.5);
+                              spindown[3] = (myi/myc) * Dz(complexreader);
+                              spindown[3].scale(0.5);
+                              spindown.normalize();
+                              //spinup = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
+                              //spindown = Fcwf(complex_factory_3d(world), copy(complexreader), complex_factory_3d(world), complex_factory_3d(world));
                               orbitals.push_back(spinup);
                               orbitals.push_back(spindown);
                          }

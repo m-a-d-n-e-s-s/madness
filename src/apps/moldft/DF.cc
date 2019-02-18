@@ -110,15 +110,56 @@ GradBSHOperator_Joel(World& world,
     const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
     if (isperiodicsum) hi *= 100; // Extend range for periodic summation
 
-    GFit<double,3> fit=GFit<double,3>::BSHFit(mu,1e-16,hi,eps,false);
+    GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
     Tensor<double> coeff=fit.coeffs();
     Tensor<double> expnt=fit.exponents();
+
+     // Stuff that Joel added
+     // Go through coeff and expnt and lump together terms with higher exponents than we want to use
+     // --------------------------------------------------------------------------------------------
+
+     // First, select how large of an exponent we're going to keep
+     double max_expnt = 10000.0; //Just taking a stab at this for now
+
+     // Then need to truncate coeff and expnt into new Tensors
+     //if(world.rank()==0) print("Initial expnts are: \n",expnt, "\n");
+     //if(world.rank()==0) print("Initial coeffs are: \n",coeff, "\n");
+    int rank = coeff.dim(0);
+    double Cdelta = 0.0;
+    double max_kept;
+    int max_j;
+    for(int j = 0; j < rank; j++){
+         if(expnt[j] > max_expnt){
+               Cdelta += coeff[j]*std::pow(constants::pi/expnt[j],1.5);
+         }
+         else{
+               max_kept = expnt[j];
+               max_j = j;
+               break;
+         } 
+    }
+    //if(world.rank()==0) print("limit exponent is: ", max_expnt, " and max kept is: ", max_kept);
+     coeff = coeff(Slice(max_j,-1));
+     expnt = expnt(Slice(max_j,-1));
+     //if(world.rank()==0) print("new expnts are: \n", expnt, "\n");
+     //if(world.rank()==0) print("new coeffs are: \n", coeff, "\n");
+
+     // Then calculate what the new coefficient needs to be out front
+     coeff[0] = coeff[0] + Cdelta * std::pow(expnt[0]/constants::pi,1.5); 
+
+     //reset rank because we use it below
+     rank = coeff.dim(0);
+     //----------------------------------------------------------------------------------------------
+
+     
+     
+     if(world.rank()==0) print("rank: ", rank, "\nexponents:\n", expnt, "\ncoefficients:\n", coeff);
+
 
     if (bc(0,0) == BC_PERIODIC) {
         fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
     }
 
-    int rank = coeff.dim(0);
 
     std::vector<real_convolution_3d_ptr> gradG(3);
 
@@ -262,6 +303,10 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
           }
 };
 
+//generic f(r)=||r|| function for calculation of the radial expectation value
+double myr(const coord_3d& r){
+     return std::sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
+}
 
 //Creates the fermi nuclear potential. Also calculates the nuclear repulsion energy
 void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_function_3d& potential, double& nuclear_repulsion_energy){
@@ -480,7 +525,7 @@ Fcwf apply_T(World& world, const Fcwf& psi){
      complex_derivative_3d Dy(world,1);
      complex_derivative_3d Dz(world,2);
      Fcwf Tpsi(world);
-     
+
      Tpsi[0] = Dz(psi[2]) + Dx(psi[3]) - myi*Dy(psi[3]) + myc*myi*psi[0];
      Tpsi[1] = Dx(psi[2]) + myi*Dy(psi[2]) - Dz(psi[3]) + myc*myi*psi[1];
      Tpsi[2] = Dz(psi[0]) + Dx(psi[1]) - myi*Dy(psi[1]) - myc*myi*psi[2];
@@ -687,6 +732,38 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      for(unsigned int j = 0; j < n; j++){
           rho += squaremod(occupieds[j]);
      }
+     
+     //----------------------------------------------------------------------------------------------------------
+     //DEBUGGING: Print each matrix that goes into the Fock matrix
+
+     //real_function_3d fred = apply(op,rho);
+     //for(unsigned int j = 0; j < n; j++){
+     //     temp_orbitals.push_back(occupieds[j]*fred); //add in coulomb term
+     //}
+     //fock = matrix_inner(world, occupieds, temp_orbitals);
+     //if(world.rank()==0) print("J:\n",fock);
+
+     //for(unsigned int j = 0; j < n; j++){
+     //     temp_orbitals[j] = occupieds[j]*myV;
+     //}
+     //fock = matrix_inner(world, occupieds, temp_orbitals);
+     //if(world.rank()==0) print("V:\n",fock);
+
+     //
+     //for(unsigned int j = 0; j < n; j++){
+     //     temp_orbitals[j] = Kpsis[j]*(-1.0);
+     //}
+     //fock = matrix_inner(world, occupieds, temp_orbitals);
+     //if(world.rank()==0) print("-K:\n",fock);
+
+     //for(unsigned int j = 0; j < n; j++){
+     //     temp_orbitals[j] = apply_T(world, occupieds[j]);
+     //}
+     //fock = matrix_inner(world, occupieds, temp_orbitals);
+     //if(world.rank()==0) print("T:\n",fock);
+     //END DEBUGGING
+     //----------------------------------------------------------------------------------------------------------
+
      //TODO: Here try moving the apply out to operate on the sum of the nuclear and electronic charge distributions
      real_function_3d potential = myV + apply(op,rho);
      potential.truncate();
@@ -694,6 +771,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //add in coulomb parts to neworbitals
      for(unsigned int j = 0; j < n; j++){
           temp_orbitals.push_back(occupieds[j]*potential); //add in coulomb term
+          //temp_orbitals[j] = occupieds[j]*potential;
      }
 
      if(world.rank() == 0) print("          Subtracting K*psi");
@@ -793,7 +871,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print matrix of eigenvectors
-     if(world.rank()==0) print("U:\n", U);
+     //if(world.rank()==0) print("U:\n", U);
      //if(world.rank()==0) {
      //     print("evals:");
      //     for(unsigned int j = 0; j < Init_params.num_occupied; j++){
@@ -873,8 +951,8 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
          ilo = ihi + 1;
      }
 
-
-     if(world.rank()==0) print("U:\n", U);
+     //Debugging: Print transformation matrix after rotation removal
+     //if(world.rank()==0) print("U:\n", U);
      
      
      fock = inner(conj_transpose(U), inner(fock, U));
@@ -913,6 +991,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //     Kpsis[i][2] = temp_orbitals_3[i];
      //     Kpsis[i][3] = temp_orbitals_4[i];
      //}
+
      transform(world, Kpsis, U);
 
      ////Apply the transformation to the orbitals
@@ -943,6 +1022,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //     occupieds[i][2] = temp_orbitals_3[i];
      //     occupieds[i][3] = temp_orbitals_4[i];
      //}
+     
      transform(world, occupieds, U);
      
      
@@ -1213,8 +1293,10 @@ void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thr
      world.gop.fence();
      //double ttt = wall_time();
      //create BSH operator
+     if(world.rank()==0) print("mu: ", mu);
      std::shared_ptr<real_convolution_3d> op = std::shared_ptr<real_convolution_3d>(BSHOperatorPtr3D(world, mu,small,thresh)); // Finer length scale and accuracy control
      std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> op3 = GradBSHOperator(world, mu, small, thresh); 
+     //std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> op3 = GradBSHOperator_Joel(world, mu, 1e-8, thresh); 
      std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> allops(16);
      for(unsigned int i = 0; i < 4; i++){
           allops[i] = op;
@@ -1290,6 +1372,112 @@ void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thr
 
 }
 
+//Apply's Green's function to Vpsi (a Fcwf). Overwrites Vpsi with new Fcwf
+//double iterate(World& world, complex_function_3d& V, Fcwf& psi, double& eps){
+void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
+
+
+     //necessary constants
+     double myc = 137.0359895; //speed of light
+     double c2 = myc*myc;
+     std::complex<double> myi(0,1); //imaginary number
+     std::complex<double> ic = myi*myc;
+    
+     //calculate exponent for equivalent BSH operator
+     double mu = std::sqrt((myc*myc*myc*myc-eps*eps)/myc/myc);
+
+     //if(world.rank() == 0) print("Hi, this is apply_BSH! mu is: ", mu);
+
+     //create gradient BSH operators
+     //TODO: make my own GradBSH that first computes BSH with a ridiculous lo, and then accumulates to CDelta, then need something intelligent for the derivative of that result
+     world.gop.fence();
+     //double ttt = wall_time();
+     //create BSH operator
+     //if(world.rank()==0) print("mu: ", mu);
+
+     real_convolution_3d op = BSHOperator3D(world, mu,small,thresh); // Finer length scale and accuracy control
+
+     Vpsi = apply(world, op, Vpsi);
+     Vpsi = (apply_T(world, Vpsi) + Vpsi * eps) * (1.0/c2);
+
+     //Vpsi = apply(world, op, apply_T(world, Vpsi) + Vpsi * eps) * (1.0/c2);
+
+     //std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> op3 = GradBSHOperator(world, mu, 1e-8, thresh); 
+     //std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> op3 = GradBSHOperator_Joel(world, mu, 1e-8, thresh); 
+     //std::vector<std::shared_ptr<SeparatedConvolution<double,3>>> allops(16);
+     //for(unsigned int i = 0; i < 4; i++){
+     //     allops[i] = op;
+     //     allops[4+i] = op3[0];
+     //     allops[8+i] = op3[1];
+     //     allops[12+i] = op3[2];
+     //}
+
+    
+     //world.gop.fence();
+     //ttt = wall_time() - ttt;
+     //if(world.rank()==0) print("              create operators:", ttt);
+
+
+     //create intermediate functions necessary to compute new components
+     //ttt = wall_time();
+     //std::vector<complex_function_3d> temp(16);
+     //for(unsigned int i = 0; i < 4; i++){
+     //     temp[i] = Vpsi[i];
+     //     temp[4+i] = Vpsi[i];
+     //     temp[8+i] = Vpsi[i];
+     //     temp[12+i] = Vpsi[i];
+     //}
+
+     //Fcwf oppsi = apply(world, op, Vpsi);             //BSH(Vpsi)
+     //Fcwf oppsix = apply(world, *op3[0], Vpsi);       //GradBSH_x(Vpsi)
+     //Fcwf oppsiy = apply(world, *op3[1], Vpsi);       //GradBSH_y(Vpsi)
+     //Fcwf oppsiz = apply(world, *op3[2], Vpsi);       //GradBSH_z(Vpsi)
+     //temp = apply(world, allops, temp);
+     //world.gop.fence();
+     //ttt = wall_time() - ttt;
+     //if(world.rank()==0) print("            create derivatives:", ttt);
+     //manually compute new components of wavefunction. See Blackledge paper and any definition of the Dirac single-particle Hamiltonian
+     //ttt = wall_time();
+
+
+
+     //build transformation tensor
+     //Tensor<std::complex<double>> U(16,4);
+     //U(0,0) = c2+eps; U(14,0) = -ic; U(7,0) = -ic; U(11,0) = -myc;
+     //U(1,1) = c2+eps; U(6,1) = -ic; U(10,1) = myc; U(15,1) = ic;
+     //U(12,2) = -ic; U(5,2) = -ic; U(9,2) = -myc; U(2,2) = eps-c2;
+     //U(4,3) = -ic; U(8,3) = myc; U(13,3) = ic; U(3,3) = eps-c2;
+     //U *= (1.0/c2);
+
+     ////build vector to be transformed
+     //std::vector<complex_function_3d> temp(16);
+     //temp[0] = oppsi[0]; temp[1] = oppsi[1]; temp[2] = oppsi[2]; temp[3] = oppsi[3];
+     //temp[4] = oppsix[0]; temp[5] = oppsix[1]; temp[6] = oppsix[2]; temp[7] = oppsix[3];
+     //temp[8] = oppsiy[0]; temp[9] = oppsiy[1]; temp[10] = oppsiy[2]; temp[11] = oppsiy[3];
+     //temp[12] = oppsiz[0]; temp[13] = oppsiz[1]; temp[14] = oppsiz[2]; temp[15] = oppsiz[3];
+
+     //temp = transform(world, temp, U);
+     //Vpsi[0] = temp[0];
+     //Vpsi[1] = temp[1];
+     //Vpsi[2] = temp[2];
+     //Vpsi[3] = temp[3];
+
+     //Vpsi[0] = myc*myc*oppsi[0]-myi*myc*oppsiz[2]-myi*myc*(oppsix[3]-myi*oppsiy[3]);
+     //Vpsi[1] = myc*myc*oppsi[1]-myi*myc*(oppsix[2]+myi*oppsiy[2])+myi*myc*oppsiz[3];
+     //Vpsi[2] = -myi*myc*oppsiz[0]-myi*myc*(oppsix[1]-myi*oppsiy[1])-myc*myc*oppsi[2];
+     //Vpsi[3] = -myi*myc*(oppsix[0]+myi*oppsiy[0])+myi*myc*oppsiz[1]-myc*myc*oppsi[3];
+     ////finish up application of the dirac green's function
+     //Vpsi = (Vpsi+(oppsi*eps))*(1.0/(myc*myc));
+
+
+
+
+     //Vpsi.normalize(); //Don't want to do this because it messes with the equation KAIN is trying to solve.
+     //world.gop.fence();
+     //ttt = wall_time() - ttt;
+     //if(world.rank()==0) print("          apply transformation:", ttt);
+
+}
 
 // Prints norms of the given vector of functions
 void DF::print_norms(World & world,
@@ -1484,6 +1672,44 @@ void DF::make_component_lineplots(World& world, const char* filename1, const cha
 
 }
 
+void DF::make_component_logplots(World& world, const char* filename1, const char* filename2, int npt, int startpnt, int endpnt){
+     std::vector<real_function_3d> large_densities;
+     std::vector<real_function_3d> small_densities;
+     for(unsigned int i=0; i < Init_params.num_occupied; i++){
+          large_densities.push_back(squaremod_large(occupieds[i]));
+          small_densities.push_back(squaremod_small(occupieds[i]));
+     }
+
+     //double h = Init_params.L*(1.0/(npt-1));
+     double h = (endpnt-startpnt)*(1.0/(npt-1));
+     for(unsigned int i=0; i < Init_params.num_occupied; i++){
+          large_densities[i].reconstruct();
+          small_densities[i].reconstruct();
+     }
+     if(world.rank()==0){
+          FILE* file1 = fopen(filename1,"w");
+          FILE* file2 = fopen(filename2,"w");
+          if(!file1) MADNESS_EXCEPTION("DF density lineplots: failed to open the plot file",0);
+          if(!file2) MADNESS_EXCEPTION("DF density lineplots: failed to open the plot file",0);
+          for(unsigned int i=0; i<Init_params.num_occupied; i++){
+               for(int j=0; j<npt; ++j){
+                    coord_3d r({std::pow(10,startpnt + j*h),0.0,0.0});
+                    fprintf(file1,"%.14e ", r[0]);
+                    fprintf(file2,"%.14e ", r[0]);
+                    plot_line_print_value(file1, large_densities[i].eval(r));
+                    plot_line_print_value(file2, small_densities[i].eval(r));
+                    fprintf(file1,"\n");
+                    fprintf(file2,"\n");
+               }
+               fprintf(file1,"\n");
+               fprintf(file2,"\n");
+          }
+          fclose(file1);
+          fclose(file2);
+     }
+     world.gop.fence();
+
+}
 
 //Heavily editing this to debug
 void DF::make_density_lineplots(World& world, const char* filename, int npt, double endpnt){
@@ -1534,22 +1760,22 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      bool iterate_again = false; //Assume iterations will stop
 
      //Diagonalize, but not on the first iteration, unless it's a restarted job
-     if(iteration_number != 1 or DFparams.restart){
-          diagonalize(world, V, op, Kpsis);
-          //update JandV
-          for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-               rho += squaremod(occupieds[kk]);
-          }
-          JandV = V + apply(op,rho); 
-     }
+     //if(iteration_number != 1 or DFparams.restart){
+     //     diagonalize(world, V, op, Kpsis);
+     //     //update JandV
+     //     for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
+     //          rho += squaremod(occupieds[kk]);
+     //     }
+     //     JandV = V + apply(op,rho); 
+     //}
 
      //Actually let's see what happens if I always diagonalize. Answer: still messes up first iteration
      //Returning to this idea since it turns out I wasn't updating JandV...
-     //diagonalize(world, V, op, Kpsis);
-     //for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-     //     rho += squaremod(occupieds[kk]);
-     //}
-     //JandV = V + apply(op,rho); 
+     diagonalize(world, V, op, Kpsis);
+     for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
+          rho += squaremod(occupieds[kk]);
+     }
+     JandV = V + apply(op,rho); 
 
 
 
@@ -1559,15 +1785,15 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
 
           //Debugging
-          std::vector<double> temporbitalnorms(4);
-          if(world.rank()==0) print("\nbefore:");
-          for(unsigned int l = 0; l < 4; l++) temporbitalnorms[l] = occupieds[j][l].norm2();
-          if(world.rank()==0) {
-               print("          ", temporbitalnorms[0]);
-               print("          ", temporbitalnorms[1]);
-               print("          ", temporbitalnorms[2]);
-               print("          ", temporbitalnorms[3]);
-          }
+          //std::vector<double> temporbitalnorms(4);
+          //if(world.rank()==0) print("\nbefore:");
+          //for(unsigned int l = 0; l < 4; l++) temporbitalnorms[l] = occupieds[j][l].norm2();
+          //if(world.rank()==0) {
+          //     print("          ", temporbitalnorms[0]);
+          //     print("          ", temporbitalnorms[1]);
+          //     print("          ", temporbitalnorms[2]);
+          //     print("          ", temporbitalnorms[3]);
+          //}
 
           //construct the function to which we will apply the BSH
           occupieds[j].truncate();
@@ -1577,33 +1803,34 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           temp_function.truncate();
 
           //temp_function now holds (K-V-J)psi, so apply the BSH
-          apply_BSH(world,  temp_function, energies[j], DFparams.small, DFparams.thresh);
+          //apply_BSH(world,  temp_function, energies[j], DFparams.small, DFparams.thresh);
+          apply_BSH_new(world,  temp_function, energies[j], DFparams.small, DFparams.thresh);
           
 
-          if(world.rank()==0) print("after:");
-          for(unsigned int l = 0; l < 4; l++) temporbitalnorms[l] = temp_function[l].norm2();
-          if(world.rank()==0) {
-               print("          ", temporbitalnorms[0]);
-               print("          ", temporbitalnorms[1]);
-               print("          ", temporbitalnorms[2]);
-               print("          ", temporbitalnorms[3]);
-               print("\n");
-          }
+          //if(world.rank()==0) print("after:");
+          //for(unsigned int l = 0; l < 4; l++) temporbitalnorms[l] = temp_function[l].norm2();
+          //if(world.rank()==0) {
+          //     print("          ", temporbitalnorms[0]);
+          //     print("          ", temporbitalnorms[1]);
+          //     print("          ", temporbitalnorms[2]);
+          //     print("          ", temporbitalnorms[3]);
+          //     print("\n");
+          //}
 
           //debugging: Look at size of function before and after truncating here to see what it's doing
-          std::size_t funcsize = temp_function[0].size();
-          funcsize += temp_function[1].size();
-          funcsize += temp_function[2].size();
-          funcsize += temp_function[3].size();
-          if(world.rank()==0) print("               size after BSH:", funcsize);
+          //std::size_t funcsize = temp_function[0].size();
+          //funcsize += temp_function[1].size();
+          //funcsize += temp_function[2].size();
+          //funcsize += temp_function[3].size();
+          //if(world.rank()==0) print("               size after BSH:", funcsize);
 
           temp_function.truncate(); //try truncating here
 
-          funcsize = temp_function[0].size();
-          funcsize += temp_function[1].size();
-          funcsize += temp_function[2].size();
-          funcsize += temp_function[3].size();
-          if(world.rank()==0) print("          size after truncate:", funcsize);
+          //funcsize = temp_function[0].size();
+          //funcsize += temp_function[1].size();
+          //funcsize += temp_function[2].size();
+          //funcsize += temp_function[3].size();
+          //if(world.rank()==0) print("          size after truncate:", funcsize);
           
           //Now calculate the residual
           //temp_function = occupieds[j] - temp_function; 
@@ -1770,9 +1997,13 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
 
+     //Need r function to print r expectation values
+     real_function_3d rfunc = real_factory_3d(world).f(myr);
+
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+          double r_expec = std::real(inner(occupieds[j], occupieds[j]*rfunc));
           if(world.rank()==0){
-               printf("                Orbital: %3i, Energy: %.10e\n",j+1, energies[j]-myc*myc);
+               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e\n",j+1, energies[j]-myc*myc, r_expec);
           }
      }
      if(world.rank()==0){
@@ -1889,14 +2120,19 @@ void DF::solve(World& world){
         print("   ------------------------");
      }
     
-     if(DFparams.job == 0){
-          solve_occupied(world);
-     }
-     else if(DFparams.job == 1){
-          solve_virtuals1(world);
+     if(not DFparams.no_compute){
+          if(DFparams.job == 0){
+               solve_occupied(world);
+          }
+          else if(DFparams.job == 1){
+               solve_virtuals1(world);
+          }
+          else{
+               if(world.rank()==0) print("Specify a better job parameter.");
+          }
      }
      else{
-          if(world.rank()==0) print("Specify a better job parameter.");
+          if(world.rank()==0) print("Requested no computation.");
      }
     
      // Report calculation time
@@ -1910,8 +2146,9 @@ void DF::solve(World& world){
      if(DFparams.lineplot){
           start_timer(world);
           if(world.rank()==0) print("***Making lineplots***");
-          make_density_lineplots(world, "density_lineplots", 50000, 0.5);
-          make_component_lineplots(world, "large_component_lineplots", "small_component_lineplots", 50000, 0.5);
+          //make_density_lineplots(world, "density_lineplots", 100000, 0.005);
+          //make_component_lineplots(world, "large_component_lineplots", "small_component_lineplots", 100000, 5);
+          make_component_logplots(world, "large_component_lineplots", "small_component_lineplots", 1000, -6, 1);
           times = end_timer(world);
           if(world.rank()==0) print("     ", times[0]);
      }

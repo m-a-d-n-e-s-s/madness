@@ -134,6 +134,8 @@ class DF {
 
           void orthogonalize_inplace(World& world);
 
+          //Lineplot the densities of the large and small component separately. only along x axis on log scale from 10^-startpnt to 10^endpnt with pts evenly spaced in log space
+          void make_component_logplots(World& world, const char* filename1, const char* filename2, int npt, int startpnt, int endpnt);
 
 };
 
