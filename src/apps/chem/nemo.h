@@ -334,7 +334,7 @@ public:
         f=0.5*(f+freproj);
     }
 
-private:
+protected:
 
 	/// the world
 	World& world;
@@ -405,6 +405,7 @@ private:
 	/// sum of square of coords at last solved geometry
 	mutable double coords_sum;
 
+protected:
 	/// a poisson solver
 	std::shared_ptr<real_convolution_3d> poisson;
 
@@ -426,6 +427,7 @@ private:
 //    	return ac.apply_potential(vxc,vhartree);
 //    }
 
+private:
 	/// polarizable continuum model
 	PCM pcm;
 	AC<3> ac;
