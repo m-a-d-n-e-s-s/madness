@@ -90,17 +90,17 @@ namespace madness{
                     FunctionDefaults<3>::set_cubic_cell(-L, L);
                      
                      
+                    complex_derivative_3d Dx(world,0);
+                    complex_derivative_3d Dy(world,1);
+                    complex_derivative_3d Dz(world,2);
+                    double myc = 137.0359895; //speed of light in atomic units
+                    std::complex<double> myi(0,1);
                     if(spinrestricted){ 
                          // Read in nonrelativistic ground state orbitals, changing them to Fcwfs
                          real_function_3d reader;
                          complex_function_3d complexreader;
                          Fcwf spinup(world);
                          Fcwf spindown(world);
-                         complex_derivative_3d Dx(world,0);
-                         complex_derivative_3d Dy(world,1);
-                         complex_derivative_3d Dz(world,2);
-                         double myc = 137.0359895; //speed of light in atomic units
-                         std::complex<double> myi(0,1);
                          for(unsigned int i = 0; i < num_occupied; i++){
                               input & reader;
                               complexreader = function_real2complex(reader);
@@ -139,6 +139,8 @@ namespace madness{
                     }
                     else{
 
+                         if(world.rank()==0) print("num_occupied is:" ,num_occupied);
+
                          // Read in alpha ground state orbitals
                          real_function_3d reader;
                          complex_function_3d complexreader;
@@ -146,7 +148,13 @@ namespace madness{
                          for(unsigned int i = 0; i < num_occupied; i++){
                               input & reader;
                               complexreader = function_real2complex(reader);
-                              fcwfreader = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
+                              fcwfreader[0] = complexreader;
+                              fcwfreader[1] = complex_factory_3d(world);
+                              fcwfreader[2] = (-myi/myc) * Dz(complexreader);
+                              fcwfreader[2].scale(0.5);
+                              fcwfreader[3] = (-myi/myc) * (Dx(complexreader) + myi * Dy(complexreader));
+                              fcwfreader[3].scale(0.5);
+                              fcwfreader.normalize();
                               orbitals.push_back(fcwfreader);
                          }
 
@@ -164,11 +172,19 @@ namespace madness{
                          std::vector<int> dummy4;
                          input & dummy4;
 
+                         if(world.rank()==0) print("made it here: ", num_betas);
+                         
                          //read in beta ground state orbitals
                          for(unsigned int i = 0; i < num_betas; i++){
                               input & reader;
                               complexreader = function_real2complex(reader);
-                              fcwfreader = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
+                              fcwfreader[0] = complex_factory_3d(world);
+                              fcwfreader[1] = complexreader;
+                              fcwfreader[2] = (-myi/myc) * (Dx(complexreader) - myi * Dy(complexreader));
+                              fcwfreader[2].scale(0.5);
+                              fcwfreader[3] = (myi/myc) * Dz(complexreader);
+                              fcwfreader[3].scale(0.5);
+                              fcwfreader.normalize();
                               orbitals.push_back(fcwfreader);
                          }
 
