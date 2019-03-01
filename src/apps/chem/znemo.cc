@@ -41,9 +41,9 @@ double Znemo::value() {
 
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> solvera(allocator(world,amo.size()));
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> solverb(allocator(world,bmo.size()));
-	solvera.set_maxsub(10);
+	solvera.set_maxsub(cparam.maxsub);
 	solvera.do_print=(param.printlevel()>2);
-	solverb.set_maxsub(10);
+	solverb.set_maxsub(cparam.maxsub);
 	solverb.do_print=(param.printlevel()>2);
 
 	// increase the magnetic field
@@ -102,16 +102,22 @@ double Znemo::value() {
 
 
 			Tensor<double_complex> ovlp=matrix_inner(world,amo,amo);
-			canonicalize(amo,Vnemoa,focka,ovlp);
+
+//			canonicalize(amo,Vnemoa,focka,ovlp);
 
 			if (have_beta()) {
 				Tensor<double_complex> ovlp=matrix_inner(world,bmo,bmo);
-				canonicalize(bmo,Vnemob,fockb,ovlp);
+//				canonicalize(bmo,Vnemob,fockb,ovlp);
 			}
 
 			// compute orbital and total energies
-			for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
-			for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
+			if (iter<2) {
+				if (param.printlevel()>2) print("using fock matrix for the orbital energies");
+				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
+				for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
+			} else {
+				if (param.printlevel()>2) print("keeping orbital update for the orbital energies");
+			}
 
 
 			if (world.rank()==0 and (param.printlevel()>1)) {
@@ -145,6 +151,15 @@ double Znemo::value() {
 			orthonormalize(amo);
 			truncate(world,amo);
 			orthonormalize(amo);
+			save(abs_square(amo[0]),"amo0_iter"+stringify(iter));
+			save(abs_square(amo[1]),"amo1_iter"+stringify(iter));
+			save(abs_square(resa[0]),"resa0_iter"+stringify(iter));
+			save(abs_square(resa[1]),"resa1_iter"+stringify(iter));
+			save(real(resa[0]),"re_resa0_iter"+stringify(iter));
+			save(real(resa[1]),"re_resa1_iter"+stringify(iter));
+			save(imag(resa[0]),"im_resa0_iter"+stringify(iter));
+			save(imag(resa[1]),"im_resa1_iter"+stringify(iter));
+
 
 			if (have_beta()) {
 				std::vector<complex_function_3d> resb=compute_residuals(Vnemob,bmo,beps);
