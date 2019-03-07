@@ -258,6 +258,26 @@ public:
 	void do_step_restriction(const std::vector<complex_function_3d>& mo,
 			std::vector<complex_function_3d>& mo_new) const;
 
+	/// rotate the KAIN subspace (cf. SCF.cc)
+	template<typename solverT>
+	void rotate_subspace(const Tensor<double_complex>& U, solverT& solver) const {
+		double trantol=FunctionDefaults<3>::get_thresh()*0.1;
+	    std::vector < std::vector<Function<double_complex, 3> > >&ulist = solver.get_ulist();
+	    std::vector < std::vector<Function<double_complex, 3> > >&rlist = solver.get_rlist();
+	    for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
+	    	std::vector<Function<double_complex, 3> >& v = ulist[iter];
+	    	std::vector<Function<double_complex, 3> >& r = rlist[iter];
+	    	std::vector<Function<double_complex, 3> > vnew = transform(world, v, U, trantol, false);
+	    	std::vector<Function<double_complex, 3> > rnew = transform(world, r, U, trantol, true);
+
+	        world.gop.fence();
+	        for (int i=0; i<v.size(); i++) {
+	            v[i] = vnew[i];
+	            r[i] = rnew[i];
+	        }
+	    }
+	    world.gop.fence();
+	}
 	double compute_energy(const std::vector<complex_function_3d>& amo, const potentials& apot,
 			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print) const;
 
@@ -307,6 +327,7 @@ public:
 
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,
+			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>& solver,
 			Tensor<double_complex> fock, Tensor<double_complex> ovlp) const;
 
 	void orthonormalize(std::vector<complex_function_3d>& amo) const;

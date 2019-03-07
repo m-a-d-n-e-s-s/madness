@@ -103,21 +103,21 @@ double Znemo::value() {
 
 			Tensor<double_complex> ovlp=matrix_inner(world,amo,amo);
 
-//			canonicalize(amo,Vnemoa,focka,ovlp);
+			canonicalize(amo,Vnemoa,solvera,focka,ovlp);
 
 			if (have_beta()) {
 				Tensor<double_complex> ovlp=matrix_inner(world,bmo,bmo);
-//				canonicalize(bmo,Vnemob,fockb,ovlp);
+				canonicalize(bmo,Vnemob,solverb,fockb,ovlp);
 			}
 
 			// compute orbital and total energies
-			if (iter<2) {
+//			if (iter<2) {
 				if (param.printlevel()>2) print("using fock matrix for the orbital energies");
 				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
 				for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
-			} else {
-				if (param.printlevel()>2) print("keeping orbital update for the orbital energies");
-			}
+//			} else {
+//				if (param.printlevel()>2) print("keeping orbital update for the orbital energies");
+//			}
 
 
 			if (world.rank()==0 and (param.printlevel()>1)) {
@@ -421,6 +421,7 @@ Znemo::compute_residuals(
 void
 Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 		std::vector<complex_function_3d>& vnemo,
+		XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>& solver,
 		Tensor<double_complex> fock, Tensor<double_complex> ovlp) const {
 
     Tensor<double_complex> U;
@@ -433,6 +434,7 @@ Znemo::canonicalize(std::vector<complex_function_3d>& amo,
     for (unsigned int i = 0; i < amo.size(); ++i) fock(i, i) = evals(i);
     amo = transform(world, amo, U);
     vnemo = transform(world, vnemo, U);
+    rotate_subspace(U,solver);
 
 }
 
