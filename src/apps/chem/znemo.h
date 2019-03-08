@@ -220,11 +220,12 @@ public:
 		return ((not cparam.spin_restricted) and (cparam.nbeta>0));
 	}
 
-	void save_orbitals(int iter) const {
-		for (int i=0; i<amo.size(); ++i) save(amo[i],"amo"+stringify(i)+"_iter"+stringify(iter));
-		for (int i=0; i<bmo.size(); ++i) save(bmo[i],"bmo"+stringify(i)+"_iter"+stringify(iter));
-		for (int i=0; i<amo.size(); ++i) save(madness::abssq(amo[i]),"absamo"+stringify(i)+"_iter"+stringify(iter));
-		for (int i=0; i<bmo.size(); ++i) save(madness::abssq(bmo[i]),"absbmo"+stringify(i)+"_iter"+stringify(iter));
+	void save_orbitals(std::string suffix) const {
+		suffix="_"+suffix;
+		for (int i=0; i<amo.size(); ++i) save(amo[i],"amo"+suffix);
+		for (int i=0; i<bmo.size(); ++i) save(bmo[i],"bmo"+suffix);
+		for (int i=0; i<amo.size(); ++i) save(madness::abssq(amo[i]),"absamo"+suffix);
+		for (int i=0; i<bmo.size(); ++i) save(madness::abssq(bmo[i]),"absbmo"+suffix);
 	}
 
 	/// read the guess orbitals from a previous nemo or moldft calculation

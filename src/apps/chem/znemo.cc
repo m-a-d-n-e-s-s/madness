@@ -131,6 +131,7 @@ double Znemo::value() {
 
 			if (std::abs(oldenergy-energy)<cparam.econv and (sqrt(na*na+nb*nb)<dconv)) {
 				print("energy converged");
+				save_orbitals("converged");
 				converged=true;
 			}
 			if (converged) break;
@@ -151,14 +152,14 @@ double Znemo::value() {
 			orthonormalize(amo);
 			truncate(world,amo);
 			orthonormalize(amo);
-			save(abs_square(amo[0]),"amo0_iter"+stringify(iter));
-			save(abs_square(amo[1]),"amo1_iter"+stringify(iter));
-			save(abs_square(resa[0]),"resa0_iter"+stringify(iter));
-			save(abs_square(resa[1]),"resa1_iter"+stringify(iter));
-			save(real(resa[0]),"re_resa0_iter"+stringify(iter));
-			save(real(resa[1]),"re_resa1_iter"+stringify(iter));
-			save(imag(resa[0]),"im_resa0_iter"+stringify(iter));
-			save(imag(resa[1]),"im_resa1_iter"+stringify(iter));
+//			save(abs_square(amo[0]),"amo0_iter"+stringify(iter));
+//			save(abs_square(amo[1]),"amo1_iter"+stringify(iter));
+//			save(abs_square(resa[0]),"resa0_iter"+stringify(iter));
+//			save(abs_square(resa[1]),"resa1_iter"+stringify(iter));
+//			save(real(resa[0]),"re_resa0_iter"+stringify(iter));
+//			save(real(resa[1]),"re_resa1_iter"+stringify(iter));
+//			save(imag(resa[0]),"im_resa0_iter"+stringify(iter));
+//			save(imag(resa[1]),"im_resa1_iter"+stringify(iter));
 
 
 			if (have_beta()) {
@@ -195,7 +196,7 @@ double Znemo::value() {
 		}
 
 	}
-	save_orbitals(cparam.maxiter);
+	save_orbitals("final");
 	save_orbitals();
 	return energy;
 }
