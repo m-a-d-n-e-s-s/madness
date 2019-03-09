@@ -84,7 +84,7 @@ double Znemo::value() {
 			focka=T(amo,amo) + compute_vmat(amo,apot);
 
 			if (have_beta()) {
-				potentials bpot=compute_potentials(bmo, density, bmo);
+				bpot=compute_potentials(bmo, density, bmo);
 				scale(world,bpot.spin_zeeman_mo,-1.0);
 				Vnemob=bpot.vnuc_mo+bpot.lz_mo+bpot.diamagnetic_mo+bpot.spin_zeeman_mo-bpot.K_mo+bpot.J_mo;
 				truncate(world,Vnemob,thresh*0.1);
@@ -110,14 +110,9 @@ double Znemo::value() {
 				canonicalize(bmo,Vnemob,solverb,fockb,ovlp);
 			}
 
-			// compute orbital and total energies
-//			if (iter<2) {
-				if (param.printlevel()>2) print("using fock matrix for the orbital energies");
-				for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
-				for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
-//			} else {
-//				if (param.printlevel()>2) print("keeping orbital update for the orbital energies");
-//			}
+			if (param.printlevel()>2) print("using fock matrix for the orbital energies");
+			for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
+			for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
 
 
 			if (world.rank()==0 and (param.printlevel()>1)) {
@@ -152,14 +147,6 @@ double Znemo::value() {
 			orthonormalize(amo);
 			truncate(world,amo);
 			orthonormalize(amo);
-//			save(abs_square(amo[0]),"amo0_iter"+stringify(iter));
-//			save(abs_square(amo[1]),"amo1_iter"+stringify(iter));
-//			save(abs_square(resa[0]),"resa0_iter"+stringify(iter));
-//			save(abs_square(resa[1]),"resa1_iter"+stringify(iter));
-//			save(real(resa[0]),"re_resa0_iter"+stringify(iter));
-//			save(real(resa[1]),"re_resa1_iter"+stringify(iter));
-//			save(imag(resa[0]),"im_resa0_iter"+stringify(iter));
-//			save(imag(resa[1]),"im_resa1_iter"+stringify(iter));
 
 
 			if (have_beta()) {
@@ -186,6 +173,7 @@ double Znemo::value() {
 
 		potentials apot=compute_potentials(amo,density,amo);
 		potentials bpot=compute_potentials(bmo,density,bmo);
+		scale(world,bpot.spin_zeeman_mo,-1.0);
 		double energy=compute_energy(amo,apot,bmo,bpot,true);
 
 
@@ -201,23 +189,25 @@ double Znemo::value() {
 	return energy;
 }
 
-double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const  Znemo::potentials& apot,
-		const std::vector<complex_function_3d>& bmo, const  Znemo::potentials& bpot, const bool do_print) const {
+double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
+		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
 
-	double_complex kinetic=0.0;
+    double fac= cparam.spin_restricted ? 2.0 : 1.0;
+
+    double_complex kinetic=0.0;
     for (int axis = 0; axis < 3; axis++) {
         complex_derivative_3d D = free_space_derivative<double_complex, 3>(world, axis);
         const std::vector<complex_function_3d> damo = apply(world, D, amo);
         const std::vector<complex_function_3d> dbmo = apply(world, D, bmo);
-        kinetic += 0.5 * (inner(world, damo, damo)).sum() + (inner(world, dbmo, dbmo)).sum();
+        kinetic += fac* 0.5 * (inner(world, damo, damo).sum() + inner(world, dbmo, dbmo).sum());
     }
 
-    double_complex nuclear_potential=(inner(world,amo,apot.vnuc_mo)).sum()+(inner(world,bmo,bpot.vnuc_mo)).sum();
-    double_complex diamagnetic=(inner(world,amo,apot.diamagnetic_mo)).sum()+(inner(world,bmo,bpot.diamagnetic_mo)).sum();
-    double_complex lz=(inner(world,amo,apot.lz_mo)).sum()+(inner(world,bmo,bpot.lz_mo)).sum();
-    double_complex spin_zeeman=(inner(world,amo,apot.spin_zeeman_mo)).sum()+(inner(world,bmo,bpot.spin_zeeman_mo)).sum();
-    double_complex coulomb=0.5*(inner(world,amo,apot.J_mo)).sum()+(inner(world,bmo,bpot.J_mo)).sum();
-    double_complex exchange=0.5*(inner(world,amo,apot.K_mo)).sum()+(inner(world,bmo,bpot.K_mo)).sum();
+    double_complex nuclear_potential=fac*(inner(world,amo,apot.vnuc_mo).sum()+inner(world,bmo,bpot.vnuc_mo).sum());
+    double_complex diamagnetic=fac*(inner(world,amo,apot.diamagnetic_mo).sum()+inner(world,bmo,bpot.diamagnetic_mo).sum());
+    double_complex lz=fac*(inner(world,amo,apot.lz_mo).sum()+inner(world,bmo,bpot.lz_mo).sum());
+    double_complex spin_zeeman=fac*(inner(world,amo,apot.spin_zeeman_mo).sum()+inner(world,bmo,bpot.spin_zeeman_mo).sum());
+    double_complex coulomb=fac*0.5*(inner(world,amo,apot.J_mo).sum()+inner(world,bmo,bpot.J_mo).sum());
+    double_complex exchange=fac*0.5*(inner(world,amo,apot.K_mo).sum()+inner(world,bmo,bpot.K_mo).sum());
 
     double_complex energy=kinetic + nuclear_potential + molecule.nuclear_repulsion_energy() +
     		diamagnetic + lz + spin_zeeman + coulomb - exchange;
