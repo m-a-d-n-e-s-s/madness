@@ -666,6 +666,9 @@ public:
     	// iterations until energy is self-consistent:
     	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
     		// save_function(ocep_nemo, "ocep_nemo_it_"+stringify(iter));
+    		for (int i = 0; i < ocep_nemo.size(); i++) {
+    			save(ocep_nemo[i], "ocep_it_"+stringify(iter)+"_nemo_"+stringify(i));
+    		}
     		vecfuncT R2ocep_nemo = R_square*ocep_nemo;
     		truncate(world, R2ocep_nemo);
 
@@ -675,7 +678,7 @@ public:
     		// compute OCEP potential from current nemos and eigenvalues
     		// like Kohut, 2014, equation (26) with correction = IHF - IKS
     		// only in every 3rd iteration
-    		if ((iter % 3 == 0) and (iter > 2)) {
+    		if ((iter % 5 == 0) and (iter > 0)) {
     			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
     			Vocep = Vs + corr;
     			save(corr, "OCEP_correction_it_"+stringify(iter));
