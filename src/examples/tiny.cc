@@ -250,8 +250,8 @@ int main(int argc, char** argv) {
 		plot_plane(world,vf,filenames[0]);
 
 		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
-		coord_3d start(0.0); start[0]=-width;
-		coord_3d end(0.0); end[0]=width;
+		coord_3d start(0.0); start[2]=-width;
+		coord_3d end(0.0); end[2]=width;
 		plot_line(("line_"+filenames[0]).c_str(),10000,start,end,vf[0]);
 
 		// plot the Gaussian cube file

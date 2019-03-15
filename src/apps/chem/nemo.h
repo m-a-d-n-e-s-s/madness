@@ -484,6 +484,7 @@ private:
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 
+protected:
 	/// normalize the nemos
 	void normalize(vecfuncT& nemo) const;
 
@@ -492,6 +493,7 @@ private:
     /// @param[in,out]	nemo	the vectors to be orthonormalized
     void orthonormalize(vecfuncT& nemo) const;
 
+private:
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;
 
@@ -532,7 +534,7 @@ private:
 
 	/// localize the nemo orbitals
     vecfuncT localize(const vecfuncT& nemo, const double dconv, const bool randomize) const;
-
+protected:
 	/// return the threshold for vanishing elements in orbital rotations
     double trantol() const {
         return calc->vtol / std::min(30.0, double(get_calc()->amo.size()));
@@ -598,7 +600,7 @@ void Nemo::save_function(const std::vector<Function<T,NDIM> >& f, const std::str
     for (const Function<T,NDIM>& ff:f)  ar & ff;
 }
 
-/// save a function
+/// load a function
 template<typename T, size_t NDIM>
 void Nemo::load_function(std::vector<Function<T,NDIM> >& f, const std::string name) const {
     if (world.rank()==0) print("loading vector of functions",name);
