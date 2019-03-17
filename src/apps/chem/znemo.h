@@ -212,6 +212,11 @@ public:
 	/// compute the molecular energy
 	double value();
 
+	/// compute the current density
+	std::vector<real_function_3d> compute_current_density(
+			const std::vector<complex_function_3d>& alpha_mo,
+			const std::vector<complex_function_3d>& beta_mo) const;
+
 	/// solve the SCF iterations
 	void solve_SCF();
 
@@ -284,6 +289,13 @@ public:
 
 	/// compute the action of the Lz =i r x del operator on rhs
 	std::vector<complex_function_3d> Lz(const std::vector<complex_function_3d>& rhs) const;
+
+	/// compute the action of the Lz =i r x del operator on rhs
+	complex_function_3d Lz(const complex_function_3d& rhs) const {
+		std::vector<complex_function_3d> vrhs(1,rhs);
+		return Lz(vrhs)[0];
+	}
+
 
 	/// compute the diamagnetic local potential (B is in z direction -> dia = x^2 + y^2
 	std::vector<complex_function_3d> diamagnetic(const std::vector<complex_function_3d>& rhs) const {
@@ -373,6 +385,15 @@ protected:
 	real_function_3d diamagnetic_boxed;
 
 	std::shared_ptr<real_convolution_3d> coulop;
+
+	static double_complex p_plus(const coord_3d& xyz) {
+		double r=xyz.normf();
+		double theta=acos(xyz[2]/r);
+		double phi=atan2(xyz[1],xyz[0]);
+		return r*exp(-r/2.0)*sin(theta)*exp(double_complex(0.0,1.0)*phi);
+	}
+
+	void test_compute_current_density() const;
 
 };
 

@@ -186,6 +186,15 @@ double Znemo::value() {
 	}
 	save_orbitals("final");
 	save_orbitals();
+
+//	test_compute_current_density();
+	std::vector<real_function_3d> j=compute_current_density(amo,bmo);
+
+	save(j[0],"j0");
+	save(j[1],"j1");
+	save(j[2],"j2");
+
+
 	return energy;
 }
 
@@ -256,6 +265,92 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
 
 	return real(energy);
 }
+
+/// following Lazeretti, J. Mol. Struct, 313 (1994)
+std::vector<real_function_3d> Znemo::compute_current_density(
+		const std::vector<complex_function_3d>& alpha_mo,
+		const std::vector<complex_function_3d>& beta_mo) const {
+
+	// compute vec r
+	std::vector<real_function_3d> r(3);
+    r[0]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[0];});
+    r[1]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[1];});
+    r[2]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[2];});
+    real_function_3d one=real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
+
+	// the vector potential A=1/2 B x r
+	std::vector<real_function_3d> Bvec=zero_functions_compressed<double,3>(world,3);
+	Bvec[2]=B*one;
+	reconstruct(world,Bvec);
+	reconstruct(world,r);
+	std::vector<real_function_3d> A=0.5*cross(Bvec,r);
+
+	// test consistency
+	Bvec=rot(A);
+	double bnorm2=(Bvec[2]-B*one).norm2();
+	MADNESS_ASSERT(bnorm2<1.e-8);
+
+	// compute density and spin density
+	real_function_3d adens=real_factory_3d(world);
+	real_function_3d bdens=real_factory_3d(world);
+	for (auto& mo : alpha_mo) adens+=abs_square(mo);
+	for (auto& mo : beta_mo) bdens+=abs_square(mo);
+	real_function_3d density=adens+bdens;
+	real_function_3d spin_density=adens-bdens;
+
+//	SeparatedConvolution<double,3> smooth=SmoothingOperator3D(world,1.e-3);
+//	spin_density=smooth(spin_density);
+
+	std::vector<real_function_3d> vspin_density=zero_functions_compressed<double,3>(world,3);;
+	vspin_density[2]=spin_density;
+
+
+	// compute first contribution to current density from orbitals:
+	// psi^* p psi = i psi^* del psi
+	std::vector<complex_function_3d> j=zero_functions_compressed<double_complex,3>(world,3);
+	for (auto& mo : alpha_mo) j+=double_complex(0.0,1.0)*(conj(mo)*grad(mo));
+	for (auto& mo : beta_mo) j+=double_complex(0.0,1.0)*(conj(mo)*grad(mo));
+
+	// compute density contribution and spin contribution
+	j-=convert<double,double_complex,3>(world,A*density);
+	j+=convert<double,double_complex,3>(world,0.5*rot(vspin_density));
+
+	std::vector<real_function_3d>  realj=real(j);
+
+//	std::vector<double> n1=norm2s(world,real(j));
+//	std::vector<double> n2=norm2s(world,imag(j));
+//	print("norm(re(j))",n1);
+//	print("norm(im(j))",n2);
+
+	// sanity check
+
+	real_function_3d null=div(realj);
+	double n3=null.norm2();
+	print("div(j)",n3);
+//	MADNESS_ASSERT(n3<FunctionDefaults<3>::get_thresh());
+
+
+	return realj;
+}
+
+
+void Znemo::test_compute_current_density() const {
+
+	complex_function_3d pp=complex_factory_3d(world).f(p_plus);
+	double norm=pp.norm2();
+	pp.scale(1/norm);
+	double_complex l=inner(amo[0],Lz(amo[0]));
+	print("<p+|Lz|p+>",l);
+
+//	std::vector<complex_function_3d> vpp(1,amo);
+	std::vector<real_function_3d> j=compute_current_density(amo,std::vector<complex_function_3d>());
+
+	save(j[0],"j0");
+	save(j[1],"j1");
+	save(j[2],"j2");
+
+}
+
 
 
 void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,

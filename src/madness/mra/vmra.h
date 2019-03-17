@@ -1328,6 +1328,27 @@ namespace madness {
         return rhs;
     }
 
+
+    /// return the real parts of the vector's function (if complex)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<typename Tensor<T>::scalar_type,NDIM> >
+    real(const std::vector<Function<T,NDIM> >& v, bool fence=true) {
+    	std::vector<Function<typename Tensor<T>::scalar_type,NDIM> > result(v.size());
+    	for (std::size_t i=0; i<v.size(); ++i) result[i]=real(v[i],false);
+        if (fence and result.size()>0) result[0].world().gop.fence();
+        return result;
+    }
+
+    /// return the imaginary parts of the vector's function (if complex)
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<typename Tensor<T>::scalar_type,NDIM> >
+    imag(const std::vector<Function<T,NDIM> >& v, bool fence=true) {
+    	std::vector<Function<typename Tensor<T>::scalar_type,NDIM> > result(v.size());
+    	for (std::size_t i=0; i<v.size(); ++i) result[i]=imag(v[i],false);
+        if (fence and result.size()>0) result[0].world().gop.fence();
+        return result;
+    }
+
     /// shorthand gradient operator
 
     /// returns the differentiated function f in all NDIM directions
@@ -1377,6 +1398,85 @@ namespace madness {
         world.gop.fence();
         return sum(world,result,fence);
     }
+
+    /// shorthand rot operator
+
+    /// returns the cross product of nabla with a vector f
+    /// @param[in]  f       the vector of functions on which the rot operator works on
+    /// @param[in]  refine  refinement before diff'ing makes the result more accurate
+    /// @param[in]  fence   fence after completion; currently always fences
+    /// @return     the vector \frac{\partial}{\partial x_i} f
+    /// TODO: add this to operator fusion
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > rot(const std::vector<Function<T,NDIM> >& v,
+            bool do_refine=false, bool fence=true) {
+
+        MADNESS_ASSERT(v.size()==3);
+        World& world=v[0].world();
+        reconstruct(world,v);
+        if (do_refine) refine(world,v);      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        std::vector<Function<T,NDIM> > d(NDIM),dd(NDIM);
+        d[0]=apply(*(grad[1]),v[2],false);	// Dy z
+        d[1]=apply(*(grad[2]),v[0],false);	// Dz x
+        d[2]=apply(*(grad[0]),v[1],false);	// Dx y
+        dd[0]=apply(*(grad[2]),v[1],false);	// Dz y
+        dd[1]=apply(*(grad[0]),v[2],false);	// Dx z
+        dd[2]=apply(*(grad[1]),v[0],false);	// Dy x
+        world.gop.fence();
+
+        d[0].gaxpy(1.0,dd[0],-1.0,false);
+        d[1].gaxpy(1.0,dd[1],-1.0,false);
+        d[2].gaxpy(1.0,dd[2],-1.0,false);
+
+        world.gop.fence();
+        return d;
+    }
+
+    /// shorthand cross operator
+
+    /// returns the cross product of vectors f and g
+    /// @param[in]  f       the vector of functions on which the rot operator works on
+    /// @param[in]  g       the vector of functions on which the rot operator works on
+    /// @param[in]  fence   fence after completion; currently always fences
+    /// @return     the vector \frac{\partial}{\partial x_i} f
+    /// TODO: add this to operator fusion
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > cross(const std::vector<Function<T,NDIM> >& f,
+    		const std::vector<Function<R,NDIM> >& g,
+            bool do_refine=false, bool fence=true) {
+
+        MADNESS_ASSERT(f.size()==3);
+        MADNESS_ASSERT(g.size()==3);
+        World& world=f[0].world();
+        reconstruct(world,f,false);
+        reconstruct(world,g);
+
+        std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > d(f.size()),dd(f.size());
+
+        d[0]=mul(f[1],g[2],false);
+        d[1]=mul(f[2],g[0],false);
+        d[2]=mul(f[0],g[1],false);
+
+        dd[0]=mul(f[2],g[1],false);
+        dd[1]=mul(f[0],g[2],false);
+        dd[2]=mul(f[1],g[0],false);
+        world.gop.fence();
+
+        compress(world,d,false);
+        compress(world,dd);
+
+        d[0].gaxpy(1.0,dd[0],-1.0,false);
+        d[1].gaxpy(1.0,dd[1],-1.0,false);
+        d[2].gaxpy(1.0,dd[2],-1.0,false);
+
+        world.gop.fence();
+        return d;
+    }
+
 
     /// load a vector of functions
     template<typename T, size_t NDIM>
