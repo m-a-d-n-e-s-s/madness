@@ -212,6 +212,9 @@ public:
 	/// compute the molecular energy
 	double value();
 
+	// analyse the results only
+	void analyze() const;
+
 	/// compute the current density
 	std::vector<real_function_3d> compute_current_density(
 			const std::vector<complex_function_3d>& alpha_mo,

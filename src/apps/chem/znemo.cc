@@ -187,16 +187,29 @@ double Znemo::value() {
 	save_orbitals("final");
 	save_orbitals();
 
-//	test_compute_current_density();
-	std::vector<real_function_3d> j=compute_current_density(amo,bmo);
+	analyze();
 
+	return energy;
+}
+
+void Znemo::analyze() const {
+
+	// compute the current density
+	std::vector<real_function_3d> j=compute_current_density(amo,bmo);
 	save(j[0],"j0");
 	save(j[1],"j1");
 	save(j[2],"j2");
 
+	// compute the expectation values of the Lz operator
+	std::vector<complex_function_3d> lzamo=Lz(amo);
+	std::vector<complex_function_3d> lzbmo=Lz(bmo);
+	Tensor<double_complex> lza_exp=inner(world,amo,lzamo);
+	Tensor<double_complex> lzb_exp=inner(world,bmo,lzbmo);
+	print("< amo | lz | amo >",lza_exp);
+	print("< bmo | lz | bmo >",lzb_exp);
 
-	return energy;
 }
+
 
 double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
 		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
