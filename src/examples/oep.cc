@@ -673,7 +673,7 @@ public:
     		truncate(world, R2ocep_nemo);
 
     		real_function_3d rho = 2.0*R_square*dot(world, ocep_nemo, ocep_nemo);  // 2 -> closed shell
-    		save(rho, "density_it_"+stringify(iter));
+    		//save(rho, "density_it_"+stringify(iter));
 
     		// compute OCEP potential from current nemos and eigenvalues
     		// like Kohut, 2014, equation (26) with correction = IHF - IKS
@@ -683,8 +683,8 @@ public:
     			printf("\n\n     *** updating OCEP potential ***\n\n");
     			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
     			Vocep = Vs + corr;
-    			save(corr, "OCEP_correction_it_"+stringify(iter));
-    			save(Vocep, "OCEP_potential_it_"+stringify(iter));
+    			//save(corr, "OCEP_correction_it_"+stringify(iter));
+    			//save(Vocep, "OCEP_potential_it_"+stringify(iter));
     			converged = false; // delete if you want to undo the convergence test
     		}
     		//save(Vocep, "OCEP_potential_it_"+stringify(iter));
