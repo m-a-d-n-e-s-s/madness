@@ -667,7 +667,7 @@ public:
     	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
     		// save_function(ocep_nemo, "ocep_nemo_it_"+stringify(iter));
     		for (int i = 0; i < ocep_nemo.size(); i++) {
-    			save(ocep_nemo[i], "ocep_it_"+stringify(iter)+"_nemo_"+stringify(i));
+    			//save(ocep_nemo[i], "ocep_it_"+stringify(iter)+"_nemo_"+stringify(i));
     		}
     		vecfuncT R2ocep_nemo = R_square*ocep_nemo;
     		truncate(world, R2ocep_nemo);
@@ -678,12 +678,16 @@ public:
     		// compute OCEP potential from current nemos and eigenvalues
     		// like Kohut, 2014, equation (26) with correction = IHF - IKS
     		// only in every 3rd iteration
-    		if ((iter % 5 == 0) and (iter > 0)) {
+    		//if ((iter % 5 == 0) and (iter > 0)) {
+    		if (converged) {
+    			printf("\n\n     *** updating OCEP potential ***\n\n");
     			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
     			Vocep = Vs + corr;
     			save(corr, "OCEP_correction_it_"+stringify(iter));
+    			save(Vocep, "OCEP_potential_it_"+stringify(iter));
+    			converged = false; // delete if you want to undo the convergence test
     		}
-    		save(Vocep, "OCEP_potential_it_"+stringify(iter));
+    		//save(Vocep, "OCEP_potential_it_"+stringify(iter));
 
     		// compute parts of the Fock matrix J, Unuc and Vs
     		compute_ocep_nemo_potentials(ocep_nemo, Jnemo, Unemo, Vocep, OCEPnemo);
@@ -787,7 +791,7 @@ public:
     			print("current residual norm ", norm, "\n");
     		}
 
-    		if (converged) break;
+    		// if (converged) break;
 
     	}
 
