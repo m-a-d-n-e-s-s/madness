@@ -125,8 +125,19 @@ struct logme{
 class OEP : public Nemo {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 
+
+private:
+	bool IsAlltrue(std::vector<bool> vec) {
+		for (int i = 0; i < vec.size(); i++) {
+			if (!vec[i]) return false;
+		}
+		return true;
+	}
+
+
 public:
     OEP(World& world, const std::shared_ptr<SCF> calc) : Nemo(world, calc) {}
+
 
     void solve_oaep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
@@ -641,7 +652,8 @@ public:
     	// same for orbital energies (eigenvalues) ocep_eigvals which is oep->get_calc()->aeps
 
     	double energy = 0.0;
-    	bool converged = false;
+    	bool update_converged = false; // checks micro iterations and if true, Vocep gets updated
+    	bool potential_converged = false; // checks macro iterations for convergence of orbital energies
 
 		// compute OAEP Slater potential Vs and average IHF from HF orbitals and eigenvalues
     	const real_function_3d Vs = compute_slater_potential(HF_nemo);
@@ -677,15 +689,13 @@ public:
 
     		// compute OCEP potential from current nemos and eigenvalues
     		// like Kohut, 2014, equation (26) with correction = IHF - IKS
-    		// only in every 3rd iteration
-    		//if ((iter % 5 == 0) and (iter > 0)) {
-    		if (converged) {
+    		// is computed (= updated) only if calculation was converged for smooth convergence
+    		if (update_converged) {
     			printf("\n\n     *** updating OCEP potential ***\n\n");
     			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
     			Vocep = Vs + corr;
     			//save(corr, "OCEP_correction_it_"+stringify(iter));
     			//save(Vocep, "OCEP_potential_it_"+stringify(iter));
-    			converged = false; // delete if you want to undo the convergence test
     		}
     		//save(Vocep, "OCEP_potential_it_"+stringify(iter));
 
@@ -713,6 +723,8 @@ public:
     		// there should be no difference between these two methods, because energy is only needed
     		// for checking convergence threshold; but: Evir should be much faster because K takes time
 
+    		tensorT old_eigvals = copy(ocep_eigvals);
+
             // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
     		// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
             tensorT X; // must be formed from R*nemos but can then be used for nemos also
@@ -737,6 +749,20 @@ public:
     			if (world.rank() == 0) print("shifting orbitals by ",
     					calc->param.orbitalshift, " to lower energies");
     			ocep_eigvals -= calc->param.orbitalshift;
+    		}
+
+    		potential_converged = false; // to ensure convergence is checked again in any case
+    		// evaluate convergence of orbital energies if Vocep was updated in this iteration (see above)
+    		if (update_converged) {
+    			// build vector of convergence information of every orbital energy
+    			std::vector<bool> conv(ocep_eigvals.size());
+    			for (int i = 0; i < ocep_eigvals.size(); i++) {
+    				if (fabs(ocep_eigvals(i) - old_eigvals(i)) < calc->param.dconv) conv[i] = true;
+    				else conv[i] = false;
+    			}
+
+    			if (IsAlltrue(conv)) potential_converged = true; // converged if all are converged
+    			update_converged = false; // reset micro iterations so it is checked again at the end
     		}
 
     		// print orbital energies:
@@ -782,7 +808,7 @@ public:
 
     		// evaluate convergence via norm error and energy difference
     		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < calc->param.econv))
-    			converged = true;
+    			update_converged = true;
 
     		if (calc->param.save) calc->save_mos(world);
 
@@ -791,11 +817,11 @@ public:
     			print("current residual norm ", norm, "\n");
     		}
 
-    		// if (converged) break;
+    		if (update_converged and potential_converged) break;
 
     	}
 
-    	if (converged) {
+    	if (update_converged and potential_converged) {
     		if (world.rank() == 0) print("\nIterations converged\n");
     	}
     	else {
@@ -809,6 +835,7 @@ public:
     	printf("     done\n");
     	printf("\n  computing final V_OCEP with converged OCEP orbitals and eigenvalues\n");
     	Vocep = Vs + compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
+    	save(Vocep, "OCEP_potential_final");
     	printf("     done\n");
 
     	print("\nFINAL OCEP ENERGY Evir:");
@@ -873,9 +900,13 @@ public:
     	real_function_3d rho = 2.0*R_square*dot(world, nemoKS, nemoKS); // 2 because closed shell
     	double homo_diff = eigvalsKS(eigvalsKS.size() - 1) - eigvalsHF(eigvalsHF.size() - 1);
 
+    	// munge potential for long-range asymptotics
     	real_function_3d correction = binary_op(IHF - IKS, rho, binary_munge(homo_diff, 1.0e-5));
+
+    	// shift potential (KS) so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
+    	real_function_3d correction_shifted = correction - homo_diff; // homo_diff = HOMO_KS - HOMO_HF
     	// save(correction, "OCEP_correction");
-    	return correction;
+    	return correction_shifted;
 
     }
 
